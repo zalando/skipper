@@ -41,7 +41,7 @@ for `debug` - the following modules have been preloaded and can be used with e.g
  with something different than `&http.Client{}`
 * `url`  [gluaurl](https://github.com/cjoudrey/gluaurl)
 * `json` [gopher-json](https://github.com/layeh/gopher-json)
-* `base64` [lua base64](./base64/)
+* `base64` [lua base64](https://github.com/zalando/skipper/tree/master/script/base64)
 
 For differences between the standard modules and the gopher-lua implementation
 check the [gopher-lua documentation](https://github.com/yuin/gopher-lua#differences-between-lua-and-gopherlua).
@@ -73,6 +73,7 @@ Header names are normalized by the `net/http` go module
 [like usual](https://godoc.org/net/http#CanonicalHeaderKey). Setting a
 header is done by assigning to the headers map. Setting a header to `nil` or
 an empty string deletes the header - setting to `nil` is preferred.
+
 ```lua
 ctx.request.header["user-agent"] = "skipper.lua/0.0.1"
 ctx.request.header["Authorization"] = nil -- delete authorization header
@@ -83,8 +84,10 @@ Response headers work the same way by accessing / assigning to
 
 ## Other request fields
 
-* `backend_url` - (read only) returns the backend url specified in the route or an empty value in case it's a shunt or loopback
-* `outgoing_host` - (read/write) the host that will be set for the outgoing proxy request as the 'Host' header. 
+* `backend_url` - (read only) returns the backend url specified in the route
+  or an empty value in case it's a shunt or loopback
+* `outgoing_host` - (read/write) the host that will be set for the outgoing
+  proxy request as the 'Host' header.
 * `remote_addr` - (read only) the remote host, usually IP:port
 * `content_length` - (read only) content length
 * `proto` - (read only) something like "HTTP/1.1"
@@ -92,8 +95,14 @@ Response headers work the same way by accessing / assigning to
 * `url` - (read/write) request URL as string
 
 ## Serving requests from lua
-* `serve(table)` - table needs `status_code` (number) and `header` (table) keys - more to come :), see redirect example
- below, TODO: add `body`
+Requests can be served with `ctx.serve(table)`, you must return after this
+call. Possible keys for the table:
+  * `status_code` (number) - required (but currently not enforced)
+  * `header` (table)
+  * `body` (string)
+
+See also [redirect](#redirect) and [internal server error](#internal-server-error)
+examples below
 
 ## StateBag
 
@@ -136,18 +145,18 @@ local http = require("http")
 function request(ctx, params)
     token = string.gsub(ctx.request.header["Authorization"], "^%s*[Bb]earer%s+", "", 1)
     if token == "" then
-        ctx.serve({status_code=401})
+        ctx.serve({status_code=401, body="Missing Token"})
         return
     end
-    -- do not use in production, no circuit breaker ...
+
     res, err = http.get("https://auth.example.com/oauth2/tokeninfo?access_token="..token)
     if err ~= nil then
         print("Failed to get tokeninfo: " .. err)
-        ctx.serve({status_code=401})
+        ctx.serve({status_code=401, body="Failed to validate token: "..err})
         return
     end
     if res.status_code ~= 200 then
-        ctx.serve({status_code=401})
+        ctx.serve({status_code=401, body="Invalid token"})
         return
     end
 end
@@ -170,6 +179,19 @@ function request(ctx, params)
             location="http://www.example.org/",
         },
     })
+end
+```
+
+## internal server error
+```lua
+function request(ctx, params)
+    -- let 10% of all requests fail with 500
+    if math.random() < 0.1 then
+        ctx.serve({
+            status_code=500,
+            body="Internal Server Error.\n",
+        })
+    end
 end
 ```
 
