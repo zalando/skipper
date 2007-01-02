@@ -367,7 +367,7 @@ func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (rout
 			routes = append(routes, route)
 		} else {
 			invalidDefs = append(invalidDefs, def)
-			o.Log.Error(err)
+			o.Log.Errorf("failed to process route (%v): %v", def.Id, err)
 		}
 	}
 	return
