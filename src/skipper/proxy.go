@@ -11,7 +11,9 @@ type flusherWriter interface {
     io.Writer
 }
 
-type proxy struct {}
+type proxy struct {
+    etcd *etcdClient
+}
 
 func copyHeader(to, from http.Header) {
     for k, v := range from {
@@ -53,7 +55,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         log.Println(err)
     }
 
-    rr, err := http.NewRequest("GET", "http://localhost:9999/slow", r.Body)
+    settings := <-p.etcd.settings
+
+    rr, err := http.NewRequest("GET", settings.url(), r.Body)
     if err != nil {
         hterr(err)
     }

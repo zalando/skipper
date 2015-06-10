@@ -4,5 +4,7 @@ import "log"
 import "net/http"
 
 func main() {
-    log.Fatal(http.ListenAndServe(":9090", &proxy{}))
+    ec := makeEtcdClient()
+    ec.start()
+    log.Fatal(http.ListenAndServe(":9090", &proxy{ec}))
 }
