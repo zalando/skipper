@@ -42,6 +42,10 @@ type settingsStruct struct {
 	middleware []middleware
 }
 
+type etcdc interface {
+	getSettings() <-chan settings
+}
+
 type etcdClient struct {
 	settings chan settings
 }

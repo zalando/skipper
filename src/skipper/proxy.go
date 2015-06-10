@@ -14,8 +14,8 @@ type flusherWriter interface {
 }
 
 type proxy struct {
-	etcd *etcdClient
-    htclient *http.Client
+	etcd     etcdc
+	htclient *http.Client
 }
 
 func proxyError(m string) error {
@@ -38,21 +38,21 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	for {
 		b := make([]byte, proxyBufferSize)
 
-		l, err := from.Read(b)
-		if err != nil {
-			return err
+		l, rerr := from.Read(b)
+		if rerr != nil && rerr != io.EOF {
+			return rerr
 		}
 
-		_, err = to.Write(b[:l])
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-
-			return err
+		_, werr := to.Write(b[:l])
+		if werr != nil {
+			return werr
 		}
 
 		to.Flush()
+
+		if rerr == io.EOF {
+			return nil
+		}
 	}
 }
 
@@ -71,6 +71,10 @@ func mapRequest(r *http.Request, s settings) (*http.Request, error) {
 	}
 
 	return http.NewRequest(r.Method, b.servers[0].url, r.Body)
+}
+
+func makeProxy(ec etcdc) *proxy {
+	return &proxy{ec, &http.Client{}}
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
