@@ -14,8 +14,8 @@ type flusherWriter interface {
 }
 
 type proxy struct {
-	etcd     etcdc
-	htclient *http.Client
+	etcd etcdc
+	tr   *http.Transport
 }
 
 func proxyError(m string) error {
@@ -74,7 +74,7 @@ func mapRequest(r *http.Request, s settings) (*http.Request, error) {
 }
 
 func makeProxy(ec etcdc) *proxy {
-	return &proxy{ec, &http.Client{}}
+	return &proxy{ec, &http.Transport{}}
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +91,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	rr.Header = cloneHeader(r.Header)
 
-	rs, err := p.htclient.Do(rr)
+	rs, err := p.tr.RoundTrip(rr)
 	if err != nil {
 		hterr(err)
 		return
