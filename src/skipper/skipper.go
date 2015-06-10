@@ -2,9 +2,11 @@ package main
 
 import "log"
 import "net/http"
+import "skipper/etcd"
+import "skipper/proxy"
 
 func main() {
-	ec := makeEtcdClient()
-	ec.start()
-	log.Fatal(http.ListenAndServe(":9090", makeProxy(ec)))
+	ec := etcd.MakeEtcdClient()
+	ec.Start()
+	log.Fatal(http.ListenAndServe(":9090", proxy.MakeProxy(ec)))
 }

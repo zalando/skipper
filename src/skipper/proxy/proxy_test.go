@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import "bytes"
 import "testing"
@@ -6,21 +6,21 @@ import "net/http"
 import "net/http/httptest"
 import "strconv"
 
-type testetcdc struct {
+type testEtcdc struct {
 	s settings
 	c chan settings
 }
 
-func makeTestetcdc(url string) etcdc {
-	ec := &testetcdc{
+func makeTestEtcdc(url string) etcdc {
+	ec := &testEtcdc{
 		&settingsStruct{
-			backends: []backend{
-				backend{
+			backends: map[string]backend{
+				"test": backend{
 					typ: ephttp,
 					servers: []server{
 						server{url: url}}}},
-			frontends:  []frontend{},
-			middleware: []middleware{}},
+			frontends:  map[string]frontend{},
+			middleware: map[string]middleware{}},
 		make(chan settings)}
 	go func() {
 		for {
@@ -30,7 +30,7 @@ func makeTestetcdc(url string) etcdc {
 	return ec
 }
 
-func (ec *testetcdc) getSettings() <-chan settings {
+func (ec *testEtcdc) getSettings() <-chan settings {
 	return ec.c
 }
 
@@ -57,7 +57,7 @@ func TestGetRoundtrip(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := makeProxy(makeTestetcdc(s.URL))
+	p := makeProxy(makeTestEtcdc(s.URL))
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -96,7 +96,7 @@ func TestPostRoundtrip(t *testing.T) {
 		Method: "POST",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := makeProxy(makeTestetcdc(s.URL))
+	p := makeProxy(makeTestEtcdc(s.URL))
 	p.ServeHTTP(w, r)
 
 	if w.Code != 303 {
@@ -111,4 +111,15 @@ func TestPostRoundtrip(t *testing.T) {
 	if w.Body.Len() != 0 {
 		t.Error("wrong content")
 	}
+}
+
+func TestMiddleware(t *testing.T) {
+	// s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    //     w.WriteHeader(200)
+    // }))
+    // defer s.Close()
+
+    // r := &http.Request{Method: "GET"}
+    // w := httptest.NewRecorder()
+    // p := makeProxy(makeTestEtcdc(s.URL))
 }

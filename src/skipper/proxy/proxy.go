@@ -1,9 +1,10 @@
-package main
+package proxy
 
 import "fmt"
 import "io"
 import "log"
 import "net/http"
+import "skipper/etcd"
 
 const proxyBufferSize = 8192
 const proxyErrorFmt = "proxy: %s"
@@ -14,7 +15,7 @@ type flusherWriter interface {
 }
 
 type proxy struct {
-	etcd etcdc
+	etcdc etcd.Etcdc
 	tr   *http.Transport
 }
 
@@ -56,24 +57,24 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
-func mapRequest(r *http.Request, s settings) (*http.Request, error) {
+func mapRequest(r *http.Request, s etcd.Settings) (*http.Request, error) {
 	if s == nil {
 		return nil, proxyError("missing settings")
 	}
 
-	if len(s.getBackends()) == 0 {
+	if len(s.GetBackends()) == 0 {
 		return nil, proxyError("missing backend settings")
 	}
 
-	b := s.getBackends()[0]
-	if len(b.servers) == 0 {
+	b := s.GetBackends()["test"]
+	if len(b.Servers) == 0 {
 		return nil, proxyError("missing backend server settings")
 	}
 
-	return http.NewRequest(r.Method, b.servers[0].url, r.Body)
+	return http.NewRequest(r.Method, b.Servers[0].Url, r.Body)
 }
 
-func makeProxy(ec etcdc) *proxy {
+func MakeProxy(ec etcd.Etcdc) http.Handler {
 	return &proxy{ec, &http.Transport{}}
 }
 
@@ -83,7 +84,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	rr, err := mapRequest(r, <-p.etcd.getSettings())
+	rr, err := mapRequest(r, <-p.etcdc.GetSettings())
 	if err != nil {
 		hterr(err)
 		return
