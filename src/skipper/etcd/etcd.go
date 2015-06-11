@@ -1,5 +1,7 @@
 package etcd
 
+import "skipper/settings"
+
 type EndpointType string
 
 const (
@@ -13,13 +15,13 @@ type Server struct {
 
 type Backend struct {
 	Typ     EndpointType
-    Name string
+	Name    string
 	Servers []Server
 }
 
 type Frontend struct {
 	Typ        EndpointType
-    Name string
+	Name       string
 	BackendId  string
 	Route      string
 	Middleware []string
@@ -46,7 +48,7 @@ type settingsStruct struct {
 
 type Client interface {
 	GetSettings() <-chan Settings
-    Start()
+	Start()
 }
 
 type etcdClient struct {
@@ -90,4 +92,37 @@ func (ec *etcdClient) Start() {
 
 func (ec *etcdClient) GetSettings() <-chan Settings {
 	return ec.settings
+}
+
+type RawData struct {
+	mapping map[string]string
+}
+
+type Mock struct {
+	RawData *RawData
+	get     chan settings.RawData
+}
+
+func TempMock() *Mock {
+	m := &Mock{
+		&RawData{
+			map[string]string{
+				"Path(\"/hello<v>\")": "http://localhost:9999/slow"}},
+		make(chan settings.RawData)}
+	go m.feed()
+	return m
+}
+
+func (m *Mock) feed() {
+	for {
+		m.get <- m.RawData
+	}
+}
+
+func (m *Mock) Get() <-chan settings.RawData {
+	return m.get
+}
+
+func (rd *RawData) GetTestMapping() map[string]string {
+	return rd.mapping
 }

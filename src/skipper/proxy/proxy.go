@@ -4,7 +4,7 @@ import "fmt"
 import "io"
 import "log"
 import "net/http"
-import "skipper/etcd"
+import "skipper/settings"
 
 const proxyBufferSize = 8192
 const proxyErrorFmt = "proxy: %s"
@@ -15,8 +15,8 @@ type flusherWriter interface {
 }
 
 type proxy struct {
-	etcdc etcd.Client
-	tr   *http.Transport
+	config    settings.Source
+	transport *http.Transport
 }
 
 func proxyError(m string) error {
@@ -57,25 +57,31 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
-func mapRequest(r *http.Request, s etcd.Settings) (*http.Request, error) {
+func mapRequest(r *http.Request, s settings.Settings) (*http.Request, error) {
 	if s == nil {
 		return nil, proxyError("missing settings")
 	}
 
-	if len(s.GetBackends()) == 0 {
-		return nil, proxyError("missing backend settings")
+	b, err := s.Route(r)
+	if b == nil || err != nil {
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, proxyError("route not found")
 	}
 
-	b := s.GetBackends()["test"]
-	if len(b.Servers) == 0 {
-		return nil, proxyError("missing backend server settings")
+	rr, err := http.NewRequest(r.Method, b.Url(), r.Body)
+	if err != nil {
+		return nil, err
 	}
 
-	return http.NewRequest(r.Method, b.Servers[0].Url, r.Body)
+	rr.Header = cloneHeader(r.Header)
+	return rr, nil
 }
 
-func Make(ec etcd.Client) http.Handler {
-	return &proxy{ec, &http.Transport{}}
+func Make(ss settings.Source) http.Handler {
+	return &proxy{ss, &http.Transport{}}
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -84,15 +90,13 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	rr, err := mapRequest(r, <-p.etcdc.GetSettings())
+	rr, err := mapRequest(r, <-p.config.Get())
 	if err != nil {
 		hterr(err)
 		return
 	}
 
-	rr.Header = cloneHeader(r.Header)
-
-	rs, err := p.tr.RoundTrip(rr)
+	rs, err := p.transport.RoundTrip(rr)
 	if err != nil {
 		hterr(err)
 		return
@@ -108,5 +112,4 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	copyHeader(w.Header(), rs.Header)
 	w.WriteHeader(rs.StatusCode)
 	copyStream(w.(flusherWriter), rs.Body)
-
 }
