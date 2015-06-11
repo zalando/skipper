@@ -7,7 +7,7 @@ import "github.com/mailgun/route"
 import "strconv"
 import "net/url"
 import "bytes"
-import "skipper/settings"
+import "skipper/skipper"
 import "io"
 import "time"
 
@@ -15,10 +15,10 @@ const streamingDelay time.Duration = 3 * time.Millisecond
 
 type requestCheck func(*http.Request)
 
-func voidCheck(*http.Request){}
+func voidCheck(*http.Request) {}
 
 type settingsSource struct {
-	get      chan settings.Settings
+	get      chan skipper.Settings
 	settings *testSettings
 }
 
@@ -30,13 +30,18 @@ type testBackend struct {
 	url string
 }
 
+type testRoute struct {
+	backend *testBackend
+}
+
 func makeTestSettingsSource(url string) *settingsSource {
 	rt := route.New()
 	tb := &testBackend{url}
-	rt.AddRoute("Path(\"/hello/<v>\")", tb)
+	tr := &testRoute{tb}
+	rt.AddRoute("Path(\"/hello/<v>\")", tr)
 
 	ss := &settingsSource{
-		make(chan settings.Settings),
+		make(chan skipper.Settings),
 		&testSettings{rt}}
 
 	go func() {
@@ -48,33 +53,45 @@ func makeTestSettingsSource(url string) *settingsSource {
 	return ss
 }
 
-func (s *settingsSource) Get() <-chan settings.Settings {
+func (s *settingsSource) Get() <-chan skipper.Settings {
 	return s.get
 }
 
-func (ts *testSettings) Route(r *http.Request) (settings.Backend, error) {
-	b, err := ts.routerImpl.Route(r)
-	if b == nil || err != nil {
+func (ts *testSettings) Address() string {
+	return ":9090"
+}
+
+func (ts *testSettings) Route(r *http.Request) (skipper.Route, error) {
+	rt, err := ts.routerImpl.Route(r)
+	if rt == nil || err != nil {
 		return nil, err
 	}
 
-	return b.(settings.Backend), nil
+	return rt.(skipper.Route), nil
 }
 
 func (tb *testBackend) Url() string {
 	return tb.url
 }
 
+func (tr *testRoute) Backend() skipper.Backend {
+	return tr.backend
+}
+
+func (tr *testRoute) Filters() []skipper.Filter {
+	return nil
+}
+
 func writeParts(w io.Writer, parts int, data []byte) {
-    partSize := len(data) / parts
-    for i := 0; i < len(data); i += partSize {
-        w.Write(data[i:i + partSize])
-        time.Sleep(streamingDelay)
-        if f, ok := w.(http.Flusher); ok {
-            f.Flush()
-        }
-    }
-    w.Write(data[:len(data) - len(data) % parts])
+	partSize := len(data) / parts
+	for i := 0; i < len(data); i += partSize {
+		w.Write(data[i : i+partSize])
+		time.Sleep(streamingDelay)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}
+	w.Write(data[:len(data)-len(data)%parts])
 }
 
 func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Server {
@@ -82,19 +99,19 @@ func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Se
 		check(r)
 
 		if len(payload) <= 0 {
-            return
+			return
 		}
 
-        w.Header().Set("Content-Type", "text/plain")
-        w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
 		w.WriteHeader(200)
 
-        if parts > 0 {
-            writeParts(w, parts, payload)
-            return
-        }
+		if parts > 0 {
+			writeParts(w, parts, payload)
+			return
+		}
 
-        w.Write(payload)
+		w.Write(payload)
 	}))
 }
 
@@ -169,92 +186,92 @@ func TestPostRoundtrip(t *testing.T) {
 }
 
 func TestRoute(t *testing.T) {
-    payload1 := []byte("host one")
-    s1 := startTestServer(payload1, 0, voidCheck)
-    defer s1.Close()
+	payload1 := []byte("host one")
+	s1 := startTestServer(payload1, 0, voidCheck)
+	defer s1.Close()
 
-    payload2 := []byte("host two")
-    s2 := startTestServer(payload2, 0, voidCheck)
-    defer s2.Close()
+	payload2 := []byte("host two")
+	s2 := startTestServer(payload2, 0, voidCheck)
+	defer s2.Close()
 
-    ss := makeTestSettingsSource("")
-    ss.settings.routerImpl.AddRoute("Path(\"/host-one<any>\")", &testBackend{s1.URL})
-    ss.settings.routerImpl.AddRoute("Path(\"/host-two<any>\")", &testBackend{s2.URL})
+	ss := makeTestSettingsSource("")
+	ss.settings.routerImpl.AddRoute("Path(\"/host-one<any>\")", &testRoute{&testBackend{s1.URL}})
+	ss.settings.routerImpl.AddRoute("Path(\"/host-two<any>\")", &testRoute{&testBackend{s2.URL}})
 
 	p := Make(ss)
 
-    var (
-        r *http.Request
-        w *httptest.ResponseRecorder
-        u *url.URL
-    )
+	var (
+		r *http.Request
+		w *httptest.ResponseRecorder
+		u *url.URL
+	)
 
-    u, _ = url.ParseRequestURI("http://localhost:9090/host-one")
-    r = &http.Request{
-        URL: u,
-        Method: "GET"}
-    w = httptest.NewRecorder()
-    p.ServeHTTP(w, r)
-    if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), payload1) {
-        t.Error("wrong routing 1")
-    }
+	u, _ = url.ParseRequestURI("http://localhost:9090/host-one")
+	r = &http.Request{
+		URL:    u,
+		Method: "GET"}
+	w = httptest.NewRecorder()
+	p.ServeHTTP(w, r)
+	if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), payload1) {
+		t.Error("wrong routing 1")
+	}
 
-    u, _ = url.ParseRequestURI("http://localhost:9090/host-two")
-    r = &http.Request{
-        URL: u,
-        Method: "GET"}
-    w = httptest.NewRecorder()
-    p.ServeHTTP(w, r)
-    if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), payload2) {
-        t.Error("wrong routing 2")
-    }
+	u, _ = url.ParseRequestURI("http://localhost:9090/host-two")
+	r = &http.Request{
+		URL:    u,
+		Method: "GET"}
+	w = httptest.NewRecorder()
+	p.ServeHTTP(w, r)
+	if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), payload2) {
+		t.Error("wrong routing 2")
+	}
 }
 
 func TestStreaming(t *testing.T) {
-    const expectedParts = 3
+	const expectedParts = 3
 
-    payload := []byte("some data to stream")
-    s := startTestServer(payload, expectedParts, voidCheck)
-    defer s.Close()
+	payload := []byte("some data to stream")
+	s := startTestServer(payload, expectedParts, voidCheck)
+	defer s.Close()
 
-    ss := makeTestSettingsSource(s.URL)
-    p := Make(ss)
+	ss := makeTestSettingsSource(s.URL)
+	p := Make(ss)
 
-    u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
 	r := &http.Request{
 		URL:    u,
 		Method: "GET"}
 	w := httptest.NewRecorder()
 
-    parts := 0
-    total := 0
-    done := make(chan int)
-    go p.ServeHTTP(w, r)
-    go func() {
-        for {
-            buf := w.Body.Bytes()
+	parts := 0
+	total := 0
+	done := make(chan int)
+	go p.ServeHTTP(w, r)
+	go func() {
+		for {
+			buf := w.Body.Bytes()
 
-            if len(buf) == 0 {
-                time.Sleep(streamingDelay)
-                continue
-            }
+			if len(buf) == 0 {
+				time.Sleep(streamingDelay)
+				continue
+			}
 
-            parts++
-            total += len(buf)
+			parts++
+			total += len(buf)
 
-            if total >= len(payload) {
-                close(done)
-                return
-            }
-        }
-    }()
+			if total >= len(payload) {
+				close(done)
+				return
+			}
+		}
+	}()
 
-    select {
-    case <-done:
-        if parts <= expectedParts {
-            t.Error("streaming failed", parts)
-        }
-    case <-time.After(150 * time.Millisecond):
-        t.Error("streaming timeout")
-    }
+	select {
+	case <-done:
+		if parts <= expectedParts {
+			t.Error("streaming failed", parts)
+		}
+	case <-time.After(150 * time.Millisecond):
+		t.Error("streaming timeout")
+	}
 }
