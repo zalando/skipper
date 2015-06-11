@@ -44,7 +44,7 @@ type settingsStruct struct {
 	middleware map[string]Middleware
 }
 
-type Etcdc interface {
+type Client interface {
 	GetSettings() <-chan Settings
     Start()
 }
@@ -65,7 +65,7 @@ func (s *settingsStruct) GetMiddleware() map[string]Middleware {
 	return s.middleware
 }
 
-func MakeEtcdClient() Etcdc {
+func MakeEtcdClient() Client {
 	return &etcdClient{make(chan Settings)}
 }
 

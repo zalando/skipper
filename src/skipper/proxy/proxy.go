@@ -15,7 +15,7 @@ type flusherWriter interface {
 }
 
 type proxy struct {
-	etcdc etcd.Etcdc
+	etcdc etcd.Client
 	tr   *http.Transport
 }
 
@@ -74,7 +74,7 @@ func mapRequest(r *http.Request, s etcd.Settings) (*http.Request, error) {
 	return http.NewRequest(r.Method, b.Servers[0].Url, r.Body)
 }
 
-func MakeProxy(ec etcd.Etcdc) http.Handler {
+func Make(ec etcd.Client) http.Handler {
 	return &proxy{ec, &http.Transport{}}
 }
 

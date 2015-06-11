@@ -5,23 +5,31 @@ import "testing"
 import "net/http"
 import "net/http/httptest"
 import "strconv"
+import "skipper/etcd"
+// import "github.com/mailgun/route"
 
 type testEtcdc struct {
-	s settings
-	c chan settings
+	s etcd.Settings
+	c chan etcd.Settings
 }
 
-func makeTestEtcdc(url string) etcdc {
+type testSettings struct {
+    backends map[string]etcd.Backend
+    frontends map[string]etcd.Frontend
+    middleware map[string]etcd.Middleware
+}
+
+func makeTestEtcdc(url string) etcd.Client {
 	ec := &testEtcdc{
-		&settingsStruct{
-			backends: map[string]backend{
-				"test": backend{
-					typ: ephttp,
-					servers: []server{
-						server{url: url}}}},
-			frontends:  map[string]frontend{},
-			middleware: map[string]middleware{}},
-		make(chan settings)}
+		&testSettings{
+			backends: map[string]etcd.Backend{
+				"test": etcd.Backend{
+					Typ: etcd.Ephttp,
+					Servers: []etcd.Server{
+						etcd.Server{Url: url}}}},
+			frontends:  map[string]etcd.Frontend{},
+			middleware: map[string]etcd.Middleware{}},
+		make(chan etcd.Settings)}
 	go func() {
 		for {
 			ec.c <- ec.s
@@ -30,9 +38,15 @@ func makeTestEtcdc(url string) etcdc {
 	return ec
 }
 
-func (ec *testEtcdc) getSettings() <-chan settings {
+func (s *testSettings) GetBackends() map[string]etcd.Backend { return s.backends }
+func (s *testSettings) GetFrontends() map[string]etcd.Frontend { return s.frontends }
+func (s *testSettings) GetMiddleware() map[string]etcd.Middleware { return s.middleware }
+
+func (ec *testEtcdc) GetSettings() <-chan etcd.Settings {
 	return ec.c
 }
+
+func (ec *testEtcdc) Start() {}
 
 func TestGetRoundtrip(t *testing.T) {
 	payload := []byte("Hello World!")
@@ -57,7 +71,7 @@ func TestGetRoundtrip(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := makeProxy(makeTestEtcdc(s.URL))
+	p := Make(makeTestEtcdc(s.URL))
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -96,7 +110,7 @@ func TestPostRoundtrip(t *testing.T) {
 		Method: "POST",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := makeProxy(makeTestEtcdc(s.URL))
+	p := Make(makeTestEtcdc(s.URL))
 	p.ServeHTTP(w, r)
 
 	if w.Code != 303 {
@@ -121,5 +135,27 @@ func TestMiddleware(t *testing.T) {
 
     // r := &http.Request{Method: "GET"}
     // w := httptest.NewRecorder()
-    // p := makeProxy(makeTestEtcdc(s.URL))
+    // p := Make(makeTestEtcdc(s.URL))
 }
+
+// func Match(r http.Request) (interface{}, error) {
+//     r := route.New()
+//     err := r.UpsertRoute("Method(\"GET\")", 3.14)
+//     if err != nil {
+//         return nil, err
+//     }
+// 
+//     return r.Route(e), nil
+// }
+// 
+// func TestMatcher(t *testing.T) {
+// 	r := &http.Request{
+// 		Method: "GET",
+// 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
+//     v, err := Match(r)
+//     if err != nil {
+//         t.Error(err)
+//     }
+// 
+//     t.Error(v)
+// }
