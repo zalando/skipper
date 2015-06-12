@@ -11,6 +11,22 @@ const defaultAddress = ":9090"
 type jsonmap map[string]interface{}
 type jsonlist []interface{}
 
+func toJsonmap(i interface{}) jsonmap {
+	if m, ok := i.(map[string]interface{}); ok {
+		return jsonmap(m)
+	}
+
+	return nil
+}
+
+func toJsonlist(i interface{}) jsonlist {
+	if l, ok := i.([]interface{}); ok {
+		return jsonlist(l)
+	}
+
+	return nil
+}
+
 type backend struct {
 	url string
 }
@@ -45,9 +61,9 @@ func getBufferSize() int {
 func processFilterSpecs(data interface{}) map[string]jsonmap {
 	processed := make(map[string]jsonmap)
 
-	config, _ := data.(jsonmap)
+	config := toJsonmap(data)
 	for id, raw := range config {
-		spec, _ := raw.(jsonmap)
+		spec := toJsonmap(raw)
 		processed[id] = spec
 	}
 
@@ -57,7 +73,7 @@ func processFilterSpecs(data interface{}) map[string]jsonmap {
 func processBackends(data interface{}) map[string]*backend {
 	processed := make(map[string]*backend)
 
-	config, _ := data.(jsonmap)
+	config := toJsonmap(data)
 	for id, uraw := range config {
 		if us, ok := uraw.(string); ok {
 			processed[id] = &backend{us}
@@ -77,7 +93,7 @@ func createFilter(ref jsonmap, specs map[string]jsonmap, mwr skipper.MiddlewareR
 	}
 
 	prio, _ := ref["priority"].(int64)
-	mwc, _ := spec["config"].(jsonmap)
+	mwc := toJsonmap(spec["config"])
 	return mw.MakeFilter(id, int(prio), skipper.MiddlewareConfig(mwc))
 }
 
@@ -95,11 +111,11 @@ func processFrontends(
 	filterSpecs map[string]jsonmap,
 	mwr skipper.MiddlewareRegistry) []*routedef {
 
-	config, _ := data.(jsonlist)
-	processed := make([]*routedef, len(config))
+	config := toJsonlist(data)
+	processed := []*routedef{}
 
 	for _, raw := range config {
-		f, _ := raw.(jsonmap)
+		f := toJsonmap(raw)
 		if f == nil {
 			continue
 		}
@@ -107,10 +123,10 @@ func processFrontends(
 		rt, _ := f["route"].(string)
 		backendId, _ := f["backendId"].(string)
 
-		filterRefs, _ := f["filters"].(jsonlist)
+		filterRefs := toJsonlist(f["filters"])
 		filters := make([]skipper.Filter, len(filterRefs))
 		for _, ref := range filterRefs {
-			filter := createFilter(ref.(jsonmap), filterSpecs, mwr)
+			filter := createFilter(toJsonmap(ref), filterSpecs, mwr)
 			if filter != nil {
 				filters = append(filters, filter)
 			}
@@ -145,6 +161,14 @@ func processRaw(rd skipper.RawData, mwr skipper.MiddlewareRegistry) skipper.Sett
 
 func (b *backend) Url() string {
 	return b.url
+}
+
+func (r *routedef) Backend() skipper.Backend {
+	return r.backend
+}
+
+func (r *routedef) Filters() []skipper.Filter {
+	return r.filters
 }
 
 func (s *settings) Route(r *http.Request) (skipper.Route, error) {
