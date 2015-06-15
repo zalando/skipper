@@ -128,6 +128,6 @@ func (m *Mock) Get() <-chan skipper.RawData {
 	return m.get
 }
 
-func (rd *RawData) GetTestData() map[string]interface{} {
+func (rd *RawData) Get() map[string]interface{} {
 	return nil
 }

@@ -13,13 +13,13 @@ type mockDataClient struct {
 type mockMiddlewareRegistry struct {
 }
 
-func (rd *testData) GetTestData() map[string]interface{} {
+func (rd *testData) Get() map[string]interface{} {
 	return map[string]interface{}{
 		"backends": map[string]interface{}{"hello": "http://localhost:9999/slow"},
 		"frontends": []interface{}{
 			map[string]interface{}{
-				"route":     "Path(\"/hello\")",
-				"backendId": "hello"}}}
+				"route":      "Path(\"/hello\")",
+				"backend-id": "hello"}}}
 }
 
 func makeMockDataClient() *mockDataClient {

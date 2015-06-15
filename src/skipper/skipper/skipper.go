@@ -12,8 +12,8 @@ type RawData interface {
 	//         "route": "PathRegexp(`.*\\.html`)",
 	//         "backendId": "pdp",
 	//         "filters": [
-	//             {"id": "pdp-custom-headers", "priority": 2},
-	//             {"id": "x-session-id", "priority": 0}
+	//             "pdp-custom-headers",
+	//             "x-session-id"
 	//         ]
 	//     }],
 	//     "filter-specs": {
@@ -27,7 +27,7 @@ type RawData interface {
 	//         }
 	//     }
 	// }
-	GetTestData() map[string]interface{}
+	Get() map[string]interface{}
 }
 
 type DataClient interface {
@@ -71,7 +71,7 @@ type SettingsProcessor interface {
 
 type Middleware interface {
 	Name() string
-	MakeFilter(id string, priority int, s MiddlewareConfig) Filter
+	MakeFilter(id string, s MiddlewareConfig) Filter
 }
 
 type MiddlewareRegistry interface {

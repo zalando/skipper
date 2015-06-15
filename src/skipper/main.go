@@ -7,6 +7,7 @@ import "skipper/settings"
 import "skipper/skipper"
 import "skipper/dispatch"
 import "time"
+import "fmt"
 
 const startupSettingsTimeout = 1200 * time.Millisecond
 
@@ -35,5 +36,9 @@ func main() {
 	dispatcher.Subscribe(settingsChan)
 	settings := waitForInitialSettings(settingsChan)
 
-	log.Fatal(http.ListenAndServe(settings.Address(), proxy))
+	// todo: print only in dev environment
+	address := settings.Address()
+	fmt.Printf("listening on %v\n", address)
+
+	log.Fatal(http.ListenAndServe(address, proxy))
 }

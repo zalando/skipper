@@ -49,8 +49,7 @@ func processBackends(data interface{}) map[string]*backend {
 	return processed
 }
 
-func createFilter(ref jsonmap, specs map[string]jsonmap, mwr skipper.MiddlewareRegistry) skipper.Filter {
-	id, _ := ref["id"].(string)
+func createFilter(id string, specs map[string]jsonmap, mwr skipper.MiddlewareRegistry) skipper.Filter {
 	spec := specs[id]
 	mwn, _ := spec["middleware-name"].(string)
 	mw := mwr.Get(mwn)
@@ -58,9 +57,8 @@ func createFilter(ref jsonmap, specs map[string]jsonmap, mwr skipper.MiddlewareR
 		return nil
 	}
 
-	prio, _ := ref["priority"].(int64)
 	mwc := toJsonmap(spec["config"])
-	return mw.MakeFilter(id, int(prio), skipper.MiddlewareConfig(mwc))
+	return mw.MakeFilter(id, skipper.MiddlewareConfig(mwc))
 }
 
 func processFrontends(
@@ -79,12 +77,12 @@ func processFrontends(
 		}
 
 		rt, _ := f["route"].(string)
-		backendId, _ := f["backendId"].(string)
+		backendId, _ := f["backend-id"].(string)
 
 		filterRefs := toJsonlist(f["filters"])
-		filters := make([]skipper.Filter, len(filterRefs))
-		for _, ref := range filterRefs {
-			filter := createFilter(toJsonmap(ref), filterSpecs, mwr)
+		filters := []skipper.Filter{}
+		for _, id := range filterRefs {
+			filter := createFilter(id.(string), filterSpecs, mwr)
 			if filter != nil {
 				filters = append(filters, filter)
 			}
@@ -102,7 +100,7 @@ func processFrontends(
 func processRaw(rd skipper.RawData, mwr skipper.MiddlewareRegistry) skipper.Settings {
 	s := &settings{defaultAddress, route.New()}
 
-	data := rd.GetTestData()
+	data := rd.Get()
 	filterSpecs := processFilterSpecs(data["filter-specs"])
 	backends := processBackends(data["backends"])
 	routes := processFrontends(data["frontends"], backends, filterSpecs, mwr)
