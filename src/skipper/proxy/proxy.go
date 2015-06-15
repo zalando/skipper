@@ -6,6 +6,7 @@ import "log"
 import "net/http"
 import "skipper/skipper"
 
+const defaultSettingsBufferSize = 32
 const proxyBufferSize = 8192
 const proxyErrorFmt = "proxy: %s"
 
@@ -15,8 +16,8 @@ type flusherWriter interface {
 }
 
 type proxy struct {
-	settingsSource skipper.SettingsSource
-	transport      *http.Transport
+	settings  <-chan skipper.Settings
+	transport *http.Transport
 }
 
 func proxyError(m string) error {
@@ -71,8 +72,15 @@ func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
 	return rr, nil
 }
 
-func Make(ss skipper.SettingsSource) http.Handler {
-	return &proxy{ss, &http.Transport{}}
+func getSettingsBufferSize() int {
+	// todo: return defaultFeedBufferSize when not dev env
+	return 0
+}
+
+func Make(sd skipper.SettingsSource) http.Handler {
+	sc := make(chan skipper.Settings, getSettingsBufferSize())
+	sd.Subscribe(sc)
+	return &proxy{sc, &http.Transport{}}
 }
 
 func applyFilterSafe(f skipper.Filter, w http.ResponseWriter, r *http.Request) {
@@ -98,7 +106,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	s := <-p.settingsSource.Get()
+	s := <-p.settings
 	if s == nil {
 		hterr(proxyError("missing settings"))
 		return

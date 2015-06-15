@@ -10,21 +10,13 @@ import "bytes"
 import "skipper/skipper"
 import "io"
 import "time"
+import "skipper/dispatch"
 
 const streamingDelay time.Duration = 3 * time.Millisecond
 
 type requestCheck func(*http.Request)
 
 func voidCheck(*http.Request) {}
-
-type settingsSource struct {
-	get      chan skipper.Settings
-	settings *testSettings
-}
-
-type testSettings struct {
-	routerImpl route.Router
-}
 
 type testBackend struct {
 	url string
@@ -34,27 +26,34 @@ type testRoute struct {
 	backend *testBackend
 }
 
-func makeTestSettingsSource(url string) *settingsSource {
+type testSettings struct {
+	routerImpl route.Router
+}
+
+func makeTestSettings(url string) *testSettings {
 	rt := route.New()
 	tb := &testBackend{url}
 	tr := &testRoute{tb}
 	rt.AddRoute("Path(\"/hello/<v>\")", tr)
-
-	ss := &settingsSource{
-		make(chan skipper.Settings),
-		&testSettings{rt}}
-
-	go func() {
-		for {
-			ss.get <- ss.settings
-		}
-	}()
-
-	return ss
+	return &testSettings{rt}
 }
 
-func (s *settingsSource) Get() <-chan skipper.Settings {
-	return s.get
+func makeTestSettingsDispatcher(url string) skipper.SettingsDispatcher {
+	sd := dispatch.Make()
+	sd.Push() <- makeTestSettings(url)
+	return sd
+}
+
+func (tb *testBackend) Url() string {
+	return tb.url
+}
+
+func (tr *testRoute) Backend() skipper.Backend {
+	return tr.backend
+}
+
+func (tr *testRoute) Filters() []skipper.Filter {
+	return nil
 }
 
 func (ts *testSettings) Address() string {
@@ -68,18 +67,6 @@ func (ts *testSettings) Route(r *http.Request) (skipper.Route, error) {
 	}
 
 	return rt.(skipper.Route), nil
-}
-
-func (tb *testBackend) Url() string {
-	return tb.url
-}
-
-func (tr *testRoute) Backend() skipper.Backend {
-	return tr.backend
-}
-
-func (tr *testRoute) Filters() []skipper.Filter {
-	return nil
 }
 
 func writeParts(w io.Writer, parts int, data []byte) {
@@ -135,7 +122,7 @@ func TestGetRoundtrip(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsSource(s.URL))
+	p := Make(makeTestSettingsDispatcher(s.URL))
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -173,7 +160,7 @@ func TestPostRoundtrip(t *testing.T) {
 		Method: "POST",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsSource(s.URL))
+	p := Make(makeTestSettingsDispatcher(s.URL))
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -194,11 +181,13 @@ func TestRoute(t *testing.T) {
 	s2 := startTestServer(payload2, 0, voidCheck)
 	defer s2.Close()
 
-	ss := makeTestSettingsSource("")
-	ss.settings.routerImpl.AddRoute("Path(\"/host-one<any>\")", &testRoute{&testBackend{s1.URL}})
-	ss.settings.routerImpl.AddRoute("Path(\"/host-two<any>\")", &testRoute{&testBackend{s2.URL}})
+	sd := makeTestSettingsDispatcher("")
+	ts := makeTestSettings("")
+	ts.routerImpl.AddRoute("Path(\"/host-one<any>\")", &testRoute{&testBackend{s1.URL}})
+	ts.routerImpl.AddRoute("Path(\"/host-two<any>\")", &testRoute{&testBackend{s2.URL}})
+	sd.Push() <- ts
 
-	p := Make(ss)
+	p := Make(sd)
 
 	var (
 		r *http.Request
@@ -234,8 +223,7 @@ func TestStreaming(t *testing.T) {
 	s := startTestServer(payload, expectedParts, voidCheck)
 	defer s.Close()
 
-	ss := makeTestSettingsSource(s.URL)
-	p := Make(ss)
+	p := Make(makeTestSettingsDispatcher(s.URL))
 
 	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
 	r := &http.Request{
@@ -273,5 +261,27 @@ func TestStreaming(t *testing.T) {
 		}
 	case <-time.After(150 * time.Millisecond):
 		t.Error("streaming timeout")
+	}
+}
+
+func TestNotFoundUntilSettingsReceived(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		t.Error("shouldn't be able to route to here")
+	})
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"X-Test-Header": []string{"test value"}}}
+	w := httptest.NewRecorder()
+	p := Make(dispatch.Make())
+	p.ServeHTTP(w, r)
+
+	if w.Code != 404 {
+		t.Error("wrong status", w.Code)
 	}
 }

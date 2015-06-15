@@ -5,51 +5,35 @@ import "net/http"
 import "skipper/proxy"
 import "skipper/settings"
 import "skipper/skipper"
+import "skipper/dispatch"
+import "time"
 
-type RawData struct {
-	mapping map[string]string
-}
+const startupSettingsTimeout = 1200 * time.Millisecond
 
-type Mock struct {
-	RawData *RawData
-	get     chan skipper.RawData
-}
-
-func TempMock() *Mock {
-	m := &Mock{
-		&RawData{
-			map[string]string{
-				"Path(\"/hello<v>\")": "http://localhost:9999/slow"}},
-		make(chan skipper.RawData)}
-	go m.feed()
-	return m
-}
-
-func (m *Mock) feed() {
-	nc := make(chan int)
+func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 	for {
-		m.get <- m.RawData
-		<-nc
+		select {
+		case s := <-c:
+			if s != nil {
+				return s
+			}
+		case <-time.After(startupSettingsTimeout):
+			log.Fatal("initial settings timeout")
+		}
 	}
 }
 
-func (m *Mock) Get() <-chan skipper.RawData {
-	return m.get
-}
-
-func (rd *RawData) GetTestData() map[string]interface{} {
-	return map[string]interface{}{
-		"backends": map[string]interface{}{"hello": "http://localhost:9999/slow"},
-		"frontends": []interface{}{
-			map[string]interface{}{
-				"route":     "Path(\"/hello\")",
-				"backendId": "hello"}}}
-}
-
 func main() {
-	e := TempMock()
-	ss := settings.MakeSource(e, nil)
-	p := proxy.Make(ss)
-	s := <-ss.Get()
-	log.Fatal(http.ListenAndServe(s.Address(), p))
+	mockDataClient := makeMockDataClient()
+	registry := &mockMiddlewareRegistry{}
+
+	dispatcher := dispatch.Make()
+	settingsSource := settings.MakeSource(mockDataClient, registry, dispatcher)
+	proxy := proxy.Make(settingsSource)
+
+	settingsChan := make(chan skipper.Settings)
+	dispatcher.Subscribe(settingsChan)
+	settings := waitForInitialSettings(settingsChan)
+
+	log.Fatal(http.ListenAndServe(settings.Address(), proxy))
 }

@@ -31,7 +31,7 @@ type RawData interface {
 }
 
 type DataClient interface {
-	Get() <-chan RawData
+	Receive() <-chan RawData
 }
 
 type Backend interface {
@@ -43,7 +43,6 @@ type MiddlewareConfig map[string]interface{}
 type Filter interface {
 	http.Handler
 	Id() string
-	Priority() int
 }
 
 type Route interface {
@@ -57,7 +56,17 @@ type Settings interface {
 }
 
 type SettingsSource interface {
-	Get() <-chan Settings
+	Subscribe(chan<- Settings)
+}
+
+type SettingsDispatcher interface {
+	SettingsSource
+	Push() chan<- Settings
+}
+
+type SettingsProcessor interface {
+	SettingsSource
+	PushRawData() chan<- RawData
 }
 
 type Middleware interface {
