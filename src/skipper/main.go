@@ -22,7 +22,6 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 			if s != nil {
 				return s
 			}
-			println("it is nil")
 		case <-time.After(startupSettingsTimeout):
 			log.Fatal("initial settings timeout")
 		}
@@ -30,7 +29,6 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 }
 
 func main() {
-	registry := &mock.MiddlewareRegistry{}
 	mockDataClient := mock.MakeDataClient(map[string]interface{}{
 		"backends": map[string]interface{}{"hello": "http://localhost:9999/slow"},
 		"frontends": []interface{}{
@@ -38,8 +36,10 @@ func main() {
 				"route":      "Path(\"/hello\")",
 				"backend-id": "hello"}}})
 
+	registry := &mock.MiddlewareRegistry{}
 	dispatcher := dispatch.Make()
 	settingsSource := settings.MakeSource(mockDataClient, registry, dispatcher)
+
 	proxy := proxy.Make(settingsSource)
 
 	settingsChan := make(chan skipper.Settings)

@@ -62,11 +62,6 @@ type SettingsDispatcher interface {
 	Push() chan<- Settings
 }
 
-type SettingsProcessor interface {
-	SettingsSource
-	PushRawData() chan<- RawData
-}
-
 type MiddlewareConfig map[string]interface{}
 
 type Middleware interface {

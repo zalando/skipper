@@ -41,15 +41,18 @@ func (rd *RawData) Get() map[string]interface{} { return rd.Data }
 
 func MakeDataClient(data map[string]interface{}) *DataClient {
 	dc := &DataClient{make(chan skipper.RawData)}
-	go func() {
-		dc.FReceive <- &RawData{data}
-	}()
-
+	dc.Feed(data)
 	return dc
 }
 
 func (dc *DataClient) Receive() <-chan skipper.RawData {
 	return dc.FReceive
+}
+
+func (dc *DataClient) Feed(data map[string]interface{}) {
+	go func() {
+		dc.FReceive <- &RawData{data}
+	}()
 }
 
 func (b *Backend) Url() string {
