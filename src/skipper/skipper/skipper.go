@@ -38,8 +38,6 @@ type Backend interface {
 	Url() string
 }
 
-type MiddlewareConfig map[string]interface{}
-
 type Filter interface {
 	http.Handler
 	Id() string
@@ -68,6 +66,8 @@ type SettingsProcessor interface {
 	SettingsSource
 	PushRawData() chan<- RawData
 }
+
+type MiddlewareConfig map[string]interface{}
 
 type Middleware interface {
 	Name() string

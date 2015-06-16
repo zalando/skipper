@@ -9,13 +9,12 @@ type fan struct {
 
 type dispatcher struct {
 	push          chan skipper.Settings
-	addSubscriber chan *fan
+	addSubscriber chan chan<- skipper.Settings
 }
 
-func makeFan(out chan<- skipper.Settings) *fan {
+func makeFan(s skipper.Settings, out chan<- skipper.Settings) *fan {
 	f := &fan{make(chan skipper.Settings), out}
 	go func() {
-		s := <-f.in
 		for {
 			select {
 			case s = <-f.in:
@@ -30,20 +29,20 @@ func makeFan(out chan<- skipper.Settings) *fan {
 func Make() skipper.SettingsDispatcher {
 	d := &dispatcher{
 		push:          make(chan skipper.Settings),
-		addSubscriber: make(chan *fan)}
+		addSubscriber: make(chan chan<- skipper.Settings)}
 	go func() {
 		var settings skipper.Settings
 		var fans []*fan
 
 		for {
 			select {
-			case settings = <-d.push:
+			case s := <-d.push:
+				settings = s
 				for _, f := range fans {
 					f.in <- settings
 				}
-			case f := <-d.addSubscriber:
-				fans = append(fans, f)
-				f.in <- settings
+			case c := <-d.addSubscriber:
+				fans = append(fans, makeFan(settings, c))
 			}
 		}
 	}()
@@ -52,7 +51,7 @@ func Make() skipper.SettingsDispatcher {
 }
 
 func (d *dispatcher) Subscribe(c chan<- skipper.Settings) {
-	d.addSubscriber <- makeFan(c)
+	d.addSubscriber <- c
 }
 
 func (d *dispatcher) Push() chan<- skipper.Settings {

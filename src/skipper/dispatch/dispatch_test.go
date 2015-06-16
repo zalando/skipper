@@ -3,21 +3,7 @@ package dispatch
 import "testing"
 import "skipper/skipper"
 import "time"
-import "net/http"
-
-type testSettings struct{}
-
-func (ts *testSettings) Route(*http.Request) (skipper.Route, error) { return nil, nil }
-func (ts *testSettings) Address() string                            { return "" }
-
-func checkDoneHelper(t *testing.T, remaining int, s, ss skipper.Settings) int {
-	if ss != s {
-		t.Error("wrong settings received")
-		return 0
-	}
-
-	return remaining - 1
-}
+import "skipper/mock"
 
 func TestForwardsAsPushed(t *testing.T) {
 	sd := Make()
@@ -25,35 +11,40 @@ func TestForwardsAsPushed(t *testing.T) {
 	sb := make(chan skipper.Settings)
 	sd.Subscribe(sb)
 
-	s := &testSettings{}
+	s := &mock.Settings{}
 	sd.Push() <- s
 
-	select {
-	case ss := <-sb:
-		if ss != s {
-			t.Error("wrong settings received")
+	for {
+		select {
+		case ss := <-sb:
+			if ss != nil {
+				return
+			}
+		case <-time.After(15 * time.Millisecond):
+			t.Error("didn't receive settings")
+			return
 		}
-	case <-time.After(15 * time.Millisecond):
-		t.Error("didn't receive settings")
 	}
 }
 
 func TestForwardOnSubscription(t *testing.T) {
 	sd := Make()
 
-	s := &testSettings{}
+	s := &mock.Settings{}
 	sd.Push() <- s
 
 	sb := make(chan skipper.Settings)
 	sd.Subscribe(sb)
 
-	select {
-	case ss := <-sb:
-		if ss != s {
-			t.Error("wrong settings received")
+	for {
+		select {
+		case ss := <-sb:
+			if ss != nil {
+				return
+			}
+		case <-time.After(15 * time.Millisecond):
+			t.Error("didn't receive settings")
 		}
-	case <-time.After(15 * time.Millisecond):
-		t.Error("didn't receive settings")
 	}
 }
 
@@ -62,27 +53,28 @@ func TestMultipleSubscribers(t *testing.T) {
 
 	sbbefore := make(chan skipper.Settings)
 	sd.Subscribe(sbbefore)
+	rbefore := false
 
-	s := &testSettings{}
+	s := &mock.Settings{}
 	sd.Push() <- s
 
 	sbafter := make(chan skipper.Settings)
 	sd.Subscribe(sbafter)
+	rafter := false
 
-	remaining := 2
 	for {
 		select {
 		case <-time.After(15 * time.Millisecond):
 			t.Error("didn't receive settings")
 			return
-		case ss := <-sbafter:
-			remaining = checkDoneHelper(t, remaining, s, ss)
-			if remaining <= 0 {
+		case <-sbafter:
+			rafter = true
+			if rbefore {
 				return
 			}
-		case ss := <-sbbefore:
-			remaining = checkDoneHelper(t, remaining, s, ss)
-			if remaining <= 0 {
+		case <-sbbefore:
+			rbefore = true
+			if rafter {
 				return
 			}
 		}
@@ -95,29 +87,37 @@ func TestPushNewSettings(t *testing.T) {
 	sb := make(chan skipper.Settings)
 	sd.Subscribe(sb)
 
-	s0 := &testSettings{}
+	s0 := &mock.Settings{}
 	sd.Push() <- s0
 
-	select {
-	case ss := <-sb:
-		if ss != s0 {
-			t.Error("wrong settings received")
+	func() {
+		for {
+			select {
+			case ss := <-sb:
+				if ss == s0 {
+					return
+				}
+			case <-time.After(15 * time.Millisecond):
+				t.Error("didn't receive settings")
+			}
 		}
-	case <-time.After(15 * time.Millisecond):
-		t.Error("didn't receive settings")
-	}
+	}()
 
-	s1 := &testSettings{}
+	s1 := &mock.Settings{}
 	sd.Push() <- s1
 
-	select {
-	case ss := <-sb:
-		if ss != s1 {
-			t.Error("wrong settings received")
+	func() {
+		for {
+			select {
+			case ss := <-sb:
+				if ss == s1 {
+					return
+				}
+			case <-time.After(15 * time.Millisecond):
+				t.Error("didn't receive settings")
+			}
 		}
-	case <-time.After(15 * time.Millisecond):
-		t.Error("didn't receive settings")
-	}
+	}()
 }
 
 func TestReceiveMultipleTimes(t *testing.T) {
@@ -126,16 +126,19 @@ func TestReceiveMultipleTimes(t *testing.T) {
 	sb := make(chan skipper.Settings)
 	sd.Subscribe(sb)
 
-	s := &testSettings{}
+	s := &mock.Settings{}
 	sd.Push() <- s
 
-	remaining := 2
+	r := false
 	for {
 		select {
 		case ss := <-sb:
-			remaining = checkDoneHelper(t, remaining, s, ss)
-			if remaining <= 0 {
-				return
+			if ss == s {
+				if r {
+					return
+				}
+
+				r = true
 			}
 		case <-time.After(15 * time.Millisecond):
 			t.Error("didn't receive settings")
@@ -148,26 +151,20 @@ func TestReceiveOnBufferedChannel(t *testing.T) {
 	const bufSize = 2
 	sd := Make()
 
-	s0 := &testSettings{}
+	s0 := &mock.Settings{}
 	sd.Push() <- s0
 
 	sb := make(chan skipper.Settings, bufSize)
 	sd.Subscribe(sb)
 
-	s1 := &testSettings{}
+	s1 := &mock.Settings{}
 	sd.Push() <- s1
 
-	remaining := 2 * bufSize
 	for {
+		time.Sleep(1 * time.Millisecond)
 		select {
 		case ss := <-sb:
-			s := s0
-			if remaining <= bufSize {
-				s = s1
-			}
-
-			remaining = checkDoneHelper(t, remaining, s, ss)
-			if remaining <= 0 {
+			if ss == s1 {
 				return
 			}
 		case <-time.After(15 * time.Millisecond):

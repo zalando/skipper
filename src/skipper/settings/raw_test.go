@@ -3,42 +3,7 @@ package settings
 import "skipper/skipper"
 import "net/http"
 import "testing"
-
-type testRawData struct {
-	data map[string]interface{}
-}
-
-func (rd *testRawData) Get() map[string]interface{} { return rd.data }
-
-type testFilter struct {
-	id   string
-	name string
-	data int
-}
-
-func (tf *testFilter) ServeHTTP(w http.ResponseWriter, r *http.Request) {}
-func (tf *testFilter) Id() string                                       { return tf.id }
-
-type testMiddleware struct{ name string }
-
-func (mw *testMiddleware) Name() string { return mw.name }
-
-func (mw *testMiddleware) MakeFilter(id string, config skipper.MiddlewareConfig) skipper.Filter {
-	return &testFilter{
-		id:   id,
-		name: mw.name,
-		data: config["free-data"].(int)}
-}
-
-type testMiddlewareRegistry struct {
-	mw map[string]skipper.Middleware
-}
-
-func (mwr *testMiddlewareRegistry) Add(mw ...skipper.Middleware) {}
-func (mwr *testMiddlewareRegistry) Get(name string) skipper.Middleware {
-	return mwr.mw[name]
-}
-func (mwr *testMiddlewareRegistry) Remove(string) {}
+import "skipper/mock"
 
 func makeTestRequest(url string) *http.Request {
 	r, _ := http.NewRequest("GET", url, nil)
@@ -46,7 +11,7 @@ func makeTestRequest(url string) *http.Request {
 }
 
 func TestParseBackendsFrontendsFilters(t *testing.T) {
-	rd := &testRawData{
+	rd := &mock.RawData{
 		map[string]interface{}{
 			"backends": map[string]interface{}{
 				"backend1": "https://www.zalan.do/backend1",
@@ -88,10 +53,10 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 					"config": map[string]interface{}{
 						"free-data": 16}}}}}
 
-	mwr := &testMiddlewareRegistry{
+	mwr := &mock.MiddlewareRegistry{
 		map[string]skipper.Middleware{
-			"zal-filter-1": &testMiddleware{"zal-filter-1"},
-			"zal-filter-2": &testMiddleware{"zal-filter-2"}}}
+			"zal-filter-1": &mock.Middleware{"zal-filter-1"},
+			"zal-filter-2": &mock.Middleware{"zal-filter-2"}}}
 	s := processRaw(rd, mwr)
 
 	check := func(req *http.Request, url string,
@@ -108,10 +73,10 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 
 		filters := rt.Filters()
 		for i, f := range filters {
-			filter := f.(*testFilter)
-			if filter.id != filterIds[i] ||
-				filter.name != filterNames[i] ||
-				filter.data != filterData[i] {
+			filter := f.(*mock.Filter)
+			if filter.FId != filterIds[i] ||
+				filter.Name != filterNames[i] ||
+				filter.Data != filterData[i] {
 				t.Error("invalid filter settings")
 			}
 		}

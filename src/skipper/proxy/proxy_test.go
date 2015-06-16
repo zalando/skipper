@@ -3,7 +3,6 @@ package proxy
 import "testing"
 import "net/http"
 import "net/http/httptest"
-import "github.com/mailgun/route"
 import "strconv"
 import "net/url"
 import "bytes"
@@ -11,6 +10,7 @@ import "skipper/skipper"
 import "io"
 import "time"
 import "skipper/dispatch"
+import "skipper/mock"
 
 const streamingDelay time.Duration = 3 * time.Millisecond
 
@@ -18,55 +18,18 @@ type requestCheck func(*http.Request)
 
 func voidCheck(*http.Request) {}
 
-type testBackend struct {
-	url string
-}
-
-type testRoute struct {
-	backend *testBackend
-}
-
-type testSettings struct {
-	routerImpl route.Router
-}
-
-func makeTestSettings(url string) *testSettings {
-	rt := route.New()
-	tb := &testBackend{url}
-	tr := &testRoute{tb}
-	rt.AddRoute("Path(\"/hello/<v>\")", tr)
-	return &testSettings{rt}
-}
-
 func makeTestSettingsDispatcher(url string) skipper.SettingsDispatcher {
 	sd := dispatch.Make()
-	sd.Push() <- makeTestSettings(url)
-	return sd
-}
+	sd.Push() <- mock.MakeSettings(url)
 
-func (tb *testBackend) Url() string {
-	return tb.url
-}
-
-func (tr *testRoute) Backend() skipper.Backend {
-	return tr.backend
-}
-
-func (tr *testRoute) Filters() []skipper.Filter {
-	return nil
-}
-
-func (ts *testSettings) Address() string {
-	return ":9090"
-}
-
-func (ts *testSettings) Route(r *http.Request) (skipper.Route, error) {
-	rt, err := ts.routerImpl.Route(r)
-	if rt == nil || err != nil {
-		return nil, err
+	// todo: don't let to get into busy loop
+	c := make(chan skipper.Settings)
+	sd.Subscribe(c)
+	for {
+		if s := <-c; s != nil {
+			return sd
+		}
 	}
-
-	return rt.(skipper.Route), nil
 }
 
 func writeParts(w io.Writer, parts int, data []byte) {
@@ -182,9 +145,9 @@ func TestRoute(t *testing.T) {
 	defer s2.Close()
 
 	sd := makeTestSettingsDispatcher("")
-	ts := makeTestSettings("")
-	ts.routerImpl.AddRoute("Path(\"/host-one<any>\")", &testRoute{&testBackend{s1.URL}})
-	ts.routerImpl.AddRoute("Path(\"/host-two<any>\")", &testRoute{&testBackend{s2.URL}})
+	ts := mock.MakeSettings("")
+	ts.RouterImpl.AddRoute("Path(\"/host-one<any>\")", &mock.Route{&mock.Backend{s1.URL}, nil})
+	ts.RouterImpl.AddRoute("Path(\"/host-two<any>\")", &mock.Route{&mock.Backend{s2.URL}, nil})
 	sd.Push() <- ts
 
 	p := Make(sd)

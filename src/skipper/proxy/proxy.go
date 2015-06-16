@@ -60,7 +60,7 @@ func copyStream(to flusherWriter, from io.Reader) error {
 
 func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
 	if b == nil {
-		return nil, proxyError("missing settings")
+		return nil, proxyError("missing backend")
 	}
 
 	rr, err := http.NewRequest(r.Method, b.Url(), r.Body)
