@@ -32,8 +32,11 @@ func toJsonlist(i interface{}) jsonlist {
 
 func processFilterSpecs(data interface{}) map[string]jsonmap {
 	processed := make(map[string]jsonmap)
+	if data == nil {
+		return processed
+	}
 
-	config := toJsonmap(data)
+	config := data.(map[string]interface{})
 	for id, raw := range config {
 		spec := toJsonmap(raw)
 		processed[id] = spec

@@ -7,7 +7,7 @@ import (
 
 func TestCreatesNoopMiddlewareAndFilter(t *testing.T) {
 	n := &Type{}
-	if n.Name() != "noop" {
+	if n.Name() != "_noop" {
 		t.Error("wrong name")
 	}
 

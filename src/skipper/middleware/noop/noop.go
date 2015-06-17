@@ -5,7 +5,7 @@ import (
 	"skipper/skipper"
 )
 
-const name = "noop"
+const name = "_noop"
 
 type Type struct{ id string }
 

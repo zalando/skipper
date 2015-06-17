@@ -32,15 +32,28 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 }
 
 func main() {
-	registry := &mock.MiddlewareRegistry{map[string]skipper.Middleware{}}
-	middleware.Register(registry)
+	registry := middleware.RegisterToDefault()
 
 	mockDataClient := mock.MakeDataClient(map[string]interface{}{
 		"backends": map[string]interface{}{"hello": "http://localhost:9999/slow"},
 		"frontends": []interface{}{
 			map[string]interface{}{
 				"route":      "Path(\"/hello\")",
-				"backend-id": "hello"}}})
+				"backend-id": "hello",
+				"filters": []interface{}{
+					"test-0",
+					"test-1"}}},
+		"filter-specs": map[string]interface{}{
+			"test-0": map[string]interface{}{
+				"middleware-name": "response-header",
+				"config": map[string]interface{}{
+					"key":   "X-Header-0",
+					"value": "test-value-0"}},
+			"test-1": map[string]interface{}{
+				"middleware-name": "response-header",
+				"config": map[string]interface{}{
+					"key":   "X-Header-1",
+					"value": "test-value-1"}}}})
 
 	dispatcher := dispatch.Make()
 	settingsSource := settings.MakeSource(mockDataClient, registry, dispatcher)

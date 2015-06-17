@@ -1,4 +1,4 @@
-package requestheader
+package responseheader
 
 import (
 	"net/http"
@@ -6,7 +6,7 @@ import (
 	"skipper/skipper"
 )
 
-const name = "request-header"
+const name = "response-header"
 
 type impl struct {
 	simpleheader.Type
@@ -30,7 +30,7 @@ func (mw *impl) MakeFilter(id string, config skipper.MiddlewareConfig) (skipper.
 	return f, nil
 }
 
-func (f *impl) ProcessRequest(r *http.Request) *http.Request {
+func (f *impl) ProcessResponse(r *http.Response) *http.Response {
 	r.Header.Add(f.Key(), f.Value())
 	return r
 }
