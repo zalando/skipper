@@ -39,7 +39,8 @@ type Backend interface {
 }
 
 type Filter interface {
-	http.Handler
+	ProcessRequest(*http.Request) *http.Request
+	ProcessResponse(*http.Response) *http.Response
 	Id() string
 }
 

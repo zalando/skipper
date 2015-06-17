@@ -61,15 +61,20 @@ func (b *Backend) Url() string {
 	return b.FUrl
 }
 
-func (f *Filter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	copyMap := func(to http.Header, from map[string]string) {
-		for k, v := range from {
-			to.Set(k, v)
-		}
+func copyHeader(to http.Header, from map[string]string) {
+	for k, v := range from {
+		to.Set(k, v)
 	}
+}
 
-	copyMap(r.Header, f.RequestHeaders)
-	copyMap(w.Header(), f.ResponseHeaders)
+func (f *Filter) ProcessRequest(r *http.Request) *http.Request {
+	copyHeader(r.Header, f.RequestHeaders)
+	return r
+}
+
+func (f *Filter) ProcessResponse(r *http.Response) *http.Response {
+	copyHeader(r.Header, f.ResponseHeaders)
+	return r
 }
 
 func (f *Filter) Id() string {

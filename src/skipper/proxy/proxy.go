@@ -83,20 +83,35 @@ func Make(sd skipper.SettingsSource) http.Handler {
 	return &proxy{sc, &http.Transport{}}
 }
 
-func applyFilterSafe(f skipper.Filter, w http.ResponseWriter, r *http.Request) {
+func applyFilterSafe(f skipper.Filter, p func()) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("middleware", f.Id(), err)
 		}
 	}()
 
-	f.ServeHTTP(w, r)
+	p()
 }
 
-func applyFilters(f []skipper.Filter, w http.ResponseWriter, r *http.Request) {
+func applyFiltersToRequest(f []skipper.Filter, r *http.Request) *http.Request {
 	for _, fi := range f {
-		applyFilterSafe(fi, w, r)
+		applyFilterSafe(fi, func() {
+			r = fi.ProcessRequest(r)
+		})
 	}
+
+	return r
+}
+
+func applyFiltersToResponse(f []skipper.Filter, r *http.Response) *http.Response {
+	for i, _ := range f {
+		fi := f[len(f)-1-i]
+		applyFilterSafe(fi, func() {
+			r = fi.ProcessResponse(r)
+		})
+	}
+
+	return r
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +134,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	applyFilters(rt.Filters(), w, r)
+	f := rt.Filters()
+	r = applyFiltersToRequest(f, r)
 
 	rr, err := mapRequest(r, rt.Backend())
 	if err != nil {
@@ -132,6 +148,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		hterr(err)
 		return
 	}
+
+	rs = applyFiltersToResponse(f, rs)
 
 	defer func() {
 		err = rs.Body.Close()

@@ -289,3 +289,50 @@ func TestAppliesFilters(t *testing.T) {
 		t.Error("missing response header 1")
 	}
 }
+
+func TestAppliesFiltersInOrder(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		if h, ok := r.Header["X-Test-Request-Header-0"]; !ok ||
+			h[0] != "request header value 1" {
+			t.Error("request header 0 is wrong")
+		}
+
+		if h, ok := r.Header["X-Test-Request-Header-1"]; !ok ||
+			h[0] != "request header value 1" {
+			t.Error("request header 1 is missing")
+		}
+	})
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"X-Test-Header": []string{"test value"}}}
+	w := httptest.NewRecorder()
+	p := Make(makeTestSettingsDispatcher(s.URL, []skipper.Filter{
+		&mock.Filter{
+			RequestHeaders: map[string]string{
+				"X-Test-Request-Header-0": "request header value 0"},
+			ResponseHeaders: map[string]string{
+				"X-Test-Response-Header-0": "response header value 0",
+				"X-Test-Response-Header-1": "response header value 0"}},
+		&mock.Filter{
+			RequestHeaders: map[string]string{
+				"X-Test-Request-Header-0": "request header value 1",
+				"X-Test-Request-Header-1": "request header value 1"},
+			ResponseHeaders: map[string]string{
+				"X-Test-Response-Header-1": "response header value 1"}}}))
+
+	p.ServeHTTP(w, r)
+
+	if h, ok := w.Header()["X-Test-Response-Header-0"]; !ok || h[0] != "response header value 0" {
+		t.Error("wrong response header 0")
+	}
+
+	if h, ok := w.Header()["X-Test-Response-Header-1"]; !ok || h[0] != "response header value 0" {
+		t.Error("wrong response header 1")
+	}
+}
