@@ -17,9 +17,11 @@ type Backend struct {
 }
 
 type Filter struct {
-	FId  string
-	Name string
-	Data int
+	FId             string
+	Name            string
+	Data            int
+	RequestHeaders  map[string]string
+	ResponseHeaders map[string]string
 }
 
 type Route struct {
@@ -60,6 +62,14 @@ func (b *Backend) Url() string {
 }
 
 func (f *Filter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	copyMap := func(to http.Header, from map[string]string) {
+		for k, v := range from {
+			to.Set(k, v)
+		}
+	}
+
+	copyMap(r.Header, f.RequestHeaders)
+	copyMap(w.Header(), f.ResponseHeaders)
 }
 
 func (f *Filter) Id() string {
@@ -74,10 +84,10 @@ func (r *Route) Filters() []skipper.Filter {
 	return r.FFilters
 }
 
-func MakeSettings(url string) *Settings {
+func MakeSettings(url string, filters []skipper.Filter) *Settings {
 	rt := route.New()
 	b := &Backend{url}
-	r := &Route{b, nil}
+	r := &Route{b, filters}
 	rt.AddRoute("Path(\"/hello/<v>\")", r)
 	return &Settings{rt}
 }

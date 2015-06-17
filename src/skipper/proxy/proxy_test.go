@@ -18,9 +18,9 @@ type requestCheck func(*http.Request)
 
 func voidCheck(*http.Request) {}
 
-func makeTestSettingsDispatcher(url string) skipper.SettingsDispatcher {
+func makeTestSettingsDispatcher(url string, filters []skipper.Filter) skipper.SettingsDispatcher {
 	sd := dispatch.Make()
-	sd.Push() <- mock.MakeSettings(url)
+	sd.Push() <- mock.MakeSettings(url, filters)
 
 	// todo: don't let to get into busy loop
 	c := make(chan skipper.Settings)
@@ -85,7 +85,7 @@ func TestGetRoundtrip(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL))
+	p := Make(makeTestSettingsDispatcher(s.URL, nil))
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -123,7 +123,7 @@ func TestPostRoundtrip(t *testing.T) {
 		Method: "POST",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL))
+	p := Make(makeTestSettingsDispatcher(s.URL, nil))
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -144,8 +144,8 @@ func TestRoute(t *testing.T) {
 	s2 := startTestServer(payload2, 0, voidCheck)
 	defer s2.Close()
 
-	sd := makeTestSettingsDispatcher("")
-	ts := mock.MakeSettings("")
+	sd := makeTestSettingsDispatcher("", nil)
+	ts := mock.MakeSettings("", nil)
 	ts.RouterImpl.AddRoute("Path(\"/host-one<any>\")", &mock.Route{&mock.Backend{s1.URL}, nil})
 	ts.RouterImpl.AddRoute("Path(\"/host-two<any>\")", &mock.Route{&mock.Backend{s2.URL}, nil})
 	sd.Push() <- ts
@@ -186,7 +186,7 @@ func TestStreaming(t *testing.T) {
 	s := startTestServer(payload, expectedParts, voidCheck)
 	defer s.Close()
 
-	p := Make(makeTestSettingsDispatcher(s.URL))
+	p := Make(makeTestSettingsDispatcher(s.URL, nil))
 
 	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
 	r := &http.Request{
@@ -246,5 +246,46 @@ func TestNotFoundUntilSettingsReceived(t *testing.T) {
 
 	if w.Code != 404 {
 		t.Error("wrong status", w.Code)
+	}
+}
+
+func TestAppliesFilters(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		if h, ok := r.Header["X-Test-Request-Header-0"]; !ok ||
+			h[0] != "request header value 0" {
+			t.Error("request header 0 is missing")
+		}
+
+		if h, ok := r.Header["X-Test-Request-Header-1"]; !ok ||
+			h[0] != "request header value 1" {
+			t.Error("request header 1 is missing")
+		}
+	})
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"X-Test-Header": []string{"test value"}}}
+	w := httptest.NewRecorder()
+	p := Make(makeTestSettingsDispatcher(s.URL, []skipper.Filter{
+		&mock.Filter{
+			RequestHeaders:  map[string]string{"X-Test-Request-Header-0": "request header value 0"},
+			ResponseHeaders: map[string]string{"X-Test-Response-Header-0": "response header value 0"}},
+		&mock.Filter{
+			RequestHeaders:  map[string]string{"X-Test-Request-Header-1": "request header value 1"},
+			ResponseHeaders: map[string]string{"X-Test-Response-Header-1": "response header value 1"}}}))
+
+	p.ServeHTTP(w, r)
+
+	if h, ok := w.Header()["X-Test-Response-Header-0"]; !ok || h[0] != "response header value 0" {
+		t.Error("missing response header 0")
+	}
+
+	if h, ok := w.Header()["X-Test-Response-Header-1"]; !ok || h[0] != "response header value 1" {
+		t.Error("missing response header 1")
 	}
 }
