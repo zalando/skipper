@@ -1,12 +1,18 @@
 package settings
 
-import "skipper/skipper"
-import "github.com/mailgun/route"
+import (
+	"errors"
+	"fmt"
+	"github.com/mailgun/route"
+	"skipper/skipper"
+)
 
 const defaultAddress = ":9090"
 
-type jsonmap map[string]interface{}
-type jsonlist []interface{}
+type (
+	jsonmap  map[string]interface{}
+	jsonlist []interface{}
+)
 
 func toJsonmap(i interface{}) jsonmap {
 	if m, ok := i.(map[string]interface{}); ok {
@@ -49,12 +55,12 @@ func processBackends(data interface{}) map[string]*backend {
 	return processed
 }
 
-func createFilter(id string, specs map[string]jsonmap, mwr skipper.MiddlewareRegistry) skipper.Filter {
+func createFilter(id string, specs map[string]jsonmap, mwr skipper.MiddlewareRegistry) (skipper.Filter, error) {
 	spec := specs[id]
 	mwn, _ := spec["middleware-name"].(string)
 	mw := mwr.Get(mwn)
 	if mw == nil {
-		return nil
+		return nil, errors.New(fmt.Sprintf("middleware not found: %s", mwn))
 	}
 
 	mwc := toJsonmap(spec["config"])
@@ -65,7 +71,7 @@ func processFrontends(
 	data interface{},
 	backends map[string]*backend,
 	filterSpecs map[string]jsonmap,
-	mwr skipper.MiddlewareRegistry) []*routedef {
+	mwr skipper.MiddlewareRegistry) ([]*routedef, error) {
 
 	config := toJsonlist(data)
 	processed := []*routedef{}
@@ -82,10 +88,12 @@ func processFrontends(
 		filterRefs := toJsonlist(f["filters"])
 		filters := []skipper.Filter{}
 		for _, id := range filterRefs {
-			filter := createFilter(id.(string), filterSpecs, mwr)
-			if filter != nil {
-				filters = append(filters, filter)
+			filter, err := createFilter(id.(string), filterSpecs, mwr)
+			if err != nil {
+				return nil, err
 			}
+
+			filters = append(filters, filter)
 		}
 
 		processed = append(processed, &routedef{
@@ -94,20 +102,23 @@ func processFrontends(
 			filters})
 	}
 
-	return processed
+	return processed, nil
 }
 
-func processRaw(rd skipper.RawData, mwr skipper.MiddlewareRegistry) skipper.Settings {
+func processRaw(rd skipper.RawData, mwr skipper.MiddlewareRegistry) (skipper.Settings, error) {
 	s := &settings{defaultAddress, route.New()}
 
 	data := rd.Get()
 	filterSpecs := processFilterSpecs(data["filter-specs"])
 	backends := processBackends(data["backends"])
-	routes := processFrontends(data["frontends"], backends, filterSpecs, mwr)
+	routes, err := processFrontends(data["frontends"], backends, filterSpecs, mwr)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, rt := range routes {
 		s.routes.AddRoute(rt.route, rt)
 	}
 
-	return s
+	return s, nil
 }

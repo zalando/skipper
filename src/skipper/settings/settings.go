@@ -1,8 +1,10 @@
 package settings
 
-import "net/http"
-import "skipper/skipper"
-import "github.com/mailgun/route"
+import (
+	"github.com/mailgun/route"
+	"net/http"
+	"skipper/skipper"
+)
 
 type backend struct {
 	url string

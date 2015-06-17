@@ -1,16 +1,18 @@
 package proxy
 
-import "testing"
-import "net/http"
-import "net/http/httptest"
-import "strconv"
-import "net/url"
-import "bytes"
-import "skipper/skipper"
-import "io"
-import "time"
-import "skipper/dispatch"
-import "skipper/mock"
+import (
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"skipper/dispatch"
+	"skipper/mock"
+	"skipper/skipper"
+	"strconv"
+	"testing"
+	"time"
+)
 
 const streamingDelay time.Duration = 3 * time.Millisecond
 

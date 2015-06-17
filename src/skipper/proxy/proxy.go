@@ -1,10 +1,12 @@
 package proxy
 
-import "fmt"
-import "io"
-import "log"
-import "net/http"
-import "skipper/skipper"
+import (
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"skipper/skipper"
+)
 
 const defaultSettingsBufferSize = 32
 const proxyBufferSize = 8192

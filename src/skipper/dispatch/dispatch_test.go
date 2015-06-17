@@ -1,9 +1,11 @@
 package dispatch
 
-import "testing"
-import "skipper/skipper"
-import "time"
-import "skipper/mock"
+import (
+	"skipper/mock"
+	"skipper/skipper"
+	"testing"
+	"time"
+)
 
 func TestForwardsAsPushed(t *testing.T) {
 	sd := Make()

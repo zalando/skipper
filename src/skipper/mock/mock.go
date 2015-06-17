@@ -1,8 +1,10 @@
 package mock
 
-import "skipper/skipper"
-import "github.com/mailgun/route"
-import "net/http"
+import (
+	"github.com/mailgun/route"
+	"net/http"
+	"skipper/skipper"
+)
 
 type RawData struct {
 	Data map[string]interface{}
@@ -112,11 +114,11 @@ func (s *Settings) Address() string {
 
 func (mw *Middleware) Name() string { return mw.FName }
 
-func (mw *Middleware) MakeFilter(id string, config skipper.MiddlewareConfig) skipper.Filter {
+func (mw *Middleware) MakeFilter(id string, config skipper.MiddlewareConfig) (skipper.Filter, error) {
 	return &Filter{
 		FId:  id,
 		Name: mw.FName,
-		Data: config["free-data"].(int)}
+		Data: config["free-data"].(int)}, nil
 }
 
 func (mwr *MiddlewareRegistry) Add(mw ...skipper.Middleware) {

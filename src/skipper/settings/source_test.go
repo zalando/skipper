@@ -1,11 +1,13 @@
 package settings
 
-import "testing"
-import "skipper/mock"
-import "skipper/dispatch"
-import "skipper/skipper"
-import "net/http"
-import "time"
+import (
+	"net/http"
+	"skipper/dispatch"
+	"skipper/mock"
+	"skipper/skipper"
+	"testing"
+	"time"
+)
 
 func TestParseAndDispatchRawData(t *testing.T) {
 	url1 := "https://www.zalando.de"

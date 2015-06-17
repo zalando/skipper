@@ -1,9 +1,11 @@
 package settings
 
-import "skipper/skipper"
-import "net/http"
-import "testing"
-import "skipper/mock"
+import (
+	"net/http"
+	"skipper/mock"
+	"skipper/skipper"
+	"testing"
+)
 
 func makeTestRequest(url string) *http.Request {
 	r, _ := http.NewRequest("GET", url, nil)
@@ -57,7 +59,7 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 		map[string]skipper.Middleware{
 			"zal-filter-1": &mock.Middleware{"zal-filter-1"},
 			"zal-filter-2": &mock.Middleware{"zal-filter-2"}}}
-	s := processRaw(rd, mwr)
+	s, _ := processRaw(rd, mwr)
 
 	check := func(req *http.Request, url string,
 		filterIds []string, filterNames []string, filterData []int) {

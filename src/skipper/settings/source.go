@@ -1,6 +1,9 @@
 package settings
 
-import "skipper/skipper"
+import (
+	"log"
+	"skipper/skipper"
+)
 
 type source struct {
 	dispatcher skipper.SettingsDispatcher
@@ -15,7 +18,13 @@ func MakeSource(
 	go func() {
 		for {
 			data := <-dc.Receive()
-			settings := processRaw(data, mwr)
+
+			settings, err := processRaw(data, mwr)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
 			s.dispatcher.Push() <- settings
 		}
 	}()

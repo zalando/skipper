@@ -1,14 +1,16 @@
 package main
 
-import "log"
-import "net/http"
-import "skipper/proxy"
-import "skipper/settings"
-import "skipper/dispatch"
-import "time"
-import "fmt"
-import "skipper/mock"
-import "skipper/skipper"
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"skipper/dispatch"
+	"skipper/mock"
+	"skipper/proxy"
+	"skipper/settings"
+	"skipper/skipper"
+	"time"
+)
 
 const startupSettingsTimeout = 1200 * time.Millisecond
 

@@ -39,9 +39,9 @@ type Backend interface {
 }
 
 type Filter interface {
+	Id() string
 	ProcessRequest(*http.Request) *http.Request
 	ProcessResponse(*http.Response) *http.Response
-	Id() string
 }
 
 type Route interface {
@@ -67,7 +67,7 @@ type MiddlewareConfig map[string]interface{}
 
 type Middleware interface {
 	Name() string
-	MakeFilter(id string, s MiddlewareConfig) Filter
+	MakeFilter(id string, s MiddlewareConfig) (Filter, error)
 }
 
 type MiddlewareRegistry interface {
