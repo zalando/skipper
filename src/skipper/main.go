@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"skipper/dispatch"
+	"skipper/middleware"
 	"skipper/mock"
 	"skipper/proxy"
 	"skipper/settings"
@@ -31,6 +32,9 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 }
 
 func main() {
+	registry := &mock.MiddlewareRegistry{map[string]skipper.Middleware{}}
+	middleware.Register(registry)
+
 	mockDataClient := mock.MakeDataClient(map[string]interface{}{
 		"backends": map[string]interface{}{"hello": "http://localhost:9999/slow"},
 		"frontends": []interface{}{
@@ -38,7 +42,6 @@ func main() {
 				"route":      "Path(\"/hello\")",
 				"backend-id": "hello"}}})
 
-	registry := &mock.MiddlewareRegistry{}
 	dispatcher := dispatch.Make()
 	settingsSource := settings.MakeSource(mockDataClient, registry, dispatcher)
 
