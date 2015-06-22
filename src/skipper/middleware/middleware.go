@@ -19,7 +19,7 @@ func Register(registry skipper.MiddlewareRegistry) {
 	)
 }
 
-func RegisterToDefault() skipper.MiddlewareRegistry {
+func RegisterDefault() skipper.MiddlewareRegistry {
 	r := makeRegistry()
 	Register(r)
 	return r

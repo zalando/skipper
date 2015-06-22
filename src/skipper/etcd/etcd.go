@@ -1,133 +1,134 @@
 package etcd
 
-import "skipper/skipper"
+import (
+	"encoding/json"
+	"github.com/coreos/go-etcd/etcd"
+	"log"
+	"skipper/skipper"
+	"strings"
+)
 
-// currently unused, feel free to change in any way.
-// see below some mock that is the only stuff that is used
+const StorageRoot = "/skipper"
 
-// type EndpointType string
-//
-// const (
-// 	Ephttp  EndpointType = "http"
-// 	Ephttps EndpointType = "https"
-// )
-//
-// type Server struct {
-// 	Url string
-// }
-//
-// type Backend struct {
-// 	Typ     EndpointType
-// 	Name    string
-// 	Servers []Server
-// }
-//
-// type Frontend struct {
-// 	Typ        EndpointType
-// 	Name       string
-// 	BackendId  string
-// 	Route      string
-// 	Middleware []string
-// }
-//
-// type Middleware struct {
-// 	Id       string
-// 	Priority int
-// 	Typ      string // ???
-// 	Args     interface{}
-// }
-//
-// type Settings interface {
-// 	GetBackends() map[string]Backend
-// 	GetFrontends() map[string]Frontend
-// 	GetMiddleware() map[string]Middleware
-// }
-//
-// type settingsStruct struct {
-// 	backends   map[string]Backend
-// 	frontends  map[string]Frontend
-// 	middleware map[string]Middleware
-// }
-//
-// type Client interface {
-// 	GetSettings() <-chan Settings
-// 	Start()
-// }
-//
-// type etcdClient struct {
-// 	settings chan Settings
-// }
-//
-// func (s *settingsStruct) GetBackends() map[string]Backend {
-// 	return s.backends
-// }
-//
-// func (s *settingsStruct) GetFrontends() map[string]Frontend {
-// 	return s.frontends
-// }
-//
-// func (s *settingsStruct) GetMiddleware() map[string]Middleware {
-// 	return s.middleware
-// }
-//
-// func MakeEtcdClient() Client {
-// 	return &etcdClient{make(chan Settings)}
-// }
-//
-// func (ec *etcdClient) feedSettings() {
-// 	testSettings := &settingsStruct{
-// 		backends: map[string]Backend{
-// 			"test": Backend{
-// 				Typ: Ephttp,
-// 				Servers: []Server{
-// 					Server{Url: "http://localhost:9999/slow"}}}},
-// 		frontends:  map[string]Frontend{},
-// 		middleware: map[string]Middleware{}}
-//
-// 	for {
-// 		ec.settings <- testSettings
-// 	}
-// }
-//
-// func (ec *etcdClient) Start() {
-// 	go ec.feedSettings()
-// }
-//
-// func (ec *etcdClient) GetSettings() <-chan Settings {
-// 	return ec.settings
-// }
+const (
+	backendPrefix    = "/skipper/backends/"
+	frontendPrefix   = "/skipper/frontends/"
+	filterSpecPrefix = "/skipper/filter-specs/"
+)
 
-// -->
-
-type RawData struct {
-	mapping map[string]string
+type client struct {
+	receive chan skipper.RawData
 }
 
-type Mock struct {
-	RawData *RawData
-	get     chan skipper.RawData
+type dataWrapper struct {
+	data map[string]interface{}
 }
 
-func TempMock() *Mock {
-	m := &Mock{
-		&RawData{
-			map[string]string{
-				"Path(\"/hello<v>\")": "http://localhost:9999/slow"}},
-		make(chan skipper.RawData)}
-	go m.feed()
-	return m
+type etcdResponse struct {
+	data            map[string]interface{}
+	highestModIndex uint64
 }
 
-func (m *Mock) feed() {
-	for {
-		m.get <- m.RawData
+func setDataItem(data *map[string]interface{}, categoryIndex int, category string, node *etcd.Node) {
+	// todo: what to do with parsing errors when already running
+	var v interface{}
+	err := json.Unmarshal([]byte(node.Value), &v)
+	if err != nil {
+		return
+	}
+
+	categoryMap, ok := (*data)[category].(map[string]interface{})
+	if !ok {
+		categoryMap = make(map[string]interface{})
+		(*data)[category] = categoryMap
+	}
+
+	categoryMap[node.Key[categoryIndex:]] = v
+}
+
+func walkInNodes(data *map[string]interface{}, highestModIndex *uint64, node *etcd.Node) {
+	if len(node.Nodes) > 0 {
+		for _, n := range node.Nodes {
+			walkInNodes(data, highestModIndex, n)
+		}
+	}
+
+	switch {
+	case strings.Index(node.Key, backendPrefix) == 0:
+		setDataItem(data, len(backendPrefix), "backends", node)
+	case strings.Index(node.Key, frontendPrefix) == 0:
+		setDataItem(data, len(frontendPrefix), "frontends", node)
+	case strings.Index(node.Key, filterSpecPrefix) == 0:
+		setDataItem(data, len(filterSpecPrefix), "filter-specs", node)
+	}
+
+	if node.ModifiedIndex > *highestModIndex {
+		*highestModIndex = node.ModifiedIndex
 	}
 }
 
-func (m *Mock) Get() <-chan skipper.RawData {
-	return m.get
+func processResponse(data *map[string]interface{}, highestModIndex *uint64, r *etcd.Response) {
+	if *data == nil {
+		*data = make(map[string]interface{})
+	}
+
+	walkInNodes(data, highestModIndex, r.Node)
 }
 
-func (rd *RawData) Get() map[string]interface{} {
-	return nil
+func watch(ec *etcd.Client, waitIndex uint64, receive chan *etcd.Response) {
+	for {
+		// we don't return error here after already started up
+		r, err := ec.Watch(StorageRoot, waitIndex, true, nil, nil)
+		if err != nil {
+			log.Println("error during watching etcd", err)
+			continue
+		}
+
+		receive <- r
+		return
+	}
+}
+
+func Make(urls []string) (skipper.DataClient, error) {
+	var (
+		c               *client
+		ec              *etcd.Client
+		data            map[string]interface{}
+		highestModIndex uint64
+		etcdReceive     chan *etcd.Response
+	)
+
+	c = &client{make(chan skipper.RawData)}
+	ec = etcd.NewClient(urls)
+	data = make(map[string]interface{})
+	highestModIndex = 0
+	etcdReceive = make(chan *etcd.Response)
+
+	r, err := ec.Get(StorageRoot, false, true)
+	if err != nil {
+		return nil, err
+	}
+
+	processResponse(&data, &highestModIndex, r)
+	go watch(ec, highestModIndex+1, etcdReceive)
+	go func() {
+		for {
+			select {
+			case r = <-etcdReceive:
+				processResponse(&data, &highestModIndex, r)
+				go watch(ec, highestModIndex+1, etcdReceive)
+			case c.receive <- &dataWrapper{data}:
+			}
+		}
+	}()
+
+	return c, nil
+}
+
+func (c *client) Receive() <-chan skipper.RawData {
+	return c.receive
+}
+
+func (dw *dataWrapper) Get() map[string]interface{} {
+	return dw.data
 }

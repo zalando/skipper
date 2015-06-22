@@ -32,7 +32,7 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 }
 
 func main() {
-	registry := middleware.RegisterToDefault()
+	registry := middleware.RegisterDefault()
 
 	mockDataClient := mock.MakeDataClient(map[string]interface{}{
 		"backends": map[string]interface{}{"hello": "http://localhost:9999/slow"},

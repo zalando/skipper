@@ -4,18 +4,22 @@ import "net/http"
 
 type RawData interface {
 
-	// todo: consider what config format failures should be considered invalid
+	// todo:
+    //  - consider what config format failures should be considered invalid
+    //  - change the routing format to: 'id: <match> [[-> <filter>]...] -> <backend>
 	// in json:
 	// {
 	//     "backends": {"pdp": "https://www.zalando.de/pdp.html"},
-	//     "frontends": [{
-	//         "route": "PathRegexp(`.*\\.html`)",
-	//         "backendId": "pdp",
-	//         "filters": [
-	//             "pdp-custom-headers",
-	//             "x-session-id"
-	//         ]
-	//     }],
+	//     "frontends": {
+    //         "pdp": {
+	//             "route": "PathRegexp(`.*\\.html`)",
+	//             "backend-id": "pdp",
+	//             "filters": [
+	//                 "pdp-custom-headers",
+	//                 "x-session-id"
+	//             ]
+	//         }
+    //     },
 	//     "filter-specs": {
 	//         "pdp-custom-headers": {
 	//             "middleware-name": "custom-headers",

@@ -134,14 +134,3 @@ func (mwr *MiddlewareRegistry) Get(name string) skipper.Middleware {
 func (mwr *MiddlewareRegistry) Remove(name string) {
 	delete(mwr.Middleware, name)
 }
-
-// where missing
-//
-// func (rd *testData) Get() map[string]interface{} {
-// 	return map[string]interface{}{
-// 		"backends": map[string]interface{}{"hello": "http://localhost:9999/slow"},
-// 		"frontends": []interface{}{
-// 			map[string]interface{}{
-// 				"route":      "Path(\"/hello\")",
-// 				"backend-id": "hello"}}}
-// }

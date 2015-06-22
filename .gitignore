@@ -2,3 +2,4 @@
 bin
 pkg
 src/github.com/mailgun
+default.etcd
