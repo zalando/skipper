@@ -76,7 +76,7 @@ func processFrontends(
 	filterSpecs map[string]jsonmap,
 	mwr skipper.MiddlewareRegistry) ([]*routedef, error) {
 
-	config := toJsonlist(data)
+	config := toJsonmap(data)
 	processed := []*routedef{}
 
 	for _, raw := range config {

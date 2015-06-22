@@ -5,8 +5,8 @@ import (
 	"log"
 	"net/http"
 	"skipper/dispatch"
+	"skipper/etcd"
 	"skipper/middleware"
-	"skipper/mock"
 	"skipper/proxy"
 	"skipper/settings"
 	"skipper/skipper"
@@ -32,39 +32,29 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 }
 
 func main() {
+	dataClient, err := etcd.Make([]string{"http://127.0.0.1:2379", "http://127.0.0.1:4001"}, "/skipper")
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
 	registry := middleware.RegisterDefault()
-
-	mockDataClient := mock.MakeDataClient(map[string]interface{}{
-		"backends": map[string]interface{}{"hello": "http://localhost:9999/slow"},
-		"frontends": []interface{}{
-			map[string]interface{}{
-				"route":      "Path(\"/hello\")",
-				"backend-id": "hello",
-				"filters": []interface{}{
-					"test-0",
-					"test-1"}}},
-		"filter-specs": map[string]interface{}{
-			"test-0": map[string]interface{}{
-				"middleware-name": "response-header",
-				"config": map[string]interface{}{
-					"key":   "X-Header-0",
-					"value": "test-value-0"}},
-			"test-1": map[string]interface{}{
-				"middleware-name": "response-header",
-				"config": map[string]interface{}{
-					"key":   "X-Header-1",
-					"value": "test-value-1"}}}})
-
 	dispatcher := dispatch.Make()
-	settingsSource := settings.MakeSource(mockDataClient, registry, dispatcher)
-
+	settingsSource := settings.MakeSource(dataClient, registry, dispatcher)
 	proxy := proxy.Make(settingsSource)
 
 	settingsChan := make(chan skipper.Settings)
 	dispatcher.Subscribe(settingsChan)
+
+	// todo: exit if this fails(?)
 	settings := waitForInitialSettings(settingsChan)
 
 	// todo: print only in dev environment
+	//
+	// note:
+	// address here is only for testing that there can be other settings
+	// in etcd and processed by settings, but the address itself actually
+	// best if comes the flags
 	address := settings.Address()
 	fmt.Printf("listening on %v\n", address)
 

@@ -60,21 +60,21 @@ func resetData(t *testing.T) {
 	c := etcd.NewClient(mock.EtcdUrls)
 
 	// for the tests, considering errors as not-found
-	c.Delete("/skipper", true)
+	c.Delete("/skippertest", true)
 
-	err := setAll(c, "/skipper/backends/", testBackends)
+	err := setAll(c, "/skippertest/backends/", testBackends)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	err = setAll(c, "/skipper/frontends/", testFrontends)
+	err = setAll(c, "/skippertest/frontends/", testFrontends)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	err = setAll(c, "/skipper/filter-specs/", testFilterSpecs)
+	err = setAll(c, "/skippertest/filter-specs/", testFilterSpecs)
 	if err != nil {
 		t.Error(err)
 		return
@@ -88,9 +88,9 @@ func testBackend(t *testing.T, rd skipper.RawData, key, value string) {
 }
 
 func testInitial(t *testing.T, rd skipper.RawData) {
-	d := rd.Get()
-
 	testBackend(t, rd, "pdp", "https://www.zalando.de/pdp.html")
+
+	d := rd.Get()
 
 	pdpFrontend := d["frontends"].(map[string]interface{})["pdp"].(map[string]interface{})
 
@@ -130,7 +130,7 @@ func testInitial(t *testing.T, rd skipper.RawData) {
 
 func TestReceivesInitialSettings(t *testing.T) {
 	resetData(t)
-	dc, err := Make(mock.EtcdUrls)
+	dc, err := Make(mock.EtcdUrls, "/skippertest")
 	if err != nil {
 		t.Error(err)
 	}
@@ -146,9 +146,9 @@ func TestReceivesInitialSettings(t *testing.T) {
 func TestReceivesUpdatedSettings(t *testing.T) {
 	resetData(t)
 	c := etcd.NewClient(mock.EtcdUrls)
-	c.Set("/skipper/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated.html")), 0)
+	c.Set("/skippertest/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated.html")), 0)
 
-	dc, _ := Make(mock.EtcdUrls)
+	dc, _ := Make(mock.EtcdUrls, "/skippertest")
 	select {
 	case d := <-dc.Receive():
 		testBackend(t, d, "pdp", "http://www.zalando.de/pdp-updated.html")
@@ -160,7 +160,7 @@ func TestReceivesUpdatedSettings(t *testing.T) {
 func TestRecieveInitialAndUpdates(t *testing.T) {
 	resetData(t)
 	c := etcd.NewClient(mock.EtcdUrls)
-	dc, _ := Make(mock.EtcdUrls)
+	dc, _ := Make(mock.EtcdUrls, "/skippertest")
 
 	select {
 	case d := <-dc.Receive():
@@ -169,7 +169,7 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 		t.Error("receive timeout")
 	}
 
-	c.Set("/skipper/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated-1.html")), 0)
+	c.Set("/skippertest/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated-1.html")), 0)
 	time.Sleep(3 * time.Millisecond)
 	select {
 	case d := <-dc.Receive():
@@ -178,7 +178,7 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 		t.Error("receive timeout")
 	}
 
-	c.Set("/skipper/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated-2.html")), 0)
+	c.Set("/skippertest/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated-2.html")), 0)
 	time.Sleep(3 * time.Millisecond)
 	select {
 	case d := <-dc.Receive():

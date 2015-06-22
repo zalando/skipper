@@ -13,8 +13,8 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	url1 := "https://www.zalando.de"
 	data := map[string]interface{}{
 		"backends": map[string]interface{}{"hello": url1},
-		"frontends": []interface{}{
-			map[string]interface{}{
+		"frontends": map[string]interface{}{
+			"hello": map[string]interface{}{
 				"route":      "Path(\"/hello\")",
 				"backend-id": "hello"}}}
 

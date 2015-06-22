@@ -19,15 +19,15 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 				"backend1": "https://www.zalan.do/backend1",
 				"backend2": "https://www.zalan.do/backend2"},
 
-			"frontends": []interface{}{
-				map[string]interface{}{
+			"frontends": map[string]interface{}{
+				"frontend1": map[string]interface{}{
 					"route":      "Path(`/frontend1`)",
 					"backend-id": "backend1",
 					"filters": []interface{}{
 						"filter1",
 						"filter2"}},
 
-				map[string]interface{}{
+				"frontend2": map[string]interface{}{
 					"route":      "Path(`/frontend2`)",
 					"backend-id": "backend2",
 					"filters": []interface{}{
