@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,10 +11,29 @@ import (
 	"skipper/proxy"
 	"skipper/settings"
 	"skipper/skipper"
+	"strings"
 	"time"
 )
 
-const startupSettingsTimeout = 1200 * time.Millisecond
+const (
+	startupSettingsTimeout = 1200 * time.Millisecond
+	storageRoot            = "/skipper"
+	defaultAddress         = ":9090"
+	defaultEtcdUrls        = "http://127.0.0.1:2379,http://127.0.0.1:4001"
+	addressUsage           = "address where skipper should listen on"
+	etcdUrlsUsage          = "urls where etcd can be found"
+)
+
+var (
+	address  string
+	etcdUrls string
+)
+
+func init() {
+	flag.StringVar(&address, "address", defaultAddress, addressUsage)
+	flag.StringVar(&etcdUrls, "etcd-urls", defaultEtcdUrls, etcdUrlsUsage)
+	flag.Parse()
+}
 
 func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 	// todo:
@@ -32,7 +52,7 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 }
 
 func main() {
-	dataClient, err := etcd.Make([]string{"http://127.0.0.1:2379", "http://127.0.0.1:4001"}, "/skipper")
+	dataClient, err := etcd.Make(strings.Split(etcdUrls, ","), storageRoot)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -47,15 +67,9 @@ func main() {
 	dispatcher.Subscribe(settingsChan)
 
 	// todo: exit if this fails(?)
-	settings := waitForInitialSettings(settingsChan)
+	waitForInitialSettings(settingsChan)
 
 	// todo: print only in dev environment
-	//
-	// note:
-	// address here is only for testing that there can be other settings
-	// in etcd and processed by settings, but the address itself actually
-	// best if comes the flags
-	address := settings.Address()
 	fmt.Printf("listening on %v\n", address)
 
 	log.Fatal(http.ListenAndServe(address, proxy))
