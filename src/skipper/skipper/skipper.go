@@ -42,10 +42,16 @@ type Backend interface {
 	Url() string
 }
 
+type FilterContext interface {
+	ResponseWriter() http.ResponseWriter
+	Request() *http.Request
+	Response() *http.Response
+}
+
 type Filter interface {
 	Id() string
-	ProcessRequest(*http.Request) *http.Request
-	ProcessResponse(*http.Response) *http.Response
+	Request(FilterContext)
+	Response(FilterContext)
 }
 
 type Route interface {

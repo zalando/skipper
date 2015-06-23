@@ -22,6 +22,12 @@ type proxy struct {
 	transport *http.Transport
 }
 
+type filterContext struct {
+	w   http.ResponseWriter
+	req *http.Request
+	res *http.Response
+}
+
 func proxyError(m string) error {
 	return fmt.Errorf(proxyErrorFmt, m)
 }
@@ -95,25 +101,33 @@ func applyFilterSafe(f skipper.Filter, p func()) {
 	p()
 }
 
-func applyFiltersToRequest(f []skipper.Filter, r *http.Request) *http.Request {
+func applyFiltersToRequest(f []skipper.Filter, ctx skipper.FilterContext) {
 	for _, fi := range f {
 		applyFilterSafe(fi, func() {
-			r = fi.ProcessRequest(r)
+			fi.Request(ctx)
 		})
 	}
-
-	return r
 }
 
-func applyFiltersToResponse(f []skipper.Filter, r *http.Response) *http.Response {
+func applyFiltersToResponse(f []skipper.Filter, ctx skipper.FilterContext) {
 	for i, _ := range f {
 		fi := f[len(f)-1-i]
 		applyFilterSafe(fi, func() {
-			r = fi.ProcessResponse(r)
+			fi.Response(ctx)
 		})
 	}
+}
 
-	return r
+func (c *filterContext) ResponseWriter() http.ResponseWriter {
+	return c.w
+}
+
+func (c *filterContext) Request() *http.Request {
+	return c.req
+}
+
+func (c *filterContext) Response() *http.Response {
+	return c.res
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +151,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := rt.Filters()
-	r = applyFiltersToRequest(f, r)
+	c := &filterContext{w, r, nil}
+	applyFiltersToRequest(f, c)
 
 	rr, err := mapRequest(r, rt.Backend())
 	if err != nil {
@@ -151,7 +166,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rs = applyFiltersToResponse(f, rs)
+	c.res = rs
+	applyFiltersToResponse(f, c)
 
 	defer func() {
 		err = rs.Body.Close()

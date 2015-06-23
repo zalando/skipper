@@ -18,6 +18,12 @@ type Backend struct {
 	FUrl string
 }
 
+type FilterContext struct {
+	FResponseWriter http.ResponseWriter
+	FRequest        *http.Request
+	FResponse       *http.Response
+}
+
 type Filter struct {
 	FId             string
 	Name            string
@@ -69,14 +75,24 @@ func copyHeader(to http.Header, from map[string]string) {
 	}
 }
 
-func (f *Filter) ProcessRequest(r *http.Request) *http.Request {
-	copyHeader(r.Header, f.RequestHeaders)
-	return r
+func (fc *FilterContext) ResponseWriter() http.ResponseWriter {
+	return fc.FResponseWriter
 }
 
-func (f *Filter) ProcessResponse(r *http.Response) *http.Response {
-	copyHeader(r.Header, f.ResponseHeaders)
-	return r
+func (fc *FilterContext) Request() *http.Request {
+	return fc.FRequest
+}
+
+func (fc *FilterContext) Response() *http.Response {
+	return fc.FResponse
+}
+
+func (f *Filter) Request(ctx skipper.FilterContext) {
+	copyHeader(ctx.Request().Header, f.RequestHeaders)
+}
+
+func (f *Filter) Response(ctx skipper.FilterContext) {
+	copyHeader(ctx.Response().Header, f.ResponseHeaders)
 }
 
 func (f *Filter) Id() string {

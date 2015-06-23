@@ -2,6 +2,7 @@ package noop
 
 import (
 	"net/http"
+	"skipper/mock"
 	"testing"
 )
 
@@ -17,12 +18,10 @@ func TestCreatesNoopMiddlewareAndFilter(t *testing.T) {
 	}
 
 	req := &http.Request{}
-	if f.ProcessRequest(req) != req {
-		t.Error("failed not to process request")
-	}
+	c := &mock.FilterContext{nil, req, nil}
+	f.Request(c)
 
 	rsp := &http.Response{}
-	if f.ProcessResponse(rsp) != rsp {
-		t.Error("failed not to process response")
-	}
+	c.FResponse = rsp
+	f.Response(c)
 }

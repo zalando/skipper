@@ -1,7 +1,6 @@
 package responseheader
 
 import (
-	"net/http"
 	"skipper/middleware/simpleheader"
 	"skipper/skipper"
 )
@@ -30,7 +29,6 @@ func (mw *impl) MakeFilter(id string, config skipper.MiddlewareConfig) (skipper.
 	return f, nil
 }
 
-func (f *impl) ProcessResponse(r *http.Response) *http.Response {
-	r.Header.Add(f.Key(), f.Value())
-	return r
+func (f *impl) Response(ctx skipper.FilterContext) {
+	ctx.Response().Header.Add(f.Key(), f.Value())
 }

@@ -1,6 +1,9 @@
 package xalando
 
-import "skipper/middleware/noop"
+import (
+	"skipper/middleware/noop"
+	"skipper/skipper"
+)
 
 const name = "xalando"
 
@@ -14,4 +17,7 @@ func Make() *impl {
 
 func (mw *impl) Name() string {
 	return name
+}
+
+func (mw *impl) Response(ctx skipper.FilterContext) {
 }
