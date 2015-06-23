@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
@@ -71,7 +72,12 @@ func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
 		return nil, proxyError("missing backend")
 	}
 
-	rr, err := http.NewRequest(r.Method, b.Url(), r.Body)
+	u := r.URL
+	u.Scheme = b.Scheme()
+	u.Host = b.Host()
+
+	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
+	rr.Host = r.Host
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +91,16 @@ func getSettingsBufferSize() int {
 	return 0
 }
 
-func Make(sd skipper.SettingsSource) http.Handler {
+func Make(sd skipper.SettingsSource, insecure bool) http.Handler {
 	sc := make(chan skipper.Settings, getSettingsBufferSize())
 	sd.Subscribe(sc)
-	return &proxy{sc, &http.Transport{}}
+
+	tr := &http.Transport{}
+	if insecure {
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	return &proxy{sc, tr}
 }
 
 func applyFilterSafe(id string, p func()) {
@@ -98,7 +110,6 @@ func applyFilterSafe(id string, p func()) {
 		}
 	}()
 
-	println("applying filter", id)
 	p()
 }
 
@@ -152,7 +163,6 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := rt.Filters()
-	println(len(f))
 	c := &filterContext{w, r, nil}
 	applyFiltersToRequest(f, c)
 

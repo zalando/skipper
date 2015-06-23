@@ -67,6 +67,11 @@ func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Se
 	}))
 }
 
+func urlToBackend(u string) *mock.Backend {
+	up, _ := url.ParseRequestURI(u)
+	return &mock.Backend{up.Scheme, up.Host}
+}
+
 func TestGetRoundtrip(t *testing.T) {
 	payload := []byte("Hello World!")
 
@@ -87,7 +92,7 @@ func TestGetRoundtrip(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL, nil))
+	p := Make(makeTestSettingsDispatcher(s.URL, nil), false)
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -125,7 +130,7 @@ func TestPostRoundtrip(t *testing.T) {
 		Method: "POST",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL, nil))
+	p := Make(makeTestSettingsDispatcher(s.URL, nil), false)
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -148,11 +153,11 @@ func TestRoute(t *testing.T) {
 
 	sd := makeTestSettingsDispatcher("", nil)
 	ts := mock.MakeSettings("", nil)
-	ts.RouterImpl.AddRoute("Path(\"/host-one<any>\")", &mock.Route{&mock.Backend{s1.URL}, nil})
-	ts.RouterImpl.AddRoute("Path(\"/host-two<any>\")", &mock.Route{&mock.Backend{s2.URL}, nil})
+	ts.RouterImpl.AddRoute("Path(\"/host-one<any>\")", &mock.Route{urlToBackend(s1.URL), nil})
+	ts.RouterImpl.AddRoute("Path(\"/host-two<any>\")", &mock.Route{urlToBackend(s2.URL), nil})
 	sd.Push() <- ts
 
-	p := Make(sd)
+	p := Make(sd, false)
 
 	var (
 		r *http.Request
@@ -188,7 +193,7 @@ func TestStreaming(t *testing.T) {
 	s := startTestServer(payload, expectedParts, voidCheck)
 	defer s.Close()
 
-	p := Make(makeTestSettingsDispatcher(s.URL, nil))
+	p := Make(makeTestSettingsDispatcher(s.URL, nil), false)
 
 	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
 	r := &http.Request{
@@ -243,7 +248,7 @@ func TestNotFoundUntilSettingsReceived(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(dispatch.Make())
+	p := Make(dispatch.Make(), false)
 	p.ServeHTTP(w, r)
 
 	if w.Code != 404 {
@@ -279,7 +284,7 @@ func TestAppliesFilters(t *testing.T) {
 			ResponseHeaders: map[string]string{"X-Test-Response-Header-0": "response header value 0"}},
 		&mock.Filter{
 			RequestHeaders:  map[string]string{"X-Test-Request-Header-1": "request header value 1"},
-			ResponseHeaders: map[string]string{"X-Test-Response-Header-1": "response header value 1"}}}))
+			ResponseHeaders: map[string]string{"X-Test-Response-Header-1": "response header value 1"}}}), false)
 
 	p.ServeHTTP(w, r)
 
@@ -326,7 +331,7 @@ func TestAppliesFiltersInOrder(t *testing.T) {
 				"X-Test-Request-Header-0": "request header value 1",
 				"X-Test-Request-Header-1": "request header value 1"},
 			ResponseHeaders: map[string]string{
-				"X-Test-Response-Header-1": "response header value 1"}}}))
+				"X-Test-Response-Header-1": "response header value 1"}}}), false)
 
 	p.ServeHTTP(w, r)
 

@@ -22,16 +22,19 @@ const (
 	defaultEtcdUrls        = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	addressUsage           = "address where skipper should listen on"
 	etcdUrlsUsage          = "urls where etcd can be found"
+	insecureUsage          = "set this flag to allow invalid certificates for tls connections"
 )
 
 var (
 	address  string
 	etcdUrls string
+	insecure bool
 )
 
 func init() {
 	flag.StringVar(&address, "address", defaultAddress, addressUsage)
 	flag.StringVar(&etcdUrls, "etcd-urls", defaultEtcdUrls, etcdUrlsUsage)
+	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.Parse()
 }
 
@@ -61,7 +64,7 @@ func main() {
 	registry := middleware.RegisterDefault()
 	dispatcher := dispatch.Make()
 	settingsSource := settings.MakeSource(dataClient, registry, dispatcher)
-	proxy := proxy.Make(settingsSource)
+	proxy := proxy.Make(settingsSource, insecure)
 
 	settingsChan := make(chan skipper.Settings)
 	dispatcher.Subscribe(settingsChan)

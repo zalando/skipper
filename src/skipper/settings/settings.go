@@ -7,7 +7,8 @@ import (
 )
 
 type backend struct {
-	url string
+	scheme string
+	host   string
 }
 
 type filter struct {
@@ -25,8 +26,12 @@ type settings struct {
 	routes  route.Router
 }
 
-func (b *backend) Url() string {
-	return b.url
+func (b *backend) Scheme() string {
+	return b.scheme
+}
+
+func (b *backend) Host() string {
+	return b.host
 }
 
 func (r *routedef) Backend() skipper.Backend {

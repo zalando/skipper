@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mailgun/route"
+	"net/url"
 	"skipper/skipper"
 )
 
@@ -42,7 +43,6 @@ func processFilterSpecs(data interface{}) map[string]jsonmap {
 		processed[id] = spec
 	}
 
-	println(len(processed))
 	return processed
 }
 
@@ -52,7 +52,9 @@ func processBackends(data interface{}) map[string]*backend {
 	config := toJsonmap(data)
 	for id, uraw := range config {
 		if us, ok := uraw.(string); ok {
-			processed[id] = &backend{us}
+			if u, err := url.ParseRequestURI(us); err == nil {
+				processed[id] = &backend{u.Scheme, u.Host}
+			}
 		}
 	}
 
@@ -64,7 +66,7 @@ func createFilter(id string, specs map[string]jsonmap, mwr skipper.MiddlewareReg
 	mwn, _ := spec["middleware-name"].(string)
 	mw := mwr.Get(mwn)
 	if mw == nil {
-		return nil, errors.New(fmt.Sprintf("middleware not found: %s", mwn))
+		return nil, errors.New(fmt.Sprintf("filter not found: '%s' '%s'", id, mwn))
 	}
 
 	mwc := toJsonmap(spec["config"])
@@ -100,6 +102,7 @@ func processFrontends(
 			filters = append(filters, filter)
 		}
 
+		// todo: if no backend, should be an error
 		processed = append(processed, &routedef{
 			rt,
 			backends[backendId],

@@ -39,7 +39,8 @@ type DataClient interface {
 }
 
 type Backend interface {
-	Url() string
+	Scheme() string
+	Host() string
 }
 
 type FilterContext interface {

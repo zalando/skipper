@@ -2,6 +2,7 @@ package settings
 
 import (
 	"net/http"
+	"net/url"
 	"skipper/mock"
 	"skipper/skipper"
 	"testing"
@@ -61,7 +62,7 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 			"zal-filter-2": &mock.Middleware{"zal-filter-2"}}}
 	s, _ := processRaw(rd, mwr)
 
-	check := func(req *http.Request, url string,
+	check := func(req *http.Request, u string,
 		filterIds []string, filterNames []string, filterData []int) {
 
 		rt, err := s.Route(req)
@@ -69,7 +70,9 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 			t.Error(err)
 		}
 
-		if rt.Backend().Url() != url {
+		up, _ := url.ParseRequestURI(u)
+
+		if rt.Backend().Scheme() != up.Scheme || rt.Backend().Host() != up.Host {
 			t.Error("invalid url")
 		}
 

@@ -30,5 +30,10 @@ func (mw *impl) MakeFilter(id string, config skipper.MiddlewareConfig) (skipper.
 }
 
 func (f *impl) Request(ctx skipper.FilterContext) {
-	ctx.Request().Header.Add(f.Key(), f.Value())
+	req := ctx.Request()
+	if f.Key() == "Host" {
+		req.Host = f.Value()
+	}
+
+	req.Header.Add(f.Key(), f.Value())
 }

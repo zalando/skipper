@@ -3,6 +3,7 @@ package mock
 import (
 	"github.com/mailgun/route"
 	"net/http"
+	"net/url"
 	"skipper/skipper"
 )
 
@@ -15,7 +16,8 @@ type DataClient struct {
 }
 
 type Backend struct {
-	FUrl string
+	FScheme string
+	FHost   string
 }
 
 type FilterContext struct {
@@ -65,8 +67,12 @@ func (dc *DataClient) Feed(data map[string]interface{}) {
 	}()
 }
 
-func (b *Backend) Url() string {
-	return b.FUrl
+func (b *Backend) Scheme() string {
+	return b.FScheme
+}
+
+func (b *Backend) Host() string {
+	return b.FHost
 }
 
 func copyHeader(to http.Header, from map[string]string) {
@@ -107,9 +113,10 @@ func (r *Route) Filters() []skipper.Filter {
 	return r.FFilters
 }
 
-func MakeSettings(url string, filters []skipper.Filter) *Settings {
+func MakeSettings(u string, filters []skipper.Filter) *Settings {
+	up, _ := url.Parse(u)
 	rt := route.New()
-	b := &Backend{url}
+	b := &Backend{up.Scheme, up.Host}
 	r := &Route{b, filters}
 	rt.AddRoute("Path(\"/hello/<v>\")", r)
 	return &Settings{rt}

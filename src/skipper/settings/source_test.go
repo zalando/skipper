@@ -2,6 +2,7 @@ package settings
 
 import (
 	"net/http"
+	"net/url"
 	"skipper/dispatch"
 	"skipper/mock"
 	"skipper/skipper"
@@ -36,7 +37,10 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	rt1, _ := s1.Route(r)
 	rt2, _ := s2.Route(r)
-	if rt1.Backend().Url() != url1 || rt2.Backend().Url() != url1 {
+
+	up1, _ := url.ParseRequestURI(url1)
+	if rt1.Backend().Scheme() != up1.Scheme || rt1.Backend().Host() != up1.Host ||
+		rt2.Backend().Scheme() != up1.Scheme || rt2.Backend().Host() != up1.Host {
 		t.Error("wrong url 1")
 	}
 
@@ -52,7 +56,9 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	rt1, _ = s1.Route(r)
 	rt2, _ = s2.Route(r)
-	if rt1.Backend().Url() != url2 || rt2.Backend().Url() != url2 {
+	up2, _ := url.ParseRequestURI(url2)
+	if rt1.Backend().Scheme() != up2.Scheme || rt1.Backend().Host() != up2.Host ||
+		rt2.Backend().Scheme() != up2.Scheme || rt2.Backend().Host() != up2.Host {
 		t.Error("wrong url 2")
 	}
 }
