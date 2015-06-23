@@ -143,6 +143,12 @@ func (c *filterContext) Response() *http.Response {
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    // tmp hack:
+    if r.URL.Path == "/z-watchdog" {
+        w.WriteHeader(200)
+        return
+    }
+
 	hterr := func(err error) {
 		// todo: just a bet that we shouldn't send here 50x
 		http.Error(w, http.StatusText(404), 404)
