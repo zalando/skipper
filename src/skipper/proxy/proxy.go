@@ -91,19 +91,20 @@ func Make(sd skipper.SettingsSource) http.Handler {
 	return &proxy{sc, &http.Transport{}}
 }
 
-func applyFilterSafe(f skipper.Filter, p func()) {
+func applyFilterSafe(id string, p func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("middleware", f.Id(), err)
+			log.Println("middleware", id, err)
 		}
 	}()
 
+	println("applying filter", id)
 	p()
 }
 
 func applyFiltersToRequest(f []skipper.Filter, ctx skipper.FilterContext) {
 	for _, fi := range f {
-		applyFilterSafe(fi, func() {
+		applyFilterSafe(fi.Id(), func() {
 			fi.Request(ctx)
 		})
 	}
@@ -112,7 +113,7 @@ func applyFiltersToRequest(f []skipper.Filter, ctx skipper.FilterContext) {
 func applyFiltersToResponse(f []skipper.Filter, ctx skipper.FilterContext) {
 	for i, _ := range f {
 		fi := f[len(f)-1-i]
-		applyFilterSafe(fi, func() {
+		applyFilterSafe(fi.Id(), func() {
 			fi.Response(ctx)
 		})
 	}
@@ -151,6 +152,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := rt.Filters()
+	println(len(f))
 	c := &filterContext{w, r, nil}
 	applyFiltersToRequest(f, c)
 

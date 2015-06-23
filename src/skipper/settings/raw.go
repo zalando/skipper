@@ -42,6 +42,7 @@ func processFilterSpecs(data interface{}) map[string]jsonmap {
 		processed[id] = spec
 	}
 
+	println(len(processed))
 	return processed
 }
 
