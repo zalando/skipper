@@ -4,7 +4,9 @@ Routing service with flexible routing rules stored in etcd and support for custo
 
 ## Summary
 
-Skipper is a routing service acting as a reverse proxy and selecting the right route for each request based on the request parameters like method, path and headers. The routing rules can be flexibly configured and stored in etcd; etcd storage allows runtime updates. Skipper supports filters based on custom middleware that can be implemented with a well defined interface.
+Skipper is a routing service acting as a reverse proxy and selecting the right route for each request based on
+the request parameters like method, path and headers. The routing rules can be flexibly configured and stored in
+etcd. The etcd storage allows runtime updates. Skipper supports filters based on custom middleware that can be implemented with a well defined interface.
 
 It is heavily inspired by Vulcand and it is using some solutions found in it:
 [https://github.com/mailgun/vulcand](https://github.com/mailgun/vulcand)
@@ -122,7 +124,8 @@ Options:
 
 ## Custom filters:
 
-Custom filters can be easily created in go, implementing simple interfaces. Note, that despite somewhere the 'middleware' terminology may used, these middleware are not dynamically loaded plugins, but they need to be compiled together with the skipper binary. For more details on writing and configuring filters, please see filters.md.
+Custom filters can be easily created in go, implementing simple interfaces. Note, that despite somewhere the
+'middleware' terminology may by used, these middleware are not dynamically loaded plugins, but they need to be compiled together with the skipper binary. For more details on writing and configuring filters, please see filters.md.
 
 ## Contribute
 

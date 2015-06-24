@@ -1,3 +1,14 @@
+// skipper program main
+//
+// command line flags:
+//
+// -etcd-urls:
+// one or more urls where the etcd service to be used can be found
+//
+// -insecure:
+// if set, skipper accepts invalid certificates from backend hosts
+//
+// (see the skipper package for an overview of the program structure)
 package main
 
 import (
@@ -43,7 +54,7 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 	//  not good, because due to the fan, it is basically a busy loop
 	//  maybe it just shouldn't let nil through
 	for {
-        time.Sleep(12 * time.Millisecond)
+		time.Sleep(12 * time.Millisecond)
 
 		select {
 		case s := <-c:
@@ -57,25 +68,34 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 }
 
 func main() {
+	// create a client to etcd
 	dataClient, err := etcd.Make(strings.Split(etcdUrls, ","), storageRoot)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
+	// create a middleware registry with the available middleware registered
+	// create a settings dispatcher instance
+	// create a settings source
+	// create the proxy instance
 	registry := middleware.RegisterDefault()
 	dispatcher := dispatch.Make()
 	settingsSource := settings.MakeSource(dataClient, registry, dispatcher)
 	proxy := proxy.Make(settingsSource, insecure)
 
+	// subscribe to new settings
 	settingsChan := make(chan skipper.Settings)
 	dispatcher.Subscribe(settingsChan)
 
+	// don't start the server until the initial settings have been received
 	// todo: exit if this fails(?)
 	waitForInitialSettings(settingsChan)
 
+	// be a little polite
 	// todo: print only in dev environment
 	fmt.Printf("listening on %v\n", address)
 
+	// start the http server
 	log.Fatal(http.ListenAndServe(address, proxy))
 }
