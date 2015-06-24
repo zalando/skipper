@@ -1,13 +1,10 @@
 # Skipper
 
-Routing service with flexible routing rules, stored in etcd, with custom filtering support.
+Routing service with flexible routing rules stored in etcd and support for custom filters.
 
 ## Summary
 
-Skipper is routing service acting as a reverse proxy and selecting the right route for each request based on the
-request paramters like method, path and headers. The routing rules can flexibly configured and stored in etcd,
-and updated without downtime. Skipper supports filters based on custom middleware that can be implemented with a
-well defined interface.
+Skipper is a routing service acting as a reverse proxy and selecting the right route for each request based on the request parameters like method, path and headers. The routing rules can be flexibly configured and stored in etcd; etcd storage allows runtime updates. Skipper supports filters based on custom middleware that can be implemented with a well defined interface.
 
 It is heavily inspired by Vulcand and it is using some solutions found in it:
 [https://github.com/mailgun/vulcand](https://github.com/mailgun/vulcand)
@@ -29,13 +26,13 @@ go get github.com/coreos/etcd
 Test (optional):
 
 ```
-go install skipper
+go test skipper/...
 ```
 
 Build:
 
 ```
-go test skipper/...
+go install skipper
 ```
 
 ## Operation
@@ -46,8 +43,7 @@ Skipper has three kinds of artifacts:
 - Frontends
 - Filter specifications
 
-Routing happens between an existing frontend and a backend. If any of those is missing, skipper 404s. Filters
-are optional.
+Routing happens between an existing frontend and a backend. If any of those is missing, skipper 404s. Filters are optional.
 
 (For the format the definition of each artifact type, see the 'Sample configuration' section below.)
 
@@ -61,9 +57,7 @@ E.g:
 https://server.example.com:4545
 ```
 
-During routing, the final request made to a backend will have the path and query part of the original incoming
-request, and so the headers and payload of the original request, but it will be directed to the configured
-backend.
+During routing, the final request made to a backend will have the path and query part of the original incoming request, and also the headers and payload of the original request, but it will be directed to the configured backend.
 
 ### Frontends
 
@@ -74,17 +68,13 @@ PathRegexp(`/some-dir/.*\\.html`)
 ```
 
 Matching happens using Mailgun's Route library:
-[https://github.com/mailgun/route](https://github.com/mailgun/route). For more details on request matching,
-(currently) please refer to the Mailgun Route documentation.
+[https://github.com/mailgun/route](https://github.com/mailgun/route). For more details on request matching, (currently) please refer to the Mailgun Route documentation.
 
-When a request is matched, all filters are executed on the request object in the order they are referenced, then the request is made
-to backend, then all filters are executed on the response object in the reverse order the are referenced, and
-then the response is forwarded to the client.
+When a request is matched, all filters are executed on the request object in the order they are defined in the rule, then the request is made to backend, then all filters are executed on the response object in the reverse order, and then the response is forwarded to the client.
 
 ### Filters
 
-Filters can modify the request and response headers, the request path, doing regexp matching, configuration
-parameters, and more and custom and just whatever. :) For more details on filters, see filters.md.
+Filters can modify the request and response headers, the request path, doing regexp matching, configuration parameters, and more and custom and just whatever. :) For more details on filters, see filters.md.
 
 ## Sample configuration
 
@@ -102,7 +92,7 @@ Frontend:
 
 ```
 curl -X PUT \
-    -d 'value={"route": "PathRegexp(`/hello-.*\\.html`)", "backend-id": "hello", "filters": ["hello-header"]' \
+    -d 'value={"route": "PathRegexp(`/hello-.*\\.html`)", "backend-id": "hello", "filters": ["hello-header"]}' \
     http://127.0.0.1:2379/v2/keys/skipper/frontends/hello
 ```
 
@@ -111,7 +101,7 @@ Filter specification:
 ```
 curl -X PUT \
     -d 'value={"middleware-name": "request-header", "config": {"key": "X-Greetings", "value": "Hello!"}}' \
-    http://127.0.0.1:2379/v2/keys/skipper/frontends/hello
+    http://127.0.0.1:2379/v2/keys/skipper/frontends/hello-header
 ```
 
 ## Running Skipper
@@ -129,10 +119,7 @@ Options:
 
 ## Custom filters:
 
-Custom filters can be easily created in go, implementing simple interfaces. Note, that despite somewhere the
-'middleware' terminology may used, these middleware are not dynamically loaded plugins, but they need to be
-compiled together with the skipper binary. For more details on writing and configuring filters, please see
-filters.md.
+Custom filters can be easily created in go, implementing simple interfaces. Note, that despite somewhere the 'middleware' terminology may used, these middleware are not dynamically loaded plugins, but they need to be compiled together with the skipper binary. For more details on writing and configuring filters, please see filters.md.
 
 ## Contribute
 
