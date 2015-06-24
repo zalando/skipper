@@ -43,6 +43,8 @@ func waitForInitialSettings(c <-chan skipper.Settings) skipper.Settings {
 	//  not good, because due to the fan, it is basically a busy loop
 	//  maybe it just shouldn't let nil through
 	for {
+        time.Sleep(12 * time.Millisecond)
+
 		select {
 		case s := <-c:
 			if s != nil {
