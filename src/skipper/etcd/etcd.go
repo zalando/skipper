@@ -57,7 +57,7 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 		for {
 			c.walkInNodes(&data, &highestModIndex, r.Node)
 			c.push <- &dataWrapper{data}
-			go c.watch(highestModIndex + 1)
+			go c.watch(r.EtcdIndex + 1)
 			r = <-c.receive
 		}
 	}()
