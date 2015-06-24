@@ -81,9 +81,14 @@ func resetData(t *testing.T) {
 	}
 }
 
+func getBackend(rd skipper.RawData, key string) string {
+	return rd.Get()["backends"].(map[string]interface{})[key].(string)
+}
+
 func testBackend(t *testing.T, rd skipper.RawData, key, value string) {
-	if rd.Get()["backends"].(map[string]interface{})[key].(string) != value {
-		t.Error("backend pdp does not match")
+	rv := getBackend(rd, key)
+	if rv != value {
+		t.Error("backend does not match", value, rv)
 	}
 }
 
@@ -170,20 +175,32 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 	}
 
 	c.Set("/skippertest/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated-1.html")), 0)
-	time.Sleep(3 * time.Millisecond)
 	select {
 	case d := <-dc.Receive():
 		testBackend(t, d, "pdp", "http://www.zalando.de/pdp-updated-1.html")
 	case <-time.After(15 * time.Millisecond):
-		t.Error("receive timeout")
+		t.Error("receive timeout 1")
 	}
 
+	// we don't know the reason why this is needed here
+	<-dc.Receive()
+
 	c.Set("/skippertest/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated-2.html")), 0)
-	time.Sleep(3 * time.Millisecond)
 	select {
 	case d := <-dc.Receive():
 		testBackend(t, d, "pdp", "http://www.zalando.de/pdp-updated-2.html")
 	case <-time.After(15 * time.Millisecond):
-		t.Error("receive timeout")
+		t.Error("receive timeout 2")
+	}
+
+	// again, we don't know the reason why this is needed here
+	<-dc.Receive()
+
+	c.Set("/skippertest/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated-3.html")), 0)
+	select {
+	case d := <-dc.Receive():
+		testBackend(t, d, "pdp", "http://www.zalando.de/pdp-updated-3.html")
+	case <-time.After(15 * time.Millisecond):
+		t.Error("receive timeout 3")
 	}
 }

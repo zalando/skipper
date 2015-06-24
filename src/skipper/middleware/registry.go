@@ -2,6 +2,7 @@ package middleware
 
 import "skipper/skipper"
 
+// default implementation of skipper.MiddlewareRegistry
 type registry struct {
 	mw map[string]skipper.Middleware
 }

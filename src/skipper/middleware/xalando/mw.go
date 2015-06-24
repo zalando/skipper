@@ -1,3 +1,22 @@
+// zalando fashion store specific middleware
+//
+// It sets the following headers:
+// X-Zalando-Session-Id,
+// X-Zalando-Request-Host,
+// X-Zalando-Request-URI.
+//
+// It sets the
+// Zalando-Session-Id cookie.
+//
+// session id:
+//
+// if the session id cookie is received in the request, it copies to a header field called X-Zalando-Session-Id.
+// if the request doesn't contain a session id cookie, it generates one, sets it in both the response writer and
+// request header.
+//
+// host and request uri:
+//
+// sets both the host and request uri in a header field, so that the proxied hosts receive the original values.
 package xalando
 
 import (
@@ -14,6 +33,7 @@ type impl struct {
 	*noop.Type
 }
 
+// creates a middleware instance
 func Make() *impl {
 	return &impl{}
 }
@@ -25,7 +45,7 @@ func (mw *impl) Name() string {
 func extractOrGenerateSessionId(ctx skipper.FilterContext) {
 	var uuid string
 
-	c, err := ctx.Request().Cookie("X-Zalando-Session-Id")
+	c, err := ctx.Request().Cookie("Zalando-Session-Id")
 	if err == nil {
 		uuid = c.Value
 	}
@@ -35,7 +55,7 @@ func extractOrGenerateSessionId(ctx skipper.FilterContext) {
 		if err == nil {
 			uuid = u.String()
 			http.SetCookie(ctx.ResponseWriter(), &http.Cookie{
-				Name:   "X-Zalando-Session-Id",
+				Name:   "Zalando-Session-Id",
 				Value:  uuid,
 				Path:   "/",
 				Domain: "zalan.do",
@@ -48,6 +68,7 @@ func extractOrGenerateSessionId(ctx skipper.FilterContext) {
 	}
 }
 
+// processes the request
 func (mw *impl) Request(ctx skipper.FilterContext) {
 	req := ctx.Request()
 	req.Header["X-Zalando-Request-Host"] = []string{req.Host}
@@ -55,6 +76,7 @@ func (mw *impl) Request(ctx skipper.FilterContext) {
 	extractOrGenerateSessionId(ctx)
 }
 
+// creates a filter instance
 func (mw *impl) MakeFilter(id string, config skipper.MiddlewareConfig) (skipper.Filter, error) {
 	f := &impl{&noop.Type{}}
 	f.SetId(id)

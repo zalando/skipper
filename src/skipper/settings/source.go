@@ -9,6 +9,8 @@ type source struct {
 	dispatcher skipper.SettingsDispatcher
 }
 
+// creates a skipper.SettingsSource instance.
+// expects an instance of the etcd client, a middleware registry and a settings dispatcher.
 func MakeSource(
 	dc skipper.DataClient,
 	mwr skipper.MiddlewareRegistry,

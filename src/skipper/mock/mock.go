@@ -1,3 +1,5 @@
+// provides test implementations for the interfaces in the skipper package.
+// it can start an etcd instance, too, if the github.com/coreos/etcd package was installed.
 package mock
 
 import (

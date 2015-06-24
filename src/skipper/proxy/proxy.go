@@ -1,3 +1,5 @@
+// a reverse proxy routing between frontends and backends based on the definitions in the received settings. on
+// every request and response, it executes the filters if there are any defined for the given route.
 package proxy
 
 import (
@@ -9,9 +11,11 @@ import (
 	"skipper/skipper"
 )
 
-const defaultSettingsBufferSize = 32
-const proxyBufferSize = 8192
-const proxyErrorFmt = "proxy: %s"
+const (
+	defaultSettingsBufferSize = 32
+	proxyBufferSize           = 8192
+	proxyErrorFmt             = "proxy: %s"
+)
 
 type flusherWriter interface {
 	http.Flusher
@@ -91,6 +95,9 @@ func getSettingsBufferSize() int {
 	return 0
 }
 
+// creates a proxy. it expects a settings source, that provides the current settings during each request.
+// if the 'insecure' parameter is true, the proxy skips the TLS verification for the requests made to the
+// backends.
 func Make(sd skipper.SettingsSource, insecure bool) http.Handler {
 	sc := make(chan skipper.Settings, getSettingsBufferSize())
 	sd.Subscribe(sc)
@@ -142,12 +149,13 @@ func (c *filterContext) Response() *http.Response {
 	return c.res
 }
 
+// http.Handler implementation
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    // tmp hack:
-    if r.URL.Path == "/z-watchdog" {
-        w.WriteHeader(200)
-        return
-    }
+	// tmp hack:
+	if r.URL.Path == "/z-watchdog" {
+		w.WriteHeader(200)
+		return
+	}
 
 	hterr := func(err error) {
 		// todo: just a bet that we shouldn't send here 50x
