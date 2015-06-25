@@ -1,4 +1,4 @@
-// zalando fashion store specific middleware
+// zalando fashion store specific filter
 //
 // It sets the following headers:
 // X-Zalando-Session-Id,
@@ -21,7 +21,7 @@ package xalando
 
 import (
 	"net/http"
-	"skipper/middleware/noop"
+	"skipper/filters/noop"
 	"skipper/skipper"
 
 	gouuid "github.com/nu7hatch/gouuid"
@@ -33,7 +33,7 @@ type impl struct {
 	*noop.Type
 }
 
-// creates a middleware instance
+// creates a FilterSpec instance
 func Make() *impl {
 	return &impl{}
 }
@@ -77,7 +77,7 @@ func (mw *impl) Request(ctx skipper.FilterContext) {
 }
 
 // creates a filter instance
-func (mw *impl) MakeFilter(id string, config skipper.MiddlewareConfig) (skipper.Filter, error) {
+func (mw *impl) MakeFilter(id string, config skipper.FilterConfig) (skipper.Filter, error) {
 	f := &impl{&noop.Type{}}
 	f.SetId(id)
 	return f, nil

@@ -31,11 +31,11 @@ var (
 
 	testFilterSpecs map[string]interface{} = map[string]interface{}{
 		"pdp-custom-headers": map[string]interface{}{
-			"middleware-name": "custom-headers",
+			"filter-spec": "custom-headers",
 			"config": map[string]interface{}{
 				"free-data": 3.14}},
 		"x-session-id": map[string]interface{}{
-			"middleware-name": "x-session-id",
+			"filter-spec": "x-session-id",
 			"config": map[string]interface{}{
 				"generator": "v4"}}}
 )
@@ -114,8 +114,8 @@ func testInitial(t *testing.T, rd skipper.RawData) {
 
 	customHeader := d["filter-specs"].(map[string]interface{})["pdp-custom-headers"].(map[string]interface{})
 
-	if customHeader["middleware-name"].(string) != "custom-headers" {
-		t.Error("custom header middleware does not match")
+	if customHeader["filter-spec"].(string) != "custom-headers" {
+		t.Error("custom header filter spec does not match")
 	}
 
 	if _, ok := customHeader["config"].(map[string]interface{})["free-data"].(float64); !ok {
@@ -124,8 +124,8 @@ func testInitial(t *testing.T, rd skipper.RawData) {
 
 	xSessionId := d["filter-specs"].(map[string]interface{})["x-session-id"].(map[string]interface{})
 
-	if xSessionId["middleware-name"].(string) != "x-session-id" {
-		t.Error("custom header middleware does not match")
+	if xSessionId["filter-spec"].(string) != "x-session-id" {
+		t.Error("custom header filter spec does not match")
 	}
 
 	if xSessionId["config"].(map[string]interface{})["generator"].(string) != "v4" {

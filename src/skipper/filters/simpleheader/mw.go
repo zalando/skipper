@@ -1,4 +1,4 @@
-// composite middleware that can be used as a base component for middleware operating on request or response
+// composite filter that can be used as a base component for filters operating on request or response
 // headers. The created filters are noop filters, unless the MakeFilter method is shadowed in the enclosing
 // type. on the filter implementations, the InitFilter method can be used to parse the filter config, for
 // the header key and value.
@@ -13,7 +13,7 @@
        return "header-filter"
    }
 
-   func (mw *impl) MakeFilter(id string, config skipper.MiddlewareConfig) (skipper.Filter, error) {
+   func (mw *impl) MakeFilter(id string, config skipper.FilterConfig) (skipper.Filter, error) {
        f := &impl{}
        err := f.InitFilter(id, config)
        if err != nil {
@@ -31,7 +31,7 @@ package simpleheader
 
 import (
 	"errors"
-	"skipper/middleware/noop"
+	"skipper/filters/noop"
 	"skipper/skipper"
 )
 
@@ -41,7 +41,7 @@ const (
 	valueConfigName = "value"
 )
 
-// type implementing both skipper.Middleware and skipper.Filter
+// type implementing both skipper.FilterSpec and skipper.Filter
 type Type struct {
 	noop.Type
 	id    string
@@ -49,12 +49,12 @@ type Type struct {
 	value string
 }
 
-// the name of the middeware
+// the name of the filter spec
 func (mw *Type) Name() string {
 	return name
 }
 
-func stringValue(config skipper.MiddlewareConfig, name string) (string, bool) {
+func stringValue(config skipper.FilterConfig, name string) (string, bool) {
 	if ival, ok := config[name]; ok {
 		if val, ok := ival.(string); ok {
 			return val, true
@@ -65,7 +65,7 @@ func stringValue(config skipper.MiddlewareConfig, name string) (string, bool) {
 }
 
 // call this method on the created filters to parse the filter config and to store the id
-func (f *Type) InitFilter(id string, config skipper.MiddlewareConfig) error {
+func (f *Type) InitFilter(id string, config skipper.FilterConfig) error {
 	var (
 		key, value string
 		ok         bool

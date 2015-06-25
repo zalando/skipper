@@ -17,7 +17,7 @@ import (
 	"net/http"
 	"skipper/dispatch"
 	"skipper/etcd"
-	"skipper/middleware"
+	"skipper/filters"
 	"skipper/proxy"
 	"skipper/settings"
 	"skipper/skipper"
@@ -57,11 +57,11 @@ func main() {
 		return
 	}
 
-	// create a middleware registry with the available middleware registered
+	// create a filter registry with the available filter specs registered
 	// create a settings dispatcher instance
 	// create a settings source
 	// create the proxy instance
-	registry := middleware.RegisterDefault()
+	registry := filters.RegisterDefault()
 	dispatcher := dispatch.Make()
 	settingsSource := settings.MakeSource(dataClient, registry, dispatcher)
 	proxy := proxy.Make(settingsSource, insecure)

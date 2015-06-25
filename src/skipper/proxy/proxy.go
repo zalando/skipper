@@ -122,7 +122,7 @@ func Make(sd skipper.SettingsSource, insecure bool) http.Handler {
 func applyFilterSafe(id string, p func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("middleware", id, err)
+			log.Println("filter", id, err)
 		}
 	}()
 

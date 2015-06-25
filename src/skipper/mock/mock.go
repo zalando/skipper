@@ -46,10 +46,10 @@ type Settings struct {
 	RouterImpl route.Router
 }
 
-type Middleware struct{ FName string }
+type FilterSpec struct{ FName string }
 
-type MiddlewareRegistry struct {
-	Middleware map[string]skipper.Middleware
+type FilterRegistry struct {
+	FilterSpec map[string]skipper.FilterSpec
 }
 
 func (rd *RawData) Get() map[string]interface{} { return rd.Data }
@@ -142,25 +142,25 @@ func (s *Settings) Address() string {
 	return ":9090"
 }
 
-func (mw *Middleware) Name() string { return mw.FName }
+func (mw *FilterSpec) Name() string { return mw.FName }
 
-func (mw *Middleware) MakeFilter(id string, config skipper.MiddlewareConfig) (skipper.Filter, error) {
+func (mw *FilterSpec) MakeFilter(id string, config skipper.FilterConfig) (skipper.Filter, error) {
 	return &Filter{
 		FId:  id,
 		Name: mw.FName,
 		Data: config["free-data"].(int)}, nil
 }
 
-func (mwr *MiddlewareRegistry) Add(mw ...skipper.Middleware) {
+func (mwr *FilterRegistry) Add(mw ...skipper.FilterSpec) {
 	for _, mwi := range mw {
-		mwr.Middleware[mwi.Name()] = mwi
+		mwr.FilterSpec[mwi.Name()] = mwi
 	}
 }
 
-func (mwr *MiddlewareRegistry) Get(name string) skipper.Middleware {
-	return mwr.Middleware[name]
+func (mwr *FilterRegistry) Get(name string) skipper.FilterSpec {
+	return mwr.FilterSpec[name]
 }
 
-func (mwr *MiddlewareRegistry) Remove(name string) {
-	delete(mwr.Middleware, name)
+func (mwr *FilterRegistry) Remove(name string) {
+	delete(mwr.FilterSpec, name)
 }

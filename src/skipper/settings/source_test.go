@@ -20,7 +20,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 				"backend-id": "hello"}}}
 
 	dc := mock.MakeDataClient(data)
-	mwr := &mock.MiddlewareRegistry{}
+	mwr := &mock.FilterRegistry{}
 	d := dispatch.Make()
 	s := MakeSource(dc, mwr, d)
 
