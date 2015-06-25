@@ -26,14 +26,14 @@ import (
 )
 
 const (
-	startupSettingsTimeout = 1200 * time.Millisecond
-	storageRoot            = "/skipper"
-	defaultAddress         = ":9090"
-    defaultHealtcheckAddress = ":9999"
-	defaultEtcdUrls        = "http://127.0.0.1:2379,http://127.0.0.1:4001"
-	addressUsage           = "address where skipper should listen on"
-	etcdUrlsUsage          = "urls where etcd can be found"
-	insecureUsage          = "set this flag to allow invalid certificates for tls connections"
+	startupSettingsTimeout   = 1200 * time.Millisecond
+	storageRoot              = "/skipper"
+	defaultAddress           = ":9090"
+	defaultHealtcheckAddress = ":9999"
+	defaultEtcdUrls          = "http://127.0.0.1:2379,http://127.0.0.1:4001"
+	addressUsage             = "address where skipper should listen on"
+	etcdUrlsUsage            = "urls where etcd can be found"
+	insecureUsage            = "set this flag to allow invalid certificates for tls connections"
 )
 
 var (
