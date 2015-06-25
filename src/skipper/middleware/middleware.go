@@ -5,6 +5,7 @@ import "skipper/skipper"
 import (
 	// import middleware package here:
 
+	"skipper/middleware/humanstxt"
 	"skipper/middleware/pathrewrite"
 	"skipper/middleware/requestheader"
 	"skipper/middleware/responseheader"
@@ -21,6 +22,7 @@ func Register(registry skipper.MiddlewareRegistry) {
 		responseheader.Make(),
 		xalando.Make(),
 		pathrewrite.Make(),
+		humanstxt.Make(),
 	)
 }
 

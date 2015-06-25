@@ -16,7 +16,10 @@ type RawData interface {
 	//  - change the routing format to: 'id: <match> [[-> <filter>]...] -> <backend>
 	// in json:
 	// {
-	//     "backends": {"pdp": "https://www.zalando.de/pdp.html"},
+	//     "backends": {
+	//         "pdp": "https://www.zalando.de/pdp.html"
+	//     },
+	//
 	//     "frontends": {
 	//         "pdp": {
 	//             "route": "PathRegexp(`.*\\.html`)",
@@ -25,16 +28,31 @@ type RawData interface {
 	//                 "pdp-custom-headers",
 	//                 "x-session-id"
 	//             ]
+	//         },
+	//
+	//         "humans.txt": {
+	//             "route": "Path(`humans.txt`)",
+	//             "backend-id": "<shunt>",
+	//             "filters": [
+	//                 "x-session-id",
+	//                 "humans.txt"
+	//             ]
 	//         }
 	//     },
+	//
 	//     "filter-specs": {
 	//         "pdp-custom-headers": {
 	//             "middleware-name": "custom-headers",
 	//             "config": {"free-data": 3.14}
 	//         },
+	//
 	//         "x-session-id": {
 	//             "middleware-name": "x-session-id",
 	//             "config": {"generator": "v4"}
+	//         },
+	//
+	//         "humans.txt": {
+	//             "middleware-name": "humans.txt"
 	//         }
 	//     }
 	// }
@@ -57,6 +75,10 @@ type Backend interface {
 
 	// server.example.com
 	Host() string
+
+	// shunt backends do not make requests to a server
+	// they need a filter to initialize the response, otherwise the proxy will response 404
+	IsShunt() bool
 }
 
 // Context object providing the request and response objects to the filters.
