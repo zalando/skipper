@@ -7,8 +7,9 @@ import (
 )
 
 type backend struct {
-	scheme string
-	host   string
+	scheme  string
+	host    string
+	isShunt bool
 }
 
 type filter struct {
@@ -32,6 +33,10 @@ func (b *backend) Scheme() string {
 
 func (b *backend) Host() string {
 	return b.host
+}
+
+func (b *backend) IsShunt() bool {
+	return b.isShunt
 }
 
 func (r *routedef) Backend() skipper.Backend {

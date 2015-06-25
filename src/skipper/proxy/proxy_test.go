@@ -20,9 +20,9 @@ type requestCheck func(*http.Request)
 
 func voidCheck(*http.Request) {}
 
-func makeTestSettingsDispatcher(url string, filters []skipper.Filter) skipper.SettingsDispatcher {
+func makeTestSettingsDispatcher(url string, filters []skipper.Filter, shunt bool) skipper.SettingsDispatcher {
 	sd := dispatch.Make()
-	sd.Push() <- mock.MakeSettings(url, filters)
+	sd.Push() <- mock.MakeSettings(url, filters, shunt)
 
 	// todo: don't let to get into busy loop
 	c := make(chan skipper.Settings)
@@ -69,7 +69,7 @@ func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Se
 
 func urlToBackend(u string) *mock.Backend {
 	up, _ := url.ParseRequestURI(u)
-	return &mock.Backend{up.Scheme, up.Host}
+	return &mock.Backend{up.Scheme, up.Host, false}
 }
 
 func TestGetRoundtrip(t *testing.T) {
@@ -92,7 +92,7 @@ func TestGetRoundtrip(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL, nil), false)
+	p := Make(makeTestSettingsDispatcher(s.URL, nil, false), false)
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -130,7 +130,7 @@ func TestPostRoundtrip(t *testing.T) {
 		Method: "POST",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL, nil), false)
+	p := Make(makeTestSettingsDispatcher(s.URL, nil, false), false)
 	p.ServeHTTP(w, r)
 
 	if w.Code != 200 {
@@ -151,8 +151,8 @@ func TestRoute(t *testing.T) {
 	s2 := startTestServer(payload2, 0, voidCheck)
 	defer s2.Close()
 
-	sd := makeTestSettingsDispatcher("", nil)
-	ts := mock.MakeSettings("", nil)
+	sd := makeTestSettingsDispatcher("", nil, false)
+	ts := mock.MakeSettings("", nil, false)
 	ts.RouterImpl.AddRoute("Path(\"/host-one<any>\")", &mock.Route{urlToBackend(s1.URL), nil})
 	ts.RouterImpl.AddRoute("Path(\"/host-two<any>\")", &mock.Route{urlToBackend(s2.URL), nil})
 	sd.Push() <- ts
@@ -193,7 +193,7 @@ func TestStreaming(t *testing.T) {
 	s := startTestServer(payload, expectedParts, voidCheck)
 	defer s.Close()
 
-	p := Make(makeTestSettingsDispatcher(s.URL, nil), false)
+	p := Make(makeTestSettingsDispatcher(s.URL, nil, false), false)
 
 	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
 	r := &http.Request{
@@ -284,7 +284,7 @@ func TestAppliesFilters(t *testing.T) {
 			ResponseHeaders: map[string]string{"X-Test-Response-Header-0": "response header value 0"}},
 		&mock.Filter{
 			RequestHeaders:  map[string]string{"X-Test-Request-Header-1": "request header value 1"},
-			ResponseHeaders: map[string]string{"X-Test-Response-Header-1": "response header value 1"}}}), false)
+			ResponseHeaders: map[string]string{"X-Test-Response-Header-1": "response header value 1"}}}, false), false)
 
 	p.ServeHTTP(w, r)
 
@@ -331,7 +331,7 @@ func TestAppliesFiltersInOrder(t *testing.T) {
 				"X-Test-Request-Header-0": "request header value 1",
 				"X-Test-Request-Header-1": "request header value 1"},
 			ResponseHeaders: map[string]string{
-				"X-Test-Response-Header-1": "response header value 1"}}}), false)
+				"X-Test-Response-Header-1": "response header value 1"}}}, false), false)
 
 	p.ServeHTTP(w, r)
 
@@ -340,6 +340,32 @@ func TestAppliesFiltersInOrder(t *testing.T) {
 	}
 
 	if h, ok := w.Header()["X-Test-Response-Header-1"]; !ok || h[0] != "response header value 0" {
+		t.Error("wrong response header 1")
+	}
+}
+
+func TestProcessesRequestWithShuntBackend(t *testing.T) {
+	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"X-Test-Header": []string{"test value"}}}
+	w := httptest.NewRecorder()
+	p := Make(makeTestSettingsDispatcher("", []skipper.Filter{
+		&mock.Filter{
+			ResponseHeaders: map[string]string{
+				"X-Test-Response-Header-0": "response header value 0"}},
+		&mock.Filter{
+			ResponseHeaders: map[string]string{
+				"X-Test-Response-Header-1": "response header value 1"}}}, true), false)
+
+	p.ServeHTTP(w, r)
+
+	if h, ok := w.Header()["X-Test-Response-Header-0"]; !ok || h[0] != "response header value 0" {
+		t.Error("wrong response header 0")
+	}
+
+	if h, ok := w.Header()["X-Test-Response-Header-1"]; !ok || h[0] != "response header value 1" {
 		t.Error("wrong response header 1")
 	}
 }

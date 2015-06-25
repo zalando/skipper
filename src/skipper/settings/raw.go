@@ -8,7 +8,10 @@ import (
 	"skipper/skipper"
 )
 
-const defaultAddress = ":9090"
+const (
+	defaultAddress = ":9090"
+	shuntBackendId = "<shunt>"
+)
 
 type (
 	jsonmap  map[string]interface{}
@@ -53,7 +56,7 @@ func processBackends(data interface{}) map[string]*backend {
 	for id, uraw := range config {
 		if us, ok := uraw.(string); ok {
 			if u, err := url.ParseRequestURI(us); err == nil {
-				processed[id] = &backend{u.Scheme, u.Host}
+				processed[id] = &backend{u.Scheme, u.Host, false}
 			}
 		}
 	}
@@ -81,6 +84,7 @@ func processFrontends(
 
 	config := toJsonmap(data)
 	processed := []*routedef{}
+	shunt := &backend{"", "", true}
 
 	for _, raw := range config {
 		f := toJsonmap(raw)
@@ -90,6 +94,13 @@ func processFrontends(
 
 		rt, _ := f["route"].(string)
 		backendId, _ := f["backend-id"].(string)
+
+		var b *backend
+		if backendId == shuntBackendId {
+			b = shunt
+		} else {
+			b = backends[backendId]
+		}
 
 		filterRefs := toJsonlist(f["filters"])
 		filters := []skipper.Filter{}
@@ -103,10 +114,7 @@ func processFrontends(
 		}
 
 		// todo: if no backend, should be an error
-		processed = append(processed, &routedef{
-			rt,
-			backends[backendId],
-			filters})
+		processed = append(processed, &routedef{rt, b, filters})
 	}
 
 	return processed, nil
