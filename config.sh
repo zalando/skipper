@@ -32,6 +32,7 @@ curl -k -X PUT -d 'value={"route": "Path(`/<string>`)", "backend-id": "'"$layout
 curl -k -X PUT -d 'value={"route": "Path(`/slow`)", "backend-id": "debug", "filters": ["xalando", "bugfactory-host"]}' "$host""$root"/frontends/slow
 curl -k -X PUT -d 'value={"route": "Path(`/debug`)", "backend-id": "debug", "filters": ["xalando", "cut-path", "bugfactory-host"]}' "$host""$root"/frontends/debug
 curl -k -X PUT -d 'value={"route": "PathRegexp(`/api/cart/.*`)", "backend-id": "cart", "filters": ["xalando", "cart-host"]}' "$host""$root"/frontends/cart
+curl -k -X PUT -d 'value={"route": "Path(`/healthcheck`)", "backend-id": "<shunt>", "filters": ["healthcheck"]}' "$host""$root"/frontends/healthcheck
 curl -k -X PUT -d 'value={"route": "Path(`/humans.txt`)", "backend-id": "<shunt>", "filters": ["humans.txt"]}' "$host""$root"/frontends/humans.txt
 
 # filter specs:
@@ -47,3 +48,4 @@ curl -k -X PUT -d 'value={"middleware-name": "path-rewrite", "config": {"express
 curl -k -X PUT -d 'value={"middleware-name": "path-rewrite", "config": {"expression": ".*", "replacement": "/pdp"}}' "$host""$root"/filter-specs/pdp-path
 curl -k -X PUT -d 'value={"middleware-name": "path-rewrite", "config": {"expression": ".*", "replacement": "/catalog"}}' "$host""$root"/filter-specs/catalog-path
 curl -k -X PUT -d 'value={"middleware-name": "humans.txt"}' "$host""$root"/filter-specs/humans.txt
+curl -k -X PUT -d 'value={"middleware-name": "healthcheck"}' "$host""$root"/filter-specs/healthcheck

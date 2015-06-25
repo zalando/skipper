@@ -64,12 +64,8 @@ func (h *humanstxt) MakeFilter(id string, _ skipper.MiddlewareConfig) (skipper.F
 
 func (h *humanstxt) Response(ctx skipper.FilterContext) {
 	r := ctx.Response()
-	println("response", r == nil)
 	r.StatusCode = 200
 	r.Header.Set("Content-Type", "text/plain")
-	println("response header", r.Header == nil)
 	r.Header.Set("Content-Length", strconv.Itoa(len(text)))
-	println("response body", r.Body == nil)
-	println("response body as writer", r.Body.(io.Writer) == nil)
 	r.Body.(io.Writer).Write([]byte(text))
 }
