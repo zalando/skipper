@@ -1,7 +1,7 @@
 package healthcheck
 
 import (
-	"skipper/middleware/noop"
+	"skipper/filters/noop"
 	"skipper/skipper"
 )
 
@@ -11,7 +11,7 @@ type typ struct {
 	*noop.Type
 }
 
-func Make() skipper.Middleware {
+func Make() skipper.FilterSpec {
 	return &typ{}
 }
 
@@ -19,7 +19,7 @@ func (h *typ) Name() string {
 	return name
 }
 
-func (h *typ) MakeFilter(id string, _ skipper.MiddlewareConfig) (skipper.Filter, error) {
+func (h *typ) MakeFilter(id string, _ skipper.FilterConfig) (skipper.Filter, error) {
 	hf := &typ{&noop.Type{}}
 	hf.SetId(id)
 	return hf, nil

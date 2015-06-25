@@ -37,29 +37,29 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 
 			"filter-specs": map[string]interface{}{
 				"filter1": map[string]interface{}{
-					"middleware-name": "zal-filter-1",
+					"filter-spec": "zal-filter-1",
 					"config": map[string]interface{}{
 						"free-data": 2}},
 
 				"filter2": map[string]interface{}{
-					"middleware-name": "zal-filter-2",
+					"filter-spec": "zal-filter-2",
 					"config": map[string]interface{}{
 						"free-data": 4}},
 
 				"filter3": map[string]interface{}{
-					"middleware-name": "zal-filter-1",
+					"filter-spec": "zal-filter-1",
 					"config": map[string]interface{}{
 						"free-data": 8}},
 
 				"filter4": map[string]interface{}{
-					"middleware-name": "zal-filter-2",
+					"filter-spec": "zal-filter-2",
 					"config": map[string]interface{}{
 						"free-data": 16}}}}}
 
-	mwr := &mock.MiddlewareRegistry{
-		map[string]skipper.Middleware{
-			"zal-filter-1": &mock.Middleware{"zal-filter-1"},
-			"zal-filter-2": &mock.Middleware{"zal-filter-2"}}}
+	mwr := &mock.FilterRegistry{
+		map[string]skipper.FilterSpec{
+			"zal-filter-1": &mock.FilterSpec{"zal-filter-1"},
+			"zal-filter-2": &mock.FilterSpec{"zal-filter-2"}}}
 	s, _ := processRaw(rd, mwr)
 
 	check := func(req *http.Request, u string,
@@ -109,7 +109,7 @@ func TestCreatesShuntBackend(t *testing.T) {
 				"frontend1": map[string]interface{}{
 					"route":      "Path(`/frontend1`)",
 					"backend-id": shuntBackendId}}}}
-	mwr := &mock.MiddlewareRegistry{}
+	mwr := &mock.FilterRegistry{}
 	s, _ := processRaw(rd, mwr)
 	r := makeTestRequest("https://www.zalan.do/frontend1")
 	rt, err := s.Route(r)

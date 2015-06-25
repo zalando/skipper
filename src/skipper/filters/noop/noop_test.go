@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestCreatesNoopMiddlewareAndFilter(t *testing.T) {
+func TestCreatesNoopFilterSpecAndFilter(t *testing.T) {
 	n := &Type{}
 	if n.Name() != "_noop" {
 		t.Error("wrong name")

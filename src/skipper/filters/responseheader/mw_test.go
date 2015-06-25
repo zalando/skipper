@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestCreatesMiddleware(t *testing.T) {
+func TestCreatesFilterSpec(t *testing.T) {
 	mw := Make()
 	if mw.Name() != "response-header" {
 		t.Error("wrong name")
