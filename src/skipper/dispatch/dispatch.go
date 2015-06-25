@@ -14,25 +14,12 @@ type dispatcher struct {
 }
 
 // constantly feeds the 'out' channel with the current settings
-// don't dispatch nil settings
 func makeFan(s skipper.Settings, out chan<- skipper.Settings) *fan {
 	f := &fan{make(chan skipper.Settings), out}
 	go func() {
-        // wait for non nil settings
-        for {
-            if s != nil {
-                break
-            }
-
-            s = <-f.in
-        }
-
 		for {
 			select {
-			case ss := <-f.in:
-                if ss != nil {
-                    s = ss
-                }
+			case s = <-f.in:
 			case f.out <- s:
 			}
 		}
