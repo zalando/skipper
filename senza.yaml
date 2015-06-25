@@ -39,6 +39,6 @@ SenzaComponents:
   - AppLoadBalancer:
       Type: Senza::WeightedDnsElasticLoadBalancer
       HTTPPort: 8080
-      HealthCheckPath: /z-watchdog
+      HealthCheckPath: /healthcheck
       SecurityGroups:
         - app-skipper-lb

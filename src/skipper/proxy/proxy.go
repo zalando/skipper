@@ -177,12 +177,6 @@ func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, e
 
 // http.Handler implementation
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// tmp hack:
-	if r.URL.Path == "/z-watchdog" {
-		w.WriteHeader(200)
-		return
-	}
-
 	hterr := func(err error) {
 		// todo: just a bet that we shouldn't send here 50x
 		http.Error(w, http.StatusText(404), 404)
@@ -225,7 +219,6 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
-	println("response is null", rs == nil)
 	c.res = rs
 	applyFiltersToResponse(f, c)
 
