@@ -10,6 +10,7 @@ import (
 	"skipper/middleware/requestheader"
 	"skipper/middleware/responseheader"
 	"skipper/middleware/xalando"
+    "skipper/middleware/healthcheck"
 )
 
 // takes a registry object and registers the middleware in the package
@@ -22,6 +23,7 @@ func Register(registry skipper.MiddlewareRegistry) {
 		responseheader.Make(),
 		xalando.Make(),
 		pathrewrite.Make(),
+        healthcheck.Make(),
 		humanstxt.Make(),
 	)
 }
