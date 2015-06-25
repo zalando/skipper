@@ -182,9 +182,6 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 		t.Error("receive timeout 1")
 	}
 
-	// we don't know the reason why this is needed here
-	<-dc.Receive()
-
 	c.Set("/skippertest/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated-2.html")), 0)
 	select {
 	case d := <-dc.Receive():
@@ -192,9 +189,6 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 	case <-time.After(15 * time.Millisecond):
 		t.Error("receive timeout 2")
 	}
-
-	// again, we don't know the reason why this is needed here
-	<-dc.Receive()
 
 	c.Set("/skippertest/backends/pdp", string(marshalAndIgnore("http://www.zalando.de/pdp-updated-3.html")), 0)
 	select {

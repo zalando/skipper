@@ -41,7 +41,7 @@ func Etcd() error {
 		return nil
 	}
 
-	EtcdUrls := makeLocalUrls(ClientPort1, ClientPort2)
+	EtcdUrls = makeLocalUrls(ClientPort1, ClientPort2)
 	clientUrlsString := strings.Join(EtcdUrls, ",")
 
 	var args []string
