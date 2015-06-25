@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+func TestDontSendNilBeforeInitialized(t *testing.T) {
+    sd := Make()
+    sb := make(chan skipper.Settings)
+    sd.Subscribe(sb)
+    select {
+    case <-sb:
+        t.Error("blocking on uninitialized dispatcher failed")
+    case <-time.After(3 * time.Millisecond):
+    }
+}
+
+func TestDontSendNilAfterInitialized(t *testing.T) {
+    sd := Make()
+
+    sb := make(chan skipper.Settings)
+    sd.Subscribe(sb)
+
+	s := &mock.Settings{}
+	sd.Push() <- s
+
+    ss := <-sb
+    if ss != s {
+        t.Error("failed to initialize")
+    }
+
+    sd.Push() <- nil
+
+    ss = <-sb
+    if ss != s {
+        t.Error("did not keep settings on nil push")
+    }
+}
+
 func TestForwardsAsPushed(t *testing.T) {
 	sd := Make()
 

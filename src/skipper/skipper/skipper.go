@@ -111,6 +111,7 @@ type SettingsSource interface {
 
 	// Accepts a channel on which the calling code can receive the the current Settings anytime without
 	// waiting for it.
+    // It does not send nil settings while in uninitialized state.
 	// It may be a good idea to use buffered channels in production environment.
 	Subscribe(chan<- Settings)
 }
