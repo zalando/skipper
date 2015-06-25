@@ -101,3 +101,24 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 		[]string{"zal-filter-1", "zal-filter-2"},
 		[]int{8, 16})
 }
+
+func TestCreatesShuntBackend(t *testing.T) {
+	rd := &mock.RawData{
+		map[string]interface{}{
+			"frontends": map[string]interface{}{
+				"frontend1": map[string]interface{}{
+					"route":      "Path(`/frontend1`)",
+					"backend-id": shuntBackendId}}}}
+	mwr := &mock.MiddlewareRegistry{}
+	s, _ := processRaw(rd, mwr)
+	r := makeTestRequest("https://www.zalan.do/frontend1")
+	rt, err := s.Route(r)
+	if err != nil {
+		t.Error("failed to create route with shunt")
+		return
+	}
+
+	if !rt.Backend().IsShunt() {
+		t.Error("failed to create route with shunt")
+	}
+}

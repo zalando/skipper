@@ -18,8 +18,9 @@ type DataClient struct {
 }
 
 type Backend struct {
-	FScheme string
-	FHost   string
+	FScheme  string
+	FHost    string
+	FIsShunt bool
 }
 
 type FilterContext struct {
@@ -77,6 +78,10 @@ func (b *Backend) Host() string {
 	return b.FHost
 }
 
+func (b *Backend) IsShunt() bool {
+	return b.FIsShunt
+}
+
 func copyHeader(to http.Header, from map[string]string) {
 	for k, v := range from {
 		to.Set(k, v)
@@ -115,10 +120,10 @@ func (r *Route) Filters() []skipper.Filter {
 	return r.FFilters
 }
 
-func MakeSettings(u string, filters []skipper.Filter) *Settings {
+func MakeSettings(u string, filters []skipper.Filter, shunt bool) *Settings {
 	up, _ := url.Parse(u)
 	rt := route.New()
-	b := &Backend{up.Scheme, up.Host}
+	b := &Backend{up.Scheme, up.Host, shunt}
 	r := &Route{b, filters}
 	rt.AddRoute("Path(\"/hello/<v>\")", r)
 	return &Settings{rt}

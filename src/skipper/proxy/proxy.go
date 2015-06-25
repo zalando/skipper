@@ -3,6 +3,7 @@
 package proxy
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -22,6 +23,10 @@ type flusherWriter interface {
 	io.Writer
 }
 
+type shuntBody struct {
+	*bytes.Buffer
+}
+
 type proxy struct {
 	settings  <-chan skipper.Settings
 	transport *http.Transport
@@ -31,6 +36,10 @@ type filterContext struct {
 	w   http.ResponseWriter
 	req *http.Request
 	res *http.Response
+}
+
+func (sb shuntBody) Close() error {
+	return nil
 }
 
 func proxyError(m string) error {
@@ -149,6 +158,23 @@ func (c *filterContext) Response() *http.Response {
 	return c.res
 }
 
+func shunt(r *http.Request) *http.Response {
+	return &http.Response{
+		StatusCode: 404,
+		Header:     make(http.Header),
+		Body:       &shuntBody{&bytes.Buffer{}},
+		Request:    r}
+}
+
+func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, error) {
+	rr, err := mapRequest(r, b)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.transport.RoundTrip(rr)
+}
+
 // http.Handler implementation
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// tmp hack:
@@ -180,27 +206,28 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := &filterContext{w, r, nil}
 	applyFiltersToRequest(f, c)
 
-	rr, err := mapRequest(r, rt.Backend())
-	if err != nil {
-		hterr(err)
-		return
+	b := rt.Backend()
+	var rs *http.Response
+	if b.IsShunt() {
+		rs = shunt(r)
+	} else {
+		rs, err = p.roundtrip(r, rt.Backend())
+		if err != nil {
+			hterr(err)
+			return
+		}
+
+		defer func() {
+			err = rs.Body.Close()
+			if err != nil {
+				log.Println(err)
+			}
+		}()
 	}
 
-	rs, err := p.transport.RoundTrip(rr)
-	if err != nil {
-		hterr(err)
-		return
-	}
-
+	println("response is null", rs == nil)
 	c.res = rs
 	applyFiltersToResponse(f, c)
-
-	defer func() {
-		err = rs.Body.Close()
-		if err != nil {
-			log.Println(err)
-		}
-	}()
 
 	copyHeader(w.Header(), rs.Header)
 	w.WriteHeader(rs.StatusCode)
