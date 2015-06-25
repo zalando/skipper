@@ -7,12 +7,18 @@ import (
 	"log"
 	"skipper/skipper"
 	"strings"
+	"time"
+)
+
+const (
+	idleEtcdWaitTimeShort   = 12 * time.Millisecond
+	idleEtcdWaitTimeLong    = 6 * time.Second
+	shortTermIdleRetryCount = 12
 )
 
 type client struct {
 	storageRoot string
 	etcd        *etcd.Client
-	receive     chan *etcd.Response
 	push        chan skipper.RawData
 }
 
@@ -47,23 +53,33 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 	c := &client{
 		storageRoot,
 		etcd.NewClient(urls),
-		make(chan *etcd.Response),
 		make(chan skipper.RawData)}
 
 	data := make(map[string]interface{})
 
-	r, err := c.etcd.Get(storageRoot, false, true)
-	if err != nil {
-		return nil, err
-	}
-
 	// parse and push the current data, then start waiting for updates, then repeat
 	go func() {
+		var (
+			r               *etcd.Response
+			highestModIndex uint64
+			err             error
+		)
+
 		for {
-			c.walkInNodes(&data, r.Node)
+			if r == nil {
+				r = c.forceGet()
+			} else {
+				log.Println("watching for configuration update")
+				r, err = c.watch(highestModIndex + 1)
+				if err != nil {
+					log.Println("error during watching for configuration update", err)
+					log.Println("trying to get initial data")
+					continue
+				}
+			}
+
+			c.walkInNodes(&data, &highestModIndex, r.Node)
 			c.push <- &dataWrapper{data}
-			go c.watch(r.EtcdIndex + 1)
-			r = <-c.receive
 		}
 	}()
 
@@ -85,31 +101,55 @@ func (c *client) setIfMatch(category string, data *map[string]interface{}, node 
 
 // collects the changed nodes and updates the current data, regardless how deep subtree
 // was returned from etcd
-func (c *client) walkInNodes(data *map[string]interface{}, node *etcd.Node) {
+func (c *client) walkInNodes(data *map[string]interface{}, highestModIndex *uint64, node *etcd.Node) {
 	if len(node.Nodes) > 0 {
 		for _, n := range node.Nodes {
-			c.walkInNodes(data, n)
+			c.walkInNodes(data, highestModIndex, n)
 		}
 	}
 
 	c.setIfMatch("backends", data, node)
 	c.setIfMatch("frontends", data, node)
 	c.setIfMatch("filter-specs", data, node)
+
+	if node.ModifiedIndex > *highestModIndex {
+		*highestModIndex = node.ModifiedIndex
+	}
+}
+
+func (c *client) get() (*etcd.Response, error) {
+	return c.etcd.Get(c.storageRoot, false, true)
+}
+
+// to ensure continuity when the etcd service may be out,
+// we keep requesting the initial set of data until it
+// succeeds
+func (c *client) forceGet() *etcd.Response {
+	tryCount := 0
+	for {
+		r, err := c.get()
+		if err == nil {
+			return r
+		}
+
+		log.Println("error during getting initial set of data", err)
+
+		// to avoid too rapid retries, we put a small timeout here
+		// for longer etcd outage, we increase the timeout after a fre tries
+		to := idleEtcdWaitTimeShort
+		if tryCount > shortTermIdleRetryCount {
+			to = idleEtcdWaitTimeLong
+		}
+
+		time.Sleep(to)
+
+		tryCount = tryCount + 1
+	}
 }
 
 // waits for updates in the etcd configuration
-func (c *client) watch(waitIndex uint64) {
-	for {
-		// we don't return error here after already started up
-		r, err := c.etcd.Watch(c.storageRoot, waitIndex, true, nil, nil)
-		if err != nil {
-			log.Println("error during watching etcd", err)
-			continue
-		}
-
-		c.receive <- r
-		return
-	}
+func (c *client) watch(waitIndex uint64) (*etcd.Response, error) {
+	return c.etcd.Watch(c.storageRoot, waitIndex, true, nil, nil)
 }
 
 // Returns a channel that sends the the data on initial start, and on any update in the
