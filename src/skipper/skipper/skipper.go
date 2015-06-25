@@ -42,17 +42,17 @@ type RawData interface {
 	//
 	//     "filter-specs": {
 	//         "pdp-custom-headers": {
-	//             "middleware-name": "custom-headers",
+	//             "filter-spec": "custom-headers",
 	//             "config": {"free-data": 3.14}
 	//         },
 	//
 	//         "x-session-id": {
-	//             "middleware-name": "x-session-id",
+	//             "filter-spec": "x-session-id",
 	//             "config": {"generator": "v4"}
 	//         },
 	//
 	//         "humans.txt": {
-	//             "middleware-name": "humans.txt"
+	//             "filter-spec": "humans.txt"
 	//         }
 	//     }
 	// }
@@ -88,7 +88,7 @@ type FilterContext interface {
 	Response() *http.Response
 }
 
-// Filters are created by the middleware components, optionally using filter specific settings.
+// Filters are created by the FilterSpec components, optionally using filter specific settings.
 // When implementing filters, it needs to be taken into consideration, that filter instances are route specific
 // and not request specific, so any state stored with a filter is shared between all requests and can cause
 // concurrency issues (as in don't do that).
@@ -151,24 +151,24 @@ type SettingsDispatcher interface {
 }
 
 // Filter specific configuration.
-type MiddlewareConfig map[string]interface{}
+type FilterConfig map[string]interface{}
 
-// Middleware objects can be used to create filter objects. They need to be registered in the registry.
-// Typically, there is a single middleware instance of each middleware implementation in a running process, which can create multiple filter
-// instances with different middleware config defined in the configuration on every update.
-type Middleware interface {
+// FilterSpec objects can be used to create filter objects. They need to be registered in the registry.
+// Typically, there is a single FilterSpec instance of each implementation in a running process, which can create multiple filter
+// instances with different config defined in the configuration on every update.
+type FilterSpec interface {
 
-	// The name of the middlware is used to identify in the configuration which middleware a filter is based on.
+	// The name of the FilterSpec is used to identify in the configuration which spec a filter is based on.
 	Name() string
 
-	// When the program settings are updated, and they contain filters based on a middleware, MakeFilter is
+	// When the program settings are updated, and they contain filters based on a spec, MakeFilter is
 	// called, and the filter id and the filter specific settings are provided. Returns a filter.
-	MakeFilter(id string, s MiddlewareConfig) (Filter, error)
+	MakeFilter(id string, s FilterConfig) (Filter, error)
 }
 
-// The middleware registry stores all available middleware modules.
-type MiddlewareRegistry interface {
-	Add(...Middleware)
-	Get(string) Middleware
+// The filter registry stores all available filter spec modules.
+type FilterRegistry interface {
+	Add(...FilterSpec)
+	Get(string) FilterSpec
 	Remove(string)
 }

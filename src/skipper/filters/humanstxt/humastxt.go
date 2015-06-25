@@ -2,7 +2,7 @@ package humanstxt
 
 import (
 	"io"
-	"skipper/middleware/noop"
+	"skipper/filters/noop"
 	"skipper/skipper"
 	"strconv"
 )
@@ -48,7 +48,7 @@ type humanstxt struct {
 	*noop.Type
 }
 
-func Make() skipper.Middleware {
+func Make() skipper.FilterSpec {
 	return &humanstxt{}
 }
 
@@ -56,7 +56,7 @@ func (h *humanstxt) Name() string {
 	return name
 }
 
-func (h *humanstxt) MakeFilter(id string, _ skipper.MiddlewareConfig) (skipper.Filter, error) {
+func (h *humanstxt) MakeFilter(id string, _ skipper.FilterConfig) (skipper.Filter, error) {
 	hf := &humanstxt{&noop.Type{}}
 	hf.SetId(id)
 	return hf, nil

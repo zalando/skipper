@@ -64,23 +64,23 @@ func processBackends(data interface{}) map[string]*backend {
 	return processed
 }
 
-func createFilter(id string, specs map[string]jsonmap, mwr skipper.MiddlewareRegistry) (skipper.Filter, error) {
+func createFilter(id string, specs map[string]jsonmap, mwr skipper.FilterRegistry) (skipper.Filter, error) {
 	spec := specs[id]
-	mwn, _ := spec["middleware-name"].(string)
+	mwn, _ := spec["filter-spec"].(string)
 	mw := mwr.Get(mwn)
 	if mw == nil {
 		return nil, errors.New(fmt.Sprintf("filter not found: '%s' '%s'", id, mwn))
 	}
 
 	mwc := toJsonmap(spec["config"])
-	return mw.MakeFilter(id, skipper.MiddlewareConfig(mwc))
+	return mw.MakeFilter(id, skipper.FilterConfig(mwc))
 }
 
 func processFrontends(
 	data interface{},
 	backends map[string]*backend,
 	filterSpecs map[string]jsonmap,
-	mwr skipper.MiddlewareRegistry) ([]*routedef, error) {
+	mwr skipper.FilterRegistry) ([]*routedef, error) {
 
 	config := toJsonmap(data)
 	processed := []*routedef{}
@@ -120,7 +120,7 @@ func processFrontends(
 	return processed, nil
 }
 
-func processRaw(rd skipper.RawData, mwr skipper.MiddlewareRegistry) (skipper.Settings, error) {
+func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Settings, error) {
 	s := &settings{defaultAddress, route.New()}
 
 	data := rd.Get()

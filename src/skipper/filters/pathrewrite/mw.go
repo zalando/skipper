@@ -1,4 +1,4 @@
-// creates a middleware that can create filters that can rewrite the request path.
+// creates a filter that can create filters that can rewrite the request path.
 // the filters expect a regular expression in the 'expression' field of the filter config to match one or more parts of the request
 // path, and a replacement string in the 'replacement' field. when processing a request, it calls ReplaceAll on
 // the path.
@@ -6,7 +6,7 @@ package pathrewrite
 
 import (
 	"regexp"
-	"skipper/middleware/noop"
+	"skipper/filters/noop"
 	"skipper/skipper"
 )
 
@@ -18,18 +18,18 @@ type impl struct {
 	replacement []byte
 }
 
-// creates the middleware instance
-func Make() skipper.Middleware {
+// creates the filter spec instance
+func Make() skipper.FilterSpec {
 	return &impl{}
 }
 
-// the name of the middleware
+// the name of the filter spec
 func (mw *impl) Name() string {
 	return name
 }
 
 // creates a path rewrite filter
-func (mw *impl) MakeFilter(id string, config skipper.MiddlewareConfig) (skipper.Filter, error) {
+func (mw *impl) MakeFilter(id string, config skipper.FilterConfig) (skipper.Filter, error) {
 	expr, _ := config["expression"].(string)
 	replacement, _ := config["replacement"].(string)
 

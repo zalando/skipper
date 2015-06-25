@@ -2,7 +2,7 @@ package simpleheader
 
 import "testing"
 
-func TestCreatesMiddleware(t *testing.T) {
+func TestCreatesFilterSpec(t *testing.T) {
 	mw := &Type{}
 	if mw.Name() != "_simple-header" {
 		t.Error("wrong name")
