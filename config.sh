@@ -18,7 +18,7 @@ curl -k -X PUT -d 'value="https://bugfactory.mop-taskforce.zalan.do"' "$host""$r
 
 sls=streaming-layout-service
 sc=scompositor
-layoutServiceBackend="$sls"
+layoutServiceBackend="$sc"
 
 # fronteds:
 curl -k -X PUT -d 'value={"route": "Path(`/tessera/header`)", "backend-id": "header", "filters": ["xalando", "cut-path", "header-host"]}' "$host""$root"/frontends/header
