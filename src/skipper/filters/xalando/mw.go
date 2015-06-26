@@ -55,7 +55,7 @@ func extractOrGenerateSessionId(ctx skipper.FilterContext) {
 		if err == nil {
 			uuid = u.String()
 			http.SetCookie(ctx.ResponseWriter(), &http.Cookie{
-				Name:   "Zalando-Session-Id",
+				Name:   "Zalando-Client-Id",
 				Value:  uuid,
 				Path:   "/",
 				Domain: "zalan.do",
@@ -64,7 +64,7 @@ func extractOrGenerateSessionId(ctx skipper.FilterContext) {
 	}
 
 	if len(uuid) != 0 {
-		ctx.Request().Header["X-Zalando-Session-Id"] = []string{uuid}
+		ctx.Request().Header["X-Zalando-Client-Id"] = []string{uuid}
 	}
 }
 
