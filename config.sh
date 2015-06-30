@@ -7,49 +7,24 @@ fi
 
 root=/v2/keys/skipper
 
-# backends:
-curl -k -X PUT -d 'value="https://header.mop-taskforce.zalan.do"' "$host""$root"/backends/header
-curl -k -X PUT -d 'value="https://footer.mop-taskforce.zalan.do"' "$host""$root"/backends/footer
-curl -k -X PUT -d 'value="https://cart.mop-taskforce.zalan.do"' "$host""$root"/backends/cart
-curl -k -X PUT -d 'value="https://layout-service-9.mop-taskforce.zalan.do"' "$host""$root"/backends/layout-service-9
-curl -k -X PUT -d 'value="https://scompositor.mop-taskforce.zalan.do"' "$host""$root"/backends/scompositor
-curl -k -X PUT -d 'value="https://streaming-layout-service.mop-taskforce.zalan.do"' "$host""$root"/backends/streaming-layout-service
-curl -k -X PUT -d 'value="https://bugfactory.mop-taskforce.zalan.do"' "$host""$root"/backends/debug
-
 sc=scompositor
 sls=streaming-layout-service
 layoutServiceBackend="$sc"
 
-# fronteds:
-curl -k -X PUT -d 'value={"route": "Path(`/tessera/header`)", "backend-id": "header", "filters": ["xalando", "cut-path", "header-host"]}' "$host""$root"/frontends/header
-curl -k -X PUT -d 'value={"route": "Path(`/tessera/footer`)", "backend-id": "footer", "filters": ["xalando", "cut-path", "footer-host"]}' "$host""$root"/frontends/footer
-curl -k -X PUT -d 'value={"route": "PathRegexp(`/sc/.*\\.html`)", "backend-id": "'"$sc"'", "filters": ["xalando", "sc-host", "pdp-path"]}' "$host""$root"/frontends/pdp
-curl -k -X PUT -d 'value={"route": "Path(`/sc/<string>`)", "backend-id": "'"$sc"'", "filters": ["xalando", "sc-host", "catalog-path"]}' "$host""$root"/frontends/catalog
-curl -k -X PUT -d 'value={"route": "PathRegexp(`/sls/.*\\.html`)", "backend-id": "'"$sls"'", "filters": ["xalando", "sls-host", "pdp-path"]}' "$host""$root"/frontends/pdp
-curl -k -X PUT -d 'value={"route": "Path(`/sls/<string>`)", "backend-id": "'"$sls"'", "filters": ["xalando", "sls-host", "catalog-path"]}' "$host""$root"/frontends/catalog
-curl -k -X PUT -d 'value={"route": "PathRegexp(`.*\\.html`)", "backend-id": "'"$layoutServiceBackend"'", "filters": ["xalando", "layout-service-host", "pdp-path"]}' "$host""$root"/frontends/pdp
-curl -k -X PUT -d 'value={"route": "PathRegexp(`/sc/.*\\.html`)", "backend-id": "'"$sc"'", "filters": ["xalando", "scompositor-host", "pdp-path"]}' "$host""$root"/frontends/pdp-sc
-curl -k -X PUT -d 'value={"route": "PathRegexp(`/sls/.*\\.html`)", "backend-id": "'"$sls"'", "filters": ["xalando", "streaming-layout-service-host", "pdp-path"]}' "$host""$root"/frontends/pdp-sls
-curl -k -X PUT -d 'value={"route": "Path(`/<string>`)", "backend-id": "'"$layoutServiceBackend"'", "filters": ["xalando", "layout-service-host", "catalog-path"]}' "$host""$root"/frontends/catalog
-curl -k -X PUT -d 'value={"route": "Path(`/sc/<string>`)", "backend-id": "'"$sc"'", "filters": ["xalando", "layout-service-host", "catalog-path"]}' "$host""$root"/frontends/catalog-sc
-curl -k -X PUT -d 'value={"route": "Path(`/sls/<string>`)", "backend-id": "'"$sls"'", "filters": ["xalando", "layout-service-host", "catalog-path"]}' "$host""$root"/frontends/catalog-sls
-curl -k -X PUT -d 'value={"route": "Path(`/slow`)", "backend-id": "debug", "filters": ["xalando", "bugfactory-host"]}' "$host""$root"/frontends/slow
-curl -k -X PUT -d 'value={"route": "Path(`/debug`)", "backend-id": "debug", "filters": ["xalando", "cut-path", "bugfactory-host"]}' "$host""$root"/frontends/debug
-curl -k -X PUT -d 'value={"route": "PathRegexp(`/api/cart/.*`)", "backend-id": "cart", "filters": ["xalando", "cart-host"]}' "$host""$root"/frontends/cart
-curl -k -X PUT -d 'value={"route": "Path(`/healthcheck`)", "backend-id": "<shunt>", "filters": ["healthcheck"]}' "$host""$root"/frontends/healthcheck
-curl -k -X PUT -d 'value={"route": "Path(`/humans.txt`)", "backend-id": "<shunt>", "filters": ["humans.txt"]}' "$host""$root"/frontends/humans.txt
+function put() {
+    curl -k -X PUT -d 'value='"$2" "$host""$root"/routes/"$1"
+}
 
-# filter specs:
-curl -k -X PUT -d 'value={"filter-spec": "xalando"}' "$host""$root"/filter-specs/xalando
-curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "header.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/header-host
-curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "footer.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/footer-host
-curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "'"$sc"'.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/scompositor-host
-curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "'"$sls"'.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/streaming-layout-service-host
-curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "'"$layoutServiceBackend"'.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/layout-service-host
-curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "bugfactory.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/bugfactory-host
-curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "cart-taskforce.zalan.do"}}' "$host""$root"/filter-specs/cart-host
-curl -k -X PUT -d 'value={"filter-spec": "path-rewrite", "config": {"expression": ".*", "replacement": "/"}}' "$host""$root"/filter-specs/cut-path
-curl -k -X PUT -d 'value={"filter-spec": "path-rewrite", "config": {"expression": ".*", "replacement": "/pdp"}}' "$host""$root"/filter-specs/pdp-path
-curl -k -X PUT -d 'value={"filter-spec": "path-rewrite", "config": {"expression": ".*", "replacement": "/catalog"}}' "$host""$root"/filter-specs/catalog-path
-curl -k -X PUT -d 'value={"filter-spec": "humans.txt"}' "$host""$root"/filter-specs/humans.txt
-curl -k -X PUT -d 'value={"filter-spec": "healthcheck"}' "$host""$root"/filter-specs/healthcheck
+put header 'Path("/tessera/header") -> xalando() -> pathRewrite(/.*/, "/") -> requestHeader("Host", "header.mop-taskforce.zalan.do") -> "https://header.mop-taskforce.zalan.do"'
+put footer 'Path("/tessera/footer") -> xalando() -> pathRewrite(/.*/, "/") -> requestHeader("Host", "footer.mop-taskforce.zalan.do") -> "https://footer.mop-taskforce.zalan.do"'
+put pdp 'PathRegexp(/.*\.html/) -> xalando() -> requestHeader("Host", "'"$layoutServiceBackend"'.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/pdp") -> "https://'"$layoutServiceBackend"'.mop-taskforce.zalan.do"'
+put pdpsc 'PathRegexp(/\/sc\/.*\.html/) -> xalando() -> requestHeader("Host", "'"$sc"'.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/pdp") -> "https://'"$sc"'.mop-taskforce.zalan.do"'
+put pdpsls 'PathRegexp(/\/sls\/.*\.html/) -> xalando() -> requestHeader("Host", "'"$sls"'.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/pdp") -> "https://'"$sls"'.mop-taskforce.zalan.do"'
+put catalog 'Path("/<string>") -> xalando() -> requestHeader("Host", "'"$layoutServiceBackend"'.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") -> "https://'"$layoutServiceBackend"'.mop-taskforce.zalan.do"'
+put catalogsc 'Path("/sc/<string>") -> xalando() -> requestHeader("Host", "'"$sc"'.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") -> "https://'"$sc"'.mop-taskforce.zalan.do"'
+put catalogsls 'Path("/sls/<string>") -> xalando() -> requestHeader("Host", "'"$sls"'.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") -> "https://'"$sls"'.mop-taskforce.zalan.do"'
+put slow 'Path("/slow") -> xalando() -> requestHeader("Host", "bugfactory.mop-taskforce.zalan.do") -> "https://bugfactory.mop-taskforce.zalan.do"'
+put debug 'Path("/debug") -> xalando() -> pathRewrite(/.*/, "/") -> requestHeader("Host", "bugfactory.mop-taskforce.zalan.do") -> "https://bugfactory.mop-taskforce.zalan.do"'
+put cart 'PathRegexp(/\/api\/cart\/.*/) -> xalando() -> requestHeader("Host", "cart-taskforce.zalan.do") -> "https://cart.mop-taskforce.zalan.do"'
+put healthcheck 'Path("/healthcheck") -> healthcheck() -> <shunt>'
+put humanstxt 'Path("/humans.txt") -> humanstxt() -> <shunt>'

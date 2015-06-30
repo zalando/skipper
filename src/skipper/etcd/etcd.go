@@ -1,7 +1,6 @@
 package etcd
 
 import (
-	"encoding/json"
 	"github.com/coreos/go-etcd/etcd"
 	"log"
 	"path"
@@ -25,26 +24,6 @@ type client struct {
 
 type dataWrapper struct {
 	data []string
-}
-
-// sets the data for a given category and key from an etcd response node, where the category can be 'backends',
-// 'frontends' or 'filter-specs'.
-func setDataItem(category string, data *map[string]interface{}, key string, node *etcd.Node) {
-	// todo: what to do with parsing errors when already running
-	var v interface{}
-	err := json.Unmarshal([]byte(node.Value), &v)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	categoryMap, ok := (*data)[category].(map[string]interface{})
-	if !ok {
-		categoryMap = make(map[string]interface{})
-		(*data)[category] = categoryMap
-	}
-
-	categoryMap[key] = v
 }
 
 // Creates a client receiving the configuraton from etcd. In the urls parameter it expects one or more valid urls to the
@@ -79,7 +58,6 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 			}
 
 			c.iterateRoutes(r.Node, &data, &highestModIndex)
-			log.Println("current routes", len(data), data)
 			c.push <- &dataWrapper{data}
 		}
 	}()
