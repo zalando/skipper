@@ -16,8 +16,8 @@ curl -k -X PUT -d 'value="https://scompositor.mop-taskforce.zalan.do"' "$host""$
 curl -k -X PUT -d 'value="https://streaming-layout-service.mop-taskforce.zalan.do"' "$host""$root"/backends/streaming-layout-service
 curl -k -X PUT -d 'value="https://bugfactory.mop-taskforce.zalan.do"' "$host""$root"/backends/debug
 
-sls=streaming-layout-service
 sc=scompositor
+sls=streaming-layout-service
 layoutServiceBackend="$sc"
 
 # fronteds:
@@ -28,7 +28,11 @@ curl -k -X PUT -d 'value={"route": "Path(`/sc/<string>`)", "backend-id": "'"$sc"
 curl -k -X PUT -d 'value={"route": "PathRegexp(`/sls/.*\\.html`)", "backend-id": "'"$sls"'", "filters": ["xalando", "sls-host", "pdp-path"]}' "$host""$root"/frontends/pdp
 curl -k -X PUT -d 'value={"route": "Path(`/sls/<string>`)", "backend-id": "'"$sls"'", "filters": ["xalando", "sls-host", "catalog-path"]}' "$host""$root"/frontends/catalog
 curl -k -X PUT -d 'value={"route": "PathRegexp(`.*\\.html`)", "backend-id": "'"$layoutServiceBackend"'", "filters": ["xalando", "layout-service-host", "pdp-path"]}' "$host""$root"/frontends/pdp
+curl -k -X PUT -d 'value={"route": "PathRegexp(`/sc/.*\\.html`)", "backend-id": "'"$sc"'", "filters": ["xalando", "scompositor-host", "pdp-path"]}' "$host""$root"/frontends/pdp-sc
+curl -k -X PUT -d 'value={"route": "PathRegexp(`/sls/.*\\.html`)", "backend-id": "'"$sls"'", "filters": ["xalando", "streaming-layout-service-host", "pdp-path"]}' "$host""$root"/frontends/pdp-sls
 curl -k -X PUT -d 'value={"route": "Path(`/<string>`)", "backend-id": "'"$layoutServiceBackend"'", "filters": ["xalando", "layout-service-host", "catalog-path"]}' "$host""$root"/frontends/catalog
+curl -k -X PUT -d 'value={"route": "Path(`/sc/<string>`)", "backend-id": "'"$sc"'", "filters": ["xalando", "layout-service-host", "catalog-path"]}' "$host""$root"/frontends/catalog-sc
+curl -k -X PUT -d 'value={"route": "Path(`/sls/<string>`)", "backend-id": "'"$sls"'", "filters": ["xalando", "layout-service-host", "catalog-path"]}' "$host""$root"/frontends/catalog-sls
 curl -k -X PUT -d 'value={"route": "Path(`/slow`)", "backend-id": "debug", "filters": ["xalando", "bugfactory-host"]}' "$host""$root"/frontends/slow
 curl -k -X PUT -d 'value={"route": "Path(`/debug`)", "backend-id": "debug", "filters": ["xalando", "cut-path", "bugfactory-host"]}' "$host""$root"/frontends/debug
 curl -k -X PUT -d 'value={"route": "PathRegexp(`/api/cart/.*`)", "backend-id": "cart", "filters": ["xalando", "cart-host"]}' "$host""$root"/frontends/cart
@@ -39,9 +43,9 @@ curl -k -X PUT -d 'value={"route": "Path(`/humans.txt`)", "backend-id": "<shunt>
 curl -k -X PUT -d 'value={"filter-spec": "xalando"}' "$host""$root"/filter-specs/xalando
 curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "header.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/header-host
 curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "footer.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/footer-host
+curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "'"$sc"'.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/scompositor-host
+curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "'"$sls"'.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/streaming-layout-service-host
 curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "'"$layoutServiceBackend"'.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/layout-service-host
-curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "'"$sc"'.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/sc-host
-curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "'"$sls"'.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/sls-host
 curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "bugfactory.mop-taskforce.zalan.do"}}' "$host""$root"/filter-specs/bugfactory-host
 curl -k -X PUT -d 'value={"filter-spec": "request-header", "config": {"key": "Host", "value": "cart-taskforce.zalan.do"}}' "$host""$root"/filter-specs/cart-host
 curl -k -X PUT -d 'value={"filter-spec": "path-rewrite", "config": {"expression": ".*", "replacement": "/"}}' "$host""$root"/filter-specs/cut-path
