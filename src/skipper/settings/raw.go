@@ -3,136 +3,76 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"eskip"
 	"github.com/mailgun/route"
+	"log"
 	"net/url"
 	"skipper/skipper"
 )
 
-const (
-	defaultAddress = ":9090"
-	shuntBackendId = "<shunt>"
-)
+const shuntBackendId = "<shunt>"
 
-type (
-	jsonmap  map[string]interface{}
-	jsonlist []interface{}
-)
-
-func toJsonmap(i interface{}) jsonmap {
-	if m, ok := i.(map[string]interface{}); ok {
-		return jsonmap(m)
+func createBackend(r *eskip.Route) (*backend, error) {
+	if r.Shunt {
+		return &backend{isShunt: true}, nil
 	}
 
-	return nil
-}
-
-func toJsonlist(i interface{}) jsonlist {
-	if l, ok := i.([]interface{}); ok {
-		return jsonlist(l)
-	}
-
-	return nil
-}
-
-func processFilterSpecs(data interface{}) map[string]jsonmap {
-	processed := make(map[string]jsonmap)
-	if data == nil {
-		return processed
-	}
-
-	config := data.(map[string]interface{})
-	for id, raw := range config {
-		spec := toJsonmap(raw)
-		processed[id] = spec
-	}
-
-	return processed
-}
-
-func processBackends(data interface{}) map[string]*backend {
-	processed := make(map[string]*backend)
-
-	config := toJsonmap(data)
-	for id, uraw := range config {
-		if us, ok := uraw.(string); ok {
-			if u, err := url.ParseRequestURI(us); err == nil {
-				processed[id] = &backend{u.Scheme, u.Host, false}
-			}
-		}
-	}
-
-	return processed
-}
-
-func createFilter(id string, specs map[string]jsonmap, mwr skipper.FilterRegistry) (skipper.Filter, error) {
-	spec := specs[id]
-	mwn, _ := spec["filter-spec"].(string)
-	mw := mwr.Get(mwn)
-	if mw == nil {
-		return nil, errors.New(fmt.Sprintf("filter not found: '%s' '%s'", id, mwn))
-	}
-
-	mwc := toJsonmap(spec["config"])
-	return mw.MakeFilter(id, skipper.FilterConfig(mwc))
-}
-
-func processFrontends(
-	data interface{},
-	backends map[string]*backend,
-	filterSpecs map[string]jsonmap,
-	mwr skipper.FilterRegistry) ([]*routedef, error) {
-
-	config := toJsonmap(data)
-	processed := []*routedef{}
-	shunt := &backend{"", "", true}
-
-	for _, raw := range config {
-		f := toJsonmap(raw)
-		if f == nil {
-			continue
-		}
-
-		rt, _ := f["route"].(string)
-		backendId, _ := f["backend-id"].(string)
-
-		var b *backend
-		if backendId == shuntBackendId {
-			b = shunt
-		} else {
-			b = backends[backendId]
-		}
-
-		filterRefs := toJsonlist(f["filters"])
-		filters := []skipper.Filter{}
-		for _, id := range filterRefs {
-			filter, err := createFilter(id.(string), filterSpecs, mwr)
-			if err != nil {
-				return nil, err
-			}
-
-			filters = append(filters, filter)
-		}
-
-		// todo: if no backend, should be an error
-		processed = append(processed, &routedef{rt, b, filters})
-	}
-
-	return processed, nil
-}
-
-func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Settings, error) {
-	s := &settings{defaultAddress, route.New()}
-
-	data := rd.Get()
-	filterSpecs := processFilterSpecs(data["filter-specs"])
-	backends := processBackends(data["backends"])
-	routes, err := processFrontends(data["frontends"], backends, filterSpecs, mwr)
+	bu, err := url.ParseRequestURI(r.Backend)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, rt := range routes {
-		s.routes.AddRoute(rt.route, rt)
+	return &backend{scheme: bu.Scheme, host: bu.Host}, nil
+}
+
+func makeFilterId(routeId, filterName string, index int) string {
+	return fmt.Sprintf("%s-%s-%d", routeId, filterName, index)
+}
+
+func createFilter(id string, spec *eskip.Filter, mwr skipper.FilterRegistry) (skipper.Filter, error) {
+	mw := mwr.Get(spec.Name)
+	if mw == nil {
+		return nil, errors.New(fmt.Sprintf("filter not found: '%s' '%s'", id, spec.Name))
+	}
+
+	return mw.MakeFilter(id, skipper.FilterConfig(spec.Args))
+}
+
+func createFilters(r *eskip.Route, mwr skipper.FilterRegistry) ([]skipper.Filter, error) {
+	fs := make([]skipper.Filter, len(r.Filters))
+	for i, fspec := range r.Filters {
+		f, err := createFilter(makeFilterId(r.Id, fspec.Name, i), fspec, mwr)
+		if err != nil {
+			return nil, err
+		}
+
+		fs[i] = f
+	}
+
+	return fs, nil
+}
+
+func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Settings, error) {
+	d, err := eskip.Parse(rd.Get())
+	if err != nil {
+		return nil, err
+	}
+
+	s := &settings{route.New()}
+	for _, r := range d {
+		b, err := createBackend(r)
+		if err != nil {
+			log.Println("invalid backend address", r.Id, b, err)
+			continue
+		}
+
+		fs, err := createFilters(r, mwr)
+		if err != nil {
+			log.Println("invalid filter specification", r.Id, err)
+			continue
+		}
+
+		s.routes.AddRoute(r.MatchExp, &routedef{r.MatchExp, b, fs})
 	}
 
 	return s, nil

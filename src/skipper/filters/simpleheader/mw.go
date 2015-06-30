@@ -35,11 +35,7 @@ import (
 	"skipper/skipper"
 )
 
-const (
-	name            = "_simple-header"
-	keyConfigName   = "key"
-	valueConfigName = "value"
-)
+const name = "_simpleheader"
 
 // type implementing both skipper.FilterSpec and skipper.Filter
 type Type struct {
@@ -54,29 +50,20 @@ func (mw *Type) Name() string {
 	return name
 }
 
-func stringValue(config skipper.FilterConfig, name string) (string, bool) {
-	if ival, ok := config[name]; ok {
-		if val, ok := ival.(string); ok {
-			return val, true
-		}
-	}
-
-	return "", false
-}
-
 // call this method on the created filters to parse the filter config and to store the id
 func (f *Type) InitFilter(id string, config skipper.FilterConfig) error {
-	var (
-		key, value string
-		ok         bool
-	)
-
-	if key, ok = stringValue(config, keyConfigName); !ok {
-		return errors.New("missing key")
+	if len(config) != 2 {
+		return errors.New("invalid number of args, expecting 2")
 	}
 
-	if value, ok = stringValue(config, valueConfigName); !ok {
-		return errors.New("missing value")
+	key, ok := config[0].(string)
+	if !ok {
+		return errors.New("invalid config type, expecting string")
+	}
+
+	value, ok := config[1].(string)
+	if !ok {
+		return errors.New("invalid config type, expecting string")
 	}
 
 	f.key = key

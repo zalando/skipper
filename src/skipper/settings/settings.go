@@ -23,8 +23,7 @@ type routedef struct {
 }
 
 type settings struct {
-	address string
-	routes  route.Router
+	routes route.Router
 }
 
 func (b *backend) Scheme() string {
@@ -54,8 +53,4 @@ func (s *settings) Route(r *http.Request) (skipper.Route, error) {
 	}
 
 	return rt.(skipper.Route), nil
-}
-
-func (s *settings) Address() string {
-	return defaultAddress
 }

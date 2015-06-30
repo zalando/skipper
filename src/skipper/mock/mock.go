@@ -10,7 +10,7 @@ import (
 )
 
 type RawData struct {
-	Data map[string]interface{}
+	Data string
 }
 
 type DataClient struct {
@@ -32,7 +32,7 @@ type FilterContext struct {
 type Filter struct {
 	FId             string
 	Name            string
-	Data            int
+	Data            float64
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
 }
@@ -52,9 +52,9 @@ type FilterRegistry struct {
 	FilterSpec map[string]skipper.FilterSpec
 }
 
-func (rd *RawData) Get() map[string]interface{} { return rd.Data }
+func (rd *RawData) Get() string { return rd.Data }
 
-func MakeDataClient(data map[string]interface{}) *DataClient {
+func MakeDataClient(data string) *DataClient {
 	dc := &DataClient{make(chan skipper.RawData)}
 	dc.Feed(data)
 	return dc
@@ -64,7 +64,7 @@ func (dc *DataClient) Receive() <-chan skipper.RawData {
 	return dc.FReceive
 }
 
-func (dc *DataClient) Feed(data map[string]interface{}) {
+func (dc *DataClient) Feed(data string) {
 	go func() {
 		dc.FReceive <- &RawData{data}
 	}()
@@ -148,7 +148,7 @@ func (mw *FilterSpec) MakeFilter(id string, config skipper.FilterConfig) (skippe
 	return &Filter{
 		FId:  id,
 		Name: mw.FName,
-		Data: config["free-data"].(int)}, nil
+		Data: config[0].(float64)}, nil
 }
 
 func (mwr *FilterRegistry) Add(mw ...skipper.FilterSpec) {
