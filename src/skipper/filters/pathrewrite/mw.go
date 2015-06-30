@@ -5,12 +5,13 @@
 package pathrewrite
 
 import (
+	"fmt"
 	"regexp"
 	"skipper/filters/noop"
 	"skipper/skipper"
 )
 
-const name = "path-rewrite"
+const name = "pathRewrite"
 
 type impl struct {
 	*noop.Type
@@ -28,10 +29,25 @@ func (mw *impl) Name() string {
 	return name
 }
 
+func invalidConfig(config skipper.FilterConfig) error {
+	return fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", name, config)
+}
+
 // creates a path rewrite filter
 func (mw *impl) MakeFilter(id string, config skipper.FilterConfig) (skipper.Filter, error) {
-	expr, _ := config["expression"].(string)
-	replacement, _ := config["replacement"].(string)
+	if len(config) != 2 {
+		return nil, invalidConfig(config)
+	}
+
+	expr, ok := config[0].(string)
+	if !ok {
+		return nil, invalidConfig(config)
+	}
+
+	replacement, ok := config[1].(string)
+	if !ok {
+		return nil, invalidConfig(config)
+	}
 
 	rx, err := regexp.Compile(expr)
 	if err != nil {

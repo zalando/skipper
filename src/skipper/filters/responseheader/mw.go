@@ -8,7 +8,7 @@ import (
 	"skipper/skipper"
 )
 
-const name = "response-header"
+const name = "responseHeader"
 
 type impl struct {
 	simpleheader.Type

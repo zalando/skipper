@@ -9,54 +9,21 @@ import "net/http"
 // Note: the current json format will be replaced soon with a more maintainable routing specification format.
 type RawData interface {
 
-	// return the json-like representation of the current data
+	// return the current routing settings as eskip
 	//
-	// todo:
-	//  - consider what config format failures should be considered invalid
-	//  - change the routing format to: 'id: <match> [[-> <filter>]...] -> <backend>
-	// in json:
-	// {
-	//     "backends": {
-	//         "pdp": "https://www.zalando.de/pdp.html"
-	//     },
+	// pdp:
+	//  PathRegexp(`.*\\.html`) ->
+	//  customHeaders(3.14) ->
+	//  xSessionId("v4") ->
+	//  "https://www.zalando.de/pdp.html";
 	//
-	//     "frontends": {
-	//         "pdp": {
-	//             "route": "PathRegexp(`.*\\.html`)",
-	//             "backend-id": "pdp",
-	//             "filters": [
-	//                 "pdp-custom-headers",
-	//                 "x-session-id"
-	//             ]
-	//         },
+	// humanstxt:
+	//  Path(`humans.txt`) ->
+	//  xSessionId("v4") ->
+	//  humanstxt() ->
+	//  <shunt>
 	//
-	//         "humans.txt": {
-	//             "route": "Path(`humans.txt`)",
-	//             "backend-id": "<shunt>",
-	//             "filters": [
-	//                 "x-session-id",
-	//                 "humans.txt"
-	//             ]
-	//         }
-	//     },
-	//
-	//     "filter-specs": {
-	//         "pdp-custom-headers": {
-	//             "filter-spec": "custom-headers",
-	//             "config": {"free-data": 3.14}
-	//         },
-	//
-	//         "x-session-id": {
-	//             "filter-spec": "x-session-id",
-	//             "config": {"generator": "v4"}
-	//         },
-	//
-	//         "humans.txt": {
-	//             "filter-spec": "humans.txt"
-	//         }
-	//     }
-	// }
-	Get() map[string]interface{}
+	Get() string
 }
 
 // Client receiving the configuraton from etcd or other.
@@ -122,9 +89,6 @@ type Settings interface {
 
 	// Returns the matching route for a given request.
 	Route(*http.Request) (Route, error)
-
-	// (Temp field)
-	Address() string
 }
 
 // A SettingsSource object always sends the current settings to the channel passed in to Subscribe in a
@@ -151,7 +115,7 @@ type SettingsDispatcher interface {
 }
 
 // Filter specific configuration.
-type FilterConfig map[string]interface{}
+type FilterConfig []interface{}
 
 // FilterSpec objects can be used to create filter objects. They need to be registered in the registry.
 // Typically, there is a single FilterSpec instance of each implementation in a running process, which can create multiple filter

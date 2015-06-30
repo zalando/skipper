@@ -8,14 +8,14 @@ import (
 
 func TestCreatesFilterSpec(t *testing.T) {
 	mw := Make()
-	if mw.Name() != "response-header" {
+	if mw.Name() != "responseHeader" {
 		t.Error("wrong name")
 	}
 }
 
 func TestSetsResponseHeader(t *testing.T) {
 	mw := Make()
-	f, _ := mw.MakeFilter("filter", map[string]interface{}{"key": "X-Test", "value": "test-value"})
+	f, _ := mw.MakeFilter("filter", []interface{}{"X-Test", "test-value"})
 	r := &http.Response{Header: make(http.Header)}
 	c := &mock.FilterContext{nil, nil, r}
 	f.Response(c)

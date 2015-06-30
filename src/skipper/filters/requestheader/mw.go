@@ -9,7 +9,7 @@ import (
 	"skipper/skipper"
 )
 
-const name = "request-header"
+const name = "requestHeader"
 
 type impl struct {
 	simpleheader.Type
