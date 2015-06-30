@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-const name = "humans.txt"
+const name = "humanstxt"
 
 const text = `
                          $$$$$$$$$$$

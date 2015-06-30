@@ -12,12 +12,7 @@ import (
 
 func TestParseAndDispatchRawData(t *testing.T) {
 	url1 := "https://www.zalando.de"
-	data := map[string]interface{}{
-		"backends": map[string]interface{}{"hello": url1},
-		"frontends": map[string]interface{}{
-			"hello": map[string]interface{}{
-				"route":      "Path(\"/hello\")",
-				"backend-id": "hello"}}}
+	data := `hello: Path("/hello") -> "https://www.zalando.de"`
 
 	dc := mock.MakeDataClient(data)
 	mwr := &mock.FilterRegistry{}
@@ -44,8 +39,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 		t.Error("wrong url 1")
 	}
 
-	url2 := "https://www.zalan.do"
-	data["backends"].(map[string]interface{})["hello"] = url2
+	data = `hello: Path("/hello") -> "https://www.zalan.do"`
 	dc.Feed(data)
 
 	// let the new settings fan through
@@ -56,7 +50,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	rt1, _ = s1.Route(r)
 	rt2, _ = s2.Route(r)
-	up2, _ := url.ParseRequestURI(url2)
+	up2, _ := url.ParseRequestURI("https://www.zalan.do")
 	if rt1.Backend().Scheme() != up2.Scheme || rt1.Backend().Host() != up2.Host ||
 		rt2.Backend().Scheme() != up2.Scheme || rt2.Backend().Host() != up2.Host {
 		t.Error("wrong url 2")
