@@ -2,8 +2,8 @@ package settings
 
 import (
 	"errors"
-	"fmt"
 	"eskip"
+	"fmt"
 	"github.com/mailgun/route"
 	"log"
 	"net/url"
