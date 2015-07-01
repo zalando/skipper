@@ -25,10 +25,23 @@ go get
 go get github.com/coreos/etcd
 ```
 
+In case, git and stash don't play nice on `go get` for eskip:
+
+```
+cd src
+git clone ssh://git@stash.zalando.net:7999/shop-rebuild/eskip.git
+```
+
 Test (optional):
 
 ```
 go test skipper/...
+```
+
+One time pre build:
+
+```
+go generate eskip
 ```
 
 Build:
