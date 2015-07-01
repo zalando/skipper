@@ -40,16 +40,18 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 		var (
 			r               *etcd.Response
 			data            []string
-			highestModIndex uint64
+			etcdIndex uint64
 			err             error
 		)
 
 		for {
 			if r == nil {
 				r = c.forceGet()
+                etcdIndex = r.EtcdIndex
 			} else {
 				log.Println("watching for configuration update")
-				r, err = c.watch(highestModIndex + 1)
+				r, err = c.watch(etcdIndex + 1)
+                etcdIndex = r.EtcdIndex
 				if err != nil {
 					log.Println("error during watching for configuration update", err)
 					log.Println("trying to get initial data")
@@ -57,7 +59,7 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 				}
 			}
 
-			c.iterateRoutes(r.Node, &data, &highestModIndex)
+			c.iterateRoutes(r.Node, &data)
 			c.push <- &dataWrapper{data}
 		}
 	}()
@@ -70,19 +72,15 @@ func getRouteId(r string) string {
 }
 
 // collect all the routes from the etcd nodes
-func (c *client) iterateRoutes(n *etcd.Node, data *[]string, highestModIndex *uint64) {
+func (c *client) iterateRoutes(n *etcd.Node, data *[]string) {
 	if n.Key == c.routesRoot {
 		for _, ni := range n.Nodes {
-			c.iterateRoutes(ni, data, highestModIndex)
+			c.iterateRoutes(ni, data)
 		}
 	}
 
 	if path.Dir(n.Key) != c.routesRoot {
 		return
-	}
-
-	if n.ModifiedIndex > *highestModIndex {
-		*highestModIndex = n.ModifiedIndex
 	}
 
 	rid := path.Base(n.Key)
