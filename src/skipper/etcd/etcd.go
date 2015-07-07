@@ -50,9 +50,7 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 				etcdIndex = r.EtcdIndex
 			} else {
 				log.Println("watching for configuration update")
-				println("start watching", etcdIndex)
 				r, err = c.watch(etcdIndex + 1)
-				println("watch returned", r.EtcdIndex)
 				if err != nil {
 					log.Println("error during watching for configuration update", err)
 					log.Println("trying to get initial data")
@@ -98,10 +96,8 @@ func (c *client) iterateRoutes(n *etcd.Node, data *[]string) {
 	}
 
 	if existing < 0 {
-		println("new route", rid, r)
 		*data = append(*data, r)
 	} else {
-		println("existing route", rid, r)
 		(*data)[existing] = r
 	}
 }

@@ -27,6 +27,7 @@ type FilterContext struct {
 	FResponseWriter http.ResponseWriter
 	FRequest        *http.Request
 	FResponse       *http.Response
+    FServed bool
 }
 
 type Filter struct {
@@ -98,6 +99,14 @@ func (fc *FilterContext) Request() *http.Request {
 
 func (fc *FilterContext) Response() *http.Response {
 	return fc.FResponse
+}
+
+func (fc *FilterContext) MarkServed() {
+    fc.FServed = true
+}
+
+func (fc *FilterContext) IsServed() bool {
+    return fc.FServed
 }
 
 func (f *Filter) Request(ctx skipper.FilterContext) {

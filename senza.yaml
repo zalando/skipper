@@ -34,6 +34,9 @@ SenzaComponents:
         mint_bucket: "zalando-stups-mint-889206078142-eu-west-1"
         etcd_discovery_domain: "etcd.mop-taskforce.zalan.do"
         scalyr_account_key: "0MTu1Ag2iuYoaoGCc1VxbS6aeXWAOsi6PzQn5xWyabWI-"
+        mounts:
+            /tmp:
+                erase_on_boot: false
 
   # creates an ELB entry and Route53 domains to this ELB
   - AppLoadBalancer:
