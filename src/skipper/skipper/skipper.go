@@ -53,6 +53,8 @@ type FilterContext interface {
 	ResponseWriter() http.ResponseWriter
 	Request() *http.Request
 	Response() *http.Response
+    IsServed() bool
+    MarkServed()
 }
 
 // Filters are created by the FilterSpec components, optionally using filter specific settings.
