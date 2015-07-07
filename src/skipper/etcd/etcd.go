@@ -38,25 +38,28 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 	// parse and push the current data, then start waiting for updates, then repeat
 	go func() {
 		var (
-			r               *etcd.Response
-			data            []string
+			r         *etcd.Response
+			data      []string
 			etcdIndex uint64
-			err             error
+			err       error
 		)
 
 		for {
 			if r == nil {
 				r = c.forceGet()
-                etcdIndex = r.EtcdIndex
+				etcdIndex = r.EtcdIndex
 			} else {
 				log.Println("watching for configuration update")
+				println("start watching", etcdIndex)
 				r, err = c.watch(etcdIndex + 1)
-                etcdIndex = r.EtcdIndex
+				println("watch returned", r.EtcdIndex)
 				if err != nil {
 					log.Println("error during watching for configuration update", err)
 					log.Println("trying to get initial data")
 					continue
 				}
+
+				etcdIndex = r.EtcdIndex
 			}
 
 			c.iterateRoutes(r.Node, &data)
@@ -95,8 +98,10 @@ func (c *client) iterateRoutes(n *etcd.Node, data *[]string) {
 	}
 
 	if existing < 0 {
+		println("new route", rid, r)
 		*data = append(*data, r)
 	} else {
+		println("existing route", rid, r)
 		(*data)[existing] = r
 	}
 }
