@@ -11,6 +11,7 @@ import (
 	"skipper/filters/requestheader"
 	"skipper/filters/responseheader"
 	"skipper/filters/xalando"
+    "skipper/filters/static"
 )
 
 // takes a registry object and registers the filter spec in the package
@@ -25,6 +26,7 @@ func Register(registry skipper.FilterRegistry) {
 		pathrewrite.Make(),
 		healthcheck.Make(),
 		humanstxt.Make(),
+        static.Make(),
 	)
 }
 

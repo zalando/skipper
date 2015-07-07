@@ -36,6 +36,7 @@ type filterContext struct {
 	w   http.ResponseWriter
 	req *http.Request
 	res *http.Response
+    served bool
 }
 
 func (sb shuntBody) Close() error {
@@ -158,6 +159,14 @@ func (c *filterContext) Response() *http.Response {
 	return c.res
 }
 
+func (c *filterContext) MarkServed() {
+    c.served = true
+}
+
+func (c *filterContext) IsServed() bool {
+    return c.served
+}
+
 func shunt(r *http.Request) *http.Response {
 	return &http.Response{
 		StatusCode: 404,
@@ -197,7 +206,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := rt.Filters()
-	c := &filterContext{w, r, nil}
+	c := &filterContext{w, r, nil, false}
 	applyFiltersToRequest(f, c)
 
 	b := rt.Backend()
@@ -222,7 +231,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.res = rs
 	applyFiltersToResponse(f, c)
 
-	copyHeader(w.Header(), rs.Header)
-	w.WriteHeader(rs.StatusCode)
-	copyStream(w.(flusherWriter), rs.Body)
+    if !c.IsServed() {
+        copyHeader(w.Header(), rs.Header)
+        w.WriteHeader(rs.StatusCode)
+        copyStream(w.(flusherWriter), rs.Body)
+    }
 }
