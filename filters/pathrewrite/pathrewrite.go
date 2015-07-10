@@ -6,9 +6,9 @@ package pathrewrite
 
 import (
 	"fmt"
-	"regexp"
 	"github.com/zalando/skipper/filters/noop"
 	"github.com/zalando/skipper/skipper"
+	"regexp"
 )
 
 const name = "pathRewrite"

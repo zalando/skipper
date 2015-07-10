@@ -2,12 +2,12 @@ package settings
 
 import (
 	"errors"
-	"github.com/zalando/eskip"
 	"fmt"
 	"github.com/mailgun/route"
+	"github.com/zalando/eskip"
+	"github.com/zalando/skipper/skipper"
 	"log"
 	"net/url"
-	"github.com/zalando/skipper/skipper"
 )
 
 const shuntBackendId = "<shunt>"

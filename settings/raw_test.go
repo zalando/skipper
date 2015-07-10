@@ -1,10 +1,10 @@
 package settings
 
 import (
-	"net/http"
-	"net/url"
 	"github.com/zalando/skipper/mock"
 	"github.com/zalando/skipper/skipper"
+	"net/http"
+	"net/url"
 	"testing"
 )
 
