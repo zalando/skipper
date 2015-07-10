@@ -4,9 +4,9 @@ package mock
 
 import (
 	"github.com/mailgun/route"
+	"github.com/zalando/skipper/skipper"
 	"net/http"
 	"net/url"
-	"github.com/zalando/skipper/skipper"
 )
 
 type RawData struct {
@@ -27,7 +27,7 @@ type FilterContext struct {
 	FResponseWriter http.ResponseWriter
 	FRequest        *http.Request
 	FResponse       *http.Response
-    FServed bool
+	FServed         bool
 }
 
 type Filter struct {
@@ -102,11 +102,11 @@ func (fc *FilterContext) Response() *http.Response {
 }
 
 func (fc *FilterContext) MarkServed() {
-    fc.FServed = true
+	fc.FServed = true
 }
 
 func (fc *FilterContext) IsServed() bool {
-    return fc.FServed
+	return fc.FServed
 }
 
 func (f *Filter) Request(ctx skipper.FilterContext) {

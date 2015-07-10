@@ -1,8 +1,8 @@
 package noop
 
 import (
-	"net/http"
 	"github.com/zalando/skipper/mock"
+	"net/http"
 	"testing"
 )
 

@@ -2,9 +2,9 @@ package etcd
 
 import (
 	"github.com/coreos/go-etcd/etcd"
+	"github.com/zalando/skipper/skipper"
 	"log"
 	"path"
-	"github.com/zalando/skipper/skipper"
 	"strings"
 	"time"
 )

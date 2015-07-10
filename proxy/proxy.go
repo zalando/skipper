@@ -6,10 +6,10 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/zalando/skipper/skipper"
 	"io"
 	"log"
 	"net/http"
-	"github.com/zalando/skipper/skipper"
 )
 
 const (
@@ -33,10 +33,10 @@ type proxy struct {
 }
 
 type filterContext struct {
-	w   http.ResponseWriter
-	req *http.Request
-	res *http.Response
-    served bool
+	w      http.ResponseWriter
+	req    *http.Request
+	res    *http.Response
+	served bool
 }
 
 func (sb shuntBody) Close() error {
@@ -160,11 +160,11 @@ func (c *filterContext) Response() *http.Response {
 }
 
 func (c *filterContext) MarkServed() {
-    c.served = true
+	c.served = true
 }
 
 func (c *filterContext) IsServed() bool {
-    return c.served
+	return c.served
 }
 
 func shunt(r *http.Request) *http.Response {
@@ -231,9 +231,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.res = rs
 	applyFiltersToResponse(f, c)
 
-    if !c.IsServed() {
-        copyHeader(w.Header(), rs.Header)
-        w.WriteHeader(rs.StatusCode)
-        copyStream(w.(flusherWriter), rs.Body)
-    }
+	if !c.IsServed() {
+		copyHeader(w.Header(), rs.Header)
+		w.WriteHeader(rs.StatusCode)
+		copyStream(w.(flusherWriter), rs.Body)
+	}
 }

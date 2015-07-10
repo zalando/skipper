@@ -13,27 +13,17 @@ package main
 
 import (
 	"flag"
+	"github.com/zalando/skipper/run"
 	"log"
-	"net/http"
-	"github.com/zalando/skipper/dispatch"
-	"github.com/zalando/skipper/etcd"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/proxy"
-	"github.com/zalando/skipper/settings"
-	"github.com/zalando/skipper/skipper"
 	"strings"
-	"time"
 )
 
 const (
-	startupSettingsTimeout   = 1200 * time.Millisecond
-	storageRoot              = "/skipper"
-	defaultAddress           = ":9090"
-	defaultHealtcheckAddress = ":9999"
-	defaultEtcdUrls          = "http://127.0.0.1:2379,http://127.0.0.1:4001"
-	addressUsage             = "address where skipper should listen on"
-	etcdUrlsUsage            = "urls where etcd can be found"
-	insecureUsage            = "set this flag to allow invalid certificates for tls connections"
+	defaultAddress  = ":9090"
+	defaultEtcdUrls = "http://127.0.0.1:2379,http://127.0.0.1:4001"
+	addressUsage    = "address where skipper should listen on"
+	etcdUrlsUsage   = "urls where etcd can be found"
+	insecureUsage   = "set this flag to allow invalid certificates for tls connections"
 )
 
 var (
@@ -50,27 +40,5 @@ func init() {
 }
 
 func main() {
-	// create a client to etcd
-	dataClient, err := etcd.Make(strings.Split(etcdUrls, ","), storageRoot)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	// create a filter registry with the available filter specs registered
-	// create a settings dispatcher instance
-	// create a settings source
-	// create the proxy instance
-	registry := filters.RegisterDefault()
-	dispatcher := dispatch.Make()
-	settingsSource := settings.MakeSource(dataClient, registry, dispatcher)
-	proxy := proxy.Make(settingsSource, insecure)
-
-	// subscribe to new settings
-	settingsChan := make(chan skipper.Settings)
-	dispatcher.Subscribe(settingsChan)
-
-	// start the http server
-	log.Printf("listening on %v\n", address)
-	log.Fatal(http.ListenAndServe(address, proxy))
+	log.Fatal(run.Run(address, strings.Split(etcdUrls, ","), insecure))
 }
