@@ -212,3 +212,7 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 		return checkBackend(t, d, "pdp", "http://www.zalando.de/pdp-updated-3.html")
 	})
 }
+
+func TestReceiveInserts(t *testing.T) {
+    t.Skip("TBD")
+}
