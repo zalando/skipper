@@ -2,13 +2,13 @@ package proxy
 
 import (
 	"bytes"
+	"github.com/zalando/skipper/dispatch"
+	"github.com/zalando/skipper/mock"
+	"github.com/zalando/skipper/skipper"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"github.com/zalando/skipper/dispatch"
-	"github.com/zalando/skipper/mock"
-	"github.com/zalando/skipper/skipper"
 	"strconv"
 	"testing"
 	"time"

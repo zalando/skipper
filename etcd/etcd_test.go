@@ -2,11 +2,11 @@ package etcd
 
 import (
 	"encoding/json"
-	"github.com/zalando/eskip"
 	"github.com/coreos/go-etcd/etcd"
-	"log"
+	"github.com/zalando/eskip"
 	"github.com/zalando/skipper/mock"
 	"github.com/zalando/skipper/skipper"
+	"log"
 	"testing"
 	"time"
 )
@@ -214,5 +214,5 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 }
 
 func TestReceiveInserts(t *testing.T) {
-    t.Skip("TBD")
+	t.Skip("TBD")
 }

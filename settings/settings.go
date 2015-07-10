@@ -2,8 +2,8 @@ package settings
 
 import (
 	"github.com/mailgun/route"
-	"net/http"
 	"github.com/zalando/skipper/skipper"
+	"net/http"
 )
 
 type backend struct {

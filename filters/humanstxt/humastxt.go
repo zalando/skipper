@@ -1,9 +1,9 @@
 package humanstxt
 
 import (
-	"io"
 	"github.com/zalando/skipper/filters/noop"
 	"github.com/zalando/skipper/skipper"
+	"io"
 	"strconv"
 )
 

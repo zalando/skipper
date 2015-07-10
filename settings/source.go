@@ -1,8 +1,8 @@
 package settings
 
 import (
-	"log"
 	"github.com/zalando/skipper/skipper"
+	"log"
 )
 
 type source struct {
