@@ -91,10 +91,12 @@ func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
 	u.Host = b.Host()
 
 	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
-	rr.Host = r.Host
 	if err != nil {
 		return nil, err
 	}
+
+    // wrong:
+	// rr.Host = r.Host
 
 	rr.Header = cloneHeader(r.Header)
 	return rr, nil
