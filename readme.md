@@ -19,7 +19,6 @@ to identify which route a request belongs to.
 
 ### Quickstart
 
-    ```
     # create workspace
     mkdir ws
     cd ws
@@ -36,7 +35,6 @@ to identify which route a request belongs to.
     # start skipper and make a request to the route
     bin/skipper &
     curl -s localhost:9090 | sed q2
-    ```
 
 
 ### Running Skipper
@@ -46,9 +44,7 @@ won't be able to route the incoming requests until first read the settings.)
 
 To start Skipper:
 
-    ```
     skippper -address :9090 -etcd-urls http://127.0.0.1:2379,http://127.0.0.1:4001 -insecure
-    ```
 
 
 ##### Options
@@ -87,36 +83,30 @@ responsibility to set the response status code and optional content. The default
 
 Routes are stored in etcd under directory `/v2/keys/skipper/routes`. To create a simple route:
 
-    ```
     curl -X PUT -d 'value=Path("/") -> "https://example.com"' http://127.0.0.1:2379/v2/keys/skipper/routes/test
-    ```
 
 This creates a route that will forward requests with the path `/` to https://example.com, and stores it with the
 key `test`.
 
 A route definition looks like this:
 
-<frontend> -> [<filter> -> ...] <backend>
+    <frontend> -> [<filter> -> ...] <backend>
 
 
 ##### Frontend
 
 In the below example, there is a frontend and a backend:
 
-    ```
     Path("/") -> "https://example.com:4545"
-    ```
 
 The frontend is specified by `Path("/")`, and it means that requests with path `/` will be forwarded through
 this route.
 
 Further fronted examples:
 
-    ```
     Path("/static/<string>")
     PathRegexp(/\.html(?.*)?$/)
     Method("POST")
-    ```
 
 For the full documentation of frontend definitions, please, refer to the Mailgun Route project:
 
@@ -129,25 +119,19 @@ Backends represent the service endpoint where the requests for a given route are
 defined by the HTTP server address, including the schema, the hostname and optionally the port. (To set the
 request path, one can use filters.)
 
-    ```
     "https://example.com:4545"
-    ```
 
 
 ##### Shunt
 
 A special case of backends is the shunt:
 
-    ```
     <shunt>
-    ```
 
 Shunts don't forward requests to service endpoints and are usually used together with filters. A route with a
 shunt may look like this:
 
-    ```
     Path("/images") -> static("/var/www") -> <shunt>
-    ```
 
 
 ##### Filters
@@ -155,18 +139,14 @@ shunt may look like this:
 Filters represent manipulations over the requests and/or responses. In the routing syntax, they look like
 function calls with arguments:
 
-    ```
     myFilter("arg1", "arg2", 3.14, /^rx[^/]*$/)
-    ```
 
 The number and the type of the arguments depend on the filter implementation. The possible types are string,
 number and regexp.
 
 A route with multiple filters may look like this:
 
-    ```
     Path("/api/<string>") -> pathRewrite(/^\/api/, "") -> responseHeader("Server", "Example API") -> "https://api.example.com"
-    ```
 
 
 ### Filtering
@@ -186,18 +166,14 @@ Built-in filters:
 
 This filters always sets the response status to 200.
 
-    ```
     Path("/healthcheck") -> healtcheck() -> <shunt>
-    ```
 
 
 ##### Humans.txt
 
 Provides a debuttal default humans.txt.
 
-    ```
     Path("/humans.txt") -> humanstxt() -> <shunt>
-    ```
 
 
 ##### Path rewrite
@@ -206,30 +182,24 @@ This filter can be used to modify the request path. It executes a replace-all ca
 arguments: a regexp expression to match the whole or parts of the path, and a replacement string. It can be used
 to set fixed path for a request, too:
 
-    ```
     PathRegexp(/[?&]doc(&.*)?/) -> pathRewrite(/.*/, "/doc") -> "https://api.example.com/doc"
-    ```
 
 
 ##### Request header
 
 Sets a fixed request header.
 
-    ```
     Method("POST") -> requestHeader("Host", "update.example.com") -> "https://proxy.example.com"
-    ```
 
 
 ##### Response header
 
 Sets a fixed response header.
 
-    ```
     Path("/<string>") -> responseHeader("Server", "Skipper") -> "https://example.com"
-    ```
 
 
-Creating custom filters
+### Creating custom filters
 
 TBD
 
@@ -238,31 +208,23 @@ TBD
 
 Getting the code:
 
-    ```
     mkdir ws
     cd ws
     export GOPATH=$(pwd)
     go get github.com/zalando/skipper
-    ```
 
 The tests require etcd in the workspace:
 
-    ```
     go get github.com/coreos/etcd
-    ```
 
 Build:
 
-    ```
     cd src/github.com/zalando/skipper
     go install
-    ```
 
 Test:
 
-    ```
     go test ./...
-    ```
 
 
 ### Known issues
