@@ -5,7 +5,7 @@ the requests and responses with filters.
 
 - identifies routes based on the properties of the requests, like path, header and method
 - routes each request to the configured service endpoint
-- allows altering the requests and reponses with filters independently configured for each route
+- allows altering the requests and responses with filters independently configured for each route
 - optionally acts as a final endpoint (shunt)
 - the routing definitions are stored in etcd, which is a clustered configuration service and allows updating the
   settings without restarting the router
@@ -39,8 +39,8 @@ to identify which route a request belongs to.
 
 ### Running Skipper
 
-Skipper requires etcd to read the route definitions from. (It can started before etcd becomes accessible, but
-won't be able to route the incoming requests until first read the settings.)
+Skipper requires etcd to read the route definitions from. (It can be started before etcd becomes accessible, but
+won't be able to route the incoming requests until first read of the settings.)
 
 To start Skipper:
 
@@ -58,21 +58,22 @@ To start Skipper:
 
 ### Operation
 
-Skipper's operation can be described based on three kinds of artifacts:
+Skipper's operations can be described based on three kinds of artifacts:
 
 - frontend
 - backend
 - filters
 
-When a request hits Skipper, it is matched based on its properties like method, path and headers to an available
+1. When a request hits Skipper, it is matched based on its properties like method, path and headers to an available
 frontend. This way a frontend identifies a route. If none of the configured frontends match the request, Skipper
-404s. Then, the filters of the route are executed in the order they are configured. The filters can alter the
-request's properties like its method, headers and path, or do any other actions like e.g. logging. Then skipper
-forwards the request to the backend of the route, which is a service endpoint described by its address (schema,
+404s.
+2. The filters of the route are executed in the order they are configured. The filters can alter the
+request's properties like its method, headers and path, or do any other actions like e.g. logging.
+3. Skipper forwards the request to the backend of the route, which is a service endpoint described by its address (schema,
 hostname and port), and starts streaming the request payload, if any. When the backend responds, the response is
 passed to all filters in the route in reverse order, and they can modify its properties just like in the case of
-the request (no method, but status instead). Finally, Skipper returns the response to the incoming connection
-and starts streaming the response payload, if any.
+the request (no method, but status instead).
+4. Skipper returns the response to the incoming connection and starts streaming the response payload, if any.
 
 A special case of the backends is the 'shunt', in which case the request is not forwarded to a real service
 endpoint, but Skipper itself generates the response. For routes ending with shunts, it is the filters'
@@ -95,14 +96,14 @@ A route definition looks like this:
 
 ##### Frontend
 
-In the below example, there is a frontend and a backend:
+In the example below, there is a frontend and a backend:
 
     Path("/") -> "https://example.com:4545"
 
 The frontend is specified by `Path("/")`, and it means that requests with path `/` will be forwarded through
 this route.
 
-Further fronted examples:
+Further frontend examples:
 
     Path("/static/<string>")
     PathRegexp(/\.html(?.*)?$/)
@@ -151,8 +152,8 @@ A route with multiple filters may look like this:
 
 ### Filtering
 
-If not using filters, the request defined by the frontend is forwarded to the backend as it is, with the same
-HTTP method, path and headers, and then the response is forwareded back to the client as it is received from the
+If not using filters, the request defined by the frontend is forwarded to the backend as is, with the same
+HTTP method, path and headers. The response is forwareded back to the client as it is received from the
 backend, with the same status code and headers. With filters, it is possible to change any of these properties
 of both the request and the response, including the payload.
 
