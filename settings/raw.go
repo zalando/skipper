@@ -72,7 +72,10 @@ func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Setting
 			continue
 		}
 
-		s.routes.AddRoute(r.MatchExp, &routedef{r.MatchExp, b, fs})
+		err = s.routes.AddRoute(r.MatchExp, &routedef{r.MatchExp, b, fs})
+		if err != nil {
+			log.Println("failed to add route", r.Id, err)
+		}
 	}
 
 	return s, nil
