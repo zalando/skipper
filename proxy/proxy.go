@@ -95,7 +95,7 @@ func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
 		return nil, err
 	}
 
-    // wrong:
+	// wrong:
 	// rr.Host = r.Host
 
 	rr.Header = cloneHeader(r.Header)
