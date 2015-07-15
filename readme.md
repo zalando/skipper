@@ -4,11 +4,13 @@ Skipper is an HTTP router acting as a reverse proxy with support for custom rout
 the requests and responses with filters.
 
 - identifies routes based on the properties of the requests, like path, header and method
-- routes each request to the configured service endpoint
+- routes each request to the configured server endpoint
 - allows altering the requests and responses with filters independently configured for each route
 - optionally acts as a final endpoint (shunt)
 - the routing definitions are stored in etcd, which is a clustered configuration service and allows updating the
   settings without restarting the router
+
+Etcd: [https://github.com/coreos/etcd/](https://github.com/coreos/etcd/)
 
 Skipper's design is largely inspired by Mailgun's Vulcand, and just as Vulcand, it uses Mailgun's Route package
 to identify which route a request belongs to.
@@ -52,7 +54,7 @@ To start Skipper:
 - **-address**: address where Skipper will listen on. Default: `:9090`.
 - **-etcd-urls**: list of addresses to an etcd cluster. Default: `http://127.0.0.1:2379,http://127.0.0.1:4001`.
   If the listed addresses don't belong to the same cluster, then the behavior is undefined.
-- **-insecure**: if this flag is set, Skipper doesn't verify the TLS certificates of the service endpoints in
+- **-insecure**: if this flag is set, Skipper doesn't verify the TLS certificates of the server endpoints in
   the routes. Default: false (verifies).
 
 
@@ -69,13 +71,13 @@ frontend. This way a frontend identifies a route. If none of the configured fron
 404s.
 2. The filters of the route are executed in the order they are configured. The filters can alter the
 request's properties like its method, headers and path, or do any other actions like e.g. logging.
-3. Skipper forwards the request to the backend of the route, which is a service endpoint described by its address (schema,
+3. Skipper forwards the request to the backend of the route, which is a server endpoint described by its address (schema,
 hostname and port), and starts streaming the request payload, if any. When the backend responds, the response is
 passed to all filters in the route in reverse order, and they can modify its properties just like in the case of
 the request (no method, but status instead).
 4. Skipper returns the response to the incoming connection and starts streaming the response payload, if any.
 
-A special case of the backends is the 'shunt', in which case the request is not forwarded to a real service
+A special case of the backends is the 'shunt', in which case the request is not forwarded to a real server
 endpoint, but Skipper itself generates the response. For routes ending with shunts, it is the filters'
 responsibility to set the response status code and optional content. The default status code is 404.
 
@@ -116,7 +118,7 @@ For the full documentation of frontend definitions, please, refer to the Mailgun
 
 ##### Backend
 
-Backends represent the service endpoint where the requests for a given route are forwarded to. Backends are
+Backends represent the server endpoint where the requests for a given route are forwarded to. Backends are
 defined by the HTTP server address, including the schema, the hostname and optionally the port. (To set the
 request path, one can use filters.)
 
@@ -129,7 +131,7 @@ A special case of backends is the shunt:
 
     <shunt>
 
-Shunts don't forward requests to service endpoints and are usually used together with filters. A route with a
+Shunts don't forward requests to server endpoints and are usually used together with filters. A route with a
 shunt may look like this:
 
     Path("/images") -> static("/var/www") -> <shunt>

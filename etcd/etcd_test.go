@@ -72,7 +72,6 @@ func checkBackend(t *testing.T, rd skipper.RawData, routeId, backend string) boo
 		}
 	}
 
-	t.Error("route not found")
 	return false
 }
 
@@ -214,5 +213,39 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 }
 
 func TestReceiveInserts(t *testing.T) {
-	t.Skip("TBD")
+	resetData(t)
+	c := etcd.NewClient(mock.EtcdUrls)
+	dc, _ := Make(mock.EtcdUrls, "/skippertest")
+
+	waitForEtcd(dc, func(d skipper.RawData) bool {
+		ok, _ := checkInitial(t, d)
+		return ok
+	})
+
+	waitForInserts := func(done chan int) {
+		var insert1, insert2, insert3 bool
+		for {
+			if insert1 && insert2 && insert3 {
+				done <- 0
+				return
+			}
+
+			d := <-dc.Receive()
+			insert1 = checkBackend(t, d, "pdp1", "http://www.zalando.de/pdp-inserted-1.html")
+			insert2 = checkBackend(t, d, "pdp2", "http://www.zalando.de/pdp-inserted-2.html")
+			insert3 = checkBackend(t, d, "pdp3", "http://www.zalando.de/pdp-inserted-3.html")
+		}
+	}
+
+	c.Set("/skippertest/routes/pdp1", `Path("/pdp1") -> "http://www.zalando.de/pdp-inserted-1.html"`, 0)
+	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.zalando.de/pdp-inserted-2.html"`, 0)
+	c.Set("/skippertest/routes/pdp3", `Path("/pdp3") -> "http://www.zalando.de/pdp-inserted-3.html"`, 0)
+
+	done := make(chan int)
+	go waitForInserts(done)
+	select {
+	case <-time.After(3 * time.Second):
+		t.Error("failed to receive all inserts")
+	case <-done:
+	}
 }

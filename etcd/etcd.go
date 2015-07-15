@@ -46,21 +46,20 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 
 		for {
 			if r == nil {
+				log.Println("trying to get full configuration")
 				r = c.forceGet()
-				etcdIndex = r.EtcdIndex
 			} else {
 				log.Println("watching for configuration update")
 				r, err = c.watch(etcdIndex + 1)
 				if err != nil {
 					log.Println("error during watching for configuration update", err)
-					log.Println("trying to get initial data")
+					r = nil
+					etcdIndex = 0
 					continue
 				}
-
-				etcdIndex = r.EtcdIndex
 			}
 
-			c.iterateRoutes(r.Node, &data)
+			c.iterateRoutes(r.Node, &data, &etcdIndex)
 			c.push <- &dataWrapper{data}
 		}
 	}()
@@ -73,10 +72,14 @@ func getRouteId(r string) string {
 }
 
 // collect all the routes from the etcd nodes
-func (c *client) iterateRoutes(n *etcd.Node, data *[]string) {
+func (c *client) iterateRoutes(n *etcd.Node, data *[]string, highestIndex *uint64) {
+	if n.ModifiedIndex > *highestIndex {
+		*highestIndex = n.ModifiedIndex
+	}
+
 	if n.Key == c.routesRoot {
 		for _, ni := range n.Nodes {
-			c.iterateRoutes(ni, data)
+			c.iterateRoutes(ni, data, highestIndex)
 		}
 	}
 
