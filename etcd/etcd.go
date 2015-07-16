@@ -48,6 +48,10 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 			if r == nil {
 				log.Println("trying to get full configuration")
 				r = c.forceGet()
+				c.iterateRoutes(r.Node, &data, &etcdIndex)
+				if r.EtcdIndex > etcdIndex {
+					etcdIndex = r.EtcdIndex
+				}
 			} else {
 				log.Println("watching for configuration update")
 				r, err = c.watch(etcdIndex + 1)
@@ -57,9 +61,14 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 					etcdIndex = 0
 					continue
 				}
+
+				if r.Action == "delete" {
+					c.deleteRoute(r.Node, &data, &etcdIndex)
+				} else {
+					c.iterateRoutes(r.Node, &data, &etcdIndex)
+				}
 			}
 
-			c.iterateRoutes(r.Node, &data, &etcdIndex)
 			c.push <- &dataWrapper{data}
 		}
 	}()
@@ -103,6 +112,31 @@ func (c *client) iterateRoutes(n *etcd.Node, data *[]string, highestIndex *uint6
 	} else {
 		(*data)[existing] = r
 	}
+}
+
+func (c *client) deleteRoute(n *etcd.Node, data *[]string, highestIndex *uint64) {
+	if n.ModifiedIndex > *highestIndex {
+		*highestIndex = n.ModifiedIndex
+	}
+
+	if path.Dir(n.Key) != c.routesRoot {
+		return
+	}
+
+	rid := path.Base(n.Key)
+	rindex := -1
+	for i, r := range *data {
+		if getRouteId(r) == rid {
+			rindex = i
+			break
+		}
+	}
+
+	if rindex < 0 {
+		return
+	}
+
+	*data = append((*data)[:rindex], (*data)[rindex+1:]...)
 }
 
 // get all settings
