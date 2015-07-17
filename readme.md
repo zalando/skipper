@@ -230,11 +230,6 @@ Test:
     go test ./...
 
 
-### Known issues
-
-- deleting routes currently not detected
-
-
 ### License
 
 Copyright 2015 Zalando SE
