@@ -11,12 +11,10 @@ import (
 	"net/http"
 )
 
-const storageRoot = "/skipper"
-
 // Run skipper. Expects address to listen on and one or more urls to find
 // the etcd service at. If the flag 'insecure' is true, skipper will accept
 // invalid TLS certificates from the backends.
-func Run(address string, etcdUrls []string, insecure bool, customFilters ...skipper.FilterSpec) error {
+func Run(address string, etcdUrls []string, storageRoot string, insecure bool, customFilters ...skipper.FilterSpec) error {
 	// create a client to etcd
 	dataClient, err := etcd.Make(etcdUrls, storageRoot)
 	if err != nil {

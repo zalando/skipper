@@ -16,6 +16,12 @@ const (
 	defaultSettingsBufferSize = 32
 	proxyBufferSize           = 8192
 	proxyErrorFmt             = "proxy: %s"
+
+    // TODO: this should be fine tuned, yet, with benchmarks.
+    // In case it doesn't make a big difference, then a lower value
+    // can be safer, but the default 2 turned out to be low during
+    // benchmarks.
+    idleConnsPerHost          = 64
 )
 
 type flusherWriter interface {
@@ -29,7 +35,7 @@ type shuntBody struct {
 
 type proxy struct {
 	settings  <-chan skipper.Settings
-	transport *http.Transport
+	roundTripper http.RoundTripper
 }
 
 type filterContext struct {
@@ -183,7 +189,9 @@ func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, e
 		return nil, err
 	}
 
-	return p.transport.RoundTrip(rr)
+    // temporarily using a new connection for every request:
+    rt := &http.Transport{}
+	return rt.RoundTrip(rr)
 }
 
 // http.Handler implementation
