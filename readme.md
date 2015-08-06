@@ -21,20 +21,24 @@ to identify which route a request belongs to.
 
 ### Quickstart
 
-    # create workspace
+  Create workspace
+  
     mkdir ws
     cd ws
     export GOPATH=$(pwd)
 
-    # get packages
+  Get packages
+  
     go get github.com/coreos/etcd
     go get github.com/zalando/skipper
 
-    # start etcd and create a simple route
+  Start etcd and create a simple route
+  
     bin/etcd &
     curl -X PUT -d 'value=Path("/") -> "https://tech.zalando.com"' http://127.0.0.1:2379/v2/keys/skipper/routes/hello
 
-    # start skipper and make a request to the route
+  Start skipper and make a request to the route
+  
     bin/skipper &
     curl -s localhost:9090 | sed q2
 
