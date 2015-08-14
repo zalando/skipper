@@ -17,11 +17,11 @@ const (
 	proxyBufferSize           = 8192
 	proxyErrorFmt             = "proxy: %s"
 
-    // TODO: this should be fine tuned, yet, with benchmarks.
-    // In case it doesn't make a big difference, then a lower value
-    // can be safer, but the default 2 turned out to be low during
-    // benchmarks.
-    idleConnsPerHost          = 64
+	// TODO: this should be fine tuned, yet, with benchmarks.
+	// In case it doesn't make a big difference, then a lower value
+	// can be safer, but the default 2 turned out to be low during
+	// benchmarks.
+	idleConnsPerHost = 64
 )
 
 type flusherWriter interface {
@@ -34,7 +34,7 @@ type shuntBody struct {
 }
 
 type proxy struct {
-	settings  <-chan skipper.Settings
+	settings     <-chan skipper.Settings
 	roundTripper http.RoundTripper
 }
 
@@ -66,20 +66,25 @@ func cloneHeader(h http.Header) http.Header {
 }
 
 func copyStream(to flusherWriter, from io.Reader) error {
-	for {
-		b := make([]byte, proxyBufferSize)
+	b := make([]byte, proxyBufferSize)
 
+	for {
 		l, rerr := from.Read(b)
 		if rerr != nil && rerr != io.EOF {
 			return rerr
 		}
 
-		_, werr := to.Write(b[:l])
-		if werr != nil {
-			return werr
-		}
+		if l > 0 {
+			println("writing")
+			_, werr := to.Write(b[:l])
+			if werr != nil {
+				return werr
+			}
 
-		to.Flush()
+			to.Flush()
+		} else {
+			println("not writing")
+		}
 
 		if rerr == io.EOF {
 			return nil
@@ -100,9 +105,6 @@ func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// wrong:
-	// rr.Host = r.Host
 
 	rr.Header = cloneHeader(r.Header)
 	return rr, nil
@@ -189,8 +191,8 @@ func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, e
 		return nil, err
 	}
 
-    // temporarily using a new connection for every request:
-    rt := &http.Transport{}
+	// temporarily using a new connection for every request:
+	rt := &http.Transport{}
 	return rt.RoundTrip(rr)
 }
 
