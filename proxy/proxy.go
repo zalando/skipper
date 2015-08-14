@@ -75,15 +75,12 @@ func copyStream(to flusherWriter, from io.Reader) error {
 		}
 
 		if l > 0 {
-			println("writing")
 			_, werr := to.Write(b[:l])
 			if werr != nil {
 				return werr
 			}
 
 			to.Flush()
-		} else {
-			println("not writing")
 		}
 
 		if rerr == io.EOF {
