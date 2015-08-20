@@ -27,6 +27,9 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	r, _ := http.NewRequest("GET", "http://localhost:9090/hello", nil)
 
+    // let the settings be populated:
+    time.Sleep(3 * time.Millisecond)
+
 	s1 := <-c1
 	s2 := <-c2
 
