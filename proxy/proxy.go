@@ -188,9 +188,7 @@ func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, e
 		return nil, err
 	}
 
-	// temporarily using a new connection for every request:
-	rt := &http.Transport{}
-	return rt.RoundTrip(rr)
+	return p.roundTripper.RoundTrip(rr)
 }
 
 // http.Handler implementation
