@@ -14,11 +14,20 @@ import (
 // Run skipper. Expects address to listen on and one or more urls to find
 // the etcd service at. If the flag 'insecure' is true, skipper will accept
 // invalid TLS certificates from the backends.
-func Run(address string, etcdUrls []string, storageRoot string, insecure bool, customFilters ...skipper.FilterSpec) error {
-	// create a client to etcd
-	dataClient, err := etcd.Make(etcdUrls, storageRoot)
-	if err != nil {
-		return err
+// If a routesFilePath is given, that file will be used INSTEAD of etcd
+func Run(address string, etcdUrls []string, storageRoot string, insecure bool, routesFilePath string, customFilters ...skipper.FilterSpec) error {
+	var dataClient skipper.DataClient
+	var err error
+	if len(routesFilePath) > 0 {
+		dataClient, err = settings.MakeFileDataClient(routesFilePath)
+		if err != nil {
+			return err
+		}
+	} else {
+		dataClient, err = etcd.Make(etcdUrls, storageRoot)
+		if err != nil {
+			return err
+		}
 	}
 
 	// create a filter registry with the available filter specs registered,
