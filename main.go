@@ -18,6 +18,7 @@ const (
 	etcdUrlsUsage      = "urls where etcd can be found"
 	insecureUsage      = "set this flag to allow invalid certificates for tls connections"
 	storageRootUsage   = "prefix for skipper related data in the provided etcd storage"
+	routesFileUsage    = "routes file to use instead of etcd"
 )
 
 var (
@@ -25,6 +26,7 @@ var (
 	etcdUrls    string
 	insecure    bool
 	storageRoot string
+	routesFile  string
 )
 
 func init() {
@@ -32,9 +34,10 @@ func init() {
 	flag.StringVar(&etcdUrls, "etcd-urls", defaultEtcdUrls, etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.StringVar(&storageRoot, "storage-root", defaultStorageRoot, storageRootUsage)
+	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.Parse()
 }
 
 func main() {
-	log.Fatal(run.Run(address, strings.Split(etcdUrls, ","), storageRoot, insecure))
+	log.Fatal(run.Run(address, strings.Split(etcdUrls, ","), storageRoot, insecure, routesFile))
 }
