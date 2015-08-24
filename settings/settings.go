@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"github.com/mailgun/route"
 	"github.com/zalando/skipper/skipper"
 	"net/http"
 )
@@ -23,7 +22,7 @@ type routedef struct {
 }
 
 type settings struct {
-	routes route.Router
+	routes skipper.Router
 }
 
 func (b *backend) Scheme() string {

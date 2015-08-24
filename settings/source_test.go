@@ -37,6 +37,12 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	rt2, _ := s2.Route(r)
 
 	up1, _ := url.ParseRequestURI(url1)
+
+	if rt1 == nil|| rt2 == nil {
+		t.Error("invalid route")
+		return
+	}
+
 	if rt1.Backend().Scheme() != up1.Scheme || rt1.Backend().Host() != up1.Host ||
 		rt2.Backend().Scheme() != up1.Scheme || rt2.Backend().Host() != up1.Host {
 		t.Error("wrong url 1")
