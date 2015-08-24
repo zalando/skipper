@@ -6,8 +6,11 @@ import (
 	"github.com/mailgun/route"
 	"github.com/zalando/eskip"
 	"github.com/zalando/skipper/skipper"
+	"github.bus.zalan.do/spearheads/pathtree"
 	"log"
+	"strings"
 	"net/url"
+	"net/http"
 )
 
 const shuntBackendId = "<shunt>"
@@ -52,14 +55,46 @@ func createFilters(r *eskip.Route, mwr skipper.FilterRegistry) ([]skipper.Filter
 	return fs, nil
 }
 
-func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Settings, error) {
-	d, err := eskip.Parse(rd.Get())
+type pathTreeRouter struct {
+	tree *pathtree.Tree
+}
+
+func (t *pathTreeRouter) Route(r *http.Request) (interface{}, error) {
+	v, _, _ := t.tree.Get(r.RequestURI)
+	return v, nil
+}
+
+func makePathTreeRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipper.Router, error) {
+	pathMap := pathtree.PathMap{}
+
+	for _, r := range routes {
+		path := strings.Replace(r.MatchExp, "Path(`", "", 1)
+		path = strings.Replace(path, "`)", "", 1)
+		b, err := createBackend(r)
+		if err != nil {
+			log.Println("invalid backend address", r.Id, b, err)
+			continue
+		}
+		fs, err := createFilters(r, mwr)
+		if err != nil {
+			log.Println("invalid filter specification", r.Id, err)
+			continue
+		}
+		pathMap[path] = &routedef{r.MatchExp, b, fs}
+	}
+
+	tree, err := pathtree.Make(pathMap)
+
 	if err != nil {
 		return nil, err
 	}
 
-	s := &settings{route.New()}
-	for _, r := range d {
+	return &pathTreeRouter{tree}, nil
+}
+
+func makeMailgunRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipper.Router, error) {
+	router := route.New()
+	for _, r := range routes {
 		b, err := createBackend(r)
 		if err != nil {
 			log.Println("invalid backend address", r.Id, b, err)
@@ -72,11 +107,28 @@ func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Setting
 			continue
 		}
 
-		err = s.routes.AddRoute(r.MatchExp, &routedef{r.MatchExp, b, fs})
+		err = router.AddRoute(r.MatchExp, &routedef{r.MatchExp, b, fs})
 		if err != nil {
 			log.Println("failed to add route", r.Id, err)
 		}
 	}
+	return router, nil
+}
+
+func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Settings, error) {
+	d, err := eskip.Parse(rd.Get())
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: this is the point to switch router implementations
+//	router, err := makeMailgunRouter(d, mwr)
+	router, err := makePathTreeRouter(d, mwr)
+	if err != nil {
+		return nil, err
+	}
+
+	s := &settings{router}
 
 	return s, nil
 }
