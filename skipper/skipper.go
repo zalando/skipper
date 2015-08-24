@@ -86,6 +86,10 @@ type Route interface {
 	Filters() []Filter
 }
 
+type Router interface {
+	Route(*http.Request) (interface{}, error)
+}
+
 // Contains the routing rules and other settings.
 type Settings interface {
 

@@ -45,6 +45,11 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 
 		up, _ := url.ParseRequestURI(u)
 
+		if rt == nil {
+			t.Error("invalid route")
+			return
+		}
+
 		if rt.Backend().Scheme() != up.Scheme || rt.Backend().Host() != up.Host {
 			t.Error("invalid url")
 		}
@@ -80,6 +85,11 @@ func TestCreatesShuntBackend(t *testing.T) {
 	rt, err := s.Route(r)
 	if err != nil {
 		t.Error("failed to create route with shunt")
+		return
+	}
+
+	if rt == nil {
+		t.Error("invalid route")
 		return
 	}
 
