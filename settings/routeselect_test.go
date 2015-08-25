@@ -7,6 +7,10 @@ import (
     "net/http"
     "net/url"
     "fmt"
+    "errors"
+    "github.com/mailgun/route"
+    "github.bus.zalan.do/spearheads/pathtree"
+    "testing"
 )
 
 const (
@@ -27,19 +31,27 @@ var (
     requests []*http.Request
 
     mailgun1 skipper.Router
-    mailgun100 skipper.Router
-    mailgun10000 skipper.Router
-    mailgun1000000 skipper.Router
+    mailgun2 skipper.Router
+    mailgun3 skipper.Router
+    mailgun4 skipper.Router
 
-    pathtree1 skipper.Router
-    pathtree100 skipper.Router
-    pathtree10000 skipper.Router
-    pathtree1000000 skipper.Router
+    pathTree1 skipper.Router
+    pathTree2 skipper.Router
+    pathTree3 skipper.Router
+    pathTree4 skipper.Router
 )
 
 func generatePaths(count int) []string {
     paths := make([]string, count)
-    pg := randpath.Make(randpath.Options{})
+
+    // we need to avoid '/' paths here, because we are not testing conflicting cases
+    // here, and with 0 or 1 MinNamesInPath, there would be multiple '/'s.
+    // At the same time, with too many paths, conflicts still may occur, that's why
+    // RandSeed is set to value, where not.
+    pg := randpath.Make(randpath.Options{
+        MinNamesInPath: 2,
+        MaxNamesInPath: 15})
+
     for i := 0; i < count; i++ {
         paths[i] = pg.Next()
     }
@@ -70,15 +82,148 @@ func generateRequests(paths []string) ([]*http.Request, error) {
     return requests, nil
 }
 
+func makeRouterMailgun(paths []string, routes []skipper.Route) (skipper.Router, error) {
+    if len(routes) == 0 {
+        return nil, errors.New("we need at least one route for this test")
+    }
+
+    router := route.New()
+    for i, p := range paths {
+        router.AddRoute(fmt.Sprintf("Path(\"%s\")", p), routes[i % len(routes)])
+    }
+
+    return router, nil
+}
+
+func makeRouterPathTree(paths []string, routes []skipper.Route) (skipper.Router, error) {
+    if len(routes) == 0 {
+        return nil, errors.New("we need at least one route for this test")
+    }
+
+    pm := make(pathtree.PathMap)
+    for i, p := range paths {
+        pm[p] = routes[i % len(routes)]
+    }
+
+    tree, err := pathtree.Make(pm)
+    if err != nil {
+        return nil, err
+    }
+
+    return &pathTreeRouter{tree}, nil
+}
+
 func init() {
     const count = routesCountPhase4
+
+    var err error
+    defer func() {
+        if err != nil {
+            panic(err)
+        }
+    }()
+
     paths = generatePaths(count)
     routes = generateRoutes(count)
 
-    reqs, err := generateRequests(paths)
+    requests, err = generateRequests(paths)
     if err != nil {
         panic(err)
     }
 
-    requests = reqs
+    unregisteredPaths := generatePaths(count)
+    unregisteredRequests, err := generateRequests(unregisteredPaths)
+    if err != nil {
+        panic(err)
+    }
+
+    requests = append(requests, unregisteredRequests...)
+
+    makeRouter := func(make func([]string, []skipper.Route) (skipper.Router, error),
+        paths []string, routes []skipper.Route) skipper.Router {
+
+        if err != nil {
+            return nil
+        }
+
+        r, e := make(paths, routes)
+        err = e
+        return r
+    }
+
+    mailgun1 = makeRouter(makeRouterMailgun, paths[0:routesCountPhase1], routes[0:routesCountPhase1])
+    mailgun2 = makeRouter(makeRouterMailgun, paths[0:routesCountPhase2], routes[0:routesCountPhase2])
+
+    // this number of routes takes too long for the mailgun router to construct
+    // mailgun3 = makeRouter(makeRouterMailgun, paths[0:routesCountPhase3], routes[0:routesCountPhase3])
+    // mailgun4 = makeRouter(makeRouterMailgun, paths[0:routesCountPhase4], routes[0:routesCountPhase4])
+
+    pathTree1 = makeRouter(makeRouterPathTree, paths[0:routesCountPhase1], routes[0:routesCountPhase1])
+    pathTree2 = makeRouter(makeRouterPathTree, paths[0:routesCountPhase2], routes[0:routesCountPhase2])
+    pathTree3 = makeRouter(makeRouterPathTree, paths[0:routesCountPhase3], routes[0:routesCountPhase3])
+    pathTree4 = makeRouter(makeRouterPathTree, paths[0:routesCountPhase4], routes[0:routesCountPhase4])
+}
+
+func integrityTest(t *testing.T, router skipper.Router, phaseCount int) {
+    index := phaseCount / 2
+    r, err := router.Route(requests[index])
+    if err != nil || r != routes[index] {
+        t.Error("failed to route")
+    }
+}
+
+func benchmarkLookup(b *testing.B, router skipper.Router, phaseCount int) {
+    requestCount := phaseCount * 2
+    var index int
+    for i := 0; i < b.N; i++ {
+        index = i % requestCount
+        r, err := router.Route(requests[index])
+        if err != nil || (index < phaseCount && r != routes[index]) || (index >= phaseCount && r != nil) {
+            b.Log("benchmark failed", err, r, i, b.N, phaseCount, requestCount, paths[index])
+            b.FailNow()
+        }
+    }
+}
+
+func TestIntegrity(t *testing.T) {
+    integrityTest(t, mailgun1, routesCountPhase1)
+    integrityTest(t, mailgun2, routesCountPhase2)
+
+    integrityTest(t, pathTree1, routesCountPhase1)
+    integrityTest(t, pathTree2, routesCountPhase2)
+    integrityTest(t, pathTree3, routesCountPhase3)
+    integrityTest(t, pathTree4, routesCountPhase4)
+}
+
+func BenchmarkMailgun1(b *testing.B) {
+    benchmarkLookup(b, mailgun1, routesCountPhase1)
+}
+
+func BenchmarkMailgun2(b *testing.B) {
+    benchmarkLookup(b, mailgun2, routesCountPhase2)
+}
+
+// only when in patience mode
+// func BenchmarkMailgun3(b *testing.B) {
+//     benchmarkLookup(b, mailgun3, routesCountPhase3)
+// }
+// 
+// func BenchmarkMailgun4(b *testing.B) {
+//     benchmarkLookup(b, mailgun4, routesCountPhase4)
+// }
+
+func BenchmarkPathTree1(b *testing.B) {
+    benchmarkLookup(b, pathTree1, routesCountPhase1)
+}
+
+func BenchmarkPathTree2(b *testing.B) {
+    benchmarkLookup(b, pathTree2, routesCountPhase2)
+}
+
+func BenchmarkPathTree3(b *testing.B) {
+    benchmarkLookup(b, pathTree3, routesCountPhase3)
+}
+
+func BenchmarkPathTree4(b *testing.B) {
+    benchmarkLookup(b, pathTree4, routesCountPhase4)
 }
