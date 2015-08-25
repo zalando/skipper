@@ -20,11 +20,6 @@ const (
     routesCountPhase4 = 1000000
 )
 
-// create tests to check used features like wildcards
-// generate  same set of routes
-// generate router of both types with different number of paths
-// create tests for all combinations
-
 var (
     paths []string
     routes []skipper.Route
@@ -46,8 +41,6 @@ func generatePaths(count int) []string {
 
     // we need to avoid '/' paths here, because we are not testing conflicting cases
     // here, and with 0 or 1 MinNamesInPath, there would be multiple '/'s.
-    // At the same time, with too many paths, conflicts still may occur, that's why
-    // RandSeed is set to value, where not.
     pg := randpath.Make(randpath.Options{
         MinNamesInPath: 2,
         MaxNamesInPath: 15})
@@ -62,6 +55,9 @@ func generatePaths(count int) []string {
 func generateRoutes(count int) []skipper.Route {
     routes := make([]skipper.Route, count)
     for i := 0; i < count; i++ {
+        
+        // empty route is good enough here,
+        // only the instance needs to be different
         routes[i] = &mock.Route{}
     }
 
@@ -113,15 +109,11 @@ func makeRouterPathTree(paths []string, routes []skipper.Route) (skipper.Router,
     return &pathTreeRouter{tree}, nil
 }
 
+// initialize in advance whatever is possible
 func init() {
     const count = routesCountPhase4
 
     var err error
-    defer func() {
-        if err != nil {
-            panic(err)
-        }
-    }()
 
     paths = generatePaths(count)
     routes = generateRoutes(count)
@@ -137,6 +129,7 @@ func init() {
         panic(err)
     }
 
+    // the upper half of the requests should not be found
     requests = append(requests, unregisteredRequests...)
 
     makeRouter := func(make func([]string, []skipper.Route) (skipper.Router, error),
@@ -150,6 +143,12 @@ func init() {
         err = e
         return r
     }
+
+    defer func() {
+        if err != nil {
+            panic(err)
+        }
+    }()
 
     mailgun1 = makeRouter(makeRouterMailgun, paths[0:routesCountPhase1], routes[0:routesCountPhase1])
     mailgun2 = makeRouter(makeRouterMailgun, paths[0:routesCountPhase2], routes[0:routesCountPhase2])
@@ -165,7 +164,7 @@ func init() {
 }
 
 func integrityTest(t *testing.T, router skipper.Router, phaseCount int) {
-    index := phaseCount / 2
+    index := phaseCount / 2 // select one from right in the middle
     r, err := router.Route(requests[index])
     if err != nil || r != routes[index] {
         t.Error("failed to route")
@@ -173,11 +172,19 @@ func integrityTest(t *testing.T, router skipper.Router, phaseCount int) {
 }
 
 func benchmarkLookup(b *testing.B, router skipper.Router, phaseCount int) {
+    // see init, double as much requests as routes
     requestCount := phaseCount * 2
+
     var index int
     for i := 0; i < b.N; i++ {
+
+        // b.N comes from the test vault, doesn't matter if it matches the available
+        // number of requests or routes, because in successful case, b.N will be far bigger
         index = i % requestCount
+
         r, err := router.Route(requests[index])
+
+        // error, or should have found but didn't, or shouldn't have found but did
         if err != nil || (index < phaseCount && r != routes[index]) || (index >= phaseCount && r != nil) {
             b.Log("benchmark failed", err, r, i, b.N, phaseCount, requestCount, paths[index])
             b.FailNow()
@@ -203,7 +210,8 @@ func BenchmarkMailgun2(b *testing.B) {
     benchmarkLookup(b, mailgun2, routesCountPhase2)
 }
 
-// only when in patience mode
+// only when in highest patience mode, lunch for 3, weekend for 4 :)
+//
 // func BenchmarkMailgun3(b *testing.B) {
 //     benchmarkLookup(b, mailgun3, routesCountPhase3)
 // }

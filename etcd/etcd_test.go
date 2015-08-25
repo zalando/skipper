@@ -157,10 +157,10 @@ func TestReceivesInitialSettings(t *testing.T) {
 			t.Error("failed to receive data")
 		}
 
-    // not sure how much to invest here to do this more properly
-    // normally 15ms should be enough and this dumbeddown approach
+    // not sure how much to invest here to do this more properly,
+    // normally 30ms should be enough and this dumbeddown approach
     // works, but already happened once that it wasn't enough
-	case <-time.After(15 * time.Millisecond):
+	case <-time.After(30 * time.Millisecond):
 		t.Error("receive timeout")
 	}
 }
