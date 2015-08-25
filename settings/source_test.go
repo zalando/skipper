@@ -27,8 +27,8 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	r, _ := http.NewRequest("GET", "http://localhost:9090/hello", nil)
 
-    // let the settings be populated:
-    time.Sleep(3 * time.Millisecond)
+	// let the settings be populated:
+	time.Sleep(3 * time.Millisecond)
 
 	s1 := <-c1
 	s2 := <-c2
@@ -38,7 +38,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	up1, _ := url.ParseRequestURI(url1)
 
-	if rt1 == nil|| rt2 == nil {
+	if rt1 == nil || rt2 == nil {
 		t.Error("invalid route")
 		return
 	}
