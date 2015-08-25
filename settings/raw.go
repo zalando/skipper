@@ -60,7 +60,7 @@ type pathTreeRouter struct {
 }
 
 func (t *pathTreeRouter) Route(r *http.Request) (interface{}, error) {
-	v, _, _ := t.tree.Get(r.RequestURI)
+	v, _, _ := t.tree.Get(r.URL.Path) // yet to decide about the handling of tail slash
 	return v, nil
 }
 
