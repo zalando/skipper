@@ -3,14 +3,14 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"github.bus.zalan.do/spearheads/pathtree"
 	"github.com/mailgun/route"
 	"github.com/zalando/eskip"
 	"github.com/zalando/skipper/skipper"
-	"github.bus.zalan.do/spearheads/pathtree"
 	"log"
-	"strings"
-	"net/url"
 	"net/http"
+	"net/url"
+	"regexp"
 )
 
 const shuntBackendId = "<shunt>"
@@ -60,7 +60,7 @@ type pathTreeRouter struct {
 }
 
 func (t *pathTreeRouter) Route(r *http.Request) (interface{}, error) {
-	v, _, _ := t.tree.Get(r.URL.Path) // yet to decide about the handling of tail slash
+	v, _, _ := t.tree.Get(r.URL.Path)
 	return v, nil
 }
 
@@ -68,8 +68,9 @@ func makePathTreeRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skip
 	pathMap := pathtree.PathMap{}
 
 	for _, r := range routes {
-		path := strings.Replace(r.MatchExp, "Path(`", "", 1)
-		path = strings.Replace(path, "`)", "", 1)
+		startRe := regexp.MustCompile("Path\\(.")
+		path := startRe.ReplaceAllString(r.MatchExp, "")
+		path = path[:len(path)-2]
 		b, err := createBackend(r)
 		if err != nil {
 			log.Println("invalid backend address", r.Id, b, err)
@@ -122,7 +123,7 @@ func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Setting
 	}
 
 	// TODO: this is the point to switch router implementations
-//	router, err := makeMailgunRouter(d, mwr)
+	//	router, err := makeMailgunRouter(d, mwr)
 	router, err := makePathTreeRouter(d, mwr)
 	if err != nil {
 		return nil, err
