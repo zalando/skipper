@@ -2,18 +2,18 @@
 package stripquery
 
 import (
-	"github.com/zalando/skipper/skipper"
-	"errors"
-	"strconv"
-	"fmt"
-	"net/http"
 	"bytes"
+	"errors"
+	"fmt"
+	"github.com/zalando/skipper/skipper"
+	"net/http"
+	"strconv"
 )
 
 const name = "stripQuery"
 
 type StripQuery struct {
-	id               string
+	id string
 	// preserves the query parameter in the form of x-query-param-<queryParamName>: <queryParamValue> headers
 	// ?foo=bar becomes x-query-param-foo: bar
 	preserveAsHeader bool
@@ -32,14 +32,14 @@ func (f *StripQuery) Id() string { return f.id }
 // copied from textproto/reader
 func validHeaderFieldByte(b byte) bool {
 	return ('A' <= b && b <= 'Z') ||
-	('a' <= b && b <= 'z') ||
-	('0' <= b && b <= '9') ||
-	b == '-'
+		('a' <= b && b <= 'z') ||
+		('0' <= b && b <= '9') ||
+		b == '-'
 }
 
 // make sure we don't generate invalid headers
 func sanitize(input string) string {
-	toAscii:=strconv.QuoteToASCII(input)
+	toAscii := strconv.QuoteToASCII(input)
 	var b bytes.Buffer
 	for _, i := range toAscii {
 		if validHeaderFieldByte(byte(i)) {
@@ -51,23 +51,27 @@ func sanitize(input string) string {
 
 func (f *StripQuery) Request(ctx skipper.FilterContext) {
 	r := ctx.Request()
-	if r != nil {
-		url := r.URL
-		if url != nil {
-			if f.preserveAsHeader {
-				q := url.Query()
-				for k, vv := range q {
-					for _, v := range vv  {
-						if r.Header == nil {
-							r.Header = http.Header{}
-						}
-						r.Header.Add(fmt.Sprintf("X-Query-Param-%s", sanitize(k)), v)
-					}
+	if r == nil {
+		return
+	}
+
+	url := r.URL
+	if url == nil {
+		return
+	}
+
+	if f.preserveAsHeader {
+		q := url.Query()
+		for k, vv := range q {
+			for _, v := range vv {
+				if r.Header == nil {
+					r.Header = http.Header{}
 				}
+				r.Header.Add(fmt.Sprintf("X-Query-Param-%s", sanitize(k)), v)
 			}
-			url.RawQuery = ""
 		}
 	}
+	url.RawQuery = ""
 }
 
 func (f *StripQuery) Response(ctx skipper.FilterContext) {}
