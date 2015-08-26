@@ -4,8 +4,8 @@ import (
 	"github.com/zalando/skipper/mock"
 	"net/http"
 	"net/url"
-	"testing"
 	"strings"
+	"testing"
 )
 
 func TestCreateStripQueryFilter(t *testing.T) {
@@ -34,7 +34,7 @@ func TestStripQuery(t *testing.T) {
 	f, _ := sqs.MakeFilter("id", nil)
 
 	url, _ := url.ParseRequestURI("http://example.org/foo?bar=baz")
-	req := &http.Request{URL:url}
+	req := &http.Request{URL: url}
 
 	c := &mock.FilterContext{nil, req, nil, false}
 	f.Request(c)
@@ -46,7 +46,7 @@ func TestStripQuery(t *testing.T) {
 }
 
 var headerTests = []struct {
-	uri string
+	uri    string
 	header http.Header
 }{
 	{"http://example.org/foo?bar=baz", map[string][]string{"x-query-param-bar": []string{"baz"}}},
@@ -64,7 +64,7 @@ func TestPreserveQuery(t *testing.T) {
 
 	for _, tt := range headerTests {
 		url, _ := url.ParseRequestURI(tt.uri)
-		req := &http.Request{URL:url}
+		req := &http.Request{URL: url}
 
 		c := &mock.FilterContext{nil, req, nil, false}
 		f.Request(c)
