@@ -86,8 +86,15 @@ type Route interface {
 	Filters() []Filter
 }
 
+type PathParam interface {
+    Key() string
+    Value() string
+}
+
+type PathParams []PathParam
+
 type Router interface {
-	Route(*http.Request) (interface{}, error)
+	Route(*http.Request) (Route, PathParams, error)
 }
 
 // Contains the routing rules and other settings.

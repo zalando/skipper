@@ -16,7 +16,6 @@ type filter struct {
 }
 
 type routedef struct {
-	route   string
 	backend *backend
 	filters []skipper.Filter
 }
@@ -46,7 +45,7 @@ func (r *routedef) Filters() []skipper.Filter {
 }
 
 func (s *settings) Route(r *http.Request) (skipper.Route, error) {
-	rt, err := s.routes.Route(r)
+	rt, _, err := s.routes.Route(r)
 	if rt == nil || err != nil {
 		return nil, err
 	}

@@ -18,7 +18,7 @@ func MakeSource(
 	sd skipper.SettingsDispatcher) skipper.SettingsSource {
 
 	// create initial empty settings:
-	sd.Push() <- &settings{route.New()}
+	sd.Push() <- &settings{&mailgunRouter{route.New()}}
 
 	s := &source{sd}
 	go func() {

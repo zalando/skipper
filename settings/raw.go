@@ -10,7 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"regexp"
+    "strings"
 )
 
 const shuntBackendId = "<shunt>"
@@ -59,18 +59,39 @@ type pathTreeRouter struct {
 	tree *pathtree.Tree
 }
 
-func (t *pathTreeRouter) Route(r *http.Request) (interface{}, error) {
-	v, _, _ := t.tree.Get(r.URL.Path)
-	return v, nil
+type pathParam struct {
+    treeParam pathtree.Param
+}
+
+type mailgunRouter struct {
+    mailgun route.Router
+}
+
+func (p *pathParam) Key() string { return p.treeParam.Key }
+func (p *pathParam) Value() string { return p.treeParam.Value }
+
+func (mr *mailgunRouter) Route(r *http.Request) (skipper.Route, skipper.PathParams, error) {
+    rt, err := mr.mailgun.Route(r)
+    return rt.(skipper.Route), nil, err
+}
+
+func (t *pathTreeRouter) Route(r *http.Request) (skipper.Route, skipper.PathParams, error) {
+	v, params, _ := t.tree.Get(r.URL.Path)
+
+    pparams := make(skipper.PathParams, len(params))
+    for i, p := range params {
+        pparams[i] = &pathParam{p}
+    }
+
+	return v.(skipper.Route), pparams, nil
 }
 
 func makePathTreeRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipper.Router, error) {
 	pathMap := pathtree.PathMap{}
 
 	for _, r := range routes {
-		startRe := regexp.MustCompile("Path\\(.")
-		path := startRe.ReplaceAllString(r.MatchExp, "")
-		path = path[:len(path)-2]
+        // TODO: there is not always a path there
+        path := r.Matchers[0].Args[0].(string)
 		b, err := createBackend(r)
 		if err != nil {
 			log.Println("invalid backend address", r.Id, b, err)
@@ -81,7 +102,7 @@ func makePathTreeRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skip
 			log.Println("invalid filter specification", r.Id, err)
 			continue
 		}
-		pathMap[path] = &routedef{r.MatchExp, b, fs}
+		pathMap[path] = &routedef{b, fs}
 	}
 
 	tree, err := pathtree.Make(pathMap)
@@ -91,6 +112,20 @@ func makePathTreeRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skip
 	}
 
 	return &pathTreeRouter{tree}, nil
+}
+
+func formatMatchers(ms []*eskip.Matcher) string {
+    fms := make([]string, len(ms))
+    for i, m := range ms {
+        fargs := make([]string, len(m.Args))
+        for j, a := range m.Args {
+            fargs[j] = fmt.Sprintf("`%v`", a)
+        }
+
+        fms[i] = fmt.Sprintf("%s(%s)", m.Name, strings.Join(fargs, ", "))
+    }
+
+    return strings.Join(fms, " && ")
 }
 
 func makeMailgunRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipper.Router, error) {
@@ -108,12 +143,12 @@ func makeMailgunRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipp
 			continue
 		}
 
-		err = router.AddRoute(r.MatchExp, &routedef{r.MatchExp, b, fs})
+		err = router.AddRoute(formatMatchers(r.Matchers), &routedef{b, fs})
 		if err != nil {
 			log.Println("failed to add route", r.Id, err)
 		}
 	}
-	return router, nil
+	return &mailgunRouter{router}, nil
 }
 
 func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Settings, error) {
