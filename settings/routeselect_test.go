@@ -82,7 +82,7 @@ func makeRouterMailgun(paths []string, routes []skipper.Route) (skipper.Router, 
 		router.AddRoute(fmt.Sprintf("Path(\"%s\")", p), routes[i%len(routes)])
 	}
 
-	return router, nil
+	return &mailgunRouter{router}, nil
 }
 
 func makeRouterPathTree(paths []string, routes []skipper.Route) (skipper.Router, error) {
@@ -165,7 +165,7 @@ func init() {
 
 func integrityTest(t *testing.T, router skipper.Router, phaseCount int) {
 	index := phaseCount / 2 // select one from right in the middle
-	r, err := router.Route(requests[index])
+	r, _, err := router.Route(requests[index])
 	if err != nil || r != routes[index] {
 		t.Error("failed to route")
 	}
@@ -182,7 +182,7 @@ func benchmarkLookup(b *testing.B, router skipper.Router, phaseCount int) {
 		// number of requests or routes, because in successful case, b.N will be far bigger
 		index = i % requestCount
 
-		r, err := router.Route(requests[index])
+		r, _, err := router.Route(requests[index])
 
 		// error, or should have found but didn't, or shouldn't have found but did
 		if err != nil || (index < phaseCount && r != routes[index]) || (index >= phaseCount && r != nil) {
@@ -200,6 +200,42 @@ func TestIntegrity(t *testing.T) {
 	integrityTest(t, pathTree2, routesCountPhase2)
 	integrityTest(t, pathTree3, routesCountPhase3)
 	integrityTest(t, pathTree4, routesCountPhase4)
+}
+
+func TestMethodOnlyVsPathAndMethod(t *testing.T) {
+	router := route.New()
+    router.AddRoute("Path(\"/test\") && Method(\"PUT\")", 36)
+    router.AddRoute("Method(\"PUT\")", 42)
+
+    u, err := url.Parse("https://example.com/test")
+    if err != nil {
+        t.Error(err)
+    }
+
+    uw, err := url.Parse("https://example.com/wrong")
+    if err != nil {
+        t.Error(err)
+    }
+
+    r, err := router.Route(&http.Request{Method: "PUT", URL: u})
+    if err != nil || r != 36 {
+        t.Error(err, r)
+    }
+
+    r, err = router.Route(&http.Request{Method: "PUT", URL: uw})
+    if err != nil || r != 42 {
+        t.Error(err, r)
+    }
+
+    r, err = router.Route(&http.Request{Method: "GET", URL: uw})
+    if err != nil || r != nil {
+        t.Error(err, "shouldn't match")
+    }
+
+    r, err = router.Route(&http.Request{Method: "GET", URL: u})
+    if err != nil || r != nil {
+        t.Error(err, "shouldn't match")
+    }
 }
 
 func BenchmarkMailgun1(b *testing.B) {
