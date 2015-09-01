@@ -13,190 +13,198 @@ import (
 )
 
 const routeDoc = `
-    header:
-        Path("/tessera/header") -> xalando() -> pathRewrite(/.*/, "/") -> requestHeader("Host",
-        "header.mop-taskforce.zalan.do") -> "https://header.mop-taskforce.zalan.do";
+    header: Path("/tessera/header") ->
+        xalando() -> pathRewrite(/.*/, "/") ->
+        requestHeader("Host", "header.mop-taskforce.zalan.do") ->
+        "https://header.mop-taskforce.zalan.do";
 
-    footer:
-        Path("/tessera/footer") -> xalando() -> pathRewrite(/.*/, "/") -> requestHeader("Host",
-        "footer.mop-taskforce.zalan.do") -> "https://footer.mop-taskforce.zalan.do";
+    footer: Path("/tessera/footer") ->
+        xalando() -> pathRewrite(/.*/, "/") ->
+        requestHeader("Host", "footer.mop-taskforce.zalan.do") ->
+        "https://footer.mop-taskforce.zalan.do";
 
-    pdp:
-        PathRegexp(/.*\.html$/) -> xalando() -> requestHeader("Host",
-        "layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/pdp") ->
+    pdp: PathRegexp(/.*\.html$/) ->
+        xalando() -> pathRewrite(/.*/, "/pdp") ->
+        requestHeader("Host", "layout-service.mop-taskforce.zalan.do") ->
         "https://pdp.layout-service.mop-taskforce.zalan.do";
 
-    pdpAsync:
-        Path("/sls-async/*_") && PathRegexp(/.*\.html$/) -> xalando() -> requestHeader("Host",
-        "layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/pdp-async") ->
+    pdpAsync: Path("/sls-async/*_") && PathRegexp(/.*\.html$/) ->
+        xalando() -> pathRewrite(/.*/, "/pdp-async") ->
+        requestHeader("Host", "layout-service.mop-taskforce.zalan.do") ->
         "https://async.pdp.streaming-layout-service.mop-taskforce.zalan.do";
 
-    pdpsc:
-        Path("/sc/*_") && PathRegexp(/.*\.html$/) -> xalando() ->
+    pdpsc: Path("/sc/*_") && PathRegexp(/.*\.html$/) ->
+        xalando() -> pathRewrite(/.*/, "/pdp") ->
         requestHeader("Host", "compositor-layout-service.mop-taskforce.zalan.do") ->
-        pathRewrite(/.*/, "/pdp") -> "https://pdpsc.compositor-layout-service.mop-taskforce.zalan.do";
+        "https://pdpsc.compositor-layout-service.mop-taskforce.zalan.do";
 
-    pdpsls:
-        Path("/sls/*_") && PathRegexp(/.*\.html$/) -> xalando() -> requestHeader("Host",
-        "streaming-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/pdp") ->
+    pdpsls: Path("/sls/*_") && PathRegexp(/.*\.html$/) ->
+        xalando() -> pathRewrite(/.*/, "/pdp") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://pdpsls.streaming-layout-service.mop-taskforce.zalan.do";
 
-    catalog:
-        Path("/*_") -> xalando() -> requestHeader("Host",
-        "layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalog: Path("/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "layout-service.mop-taskforce.zalan.do") ->
         "https://catalog.layout-service.mop-taskforce.zalan.do";
 
-    catalogAsync:
-        Path("/sls-async/*_") -> xalando() -> requestHeader("Host",
-        "layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog-async") ->
+    catalogAsync: Path("/sls-async/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog-async") ->
+        requestHeader("Host", "layout-service.mop-taskforce.zalan.do") ->
         "https://catalog-async.layout-service.mop-taskforce.zalan.do";
 
-    catalogsc:
-        Path("/sc/*_") -> xalando() -> requestHeader("Host", "compositor-layout-service.mop-taskforce.zalan.do") ->
-        pathRewrite(/.*/, "/catalog") -> "https://catalogsc.compositor-layout-service.mop-taskforce.zalan.do";
+    catalogsc: Path("/sc/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "compositor-layout-service.mop-taskforce.zalan.do") ->
+        "https://catalogsc.compositor-layout-service.mop-taskforce.zalan.do";
 
-    catalogsls:
-        Path("/sls/*_") -> xalando() -> requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do")
-        -> pathRewrite(/.*/, "/catalog") -> "https://catalogsls.streaming-layout-service.mop-taskforce.zalan.do";
+    catalogsls: Path("/sls/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
+        "https://catalogsls.streaming-layout-service.mop-taskforce.zalan.do";
 
-    slow:
-        Path("/slow") -> xalando() -> requestHeader("Host", "bugfactory.mop-taskforce.zalan.do") ->
+    slow: Path("/slow") ->
+        xalando() -> requestHeader("Host", "bugfactory.mop-taskforce.zalan.do") ->
         "https://bugfactory.mop-taskforce.zalan.do";
 
-    debug:
-        Path("/debug") -> xalando() -> pathRewrite(/.*/, "/") -> requestHeader("Host",
-        "bugfactory.mop-taskforce.zalan.do") -> "https://debug.bugfactory.mop-taskforce.zalan.do";
+    debug: Path("/debug") ->
+        xalando() -> pathRewrite(/.*/, "/") ->
+        requestHeader("Host", "bugfactory.mop-taskforce.zalan.do") ->
+        "https://debug.bugfactory.mop-taskforce.zalan.do";
 
-    cart:
-        Path("/api/cart/*_") -> xalando() -> requestHeader("Host", "cart-taskforce.zalan.do") ->
+    cart: Path("/api/cart/*_") ->
+        xalando() -> requestHeader("Host", "cart-taskforce.zalan.do") ->
         "https://cart.mop-taskforce.zalan.do";
 
-    login:
-        Path("/login") && Method("POST") -> xalando() ->
+    login: Path("/login") && Method("POST") ->
+        xalando() ->
         "https://login-fragment.mop-taskforce.zalan.do";
 
-    logout:
-        Path("/logout") && Method("POST") -> xalando() ->
+    logout: Path("/logout") && Method("POST") ->
+        xalando() ->
         "https://logout.login-fragment.mop-taskforce.zalan.do";
 
-    healthcheck:
-        Path("/healthcheck") -> healthcheck() -> <shunt>;
+    healthcheck: Path("/healthcheck") -> healthcheck() -> <shunt>;
 
-    humanstxt:
-        Path("/humans.txt") -> humanstxt() -> <shunt>;
+    humanstxt: Path("/humans.txt") -> humanstxt() -> <shunt>;
 
-    baseAssetsAssets:
-        Path("/assets/base-assets/*_") -> pathRewrite("^/assets/base-assets", "/assets") ->
+    baseAssetsAssets: Path("/assets/base-assets/*_") ->
+        pathRewrite("^/assets/base-assets", "/assets") ->
         requestHeader("Host", "base-assets.mop-taskforce.zalan.do") ->
         "https://base-assets.mop-taskforce.zalan.do";
 
-    headerAssets:
-        Path("/assets/header/*_") -> pathRewrite("^/assets/header", "/assets") ->
-        requestHeader("Host", "header.mop-taskforce.zalan.do") -> "https://assets.header.mop-taskforce.zalan.do";
+    headerAssets: Path("/assets/header/*_") ->
+        pathRewrite("^/assets/header", "/assets") ->
+        requestHeader("Host", "header.mop-taskforce.zalan.do") ->
+        "https://assets.header.mop-taskforce.zalan.do";
 
-    footerAssets:
-        Path("/assets/footer/*_") -> pathRewrite("^/assets/footer", "/assets") ->
-        requestHeader("Host", "footer.mop-taskforce.zalan.do") -> "https://assets.footer.mop-taskforce.zalan.do";
+    footerAssets: Path("/assets/footer/*_") ->
+        pathRewrite("^/assets/footer", "/assets") ->
+        requestHeader("Host", "footer.mop-taskforce.zalan.do") ->
+        "https://assets.footer.mop-taskforce.zalan.do";
 
-    cartAssets:
-        Path("/assets/cart/*_") -> pathRewrite("^/assets/cart", "/assets") ->
-        requestHeader("Host", "cart.mop-taskforce.zalan.do") -> "https://assets.cart.mop-taskforce.zalan.do";
+    cartAssets: Path("/assets/cart/*_") ->
+        pathRewrite("^/assets/cart", "/assets") ->
+        requestHeader("Host", "cart.mop-taskforce.zalan.do") ->
+        "https://assets.cart.mop-taskforce.zalan.do";
 
-    pdpAssets:
-        Path("/assets/pdp/*_") -> pathRewrite("^/assets/pdp", "") -> requestHeader("Host",
-        "pdp-fragment-alt.mop-taskforce.zalan.do") -> "https://assets.pdp-fragment-alt.mop-taskforce.zalan.do";
+    pdpAssets: Path("/assets/pdp/*_") ->
+        pathRewrite("^/assets/pdp", "") ->
+        requestHeader("Host", "pdp-fragment-alt.mop-taskforce.zalan.do") ->
+        "https://assets.pdp-fragment-alt.mop-taskforce.zalan.do";
 
-    catalogAssets:
-        Path("/assets/catalog/*_") -> pathRewrite("^/assets/catalog", "/static") ->
+    catalogAssets: Path("/assets/catalog/*_") ->
+        pathRewrite("^/assets/catalog", "/static") ->
         requestHeader("Host", "catalog-face.mop-taskforce.zalan.do") ->
         "https://assets.catalog-face.mop-taskforce.zalan.do";
 
-    loginAssets:
-        Path("/assets/login/*_") -> pathRewrite("^/assets/login", "/") -> requestHeader("Host",
-        "login-fragment.mop-taskforce.zalan.do") -> "https://assets.login-fragment.mop-taskforce.zalan.do";
+    loginAssets: Path("/assets/login/*_") ->
+        pathRewrite("^/assets/login", "/") ->
+        requestHeader("Host", "login-fragment.mop-taskforce.zalan.do") ->
+        "https://assets.login-fragment.mop-taskforce.zalan.do";
 
     // some demo hack:
 
     // de
-    catalogHerren:
-        Path("/herren/*_") -> xalando() -> requestHeader("Host",
-        "layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogHerren: Path("/herren/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "layout-service.mop-taskforce.zalan.do") ->
         "https://herren.layout-service.mop-taskforce.zalan.do";
 
-    catalogDamen:
-        Path("/damen/*_") -> xalando() -> requestHeader("Host",
-        "layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogDamen: Path("/damen/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "layout-service.mop-taskforce.zalan.do") ->
         "https://damen.layout-service.mop-taskforce.zalan.do";
 
-    catalogAsyncHerren:
-        Path("/sls-async/herren/*_") -> xalando() -> requestHeader("Host",
-        "streaming-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog-async") ->
+    catalogAsyncHerren: Path("/sls-async/herren/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog-async") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://herren-async.streaming-layout-service.mop-taskforce.zalan.do";
 
-    catalogAsyncDamen:
-        Path("/sls-async/damen/*_") -> xalando() -> requestHeader("Host",
-        "streaming-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog-async") ->
+    catalogAsyncDamen: Path("/sls-async/damen/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog-async") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://damen-async.streaming-layout-service.mop-taskforce.zalan.do";
 
-    catalogscHerren:
-        Path("/sc/herren/*_") -> xalando() -> requestHeader("Host",
-        "compositor-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogscHerren: Path("/sc/herren/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "compositor-layout-service.mop-taskforce.zalan.do") ->
         "https://herren-sc.compositor-layout-service.mop-taskforce.zalan.do";
 
-    catalogscDamen:
-        Path("/sc/damen/*_") -> xalando() -> requestHeader("Host",
-        "compositor-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogscDamen: Path("/sc/damen/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "compositor-layout-service.mop-taskforce.zalan.do") ->
         "https://damen-sc.compositor-layout-service.mop-taskforce.zalan.do";
 
-    catalogslsHerren:
-        Path("/sls/herren/*_") -> xalando() -> requestHeader("Host",
-        "streaming-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogslsHerren: Path("/sls/herren/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://herren-sls.streaming-layout-service.mop-taskforce.zalan.do";
 
-    catalogslsDamen:
-        Path("/sls/damen/*_") -> xalando() -> requestHeader("Host",
-        "streaming-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogslsDamen: Path("/sls/damen/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://damen-sls.streaming-layout-service.mop-taskforce.zalan.do";
 
     // en
-    catalogHerrenEn:
-        Path("/men/*_") -> xalando() -> requestHeader("Host",
-        "layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogHerrenEn: Path("/men/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "layout-service.mop-taskforce.zalan.do") ->
         "https://herren-en.layout-service.mop-taskforce.zalan.do";
 
-    catalogDamenEn:
-        Path("/women/*_") -> xalando() -> requestHeader("Host",
-        "layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogDamenEn: Path("/women/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "layout-service.mop-taskforce.zalan.do") ->
         "https://damen-en.layout-service.mop-taskforce.zalan.do";
 
-    catalogAsyncHerrenEn:
-        Path("/sls-async/men/*_") -> xalando() -> requestHeader("Host",
-        "streaming-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog-async") ->
+    catalogAsyncHerrenEn: Path("/sls-async/men/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog-async") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do";
 
-    catalogAsyncDamenEn:
-        Path("/sls-async/women/*_") -> xalando() -> requestHeader("Host",
-        "streaming-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog-async") ->
+    catalogAsyncDamenEn: Path("/sls-async/women/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog-async") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do";
 
-    catalogscHerrenEn:
-        Path("/sc/men/*_") -> xalando() -> requestHeader("Host",
-        "compositor-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogscHerrenEn: Path("/sc/men/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "compositor-layout-service.mop-taskforce.zalan.do") ->
         "https://herren-en.compositor-layout-service.mop-taskforce.zalan.do";
 
-    catalogscDamenEn:
-        Path("/sc/women/*_") -> xalando() -> requestHeader("Host",
-        "compositor-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogscDamenEn: Path("/sc/women/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "compositor-layout-service.mop-taskforce.zalan.do") ->
         "https://damen-en.compositor-layout-service.mop-taskforce.zalan.do";
 
-    catalogslsHerrenEn:
-        Path("/sls/men/*_") -> xalando() -> requestHeader("Host",
-        "streaming-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogslsHerrenEn: Path("/sls/men/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do";
 
-    catalogslsDamenEn:
-        Path("/sls/women/*_") -> xalando() -> requestHeader("Host",
-        "streaming-layout-service.mop-taskforce.zalan.do") -> pathRewrite(/.*/, "/catalog") ->
+    catalogslsDamenEn: Path("/sls/women/*_") ->
+        xalando() -> pathRewrite(/.*/, "/catalog") ->
+        requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do";
 `
 
