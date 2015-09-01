@@ -3,14 +3,15 @@ package settings
 import (
 	"errors"
 	"fmt"
-	"github.bus.zalan.do/spearheads/pathtree"
+	"github.com/dimfeld/httptreemux"
 	"github.com/mailgun/route"
 	"github.com/zalando/eskip"
 	"github.com/zalando/skipper/skipper"
 	"log"
 	"net/http"
 	"net/url"
-    "strings"
+	"regexp"
+	"strings"
 )
 
 const shuntBackendId = "<shunt>"
@@ -56,42 +57,30 @@ func createFilters(r *eskip.Route, mwr skipper.FilterRegistry) ([]skipper.Filter
 }
 
 type pathTreeRouter struct {
-	tree *pathtree.Tree
-}
-
-type pathParam struct {
-    treeParam pathtree.Param
+	tree *httptreemux.Tree
 }
 
 type mailgunRouter struct {
-    mailgun route.Router
+	mailgun route.Router
 }
 
-func (p *pathParam) Key() string { return p.treeParam.Key }
-func (p *pathParam) Value() string { return p.treeParam.Value }
-
 func (mr *mailgunRouter) Route(r *http.Request) (skipper.Route, skipper.PathParams, error) {
-    rt, err := mr.mailgun.Route(r)
-    return rt.(skipper.Route), nil, err
+	v, err := mr.mailgun.Route(r)
+	rt, _ := v.(skipper.Route)
+	return rt, nil, err
 }
 
 func (t *pathTreeRouter) Route(r *http.Request) (skipper.Route, skipper.PathParams, error) {
-	v, params, _ := t.tree.Get(r.URL.Path)
-
-    pparams := make(skipper.PathParams, len(params))
-    for i, p := range params {
-        pparams[i] = &pathParam{p}
-    }
-
-	return v.(skipper.Route), pparams, nil
+	v, params := t.tree.Search(r.URL.Path)
+	return v.(skipper.Route), params, nil
 }
 
 func makePathTreeRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipper.Router, error) {
-	pathMap := pathtree.PathMap{}
+	tree := &httptreemux.Tree{}
 
 	for _, r := range routes {
-        // TODO: there is not always a path there
-        path := r.Matchers[0].Args[0].(string)
+		// TODO: there is not always a path there
+		path := r.Matchers[0].Args[0].(string)
 		b, err := createBackend(r)
 		if err != nil {
 			log.Println("invalid backend address", r.Id, b, err)
@@ -102,30 +91,63 @@ func makePathTreeRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skip
 			log.Println("invalid filter specification", r.Id, err)
 			continue
 		}
-		pathMap[path] = &routedef{b, fs}
-	}
-
-	tree, err := pathtree.Make(pathMap)
-
-	if err != nil {
-		return nil, err
+		err = tree.Add(path, &routedef{b, fs})
+		if err != nil {
+			log.Println("invalid route path", r.Id, err)
+			continue
+		}
 	}
 
 	return &pathTreeRouter{tree}, nil
 }
 
-func formatMatchers(ms []*eskip.Matcher) string {
-    fms := make([]string, len(ms))
-    for i, m := range ms {
-        fargs := make([]string, len(m.Args))
-        for j, a := range m.Args {
-            fargs[j] = fmt.Sprintf("`%v`", a)
-        }
+const wildcardRegexpString = "/((:|\\*)[^/]+)"
 
-        fms[i] = fmt.Sprintf("%s(%s)", m.Name, strings.Join(fargs, ", "))
-    }
+var wildcardRegexp *regexp.Regexp
 
-    return strings.Join(fms, " && ")
+func init() {
+	wildcardRegexp = regexp.MustCompile(wildcardRegexpString)
+}
+
+func replaceWildCards(p interface{}) interface{} {
+	ps, ok := p.(string)
+	if !ok {
+		return p
+	}
+
+	m := wildcardRegexp.FindAllSubmatchIndex([]byte(ps), -1)
+	if len(m) == 0 {
+		return p
+	}
+
+	var parts []string
+	var pos int
+	for i := 0; i < len(m); i++ {
+		if i == 0 {
+			pos = 0
+		} else {
+			pos = m[i-1][3]
+		}
+
+		parts = append(parts, ps[pos:m[i][2]], "<", ps[m[i][2]+1:m[i][3]], ">")
+	}
+
+	return strings.Join(parts, "")
+}
+
+func formatMailgunMatchers(ms []*eskip.Matcher) string {
+	fms := make([]string, len(ms))
+	for i, m := range ms {
+		fargs := make([]string, len(m.Args))
+		for j, a := range m.Args {
+			a = replaceWildCards(a)
+			fargs[j] = fmt.Sprintf("`%v`", a)
+		}
+
+		fms[i] = fmt.Sprintf("%s(%s)", m.Name, strings.Join(fargs, ", "))
+	}
+
+	return strings.Join(fms, " && ")
 }
 
 func makeMailgunRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipper.Router, error) {
@@ -143,7 +165,7 @@ func makeMailgunRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipp
 			continue
 		}
 
-		err = router.AddRoute(formatMatchers(r.Matchers), &routedef{b, fs})
+		err = router.AddRoute(formatMailgunMatchers(r.Matchers), &routedef{b, fs})
 		if err != nil {
 			log.Println("failed to add route", r.Id, err)
 		}

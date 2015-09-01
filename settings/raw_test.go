@@ -97,3 +97,14 @@ func TestCreatesShuntBackend(t *testing.T) {
 		t.Error("failed to create route with shunt")
 	}
 }
+
+func TestReplaceWildcards(t *testing.T) {
+	if replaceWildCards("/some/path").(string) != "/some/path" {
+		t.Error("failed unchanged")
+	}
+
+	replaced := replaceWildCards("/:some/:path").(string)
+	if replaced != "/<some>/<path>" {
+		t.Error("failed replace", replaced)
+	}
+}
