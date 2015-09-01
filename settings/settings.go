@@ -16,7 +16,7 @@ type filter struct {
 }
 
 type routedef struct {
-	backend *backend
+	backend skipper.Backend
 	filters []skipper.Filter
 }
 
