@@ -15,9 +15,9 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	data := `hello: Path("/hello") -> "https://www.zalando.de"`
 
 	dc := mock.MakeDataClient(data)
-	mwr := &mock.FilterRegistry{}
+	fr := &mock.FilterRegistry{}
 	d := dispatch.Make()
-	s := MakeSource(dc, mwr, d)
+	s := MakeSource(dc, fr, d)
 
 	c1 := make(chan skipper.Settings)
 	c2 := make(chan skipper.Settings)
@@ -28,7 +28,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	r, _ := http.NewRequest("GET", "http://localhost:9090/hello", nil)
 
 	// let the settings be populated:
-	time.Sleep(3 * time.Millisecond)
+	time.Sleep(15 * time.Millisecond)
 
 	s1 := <-c1
 	s2 := <-c2
@@ -39,7 +39,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	up1, _ := url.ParseRequestURI(url1)
 
 	if rt1 == nil || rt2 == nil {
-		t.Error("invalid route")
+		t.Error("invalid route", rt1 == nil, rt2 == nil)
 		return
 	}
 
