@@ -86,12 +86,7 @@ type Route interface {
 	Filters() []Filter
 }
 
-type PathParam interface {
-    Key() string
-    Value() string
-}
-
-type PathParams []PathParam
+type PathParams map[string]string
 
 type Router interface {
 	Route(*http.Request) (Route, PathParams, error)

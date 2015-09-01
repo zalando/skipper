@@ -90,8 +90,8 @@ func checkInitial(rd skipper.RawData) bool {
 		return false
 	}
 
-    if len(r.Matchers) != 1 || r.Matchers[0].Name != "PathRegexp" ||
-        len(r.Matchers[0].Args) != 1 || r.Matchers[0].Args[0] != ".*\\.html" {
+	if len(r.Matchers) != 1 || r.Matchers[0].Name != "PathRegexp" ||
+		len(r.Matchers[0].Args) != 1 || r.Matchers[0].Args[0] != ".*\\.html" {
 		return false
 	}
 
@@ -139,7 +139,7 @@ func waitForEtcd(dc skipper.DataClient, test func(skipper.RawData) bool) bool {
 			if test(d) {
 				return true
 			}
-		case <-time.After(15 * time.Millisecond):
+		case <-time.After(45 * time.Millisecond):
 			return false
 		}
 	}

@@ -214,8 +214,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	b := rt.Backend()
 	if b == nil {
-        hterr(proxyError("missing backend"))
-        return
+		hterr(proxyError("missing backend"))
+		return
 	}
 
 	var rs *http.Response
