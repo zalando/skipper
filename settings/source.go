@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"github.com/mailgun/route"
 	"github.com/zalando/skipper/skipper"
 	"log"
 )
@@ -14,18 +13,19 @@ type source struct {
 // expects an instance of the etcd client, a filter registry and a settings dispatcher.
 func MakeSource(
 	dc skipper.DataClient,
-	mwr skipper.FilterRegistry,
-	sd skipper.SettingsDispatcher) skipper.SettingsSource {
+	fr skipper.FilterRegistry,
+	sd skipper.SettingsDispatcher,
+	ignoreTrailingSlash bool) skipper.SettingsSource {
 
 	// create initial empty settings:
-	sd.Push() <- &settings{&mailgunRouter{route.New()}}
+	sd.Push() <- &settings{makePathTreeRouter(nil, fr, false)}
 
 	s := &source{sd}
 	go func() {
 		for {
 			data := <-dc.Receive()
 
-			ss, err := processRaw(data, mwr)
+			ss, err := processRaw(data, fr, ignoreTrailingSlash)
 			if err != nil {
 				log.Println(err)
 				continue

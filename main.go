@@ -39,5 +39,5 @@ func init() {
 }
 
 func main() {
-	log.Fatal(run.Run(address, strings.Split(etcdUrls, ","), storageRoot, insecure, routesFile))
+	log.Fatal(run.Run(address, strings.Split(etcdUrls, ","), storageRoot, insecure, routesFile, false))
 }
