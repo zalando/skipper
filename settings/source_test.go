@@ -17,7 +17,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	dc := mock.MakeDataClient(data)
 	fr := &mock.FilterRegistry{}
 	d := dispatch.Make()
-	s := MakeSource(dc, fr, d)
+	s := MakeSource(dc, fr, d, false)
 
 	c1 := make(chan skipper.Settings)
 	c2 := make(chan skipper.Settings)

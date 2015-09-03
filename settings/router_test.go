@@ -2,9 +2,10 @@ package settings
 
 import (
 	"fmt"
-	"github.com/dimfeld/httptreemux"
+	"github.bus.zalan.do/spearheads/pathmux"
 	"github.com/mailgun/route"
 	"github.com/zalando/eskip"
+	"github.com/zalando/skipper/mock"
 	"github.com/zalando/skipper/skipper"
 	"net/http"
 	"net/url"
@@ -43,7 +44,7 @@ const routeDoc = `
         requestHeader("Host", "streaming-layout-service.mop-taskforce.zalan.do") ->
         "https://pdpsls.streaming-layout-service.mop-taskforce.zalan.do";
 
-    catalog: Path("/*_") ->
+    catalog: Any() ->
         xalando() -> pathRewrite(/.*/, "/catalog") ->
         requestHeader("Host", "layout-service.mop-taskforce.zalan.do") ->
         "https://catalog.layout-service.mop-taskforce.zalan.do";
@@ -208,137 +209,24 @@ const routeDoc = `
         "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do";
 `
 
-type testFilter struct {
-	name string
-	args []string
-}
-
-func (tf *testFilter) Id() string                         { return "" }
-func (tf *testFilter) Request(ctx skipper.FilterContext)  {}
-func (tf *testFilter) Response(ctx skipper.FilterContext) {}
-
-type testBackend struct {
-	scheme  string
-	host    string
-	isShunt bool
-}
-
-func (tb *testBackend) Scheme() string { return "https" }
-func (tb *testBackend) Host() string   { return tb.host }
-func (tb *testBackend) IsShunt() bool  { return false }
-
-type routeDefinition struct {
-	eskipRoute *eskip.Route
-}
-
-func (rd *routeDefinition) Id() string {
-	return rd.eskipRoute.Id
-}
-
-func (rd *routeDefinition) Path() string {
-	for _, m := range rd.eskipRoute.Matchers {
-		if (m.Name == "Path") && len(m.Args) > 0 {
-			p, _ := m.Args[0].(string)
-			return p
-		}
-	}
-
-	return ""
-}
-
-func (rd *routeDefinition) HostRegexps() []string {
-	var hostRxs []string
-	for _, m := range rd.eskipRoute.Matchers {
-		if m.Name == "Host" && len(m.Args) > 0 {
-			rx, _ := m.Args[0].(string)
-			hostRxs = append(hostRxs, rx)
-		}
-	}
-
-	return hostRxs
-}
-
-func (rd *routeDefinition) PathRegexps() []string {
-	var pathRxs []string
-	for _, m := range rd.eskipRoute.Matchers {
-		if m.Name == "PathRegexp" && len(m.Args) > 0 {
-			rx, _ := m.Args[0].(string)
-			pathRxs = append(pathRxs, rx)
-		}
-	}
-
-	return pathRxs
-}
-
-func (rd *routeDefinition) Method() string {
-	for _, m := range rd.eskipRoute.Matchers {
-		if m.Name == "Method" && len(m.Args) > 0 {
-			method, _ := m.Args[0].(string)
-			return method
-		}
-	}
-
-	return ""
-}
-
-func (rd *routeDefinition) Headers() map[string]string {
-	headers := make(map[string]string)
-	for _, m := range rd.eskipRoute.Matchers {
-		if m.Name == "Header" && len(m.Args) >= 2 {
-			k, _ := m.Args[0].(string)
-			v, _ := m.Args[1].(string)
-			headers[k] = v
-		}
-	}
-
-	return headers
-}
-
-func (rd *routeDefinition) HeaderRegexps() map[string][]string {
-	headers := make(map[string][]string)
-	for _, m := range rd.eskipRoute.Matchers {
-		if m.Name == "HeaderRegexp" && len(m.Args) >= 2 {
-			k, _ := m.Args[0].(string)
-			v, _ := m.Args[1].(string)
-			headers[k] = append(headers[k], v)
-		}
-	}
-
-	return headers
-}
-
-func (rd *routeDefinition) Filters() []skipper.Filter {
-	var filters []skipper.Filter
-	for _, f := range rd.eskipRoute.Filters {
-		args := make([]string, len(f.Args))
-		for i, a := range f.Args {
-			s, _ := a.(string)
-			args[i] = s
-		}
-
-		filters = append(filters, &testFilter{f.Name, args})
-	}
-
-	return filters
-}
-
-func (rd *routeDefinition) Backend() skipper.Backend {
-	b := &testBackend{}
-	if rd.eskipRoute.Shunt {
-		b.isShunt = true
-	} else {
-		u, err := url.Parse(rd.eskipRoute.Backend)
-		if err != nil {
-			// fine for now, in test:
-			panic(err)
-		}
-
-		b.scheme = u.Scheme
-		b.host = u.Host
-	}
-
-	return b
-}
+// type testFilter struct {
+// 	name string
+// 	args []string
+// }
+//
+// func (tf *testFilter) Id() string                         { return "" }
+// func (tf *testFilter) Request(ctx skipper.FilterContext)  {}
+// func (tf *testFilter) Response(ctx skipper.FilterContext) {}
+//
+// type testBackend struct {
+// 	scheme  string
+// 	host    string
+// 	isShunt bool
+// }
+//
+// func (tb *testBackend) Scheme() string { return "https" }
+// func (tb *testBackend) Host() string   { return tb.host }
+// func (tb *testBackend) IsShunt() bool  { return false }
 
 var (
 	definitions []RouteDefinition
@@ -354,7 +242,7 @@ func init() {
 
 	definitions = make([]RouteDefinition, len(routes))
 	for i, r := range routes {
-		definitions[i] = &routeDefinition{r}
+		definitions[i] = &routeDefinition{r, &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}
 	}
 
 	rt, errs := makeMatcher(definitions, true)
@@ -398,7 +286,7 @@ func checkRoute(t testing.TB, rt skipper.Route, err error, host string) {
 	}
 
 	if rt == nil {
-		t.Error("failed to match request")
+		t.Error("failed to match request", host)
 		return
 	}
 
@@ -438,6 +326,9 @@ func TestValidRoutes(t *testing.T) {
 	testRouteInBoth(t, "GET", "/tessera/header", "header.mop-taskforce.zalan.do")
 	testRouteInBoth(t, "GET", "/tessera/footer", "footer.mop-taskforce.zalan.do")
 	testRouteInBoth(t, "GET", "/some.html", "pdp.layout-service.mop-taskforce.zalan.do")
+	testRouteInBoth(t, "GET", "/path/to/some.html", "pdp.layout-service.mop-taskforce.zalan.do")
+	testRouteInBoth(t, "GET", "", "catalog.layout-service.mop-taskforce.zalan.do")
+	testRouteInBoth(t, "GET", "/", "catalog.layout-service.mop-taskforce.zalan.do")
 	testRouteInBoth(t, "GET", "/nike", "catalog.layout-service.mop-taskforce.zalan.do")
 	testRouteInBoth(t, "GET", "/sls-async/nike", "catalog-async.layout-service.mop-taskforce.zalan.do")
 	testRouteInBoth(t, "GET", "/sc/nike", "catalogsc.compositor-layout-service.mop-taskforce.zalan.do")
@@ -730,7 +621,7 @@ func TestMatchLeavesTrue(t *testing.T) {
 }
 
 func TestMatchPathTreeNoMatch(t *testing.T) {
-	tree := &httptreemux.Tree{}
+	tree := &pathmux.Tree{}
 	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	err := tree.Add("/some/path", pm0)
@@ -748,7 +639,7 @@ func TestMatchPathTreeNoMatch(t *testing.T) {
 }
 
 func TestMatchPathTree(t *testing.T) {
-	tree := &httptreemux.Tree{}
+	tree := &pathmux.Tree{}
 	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	err := tree.Add("/some/path", pm0)
@@ -766,7 +657,7 @@ func TestMatchPathTree(t *testing.T) {
 }
 
 func TestMatchPathTreeWithWildcards(t *testing.T) {
-	tree := &httptreemux.Tree{}
+	tree := &pathmux.Tree{}
 	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	err := tree.Add("/some/path/:param0/:param1", pm0)
@@ -786,7 +677,7 @@ func TestMatchPathTreeWithWildcards(t *testing.T) {
 
 func TestMatchPath(t *testing.T) {
 	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{route: &routedef{}}}}
-	tree := &httptreemux.Tree{}
+	tree := &pathmux.Tree{}
 	err := tree.Add("/some/path", pm0)
 	if err != nil {
 		t.Error(err)
@@ -801,7 +692,7 @@ func TestMatchPath(t *testing.T) {
 
 func TestMatchPathResolved(t *testing.T) {
 	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{route: &routedef{}}}}
-	tree := &httptreemux.Tree{}
+	tree := &pathmux.Tree{}
 	err := tree.Add("/some/path", pm0)
 	if err != nil {
 		t.Error(err)
@@ -816,7 +707,7 @@ func TestMatchPathResolved(t *testing.T) {
 
 func TestMatchWrongMethod(t *testing.T) {
 	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{method: "PUT", route: &routedef{}}}}
-	tree := &httptreemux.Tree{}
+	tree := &pathmux.Tree{}
 	err := tree.Add("/some/path/*_", pm0)
 	if err != nil {
 		t.Error(err)
@@ -830,7 +721,7 @@ func TestMatchWrongMethod(t *testing.T) {
 }
 
 func TestMatchTopLeaves(t *testing.T) {
-	tree := &httptreemux.Tree{}
+	tree := &pathmux.Tree{}
 	l := &leafMatcher{method: "PUT", route: &routedef{}}
 	pm := &pathMatcher{leaves: leafMatchers{l}}
 	err := tree.Add("/*", pm)
@@ -846,7 +737,7 @@ func TestMatchTopLeaves(t *testing.T) {
 }
 
 func TestMatchWildcardPaths(t *testing.T) {
-	tree := &httptreemux.Tree{}
+	tree := &pathmux.Tree{}
 	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	err := tree.Add("/some/path/:param0/:param1", pm0)
@@ -888,7 +779,7 @@ func TestMakeLeafInvalidHostRx(t *testing.T) {
 		return
 	}
 
-	rd := &routeDefinition{routes[0]}
+	rd := &routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}
 	_, err = makeLeaf(rd)
 	if err == nil {
 		t.Error("failed to fail")
@@ -903,7 +794,7 @@ func TestMakeLeafInvalidPathRx(t *testing.T) {
 		return
 	}
 
-	rd := &routeDefinition{routes[0]}
+	rd := &routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}
 	_, err = makeLeaf(rd)
 	if err == nil {
 		t.Error("failed to fail")
@@ -918,7 +809,7 @@ func TestMakeLeafInvalidHeaderRegexp(t *testing.T) {
 		return
 	}
 
-	rd := &routeDefinition{routes[0]}
+	rd := &routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}
 	_, err = makeLeaf(rd)
 	if err == nil {
 		t.Error("failed to fail")
@@ -932,7 +823,6 @@ func TestMakeLeaf(t *testing.T) {
         PathRegexp("some-path") &&
         Header("Some-Header", "some-value") &&
         HeaderRegexp("Some-Header", "some-value") ->
-        testFilter() ->
         "https://example.org"`
 	routes, err := eskip.Parse(routeExp)
 	if err != nil {
@@ -940,12 +830,11 @@ func TestMakeLeaf(t *testing.T) {
 		return
 	}
 
-	rd := &routeDefinition{routes[0]}
+	rd := &routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}
 	l, err := makeLeaf(rd)
 	if err != nil || l.method != "PUT" ||
 		len(l.hostRxs) != 1 || len(l.pathRxs) != 1 ||
 		len(l.headersExact) != 1 || len(l.headersRegexps) != 1 ||
-		len(l.route.Filters()) != 1 ||
 		l.route.Backend().Scheme() != "https" ||
 		l.route.Backend().Host() != "example.org" {
 		t.Error("failed to create leaf")
@@ -970,7 +859,7 @@ func TestMakeMatcherRootLeavesOnly(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, false)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, false)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -987,7 +876,7 @@ func TestMakeMatcherExactPathOnly(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, false)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, false)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -1004,7 +893,7 @@ func TestMakeMatcherWithWildcardPath(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, false)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, false)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -1021,7 +910,7 @@ func TestMakeMatcherErrorInLeaf(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, false)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, false)
 	if len(errs) != 1 || m == nil || errs[0].Id != "testRoute" {
 		t.Error("failed to make matcher with error")
 	}
@@ -1036,8 +925,8 @@ func TestMakeMatcherWithPathConflict(t *testing.T) {
 	}
 
 	m, errs := makeMatcher([]RouteDefinition{
-		&routeDefinition{routes[0]},
-		&routeDefinition{routes[1]}}, false)
+		&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}},
+		&routeDefinition{routes[1], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, false)
 	if len(errs) != 1 || m == nil {
 		t.Error("failed to make matcher with error", len(errs), m == nil)
 	}
@@ -1049,7 +938,7 @@ func TestMatchToSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, true)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1066,7 +955,7 @@ func TestMatchFromSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, true)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1083,7 +972,7 @@ func TestWildcardParam(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, false)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, false)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1100,7 +989,7 @@ func TestWildcardParamFromSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, true)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1117,7 +1006,7 @@ func TestWildcardParamToSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, true)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1134,7 +1023,7 @@ func TestFreeWildcardParam(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, false)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, false)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1151,7 +1040,7 @@ func TestFreeWildcardParamWithSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0]}}, true)
+	m, errs := makeMatcher([]RouteDefinition{&routeDefinition{routes[0], &mock.FilterRegistry{make(map[string]skipper.FilterSpec)}}}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
