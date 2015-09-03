@@ -1,18 +1,15 @@
 package settings
 
 import (
+	"github.bus.zalan.do/spearheads/pathmux"
 	"github.com/dimfeld/httppath"
-	"github.com/dimfeld/httptreemux"
 	"github.com/zalando/skipper/skipper"
 	"net/http"
 	"regexp"
 	"sort"
 )
 
-const (
-	rootCatchAllExp = "^/[*][^/]+$"
-	freeWildcardExp = "/[*][^/]+$"
-)
+const freeWildcardExp = "/[*][^/]+$"
 
 type leafMatcher struct {
 	method         string
@@ -31,7 +28,8 @@ type pathMatcher struct {
 }
 
 type rootMatcher struct {
-	paths               *httptreemux.Tree
+	paths               *pathmux.Tree
+	rootLeaves          leafMatchers
 	ignoreTrailingSlash bool
 }
 
@@ -58,13 +56,9 @@ type RouteError struct {
 	Original error
 }
 
-var (
-	rootCatchAllRx *regexp.Regexp
-	freeWildcardRx *regexp.Regexp
-)
+var freeWildcardRx *regexp.Regexp
 
 func init() {
-	rootCatchAllRx = regexp.MustCompile(rootCatchAllExp)
 	freeWildcardRx = regexp.MustCompile(freeWildcardExp)
 }
 
@@ -163,8 +157,8 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatch
 	return nil
 }
 
-func matchPathTree(tree *httptreemux.Tree, path string) (leafMatchers, skipper.PathParams) {
-	v, params := tree.Search(path)
+func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, skipper.PathParams) {
+	v, params := tree.Lookup(path)
 	if v == nil {
 		return nil, nil
 	}
@@ -188,11 +182,16 @@ func match(matcher *rootMatcher, req *http.Request) (skipper.Route, skipper.Path
 	leaves, params := matchPathTree(matcher.paths, path)
 
 	l := matchLeaves(leaves, req, path)
-	if l == nil {
-		return nil, nil
+	if l != nil {
+		return l.route, params
 	}
 
-	return l.route, params
+	l = matchLeaves(matcher.rootLeaves, req, path)
+	if l != nil {
+		return l.route, nil
+	}
+
+	return nil, nil
 }
 
 func compileRxs(exps []string) ([]*regexp.Regexp, error) {
@@ -240,10 +239,6 @@ func makeLeaf(d RouteDefinition) (*leafMatcher, error) {
 		route:          &skipperRoute{d.Id(), d.Filters(), d.Backend()}}, nil
 }
 
-func isRootCatchAll(path string) bool {
-	return rootCatchAllRx.MatchString(path)
-}
-
 func freeWildcardParam(path string) string {
 	param := freeWildcardRx.FindString(path)
 	if param == "" {
@@ -255,9 +250,8 @@ func freeWildcardParam(path string) string {
 
 func makeMatcher(definitions []RouteDefinition, ignoreTrailingSlash bool) (*rootMatcher, []*RouteError) {
 	var (
-		routeErrors  []*RouteError
-		rootLeaves   leafMatchers
-		rootCatchAll *pathMatcher
+		routeErrors []*RouteError
+		rootLeaves  leafMatchers
 	)
 
 	pathMatchers := make(map[string]*pathMatcher)
@@ -287,13 +281,9 @@ func makeMatcher(definitions []RouteDefinition, ignoreTrailingSlash bool) (*root
 		}
 
 		pm.leaves = append(pm.leaves, l)
-
-		if isRootCatchAll(p) {
-			rootCatchAll = pm
-		}
 	}
 
-	pathTree := &httptreemux.Tree{}
+	pathTree := &pathmux.Tree{}
 	for p, m := range pathMatchers {
 		sort.Sort(m.leaves)
 		err := pathTree.Add(p, m)
@@ -302,19 +292,8 @@ func makeMatcher(definitions []RouteDefinition, ignoreTrailingSlash bool) (*root
 		}
 	}
 
-	if rootCatchAll == nil {
-		rootCatchAll = &pathMatcher{rootLeaves, "_"}
-		err := pathTree.Add("/*_", rootCatchAll)
-		if err != nil {
-			routeErrors = append(routeErrors, &RouteError{Original: err})
-		}
-	} else {
-		rootCatchAll.leaves = append(rootCatchAll.leaves, rootLeaves...)
-	}
-
-	sort.Sort(rootCatchAll.leaves)
-
-	return &rootMatcher{pathTree, ignoreTrailingSlash}, routeErrors
+	sort.Sort(rootLeaves)
+	return &rootMatcher{pathTree, rootLeaves, ignoreTrailingSlash}, routeErrors
 }
 
 func (sr *skipperRoute) Filters() []skipper.Filter {

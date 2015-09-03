@@ -3,7 +3,7 @@ package settings
 import (
 	"errors"
 	"fmt"
-	"github.com/dimfeld/httptreemux"
+	"github.bus.zalan.do/spearheads/pathmux"
 	"github.com/mailgun/route"
 	"github.com/zalando/eskip"
 	"github.com/zalando/skipper/skipper"
@@ -15,6 +15,11 @@ import (
 )
 
 const shuntBackendId = "<shunt>"
+
+type routeDefinition struct {
+	eskipRoute     *eskip.Route
+	filterRegistry skipper.FilterRegistry
+}
 
 func createBackend(r *eskip.Route) (*backend, error) {
 	if r.Shunt {
@@ -33,8 +38,8 @@ func makeFilterId(routeId, filterName string, index int) string {
 	return fmt.Sprintf("%s-%s-%d", routeId, filterName, index)
 }
 
-func createFilter(id string, spec *eskip.Filter, mwr skipper.FilterRegistry) (skipper.Filter, error) {
-	mw := mwr.Get(spec.Name)
+func createFilter(id string, spec *eskip.Filter, fr skipper.FilterRegistry) (skipper.Filter, error) {
+	mw := fr.Get(spec.Name)
 	if mw == nil {
 		return nil, errors.New(fmt.Sprintf("filter not found: '%s' '%s'", id, spec.Name))
 	}
@@ -42,10 +47,10 @@ func createFilter(id string, spec *eskip.Filter, mwr skipper.FilterRegistry) (sk
 	return mw.MakeFilter(id, skipper.FilterConfig(spec.Args))
 }
 
-func createFilters(r *eskip.Route, mwr skipper.FilterRegistry) ([]skipper.Filter, error) {
+func createFilters(r *eskip.Route, fr skipper.FilterRegistry) ([]skipper.Filter, error) {
 	fs := make([]skipper.Filter, len(r.Filters))
 	for i, fspec := range r.Filters {
-		f, err := createFilter(makeFilterId(r.Id, fspec.Name, i), fspec, mwr)
+		f, err := createFilter(makeFilterId(r.Id, fspec.Name, i), fspec, fr)
 		if err != nil {
 			return nil, err
 		}
@@ -57,7 +62,7 @@ func createFilters(r *eskip.Route, mwr skipper.FilterRegistry) ([]skipper.Filter
 }
 
 type pathTreeRouter struct {
-	tree *httptreemux.Tree
+	tree *pathmux.Tree
 }
 
 type mailgunRouter struct {
@@ -71,34 +76,22 @@ func (mr *mailgunRouter) Route(r *http.Request) (skipper.Route, skipper.PathPara
 }
 
 func (t *pathTreeRouter) Route(r *http.Request) (skipper.Route, skipper.PathParams, error) {
-	v, params := t.tree.Search(r.URL.Path)
+	v, params := t.tree.Lookup(r.URL.Path)
 	return v.(skipper.Route), params, nil
 }
 
-func makePathTreeRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipper.Router, error) {
-	tree := &httptreemux.Tree{}
-
-	for _, r := range routes {
-		// TODO: there is not always a path there
-		path := r.Matchers[0].Args[0].(string)
-		b, err := createBackend(r)
-		if err != nil {
-			log.Println("invalid backend address", r.Id, b, err)
-			continue
-		}
-		fs, err := createFilters(r, mwr)
-		if err != nil {
-			log.Println("invalid filter specification", r.Id, err)
-			continue
-		}
-		err = tree.Add(path, &routedef{b, fs})
-		if err != nil {
-			log.Println("invalid route path", r.Id, err)
-			continue
-		}
+func makePathTreeRouter(routes []*eskip.Route, fr skipper.FilterRegistry, ignoreTrailingSlash bool) skipper.Router {
+	routeDefinitions := make([]RouteDefinition, len(routes))
+	for i, rd := range routes {
+		routeDefinitions[i] = &routeDefinition{rd, fr}
 	}
 
-	return &pathTreeRouter{tree}, nil
+	router, errs := makeMatcher(routeDefinitions, ignoreTrailingSlash)
+	for _, err := range errs {
+		log.Println(err)
+	}
+
+	return router
 }
 
 const wildcardRegexpString = "/((:|\\*)[^/]+)"
@@ -138,6 +131,11 @@ func replaceWildCards(p interface{}) interface{} {
 func formatMailgunMatchers(ms []*eskip.Matcher) string {
 	fms := make([]string, len(ms))
 	for i, m := range ms {
+		if m.Name == "Any" {
+			fms[i] = "Path(\"/<string>\")"
+			continue
+		}
+
 		fargs := make([]string, len(m.Args))
 		for j, a := range m.Args {
 			a = replaceWildCards(a)
@@ -150,7 +148,7 @@ func formatMailgunMatchers(ms []*eskip.Matcher) string {
 	return strings.Join(fms, " && ")
 }
 
-func makeMailgunRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipper.Router, error) {
+func makeMailgunRouter(routes []*eskip.Route, fr skipper.FilterRegistry) (skipper.Router, error) {
 	router := route.New()
 	for _, r := range routes {
 		b, err := createBackend(r)
@@ -159,7 +157,7 @@ func makeMailgunRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipp
 			continue
 		}
 
-		fs, err := createFilters(r, mwr)
+		fs, err := createFilters(r, fr)
 		if err != nil {
 			log.Println("invalid filter specification", r.Id, err)
 			continue
@@ -173,20 +171,109 @@ func makeMailgunRouter(routes []*eskip.Route, mwr skipper.FilterRegistry) (skipp
 	return &mailgunRouter{router}, nil
 }
 
-func processRaw(rd skipper.RawData, mwr skipper.FilterRegistry) (skipper.Settings, error) {
+func processRaw(rd skipper.RawData, fr skipper.FilterRegistry, ignoreTrailingSlash bool) (skipper.Settings, error) {
 	d, err := eskip.Parse(rd.Get())
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: this is the point to switch router implementations
-	//	router, err := makeMailgunRouter(d, mwr)
-	router, err := makePathTreeRouter(d, mwr)
-	if err != nil {
-		return nil, err
+	//	router, err := makeMailgunRouter(d, fr)
+	router := makePathTreeRouter(d, fr, ignoreTrailingSlash)
+	s := &settings{router}
+	return s, nil
+}
+
+func (rd *routeDefinition) Id() string {
+	return rd.eskipRoute.Id
+}
+
+func (rd *routeDefinition) Path() string {
+	for _, m := range rd.eskipRoute.Matchers {
+		if (m.Name == "Path") && len(m.Args) > 0 {
+			p, _ := m.Args[0].(string)
+			return p
+		}
 	}
 
-	s := &settings{router}
+	return ""
+}
 
-	return s, nil
+func (rd *routeDefinition) HostRegexps() []string {
+	var hostRxs []string
+	for _, m := range rd.eskipRoute.Matchers {
+		if m.Name == "Host" && len(m.Args) > 0 {
+			rx, _ := m.Args[0].(string)
+			hostRxs = append(hostRxs, rx)
+		}
+	}
+
+	return hostRxs
+}
+
+func (rd *routeDefinition) PathRegexps() []string {
+	var pathRxs []string
+	for _, m := range rd.eskipRoute.Matchers {
+		if m.Name == "PathRegexp" && len(m.Args) > 0 {
+			rx, _ := m.Args[0].(string)
+			pathRxs = append(pathRxs, rx)
+		}
+	}
+
+	return pathRxs
+}
+
+func (rd *routeDefinition) Method() string {
+	for _, m := range rd.eskipRoute.Matchers {
+		if m.Name == "Method" && len(m.Args) > 0 {
+			method, _ := m.Args[0].(string)
+			return method
+		}
+	}
+
+	return ""
+}
+
+func (rd *routeDefinition) Headers() map[string]string {
+	headers := make(map[string]string)
+	for _, m := range rd.eskipRoute.Matchers {
+		if m.Name == "Header" && len(m.Args) >= 2 {
+			k, _ := m.Args[0].(string)
+			v, _ := m.Args[1].(string)
+			headers[k] = v
+		}
+	}
+
+	return headers
+}
+
+func (rd *routeDefinition) HeaderRegexps() map[string][]string {
+	headers := make(map[string][]string)
+	for _, m := range rd.eskipRoute.Matchers {
+		if m.Name == "HeaderRegexp" && len(m.Args) >= 2 {
+			k, _ := m.Args[0].(string)
+			v, _ := m.Args[1].(string)
+			headers[k] = append(headers[k], v)
+		}
+	}
+
+	return headers
+}
+
+func (rd *routeDefinition) Filters() []skipper.Filter {
+	fs, err := createFilters(rd.eskipRoute, rd.filterRegistry)
+	if err != nil {
+		log.Println(err)
+	}
+
+	return fs
+}
+
+func (rd *routeDefinition) Backend() skipper.Backend {
+	b, err := createBackend(rd.eskipRoute)
+	if err != nil {
+		log.Println(err)
+	}
+
+	return b
 }
