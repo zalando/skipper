@@ -30,11 +30,11 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 
     `}
 
-	mwr := &mock.FilterRegistry{
+	fr := &mock.FilterRegistry{
 		map[string]skipper.FilterSpec{
 			"zalFilter1": &mock.FilterSpec{"zalFilter1"},
 			"zalFilter2": &mock.FilterSpec{"zalFilter2"}}}
-	s, _ := processRaw(rd, mwr, false)
+	s, _ := processRaw(rd, fr, false)
 
 	check := func(req *http.Request, u string, filterNames []string, filterData []float64) {
 		rt, err := s.Route(req)
@@ -78,8 +78,8 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 
 func TestCreatesShuntBackend(t *testing.T) {
 	rd := &mock.RawData{`frontend1: Path("/frontend1") -> <shunt>`}
-	mwr := &mock.FilterRegistry{}
-	s, _ := processRaw(rd, mwr, false)
+	fr := &mock.FilterRegistry{}
+	s, _ := processRaw(rd, fr, false)
 	r := makeTestRequest("https://www.zalan.do/frontend1")
 	rt, err := s.Route(r)
 	if err != nil {
