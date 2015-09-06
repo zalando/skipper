@@ -1,8 +1,8 @@
 package settings
 
 import (
-	"github.com/zalando/skipper/skipper"
 	"github.com/mailgun/route"
+	"github.com/zalando/skipper/skipper"
 	"log"
 )
 
@@ -17,8 +17,8 @@ func MakeSource(
 	mwr skipper.FilterRegistry,
 	sd skipper.SettingsDispatcher) skipper.SettingsSource {
 
-    // create initial empty settings:
-    sd.Push() <- &settings{route.New()}
+	// create initial empty settings:
+	sd.Push() <- &settings{route.New()}
 
 	s := &source{sd}
 	go func() {
