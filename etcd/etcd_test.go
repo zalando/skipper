@@ -90,8 +90,7 @@ func checkInitial(rd skipper.RawData) bool {
 		return false
 	}
 
-	if len(r.Matchers) != 1 || r.Matchers[0].Name != "PathRegexp" ||
-		len(r.Matchers[0].Args) != 1 || r.Matchers[0].Args[0] != ".*\\.html" {
+	if len(r.PathRegexps) != 1 || r.PathRegexps[0] != ".*\\.html" {
 		return false
 	}
 
