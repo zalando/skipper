@@ -8,25 +8,32 @@ import (
 	"github.com/zalando/skipper/run"
 	"log"
 	"strings"
+	"time"
 )
 
 const (
-	defaultAddress     = ":9090"
-	defaultEtcdUrls    = "http://127.0.0.1:2379,http://127.0.0.1:4001"
-	defaultStorageRoot = "/skipper"
-	addressUsage       = "address where skipper should listen on"
-	etcdUrlsUsage      = "urls where etcd can be found"
-	insecureUsage      = "set this flag to allow invalid certificates for tls connections"
-	storageRootUsage   = "prefix for skipper related data in the provided etcd storage"
-	routesFileUsage    = "routes file to use instead of etcd"
+	defaultAddress              = ":9090"
+	defaultEtcdUrls             = "http://127.0.0.1:2379,http://127.0.0.1:4001"
+	defaultStorageRoot          = "/skipper"
+	defaultInnkeeperPollTimeout = int64(3 * time.Minute)
+
+	addressUsage              = "address where skipper should listen on"
+	etcdUrlsUsage             = "urls where etcd can be found"
+	insecureUsage             = "set this flag to allow invalid certificates for tls connections"
+	storageRootUsage          = "prefix for skipper related data in the provided etcd storage"
+	innkeeperUrlUsage         = "url of the innkeeper API"
+	innkeeperPollTimeoutUsage = "polling timeout of the innkeeper API"
+	routesFileUsage           = "routes file to use instead of etcd"
 )
 
 var (
-	address     string
-	etcdUrls    string
-	insecure    bool
-	storageRoot string
-	routesFile  string
+	address              string
+	etcdUrls             string
+	insecure             bool
+	storageRoot          string
+	innkeeperUrl         string
+	innkeeperPollTimeout int64
+	routesFile           string
 )
 
 func init() {
@@ -34,10 +41,20 @@ func init() {
 	flag.StringVar(&etcdUrls, "etcd-urls", defaultEtcdUrls, etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.StringVar(&storageRoot, "storage-root", defaultStorageRoot, storageRootUsage)
+	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
+	flag.Int64Var(&innkeeperPollTimeout, "innkeeper-poll-timeout", defaultInnkeeperPollTimeout, innkeeperPollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.Parse()
 }
 
 func main() {
-	log.Fatal(run.Run(address, strings.Split(etcdUrls, ","), storageRoot, insecure, routesFile))
+	log.Fatal(run.Run(run.Options{
+		address,
+		strings.Split(etcdUrls, ","),
+		storageRoot,
+		insecure,
+		innkeeperUrl,
+		time.Duration(innkeeperPollTimeout),
+		routesFile,
+		nil}))
 }
