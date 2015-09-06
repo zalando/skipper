@@ -69,7 +69,6 @@ type def struct {
 	eskipRoute *eskip.Route
 }
 
-func (rd *def) Id() string                         { return rd.eskipRoute.Id }
 func (rd *def) Path() string                       { return rd.eskipRoute.Path }
 func (rd *def) Method() string                     { return rd.eskipRoute.Method }
 func (rd *def) HostRegexps() []string              { return rd.eskipRoute.HostRegexps }
@@ -911,7 +910,7 @@ func TestMakeMatcherErrorInLeaf(t *testing.T) {
 	}
 
 	m, errs := Make([]Definition{rd}, false)
-	if len(errs) != 1 || m == nil || errs[0].Id != "testRoute" {
+	if len(errs) != 1 || m == nil || errs[0].Index != 0 {
 		t.Error("failed to make matcher with error")
 	}
 }
