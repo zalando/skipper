@@ -66,9 +66,6 @@ type Matcher struct {
 // conditions.
 type Definition interface {
 
-	// Optional id, used only for failure reporting during construction.
-	Id() string
-
 	// Fixed or wildcard path, or empty.
 	Path() string
 
@@ -93,7 +90,7 @@ type Definition interface {
 
 // An error created if a definition cannot be preprocessed.
 type DefinitionError struct {
-	Id       string
+	Index    int
 	Original error
 }
 
@@ -168,10 +165,10 @@ func Make(ds []Definition, ignoreTrailingSlash bool) (*Matcher, []*DefinitionErr
 
 	pathMatchers := make(map[string]*pathMatcher)
 
-	for _, d := range ds {
+	for i, d := range ds {
 		l, err := makeLeaf(d)
 		if err != nil {
-			errors = append(errors, &DefinitionError{d.Id(), err})
+			errors = append(errors, &DefinitionError{i, err})
 			continue
 		}
 
@@ -206,7 +203,7 @@ func Make(ds []Definition, ignoreTrailingSlash bool) (*Matcher, []*DefinitionErr
 
 		err := pathTree.Add(p, m)
 		if err != nil {
-			errors = append(errors, &DefinitionError{Original: err})
+			errors = append(errors, &DefinitionError{-1, err})
 		}
 	}
 
@@ -357,9 +354,9 @@ func (ls leafMatchers) Less(i, j int) bool {
 
 func (err *DefinitionError) Error() string {
 	// todo: format with id if available
-	if err.Id == "" {
+	if err.Index < 0 {
 		return err.Original.Error()
 	}
 
-	return fmt.Sprintf("%s: %v", err.Id, err.Original)
+	return fmt.Sprintf("%d: %v", err.Index, err.Original)
 }
