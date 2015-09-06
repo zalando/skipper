@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"github.com/zalando/skipper/routematcher"
 	"github.com/zalando/skipper/skipper"
 	"log"
 )
@@ -18,7 +19,8 @@ func MakeSource(
 	ignoreTrailingSlash bool) skipper.SettingsSource {
 
 	// create initial empty settings:
-	sd.Push() <- &settings{makePathTreeRouter(nil, fr, false)}
+	rm, _ := routematcher.Make(nil, false)
+	sd.Push() <- &settings{rm}
 
 	s := &source{sd}
 	go func() {

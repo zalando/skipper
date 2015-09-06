@@ -37,7 +37,6 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 	s, _ := processRaw(rd, mwr, false)
 
 	check := func(req *http.Request, u string, filterNames []string, filterData []float64) {
-
 		rt, err := s.Route(req)
 		if err != nil {
 			t.Error(err)
@@ -95,16 +94,5 @@ func TestCreatesShuntBackend(t *testing.T) {
 
 	if !rt.Backend().IsShunt() {
 		t.Error("failed to create route with shunt")
-	}
-}
-
-func TestReplaceWildcards(t *testing.T) {
-	if replaceWildCards("/some/path").(string) != "/some/path" {
-		t.Error("failed unchanged")
-	}
-
-	replaced := replaceWildCards("/:some/:path").(string)
-	if replaced != "/<some>/<path>" {
-		t.Error("failed replace", replaced)
 	}
 }
