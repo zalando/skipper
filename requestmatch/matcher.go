@@ -28,8 +28,8 @@ package requestmatch
 
 import (
 	"fmt"
-	"github.bus.zalan.do/spearheads/pathmux"
 	"github.com/dimfeld/httppath"
+	"github.com/zalando/pathmux"
 	"net/http"
 	"regexp"
 	"sort"

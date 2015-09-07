@@ -3,9 +3,9 @@ package requestmatch
 import (
 	"errors"
 	"fmt"
-	"github.bus.zalan.do/spearheads/pathmux"
 	"github.bus.zalan.do/spearheads/randpath"
 	"github.com/zalando/eskip"
+	"github.com/zalando/pathmux"
 	"net/http"
 	"net/url"
 	"regexp"
