@@ -11,8 +11,8 @@ import (
 )
 
 func TestParseAndDispatchRawData(t *testing.T) {
-	url1 := "https://www.zalando.de"
-	data := `hello: Path("/hello") -> "https://www.zalando.de"`
+	url1 := "https://www.example.org"
+	data := `hello: Path("/hello") -> "https://www.example.org"`
 
 	dc := mock.MakeDataClient(data)
 	fr := &mock.FilterRegistry{}
