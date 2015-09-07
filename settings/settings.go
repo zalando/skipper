@@ -109,8 +109,8 @@ func makeMatcher(routes []*eskip.Route, fr skipper.FilterRegistry, ignoreTrailin
 	return router
 }
 
-func processRaw(rd skipper.RawData, fr skipper.FilterRegistry, ignoreTrailingSlash bool) (skipper.Settings, error) {
-	d, err := eskip.Parse(rd.Get())
+func processRaw(rd string, fr skipper.FilterRegistry, ignoreTrailingSlash bool) (skipper.Settings, error) {
+	d, err := eskip.Parse(rd)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,6 @@ func (rd *routedef) HeaderRegexps() map[string][]string { return rd.eskipRoute.H
 func (rd *routedef) Value() interface{}                 { return rd.value }
 
 func (s *settings) Route(r *http.Request) (skipper.Route, error) {
-    println("routing")
 	rt, _ := s.matcher.Match(r)
 	if rt == nil {
 		return nil, errors.New("route not found")

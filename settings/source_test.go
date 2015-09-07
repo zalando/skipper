@@ -28,17 +28,13 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	// let the settings be populated:
 	time.Sleep(15 * time.Millisecond)
 
-    // TODO: this shouldn't be here
-    // receive initial settings:
-    <-c1
-    <-c2
+	// TODO: this shouldn't be here
+	// receive initial settings:
+	<-c1
+	<-c2
 
-    println("fanning out")
 	s1 := <-c1
-    println("fanning out done")
-    println("fanning out")
 	s2 := <-c2
-    println("fanning out done")
 
 	rt1, _ := s1.Route(r)
 	rt2, _ := s2.Route(r)
@@ -61,10 +57,10 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	// let the new settings fan through
 	time.Sleep(3 * time.Millisecond)
 
-    // TODO: this shouldn't be here
-    // receive previous invalid settings:
-    <-c1
-    <-c2
+	// TODO: this shouldn't be here
+	// receive previous invalid settings:
+	<-c1
+	<-c2
 
 	s1 = <-c1
 	s2 = <-c2

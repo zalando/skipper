@@ -6,8 +6,8 @@ import (
 )
 
 func TestForwardAsPushed(t *testing.T) {
-    d := &Dispatcher{}
-    d.Start()
+	d := &Dispatcher{}
+	d.Start()
 
 	sb := make(chan interface{})
 	d.AddSubscriber <- sb
@@ -18,9 +18,9 @@ func TestForwardAsPushed(t *testing.T) {
 	for {
 		select {
 		case dataBack := <-sb:
-            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
-                return
-            }
+			if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+				return
+			}
 		case <-time.After(15 * time.Millisecond):
 			t.Error("timeout")
 			return
@@ -29,31 +29,31 @@ func TestForwardAsPushed(t *testing.T) {
 }
 
 func TestForwardOnSubscription(t *testing.T) {
-    d := &Dispatcher{}
-    d.Start()
+	d := &Dispatcher{}
+	d.Start()
 
-    data := 42
-    d.Push <- data
+	data := 42
+	d.Push <- data
 
 	sb := make(chan interface{})
-    d.AddSubscriber <- sb
+	d.AddSubscriber <- sb
 
 	for {
 		select {
 		case dataBack := <-sb:
-            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
-                return
-            }
+			if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+				return
+			}
 		case <-time.After(15 * time.Millisecond):
 			t.Error("timeout")
-            return
+			return
 		}
 	}
 }
 
 func TestMultipleSubscribers(t *testing.T) {
-    d := &Dispatcher{}
-    d.Start()
+	d := &Dispatcher{}
+	d.Start()
 
 	sbbefore := make(chan interface{})
 	d.AddSubscriber <- sbbefore
@@ -72,26 +72,26 @@ func TestMultipleSubscribers(t *testing.T) {
 			t.Error("timeout")
 			return
 		case dataBack := <-sbafter:
-            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
-                receivedAfter = true
-                if receivedBefore {
-                    return
-                }
-            }
+			if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+				receivedAfter = true
+				if receivedBefore {
+					return
+				}
+			}
 		case dataBack := <-sbbefore:
-            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
-                receivedBefore = true
-                if receivedAfter {
-                    return
-                }
-            }
+			if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+				receivedBefore = true
+				if receivedAfter {
+					return
+				}
+			}
 		}
 	}
 }
 
 func TestPushNewData(t *testing.T) {
-    d := &Dispatcher{}
-    d.Start()
+	d := &Dispatcher{}
+	d.Start()
 
 	sb := make(chan interface{})
 	d.AddSubscriber <- sb
@@ -103,12 +103,12 @@ func TestPushNewData(t *testing.T) {
 		for {
 			select {
 			case dataBack := <-sb:
-                if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data0 {
-                    return
-                }
+				if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data0 {
+					return
+				}
 			case <-time.After(15 * time.Millisecond):
 				t.Error("timeout")
-                return
+				return
 			}
 		}
 	}()
@@ -120,20 +120,20 @@ func TestPushNewData(t *testing.T) {
 		for {
 			select {
 			case dataBack := <-sb:
-                if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data0 {
-                    return
-                }
+				if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data0 {
+					return
+				}
 			case <-time.After(15 * time.Millisecond):
 				t.Error("timeout")
-                return
+				return
 			}
 		}
 	}()
 }
 
 func TestReceiveMultipleTimes(t *testing.T) {
-    d := &Dispatcher{}
-    d.Start()
+	d := &Dispatcher{}
+	d.Start()
 
 	sb := make(chan interface{})
 	d.AddSubscriber <- sb
@@ -145,13 +145,13 @@ func TestReceiveMultipleTimes(t *testing.T) {
 	for {
 		select {
 		case dataBack := <-sb:
-            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
-                if received {
-                    return
-                }
+			if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+				if received {
+					return
+				}
 
-                received = true
-            }
+				received = true
+			}
 		case <-time.After(15 * time.Millisecond):
 			t.Error("timeout")
 			return
@@ -161,10 +161,10 @@ func TestReceiveMultipleTimes(t *testing.T) {
 
 func TestReceiveOnBufferedChannel(t *testing.T) {
 	const bufSize = 2
-    d := &Dispatcher{}
-    d.Start()
+	d := &Dispatcher{}
+	d.Start()
 
-    data0 := 42
+	data0 := 42
 	d.Push <- data0
 
 	sb := make(chan interface{}, bufSize)
@@ -177,9 +177,9 @@ func TestReceiveOnBufferedChannel(t *testing.T) {
 		time.Sleep(3 * time.Millisecond)
 		select {
 		case dataBack := <-sb:
-            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data1 {
-                return
-            }
+			if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data1 {
+				return
+			}
 		case <-time.After(15 * time.Millisecond):
 			t.Error("timeout")
 			return

@@ -1,9 +1,9 @@
 package settings
 
 import (
+	"github.com/zalando/skipper/dispatch"
 	"github.com/zalando/skipper/requestmatch"
 	"github.com/zalando/skipper/skipper"
-	"github.com/zalando/skipper/dispatch"
 	"log"
 )
 
@@ -11,10 +11,14 @@ type source struct {
 	dispatcher *dispatch.Dispatcher
 }
 
+type DataClient interface {
+	Receive() <-chan string
+}
+
 // creates a skipper.SettingsSource instance.
 // expects an instance of the etcd client, a filter registry and a dispatcher for settings.
 func MakeSource(
-	dc skipper.DataClient,
+	dc DataClient,
 	fr skipper.FilterRegistry,
 	ignoreTrailingSlash bool) skipper.SettingsSource {
 
@@ -22,13 +26,12 @@ func MakeSource(
 
 	// create initial empty settings:
 	rm, _ := requestmatch.Make(nil, false)
-    s.dispatcher.Start()
+	s.dispatcher.Start()
 	s.dispatcher.Push <- &settings{rm}
 
 	go func() {
 		for {
 			data := <-dc.Receive()
-            println("data received")
 
 			ss, err := processRaw(data, fr, ignoreTrailingSlash)
 			if err != nil {
@@ -36,7 +39,6 @@ func MakeSource(
 				continue
 			}
 
-            println("pushing new settings")
 			s.dispatcher.Push <- ss
 		}
 	}()
@@ -45,7 +47,11 @@ func MakeSource(
 }
 
 func (s *source) Subscribe(c chan<- skipper.Settings) {
-    ic := make(chan interface{})
+	ic := make(chan interface{})
 	s.dispatcher.AddSubscriber <- ic
-    go func() { for { c <- (<-ic).(skipper.Settings); println("forward done") } }()
+	go func() {
+		for {
+			c <- (<-ic).(skipper.Settings)
+		}
+	}()
 }

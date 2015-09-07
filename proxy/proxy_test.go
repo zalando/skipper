@@ -18,25 +18,25 @@ const streamingDelay time.Duration = 3 * time.Millisecond
 type requestCheck func(*http.Request)
 
 type settingsSource struct {
-    settings skipper.Settings
+	settings skipper.Settings
 }
 
 func (ss *settingsSource) Subscribe(c chan<- skipper.Settings) {
-    go func() {
-        for {
-            c <- ss.settings
-        }
-    }()
+	go func() {
+		for {
+			c <- ss.settings
+		}
+	}()
 }
 
 func voidCheck(*http.Request) {}
 
 func makeTestSettingsDispatcher(url string, filters []skipper.Filter, shunt bool) *settingsSource {
-    return &settingsSource{mock.MakeSettings(url, filters, shunt)}
+	return &settingsSource{mock.MakeSettings(url, filters, shunt)}
 }
 
 func makeEmptySettingsDispatcher() *settingsSource {
-    return &settingsSource{}
+	return &settingsSource{}
 }
 
 func writeParts(w io.Writer, parts int, data []byte) {
@@ -161,7 +161,7 @@ func TestRoute(t *testing.T) {
 	ts.RouterImpl.AddRoute("Path(\"/host-one<any>\")", &mock.Route{urlToBackend(s1.URL), nil})
 	ts.RouterImpl.AddRoute("Path(\"/host-two<any>\")", &mock.Route{urlToBackend(s2.URL), nil})
 
-    // unsynchronized access for the test, fine here
+	// unsynchronized access for the test, fine here
 	sd.settings = ts
 
 	p := Make(sd, false)
