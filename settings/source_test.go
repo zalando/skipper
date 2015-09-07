@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"github.com/zalando/skipper/dispatch"
 	"github.com/zalando/skipper/mock"
 	"github.com/zalando/skipper/skipper"
 	"net/http"
@@ -16,8 +15,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	dc := mock.MakeDataClient(data)
 	fr := &mock.FilterRegistry{}
-	d := dispatch.Make()
-	s := MakeSource(dc, fr, d, false)
+	s := MakeSource(dc, fr, false)
 
 	c1 := make(chan skipper.Settings)
 	c2 := make(chan skipper.Settings)
@@ -30,8 +28,17 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	// let the settings be populated:
 	time.Sleep(15 * time.Millisecond)
 
+    // TODO: this shouldn't be here
+    // receive initial settings:
+    <-c1
+    <-c2
+
+    println("fanning out")
 	s1 := <-c1
+    println("fanning out done")
+    println("fanning out")
 	s2 := <-c2
+    println("fanning out done")
 
 	rt1, _ := s1.Route(r)
 	rt2, _ := s2.Route(r)
@@ -53,6 +60,11 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	// let the new settings fan through
 	time.Sleep(3 * time.Millisecond)
+
+    // TODO: this shouldn't be here
+    // receive previous invalid settings:
+    <-c1
+    <-c2
 
 	s1 = <-c1
 	s2 = <-c2

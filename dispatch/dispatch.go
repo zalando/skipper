@@ -20,11 +20,16 @@ func makeFan(data interface{}, out chan<- interface{}) *fan {
 	f := &fan{make(chan interface{}), out}
 	go func() {
 		for {
+            println("waiting for fan")
 			select {
 			case data = <-f.in:
+                println("fan in done")
 			case f.out <- data:
+                println("fan out done")
 			}
 		}
+
+        println("exiting here for some reason")
 	}()
 
 	return f
@@ -47,10 +52,14 @@ func (d *Dispatcher) Start() {
 		for {
 			select {
 			case data = <-d.Push:
+                println("push", data)
 				for _, f := range fans {
+                    println("fanning in")
 					f.in <- data
+                    println("fanning in done")
 				}
 			case c := <-d.AddSubscriber:
+                println("subscriber received")
 				fans = append(fans, makeFan(data, c))
 			}
 		}
