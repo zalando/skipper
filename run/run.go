@@ -1,7 +1,6 @@
 package run
 
 import (
-	"github.com/zalando/skipper/dispatch"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy"
@@ -37,16 +36,10 @@ func Run(address string, etcdUrls []string, storageRoot string, insecure bool, r
 	registry := filters.RegisterDefault()
 	registry.Add(customFilters...)
 
-	// create a settings dispatcher instance
 	// create a settings source
 	// create the proxy instance
-	dispatcher := dispatch.Make()
-	settingsSource := settings.MakeSource(dataClient, registry, dispatcher, ignoreTrailingSlash)
+	settingsSource := settings.MakeSource(dataClient, registry, ignoreTrailingSlash)
 	proxy := proxy.Make(settingsSource, insecure)
-
-	// subscribe to new settings
-	settingsChan := make(chan skipper.Settings)
-	dispatcher.Subscribe(settingsChan)
 
 	// start the http server
 	log.Printf("listening on %v\n", address)

@@ -1,26 +1,28 @@
-// The dispatch package provides a settings dispatcher (skipper.SettingsDispatcher) implementation.
+// Package dispatch provides a dispatcher between goroutines. It sends the latest available data to any
+// goroutine without blocking through the channels passed through the AddSubscriber channel. This means
+// that whenever a gorouting reads from this channel, it will received the current data. The next
+// version of the dispatched data can be dispatched to the clients through the Push channel.
 package dispatch
 
-import "github.com/zalando/skipper/skipper"
-
 type fan struct {
-	in  chan skipper.Settings
-	out chan<- skipper.Settings
+	in  chan interface{}
+	out chan<- interface{}
 }
 
-type dispatcher struct {
-	push          chan skipper.Settings
-	addSubscriber chan chan<- skipper.Settings
+// Implements a dispatcher object. Use the Start method to start dispatching.
+type Dispatcher struct {
+	Push          chan interface{}
+	AddSubscriber chan chan<- interface{}
 }
 
 // constantly feeds the 'out' channel with the current settings
-func makeFan(s skipper.Settings, out chan<- skipper.Settings) *fan {
-	f := &fan{make(chan skipper.Settings), out}
+func makeFan(data interface{}, out chan<- interface{}) *fan {
+	f := &fan{make(chan interface{}), out}
 	go func() {
 		for {
 			select {
-			case s = <-f.in:
-			case f.out <- s:
+			case data = <-f.in:
+			case f.out <- data:
 			}
 		}
 	}()
@@ -28,41 +30,29 @@ func makeFan(s skipper.Settings, out chan<- skipper.Settings) *fan {
 	return f
 }
 
-// Creates a dispatcher object for settings. To send the latest available settings to any request processing or other
-// goroutines without blocking, clients who use the Subscribe method will always receive the latest settings,
-// while goroutines responsible to process the incoming config data and create the next valid settings object
-// can dispatch the new settings with the Push method.
-func Make() skipper.SettingsDispatcher {
-	d := &dispatcher{
-		push:          make(chan skipper.Settings),
-		addSubscriber: make(chan chan<- skipper.Settings)}
+// Initializes the dispatcher and starts dispatching.
+func (d *Dispatcher) Start() {
+    if d.Push == nil {
+        d.Push = make(chan interface{})
+    }
+
+    if d.AddSubscriber == nil {
+        d.AddSubscriber = make(chan chan<- interface{})
+    }
+
 	go func() {
-		var settings skipper.Settings
+        var data interface{}
 		var fans []*fan
 
 		for {
 			select {
-			case s := <-d.push:
-				settings = s
+			case data = <-d.Push:
 				for _, f := range fans {
-					f.in <- settings
+					f.in <- data
 				}
-			case c := <-d.addSubscriber:
-				fans = append(fans, makeFan(settings, c))
+			case c := <-d.AddSubscriber:
+				fans = append(fans, makeFan(data, c))
 			}
 		}
 	}()
-
-	return d
-}
-
-// Accepts a channel on which the calling code wants receive the the current Settings.
-// It can be a good idea to use buffered channels in production environment.
-func (d *dispatcher) Subscribe(c chan<- skipper.Settings) {
-	d.addSubscriber <- c
-}
-
-// When new settings are ready, use the returned channel to propagate them.
-func (d *dispatcher) Push() chan<- skipper.Settings {
-	return d.push
 }

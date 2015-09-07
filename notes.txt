@@ -1,0 +1,8 @@
+remove unused interface layer
+check if channeling the settings can be simplified
+document custom filtering
+move docs from readme to go
+try to cleanup empty tests
+review the whole stuff
+fix the license file
+import eskip into skipper
