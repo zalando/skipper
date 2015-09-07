@@ -1,34 +1,25 @@
 package settings
 
 import (
-	"github.com/zalando/skipper/skipper"
 	"io/ioutil"
 )
 
-type fileDataClient struct {
-	channel <-chan skipper.RawData
+type FileDataClient struct {
+	channel <-chan string
 }
 
-type rawString struct {
-	data string
-}
-
-func (r rawString) Get() string {
-	return r.data
-}
-
-func (f *fileDataClient) Receive() <-chan skipper.RawData {
+func (f *FileDataClient) Receive() <-chan string {
 	return f.channel
 }
 
-func MakeFileDataClient(path string) (skipper.DataClient, error) {
+func MakeFileDataClient(path string) (*FileDataClient, error) {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	c := make(chan skipper.RawData)
+	c := make(chan string)
 	go func() {
-		c <- rawString{string(content)}
+		c <- string(content)
 	}()
-	return &fileDataClient{c}, nil
+	return &FileDataClient{c}, nil
 }

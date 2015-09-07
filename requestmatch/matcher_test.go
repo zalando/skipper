@@ -6,6 +6,7 @@ import (
 	"github.com/zalando/eskip"
 	"github.com/zalando/pathmux"
 	"github.com/zalando/skipper/mock"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -105,7 +106,7 @@ func initMatcher() {
 	m, errs := Make(definitions, true)
 	if len(errs) != 0 {
 		for _, err := range errs {
-			println(err.Error())
+			log.Println(err.Error())
 		}
 		panic("error while making matcher")
 	}
@@ -1167,7 +1168,7 @@ func BenchmarkConstructionGeneric(b *testing.B) {
 		_, errs := Make(definitions, true)
 		if len(errs) != 0 {
 			for _, err := range errs {
-				println(err.Error())
+				b.Log(err.Error())
 			}
 			b.Error("error while making matcher")
 		}
@@ -1185,7 +1186,7 @@ func BenchmarkConstructionMass(b *testing.B) {
 		_, errs := Make(definitions, true)
 		if len(errs) != 0 {
 			for _, err := range errs {
-				println(err.Error())
+				b.Log(err.Error())
 			}
 			b.Error("error while making matcher")
 		}

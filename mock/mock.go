@@ -9,12 +9,8 @@ import (
 	"net/url"
 )
 
-type RawData struct {
-	Data string
-}
-
 type DataClient struct {
-	FReceive chan skipper.RawData
+	FReceive chan string
 }
 
 type Backend struct {
@@ -53,21 +49,19 @@ type FilterRegistry struct {
 	FilterSpec map[string]skipper.FilterSpec
 }
 
-func (rd *RawData) Get() string { return rd.Data }
-
 func MakeDataClient(data string) *DataClient {
-	dc := &DataClient{make(chan skipper.RawData)}
+	dc := &DataClient{make(chan string)}
 	dc.Feed(data)
 	return dc
 }
 
-func (dc *DataClient) Receive() <-chan skipper.RawData {
+func (dc *DataClient) Receive() <-chan string {
 	return dc.FReceive
 }
 
 func (dc *DataClient) Feed(data string) {
 	go func() {
-		dc.FReceive <- &RawData{data}
+		dc.FReceive <- data
 	}()
 }
 

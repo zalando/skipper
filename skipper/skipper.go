@@ -5,35 +5,6 @@ package skipper
 
 import "net/http"
 
-// Wrapper interface for receiving data from the etcd configuration storage.
-// Note: the current json format will be replaced soon with a more maintainable routing specification format.
-type RawData interface {
-
-	// return the current routing settings as eskip
-	//
-	// pdp:
-	//  PathRegexp(`.*\\.html`) ->
-	//  customHeaders(3.14) ->
-	//  xSessionId("v4") ->
-	//  "https://www.zalando.de/pdp.html";
-	//
-	// humanstxt:
-	//  Path(`humans.txt`) ->
-	//  xSessionId("v4") ->
-	//  humanstxt() ->
-	//  <shunt>
-	//
-	Get() string
-}
-
-// Client receiving the configuraton from etcd or other.
-type DataClient interface {
-
-	// Returns a channel that sends the the data on initial start, and on any update in the
-	// configuration. The channel blocks between two updates.
-	Receive() <-chan RawData
-}
-
 // Backend definition parsed from the config data and used by the proxy.
 type Backend interface {
 
