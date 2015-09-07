@@ -6,3 +6,4 @@ try to cleanup empty tests
 review the whole stuff
 fix the license file
 import eskip into skipper
+change Make* to New*
