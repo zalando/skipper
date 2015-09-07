@@ -15,7 +15,7 @@ type RawData interface {
 	//  PathRegexp(`.*\\.html`) ->
 	//  customHeaders(3.14) ->
 	//  xSessionId("v4") ->
-	//  "https://www.zalando.de/pdp.html";
+	//  "https://www.example.org/pdp.html";
 	//
 	// humanstxt:
 	//  Path(`humans.txt`) ->
