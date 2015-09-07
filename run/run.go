@@ -17,7 +17,7 @@ import (
 func Run(address string, etcdUrls []string, storageRoot string, insecure bool, routesFilePath string,
 	ignoreTrailingSlash bool, customFilters ...skipper.FilterSpec) error {
 
-	var dataClient skipper.DataClient
+	var dataClient settings.DataClient
 	var err error
 	if len(routesFilePath) > 0 {
 		dataClient, err = settings.MakeFileDataClient(routesFilePath)

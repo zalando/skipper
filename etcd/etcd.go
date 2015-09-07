@@ -2,7 +2,6 @@ package etcd
 
 import (
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/zalando/skipper/skipper"
 	"log"
 	"path"
 	"strings"
@@ -16,24 +15,20 @@ const (
 	routesPath              = "/routes"
 )
 
-type client struct {
+type Client struct {
 	routesRoot string
 	etcd       *etcd.Client
-	push       chan skipper.RawData
-}
-
-type dataWrapper struct {
-	data []string
+	push       chan string
 }
 
 // Creates a client receiving the configuraton from etcd. In the urls parameter it expects one or more valid urls to the
 // supporting etcd service. In the storageRoot parameter it expects the root key for configuration, typically
 // 'skipper' or 'skippertest'.
-func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
-	c := &client{
+func Make(urls []string, storageRoot string) (*Client, error) {
+	c := &Client{
 		storageRoot + routesPath,
 		etcd.NewClient(urls),
-		make(chan skipper.RawData)}
+		make(chan string)}
 
 	// parse and push the current data, then start waiting for updates, then repeat
 	go func() {
@@ -69,7 +64,7 @@ func Make(urls []string, storageRoot string) (skipper.DataClient, error) {
 				}
 			}
 
-			c.push <- &dataWrapper{data}
+			c.push <- strings.Join(data, ";")
 		}
 	}()
 
@@ -81,7 +76,7 @@ func getRouteId(r string) string {
 }
 
 // collect all the routes from the etcd nodes
-func (c *client) iterateRoutes(n *etcd.Node, data *[]string, highestIndex *uint64) {
+func (c *Client) iterateRoutes(n *etcd.Node, data *[]string, highestIndex *uint64) {
 	if n.ModifiedIndex > *highestIndex {
 		*highestIndex = n.ModifiedIndex
 	}
@@ -114,7 +109,7 @@ func (c *client) iterateRoutes(n *etcd.Node, data *[]string, highestIndex *uint6
 	}
 }
 
-func (c *client) deleteRoute(n *etcd.Node, data *[]string, highestIndex *uint64) {
+func (c *Client) deleteRoute(n *etcd.Node, data *[]string, highestIndex *uint64) {
 	if n.ModifiedIndex > *highestIndex {
 		*highestIndex = n.ModifiedIndex
 	}
@@ -140,14 +135,14 @@ func (c *client) deleteRoute(n *etcd.Node, data *[]string, highestIndex *uint64)
 }
 
 // get all settings
-func (c *client) get() (*etcd.Response, error) {
+func (c *Client) get() (*etcd.Response, error) {
 	return c.etcd.Get(c.routesRoot, false, true)
 }
 
 // to ensure continuity when the etcd service may be out,
 // we keep requesting the initial set of data with a timeout
 // until it succeeds
-func (c *client) forceGet() *etcd.Response {
+func (c *Client) forceGet() *etcd.Response {
 	tryCount := uint(0)
 	for {
 		r, err := c.get()
@@ -172,17 +167,12 @@ func (c *client) forceGet() *etcd.Response {
 }
 
 // waits for updates in the etcd configuration
-func (c *client) watch(waitIndex uint64) (*etcd.Response, error) {
+func (c *Client) watch(waitIndex uint64) (*etcd.Response, error) {
 	return c.etcd.Watch(c.routesRoot, waitIndex, true, nil, nil)
 }
 
 // Returns a channel that sends the the data on initial start, and on any update in the
 // configuration. The channel blocks between two updates.
-func (c *client) Receive() <-chan skipper.RawData {
+func (c *Client) Receive() <-chan string {
 	return c.push
-}
-
-// return the eskip representation of the current data
-func (dw *dataWrapper) Get() string {
-	return strings.Join(dw.data, ";")
 }

@@ -5,7 +5,6 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/eskip"
 	"github.com/zalando/skipper/mock"
-	"github.com/zalando/skipper/skipper"
 	"log"
 	"testing"
 	"time"
@@ -59,8 +58,8 @@ func resetData(t *testing.T) {
 	}
 }
 
-func checkBackend(rd skipper.RawData, routeId, backend string) bool {
-	d, err := eskip.Parse(rd.Get())
+func checkBackend(rawData string, routeId, backend string) bool {
+	d, err := eskip.Parse(rawData)
 	if err != nil {
 		return false
 	}
@@ -74,8 +73,8 @@ func checkBackend(rd skipper.RawData, routeId, backend string) bool {
 	return false
 }
 
-func checkInitial(rd skipper.RawData) bool {
-	d, err := eskip.Parse(rd.Get())
+func checkInitial(rawData string) bool {
+	d, err := eskip.Parse(rawData)
 	if err != nil {
 		return false
 	}
@@ -131,7 +130,7 @@ func checkInitial(rd skipper.RawData) bool {
 	return true
 }
 
-func waitForEtcd(dc skipper.DataClient, test func(skipper.RawData) bool) bool {
+func waitForEtcd(dc *Client, test func(string) bool) bool {
 	for {
 		select {
 		case d := <-dc.Receive():
@@ -191,21 +190,21 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 	}
 
 	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.zalando.de/pdp-updated-1.html"`, 0)
-	if !waitForEtcd(dc, func(d skipper.RawData) bool {
+	if !waitForEtcd(dc, func(d string) bool {
 		return checkBackend(d, "pdp", "http://www.zalando.de/pdp-updated-1.html")
 	}) {
 		t.Error("failed to get updated backend")
 	}
 
 	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.zalando.de/pdp-updated-2.html"`, 0)
-	if !waitForEtcd(dc, func(d skipper.RawData) bool {
+	if !waitForEtcd(dc, func(d string) bool {
 		return checkBackend(d, "pdp", "http://www.zalando.de/pdp-updated-2.html")
 	}) {
 		t.Error("failed to get updated backend")
 	}
 
 	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.zalando.de/pdp-updated-3.html"`, 0)
-	if !waitForEtcd(dc, func(d skipper.RawData) bool {
+	if !waitForEtcd(dc, func(d string) bool {
 		return checkBackend(d, "pdp", "http://www.zalando.de/pdp-updated-3.html")
 	}) {
 		t.Error("failed to get updated backend")
@@ -263,8 +262,8 @@ func TestDeleteRoute(t *testing.T) {
 		t.Error("failed to delete route")
 	}
 
-	if !waitForEtcd(dc, func(rd skipper.RawData) bool {
-		d, err := eskip.Parse(rd.Get())
+	if !waitForEtcd(dc, func(rawData string) bool {
+		d, err := eskip.Parse(rawData)
 		if err != nil {
 			return false
 		}
@@ -289,8 +288,8 @@ func TestInsertUpdateDelete(t *testing.T) {
 	c.Delete("/skippertest/routes/pdp1", false)
 	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.zalando.de/pdp-mod-2.html"`, 0)
 
-	if !waitForEtcd(dc, func(rd skipper.RawData) bool {
-		d, err := eskip.Parse(rd.Get())
+	if !waitForEtcd(dc, func(rawData string) bool {
+		d, err := eskip.Parse(rawData)
 		if err != nil {
 			return false
 		}
