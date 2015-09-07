@@ -109,19 +109,6 @@ type SettingsSource interface {
 	Subscribe(chan<- Settings)
 }
 
-// A dispatcher object for settings. To send the latest available settings to any request processing or other
-// goroutines without blocking, clients who use the Subscribe method will always receive the latest settings,
-// while goroutines responsible to process the incoming config data and create the next valid settings object
-// can dispatch the new settings with the Push method.
-type SettingsDispatcher interface {
-
-	// Clients can use the subscribe method to receive the current settings.
-	SettingsSource
-
-	// When new settings are ready, use the returned channel to propagate them.
-	Push() chan<- Settings
-}
-
 // Filter specific configuration.
 type FilterConfig []interface{}
 
