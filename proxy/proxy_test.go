@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"bytes"
-	"github.com/zalando/skipper/dispatch"
 	"github.com/zalando/skipper/mock"
 	"github.com/zalando/skipper/skipper"
 	"io"
@@ -18,20 +17,26 @@ const streamingDelay time.Duration = 3 * time.Millisecond
 
 type requestCheck func(*http.Request)
 
+type settingsSource struct {
+    settings skipper.Settings
+}
+
+func (ss *settingsSource) Subscribe(c chan<- skipper.Settings) {
+    go func() {
+        for {
+            c <- ss.settings
+        }
+    }()
+}
+
 func voidCheck(*http.Request) {}
 
-func makeTestSettingsDispatcher(url string, filters []skipper.Filter, shunt bool) skipper.SettingsDispatcher {
-	sd := dispatch.Make()
-	sd.Push() <- mock.MakeSettings(url, filters, shunt)
+func makeTestSettingsDispatcher(url string, filters []skipper.Filter, shunt bool) *settingsSource {
+    return &settingsSource{mock.MakeSettings(url, filters, shunt)}
+}
 
-	// todo: don't let to get into busy loop
-	c := make(chan skipper.Settings)
-	sd.Subscribe(c)
-	for {
-		if s := <-c; s != nil {
-			return sd
-		}
-	}
+func makeEmptySettingsDispatcher() *settingsSource {
+    return &settingsSource{}
 }
 
 func writeParts(w io.Writer, parts int, data []byte) {
@@ -155,7 +160,9 @@ func TestRoute(t *testing.T) {
 	ts := mock.MakeSettings("", nil, false)
 	ts.RouterImpl.AddRoute("Path(\"/host-one<any>\")", &mock.Route{urlToBackend(s1.URL), nil})
 	ts.RouterImpl.AddRoute("Path(\"/host-two<any>\")", &mock.Route{urlToBackend(s2.URL), nil})
-	sd.Push() <- ts
+
+    // unsynchronized access for the test, fine here
+	sd.settings = ts
 
 	p := Make(sd, false)
 
@@ -248,7 +255,7 @@ func TestNotFoundUntilSettingsReceived(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(dispatch.Make(), false)
+	p := Make(makeEmptySettingsDispatcher(), false)
 	p.ServeHTTP(w, r)
 
 	if w.Code != 404 {

@@ -28,6 +28,7 @@ func MakeSource(
 	go func() {
 		for {
 			data := <-dc.Receive()
+            println("data received")
 
 			ss, err := processRaw(data, fr, ignoreTrailingSlash)
 			if err != nil {
@@ -35,6 +36,7 @@ func MakeSource(
 				continue
 			}
 
+            println("pushing new settings")
 			s.dispatcher.Push <- ss
 		}
 	}()
@@ -45,5 +47,5 @@ func MakeSource(
 func (s *source) Subscribe(c chan<- skipper.Settings) {
     ic := make(chan interface{})
 	s.dispatcher.AddSubscriber <- ic
-    go func() { c <- (<-ic).(skipper.Settings) }()
+    go func() { for { c <- (<-ic).(skipper.Settings); println("forward done") } }()
 }

@@ -137,6 +137,7 @@ func (rd *routedef) HeaderRegexps() map[string][]string { return rd.eskipRoute.H
 func (rd *routedef) Value() interface{}                 { return rd.value }
 
 func (s *settings) Route(r *http.Request) (skipper.Route, error) {
+    println("routing")
 	rt, _ := s.matcher.Match(r)
 	if rt == nil {
 		return nil, errors.New("route not found")
