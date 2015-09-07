@@ -48,7 +48,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 		t.Error("wrong url 1")
 	}
 
-	data = `hello: Path("/hello") -> "https://www.zalan.do"`
+	data = `hello: Path("/hello") -> "https://www.example.org"`
 	dc.Feed(data)
 
 	// let the new settings fan through
@@ -59,7 +59,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	rt1, _ = s1.Route(r)
 	rt2, _ = s2.Route(r)
-	up2, _ := url.ParseRequestURI("https://www.zalan.do")
+	up2, _ := url.ParseRequestURI("https://www.example.org")
 	if rt1.Backend().Scheme() != up2.Scheme || rt1.Backend().Host() != up2.Host ||
 		rt2.Backend().Scheme() != up2.Scheme || rt2.Backend().Host() != up2.Host {
 		t.Error("wrong url 2")

@@ -20,13 +20,13 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
             Path("/frontend1") ->
             zalFilter1(2) ->
             zalFilter2(4) ->
-            "https://www.zalan.do/backend1";
+            "https://www.example.org/backend1";
 
         frontend2:
             Path("/frontend2") ->
             zalFilter1(8) ->
             zalFilter2(16) ->
-            "https://www.zalan.do/backend2";
+            "https://www.example.org/backend2";
 
     `}
 
@@ -64,14 +64,14 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 	}
 
 	check(
-		makeTestRequest("https://www.zalan.do/frontend1"),
-		"https://www.zalan.do/backend1",
+		makeTestRequest("https://www.example.org/frontend1"),
+		"https://www.example.org/backend1",
 		[]string{"zalFilter1", "zalFilter2"},
 		[]float64{2, 4})
 
 	check(
-		makeTestRequest("https://www.zalan.do/frontend2"),
-		"https://www.zalan.do/backend2",
+		makeTestRequest("https://www.example.org/frontend2"),
+		"https://www.example.org/backend2",
 		[]string{"zalFilter1", "zalFilter2"},
 		[]float64{8, 16})
 }
@@ -80,7 +80,7 @@ func TestCreatesShuntBackend(t *testing.T) {
 	rd := &mock.RawData{`frontend1: Path("/frontend1") -> <shunt>`}
 	fr := &mock.FilterRegistry{}
 	s, _ := processRaw(rd, fr, false)
-	r := makeTestRequest("https://www.zalan.do/frontend1")
+	r := makeTestRequest("https://www.example.org/frontend1")
 	rt, err := s.Route(r)
 	if err != nil {
 		t.Error("failed to create route with shunt")
