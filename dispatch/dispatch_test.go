@@ -1,149 +1,159 @@
 package dispatch
 
 import (
-	"github.com/zalando/skipper/mock"
-	"github.com/zalando/skipper/skipper"
 	"testing"
 	"time"
 )
 
-func TestForwardsAsPushed(t *testing.T) {
-	sd := Make()
+func TestForwardAsPushed(t *testing.T) {
+    d := &Dispatcher{}
+    d.Start()
 
-	sb := make(chan skipper.Settings)
-	sd.Subscribe(sb)
+	sb := make(chan interface{})
+	d.AddSubscriber <- sb
 
-	s := &mock.Settings{}
-	sd.Push() <- s
+	data := 42
+	d.Push <- data
 
 	for {
 		select {
-		case ss := <-sb:
-			if ss != nil {
-				return
-			}
+		case dataBack := <-sb:
+            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+                return
+            }
 		case <-time.After(15 * time.Millisecond):
-			t.Error("didn't receive settings")
+			t.Error("timeout")
 			return
 		}
 	}
 }
 
 func TestForwardOnSubscription(t *testing.T) {
-	sd := Make()
+    d := &Dispatcher{}
+    d.Start()
 
-	s := &mock.Settings{}
-	sd.Push() <- s
+    data := 42
+    d.Push <- data
 
-	sb := make(chan skipper.Settings)
-	sd.Subscribe(sb)
+	sb := make(chan interface{})
+    d.AddSubscriber <- sb
 
 	for {
 		select {
-		case ss := <-sb:
-			if ss != nil {
-				return
-			}
+		case dataBack := <-sb:
+            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+                return
+            }
 		case <-time.After(15 * time.Millisecond):
-			t.Error("didn't receive settings")
+			t.Error("timeout")
+            return
 		}
 	}
 }
 
 func TestMultipleSubscribers(t *testing.T) {
-	sd := Make()
+    d := &Dispatcher{}
+    d.Start()
 
-	sbbefore := make(chan skipper.Settings)
-	sd.Subscribe(sbbefore)
-	rbefore := false
+	sbbefore := make(chan interface{})
+	d.AddSubscriber <- sbbefore
+	receivedBefore := false
 
-	s := &mock.Settings{}
-	sd.Push() <- s
+	data := 42
+	d.Push <- data
 
-	sbafter := make(chan skipper.Settings)
-	sd.Subscribe(sbafter)
-	rafter := false
+	sbafter := make(chan interface{})
+	d.AddSubscriber <- sbafter
+	receivedAfter := false
 
 	for {
 		select {
 		case <-time.After(15 * time.Millisecond):
-			t.Error("didn't receive settings")
+			t.Error("timeout")
 			return
-		case <-sbafter:
-			rafter = true
-			if rbefore {
-				return
-			}
-		case <-sbbefore:
-			rbefore = true
-			if rafter {
-				return
-			}
+		case dataBack := <-sbafter:
+            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+                receivedAfter = true
+                if receivedBefore {
+                    return
+                }
+            }
+		case dataBack := <-sbbefore:
+            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+                receivedBefore = true
+                if receivedAfter {
+                    return
+                }
+            }
 		}
 	}
 }
 
-func TestPushNewSettings(t *testing.T) {
-	sd := Make()
+func TestPushNewData(t *testing.T) {
+    d := &Dispatcher{}
+    d.Start()
 
-	sb := make(chan skipper.Settings)
-	sd.Subscribe(sb)
+	sb := make(chan interface{})
+	d.AddSubscriber <- sb
 
-	s0 := &mock.Settings{}
-	sd.Push() <- s0
+	data0 := 36
+	d.Push <- data0
 
-	func() {
+	go func() {
 		for {
 			select {
-			case ss := <-sb:
-				if ss == s0 {
-					return
-				}
+			case dataBack := <-sb:
+                if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data0 {
+                    return
+                }
 			case <-time.After(15 * time.Millisecond):
-				t.Error("didn't receive settings")
+				t.Error("timeout")
+                return
 			}
 		}
 	}()
 
-	s1 := &mock.Settings{}
-	sd.Push() <- s1
+	data1 := 42
+	d.Push <- data1
 
-	func() {
+	go func() {
 		for {
 			select {
-			case ss := <-sb:
-				if ss == s1 {
-					return
-				}
+			case dataBack := <-sb:
+                if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data0 {
+                    return
+                }
 			case <-time.After(15 * time.Millisecond):
-				t.Error("didn't receive settings")
+				t.Error("timeout")
+                return
 			}
 		}
 	}()
 }
 
 func TestReceiveMultipleTimes(t *testing.T) {
-	sd := Make()
+    d := &Dispatcher{}
+    d.Start()
 
-	sb := make(chan skipper.Settings)
-	sd.Subscribe(sb)
+	sb := make(chan interface{})
+	d.AddSubscriber <- sb
 
-	s := &mock.Settings{}
-	sd.Push() <- s
+	data := 42
+	d.Push <- data
 
-	r := false
+	received := false
 	for {
 		select {
-		case ss := <-sb:
-			if ss == s {
-				if r {
-					return
-				}
+		case dataBack := <-sb:
+            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data {
+                if received {
+                    return
+                }
 
-				r = true
-			}
+                received = true
+            }
 		case <-time.After(15 * time.Millisecond):
-			t.Error("didn't receive settings")
+			t.Error("timeout")
 			return
 		}
 	}
@@ -151,26 +161,27 @@ func TestReceiveMultipleTimes(t *testing.T) {
 
 func TestReceiveOnBufferedChannel(t *testing.T) {
 	const bufSize = 2
-	sd := Make()
+    d := &Dispatcher{}
+    d.Start()
 
-	s0 := &mock.Settings{}
-	sd.Push() <- s0
+    data0 := 42
+	d.Push <- data0
 
-	sb := make(chan skipper.Settings, bufSize)
-	sd.Subscribe(sb)
+	sb := make(chan interface{}, bufSize)
+	d.AddSubscriber <- sb
 
-	s1 := &mock.Settings{}
-	sd.Push() <- s1
+	data1 := 42
+	d.Push <- data1
 
 	for {
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(3 * time.Millisecond)
 		select {
-		case ss := <-sb:
-			if ss == s1 {
-				return
-			}
+		case dataBack := <-sb:
+            if dataBackInt, ok := dataBack.(int); ok && dataBackInt == data1 {
+                return
+            }
 		case <-time.After(15 * time.Millisecond):
-			t.Error("didn't receive settings")
+			t.Error("timeout")
 			return
 		}
 	}
