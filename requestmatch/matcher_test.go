@@ -3,9 +3,9 @@ package requestmatch
 import (
 	"errors"
 	"fmt"
-	"github.bus.zalan.do/spearheads/randpath"
 	"github.com/zalando/eskip"
 	"github.com/zalando/pathmux"
+	"github.com/zalando/skipper/mock"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -113,7 +113,7 @@ func initMatcher() {
 	matcher = m
 }
 
-func generatePaths(pg randpath.PathGenerator, count int) []string {
+func generatePaths(pg mock.PathGenerator, count int) []string {
 	paths := make([]string, count)
 
 	for i := 0; i < count; i++ {
@@ -173,7 +173,7 @@ func initRandomPaths() {
 
 	// we need to avoid '/' paths here, because we are not testing conflicting cases
 	// here, and with 0 or 1 MinNamesInPath, there would be multiple '/'s.
-	pg := randpath.Make(randpath.Options{
+	pg := mock.MakePathGenerator(mock.PathGeneratorOptions{
 		MinNamesInPath: 2,
 		MaxNamesInPath: 15})
 
