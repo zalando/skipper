@@ -41,7 +41,7 @@ func init() {
 	flag.StringVar(&etcdUrls, "etcd-urls", defaultEtcdUrls, etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.StringVar(&storageRoot, "storage-root", defaultStorageRoot, storageRootUsage)
-	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
+	flag.StringVar(&innkeeperUrl, "innkeeper-url", "http://localhost:8080/routes", innkeeperUrlUsage)
 	flag.Int64Var(&innkeeperPollTimeout, "innkeeper-poll-timeout", defaultInnkeeperPollTimeout, innkeeperPollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.Parse()
