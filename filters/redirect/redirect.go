@@ -1,3 +1,6 @@
+// Filter for http redirects. Accepts two arguments:
+// a number as the redirect status code, and a string as the redirect location.
+// This filter marks the request context served, and should be used only with shunt routes.
 package redirect
 
 import (
