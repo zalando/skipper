@@ -15,7 +15,7 @@ type RawData interface {
 	//  PathRegexp(`.*\\.html`) ->
 	//  customHeaders(3.14) ->
 	//  xSessionId("v4") ->
-	//  "https://www.zalando.de/pdp.html";
+	//  "https://www.example.org/pdp.html";
 	//
 	// humanstxt:
 	//  Path(`humans.txt`) ->
@@ -84,6 +84,12 @@ type Route interface {
 
 	// Tells the proxy which set of filters should be applied to a request and the resulting response.
 	Filters() []Filter
+}
+
+type PathParams map[string]string
+
+type Router interface {
+	Route(*http.Request) (Route, PathParams, error)
 }
 
 // Contains the routing rules and other settings.
