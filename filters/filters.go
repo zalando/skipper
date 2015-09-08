@@ -6,6 +6,7 @@ import (
 	"github.com/zalando/skipper/filters/healthcheck"
 	"github.com/zalando/skipper/filters/humanstxt"
 	"github.com/zalando/skipper/filters/pathrewrite"
+	"github.com/zalando/skipper/filters/redirect"
 	"github.com/zalando/skipper/filters/requestheader"
 	"github.com/zalando/skipper/filters/responseheader"
 	"github.com/zalando/skipper/filters/static"
@@ -24,6 +25,7 @@ func Register(registry skipper.FilterRegistry) {
 		healthcheck.Make(),
 		humanstxt.Make(),
 		static.Make(),
+		&redirect.Redirect{},
 	)
 }
 
