@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zalando/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/requestmatch"
 	"github.com/zalando/skipper/skipper"
 	"log"
@@ -21,17 +22,17 @@ type filter struct {
 	id string
 }
 
-type route struct {
+type Route struct {
 	backend skipper.Backend
-	filters []skipper.Filter
+	filters []filters.Filter
 }
 
 type routedef struct {
 	eskipRoute *eskip.Route
-	value      *route
+	value      *Route
 }
 
-type settings struct {
+type Settings struct {
 	matcher *requestmatch.Matcher
 }
 
@@ -48,23 +49,19 @@ func makeBackend(r *eskip.Route) (*backend, error) {
 	return &backend{scheme: bu.Scheme, host: bu.Host}, nil
 }
 
-func makeFilterId(routeId, filterName string, index int) string {
-	return fmt.Sprintf("%s-%s-%d", routeId, filterName, index)
-}
-
-func makeFilter(id string, ref *eskip.Filter, fr skipper.FilterRegistry) (skipper.Filter, error) {
-	spec := fr.Get(ref.Name)
-	if spec == nil {
-		return nil, errors.New(fmt.Sprintf("filter not found: '%s' '%s'", id, ref.Name))
+func makeFilter(ref *eskip.Filter, fr filters.Registry) (filters.Filter, error) {
+	spec, ok := fr[ref.Name]
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("filter not found: '%s'", ref.Name))
 	}
 
-	return spec.MakeFilter(id, skipper.FilterConfig(ref.Args))
+	return spec.CreateFilter(ref.Args)
 }
 
-func makeFilters(r *eskip.Route, fr skipper.FilterRegistry) ([]skipper.Filter, error) {
-	fs := make([]skipper.Filter, len(r.Filters))
+func makeFilters(r *eskip.Route, fr filters.Registry) ([]filters.Filter, error) {
+	fs := make([]filters.Filter, len(r.Filters))
 	for i, fspec := range r.Filters {
-		f, err := makeFilter(makeFilterId(r.Id, fspec.Name, i), fspec, fr)
+		f, err := makeFilter(fspec, fr)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +72,7 @@ func makeFilters(r *eskip.Route, fr skipper.FilterRegistry) ([]skipper.Filter, e
 	return fs, nil
 }
 
-func makeRouteDefinition(r *eskip.Route, fr skipper.FilterRegistry) (*routedef, error) {
+func makeRouteDefinition(r *eskip.Route, fr filters.Registry) (*routedef, error) {
 	b, err := makeBackend(r)
 	if err != nil {
 		return nil, err
@@ -86,11 +83,11 @@ func makeRouteDefinition(r *eskip.Route, fr skipper.FilterRegistry) (*routedef, 
 		return nil, err
 	}
 
-	rt := &route{b, fs}
+	rt := &Route{b, fs}
 	return &routedef{r, rt}, nil
 }
 
-func makeMatcher(routes []*eskip.Route, fr skipper.FilterRegistry, ignoreTrailingSlash bool) *requestmatch.Matcher {
+func makeMatcher(routes []*eskip.Route, fr filters.Registry, ignoreTrailingSlash bool) *requestmatch.Matcher {
 	routeDefinitions := make([]requestmatch.Definition, len(routes))
 	for i, r := range routes {
 		rd, err := makeRouteDefinition(r, fr)
@@ -109,14 +106,14 @@ func makeMatcher(routes []*eskip.Route, fr skipper.FilterRegistry, ignoreTrailin
 	return router
 }
 
-func processRaw(rd string, fr skipper.FilterRegistry, ignoreTrailingSlash bool) (skipper.Settings, error) {
+func processRaw(rd string, fr filters.Registry, ignoreTrailingSlash bool) (*Settings, error) {
 	d, err := eskip.Parse(rd)
 	if err != nil {
 		return nil, err
 	}
 
 	matcher := makeMatcher(d, fr, ignoreTrailingSlash)
-	s := &settings{matcher}
+	s := &Settings{matcher}
 	return s, nil
 }
 
@@ -124,8 +121,8 @@ func (b *backend) Scheme() string { return b.scheme }
 func (b *backend) Host() string   { return b.host }
 func (b *backend) IsShunt() bool  { return b.isShunt }
 
-func (r *route) Backend() skipper.Backend  { return r.backend }
-func (r *route) Filters() []skipper.Filter { return r.filters }
+func (r *Route) Backend() skipper.Backend  { return r.backend }
+func (r *Route) Filters() []filters.Filter { return r.filters }
 
 func (rd *routedef) Id() string                         { return rd.eskipRoute.Id }
 func (rd *routedef) Path() string                       { return rd.eskipRoute.Path }
@@ -136,11 +133,11 @@ func (rd *routedef) Headers() map[string]string         { return rd.eskipRoute.H
 func (rd *routedef) HeaderRegexps() map[string][]string { return rd.eskipRoute.HeaderRegexps }
 func (rd *routedef) Value() interface{}                 { return rd.value }
 
-func (s *settings) Route(r *http.Request) (skipper.Route, error) {
+func (s *Settings) Route(r *http.Request) (*Route, error) {
 	rt, _ := s.matcher.Match(r)
 	if rt == nil {
 		return nil, errors.New("route not found")
 	}
 
-	return rt.(skipper.Route), nil
+	return rt.(*Route), nil
 }

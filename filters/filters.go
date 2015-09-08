@@ -1,36 +1,58 @@
 package filters
 
-import (
-	// import filter packages here:
+import "net/http"
 
-	"github.com/zalando/skipper/filters/healthcheck"
-	"github.com/zalando/skipper/filters/humanstxt"
-	"github.com/zalando/skipper/filters/pathrewrite"
-	"github.com/zalando/skipper/filters/requestheader"
-	"github.com/zalando/skipper/filters/responseheader"
-	"github.com/zalando/skipper/filters/static"
-	"github.com/zalando/skipper/skipper"
-)
-
-// takes a registry object and registers the filter spec in the package
-func Register(registry skipper.FilterRegistry) {
-	registry.Add(
-
-		// add filter specs to be used here:
-
-		requestheader.Make(),
-		responseheader.Make(),
-		pathrewrite.Make(),
-		healthcheck.Make(),
-		humanstxt.Make(),
-		static.Make(),
-	)
+// Context object providing the request and response objects to the filters.
+type FilterContext interface {
+	ResponseWriter() http.ResponseWriter
+	Request() *http.Request
+	Response() *http.Response
+	IsServed() bool
+	MarkServed()
 }
 
-// creates the default implementation of a skipper.FilterRegistry object and registers the filter specs in the
-// package
-func RegisterDefault() skipper.FilterRegistry {
-	r := makeRegistry()
-	Register(r)
-	return r
+// Filters are created by the Spec components, optionally using filter specific settings.
+// When implementing filters, it needs to be taken into consideration, that filter instances are route specific
+// and not request specific, so any state stored with a filter is shared between all requests and can cause
+// concurrency issues (as in don't do that).
+type Filter interface {
+
+	// The request method is called on a filter on incoming requests. At this stage, the
+	// FilterContext.Response() method returns nil.
+	Request(FilterContext)
+
+	// The response method is called on a filter after the response was received from the backend. At this
+	// stage, the FilterContext.Response() method returns the response object.
+	Response(FilterContext)
+}
+
+// Spec objects can be used to create filter objects. They need to be registered in the registry.
+// Typically, there is a single Spec instance of each implementation in a running process, which can create multiple filter
+// instances with different config defined in the configuration on every update.
+type Spec interface {
+
+	// The name of the Spec is used to identify in the configuration which spec a filter is based on.
+	Name() string
+
+	// When the program settings are updated, and they contain filters based on a spec, MakeFilter is
+	// called, and the filter id and the filter specific settings are provided. Returns a filter.
+	CreateFilter(config []interface{}) (Filter, error)
+}
+
+type Registry map[string]Spec
+
+func DefaultFilters() Registry {
+	m := make(map[string]Spec)
+
+	defaultFilters := []Spec{
+		CreateRequestHeader(),
+		CreateResponseHeader(),
+		&ModPath{},
+		&HealthCheck{},
+		&Static{}}
+	for _, f := range defaultFilters {
+		m[f.Name()] = f
+	}
+
+	return m
 }

@@ -1,12 +1,24 @@
 package settings
 
 import (
-	"github.com/zalando/skipper/mock"
-	"github.com/zalando/skipper/skipper"
+	"github.com/zalando/skipper/filters"
 	"net/http"
 	"net/url"
 	"testing"
 )
+
+type mockFilter struct {
+	name string
+	data float64
+}
+
+func (s *mockFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
+	return &mockFilter{name: s.name, data: config[0].(float64)}, nil
+}
+
+func (s *mockFilter) Name() string                       { return s.name }
+func (s *mockFilter) Request(ctx filters.FilterContext)  {}
+func (s *mockFilter) Response(ctx filters.FilterContext) {}
 
 func makeTestRequest(url string) *http.Request {
 	r, _ := http.NewRequest("GET", url, nil)
@@ -28,10 +40,9 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
             "https://www.zalan.do/backend2";
     `
 
-	fr := &mock.FilterRegistry{
-		map[string]skipper.FilterSpec{
-			"zalFilter1": &mock.FilterSpec{"zalFilter1"},
-			"zalFilter2": &mock.FilterSpec{"zalFilter2"}}}
+	fr := filters.Registry{
+		"zalFilter1": &mockFilter{name: "zalFilter1"},
+		"zalFilter2": &mockFilter{name: "zalFilter2"}}
 	s, _ := processRaw(rd, fr, false)
 
 	check := func(req *http.Request, u string, filterNames []string, filterData []float64) {
@@ -53,10 +64,10 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 
 		filters := rt.Filters()
 		for i, f := range filters {
-			filter := f.(*mock.Filter)
-			if filter.Name != filterNames[i] ||
-				filter.Data != filterData[i] {
-				t.Error("invalid filter settings")
+			filter := f.(*mockFilter)
+			if filter.name != filterNames[i] ||
+				filter.data != filterData[i] {
+				t.Error("invalid filter settings", filter.name, filterNames[i], filter.data, filterData[i])
 			}
 		}
 	}
@@ -76,7 +87,7 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 
 func TestCreatesShuntBackend(t *testing.T) {
 	rd := `frontend1: Path("/frontend1") -> <shunt>`
-	fr := &mock.FilterRegistry{}
+	fr := make(filters.Registry)
 	s, _ := processRaw(rd, fr, false)
 	r := makeTestRequest("https://www.zalan.do/frontend1")
 	rt, err := s.Route(r)

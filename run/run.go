@@ -5,7 +5,6 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/settings"
-	"github.com/zalando/skipper/skipper"
 	"log"
 	"net/http"
 )
@@ -15,7 +14,7 @@ import (
 // invalid TLS certificates from the backends.
 // If a routesFilePath is given, that file will be used INSTEAD of etcd
 func Run(address string, etcdUrls []string, storageRoot string, insecure bool, routesFilePath string,
-	ignoreTrailingSlash bool, customFilters ...skipper.FilterSpec) error {
+	ignoreTrailingSlash bool, customFilters ...filters.Spec) error {
 
 	var dataClient settings.DataClient
 	var err error
@@ -33,8 +32,10 @@ func Run(address string, etcdUrls []string, storageRoot string, insecure bool, r
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
-	registry := filters.RegisterDefault()
-	registry.Add(customFilters...)
+	registry := filters.DefaultFilters()
+	for _, f := range customFilters {
+		registry[f.Name()] = f
+	}
 
 	// create a settings source
 	// create the proxy instance

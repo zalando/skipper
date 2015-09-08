@@ -43,12 +43,6 @@ type Settings struct {
 	RouterImpl route.Router
 }
 
-type FilterSpec struct{ FName string }
-
-type FilterRegistry struct {
-	FilterSpec map[string]skipper.FilterSpec
-}
-
 func MakeDataClient(data string) *DataClient {
 	dc := &DataClient{make(chan string)}
 	dc.Feed(data)
@@ -143,27 +137,4 @@ func (s *Settings) Route(r *http.Request) (skipper.Route, error) {
 
 func (s *Settings) Address() string {
 	return ":9090"
-}
-
-func (mw *FilterSpec) Name() string { return mw.FName }
-
-func (mw *FilterSpec) MakeFilter(id string, config skipper.FilterConfig) (skipper.Filter, error) {
-	return &Filter{
-		FId:  id,
-		Name: mw.FName,
-		Data: config[0].(float64)}, nil
-}
-
-func (mwr *FilterRegistry) Add(mw ...skipper.FilterSpec) {
-	for _, mwi := range mw {
-		mwr.FilterSpec[mwi.Name()] = mwi
-	}
-}
-
-func (mwr *FilterRegistry) Get(name string) skipper.FilterSpec {
-	return mwr.FilterSpec[name]
-}
-
-func (mwr *FilterRegistry) Remove(name string) {
-	delete(mwr.FilterSpec, name)
 }

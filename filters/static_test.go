@@ -1,9 +1,7 @@
-package static
+package filters
 
 import (
 	"bytes"
-	"github.com/zalando/skipper/mock"
-	"github.com/zalando/skipper/skipper"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -19,13 +17,13 @@ func TestStatic(t *testing.T) {
 		t.Error("failed to create test file")
 	}
 
-	s := Make()
-	f, err := s.MakeFilter("test", skipper.FilterConfig{"/static", "/tmp"})
+	s := &Static{}
+	f, err := s.CreateFilter([]interface{}{"/static", "/tmp"})
 	if err != nil {
 		t.Error("failed to create filter")
 	}
 
-	fc := &mock.FilterContext{
+	fc := &MockContext{
 		FResponseWriter: httptest.NewRecorder(),
 		FRequest:        &http.Request{URL: &url.URL{Path: "/static/static-test"}}}
 	f.Response(fc)

@@ -1,3 +1,4 @@
+rename rawData variables where the context doesn't provide the meaning
 remove unused interface layer
 check if channeling the settings can be simplified
 document custom filtering
@@ -7,3 +8,12 @@ review the whole stuff
 fix the license file
 import eskip into skipper
 change Make* to New*
+move filters into the parent package
+update code doc
+remove debug tracing
+remove notes.txt
+use the path params in the filters
+remove empty tests
+logging of filter ids
+license in the files
+redirect filter
