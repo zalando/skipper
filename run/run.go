@@ -15,7 +15,9 @@ import (
 // the etcd service at. If the flag 'insecure' is true, skipper will accept
 // invalid TLS certificates from the backends.
 // If a routesFilePath is given, that file will be used INSTEAD of etcd
-func Run(address string, etcdUrls []string, storageRoot string, insecure bool, routesFilePath string, customFilters ...skipper.FilterSpec) error {
+func Run(address string, etcdUrls []string, storageRoot string, insecure bool, routesFilePath string,
+	ignoreTrailingSlash bool, customFilters ...skipper.FilterSpec) error {
+
 	var dataClient skipper.DataClient
 	var err error
 	if len(routesFilePath) > 0 {
@@ -39,7 +41,7 @@ func Run(address string, etcdUrls []string, storageRoot string, insecure bool, r
 	// create a settings source
 	// create the proxy instance
 	dispatcher := dispatch.Make()
-	settingsSource := settings.MakeSource(dataClient, registry, dispatcher)
+	settingsSource := settings.MakeSource(dataClient, registry, dispatcher, ignoreTrailingSlash)
 	proxy := proxy.Make(settingsSource, insecure)
 
 	// subscribe to new settings
