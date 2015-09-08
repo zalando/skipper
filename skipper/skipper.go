@@ -5,6 +5,35 @@ package skipper
 
 import "net/http"
 
+// Wrapper interface for receiving data from the etcd configuration storage.
+// Note: the current json format will be replaced soon with a more maintainable routing specification format.
+type RawData interface {
+
+	// return the current routing settings as eskip
+	//
+	// pdp:
+	//  PathRegexp(`.*\\.html`) ->
+	//  customHeaders(3.14) ->
+	//  xSessionId("v4") ->
+	//  "https://www.zalando.de/pdp.html";
+	//
+	// humanstxt:
+	//  Path(`humans.txt`) ->
+	//  xSessionId("v4") ->
+	//  humanstxt() ->
+	//  <shunt>
+	//
+	Get() string
+}
+
+// Client receiving the configuraton from etcd or other.
+type DataClient interface {
+
+	// Returns a channel that sends the the data on initial start, and on any update in the
+	// configuration. The channel blocks between two updates.
+	Receive() <-chan RawData
+}
+
 // Backend definition parsed from the config data and used by the proxy.
 type Backend interface {
 
@@ -78,27 +107,4 @@ type SettingsSource interface {
 	// waiting for it.
 	// It may be a good idea to use buffered channels in production environment.
 	Subscribe(chan<- Settings)
-}
-
-// Filter specific configuration.
-type FilterConfig []interface{}
-
-// FilterSpec objects can be used to create filter objects. They need to be registered in the registry.
-// Typically, there is a single FilterSpec instance of each implementation in a running process, which can create multiple filter
-// instances with different config defined in the configuration on every update.
-type FilterSpec interface {
-
-	// The name of the FilterSpec is used to identify in the configuration which spec a filter is based on.
-	Name() string
-
-	// When the program settings are updated, and they contain filters based on a spec, MakeFilter is
-	// called, and the filter id and the filter specific settings are provided. Returns a filter.
-	MakeFilter(id string, s FilterConfig) (Filter, error)
-}
-
-// The filter registry stores all available filter spec modules.
-type FilterRegistry interface {
-	Add(...FilterSpec)
-	Get(string) FilterSpec
-	Remove(string)
 }

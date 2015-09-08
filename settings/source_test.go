@@ -1,8 +1,8 @@
 package settings
 
 import (
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/mock"
-	"github.com/zalando/skipper/skipper"
 	"net/http"
 	"net/url"
 	"testing"
@@ -14,11 +14,11 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	data := `hello: Path("/hello") -> "https://www.zalando.de"`
 
 	dc := mock.MakeDataClient(data)
-	fr := &mock.FilterRegistry{}
+	fr := make(filters.Registry)
 	s := MakeSource(dc, fr, false)
 
-	c1 := make(chan skipper.Settings)
-	c2 := make(chan skipper.Settings)
+	c1 := make(chan *Settings)
+	c2 := make(chan *Settings)
 
 	s.Subscribe(c1)
 	s.Subscribe(c2)

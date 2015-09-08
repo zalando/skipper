@@ -2,39 +2,25 @@
 // the filters expect a regular expression in the 'expression' field of the filter config to match one or more parts of the request
 // path, and a replacement string in the 'replacement' field. when processing a request, it calls ReplaceAll on
 // the path.
-package pathrewrite
+package filters
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/filters/noop"
-	"github.com/zalando/skipper/skipper"
 	"regexp"
 )
 
-const name = "pathRewrite"
-
-type impl struct {
-	*noop.Type
+type ModPath struct {
 	rx          *regexp.Regexp
 	replacement []byte
 }
 
-// creates the filter spec instance
-func Make() skipper.FilterSpec {
-	return &impl{}
+func (spec *ModPath) Name() string { return "modPath" }
+
+func invalidConfig(config []interface{}) error {
+	return fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", "modPath", config)
 }
 
-// the name of the filter spec
-func (mw *impl) Name() string {
-	return name
-}
-
-func invalidConfig(config skipper.FilterConfig) error {
-	return fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", name, config)
-}
-
-// creates a path rewrite filter
-func (mw *impl) MakeFilter(id string, config skipper.FilterConfig) (skipper.Filter, error) {
+func (spec *ModPath) CreateFilter(config []interface{}) (Filter, error) {
 	if len(config) != 2 {
 		return nil, invalidConfig(config)
 	}
@@ -54,13 +40,13 @@ func (mw *impl) MakeFilter(id string, config skipper.FilterConfig) (skipper.Filt
 		return nil, err
 	}
 
-	f := &impl{&noop.Type{}, rx, []byte(replacement)}
-	f.SetId(id)
+	f := &ModPath{rx, []byte(replacement)}
 	return f, nil
 }
 
-// rewrites the path of the filter
-func (f *impl) Request(ctx skipper.FilterContext) {
+func (f *ModPath) Request(ctx FilterContext) {
 	req := ctx.Request()
 	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), f.replacement))
 }
+
+func (f *ModPath) Response(ctx FilterContext) {}
