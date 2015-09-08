@@ -6,7 +6,7 @@ import (
 )
 
 type fileDataClient struct {
-	channel <- chan skipper.RawData
+	channel <-chan skipper.RawData
 }
 
 type rawString struct {
@@ -29,6 +29,6 @@ func MakeFileDataClient(path string) (skipper.DataClient, error) {
 	c := make(chan skipper.RawData)
 	go func() {
 		c <- rawString{string(content)}
-	} ()
+	}()
 	return &fileDataClient{c}, nil
 }
