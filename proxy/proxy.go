@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/settings"
 	"github.com/zalando/skipper/skipper"
 	"io"
 	"log"
@@ -34,7 +36,7 @@ type shuntBody struct {
 }
 
 type proxy struct {
-	settings     <-chan skipper.Settings
+	settings     <-chan *settings.Settings
 	roundTripper http.RoundTripper
 }
 
@@ -111,8 +113,8 @@ func getSettingsBufferSize() int {
 // creates a proxy. it expects a settings source, that provides the current settings during each request.
 // if the 'insecure' parameter is true, the proxy skips the TLS verification for the requests made to the
 // backends.
-func Make(sd skipper.SettingsSource, insecure bool) http.Handler {
-	sc := make(chan skipper.Settings, getSettingsBufferSize())
+func Make(sd *settings.Source, insecure bool) http.Handler {
+	sc := make(chan *settings.Settings, getSettingsBufferSize())
 	sd.Subscribe(sc)
 
 	tr := &http.Transport{}
@@ -123,28 +125,28 @@ func Make(sd skipper.SettingsSource, insecure bool) http.Handler {
 	return &proxy{sc, tr}
 }
 
-func applyFilterSafe(id string, p func()) {
+func applyFilterSafe(p func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("filter", id, err)
+			log.Println("filter", err)
 		}
 	}()
 
 	p()
 }
 
-func applyFiltersToRequest(f []skipper.Filter, ctx skipper.FilterContext) {
+func applyFiltersToRequest(f []filters.Filter, ctx filters.FilterContext) {
 	for _, fi := range f {
-		applyFilterSafe(fi.Id(), func() {
+		applyFilterSafe(func() {
 			fi.Request(ctx)
 		})
 	}
 }
 
-func applyFiltersToResponse(f []skipper.Filter, ctx skipper.FilterContext) {
+func applyFiltersToResponse(f []filters.Filter, ctx filters.FilterContext) {
 	for i, _ := range f {
 		fi := f[len(f)-1-i]
-		applyFilterSafe(fi.Id(), func() {
+		applyFilterSafe(func() {
 			fi.Response(ctx)
 		})
 	}
