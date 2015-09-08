@@ -86,6 +86,13 @@ type Route interface {
 	Filters() []Filter
 }
 
+// Routes that are matched prior to the configurable routing table by rules depending on the
+// implementation.
+type PriorityRoute interface {
+	Route
+	Match(*http.Request) bool
+}
+
 // Contains the routing rules and other settings.
 type Settings interface {
 

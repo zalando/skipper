@@ -18,6 +18,15 @@ const streamingDelay time.Duration = 3 * time.Millisecond
 
 type requestCheck func(*http.Request)
 
+type priorityRoute struct {
+	backend     string
+	lastRequest *http.Request
+}
+
+func (prt *priorityRoute) Filters() []skipper.Filters { return nil }
+func (prt *priorityRoute) Backend() string            { return prt.backend }
+func (prt *priorityRoute) Match() bool                { return true }
+
 func voidCheck(*http.Request) {}
 
 func makeTestSettingsDispatcher(url string, filters []skipper.Filter, shunt bool) skipper.SettingsDispatcher {
@@ -368,4 +377,11 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	if h, ok := w.Header()["X-Test-Response-Header-1"]; !ok || h[0] != "response header value 1" {
 		t.Error("wrong response header 1")
 	}
+}
+
+func TestProcessesRequestWithPriorityRoute(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	p := Make(dispatch.Make(), false, prt)
 }
