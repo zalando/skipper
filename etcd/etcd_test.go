@@ -24,7 +24,7 @@ const (
         PathRegexp(".*\\.html") ->
         customHeader(3.14) ->
         xSessionId("v4") ->
-        "https://www.zalando.de"
+        "https://www.example.org"
     `
 
 	testDoc = "pdp:" + testRoute
@@ -90,7 +90,7 @@ func checkInitial(rd skipper.RawData) bool {
 		return false
 	}
 
-	if r.MatchExp != "PathRegexp(`.*\\.html`)" {
+	if len(r.PathRegexps) != 1 || r.PathRegexps[0] != ".*\\.html" {
 		return false
 	}
 
@@ -124,7 +124,7 @@ func checkInitial(rd skipper.RawData) bool {
 		return false
 	}
 
-	if r.Backend != "https://www.zalando.de" {
+	if r.Backend != "https://www.example.org" {
 		return false
 	}
 
@@ -138,7 +138,7 @@ func waitForEtcd(dc skipper.DataClient, test func(skipper.RawData) bool) bool {
 			if test(d) {
 				return true
 			}
-		case <-time.After(15 * time.Millisecond):
+		case <-time.After(45 * time.Millisecond):
 			return false
 		}
 	}
@@ -156,7 +156,11 @@ func TestReceivesInitialSettings(t *testing.T) {
 		if !checkInitial(d) {
 			t.Error("failed to receive data")
 		}
-	case <-time.After(15 * time.Millisecond):
+
+		// not sure how much to invest here to do this more properly,
+		// normally 30ms should be enough and this dumbeddown approach
+		// works, but already happened once that it wasn't enough
+	case <-time.After(30 * time.Millisecond):
 		t.Error("receive timeout")
 	}
 }
@@ -164,12 +168,12 @@ func TestReceivesInitialSettings(t *testing.T) {
 func TestReceivesUpdatedSettings(t *testing.T) {
 	resetData(t)
 	c := etcd.NewClient(mock.EtcdUrls)
-	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.zalando.de/pdp-updated.html"`, 0)
+	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.example.org/pdp-updated.html"`, 0)
 
 	dc, _ := Make(mock.EtcdUrls, "/skippertest")
 	select {
 	case d := <-dc.Receive():
-		if !checkBackend(d, "pdp", "http://www.zalando.de/pdp-updated.html") {
+		if !checkBackend(d, "pdp", "http://www.example.org/pdp-updated.html") {
 			t.Error("failed to receive the right backend")
 		}
 	case <-time.After(15 * time.Millisecond):
@@ -186,23 +190,23 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 		t.Error("failed to get initial set of data")
 	}
 
-	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.zalando.de/pdp-updated-1.html"`, 0)
+	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.example.org/pdp-updated-1.html"`, 0)
 	if !waitForEtcd(dc, func(d skipper.RawData) bool {
-		return checkBackend(d, "pdp", "http://www.zalando.de/pdp-updated-1.html")
+		return checkBackend(d, "pdp", "http://www.example.org/pdp-updated-1.html")
 	}) {
 		t.Error("failed to get updated backend")
 	}
 
-	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.zalando.de/pdp-updated-2.html"`, 0)
+	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.example.org/pdp-updated-2.html"`, 0)
 	if !waitForEtcd(dc, func(d skipper.RawData) bool {
-		return checkBackend(d, "pdp", "http://www.zalando.de/pdp-updated-2.html")
+		return checkBackend(d, "pdp", "http://www.example.org/pdp-updated-2.html")
 	}) {
 		t.Error("failed to get updated backend")
 	}
 
-	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.zalando.de/pdp-updated-3.html"`, 0)
+	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.example.org/pdp-updated-3.html"`, 0)
 	if !waitForEtcd(dc, func(d skipper.RawData) bool {
-		return checkBackend(d, "pdp", "http://www.zalando.de/pdp-updated-3.html")
+		return checkBackend(d, "pdp", "http://www.example.org/pdp-updated-3.html")
 	}) {
 		t.Error("failed to get updated backend")
 	}
@@ -226,15 +230,15 @@ func TestReceiveInserts(t *testing.T) {
 			}
 
 			d := <-dc.Receive()
-			insert1 = checkBackend(d, "pdp1", "http://www.zalando.de/pdp-inserted-1.html")
-			insert2 = checkBackend(d, "pdp2", "http://www.zalando.de/pdp-inserted-2.html")
-			insert3 = checkBackend(d, "pdp3", "http://www.zalando.de/pdp-inserted-3.html")
+			insert1 = checkBackend(d, "pdp1", "http://www.example.org/pdp-inserted-1.html")
+			insert2 = checkBackend(d, "pdp2", "http://www.example.org/pdp-inserted-2.html")
+			insert3 = checkBackend(d, "pdp3", "http://www.example.org/pdp-inserted-3.html")
 		}
 	}
 
-	c.Set("/skippertest/routes/pdp1", `Path("/pdp1") -> "http://www.zalando.de/pdp-inserted-1.html"`, 0)
-	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.zalando.de/pdp-inserted-2.html"`, 0)
-	c.Set("/skippertest/routes/pdp3", `Path("/pdp3") -> "http://www.zalando.de/pdp-inserted-3.html"`, 0)
+	c.Set("/skippertest/routes/pdp1", `Path("/pdp1") -> "http://www.example.org/pdp-inserted-1.html"`, 0)
+	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.example.org/pdp-inserted-2.html"`, 0)
+	c.Set("/skippertest/routes/pdp3", `Path("/pdp3") -> "http://www.example.org/pdp-inserted-3.html"`, 0)
 
 	done := make(chan int)
 	go waitForInserts(done)
@@ -280,10 +284,10 @@ func TestInsertUpdateDelete(t *testing.T) {
 		t.Error("faield to get initial data")
 	}
 
-	c.Set("/skippertest/routes/pdp1", `Path("/pdp1") -> "http://www.zalando.de/pdp-inserted-1.html"`, 0)
-	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.zalando.de/pdp-inserted-2.html"`, 0)
+	c.Set("/skippertest/routes/pdp1", `Path("/pdp1") -> "http://www.example.org/pdp-inserted-1.html"`, 0)
+	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.example.org/pdp-inserted-2.html"`, 0)
 	c.Delete("/skippertest/routes/pdp1", false)
-	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.zalando.de/pdp-mod-2.html"`, 0)
+	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.example.org/pdp-mod-2.html"`, 0)
 
 	if !waitForEtcd(dc, func(rd skipper.RawData) bool {
 		d, err := eskip.Parse(rd.Get())
@@ -297,11 +301,11 @@ func TestInsertUpdateDelete(t *testing.T) {
 
 		var originalOk, modOk bool
 		for _, r := range d {
-			if r.Id == "pdp" && r.Backend == "https://www.zalando.de" {
+			if r.Id == "pdp" && r.Backend == "https://www.example.org" {
 				originalOk = true
 			}
 
-			if r.Id == "pdp2" && r.Backend == "http://www.zalando.de/pdp-mod-2.html" {
+			if r.Id == "pdp2" && r.Backend == "http://www.example.org/pdp-mod-2.html" {
 				modOk = true
 			}
 		}
