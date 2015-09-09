@@ -55,7 +55,10 @@ type FilterContext interface {
 	Response() *http.Response
 	IsServed() bool
 	MarkServed()
+	StateBag() *StateBag
 }
+
+type StateBag map[string]interface{}
 
 // Filters are created by the FilterSpec components, optionally using filter specific settings.
 // When implementing filters, it needs to be taken into consideration, that filter instances are route specific

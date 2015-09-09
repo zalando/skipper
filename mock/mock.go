@@ -28,6 +28,7 @@ type FilterContext struct {
 	FRequest        *http.Request
 	FResponse       *http.Response
 	FServed         bool
+	FStateBag       skipper.StateBag
 }
 
 type Filter struct {
@@ -99,6 +100,10 @@ func (fc *FilterContext) Request() *http.Request {
 
 func (fc *FilterContext) Response() *http.Response {
 	return fc.FResponse
+}
+
+func (fc *FilterContext) StateBag() *skipper.StateBag {
+	return &fc.FStateBag
 }
 
 func (fc *FilterContext) MarkServed() {
