@@ -102,8 +102,8 @@ func (fc *FilterContext) Response() *http.Response {
 	return fc.FResponse
 }
 
-func (fc *FilterContext) StateBag() *skipper.StateBag {
-	return &fc.FStateBag
+func (fc *FilterContext) StateBag() skipper.StateBag {
+	return fc.FStateBag
 }
 
 func (fc *FilterContext) MarkServed() {

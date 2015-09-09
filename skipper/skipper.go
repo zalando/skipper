@@ -55,7 +55,7 @@ type FilterContext interface {
 	Response() *http.Response
 	IsServed() bool
 	MarkServed()
-	StateBag() *StateBag
+	StateBag() StateBag
 }
 
 type StateBag map[string]interface{}
