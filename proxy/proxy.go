@@ -171,8 +171,8 @@ func (c *filterContext) IsServed() bool {
 	return c.served
 }
 
-func (c *filterContext) StateBag() *skipper.StateBag {
-	return &c.stateBag
+func (c *filterContext) StateBag() skipper.StateBag {
+	return c.stateBag
 }
 
 func shunt(r *http.Request) *http.Response {
