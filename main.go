@@ -56,5 +56,6 @@ func main() {
 		innkeeperUrl,
 		time.Duration(innkeeperPollTimeout),
 		routesFile,
-		nil}))
+		nil,
+        false}))
 }
