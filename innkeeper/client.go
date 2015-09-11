@@ -2,19 +2,19 @@
 package innkeeper
 
 import (
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/skipper"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
 	"time"
-	"crypto/tls"
-	"io"
-	"errors"
 )
-
 
 const authFailedMessage = "Authentication failed"
 
@@ -52,7 +52,7 @@ func Make(pollUrl string, pollTimeout time.Duration) skipper.DataClient {
 	c := &client{
 		pollUrl,
 		&http.Client{Transport: tr},
-		make(chan skipper.RawData),"",
+		make(chan skipper.RawData), "",
 		make(map[int64]string)}
 
 	// start a polling loop
@@ -85,10 +85,15 @@ func parseApiError(r io.Reader) (string, error) {
 }
 
 func (c *client) authenticate() error {
-	c.authToken = "99daaa44-2e63-4bb1-a9e1-47099ca6c930"
+	oauthClient := oauth.Make(c.httpClient)
+
+	var err error
+	c.authToken, err = oauthClient.Authenticate()
+	if err != nil {
+		return err
+	}
 	return nil
 }
-
 
 // makes a request to innkeeper for the latest data
 func (c *client) getData(retry bool) ([]*routeData, error) {
@@ -129,15 +134,15 @@ func (c *client) getData(retry bool) ([]*routeData, error) {
 		return nil, fmt.Errorf("failed to receive data: %s", response.Status)
 	}
 
-	data, err := ioutil.ReadAll(response.Body)
+	routesData, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	println(string(data))
+	log.Printf("the routes: %s", string(routesData))
 
 	var parsed []*routeData
-	err = json.Unmarshal(data, &parsed)
+	err = json.Unmarshal(routesData, &parsed)
 	return parsed, err
 }
 

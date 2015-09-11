@@ -41,7 +41,7 @@ func init() {
 	flag.StringVar(&etcdUrls, "etcd-urls", defaultEtcdUrls, etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.StringVar(&storageRoot, "storage-root", defaultStorageRoot, storageRootUsage)
-	flag.StringVar(&innkeeperUrl, "innkeeper-url", "http://localhost:8080/routes", innkeeperUrlUsage)
+	flag.StringVar(&innkeeperUrl, "innkeeper-url", "https://innkeeper-tick-436125395.eu-west-1.elb.amazonaws.com/routes", innkeeperUrlUsage)
 	flag.Int64Var(&innkeeperPollTimeout, "innkeeper-poll-timeout", defaultInnkeeperPollTimeout, innkeeperPollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.Parse()
