@@ -16,7 +16,6 @@ import (
 // Options to start skipper. Expects address to listen on and one or more urls to find
 // the etcd service at. If the flag 'insecure' is true, skipper will accept
 // invalid TLS certificates from the backends.
-// If a routesFilePath is given, that file will be used _instead_ of etcd.
 type Options struct {
 	Address              string
 	EtcdUrls             []string
@@ -26,6 +25,7 @@ type Options struct {
 	InnkeeperPollTimeout time.Duration
 	RoutesFilePath       string
 	CustomFilters        []skipper.FilterSpec
+    IgnoreTrailingSlash bool
 }
 
 func makeDataClient(o Options) (skipper.DataClient, error) {
@@ -40,6 +40,8 @@ func makeDataClient(o Options) (skipper.DataClient, error) {
 }
 
 // Run skipper.
+//
+// If a routesFilePath is given, that file will be used _instead_ of etcd.
 func Run(o Options) error {
 	// create data client
 	dataClient, err := makeDataClient(o)
@@ -56,7 +58,7 @@ func Run(o Options) error {
 	// create a settings source
 	// create the proxy instance
 	dispatcher := dispatch.Make()
-	settingsSource := settings.MakeSource(dataClient, registry, dispatcher)
+	settingsSource := settings.MakeSource(dataClient, registry, dispatcher, o.IgnoreTrailingSlash)
 	proxy := proxy.Make(settingsSource, o.Insecure)
 
 	// subscribe to new settings

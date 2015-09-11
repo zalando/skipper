@@ -35,7 +35,7 @@ to identify which route a request belongs to.
   Start etcd and create a simple route
   
     bin/etcd &
-    curl -X PUT -d 'value=Path("/") -> "https://tech.zalando.com"' http://127.0.0.1:2379/v2/keys/skipper/routes/hello
+    curl -X PUT -d 'value=Path("/") -> "https://www.example.org"' http://127.0.0.1:2379/v2/keys/skipper/routes/hello
 
   Start skipper and make a request to the route
   

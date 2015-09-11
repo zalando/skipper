@@ -11,13 +11,13 @@ import (
 )
 
 func TestParseAndDispatchRawData(t *testing.T) {
-	url1 := "https://www.zalando.de"
-	data := `hello: Path("/hello") -> "https://www.zalando.de"`
+	url1 := "https://www.example.org"
+	data := `hello: Path("/hello") -> "https://www.example.org"`
 
 	dc := mock.MakeDataClient(data)
-	mwr := &mock.FilterRegistry{}
+	fr := &mock.FilterRegistry{}
 	d := dispatch.Make()
-	s := MakeSource(dc, mwr, d)
+	s := MakeSource(dc, fr, d, false)
 
 	c1 := make(chan skipper.Settings)
 	c2 := make(chan skipper.Settings)
@@ -37,12 +37,18 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	rt2, _ := s2.Route(r)
 
 	up1, _ := url.ParseRequestURI(url1)
+
+	if rt1 == nil || rt2 == nil {
+		t.Error("invalid route", rt1 == nil, rt2 == nil)
+		return
+	}
+
 	if rt1.Backend().Scheme() != up1.Scheme || rt1.Backend().Host() != up1.Host ||
 		rt2.Backend().Scheme() != up1.Scheme || rt2.Backend().Host() != up1.Host {
 		t.Error("wrong url 1")
 	}
 
-	data = `hello: Path("/hello") -> "https://www.zalan.do"`
+	data = `hello: Path("/hello") -> "https://www.example.org"`
 	dc.Feed(data)
 
 	// let the new settings fan through
@@ -53,7 +59,7 @@ func TestParseAndDispatchRawData(t *testing.T) {
 
 	rt1, _ = s1.Route(r)
 	rt2, _ = s2.Route(r)
-	up2, _ := url.ParseRequestURI("https://www.zalan.do")
+	up2, _ := url.ParseRequestURI("https://www.example.org")
 	if rt1.Backend().Scheme() != up2.Scheme || rt1.Backend().Host() != up2.Host ||
 		rt2.Backend().Scheme() != up2.Scheme || rt2.Backend().Host() != up2.Host {
 		t.Error("wrong url 2")

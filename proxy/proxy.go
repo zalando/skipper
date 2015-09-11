@@ -90,10 +90,6 @@ func copyStream(to flusherWriter, from io.Reader) error {
 }
 
 func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
-	if b == nil {
-		return nil, proxyError("missing backend")
-	}
-
 	u := r.URL
 	u.Scheme = b.Scheme()
 	u.Host = b.Host()
@@ -217,11 +213,16 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	applyFiltersToRequest(f, c)
 
 	b := rt.Backend()
+	if b == nil {
+		hterr(proxyError("missing backend"))
+		return
+	}
+
 	var rs *http.Response
 	if b.IsShunt() {
 		rs = shunt(r)
 	} else {
-		rs, err = p.roundtrip(r, rt.Backend())
+		rs, err = p.roundtrip(r, b)
 		if err != nil {
 			hterr(err)
 			return
