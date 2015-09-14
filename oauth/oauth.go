@@ -90,8 +90,7 @@ func getAuthPostBody(us *user) string {
 	parameters.Add("grant_type", "password")
 	parameters.Add("username", us.Username)
 	parameters.Add("password", us.Password)
-	// TODO add the real scopes once they are live!
-	parameters.Add("scope", "uid")
+	parameters.Add("scope", "fashion_store_route.read")
 
 	postBody := parameters.Encode()
 
