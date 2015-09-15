@@ -39,10 +39,11 @@ type proxy struct {
 }
 
 type filterContext struct {
-	w      http.ResponseWriter
-	req    *http.Request
-	res    *http.Response
-	served bool
+	w        http.ResponseWriter
+	req      *http.Request
+	res      *http.Response
+	served   bool
+	stateBag skipper.StateBag
 }
 
 func (sb shuntBody) Close() error {
@@ -170,6 +171,10 @@ func (c *filterContext) IsServed() bool {
 	return c.served
 }
 
+func (c *filterContext) StateBag() skipper.StateBag {
+	return c.stateBag
+}
+
 func shunt(r *http.Request) *http.Response {
 	return &http.Response{
 		StatusCode: 404,
@@ -209,7 +214,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := rt.Filters()
-	c := &filterContext{w, r, nil, false}
+	c := &filterContext{w, r, nil, false, make(skipper.StateBag)}
 	applyFiltersToRequest(f, c)
 
 	b := rt.Backend()
