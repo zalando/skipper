@@ -2,6 +2,7 @@ package requestheader
 
 import (
 	"github.com/zalando/skipper/mock"
+	"github.com/zalando/skipper/skipper"
 	"net/http"
 	"testing"
 )
@@ -33,7 +34,7 @@ func TestSetsRequestHeader(t *testing.T) {
 	mw := Make()
 	f, _ := mw.MakeFilter("filter", []interface{}{"X-Test", "test-value"})
 	r, _ := http.NewRequest("GET", "test:", nil)
-	c := &mock.FilterContext{nil, r, nil, false}
+	c := &mock.FilterContext{nil, r, nil, false, make(skipper.StateBag)}
 	f.Request(c)
 	if r.Header.Get("X-Test") != "test-value" {
 		t.Error("failed to set request header")
