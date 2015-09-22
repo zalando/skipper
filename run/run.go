@@ -25,7 +25,7 @@ type Options struct {
 	InnkeeperPollTimeout time.Duration
 	RoutesFilePath       string
 	CustomFilters        []skipper.FilterSpec
-    IgnoreTrailingSlash bool
+	IgnoreTrailingSlash  bool
 }
 
 func makeDataClient(o Options) (skipper.DataClient, error) {
