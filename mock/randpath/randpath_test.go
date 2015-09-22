@@ -1,12 +1,12 @@
-package mock_test
+package randpath_test
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/mock"
+	"github.com/zalando/skipper/mock/randpath"
 )
 
 func ExamplePathGenerator() {
-	rp := mock.MakePathGenerator(mock.PathGeneratorOptions{RandSeed: 42})
+	rp := randpath.MakePathGenerator(randpath.PathGeneratorOptions{RandSeed: 42})
 	fmt.Println(rp.Next())
 	fmt.Println(rp.Next())
 

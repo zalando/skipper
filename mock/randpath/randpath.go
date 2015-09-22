@@ -1,4 +1,4 @@
-package mock
+package randpath
 
 import (
 	"math/rand"
