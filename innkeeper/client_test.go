@@ -2,6 +2,7 @@ package innkeeper
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/zalando/skipper/skipper"
 	"net/http"
 	"net/http/httptest"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-    "errors"
 )
 
 const testAuthenticationToken = "test token"
@@ -17,24 +17,24 @@ const testAuthenticationToken = "test token"
 type autoAuth bool
 
 func (aa autoAuth) Token() (string, error) {
-    if aa {
-        return testAuthenticationToken, nil
-    }
+	if aa {
+		return testAuthenticationToken, nil
+	}
 
-    return "", errors.New("auth failed")
+	return "", errors.New("auth failed")
 }
 
 func innkeeperHandler(data *[]*routeData) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        if r.Header.Get(authorizationHeader) != testAuthenticationToken {
-            w.WriteHeader(401)
-            enc := json.NewEncoder(w)
+		if r.Header.Get(authorizationHeader) != testAuthenticationToken {
+			w.WriteHeader(401)
+			enc := json.NewEncoder(w)
 
-            // ignoring error
-            enc.Encode(&apiError{Message: authFailedMessage})
+			// ignoring error
+			enc.Encode(&apiError{Message: authFailedMessage})
 
-            return
-        }
+			return
+		}
 
 		if b, err := json.Marshal(*data); err == nil {
 			w.Write(b)
@@ -99,11 +99,11 @@ func TestReceiveNew(t *testing.T) {
 	c := Make(api.URL, pollingTimeout, autoAuth(true))
 
 	// receive initial
-    select {
-        case <-c.Receive():
-        case <-time.After(2 * pollingTimeout):
-            t.Error("timeout")
-    }
+	select {
+	case <-c.Receive():
+	case <-time.After(2 * pollingTimeout):
+		t.Error("timeout")
+	}
 
 	// make a change
 	data = append(data, &routeData{4, false, `Path("/pdp") -> "https://example.org/pdp"`})
@@ -133,11 +133,11 @@ func TestReceiveUpdate(t *testing.T) {
 	c := Make(api.URL, pollingTimeout, autoAuth(true))
 
 	// receive initial
-    select {
-        case <-c.Receive():
-        case <-time.After(2 * pollingTimeout):
-            t.Error("timeout")
-    }
+	select {
+	case <-c.Receive():
+	case <-time.After(2 * pollingTimeout):
+		t.Error("timeout")
+	}
 
 	// make a change
 	data[2].Route = `Path("/catalog") -> "https://example.org/extra-catalog"`
@@ -166,11 +166,11 @@ func TestReceiveDelete(t *testing.T) {
 	c := Make(api.URL, pollingTimeout, autoAuth(true))
 
 	// recieve initial
-    select {
-        case <-c.Receive():
-        case <-time.After(2 * pollingTimeout):
-            t.Error("timeout")
-    }
+	select {
+	case <-c.Receive():
+	case <-time.After(2 * pollingTimeout):
+		t.Error("timeout")
+	}
 
 	// make a change
 	data[2].Deleted = true
@@ -196,11 +196,11 @@ func TestNoChange(t *testing.T) {
 	c := Make(api.URL, pollingTimeout, autoAuth(true))
 
 	// recieve initial
-    select {
-        case <-c.Receive():
-        case <-time.After(2 * pollingTimeout):
-            t.Error("timeout")
-    }
+	select {
+	case <-c.Receive():
+	case <-time.After(2 * pollingTimeout):
+		t.Error("timeout")
+	}
 
 	// check if receives anything
 	select {
@@ -221,9 +221,9 @@ func TestAuthFailedInitial(t *testing.T) {
 	c := Make(api.URL, pollingTimeout, autoAuth(false))
 	select {
 	case <-c.Receive():
-        t.Error("should not have received anything")
+		t.Error("should not have received anything")
 	case <-time.After(pollingTimeout):
-        // test done
+		// test done
 	}
 }
 
@@ -241,11 +241,32 @@ func TestAuthFailedUpdate(t *testing.T) {
 		t.Error("timeout")
 	}
 
-    c.(*client).auth = autoAuth(false)
+	c.(*client).auth = autoAuth(false)
 	select {
 	case <-c.Receive():
-        t.Error("should not have received anything")
+		t.Error("should not have received anything")
 	case <-time.After(pollingTimeout):
-        // test done
+		// test done
+	}
+}
+
+func TestAuthWithFixedToken(t *testing.T) {
+	const pollingTimeout = 15 * time.Millisecond
+	data := []*routeData{
+		{1, false, `Path("/") -> "https://example.org"`},
+		{2, true, `Path("/catalog") -> "https://example.org/catalog"`},
+		{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}
+	api := httptest.NewServer(innkeeperHandler(&data))
+	c := Make(api.URL, pollingTimeout, FixedToken(testAuthenticationToken))
+	select {
+	case doc := <-c.Receive():
+		if !checkDoc(doc, []*routeData{
+			{1, false, `Path("/") -> "https://example.org"`},
+			{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}) {
+
+			t.Error("failed to receive the right data")
+		}
+	case <-time.After(pollingTimeout):
+		t.Error("timeout")
 	}
 }
