@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
-    "path"
 )
 
 const (
-    credentialsDir = "CREDENTIALS_DIR"
-    grantType = "password"
+	credentialsDir = "CREDENTIALS_DIR"
+	grantType      = "password"
 )
 
 type clientCredentials struct {
@@ -33,7 +33,7 @@ type authResponse struct {
 }
 
 type OAuthClient struct {
-    oauthUrl string
+	oauthUrl   string
 	httpClient *http.Client
 }
 
@@ -75,9 +75,9 @@ func (oc *OAuthClient) Token() (string, error) {
 
 	var ar *authResponse
 	err = json.Unmarshal(authResponseBody, &ar)
-    if err != nil {
-        return "", err
-    }
+	if err != nil {
+		return "", err
+	}
 
 	return ar.AccessToken, nil
 }
@@ -101,20 +101,20 @@ func getCredentials(to interface{}, fn string) error {
 }
 
 func getClientCredentials() (*clientCredentials, error) {
-    cc := &clientCredentials{}
-    err := getCredentials(&cc, "client.json")
-    return cc, err
+	cc := &clientCredentials{}
+	err := getCredentials(&cc, "client.json")
+	return cc, err
 }
 
 func getUserCredentials() (*userCredentials, error) {
-    uc := &userCredentials{}
-    err := getCredentials(&uc, "user.json")
-    return uc, err
+	uc := &userCredentials{}
+	err := getCredentials(&uc, "user.json")
+	return uc, err
 }
 
 func getCredentialsData(fn string) ([]byte, error) {
 	dir := getCredentialsDir()
-    fn = path.Join(dir, fn)
+	fn = path.Join(dir, fn)
 	return ioutil.ReadFile(fn)
 }
 
