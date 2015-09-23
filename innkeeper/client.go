@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/skipper"
 	"io"
 	"io/ioutil"
@@ -16,7 +15,16 @@ import (
 	"time"
 )
 
-const authFailedMessage = "Authentication failed"
+const (
+    authFailedMessage = "Authentication failed"
+    authorizationHeader = "Authorization"
+)
+
+// todo: implement this either with the oauth service
+// or a token passed in from a command line option
+type Authentication interface {
+    Token() (string, error)
+}
 
 // serialization object for innkeeper data
 //
@@ -36,9 +44,10 @@ type routeDoc string
 
 type client struct {
 	pollUrl    string
+    auth Authentication
+	authToken  string
 	httpClient *http.Client
 	dataChan   chan skipper.RawData
-	authToken  string
 
 	// store the routes for comparison during
 	// the subsequent polls
@@ -46,13 +55,14 @@ type client struct {
 }
 
 // Creates an innkeeper client.
-func Make(pollUrl string, pollTimeout time.Duration) skipper.DataClient {
-
+func Make(pollUrl string, pollTimeout time.Duration, a Authentication) skipper.DataClient {
 	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	c := &client{
 		pollUrl,
+        a,
+        "",
 		&http.Client{Transport: tr},
-		make(chan skipper.RawData), "",
+		make(chan skipper.RawData),
 		make(map[int64]string)}
 
 	// start a polling loop
@@ -85,26 +95,23 @@ func parseApiError(r io.Reader) (string, error) {
 }
 
 func (c *client) authenticate() error {
-	oauthClient := oauth.Make(c.httpClient)
+    t, err := c.auth.Token()
+    if err != nil {
+        return err
+    }
 
-	var err error
-	c.authToken, err = oauthClient.Authenticate()
-	if err != nil {
-		return err
-	}
-	return nil
+    c.authToken = t
+    return nil
 }
 
 // makes a request to innkeeper for the latest data
 func (c *client) getData(retry bool) ([]*routeData, error) {
-
 	req, err := http.NewRequest("GET", c.pollUrl, nil)
-
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("Authorization", c.authToken)
 
+	req.Header.Add(authorizationHeader, c.authToken)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -114,20 +121,28 @@ func (c *client) getData(retry bool) ([]*routeData, error) {
 
 	if response.StatusCode == 401 {
 		message, err := parseApiError(response.Body)
-
 		if err != nil {
+            println("here")
 			return nil, err
 		}
 
-		if message == authFailedMessage && retry {
-			err := c.authenticate()
-			if err != nil {
-				return nil, err
-			}
-			return c.getData(false)
+        // todo:
+        // it would be better if innkeeper had error explicit
+        // error codes and not only messages
+		if message != authFailedMessage {
+            return nil, fmt.Errorf("authentication error: %s", message)
 		}
 
-		return nil, errors.New("unknown auth error")
+        if !retry {
+            return nil, errors.New("authentication failed")
+        }
+
+        err = c.authenticate()
+        if err != nil {
+            return nil, err
+        }
+
+        return c.getData(false)
 	}
 
 	if response.StatusCode >= 400 {
@@ -139,8 +154,6 @@ func (c *client) getData(retry bool) ([]*routeData, error) {
 		return nil, err
 	}
 
-	log.Printf("the routes: %s", string(routesData))
-
 	var parsed []*routeData
 	err = json.Unmarshal(routesData, &parsed)
 	return parsed, err
@@ -149,9 +162,6 @@ func (c *client) getData(retry bool) ([]*routeData, error) {
 // updates the route doc from received data, and
 // returns true if there were any changes, otherwise
 // false.
-//
-// todo
-//
 func updateDoc(doc map[int64]string, data []*routeData) bool {
 	changed := false
 	for _, dataItem := range data {
@@ -175,6 +185,7 @@ func updateDoc(doc map[int64]string, data []*routeData) bool {
 func (c *client) poll() bool {
 	data, err := c.getData(true)
 	if err == nil {
+        log.Println("routing doc updated from innkeeper")
 		return updateDoc(c.doc, data)
 	} else {
 		log.Println("error while receiving innkeeper data;", err)
