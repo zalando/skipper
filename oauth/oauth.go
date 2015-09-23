@@ -3,23 +3,24 @@ package oauth
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+    "path"
 )
 
-const credentialsDir = "CREDENTIALS_DIR"
+const (
+    credentialsDir = "CREDENTIALS_DIR"
+    grantType = "password"
+)
 
-const oauthUrl = "https://auth.zalando.com/oauth2/access_token?realm=/services"
-
-type client struct {
+type clientCredentials struct {
 	Id     string `json:"client_id"`
 	Secret string `json:"client_secret"`
 }
 
-type user struct {
+type userCredentials struct {
 	Username string `json:"application_username"`
 	Password string `json:"application_password"`
 }
@@ -32,39 +33,35 @@ type authResponse struct {
 }
 
 type OAuthClient struct {
+    oauthUrl string
 	httpClient *http.Client
 }
 
-func Make(cl *http.Client) *OAuthClient {
-	return &OAuthClient{cl}
+func Make(oauthUrl string) *OAuthClient {
+	return &OAuthClient{oauthUrl, &http.Client{}}
 }
 
-func (oc *OAuthClient) Authenticate() (string, error) {
-	user, err := getUser()
+func (oc *OAuthClient) Token() (string, error) {
+	uc, err := getUserCredentials()
 	if err != nil {
 		return "", err
 	}
 
-	client, err := getClient()
+	cc, err := getClientCredentials()
 	if err != nil {
 		return "", err
 	}
 
-	log.Printf("getting a token for username:[%s] clientId:[%s]", user.Username, client.Id)
-
-	postBody := getAuthPostBody(user)
-
-	req, err := http.NewRequest("POST", oauthUrl, strings.NewReader(postBody))
-
+	postBody := getAuthPostBody(uc)
+	req, err := http.NewRequest("POST", oc.oauthUrl, strings.NewReader(postBody))
 	if err != nil {
 		return "", err
 	}
 
-	req.SetBasicAuth(client.Id, client.Secret)
+	req.SetBasicAuth(cc.Id, cc.Secret)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	response, err := oc.httpClient.Do(req)
-
 	if err != nil {
 		return "", err
 	}
@@ -72,72 +69,53 @@ func (oc *OAuthClient) Authenticate() (string, error) {
 	defer response.Body.Close()
 
 	authResponseBody, err := ioutil.ReadAll(response.Body)
-
 	if err != nil {
 		return "", err
 	}
 
 	var ar *authResponse
-
-	json.Unmarshal(authResponseBody, &ar)
-	log.Println("token successfully retrieved")
+	err = json.Unmarshal(authResponseBody, &ar)
+    if err != nil {
+        return "", err
+    }
 
 	return ar.AccessToken, nil
 }
 
-func getAuthPostBody(us *user) string {
+func getAuthPostBody(us *userCredentials) string {
 	parameters := url.Values{}
-	parameters.Add("grant_type", "password")
+	parameters.Add("grant_type", grantType)
 	parameters.Add("username", us.Username)
 	parameters.Add("password", us.Password)
-	parameters.Add("scope", "fashion_store_route.read")
-
-	postBody := parameters.Encode()
-
-	return postBody
+	parameters.Add("scope", "uid fashion_store_route.read")
+	return parameters.Encode()
 }
 
-func getClient() (*client, error) {
-	clientJson, err := getCredentialsJson("client")
+func getCredentials(to interface{}, fn string) error {
+	data, err := getCredentialsData(fn)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	client := &client{}
-	if err := json.Unmarshal(clientJson, client); err != nil {
-		return nil, err
-	}
-
-	return client, nil
+	return json.Unmarshal(data, to)
 }
 
-func getUser() (*user, error) {
-	userJson, err := getCredentialsJson("user")
-	if err != nil {
-		return nil, err
-	}
-
-	user := &user{}
-	if err := json.Unmarshal(userJson, user); err != nil {
-		return nil, err
-	}
-
-	return user, nil
+func getClientCredentials() (*clientCredentials, error) {
+    cc := &clientCredentials{}
+    err := getCredentials(&cc, "client.json")
+    return cc, err
 }
 
-func getCredentialsJson(file string) ([]byte, error) {
-	credentialsDir := getCredentialsDir()
+func getUserCredentials() (*userCredentials, error) {
+    uc := &userCredentials{}
+    err := getCredentials(&uc, "user.json")
+    return uc, err
+}
 
-	content, err := ioutil.ReadFile(credentialsDir + "/" + file + ".json")
-
-	if err != nil {
-		println(err)
-		return nil, err
-	}
-
-	log.Println("getting credentials json")
-
-	return content, nil
+func getCredentialsData(fn string) ([]byte, error) {
+	dir := getCredentialsDir()
+    fn = path.Join(dir, fn)
+	return ioutil.ReadFile(fn)
 }
 
 func getCredentialsDir() string {

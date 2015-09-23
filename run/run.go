@@ -8,6 +8,7 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/settings"
 	"github.com/zalando/skipper/skipper"
+    "github.com/zalando/skipper/oauth"
 	"log"
 	"net/http"
 	"time"
@@ -26,25 +27,33 @@ type Options struct {
 	RoutesFilePath       string
 	CustomFilters        []skipper.FilterSpec
 	IgnoreTrailingSlash  bool
+    OAuthUrl string
 }
 
-func makeDataClient(o Options) (skipper.DataClient, error) {
+func makeDataClient(o Options, auth innkeeper.Authentication) (skipper.DataClient, error) {
 	switch {
 	case o.RoutesFilePath != "":
 		return settings.MakeFileDataClient(o.RoutesFilePath)
 	case o.InnkeeperUrl != "":
-		return innkeeper.Make(o.InnkeeperUrl, o.InnkeeperPollTimeout), nil
+		return innkeeper.Make(o.InnkeeperUrl, o.InnkeeperPollTimeout, auth), nil
 	default:
 		return etcd.Make(o.EtcdUrls, o.StorageRoot)
 	}
+}
+
+func makeInnkeeperAuthentication(o Options) (innkeeper.Authentication) {
+    return oauth.Make(o.OAuthUrl)
 }
 
 // Run skipper.
 //
 // If a routesFilePath is given, that file will be used _instead_ of etcd.
 func Run(o Options) error {
+    // create authentication for Innkeeper
+    auth := makeInnkeeperAuthentication(o)
+
 	// create data client
-	dataClient, err := makeDataClient(o)
+	dataClient, err := makeDataClient(o, auth)
 	if err != nil {
 		return err
 	}
