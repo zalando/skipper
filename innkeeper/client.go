@@ -16,15 +16,20 @@ import (
 )
 
 const (
-    authFailedMessage = "Authentication failed"
-    authorizationHeader = "Authorization"
+	authFailedMessage   = "Authentication failed"
+	authorizationHeader = "Authorization"
 )
 
 // todo: implement this either with the oauth service
 // or a token passed in from a command line option
 type Authentication interface {
-    Token() (string, error)
+	Token() (string, error)
 }
+
+// Provides an Authentication implementation with fixed token string
+type FixedToken string
+
+func (fa FixedToken) Token() (string, error) { return string(fa), nil }
 
 // serialization object for innkeeper data
 //
@@ -44,7 +49,7 @@ type routeDoc string
 
 type client struct {
 	pollUrl    string
-    auth Authentication
+	auth       Authentication
 	authToken  string
 	httpClient *http.Client
 	dataChan   chan skipper.RawData
@@ -59,8 +64,8 @@ func Make(pollUrl string, pollTimeout time.Duration, a Authentication) skipper.D
 	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	c := &client{
 		pollUrl,
-        a,
-        "",
+		a,
+		"",
 		&http.Client{Transport: tr},
 		make(chan skipper.RawData),
 		make(map[int64]string)}
@@ -95,13 +100,13 @@ func parseApiError(r io.Reader) (string, error) {
 }
 
 func (c *client) authenticate() error {
-    t, err := c.auth.Token()
-    if err != nil {
-        return err
-    }
+	t, err := c.auth.Token()
+	if err != nil {
+		return err
+	}
 
-    c.authToken = t
-    return nil
+	c.authToken = t
+	return nil
 }
 
 // makes a request to innkeeper for the latest data
@@ -122,27 +127,27 @@ func (c *client) getData(retry bool) ([]*routeData, error) {
 	if response.StatusCode == 401 {
 		message, err := parseApiError(response.Body)
 		if err != nil {
-            println("here")
+			println("here")
 			return nil, err
 		}
 
-        // todo:
-        // it would be better if innkeeper had error explicit
-        // error codes and not only messages
+		// todo:
+		// it would be better if innkeeper had error explicit
+		// error codes and not only messages
 		if message != authFailedMessage {
-            return nil, fmt.Errorf("authentication error: %s", message)
+			return nil, fmt.Errorf("authentication error: %s", message)
 		}
 
-        if !retry {
-            return nil, errors.New("authentication failed")
-        }
+		if !retry {
+			return nil, errors.New("authentication failed")
+		}
 
-        err = c.authenticate()
-        if err != nil {
-            return nil, err
-        }
+		err = c.authenticate()
+		if err != nil {
+			return nil, err
+		}
 
-        return c.getData(false)
+		return c.getData(false)
 	}
 
 	if response.StatusCode >= 400 {
@@ -185,7 +190,7 @@ func updateDoc(doc map[int64]string, data []*routeData) bool {
 func (c *client) poll() bool {
 	data, err := c.getData(true)
 	if err == nil {
-        log.Println("routing doc updated from innkeeper")
+		log.Println("routing doc updated from innkeeper")
 		return updateDoc(c.doc, data)
 	} else {
 		log.Println("error while receiving innkeeper data;", err)

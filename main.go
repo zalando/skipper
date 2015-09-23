@@ -23,8 +23,9 @@ const (
 	storageRootUsage          = "prefix for skipper related data in the provided etcd storage"
 	innkeeperUrlUsage         = "url of the innkeeper API"
 	innkeeperPollTimeoutUsage = "polling timeout of the innkeeper API"
-    oauthUrlUsage = "OAuth2 URL for Innkeeper authentication"
+	oauthUrlUsage             = "OAuth2 URL for Innkeeper authentication"
 	routesFileUsage           = "routes file to use instead of etcd"
+	fixedTokenUsage           = "fixed token for innkeeper authentication"
 )
 
 var (
@@ -35,7 +36,8 @@ var (
 	innkeeperUrl         string
 	innkeeperPollTimeout int64
 	routesFile           string
-    oauthUrl string
+	oauthUrl             string
+	fixedToken           string
 )
 
 func init() {
@@ -46,7 +48,8 @@ func init() {
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
 	flag.Int64Var(&innkeeperPollTimeout, "innkeeper-poll-timeout", defaultInnkeeperPollTimeout, innkeeperPollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
-    flag.StringVar(&oauthUrl, "oauth-url", "", oauthUrlUsage)
+	flag.StringVar(&oauthUrl, "oauth-url", "", oauthUrlUsage)
+	flag.StringVar(&fixedToken, "fixed-token", "", fixedTokenUsage)
 	flag.Parse()
 }
 
@@ -61,5 +64,6 @@ func main() {
 		routesFile,
 		nil,
 		false,
-        oauthUrl}))
+		oauthUrl,
+		fixedToken}))
 }
