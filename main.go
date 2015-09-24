@@ -25,7 +25,7 @@ const (
 	innkeeperPollTimeoutUsage = "polling timeout of the innkeeper API"
 	oauthUrlUsage             = "OAuth2 URL for Innkeeper authentication"
 	routesFileUsage           = "routes file to use instead of etcd"
-	fixedTokenUsage           = "fixed token for innkeeper authentication"
+	innkeeperAuthTokenUsage   = "fixed token for innkeeper authentication"
 )
 
 var (
@@ -37,7 +37,7 @@ var (
 	innkeeperPollTimeout int64
 	routesFile           string
 	oauthUrl             string
-	fixedToken           string
+	innkeeperAuthToken   string
 )
 
 func init() {
@@ -49,21 +49,20 @@ func init() {
 	flag.Int64Var(&innkeeperPollTimeout, "innkeeper-poll-timeout", defaultInnkeeperPollTimeout, innkeeperPollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.StringVar(&oauthUrl, "oauth-url", "", oauthUrlUsage)
-	flag.StringVar(&fixedToken, "fixed-token", "", fixedTokenUsage)
+	flag.StringVar(&innkeeperAuthToken, "innkeeper-auth-token", "", innkeeperAuthTokenUsage)
 	flag.Parse()
 }
 
 func main() {
 	log.Fatal(run.Run(run.Options{
-		address,
-		strings.Split(etcdUrls, ","),
-		storageRoot,
-		insecure,
-		innkeeperUrl,
-		time.Duration(innkeeperPollTimeout),
-		routesFile,
-		nil,
-		false,
-		oauthUrl,
-		fixedToken}))
+		Address:              address,
+		EtcdUrls:             strings.Split(etcdUrls, ","),
+		StorageRoot:          storageRoot,
+		Insecure:             insecure,
+		InnkeeperUrl:         innkeeperUrl,
+		InnkeeperPollTimeout: time.Duration(innkeeperPollTimeout),
+		RoutesFilePath:       routesFile,
+		IgnoreTrailingSlash:  false,
+		OAuthUrl:             oauthUrl,
+		InnkeeperAuthToken:   innkeeperAuthToken}))
 }
