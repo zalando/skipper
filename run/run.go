@@ -28,7 +28,7 @@ type Options struct {
 	CustomFilters        []skipper.FilterSpec
 	IgnoreTrailingSlash  bool
 	OAuthUrl             string
-	FixedToken           string
+	InnkeeperAuthToken   string
 }
 
 func makeDataClient(o Options, auth innkeeper.Authentication) (skipper.DataClient, error) {
@@ -43,8 +43,8 @@ func makeDataClient(o Options, auth innkeeper.Authentication) (skipper.DataClien
 }
 
 func makeInnkeeperAuthentication(o Options) innkeeper.Authentication {
-	if o.FixedToken != "" {
-		return innkeeper.FixedToken(o.FixedToken)
+	if o.InnkeeperAuthToken != "" {
+		return innkeeper.FixedToken(o.InnkeeperAuthToken)
 	}
 
 	return oauth.Make(o.OAuthUrl)
