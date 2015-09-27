@@ -7,7 +7,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/settings"
+	"github.com/zalando/skipper/routing"
 	"io"
 	"log"
 	"net/http"
@@ -20,7 +20,7 @@ const (
 
 	// TODO: this should be fine tuned, yet, with benchmarks.
 	// In case it doesn't make a big difference, then a lower value
-	// can be safer, but the default 2 turned out to be low during
+	// can be safer, but the default 2 turned out to be too low during
 	// benchmarks.
 	idleConnsPerHost = 64
 )
@@ -35,7 +35,7 @@ type shuntBody struct {
 }
 
 type proxy struct {
-	settings     <-chan *settings.Settings
+    routing *routing.Routing
 	roundTripper http.RoundTripper
 }
 
@@ -90,7 +90,7 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
-func mapRequest(r *http.Request, b *settings.Backend) (*http.Request, error) {
+func mapRequest(r *http.Request, b *routing.Backend) (*http.Request, error) {
 	u := r.URL
 	u.Scheme = b.Scheme
 	u.Host = b.Host
@@ -112,16 +112,13 @@ func getSettingsBufferSize() int {
 // creates a proxy. it expects a settings source, that provides the current settings during each request.
 // if the 'insecure' parameter is true, the proxy skips the TLS verification for the requests made to the
 // backends.
-func Make(sd *settings.Source, insecure bool) http.Handler {
-	sc := make(chan *settings.Settings, getSettingsBufferSize())
-	sd.Subscribe(sc)
-
+func Make(r *routing.Routing, insecure bool) http.Handler {
 	tr := &http.Transport{}
 	if insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{sc, tr}
+	return &proxy{r, tr}
 }
 
 func applyFilterSafe(p func()) {
@@ -179,7 +176,7 @@ func shunt(r *http.Request) *http.Response {
 		Request:    r}
 }
 
-func (p *proxy) roundtrip(r *http.Request, b *settings.Backend) (*http.Response, error) {
+func (p *proxy) roundtrip(r *http.Request, b *routing.Backend) (*http.Response, error) {
 	rr, err := mapRequest(r, b)
 	if err != nil {
 		return nil, err
@@ -196,16 +193,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	s := <-p.settings
-	if s == nil {
-		hterr(proxyError("missing settings"))
-		return
-	}
-
-	rt, err := s.Route(r)
-	if rt == nil || err != nil {
-		// todo: we need a somewhat more extensive logging here
-		hterr(proxyError(fmt.Sprintf("routing failed: %v %v", r.URL, err)))
+	rt, _ := p.routing.Route(r)
+	if rt == nil {
+		http.Error(w, http.StatusText(404), 404)
 		return
 	}
 
@@ -219,8 +209,12 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var rs *http.Response
-	if b.IsShunt {
+	var (
+        rs *http.Response
+        err error
+    )
+
+	if b.Shunt {
 		rs = shunt(r)
 	} else {
 		rs, err = p.roundtrip(r, b)

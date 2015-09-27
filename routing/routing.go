@@ -11,9 +11,14 @@ type DataClient interface {
     Receive() <-chan string
 }
 
-type Route struct {
-    Address string
+type Backend struct {
+    Scheme string
+    Host string
     Shunt bool
+}
+
+type Route struct {
+    *Backend
 	Filters []filters.Filter
 }
 
