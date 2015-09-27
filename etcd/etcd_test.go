@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/eskip"
-	"github.com/zalando/skipper/mock"
 	"log"
 	"testing"
 	"time"
 )
 
 func init() {
-	err := mock.Etcd()
+	err := Etcd()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -46,7 +45,7 @@ func setAll(c *etcd.Client, dir string, data map[string]string) error {
 }
 
 func resetData(t *testing.T) {
-	c := etcd.NewClient(mock.EtcdUrls)
+	c := etcd.NewClient(EtcdUrls)
 
 	// for the tests, considering errors as not-found
 	c.Delete("/skippertest", true)
@@ -145,7 +144,7 @@ func waitForEtcd(dc *Client, test func(string) bool) bool {
 
 func TestReceivesInitialSettings(t *testing.T) {
 	resetData(t)
-	dc, err := Make(mock.EtcdUrls, "/skippertest")
+	dc, err := Make(EtcdUrls, "/skippertest")
 	if err != nil {
 		t.Error(err)
 	}
@@ -166,10 +165,10 @@ func TestReceivesInitialSettings(t *testing.T) {
 
 func TestReceivesUpdatedSettings(t *testing.T) {
 	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
+	c := etcd.NewClient(EtcdUrls)
 	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.zalando.de/pdp-updated.html"`, 0)
 
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
+	dc, _ := Make(EtcdUrls, "/skippertest")
 	select {
 	case d := <-dc.Receive():
 		if !checkBackend(d, "pdp", "http://www.zalando.de/pdp-updated.html") {
@@ -182,8 +181,8 @@ func TestReceivesUpdatedSettings(t *testing.T) {
 
 func TestRecieveInitialAndUpdates(t *testing.T) {
 	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
+	c := etcd.NewClient(EtcdUrls)
+	dc, _ := Make(EtcdUrls, "/skippertest")
 
 	if !waitForEtcd(dc, checkInitial) {
 		t.Error("failed to get initial set of data")
@@ -213,8 +212,8 @@ func TestRecieveInitialAndUpdates(t *testing.T) {
 
 func TestReceiveInserts(t *testing.T) {
 	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
+	c := etcd.NewClient(EtcdUrls)
+	dc, _ := Make(EtcdUrls, "/skippertest")
 
 	if !waitForEtcd(dc, checkInitial) {
 		t.Error("failed to get initial data")
@@ -250,8 +249,8 @@ func TestReceiveInserts(t *testing.T) {
 
 func TestDeleteRoute(t *testing.T) {
 	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
+	c := etcd.NewClient(EtcdUrls)
+	dc, _ := Make(EtcdUrls, "/skippertest")
 
 	if !waitForEtcd(dc, checkInitial) {
 		t.Error("failed to get initial data")
@@ -276,8 +275,8 @@ func TestDeleteRoute(t *testing.T) {
 
 func TestInsertUpdateDelete(t *testing.T) {
 	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
+	c := etcd.NewClient(EtcdUrls)
+	dc, _ := Make(EtcdUrls, "/skippertest")
 
 	if !waitForEtcd(dc, checkInitial) {
 		t.Error("faield to get initial data")

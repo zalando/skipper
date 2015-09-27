@@ -6,25 +6,20 @@ import (
 	"github.com/zalando/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/requestmatch"
-	"github.com/zalando/skipper/skipper"
 	"log"
 	"net/http"
 	"net/url"
 )
 
-type backend struct {
-	scheme  string
-	host    string
-	isShunt bool
-}
-
-type filter struct {
-	id string
+type Backend struct {
+	Scheme  string
+	Host    string
+	IsShunt bool
 }
 
 type Route struct {
-	backend skipper.Backend
-	filters []filters.Filter
+	Backend *Backend
+	Filters []filters.Filter
 }
 
 type routedef struct {
@@ -36,9 +31,9 @@ type Settings struct {
 	matcher *requestmatch.Matcher
 }
 
-func makeBackend(r *eskip.Route) (*backend, error) {
+func makeBackend(r *eskip.Route) (*Backend, error) {
 	if r.Shunt {
-		return &backend{isShunt: true}, nil
+		return &Backend{IsShunt: true}, nil
 	}
 
 	bu, err := url.ParseRequestURI(r.Backend)
@@ -46,7 +41,7 @@ func makeBackend(r *eskip.Route) (*backend, error) {
 		return nil, err
 	}
 
-	return &backend{scheme: bu.Scheme, host: bu.Host}, nil
+	return &Backend{Scheme: bu.Scheme, Host: bu.Host}, nil
 }
 
 func makeFilter(ref *eskip.Filter, fr filters.Registry) (filters.Filter, error) {
@@ -116,13 +111,6 @@ func processRaw(rd string, fr filters.Registry, ignoreTrailingSlash bool) (*Sett
 	s := &Settings{matcher}
 	return s, nil
 }
-
-func (b *backend) Scheme() string { return b.scheme }
-func (b *backend) Host() string   { return b.host }
-func (b *backend) IsShunt() bool  { return b.isShunt }
-
-func (r *Route) Backend() skipper.Backend  { return r.backend }
-func (r *Route) Filters() []filters.Filter { return r.filters }
 
 func (rd *routedef) Id() string                         { return rd.eskipRoute.Id }
 func (rd *routedef) Path() string                       { return rd.eskipRoute.Path }

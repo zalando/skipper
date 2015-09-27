@@ -171,7 +171,7 @@ func (c *Client) watch(waitIndex uint64) (*etcd.Response, error) {
 	return c.etcd.Watch(c.routesRoot, waitIndex, true, nil, nil)
 }
 
-// Returns a channel that sends the the data on initial start, and on any update in the
+// Returns a channel that sends the data on initial start, and on any update in the
 // configuration. The channel blocks between two updates.
 func (c *Client) Receive() <-chan string {
 	return c.push

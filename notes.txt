@@ -17,3 +17,12 @@ remove empty tests
 logging of filter ids
 license in the files
 redirect filter
+move healthcheck to z-skipper
+the case of markserved and shunt
+reconsider what goes to options
+consider renaming settings (routing?)
+check where is it yet possible to cut the dependencies
+remove custom tooling from .gitignore
+requestmatcher definition interface is unnecessary
+reomve interfaces where strucs are fine
+splitting source and settings can be simplified

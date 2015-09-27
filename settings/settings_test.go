@@ -58,11 +58,11 @@ func TestParseBackendsFrontendsFilters(t *testing.T) {
 			return
 		}
 
-		if rt.Backend().Scheme() != up.Scheme || rt.Backend().Host() != up.Host {
+		if rt.Backend.Scheme != up.Scheme || rt.Backend.Host != up.Host {
 			t.Error("invalid url")
 		}
 
-		filters := rt.Filters()
+		filters := rt.Filters
 		for i, f := range filters {
 			filter := f.(*mockFilter)
 			if filter.name != filterNames[i] ||
@@ -101,7 +101,7 @@ func TestCreatesShuntBackend(t *testing.T) {
 		return
 	}
 
-	if !rt.Backend().IsShunt() {
+	if !rt.Backend.IsShunt {
 		t.Error("failed to create route with shunt")
 	}
 }

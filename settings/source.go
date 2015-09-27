@@ -17,10 +17,10 @@ type DataClient interface {
 
 // creates a skipper.SettingsSource instance.
 // expects an instance of the etcd client, a filter registry and a dispatcher for settings.
-func MakeSource(
-	dc DataClient,
-	fr filters.Registry,
-	ignoreTrailingSlash bool) *Source {
+func MakeSource(dc DataClient, fr filters.Registry, ignoreTrailingSlash bool) *Source {
+    if fr == nil {
+        fr = make(filters.Registry)
+    }
 
 	s := &Source{&dispatch.Dispatcher{}}
 

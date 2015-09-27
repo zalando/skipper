@@ -1,4 +1,4 @@
-package mock
+package requestmatch
 
 import (
 	"math/rand"
@@ -6,16 +6,16 @@ import (
 )
 
 const (
-	DefaultChars                = "abcdefghijklmnopqrstuvwxyz"
-	DefaultMinFilenameLength    = 3
-	DefaultMaxFilenameLength    = 18
-	DefaultMinNamesInPath       = 0
-	DefaultMaxNamesInPath       = 9
-	DefaultClosingSlashInEveryN = 3
-	DefaultSeparator            = "/"
+	defaultChars                = "abcdefghijklmnopqrstuvwxyz"
+	defaultMinFilenameLength    = 3
+	defaultMaxFilenameLength    = 18
+	defaultMinNamesInPath       = 0
+	defaultMaxNamesInPath       = 9
+	defaultClosingSlashInEveryN = 3
+	defaultSeparator            = "/"
 )
 
-type PathGeneratorOptions struct {
+type pathGeneratorOptions struct {
 	FilenameChars        string
 	MinFilenameLength    int
 	MaxFilenameLength    int
@@ -31,70 +31,45 @@ type PathGeneratorOptions struct {
 // filenames consist of random characters of random length.
 // The generated sequences are reproducible, controlled by
 // the RandSeed option.
-type PathGenerator interface {
-	// Generates a random path.
-	//
-	// The path will be always absolute.
-	//
-	// The path may contain a closing slash, with a probability based on the
-	// `ClosingSlashInEveryN`. If `ClosingSlashInEveryN < 0`, the path won't
-	// contain a closing slash. If `ClosingSlashInEveryN == 0`, the path
-	// will always contain a closing slash. If `ClosingSlashInEveryN == n`,
-	// where `n > 0`, then the generated path will contain a closing slash
-	// with a chance of `1 / n`.
-	//
-	// The path will contain a random number of names (the thing between the
-	// slashes), equally distributed between `MinNamesInPath` and
-	// `MaxNamesInPath`.
-	//
-	// The names in the path will have a random length, equally distributed
-	// between `MinFilenameLength` and `MaxFilenameLength`.
-	//
-	// The sequence followed by `Next` is reproducible, to get a different
-	// sequence, a new PathGenerator instance is required, with a
-	// different `RandSeed` value.
-	Next() string
-}
-
 type pathGenerator struct {
-	options *PathGeneratorOptions
+	options *pathGeneratorOptions
 	rnd     *rand.Rand
 }
 
-func applyDefaults(o *PathGeneratorOptions) {
+func applyDefaults(o *pathGeneratorOptions) {
 	if o.FilenameChars == "" {
-		o.FilenameChars = DefaultChars
+		o.FilenameChars = defaultChars
 	}
 
 	if o.MinFilenameLength == 0 {
-		o.MinFilenameLength = DefaultMinFilenameLength
+		o.MinFilenameLength = defaultMinFilenameLength
 	}
 
 	if o.MaxFilenameLength == 0 {
-		o.MaxFilenameLength = DefaultMaxFilenameLength
+		o.MaxFilenameLength = defaultMaxFilenameLength
 	}
 
 	if o.MinNamesInPath == 0 {
-		o.MinNamesInPath = DefaultMinNamesInPath
+		o.MinNamesInPath = defaultMinNamesInPath
 	}
 
 	if o.MaxNamesInPath == 0 {
-		o.MaxNamesInPath = DefaultMaxNamesInPath
+		o.MaxNamesInPath = defaultMaxNamesInPath
 	}
 
 	if o.ClosingSlashInEveryN == 0 {
-		o.ClosingSlashInEveryN = DefaultClosingSlashInEveryN
+		o.ClosingSlashInEveryN = defaultClosingSlashInEveryN
 	}
 
 	if o.Separator == "" {
-		o.Separator = DefaultSeparator
+		o.Separator = defaultSeparator
 	}
 }
 
 // Creates a path generator with the provided options,
 // falling back to the default value for each non-specified
 // option field.
-func MakePathGenerator(o PathGeneratorOptions) PathGenerator {
+func makePathGenerator(o pathGeneratorOptions) *pathGenerator {
 
 	// options taken as value, free to modify
 	applyDefaults(&o)
@@ -141,6 +116,27 @@ func (pg *pathGenerator) closingSlash() bool {
 	return pg.rnd.Intn(pg.options.ClosingSlashInEveryN) == 0
 }
 
+// Generates a random path.
+//
+// The path will be always absolute.
+//
+// The path may contain a closing slash, with a probability based on the
+// `ClosingSlashInEveryN`. If `ClosingSlashInEveryN < 0`, the path won't
+// contain a closing slash. If `ClosingSlashInEveryN == 0`, the path
+// will always contain a closing slash. If `ClosingSlashInEveryN == n`,
+// where `n > 0`, then the generated path will contain a closing slash
+// with a chance of `1 / n`.
+//
+// The path will contain a random number of names (the thing between the
+// slashes), equally distributed between `MinNamesInPath` and
+// `MaxNamesInPath`.
+//
+// The names in the path will have a random length, equally distributed
+// between `MinFilenameLength` and `MaxFilenameLength`.
+//
+// The sequence followed by `Next` is reproducible, to get a different
+// sequence, a new pathGenerator instance is required, with a
+// different `RandSeed` value.
 func (pg *pathGenerator) Next() string {
 	names := pg.names()
 
