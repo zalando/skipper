@@ -26,3 +26,6 @@ remove custom tooling from .gitignore
 requestmatcher definition interface is unnecessary
 reomve interfaces where strucs are fine
 splitting source and settings can be simplified
+unite matcher defs and eskip defs
+separate definition processing to its own file
+apply params from path tree
