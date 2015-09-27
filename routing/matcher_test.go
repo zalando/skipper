@@ -3,6 +3,7 @@ package routing
 import (
     "testing"
     "github.com/zalando/skipper/filters"
+    "github.com/zalando/skipper/filters/testfilter"
 )
 
 func TestFailToParse(t *testing.T) {
@@ -20,7 +21,7 @@ func TestCreateShuntBackend(t *testing.T) {
         t.Error(err)
     }
 
-    testMatcher(t, castMatcher(m), &Route{"", true, nil})
+    testMatcher(t, castMatcher(m), &Route{&Backend{"", "", true}, nil})
 }
 
 func TestFailToParseBackend(t *testing.T) {
@@ -40,12 +41,12 @@ func TestParseBackend(t *testing.T) {
         t.Error(err)
     }
 
-    testMatcher(t, castMatcher(m), &Route{"https://www.example.org", false, nil})
+    testMatcher(t, castMatcher(m), &Route{&Backend{"https", "www.example.org", false}, nil})
 }
 
 func TestFilterNotFound(t *testing.T) {
-    spec1 := &testFilter{name: "testFilter1"}
-    spec2 := &testFilter{name: "testFilter2"}
+    spec1 := &testfilter.T{FilterName: "testFilter1"}
+    spec2 := &testfilter.T{FilterName: "testFilter2"}
     fr := make(filters.Registry)
     fr[spec1.Name()] = spec1
     fr[spec2.Name()] = spec2
@@ -60,8 +61,8 @@ func TestFilterNotFound(t *testing.T) {
 }
 
 func TestCreateFilters(t *testing.T) {
-    spec1 := &testFilter{name: "testFilter1"}
-    spec2 := &testFilter{name: "testFilter2"}
+    spec1 := &testfilter.T{FilterName: "testFilter1"}
+    spec2 := &testfilter.T{FilterName: "testFilter2"}
     fr := make(filters.Registry)
     fr[spec1.Name()] = spec1
     fr[spec2.Name()] = spec2
@@ -72,7 +73,7 @@ func TestCreateFilters(t *testing.T) {
         t.Error(err)
     }
 
-    testMatcher(t, castMatcher(m), &Route{"https://www.example.org", false, []filters.Filter{
-        &testFilter{name: "testFilter1", args: []interface{}{float64(1), "one"}},
-        &testFilter{name: "testFilter2", args: []interface{}{float64(2), "two"}}}})
+    testMatcher(t, castMatcher(m), &Route{&Backend{"https", "www.example.org", false}, []filters.Filter{
+        &testfilter.T{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}},
+        &testfilter.T{FilterName: "testFilter2", Args: []interface{}{float64(2), "two"}}}})
 }
