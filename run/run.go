@@ -4,7 +4,8 @@ import (
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy"
-	"github.com/zalando/skipper/settings"
+    "github.com/zalando/skipper/eskipfile"
+    "github.com/zalando/skipper/routing"
 	"log"
 	"net/http"
 )
@@ -16,10 +17,10 @@ import (
 func Run(address string, etcdUrls []string, storageRoot string, insecure bool, routesFilePath string,
 	ignoreTrailingSlash bool, customFilters ...filters.Spec) error {
 
-	var dataClient settings.DataClient
+	var dataClient routing.DataClient
 	var err error
 	if len(routesFilePath) > 0 {
-		dataClient, err = settings.MakeFileDataClient(routesFilePath)
+		dataClient, err = eskipfile.Make(routesFilePath)
 		if err != nil {
 			return err
 		}
@@ -37,10 +38,10 @@ func Run(address string, etcdUrls []string, storageRoot string, insecure bool, r
 		registry[f.Name()] = f
 	}
 
-	// create a settings source
+	// create routing
 	// create the proxy instance
-	settingsSource := settings.MakeSource(dataClient, registry, ignoreTrailingSlash)
-	proxy := proxy.Make(settingsSource, insecure)
+    routing := routing.New(dataClient, registry, ignoreTrailingSlash)
+	proxy := proxy.Make(routing, insecure)
 
 	// start the http server
 	log.Printf("listening on %v\n", address)

@@ -23,18 +23,18 @@ func (rd *routeDef) Headers() map[string]string         { return rd.eskipRoute.H
 func (rd *routeDef) HeaderRegexps() map[string][]string { return rd.eskipRoute.HeaderRegexps }
 func (rd *routeDef) Value() interface{}                 { return rd.value }
 
-func createBackend(def *eskip.Route) (string, bool, error) {
+func createBackend(def *eskip.Route) (*Backend, error) {
 	if def.Shunt {
-        return "", true, nil
+        return &Backend{Shunt: true}, nil
 	}
 
 	bu, err := url.ParseRequestURI(def.Backend)
 	if err != nil {
-		return "", false, err
+		return nil, err
 	}
 
     bu = &url.URL{Scheme: bu.Scheme, Host: bu.Host}
-	return bu.String(), false, nil
+	return &Backend{bu.Scheme, bu.Host, false}, nil
 }
 
 func (r *Routing) createFilter(def *eskip.Filter) (filters.Filter, error) {
@@ -61,7 +61,7 @@ func (r *Routing) createFilters(def *eskip.Route) ([]filters.Filter, error) {
 }
 
 func (r *Routing) convertDef(def *eskip.Route) (*routeDef, error) {
-	address, shunt, err := createBackend(def)
+	b, err := createBackend(def)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (r *Routing) convertDef(def *eskip.Route) (*routeDef, error) {
 		return nil, err
 	}
 
-	rt := &Route{address, shunt, fs}
+	rt := &Route{b, fs}
 	return &routeDef{def, rt}, nil
 }
 

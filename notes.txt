@@ -29,3 +29,8 @@ splitting source and settings can be simplified
 unite matcher defs and eskip defs
 separate definition processing to its own file
 apply params from path tree
+move pathtree into skipper
+test data used in multiple places into a subpackage as in httptest
+pathmux documentation
+replace types with a single field with a type shortcut
+data client is passed in from outside, but the receive returns the data only once
