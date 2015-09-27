@@ -9,10 +9,6 @@ import (
 	"net/url"
 )
 
-type DataClient struct {
-	FReceive chan string
-}
-
 type Backend struct {
 	FScheme  string
 	FHost    string
@@ -41,22 +37,6 @@ type Route struct {
 
 type Settings struct {
 	RouterImpl route.Router
-}
-
-func MakeDataClient(data string) *DataClient {
-	dc := &DataClient{make(chan string)}
-	dc.Feed(data)
-	return dc
-}
-
-func (dc *DataClient) Receive() <-chan string {
-	return dc.FReceive
-}
-
-func (dc *DataClient) Feed(data string) {
-	go func() {
-		dc.FReceive <- data
-	}()
 }
 
 func (b *Backend) Scheme() string {
