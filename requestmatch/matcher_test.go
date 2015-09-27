@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/zalando/eskip"
 	"github.com/zalando/pathmux"
-	"github.com/zalando/skipper/mock"
 	"log"
 	"net/http"
 	"net/url"
@@ -114,7 +113,7 @@ func initMatcher() {
 	matcher = m
 }
 
-func generatePaths(pg mock.PathGenerator, count int) []string {
+func generatePaths(pg *pathGenerator, count int) []string {
 	paths := make([]string, count)
 
 	for i := 0; i < count; i++ {
@@ -174,7 +173,7 @@ func initRandomPaths() {
 
 	// we need to avoid '/' paths here, because we are not testing conflicting cases
 	// here, and with 0 or 1 MinNamesInPath, there would be multiple '/'s.
-	pg := mock.MakePathGenerator(mock.PathGeneratorOptions{
+	pg := makePathGenerator(pathGeneratorOptions{
 		MinNamesInPath: 2,
 		MaxNamesInPath: 15})
 

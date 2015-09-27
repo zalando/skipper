@@ -2,18 +2,37 @@ package settings
 
 import (
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/mock"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
 )
 
+type dataClient struct {
+	FReceive chan string
+}
+
+func makeDataClient(data string) *dataClient {
+	dc := &dataClient{make(chan string)}
+	dc.feed(data)
+	return dc
+}
+
+func (dc *dataClient) Receive() <-chan string {
+	return dc.FReceive
+}
+
+func (dc *dataClient) feed(data string) {
+	go func() {
+		dc.FReceive <- data
+	}()
+}
+
 func TestParseAndDispatchRawData(t *testing.T) {
 	url1 := "https://www.zalando.de"
 	data := `hello: Path("/hello") -> "https://www.zalando.de"`
 
-	dc := mock.MakeDataClient(data)
+	dc := makeDataClient(data)
 	fr := make(filters.Registry)
 	s := MakeSource(dc, fr, false)
 
@@ -46,13 +65,13 @@ func TestParseAndDispatchRawData(t *testing.T) {
 		return
 	}
 
-	if rt1.Backend().Scheme() != up1.Scheme || rt1.Backend().Host() != up1.Host ||
-		rt2.Backend().Scheme() != up1.Scheme || rt2.Backend().Host() != up1.Host {
+	if rt1.Backend.Scheme != up1.Scheme || rt1.Backend.Host != up1.Host ||
+		rt2.Backend.Scheme != up1.Scheme || rt2.Backend.Host != up1.Host {
 		t.Error("wrong url 1")
 	}
 
 	data = `hello: Path("/hello") -> "https://www.zalan.do"`
-	dc.Feed(data)
+	dc.feed(data)
 
 	// let the new settings fan through
 	time.Sleep(3 * time.Millisecond)
@@ -68,8 +87,8 @@ func TestParseAndDispatchRawData(t *testing.T) {
 	rt1, _ = s1.Route(r)
 	rt2, _ = s2.Route(r)
 	up2, _ := url.ParseRequestURI("https://www.zalan.do")
-	if rt1.Backend().Scheme() != up2.Scheme || rt1.Backend().Host() != up2.Host ||
-		rt2.Backend().Scheme() != up2.Scheme || rt2.Backend().Host() != up2.Host {
+	if rt1.Backend.Scheme != up2.Scheme || rt1.Backend.Host != up2.Host ||
+		rt2.Backend.Scheme != up2.Scheme || rt2.Backend.Host != up2.Host {
 		t.Error("wrong url 2")
 	}
 }

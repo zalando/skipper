@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/settings"
-	"github.com/zalando/skipper/skipper"
 	"io"
 	"log"
 	"net/http"
@@ -91,10 +90,10 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
-func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
+func mapRequest(r *http.Request, b *settings.Backend) (*http.Request, error) {
 	u := r.URL
-	u.Scheme = b.Scheme()
-	u.Host = b.Host()
+	u.Scheme = b.Scheme
+	u.Host = b.Host
 
 	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
 	if err != nil {
@@ -180,7 +179,7 @@ func shunt(r *http.Request) *http.Response {
 		Request:    r}
 }
 
-func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, error) {
+func (p *proxy) roundtrip(r *http.Request, b *settings.Backend) (*http.Response, error) {
 	rr, err := mapRequest(r, b)
 	if err != nil {
 		return nil, err
@@ -210,18 +209,18 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f := rt.Filters()
+	f := rt.Filters
 	c := &filterContext{w, r, nil, false}
 	applyFiltersToRequest(f, c)
 
-	b := rt.Backend()
+	b := rt.Backend
 	if b == nil {
 		hterr(proxyError("missing backend"))
 		return
 	}
 
 	var rs *http.Response
-	if b.IsShunt() {
+	if b.IsShunt {
 		rs = shunt(r)
 	} else {
 		rs, err = p.roundtrip(r, b)
