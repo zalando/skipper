@@ -17,26 +17,37 @@ const testAuthenticationToken = "test token"
 type autoAuth bool
 
 func (aa autoAuth) Token() (string, error) {
+    println("authenticating")
 	if aa {
+        println("success")
 		return testAuthenticationToken, nil
 	}
 
-	return "", errors.New("auth failed")
+    println("failure")
+	return "", errors.New(string(authErrorAuthentication))
 }
 
-func innkeeperHandler(data *[]*routeData) http.Handler {
+func innkeeperHandler(data []*routeData) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get(authorizationHeader) != testAuthenticationToken {
+		if r.Header.Get("Authorization") != testAuthenticationToken {
 			w.WriteHeader(401)
 			enc := json.NewEncoder(w)
 
 			// ignoring error
-			enc.Encode(&apiError{Message: authFailedMessage})
+			enc.Encode(&apiError{ErrorType: string(authErrorPermission)})
 
 			return
 		}
 
-		if b, err := json.Marshal(*data); err == nil {
+        responseData := []*routeData{}
+        lm := r.URL.Query().Get("last_modified")
+        for _, di := range data {
+            if di.LastModified >= lm {
+                responseData = append(responseData, di)
+            }
+        }
+
+		if b, err := json.Marshal(responseData); err == nil {
 			w.Write(b)
 		} else {
 			w.WriteHeader(500)
@@ -51,15 +62,21 @@ func sortDoc(doc string) string {
 }
 
 func checkDoc(out skipper.RawData, in []*routeData) bool {
-	doc := make(map[int64]string)
-	updateDoc(doc, in)
-	return sortDoc(toDocument(doc).Get()) == sortDoc(out.Get())
+    c := &client{doc: make(map[int64]string)}
+	c.updateDoc(in)
+	return sortDoc(toDocument(c.doc).Get()) == sortDoc(out.Get())
 }
 
 func TestNothingToReceive(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	api := httptest.NewServer(http.NotFoundHandler())
-	c := Make(api.URL, pollingTimeout, autoAuth(true))
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	select {
 	case <-c.Receive():
 		t.Error("shoudn't have received anything")
@@ -71,16 +88,42 @@ func TestNothingToReceive(t *testing.T) {
 func TestReceiveInitialDataImmediately(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	data := []*routeData{
-		{1, false, `Path("/") -> "https://example.org"`},
-		{2, true, `Path("/catalog") -> "https://example.org/catalog"`},
-		{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}
-	api := httptest.NewServer(innkeeperHandler(&data))
-	c := Make(api.URL, pollingTimeout, autoAuth(true))
+		&routeData{1, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+		&routeData{2, true, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/catalog"}}},
+		&routeData{3, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}
+	api := httptest.NewServer(innkeeperHandler(data))
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	select {
 	case doc := <-c.Receive():
 		if !checkDoc(doc, []*routeData{
-			{1, false, `Path("/") -> "https://example.org"`},
-			{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}) {
+			&routeData{1, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+			&routeData{3, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/catalog"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}) {
 
 			t.Error("failed to receive the right data")
 		}
@@ -92,11 +135,28 @@ func TestReceiveInitialDataImmediately(t *testing.T) {
 func TestReceiveNew(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	data := []*routeData{
-		{1, false, `Path("/") -> "https://example.org"`},
-		{2, true, `Path("/catalog") -> "https://example.org/catalog"`},
-		{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}
-	api := httptest.NewServer(innkeeperHandler(&data))
-	c := Make(api.URL, pollingTimeout, autoAuth(true))
+		&routeData{1, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+		&routeData{2, true, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/catalog"}}},
+		&routeData{3, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}
+	api := httptest.NewServer(innkeeperHandler(data))
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	// receive initial
 	select {
@@ -106,16 +166,31 @@ func TestReceiveNew(t *testing.T) {
 	}
 
 	// make a change
-	data = append(data, &routeData{4, false, `Path("/pdp") -> "https://example.org/pdp"`})
+	data = append(data, &routeData{4, false, "", routeDef{
+		nil, nil,
+		pathMatch{pathMatchStrict, "/pdp"},
+		nil, nil, nil,
+		endpoint{endpointReverseProxy, "https", "example.org/pdp", 443, "/"}}})
 
 	// wait for the change
 	select {
 	case doc := <-c.Receive():
 		if !checkDoc(doc, []*routeData{
-			{1, false, `Path("/") -> "https://example.org"`},
-			{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`},
-			{4, false, `Path("/pdp") -> "https://example.org/pdp"`}}) {
-
+			&routeData{1, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+			&routeData{3, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/catalog"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}},
+			&routeData{4, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/pdp"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/pdp"}}}}) {
 			t.Error("failed to receive the right data")
 		}
 	case <-time.After(2 * pollingTimeout):
@@ -126,11 +201,28 @@ func TestReceiveNew(t *testing.T) {
 func TestReceiveUpdate(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	data := []*routeData{
-		{1, false, `Path("/") -> "https://example.org"`},
-		{2, true, `Path("/catalog") -> "https://example.org/catalog"`},
-		{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}
-	api := httptest.NewServer(innkeeperHandler(&data))
-	c := Make(api.URL, pollingTimeout, autoAuth(true))
+		&routeData{1, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+		&routeData{2, true, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/catalog"}}},
+		&routeData{3, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}
+	api := httptest.NewServer(innkeeperHandler(data))
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	// receive initial
 	select {
@@ -140,16 +232,23 @@ func TestReceiveUpdate(t *testing.T) {
 	}
 
 	// make a change
-	data[2].Route = `Path("/catalog") -> "https://example.org/extra-catalog"`
+	data[2].Route.Endpoint.Path = "extra-catalog"
 
 	// wait for the change
 	select {
 	case doc := <-c.Receive():
 		if !checkDoc(doc, []*routeData{
-			{1, false, `Path("/") -> "https://example.org"`},
-			{3, false, `Path("/catalog") -> "https://example.org/extra-catalog"`}}) {
-
-			t.Error("failed to receive the right data")
+			&routeData{1, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+			&routeData{3, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/extra-catalog"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/extra-catalog"}}}}) {
+			t.Error("failed to receive the right data", doc)
 		}
 	case <-time.After(2 * pollingTimeout):
 		t.Error("timeout")
@@ -159,11 +258,28 @@ func TestReceiveUpdate(t *testing.T) {
 func TestReceiveDelete(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	data := []*routeData{
-		{1, false, `Path("/") -> "https://example.org"`},
-		{2, true, `Path("/catalog") -> "https://example.org/catalog"`},
-		{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}
-	api := httptest.NewServer(innkeeperHandler(&data))
-	c := Make(api.URL, pollingTimeout, autoAuth(true))
+		&routeData{1, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+		&routeData{2, true, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/catalog"}}},
+		&routeData{3, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}
+	api := httptest.NewServer(innkeeperHandler(data))
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	// recieve initial
 	select {
@@ -178,7 +294,12 @@ func TestReceiveDelete(t *testing.T) {
 	// wait for the change
 	select {
 	case doc := <-c.Receive():
-		if !checkDoc(doc, []*routeData{{1, false, `Path("/") -> "https://example.org"`}}) {
+		if !checkDoc(doc, []*routeData{
+			&routeData{1, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}}}) {
 			t.Error("failed to receive the right data")
 		}
 	case <-time.After(2 * pollingTimeout):
@@ -189,11 +310,28 @@ func TestReceiveDelete(t *testing.T) {
 func TestNoChange(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	data := []*routeData{
-		{1, false, `Path("/") -> "https://example.org"`},
-		{2, true, `Path("/catalog") -> "https://example.org/catalog"`},
-		{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}
-	api := httptest.NewServer(innkeeperHandler(&data))
-	c := Make(api.URL, pollingTimeout, autoAuth(true))
+		&routeData{1, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+		&routeData{2, true, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/catalog"}}},
+		&routeData{3, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}
+	api := httptest.NewServer(innkeeperHandler(data))
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	// recieve initial
 	select {
@@ -214,11 +352,29 @@ func TestNoChange(t *testing.T) {
 func TestAuthFailedInitial(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	data := []*routeData{
-		{1, false, `Path("/") -> "https://example.org"`},
-		{2, true, `Path("/catalog") -> "https://example.org/catalog"`},
-		{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}
-	api := httptest.NewServer(innkeeperHandler(&data))
-	c := Make(api.URL, pollingTimeout, autoAuth(false))
+		&routeData{1, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+		&routeData{2, true, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/catalog"}}},
+		&routeData{3, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}
+	api := httptest.NewServer(innkeeperHandler(data))
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	select {
 	case <-c.Receive():
 		t.Error("should not have received anything")
@@ -230,11 +386,29 @@ func TestAuthFailedInitial(t *testing.T) {
 func TestAuthFailedUpdate(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	data := []*routeData{
-		{1, false, `Path("/") -> "https://example.org"`},
-		{2, true, `Path("/catalog") -> "https://example.org/catalog"`},
-		{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}
-	api := httptest.NewServer(innkeeperHandler(&data))
-	c := Make(api.URL, pollingTimeout, autoAuth(true))
+		&routeData{1, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+		&routeData{2, true, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/catalog"}}},
+		&routeData{3, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}
+	api := httptest.NewServer(innkeeperHandler(data))
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	select {
 	case <-c.Receive():
 	case <-time.After(pollingTimeout):
@@ -253,20 +427,194 @@ func TestAuthFailedUpdate(t *testing.T) {
 func TestAuthWithFixedToken(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	data := []*routeData{
-		{1, false, `Path("/") -> "https://example.org"`},
-		{2, true, `Path("/catalog") -> "https://example.org/catalog"`},
-		{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}
-	api := httptest.NewServer(innkeeperHandler(&data))
-	c := Make(api.URL, pollingTimeout, FixedToken(testAuthenticationToken))
+		&routeData{1, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+		&routeData{2, true, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/catalog"}}},
+		&routeData{3, false, "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}
+	api := httptest.NewServer(innkeeperHandler(data))
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	select {
 	case doc := <-c.Receive():
 		if !checkDoc(doc, []*routeData{
-			{1, false, `Path("/") -> "https://example.org"`},
-			{3, false, `Path("/catalog") -> "https://example.org/new-catalog"`}}) {
+			&routeData{1, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+			&routeData{3, false, "", routeDef{
+				nil, nil,
+				pathMatch{pathMatchStrict, "/catalog"},
+				nil, nil, nil,
+				endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}) {
 
 			t.Error("failed to receive the right data")
 		}
 	case <-time.After(pollingTimeout):
 		t.Error("timeout")
+	}
+}
+
+func TestParsingInnkeeperRoute(t *testing.T) {
+	const testInnkeeperRoute = `{
+        "id": 1,
+        "route": {
+            "description": "The New Route",
+            "match_methods": ["GET"],
+            "match_headers": [
+                {"name": "header0", "value": "value0"},
+                {"name": "header1", "value": "value1"}
+            ],
+            "match_path": {
+                "match": "/route",
+                "type": "STRICT"
+            },
+            "rewrite_path": {
+                "match": "_",
+                "replace": "-"
+            },
+            "request_headers": [
+                {"name": "header2", "value": "value2"},
+                {"name": "header3", "value": "value3"}
+            ],
+            "response_headers": [
+                {"name": "header4", "value": "value4"},
+                {"name": "header5", "value": "value5"}
+            ],
+            "endpoint": {
+                "hostname": "domain.eu",
+                "port": 443,
+                "protocol": "HTTPS",
+                "type": "REVERSE_PROXY"
+            }
+        }
+    }`
+
+	r := routeData{}
+	err := json.Unmarshal([]byte(testInnkeeperRoute), &r)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(r.Route.MatchMethods) != 1 || r.Route.MatchMethods[0] != "GET" {
+		t.Error("failed to parse methods")
+	}
+
+	if len(r.Route.MatchHeaders) != 2 ||
+		r.Route.MatchHeaders[0].Name != "header0" || r.Route.MatchHeaders[0].Value != "value0" ||
+		r.Route.MatchHeaders[1].Name != "header1" || r.Route.MatchHeaders[1].Value != "value1" {
+		t.Error("failed to parse methods")
+	}
+
+	if r.Route.MatchPath.Typ != "STRICT" || r.Route.MatchPath.Match != "/route" {
+		t.Error("failed to parse path match", r.Route.MatchPath.Typ, r.Route.MatchPath.Match)
+	}
+
+	if r.Route.RewritePath == nil || r.Route.RewritePath.Match != "_" || r.Route.RewritePath.Replace != "-" {
+		t.Error("failed to path rewrite")
+	}
+
+	if len(r.Route.RequestHeaders) != 2 ||
+		r.Route.RequestHeaders[0].Name != "header2" || r.Route.RequestHeaders[0].Name != "header2" ||
+		r.Route.RequestHeaders[1].Name != "header3" || r.Route.RequestHeaders[1].Name != "header3" {
+		t.Error("failed to parse request headers")
+	}
+
+	if len(r.Route.ResponseHeaders) != 2 ||
+		r.Route.ResponseHeaders[0].Name != "header4" || r.Route.ResponseHeaders[0].Name != "header4" ||
+		r.Route.ResponseHeaders[1].Name != "header5" || r.Route.ResponseHeaders[1].Name != "header5" {
+		t.Error("failed to parse request headers")
+	}
+
+	if r.Route.Endpoint.Hostname != "domain.eu" ||
+		r.Route.Endpoint.Port != 443 ||
+		r.Route.Endpoint.Protocol != "HTTPS" ||
+		r.Route.Endpoint.Typ != "REVERSE_PROXY" {
+		t.Error("failed to parse endpoint")
+	}
+}
+
+func TestParsingInnkeeperRouteNoPathRewrite(t *testing.T) {
+	const testInnkeeperRoute = `{
+        "id": 1,
+        "route": {}
+    }`
+
+	r := routeData{}
+	err := json.Unmarshal([]byte(testInnkeeperRoute), &r)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if r.Route.RewritePath != nil {
+		t.Error("failed to path rewrite")
+	}
+}
+
+func TestParsingMultipleInnkeeperRoutes(t *testing.T) {
+	const testInnkeeperRoutes = `[{
+        "id": 1,
+        "route": {
+            "description": "The New Route",
+            "match_path": {
+                "match": "/route",
+                "type": "STRICT"
+            },
+            "endpoint": {
+                "hostname": "domain.eu"
+            }
+        }
+    }, {
+        "id": 2,
+        "route": {
+            "description": "The New Route",
+            "match_path": {
+                "match": "/route",
+                "type": "STRICT"
+            },
+            "endpoint": {
+                "hostname": "domain.eu"
+            }
+        }
+    }]`
+
+	rs := []*routeData{}
+	err := json.Unmarshal([]byte(testInnkeeperRoutes), &rs)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(rs) != 2 || rs[0].Id != 1 || rs[1].Id != 2 {
+		t.Error("failed to parse routes")
+	}
+}
+
+func TestParsingMultipleInnkeeperRoutesWithDelete(t *testing.T) {
+	const testInnkeeperRoutes = `[{"id": 1}, {"id": 2, "deleted": true}]`
+
+	rs := []*routeData{}
+	err := json.Unmarshal([]byte(testInnkeeperRoutes), &rs)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(rs) != 2 || rs[0].Id != 1 || rs[1].Id != 2 || rs[0].Deleted || !rs[1].Deleted {
+		t.Error("failed to parse routes")
 	}
 }
