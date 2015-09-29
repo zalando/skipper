@@ -32,8 +32,8 @@ const (
 	authErrorPermission     = authErrorType("AUTH1")
 	authErrorAuthentication = authErrorType("AUTH2")
 
-	allRoutesPath = "/routes"
-	updatePath    = "/routes/last-modified"
+	allRoutesPathRoot = "routes"
+	updatePathRoot    = "updated-routes"
 )
 
 // todo: implement this either with the oauth service
@@ -82,8 +82,8 @@ type routeDef struct {
 
 type routeData struct {
 	Id           int64    `json:"id"`
-	Deleted      bool     `json:"deleted"`
-	LastModified string   `json:"createdAt"`
+    CreatedAt    string   `json:"createdAt"`
+    DeletedAt    string   `json:"deletedAt"`
 	Route        routeDef `json:"route"`
 }
 
@@ -94,7 +94,7 @@ type apiError struct {
 
 type routeDoc string
 
-type client struct {
+type Client struct {
 	baseUrl    *url.URL
 	auth       Authentication
 	authToken  string
@@ -105,6 +105,8 @@ type client struct {
 	// store the routes for comparison during
 	// the subsequent polls
 	doc map[int64]string
+    closer chan interface{}
+    closed chan interface{}
 }
 
 type Options struct {
@@ -115,40 +117,44 @@ type Options struct {
 }
 
 // Creates an innkeeper client.
-func Make(o Options) (skipper.DataClient, error) {
+func Make(o Options) (*Client, error) {
 	u, err := url.Parse(o.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	c := &client{
+	c := &Client{
 		u, o.Authentication, "", "",
 		&http.Client{Transport: &http.Transport{
             TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}},
 		make(chan skipper.RawData),
-		make(map[int64]string)}
+		make(map[int64]string),
+        make(chan interface{}),
+        make(chan interface{})}
 
 	// start a polling loop
 	go func() {
+        to := time.Duration(0)
 		for {
-			if c.poll() {
-				c.dataChan <- toDocument(c.doc)
-			}
-
-			time.Sleep(o.PollTimeout)
+            select {
+            case <-time.After(to):
+                to = o.PollTimeout
+                if c.poll() {
+                    c.dataChan <- toDocument(c.doc)
+                }
+            case <-c.closer:
+                c.closed <- 0
+                return
+            }
 		}
 	}()
 
 	return c, nil
 }
 
-func (c *client) createUrl(path, lastModified string) string {
+func (c *Client) createUrl(path ...string) string {
 	u := *c.baseUrl
-	u.Path = path
-    if lastModified != "" {
-        u.RawQuery = "last_modified=" + lastModified
-    }
-
+	u.Path = strings.Join(append([]string{""}, path...), "/")
 	return (&u).String()
 }
 
@@ -176,7 +182,7 @@ func isApiAuthError(error string) bool {
 	}
 }
 
-func (c *client) authenticate() error {
+func (c *Client) authenticate() error {
 	t, err := c.auth.Token()
 	if err != nil {
 		return err
@@ -186,7 +192,7 @@ func (c *client) authenticate() error {
 	return nil
 }
 
-func (c *client) requestData(authRetry bool, url string) ([]*routeData, error) {
+func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -207,7 +213,6 @@ func (c *client) requestData(authRetry bool, url string) ([]*routeData, error) {
 		}
 
 		if !isApiAuthError(apiError) {
-            println("is api auth error")
 			return nil, fmt.Errorf("unknown authentication error: %s", apiError)
 		}
 
@@ -317,7 +322,7 @@ func getEndpointAddress(d *routeData) string {
 	return a.String()
 }
 
-func (c *client) routeJsonToEskip(d *routeData) string {
+func (c *Client) routeJsonToEskip(d *routeData) string {
 	key := getRouteKey(d)
 	m := getMatcherExpression(d)
 	f := getFilterExpressions(d)
@@ -328,32 +333,44 @@ func (c *client) routeJsonToEskip(d *routeData) string {
 // updates the route doc from received data, and
 // returns true if there were any changes, otherwise
 // false.
-func (c *client) updateDoc(d []*routeData) {
+func (c *Client) updateDoc(d []*routeData) bool {
+    updated := false
 	for _, di := range d {
-        if di.LastModified > c.lastModified {
-            c.lastModified = di.LastModified
+        if di.DeletedAt > c.lastModified {
+            c.lastModified = di.DeletedAt
+        } else if di.CreatedAt > c.lastModified {
+            c.lastModified = di.CreatedAt
         }
 
 		switch {
-		case di.Deleted:
-			delete(c.doc, di.Id)
+		case di.DeletedAt != "":
+            if c.doc[di.Id] != "" {
+                delete(c.doc, di.Id)
+                updated = true
+            }
 		default:
-			c.doc[di.Id] = c.routeJsonToEskip(di)
+            docEntry := c.routeJsonToEskip(di)
+            if c.doc[di.Id] != docEntry {
+                c.doc[di.Id] = docEntry
+                updated = true
+            }
 		}
 	}
+
+    return updated
 }
 
-func (c *client) poll() bool {
+func (c *Client) poll() bool {
 	var (
 		d   []*routeData
 		err error
 	)
 
 	if len(c.doc) == 0 {
-        url := c.createUrl(allRoutesPath, "")
+        url := c.createUrl(allRoutesPathRoot)
 		d, err = c.requestData(true, url)
 	} else {
-        url := c.createUrl(updatePath, c.lastModified)
+        url := c.createUrl(updatePathRoot, c.lastModified)
 		d, err = c.requestData(true, url)
 	}
 
@@ -366,9 +383,12 @@ func (c *client) poll() bool {
         return false
     }
 
-    log.Println("routing doc updated from innkeeper")
-    c.updateDoc(d)
-    return true
+    updated := c.updateDoc(d)
+    if updated {
+        log.Println("routing doc updated from innkeeper")
+    }
+
+    return updated
 }
 
 // returns eskip format
@@ -383,7 +403,13 @@ func toDocument(doc map[int64]string) routeDoc {
 }
 
 // returns skipper raw data value
-func (c *client) Receive() <-chan skipper.RawData { return c.dataChan }
+func (c *Client) Receive() <-chan skipper.RawData { return c.dataChan }
+
+// Stops polling, but only after the last update is consumed on the receive channel.
+func (c *Client) Close() {
+    close(c.closer)
+    <-c.closed
+}
 
 // returns eskip format of the route doc
 //
