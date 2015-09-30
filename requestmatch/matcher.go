@@ -256,7 +256,7 @@ func matchHeader(h http.Header, key string, check func(string) bool) bool {
 }
 
 func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h http.Header) bool {
-    // todo: would be better to allow any that match, even if slower
+	// todo: would be better to allow any that match, even if slower
 
 	for k, v := range exact {
 		if !matchHeader(h, k, func(val string) bool { return val == v }) {

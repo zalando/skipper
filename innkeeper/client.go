@@ -81,10 +81,10 @@ type routeDef struct {
 }
 
 type routeData struct {
-	Id           int64    `json:"id"`
-    CreatedAt    string   `json:"createdAt"`
-    DeletedAt    string   `json:"deletedAt"`
-	Route        routeDef `json:"route"`
+	Id        int64    `json:"id"`
+	CreatedAt string   `json:"createdAt"`
+	DeletedAt string   `json:"deletedAt"`
+	Route     routeDef `json:"route"`
 }
 
 type apiError struct {
@@ -95,25 +95,25 @@ type apiError struct {
 type routeDoc string
 
 type Client struct {
-	baseUrl    *url.URL
-	auth       Authentication
-	authToken  string
-    lastModified string
-	httpClient *http.Client
-	dataChan   chan skipper.RawData
+	baseUrl      *url.URL
+	auth         Authentication
+	authToken    string
+	lastModified string
+	httpClient   *http.Client
+	dataChan     chan skipper.RawData
 
 	// store the routes for comparison during
 	// the subsequent polls
-	doc map[int64]string
-    closer chan interface{}
-    closed chan interface{}
+	doc    map[int64]string
+	closer chan interface{}
+	closed chan interface{}
 }
 
 type Options struct {
-    Address string
-    Insecure bool
-    PollTimeout time.Duration
-    Authentication Authentication
+	Address        string
+	Insecure       bool
+	PollTimeout    time.Duration
+	Authentication Authentication
 }
 
 // Creates an innkeeper client.
@@ -126,25 +126,25 @@ func Make(o Options) (*Client, error) {
 	c := &Client{
 		u, o.Authentication, "", "",
 		&http.Client{Transport: &http.Transport{
-            TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}},
 		make(chan skipper.RawData),
 		make(map[int64]string),
-        make(chan interface{}),
-        make(chan interface{})}
+		make(chan interface{}),
+		make(chan interface{})}
 
 	// start a polling loop
 	go func() {
-        to := time.Duration(0)
+		to := time.Duration(0)
 		for {
-            select {
-            case <-time.After(to):
-                to = o.PollTimeout
-                if c.poll() {
-                    c.dataChan <- toDocument(c.doc)
-                }
-            case <-c.closer:
-                return
-            }
+			select {
+			case <-time.After(to):
+				to = o.PollTimeout
+				if c.poll() {
+					c.dataChan <- toDocument(c.doc)
+				}
+			case <-c.closer:
+				return
+			}
 		}
 	}()
 
@@ -236,9 +236,9 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 		return nil, err
 	}
 
-    result := []*routeData{}
+	result := []*routeData{}
 	err = json.Unmarshal(routesData, &result)
-    return result, err
+	return result, err
 }
 
 func getRouteKey(d *routeData) string {
@@ -275,9 +275,9 @@ func getMatcherExpression(d *routeData) string {
 
 	switch d.Route.MatchPath.Typ {
 	case pathMatchStrict:
-        m = appendFormat(m, `Path("%s")`, d.Route.MatchPath.Match)
+		m = appendFormat(m, `Path("%s")`, d.Route.MatchPath.Match)
 	case pathMatchRegexp:
-        m = appendFormat(m, `PathRegexp("%s")`, d.Route.MatchPath.Match)
+		m = appendFormat(m, `PathRegexp("%s")`, d.Route.MatchPath.Match)
 	}
 
 	if len(m) == 0 {
@@ -333,30 +333,30 @@ func (c *Client) routeJsonToEskip(d *routeData) string {
 // returns true if there were any changes, otherwise
 // false.
 func (c *Client) updateDoc(d []*routeData) bool {
-    updated := false
+	updated := false
 	for _, di := range d {
-        if di.DeletedAt > c.lastModified {
-            c.lastModified = di.DeletedAt
-        } else if di.CreatedAt > c.lastModified {
-            c.lastModified = di.CreatedAt
-        }
+		if di.DeletedAt > c.lastModified {
+			c.lastModified = di.DeletedAt
+		} else if di.CreatedAt > c.lastModified {
+			c.lastModified = di.CreatedAt
+		}
 
 		switch {
 		case di.DeletedAt != "":
-            if c.doc[di.Id] != "" {
-                delete(c.doc, di.Id)
-                updated = true
-            }
+			if c.doc[di.Id] != "" {
+				delete(c.doc, di.Id)
+				updated = true
+			}
 		default:
-            docEntry := c.routeJsonToEskip(di)
-            if c.doc[di.Id] != docEntry {
-                c.doc[di.Id] = docEntry
-                updated = true
-            }
+			docEntry := c.routeJsonToEskip(di)
+			if c.doc[di.Id] != docEntry {
+				c.doc[di.Id] = docEntry
+				updated = true
+			}
 		}
 	}
 
-    return updated
+	return updated
 }
 
 func (c *Client) poll() bool {
@@ -366,36 +366,36 @@ func (c *Client) poll() bool {
 	)
 
 	if len(c.doc) == 0 {
-        url := c.createUrl(allRoutesPathRoot)
+		url := c.createUrl(allRoutesPathRoot)
 		d, err = c.requestData(true, url)
 	} else {
-        url := c.createUrl(updatePathRoot, c.lastModified)
+		url := c.createUrl(updatePathRoot, c.lastModified)
 		d, err = c.requestData(true, url)
 	}
 
-    if err != nil {
+	if err != nil {
 		log.Println("error while receiving innkeeper data;", err)
 		return false
-    }
+	}
 
-    if len(d) == 0 {
-        return false
-    }
+	if len(d) == 0 {
+		return false
+	}
 
-    updated := c.updateDoc(d)
-    if updated {
-        log.Println("routing doc updated from innkeeper")
-    }
+	updated := c.updateDoc(d)
+	if updated {
+		log.Println("routing doc updated from innkeeper")
+	}
 
-    return updated
+	return updated
 }
 
 // returns eskip format
 func toDocument(doc map[int64]string) routeDoc {
 	var d []byte
 	for _, r := range doc {
-        d = append(d, []byte(r)...)
-        d = append(d, ';', '\n')
+		d = append(d, []byte(r)...)
+		d = append(d, ';', '\n')
 	}
 
 	return routeDoc(d)
@@ -406,7 +406,7 @@ func (c *Client) Receive() <-chan skipper.RawData { return c.dataChan }
 
 // Stops polling, but only after the last update is consumed on the receive channel.
 func (c *Client) Close() {
-    close(c.closer)
+	close(c.closer)
 }
 
 // returns eskip format of the route doc
