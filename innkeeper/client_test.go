@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
     "path"
+    "github.com/zalando/eskip"
 )
 
 const testAuthenticationToken = "test token"
@@ -668,5 +669,50 @@ func TestParsingMultipleInnkeeperRoutesWithDelete(t *testing.T) {
 
 	if len(rs) != 2 || rs[0].Id != 1 || rs[1].Id != 2 || rs[0].DeletedAt != "" || rs[1].DeletedAt != "2015-09-28T16:58:56.956" {
 		t.Error("failed to parse routes")
+	}
+}
+
+func TestProducesParsableDocument(t *testing.T) {
+	const pollingTimeout = 15 * time.Millisecond
+	data := []*routeData{
+		&routeData{1, "", "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/"}}},
+		&routeData{2, "", "2015-09-28T16:58:56.956", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/catalog"}}},
+		&routeData{3, "", "", routeDef{
+			nil, nil,
+			pathMatch{pathMatchStrict, "/catalog"},
+			nil, nil, nil,
+			endpoint{endpointReverseProxy, "https", "example.org", 443, "/new-catalog"}}}}
+	api := httptest.NewServer(&innkeeperHandler{data})
+    defer api.Close()
+
+	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true)})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+    defer c.Close()
+
+	select {
+	case doc := <-c.Receive():
+        println(doc.Get())
+        parsed, err := eskip.Parse(doc.Get())
+        if err != nil {
+            t.Error(err)
+        }
+
+        if len(parsed) != 2 {
+            t.Error("failed to parse")
+        }
+	case <-time.After(2 * pollingTimeout):
+		t.Error("timeout")
 	}
 }
