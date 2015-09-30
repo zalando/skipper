@@ -37,7 +37,7 @@ func makeDataClient(o Options, auth innkeeper.Authentication) (skipper.DataClien
 		return settings.MakeFileDataClient(o.RoutesFilePath)
 	case o.InnkeeperUrl != "":
 		return innkeeper.Make(innkeeper.Options{
-            o.InnkeeperUrl, o.Insecure, o.InnkeeperPollTimeout, auth})
+			o.InnkeeperUrl, o.Insecure, o.InnkeeperPollTimeout, auth})
 	default:
 		return etcd.Make(o.EtcdUrls, o.StorageRoot)
 	}
