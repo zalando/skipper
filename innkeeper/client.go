@@ -143,7 +143,6 @@ func Make(o Options) (*Client, error) {
                     c.dataChan <- toDocument(c.doc)
                 }
             case <-c.closer:
-                c.closed <- 0
                 return
             }
 		}
@@ -327,7 +326,7 @@ func (c *Client) routeJsonToEskip(d *routeData) string {
 	m := getMatcherExpression(d)
 	f := getFilterExpressions(d)
 	a := getEndpointAddress(d)
-	return fmt.Sprintf("%s: %s%s -> %s", key, m, f, a)
+	return fmt.Sprintf(`%s: %s%s -> "%s"`, key, m, f, a)
 }
 
 // updates the route doc from received data, and
@@ -408,7 +407,6 @@ func (c *Client) Receive() <-chan skipper.RawData { return c.dataChan }
 // Stops polling, but only after the last update is consumed on the receive channel.
 func (c *Client) Close() {
     close(c.closer)
-    <-c.closed
 }
 
 // returns eskip format of the route doc
