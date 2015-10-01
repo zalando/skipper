@@ -77,9 +77,9 @@ func sortDoc(doc string) string {
 }
 
 func checkDoc(out skipper.RawData, in []*routeData) bool {
-	c := &Client{doc: make(map[int64]map[string]string)}
+	c := &Client{routeCache: make(routeCache)}
 	c.updateDoc(in)
-	return sortDoc(toDocument(c.doc).Get()) == sortDoc(out.Get())
+	return sortDoc(toDocument(c.routeCache).Get()) == sortDoc(out.Get())
 }
 
 func testData() []*routeData {
