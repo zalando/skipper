@@ -2,7 +2,10 @@ package proxy
 
 import (
 	"bytes"
-    "github.com/zalando/skipper/routing"
+	"fmt"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +13,6 @@ import (
 	"strconv"
 	"testing"
 	"time"
-    "fmt"
-    "github.com/zalando/skipper/routing/testdataclient"
-    "github.com/zalando/skipper/filters"
 )
 
 const streamingDelay time.Duration = 3 * time.Millisecond
@@ -80,7 +80,7 @@ func TestGetRoundtrip(t *testing.T) {
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
 	p := Make(routing.New(testdataclient.New(data), nil, false), false)
-    delay()
+	delay()
 
 	p.ServeHTTP(w, r)
 
@@ -122,7 +122,7 @@ func TestPostRoundtrip(t *testing.T) {
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
 	p := Make(routing.New(testdataclient.New(data), nil, false), false)
-    delay()
+	delay()
 
 	p.ServeHTTP(w, r)
 
@@ -144,13 +144,13 @@ func TestRoute(t *testing.T) {
 	s2 := startTestServer(payload2, 0, voidCheck)
 	defer s2.Close()
 
-    data := fmt.Sprintf(`
+	data := fmt.Sprintf(`
         route1: Path("/host-one/*any") -> "%s";
         route1: Path("/host-two/*any") -> "%s"
     `, s1.URL, s2.URL)
-    routing := routing.New(testdataclient.New(data), nil, false)
+	routing := routing.New(testdataclient.New(data), nil, false)
 	p := Make(routing, false)
-    delay()
+	delay()
 
 	var (
 		r *http.Request
@@ -188,7 +188,7 @@ func TestStreaming(t *testing.T) {
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
 	p := Make(routing.New(testdataclient.New(data), nil, false), false)
-    delay()
+	delay()
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
@@ -247,11 +247,11 @@ func TestAppliesFilters(t *testing.T) {
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
 
-    fr := make(filters.Registry)
-    reqh := filters.CreateRequestHeader()
-    rsph := filters.CreateResponseHeader()
-    fr[reqh.Name()] = reqh
-    fr[rsph.Name()] = rsph
+	fr := make(filters.Registry)
+	reqh := filters.CreateRequestHeader()
+	rsph := filters.CreateResponseHeader()
+	fr[reqh.Name()] = reqh
+	fr[rsph.Name()] = rsph
 
 	data := fmt.Sprintf(`hello:
         Path("/hello") ->
@@ -259,7 +259,7 @@ func TestAppliesFilters(t *testing.T) {
         responseHeader("X-Test-Response-Header", "response header value") ->
         "%s"`, s.URL)
 	p := Make(routing.New(testdataclient.New(data), fr, false), false)
-    delay()
+	delay()
 
 	p.ServeHTTP(w, r)
 
@@ -276,13 +276,13 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
 
-    fr := make(filters.Registry)
-    rsph := filters.CreateResponseHeader()
-    fr[rsph.Name()] = rsph
+	fr := make(filters.Registry)
+	rsph := filters.CreateResponseHeader()
+	fr[rsph.Name()] = rsph
 
 	data := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
 	p := Make(routing.New(testdataclient.New(data), fr, false), false)
-    delay()
+	delay()
 
 	p.ServeHTTP(w, r)
 

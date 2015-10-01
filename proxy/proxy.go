@@ -35,7 +35,7 @@ type shuntBody struct {
 }
 
 type proxy struct {
-    routing *routing.Routing
+	routing      *routing.Routing
 	roundTripper http.RoundTripper
 }
 
@@ -44,7 +44,7 @@ type filterContext struct {
 	req      *http.Request
 	res      *http.Response
 	served   bool
-	stateBag skipper.StateBag
+	stateBag map[string]interface{}
 }
 
 func (sb shuntBody) Close() error {
@@ -165,11 +165,11 @@ func (c *filterContext) MarkServed() {
 	c.served = true
 }
 
-func (c *filterContext) IsServed() bool {
+func (c *filterContext) Served() bool {
 	return c.served
 }
 
-func (c *filterContext) StateBag() skipper.StateBag {
+func (c *filterContext) StateBag() map[string]interface{} {
 	return c.stateBag
 }
 
@@ -205,7 +205,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := rt.Filters
-	c := &filterContext{w, r, nil, false, make(skipper.StateBag)}
+	c := &filterContext{w, r, nil, false, make(map[string]interface{})}
 	applyFiltersToRequest(f, c)
 
 	b := rt.Backend
@@ -215,9 +215,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-        rs *http.Response
-        err error
-    )
+		rs  *http.Response
+		err error
+	)
 
 	if b.Shunt {
 		rs = shunt(r)
@@ -239,7 +239,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.res = rs
 	applyFiltersToResponse(f, c)
 
-	if !c.IsServed() {
+	if !c.Served() {
 		copyHeader(w.Header(), rs.Header)
 		w.WriteHeader(rs.StatusCode)
 		copyStream(w.(flusherWriter), rs.Body)

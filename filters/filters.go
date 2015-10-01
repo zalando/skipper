@@ -7,8 +7,9 @@ type FilterContext interface {
 	ResponseWriter() http.ResponseWriter
 	Request() *http.Request
 	Response() *http.Response
-	IsServed() bool
+	Served() bool
 	MarkServed()
+	StateBag() map[string]interface{}
 }
 
 // Filters are created by the Spec components, optionally using filter specific settings.

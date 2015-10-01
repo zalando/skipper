@@ -36,3 +36,4 @@ replace types with a single field with a type shortcut
 data client is passed in from outside, but the receive returns the data only once
 example for packages without tests
 test for modpath filter
+verify the redirect filter input on creation
