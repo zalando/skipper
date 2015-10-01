@@ -32,7 +32,7 @@ var successHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r
 			return
 		}
 
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 		failed = !cond
 	}
 
@@ -47,9 +47,9 @@ var successHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r
 	checkForm("grant_type", grantType)
 	checkForm("username", "appusername")
 	checkForm("password", "apppassword")
-	checkForm("scope", "uid fashion_store_route.read")
+	checkForm("scope", "scope0 scope1")
 
-	w.WriteHeader(200)
+	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
 
 	// ignore error
@@ -57,7 +57,7 @@ var successHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r
 })
 
 var failureHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(404)
+	w.WriteHeader(http.StatusNotFound)
 })
 
 func createFileWithContent(fileName string, content string) error {
@@ -73,8 +73,9 @@ func createFileWithContent(fileName string, content string) error {
 
 func TestGetAuthPostBody(t *testing.T) {
 	us := &userCredentials{"user", "pass"}
-	postBody := getAuthPostBody(us)
-	if postBody != "grant_type=password&password=pass&scope=uid+fashion_store_route.read&username=user" {
+	c := Make("", "scope0 scope1")
+	postBody := c.getAuthPostBody(us)
+	if postBody != "grant_type=password&password=pass&scope=scope0+scope1&username=user" {
 		t.Error("the post body is not correct", postBody)
 	}
 }
@@ -146,7 +147,7 @@ func TestGetUser(t *testing.T) {
 
 func TestAuthenticate(t *testing.T) {
 	oas := httptest.NewServer(successHandler)
-	oauthClient := Make(oas.URL)
+	oauthClient := Make(oas.URL, "scope0 scope1")
 	authToken, err := oauthClient.Token()
 
 	if err != nil {
@@ -160,7 +161,7 @@ func TestAuthenticate(t *testing.T) {
 
 func TestAuthenticateFail(t *testing.T) {
 	oas := httptest.NewServer(failureHandler)
-	oauthClient := Make(oas.URL)
+	oauthClient := Make(oas.URL, "scope0 scope1")
 	authToken, err := oauthClient.Token()
 
 	if err == nil {

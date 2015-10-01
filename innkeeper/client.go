@@ -23,6 +23,8 @@ type (
 )
 
 const (
+	authHeaderName = "Authorization"
+
 	pathMatchStrict = pathMatchType("STRICT")
 	pathMatchRegexp = pathMatchType("REGEXP")
 
@@ -71,6 +73,9 @@ type endpoint struct {
 }
 
 type routeDef struct {
+	// non-parsed field
+	matchMethod string
+
 	MatchMethods    []string     `json:"match_methods"`
 	MatchHeaders    []headerData `json:"match_headers"`
 	MatchPath       pathMatch    `json:"match_path"`
@@ -95,25 +100,25 @@ type apiError struct {
 type routeDoc string
 
 type Client struct {
-	baseUrl      *url.URL
-	auth         Authentication
-	authToken    string
-	lastModified string
-	httpClient   *http.Client
-	dataChan     chan skipper.RawData
-
-	// store the routes for comparison during
-	// the subsequent polls
-	doc    map[int64]string
-	closer chan interface{}
-	closed chan interface{}
+	baseUrl          *url.URL
+	auth             Authentication
+	authToken        string
+	lastModified     string
+	preRouteFilters  []string
+	postRouteFilters []string
+	httpClient       *http.Client
+	dataChan         chan skipper.RawData
+	doc              map[int64]map[string]string
+	closer           chan interface{}
 }
 
 type Options struct {
-	Address        string
-	Insecure       bool
-	PollTimeout    time.Duration
-	Authentication Authentication
+	Address          string
+	Insecure         bool
+	PollTimeout      time.Duration
+	Authentication   Authentication
+	PreRouteFilters  []string
+	PostRouteFilters []string
 }
 
 // Creates an innkeeper client.
@@ -125,11 +130,11 @@ func Make(o Options) (*Client, error) {
 
 	c := &Client{
 		u, o.Authentication, "", "",
+		o.PreRouteFilters, o.PostRouteFilters,
 		&http.Client{Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}},
 		make(chan skipper.RawData),
-		make(map[int64]string),
-		make(chan interface{}),
+		make(map[int64]map[string]string),
 		make(chan interface{})}
 
 	// start a polling loop
@@ -173,12 +178,8 @@ func parseApiError(r io.Reader) (string, error) {
 }
 
 func isApiAuthError(error string) bool {
-	switch authErrorType(error) {
-	case authErrorPermission, authErrorAuthentication:
-		return true
-	default:
-		return false
-	}
+	aerr := authErrorType(error)
+	return aerr == authErrorPermission || aerr == authErrorAuthentication
 }
 
 func (c *Client) authenticate() error {
@@ -191,13 +192,26 @@ func (c *Client) authenticate() error {
 	return nil
 }
 
+func getHttpError(r *http.Response) (error, bool) {
+	switch {
+	case r.StatusCode < http.StatusBadRequest:
+		return nil, false
+	case r.StatusCode < http.StatusInternalServerError:
+		return fmt.Errorf("innkeeper request failed: %s", r.Status), true
+	case r.StatusCode < 600:
+		return fmt.Errorf("innkeeper error: %s", r.Status), true
+	default:
+		return fmt.Errorf("unexpected error: %d - %s", r.StatusCode, r.Status), true
+	}
+}
+
 func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Add("Authorization", c.authToken)
+	req.Header.Add(authHeaderName, c.authToken)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -205,7 +219,7 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 
 	defer response.Body.Close()
 
-	if response.StatusCode == 401 {
+	if response.StatusCode == http.StatusUnauthorized {
 		apiError, err := parseApiError(response.Body)
 		if err != nil {
 			return nil, err
@@ -227,8 +241,8 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 		return c.requestData(false, url)
 	}
 
-	if response.StatusCode >= 400 {
-		return nil, fmt.Errorf("failed to receive data: %s", response.Status)
+	if err, hasErr := getHttpError(response); hasErr {
+		return nil, err
 	}
 
 	routesData, err := ioutil.ReadAll(response.Body)
@@ -242,7 +256,7 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 }
 
 func getRouteKey(d *routeData) string {
-	return fmt.Sprintf("route%d", d.Id)
+	return fmt.Sprintf("route%d%s", d.Id, d.Route.matchMethod)
 }
 
 func appendFormat(exps []string, format string, args ...interface{}) []string {
@@ -267,8 +281,8 @@ func getMatcherExpression(d *routeData) string {
 
 	// there can be only 0 or 1 here, because routes for multiple methods
 	// have been already split
-	if len(d.Route.MatchMethods) == 1 {
-		m = appendFormat(m, `Method("%s")`, d.Route.MatchMethods[0])
+	if d.Route.matchMethod != "" {
+		m = appendFormat(m, `Method("%s")`, d.Route.matchMethod)
 	}
 
 	m = appendFormatHeaders(m, `Header("%s", "%s")`, d.Route.MatchHeaders, true)
@@ -287,8 +301,8 @@ func getMatcherExpression(d *routeData) string {
 	return strings.Join(m, " && ")
 }
 
-func getFilterExpressions(d *routeData) string {
-	f := []string{}
+func getFilterExpressions(d *routeData, preRouteFilters, postRouteFilters []string) string {
+	f := preRouteFilters
 
 	if d.Route.RewritePath != nil {
 		rx := d.Route.RewritePath.Match
@@ -301,6 +315,8 @@ func getFilterExpressions(d *routeData) string {
 
 	f = appendFormatHeaders(f, `requestHeader("%s", "%s")`, d.Route.RequestHeaders, false)
 	f = appendFormatHeaders(f, `responseHeader("%s", "%s")`, d.Route.ResponseHeaders, false)
+
+	f = append(f, postRouteFilters...)
 
 	if len(f) == 0 {
 		return ""
@@ -324,9 +340,25 @@ func getEndpointAddress(d *routeData) string {
 func (c *Client) routeJsonToEskip(d *routeData) string {
 	key := getRouteKey(d)
 	m := getMatcherExpression(d)
-	f := getFilterExpressions(d)
+	f := getFilterExpressions(d, c.preRouteFilters, c.postRouteFilters)
 	a := getEndpointAddress(d)
 	return fmt.Sprintf(`%s: %s%s -> "%s"`, key, m, f, a)
+}
+
+func (c *Client) convertToEntries(r *routeData) map[string]string {
+	split := make(map[string]string)
+	if len(r.Route.MatchMethods) == 0 {
+		split["_"] = c.routeJsonToEskip(r)
+		return split
+	}
+
+	for _, m := range r.Route.MatchMethods {
+		copy := r.Route
+		copy.matchMethod = m
+		split[m] = c.routeJsonToEskip(&routeData{r.Id, r.CreatedAt, r.DeletedAt, copy})
+	}
+
+	return split
 }
 
 // updates the route doc from received data, and
@@ -343,14 +375,28 @@ func (c *Client) updateDoc(d []*routeData) bool {
 
 		switch {
 		case di.DeletedAt != "":
-			if c.doc[di.Id] != "" {
+			if _, exists := c.doc[di.Id]; exists {
 				delete(c.doc, di.Id)
 				updated = true
 			}
 		default:
-			docEntry := c.routeJsonToEskip(di)
-			if c.doc[di.Id] != docEntry {
-				c.doc[di.Id] = docEntry
+			entriesPerMethod := c.convertToEntries(di)
+			if stored, exists := c.doc[di.Id]; exists {
+				for m, entry := range entriesPerMethod {
+					if stored[m] != entry {
+						stored[m] = entry
+						updated = true
+					}
+				}
+
+				for m, _ := range stored {
+					if _, exists := entriesPerMethod[m]; !exists {
+						delete(stored, m)
+						updated = true
+					}
+				}
+			} else {
+				c.doc[di.Id] = entriesPerMethod
 				updated = true
 			}
 		}
@@ -363,18 +409,18 @@ func (c *Client) poll() bool {
 	var (
 		d   []*routeData
 		err error
+		url string
 	)
 
 	if len(c.doc) == 0 {
-		url := c.createUrl(allRoutesPathRoot)
-		d, err = c.requestData(true, url)
+		url = c.createUrl(allRoutesPathRoot)
 	} else {
-		url := c.createUrl(updatePathRoot, c.lastModified)
-		d, err = c.requestData(true, url)
+		url = c.createUrl(updatePathRoot, c.lastModified)
 	}
+	d, err = c.requestData(true, url)
 
 	if err != nil {
-		log.Println("error while receiving innkeeper data;", err)
+		log.Println("error while receiving innkeeper data", err)
 		return false
 	}
 
@@ -391,11 +437,13 @@ func (c *Client) poll() bool {
 }
 
 // returns eskip format
-func toDocument(doc map[int64]string) routeDoc {
+func toDocument(doc map[int64]map[string]string) routeDoc {
 	var d []byte
-	for _, r := range doc {
-		d = append(d, []byte(r)...)
-		d = append(d, ';', '\n')
+	for _, mr := range doc {
+		for _, r := range mr {
+			d = append(d, []byte(r)...)
+			d = append(d, ';', '\n')
+		}
 	}
 
 	return routeDoc(d)

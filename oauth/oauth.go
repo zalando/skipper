@@ -33,12 +33,13 @@ type authResponse struct {
 }
 
 type OAuthClient struct {
-	oauthUrl   string
-	httpClient *http.Client
+	oauthUrl         string
+	permissionScopes string
+	httpClient       *http.Client
 }
 
-func Make(oauthUrl string) *OAuthClient {
-	return &OAuthClient{oauthUrl, &http.Client{}}
+func Make(oauthUrl, permissionScopes string) *OAuthClient {
+	return &OAuthClient{oauthUrl, permissionScopes, &http.Client{}}
 }
 
 func (oc *OAuthClient) Token() (string, error) {
@@ -52,7 +53,7 @@ func (oc *OAuthClient) Token() (string, error) {
 		return "", err
 	}
 
-	postBody := getAuthPostBody(uc)
+	postBody := oc.getAuthPostBody(uc)
 	req, err := http.NewRequest("POST", oc.oauthUrl, strings.NewReader(postBody))
 	if err != nil {
 		return "", err
@@ -82,12 +83,12 @@ func (oc *OAuthClient) Token() (string, error) {
 	return ar.AccessToken, nil
 }
 
-func getAuthPostBody(us *userCredentials) string {
+func (oc *OAuthClient) getAuthPostBody(us *userCredentials) string {
 	parameters := url.Values{}
 	parameters.Add("grant_type", grantType)
 	parameters.Add("username", us.Username)
 	parameters.Add("password", us.Password)
-	parameters.Add("scope", "uid fashion_store_route.read")
+	parameters.Add("scope", oc.permissionScopes)
 	return parameters.Encode()
 }
 
