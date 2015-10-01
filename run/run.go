@@ -18,17 +18,20 @@ import (
 // the etcd service at. If the flag 'insecure' is true, skipper will accept
 // invalid TLS certificates from the backends.
 type Options struct {
-	Address              string
-	EtcdUrls             []string
-	StorageRoot          string
-	Insecure             bool
-	InnkeeperUrl         string
-	InnkeeperPollTimeout time.Duration
-	RoutesFilePath       string
-	CustomFilters        []skipper.FilterSpec
-	IgnoreTrailingSlash  bool
-	OAuthUrl             string
-	InnkeeperAuthToken   string
+	Address                   string
+	EtcdUrls                  []string
+	StorageRoot               string
+	Insecure                  bool
+	InnkeeperUrl              string
+	InnkeeperPollTimeout      time.Duration
+	RoutesFilePath            string
+	CustomFilters             []skipper.FilterSpec
+	IgnoreTrailingSlash       bool
+	OAuthUrl                  string
+	OAuthScope                string
+	InnkeeperAuthToken        string
+	InnkeeperPreRouteFilters  []string
+	InnkeeperPostRouteFilters []string
 }
 
 func makeDataClient(o Options, auth innkeeper.Authentication) (skipper.DataClient, error) {
@@ -37,7 +40,8 @@ func makeDataClient(o Options, auth innkeeper.Authentication) (skipper.DataClien
 		return settings.MakeFileDataClient(o.RoutesFilePath)
 	case o.InnkeeperUrl != "":
 		return innkeeper.Make(innkeeper.Options{
-			o.InnkeeperUrl, o.Insecure, o.InnkeeperPollTimeout, auth})
+			o.InnkeeperUrl, o.Insecure, o.InnkeeperPollTimeout, auth,
+			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
 	default:
 		return etcd.Make(o.EtcdUrls, o.StorageRoot)
 	}
@@ -48,7 +52,7 @@ func makeInnkeeperAuthentication(o Options) innkeeper.Authentication {
 		return innkeeper.FixedToken(o.InnkeeperAuthToken)
 	}
 
-	return oauth.Make(o.OAuthUrl)
+	return oauth.Make(o.OAuthUrl, o.OAuthScope)
 }
 
 // Run skipper.

@@ -17,27 +17,31 @@ const (
 	defaultStorageRoot          = "/skipper"
 	defaultInnkeeperPollTimeout = int64(3 * time.Minute)
 
-	addressUsage              = "address where skipper should listen on"
-	etcdUrlsUsage             = "urls where etcd can be found"
-	insecureUsage             = "set this flag to allow invalid certificates for tls connections"
-	storageRootUsage          = "prefix for skipper related data in the provided etcd storage"
-	innkeeperUrlUsage         = "url of the innkeeper API"
-	innkeeperPollTimeoutUsage = "polling timeout of the innkeeper API"
-	oauthUrlUsage             = "OAuth2 URL for Innkeeper authentication"
-	routesFileUsage           = "routes file to use instead of etcd"
-	innkeeperAuthTokenUsage   = "fixed token for innkeeper authentication"
+	addressUsage                   = "address where skipper should listen on"
+	etcdUrlsUsage                  = "urls where etcd can be found"
+	insecureUsage                  = "set this flag to allow invalid certificates for tls connections"
+	storageRootUsage               = "prefix for skipper related data in the provided etcd storage"
+	innkeeperUrlUsage              = "url of the innkeeper API"
+	innkeeperPollTimeoutUsage      = "polling timeout of the innkeeper API"
+	oauthUrlUsage                  = "OAuth2 URL for Innkeeper authentication"
+	routesFileUsage                = "routes file to use instead of etcd"
+	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
+	innkeeperPreRouteFiltersUsage  = "global pre-route filters for routes from Innkeeper"
+	innkeeperPostRouteFiltersUsage = "global post-route filters for routes from Innkeeper"
 )
 
 var (
-	address              string
-	etcdUrls             string
-	insecure             bool
-	storageRoot          string
-	innkeeperUrl         string
-	innkeeperPollTimeout int64
-	routesFile           string
-	oauthUrl             string
-	innkeeperAuthToken   string
+	address                   string
+	etcdUrls                  string
+	insecure                  bool
+	storageRoot               string
+	innkeeperUrl              string
+	innkeeperPollTimeout      int64
+	routesFile                string
+	oauthUrl                  string
+	innkeeperAuthToken        string
+	innkeeperPreRouteFilters  string
+	innkeeperPostRouteFilters string
 )
 
 func init() {
@@ -50,19 +54,23 @@ func init() {
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.StringVar(&oauthUrl, "oauth-url", "", oauthUrlUsage)
 	flag.StringVar(&innkeeperAuthToken, "innkeeper-auth-token", "", innkeeperAuthTokenUsage)
+	flag.StringVar(&innkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", innkeeperPreRouteFiltersUsage)
+	flag.StringVar(&innkeeperPostRouteFilters, "innkeeper-post-route-filters", "", innkeeperPostRouteFiltersUsage)
 	flag.Parse()
 }
 
 func main() {
 	log.Fatal(run.Run(run.Options{
-		Address:              address,
-		EtcdUrls:             strings.Split(etcdUrls, ","),
-		StorageRoot:          storageRoot,
-		Insecure:             insecure,
-		InnkeeperUrl:         innkeeperUrl,
-		InnkeeperPollTimeout: time.Duration(innkeeperPollTimeout),
-		RoutesFilePath:       routesFile,
-		IgnoreTrailingSlash:  false,
-		OAuthUrl:             oauthUrl,
-		InnkeeperAuthToken:   innkeeperAuthToken}))
+		Address:                   address,
+		EtcdUrls:                  strings.Split(etcdUrls, ","),
+		StorageRoot:               storageRoot,
+		Insecure:                  insecure,
+		InnkeeperUrl:              innkeeperUrl,
+		InnkeeperPollTimeout:      time.Duration(innkeeperPollTimeout),
+		RoutesFilePath:            routesFile,
+		IgnoreTrailingSlash:       false,
+		OAuthUrl:                  oauthUrl,
+		InnkeeperAuthToken:        innkeeperAuthToken,
+		InnkeeperPreRouteFilters:  strings.Split(innkeeperPreRouteFilters, ","),
+		InnkeeperPostRouteFilters: strings.Split(innkeeperPostRouteFilters, ",")}))
 }

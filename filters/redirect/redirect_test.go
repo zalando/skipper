@@ -9,7 +9,7 @@ import (
 
 func TestRedirect(t *testing.T) {
 	spec := &Redirect{}
-	f, err := spec.MakeFilter("redirect0", []interface{}{float64(302), "https://example.org"})
+	f, err := spec.MakeFilter("redirect0", []interface{}{float64(http.StatusFound), "https://example.org"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -17,7 +17,7 @@ func TestRedirect(t *testing.T) {
 	ctx := &mock.FilterContext{FResponseWriter: httptest.NewRecorder()}
 	f.Response(ctx)
 
-	if ctx.FResponseWriter.(*httptest.ResponseRecorder).Code != 302 {
+	if ctx.FResponseWriter.(*httptest.ResponseRecorder).Code != http.StatusFound {
 		t.Error("invalid status code")
 	}
 
@@ -28,7 +28,7 @@ func TestRedirect(t *testing.T) {
 
 func TestRedirectRelative(t *testing.T) {
 	spec := &Redirect{}
-	f, err := spec.MakeFilter("redirect0", []interface{}{float64(302), "/relative/url"})
+	f, err := spec.MakeFilter("redirect0", []interface{}{float64(http.StatusFound), "/relative/url"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -40,7 +40,7 @@ func TestRedirectRelative(t *testing.T) {
 		FRequest:        request}
 	f.Response(ctx)
 
-	if ctx.FResponseWriter.(*httptest.ResponseRecorder).Code != 302 {
+	if ctx.FResponseWriter.(*httptest.ResponseRecorder).Code != http.StatusFound {
 		t.Error("invalid status code")
 	}
 
