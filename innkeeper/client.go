@@ -49,6 +49,11 @@ type FixedToken string
 
 func (fa FixedToken) Token() (string, error) { return string(fa), nil }
 
+type (
+	routeDoc   string
+	routeCache map[int64]map[string]string
+)
+
 type pathMatch struct {
 	Typ   pathMatchType `json:"type"`
 	Match string        `json:"match"`
@@ -97,8 +102,6 @@ type apiError struct {
 	ErrorType string `json:"type"`
 }
 
-type routeDoc string
-
 type Client struct {
 	baseUrl          *url.URL
 	auth             Authentication
@@ -108,7 +111,7 @@ type Client struct {
 	postRouteFilters []string
 	httpClient       *http.Client
 	dataChan         chan skipper.RawData
-	doc              map[int64]map[string]string
+	routeCache       routeCache
 	closer           chan interface{}
 }
 
@@ -134,7 +137,7 @@ func Make(o Options) (*Client, error) {
 		&http.Client{Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}},
 		make(chan skipper.RawData),
-		make(map[int64]map[string]string),
+		make(routeCache),
 		make(chan interface{})}
 
 	// start a polling loop
@@ -145,7 +148,7 @@ func Make(o Options) (*Client, error) {
 			case <-time.After(to):
 				to = o.PollTimeout
 				if c.poll() {
-					c.dataChan <- toDocument(c.doc)
+					c.dataChan <- toDocument(c.routeCache)
 				}
 			case <-c.closer:
 				return
@@ -375,13 +378,13 @@ func (c *Client) updateDoc(d []*routeData) bool {
 
 		switch {
 		case di.DeletedAt != "":
-			if _, exists := c.doc[di.Id]; exists {
-				delete(c.doc, di.Id)
+			if _, exists := c.routeCache[di.Id]; exists {
+				delete(c.routeCache, di.Id)
 				updated = true
 			}
 		default:
 			entriesPerMethod := c.convertToEntries(di)
-			if stored, exists := c.doc[di.Id]; exists {
+			if stored, exists := c.routeCache[di.Id]; exists {
 				for m, entry := range entriesPerMethod {
 					if stored[m] != entry {
 						stored[m] = entry
@@ -396,7 +399,7 @@ func (c *Client) updateDoc(d []*routeData) bool {
 					}
 				}
 			} else {
-				c.doc[di.Id] = entriesPerMethod
+				c.routeCache[di.Id] = entriesPerMethod
 				updated = true
 			}
 		}
@@ -412,7 +415,7 @@ func (c *Client) poll() bool {
 		url string
 	)
 
-	if len(c.doc) == 0 {
+	if len(c.routeCache) == 0 {
 		url = c.createUrl(allRoutesPathRoot)
 	} else {
 		url = c.createUrl(updatePathRoot, c.lastModified)
@@ -437,9 +440,9 @@ func (c *Client) poll() bool {
 }
 
 // returns eskip format
-func toDocument(doc map[int64]map[string]string) routeDoc {
+func toDocument(c routeCache) routeDoc {
 	var d []byte
-	for _, mr := range doc {
+	for _, mr := range c {
 		for _, r := range mr {
 			d = append(d, []byte(r)...)
 			d = append(d, ';', '\n')
