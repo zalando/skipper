@@ -34,3 +34,5 @@ test data used in multiple places into a subpackage as in httptest
 pathmux documentation
 replace types with a single field with a type shortcut
 data client is passed in from outside, but the receive returns the data only once
+example for packages without tests
+test for modpath filter
