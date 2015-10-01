@@ -6,6 +6,7 @@ package redirect
 import (
 	"errors"
 	"github.com/zalando/skipper/skipper"
+	"net/http"
 	"net/url"
 )
 
@@ -48,7 +49,7 @@ func (f *Redirect) Response(ctx skipper.FilterContext) {
 	u, err := url.Parse(f.location)
 
 	if err != nil {
-		w.WriteHeader(501)
+		w.WriteHeader(http.StatusInternalServerError)
 		ctx.MarkServed()
 		return
 	}
