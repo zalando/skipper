@@ -1,11 +1,11 @@
 package run
 
 import (
+	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy"
-    "github.com/zalando/skipper/eskipfile"
-    "github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing"
 	"log"
 	"net/http"
 )
@@ -40,7 +40,7 @@ func Run(address string, etcdUrls []string, storageRoot string, insecure bool, r
 
 	// create routing
 	// create the proxy instance
-    routing := routing.New(dataClient, registry, ignoreTrailingSlash)
+	routing := routing.New(dataClient, registry, ignoreTrailingSlash)
 	proxy := proxy.Make(routing, insecure)
 
 	// start the http server
