@@ -5,7 +5,6 @@ package filters
 
 import (
 	"errors"
-	"github.com/zalando/skipper/skipper"
 )
 
 type Redirect struct {
@@ -16,21 +15,21 @@ type Redirect struct {
 
 func (spec *Redirect) Name() string { return "redirect" }
 
-func (spec *Redirect) MakeFilter(id string, c skipper.FilterConfig) (skipper.Filter, error) {
-	invalidArgs := func() (skipper.Filter, error) {
+func (spec *Redirect) MakeFilter(id string, config []interface{}) (Filter, error) {
+	invalidArgs := func() (Filter, error) {
 		return nil, errors.New("invalid arguments")
 	}
 
-	if len(c) != 2 {
+	if len(config) != 2 {
 		return invalidArgs()
 	}
 
-	code, ok := c[0].(float64)
+	code, ok := config[0].(float64)
 	if !ok {
 		return invalidArgs()
 	}
 
-	location, ok := c[1].(string)
+	location, ok := config[1].(string)
 	if !ok {
 		return invalidArgs()
 	}
@@ -38,10 +37,10 @@ func (spec *Redirect) MakeFilter(id string, c skipper.FilterConfig) (skipper.Fil
 	return &Redirect{id, int(code), location}, nil
 }
 
-func (f *Redirect) Id() string                        { return f.id }
-func (f *Redirect) Request(ctx skipper.FilterContext) {}
+func (f *Redirect) Id() string                { return f.id }
+func (f *Redirect) Request(ctx FilterContext) {}
 
-func (f *Redirect) Response(ctx skipper.FilterContext) {
+func (f *Redirect) Response(ctx FilterContext) {
 	w := ctx.ResponseWriter()
 	w.Header().Set("Location", f.location)
 	w.WriteHeader(f.code)
