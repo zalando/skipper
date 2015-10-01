@@ -21,48 +21,48 @@ const (
 
 // defs in eskip format
 const routeDoc = `
-    header: Path("/tessera/header") -> "https://header.mop-taskforce.zalan.do";
-    footer: Path("/tessera/footer") -> "https://footer.mop-taskforce.zalan.do";
-    pdp: PathRegexp(/.*\.html$/) -> "https://pdp.layout-service.mop-taskforce.zalan.do";
-    pdpAsync: Path("/sls-async/*_") && PathRegexp(/.*\.html$/) -> "https://async.pdp.streaming-layout-service.mop-taskforce.zalan.do";
-    pdpsc: Path("/sc/*_") && PathRegexp(/.*\.html$/) -> "https://pdpsc.compositor-layout-service.mop-taskforce.zalan.do";
-    pdpsls: Path("/sls/*_") && PathRegexp(/.*\.html$/) -> "https://pdpsls.streaming-layout-service.mop-taskforce.zalan.do";
-    catalog: Any() -> "https://catalog.layout-service.mop-taskforce.zalan.do";
-    catalogAsync: Path("/sls-async/*_") -> "https://catalog-async.layout-service.mop-taskforce.zalan.do";
-    catalogsc: Path("/sc/*_") -> "https://catalogsc.compositor-layout-service.mop-taskforce.zalan.do";
-    catalogsls: Path("/sls/*_") -> "https://catalogsls.streaming-layout-service.mop-taskforce.zalan.do";
-    slow: Path("/slow") -> "https://bugfactory.mop-taskforce.zalan.do";
-    debug: Path("/debug") -> "https://debug.bugfactory.mop-taskforce.zalan.do";
-    cart: Path("/api/cart/*_") -> "https://cart.mop-taskforce.zalan.do";
-    login: Path("/login") && Method("POST") -> "https://login-fragment.mop-taskforce.zalan.do";
-    logout: Path("/logout") && Method("POST") -> "https://logout.login-fragment.mop-taskforce.zalan.do";
+    header: Path("/tessera/header") -> "https://header.my-department.example.org";
+    footer: Path("/tessera/footer") -> "https://footer.my-department.example.org";
+    pdp: PathRegexp(/.*\.html$/) -> "https://pdp.layout-service.my-department.example.org";
+    pdpAsync: Path("/sls-async/*_") && PathRegexp(/.*\.html$/) -> "https://async.pdp.streaming-layout-service.my-department.example.org";
+    pdpsc: Path("/sc/*_") && PathRegexp(/.*\.html$/) -> "https://pdpsc.compositor-layout-service.my-department.example.org";
+    pdpsls: Path("/sls/*_") && PathRegexp(/.*\.html$/) -> "https://pdpsls.streaming-layout-service.my-department.example.org";
+    catalog: Any() -> "https://catalog.layout-service.my-department.example.org";
+    catalogAsync: Path("/sls-async/*_") -> "https://catalog-async.layout-service.my-department.example.org";
+    catalogsc: Path("/sc/*_") -> "https://catalogsc.compositor-layout-service.my-department.example.org";
+    catalogsls: Path("/sls/*_") -> "https://catalogsls.streaming-layout-service.my-department.example.org";
+    slow: Path("/slow") -> "https://bugfactory.my-department.example.org";
+    debug: Path("/debug") -> "https://debug.bugfactory.my-department.example.org";
+    cart: Path("/api/cart/*_") -> "https://cart.my-department.example.org";
+    login: Path("/login") && Method("POST") -> "https://login-fragment.my-department.example.org";
+    logout: Path("/logout") && Method("POST") -> "https://logout.login-fragment.my-department.example.org";
     healthcheck: Path("/healthcheck") -> <shunt>;
     humanstxt: Path("/humans.txt") -> <shunt>;
-    baseAssetsAssets: Path("/assets/base-assets/*_") -> "https://base-assets.mop-taskforce.zalan.do";
-    headerAssets: Path("/assets/header/*_") -> "https://assets.header.mop-taskforce.zalan.do";
-    footerAssets: Path("/assets/footer/*_") -> "https://assets.footer.mop-taskforce.zalan.do";
-    cartAssets: Path("/assets/cart/*_") -> "https://assets.cart.mop-taskforce.zalan.do";
-    pdpAssets: Path("/assets/pdp/*_") -> "https://assets.pdp-fragment-alt.mop-taskforce.zalan.do";
-    catalogAssets: Path("/assets/catalog/*_") -> "https://assets.catalog-face.mop-taskforce.zalan.do";
-    loginAssets: Path("/assets/login/*_") -> "https://assets.login-fragment.mop-taskforce.zalan.do";
+    baseAssetsAssets: Path("/assets/base-assets/*_") -> "https://base-assets.my-department.example.org";
+    headerAssets: Path("/assets/header/*_") -> "https://assets.header.my-department.example.org";
+    footerAssets: Path("/assets/footer/*_") -> "https://assets.footer.my-department.example.org";
+    cartAssets: Path("/assets/cart/*_") -> "https://assets.cart.my-department.example.org";
+    pdpAssets: Path("/assets/pdp/*_") -> "https://assets.pdp-fragment-alt.my-department.example.org";
+    catalogAssets: Path("/assets/catalog/*_") -> "https://assets.catalog-face.my-department.example.org";
+    loginAssets: Path("/assets/login/*_") -> "https://assets.login-fragment.my-department.example.org";
 
-    catalogHerren: Path("/herren/*_") -> "https://herren.layout-service.mop-taskforce.zalan.do";
-    catalogDamen: Path("/damen/*_") -> "https://damen.layout-service.mop-taskforce.zalan.do";
-    catalogAsyncHerren: Path("/sls-async/herren/*_") -> "https://herren-async.streaming-layout-service.mop-taskforce.zalan.do";
-    catalogAsyncDamen: Path("/sls-async/damen/*_") -> "https://damen-async.streaming-layout-service.mop-taskforce.zalan.do";
-    catalogscHerren: Path("/sc/herren/*_") -> "https://herren-sc.compositor-layout-service.mop-taskforce.zalan.do";
-    catalogscDamen: Path("/sc/damen/*_") -> "https://damen-sc.compositor-layout-service.mop-taskforce.zalan.do";
-    catalogslsHerren: Path("/sls/herren/*_") -> "https://herren-sls.streaming-layout-service.mop-taskforce.zalan.do";
-    catalogslsDamen: Path("/sls/damen/*_") -> "https://damen-sls.streaming-layout-service.mop-taskforce.zalan.do";
+    catalogHerren: Path("/herren/*_") -> "https://herren.layout-service.my-department.example.org";
+    catalogDamen: Path("/damen/*_") -> "https://damen.layout-service.my-department.example.org";
+    catalogAsyncHerren: Path("/sls-async/herren/*_") -> "https://herren-async.streaming-layout-service.my-department.example.org";
+    catalogAsyncDamen: Path("/sls-async/damen/*_") -> "https://damen-async.streaming-layout-service.my-department.example.org";
+    catalogscHerren: Path("/sc/herren/*_") -> "https://herren-sc.compositor-layout-service.my-department.example.org";
+    catalogscDamen: Path("/sc/damen/*_") -> "https://damen-sc.compositor-layout-service.my-department.example.org";
+    catalogslsHerren: Path("/sls/herren/*_") -> "https://herren-sls.streaming-layout-service.my-department.example.org";
+    catalogslsDamen: Path("/sls/damen/*_") -> "https://damen-sls.streaming-layout-service.my-department.example.org";
 
-    catalogHerrenEn: Path("/men/*_") -> "https://herren-en.layout-service.mop-taskforce.zalan.do";
-    catalogDamenEn: Path("/women/*_") -> "https://damen-en.layout-service.mop-taskforce.zalan.do";
-    catalogAsyncHerrenEn: Path("/sls-async/men/*_") -> "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do";
-    catalogAsyncDamenEn: Path("/sls-async/women/*_") -> "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do";
-    catalogscHerrenEn: Path("/sc/men/*_") -> "https://herren-en.compositor-layout-service.mop-taskforce.zalan.do";
-    catalogscDamenEn: Path("/sc/women/*_") -> "https://damen-en.compositor-layout-service.mop-taskforce.zalan.do";
-    catalogslsHerrenEn: Path("/sls/men/*_") -> "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do";
-    catalogslsDamenEn: Path("/sls/women/*_") -> "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do";
+    catalogHerrenEn: Path("/men/*_") -> "https://herren-en.layout-service.my-department.example.org";
+    catalogDamenEn: Path("/women/*_") -> "https://damen-en.layout-service.my-department.example.org";
+    catalogAsyncHerrenEn: Path("/sls-async/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
+    catalogAsyncDamenEn: Path("/sls-async/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
+    catalogscHerrenEn: Path("/sc/men/*_") -> "https://herren-en.compositor-layout-service.my-department.example.org";
+    catalogscDamenEn: Path("/sc/women/*_") -> "https://damen-en.compositor-layout-service.my-department.example.org";
+    catalogslsHerrenEn: Path("/sls/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
+    catalogslsDamenEn: Path("/sls/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
 `
 
 type def struct {
@@ -288,77 +288,77 @@ func benchmarkLookup(b *testing.B, matcher *Matcher, phaseCount int) {
 }
 
 func TestGeneric(t *testing.T) {
-	testMatch(t, "GET", "/tessera/header", "https://header.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/tessera/footer", "https://footer.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/some.html", "https://pdp.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/path/to/some.html", "https://pdp.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/some.html", "https://async.pdp.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/some.html", "https://pdpsc.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/some.html", "https://pdpsls.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "", "https://catalog.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/", "https://catalog.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/nike", "https://catalog.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/nike", "https://catalog-async.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/nike", "https://catalogsc.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/nike", "https://catalogsls.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/nike/sports", "https://catalog.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/nike/sports", "https://catalog-async.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/nike/sports", "https://catalogsc.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/nike/sports", "https://catalogsls.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/slow", "https://bugfactory.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/debug", "https://debug.bugfactory.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/api/cart/42", "https://cart.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/api/cart/42/all", "https://cart.mop-taskforce.zalan.do")
-	testMatch(t, "POST", "/login", "https://login-fragment.mop-taskforce.zalan.do")
-	testMatch(t, "POST", "/logout", "https://logout.login-fragment.mop-taskforce.zalan.do")
+	testMatch(t, "GET", "/tessera/header", "https://header.my-department.example.org")
+	testMatch(t, "GET", "/tessera/footer", "https://footer.my-department.example.org")
+	testMatch(t, "GET", "/some.html", "https://pdp.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/path/to/some.html", "https://pdp.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/some.html", "https://async.pdp.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/some.html", "https://pdpsc.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/some.html", "https://pdpsls.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "", "https://catalog.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/", "https://catalog.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/nike", "https://catalog.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/nike", "https://catalog-async.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/nike", "https://catalogsc.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/nike", "https://catalogsls.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/nike/sports", "https://catalog.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/nike/sports", "https://catalog-async.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/nike/sports", "https://catalogsc.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/nike/sports", "https://catalogsls.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/slow", "https://bugfactory.my-department.example.org")
+	testMatch(t, "GET", "/debug", "https://debug.bugfactory.my-department.example.org")
+	testMatch(t, "GET", "/api/cart/42", "https://cart.my-department.example.org")
+	testMatch(t, "GET", "/api/cart/42/all", "https://cart.my-department.example.org")
+	testMatch(t, "POST", "/login", "https://login-fragment.my-department.example.org")
+	testMatch(t, "POST", "/logout", "https://logout.login-fragment.my-department.example.org")
 	testMatch(t, "GET", "/healthcheck", "")
 	testMatch(t, "GET", "/humans.txt", "")
-	testMatch(t, "GET", "/assets/base-assets/some.css", "https://base-assets.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/header/some.css", "https://assets.header.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/footer/some.css", "https://assets.footer.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/cart/some.css", "https://assets.cart.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/pdp/some.css", "https://assets.pdp-fragment-alt.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/catalog/some.css", "https://assets.catalog-face.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/login/some.css", "https://assets.login-fragment.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/base-assets/dir/some.css", "https://base-assets.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/header/dir/some.css", "https://assets.header.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/footer/dir/some.css", "https://assets.footer.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/cart/dir/some.css", "https://assets.cart.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/pdp/dir/some.css", "https://assets.pdp-fragment-alt.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/catalog/dir/some.css", "https://assets.catalog-face.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/assets/login/dir/some.css", "https://assets.login-fragment.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/herren/nike", "https://herren.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/damen/nike", "https://damen.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/herren/nike", "https://herren-async.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/damen/nike", "https://damen-async.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/herren/nike", "https://herren-sc.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/damen/nike", "https://damen-sc.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/herren/nike", "https://herren-sls.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/damen/nike", "https://damen-sls.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/men/nike", "https://herren-en.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/women/nike", "https://damen-en.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/men/nike", "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/women/nike", "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/men/nike", "https://herren-en.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/women/nike", "https://damen-en.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/men/nike", "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/women/nike", "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/herren/nike/sports", "https://herren.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/damen/nike/sports", "https://damen.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/herren/nike/sports", "https://herren-async.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/damen/nike/sports", "https://damen-async.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/herren/nike/sports", "https://herren-sc.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/damen/nike/sports", "https://damen-sc.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/herren/nike/sports", "https://herren-sls.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/damen/nike/sports", "https://damen-sls.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/men/nike/sports", "https://herren-en.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/women/nike/sports", "https://damen-en.layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/men/nike/sports", "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls-async/women/nike/sports", "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/men/nike/sports", "https://herren-en.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sc/women/nike/sports", "https://damen-en.compositor-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/men/nike/sports", "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do")
-	testMatch(t, "GET", "/sls/women/nike/sports", "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do")
+	testMatch(t, "GET", "/assets/base-assets/some.css", "https://base-assets.my-department.example.org")
+	testMatch(t, "GET", "/assets/header/some.css", "https://assets.header.my-department.example.org")
+	testMatch(t, "GET", "/assets/footer/some.css", "https://assets.footer.my-department.example.org")
+	testMatch(t, "GET", "/assets/cart/some.css", "https://assets.cart.my-department.example.org")
+	testMatch(t, "GET", "/assets/pdp/some.css", "https://assets.pdp-fragment-alt.my-department.example.org")
+	testMatch(t, "GET", "/assets/catalog/some.css", "https://assets.catalog-face.my-department.example.org")
+	testMatch(t, "GET", "/assets/login/some.css", "https://assets.login-fragment.my-department.example.org")
+	testMatch(t, "GET", "/assets/base-assets/dir/some.css", "https://base-assets.my-department.example.org")
+	testMatch(t, "GET", "/assets/header/dir/some.css", "https://assets.header.my-department.example.org")
+	testMatch(t, "GET", "/assets/footer/dir/some.css", "https://assets.footer.my-department.example.org")
+	testMatch(t, "GET", "/assets/cart/dir/some.css", "https://assets.cart.my-department.example.org")
+	testMatch(t, "GET", "/assets/pdp/dir/some.css", "https://assets.pdp-fragment-alt.my-department.example.org")
+	testMatch(t, "GET", "/assets/catalog/dir/some.css", "https://assets.catalog-face.my-department.example.org")
+	testMatch(t, "GET", "/assets/login/dir/some.css", "https://assets.login-fragment.my-department.example.org")
+	testMatch(t, "GET", "/herren/nike", "https://herren.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/damen/nike", "https://damen.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/herren/nike", "https://herren-async.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/damen/nike", "https://damen-async.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/herren/nike", "https://herren-sc.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/damen/nike", "https://damen-sc.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/herren/nike", "https://herren-sls.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/damen/nike", "https://damen-sls.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/men/nike", "https://herren-en.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/women/nike", "https://damen-en.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/men/nike", "https://herren-en.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/women/nike", "https://damen-en.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/men/nike", "https://herren-en.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/women/nike", "https://damen-en.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/men/nike", "https://herren-en.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/women/nike", "https://damen-en.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/herren/nike/sports", "https://herren.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/damen/nike/sports", "https://damen.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/herren/nike/sports", "https://herren-async.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/damen/nike/sports", "https://damen-async.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/herren/nike/sports", "https://herren-sc.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/damen/nike/sports", "https://damen-sc.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/herren/nike/sports", "https://herren-sls.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/damen/nike/sports", "https://damen-sls.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/men/nike/sports", "https://herren-en.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/women/nike/sports", "https://damen-en.layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/men/nike/sports", "https://herren-en.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls-async/women/nike/sports", "https://damen-en.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/men/nike/sports", "https://herren-en.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sc/women/nike/sports", "https://damen-en.compositor-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/men/nike/sports", "https://herren-en.streaming-layout-service.my-department.example.org")
+	testMatch(t, "GET", "/sls/women/nike/sports", "https://damen-en.streaming-layout-service.my-department.example.org")
 }
 
 func TestMatchRegexpsNone(t *testing.T) {
@@ -1095,43 +1095,43 @@ func TestFreeWildcardParamWithSlash(t *testing.T) {
 
 func BenchmarkGeneric(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		testMatch(b, "GET", "/tessera/header", "https://header.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/tessera/footer", "https://footer.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/some.html", "https://pdp.layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/nike", "https://catalog.layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls-async/nike", "https://catalog-async.layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sc/nike", "https://catalogsc.compositor-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls/nike", "https://catalogsls.streaming-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/slow", "https://bugfactory.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/debug", "https://debug.bugfactory.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/api/cart/42", "https://cart.mop-taskforce.zalan.do")
-		testMatch(b, "POST", "/login", "https://login-fragment.mop-taskforce.zalan.do")
-		testMatch(b, "POST", "/logout", "https://logout.login-fragment.mop-taskforce.zalan.do")
+		testMatch(b, "GET", "/tessera/header", "https://header.my-department.example.org")
+		testMatch(b, "GET", "/tessera/footer", "https://footer.my-department.example.org")
+		testMatch(b, "GET", "/some.html", "https://pdp.layout-service.my-department.example.org")
+		testMatch(b, "GET", "/nike", "https://catalog.layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls-async/nike", "https://catalog-async.layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sc/nike", "https://catalogsc.compositor-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls/nike", "https://catalogsls.streaming-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/slow", "https://bugfactory.my-department.example.org")
+		testMatch(b, "GET", "/debug", "https://debug.bugfactory.my-department.example.org")
+		testMatch(b, "GET", "/api/cart/42", "https://cart.my-department.example.org")
+		testMatch(b, "POST", "/login", "https://login-fragment.my-department.example.org")
+		testMatch(b, "POST", "/logout", "https://logout.login-fragment.my-department.example.org")
 		testMatch(b, "GET", "/healthcheck", "")
 		testMatch(b, "GET", "/humans.txt", "")
-		testMatch(b, "GET", "/assets/base-assets/some.css", "https://base-assets.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/assets/header/some.css", "https://assets.header.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/assets/footer/some.css", "https://assets.footer.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/assets/cart/some.css", "https://assets.cart.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/assets/pdp/some.css", "https://assets.pdp-fragment-alt.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/assets/catalog/some.css", "https://assets.catalog-face.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/assets/login/some.css", "https://assets.login-fragment.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/herren/nike", "https://herren.layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/damen/nike", "https://damen.layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls-async/herren/nike", "https://herren-async.streaming-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls-async/damen/nike", "https://damen-async.streaming-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sc/herren/nike", "https://herren-sc.compositor-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sc/damen/nike", "https://damen-sc.compositor-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls/herren/nike", "https://herren-sls.streaming-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls/damen/nike", "https://damen-sls.streaming-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/men/nike", "https://herren-en.layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/women/nike", "https://damen-en.layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls-async/men/nike", "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls-async/women/nike", "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sc/men/nike", "https://herren-en.compositor-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sc/women/nike", "https://damen-en.compositor-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls/men/nike", "https://herren-en.streaming-layout-service.mop-taskforce.zalan.do")
-		testMatch(b, "GET", "/sls/women/nike", "https://damen-en.streaming-layout-service.mop-taskforce.zalan.do")
+		testMatch(b, "GET", "/assets/base-assets/some.css", "https://base-assets.my-department.example.org")
+		testMatch(b, "GET", "/assets/header/some.css", "https://assets.header.my-department.example.org")
+		testMatch(b, "GET", "/assets/footer/some.css", "https://assets.footer.my-department.example.org")
+		testMatch(b, "GET", "/assets/cart/some.css", "https://assets.cart.my-department.example.org")
+		testMatch(b, "GET", "/assets/pdp/some.css", "https://assets.pdp-fragment-alt.my-department.example.org")
+		testMatch(b, "GET", "/assets/catalog/some.css", "https://assets.catalog-face.my-department.example.org")
+		testMatch(b, "GET", "/assets/login/some.css", "https://assets.login-fragment.my-department.example.org")
+		testMatch(b, "GET", "/herren/nike", "https://herren.layout-service.my-department.example.org")
+		testMatch(b, "GET", "/damen/nike", "https://damen.layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls-async/herren/nike", "https://herren-async.streaming-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls-async/damen/nike", "https://damen-async.streaming-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sc/herren/nike", "https://herren-sc.compositor-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sc/damen/nike", "https://damen-sc.compositor-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls/herren/nike", "https://herren-sls.streaming-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls/damen/nike", "https://damen-sls.streaming-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/men/nike", "https://herren-en.layout-service.my-department.example.org")
+		testMatch(b, "GET", "/women/nike", "https://damen-en.layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls-async/men/nike", "https://herren-en.streaming-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls-async/women/nike", "https://damen-en.streaming-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sc/men/nike", "https://herren-en.compositor-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sc/women/nike", "https://damen-en.compositor-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls/men/nike", "https://herren-en.streaming-layout-service.my-department.example.org")
+		testMatch(b, "GET", "/sls/women/nike", "https://damen-en.streaming-layout-service.my-department.example.org")
 	}
 }
 
