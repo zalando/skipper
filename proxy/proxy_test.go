@@ -145,9 +145,9 @@ func TestRoute(t *testing.T) {
 	defer s2.Close()
 
 	data := fmt.Sprintf(`
-        route1: Path("/host-one/*any") -> "%s";
-        route1: Path("/host-two/*any") -> "%s"
-    `, s1.URL, s2.URL)
+		route1: Path("/host-one/*any") -> "%s";
+		route1: Path("/host-two/*any") -> "%s"
+	`, s1.URL, s2.URL)
 	routing := routing.New(testdataclient.New(data), nil, false)
 	p := Make(routing, false)
 	delay()
