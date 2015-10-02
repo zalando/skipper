@@ -19,22 +19,22 @@ const streamingDelay time.Duration = 3 * time.Millisecond
 type requestCheck func(*http.Request)
 
 type priorityRoute struct {
-	backend     skipper.Backend
-    match func(r *http.Request) bool
+	backend skipper.Backend
+	match   func(r *http.Request) bool
 }
 
-func (prt *priorityRoute) Filters() []skipper.Filter { return nil }
-func (prt *priorityRoute) Backend() skipper.Backend            { return prt.backend }
-func (prt *priorityRoute) Match(r *http.Request) bool                { return prt.match(r) }
+func (prt *priorityRoute) Filters() []skipper.Filter  { return nil }
+func (prt *priorityRoute) Backend() skipper.Backend   { return prt.backend }
+func (prt *priorityRoute) Match(r *http.Request) bool { return prt.match(r) }
 
 func voidCheck(*http.Request) {}
 
 func makeTestSettingsDispatcher(url string, filters []skipper.Filter, shunt bool) (skipper.SettingsDispatcher, error) {
 	sd := dispatch.Make()
-    settings, err := mock.MakeSettings(url, filters, shunt)
-    if err != nil {
-        return nil, err
-    }
+	settings, err := mock.MakeSettings(url, filters, shunt)
+	if err != nil {
+		return nil, err
+	}
 
 	sd.Push() <- settings
 
@@ -106,10 +106,10 @@ func TestGetRoundtrip(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-    sd, err := makeTestSettingsDispatcher(s.URL, nil, false)
-    if err != nil {
-        t.Error(err)
-    }
+	sd, err := makeTestSettingsDispatcher(s.URL, nil, false)
+	if err != nil {
+		t.Error(err)
+	}
 
 	p := Make(sd, false)
 	p.ServeHTTP(w, r)
@@ -149,10 +149,10 @@ func TestPostRoundtrip(t *testing.T) {
 		Method: "POST",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-    sd, err := makeTestSettingsDispatcher(s.URL, nil, false)
-    if err != nil {
-        t.Error(err)
-    }
+	sd, err := makeTestSettingsDispatcher(s.URL, nil, false)
+	if err != nil {
+		t.Error(err)
+	}
 	p := Make(sd, false)
 	p.ServeHTTP(w, r)
 
@@ -175,15 +175,15 @@ func TestRoute(t *testing.T) {
 	defer s2.Close()
 
 	sd, err := makeTestSettingsDispatcher("", nil, false)
-    if err != nil {
-        t.Error(err)
-    }
-    ts, err := mock.MakeSettingsWithRoutes(map[string]skipper.Route{
-        "/host-one/:any": &mock.Route{urlToBackend(s1.URL), nil},
-        "/host-two/:any": &mock.Route{urlToBackend(s2.URL), nil}})
-    if err != nil {
-        t.Error(err)
-    }
+	if err != nil {
+		t.Error(err)
+	}
+	ts, err := mock.MakeSettingsWithRoutes(map[string]skipper.Route{
+		"/host-one/:any": &mock.Route{urlToBackend(s1.URL), nil},
+		"/host-two/:any": &mock.Route{urlToBackend(s2.URL), nil}})
+	if err != nil {
+		t.Error(err)
+	}
 	sd.Push() <- ts
 
 	p := Make(sd, false)
@@ -222,10 +222,10 @@ func TestStreaming(t *testing.T) {
 	s := startTestServer(payload, expectedParts, voidCheck)
 	defer s.Close()
 
-    sd, err := makeTestSettingsDispatcher(s.URL, nil, false)
-    if err != nil {
-        t.Error(err)
-    }
+	sd, err := makeTestSettingsDispatcher(s.URL, nil, false)
+	if err != nil {
+		t.Error(err)
+	}
 	p := Make(sd, false)
 
 	u, _ := url.ParseRequestURI("http://localhost:9090/hello/world")
@@ -311,16 +311,16 @@ func TestAppliesFilters(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-    sd, err := makeTestSettingsDispatcher(s.URL, []skipper.Filter{
+	sd, err := makeTestSettingsDispatcher(s.URL, []skipper.Filter{
 		&mock.Filter{
 			RequestHeaders:  map[string]string{"X-Test-Request-Header-0": "request header value 0"},
 			ResponseHeaders: map[string]string{"X-Test-Response-Header-0": "response header value 0"}},
 		&mock.Filter{
 			RequestHeaders:  map[string]string{"X-Test-Request-Header-1": "request header value 1"},
 			ResponseHeaders: map[string]string{"X-Test-Response-Header-1": "response header value 1"}}}, false)
-    if err != nil {
-        t.Error(err)
-    }
+	if err != nil {
+		t.Error(err)
+	}
 
 	p := Make(sd, false)
 
@@ -357,7 +357,7 @@ func TestAppliesFiltersInOrder(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-    sd, err := makeTestSettingsDispatcher(s.URL, []skipper.Filter{
+	sd, err := makeTestSettingsDispatcher(s.URL, []skipper.Filter{
 		&mock.Filter{
 			RequestHeaders: map[string]string{
 				"X-Test-Request-Header-0": "request header value 0"},
@@ -370,9 +370,9 @@ func TestAppliesFiltersInOrder(t *testing.T) {
 				"X-Test-Request-Header-1": "request header value 1"},
 			ResponseHeaders: map[string]string{
 				"X-Test-Response-Header-1": "response header value 1"}}}, false)
-    if err != nil {
-        t.Error(err)
-    }
+	if err != nil {
+		t.Error(err)
+	}
 	p := Make(sd, false)
 
 	p.ServeHTTP(w, r)
@@ -393,16 +393,16 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-    sd, err := makeTestSettingsDispatcher("", []skipper.Filter{
+	sd, err := makeTestSettingsDispatcher("", []skipper.Filter{
 		&mock.Filter{
 			ResponseHeaders: map[string]string{
 				"X-Test-Response-Header-0": "response header value 0"}},
 		&mock.Filter{
 			ResponseHeaders: map[string]string{
 				"X-Test-Response-Header-1": "response header value 1"}}}, true)
-    if err != nil {
-        t.Error(err)
-    }
+	if err != nil {
+		t.Error(err)
+	}
 	p := Make(sd, false)
 
 	p.ServeHTTP(w, r)
@@ -418,70 +418,70 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 
 func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("X-Test-Header", "test-value")
+		w.Header().Set("X-Test-Header", "test-value")
 	}))
 
-    req, err := http.NewRequest(
-        "GET",
-        "https://example.org",
-        nil)
-    if err != nil {
-        t.Error(err)
-    }
+	req, err := http.NewRequest(
+		"GET",
+		"https://example.org",
+		nil)
+	if err != nil {
+		t.Error(err)
+	}
 
-    u, err := url.Parse(s.URL)
-    if err != nil {
-        t.Error(err)
-    }
+	u, err := url.Parse(s.URL)
+	if err != nil {
+		t.Error(err)
+	}
 
-    prt := &priorityRoute{&mock.Backend{FScheme: u.Scheme, FHost: u.Host}, func(r *http.Request) bool {
-        return r == req
-    }}
+	prt := &priorityRoute{&mock.Backend{FScheme: u.Scheme, FHost: u.Host}, func(r *http.Request) bool {
+		return r == req
+	}}
 
 	p := Make(dispatch.Make(), false, prt)
 
-    w := httptest.NewRecorder()
-    p.ServeHTTP(w, req)
-    if w.Header().Get("X-Test-Header") != "test-value" {
-        t.Error("failed match priority route")
-    }
+	w := httptest.NewRecorder()
+	p.ServeHTTP(w, req)
+	if w.Header().Get("X-Test-Header") != "test-value" {
+		t.Error("failed match priority route")
+	}
 }
 
 func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	s0 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("X-Test-Header", "priority-value")
+		w.Header().Set("X-Test-Header", "priority-value")
 	}))
 
 	s1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("X-Test-Header", "normal-value")
+		w.Header().Set("X-Test-Header", "normal-value")
 	}))
 
-    req, err := http.NewRequest(
-        "GET",
-        "https://example.org/hello/world",
-        nil)
-    if err != nil {
-        t.Error(err)
-    }
+	req, err := http.NewRequest(
+		"GET",
+		"https://example.org/hello/world",
+		nil)
+	if err != nil {
+		t.Error(err)
+	}
 
-    u, err := url.Parse(s0.URL)
-    if err != nil {
-        t.Error(err)
-    }
+	u, err := url.Parse(s0.URL)
+	if err != nil {
+		t.Error(err)
+	}
 
-    prt := &priorityRoute{&mock.Backend{FScheme: u.Scheme, FHost: u.Host}, func(r *http.Request) bool {
-        return r == req
-    }}
+	prt := &priorityRoute{&mock.Backend{FScheme: u.Scheme, FHost: u.Host}, func(r *http.Request) bool {
+		return r == req
+	}}
 
-    sd, err := makeTestSettingsDispatcher(s1.URL, nil, false)
-    if err != nil {
-        t.Error(err)
-    }
+	sd, err := makeTestSettingsDispatcher(s1.URL, nil, false)
+	if err != nil {
+		t.Error(err)
+	}
 	p := Make(sd, false, prt)
 
-    w := httptest.NewRecorder()
-    p.ServeHTTP(w, req)
-    if w.Header().Get("X-Test-Header") != "priority-value" {
-        t.Error("failed match priority route")
-    }
+	w := httptest.NewRecorder()
+	p.ServeHTTP(w, req)
+	if w.Header().Get("X-Test-Header") != "priority-value" {
+		t.Error("failed match priority route")
+	}
 }
