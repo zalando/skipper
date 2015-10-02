@@ -23,7 +23,8 @@ type (
 )
 
 const (
-	authHeaderName = "Authorization"
+	authHeaderName    = "Authorization"
+	fixRedirectStatus = http.StatusFound
 
 	pathMatchStrict = pathMatchType("STRICT")
 	pathMatchRegexp = pathMatchType("REGEXP")
@@ -304,6 +305,14 @@ func getMatcherExpression(d *routeData) string {
 	return strings.Join(m, " && ")
 }
 
+func innkeeperProtocolToScheme(protocol string) string {
+	return strings.ToLower(protocol)
+}
+
+func isRedirectEndpoint(d *routeData) bool {
+	return d.Route.Endpoint.Typ == endpointPermanentRedirect
+}
+
 func getFilterExpressions(d *routeData, preRouteFilters, postRouteFilters []string) string {
 	f := preRouteFilters
 
@@ -319,6 +328,13 @@ func getFilterExpressions(d *routeData, preRouteFilters, postRouteFilters []stri
 	f = appendFormatHeaders(f, `requestHeader("%s", "%s")`, d.Route.RequestHeaders, false)
 	f = appendFormatHeaders(f, `responseHeader("%s", "%s")`, d.Route.ResponseHeaders, false)
 
+	if isRedirectEndpoint(d) {
+		f = appendFormat(f, `redirect(%d, "%s")`, fixRedirectStatus, (&url.URL{
+			Scheme: innkeeperProtocolToScheme(d.Route.Endpoint.Protocol),
+			Host:   fmt.Sprintf("%s:%d", d.Route.Endpoint.Hostname, d.Route.Endpoint.Port),
+			Path:   d.Route.Endpoint.Path}).String())
+	}
+
 	f = append(f, postRouteFilters...)
 
 	if len(f) == 0 {
@@ -330,6 +346,10 @@ func getFilterExpressions(d *routeData, preRouteFilters, postRouteFilters []stri
 }
 
 func getEndpointAddress(d *routeData) string {
+	if isRedirectEndpoint(d) {
+		return "<shunt>"
+	}
+
 	a := url.URL{
 		Scheme: d.Route.Endpoint.Protocol,
 		Host:   fmt.Sprintf("%s:%d", d.Route.Endpoint.Hostname, d.Route.Endpoint.Port)}
