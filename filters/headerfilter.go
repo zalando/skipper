@@ -1,6 +1,9 @@
 package filters
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 type headerType int
 
@@ -50,7 +53,7 @@ func (spec *headerFilter) CreateFilter(config []interface{}) (Filter, error) {
 func (f *headerFilter) Request(ctx FilterContext) {
 	if f.typ == requestHeader {
 		req := ctx.Request()
-		if f.key == "Host" {
+		if strings.ToLower(f.key) == "host" {
 			req.Host = f.value
 		}
 
