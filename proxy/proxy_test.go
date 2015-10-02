@@ -254,10 +254,10 @@ func TestAppliesFilters(t *testing.T) {
 	fr[rsph.Name()] = rsph
 
 	data := fmt.Sprintf(`hello:
-        Path("/hello") ->
-        requestHeader("X-Test-Request-Header", "request header value") ->
-        responseHeader("X-Test-Response-Header", "response header value") ->
-        "%s"`, s.URL)
+		Path("/hello") ->
+		requestHeader("X-Test-Request-Header", "request header value") ->
+		responseHeader("X-Test-Response-Header", "response header value") ->
+		"%s"`, s.URL)
 	p := Make(routing.New(testdataclient.New(data), fr, false), false)
 	delay()
 
