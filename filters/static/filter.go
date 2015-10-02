@@ -52,6 +52,5 @@ func (f *typ) Response(c skipper.FilterContext) {
 	}
 
 	c.MarkServed()
-	println("serving static", path.Join(f.root, p[len(f.webRoot):]))
 	http.ServeFile(c.ResponseWriter(), c.Request(), path.Join(f.root, p[len(f.webRoot):]))
 }
