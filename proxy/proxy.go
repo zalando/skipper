@@ -175,7 +175,7 @@ func (c *filterContext) StateBag() map[string]interface{} {
 
 func shunt(r *http.Request) *http.Response {
 	return &http.Response{
-		StatusCode: 404,
+		StatusCode: http.StatusNotFound,
 		Header:     make(http.Header),
 		Body:       &shuntBody{&bytes.Buffer{}},
 		Request:    r}
@@ -194,13 +194,13 @@ func (p *proxy) roundtrip(r *http.Request, b *routing.Backend) (*http.Response, 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hterr := func(err error) {
 		// todo: just a bet that we shouldn't send here 50x
-		http.Error(w, http.StatusText(404), 404)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		log.Println(err)
 	}
 
 	rt, _ := p.routing.Route(r)
 	if rt == nil {
-		http.Error(w, http.StatusText(404), 404)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
 
