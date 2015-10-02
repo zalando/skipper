@@ -43,7 +43,7 @@ func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Se
 
 		w.Header().Set("Content-Type", "text/plain")
 		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 
 		if parts > 0 {
 			writeParts(w, parts, payload)
@@ -84,7 +84,7 @@ func TestGetRoundtrip(t *testing.T) {
 
 	p.ServeHTTP(w, r)
 
-	if w.Code != 200 {
+	if w.Code != http.StatusOK {
 		t.Error("wrong status", w.Code)
 	}
 
@@ -126,7 +126,7 @@ func TestPostRoundtrip(t *testing.T) {
 
 	p.ServeHTTP(w, r)
 
-	if w.Code != 200 {
+	if w.Code != http.StatusOK {
 		t.Error("wrong status", w.Code)
 	}
 
@@ -164,7 +164,7 @@ func TestRoute(t *testing.T) {
 		Method: "GET"}
 	w = httptest.NewRecorder()
 	p.ServeHTTP(w, r)
-	if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), payload1) {
+	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload1) {
 		t.Error("wrong routing 1")
 	}
 
@@ -174,7 +174,7 @@ func TestRoute(t *testing.T) {
 		Method: "GET"}
 	w = httptest.NewRecorder()
 	p.ServeHTTP(w, r)
-	if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), payload2) {
+	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload2) {
 		t.Error("wrong routing 2")
 	}
 }
