@@ -1,4 +1,5 @@
-// creates a filter that can create filters that can rewrite the request path.
+// provides a filter that can rewrite the request path.
+//
 // the filters expect a regular expression in the 'expression' field of the filter config to match one or more parts of the request
 // path, and a replacement string in the 'replacement' field. when processing a request, it calls ReplaceAll on
 // the path.
