@@ -2,7 +2,7 @@ package routing
 
 import (
 	"fmt"
-	"github.com/zalando/eskip"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/requestmatch"
 	"log"

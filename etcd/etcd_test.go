@@ -3,7 +3,7 @@ package etcd
 import (
 	"encoding/json"
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/zalando/eskip"
+	"github.com/zalando/skipper/eskip"
 	"log"
 	"testing"
 	"time"
