@@ -1,10 +1,12 @@
 package routing
 
 import (
+	"fmt"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/requestmatch"
 	"log"
 	"net/http"
+	"net/url"
 )
 
 type DataClient interface {
@@ -18,20 +20,22 @@ type Backend struct {
 }
 
 type Route struct {
-	*Backend
+	eskip.Route
+	Scheme  string
+	Host    string
 	Filters []filters.Filter
 }
 
 type Routing struct {
 	filterRegistry      filters.Registry
 	ignoreTrailingSlash bool
-	getMatcher          <-chan *requestmatch.Matcher
+	getMatcher          <-chan *matcher
 }
 
-func feedMatchers(current *requestmatch.Matcher) (chan<- *requestmatch.Matcher, <-chan *requestmatch.Matcher) {
+func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
 	// todo: measure impact of buffered channel here for out
-	in := make(chan *requestmatch.Matcher)
-	out := make(chan *requestmatch.Matcher)
+	in := make(chan *matcher)
+	out := make(chan *matcher)
 
 	go func() {
 		for {
@@ -45,7 +49,7 @@ func feedMatchers(current *requestmatch.Matcher) (chan<- *requestmatch.Matcher, 
 	return in, out
 }
 
-func (r *Routing) receiveUpdates(in <-chan string, out chan<- *requestmatch.Matcher) {
+func (r *Routing) receiveUpdates(in <-chan string, out chan<- *matcher) {
 	go func() {
 		for {
 			data := <-in
@@ -73,7 +77,90 @@ func New(dc DataClient, fr filters.Registry, ignoreTrailingSlash bool) *Routing 
 
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	m := <-r.getMatcher
-	value, params := m.Match(req)
-	route, _ := value.(*Route)
-	return route, params
+	return m.match(req)
+}
+
+func splitBackend(def *eskip.Route) (string, string, error) {
+	if def.Shunt {
+		return "", "", nil
+	}
+
+	bu, err := url.ParseRequestURI(def.Backend)
+	if err != nil {
+		return "", "", err
+	}
+
+	return bu.Scheme, bu.Host, nil
+}
+
+func (r *Routing) createFilter(def *eskip.Filter) (filters.Filter, error) {
+	spec, ok := r.filterRegistry[def.Name]
+	if !ok {
+		return nil, fmt.Errorf("filter not found: '%s'", def.Name)
+	}
+
+	return spec.CreateFilter(def.Args)
+}
+
+func (r *Routing) createFilters(defs []*eskip.Filter) ([]filters.Filter, error) {
+	fs := make([]filters.Filter, len(defs))
+	for i, fdef := range defs {
+		f, err := r.createFilter(fdef)
+		if err != nil {
+			return nil, err
+		}
+
+		fs[i] = f
+	}
+
+	return fs, nil
+}
+
+func (r *Routing) convertDef(def *eskip.Route) (*Route, error) {
+	scheme, host, err := splitBackend(def)
+	if err != nil {
+		return nil, err
+	}
+
+	fs, err := r.createFilters(def.Filters)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Route{*def, scheme, host, fs}, nil
+}
+
+func (r *Routing) convertDefs(eskipDefs []*eskip.Route) []*Route {
+	routes := []*Route{}
+	for _, d := range eskipDefs {
+		rd, err := r.convertDef(d)
+		if err == nil {
+			routes = append(routes, rd)
+		} else {
+			// idividual definition errors are accepted here
+			log.Println(err)
+		}
+	}
+
+	return routes
+}
+
+func (r *Routing) createMatcher(defs []*Route) *matcher {
+	m, errs := makeMatcher(defs, r.ignoreTrailingSlash)
+	for _, err := range errs {
+		// individual matcher entry errors are logged and ignored here
+		log.Println(err)
+	}
+
+	return m
+}
+
+func (r *Routing) processData(data string) (*matcher, error) {
+	eskipDefs, err := eskip.Parse(data)
+	if err != nil {
+		return nil, err
+	}
+
+	matcherDefs := r.convertDefs(eskipDefs)
+	return r.createMatcher(matcherDefs), nil
 }

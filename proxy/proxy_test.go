@@ -317,7 +317,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		t.Error(err)
 	}
 
-	prt := &priorityRoute{&routing.Route{&routing.Backend{u.Scheme, u.Host, false}, nil}, func(r *http.Request) bool {
+	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, func(r *http.Request) bool {
 		return r == req
 	}}
 
@@ -354,7 +354,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		t.Error(err)
 	}
 
-	prt := &priorityRoute{&routing.Route{&routing.Backend{u.Scheme, u.Host, false}, nil}, func(r *http.Request) bool {
+	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, func(r *http.Request) bool {
 		return r == req
 	}}
 
