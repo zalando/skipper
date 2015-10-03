@@ -5,14 +5,13 @@ package filters
 
 import (
 	"errors"
-	"net/http"
 	"net/url"
 )
 
 type Redirect struct {
 	id       string
 	code     int
-	location string
+	location *url.URL
 }
 
 func (spec *Redirect) Name() string { return "redirect" }
@@ -36,7 +35,12 @@ func (spec *Redirect) MakeFilter(id string, config []interface{}) (Filter, error
 		return invalidArgs()
 	}
 
-	return &Redirect{id, int(code), location}, nil
+	u, err := url.Parse(location)
+	if err != nil {
+		return invalidArgs()
+	}
+
+	return &Redirect{id, int(code), u}, nil
 }
 
 func (f *Redirect) Id() string                { return f.id }
@@ -45,20 +49,13 @@ func (f *Redirect) Request(ctx FilterContext) {}
 func (f *Redirect) Response(ctx FilterContext) {
 	w := ctx.ResponseWriter()
 
-	u, err := url.Parse(f.location)
-
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		ctx.MarkServed()
-		return
-	}
-
+	u := *f.location
 	if u.Host == "" {
 		u.Scheme = ctx.Request().URL.Scheme
 		u.Host = ctx.Request().URL.Host
 	}
 
-	w.Header().Set("Location", u.String())
+	w.Header().Set("Location", (&u).String())
 	w.WriteHeader(f.code)
 	ctx.MarkServed()
 }
