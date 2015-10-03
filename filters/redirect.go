@@ -5,6 +5,8 @@ package filters
 
 import (
 	"errors"
+	"net/http"
+	"net/url"
 )
 
 type Redirect struct {
@@ -42,7 +44,21 @@ func (f *Redirect) Request(ctx FilterContext) {}
 
 func (f *Redirect) Response(ctx FilterContext) {
 	w := ctx.ResponseWriter()
-	w.Header().Set("Location", f.location)
+
+	u, err := url.Parse(f.location)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		ctx.MarkServed()
+		return
+	}
+
+	if u.Host == "" {
+		u.Scheme = ctx.Request().URL.Scheme
+		u.Host = ctx.Request().URL.Host
+	}
+
+	w.Header().Set("Location", u.String())
 	w.WriteHeader(f.code)
 	ctx.MarkServed()
 }

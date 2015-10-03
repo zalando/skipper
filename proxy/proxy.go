@@ -30,13 +30,19 @@ type flusherWriter interface {
 	io.Writer
 }
 
+type PriorityRoute interface {
+	Route() *routing.Route
+	Match(*http.Request) bool
+}
+
 type shuntBody struct {
 	*bytes.Buffer
 }
 
 type proxy struct {
-	routing      *routing.Routing
-	roundTripper http.RoundTripper
+	routing        *routing.Routing
+	roundTripper   http.RoundTripper
+	priorityRoutes []PriorityRoute
 }
 
 type filterContext struct {
@@ -113,13 +119,13 @@ func getSettingsBufferSize() int {
 // creates a proxy. it expects a settings source, that provides the current settings during each request.
 // if the 'insecure' parameter is true, the proxy skips the TLS verification for the requests made to the
 // backends.
-func Make(r *routing.Routing, insecure bool) http.Handler {
+func Make(r *routing.Routing, insecure bool, pr ...PriorityRoute) http.Handler {
 	tr := &http.Transport{}
 	if insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{r, tr}
+	return &proxy{r, tr, pr}
 }
 
 func applyFilterSafe(p func()) {
@@ -198,10 +204,20 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	rt, _ := p.routing.Route(r)
+	var rt *routing.Route
+	for _, prt := range p.priorityRoutes {
+		if prt.Match(r) {
+			rt = prt.Route()
+			break
+		}
+	}
+
 	if rt == nil {
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		return
+		rt, _ = p.routing.Route(r)
+		if rt == nil {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
 	}
 
 	f := rt.Filters
