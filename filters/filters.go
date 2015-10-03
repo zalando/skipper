@@ -9,6 +9,7 @@ type FilterContext interface {
 	Response() *http.Response
 	Served() bool
 	MarkServed()
+	PathParam(string) string
 	StateBag() map[string]interface{}
 }
 

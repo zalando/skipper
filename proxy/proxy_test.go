@@ -20,12 +20,18 @@ const streamingDelay time.Duration = 3 * time.Millisecond
 type requestCheck func(*http.Request)
 
 type priorityRoute struct {
-	route *routing.Route
-	match func(r *http.Request) bool
+	route  *routing.Route
+	params map[string]string
+	match  func(r *http.Request) bool
 }
 
-func (prt *priorityRoute) Route() *routing.Route      { return prt.route }
-func (prt *priorityRoute) Match(r *http.Request) bool { return prt.match(r) }
+func (prt *priorityRoute) Match(r *http.Request) (*routing.Route, map[string]string) {
+	if prt.match(r) {
+		return prt.route, prt.params
+	}
+
+	return nil, nil
+}
 
 func voidCheck(*http.Request) {}
 
@@ -317,7 +323,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		t.Error(err)
 	}
 
-	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, func(r *http.Request) bool {
+	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
 		return r == req
 	}}
 
@@ -354,7 +360,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		t.Error(err)
 	}
 
-	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, func(r *http.Request) bool {
+	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
 		return r == req
 	}}
 
