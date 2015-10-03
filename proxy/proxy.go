@@ -6,7 +6,8 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"github.com/zalando/skipper/skipper"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/routing"
 	"io"
 	"log"
 	"net/http"
@@ -19,7 +20,7 @@ const (
 
 	// TODO: this should be fine tuned, yet, with benchmarks.
 	// In case it doesn't make a big difference, then a lower value
-	// can be safer, but the default 2 turned out to be low during
+	// can be safer, but the default 2 turned out to be too low during
 	// benchmarks.
 	idleConnsPerHost = 64
 )
@@ -34,7 +35,7 @@ type shuntBody struct {
 }
 
 type proxy struct {
-	settings     <-chan skipper.Settings
+	routing      *routing.Routing
 	roundTripper http.RoundTripper
 }
 
@@ -43,7 +44,7 @@ type filterContext struct {
 	req      *http.Request
 	res      *http.Response
 	served   bool
-	stateBag skipper.StateBag
+	stateBag map[string]interface{}
 }
 
 func (sb shuntBody) Close() error {
@@ -90,10 +91,10 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
-func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
+func mapRequest(r *http.Request, b *routing.Backend) (*http.Request, error) {
 	u := r.URL
-	u.Scheme = b.Scheme()
-	u.Host = b.Host()
+	u.Scheme = b.Scheme
+	u.Host = b.Host
 
 	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
 	if err != nil {
@@ -112,40 +113,37 @@ func getSettingsBufferSize() int {
 // creates a proxy. it expects a settings source, that provides the current settings during each request.
 // if the 'insecure' parameter is true, the proxy skips the TLS verification for the requests made to the
 // backends.
-func Make(sd skipper.SettingsSource, insecure bool) http.Handler {
-	sc := make(chan skipper.Settings, getSettingsBufferSize())
-	sd.Subscribe(sc)
-
+func Make(r *routing.Routing, insecure bool) http.Handler {
 	tr := &http.Transport{}
 	if insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{sc, tr}
+	return &proxy{r, tr}
 }
 
-func applyFilterSafe(id string, p func()) {
+func applyFilterSafe(p func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("filter", id, err)
+			log.Println("filter", err)
 		}
 	}()
 
 	p()
 }
 
-func applyFiltersToRequest(f []skipper.Filter, ctx skipper.FilterContext) {
+func applyFiltersToRequest(f []filters.Filter, ctx filters.FilterContext) {
 	for _, fi := range f {
-		applyFilterSafe(fi.Id(), func() {
+		applyFilterSafe(func() {
 			fi.Request(ctx)
 		})
 	}
 }
 
-func applyFiltersToResponse(f []skipper.Filter, ctx skipper.FilterContext) {
+func applyFiltersToResponse(f []filters.Filter, ctx filters.FilterContext) {
 	for i, _ := range f {
 		fi := f[len(f)-1-i]
-		applyFilterSafe(fi.Id(), func() {
+		applyFilterSafe(func() {
 			fi.Response(ctx)
 		})
 	}
@@ -167,23 +165,23 @@ func (c *filterContext) MarkServed() {
 	c.served = true
 }
 
-func (c *filterContext) IsServed() bool {
+func (c *filterContext) Served() bool {
 	return c.served
 }
 
-func (c *filterContext) StateBag() skipper.StateBag {
+func (c *filterContext) StateBag() map[string]interface{} {
 	return c.stateBag
 }
 
 func shunt(r *http.Request) *http.Response {
 	return &http.Response{
-		StatusCode: 404,
+		StatusCode: http.StatusNotFound,
 		Header:     make(http.Header),
 		Body:       &shuntBody{&bytes.Buffer{}},
 		Request:    r}
 }
 
-func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, error) {
+func (p *proxy) roundtrip(r *http.Request, b *routing.Backend) (*http.Response, error) {
 	rr, err := mapRequest(r, b)
 	if err != nil {
 		return nil, err
@@ -196,35 +194,32 @@ func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, e
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hterr := func(err error) {
 		// todo: just a bet that we shouldn't send here 50x
-		http.Error(w, http.StatusText(404), 404)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		log.Println(err)
 	}
 
-	s := <-p.settings
-	if s == nil {
-		hterr(proxyError("missing settings"))
+	rt, _ := p.routing.Route(r)
+	if rt == nil {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
 
-	rt, err := s.Route(r)
-	if rt == nil || err != nil {
-		// todo: we need a somewhat more extensive logging here
-		hterr(proxyError(fmt.Sprintf("routing failed: %v %v", r.URL, err)))
-		return
-	}
-
-	f := rt.Filters()
-	c := &filterContext{w, r, nil, false, make(skipper.StateBag)}
+	f := rt.Filters
+	c := &filterContext{w, r, nil, false, make(map[string]interface{})}
 	applyFiltersToRequest(f, c)
 
-	b := rt.Backend()
+	b := rt.Backend
 	if b == nil {
 		hterr(proxyError("missing backend"))
 		return
 	}
 
-	var rs *http.Response
-	if b.IsShunt() {
+	var (
+		rs  *http.Response
+		err error
+	)
+
+	if b.Shunt {
 		rs = shunt(r)
 	} else {
 		rs, err = p.roundtrip(r, b)
@@ -244,7 +239,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.res = rs
 	applyFiltersToResponse(f, c)
 
-	if !c.IsServed() {
+	if !c.Served() {
 		copyHeader(w.Header(), rs.Header)
 		w.WriteHeader(rs.StatusCode)
 		copyStream(w.(flusherWriter), rs.Body)

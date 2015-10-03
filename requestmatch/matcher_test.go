@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/zalando/eskip"
 	"github.com/zalando/pathmux"
-	"github.com/zalando/skipper/mock"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -105,7 +105,7 @@ func initMatcher() {
 	m, errs := Make(definitions, true)
 	if len(errs) != 0 {
 		for _, err := range errs {
-			println(err.Error())
+			log.Println(err.Error())
 		}
 		panic("error while making matcher")
 	}
@@ -113,7 +113,7 @@ func initMatcher() {
 	matcher = m
 }
 
-func generatePaths(pg mock.PathGenerator, count int) []string {
+func generatePaths(pg *pathGenerator, count int) []string {
 	paths := make([]string, count)
 
 	for i := 0; i < count; i++ {
@@ -173,7 +173,7 @@ func initRandomPaths() {
 
 	// we need to avoid '/' paths here, because we are not testing conflicting cases
 	// here, and with 0 or 1 MinNamesInPath, there would be multiple '/'s.
-	pg := mock.MakePathGenerator(mock.PathGeneratorOptions{
+	pg := makePathGenerator(pathGeneratorOptions{
 		MinNamesInPath: 2,
 		MaxNamesInPath: 15})
 
@@ -1167,7 +1167,7 @@ func BenchmarkConstructionGeneric(b *testing.B) {
 		_, errs := Make(definitions, true)
 		if len(errs) != 0 {
 			for _, err := range errs {
-				println(err.Error())
+				b.Log(err.Error())
 			}
 			b.Error("error while making matcher")
 		}
@@ -1185,7 +1185,7 @@ func BenchmarkConstructionMass(b *testing.B) {
 		_, errs := Make(definitions, true)
 		if len(errs) != 0 {
 			for _, err := range errs {
-				println(err.Error())
+				b.Log(err.Error())
 			}
 			b.Error("error while making matcher")
 		}

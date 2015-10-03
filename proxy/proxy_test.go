@@ -2,9 +2,10 @@ package proxy
 
 import (
 	"bytes"
-	"github.com/zalando/skipper/dispatch"
-	"github.com/zalando/skipper/mock"
-	"github.com/zalando/skipper/skipper"
+	"fmt"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,20 +20,6 @@ const streamingDelay time.Duration = 3 * time.Millisecond
 type requestCheck func(*http.Request)
 
 func voidCheck(*http.Request) {}
-
-func makeTestSettingsDispatcher(url string, filters []skipper.Filter, shunt bool) skipper.SettingsDispatcher {
-	sd := dispatch.Make()
-	sd.Push() <- mock.MakeSettings(url, filters, shunt)
-
-	// todo: don't let to get into busy loop
-	c := make(chan skipper.Settings)
-	sd.Subscribe(c)
-	for {
-		if s := <-c; s != nil {
-			return sd
-		}
-	}
-}
 
 func writeParts(w io.Writer, parts int, data []byte) {
 	partSize := len(data) / parts
@@ -56,7 +43,7 @@ func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Se
 
 		w.Header().Set("Content-Type", "text/plain")
 		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 
 		if parts > 0 {
 			writeParts(w, parts, payload)
@@ -67,10 +54,8 @@ func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Se
 	}))
 }
 
-func urlToBackend(u string) *mock.Backend {
-	up, _ := url.ParseRequestURI(u)
-	return &mock.Backend{up.Scheme, up.Host, false}
-}
+// used to let the data client updates be propagated
+func delay() { time.Sleep(12 * time.Millisecond) }
 
 func TestGetRoundtrip(t *testing.T) {
 	payload := []byte("Hello World!")
@@ -86,16 +71,20 @@ func TestGetRoundtrip(t *testing.T) {
 	})
 	defer s.Close()
 
-	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
 		URL:    u,
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL, nil, false), false)
+
+	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	p := Make(routing.New(testdataclient.New(data), nil, false), false)
+	delay()
+
 	p.ServeHTTP(w, r)
 
-	if w.Code != 200 {
+	if w.Code != http.StatusOK {
 		t.Error("wrong status", w.Code)
 	}
 
@@ -124,16 +113,20 @@ func TestPostRoundtrip(t *testing.T) {
 	})
 	defer s.Close()
 
-	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
 		URL:    u,
 		Method: "POST",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL, nil, false), false)
+
+	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	p := Make(routing.New(testdataclient.New(data), nil, false), false)
+	delay()
+
 	p.ServeHTTP(w, r)
 
-	if w.Code != 200 {
+	if w.Code != http.StatusOK {
 		t.Error("wrong status", w.Code)
 	}
 
@@ -151,13 +144,13 @@ func TestRoute(t *testing.T) {
 	s2 := startTestServer(payload2, 0, voidCheck)
 	defer s2.Close()
 
-	sd := makeTestSettingsDispatcher("", nil, false)
-	ts := mock.MakeSettings("", nil, false)
-	ts.RouterImpl.AddRoute("Path(\"/host-one<any>\")", &mock.Route{urlToBackend(s1.URL), nil})
-	ts.RouterImpl.AddRoute("Path(\"/host-two<any>\")", &mock.Route{urlToBackend(s2.URL), nil})
-	sd.Push() <- ts
-
-	p := Make(sd, false)
+	data := fmt.Sprintf(`
+		route1: Path("/host-one/*any") -> "%s";
+		route1: Path("/host-two/*any") -> "%s"
+	`, s1.URL, s2.URL)
+	routing := routing.New(testdataclient.New(data), nil, false)
+	p := Make(routing, false)
+	delay()
 
 	var (
 		r *http.Request
@@ -165,23 +158,23 @@ func TestRoute(t *testing.T) {
 		u *url.URL
 	)
 
-	u, _ = url.ParseRequestURI("http://localhost:9090/host-one")
+	u, _ = url.ParseRequestURI("https://www.example.org/host-one/some/path")
 	r = &http.Request{
 		URL:    u,
 		Method: "GET"}
 	w = httptest.NewRecorder()
 	p.ServeHTTP(w, r)
-	if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), payload1) {
+	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload1) {
 		t.Error("wrong routing 1")
 	}
 
-	u, _ = url.ParseRequestURI("http://localhost:9090/host-two")
+	u, _ = url.ParseRequestURI("https://www.example.org/host-two/some/path")
 	r = &http.Request{
 		URL:    u,
 		Method: "GET"}
 	w = httptest.NewRecorder()
 	p.ServeHTTP(w, r)
-	if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), payload2) {
+	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload2) {
 		t.Error("wrong routing 2")
 	}
 }
@@ -193,9 +186,11 @@ func TestStreaming(t *testing.T) {
 	s := startTestServer(payload, expectedParts, voidCheck)
 	defer s.Close()
 
-	p := Make(makeTestSettingsDispatcher(s.URL, nil, false), false)
+	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	p := Make(routing.New(testdataclient.New(data), nil, false), false)
+	delay()
 
-	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
 		URL:    u,
 		Method: "GET"}
@@ -234,138 +229,64 @@ func TestStreaming(t *testing.T) {
 	}
 }
 
-func TestNotFoundUntilSettingsReceived(t *testing.T) {
-	payload := []byte("Hello World!")
-
-	s := startTestServer(payload, 0, func(r *http.Request) {
-		t.Error("shouldn't be able to route to here")
-	})
-	defer s.Close()
-
-	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
-	r := &http.Request{
-		URL:    u,
-		Method: "GET",
-		Header: http.Header{"X-Test-Header": []string{"test value"}}}
-	w := httptest.NewRecorder()
-	p := Make(dispatch.Make(), false)
-	p.ServeHTTP(w, r)
-
-	if w.Code != 404 {
-		t.Error("wrong status", w.Code)
-	}
-}
-
 func TestAppliesFilters(t *testing.T) {
 	payload := []byte("Hello World!")
 
 	s := startTestServer(payload, 0, func(r *http.Request) {
-		if h, ok := r.Header["X-Test-Request-Header-0"]; !ok ||
-			h[0] != "request header value 0" {
-			t.Error("request header 0 is missing")
-		}
-
-		if h, ok := r.Header["X-Test-Request-Header-1"]; !ok ||
-			h[0] != "request header value 1" {
-			t.Error("request header 1 is missing")
+		if h, ok := r.Header["X-Test-Request-Header"]; !ok ||
+			h[0] != "request header value" {
+			t.Error("request header is missing")
 		}
 	})
 	defer s.Close()
 
-	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
 		URL:    u,
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL, []skipper.Filter{
-		&mock.Filter{
-			RequestHeaders:  map[string]string{"X-Test-Request-Header-0": "request header value 0"},
-			ResponseHeaders: map[string]string{"X-Test-Response-Header-0": "response header value 0"}},
-		&mock.Filter{
-			RequestHeaders:  map[string]string{"X-Test-Request-Header-1": "request header value 1"},
-			ResponseHeaders: map[string]string{"X-Test-Response-Header-1": "response header value 1"}}}, false), false)
+
+	fr := make(filters.Registry)
+	reqh := filters.CreateRequestHeader()
+	rsph := filters.CreateResponseHeader()
+	fr[reqh.Name()] = reqh
+	fr[rsph.Name()] = rsph
+
+	data := fmt.Sprintf(`hello:
+		Path("/hello") ->
+		requestHeader("X-Test-Request-Header", "request header value") ->
+		responseHeader("X-Test-Response-Header", "response header value") ->
+		"%s"`, s.URL)
+	p := Make(routing.New(testdataclient.New(data), fr, false), false)
+	delay()
 
 	p.ServeHTTP(w, r)
 
-	if h, ok := w.Header()["X-Test-Response-Header-0"]; !ok || h[0] != "response header value 0" {
-		t.Error("missing response header 0")
-	}
-
-	if h, ok := w.Header()["X-Test-Response-Header-1"]; !ok || h[0] != "response header value 1" {
-		t.Error("missing response header 1")
-	}
-}
-
-func TestAppliesFiltersInOrder(t *testing.T) {
-	payload := []byte("Hello World!")
-
-	s := startTestServer(payload, 0, func(r *http.Request) {
-		if h, ok := r.Header["X-Test-Request-Header-0"]; !ok ||
-			h[0] != "request header value 1" {
-			t.Error("request header 0 is wrong")
-		}
-
-		if h, ok := r.Header["X-Test-Request-Header-1"]; !ok ||
-			h[0] != "request header value 1" {
-			t.Error("request header 1 is missing")
-		}
-	})
-	defer s.Close()
-
-	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
-	r := &http.Request{
-		URL:    u,
-		Method: "GET",
-		Header: http.Header{"X-Test-Header": []string{"test value"}}}
-	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher(s.URL, []skipper.Filter{
-		&mock.Filter{
-			RequestHeaders: map[string]string{
-				"X-Test-Request-Header-0": "request header value 0"},
-			ResponseHeaders: map[string]string{
-				"X-Test-Response-Header-0": "response header value 0",
-				"X-Test-Response-Header-1": "response header value 0"}},
-		&mock.Filter{
-			RequestHeaders: map[string]string{
-				"X-Test-Request-Header-0": "request header value 1",
-				"X-Test-Request-Header-1": "request header value 1"},
-			ResponseHeaders: map[string]string{
-				"X-Test-Response-Header-1": "response header value 1"}}}, false), false)
-
-	p.ServeHTTP(w, r)
-
-	if h, ok := w.Header()["X-Test-Response-Header-0"]; !ok || h[0] != "response header value 0" {
-		t.Error("wrong response header 0")
-	}
-
-	if h, ok := w.Header()["X-Test-Response-Header-1"]; !ok || h[0] != "response header value 0" {
-		t.Error("wrong response header 1")
+	if h, ok := w.Header()["X-Test-Response-Header"]; !ok || h[0] != "response header value" {
+		t.Error("missing response header")
 	}
 }
 
 func TestProcessesRequestWithShuntBackend(t *testing.T) {
-	u, _ := url.ParseRequestURI("http://localhost:9090/hello/")
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
 		URL:    u,
 		Method: "GET",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
-	p := Make(makeTestSettingsDispatcher("", []skipper.Filter{
-		&mock.Filter{
-			ResponseHeaders: map[string]string{
-				"X-Test-Response-Header-0": "response header value 0"}},
-		&mock.Filter{
-			ResponseHeaders: map[string]string{
-				"X-Test-Response-Header-1": "response header value 1"}}}, true), false)
+
+	fr := make(filters.Registry)
+	rsph := filters.CreateResponseHeader()
+	fr[rsph.Name()] = rsph
+
+	data := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
+	p := Make(routing.New(testdataclient.New(data), fr, false), false)
+	delay()
 
 	p.ServeHTTP(w, r)
 
-	if h, ok := w.Header()["X-Test-Response-Header-0"]; !ok || h[0] != "response header value 0" {
-		t.Error("wrong response header 0")
-	}
-
-	if h, ok := w.Header()["X-Test-Response-Header-1"]; !ok || h[0] != "response header value 1" {
-		t.Error("wrong response header 1")
+	if h, ok := w.Header()["X-Test-Response-Header"]; !ok || h[0] != "response header value" {
+		t.Error("wrong response header")
 	}
 }
