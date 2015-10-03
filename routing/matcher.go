@@ -35,17 +35,13 @@ import (
 	"sort"
 )
 
-var counter int = 0
-
-const freeWildcardExp = "/[*][^/]+$"
-
 type leafMatcher struct {
-	method         string
-	hostRxs        []*regexp.Regexp
-	pathRxs        []*regexp.Regexp
-	headersExact   map[string]string
-	headersRegexps map[string][]*regexp.Regexp
-	value          *Route
+	method        string
+	hostRxs       []*regexp.Regexp
+	pathRxs       []*regexp.Regexp
+	headersExact  map[string]string
+	headersRegexp map[string][]*regexp.Regexp
+	route         *Route
 }
 
 type leafMatchers []*leafMatcher
@@ -63,7 +59,7 @@ func leafWeight(l *leafMatcher) int {
 	w += len(l.hostRxs)
 	w += len(l.pathRxs)
 	w += len(l.headersExact)
-	w += len(l.headersRegexps)
+	w += len(l.headersRegexp)
 
 	return w
 }
@@ -83,28 +79,27 @@ type matcher struct {
 	paths               *pathmux.Tree
 	rootLeaves          leafMatchers
 	ignoreTrailingSlash bool
-	counter             int
 }
 
 // An error created if a definition cannot be preprocessed.
 type definitionError struct {
+	Id       string
 	Index    int
 	Original error
 }
 
 func (err *definitionError) Error() string {
-	// todo: format with id if available
 	if err.Index < 0 {
 		return err.Original.Error()
 	}
 
-	return fmt.Sprintf("%d: %v", err.Index, err.Original)
+	return fmt.Sprintf("%s [%d]: %v", err.Id, err.Index, err.Original)
 }
 
 var freeWildcardRx *regexp.Regexp
 
 func init() {
-	freeWildcardRx = regexp.MustCompile(freeWildcardExp)
+	freeWildcardRx = regexp.MustCompile("/[*][^/]+$")
 }
 
 func compileRxs(exps []string) ([]*regexp.Regexp, error) {
@@ -144,12 +139,12 @@ func makeLeaf(r *Route) (*leafMatcher, error) {
 	}
 
 	return &leafMatcher{
-		method:         r.Method,
-		hostRxs:        hostRxs,
-		pathRxs:        pathRxs,
-		headersExact:   r.Headers,
-		headersRegexps: allHeaderRxs,
-		value:          r}, nil
+		method:        r.Method,
+		hostRxs:       hostRxs,
+		pathRxs:       pathRxs,
+		headersExact:  r.Headers,
+		headersRegexp: allHeaderRxs,
+		route:         r}, nil
 }
 
 func freeWildcardParam(path string) string {
@@ -175,7 +170,7 @@ func makeMatcher(rs []*Route, ignoreTrailingSlash bool) (*matcher, []*definition
 	for i, r := range rs {
 		l, err := makeLeaf(r)
 		if err != nil {
-			errors = append(errors, &definitionError{i, err})
+			errors = append(errors, &definitionError{r.Id, i, err})
 			continue
 		}
 
@@ -205,20 +200,19 @@ func makeMatcher(rs []*Route, ignoreTrailingSlash bool) (*matcher, []*definition
 	pathTree := &pathmux.Tree{}
 	for p, m := range pathMatchers {
 
-		// sort leaves in advance, based on their priority
+		// sort leaves during construction time, based on their priority
 		sort.Sort(m.leaves)
 
 		err := pathTree.Add(p, m)
 		if err != nil {
-			errors = append(errors, &definitionError{-1, err})
+			errors = append(errors, &definitionError{"", -1, err})
 		}
 	}
 
-	// sort root leaves in advance, based on their priority
+	// sort root leaves during construction time, based on their priority
 	sort.Sort(rootLeaves)
 
-	counter++
-	return &matcher{pathTree, rootLeaves, ignoreTrailingSlash, counter - 1}, errors
+	return &matcher{pathTree, rootLeaves, ignoreTrailingSlash}, errors
 }
 
 func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]string) {
@@ -296,7 +290,7 @@ func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 		return false
 	}
 
-	if !matchHeaders(l.headersExact, l.headersRegexps, req.Header) {
+	if !matchHeaders(l.headersExact, l.headersRegexp, req.Header) {
 		return false
 	}
 
@@ -328,13 +322,13 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	leaves, params := matchPathTree(m.paths, path)
 	l := matchLeaves(leaves, r, path)
 	if l != nil {
-		return l.value, params
+		return l.route, params
 	}
 
 	// if no path match, match root leaves for other conditions
 	l = matchLeaves(m.rootLeaves, r, path)
 	if l != nil {
-		return l.value, nil
+		return l.route, nil
 	}
 
 	return nil, nil
