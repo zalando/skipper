@@ -23,7 +23,7 @@ func TestRequestHeader(t *testing.T) {
 		t.Error(err)
 	}
 
-	c := &filtertest.Context{nil, r, nil, false, nil}
+	c := &filtertest.Context{nil, r, nil, false, nil, nil}
 	f.Request(c)
 	if r.Header.Get("Some-Header") != "some-value" {
 		t.Error("failed to set request header")
@@ -66,7 +66,7 @@ func TestResponseHeader(t *testing.T) {
 	}
 
 	r := &http.Response{Header: make(http.Header)}
-	c := &filtertest.Context{nil, nil, r, false, nil}
+	c := &filtertest.Context{nil, nil, r, false, nil, nil}
 	f.Response(c)
 	if r.Header.Get("Some-Header") != "some-value" {
 		t.Error("failed to set request header")

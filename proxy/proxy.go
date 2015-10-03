@@ -31,8 +31,7 @@ type flusherWriter interface {
 }
 
 type PriorityRoute interface {
-	Route() *routing.Route
-	Match(*http.Request) bool
+	Match(*http.Request) (*routing.Route, map[string]string)
 }
 
 type shuntBody struct {
@@ -46,11 +45,12 @@ type proxy struct {
 }
 
 type filterContext struct {
-	w        http.ResponseWriter
-	req      *http.Request
-	res      *http.Response
-	served   bool
-	stateBag map[string]interface{}
+	w          http.ResponseWriter
+	req        *http.Request
+	res        *http.Response
+	served     bool
+	pathParams map[string]string
+	stateBag   map[string]interface{}
 }
 
 func (sb shuntBody) Close() error {
@@ -175,6 +175,8 @@ func (c *filterContext) Served() bool {
 	return c.served
 }
 
+func (c *filterContext) PathParam(key string) string { return c.pathParams[key] }
+
 func (c *filterContext) StateBag() map[string]interface{} {
 	return c.stateBag
 }
@@ -204,16 +206,20 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	var rt *routing.Route
+	var (
+		rt     *routing.Route
+		params map[string]string
+	)
+
 	for _, prt := range p.priorityRoutes {
-		if prt.Match(r) {
-			rt = prt.Route()
+		rt, params = prt.Match(r)
+		if rt != nil {
 			break
 		}
 	}
 
 	if rt == nil {
-		rt, _ = p.routing.Route(r)
+		rt, params = p.routing.Route(r)
 		if rt == nil {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return
@@ -221,7 +227,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := rt.Filters
-	c := &filterContext{w, r, nil, false, make(map[string]interface{})}
+	c := &filterContext{w, r, nil, false, params, make(map[string]interface{})}
 	applyFiltersToRequest(f, c)
 
 	var (
