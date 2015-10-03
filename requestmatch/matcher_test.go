@@ -3,7 +3,7 @@ package requestmatch
 import (
 	"errors"
 	"fmt"
-	"github.com/zalando/eskip"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/pathmux"
 	"log"
 	"net/http"

@@ -3,7 +3,7 @@ package innkeeper
 import (
 	"encoding/json"
 	"errors"
-	"github.com/zalando/eskip"
+	"github.com/zalando/skipper/eskip"
 	"net/http"
 	"net/http/httptest"
 	"path"
