@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	defsCountPhase1 = 1
-	defsCountPhase2 = 100
-	defsCountPhase3 = 10000
-	defsCountPhase4 = 1000000
+	benchmarkingCountPhase1 = 1
+	benchmarkingCountPhase2 = 100
+	benchmarkingCountPhase3 = 10000
+	benchmarkingCountPhase4 = 1000000
 )
 
 // defs in eskip format
-const routeDoc = `
+const testRouteDoc = `
     header: Path("/tessera/header") -> "https://header.my-department.example.org";
     footer: Path("/tessera/footer") -> "https://footer.my-department.example.org";
     pdp: PathRegexp(/.*\.html$/) -> "https://pdp.layout-service.my-department.example.org";
@@ -66,26 +66,24 @@ const routeDoc = `
 `
 
 var (
-	routes      []*Route
-	testMatcher *matcher
-
-	randomPaths    []string
 	randomRoutes   []*Route
 	randomRequests []*http.Request
 
-	matcher1 *matcher
-	matcher2 *matcher
-	matcher3 *matcher
-	matcher4 *matcher
+	testMatcher1 *matcher
+	testMatcher2 *matcher
+	testMatcher3 *matcher
+	testMatcher4 *matcher
+
+	testMatcherGeneric *matcher
 )
 
-func initMatcher() {
-	defs, err := eskip.Parse(routeDoc)
+func initGenericMatcher() {
+	defs, err := eskip.Parse(testRouteDoc)
 	if err != nil {
 		panic(err)
 	}
 
-	routes = (&Routing{}).convertDefs(defs)
+	routes := processRoutes(nil, defs)
 	m, errs := makeMatcher(routes, false)
 	if len(errs) != 0 {
 		for _, err := range errs {
@@ -94,7 +92,7 @@ func initMatcher() {
 		panic("error while making matcher")
 	}
 
-	testMatcher = m
+	testMatcherGeneric = m
 }
 
 func generatePaths(pg *pathGenerator, count int) []string {
@@ -117,7 +115,7 @@ func generateRoutes(paths []string) []*Route {
 		routes[i] = &eskip.Route{Path: p, Backend: p}
 	}
 
-	return (&Routing{}).convertDefs(routes)
+	return processRoutes(nil, routes)
 }
 
 func generateRequests(paths []string) ([]*http.Request, error) {
@@ -148,7 +146,7 @@ func makeTestMatcher(routes []*Route) (*matcher, error) {
 }
 
 func initRandomPaths() {
-	const count = defsCountPhase4
+	const count = benchmarkingCountPhase4
 
 	// we need to avoid '/' paths here, because we are not testing conflicting cases
 	// here, and with 0 or 1 MinNamesInPath, there would be multiple '/'s.
@@ -158,7 +156,7 @@ func initRandomPaths() {
 
 	var err error
 
-	randomPaths = generatePaths(pg, count)
+	randomPaths := generatePaths(pg, count)
 	randomRoutes = generateRoutes(randomPaths)
 
 	randomRequests, err = generateRequests(randomPaths)
@@ -191,14 +189,14 @@ func initRandomPaths() {
 		}
 	}()
 
-	matcher1 = mkmatcher(randomPaths[0:defsCountPhase1], randomRoutes[0:defsCountPhase1])
-	matcher2 = mkmatcher(randomPaths[0:defsCountPhase2], randomRoutes[0:defsCountPhase2])
-	matcher3 = mkmatcher(randomPaths[0:defsCountPhase3], randomRoutes[0:defsCountPhase3])
-	matcher4 = mkmatcher(randomPaths[0:defsCountPhase4], randomRoutes[0:defsCountPhase4])
+	testMatcher1 = mkmatcher(randomPaths[0:benchmarkingCountPhase1], randomRoutes[0:benchmarkingCountPhase1])
+	testMatcher2 = mkmatcher(randomPaths[0:benchmarkingCountPhase2], randomRoutes[0:benchmarkingCountPhase2])
+	testMatcher3 = mkmatcher(randomPaths[0:benchmarkingCountPhase3], randomRoutes[0:benchmarkingCountPhase3])
+	testMatcher4 = mkmatcher(randomPaths[0:benchmarkingCountPhase4], randomRoutes[0:benchmarkingCountPhase4])
 }
 
 func init() {
-	initMatcher()
+	initGenericMatcher()
 	initRandomPaths()
 }
 
@@ -234,19 +232,20 @@ func testMatch(t testing.TB, method, path, host string) {
 		t.Error(err)
 	}
 
-	v, _ := testMatcher.match(req)
-	checkMatch(t, v, err, host)
+	r, _ := testMatcherGeneric.match(req)
+	checkMatch(t, r, err, host)
 }
 
 func benchmarkLookup(b *testing.B, matcher *matcher, phaseCount int) {
-	// see init, double as much requests as routes
+	// see init, double as much requests as routes, to benchmark the cases
+	// when no route is found
 	requestCount := phaseCount * 2
 
 	var index int
 	for i := 0; i < b.N; i++ {
 
 		// b.N comes from the test vault, doesn't matter if it matches the available
-		// number of requests or routes, because in successful case, b.N will be far bigger
+		// number of requests or routes, because in case of longer runs, b.N will be far bigger
 		index = i % requestCount
 
 		r, _ := matcher.match(randomRequests[index])
@@ -424,11 +423,11 @@ func TestMatchLeafWrongMethod(t *testing.T) {
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
 	l := &leafMatcher{
-		method:         "PUT",
-		hostRxs:        []*regexp.Regexp{rxh},
-		pathRxs:        []*regexp.Regexp{rxp},
-		headersExact:   map[string]string{"Some-Header": "some-value"},
-		headersRegexps: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		method:        "PUT",
+		hostRxs:       []*regexp.Regexp{rxh},
+		pathRxs:       []*regexp.Regexp{rxp},
+		headersExact:  map[string]string{"Some-Header": "some-value"},
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
 	if matchLeaf(l, req, "/some/path") {
 		t.Error("failed not to match leaf method")
 	}
@@ -445,11 +444,11 @@ func TestMatchLeafWrongHost(t *testing.T) {
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
 	l := &leafMatcher{
-		method:         "PUT",
-		hostRxs:        []*regexp.Regexp{rxh},
-		pathRxs:        []*regexp.Regexp{rxp},
-		headersExact:   map[string]string{"Some-Header": "some-value"},
-		headersRegexps: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		method:        "PUT",
+		hostRxs:       []*regexp.Regexp{rxh},
+		pathRxs:       []*regexp.Regexp{rxp},
+		headersExact:  map[string]string{"Some-Header": "some-value"},
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
 	if matchLeaf(l, req, "/some/path") {
 		t.Error("failed not to match leaf host")
 	}
@@ -466,11 +465,11 @@ func TestMatchLeafWrongPath(t *testing.T) {
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
 	l := &leafMatcher{
-		method:         "PUT",
-		hostRxs:        []*regexp.Regexp{rxh},
-		pathRxs:        []*regexp.Regexp{rxp},
-		headersExact:   map[string]string{"Some-Header": "some-value"},
-		headersRegexps: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		method:        "PUT",
+		hostRxs:       []*regexp.Regexp{rxh},
+		pathRxs:       []*regexp.Regexp{rxp},
+		headersExact:  map[string]string{"Some-Header": "some-value"},
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
 	if matchLeaf(l, req, "/some/other/path") {
 		t.Error("failed not to match leaf path")
 	}
@@ -487,11 +486,11 @@ func TestMatchLeafWrongExactHeader(t *testing.T) {
 			"Some-Header":       []string{"some-wrong-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
 	l := &leafMatcher{
-		method:         "PUT",
-		hostRxs:        []*regexp.Regexp{rxh},
-		pathRxs:        []*regexp.Regexp{rxp},
-		headersExact:   map[string]string{"Some-Header": "some-value"},
-		headersRegexps: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		method:        "PUT",
+		hostRxs:       []*regexp.Regexp{rxh},
+		pathRxs:       []*regexp.Regexp{rxp},
+		headersExact:  map[string]string{"Some-Header": "some-value"},
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
 	if matchLeaf(l, req, "/some/path") {
 		t.Error("failed not to match leaf exact header")
 	}
@@ -508,11 +507,11 @@ func TestMatchLeafWrongRegexpHeader(t *testing.T) {
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-wrong-value"}}}
 	l := &leafMatcher{
-		method:         "PUT",
-		hostRxs:        []*regexp.Regexp{rxh},
-		pathRxs:        []*regexp.Regexp{rxp},
-		headersExact:   map[string]string{"Some-Header": "some-value"},
-		headersRegexps: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		method:        "PUT",
+		hostRxs:       []*regexp.Regexp{rxh},
+		pathRxs:       []*regexp.Regexp{rxp},
+		headersExact:  map[string]string{"Some-Header": "some-value"},
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
 	if matchLeaf(l, req, "/some/path") {
 		t.Error("failed not to match leaf regexp header")
 	}
@@ -529,11 +528,11 @@ func TestMatchLeaf(t *testing.T) {
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
 	l := &leafMatcher{
-		method:         "PUT",
-		hostRxs:        []*regexp.Regexp{rxh},
-		pathRxs:        []*regexp.Regexp{rxp},
-		headersExact:   map[string]string{"Some-Header": "some-value"},
-		headersRegexps: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		method:        "PUT",
+		hostRxs:       []*regexp.Regexp{rxh},
+		pathRxs:       []*regexp.Regexp{rxp},
+		headersExact:  map[string]string{"Some-Header": "some-value"},
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
 	if !matchLeaf(l, req, "/some/path") {
 		t.Error("failed to match leaf")
 	}
@@ -622,7 +621,7 @@ func TestMatchPath(t *testing.T) {
 	m := &matcher{paths: tree}
 	req := &http.Request{URL: &url.URL{Path: "/some/path"}}
 	r, p := m.match(req)
-	if r != pm0.leaves[0].value || len(p) != 0 {
+	if r != pm0.leaves[0].route || len(p) != 0 {
 		t.Error("failed to match path", r == nil, len(p))
 	}
 }
@@ -637,7 +636,7 @@ func TestMatchPathResolved(t *testing.T) {
 	m := &matcher{paths: tree}
 	req := &http.Request{URL: &url.URL{Path: "/some/some-other/../path"}}
 	r, p := m.match(req)
-	if r != pm0.leaves[0].value || len(p) != 0 {
+	if r != pm0.leaves[0].route || len(p) != 0 {
 		t.Error("failed to match path", r == nil, len(p))
 	}
 }
@@ -668,7 +667,7 @@ func TestMatchTopLeaves(t *testing.T) {
 	m := &matcher{paths: tree}
 	req := &http.Request{Method: "PUT", URL: &url.URL{Path: "/some/some-other/../path"}}
 	r, _ := m.match(req)
-	if r != l.value {
+	if r != l.route {
 		t.Error("failed to match path", r == nil)
 	}
 }
@@ -688,7 +687,7 @@ func TestMatchWildcardPaths(t *testing.T) {
 	rm := &matcher{paths: tree}
 	req := &http.Request{URL: &url.URL{Path: "/some/path/and/params"}}
 	r, p := rm.match(req)
-	if r != pm0.leaves[0].value || len(p) != 2 ||
+	if r != pm0.leaves[0].route || len(p) != 2 ||
 		p["param0"] != "and" || p["param1"] != "params" {
 		t.Error("failed to match path")
 	}
@@ -716,7 +715,7 @@ func TestMakeLeafInvalidHostRx(t *testing.T) {
 		return
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -735,7 +734,7 @@ func TestMakeLeafInvalidPathRx(t *testing.T) {
 		return
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -754,7 +753,7 @@ func TestMakeLeafInvalidHeaderRegexp(t *testing.T) {
 		return
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -779,7 +778,7 @@ func TestMakeLeaf(t *testing.T) {
 		return
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -787,8 +786,8 @@ func TestMakeLeaf(t *testing.T) {
 	l, err := makeLeaf(rd)
 	if err != nil || l.method != "PUT" ||
 		len(l.hostRxs) != 1 || len(l.pathRxs) != 1 ||
-		len(l.headersExact) != 1 || len(l.headersRegexps) != 1 ||
-		l.value.Backend != "https://example.org" {
+		len(l.headersExact) != 1 || len(l.headersRegexp) != 1 ||
+		l.route.Backend != "https://example.org" {
 		t.Error("failed to create leaf")
 	}
 }
@@ -811,7 +810,7 @@ func TestMakeMatcherRootLeavesOnly(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -833,7 +832,7 @@ func TestMakeMatcherExactPathOnly(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -855,7 +854,7 @@ func TestMakeMatcherWithWildcardPath(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -877,7 +876,7 @@ func TestMakeMatcherErrorInLeaf(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -896,12 +895,12 @@ func TestMakeMatcherWithPathConflict(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd0, err := (&Routing{}).convertDef(routes[0])
+	rd0, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
 
-	rd1, err := (&Routing{}).convertDef(routes[1])
+	rd1, err := processRoute(nil, routes[1])
 	if err != nil {
 		t.Error(err)
 	}
@@ -918,7 +917,7 @@ func TestMatchToSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -940,7 +939,7 @@ func TestMatchFromSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -962,7 +961,7 @@ func TestWildcardParam(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -984,7 +983,7 @@ func TestWildcardParamFromSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -1006,7 +1005,7 @@ func TestWildcardParamToSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -1028,7 +1027,7 @@ func TestFreeWildcardParam(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -1050,7 +1049,7 @@ func TestFreeWildcardParamWithSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	rd, err := (&Routing{}).convertDef(routes[0])
+	rd, err := processRoute(nil, routes[0])
 	if err != nil {
 		t.Error(err)
 	}
@@ -1109,29 +1108,29 @@ func BenchmarkGeneric(b *testing.B) {
 }
 
 func BenchmarkPathTree1(b *testing.B) {
-	benchmarkLookup(b, matcher1, defsCountPhase1)
+	benchmarkLookup(b, testMatcher1, benchmarkingCountPhase1)
 }
 
 func BenchmarkPathTree2(b *testing.B) {
-	benchmarkLookup(b, matcher2, defsCountPhase2)
+	benchmarkLookup(b, testMatcher2, benchmarkingCountPhase2)
 }
 
 func BenchmarkPathTree3(b *testing.B) {
-	benchmarkLookup(b, matcher3, defsCountPhase3)
+	benchmarkLookup(b, testMatcher3, benchmarkingCountPhase3)
 }
 
 func BenchmarkPathTree4(b *testing.B) {
-	benchmarkLookup(b, matcher4, defsCountPhase4)
+	benchmarkLookup(b, testMatcher4, benchmarkingCountPhase4)
 }
 
 func BenchmarkConstructionGeneric(b *testing.B) {
-	defs, err := eskip.Parse(routeDoc)
+	defs, err := eskip.Parse(testRouteDoc)
 	if err != nil {
 		b.Error(err)
 		return
 	}
 
-	routes := (&Routing{}).convertDefs(defs)
+	routes := processRoutes(nil, defs)
 	for i := 0; i < b.N; i++ {
 		_, errs := makeMatcher(routes, true)
 		if len(errs) != 0 {

@@ -10,15 +10,9 @@ import (
 	"time"
 )
 
-type mockMatcher func(req *http.Request) (*Route, map[string]string)
+type matcherFunc func(req *http.Request) (*Route, map[string]string)
 
-func castMatcher(m *matcher) mockMatcher {
-	return func(req *http.Request) (*Route, map[string]string) {
-		return m.match(req)
-	}
-}
-
-func testMatcherWithPath(t *testing.T, m mockMatcher, path string, matchRoute *Route) {
+func testMatcherWithPath(t *testing.T, m matcherFunc, path string, matchRoute *Route) {
 	req, err := http.NewRequest("GET", "http://www.example.com"+path, nil)
 	if err != nil {
 		t.Error(err)
@@ -84,7 +78,7 @@ func testMatcherWithPath(t *testing.T, m mockMatcher, path string, matchRoute *R
 	}
 }
 
-func testMatcherNoPath(t *testing.T, m mockMatcher, matchRoute *Route) {
+func testMatcherNoPath(t *testing.T, m matcherFunc, matchRoute *Route) {
 	testMatcherWithPath(t, m, "", matchRoute)
 }
 
@@ -143,41 +137,37 @@ func TestInitialAndUpdates(t *testing.T) {
 }
 
 func TestFailToParse(t *testing.T) {
-	r := &Routing{}
-	_, err := r.processData("invalid eskip document")
+	_, err := processData(nil, false, "invalid eskip document")
 	if err == nil {
 		t.Error("failed to fail")
 	}
 }
 
 func TestCreateShuntBackend(t *testing.T) {
-	r := &Routing{}
-	m, err := r.processData(`Any() -> <shunt>`)
+	m, err := processData(nil, false, `Any() -> <shunt>`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	testMatcherNoPath(t, castMatcher(m), &Route{Route: eskip.Route{Shunt: true}})
+	testMatcherNoPath(t, m.match, &Route{Route: eskip.Route{Shunt: true}})
 }
 
 func TestFailToParseBackend(t *testing.T) {
-	r := &Routing{}
-	m, err := r.processData(`Any() -> "invalid backend"`)
+	m, err := processData(nil, false, `Any() -> "invalid backend"`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	testMatcherNoPath(t, castMatcher(m), nil)
+	testMatcherNoPath(t, m.match, nil)
 }
 
 func TestParseBackend(t *testing.T) {
-	r := &Routing{}
-	m, err := r.processData(`Any() -> "https://www.example.org"`)
+	m, err := processData(nil, false, `Any() -> "https://www.example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	testMatcherNoPath(t, castMatcher(m), &Route{Scheme: "https", Host: "www.example.org"})
+	testMatcherNoPath(t, m.match, &Route{Scheme: "https", Host: "www.example.org"})
 }
 
 func TestFilterNotFound(t *testing.T) {
@@ -187,13 +177,12 @@ func TestFilterNotFound(t *testing.T) {
 	fr[spec1.Name()] = spec1
 	fr[spec2.Name()] = spec2
 
-	r := &Routing{filterRegistry: fr}
-	m, err := r.processData(`Any() -> testFilter3() -> "https://www.example.org"`)
+	m, err := processData(fr, false, `Any() -> testFilter3() -> "https://www.example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	testMatcherNoPath(t, castMatcher(m), nil)
+	testMatcherNoPath(t, m.match, nil)
 }
 
 func TestCreateFilters(t *testing.T) {
@@ -203,13 +192,12 @@ func TestCreateFilters(t *testing.T) {
 	fr[spec1.Name()] = spec1
 	fr[spec2.Name()] = spec2
 
-	r := &Routing{filterRegistry: fr}
-	m, err := r.processData(`Any() -> testFilter1(1, "one") -> testFilter2(2, "two") -> "https://www.example.org"`)
+	m, err := processData(fr, false, `Any() -> testFilter1(1, "one") -> testFilter2(2, "two") -> "https://www.example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	testMatcherNoPath(t, castMatcher(m), &Route{Scheme: "https", Host: "www.example.org", Filters: []filters.Filter{
+	testMatcherNoPath(t, m.match, &Route{Scheme: "https", Host: "www.example.org", Filters: []filters.Filter{
 		&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}},
 		&filtertest.Filter{FilterName: "testFilter2", Args: []interface{}{float64(2), "two"}}}})
 }
