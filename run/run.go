@@ -4,46 +4,82 @@ import (
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/innkeeper"
+	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"log"
 	"net/http"
+	"time"
 )
 
-// Run skipper. Expects address to listen on and one or more urls to find
+// Options to start skipper. Expects address to listen on and one or more urls to find
 // the etcd service at. If the flag 'insecure' is true, skipper will accept
 // invalid TLS certificates from the backends.
-// If a routesFilePath is given, that file will be used INSTEAD of etcd
-func Run(address string, etcdUrls []string, storageRoot string, insecure bool, routesFilePath string,
-	ignoreTrailingSlash bool, customFilters ...filters.Spec) error {
+type Options struct {
+	Address                   string
+	EtcdUrls                  []string
+	StorageRoot               string
+	Insecure                  bool
+	InnkeeperUrl              string
+	InnkeeperPollTimeout      time.Duration
+	RoutesFilePath            string
+	CustomFilters             []filters.Spec
+	IgnoreTrailingSlash       bool
+	OAuthUrl                  string
+	OAuthScope                string
+	InnkeeperAuthToken        string
+	InnkeeperPreRouteFilters  []string
+	InnkeeperPostRouteFilters []string
+}
 
-	var dataClient routing.DataClient
-	var err error
-	if len(routesFilePath) > 0 {
-		dataClient, err = eskipfile.Make(routesFilePath)
-		if err != nil {
-			return err
-		}
-	} else {
-		dataClient, err = etcd.Make(etcdUrls, storageRoot)
-		if err != nil {
-			return err
-		}
+func makeDataClient(o Options, auth innkeeper.Authentication) (routing.DataClient, error) {
+	switch {
+	case o.RoutesFilePath != "":
+		return eskipfile.Make(o.RoutesFilePath)
+	case o.InnkeeperUrl != "":
+		return innkeeper.Make(innkeeper.Options{
+			o.InnkeeperUrl, o.Insecure, o.InnkeeperPollTimeout, auth,
+			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
+	default:
+		return etcd.Make(o.EtcdUrls, o.StorageRoot)
+	}
+}
+
+func makeInnkeeperAuthentication(o Options) innkeeper.Authentication {
+	if o.InnkeeperAuthToken != "" {
+		return innkeeper.FixedToken(o.InnkeeperAuthToken)
+	}
+
+	return oauth.Make(o.OAuthUrl, o.OAuthScope)
+}
+
+// Run skipper.
+//
+// If a routesFilePath is given, that file will be used _instead_ of etcd.
+func Run(o Options) error {
+	// create authentication for Innkeeper
+	auth := makeInnkeeperAuthentication(o)
+
+	// create data client
+	dataClient, err := makeDataClient(o, auth)
+	if err != nil {
+		return err
 	}
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
-	registry := filters.DefaultFilters()
-	for _, f := range customFilters {
+	registry := make(filters.Registry)
+	for _, f := range o.CustomFilters {
 		registry[f.Name()] = f
 	}
 
 	// create routing
 	// create the proxy instance
-	routing := routing.New(dataClient, registry, ignoreTrailingSlash)
-	proxy := proxy.Make(routing, insecure)
+	routing := routing.New(dataClient, registry, o.IgnoreTrailingSlash)
+	proxy := proxy.Make(routing, o.Insecure)
 
 	// start the http server
-	log.Printf("listening on %v\n", address)
-	return http.ListenAndServe(address, proxy)
+	log.Printf("listening on %v\n", o.Address)
+	return http.ListenAndServe(o.Address, proxy)
 }
