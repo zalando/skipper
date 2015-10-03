@@ -1,12 +1,11 @@
 package run
 
 import (
-	"github.com/zalando/skipper/dispatch"
+	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy"
-	"github.com/zalando/skipper/settings"
-	"github.com/zalando/skipper/skipper"
+	"github.com/zalando/skipper/routing"
 	"log"
 	"net/http"
 )
@@ -16,12 +15,12 @@ import (
 // invalid TLS certificates from the backends.
 // If a routesFilePath is given, that file will be used INSTEAD of etcd
 func Run(address string, etcdUrls []string, storageRoot string, insecure bool, routesFilePath string,
-	ignoreTrailingSlash bool, customFilters ...skipper.FilterSpec) error {
+	ignoreTrailingSlash bool, customFilters ...filters.Spec) error {
 
-	var dataClient skipper.DataClient
+	var dataClient routing.DataClient
 	var err error
 	if len(routesFilePath) > 0 {
-		dataClient, err = settings.MakeFileDataClient(routesFilePath)
+		dataClient, err = eskipfile.Make(routesFilePath)
 		if err != nil {
 			return err
 		}
@@ -34,19 +33,15 @@ func Run(address string, etcdUrls []string, storageRoot string, insecure bool, r
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
-	registry := filters.RegisterDefault()
-	registry.Add(customFilters...)
+	registry := filters.DefaultFilters()
+	for _, f := range customFilters {
+		registry[f.Name()] = f
+	}
 
-	// create a settings dispatcher instance
-	// create a settings source
+	// create routing
 	// create the proxy instance
-	dispatcher := dispatch.Make()
-	settingsSource := settings.MakeSource(dataClient, registry, dispatcher, ignoreTrailingSlash)
-	proxy := proxy.Make(settingsSource, insecure)
-
-	// subscribe to new settings
-	settingsChan := make(chan skipper.Settings)
-	dispatcher.Subscribe(settingsChan)
+	routing := routing.New(dataClient, registry, ignoreTrailingSlash)
+	proxy := proxy.Make(routing, insecure)
 
 	// start the http server
 	log.Printf("listening on %v\n", address)

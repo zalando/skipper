@@ -35,6 +35,8 @@ import (
 	"sort"
 )
 
+var counter int = 0
+
 const freeWildcardExp = "/[*][^/]+$"
 
 type leafMatcher struct {
@@ -59,6 +61,7 @@ type Matcher struct {
 	paths               *pathmux.Tree
 	rootLeaves          leafMatchers
 	ignoreTrailingSlash bool
+	counter             int
 }
 
 // A Definition represents a set of conditions and an associated
@@ -210,7 +213,8 @@ func Make(ds []Definition, ignoreTrailingSlash bool) (*Matcher, []*DefinitionErr
 	// sort root leaves in advance, based on their priority
 	sort.Sort(rootLeaves)
 
-	return &Matcher{pathTree, rootLeaves, ignoreTrailingSlash}, errors
+	counter++
+	return &Matcher{pathTree, rootLeaves, ignoreTrailingSlash, counter - 1}, errors
 }
 
 func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]string) {
