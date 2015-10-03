@@ -97,10 +97,10 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
-func mapRequest(r *http.Request, b *routing.Backend) (*http.Request, error) {
+func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 	u := r.URL
-	u.Scheme = b.Scheme
-	u.Host = b.Host
+	u.Scheme = rt.Scheme
+	u.Host = rt.Host
 
 	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
 	if err != nil {
@@ -187,8 +187,8 @@ func shunt(r *http.Request) *http.Response {
 		Request:    r}
 }
 
-func (p *proxy) roundtrip(r *http.Request, b *routing.Backend) (*http.Response, error) {
-	rr, err := mapRequest(r, b)
+func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, error) {
+	rr, err := mapRequest(r, rt)
 	if err != nil {
 		return nil, err
 	}
@@ -224,21 +224,15 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := &filterContext{w, r, nil, false, make(map[string]interface{})}
 	applyFiltersToRequest(f, c)
 
-	b := rt.Backend
-	if b == nil {
-		hterr(proxyError("missing backend"))
-		return
-	}
-
 	var (
 		rs  *http.Response
 		err error
 	)
 
-	if b.Shunt {
+	if rt.Shunt {
 		rs = shunt(r)
 	} else {
-		rs, err = p.roundtrip(r, b)
+		rs, err = p.roundtrip(r, rt)
 		if err != nil {
 			hterr(err)
 			return
