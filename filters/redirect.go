@@ -9,14 +9,13 @@ import (
 )
 
 type Redirect struct {
-	id       string
 	code     int
 	location *url.URL
 }
 
 func (spec *Redirect) Name() string { return "redirect" }
 
-func (spec *Redirect) MakeFilter(id string, config []interface{}) (Filter, error) {
+func (spec *Redirect) CreateFilter(config []interface{}) (Filter, error) {
 	invalidArgs := func() (Filter, error) {
 		return nil, errors.New("invalid arguments")
 	}
@@ -40,10 +39,9 @@ func (spec *Redirect) MakeFilter(id string, config []interface{}) (Filter, error
 		return invalidArgs()
 	}
 
-	return &Redirect{id, int(code), u}, nil
+	return &Redirect{int(code), u}, nil
 }
 
-func (f *Redirect) Id() string                { return f.id }
 func (f *Redirect) Request(ctx FilterContext) {}
 
 func (f *Redirect) Response(ctx FilterContext) {
