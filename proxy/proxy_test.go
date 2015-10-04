@@ -95,7 +95,7 @@ func TestGetRoundtrip(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	p := New(routing.New(testdataclient.New(data), nil, false), false)
+	p := New(routing.New(nil, false, testdataclient.New(data)), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -137,7 +137,7 @@ func TestPostRoundtrip(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	p := New(routing.New(testdataclient.New(data), nil, false), false)
+	p := New(nil, false, routing.New(testdataclient.New(data)), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -164,7 +164,7 @@ func TestRoute(t *testing.T) {
 		route1: Path("/host-one/*any") -> "%s";
 		route1: Path("/host-two/*any") -> "%s"
 	`, s1.URL, s2.URL)
-	routing := routing.New(testdataclient.New(data), nil, false)
+	routing := routing.New(nil, false, testdataclient.New(data))
 	p := New(routing, false)
 	delay()
 
@@ -203,7 +203,7 @@ func TestStreaming(t *testing.T) {
 	defer s.Close()
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	p := New(routing.New(testdataclient.New(data), nil, false), false)
+	p := New(routing.New(nil, false, testdataclient.New(data)), false)
 	delay()
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
