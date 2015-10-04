@@ -92,7 +92,7 @@ func processRoutes(fr filters.Registry, eskipRoutes []*eskip.Route) []*Route {
 }
 
 func createMatcher(ignoreTrailingSlash bool, rs []*Route) *matcher {
-	m, errs := makeMatcher(rs, ignoreTrailingSlash)
+	m, errs := newMatcher(rs, ignoreTrailingSlash)
 	for _, err := range errs {
 		// individual matcher entry errors are logged and ignored here
 		log.Println(err)

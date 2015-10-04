@@ -24,7 +24,7 @@ type Client struct {
 // Creates a client receiving the configuraton from etcd. In the urls parameter it expects one or more valid urls to the
 // supporting etcd service. In the storageRoot parameter it expects the root key for configuration, typically
 // 'skipper' or 'skippertest'.
-func Make(urls []string, storageRoot string) (*Client, error) {
+func New(urls []string, storageRoot string) (*Client, error) {
 	c := &Client{
 		storageRoot + routesPath,
 		etcd.NewClient(urls),
