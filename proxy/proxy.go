@@ -25,11 +25,6 @@ const (
 	idleConnsPerHost = 64
 )
 
-type flusherWriter interface {
-	http.Flusher
-	io.Writer
-}
-
 type PriorityRoute interface {
 	Match(*http.Request) (*routing.Route, map[string]string)
 }
@@ -73,7 +68,7 @@ func cloneHeader(h http.Header) http.Header {
 	return hh
 }
 
-func copyStream(to flusherWriter, from io.Reader) error {
+func copyStream(to io.Writer, f http.Flusher, from io.Reader) error {
 	b := make([]byte, proxyBufferSize)
 
 	for {
@@ -88,7 +83,9 @@ func copyStream(to flusherWriter, from io.Reader) error {
 				return werr
 			}
 
-			to.Flush()
+			if f != nil {
+				f.Flush()
+			}
 		}
 
 		if rerr == io.EOF {
@@ -119,7 +116,7 @@ func getSettingsBufferSize() int {
 // creates a proxy. it expects a settings source, that provides the current settings during each request.
 // if the 'insecure' parameter is true, the proxy skips the TLS verification for the requests made to the
 // backends.
-func Make(r *routing.Routing, insecure bool, pr ...PriorityRoute) http.Handler {
+func New(r *routing.Routing, insecure bool, pr ...PriorityRoute) http.Handler {
 	tr := &http.Transport{}
 	if insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -258,6 +255,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !c.Served() {
 		copyHeader(w.Header(), rs.Header)
 		w.WriteHeader(rs.StatusCode)
-		copyStream(w.(flusherWriter), rs.Body)
+		f, _ := w.(http.Flusher)
+		copyStream(w, f, rs.Body)
 	}
 }

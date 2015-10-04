@@ -73,7 +73,7 @@ func createFileWithContent(fileName string, content string) error {
 
 func TestGetAuthPostBody(t *testing.T) {
 	us := &userCredentials{"user", "pass"}
-	c := Make("", "scope0 scope1")
+	c := New("", "scope0 scope1")
 	postBody := c.getAuthPostBody(us)
 	if postBody != "grant_type=password&password=pass&scope=scope0+scope1&username=user" {
 		t.Error("the post body is not correct", postBody)
@@ -147,7 +147,7 @@ func TestGetUser(t *testing.T) {
 
 func TestAuthenticate(t *testing.T) {
 	oas := httptest.NewServer(successHandler)
-	oauthClient := Make(oas.URL, "scope0 scope1")
+	oauthClient := New(oas.URL, "scope0 scope1")
 	authToken, err := oauthClient.Token()
 
 	if err != nil {
@@ -161,7 +161,7 @@ func TestAuthenticate(t *testing.T) {
 
 func TestAuthenticateFail(t *testing.T) {
 	oas := httptest.NewServer(failureHandler)
-	oauthClient := Make(oas.URL, "scope0 scope1")
+	oauthClient := New(oas.URL, "scope0 scope1")
 	authToken, err := oauthClient.Token()
 
 	if err == nil {

@@ -38,7 +38,7 @@ type OAuthClient struct {
 	httpClient       *http.Client
 }
 
-func Make(oauthUrl, permissionScopes string) *OAuthClient {
+func New(oauthUrl, permissionScopes string) *OAuthClient {
 	return &OAuthClient{oauthUrl, permissionScopes, &http.Client{}}
 }
 

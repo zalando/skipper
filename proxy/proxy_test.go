@@ -93,7 +93,7 @@ func TestGetRoundtrip(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	p := Make(routing.New(testdataclient.New(data), nil, false), false)
+	p := New(routing.New(testdataclient.New(data), nil, false), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -135,7 +135,7 @@ func TestPostRoundtrip(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	p := Make(routing.New(testdataclient.New(data), nil, false), false)
+	p := New(routing.New(testdataclient.New(data), nil, false), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -163,7 +163,7 @@ func TestRoute(t *testing.T) {
 		route1: Path("/host-two/*any") -> "%s"
 	`, s1.URL, s2.URL)
 	routing := routing.New(testdataclient.New(data), nil, false)
-	p := Make(routing, false)
+	p := New(routing, false)
 	delay()
 
 	var (
@@ -201,7 +201,7 @@ func TestStreaming(t *testing.T) {
 	defer s.Close()
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	p := Make(routing.New(testdataclient.New(data), nil, false), false)
+	p := New(routing.New(testdataclient.New(data), nil, false), false)
 	delay()
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
@@ -272,7 +272,7 @@ func TestAppliesFilters(t *testing.T) {
 		requestHeader("X-Test-Request-Header", "request header value") ->
 		responseHeader("X-Test-Response-Header", "response header value") ->
 		"%s"`, s.URL)
-	p := Make(routing.New(testdataclient.New(data), fr, false), false)
+	p := New(routing.New(testdataclient.New(data), fr, false), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -295,7 +295,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	fr[rsph.Name()] = rsph
 
 	data := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
-	p := Make(routing.New(testdataclient.New(data), fr, false), false)
+	p := New(routing.New(testdataclient.New(data), fr, false), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -328,7 +328,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	}}
 
 	data := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
-	p := Make(routing.New(testdataclient.New(data), nil, false), false, prt)
+	p := New(routing.New(testdataclient.New(data), nil, false), false, prt)
 	delay()
 
 	w := httptest.NewRecorder()
@@ -365,7 +365,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	}}
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s1.URL)
-	p := Make(routing.New(testdataclient.New(data), nil, false), false, prt)
+	p := New(routing.New(testdataclient.New(data), nil, false), false, prt)
 	delay()
 
 	w := httptest.NewRecorder()

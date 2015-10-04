@@ -144,7 +144,7 @@ func getMatcherArgMap(r *parsedRoute, name string) (map[string][]string, error) 
 	return argMap, nil
 }
 
-func makeRouteDefinition(r *parsedRoute) (*Route, error) {
+func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	var err error
 	withError := func(f func()) {
 		if err != nil {
@@ -182,7 +182,7 @@ func makeRouteDefinition(r *parsedRoute) (*Route, error) {
 }
 
 func parse(code string) ([]*parsedRoute, error) {
-	l := makeLexer(code)
+	l := newLexer(code)
 	eskipParse(l)
 	return l.routes, l.err
 }
@@ -196,7 +196,7 @@ func Parse(code string) ([]*Route, error) {
 
 	routeDefinitions := make([]*Route, len(parsedRoutes))
 	for i, r := range parsedRoutes {
-		rd, err := makeRouteDefinition(r)
+		rd, err := newRouteDefinition(r)
 		if err != nil {
 			return nil, err
 		}
