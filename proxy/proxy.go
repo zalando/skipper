@@ -29,6 +29,11 @@ type PriorityRoute interface {
 	Match(*http.Request) (*routing.Route, map[string]string)
 }
 
+type flusherWriter interface {
+	http.Flusher
+	io.Writer
+}
+
 type shuntBody struct {
 	*bytes.Buffer
 }
@@ -68,7 +73,7 @@ func cloneHeader(h http.Header) http.Header {
 	return hh
 }
 
-func copyStream(to io.Writer, f http.Flusher, from io.Reader) error {
+func copyStream(to flusherWriter, from io.Reader) error {
 	b := make([]byte, proxyBufferSize)
 
 	for {
@@ -83,9 +88,7 @@ func copyStream(to io.Writer, f http.Flusher, from io.Reader) error {
 				return werr
 			}
 
-			if f != nil {
-				f.Flush()
-			}
+			to.Flush()
 		}
 
 		if rerr == io.EOF {
@@ -255,7 +258,6 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !c.Served() {
 		copyHeader(w.Header(), rs.Header)
 		w.WriteHeader(rs.StatusCode)
-		f, _ := w.(http.Flusher)
-		copyStream(w, f, rs.Body)
+		copyStream(w.(flusherWriter), rs.Body)
 	}
 }
