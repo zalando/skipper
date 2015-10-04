@@ -15,7 +15,7 @@ const (
 	defaultAddress              = ":9090"
 	defaultEtcdUrls             = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultStorageRoot          = "/skipper"
-	defaultInnkeeperPollTimeout = int64(3 * time.Minute)
+	defaultInnkeeperPollTimeout = int64(180 * time.Second)
 
 	addressUsage                   = "address where skipper should listen on"
 	etcdUrlsUsage                  = "urls where etcd can be found"
