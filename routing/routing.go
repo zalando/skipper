@@ -9,14 +9,18 @@ import (
 	"net/url"
 )
 
+type DataUpdate struct {
+    UpsertedRoutes []*eskip.Route
+    DeletedIds []string
+}
+
 type DataClient interface {
-	Receive() <-chan string
+    Receive() ([]*eskip.Route, <-chan *DataUpdate)
 }
 
 type Route struct {
 	eskip.Route
-	Scheme  string
-	Host    string
+	Scheme, Host    string
 	Filters []filters.Filter
 }
 
@@ -24,6 +28,25 @@ type Routing struct {
 	filterRegistry      filters.Registry
 	ignoreTrailingSlash bool
 	getMatcher          <-chan *matcher
+}
+
+type routeDefs map[string]*eskip.Route
+
+func (rd routeDefs) set(rs []*eskip.Route) {
+    for _, r := range rs {
+        rd[r.Id] = r
+    }
+}
+
+func (rd routeDefs) del(ids []string) {
+    for _, id := range ids {
+        delete(rd, id)
+    }
+}
+
+func (rd routeDefs) processUpdate(u *DataUpdate) {
+    rd.del(u.DeletedIds)
+    rd.set(u.UpsertedRoutes)
 }
 
 func splitBackend(r *eskip.Route) (string, string, error) {
@@ -62,24 +85,24 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]filters.Filter,
 	return fs, nil
 }
 
-func processRoute(fr filters.Registry, r *eskip.Route) (*Route, error) {
-	scheme, host, err := splitBackend(r)
+func processRoute(fr filters.Registry, def *eskip.Route) (*Route, error) {
+	scheme, host, err := splitBackend(def)
 	if err != nil {
 		return nil, err
 	}
 
-	fs, err := createFilters(fr, r.Filters)
+	fs, err := createFilters(fr, def.Filters)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Route{*r, scheme, host, fs}, nil
+	return &Route{*def, scheme, host, fs}, nil
 }
 
-func processRoutes(fr filters.Registry, eskipRoutes []*eskip.Route) []*Route {
+func processRoutes(fr filters.Registry, defs routeDefs) []*Route {
 	routes := []*Route{}
-	for _, eskipRoute := range eskipRoutes {
-		route, err := processRoute(fr, eskipRoute)
+	for _, def := range defs {
+		route, err := processRoute(fr, def)
 		if err == nil {
 			routes = append(routes, route)
 		} else {
@@ -101,16 +124,6 @@ func createMatcher(ignoreTrailingSlash bool, rs []*Route) *matcher {
 	return m
 }
 
-func processData(fr filters.Registry, ignoreTrailingSlash bool, data string) (*matcher, error) {
-	eskipRoutes, err := eskip.Parse(data)
-	if err != nil {
-		return nil, err
-	}
-
-	routes := processRoutes(fr, eskipRoutes)
-	return createMatcher(ignoreTrailingSlash, routes), nil
-}
-
 func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
 	// todo: measure impact of buffered channel here for out
 	in := make(chan *matcher)
@@ -128,28 +141,37 @@ func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
 	return in, out
 }
 
-func (r *Routing) receiveUpdates(in <-chan string, out chan<- *matcher) {
-	go func() {
-		for {
-			data := <-in
-			matcher, err := processData(r.filterRegistry, r.ignoreTrailingSlash, data)
-			if err != nil {
-				// only logging errors here, and waiting for settings from external
-				// sources to be fixed
-				log.Println("error while processing route data", err)
-				continue
-			}
+func (r *Routing) receiveRoutes(clients []DataClient, out chan<- *matcher) {
+    all := make(routeDefs)
+    updates := make(chan *DataUpdate)
 
-			out <- matcher
-		}
-	}()
+    for _, c := range clients {
+        // TODO: the failure of one source can block the others this way
+        routes, update := c.Receive()
+        all.set(routes)
+
+        go func(update <-chan *DataUpdate) {
+            for u := range update {
+                updates <- u
+            }
+        }(update)
+    }
+
+    for {
+        routes := processRoutes(r.filterRegistry, all)
+        m := createMatcher(r.ignoreTrailingSlash, routes)
+        out <- m
+
+        u := <-updates
+        all.processUpdate(u)
+    }
 }
 
-func New(dc DataClient, fr filters.Registry, ignoreTrailingSlash bool) *Routing {
+func New(fr filters.Registry, ignoreTrailingSlash bool, dc ...DataClient) *Routing {
 	r := &Routing{filterRegistry: fr, ignoreTrailingSlash: ignoreTrailingSlash}
 	initialMatcher := createMatcher(false, nil)
 	matchersIn, matchersOut := feedMatchers(initialMatcher)
-	r.receiveUpdates(dc.Receive(), matchersIn)
+	go r.receiveRoutes(dc, matchersIn)
 	r.getMatcher = matchersOut
 	return r
 }

@@ -77,14 +77,24 @@ var (
 	testMatcherGeneric *matcher
 )
 
+func docToRouteDefs(doc string) (routeDefs, error) {
+    rs, err := eskip.Parse(doc)
+    if err != nil {
+        return nil, err
+    }
+
+    rd := make(routeDefs)
+    rd.set(rs)
+    return rd, nil
+}
+
 func initGenericMatcher() {
-	defs, err := eskip.Parse(testRouteDoc)
+	defs, err := docToRouteDefs(testRouteDoc)
 	if err != nil {
 		panic(err)
 	}
 
-	routes := processRoutes(nil, defs)
-	m, errs := newMatcher(routes, false)
+	m, errs := newMatcher(processRoutes(nil, defs), false)
 	if len(errs) != 0 {
 		for _, err := range errs {
 			log.Println(err.Error())
@@ -112,10 +122,12 @@ func generateRoutes(paths []string) []*Route {
 		// the path for the backend is fine here,
 		// because it is only used for checking the
 		// found routes
-		routes[i] = &eskip.Route{Path: p, Backend: p}
+		routes[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Path: p, Backend: p}
 	}
 
-	return processRoutes(nil, routes)
+    rd := make(routeDefs)
+    rd.set(routes)
+	return processRoutes(nil, rd)
 }
 
 func generateRequests(paths []string) ([]*http.Request, error) {
@@ -189,6 +201,7 @@ func initRandomPaths() {
 		}
 	}()
 
+    println(len(randomPaths), len(randomRoutes), benchmarkingCountPhase2)
 	testMatcher1 = mkmatcher(randomPaths[0:benchmarkingCountPhase1], randomRoutes[0:benchmarkingCountPhase1])
 	testMatcher2 = mkmatcher(randomPaths[0:benchmarkingCountPhase2], randomRoutes[0:benchmarkingCountPhase2])
 	testMatcher3 = mkmatcher(randomPaths[0:benchmarkingCountPhase3], randomRoutes[0:benchmarkingCountPhase3])
@@ -1124,15 +1137,14 @@ func BenchmarkPathTree4(b *testing.B) {
 }
 
 func BenchmarkConstructionGeneric(b *testing.B) {
-	defs, err := eskip.Parse(testRouteDoc)
+	routes, err := docToRouteDefs(testRouteDoc)
 	if err != nil {
 		b.Error(err)
 		return
 	}
 
-	routes := processRoutes(nil, defs)
 	for i := 0; i < b.N; i++ {
-		_, errs := newMatcher(routes, true)
+		_, errs := newMatcher(processRoutes(nil, routes), true)
 		if len(errs) != 0 {
 			for _, err := range errs {
 				b.Log(err.Error())
