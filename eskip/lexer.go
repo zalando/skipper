@@ -40,7 +40,7 @@ type eskipLex struct {
 	err          error
 }
 
-func makeLexer(code string) *eskipLex {
+func newLexer(code string) *eskipLex {
 	const (
 		rxFmt                = "^(\\s*|//.*\n)*(%s)(\\s*|//.*\n)*"
 		initialCaptureGroups = 3

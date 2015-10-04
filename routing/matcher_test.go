@@ -84,7 +84,7 @@ func initGenericMatcher() {
 	}
 
 	routes := processRoutes(nil, defs)
-	m, errs := makeMatcher(routes, false)
+	m, errs := newMatcher(routes, false)
 	if len(errs) != 0 {
 		for _, err := range errs {
 			log.Println(err.Error())
@@ -132,12 +132,12 @@ func generateRequests(paths []string) ([]*http.Request, error) {
 	return requests, nil
 }
 
-func makeTestMatcher(routes []*Route) (*matcher, error) {
+func newTestMatcher(routes []*Route) (*matcher, error) {
 	if len(routes) == 0 {
 		return nil, errors.New("we need at least one route for this test")
 	}
 
-	matcher, errs := makeMatcher(routes, false)
+	matcher, errs := newMatcher(routes, false)
 	if len(errs) != 0 {
 		return nil, errors.New("failed to create matcher")
 	}
@@ -150,7 +150,7 @@ func initRandomPaths() {
 
 	// we need to avoid '/' paths here, because we are not testing conflicting cases
 	// here, and with 0 or 1 MinNamesInPath, there would be multiple '/'s.
-	pg := makePathGenerator(pathGeneratorOptions{
+	pg := newPathGenerator(pathGeneratorOptions{
 		MinNamesInPath: 2,
 		MaxNamesInPath: 15})
 
@@ -178,7 +178,7 @@ func initRandomPaths() {
 			return nil
 		}
 
-		r, e := makeTestMatcher(routes)
+		r, e := newTestMatcher(routes)
 		err = e
 		return r
 	}
@@ -200,7 +200,7 @@ func init() {
 	initRandomPaths()
 }
 
-func makeRequest(method, path string) (*http.Request, error) {
+func newRequest(method, path string) (*http.Request, error) {
 	u := fmt.Sprintf("https://example.com%s", path)
 	r := &http.Request{}
 
@@ -227,7 +227,7 @@ func checkMatch(t testing.TB, r *Route, err error, host string) {
 }
 
 func testMatch(t testing.TB, method, path, host string) {
-	req, err := makeRequest(method, path)
+	req, err := newRequest(method, path)
 	if err != nil {
 		t.Error(err)
 	}
@@ -720,7 +720,7 @@ func TestMakeLeafInvalidHostRx(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = makeLeaf(rd)
+	_, err = newLeaf(rd)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -739,7 +739,7 @@ func TestMakeLeafInvalidPathRx(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = makeLeaf(rd)
+	_, err = newLeaf(rd)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -758,7 +758,7 @@ func TestMakeLeafInvalidHeaderRegexp(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = makeLeaf(rd)
+	_, err = newLeaf(rd)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -783,7 +783,7 @@ func TestMakeLeaf(t *testing.T) {
 		t.Error(err)
 	}
 
-	l, err := makeLeaf(rd)
+	l, err := newLeaf(rd)
 	if err != nil || l.method != "PUT" ||
 		len(l.hostRxs) != 1 || len(l.pathRxs) != 1 ||
 		len(l.headersExact) != 1 || len(l.headersRegexp) != 1 ||
@@ -793,7 +793,7 @@ func TestMakeLeaf(t *testing.T) {
 }
 
 func TestMakeMatcherEmpty(t *testing.T) {
-	m, errs := makeMatcher(nil, false)
+	m, errs := newMatcher(nil, false)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make empty matcher")
 	}
@@ -815,7 +815,7 @@ func TestMakeMatcherRootLeavesOnly(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, false)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -837,7 +837,7 @@ func TestMakeMatcherExactPathOnly(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, false)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -859,7 +859,7 @@ func TestMakeMatcherWithWildcardPath(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, false)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -881,7 +881,7 @@ func TestMakeMatcherErrorInLeaf(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, false)
 	if len(errs) != 1 || m == nil || errs[0].Index != 0 {
 		t.Error("failed to make matcher with error")
 	}
@@ -905,7 +905,7 @@ func TestMakeMatcherWithPathConflict(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd0, rd1}, false)
+	m, errs := newMatcher([]*Route{rd0, rd1}, false)
 	if len(errs) != 1 || m == nil {
 		t.Error("failed to make matcher with error", len(errs), m == nil)
 	}
@@ -922,7 +922,7 @@ func TestMatchToSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -944,7 +944,7 @@ func TestMatchFromSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -966,7 +966,7 @@ func TestWildcardParam(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, false)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -988,7 +988,7 @@ func TestWildcardParamFromSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1010,7 +1010,7 @@ func TestWildcardParamToSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1032,7 +1032,7 @@ func TestFreeWildcardParam(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, false)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1054,7 +1054,7 @@ func TestFreeWildcardParamWithSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := makeMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, true)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1132,7 +1132,7 @@ func BenchmarkConstructionGeneric(b *testing.B) {
 
 	routes := processRoutes(nil, defs)
 	for i := 0; i < b.N; i++ {
-		_, errs := makeMatcher(routes, true)
+		_, errs := newMatcher(routes, true)
 		if len(errs) != 0 {
 			for _, err := range errs {
 				b.Log(err.Error())
@@ -1150,7 +1150,7 @@ func BenchmarkConstructionMass(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		_, errs := makeMatcher(routes, true)
+		_, errs := newMatcher(routes, true)
 		if len(errs) != 0 {
 			for _, err := range errs {
 				b.Log(err.Error())

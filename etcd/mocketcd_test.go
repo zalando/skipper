@@ -30,7 +30,7 @@ func makeLocalUrls(ports ...int) []string {
 	return urls
 }
 
-func makeFlag(key, value string) string {
+func formatFlag(key, value string) string {
 	return fmt.Sprintf("%s=%s", key, value)
 }
 
@@ -47,9 +47,9 @@ func Etcd() error {
 	var args []string
 	args, os.Args = os.Args, []string{
 		"etcd",
-		makeFlag("-listen-client-urls", clientUrlsString),
-		makeFlag("-advertise-client-urls", clientUrlsString),
-		makeFlag("-listen-peer-urls", strings.Join(makeLocalUrls(PeerPort1, PeerPort2), ","))}
+		formatFlag("-listen-client-urls", clientUrlsString),
+		formatFlag("-advertise-client-urls", clientUrlsString),
+		formatFlag("-listen-peer-urls", strings.Join(makeLocalUrls(PeerPort1, PeerPort2), ","))}
 
 	go func() {
 		// best mock is the real thing

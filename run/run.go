@@ -33,25 +33,25 @@ type Options struct {
 	InnkeeperPostRouteFilters []string
 }
 
-func makeDataClient(o Options, auth innkeeper.Authentication) (routing.DataClient, error) {
+func createDataClient(o Options, auth innkeeper.Authentication) (routing.DataClient, error) {
 	switch {
 	case o.RoutesFilePath != "":
-		return eskipfile.Make(o.RoutesFilePath)
+		return eskipfile.New(o.RoutesFilePath)
 	case o.InnkeeperUrl != "":
-		return innkeeper.Make(innkeeper.Options{
+		return innkeeper.New(innkeeper.Options{
 			o.InnkeeperUrl, o.Insecure, o.InnkeeperPollTimeout, auth,
 			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
 	default:
-		return etcd.Make(o.EtcdUrls, o.StorageRoot)
+		return etcd.New(o.EtcdUrls, o.StorageRoot)
 	}
 }
 
-func makeInnkeeperAuthentication(o Options) innkeeper.Authentication {
+func createInnkeeperAuthentication(o Options) innkeeper.Authentication {
 	if o.InnkeeperAuthToken != "" {
 		return innkeeper.FixedToken(o.InnkeeperAuthToken)
 	}
 
-	return oauth.Make(o.OAuthUrl, o.OAuthScope)
+	return oauth.New(o.OAuthUrl, o.OAuthScope)
 }
 
 // Run skipper.
@@ -59,10 +59,10 @@ func makeInnkeeperAuthentication(o Options) innkeeper.Authentication {
 // If a routesFilePath is given, that file will be used _instead_ of etcd.
 func Run(o Options) error {
 	// create authentication for Innkeeper
-	auth := makeInnkeeperAuthentication(o)
+	auth := createInnkeeperAuthentication(o)
 
 	// create data client
-	dataClient, err := makeDataClient(o, auth)
+	dataClient, err := createDataClient(o, auth)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func Run(o Options) error {
 	// create routing
 	// create the proxy instance
 	routing := routing.New(dataClient, registry, o.IgnoreTrailingSlash)
-	proxy := proxy.Make(routing, o.Insecure)
+	proxy := proxy.New(routing, o.Insecure)
 
 	// start the http server
 	log.Printf("listening on %v\n", o.Address)

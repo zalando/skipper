@@ -116,7 +116,7 @@ func compileRxs(exps []string) ([]*regexp.Regexp, error) {
 	return rxs, nil
 }
 
-func makeLeaf(r *Route) (*leafMatcher, error) {
+func newLeaf(r *Route) (*leafMatcher, error) {
 	hostRxs, err := compileRxs(r.HostRegexps)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func freeWildcardParam(path string) string {
 
 // Constructs a Matcher based on the provided definitions. If `ignoreTrailingSlash`
 // is true, the Matcher handles paths with or without a trailing slash equally.
-func makeMatcher(rs []*Route, ignoreTrailingSlash bool) (*matcher, []*definitionError) {
+func newMatcher(rs []*Route, ignoreTrailingSlash bool) (*matcher, []*definitionError) {
 	var (
 		errors     []*definitionError
 		rootLeaves leafMatchers
@@ -168,7 +168,7 @@ func makeMatcher(rs []*Route, ignoreTrailingSlash bool) (*matcher, []*definition
 	pathMatchers := make(map[string]*pathMatcher)
 
 	for i, r := range rs {
-		l, err := makeLeaf(r)
+		l, err := newLeaf(r)
 		if err != nil {
 			errors = append(errors, &definitionError{r.Id, i, err})
 			continue
