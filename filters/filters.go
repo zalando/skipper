@@ -51,7 +51,8 @@ func DefaultFilters() Registry {
 		CreateResponseHeader(),
 		&ModPath{},
 		&HealthCheck{},
-		&Static{}}
+		&Static{},
+		&Redirect{}}
 	for _, f := range defaultFilters {
 		m[f.Name()] = f
 	}
