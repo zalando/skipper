@@ -15,7 +15,7 @@ type RawData interface {
 	//  PathRegexp(`.*\\.html`) ->
 	//  customHeaders(3.14) ->
 	//  xSessionId("v4") ->
-	//  "https://www.zalando.de/pdp.html";
+	//  "https://www.example.org/pdp.html";
 	//
 	// humanstxt:
 	//  Path(`humans.txt`) ->
@@ -55,7 +55,10 @@ type FilterContext interface {
 	Response() *http.Response
 	IsServed() bool
 	MarkServed()
+	StateBag() StateBag
 }
+
+type StateBag map[string]interface{}
 
 // Filters are created by the FilterSpec components, optionally using filter specific settings.
 // When implementing filters, it needs to be taken into consideration, that filter instances are route specific
@@ -86,8 +89,17 @@ type Route interface {
 	Filters() []Filter
 }
 
+// Routes that are matched prior to the configurable routing table by rules depending on the
+// implementation.
+type PriorityRoute interface {
+	Route
+	Match(*http.Request) bool
+}
+
+type PathParams map[string]string
+
 type Router interface {
-	Route(*http.Request) (interface{}, error)
+	Route(*http.Request) (Route, PathParams, error)
 }
 
 // Contains the routing rules and other settings.

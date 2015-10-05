@@ -3,7 +3,8 @@
 package mock
 
 import (
-	"github.com/mailgun/route"
+	"errors"
+	"github.com/zalando/skipper/requestmatch"
 	"github.com/zalando/skipper/skipper"
 	"net/http"
 	"net/url"
@@ -28,6 +29,7 @@ type FilterContext struct {
 	FRequest        *http.Request
 	FResponse       *http.Response
 	FServed         bool
+	FStateBag       skipper.StateBag
 }
 
 type Filter struct {
@@ -44,13 +46,19 @@ type Route struct {
 }
 
 type Settings struct {
-	RouterImpl route.Router
+	RouterImpl *requestmatch.Matcher
 }
 
 type FilterSpec struct{ FName string }
 
 type FilterRegistry struct {
 	FilterSpec map[string]skipper.FilterSpec
+}
+
+type routeDefinition struct {
+	path   string
+	method string
+	route  skipper.Route
 }
 
 func (rd *RawData) Get() string { return rd.Data }
@@ -101,6 +109,10 @@ func (fc *FilterContext) Response() *http.Response {
 	return fc.FResponse
 }
 
+func (fc *FilterContext) StateBag() skipper.StateBag {
+	return fc.FStateBag
+}
+
 func (fc *FilterContext) MarkServed() {
 	fc.FServed = true
 }
@@ -129,19 +141,46 @@ func (r *Route) Filters() []skipper.Filter {
 	return r.FFilters
 }
 
-func MakeSettings(u string, filters []skipper.Filter, shunt bool) *Settings {
+func (rd *routeDefinition) Path() string                       { return rd.path }
+func (rd *routeDefinition) Method() string                     { return "" }
+func (rd *routeDefinition) HostRegexps() []string              { return nil }
+func (rd *routeDefinition) PathRegexps() []string              { return nil }
+func (rd *routeDefinition) Headers() map[string]string         { return nil }
+func (rd *routeDefinition) HeaderRegexps() map[string][]string { return nil }
+func (rd *routeDefinition) Value() interface{}                 { return rd.route }
+
+func MakeSettings(u string, filters []skipper.Filter, shunt bool) (*Settings, error) {
 	up, _ := url.Parse(u)
-	rt := route.New()
-	b := &Backend{up.Scheme, up.Host, shunt}
-	r := &Route{b, filters}
-	rt.AddRoute("Path(\"/hello/<v>\")", r)
-	return &Settings{rt}
+	rt, errs := requestmatch.Make([]requestmatch.Definition{
+		&routeDefinition{
+			path:  "/hello/*param",
+			route: &Route{&Backend{FScheme: up.Scheme, FHost: up.Host, FIsShunt: shunt}, filters}}},
+		false)
+	if len(errs) != 0 {
+		return nil, errors.New("failed to create request matcher")
+	}
+
+	return &Settings{rt}, nil
+}
+
+func MakeSettingsWithRoutes(routes map[string]skipper.Route) (*Settings, error) {
+	var defs []requestmatch.Definition
+	for p, r := range routes {
+		defs = append(defs, &routeDefinition{path: p, route: r})
+	}
+
+	rt, errs := requestmatch.Make(defs, false)
+	if len(errs) != 0 {
+		return nil, errors.New("failed to create matcher")
+	}
+
+	return &Settings{rt}, nil
 }
 
 func (s *Settings) Route(r *http.Request) (skipper.Route, error) {
-	rt, err := s.RouterImpl.Route(r)
-	if rt == nil || err != nil {
-		return nil, err
+	rt, _ := s.RouterImpl.Match(r)
+	if rt == nil {
+		return nil, nil
 	}
 
 	return rt.(skipper.Route), nil
