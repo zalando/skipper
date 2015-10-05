@@ -135,7 +135,7 @@ func TestInitialAndUpdates(t *testing.T) {
         route2: Path("/some") -> testFilter1(1, "one") -> "https://some-updated.example.org";
         route3: Path("/some-other") -> testFilter2(2, "two") -> "https://some-other.example.org"
     `
-	dc.Feed(updatedDoc, []string{"route2"})
+	dc.Feed(updatedDoc, []string{"route2"}, false)
 
 	delay()
 
@@ -170,4 +170,26 @@ func TestCreateFilters(t *testing.T) {
 	testMatcherNoPath(t, rt.Route, &routing.Route{Scheme: "https", Host: "www.example.org", Filters: []filters.Filter{
 		&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}},
 		&filtertest.Filter{FilterName: "testFilter2", Args: []interface{}{float64(2), "two"}}}})
+}
+
+func TestResetRoutes(t *testing.T) {
+	doc := `
+        route1: Any() -> "https://www.example.org";
+        route2: Path("/some") -> "https://some.example.org"
+    `
+
+	dc := testdataclient.New(doc)
+	r := routing.New(nil, routing.MatchingOptionsNone, dc)
+	delay()
+
+	updatedDoc := `
+        route2: Path("/some") -> "https://some-updated.example.org";
+        route3: Path("/some-other") -> "https://some-other.example.org"
+    `
+	dc.Feed(updatedDoc, []string{"route2"}, true)
+
+	delay()
+
+	testMatcherWithPath(t, r.Route, "/some", &routing.Route{Scheme: "https", Host: "some-updated.example.org"})
+	testMatcherWithPath(t, r.Route, "/some-other", &routing.Route{Scheme: "https", Host: "some-other.example.org"})
 }

@@ -153,7 +153,7 @@ func (c *Client) forceGet() *etcd.Response {
 		log.Println("error during getting initial set of data", err)
 
 		// to avoid too rapid retries, we put a small timeout here
-		// for longer etcd outage, we increase the timeout after a fre tries
+		// for longer etcd outage, we increase the timeout after a few tries
 		to := idleEtcdWaitTimeShort
 		if tryCount > shortTermIdleRetryCount {
 			to = idleEtcdWaitTimeLong

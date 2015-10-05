@@ -22,8 +22,7 @@ func New(path string) (*DataClient, error) {
         return nil, err
     }
 
-    c := make(chan *routing.DataUpdate)
-    return &DataClient{routes, c}, nil
+    return &DataClient{routes, nil}, nil
 }
 
 func (dc *DataClient) Receive() ([]*eskip.Route, <-chan *routing.DataUpdate) {

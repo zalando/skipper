@@ -23,6 +23,7 @@ func (o MatchingOptions) ignoreTrailingSlash() bool {
 type DataUpdate struct {
     UpsertedRoutes []*eskip.Route
     DeletedIds []string
+    Reset bool
 }
 
 type DataClient interface {
@@ -43,21 +44,30 @@ type Routing struct {
 
 type routeDefs map[string]*eskip.Route
 
-func (rd routeDefs) set(rs []*eskip.Route) {
+func setRouteDefs(rd routeDefs, rs []*eskip.Route) routeDefs {
     for _, r := range rs {
         rd[r.Id] = r
     }
+
+    return rd
 }
 
-func (rd routeDefs) del(ids []string) {
+func delRouteDefs(rd routeDefs, ids []string) routeDefs {
     for _, id := range ids {
         delete(rd, id)
     }
+
+    return rd
 }
 
-func (rd routeDefs) processUpdate(u *DataUpdate) {
-    rd.del(u.DeletedIds)
-    rd.set(u.UpsertedRoutes)
+func processUpdate(rd routeDefs, u *DataUpdate) routeDefs {
+    if u.Reset {
+        rd = make(routeDefs)
+    } else {
+        rd = delRouteDefs(rd, u.DeletedIds)
+    }
+
+    return setRouteDefs(rd, u.UpsertedRoutes)
 }
 
 func splitBackend(r *eskip.Route) (string, string, error) {
@@ -157,9 +167,8 @@ func (r *Routing) receiveRoutes(clients []DataClient, out chan<- *matcher) {
     updates := make(chan *DataUpdate)
 
     for _, c := range clients {
-        // TODO: the failure of one source can block the others this way
         routes, update := c.Receive()
-        all.set(routes)
+        all = setRouteDefs(all, routes)
 
         go func(update <-chan *DataUpdate) {
             for u := range update {
@@ -174,7 +183,7 @@ func (r *Routing) receiveRoutes(clients []DataClient, out chan<- *matcher) {
         out <- m
 
         u := <-updates
-        all.processUpdate(u)
+        all = processUpdate(all, u)
     }
 }
 
