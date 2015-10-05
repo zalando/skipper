@@ -76,9 +76,9 @@ type pathMatcher struct {
 // A Matcher represents a preprocessed set of definitions and their associated
 // values.
 type matcher struct {
-	paths               *pathmux.Tree
-	rootLeaves          leafMatchers
-    matchingOptions MatchingOptions
+	paths           *pathmux.Tree
+	rootLeaves      leafMatchers
+	matchingOptions MatchingOptions
 }
 
 // An error created if a definition cannot be preprocessed.

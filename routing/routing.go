@@ -12,12 +12,12 @@ import (
 type MatchingOptions uint
 
 const (
-    MatchingOptionsNone MatchingOptions = 0
-    IgnoreTrailingSlash MatchingOptions = 1 << iota
+	MatchingOptionsNone MatchingOptions = 0
+	IgnoreTrailingSlash MatchingOptions = 1 << iota
 )
 
 func (o MatchingOptions) ignoreTrailingSlash() bool {
-    return o & IgnoreTrailingSlash > 0
+	return o&IgnoreTrailingSlash > 0
 }
 
 type DataClient interface {
@@ -32,9 +32,9 @@ type Route struct {
 }
 
 type Routing struct {
-	filterRegistry      filters.Registry
-    matchingOptions MatchingOptions
-	getMatcher          <-chan *matcher
+	filterRegistry  filters.Registry
+	matchingOptions MatchingOptions
+	getMatcher      <-chan *matcher
 }
 
 func splitBackend(r *eskip.Route) (string, string, error) {
@@ -94,7 +94,7 @@ func processRoutes(fr filters.Registry, eskipRoutes []*eskip.Route) []*Route {
 		if err == nil {
 			routes = append(routes, route)
 		} else {
-            // individual definition errors are logged and ignored here
+			// individual definition errors are logged and ignored here
 			log.Println(err)
 		}
 	}
