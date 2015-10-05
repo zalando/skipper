@@ -20,7 +20,7 @@ func TestCreateStripQueryFilter(t *testing.T) {
 	}
 
 	req := &http.Request{}
-	c := &mock.FilterContext{nil, req, nil, false}
+	c := &mock.FilterContext{nil, req, nil, false, nil}
 	f.Request(c)
 
 	rsp := &http.Response{}
@@ -36,7 +36,7 @@ func TestStripQuery(t *testing.T) {
 	url, _ := url.ParseRequestURI("http://example.org/foo?bar=baz")
 	req := &http.Request{URL: url}
 
-	c := &mock.FilterContext{nil, req, nil, false}
+	c := &mock.FilterContext{nil, req, nil, false, nil}
 	f.Request(c)
 
 	q := c.FRequest.URL.Query()
@@ -66,7 +66,7 @@ func TestPreserveQuery(t *testing.T) {
 		url, _ := url.ParseRequestURI(tt.uri)
 		req := &http.Request{URL: url}
 
-		c := &mock.FilterContext{nil, req, nil, false}
+		c := &mock.FilterContext{nil, req, nil, false, nil}
 		f.Request(c)
 
 		for k, h := range tt.header {
