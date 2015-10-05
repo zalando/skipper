@@ -51,7 +51,6 @@ func (h *innkeeperHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			lm = ""
 		}
 
-		var responseData []*routeData
 		for _, di := range h.data {
 			if di.CreatedAt > lm || di.DeletedAt > lm {
 				responseData = append(responseData, di)
@@ -77,17 +76,17 @@ func testData() []*routeData {
 			"", nil, nil,
 			pathMatch{pathMatchStrict, "/"},
 			nil, nil, nil,
-			endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, "/"}}},
+			endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, ""}}},
 		&routeData{2, "", "2015-09-28T16:58:56.956", routeDef{
 			"", nil, nil,
 			pathMatch{pathMatchStrict, "/catalog"},
-			nil, nil, nil,
-			endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, "/catalog"}}},
+			&pathRewrite{Match: "", Replace: "/catalog"}, nil, nil,
+			endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, ""}}},
 		&routeData{3, "2015-09-28T16:58:56.957", "", routeDef{
 			"", nil, nil,
 			pathMatch{pathMatchStrict, "/catalog"},
-			nil, nil, nil,
-			endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, "/new-catalog"}}}}
+			&pathRewrite{Match: "", Replace: "/new-catalog"}, nil, nil,
+			endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, ""}}}}
 }
 
 func checkDoc(t *testing.T, rs []*eskip.Route, d []*routeData) {
@@ -433,7 +432,13 @@ func TestConvertDeletedChangeLatest(t *testing.T) {
 
 func TestReceivesEmptyBeforeTimeout(t *testing.T) {
 	s := innkeeperServer(nil)
-	c := New(Options{Address: s.URL, Authentication: autoAuth(true)})
+
+	c, err := New(Options{Address: s.URL, Authentication: autoAuth(true)})
+    if err != nil {
+        t.Error(err)
+        return
+    }
+
 	done := make(chan int)
 	go func() {
 		rs, _ := c.Receive()
@@ -447,14 +452,20 @@ func TestReceivesEmptyBeforeTimeout(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(receiveInitialTimeout / 2):
-		t.Error("didn't receive empty doc in time")
+		t.Error("did not receive empty doc in time")
 	}
 }
 
 func TestReceivesInitialBeforeTimeout(t *testing.T) {
 	d := testData()
 	s := innkeeperServer(d)
-	c := New(Options{Address: s.URL, Authentication: autoAuth(true)})
+
+	c, err := New(Options{Address: s.URL, Authentication: autoAuth(true)})
+    if err != nil {
+        t.Error(err)
+        return
+    }
+
 	done := make(chan int)
 	go func() {
 		rs, _ := c.Receive()
@@ -465,7 +476,7 @@ func TestReceivesInitialBeforeTimeout(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(receiveInitialTimeout / 2):
-		t.Error("didn't receive doc in time")
+		t.Error("did not receive doc in time")
 	}
 }
 
@@ -473,7 +484,13 @@ func TestTimeoutOnFailingAuthOnReceive(t *testing.T) {
 	d := testData()
 	s := innkeeperServer(d)
 	a := autoAuth(false)
-	c := New(Options{Address: s.URL, Authentication: a})
+
+	c, err := New(Options{Address: s.URL, Authentication: a})
+    if err != nil {
+        t.Error(err)
+        return
+    }
+
 	done := make(chan int)
 	go func() {
 		rs, _ := c.Receive()
@@ -487,24 +504,164 @@ func TestTimeoutOnFailingAuthOnReceive(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(receiveInitialTimeout * 2):
-		t.Error("didn't timeout on failing receive")
+		t.Error("did not timeout on failing receive")
 	}
 }
 
-// func TestReceivesUpdates(t *testing.T) {
-//     c := New(Options{})
-//     _, u := c.Receive()
-//     du := <-u
-//     if du != nil {
-//         t.Error("failed to receive updates")
-//     }
-// }
+func TestReceivesUpdates(t *testing.T) {
+    d := testData()
+    h := &innkeeperHandler{d}
+    s := httptest.NewServer(h)
+
+    c, err := New(Options{Address: s.URL, Authentication: autoAuth(true)})
+    if err != nil {
+        t.Error(err)
+        return
+    }
+
+    _, u := c.Receive()
+    d = testData()
+    d[2].DeletedAt = "2015-09-28T16:58:56.958"
+    newRoute := &routeData{4, "2015-09-28T16:58:56.959", "", routeDef{
+        "", nil, nil,
+        pathMatch{pathMatchStrict, "/catalog"},
+        nil, nil, nil,
+        endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, "/even-newer-catalog"}}}
+    d = append(d, newRoute)
+    h.data = d
+    select {
+    case du := <-u:
+        if len(du.UpsertedRoutes) != 1 || len(du.DeletedIds) != 1 {
+            t.Error("failed to receive updates")
+            return
+        }
+
+        checkDoc(t, du.UpsertedRoutes, []*routeData{newRoute})
+    case <-time.After(3 * defaultPollTimeout):
+        t.Error("test timed out")
+    }
+}
 
 func TestFailingAuthOnUpdate(t *testing.T) {
+    d := testData()
+    h := &innkeeperHandler{d}
+    s := httptest.NewServer(h)
+
+    c, err := New(Options{Address: s.URL, Authentication: autoAuth(true)})
+    if err != nil {
+        t.Error(err)
+        return
+    }
+
+    _, u := c.Receive()
+    c.authToken = ""
+    c.opts.Authentication = autoAuth(false)
+    d = testData()
+    d[2].DeletedAt = "2015-09-28T16:58:56.958"
+    newRoute := &routeData{4, "2015-09-28T16:58:56.959", "", routeDef{
+        "", nil, nil,
+        pathMatch{pathMatchStrict, "/catalog"},
+        nil, nil, nil,
+        endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, "/even-newer-catalog"}}}
+    d = append(d, newRoute)
+    h.data = d
+    select {
+    case <-u:
+        t.Error("should not have received updates")
+    case <-time.After(3 * defaultPollTimeout):
+    }
 }
 
 func TestReceivesAsUpdateIfInitialFailed(t *testing.T) {
+    d := testData()
+    h := &innkeeperHandler{d}
+    s := httptest.NewServer(h)
+
+    c, err := New(Options{Address: s.URL, Authentication: autoAuth(false)})
+    if err != nil {
+        t.Error(err)
+        return
+    }
+
+    rs, u := c.Receive()
+    if len(rs) != 0 {
+        t.Error("should not have received routes")
+        return
+    }
+
+    c.opts.Authentication = autoAuth(true)
+    select {
+    case du := <-u:
+        if len(du.UpsertedRoutes) != 2 || len(du.DeletedIds) != 0 {
+            t.Error("failed to receive initial data as an update")
+            return
+        }
+
+        checkDoc(t, du.UpsertedRoutes, d)
+    case <-time.After(3 * defaultPollTimeout):
+        t.Error("test timed out")
+    }
 }
 
 func TestUsesPreAndPostRouteFilters(t *testing.T) {
+	d := testData()
+    for _, di := range d {
+        di.Route.RewritePath = &pathRewrite{"", "replacement"}
+    }
+
+	s := innkeeperServer(d)
+
+	c, err := New(Options{
+        Address: s.URL,
+        Authentication: autoAuth(true),
+        PreRouteFilters: `filter1(3.14) -> filter2("key", 42)`,
+        PostRouteFilters: `filter3("Hello, world!")`})
+    if err != nil {
+        t.Error(err)
+        return
+    }
+
+	done := make(chan int)
+	go func() {
+		rs, _ := c.Receive()
+        for _, r := range rs {
+            if len(r.Filters) != 4 {
+                t.Error("failed to parse filters")
+            }
+
+            if r.Filters[0].Name != "filter1" ||
+                len(r.Filters[0].Args) != 1 ||
+                r.Filters[0].Args[0] != float64(3.14) {
+                t.Error("failed to parse filters")
+            }
+
+            if r.Filters[1].Name != "filter2" ||
+                len(r.Filters[1].Args) != 2 ||
+                r.Filters[1].Args[0] != "key" ||
+                r.Filters[1].Args[1] != float64(42) {
+                t.Error("failed to parse filters")
+            }
+
+            if r.Filters[2].Name != filters.ModPathName ||
+                len(r.Filters[2].Args) != 2 ||
+                r.Filters[2].Args[0] != ".*" ||
+                r.Filters[2].Args[1] != "replacement" {
+                t.Error("failed to parse filters")
+            }
+
+            if r.Filters[3].Name != "filter3" ||
+                len(r.Filters[3].Args) != 1 ||
+                r.Filters[3].Args[0] != "Hello, world!" {
+                t.Error("failed to parse filters")
+            }
+        }
+
+		done <- 0
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(receiveInitialTimeout / 2):
+		t.Error("did not receive doc in time")
+	}
 }

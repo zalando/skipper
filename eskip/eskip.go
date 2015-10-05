@@ -27,7 +27,11 @@ package eskip
 
 //go:generate go tool yacc -o parser.go -p eskip parser.y
 
-import "errors"
+import (
+    "errors"
+    "strings"
+    "fmt"
+)
 
 // Represents a matcher condition for incoming requests.
 type matcher struct {
@@ -187,6 +191,15 @@ func parse(code string) ([]*parsedRoute, error) {
 	return l.routes, l.err
 }
 
+func filtersToRoute(f string) string {
+    f = strings.TrimSpace(f)
+    if f == "" {
+        return ""
+    }
+
+    return fmt.Sprintf("Any() -> %s -> <shunt>", f)
+}
+
 // Parses a route or a routing document to a set of routes.
 func Parse(code string) ([]*Route, error) {
 	parsedRoutes, err := parse(code)
@@ -205,4 +218,17 @@ func Parse(code string) ([]*Route, error) {
 	}
 
 	return routeDefinitions, nil
+}
+
+func ParseFilters(f string) ([]*Filter, error) {
+    rs, err := parse(filtersToRoute(f))
+    if err != nil {
+        return nil, err
+    }
+
+    if len(rs) == 0 {
+        return nil, nil
+    }
+
+    return rs[0].filters, nil
 }
