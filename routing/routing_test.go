@@ -91,13 +91,19 @@ func testMatcherNoPath(t *testing.T, m matcherFunc, matchRoute *routing.Route) {
 func delay() { time.Sleep(3 * time.Millisecond) }
 
 func TestUsesDataFromClientAfterInitialized(t *testing.T) {
-	r := routing.New(make(filters.Registry), false, testdataclient.New(`Any() -> "https://www.example.org"`))
+	r := routing.New(
+        make(filters.Registry),
+        routing.MatchingOptionsNone,
+        testdataclient.New(`Any() -> "https://www.example.org"`))
 	delay()
 	testMatcherNoPath(t, r.Route, &routing.Route{Scheme: "https", Host: "www.example.org"})
 }
 
 func TestKeepUsingDataFromClient(t *testing.T) {
-	r := routing.New(make(filters.Registry), false, testdataclient.New(`Any() -> "https://www.example.org"`))
+	r := routing.New(
+        make(filters.Registry),
+        routing.MatchingOptionsNone,
+        testdataclient.New(`Any() -> "https://www.example.org"`))
 	delay()
 	testMatcherNoPath(t, r.Route, &routing.Route{Scheme: "https", Host: "www.example.org"})
 	testMatcherNoPath(t, r.Route, &routing.Route{Scheme: "https", Host: "www.example.org"})
@@ -117,7 +123,7 @@ func TestInitialAndUpdates(t *testing.T) {
     `
 
 	dc := testdataclient.New(doc)
-	r := routing.New(fr, false, dc)
+	r := routing.New(fr, routing.MatchingOptionsNone, dc)
 	delay()
 
 	testMatcherWithPath(t, r.Route, "", &routing.Route{Scheme: "https", Host: "www.example.org"})
@@ -147,7 +153,7 @@ func TestFilterNotFound(t *testing.T) {
 	fr[spec1.Name()] = spec1
 	fr[spec2.Name()] = spec2
     dc := testdataclient.New(`Any() -> testFilter3() -> "https://www.example.org"`)
-    rt := routing.New(fr, false, dc)
+    rt := routing.New(fr, routing.MatchingOptionsNone, dc)
     delay()
     testMatcherNoPath(t, rt.Route, nil)
 }
@@ -159,7 +165,7 @@ func TestCreateFilters(t *testing.T) {
 	fr[spec1.Name()] = spec1
 	fr[spec2.Name()] = spec2
     dc := testdataclient.New(`Any() -> testFilter1(1, "one") -> testFilter2(2, "two") -> "https://www.example.org"`)
-    rt := routing.New(fr, false, dc)
+    rt := routing.New(fr, routing.MatchingOptionsNone, dc)
     delay()
 	testMatcherNoPath(t, rt.Route, &routing.Route{Scheme: "https", Host: "www.example.org", Filters: []filters.Filter{
 		&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}},

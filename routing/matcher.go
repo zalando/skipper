@@ -76,9 +76,9 @@ type pathMatcher struct {
 // A Matcher represents a preprocessed set of definitions and their associated
 // values.
 type matcher struct {
-	paths               *pathmux.Tree
-	rootLeaves          leafMatchers
-	ignoreTrailingSlash bool
+	paths           *pathmux.Tree
+	rootLeaves      leafMatchers
+	matchingOptions MatchingOptions
 }
 
 // An error created if a definition cannot be preprocessed.
@@ -159,7 +159,7 @@ func freeWildcardParam(path string) string {
 
 // Constructs a Matcher based on the provided definitions. If `ignoreTrailingSlash`
 // is true, the Matcher handles paths with or without a trailing slash equally.
-func newMatcher(rs []*Route, ignoreTrailingSlash bool) (*matcher, []*definitionError) {
+func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	var (
 		errors     []*definitionError
 		rootLeaves leafMatchers
@@ -184,7 +184,7 @@ func newMatcher(rs []*Route, ignoreTrailingSlash bool) (*matcher, []*definitionE
 		// in case ignoring trailing slashes, store and match all paths
 		// without the trailing slash
 		p = httppath.Clean(p)
-		if ignoreTrailingSlash && p[len(p)-1] == '/' {
+		if o.ignoreTrailingSlash() && p[len(p)-1] == '/' {
 			p = p[:len(p)-1]
 		}
 
@@ -212,7 +212,7 @@ func newMatcher(rs []*Route, ignoreTrailingSlash bool) (*matcher, []*definitionE
 	// sort root leaves during construction time, based on their priority
 	sort.Sort(rootLeaves)
 
-	return &matcher{pathTree, rootLeaves, ignoreTrailingSlash}, errors
+	return &matcher{pathTree, rootLeaves, o}, errors
 }
 
 func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]string) {
@@ -314,7 +314,7 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	// normalize path before matching
 	// in case ignoring trailing slashes, match without the trailing slash
 	path := httppath.Clean(r.URL.Path)
-	if m.ignoreTrailingSlash && path[len(path)-1] == '/' {
+	if m.matchingOptions.ignoreTrailingSlash() && path[len(path)-1] == '/' {
 		path = path[:len(path)-1]
 	}
 

@@ -94,7 +94,7 @@ func initGenericMatcher() {
 		panic(err)
 	}
 
-	m, errs := newMatcher(processRoutes(nil, defs), false)
+	m, errs := newMatcher(processRoutes(nil, defs), MatchingOptionsNone)
 	if len(errs) != 0 {
 		for _, err := range errs {
 			log.Println(err.Error())
@@ -149,7 +149,7 @@ func newTestMatcher(routes []*Route) (*matcher, error) {
 		return nil, errors.New("we need at least one route for this test")
 	}
 
-	matcher, errs := newMatcher(routes, false)
+	matcher, errs := newMatcher(routes, MatchingOptionsNone)
 	if len(errs) != 0 {
 		return nil, errors.New("failed to create matcher")
 	}
@@ -806,7 +806,7 @@ func TestMakeLeaf(t *testing.T) {
 }
 
 func TestMakeMatcherEmpty(t *testing.T) {
-	m, errs := newMatcher(nil, false)
+	m, errs := newMatcher(nil, MatchingOptionsNone)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make empty matcher")
 	}
@@ -828,7 +828,7 @@ func TestMakeMatcherRootLeavesOnly(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -850,7 +850,7 @@ func TestMakeMatcherExactPathOnly(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -872,7 +872,7 @@ func TestMakeMatcherWithWildcardPath(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -894,7 +894,7 @@ func TestMakeMatcherErrorInLeaf(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
 	if len(errs) != 1 || m == nil || errs[0].Index != 0 {
 		t.Error("failed to make matcher with error")
 	}
@@ -918,7 +918,7 @@ func TestMakeMatcherWithPathConflict(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd0, rd1}, false)
+	m, errs := newMatcher([]*Route{rd0, rd1}, MatchingOptionsNone)
 	if len(errs) != 1 || m == nil {
 		t.Error("failed to make matcher with error", len(errs), m == nil)
 	}
@@ -935,7 +935,7 @@ func TestMatchToSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -957,7 +957,7 @@ func TestMatchFromSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -979,7 +979,7 @@ func TestWildcardParam(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1001,7 +1001,7 @@ func TestWildcardParamFromSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1023,7 +1023,7 @@ func TestWildcardParamToSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1045,7 +1045,7 @@ func TestFreeWildcardParam(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, false)
+	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1067,7 +1067,7 @@ func TestFreeWildcardParamWithSlash(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher([]*Route{rd}, true)
+	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
 	if len(errs) != 0 {
 		t.Error("failed to make matcher")
 	}
@@ -1144,7 +1144,7 @@ func BenchmarkConstructionGeneric(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		_, errs := newMatcher(processRoutes(nil, routes), true)
+		_, errs := newMatcher(processRoutes(nil, routes), IgnoreTrailingSlash)
 		if len(errs) != 0 {
 			for _, err := range errs {
 				b.Log(err.Error())
@@ -1162,7 +1162,7 @@ func BenchmarkConstructionMass(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		_, errs := newMatcher(routes, true)
+		_, errs := newMatcher(routes, IgnoreTrailingSlash)
 		if len(errs) != 0 {
 			for _, err := range errs {
 				b.Log(err.Error())
