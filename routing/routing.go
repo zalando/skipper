@@ -9,6 +9,17 @@ import (
 	"net/url"
 )
 
+type MatchingOptions uint
+
+const (
+	MatchingOptionsNone MatchingOptions = 0
+	IgnoreTrailingSlash MatchingOptions = 1 << iota
+)
+
+func (o MatchingOptions) ignoreTrailingSlash() bool {
+	return o&IgnoreTrailingSlash > 0
+}
+
 type DataUpdate struct {
     UpsertedRoutes []*eskip.Route
     DeletedIds []string
@@ -25,9 +36,9 @@ type Route struct {
 }
 
 type Routing struct {
-	filterRegistry      filters.Registry
-	ignoreTrailingSlash bool
-	getMatcher          <-chan *matcher
+	filterRegistry  filters.Registry
+	matchingOptions MatchingOptions
+	getMatcher      <-chan *matcher
 }
 
 type routeDefs map[string]*eskip.Route
@@ -106,7 +117,7 @@ func processRoutes(fr filters.Registry, defs routeDefs) []*Route {
 		if err == nil {
 			routes = append(routes, route)
 		} else {
-			// idividual definition errors are accepted here
+			// individual definition errors are logged and ignored here
 			log.Println(err)
 		}
 	}
@@ -114,8 +125,8 @@ func processRoutes(fr filters.Registry, defs routeDefs) []*Route {
 	return routes
 }
 
-func createMatcher(ignoreTrailingSlash bool, rs []*Route) *matcher {
-	m, errs := newMatcher(rs, ignoreTrailingSlash)
+func createMatcher(o MatchingOptions, rs []*Route) *matcher {
+	m, errs := newMatcher(rs, o)
 	for _, err := range errs {
 		// individual matcher entry errors are logged and ignored here
 		log.Println(err)
@@ -159,7 +170,7 @@ func (r *Routing) receiveRoutes(clients []DataClient, out chan<- *matcher) {
 
     for {
         routes := processRoutes(r.filterRegistry, all)
-        m := createMatcher(r.ignoreTrailingSlash, routes)
+        m := createMatcher(r.matchingOptions, routes)
         out <- m
 
         u := <-updates
@@ -167,9 +178,9 @@ func (r *Routing) receiveRoutes(clients []DataClient, out chan<- *matcher) {
     }
 }
 
-func New(fr filters.Registry, ignoreTrailingSlash bool, dc ...DataClient) *Routing {
-	r := &Routing{filterRegistry: fr, ignoreTrailingSlash: ignoreTrailingSlash}
-	initialMatcher := createMatcher(false, nil)
+func New(fr filters.Registry, o MatchingOptions, dc ...DataClient) *Routing {
+	r := &Routing{filterRegistry: fr, matchingOptions: o}
+	initialMatcher := createMatcher(MatchingOptionsNone, nil)
 	matchersIn, matchersOut := feedMatchers(initialMatcher)
 	go r.receiveRoutes(dc, matchersIn)
 	r.getMatcher = matchersOut
