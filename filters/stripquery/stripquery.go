@@ -60,17 +60,21 @@ func (f *StripQuery) Request(ctx skipper.FilterContext) {
 		return
 	}
 
-	if f.preserveAsHeader {
-		q := url.Query()
-		for k, vv := range q {
-			for _, v := range vv {
-				if r.Header == nil {
-					r.Header = http.Header{}
-				}
-				r.Header.Add(fmt.Sprintf("X-Query-Param-%s", sanitize(k)), v)
+	if !f.preserveAsHeader {
+		url.RawQuery = ""
+		return
+	}
+
+	q := url.Query()
+	for k, vv := range q {
+		for _, v := range vv {
+			if r.Header == nil {
+				r.Header = http.Header{}
 			}
+			r.Header.Add(fmt.Sprintf("X-Query-Param-%s", sanitize(k)), v)
 		}
 	}
+
 	url.RawQuery = ""
 }
 
