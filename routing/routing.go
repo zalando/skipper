@@ -9,6 +9,17 @@ import (
 	"net/url"
 )
 
+type MatchingOptions uint
+
+const (
+    MatchingOptionsNone MatchingOptions = 0
+    IgnoreTrailingSlash MatchingOptions = 1 << iota
+)
+
+func (o MatchingOptions) ignoreTrailingSlash() bool {
+    return o & IgnoreTrailingSlash > 0
+}
+
 type DataClient interface {
 	Receive() <-chan string
 }
@@ -22,7 +33,7 @@ type Route struct {
 
 type Routing struct {
 	filterRegistry      filters.Registry
-	ignoreTrailingSlash bool
+    matchingOptions MatchingOptions
 	getMatcher          <-chan *matcher
 }
 
@@ -83,7 +94,7 @@ func processRoutes(fr filters.Registry, eskipRoutes []*eskip.Route) []*Route {
 		if err == nil {
 			routes = append(routes, route)
 		} else {
-			// idividual definition errors are accepted here
+            // individual definition errors are logged and ignored here
 			log.Println(err)
 		}
 	}
@@ -91,8 +102,8 @@ func processRoutes(fr filters.Registry, eskipRoutes []*eskip.Route) []*Route {
 	return routes
 }
 
-func createMatcher(ignoreTrailingSlash bool, rs []*Route) *matcher {
-	m, errs := newMatcher(rs, ignoreTrailingSlash)
+func createMatcher(o MatchingOptions, rs []*Route) *matcher {
+	m, errs := newMatcher(rs, o)
 	for _, err := range errs {
 		// individual matcher entry errors are logged and ignored here
 		log.Println(err)
@@ -101,14 +112,14 @@ func createMatcher(ignoreTrailingSlash bool, rs []*Route) *matcher {
 	return m
 }
 
-func processData(fr filters.Registry, ignoreTrailingSlash bool, data string) (*matcher, error) {
+func processData(fr filters.Registry, o MatchingOptions, data string) (*matcher, error) {
 	eskipRoutes, err := eskip.Parse(data)
 	if err != nil {
 		return nil, err
 	}
 
 	routes := processRoutes(fr, eskipRoutes)
-	return createMatcher(ignoreTrailingSlash, routes), nil
+	return createMatcher(o, routes), nil
 }
 
 func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
@@ -132,7 +143,7 @@ func (r *Routing) receiveUpdates(in <-chan string, out chan<- *matcher) {
 	go func() {
 		for {
 			data := <-in
-			matcher, err := processData(r.filterRegistry, r.ignoreTrailingSlash, data)
+			matcher, err := processData(r.filterRegistry, r.matchingOptions, data)
 			if err != nil {
 				// only logging errors here, and waiting for settings from external
 				// sources to be fixed
@@ -145,9 +156,9 @@ func (r *Routing) receiveUpdates(in <-chan string, out chan<- *matcher) {
 	}()
 }
 
-func New(dc DataClient, fr filters.Registry, ignoreTrailingSlash bool) *Routing {
-	r := &Routing{filterRegistry: fr, ignoreTrailingSlash: ignoreTrailingSlash}
-	initialMatcher := createMatcher(false, nil)
+func New(dc DataClient, fr filters.Registry, o MatchingOptions) *Routing {
+	r := &Routing{filterRegistry: fr, matchingOptions: o}
+	initialMatcher := createMatcher(MatchingOptionsNone, nil)
 	matchersIn, matchersOut := feedMatchers(initialMatcher)
 	r.receiveUpdates(dc.Receive(), matchersIn)
 	r.getMatcher = matchersOut

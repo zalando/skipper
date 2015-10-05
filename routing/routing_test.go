@@ -86,13 +86,19 @@ func testMatcherNoPath(t *testing.T, m matcherFunc, matchRoute *Route) {
 func delay() { time.Sleep(3 * time.Millisecond) }
 
 func TestUsesDataFromClientAfterInitialized(t *testing.T) {
-	r := New(testdataclient.New(`Any() -> "https://www.example.org"`), make(filters.Registry), false)
+	r := New(testdataclient.New(
+        `Any() -> "https://www.example.org"`),
+        make(filters.Registry),
+        MatchingOptionsNone)
 	delay()
 	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
 }
 
 func TestKeepUsingDataFromClient(t *testing.T) {
-	r := New(testdataclient.New(`Any() -> "https://www.example.org"`), make(filters.Registry), false)
+	r := New(testdataclient.New(
+        `Any() -> "https://www.example.org"`),
+        make(filters.Registry),
+        MatchingOptionsNone)
 	delay()
 	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
 	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
@@ -112,7 +118,7 @@ func TestInitialAndUpdates(t *testing.T) {
     `
 
 	dc := testdataclient.New(doc)
-	r := New(dc, fr, false)
+	r := New(dc, fr, MatchingOptionsNone)
 	delay()
 
 	testMatcherWithPath(t, r.Route, "", &Route{Scheme: "https", Host: "www.example.org"})
@@ -137,14 +143,14 @@ func TestInitialAndUpdates(t *testing.T) {
 }
 
 func TestFailToParse(t *testing.T) {
-	_, err := processData(nil, false, "invalid eskip document")
+	_, err := processData(nil, MatchingOptionsNone, "invalid eskip document")
 	if err == nil {
 		t.Error("failed to fail")
 	}
 }
 
 func TestCreateShuntBackend(t *testing.T) {
-	m, err := processData(nil, false, `Any() -> <shunt>`)
+	m, err := processData(nil, MatchingOptionsNone, `Any() -> <shunt>`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -153,7 +159,7 @@ func TestCreateShuntBackend(t *testing.T) {
 }
 
 func TestFailToParseBackend(t *testing.T) {
-	m, err := processData(nil, false, `Any() -> "invalid backend"`)
+	m, err := processData(nil, MatchingOptionsNone, `Any() -> "invalid backend"`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -162,7 +168,7 @@ func TestFailToParseBackend(t *testing.T) {
 }
 
 func TestParseBackend(t *testing.T) {
-	m, err := processData(nil, false, `Any() -> "https://www.example.org"`)
+	m, err := processData(nil, MatchingOptionsNone, `Any() -> "https://www.example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -177,7 +183,7 @@ func TestFilterNotFound(t *testing.T) {
 	fr[spec1.Name()] = spec1
 	fr[spec2.Name()] = spec2
 
-	m, err := processData(fr, false, `Any() -> testFilter3() -> "https://www.example.org"`)
+	m, err := processData(fr, MatchingOptionsNone, `Any() -> testFilter3() -> "https://www.example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -192,7 +198,8 @@ func TestCreateFilters(t *testing.T) {
 	fr[spec1.Name()] = spec1
 	fr[spec2.Name()] = spec2
 
-	m, err := processData(fr, false, `Any() -> testFilter1(1, "one") -> testFilter2(2, "two") -> "https://www.example.org"`)
+	m, err := processData(fr, MatchingOptionsNone,
+        `Any() -> testFilter1(1, "one") -> testFilter2(2, "two") -> "https://www.example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
