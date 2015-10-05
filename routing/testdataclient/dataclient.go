@@ -9,6 +9,7 @@ import (
 type feed struct {
     insert string
     del []string
+    reset bool
 }
 
 type TestDataClient struct {
@@ -51,12 +52,12 @@ func New(data string) *TestDataClient {
                     i++
                 }
 
-                dc.updates <- &routing.DataUpdate{newRoutes, feed.del}
+                dc.updates <- &routing.DataUpdate{newRoutes, feed.del, feed.reset}
             }
         }
     }()
 
-    dc.Feed(data, nil)
+    dc.Feed(data, nil, false)
     <-dc.updates
     return dc
 }
@@ -65,6 +66,6 @@ func (dc *TestDataClient) Receive() ([]*eskip.Route, <-chan *routing.DataUpdate)
     return <-dc.routes, dc.updates
 }
 
-func (dc *TestDataClient) Feed(insertDoc string, deleteIds []string) {
-    dc.feed <- feed{insertDoc, deleteIds}
+func (dc *TestDataClient) Feed(insertDoc string, deleteIds []string, reset bool) {
+    dc.feed <- feed{insertDoc, deleteIds, reset}
 }
