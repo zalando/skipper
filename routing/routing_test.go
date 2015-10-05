@@ -87,18 +87,18 @@ func delay() { time.Sleep(3 * time.Millisecond) }
 
 func TestUsesDataFromClientAfterInitialized(t *testing.T) {
 	r := New(testdataclient.New(
-        `Any() -> "https://www.example.org"`),
-        make(filters.Registry),
-        MatchingOptionsNone)
+		`Any() -> "https://www.example.org"`),
+		make(filters.Registry),
+		MatchingOptionsNone)
 	delay()
 	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
 }
 
 func TestKeepUsingDataFromClient(t *testing.T) {
 	r := New(testdataclient.New(
-        `Any() -> "https://www.example.org"`),
-        make(filters.Registry),
-        MatchingOptionsNone)
+		`Any() -> "https://www.example.org"`),
+		make(filters.Registry),
+		MatchingOptionsNone)
 	delay()
 	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
 	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
@@ -199,7 +199,7 @@ func TestCreateFilters(t *testing.T) {
 	fr[spec2.Name()] = spec2
 
 	m, err := processData(fr, MatchingOptionsNone,
-        `Any() -> testFilter1(1, "one") -> testFilter2(2, "two") -> "https://www.example.org"`)
+		`Any() -> testFilter1(1, "one") -> testFilter2(2, "two") -> "https://www.example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
