@@ -21,6 +21,7 @@ const (
 	allRoutesPath         = "/routes"
 	updatePathFmt         = "/updated-routes/%s"
 	receiveInitialTimeout = 1200 * time.Millisecond
+    defaultPollTimeout = 30 * time.Millisecond
 )
 
 type (
@@ -104,8 +105,8 @@ type Options struct {
 	Insecure         bool
 	PollTimeout      time.Duration
 	Authentication   Authentication
-	PreRouteFilters  []string
-	PostRouteFilters []string
+	PreRouteFilters  string
+	PostRouteFilters string
 }
 
 type Client struct {
@@ -415,15 +416,31 @@ func (c *Client) receiveInitial() {
 	}
 }
 
-func New(o Options) *Client {
+func New(o Options) (*Client, error) {
+    if o.PollTimeout <= 0 {
+        o.PollTimeout = defaultPollTimeout
+    }
+
+    preFilters, err := eskip.ParseFilters(o.PreRouteFilters)
+    if err != nil {
+        return nil, err
+    }
+
+    postFilters, err := eskip.ParseFilters(o.PostRouteFilters)
+    if err != nil {
+        return nil, err
+    }
+
 	c := &Client{
 		opts:    o,
+        preRouteFilters: preFilters,
+        postRouteFilters: postFilters,
 		initial: make(chan []*eskip.Route),
 		updates: make(chan *routing.DataUpdate),
 		httpClient: &http.Client{Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}}}
 	go c.receiveInitial()
-	return c
+	return c, nil
 }
 
 func (c *Client) Receive() ([]*eskip.Route, <-chan *routing.DataUpdate) {

@@ -201,7 +201,6 @@ func initRandomPaths() {
 		}
 	}()
 
-    println(len(randomPaths), len(randomRoutes), benchmarkingCountPhase2)
 	testMatcher1 = mkmatcher(randomPaths[0:benchmarkingCountPhase1], randomRoutes[0:benchmarkingCountPhase1])
 	testMatcher2 = mkmatcher(randomPaths[0:benchmarkingCountPhase2], randomRoutes[0:benchmarkingCountPhase2])
 	testMatcher3 = mkmatcher(randomPaths[0:benchmarkingCountPhase3], randomRoutes[0:benchmarkingCountPhase3])
