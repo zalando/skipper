@@ -1,37 +1,131 @@
 package routing
 
 import (
+	"fmt"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/requestmatch"
 	"log"
 	"net/http"
+	"net/url"
 )
+
+type MatchingOptions uint
+
+const (
+	MatchingOptionsNone MatchingOptions = 0
+	IgnoreTrailingSlash MatchingOptions = 1 << iota
+)
+
+func (o MatchingOptions) ignoreTrailingSlash() bool {
+	return o&IgnoreTrailingSlash > 0
+}
 
 type DataClient interface {
 	Receive() <-chan string
 }
 
-type Backend struct {
-	Scheme string
-	Host   string
-	Shunt  bool
-}
-
 type Route struct {
-	*Backend
+	eskip.Route
+	Scheme  string
+	Host    string
 	Filters []filters.Filter
 }
 
 type Routing struct {
-	filterRegistry      filters.Registry
-	ignoreTrailingSlash bool
-	getMatcher          <-chan *requestmatch.Matcher
+	filterRegistry  filters.Registry
+	matchingOptions MatchingOptions
+	getMatcher      <-chan *matcher
 }
 
-func feedMatchers(current *requestmatch.Matcher) (chan<- *requestmatch.Matcher, <-chan *requestmatch.Matcher) {
+func splitBackend(r *eskip.Route) (string, string, error) {
+	if r.Shunt {
+		return "", "", nil
+	}
+
+	bu, err := url.ParseRequestURI(r.Backend)
+	if err != nil {
+		return "", "", err
+	}
+
+	return bu.Scheme, bu.Host, nil
+}
+
+func createFilter(fr filters.Registry, def *eskip.Filter) (filters.Filter, error) {
+	spec, ok := fr[def.Name]
+	if !ok {
+		return nil, fmt.Errorf("filter not found: '%s'", def.Name)
+	}
+
+	return spec.CreateFilter(def.Args)
+}
+
+func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]filters.Filter, error) {
+	fs := make([]filters.Filter, len(defs))
+	for i, def := range defs {
+		f, err := createFilter(fr, def)
+		if err != nil {
+			return nil, err
+		}
+
+		fs[i] = f
+	}
+
+	return fs, nil
+}
+
+func processRoute(fr filters.Registry, r *eskip.Route) (*Route, error) {
+	scheme, host, err := splitBackend(r)
+	if err != nil {
+		return nil, err
+	}
+
+	fs, err := createFilters(fr, r.Filters)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Route{*r, scheme, host, fs}, nil
+}
+
+func processRoutes(fr filters.Registry, eskipRoutes []*eskip.Route) []*Route {
+	routes := []*Route{}
+	for _, eskipRoute := range eskipRoutes {
+		route, err := processRoute(fr, eskipRoute)
+		if err == nil {
+			routes = append(routes, route)
+		} else {
+			// individual definition errors are logged and ignored here
+			log.Println(err)
+		}
+	}
+
+	return routes
+}
+
+func createMatcher(o MatchingOptions, rs []*Route) *matcher {
+	m, errs := newMatcher(rs, o)
+	for _, err := range errs {
+		// individual matcher entry errors are logged and ignored here
+		log.Println(err)
+	}
+
+	return m
+}
+
+func processData(fr filters.Registry, o MatchingOptions, data string) (*matcher, error) {
+	eskipRoutes, err := eskip.Parse(data)
+	if err != nil {
+		return nil, err
+	}
+
+	routes := processRoutes(fr, eskipRoutes)
+	return createMatcher(o, routes), nil
+}
+
+func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
 	// todo: measure impact of buffered channel here for out
-	in := make(chan *requestmatch.Matcher)
-	out := make(chan *requestmatch.Matcher)
+	in := make(chan *matcher)
+	out := make(chan *matcher)
 
 	go func() {
 		for {
@@ -45,11 +139,11 @@ func feedMatchers(current *requestmatch.Matcher) (chan<- *requestmatch.Matcher, 
 	return in, out
 }
 
-func (r *Routing) receiveUpdates(in <-chan string, out chan<- *requestmatch.Matcher) {
+func (r *Routing) receiveUpdates(in <-chan string, out chan<- *matcher) {
 	go func() {
 		for {
 			data := <-in
-			matcher, err := r.processData(data)
+			matcher, err := processData(r.filterRegistry, r.matchingOptions, data)
 			if err != nil {
 				// only logging errors here, and waiting for settings from external
 				// sources to be fixed
@@ -62,9 +156,9 @@ func (r *Routing) receiveUpdates(in <-chan string, out chan<- *requestmatch.Matc
 	}()
 }
 
-func New(dc DataClient, fr filters.Registry, ignoreTrailingSlash bool) *Routing {
-	r := &Routing{filterRegistry: fr, ignoreTrailingSlash: ignoreTrailingSlash}
-	initialMatcher := r.createMatcher(nil)
+func New(dc DataClient, fr filters.Registry, o MatchingOptions) *Routing {
+	r := &Routing{filterRegistry: fr, matchingOptions: o}
+	initialMatcher := createMatcher(MatchingOptionsNone, nil)
 	matchersIn, matchersOut := feedMatchers(initialMatcher)
 	r.receiveUpdates(dc.Receive(), matchersIn)
 	r.getMatcher = matchersOut
@@ -73,7 +167,5 @@ func New(dc DataClient, fr filters.Registry, ignoreTrailingSlash bool) *Routing 
 
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	m := <-r.getMatcher
-	value, params := m.Match(req)
-	route, _ := value.(*Route)
-	return route, params
+	return m.match(req)
 }

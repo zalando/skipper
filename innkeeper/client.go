@@ -121,7 +121,7 @@ type Options struct {
 }
 
 // Creates an innkeeper client.
-func Make(o Options) (*Client, error) {
+func New(o Options) (*Client, error) {
 	u, err := url.Parse(o.Address)
 	if err != nil {
 		return nil, err

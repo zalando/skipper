@@ -15,6 +15,7 @@ type Context struct {
 	FRequest        *http.Request
 	FResponse       *http.Response
 	FServed         bool
+	FParams         map[string]string
 	FStateBag       map[string]interface{}
 }
 
@@ -27,6 +28,7 @@ func (fc *Context) Request() *http.Request              { return fc.FRequest }
 func (fc *Context) Response() *http.Response            { return fc.FResponse }
 func (fc *Context) MarkServed()                         { fc.FServed = true }
 func (fc *Context) Served() bool                        { return fc.FServed }
+func (fc *Context) PathParam(key string) string         { return fc.FParams[key] }
 func (fc *Context) StateBag() map[string]interface{}    { return fc.FStateBag }
 
 func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {

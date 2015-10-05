@@ -3,7 +3,7 @@ package innkeeper
 import (
 	"encoding/json"
 	"errors"
-	"github.com/zalando/eskip"
+	"github.com/zalando/skipper/eskip"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -105,7 +105,7 @@ func TestNothingToReceive(t *testing.T) {
 	api := httptest.NewServer(http.NotFoundHandler())
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
@@ -127,7 +127,7 @@ func TestReceiveInitialDataImmediately(t *testing.T) {
 	api := httptest.NewServer(&innkeeperHandler{data})
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
@@ -163,7 +163,7 @@ func TestReceiveNew(t *testing.T) {
 	api := httptest.NewServer(h)
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
@@ -217,7 +217,7 @@ func TestReceiveUpdate(t *testing.T) {
 	api := httptest.NewServer(&innkeeperHandler{data})
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
@@ -266,7 +266,7 @@ func TestReceiveDelete(t *testing.T) {
 	api := httptest.NewServer(&innkeeperHandler{data})
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
@@ -306,7 +306,7 @@ func TestNoChange(t *testing.T) {
 	api := httptest.NewServer(&innkeeperHandler{data})
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
@@ -336,7 +336,7 @@ func TestAuthFailedInitial(t *testing.T) {
 	api := httptest.NewServer(&innkeeperHandler{data})
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(false), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(false), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
@@ -358,7 +358,7 @@ func TestAuthFailedUpdate(t *testing.T) {
 	api := httptest.NewServer(&innkeeperHandler{data})
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
@@ -387,7 +387,7 @@ func TestAuthWithFixedToken(t *testing.T) {
 	api := httptest.NewServer(&innkeeperHandler{data})
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
@@ -576,7 +576,7 @@ func TestProducesParsableDocument(t *testing.T) {
 	api := httptest.NewServer(&innkeeperHandler{data})
 	defer api.Close()
 
-	c, err := Make(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
+	c, err := New(Options{api.URL, false, pollingTimeout, autoAuth(true), nil, nil})
 	if err != nil {
 		t.Error(err)
 		return
