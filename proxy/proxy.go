@@ -34,15 +34,17 @@ type shuntBody struct {
 }
 
 type proxy struct {
-	settings     <-chan skipper.Settings
-	roundTripper http.RoundTripper
+	settings       <-chan skipper.Settings
+	roundTripper   http.RoundTripper
+	priorityRoutes []skipper.PriorityRoute
 }
 
 type filterContext struct {
-	w      http.ResponseWriter
-	req    *http.Request
-	res    *http.Response
-	served bool
+	w        http.ResponseWriter
+	req      *http.Request
+	res      *http.Response
+	served   bool
+	stateBag skipper.StateBag
 }
 
 func (sb shuntBody) Close() error {
@@ -90,10 +92,6 @@ func copyStream(to flusherWriter, from io.Reader) error {
 }
 
 func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
-	if b == nil {
-		return nil, proxyError("missing backend")
-	}
-
 	u := r.URL
 	u.Scheme = b.Scheme()
 	u.Host = b.Host()
@@ -115,7 +113,7 @@ func getSettingsBufferSize() int {
 // creates a proxy. it expects a settings source, that provides the current settings during each request.
 // if the 'insecure' parameter is true, the proxy skips the TLS verification for the requests made to the
 // backends.
-func Make(sd skipper.SettingsSource, insecure bool) http.Handler {
+func Make(sd skipper.SettingsSource, insecure bool, pr ...skipper.PriorityRoute) http.Handler {
 	sc := make(chan skipper.Settings, getSettingsBufferSize())
 	sd.Subscribe(sc)
 
@@ -124,7 +122,7 @@ func Make(sd skipper.SettingsSource, insecure bool) http.Handler {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{sc, tr}
+	return &proxy{sc, tr, pr}
 }
 
 func applyFilterSafe(id string, p func()) {
@@ -174,6 +172,10 @@ func (c *filterContext) IsServed() bool {
 	return c.served
 }
 
+func (c *filterContext) StateBag() skipper.StateBag {
+	return c.stateBag
+}
+
 func shunt(r *http.Request) *http.Response {
 	return &http.Response{
 		StatusCode: 404,
@@ -199,29 +201,49 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	s := <-p.settings
-	if s == nil {
-		hterr(proxyError("missing settings"))
-		return
+	var rt skipper.Route
+	for _, prt := range p.priorityRoutes {
+		if prt.Match(r) {
+			rt = prt
+			break
+		}
 	}
 
-	rt, err := s.Route(r)
-	if rt == nil || err != nil {
-		// todo: we need a somewhat more extensive logging here
-		hterr(proxyError(fmt.Sprintf("routing failed: %v %v", r.URL, err)))
-		return
+	if rt == nil {
+		s := <-p.settings
+		if s == nil {
+			hterr(proxyError("missing settings"))
+			return
+		}
+
+		var err error
+		rt, err = s.Route(r)
+		if rt == nil || err != nil {
+			// todo: we need a somewhat more extensive logging here
+			hterr(proxyError(fmt.Sprintf("routing failed: %v %v", r.URL, err)))
+			return
+		}
 	}
 
 	f := rt.Filters()
-	c := &filterContext{w, r, nil, false}
+	c := &filterContext{w, r, nil, false, make(skipper.StateBag)}
 	applyFiltersToRequest(f, c)
 
 	b := rt.Backend()
-	var rs *http.Response
+	if b == nil {
+		hterr(proxyError("missing backend"))
+		return
+	}
+
+	var (
+		rs  *http.Response
+		err error
+	)
+
 	if b.IsShunt() {
 		rs = shunt(r)
 	} else {
-		rs, err = p.roundtrip(r, rt.Backend())
+		rs, err = p.roundtrip(r, b)
 		if err != nil {
 			hterr(err)
 			return
