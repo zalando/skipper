@@ -1,4 +1,4 @@
-package requestmatch
+package routing
 
 import (
 	"math/rand"
@@ -69,7 +69,7 @@ func applyDefaults(o *pathGeneratorOptions) {
 // Creates a path generator with the provided options,
 // falling back to the default value for each non-specified
 // option field.
-func makePathGenerator(o pathGeneratorOptions) *pathGenerator {
+func newPathGenerator(o pathGeneratorOptions) *pathGenerator {
 
 	// options taken as value, free to modify
 	applyDefaults(&o)

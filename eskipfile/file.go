@@ -6,7 +6,7 @@ import (
 
 type DataClient chan string
 
-func Make(path string) (DataClient, error) {
+func New(path string) (DataClient, error) {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err

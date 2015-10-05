@@ -7,6 +7,8 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"io"
+	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,12 +22,18 @@ const streamingDelay time.Duration = 3 * time.Millisecond
 type requestCheck func(*http.Request)
 
 type priorityRoute struct {
-	route *routing.Route
-	match func(r *http.Request) bool
+	route  *routing.Route
+	params map[string]string
+	match  func(r *http.Request) bool
 }
 
-func (prt *priorityRoute) Route() *routing.Route      { return prt.route }
-func (prt *priorityRoute) Match(r *http.Request) bool { return prt.match(r) }
+func (prt *priorityRoute) Match(r *http.Request) (*routing.Route, map[string]string) {
+	if prt.match(r) {
+		return prt.route, prt.params
+	}
+
+	return nil, nil
+}
 
 func voidCheck(*http.Request) {}
 
@@ -87,7 +95,7 @@ func TestGetRoundtrip(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	p := Make(routing.New(testdataclient.New(data), nil, false), false)
+	p := New(routing.New(testdataclient.New(data), nil, false), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -129,7 +137,7 @@ func TestPostRoundtrip(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	p := Make(routing.New(testdataclient.New(data), nil, false), false)
+	p := New(routing.New(testdataclient.New(data), nil, false), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -157,7 +165,7 @@ func TestRoute(t *testing.T) {
 		route1: Path("/host-two/*any") -> "%s"
 	`, s1.URL, s2.URL)
 	routing := routing.New(testdataclient.New(data), nil, false)
-	p := Make(routing, false)
+	p := New(routing, false)
 	delay()
 
 	var (
@@ -195,7 +203,7 @@ func TestStreaming(t *testing.T) {
 	defer s.Close()
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	p := Make(routing.New(testdataclient.New(data), nil, false), false)
+	p := New(routing.New(testdataclient.New(data), nil, false), false)
 	delay()
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
@@ -266,7 +274,7 @@ func TestAppliesFilters(t *testing.T) {
 		requestHeader("X-Test-Request-Header", "request header value") ->
 		responseHeader("X-Test-Response-Header", "response header value") ->
 		"%s"`, s.URL)
-	p := Make(routing.New(testdataclient.New(data), fr, false), false)
+	p := New(routing.New(testdataclient.New(data), fr, false), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -289,7 +297,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	fr[rsph.Name()] = rsph
 
 	data := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
-	p := Make(routing.New(testdataclient.New(data), fr, false), false)
+	p := New(routing.New(testdataclient.New(data), fr, false), false)
 	delay()
 
 	p.ServeHTTP(w, r)
@@ -317,12 +325,12 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		t.Error(err)
 	}
 
-	prt := &priorityRoute{&routing.Route{&routing.Backend{u.Scheme, u.Host, false}, nil}, func(r *http.Request) bool {
+	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
 		return r == req
 	}}
 
 	data := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
-	p := Make(routing.New(testdataclient.New(data), nil, false), false, prt)
+	p := New(routing.New(testdataclient.New(data), nil, false), false, prt)
 	delay()
 
 	w := httptest.NewRecorder()
@@ -354,17 +362,53 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		t.Error(err)
 	}
 
-	prt := &priorityRoute{&routing.Route{&routing.Backend{u.Scheme, u.Host, false}, nil}, func(r *http.Request) bool {
+	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
 		return r == req
 	}}
 
 	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s1.URL)
-	p := Make(routing.New(testdataclient.New(data), nil, false), false, prt)
+	p := New(routing.New(testdataclient.New(data), nil, false), false, prt)
 	delay()
 
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
 	if w.Header().Get("X-Test-Header") != "priority-value" {
 		t.Error("failed match priority route")
+	}
+}
+
+func TestFlusherImplementation(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, "))
+		time.Sleep(15 * time.Millisecond)
+		w.Write([]byte("world!"))
+	})
+
+	ts := httptest.NewServer(h)
+	defer ts.Close()
+	r := fmt.Sprintf(`Any() -> "%s"`, ts.URL)
+	dc := testdataclient.New(r)
+	rt := routing.New(dc, nil, false)
+	p := New(rt, false)
+	a := fmt.Sprintf(":%d", 1<<16-rand.Intn(1<<15))
+	ps := &http.Server{Addr: a, Handler: p}
+	go ps.ListenAndServe()
+
+	// let the server start listening
+	time.Sleep(15 * time.Millisecond)
+
+	rsp, err := http.Get("http://127.0.0.1" + a)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer rsp.Body.Close()
+	b, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if string(b) != "Hello, world!" {
+		t.Error("failed to receive response")
 	}
 }

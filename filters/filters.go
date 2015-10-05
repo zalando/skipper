@@ -9,6 +9,7 @@ type FilterContext interface {
 	Response() *http.Response
 	Served() bool
 	MarkServed()
+	PathParam(string) string
 	StateBag() map[string]interface{}
 }
 
@@ -35,7 +36,7 @@ type Spec interface {
 	// The name of the Spec is used to identify in the configuration which spec a filter is based on.
 	Name() string
 
-	// When the program settings are updated, and they contain filters based on a spec, MakeFilter is
+	// When the program settings are updated, and they contain filters based on a spec, CreateFilter is
 	// called, and the filter id and the filter specific settings are provided. Returns a filter.
 	CreateFilter(config []interface{}) (Filter, error)
 }
@@ -50,7 +51,8 @@ func DefaultFilters() Registry {
 		CreateResponseHeader(),
 		&ModPath{},
 		&HealthCheck{},
-		&Static{}}
+		&Static{},
+		&Redirect{}}
 	for _, f := range defaultFilters {
 		m[f.Name()] = f
 	}

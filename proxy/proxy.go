@@ -25,14 +25,13 @@ const (
 	idleConnsPerHost = 64
 )
 
+type PriorityRoute interface {
+	Match(*http.Request) (*routing.Route, map[string]string)
+}
+
 type flusherWriter interface {
 	http.Flusher
 	io.Writer
-}
-
-type PriorityRoute interface {
-	Route() *routing.Route
-	Match(*http.Request) bool
 }
 
 type shuntBody struct {
@@ -46,11 +45,12 @@ type proxy struct {
 }
 
 type filterContext struct {
-	w        http.ResponseWriter
-	req      *http.Request
-	res      *http.Response
-	served   bool
-	stateBag map[string]interface{}
+	w          http.ResponseWriter
+	req        *http.Request
+	res        *http.Response
+	served     bool
+	pathParams map[string]string
+	stateBag   map[string]interface{}
 }
 
 func (sb shuntBody) Close() error {
@@ -97,10 +97,10 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
-func mapRequest(r *http.Request, b *routing.Backend) (*http.Request, error) {
+func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 	u := r.URL
-	u.Scheme = b.Scheme
-	u.Host = b.Host
+	u.Scheme = rt.Scheme
+	u.Host = rt.Host
 
 	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
 	if err != nil {
@@ -119,7 +119,7 @@ func getSettingsBufferSize() int {
 // creates a proxy. it expects a settings source, that provides the current settings during each request.
 // if the 'insecure' parameter is true, the proxy skips the TLS verification for the requests made to the
 // backends.
-func Make(r *routing.Routing, insecure bool, pr ...PriorityRoute) http.Handler {
+func New(r *routing.Routing, insecure bool, pr ...PriorityRoute) http.Handler {
 	tr := &http.Transport{}
 	if insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -175,6 +175,8 @@ func (c *filterContext) Served() bool {
 	return c.served
 }
 
+func (c *filterContext) PathParam(key string) string { return c.pathParams[key] }
+
 func (c *filterContext) StateBag() map[string]interface{} {
 	return c.stateBag
 }
@@ -187,8 +189,8 @@ func shunt(r *http.Request) *http.Response {
 		Request:    r}
 }
 
-func (p *proxy) roundtrip(r *http.Request, b *routing.Backend) (*http.Response, error) {
-	rr, err := mapRequest(r, b)
+func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, error) {
+	rr, err := mapRequest(r, rt)
 	if err != nil {
 		return nil, err
 	}
@@ -204,16 +206,20 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	var rt *routing.Route
+	var (
+		rt     *routing.Route
+		params map[string]string
+	)
+
 	for _, prt := range p.priorityRoutes {
-		if prt.Match(r) {
-			rt = prt.Route()
+		rt, params = prt.Match(r)
+		if rt != nil {
 			break
 		}
 	}
 
 	if rt == nil {
-		rt, _ = p.routing.Route(r)
+		rt, params = p.routing.Route(r)
 		if rt == nil {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return
@@ -221,24 +227,18 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := rt.Filters
-	c := &filterContext{w, r, nil, false, make(map[string]interface{})}
+	c := &filterContext{w, r, nil, false, params, make(map[string]interface{})}
 	applyFiltersToRequest(f, c)
-
-	b := rt.Backend
-	if b == nil {
-		hterr(proxyError("missing backend"))
-		return
-	}
 
 	var (
 		rs  *http.Response
 		err error
 	)
 
-	if b.Shunt {
+	if rt.Shunt {
 		rs = shunt(r)
 	} else {
-		rs, err = p.roundtrip(r, b)
+		rs, err = p.roundtrip(r, rt)
 		if err != nil {
 			hterr(err)
 			return

@@ -1,26 +1,18 @@
 package routing
 
 import (
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
-	"github.com/zalando/skipper/requestmatch"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"net/http"
 	"testing"
 	"time"
 )
 
-type matcher func(req *http.Request) (*Route, map[string]string)
+type matcherFunc func(req *http.Request) (*Route, map[string]string)
 
-func castMatcher(m *requestmatch.Matcher) matcher {
-	return func(req *http.Request) (*Route, map[string]string) {
-		v, p := m.Match(req)
-		r, _ := v.(*Route)
-		return r, p
-	}
-}
-
-func testMatcherWithPath(t *testing.T, m matcher, path string, matchRoute *Route) {
+func testMatcherWithPath(t *testing.T, m matcherFunc, path string, matchRoute *Route) {
 	req, err := http.NewRequest("GET", "http://www.example.com"+path, nil)
 	if err != nil {
 		t.Error(err)
@@ -86,7 +78,7 @@ func testMatcherWithPath(t *testing.T, m matcher, path string, matchRoute *Route
 	}
 }
 
-func testMatcher(t *testing.T, m matcher, matchRoute *Route) {
+func testMatcherNoPath(t *testing.T, m matcherFunc, matchRoute *Route) {
 	testMatcherWithPath(t, m, "", matchRoute)
 }
 
@@ -94,17 +86,23 @@ func testMatcher(t *testing.T, m matcher, matchRoute *Route) {
 func delay() { time.Sleep(3 * time.Millisecond) }
 
 func TestUsesDataFromClientAfterInitialized(t *testing.T) {
-	r := New(testdataclient.New(`Any() -> "https://www.example.org"`), make(filters.Registry), false)
+	r := New(testdataclient.New(
+		`Any() -> "https://www.example.org"`),
+		make(filters.Registry),
+		MatchingOptionsNone)
 	delay()
-	testMatcher(t, r.Route, &Route{&Backend{"https", "www.example.org", false}, nil})
+	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
 }
 
 func TestKeepUsingDataFromClient(t *testing.T) {
-	r := New(testdataclient.New(`Any() -> "https://www.example.org"`), make(filters.Registry), false)
+	r := New(testdataclient.New(
+		`Any() -> "https://www.example.org"`),
+		make(filters.Registry),
+		MatchingOptionsNone)
 	delay()
-	testMatcher(t, r.Route, &Route{&Backend{"https", "www.example.org", false}, nil})
-	testMatcher(t, r.Route, &Route{&Backend{"https", "www.example.org", false}, nil})
-	testMatcher(t, r.Route, &Route{&Backend{"https", "www.example.org", false}, nil})
+	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
+	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
+	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
 }
 
 func TestInitialAndUpdates(t *testing.T) {
@@ -120,13 +118,13 @@ func TestInitialAndUpdates(t *testing.T) {
     `
 
 	dc := testdataclient.New(doc)
-	r := New(dc, fr, false)
+	r := New(dc, fr, MatchingOptionsNone)
 	delay()
 
-	testMatcherWithPath(t, r.Route, "", &Route{&Backend{"https", "www.example.org", false}, nil})
-	testMatcherWithPath(t, r.Route, "/some", &Route{&Backend{"https", "some.example.org", false},
-		[]filters.Filter{&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}}}})
-	testMatcherWithPath(t, r.Route, "/some-other", &Route{&Backend{"https", "www.example.org", false}, nil})
+	testMatcherWithPath(t, r.Route, "", &Route{Scheme: "https", Host: "www.example.org"})
+	testMatcherWithPath(t, r.Route, "/some", &Route{Scheme: "https", Host: "some.example.org",
+		Filters: []filters.Filter{&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}}}})
+	testMatcherWithPath(t, r.Route, "/some-other", &Route{Scheme: "https", Host: "www.example.org"})
 
 	updatedDoc := `
         route1: Any() -> "https://www.example.org";
@@ -137,9 +135,76 @@ func TestInitialAndUpdates(t *testing.T) {
 
 	delay()
 
-	testMatcherWithPath(t, r.Route, "", &Route{&Backend{"https", "www.example.org", false}, nil})
-	testMatcherWithPath(t, r.Route, "/some", &Route{&Backend{"https", "some-updated.example.org", false},
-		[]filters.Filter{&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}}}})
-	testMatcherWithPath(t, r.Route, "/some-other", &Route{&Backend{"https", "some-other.example.org", false},
-		[]filters.Filter{&filtertest.Filter{FilterName: "testFilter2", Args: []interface{}{float64(2), "two"}}}})
+	testMatcherWithPath(t, r.Route, "", &Route{Scheme: "https", Host: "www.example.org"})
+	testMatcherWithPath(t, r.Route, "/some", &Route{Scheme: "https", Host: "some-updated.example.org",
+		Filters: []filters.Filter{&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}}}})
+	testMatcherWithPath(t, r.Route, "/some-other", &Route{Scheme: "https", Host: "some-other.example.org",
+		Filters: []filters.Filter{&filtertest.Filter{FilterName: "testFilter2", Args: []interface{}{float64(2), "two"}}}})
+}
+
+func TestFailToParse(t *testing.T) {
+	_, err := processData(nil, MatchingOptionsNone, "invalid eskip document")
+	if err == nil {
+		t.Error("failed to fail")
+	}
+}
+
+func TestCreateShuntBackend(t *testing.T) {
+	m, err := processData(nil, MatchingOptionsNone, `Any() -> <shunt>`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	testMatcherNoPath(t, m.match, &Route{Route: eskip.Route{Shunt: true}})
+}
+
+func TestFailToParseBackend(t *testing.T) {
+	m, err := processData(nil, MatchingOptionsNone, `Any() -> "invalid backend"`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	testMatcherNoPath(t, m.match, nil)
+}
+
+func TestParseBackend(t *testing.T) {
+	m, err := processData(nil, MatchingOptionsNone, `Any() -> "https://www.example.org"`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	testMatcherNoPath(t, m.match, &Route{Scheme: "https", Host: "www.example.org"})
+}
+
+func TestFilterNotFound(t *testing.T) {
+	spec1 := &filtertest.Filter{FilterName: "testFilter1"}
+	spec2 := &filtertest.Filter{FilterName: "testFilter2"}
+	fr := make(filters.Registry)
+	fr[spec1.Name()] = spec1
+	fr[spec2.Name()] = spec2
+
+	m, err := processData(fr, MatchingOptionsNone, `Any() -> testFilter3() -> "https://www.example.org"`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	testMatcherNoPath(t, m.match, nil)
+}
+
+func TestCreateFilters(t *testing.T) {
+	spec1 := &filtertest.Filter{FilterName: "testFilter1"}
+	spec2 := &filtertest.Filter{FilterName: "testFilter2"}
+	fr := make(filters.Registry)
+	fr[spec1.Name()] = spec1
+	fr[spec2.Name()] = spec2
+
+	m, err := processData(fr, MatchingOptionsNone,
+		`Any() -> testFilter1(1, "one") -> testFilter2(2, "two") -> "https://www.example.org"`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	testMatcherNoPath(t, m.match, &Route{Scheme: "https", Host: "www.example.org", Filters: []filters.Filter{
+		&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}},
+		&filtertest.Filter{FilterName: "testFilter2", Args: []interface{}{float64(2), "two"}}}})
 }
