@@ -84,7 +84,7 @@ func docToRouteDefs(doc string) (routeDefs, error) {
     }
 
     rd := make(routeDefs)
-    rd.set(rs)
+    rd = setRouteDefs(rd, rs)
     return rd, nil
 }
 
@@ -126,7 +126,7 @@ func generateRoutes(paths []string) []*Route {
 	}
 
     rd := make(routeDefs)
-    rd.set(routes)
+    rd = setRouteDefs(rd, routes)
 	return processRoutes(nil, rd)
 }
 
