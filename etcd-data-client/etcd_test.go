@@ -171,9 +171,13 @@ func TestReceivesUpdates(t *testing.T) {
     _, u := c.Receive()
 	e := etcd.NewClient(EtcdUrls)
 	e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
-    ud := <-u
-    if !checkBackend(ud.UpsertedRoutes, "pdp", "https://updated.example.org") {
-        t.Error("failed to receive the right backend")
+    select {
+    case ud := <-u:
+        if !checkBackend(ud.UpsertedRoutes, "pdp", "https://updated.example.org") {
+            t.Error("failed to receive the right backend")
+        }
+    case <-time.After(30 * time.Millisecond):
+        t.Error("receive timeout")
     }
 }
 
