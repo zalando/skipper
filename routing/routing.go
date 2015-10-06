@@ -20,16 +20,6 @@ func (o MatchingOptions) ignoreTrailingSlash() bool {
 	return o&IgnoreTrailingSlash > 0
 }
 
-type DataUpdate struct {
-    UpsertedRoutes []*eskip.Route
-    DeletedIds []string
-    Reset bool
-}
-
-type DataClient interface {
-    Receive() ([]*eskip.Route, <-chan *DataUpdate)
-}
-
 type Route struct {
 	eskip.Route
 	Scheme, Host    string

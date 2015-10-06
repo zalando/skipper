@@ -12,7 +12,6 @@ const receiveInitialTimeout = 1200 * time.Millisecond
 
 const (
 	testRoute = `
-
         PathRegexp(".*\\.html") ->
         customHeader(3.14) ->
         xSessionId("v4") ->
@@ -81,6 +80,26 @@ func checkInitial(d []*eskip.Route) bool {
 	return true
 }
 
+func checkBackend(d []*eskip.Route, routeId, backend string) bool {
+	for _, r := range d {
+		if r.Id == routeId {
+			return r.Backend == backend
+		}
+	}
+
+	return false
+}
+
+func checkDeleted(ids []string, routeId string) bool {
+	for _, id := range ids {
+		if id == routeId {
+			return true
+		}
+	}
+
+	return false
+}
+
 func setAll(c *etcd.Client, dir string, data map[string]string) error {
 	for name, item := range data {
 		_, err := c.Set(dir+name, item, 0)
@@ -147,4 +166,37 @@ func TestReceivesInitialBeforeTimeout(t *testing.T) {
 }
 
 func TestReceivesUpdates(t *testing.T) {
+    resetData(t)
+    c := New(EtcdUrls, "/skippertest")
+    _, u := c.Receive()
+	e := etcd.NewClient(EtcdUrls)
+	e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
+    ud := <-u
+    if !checkBackend(ud.UpsertedRoutes, "pdp", "https://updated.example.org") {
+        t.Error("failed to receive the right backend")
+    }
+}
+
+func TestReceiveInsert(t *testing.T) {
+    resetData(t)
+    c := New(EtcdUrls, "/skippertest")
+    _, u := c.Receive()
+	e := etcd.NewClient(EtcdUrls)
+	e.Set("/skippertest/routes/catalog", `Path("/pdp") -> "https://catalog.example.org"`, 0)
+    ud := <-u
+    if !checkBackend(ud.UpsertedRoutes, "catalog", "https://catalog.example.org") {
+        t.Error("failed to receive the right backend")
+    }
+}
+
+func TestReceiveDelete(t *testing.T) {
+    resetData(t)
+    c := New(EtcdUrls, "/skippertest")
+    _, u := c.Receive()
+	e := etcd.NewClient(EtcdUrls)
+	e.Delete("/skippertest/routes/pdp", false)
+    ud := <-u
+    if !checkDeleted(ud.DeletedIds, "pdp") {
+        t.Error("failed to receive the right deleted id")
+    }
 }

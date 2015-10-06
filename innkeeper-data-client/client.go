@@ -384,7 +384,7 @@ func (c *Client) receiveUpdates() {
 		}
 
 		if len(routes) > 0 || len(deleted) > 0 {
-			c.updates <- &routing.DataUpdate{routes, deleted}
+			c.updates <- &routing.DataUpdate{routes, deleted, false}
 		}
 	}
 }
@@ -406,7 +406,7 @@ func (c *Client) receiveInitial() {
 		}
 
 		if failedFirst {
-			c.updates <- &routing.DataUpdate{routes, nil}
+			c.updates <- &routing.DataUpdate{routes, nil, true}
 		} else {
 			c.initial <- routes
 		}
