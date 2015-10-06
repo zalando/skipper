@@ -49,7 +49,9 @@ func receiveUpdates(c DataClient, pollTimeout time.Duration, out chan<- *incomin
 			return
 		}
 
-		out <- &incomingData{incomingUpdate, c, routes, deletedIds}
+		if len(routes) > 0 || len(deletedIds) > 0 {
+			out <- &incomingData{incomingUpdate, c, routes, deletedIds}
+		}
 	}
 }
 
