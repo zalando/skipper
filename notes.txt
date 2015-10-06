@@ -38,3 +38,5 @@ example for packages without tests
 test for modpath filter
 verify the redirect filter input on creation
 oauth scopes missing from the run.go
+make the errors more analyzable
+buffer updates
