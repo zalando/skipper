@@ -77,29 +77,66 @@ var (
 	testMatcherGeneric *matcher
 )
 
-func docToRouteDefs(doc string) (routeDefs, error) {
-    rs, err := eskip.Parse(doc)
-    if err != nil {
-        return nil, err
-    }
-
-    rd := make(routeDefs)
-    rd = setRouteDefs(rd, rs)
-    return rd, nil
-}
-
-func initGenericMatcher() {
-	defs, err := docToRouteDefs(testRouteDoc)
+func docToRoutes(doc string) ([]*Route, error) {
+	defs, err := eskip.Parse(doc)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	m, errs := newMatcher(processRoutes(nil, defs), MatchingOptionsNone)
+	return processRouteDefs(nil, defs), nil
+}
+
+func docToRoute(doc string) (*Route, error) {
+	routes, err := docToRoutes(doc)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(routes) != 1 {
+		return nil, errors.New("invalid number of routes")
+	}
+
+	return routes[0], nil
+}
+
+func newTestMatcherOpts(routes []*Route, o MatchingOptions) (*matcher, error) {
+	if len(routes) == 0 {
+		return nil, errors.New("we need at least one route for this test")
+	}
+
+	matcher, errs := newMatcher(routes, o)
 	if len(errs) != 0 {
 		for _, err := range errs {
 			log.Println(err.Error())
 		}
-		panic("error while making matcher")
+
+		return nil, errors.New("failed to create matcher")
+	}
+
+	return matcher, nil
+}
+
+func newTestMatcher(routes []*Route) (*matcher, error) {
+	return newTestMatcherOpts(routes, MatchingOptionsNone)
+}
+
+func docToMatcherOpts(doc string, o MatchingOptions) (*matcher, error) {
+	rs, err := docToRoutes(doc)
+	if err != nil {
+		return nil, err
+	}
+
+	return newTestMatcherOpts(rs, o)
+}
+
+func docToMatcher(doc string) (*matcher, error) {
+	return docToMatcherOpts(doc, MatchingOptionsNone)
+}
+
+func initGenericMatcher() {
+	m, err := docToMatcher(testRouteDoc)
+	if err != nil {
+		panic(err)
 	}
 
 	testMatcherGeneric = m
@@ -116,18 +153,16 @@ func generatePaths(pg *pathGenerator, count int) []string {
 }
 
 func generateRoutes(paths []string) []*Route {
-	routes := make([]*eskip.Route, len(paths))
+	defs := make([]*eskip.Route, len(paths))
 	for i, p := range paths {
 
 		// the path for the backend is fine here,
 		// because it is only used for checking the
 		// found routes
-		routes[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Path: p, Backend: p}
+		defs[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Path: p, Backend: p}
 	}
 
-    rd := make(routeDefs)
-    rd = setRouteDefs(rd, routes)
-	return processRoutes(nil, rd)
+	return processRouteDefs(nil, defs)
 }
 
 func generateRequests(paths []string) ([]*http.Request, error) {
@@ -142,19 +177,6 @@ func generateRequests(paths []string) ([]*http.Request, error) {
 	}
 
 	return requests, nil
-}
-
-func newTestMatcher(routes []*Route) (*matcher, error) {
-	if len(routes) == 0 {
-		return nil, errors.New("we need at least one route for this test")
-	}
-
-	matcher, errs := newMatcher(routes, MatchingOptionsNone)
-	if len(errs) != 0 {
-		return nil, errors.New("failed to create matcher")
-	}
-
-	return matcher, nil
 }
 
 func initRandomPaths() {
@@ -721,18 +743,12 @@ func TestCompileRegexps(t *testing.T) {
 
 func TestMakeLeafInvalidHostRx(t *testing.T) {
 	const routeExp = "Host(\"**\") -> \"https://example.org\""
-	routes, err := eskip.Parse(routeExp)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	rd, err := processRoute(nil, routes[0])
+	r, err := docToRoute(routeExp)
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = newLeaf(rd)
+	_, err = newLeaf(r)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -740,18 +756,12 @@ func TestMakeLeafInvalidHostRx(t *testing.T) {
 
 func TestMakeLeafInvalidPathRx(t *testing.T) {
 	const routeExp = "PathRegexp(\"**\") -> \"https://example.org\""
-	routes, err := eskip.Parse(routeExp)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	rd, err := processRoute(nil, routes[0])
+	r, err := docToRoute(routeExp)
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = newLeaf(rd)
+	_, err = newLeaf(r)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -759,18 +769,12 @@ func TestMakeLeafInvalidPathRx(t *testing.T) {
 
 func TestMakeLeafInvalidHeaderRegexp(t *testing.T) {
 	const routeExp = "HeaderRegexp(\"Some-Header\", \"**\") -> \"https://example.org\""
-	routes, err := eskip.Parse(routeExp)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	rd, err := processRoute(nil, routes[0])
+	r, err := docToRoute(routeExp)
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = newLeaf(rd)
+	_, err = newLeaf(r)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -784,18 +788,12 @@ func TestMakeLeaf(t *testing.T) {
         Header("Some-Header", "some-value") &&
         HeaderRegexp("Some-Header", "some-value") ->
         "https://example.org"`
-	routes, err := eskip.Parse(routeExp)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	rd, err := processRoute(nil, routes[0])
+	r, err := docToRoute(routeExp)
 	if err != nil {
 		t.Error(err)
 	}
 
-	l, err := newLeaf(rd)
+	l, err := newLeaf(r)
 	if err != nil || l.method != "PUT" ||
 		len(l.hostRxs) != 1 || len(l.pathRxs) != 1 ||
 		len(l.headersExact) != 1 || len(l.headersRegexp) != 1 ||
@@ -817,39 +815,29 @@ func TestMakeMatcherEmpty(t *testing.T) {
 }
 
 func TestMakeMatcherRootLeavesOnly(t *testing.T) {
-	routes, err := eskip.Parse(`Method("PUT") -> "https://example.org"`)
+	rs, err := docToRoutes(`Method("PUT") -> "https://example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
+	m, errs := newMatcher(rs, MatchingOptionsNone)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
 
-	r, _ := m.match(&http.Request{Method: "PUT", URL: &url.URL{Path: "/some/path"}})
-	if r == nil || r.Backend != "https://example.org" {
+	rback, _ := m.match(&http.Request{Method: "PUT", URL: &url.URL{Path: "/some/path"}})
+	if rback == nil || rback.Backend != "https://example.org" {
 		t.Error("failed to match request")
 	}
 }
 
 func TestMakeMatcherExactPathOnly(t *testing.T) {
-	routes, err := eskip.Parse(`Path("/some/path") -> "https://example.org"`)
+	rs, err := docToRoutes(`Path("/some/path") -> "https://example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
+	m, errs := newMatcher(rs, MatchingOptionsNone)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -861,17 +849,12 @@ func TestMakeMatcherExactPathOnly(t *testing.T) {
 }
 
 func TestMakeMatcherWithWildcardPath(t *testing.T) {
-	routes, err := eskip.Parse(`Path("/some/:param") -> "https://example.org"`)
+	rs, err := docToRoutes(`Path("/some/:param") -> "https://example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
+	m, errs := newMatcher(rs, MatchingOptionsNone)
 	if len(errs) != 0 || m == nil {
 		t.Error("failed to make matcher")
 	}
@@ -883,60 +866,35 @@ func TestMakeMatcherWithWildcardPath(t *testing.T) {
 }
 
 func TestMakeMatcherErrorInLeaf(t *testing.T) {
-	routes, err := eskip.Parse(`testRoute: PathRegexp("**") -> "https://example.org"`)
+	rs, err := docToRoutes(`testRoute: PathRegexp("**") -> "https://example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
+	m, errs := newMatcher(rs, MatchingOptionsNone)
 	if len(errs) != 1 || m == nil || errs[0].Index != 0 {
 		t.Error("failed to make matcher with error")
 	}
 }
 
 func TestMakeMatcherWithPathConflict(t *testing.T) {
-	routes, err := eskip.Parse(`
+	rs, err := docToRoutes(`
         testRoute0: Path("/some/path/:param0/name") -> "https://example.org";
         testRoute1: Path("/some/path/:param1/name") -> "https://example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	rd0, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	rd1, err := processRoute(nil, routes[1])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd0, rd1}, MatchingOptionsNone)
+	m, errs := newMatcher(rs, MatchingOptionsNone)
 	if len(errs) != 1 || m == nil {
 		t.Error("failed to make matcher with error", len(errs), m == nil)
 	}
 }
 
 func TestMatchToSlash(t *testing.T) {
-	routes, err := eskip.Parse(`Path("/some/path/") -> "https://example.org"`)
+	m, err := docToMatcherOpts(`Path("/some/path/") -> "https://example.org"`, IgnoreTrailingSlash)
 	if err != nil {
 		t.Error(err)
-	}
-
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
-	if len(errs) != 0 {
-		t.Error("failed to make matcher")
 	}
 
 	r, _ := m.match(&http.Request{URL: &url.URL{Path: "/some/path"}})
@@ -946,19 +904,9 @@ func TestMatchToSlash(t *testing.T) {
 }
 
 func TestMatchFromSlash(t *testing.T) {
-	routes, err := eskip.Parse(`Path("/some/path") -> "https://example.org"`)
+	m, err := docToMatcherOpts(`Path("/some/path") -> "https://example.org"`, IgnoreTrailingSlash)
 	if err != nil {
 		t.Error(err)
-	}
-
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
-	if len(errs) != 0 {
-		t.Error("failed to make matcher")
 	}
 
 	r, _ := m.match(&http.Request{URL: &url.URL{Path: "/some/path/"}})
@@ -968,19 +916,9 @@ func TestMatchFromSlash(t *testing.T) {
 }
 
 func TestWildcardParam(t *testing.T) {
-	routes, err := eskip.Parse(`Path("/some/:wildcard0/path/:wildcard1") -> "https://example.org"`)
+	m, err := docToMatcher(`Path("/some/:wildcard0/path/:wildcard1") -> "https://example.org"`)
 	if err != nil {
 		t.Error(err)
-	}
-
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
-	if len(errs) != 0 {
-		t.Error("failed to make matcher")
 	}
 
 	r, params := m.match(&http.Request{URL: &url.URL{Path: "/some/value0/path/value1"}})
@@ -990,19 +928,9 @@ func TestWildcardParam(t *testing.T) {
 }
 
 func TestWildcardParamFromSlash(t *testing.T) {
-	routes, err := eskip.Parse(`Path("/some/:wildcard0/path/:wildcard1") -> "https://example.org"`)
+	m, err := docToMatcherOpts(`Path("/some/:wildcard0/path/:wildcard1") -> "https://example.org"`, IgnoreTrailingSlash)
 	if err != nil {
 		t.Error(err)
-	}
-
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
-	if len(errs) != 0 {
-		t.Error("failed to make matcher")
 	}
 
 	r, params := m.match(&http.Request{URL: &url.URL{Path: "/some/value0/path/value1/"}})
@@ -1012,19 +940,9 @@ func TestWildcardParamFromSlash(t *testing.T) {
 }
 
 func TestWildcardParamToSlash(t *testing.T) {
-	routes, err := eskip.Parse(`Path("/some/:wildcard0/path/:wildcard1/") -> "https://example.org"`)
+	m, err := docToMatcherOpts(`Path("/some/:wildcard0/path/:wildcard1/") -> "https://example.org"`, IgnoreTrailingSlash)
 	if err != nil {
 		t.Error(err)
-	}
-
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
-	if len(errs) != 0 {
-		t.Error("failed to make matcher")
 	}
 
 	r, params := m.match(&http.Request{URL: &url.URL{Path: "/some/value0/path/value1"}})
@@ -1034,19 +952,9 @@ func TestWildcardParamToSlash(t *testing.T) {
 }
 
 func TestFreeWildcardParam(t *testing.T) {
-	routes, err := eskip.Parse(`Path("/some/*wildcard") -> "https://example.org"`)
+	m, err := docToMatcher(`Path("/some/*wildcard") -> "https://example.org"`)
 	if err != nil {
 		t.Error(err)
-	}
-
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, MatchingOptionsNone)
-	if len(errs) != 0 {
-		t.Error("failed to make matcher")
 	}
 
 	r, params := m.match(&http.Request{URL: &url.URL{Path: "/some/value0/value1"}})
@@ -1056,19 +964,9 @@ func TestFreeWildcardParam(t *testing.T) {
 }
 
 func TestFreeWildcardParamWithSlash(t *testing.T) {
-	routes, err := eskip.Parse(`Path("/some/*wildcard") -> "https://example.org"`)
+	m, err := docToMatcherOpts(`Path("/some/*wildcard") -> "https://example.org"`, IgnoreTrailingSlash)
 	if err != nil {
 		t.Error(err)
-	}
-
-	rd, err := processRoute(nil, routes[0])
-	if err != nil {
-		t.Error(err)
-	}
-
-	m, errs := newMatcher([]*Route{rd}, IgnoreTrailingSlash)
-	if len(errs) != 0 {
-		t.Error("failed to make matcher")
 	}
 
 	r, params := m.match(&http.Request{URL: &url.URL{Path: "/some/value0/value1/"}})
@@ -1136,14 +1034,14 @@ func BenchmarkPathTree4(b *testing.B) {
 }
 
 func BenchmarkConstructionGeneric(b *testing.B) {
-	routes, err := docToRouteDefs(testRouteDoc)
+	routes, err := docToRoutes(testRouteDoc)
 	if err != nil {
 		b.Error(err)
 		return
 	}
 
 	for i := 0; i < b.N; i++ {
-		_, errs := newMatcher(processRoutes(nil, routes), IgnoreTrailingSlash)
+		_, errs := newMatcher(routes, IgnoreTrailingSlash)
 		if len(errs) != 0 {
 			for _, err := range errs {
 				b.Log(err.Error())
