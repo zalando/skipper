@@ -4,6 +4,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"net/http"
+	"time"
 )
 
 type MatchingOptions uint
@@ -18,18 +19,25 @@ func (o MatchingOptions) ignoreTrailingSlash() bool {
 }
 
 type DataClient interface {
-    GetInitial() ([]*eskip.Route, error)
-    GetUpdate() ([]*eskip.Route, []string, error)
+	GetInitial() ([]*eskip.Route, error)
+	GetUpdate() ([]*eskip.Route, []string, error)
+}
+
+type Options struct {
+	FilterRegistry  filters.Registry
+	MatchingOptions MatchingOptions
+	PollTimeout     time.Duration
+	DataClients     []DataClient
 }
 
 type Route struct {
 	eskip.Route
-	Scheme, Host    string
-	Filters []filters.Filter
+	Scheme, Host string
+	Filters      []filters.Filter
 }
 
 type Routing struct {
-	getMatcher      <-chan *matcher
+	getMatcher <-chan *matcher
 }
 
 func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
@@ -49,10 +57,10 @@ func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
 	return in, out
 }
 
-func New(fr filters.Registry, mo MatchingOptions, dc ...DataClient) *Routing {
+func New(o Options) *Routing {
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
 	matchersIn, matchersOut := feedMatchers(initialMatcher)
-	go receiveRouteMatcher(fr, mo, dc, matchersIn)
+	go receiveRouteMatcher(o, matchersIn)
 	return &Routing{matchersOut}
 }
 
