@@ -183,6 +183,32 @@ func TestReceivesDelete(t *testing.T) {
 	}
 }
 
+func TestUpdateDoesNotChangeRouting(t *testing.T) {
+	const pollTimeout = 15 * time.Millisecond
+
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	rt := routing.New(routing.Options{
+		DataClients: []routing.DataClient{dc},
+		PollTimeout: pollTimeout})
+
+	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	<-waitRoute(rt, req)
+	<-waitUpdate(dc, nil, nil, false)
+
+	req, err = http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !waitDone(2*pollTimeout, waitRoute(rt, req)) {
+		t.Error("test timeout")
+	}
+}
+
 func TestMergesMultipleSources(t *testing.T) {
 	const pollTimeout = 15 * time.Millisecond
 
