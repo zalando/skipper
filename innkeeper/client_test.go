@@ -121,7 +121,7 @@ func TestNothingToReceive(t *testing.T) {
 	}
 }
 
-func TestReceiveInitialDataImmediately(t *testing.T) {
+func TestReceiveInitialData(t *testing.T) {
 	const pollingTimeout = 15 * time.Millisecond
 	data := testData()
 	api := httptest.NewServer(&innkeeperHandler{data})

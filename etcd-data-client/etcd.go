@@ -11,53 +11,105 @@ import (
 const routesPath = "/routes"
 
 type Client struct {
+    initial chan []*eskip.Route
+    updates chan *routing.DataUpdate
+}
+
+type source struct {
     routesRoot string
 	etcd       *etcd.Client
+    etcdIndex uint64
 }
 
-func New(urls []string, storageRoot string) *Client {
-    return &Client{
+func New(urls []string, storageRoot string) routing.DataClient {
+    return routing.NewPollingDataClient(&source{
         storageRoot + routesPath,
-		etcd.NewClient(urls)}
+        etcd.NewClient(urls),
+        0})
 }
 
-// collect all the routes from the etcd nodes
-func (c *Client) iterateRoutes(n *etcd.Node, highestIndex uint64) ([]string, uint64) {
+func (s *source) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]string, uint64) {
 	if n.ModifiedIndex > highestIndex {
 		highestIndex = n.ModifiedIndex
 	}
 
-    var routes []string
-	if n.Key == c.routesRoot {
+    routes := make(map[string]string)
+	if n.Key == s.routesRoot {
 		for _, ni := range n.Nodes {
-			rs, hi := c.iterateRoutes(ni, highestIndex)
-            routes = append(routes, rs...)
+			routesi, hi := s.iterateDefs(ni, highestIndex)
+            for id, r := range routesi {
+                routes[id] = r
+            }
+
             highestIndex = hi
 		}
 	}
 
-	if path.Dir(n.Key) != c.routesRoot {
+	if path.Dir(n.Key) != s.routesRoot {
 		return routes, highestIndex
 	}
 
-	rid := path.Base(n.Key)
-	r := rid + ":" + n.Value
-    return []string{r}, highestIndex
+	id := path.Base(n.Key)
+	r := id + ":" + n.Value
+    return map[string]string{id: r}, highestIndex
 }
 
-func (c *Client) Receive() ([]*eskip.Route, <-chan *routing.DataUpdate) {
-	response, err := c.etcd.Get(c.routesRoot, false, true)
-    if err != nil {
-        println("etcd error", err)
-        return nil, nil
+func getRoutes(data map[string]string) ([]*eskip.Route, error) {
+    var routeDefs []string
+    for _, r := range data {
+        routeDefs = append(routeDefs, r)
     }
 
-    data, _ := c.iterateRoutes(response.Node, 0)
-    doc := strings.Join(data, ";")
-    routes, err := eskip.Parse(doc)
-    if err != nil {
-        println(err.Error(), doc)
+    doc := strings.Join(routeDefs, ";")
+    return eskip.Parse(doc)
+}
+
+func getDeletedIds(data map[string]string) []string {
+    var deletedIds []string
+    for id, _ := range data {
+        deletedIds = append(deletedIds, id)
     }
 
+    return deletedIds
+}
+
+func (s *source) GetInitial() ([]*eskip.Route, error) {
+    response, err := s.etcd.Get(s.routesRoot, false, true)
+    if err != nil {
+        return nil, err
+    }
+
+    data, etcdIndex := s.iterateDefs(response.Node, 0)
+    routes, err := getRoutes(data)
+    if err != nil {
+        return nil, err
+    }
+
+    s.etcdIndex = etcdIndex
     return routes, nil
+}
+
+func (s *source) GetUpdate() ([]*eskip.Route, []string, error) {
+    response, err := s.etcd.Watch(s.routesRoot, s.etcdIndex + 1, true, nil, nil)
+    if err != nil {
+        return nil, nil, err
+    }
+
+    data, etcdIndex := s.iterateDefs(response.Node, s.etcdIndex)
+    var (
+        routes []*eskip.Route
+        deletedIds []string
+    )
+
+    if response.Action == "delete" {
+        deletedIds = getDeletedIds(data)
+    } else {
+        routes, err = getRoutes(data)
+        if err != nil {
+            return nil, nil, err
+        }
+    }
+
+    s.etcdIndex = etcdIndex
+    return routes, deletedIds, nil
 }
