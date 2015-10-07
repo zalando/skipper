@@ -108,7 +108,8 @@ func TestGetRoundtrip(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)}}), false)
+		[]routing.DataClient{testdataclient.New(routes)},
+		0}), false)
 
 	delay()
 
@@ -160,7 +161,8 @@ func TestPostRoundtrip(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)}}), false)
+		[]routing.DataClient{testdataclient.New(routes)},
+		0}), false)
 
 	delay()
 
@@ -197,7 +199,8 @@ func TestRoute(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)}}), false)
+		[]routing.DataClient{testdataclient.New(routes)},
+		0}), false)
 
 	delay()
 
@@ -245,7 +248,8 @@ func TestStreaming(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)}}), false)
+		[]routing.DataClient{testdataclient.New(routes)},
+		0}), false)
 
 	delay()
 
@@ -326,7 +330,8 @@ func TestAppliesFilters(t *testing.T) {
 		fr,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)}}), false)
+		[]routing.DataClient{testdataclient.New(routes)},
+		0}), false)
 
 	delay()
 
@@ -359,7 +364,8 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		fr,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)}}), false)
+		[]routing.DataClient{testdataclient.New(routes)},
+		0}), false)
 
 	delay()
 
@@ -402,7 +408,8 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)}}), false, prt)
+		[]routing.DataClient{testdataclient.New(routes)},
+		0}), false, prt)
 
 	delay()
 
@@ -449,7 +456,8 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)}}), false, prt)
+		[]routing.DataClient{testdataclient.New(routes)},
+		0}), false, prt)
 
 	delay()
 
@@ -480,7 +488,8 @@ func TestFlusherImplementation(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)}}), false)
+		[]routing.DataClient{testdataclient.New(routes)},
+		0}), false)
 
 	delay()
 

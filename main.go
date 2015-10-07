@@ -28,6 +28,7 @@ const (
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "global pre-route filters for routes from Innkeeper"
 	innkeeperPostRouteFiltersUsage = "global post-route filters for routes from Innkeeper"
+	devModeUsage                   = "enables developer time behavior, like ubuffered routing updates"
 )
 
 var (
@@ -42,6 +43,7 @@ var (
 	innkeeperAuthToken        string
 	innkeeperPreRouteFilters  string
 	innkeeperPostRouteFilters string
+	devMode                   bool
 )
 
 func init() {
@@ -56,6 +58,7 @@ func init() {
 	flag.StringVar(&innkeeperAuthToken, "innkeeper-auth-token", "", innkeeperAuthTokenUsage)
 	flag.StringVar(&innkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", innkeeperPreRouteFiltersUsage)
 	flag.StringVar(&innkeeperPostRouteFilters, "innkeeper-post-route-filters", "", innkeeperPostRouteFiltersUsage)
+	flag.BoolVar(&devMode, "dev-mode", false, devModeUsage)
 	flag.Parse()
 }
 
@@ -72,5 +75,6 @@ func main() {
 		OAuthUrl:                  oauthUrl,
 		InnkeeperAuthToken:        innkeeperAuthToken,
 		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
-		InnkeeperPostRouteFilters: innkeeperPostRouteFilters}))
+		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
+		DevMode:                   devMode}))
 }

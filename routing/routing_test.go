@@ -72,8 +72,9 @@ func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
 	dc.FailNext()
 
 	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc},
-		PollTimeout: pollTimeout})
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
 
 	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
@@ -88,15 +89,16 @@ func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
 func TestReceivesInitial(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
 	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc},
-		PollTimeout: pollTimeout})
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
 
 	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if !waitDone(4*pollTimeout, waitRoute(rt, req)) {
+	if !waitDone(6*pollTimeout, waitRoute(rt, req)) {
 		t.Error("test timeout")
 	}
 }
@@ -104,8 +106,9 @@ func TestReceivesInitial(t *testing.T) {
 func TestReceivesFullOnFailedUpdate(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
 	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc},
-		PollTimeout: pollTimeout})
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
 
 	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
@@ -120,7 +123,7 @@ func TestReceivesFullOnFailedUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !waitDone(4*pollTimeout, waitRoute(rt, req)) {
+	if !waitDone(6*pollTimeout, waitRoute(rt, req)) {
 		t.Error("test timeout")
 	}
 }
@@ -128,8 +131,9 @@ func TestReceivesFullOnFailedUpdate(t *testing.T) {
 func TestReceivesUpdate(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
 	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc},
-		PollTimeout: pollTimeout})
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
 
 	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
@@ -144,7 +148,7 @@ func TestReceivesUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !waitDone(4*pollTimeout, waitRoute(rt, req)) {
+	if !waitDone(6*pollTimeout, waitRoute(rt, req)) {
 		t.Error("test timeout")
 	}
 }
@@ -154,8 +158,9 @@ func TestReceivesDelete(t *testing.T) {
 		{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"},
 		{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
 	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc},
-		PollTimeout: pollTimeout})
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
 
 	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
@@ -164,14 +169,14 @@ func TestReceivesDelete(t *testing.T) {
 
 	<-waitRoute(rt, req)
 	<-waitUpdate(dc, nil, []string{"route1"}, false)
-	time.Sleep(4 * pollTimeout)
+	time.Sleep(6 * pollTimeout)
 
 	req, err = http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if waitDone(4*pollTimeout, waitRoute(rt, req)) {
+	if waitDone(0, waitRoute(rt, req)) {
 		t.Error("should not have found route")
 	}
 }
@@ -179,8 +184,9 @@ func TestReceivesDelete(t *testing.T) {
 func TestUpdateDoesNotChangeRouting(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
 	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc},
-		PollTimeout: pollTimeout})
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
 
 	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
@@ -195,7 +201,7 @@ func TestUpdateDoesNotChangeRouting(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !waitDone(4*pollTimeout, waitRoute(rt, req)) {
+	if !waitDone(6*pollTimeout, waitRoute(rt, req)) {
 		t.Error("test timeout")
 	}
 }
@@ -205,8 +211,9 @@ func TestMergesMultipleSources(t *testing.T) {
 	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
 	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
 	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc1, dc2, dc3},
-		PollTimeout: pollTimeout})
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc1, dc2, dc3},
+		PollTimeout:  pollTimeout})
 
 	req1, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
@@ -223,7 +230,7 @@ func TestMergesMultipleSources(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !waitDone(4*pollTimeout,
+	if !waitDone(6*pollTimeout,
 		waitRoute(rt, req1),
 		waitRoute(rt, req2),
 		waitRoute(rt, req3)) {
@@ -236,8 +243,9 @@ func TestMergesUpdatesFromMultipleSources(t *testing.T) {
 	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
 	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
 	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc1, dc2, dc3},
-		PollTimeout: pollTimeout})
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc1, dc2, dc3},
+		PollTimeout:  pollTimeout})
 
 	req1, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
@@ -277,13 +285,15 @@ func TestMergesUpdatesFromMultipleSources(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !waitDone(4*pollTimeout,
+	if !waitDone(6*pollTimeout,
 		waitRoute(rt, req1),
 		waitRoute(rt, req2)) {
 		t.Error("test timeout")
 	}
 
-	if waitDone(4*pollTimeout, waitRoute(rt, req3)) {
+	time.Sleep(3 * pollTimeout)
+
+	if waitDone(0, waitRoute(rt, req3)) {
 		t.Error("should not have found route")
 	}
 }
@@ -291,16 +301,17 @@ func TestMergesUpdatesFromMultipleSources(t *testing.T) {
 func TestIgnoresInvalidBackend(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "invalid backend"}})
 	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc},
-		PollTimeout: pollTimeout})
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
 
 	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if waitDone(4*pollTimeout, waitRoute(rt, req)) {
-		t.Error("should not found route")
+	if waitDone(6*pollTimeout, waitRoute(rt, req)) {
+		t.Error("should not have found route")
 	}
 }
 
@@ -315,6 +326,7 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 		Filters: []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "roger"}}},
 		Backend: "https://www.example.org"}})
 	rt := routing.New(routing.Options{
+		UpdateBuffer:   0,
 		DataClients:    []routing.DataClient{dc},
 		PollTimeout:    pollTimeout,
 		FilterRegistry: fr})
@@ -336,7 +348,7 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 			f.Args[0] != float64(3.14) || f.Args[1] != "roger" {
 			t.Error("failed to process filters")
 		}
-	case <-time.After(2 * pollTimeout):
+	case <-time.After(3 * pollTimeout):
 		t.Error("test timeout")
 	}
 }

@@ -26,7 +26,6 @@ type incomingData struct {
 }
 
 func receiveInitial(c DataClient, pollTimeout time.Duration, out chan<- *incomingData) {
-	// todo: raise retry timeout after a few tries
 	for {
 		routes, err := c.GetInitial()
 		if err != nil {
