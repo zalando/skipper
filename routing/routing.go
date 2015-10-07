@@ -42,7 +42,6 @@ type Routing struct {
 }
 
 func feedMatchers(updateBuffer int, current *matcher) (chan<- *matcher, <-chan *matcher) {
-	println(updateBuffer)
 	in := make(chan *matcher)
 	out := make(chan *matcher, updateBuffer)
 
