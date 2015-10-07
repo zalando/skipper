@@ -13,8 +13,8 @@ const (
 )
 
 const (
-    RequestHeaderName = "requestHeader"
-    ResponseHeaderName = "responseHeader"
+	RequestHeaderName  = "requestHeader"
+	ResponseHeaderName = "responseHeader"
 )
 
 type headerFilter struct {

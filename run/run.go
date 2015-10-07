@@ -29,14 +29,14 @@ type Options struct {
 	OAuthUrl                  string
 	OAuthScope                string
 	InnkeeperAuthToken        string
-	InnkeeperPreRouteFilters  []string
-	InnkeeperPostRouteFilters []string
+	InnkeeperPreRouteFilters  string
+	InnkeeperPostRouteFilters string
 }
 
 func createDataClient(o Options, auth innkeeper.Authentication) (routing.DataClient, error) {
 	switch {
 	case o.RoutesFilePath != "":
-		return eskipfile.New(o.RoutesFilePath)
+		return eskipfile.Client(o.RoutesFilePath), nil
 	case o.InnkeeperUrl != "":
 		return innkeeper.New(innkeeper.Options{
 			o.InnkeeperUrl, o.Insecure, o.InnkeeperPollTimeout, auth,

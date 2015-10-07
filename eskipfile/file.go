@@ -1,30 +1,24 @@
 package eskipfile
 
 import (
+	"github.com/zalando/skipper/eskip"
 	"io/ioutil"
-    "github.com/zalando/skipper/eskip"
-    "github.com/zalando/skipper/routing"
 )
 
-type DataClient struct {
-    data []*eskip.Route
-    c chan *routing.DataUpdate
-}
+type Client string
 
-func New(path string) (*DataClient, error) {
-	content, err := ioutil.ReadFile(path)
+func (c Client) GetInitial() ([]*eskip.Route, error) {
+	content, err := ioutil.ReadFile(string(c))
 	if err != nil {
 		return nil, err
 	}
 
-    routes, err := eskip.Parse(string(content))
-    if err != nil {
-        return nil, err
-    }
+	routes, err := eskip.Parse(string(content))
+	if err != nil {
+		return nil, err
+	}
 
-    return &DataClient{routes, nil}, nil
+	return routes, nil
 }
 
-func (dc *DataClient) Receive() ([]*eskip.Route, <-chan *routing.DataUpdate) {
-    return dc.data, dc.c
-}
+func (c Client) GetUpdate() ([]*eskip.Route, []string, error) { return nil, nil, nil }
