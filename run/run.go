@@ -53,7 +53,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 		}
 
 		clients = append(clients, ic)
-	default:
+	case len(o.EtcdUrls) > 0:
 		clients = append(clients, etcd.New(o.EtcdUrls, o.StorageRoot))
 	}
 
@@ -79,6 +79,10 @@ func Run(o Options) error {
 	dataClients, err := createDataClients(o, auth)
 	if err != nil {
 		return err
+	}
+
+	if len(dataClients) == 0 {
+		log.Println("warning: no route source specified")
 	}
 
 	// create a filter registry with the available filter specs registered,
