@@ -28,6 +28,7 @@ type Options struct {
 	MatchingOptions MatchingOptions
 	PollTimeout     time.Duration
 	DataClients     []DataClient
+	UpdateBuffer    int
 }
 
 type Route struct {
@@ -40,10 +41,10 @@ type Routing struct {
 	getMatcher <-chan *matcher
 }
 
-func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
-	// todo: use buffered output except for dev mode
+func feedMatchers(updateBuffer int, current *matcher) (chan<- *matcher, <-chan *matcher) {
+	println(updateBuffer)
 	in := make(chan *matcher)
-	out := make(chan *matcher)
+	out := make(chan *matcher, updateBuffer)
 
 	go func() {
 		for {
@@ -59,7 +60,7 @@ func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
 
 func New(o Options) *Routing {
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
-	matchersIn, matchersOut := feedMatchers(initialMatcher)
+	matchersIn, matchersOut := feedMatchers(o.UpdateBuffer, initialMatcher)
 	go receiveRouteMatcher(o, matchersIn)
 	return &Routing{matchersOut}
 }

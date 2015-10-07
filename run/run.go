@@ -13,7 +13,10 @@ import (
 	"time"
 )
 
-const defaultSourcePollTimeout = 30 * time.Millisecond
+const (
+	defaultSourcePollTimeout   = 30 * time.Millisecond
+	defaultRoutingUpdateBuffer = 1 << 5
+)
 
 // Options to start skipper. Expects address to listen on and one or more urls to find
 // the etcd service at. If the flag 'insecure' is true, skipper will accept
@@ -33,6 +36,7 @@ type Options struct {
 	InnkeeperAuthToken        string
 	InnkeeperPreRouteFilters  string
 	InnkeeperPostRouteFilters string
+	DevMode                   bool
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -95,7 +99,17 @@ func Run(o Options) error {
 		o.SourcePollTimeout = defaultSourcePollTimeout
 	}
 
-	routing := routing.New(routing.Options{registry, mo, o.SourcePollTimeout, dataClients})
+	updateBuffer := defaultRoutingUpdateBuffer
+	if o.DevMode {
+		updateBuffer = 0
+	}
+
+	routing := routing.New(routing.Options{
+		registry,
+		mo,
+		o.SourcePollTimeout,
+		dataClients,
+		updateBuffer})
 	proxy := proxy.New(routing, o.Insecure)
 
 	// start the http server
