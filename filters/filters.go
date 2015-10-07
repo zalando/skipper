@@ -52,7 +52,8 @@ func DefaultFilters() Registry {
 		&ModPath{},
 		&HealthCheck{},
 		&Static{},
-		&Redirect{}}
+		&Redirect{},
+        &StripQuery{}}
 	for _, f := range defaultFilters {
 		m[f.Name()] = f
 	}
