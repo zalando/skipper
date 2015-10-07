@@ -41,10 +41,12 @@ type Options struct {
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
-	switch {
-	case o.RoutesFilePath != "":
+
+	if o.RoutesFilePath != "" {
 		clients = append(clients, eskipfile.Client(o.RoutesFilePath))
-	case o.InnkeeperUrl != "":
+	}
+
+	if o.InnkeeperUrl != "" {
 		ic, err := innkeeper.New(innkeeper.Options{
 			o.InnkeeperUrl, o.Insecure, auth,
 			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
@@ -53,7 +55,9 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 		}
 
 		clients = append(clients, ic)
-	case len(o.EtcdUrls) > 0:
+	}
+
+	if len(o.EtcdUrls) > 0 {
 		clients = append(clients, etcd.New(o.EtcdUrls, o.StorageRoot))
 	}
 

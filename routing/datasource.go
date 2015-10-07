@@ -25,39 +25,39 @@ type incomingData struct {
 	deletedIds     []string
 }
 
-func receiveInitial(c DataClient, pollTimeout time.Duration, out chan<- *incomingData) {
-	for {
-		routes, err := c.GetInitial()
-		if err != nil {
-			log.Println("error while receiveing initial data;", err)
-			time.Sleep(pollTimeout)
-			continue
-		}
+func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *incomingData) {
+	receiveInitial := func() {
+		for {
+			routes, err := c.GetInitial()
+			if err != nil {
+				log.Println("error while receiveing initial data;", err)
+				time.Sleep(pollTimeout)
+				continue
+			}
 
-		out <- &incomingData{incomingReset, c, routes, nil}
-		return
-	}
-}
-
-func receiveUpdates(c DataClient, pollTimeout time.Duration, out chan<- *incomingData) {
-	for {
-		time.Sleep(pollTimeout)
-		routes, deletedIds, err := c.GetUpdate()
-		if err != nil {
-			log.Println("error while receiving update;", err)
+			out <- &incomingData{incomingReset, c, routes, nil}
 			return
 		}
+	}
 
-		if len(routes) > 0 || len(deletedIds) > 0 {
-			out <- &incomingData{incomingUpdate, c, routes, deletedIds}
+	receiveUpdates := func() {
+		for {
+			time.Sleep(pollTimeout)
+			routes, deletedIds, err := c.GetUpdate()
+			if err != nil {
+				log.Println("error while receiving update;", err)
+				return
+			}
+
+			if len(routes) > 0 || len(deletedIds) > 0 {
+				out <- &incomingData{incomingUpdate, c, routes, deletedIds}
+			}
 		}
 	}
-}
 
-func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *incomingData) {
 	for {
-		receiveInitial(c, pollTimeout, out)
-		receiveUpdates(c, pollTimeout, out)
+		receiveInitial()
+		receiveUpdates()
 	}
 }
 
