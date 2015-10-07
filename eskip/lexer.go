@@ -34,7 +34,7 @@ type eskipLex struct {
 	rx           *regexp.Regexp
 	code         string
 	routes       []*parsedRoute
-	filters []*Filter
+	filters      []*Filter
 	lastToken    string
 	lastRaw      string
 	lastPosition int
