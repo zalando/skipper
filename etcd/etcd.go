@@ -2,177 +2,105 @@ package etcd
 
 import (
 	"github.com/coreos/go-etcd/etcd"
-	"log"
+	"github.com/zalando/skipper/eskip"
 	"path"
 	"strings"
-	"time"
 )
 
-const (
-	idleEtcdWaitTimeShort   = 12 * time.Millisecond
-	idleEtcdWaitTimeLong    = 6 * time.Second
-	shortTermIdleRetryCount = 12
-	routesPath              = "/routes"
-)
+const routesPath = "/routes"
 
 type Client struct {
 	routesRoot string
 	etcd       *etcd.Client
-	push       chan string
+	etcdIndex  uint64
 }
 
-// Creates a client receiving the configuraton from etcd. In the urls parameter it expects one or more valid urls to the
-// supporting etcd service. In the storageRoot parameter it expects the root key for configuration, typically
-// 'skipper' or 'skippertest'.
-func New(urls []string, storageRoot string) (*Client, error) {
-	c := &Client{
-		storageRoot + routesPath,
-		etcd.NewClient(urls),
-		make(chan string)}
+func New(urls []string, storageRoot string) *Client {
+	return &Client{storageRoot + routesPath, etcd.NewClient(urls), 0}
+}
 
-	// parse and push the current data, then start waiting for updates, then repeat
-	go func() {
-		var (
-			r         *etcd.Response
-			data      []string
-			etcdIndex uint64
-			err       error
-		)
+func (s *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]string, uint64) {
+	if n.ModifiedIndex > highestIndex {
+		highestIndex = n.ModifiedIndex
+	}
 
-		for {
-			if r == nil {
-				log.Println("trying to get full configuration")
-				r = c.forceGet()
-				c.iterateRoutes(r.Node, &data, &etcdIndex)
-				if r.EtcdIndex > etcdIndex {
-					etcdIndex = r.EtcdIndex
-				}
-			} else {
-				log.Println("watching for configuration update")
-				r, err = c.watch(etcdIndex + 1)
-				if err != nil {
-					log.Println("error during watching for configuration update", err)
-					r = nil
-					etcdIndex = 0
-					continue
-				}
-
-				if r.Action == "delete" {
-					c.deleteRoute(r.Node, &data, &etcdIndex)
-				} else {
-					c.iterateRoutes(r.Node, &data, &etcdIndex)
-				}
+	routes := make(map[string]string)
+	if n.Key == s.routesRoot {
+		for _, ni := range n.Nodes {
+			routesi, hi := s.iterateDefs(ni, highestIndex)
+			for id, r := range routesi {
+				routes[id] = r
 			}
 
-			c.push <- strings.Join(data, ";")
+			highestIndex = hi
 		}
-	}()
+	}
 
-	return c, nil
+	if path.Dir(n.Key) != s.routesRoot {
+		return routes, highestIndex
+	}
+
+	id := path.Base(n.Key)
+	r := id + ":" + n.Value
+	return map[string]string{id: r}, highestIndex
 }
 
-func getRouteId(r string) string {
-	return r[:strings.Index(r, ":")]
+func getRoutes(data map[string]string) ([]*eskip.Route, error) {
+	var routeDefs []string
+	for _, r := range data {
+		routeDefs = append(routeDefs, r)
+	}
+
+	doc := strings.Join(routeDefs, ";")
+	return eskip.Parse(doc)
 }
 
-// collect all the routes from the etcd nodes
-func (c *Client) iterateRoutes(n *etcd.Node, data *[]string, highestIndex *uint64) {
-	if n.ModifiedIndex > *highestIndex {
-		*highestIndex = n.ModifiedIndex
+func getDeletedIds(data map[string]string) []string {
+	var deletedIds []string
+	for id, _ := range data {
+		deletedIds = append(deletedIds, id)
 	}
 
-	if n.Key == c.routesRoot {
-		for _, ni := range n.Nodes {
-			c.iterateRoutes(ni, data, highestIndex)
-		}
+	return deletedIds
+}
+
+func (s *Client) GetInitial() ([]*eskip.Route, error) {
+	response, err := s.etcd.Get(s.routesRoot, false, true)
+	if err != nil {
+		return nil, err
 	}
 
-	if path.Dir(n.Key) != c.routesRoot {
-		return
+	data, etcdIndex := s.iterateDefs(response.Node, 0)
+	routes, err := getRoutes(data)
+	if err != nil {
+		return nil, err
 	}
 
-	rid := path.Base(n.Key)
-	r := rid + ":" + n.Value
+	s.etcdIndex = etcdIndex
+	return routes, nil
+}
 
-	existing := -1
-	for i, ri := range *data {
-		if getRouteId(ri) == rid {
-			existing = i
-			break
-		}
+func (s *Client) GetUpdate() ([]*eskip.Route, []string, error) {
+	response, err := s.etcd.Watch(s.routesRoot, s.etcdIndex+1, true, nil, nil)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if existing < 0 {
-		*data = append(*data, r)
+	data, etcdIndex := s.iterateDefs(response.Node, s.etcdIndex)
+	var (
+		routes     []*eskip.Route
+		deletedIds []string
+	)
+
+	if response.Action == "delete" {
+		deletedIds = getDeletedIds(data)
 	} else {
-		(*data)[existing] = r
-	}
-}
-
-func (c *Client) deleteRoute(n *etcd.Node, data *[]string, highestIndex *uint64) {
-	if n.ModifiedIndex > *highestIndex {
-		*highestIndex = n.ModifiedIndex
-	}
-
-	if path.Dir(n.Key) != c.routesRoot {
-		return
-	}
-
-	rid := path.Base(n.Key)
-	rindex := -1
-	for i, r := range *data {
-		if getRouteId(r) == rid {
-			rindex = i
-			break
+		routes, err = getRoutes(data)
+		if err != nil {
+			return nil, nil, err
 		}
 	}
 
-	if rindex < 0 {
-		return
-	}
-
-	*data = append((*data)[:rindex], (*data)[rindex+1:]...)
-}
-
-// get all settings
-func (c *Client) get() (*etcd.Response, error) {
-	return c.etcd.Get(c.routesRoot, false, true)
-}
-
-// to ensure continuity when the etcd service may be out,
-// we keep requesting the initial set of data with a timeout
-// until it succeeds
-func (c *Client) forceGet() *etcd.Response {
-	tryCount := uint(0)
-	for {
-		r, err := c.get()
-		if err == nil {
-			return r
-		}
-
-		log.Println("error during getting initial set of data", err)
-
-		// to avoid too rapid retries, we put a small timeout here
-		// for longer etcd outage, we increase the timeout after a few tries
-		to := idleEtcdWaitTimeShort
-		if tryCount > shortTermIdleRetryCount {
-			to = idleEtcdWaitTimeLong
-		}
-
-		time.Sleep(to)
-
-		// ignore overflow, doesn't cause harm here
-		tryCount = tryCount + 1
-	}
-}
-
-// waits for updates in the etcd configuration
-func (c *Client) watch(waitIndex uint64) (*etcd.Response, error) {
-	return c.etcd.Watch(c.routesRoot, waitIndex, true, nil, nil)
-}
-
-// Returns a channel that sends the data on initial start, and on any update in the
-// configuration. The channel blocks between two updates.
-func (c *Client) Receive() <-chan string {
-	return c.push
+	s.etcdIndex = etcdIndex
+	return routes, deletedIds, nil
 }
