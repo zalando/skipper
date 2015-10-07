@@ -1,11 +1,11 @@
 package etcd
 
 import (
-    "time"
-    "testing"
-    "log"
 	"github.com/coreos/go-etcd/etcd"
-    "github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/eskip"
+	"log"
+	"testing"
+	"time"
 )
 
 const receiveInitialTimeout = 1200 * time.Millisecond
@@ -124,83 +124,97 @@ func resetData(t *testing.T) {
 	}
 }
 
-func TestReceivesEmptyBeforeTimeout(t *testing.T) {
-    c := New(EtcdUrls, "/skippertest-invalid")
-
-    done := make(chan int)
-    go func() {
-        rs, _ := c.Receive()
-        if len(rs) != 0 {
-            t.Error("not empty")
-        }
-
-        done <- 0
-    }()
-
-    select {
-    case <-done:
-    case <-time.After(2 * receiveInitialTimeout):
-        t.Error("failed to receive empty on time")
-    }
+func TestReceivesError(t *testing.T) {
+	c := New(EtcdUrls, "/skippertest-invalid")
+	_, err := c.GetInitial()
+	if err == nil {
+		t.Error("failed to fail")
+	}
 }
 
-func TestReceivesInitialBeforeTimeout(t *testing.T) {
-    resetData(t)
-    c := New(EtcdUrls, "/skippertest")
+func TestReceivesInitial(t *testing.T) {
+	resetData(t)
 
-    done := make(chan int)
-    go func() {
-        rs, _ := c.Receive()
-        if !checkInitial(rs) {
-            t.Error("invalid doc")
-        }
+	c := New(EtcdUrls, "/skippertest")
+	rs, err := c.GetInitial()
 
-        done <- 0
-    }()
+	if err != nil {
+		t.Error(err)
+	}
 
-	select {
-	case <-done:
-	case <-time.After(30 * time.Millisecond):
-		t.Error("receive timeout")
+	if !checkInitial(rs) {
+		t.Error("failed to receive the right docs")
 	}
 }
 
 func TestReceivesUpdates(t *testing.T) {
-    resetData(t)
-    c := New(EtcdUrls, "/skippertest")
-    _, u := c.Receive()
+	resetData(t)
+
+	c := New(EtcdUrls, "/skippertest")
+	c.GetInitial()
+
 	e := etcd.NewClient(EtcdUrls)
 	e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
-    select {
-    case ud := <-u:
-        if !checkBackend(ud.UpsertedRoutes, "pdp", "https://updated.example.org") {
-            t.Error("failed to receive the right backend")
-        }
-    case <-time.After(30 * time.Millisecond):
-        t.Error("receive timeout")
-    }
+
+	rs, ds, err := c.GetUpdate()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !checkBackend(rs, "pdp", "https://updated.example.org") {
+		t.Error("failed to receive the right backend")
+	}
+
+	if len(ds) != 0 {
+		t.Error("unexpected delete")
+	}
 }
 
 func TestReceiveInsert(t *testing.T) {
-    resetData(t)
-    c := New(EtcdUrls, "/skippertest")
-    _, u := c.Receive()
+	resetData(t)
+
+	c := New(EtcdUrls, "/skippertest")
+	_, err := c.GetInitial()
+	if err != nil {
+		t.Error(err)
+	}
+
 	e := etcd.NewClient(EtcdUrls)
 	e.Set("/skippertest/routes/catalog", `Path("/pdp") -> "https://catalog.example.org"`, 0)
-    ud := <-u
-    if !checkBackend(ud.UpsertedRoutes, "catalog", "https://catalog.example.org") {
-        t.Error("failed to receive the right backend")
-    }
+
+	rs, ds, err := c.GetUpdate()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !checkBackend(rs, "catalog", "https://catalog.example.org") {
+		t.Error("failed to receive the right backend")
+	}
+
+	if len(ds) != 0 {
+		t.Error("unexpected delete")
+	}
 }
 
 func TestReceiveDelete(t *testing.T) {
-    resetData(t)
-    c := New(EtcdUrls, "/skippertest")
-    _, u := c.Receive()
+	resetData(t)
+
+	c := New(EtcdUrls, "/skippertest")
+	c.GetInitial()
+
 	e := etcd.NewClient(EtcdUrls)
 	e.Delete("/skippertest/routes/pdp", false)
-    ud := <-u
-    if !checkDeleted(ud.DeletedIds, "pdp") {
-        t.Error("failed to receive the right deleted id")
-    }
+
+	rs, ds, err := c.GetUpdate()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !checkDeleted(ds, "pdp") {
+		t.Error("failed to receive the right deleted id")
+	}
+
+	if len(rs) != 0 {
+		t.Error("unexpected upsert")
+	}
 }
