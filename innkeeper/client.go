@@ -12,14 +12,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
 
 const (
-	allRoutesPath         = "/routes"
-	updatePathFmt         = "/updated-routes/%s"
-	receiveInitialTimeout = 1200 * time.Millisecond
-	defaultPollTimeout    = 30 * time.Millisecond
+	allRoutesPath = "/routes"
+	updatePathFmt = "/updated-routes/%s"
 )
 
 type (
@@ -94,6 +91,11 @@ type apiError struct {
 	ErrorType string `json:"type"`
 }
 
+// Provides an Authentication implementation with fixed token string
+type FixedToken string
+
+func (fa FixedToken) Token() (string, error) { return string(fa), nil }
+
 type Authentication interface {
 	Token() (string, error)
 }
@@ -101,7 +103,6 @@ type Authentication interface {
 type Options struct {
 	Address          string
 	Insecure         bool
-	PollTimeout      time.Duration
 	Authentication   Authentication
 	PreRouteFilters  string
 	PostRouteFilters string
@@ -117,10 +118,6 @@ type Client struct {
 }
 
 func New(o Options) (*Client, error) {
-	if o.PollTimeout <= 0 {
-		o.PollTimeout = defaultPollTimeout
-	}
-
 	preFilters, err := eskip.ParseFilters(o.PreRouteFilters)
 	if err != nil {
 		return nil, err
