@@ -13,6 +13,11 @@ import (
 	"time"
 )
 
+const (
+	defaultSourcePollTimeout   = 30 * time.Millisecond
+	defaultRoutingUpdateBuffer = 1 << 5
+)
+
 // Options to start skipper. Expects address to listen on and one or more urls to find
 // the etcd service at. If the flag 'insecure' is true, skipper will accept
 // invalid TLS certificates from the backends.
@@ -22,28 +27,41 @@ type Options struct {
 	StorageRoot               string
 	Insecure                  bool
 	InnkeeperUrl              string
-	InnkeeperPollTimeout      time.Duration
+	SourcePollTimeout         time.Duration
 	RoutesFilePath            string
 	CustomFilters             []filters.Spec
 	IgnoreTrailingSlash       bool
 	OAuthUrl                  string
 	OAuthScope                string
 	InnkeeperAuthToken        string
-	InnkeeperPreRouteFilters  []string
-	InnkeeperPostRouteFilters []string
+	InnkeeperPreRouteFilters  string
+	InnkeeperPostRouteFilters string
+	DevMode                   bool
 }
 
-func createDataClient(o Options, auth innkeeper.Authentication) (routing.DataClient, error) {
-	switch {
-	case o.RoutesFilePath != "":
-		return eskipfile.New(o.RoutesFilePath)
-	case o.InnkeeperUrl != "":
-		return innkeeper.New(innkeeper.Options{
-			o.InnkeeperUrl, o.Insecure, o.InnkeeperPollTimeout, auth,
-			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
-	default:
-		return etcd.New(o.EtcdUrls, o.StorageRoot)
+func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
+	var clients []routing.DataClient
+
+	if o.RoutesFilePath != "" {
+		clients = append(clients, eskipfile.Client(o.RoutesFilePath))
 	}
+
+	if o.InnkeeperUrl != "" {
+		ic, err := innkeeper.New(innkeeper.Options{
+			o.InnkeeperUrl, o.Insecure, auth,
+			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
+		if err != nil {
+			return nil, err
+		}
+
+		clients = append(clients, ic)
+	}
+
+	if len(o.EtcdUrls) > 0 {
+		clients = append(clients, etcd.New(o.EtcdUrls, o.StorageRoot))
+	}
+
+	return clients, nil
 }
 
 func createInnkeeperAuthentication(o Options) innkeeper.Authentication {
@@ -62,9 +80,13 @@ func Run(o Options) error {
 	auth := createInnkeeperAuthentication(o)
 
 	// create data client
-	dataClient, err := createDataClient(o, auth)
+	dataClients, err := createDataClients(o, auth)
 	if err != nil {
 		return err
+	}
+
+	if len(dataClients) == 0 {
+		log.Println("warning: no route source specified")
 	}
 
 	// create a filter registry with the available filter specs registered,
@@ -76,7 +98,26 @@ func Run(o Options) error {
 
 	// create routing
 	// create the proxy instance
-	routing := routing.New(dataClient, registry, o.IgnoreTrailingSlash)
+	var mo routing.MatchingOptions
+	if o.IgnoreTrailingSlash {
+		mo = routing.IgnoreTrailingSlash
+	}
+
+	if o.SourcePollTimeout <= 0 {
+		o.SourcePollTimeout = defaultSourcePollTimeout
+	}
+
+	updateBuffer := defaultRoutingUpdateBuffer
+	if o.DevMode {
+		updateBuffer = 0
+	}
+
+	routing := routing.New(routing.Options{
+		registry,
+		mo,
+		o.SourcePollTimeout,
+		dataClients,
+		updateBuffer})
 	proxy := proxy.New(routing, o.Insecure)
 
 	// start the http server

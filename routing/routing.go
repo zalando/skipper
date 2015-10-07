@@ -1,12 +1,10 @@
 package routing
 
 import (
-	"fmt"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"log"
 	"net/http"
-	"net/url"
+	"time"
 )
 
 type MatchingOptions uint
@@ -21,111 +19,31 @@ func (o MatchingOptions) ignoreTrailingSlash() bool {
 }
 
 type DataClient interface {
-	Receive() <-chan string
+	GetInitial() ([]*eskip.Route, error)
+	GetUpdate() ([]*eskip.Route, []string, error)
+}
+
+type Options struct {
+	FilterRegistry  filters.Registry
+	MatchingOptions MatchingOptions
+	PollTimeout     time.Duration
+	DataClients     []DataClient
+	UpdateBuffer    int
 }
 
 type Route struct {
 	eskip.Route
-	Scheme  string
-	Host    string
-	Filters []filters.Filter
+	Scheme, Host string
+	Filters      []filters.Filter
 }
 
 type Routing struct {
-	filterRegistry  filters.Registry
-	matchingOptions MatchingOptions
-	getMatcher      <-chan *matcher
+	getMatcher <-chan *matcher
 }
 
-func splitBackend(r *eskip.Route) (string, string, error) {
-	if r.Shunt {
-		return "", "", nil
-	}
-
-	bu, err := url.ParseRequestURI(r.Backend)
-	if err != nil {
-		return "", "", err
-	}
-
-	return bu.Scheme, bu.Host, nil
-}
-
-func createFilter(fr filters.Registry, def *eskip.Filter) (filters.Filter, error) {
-	spec, ok := fr[def.Name]
-	if !ok {
-		return nil, fmt.Errorf("filter not found: '%s'", def.Name)
-	}
-
-	return spec.CreateFilter(def.Args)
-}
-
-func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]filters.Filter, error) {
-	fs := make([]filters.Filter, len(defs))
-	for i, def := range defs {
-		f, err := createFilter(fr, def)
-		if err != nil {
-			return nil, err
-		}
-
-		fs[i] = f
-	}
-
-	return fs, nil
-}
-
-func processRoute(fr filters.Registry, r *eskip.Route) (*Route, error) {
-	scheme, host, err := splitBackend(r)
-	if err != nil {
-		return nil, err
-	}
-
-	fs, err := createFilters(fr, r.Filters)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Route{*r, scheme, host, fs}, nil
-}
-
-func processRoutes(fr filters.Registry, eskipRoutes []*eskip.Route) []*Route {
-	routes := []*Route{}
-	for _, eskipRoute := range eskipRoutes {
-		route, err := processRoute(fr, eskipRoute)
-		if err == nil {
-			routes = append(routes, route)
-		} else {
-			// individual definition errors are logged and ignored here
-			log.Println(err)
-		}
-	}
-
-	return routes
-}
-
-func createMatcher(o MatchingOptions, rs []*Route) *matcher {
-	m, errs := newMatcher(rs, o)
-	for _, err := range errs {
-		// individual matcher entry errors are logged and ignored here
-		log.Println(err)
-	}
-
-	return m
-}
-
-func processData(fr filters.Registry, o MatchingOptions, data string) (*matcher, error) {
-	eskipRoutes, err := eskip.Parse(data)
-	if err != nil {
-		return nil, err
-	}
-
-	routes := processRoutes(fr, eskipRoutes)
-	return createMatcher(o, routes), nil
-}
-
-func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
-	// todo: measure impact of buffered channel here for out
+func feedMatchers(updateBuffer int, current *matcher) (chan<- *matcher, <-chan *matcher) {
 	in := make(chan *matcher)
-	out := make(chan *matcher)
+	out := make(chan *matcher, updateBuffer)
 
 	go func() {
 		for {
@@ -139,30 +57,11 @@ func feedMatchers(current *matcher) (chan<- *matcher, <-chan *matcher) {
 	return in, out
 }
 
-func (r *Routing) receiveUpdates(in <-chan string, out chan<- *matcher) {
-	go func() {
-		for {
-			data := <-in
-			matcher, err := processData(r.filterRegistry, r.matchingOptions, data)
-			if err != nil {
-				// only logging errors here, and waiting for settings from external
-				// sources to be fixed
-				log.Println("error while processing route data", err)
-				continue
-			}
-
-			out <- matcher
-		}
-	}()
-}
-
-func New(dc DataClient, fr filters.Registry, o MatchingOptions) *Routing {
-	r := &Routing{filterRegistry: fr, matchingOptions: o}
-	initialMatcher := createMatcher(MatchingOptionsNone, nil)
-	matchersIn, matchersOut := feedMatchers(initialMatcher)
-	r.receiveUpdates(dc.Receive(), matchersIn)
-	r.getMatcher = matchersOut
-	return r
+func New(o Options) *Routing {
+	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
+	matchersIn, matchersOut := feedMatchers(o.UpdateBuffer, initialMatcher)
+	go receiveRouteMatcher(o, matchersIn)
+	return &Routing{matchersOut}
 }
 
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {

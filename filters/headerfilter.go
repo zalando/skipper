@@ -12,6 +12,11 @@ const (
 	responseHeader
 )
 
+const (
+	RequestHeaderName  = "requestHeader"
+	ResponseHeaderName = "responseHeader"
+)
+
 type headerFilter struct {
 	typ              headerType
 	name, key, value string
@@ -36,11 +41,11 @@ func headerFilterConfig(config []interface{}) (string, string, error) {
 }
 
 func CreateRequestHeader() Spec {
-	return &headerFilter{typ: requestHeader, name: "requestHeader"}
+	return &headerFilter{typ: requestHeader, name: RequestHeaderName}
 }
 
 func CreateResponseHeader() Spec {
-	return &headerFilter{typ: responseHeader, name: "responseHeader"}
+	return &headerFilter{typ: responseHeader, name: ResponseHeaderName}
 }
 
 func (spec *headerFilter) Name() string { return spec.name }

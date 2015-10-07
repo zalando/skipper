@@ -1,210 +1,354 @@
-package routing
+package routing_test
 
 import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"net/http"
 	"testing"
 	"time"
 )
 
-type matcherFunc func(req *http.Request) (*Route, map[string]string)
+const pollTimeout = 15 * time.Millisecond
 
-func testMatcherWithPath(t *testing.T, m matcherFunc, path string, matchRoute *Route) {
-	req, err := http.NewRequest("GET", "http://www.example.com"+path, nil)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	rt, _ := m(req)
-	if matchRoute == nil {
-		if rt != nil {
-			t.Error("failed not to match")
-		}
-
-		return
-	}
-
-	if matchRoute.Shunt {
-		if !rt.Shunt {
-			t.Error("failed to match shunt route")
-		}
-
-		return
-	}
-
-	if rt.Scheme != matchRoute.Scheme || rt.Host != matchRoute.Host {
-		t.Error("failed to match route")
-		return
-	}
-
-	if len(rt.Filters) != len(matchRoute.Filters) {
-		t.Error("failed to match route")
-		return
-	}
-
-	for i, fv := range rt.Filters {
-		f, ok := fv.(*filtertest.Filter)
-		if !ok {
-			t.Error("failed to match route")
-			return
-		}
-
-		mf, ok := matchRoute.Filters[i].(*filtertest.Filter)
-		if !ok {
-			t.Error("failed to match route")
-			return
-		}
-
-		if f.FilterName != mf.FilterName {
-			t.Error("failed to match route")
-			return
-		}
-
-		if len(f.Args) != len(mf.Args) {
-			t.Error("failed to match route")
-			return
-		}
-
-		for j, a := range f.Args {
-			if a != mf.Args[j] {
-				t.Error("failed to match route")
+func waitRoute(rt *routing.Routing, req *http.Request) <-chan *routing.Route {
+	done := make(chan *routing.Route)
+	go func() {
+		for {
+			r, _ := rt.Route(req)
+			if r != nil {
+				done <- r
 				return
 			}
 		}
+	}()
+
+	return done
+}
+
+func waitUpdate(dc *testdataclient.C, upsert []*eskip.Route, deletedIds []string, fail bool) <-chan int {
+	done := make(chan int)
+	go func() {
+		if fail {
+			dc.FailNext()
+		}
+
+		dc.Update(upsert, deletedIds)
+		done <- 42
+	}()
+
+	return done
+}
+
+func waitDone(to time.Duration, done ...<-chan *routing.Route) bool {
+	allDone := make(chan *routing.Route)
+
+	count := len(done)
+	for _, c := range done {
+		go func(c <-chan *routing.Route) {
+			<-c
+			count--
+			if count == 0 {
+				allDone <- nil
+			}
+		}(c)
+	}
+
+	select {
+	case <-allDone:
+		return true
+	case <-time.After(to):
+		return false
 	}
 }
 
-func testMatcherNoPath(t *testing.T, m matcherFunc, matchRoute *Route) {
-	testMatcherWithPath(t, m, "", matchRoute)
+func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
+
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	dc.FailNext()
+	dc.FailNext()
+	dc.FailNext()
+
+	rt := routing.New(routing.Options{
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
+
+	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !waitDone(12*pollTimeout, waitRoute(rt, req)) {
+		t.Error("timeout")
+	}
 }
 
-// used to let the data client updates be propagated
-func delay() { time.Sleep(3 * time.Millisecond) }
+func TestReceivesInitial(t *testing.T) {
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	rt := routing.New(routing.Options{
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
 
-func TestUsesDataFromClientAfterInitialized(t *testing.T) {
-	r := New(testdataclient.New(
-		`Any() -> "https://www.example.org"`),
-		make(filters.Registry),
-		MatchingOptionsNone)
-	delay()
-	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
+	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !waitDone(6*pollTimeout, waitRoute(rt, req)) {
+		t.Error("test timeout")
+	}
 }
 
-func TestKeepUsingDataFromClient(t *testing.T) {
-	r := New(testdataclient.New(
-		`Any() -> "https://www.example.org"`),
-		make(filters.Registry),
-		MatchingOptionsNone)
-	delay()
-	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
-	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
-	testMatcherNoPath(t, r.Route, &Route{Scheme: "https", Host: "www.example.org"})
+func TestReceivesFullOnFailedUpdate(t *testing.T) {
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	rt := routing.New(routing.Options{
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
+
+	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	<-waitRoute(rt, req)
+	<-waitUpdate(dc, []*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}}, nil, true)
+
+	req, err = http.NewRequest("GET", "https://www.example.com/some-other", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !waitDone(6*pollTimeout, waitRoute(rt, req)) {
+		t.Error("test timeout")
+	}
 }
 
-func TestInitialAndUpdates(t *testing.T) {
-	fspec1 := &filtertest.Filter{FilterName: "testFilter1"}
-	fspec2 := &filtertest.Filter{FilterName: "testFilter2"}
+func TestReceivesUpdate(t *testing.T) {
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	rt := routing.New(routing.Options{
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
+
+	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	<-waitRoute(rt, req)
+	<-waitUpdate(dc, []*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}}, nil, false)
+
+	req, err = http.NewRequest("GET", "https://www.example.com/some-other", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !waitDone(6*pollTimeout, waitRoute(rt, req)) {
+		t.Error("test timeout")
+	}
+}
+
+func TestReceivesDelete(t *testing.T) {
+	dc := testdataclient.New([]*eskip.Route{
+		{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"},
+		{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
+	rt := routing.New(routing.Options{
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
+
+	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	<-waitRoute(rt, req)
+	<-waitUpdate(dc, nil, []string{"route1"}, false)
+	time.Sleep(6 * pollTimeout)
+
+	req, err = http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if waitDone(0, waitRoute(rt, req)) {
+		t.Error("should not have found route")
+	}
+}
+
+func TestUpdateDoesNotChangeRouting(t *testing.T) {
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	rt := routing.New(routing.Options{
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
+
+	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	<-waitRoute(rt, req)
+	<-waitUpdate(dc, nil, nil, false)
+
+	req, err = http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !waitDone(6*pollTimeout, waitRoute(rt, req)) {
+		t.Error("test timeout")
+	}
+}
+
+func TestMergesMultipleSources(t *testing.T) {
+	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
+	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
+	rt := routing.New(routing.Options{
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc1, dc2, dc3},
+		PollTimeout:  pollTimeout})
+
+	req1, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req2, err := http.NewRequest("GET", "https://www.example.com/some-other", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req3, err := http.NewRequest("GET", "https://www.example.com/another", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !waitDone(6*pollTimeout,
+		waitRoute(rt, req1),
+		waitRoute(rt, req2),
+		waitRoute(rt, req3)) {
+		t.Error("test timeout")
+	}
+}
+
+func TestMergesUpdatesFromMultipleSources(t *testing.T) {
+	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
+	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
+	rt := routing.New(routing.Options{
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc1, dc2, dc3},
+		PollTimeout:  pollTimeout})
+
+	req1, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req2, err := http.NewRequest("GET", "https://www.example.com/some-other", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req3, err := http.NewRequest("GET", "https://www.example.com/another", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	waitRoute(rt, req1)
+	waitRoute(rt, req2)
+	waitRoute(rt, req3)
+
+	<-waitUpdate(dc1, []*eskip.Route{{Id: "route1", Path: "/some-changed-path", Backend: "https://www.example.org"}}, nil, false)
+	<-waitUpdate(dc2, []*eskip.Route{{Id: "route2", Path: "/some-other-changed", Backend: "https://www.example.org"}}, nil, false)
+	<-waitUpdate(dc3, nil, []string{"route3"}, false)
+
+	req1, err = http.NewRequest("GET", "https://www.example.com/some-changed-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req2, err = http.NewRequest("GET", "https://www.example.com/some-other-changed", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req3, err = http.NewRequest("GET", "https://www.example.com/another", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !waitDone(6*pollTimeout,
+		waitRoute(rt, req1),
+		waitRoute(rt, req2)) {
+		t.Error("test timeout")
+	}
+
+	time.Sleep(3 * pollTimeout)
+
+	if waitDone(0, waitRoute(rt, req3)) {
+		t.Error("should not have found route")
+	}
+}
+
+func TestIgnoresInvalidBackend(t *testing.T) {
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "invalid backend"}})
+	rt := routing.New(routing.Options{
+		UpdateBuffer: 0,
+		DataClients:  []routing.DataClient{dc},
+		PollTimeout:  pollTimeout})
+
+	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if waitDone(6*pollTimeout, waitRoute(rt, req)) {
+		t.Error("should not have found route")
+	}
+}
+
+func TestProcessesFilterDefinitions(t *testing.T) {
 	fr := make(filters.Registry)
-	fr[fspec1.Name()] = fspec1
-	fr[fspec2.Name()] = fspec2
+	fs := &filtertest.Filter{FilterName: "filter1"}
+	fr[fs.Name()] = fs
 
-	doc := `
-        route1: Any() -> "https://www.example.org";
-        route2: Path("/some") -> testFilter1(1, "one") -> "https://some.example.org"
-    `
+	dc := testdataclient.New([]*eskip.Route{{
+		Id:      "route1",
+		Path:    "/some-path",
+		Filters: []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "roger"}}},
+		Backend: "https://www.example.org"}})
+	rt := routing.New(routing.Options{
+		UpdateBuffer:   0,
+		DataClients:    []routing.DataClient{dc},
+		PollTimeout:    pollTimeout,
+		FilterRegistry: fr})
 
-	dc := testdataclient.New(doc)
-	r := New(dc, fr, MatchingOptionsNone)
-	delay()
-
-	testMatcherWithPath(t, r.Route, "", &Route{Scheme: "https", Host: "www.example.org"})
-	testMatcherWithPath(t, r.Route, "/some", &Route{Scheme: "https", Host: "some.example.org",
-		Filters: []filters.Filter{&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}}}})
-	testMatcherWithPath(t, r.Route, "/some-other", &Route{Scheme: "https", Host: "www.example.org"})
-
-	updatedDoc := `
-        route1: Any() -> "https://www.example.org";
-        route2: Path("/some") -> testFilter1(1, "one") -> "https://some-updated.example.org";
-        route2: Path("/some-other") -> testFilter2(2, "two") -> "https://some-other.example.org"
-    `
-	dc.Feed(updatedDoc)
-
-	delay()
-
-	testMatcherWithPath(t, r.Route, "", &Route{Scheme: "https", Host: "www.example.org"})
-	testMatcherWithPath(t, r.Route, "/some", &Route{Scheme: "https", Host: "some-updated.example.org",
-		Filters: []filters.Filter{&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}}}})
-	testMatcherWithPath(t, r.Route, "/some-other", &Route{Scheme: "https", Host: "some-other.example.org",
-		Filters: []filters.Filter{&filtertest.Filter{FilterName: "testFilter2", Args: []interface{}{float64(2), "two"}}}})
-}
-
-func TestFailToParse(t *testing.T) {
-	_, err := processData(nil, MatchingOptionsNone, "invalid eskip document")
-	if err == nil {
-		t.Error("failed to fail")
-	}
-}
-
-func TestCreateShuntBackend(t *testing.T) {
-	m, err := processData(nil, MatchingOptionsNone, `Any() -> <shunt>`)
+	req, err := http.NewRequest("GET", "https://www.example.com/some-path", nil)
 	if err != nil {
 		t.Error(err)
 	}
 
-	testMatcherNoPath(t, m.match, &Route{Route: eskip.Route{Shunt: true}})
-}
+	select {
+	case r := <-waitRoute(rt, req):
+		if len(r.Filters) != 1 {
+			t.Error("failed to process filters")
+			return
+		}
 
-func TestFailToParseBackend(t *testing.T) {
-	m, err := processData(nil, MatchingOptionsNone, `Any() -> "invalid backend"`)
-	if err != nil {
-		t.Error(err)
+		if f, ok := r.Filters[0].(*filtertest.Filter); !ok ||
+			f.FilterName != fs.Name() || len(f.Args) != 2 ||
+			f.Args[0] != float64(3.14) || f.Args[1] != "roger" {
+			t.Error("failed to process filters")
+		}
+	case <-time.After(3 * pollTimeout):
+		t.Error("test timeout")
 	}
-
-	testMatcherNoPath(t, m.match, nil)
-}
-
-func TestParseBackend(t *testing.T) {
-	m, err := processData(nil, MatchingOptionsNone, `Any() -> "https://www.example.org"`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	testMatcherNoPath(t, m.match, &Route{Scheme: "https", Host: "www.example.org"})
-}
-
-func TestFilterNotFound(t *testing.T) {
-	spec1 := &filtertest.Filter{FilterName: "testFilter1"}
-	spec2 := &filtertest.Filter{FilterName: "testFilter2"}
-	fr := make(filters.Registry)
-	fr[spec1.Name()] = spec1
-	fr[spec2.Name()] = spec2
-
-	m, err := processData(fr, MatchingOptionsNone, `Any() -> testFilter3() -> "https://www.example.org"`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	testMatcherNoPath(t, m.match, nil)
-}
-
-func TestCreateFilters(t *testing.T) {
-	spec1 := &filtertest.Filter{FilterName: "testFilter1"}
-	spec2 := &filtertest.Filter{FilterName: "testFilter2"}
-	fr := make(filters.Registry)
-	fr[spec1.Name()] = spec1
-	fr[spec2.Name()] = spec2
-
-	m, err := processData(fr, MatchingOptionsNone,
-		`Any() -> testFilter1(1, "one") -> testFilter2(2, "two") -> "https://www.example.org"`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	testMatcherNoPath(t, m.match, &Route{Scheme: "https", Host: "www.example.org", Filters: []filters.Filter{
-		&filtertest.Filter{FilterName: "testFilter1", Args: []interface{}{float64(1), "one"}},
-		&filtertest.Filter{FilterName: "testFilter2", Args: []interface{}{float64(2), "two"}}}})
 }
