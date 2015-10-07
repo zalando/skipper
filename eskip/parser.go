@@ -306,6 +306,7 @@ func (eskiprcvr *eskipParserImpl) Parse(eskiplex eskipLexer) int {
 	var eskiplval eskipSymType
 	var eskipVAL eskipSymType
 	var eskipDollar []eskipSymType
+	_ = eskipDollar // silence set and not used
 	eskipS := make([]eskipSymType, eskipMaxDepth)
 
 	Nerrs := 0   /* number of errors */
