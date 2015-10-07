@@ -10,6 +10,7 @@ import (
 	"github.com/zalando/skipper/filters/requestheader"
 	"github.com/zalando/skipper/filters/responseheader"
 	"github.com/zalando/skipper/filters/static"
+	"github.com/zalando/skipper/filters/stripquery"
 	"github.com/zalando/skipper/skipper"
 )
 
@@ -25,6 +26,7 @@ func Register(registry skipper.FilterRegistry) {
 		healthcheck.Make(),
 		humanstxt.Make(),
 		static.Make(),
+		stripquery.Make(),
 		&redirect.Redirect{},
 	)
 }
