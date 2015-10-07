@@ -1,4 +1,3 @@
-// Package innkeeper implements a data client for the Innkeeper API.
 package innkeeper
 
 import (
@@ -6,13 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
+)
+
+const (
+	allRoutesPath = "/routes"
+	updatePathFmt = "/updated-routes/%s"
 )
 
 type (
@@ -35,20 +39,9 @@ const (
 
 	allRoutesPathRoot = "routes"
 	updatePathRoot    = "updated-routes"
+
+	fixedRedirectStatus = http.StatusFound
 )
-
-// todo: implement this either with the oauth service
-// or a token passed in from a command line option
-type Authentication interface {
-	Token() (string, error)
-}
-
-// Provides an Authentication implementation with fixed token string
-type FixedToken string
-
-func (fa FixedToken) Token() (string, error) { return string(fa), nil }
-
-type routeCache map[int64]map[string]string
 
 type pathMatch struct {
 	Typ   pathMatchType `json:"type"`
@@ -98,67 +91,200 @@ type apiError struct {
 	ErrorType string `json:"type"`
 }
 
-type Client struct {
-	baseUrl          *url.URL
-	auth             Authentication
-	authToken        string
-	lastModified     string
-	preRouteFilters  []string
-	postRouteFilters []string
-	httpClient       *http.Client
-	dataChan         chan string
-	routeCache       routeCache
-	closer           chan interface{}
+// Provides an Authentication implementation with fixed token string
+type FixedToken string
+
+func (fa FixedToken) Token() (string, error) { return string(fa), nil }
+
+type Authentication interface {
+	Token() (string, error)
 }
 
 type Options struct {
 	Address          string
 	Insecure         bool
-	PollTimeout      time.Duration
 	Authentication   Authentication
-	PreRouteFilters  []string
-	PostRouteFilters []string
+	PreRouteFilters  string
+	PostRouteFilters string
 }
 
-// Creates an innkeeper client.
+type Client struct {
+	opts             Options
+	preRouteFilters  []*eskip.Filter
+	postRouteFilters []*eskip.Filter
+	authToken        string
+	httpClient       *http.Client
+	lastChanged      string
+}
+
 func New(o Options) (*Client, error) {
-	u, err := url.Parse(o.Address)
+	preFilters, err := eskip.ParseFilters(o.PreRouteFilters)
 	if err != nil {
 		return nil, err
 	}
 
-	c := &Client{
-		u, o.Authentication, "", "",
-		o.PreRouteFilters, o.PostRouteFilters,
-		&http.Client{Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}},
-		make(chan string),
-		make(routeCache),
-		make(chan interface{})}
+	postFilters, err := eskip.ParseFilters(o.PostRouteFilters)
+	if err != nil {
+		return nil, err
+	}
 
-	// start a polling loop
-	go func() {
-		to := time.Duration(0)
-		for {
-			select {
-			case <-time.After(to):
-				to = o.PollTimeout
-				if c.poll() {
-					c.dataChan <- toDocument(c.routeCache)
-				}
-			case <-c.closer:
-				return
-			}
-		}
-	}()
-
-	return c, nil
+	return &Client{
+		opts:             o,
+		preRouteFilters:  preFilters,
+		postRouteFilters: postFilters,
+		httpClient: &http.Client{Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}}}, nil
 }
 
-func (c *Client) createUrl(path ...string) string {
-	u := *c.baseUrl
-	u.Path = strings.Join(append([]string{""}, path...), "/")
-	return (&u).String()
+func splitOnMethods(data []*routeData) []*routeData {
+	var split []*routeData
+	for _, d := range data {
+		if len(d.Route.MatchMethods) == 0 {
+			split = append(split, d)
+			continue
+		}
+
+		for _, m := range d.Route.MatchMethods {
+			copy := d.Route
+			copy.matchMethod = m
+			split = append(split, &routeData{d.Id, d.CreatedAt, d.DeletedAt, copy})
+		}
+	}
+
+	return split
+}
+
+func convertHeaders(d *routeData) map[string]string {
+	hs := make(map[string]string)
+	for _, h := range d.Route.MatchHeaders {
+		hs[h.Name] = h.Value
+	}
+
+	return hs
+}
+
+func innkeeperProcotolToScheme(p string) string {
+	return strings.ToLower(p)
+}
+
+func innkeeperEndpointToUrl(e *endpoint, withPath bool) string {
+	scheme := innkeeperProcotolToScheme(e.Protocol)
+	host := fmt.Sprintf("%s:%d", e.Hostname, e.Port)
+	u := &url.URL{Scheme: scheme, Host: host}
+
+	if withPath {
+		u.Path = e.Path
+	}
+
+	return u.String()
+}
+
+func convertFilters(d *routeData) []*eskip.Filter {
+	var fs []*eskip.Filter
+
+	if d.Route.RewritePath != nil {
+		rx := d.Route.RewritePath.Match
+		if rx == "" {
+			rx = ".*"
+		}
+
+		fs = append(fs, &eskip.Filter{
+			filters.ModPathName,
+			[]interface{}{rx, d.Route.RewritePath.Replace}})
+	}
+
+	for _, h := range d.Route.RequestHeaders {
+		fs = append(fs, &eskip.Filter{
+			filters.RequestHeaderName,
+			[]interface{}{h.Name, h.Value}})
+	}
+
+	for _, h := range d.Route.ResponseHeaders {
+		fs = append(fs, &eskip.Filter{
+			filters.ResponseHeaderName,
+			[]interface{}{h.Name, h.Value}})
+	}
+
+	if d.Route.Endpoint.Typ == endpointPermanentRedirect {
+		fs = append(fs, &eskip.Filter{
+			filters.RedirectName,
+			[]interface{}{
+				fixedRedirectStatus,
+				innkeeperEndpointToUrl(&d.Route.Endpoint, true)}})
+	}
+
+	return fs
+}
+
+func convertBackend(d *routeData) (bool, string) {
+	var backend string
+	shunt := d.Route.Endpoint.Typ == endpointPermanentRedirect
+	if !shunt {
+		backend = innkeeperEndpointToUrl(&d.Route.Endpoint, false)
+	}
+
+	return shunt, backend
+}
+
+func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*eskip.Filter) *eskip.Route {
+	var p string
+	if d.Route.MatchPath.Typ == pathMatchStrict {
+		p = d.Route.MatchPath.Match
+	}
+
+	var prx []string
+	if d.Route.MatchPath.Typ == pathMatchRegexp {
+		prx = []string{d.Route.MatchPath.Match}
+	}
+
+	m := d.Route.matchMethod
+	hs := convertHeaders(d)
+
+	fs := preRouteFilters
+	fs = append(fs, convertFilters(d)...)
+	fs = append(fs, postRouteFilters...)
+
+	shunt, backend := convertBackend(d)
+
+	return &eskip.Route{
+		Id:          id,
+		Path:        p,
+		PathRegexps: prx,
+		Method:      m,
+		Headers:     hs,
+		Filters:     fs,
+		Shunt:       shunt,
+		Backend:     backend}
+}
+
+func convertData(data []*routeData, preRouteFilters, postRouteFilters []*eskip.Filter) ([]*eskip.Route, []string, string) {
+	var (
+		routes      []*eskip.Route
+		deleted     []string
+		lastChanged string
+	)
+
+	data = splitOnMethods(data)
+	for _, d := range data {
+		id := fmt.Sprintf("route%d%s", d.Id, d.Route.matchMethod)
+
+		if d.DeletedAt != "" {
+			if d.DeletedAt > lastChanged {
+				lastChanged = d.DeletedAt
+			}
+
+			deleted = append(deleted, id)
+			continue
+		}
+
+		if d.CreatedAt > lastChanged {
+			lastChanged = d.CreatedAt
+		}
+
+		routes = append(routes, convertRoute(id, d, preRouteFilters, postRouteFilters))
+	}
+
+	return routes, deleted, lastChanged
 }
 
 func parseApiError(r io.Reader) (string, error) {
@@ -182,7 +308,12 @@ func isApiAuthError(error string) bool {
 }
 
 func (c *Client) authenticate() error {
-	t, err := c.auth.Token()
+	if c.opts.Authentication == nil {
+		c.authToken = ""
+		return nil
+	}
+
+	t, err := c.opts.Authentication.Token()
 	if err != nil {
 		return err
 	}
@@ -254,204 +385,30 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 	return result, err
 }
 
-func getRouteKey(d *routeData) string {
-	return fmt.Sprintf("route%d%s", d.Id, d.Route.matchMethod)
-}
-
-func appendFormat(exps []string, format string, args ...interface{}) []string {
-	return append(exps, fmt.Sprintf(format, args...))
-}
-
-func appendFormatHeaders(exps []string, format string, defs []headerData, canonicalize bool) []string {
-	for _, d := range defs {
-		key := d.Name
-		if canonicalize {
-			key = http.CanonicalHeaderKey(key)
-		}
-
-		exps = appendFormat(exps, format, key, d.Value)
-	}
-
-	return exps
-}
-
-func getMatcherExpression(d *routeData) string {
-	m := []string{}
-
-	// there can be only 0 or 1 here, because routes for multiple methods
-	// have been already split
-	if d.Route.matchMethod != "" {
-		m = appendFormat(m, `Method("%s")`, d.Route.matchMethod)
-	}
-
-	m = appendFormatHeaders(m, `Header("%s", "%s")`, d.Route.MatchHeaders, true)
-
-	switch d.Route.MatchPath.Typ {
-	case pathMatchStrict:
-		m = appendFormat(m, `Path("%s")`, d.Route.MatchPath.Match)
-	case pathMatchRegexp:
-		m = appendFormat(m, `PathRegexp("%s")`, d.Route.MatchPath.Match)
-	}
-
-	if len(m) == 0 {
-		m = []string{"Any()"}
-	}
-
-	return strings.Join(m, " && ")
-}
-
-func getFilterExpressions(d *routeData, preRouteFilters, postRouteFilters []string) string {
-	f := preRouteFilters
-
-	if d.Route.RewritePath != nil {
-		rx := d.Route.RewritePath.Match
-		if rx == "" {
-			rx = ".*"
-		}
-
-		f = appendFormat(f, `pathRewrite(/%s/, "%s")`, rx, d.Route.RewritePath.Replace)
-	}
-
-	f = appendFormatHeaders(f, `requestHeader("%s", "%s")`, d.Route.RequestHeaders, false)
-	f = appendFormatHeaders(f, `responseHeader("%s", "%s")`, d.Route.ResponseHeaders, false)
-
-	f = append(f, postRouteFilters...)
-
-	if len(f) == 0 {
-		return ""
-	}
-
-	f = append([]string{""}, f...)
-	return strings.Join(f, " -> ")
-}
-
-func getEndpointAddress(d *routeData) string {
-	a := url.URL{
-		Scheme: d.Route.Endpoint.Protocol,
-		Host:   fmt.Sprintf("%s:%d", d.Route.Endpoint.Hostname, d.Route.Endpoint.Port)}
-	if a.Scheme == "" {
-		a.Scheme = "https"
-	}
-
-	return a.String()
-}
-
-func (c *Client) routeJsonToEskip(d *routeData) string {
-	key := getRouteKey(d)
-	m := getMatcherExpression(d)
-	f := getFilterExpressions(d, c.preRouteFilters, c.postRouteFilters)
-	a := getEndpointAddress(d)
-	return fmt.Sprintf(`%s: %s%s -> "%s"`, key, m, f, a)
-}
-
-func (c *Client) convertToEntries(r *routeData) map[string]string {
-	split := make(map[string]string)
-	if len(r.Route.MatchMethods) == 0 {
-		split["_"] = c.routeJsonToEskip(r)
-		return split
-	}
-
-	for _, m := range r.Route.MatchMethods {
-		copy := r.Route
-		copy.matchMethod = m
-		split[m] = c.routeJsonToEskip(&routeData{r.Id, r.CreatedAt, r.DeletedAt, copy})
-	}
-
-	return split
-}
-
-// updates the route doc from received data, and
-// returns true if there were any changes, otherwise
-// false.
-func (c *Client) updateDoc(d []*routeData) bool {
-	updated := false
-	for _, di := range d {
-		if di.DeletedAt > c.lastModified {
-			c.lastModified = di.DeletedAt
-		} else if di.CreatedAt > c.lastModified {
-			c.lastModified = di.CreatedAt
-		}
-
-		switch {
-		case di.DeletedAt != "":
-			if _, exists := c.routeCache[di.Id]; exists {
-				delete(c.routeCache, di.Id)
-				updated = true
-			}
-		default:
-			entriesPerMethod := c.convertToEntries(di)
-			if stored, exists := c.routeCache[di.Id]; exists {
-				for m, entry := range entriesPerMethod {
-					if stored[m] != entry {
-						stored[m] = entry
-						updated = true
-					}
-				}
-
-				for m, _ := range stored {
-					if _, exists := entriesPerMethod[m]; !exists {
-						delete(stored, m)
-						updated = true
-					}
-				}
-			} else {
-				c.routeCache[di.Id] = entriesPerMethod
-				updated = true
-			}
-		}
-	}
-
-	return updated
-}
-
-func (c *Client) poll() bool {
-	var (
-		d   []*routeData
-		err error
-		url string
-	)
-
-	if len(c.routeCache) == 0 {
-		url = c.createUrl(allRoutesPathRoot)
-	} else {
-		url = c.createUrl(updatePathRoot, c.lastModified)
-	}
-	d, err = c.requestData(true, url)
-
+func (c *Client) GetInitial() ([]*eskip.Route, error) {
+	d, err := c.requestData(true, c.opts.Address+allRoutesPath)
 	if err != nil {
-		log.Println("error while receiving innkeeper data", err)
-		return false
+		return nil, err
 	}
 
-	if len(d) == 0 {
-		return false
+	routes, _, lastChanged := convertData(d, c.preRouteFilters, c.postRouteFilters)
+	if lastChanged > c.lastChanged {
+		c.lastChanged = lastChanged
 	}
 
-	updated := c.updateDoc(d)
-	if updated {
-		log.Println("routing doc updated from innkeeper")
-	}
-
-	return updated
+	return routes, nil
 }
 
-// returns eskip format
-func toDocument(c routeCache) string {
-	var d []byte
-	for _, mr := range c {
-		for _, r := range mr {
-			d = append(d, []byte(r)...)
-			d = append(d, ';', '\n')
-		}
+func (c *Client) GetUpdate() ([]*eskip.Route, []string, error) {
+	d, err := c.requestData(true, c.opts.Address+fmt.Sprintf(updatePathFmt, c.lastChanged))
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return string(d)
-}
+	routes, deleted, lastChanged := convertData(d, c.preRouteFilters, c.postRouteFilters)
+	if lastChanged > c.lastChanged {
+		c.lastChanged = lastChanged
+	}
 
-// returns skipper raw data value
-func (c *Client) Receive() <-chan string { return c.dataChan }
-
-// Stops polling, but only after the last update is consumed on the receive channel.
-func (c *Client) Close() {
-	close(c.closer)
+	return routes, deleted, nil
 }

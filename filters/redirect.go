@@ -8,12 +8,14 @@ import (
 	"net/url"
 )
 
+const RedirectName = "redirect"
+
 type Redirect struct {
 	code     int
 	location *url.URL
 }
 
-func (spec *Redirect) Name() string { return "redirect" }
+func (spec *Redirect) Name() string { return RedirectName }
 
 func (spec *Redirect) CreateFilter(config []interface{}) (Filter, error) {
 	invalidArgs := func() (Filter, error) {

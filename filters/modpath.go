@@ -10,15 +10,17 @@ import (
 	"regexp"
 )
 
+const ModPathName = "modPath"
+
 type ModPath struct {
 	rx          *regexp.Regexp
 	replacement []byte
 }
 
-func (spec *ModPath) Name() string { return "modPath" }
+func (spec *ModPath) Name() string { return ModPathName }
 
 func invalidConfig(config []interface{}) error {
-	return fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", "modPath", config)
+	return fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", ModPathName, config)
 }
 
 func (spec *ModPath) CreateFilter(config []interface{}) (Filter, error) {
