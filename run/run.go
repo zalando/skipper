@@ -28,7 +28,7 @@ type Options struct {
 	Insecure                  bool
 	InnkeeperUrl              string
 	SourcePollTimeout         time.Duration
-	RoutesFilePath            string
+	RoutesFile                string
 	CustomFilters             []filters.Spec
 	IgnoreTrailingSlash       bool
 	OAuthUrl                  string
@@ -42,8 +42,13 @@ type Options struct {
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
-	if o.RoutesFilePath != "" {
-		clients = append(clients, eskipfile.Client(o.RoutesFilePath))
+	if o.RoutesFile != "" {
+		f, err := eskipfile.Open(o.RoutesFile)
+		if err != nil {
+			return nil, err
+		}
+
+		clients = append(clients, f)
 	}
 
 	if o.InnkeeperUrl != "" {
@@ -91,9 +96,9 @@ func Run(o Options) error {
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
-	registry := make(filters.Registry)
+	registry := filters.Defaults()
 	for _, f := range o.CustomFilters {
-		registry[f.Name()] = f
+		registry.Register(f)
 	}
 
 	// create routing

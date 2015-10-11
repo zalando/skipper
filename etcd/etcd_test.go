@@ -5,20 +5,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"log"
 	"testing"
-	"time"
-)
-
-const receiveInitialTimeout = 1200 * time.Millisecond
-
-const (
-	testRoute = `
-        PathRegexp(".*\\.html") ->
-        customHeader(3.14) ->
-        xSessionId("v4") ->
-        "https://www.example.org"
-    `
-
-	testDoc = "pdp:" + testRoute
 )
 
 func init() {
@@ -69,7 +55,7 @@ func checkInitial(d []*eskip.Route) bool {
 		return false
 	}
 
-	if !checkFilter(r.Filters[1], "xSessionId", "v4") {
+	if !checkFilter(r.Filters[1], "xSessionId", "s4") {
 		return false
 	}
 
@@ -100,24 +86,20 @@ func checkDeleted(ids []string, routeId string) bool {
 	return false
 }
 
-func setAll(c *etcd.Client, dir string, data map[string]string) error {
-	for name, item := range data {
-		_, err := c.Set(dir+name, item, 0)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func resetData(t *testing.T) {
+	const testRoute = `
+		PathRegexp(".*\\.html") ->
+		customHeader(3.14) ->
+		xSessionId("s4") ->
+		"https://www.example.org"
+	`
+
 	c := etcd.NewClient(EtcdUrls)
 
-	// for the tests, considering errors as not-found
+	// for the tests, considering errors on delete as not-found
 	c.Delete("/skippertest", true)
 
-	err := setAll(c, "/skippertest/routes/", map[string]string{"pdp": testRoute})
+	_, err := c.Set("/skippertest/routes/pdp", testRoute, 0)
 	if err != nil {
 		t.Error(err)
 		return
@@ -154,7 +136,10 @@ func TestReceivesUpdates(t *testing.T) {
 	c.GetInitial()
 
 	e := etcd.NewClient(EtcdUrls)
-	e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
+	_, err := e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
+	if err != nil {
+		t.Error(err)
+	}
 
 	rs, ds, err := c.GetUpdate()
 	if err != nil {
@@ -180,7 +165,10 @@ func TestReceiveInsert(t *testing.T) {
 	}
 
 	e := etcd.NewClient(EtcdUrls)
-	e.Set("/skippertest/routes/catalog", `Path("/pdp") -> "https://catalog.example.org"`, 0)
+	_, err = e.Set("/skippertest/routes/catalog", `Path("/pdp") -> "https://catalog.example.org"`, 0)
+	if err != nil {
+		t.Error(err)
+	}
 
 	rs, ds, err := c.GetUpdate()
 	if err != nil {

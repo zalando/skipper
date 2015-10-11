@@ -74,6 +74,8 @@ var (
 	testMatcher3 *matcher
 	testMatcher4 *matcher
 
+	benchmarkMatchersInitialzed bool
+
 	testMatcherGeneric *matcher
 )
 
@@ -136,7 +138,7 @@ func docToMatcher(doc string) (*matcher, error) {
 func initGenericMatcher() {
 	m, err := docToMatcher(testRouteDoc)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	testMatcherGeneric = m
@@ -182,6 +184,10 @@ func generateRequests(paths []string) ([]*http.Request, error) {
 func initRandomPaths() {
 	const count = benchmarkingCountPhase4
 
+	if benchmarkMatchersInitialzed {
+		return
+	}
+
 	// we need to avoid '/' paths here, because we are not testing conflicting cases
 	// here, and with 0 or 1 MinNamesInPath, there would be multiple '/'s.
 	pg := newPathGenerator(pathGeneratorOptions{
@@ -195,13 +201,13 @@ func initRandomPaths() {
 
 	randomRequests, err = generateRequests(randomPaths)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	unregisteredPaths := generatePaths(pg, count)
 	unregisteredRequests, err := generateRequests(unregisteredPaths)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// the upper half of the requests should not be found
@@ -219,7 +225,7 @@ func initRandomPaths() {
 
 	defer func() {
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 	}()
 
@@ -227,11 +233,12 @@ func initRandomPaths() {
 	testMatcher2 = mkmatcher(randomPaths[0:benchmarkingCountPhase2], randomRoutes[0:benchmarkingCountPhase2])
 	testMatcher3 = mkmatcher(randomPaths[0:benchmarkingCountPhase3], randomRoutes[0:benchmarkingCountPhase3])
 	testMatcher4 = mkmatcher(randomPaths[0:benchmarkingCountPhase4], randomRoutes[0:benchmarkingCountPhase4])
+
+	benchmarkMatchersInitialzed = true
 }
 
 func init() {
 	initGenericMatcher()
-	initRandomPaths()
 }
 
 func newRequest(method, path string) (*http.Request, error) {
@@ -1018,18 +1025,22 @@ func BenchmarkGeneric(b *testing.B) {
 }
 
 func BenchmarkPathTree1(b *testing.B) {
+	initRandomPaths()
 	benchmarkLookup(b, testMatcher1, benchmarkingCountPhase1)
 }
 
 func BenchmarkPathTree2(b *testing.B) {
+	initRandomPaths()
 	benchmarkLookup(b, testMatcher2, benchmarkingCountPhase2)
 }
 
 func BenchmarkPathTree3(b *testing.B) {
+	initRandomPaths()
 	benchmarkLookup(b, testMatcher3, benchmarkingCountPhase3)
 }
 
 func BenchmarkPathTree4(b *testing.B) {
+	initRandomPaths()
 	benchmarkLookup(b, testMatcher4, benchmarkingCountPhase4)
 }
 
@@ -1052,6 +1063,8 @@ func BenchmarkConstructionGeneric(b *testing.B) {
 }
 
 func BenchmarkConstructionMass(b *testing.B) {
+	initRandomPaths()
+
 	const count = 10000
 	routes := make([]*Route, count)
 	for i, r := range randomRoutes[:count] {

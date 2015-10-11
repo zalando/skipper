@@ -5,10 +5,10 @@ import (
 	"io/ioutil"
 )
 
-type Client string
+type Client struct{ routes []*eskip.Route }
 
-func (c Client) GetInitial() ([]*eskip.Route, error) {
-	content, err := ioutil.ReadFile(string(c))
+func Open(path string) (*Client, error) {
+	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -18,7 +18,8 @@ func (c Client) GetInitial() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
-	return routes, nil
+	return &Client{routes}, nil
 }
 
+func (c Client) GetInitial() ([]*eskip.Route, error)          { return c.routes, nil }
 func (c Client) GetUpdate() ([]*eskip.Route, []string, error) { return nil, nil, nil }
