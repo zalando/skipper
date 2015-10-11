@@ -80,18 +80,6 @@ func TestGetAuthPostBody(t *testing.T) {
 	}
 }
 
-func TestGetCredentialsDir(t *testing.T) {
-	if err := setup(); err != nil {
-		t.Error(err)
-		return
-	}
-
-	dir := getCredentialsDir()
-	if dir == "" {
-		t.Error("the dir should not be nil")
-	}
-}
-
 func TestGetCredentialsJson(t *testing.T) {
 	if err := setup(); err != nil {
 		t.Error(err)

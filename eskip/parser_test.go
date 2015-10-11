@@ -160,28 +160,3 @@ func TestParseDocument(t *testing.T) {
 		t.Error("failed to parse route definition ids")
 	}
 }
-
-func TestParseFiltersEmpty(t *testing.T) {
-	fs, err := ParseFilters(" \t")
-	if err != nil || len(fs) != 0 {
-		t.Error("failed to parse empty filter expression")
-	}
-}
-
-func TestParseFiltersError(t *testing.T) {
-	_, err := ParseFilters("trallala")
-	if err == nil {
-		t.Error("failed to fail")
-	}
-}
-
-func TestParseFilters(t *testing.T) {
-	fs, err := ParseFilters(`filter1(3.14) -> filter2("key", 42)`)
-	if err != nil || len(fs) != 2 ||
-		fs[0].Name != "filter1" || len(fs[0].Args) != 1 ||
-		fs[0].Args[0] != float64(3.14) ||
-		fs[1].Name != "filter2" || len(fs[1].Args) != 2 ||
-		fs[1].Args[0] != "key" || fs[1].Args[1] != float64(42) {
-		t.Error("failed to parse filters")
-	}
-}
