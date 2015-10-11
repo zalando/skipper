@@ -8,8 +8,8 @@ document custom filtering
 move docs from readme to go
 update code doc
 pathmux documentation
+which email to the maintainers file?
 
-review the whole stuff
 fix the license file
 remove notes.txt
 license in the files
