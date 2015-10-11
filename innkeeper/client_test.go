@@ -45,13 +45,13 @@ func (h *innkeeperHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		lm := path.Base(r.URL.Path)
-		if lm == updatePathRoot {
-			lm = ""
+		lastMod := path.Base(r.URL.Path)
+		if lastMod == updatePathRoot {
+			lastMod = ""
 		}
 
 		for _, di := range h.data {
-			if di.CreatedAt > lm || di.DeletedAt > lm {
+			if di.CreatedAt > lastMod || di.DeletedAt > lastMod {
 				responseData = append(responseData, di)
 			}
 		}

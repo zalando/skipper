@@ -70,7 +70,7 @@ func main() {
 		Insecure:                  insecure,
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout),
-		RoutesFilePath:            routesFile,
+		RoutesFile:                routesFile,
 		IgnoreTrailingSlash:       false,
 		OAuthUrl:                  oauthUrl,
 		InnkeeperAuthToken:        innkeeperAuthToken,

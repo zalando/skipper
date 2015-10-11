@@ -28,7 +28,7 @@ func waitRoute(rt *routing.Routing, req *http.Request) <-chan *routing.Route {
 	return done
 }
 
-func waitUpdate(dc *testdataclient.C, upsert []*eskip.Route, deletedIds []string, fail bool) <-chan int {
+func waitUpdate(dc *testdataclient.Client, upsert []*eskip.Route, deletedIds []string, fail bool) <-chan int {
 	done := make(chan int)
 	go func() {
 		if fail {
@@ -65,7 +65,6 @@ func waitDone(to time.Duration, done ...<-chan *routing.Route) bool {
 }
 
 func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
-
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
 	dc.FailNext()
 	dc.FailNext()
@@ -318,12 +317,12 @@ func TestIgnoresInvalidBackend(t *testing.T) {
 func TestProcessesFilterDefinitions(t *testing.T) {
 	fr := make(filters.Registry)
 	fs := &filtertest.Filter{FilterName: "filter1"}
-	fr[fs.Name()] = fs
+	fr.Register(fs)
 
 	dc := testdataclient.New([]*eskip.Route{{
 		Id:      "route1",
 		Path:    "/some-path",
-		Filters: []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "roger"}}},
+		Filters: []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "Hello, world!"}}},
 		Backend: "https://www.example.org"}})
 	rt := routing.New(routing.Options{
 		UpdateBuffer:   0,
@@ -345,7 +344,7 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 
 		if f, ok := r.Filters[0].(*filtertest.Filter); !ok ||
 			f.FilterName != fs.Name() || len(f.Args) != 2 ||
-			f.Args[0] != float64(3.14) || f.Args[1] != "roger" {
+			f.Args[0] != float64(3.14) || f.Args[1] != "Hello, world!" {
 			t.Error("failed to process filters")
 		}
 	case <-time.After(3 * pollTimeout):

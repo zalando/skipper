@@ -1,0 +1,26 @@
+[tests]
+TestProcessesFilterDefinitions timeout -> issue, seems like it may be related to time measure granularity on
+ExampleClient_Update: sometimes fails, but the output shows no difference -> issue
+different platforms
+
+[doc]
+document custom filtering
+move docs from readme to go
+update code doc
+pathmux documentation
+
+review the whole stuff
+fix the license file
+remove notes.txt
+license in the files
+reconsider what goes to options
+remove custom tooling from .gitignore
+oauth scopes missing from run.go
+make the errors more diagnosable
+remove debug tracing
+buffer updates: benchmark and developer mode
+check if registry type is used everywhere
+header regexp matching and other todos
+consider if the initial empty matcher is useful at all, document delay if needed
+oauth takes credentials dir from env in the package, move dir parameter to options
+race detection

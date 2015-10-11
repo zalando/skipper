@@ -43,20 +43,24 @@ type Spec interface {
 
 type Registry map[string]Spec
 
-func DefaultFilters() Registry {
-	m := make(map[string]Spec)
+func (r Registry) Register(s Spec) {
+	r[s.Name()] = s
+}
 
-	defaultFilters := []Spec{
+func Defaults() Registry {
+	defaultSpecs := []Spec{
 		CreateRequestHeader(),
 		CreateResponseHeader(),
 		&ModPath{},
 		&HealthCheck{},
 		&Static{},
 		&Redirect{},
-        &StripQuery{}}
-	for _, f := range defaultFilters {
-		m[f.Name()] = f
+		&StripQuery{}}
+
+	r := make(Registry)
+	for _, s := range defaultSpecs {
+		r.Register(s)
 	}
 
-	return m
+	return r
 }
