@@ -51,12 +51,12 @@ func Example() {
 
 		ui: Path("/ui/*page") ->
 			customFilter("ui request") ->
-            modPath("^/[^/]*", "") ->
+			modPath("^/[^/]*", "") ->
 			"https://ui.example.org";
 
 		api: Path("/api/*resource") ->
 			customFilter("api request") ->
-            modPath("^/[^/]*", "") ->
+			modPath("^/[^/]*", "") ->
 			"https://api.example.org"`)
 
 	if err != nil {

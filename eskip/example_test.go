@@ -23,28 +23,28 @@ import (
 func Example() {
 	code := `
 
-        // Skipper - Eskip:
-        // routing table document, containing multiple route definitions
+		// Skipper - Eskip:
+		// routing table document, containing multiple route definitions
 
-        // route definition to a jsx page renderer
-        route0:
-            PathRegexp(/\.html$/) && HeaderRegexp("Accept", "text/html") ->
-            pathRewrite(/\.html$/, ".jsx") ->
-            requestHeader("X-Type", "page") ->
-            "https://render.example.org";
-        
-        route1: Path("/some/path") -> "https://backend-0.example.org"; // a simple route
+		// route definition to a jsx page renderer
+		route0:
+			PathRegexp(/\.html$/) && HeaderRegexp("Accept", "text/html") ->
+			pathRewrite(/\.html$/, ".jsx") ->
+			requestHeader("X-Type", "page") ->
+			"https://render.example.org";
+		
+		route1: Path("/some/path") -> "https://backend-0.example.org"; // a simple route
 
-        // route definition with a shunt (no backend address)
-        route2: Path("/some/other/path") -> fixPath() -> <shunt>;
-        
-        // route definition directing requests to an api endpoint
-        route3:
-            Method("POST") && Path("/api") ->
-            requestHeader("X-Type", "ajax-post") ->
-            "https://api.example.org"
+		// route definition with a shunt (no backend address)
+		route2: Path("/some/other/path") -> fixPath() -> <shunt>;
+		
+		// route definition directing requests to an api endpoint
+		route3:
+			Method("POST") && Path("/api") ->
+			requestHeader("X-Type", "ajax-post") ->
+			"https://api.example.org"
 
-        `
+		`
 
 	routes, err := eskip.Parse(code)
 	if err != nil {
@@ -68,7 +68,7 @@ func Example() {
 
 func ExampleFilter() {
 	code := `
-        Method("GET") -> helloFilter("Hello, world!", 3.14) -> "https://backend.example.org"`
+		Method("GET") -> helloFilter("Hello, world!", 3.14) -> "https://backend.example.org"`
 
 	routes, err := eskip.Parse(code)
 	if err != nil {
@@ -92,7 +92,7 @@ func ExampleFilter() {
 
 func ExampleRoute() {
 	code := `
-        ajaxRouteV3: PathRegexp(/^\/api\/v3\/.*/) -> ajaxHeader("v3") -> "https://api.example.org"`
+		ajaxRouteV3: PathRegexp(/^\/api\/v3\/.*/) -> ajaxHeader("v3") -> "https://api.example.org"`
 
 	routes, err := eskip.Parse(code)
 	if err != nil {
@@ -120,10 +120,10 @@ func ExampleRoute() {
 
 func ExampleParse() {
 	code := `
-        PathRegexp(/\.html$/) && Header("Accept", "text/html") ->
-        pathRewrite(/\.html$/, ".jsx") ->
-        requestHeader("X-Type", "page") ->
-        "https://render.example.org"`
+		PathRegexp(/\.html$/) && Header("Accept", "text/html") ->
+		pathRewrite(/\.html$/, ".jsx") ->
+		requestHeader("X-Type", "page") ->
+		"https://render.example.org"`
 
 	routes, err := eskip.Parse(code)
 	if err != nil {
