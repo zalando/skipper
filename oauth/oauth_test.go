@@ -84,7 +84,7 @@ func TestGetClient(t *testing.T) {
 		return
 	}
 
-    oc := New("", "", "")
+	oc := New("", "", "")
 	client, _ := oc.getClientCredentials()
 	if client.Id != "theclientid" {
 		t.Error("the client id is not correct")
@@ -100,7 +100,7 @@ func TestGetUser(t *testing.T) {
 		return
 	}
 
-    oc := New("", "", "")
+	oc := New("", "", "")
 	user, err := oc.getUserCredentials()
 	if err != nil {
 		t.Error(err)
