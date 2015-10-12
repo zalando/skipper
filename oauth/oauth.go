@@ -10,9 +10,9 @@ import (
 )
 
 const (
-    grantType      = "password"
-    clientJsonFn = "client.json"
-    userJsonFn = "user.json"
+	grantType    = "password"
+	clientJsonFn = "client.json"
+	userJsonFn   = "user.json"
 )
 
 type clientCredentials struct {
@@ -33,7 +33,7 @@ type authResponse struct {
 }
 
 type OAuthClient struct {
-    credentialsDir string
+	credentialsDir   string
 	oauthUrl         string
 	permissionScopes string
 	httpClient       *http.Client
@@ -94,7 +94,7 @@ func (oc *OAuthClient) getAuthPostBody(us *userCredentials) string {
 }
 
 func (oc *OAuthClient) getCredentials(to interface{}, fn string) error {
-    data, err := ioutil.ReadFile(path.Join(oc.credentialsDir, fn))
+	data, err := ioutil.ReadFile(path.Join(oc.credentialsDir, fn))
 	if err != nil {
 		return err
 	}
