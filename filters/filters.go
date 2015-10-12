@@ -2,55 +2,86 @@ package filters
 
 import "net/http"
 
-// Context object providing the request and response objects to the filters.
+const (
+	RequestHeaderName  = "requestHeader"
+	ResponseHeaderName = "responseHeader"
+    ModPathName = "modPath"
+    RedirectName = "redirect"
+    StaticName = "static"
+    StripQueryName = "stripQuery"
+)
+
+// Context object providing state and information that is unique to a request.
 type FilterContext interface {
+
+    // The response writer object belonging to the incoming request. Used by
+    // filters that handle the requests themselves.
 	ResponseWriter() http.ResponseWriter
+
+    // The incoming request object. It is forwarded to the route endpoint
+    // with its properties changed by the filters.
 	Request() *http.Request
+
+    // The response object. It is returned to the client with its
+    // properties changed by the filters.
 	Response() *http.Response
+
+    // Returns true if the request was served by any of the filters in a
+    // route.
 	Served() bool
+
+    // Marks a request served. Used by filters that handle the requests
+    // themselves.
 	MarkServed()
+
+    // Provides the wildcard parameter values from the request path by their
+    // name as the key.
 	PathParam(string) string
+
+    // Provides a read-write state bag, unique to a request and shared by all
+    // the filters in the route.
 	StateBag() map[string]interface{}
 }
 
-// Filters are created by the Spec components, optionally using filter specific settings.
-// When implementing filters, it needs to be taken into consideration, that filter instances are route specific
-// and not request specific, so any state stored with a filter is shared between all requests and can cause
-// concurrency issues (as in don't do that).
+// Filter implementations are used to augment requests and responses of a
+// route.
 type Filter interface {
 
-	// The request method is called on a filter on incoming requests. At this stage, the
-	// FilterContext.Response() method returns nil.
+    // The Request method is called while processing the incoming request.
 	Request(FilterContext)
 
-	// The response method is called on a filter after the response was received from the backend. At this
-	// stage, the FilterContext.Response() method returns the response object.
+    // The Response method is called while processing the response to be
+    // returned.
 	Response(FilterContext)
 }
 
-// Spec objects can be used to create filter objects. They need to be registered in the registry.
-// Typically, there is a single Spec instance of each implementation in a running process, which can create multiple filter
-// instances with different config defined in the configuration on every update.
+// Spec objects are specifications for filters. When initializing the routes,
+// the Filter instances are created using the Spec objects found in the
+// registry.
 type Spec interface {
 
-	// The name of the Spec is used to identify in the configuration which spec a filter is based on.
+	// The name of the Spec is used to identify filters in a route definition.
 	Name() string
 
-	// When the program settings are updated, and they contain filters based on a spec, CreateFilter is
-	// called, and the filter id and the filter specific settings are provided. Returns a filter.
+    // Creates a Filter instance. Called with the arguments in the route
+    // definition while initializing a route.
 	CreateFilter(config []interface{}) (Filter, error)
 }
 
+// Registry used to lookup Spec objects while initializing routes.
 type Registry map[string]Spec
 
+// Registers a filter specification.
 func (r Registry) Register(s Spec) {
 	r[s.Name()] = s
 }
 
+// Returns a Registry object initialized with the default set of filter
+// specifications found in the filters package.
 func Defaults() Registry {
 	defaultSpecs := []Spec{
-		CreateRequestHeader(),
-		CreateResponseHeader(),
+		NewRequestHeaderSpec(),
+		NewResponseHeaderSpec(),
 		&ModPath{},
 		&HealthCheck{},
 		&Static{},

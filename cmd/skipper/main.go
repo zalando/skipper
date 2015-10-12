@@ -19,7 +19,7 @@ package main
 
 import (
 	"flag"
-	"github.com/zalando/skipper/run"
+	"github.com/zalando/skipper"
 	"log"
 	"strings"
 	"time"
@@ -77,7 +77,7 @@ func init() {
 }
 
 func main() {
-	log.Fatal(run.Run(run.Options{
+	log.Fatal(skipper.Run(skipper.Options{
 		Address:                   address,
 		EtcdUrls:                  strings.Split(etcdUrls, ","),
 		StorageRoot:               storageRoot,

@@ -26,16 +26,14 @@ const (
 	responseHeader
 )
 
-const (
-	RequestHeaderName  = "requestHeader"
-	ResponseHeaderName = "responseHeader"
-)
-
+// common structure for requestHeader, responseHeader specifications and
+// filters
 type headerFilter struct {
 	typ              headerType
 	name, key, value string
 }
 
+// verifies that the filter config has two string arguments
 func headerFilterConfig(config []interface{}) (string, string, error) {
 	if len(config) != 2 {
 		return "", "", errors.New("invalid number of args, expecting 2")
@@ -54,11 +52,17 @@ func headerFilterConfig(config []interface{}) (string, string, error) {
 	return key, value, nil
 }
 
-func CreateRequestHeader() Spec {
+// Creates a filter specification that is used to set headers for requests.
+// Instances expect two arguments: the header name and the header value.
+// Name: "requestHeader"
+func NewRequestHeaderSpec() Spec {
 	return &headerFilter{typ: requestHeader, name: RequestHeaderName}
 }
 
-func CreateResponseHeader() Spec {
+// Creates a filter specification that is used to set headers for responses.
+// Instances expect two arguments: the header name and the header value.
+// Name: "responseHeader"
+func NewResponseHeaderSpec() Spec {
 	return &headerFilter{typ: responseHeader, name: ResponseHeaderName}
 }
 

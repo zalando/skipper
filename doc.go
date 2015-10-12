@@ -12,17 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters
+/*
+Package skipper provides a routing library with flexible routing configuation
+and updates.
 
-import "net/http"
+Filters
 
-// Filter to set the status code of the response to 200 OK.
-// Implements both Spec and Filter.
-type HealthCheck struct{}
-
-// "healthcheck"
-func (h *HealthCheck) Name() string                                 { return "healthcheck" }
-
-func (h *HealthCheck) CreateFilter(_ []interface{}) (Filter, error) { return h, nil }
-func (h *HealthCheck) Request(ctx FilterContext)                    {}
-func (h *HealthCheck) Response(ctx FilterContext)                   { ctx.Response().StatusCode = http.StatusOK }
+Filters as filters in signal processing.
+*/
+package skipper

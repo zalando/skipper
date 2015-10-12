@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package filtertest implements mock versions of the Filter, Spec and
+// FilterContext interfaces used during tests.
 package filtertest
 
 import (
@@ -19,11 +21,13 @@ import (
 	"net/http"
 )
 
+// Noop filter, used to verify the filter name and the args in the route.
 type Filter struct {
 	FilterName string
 	Args       []interface{}
 }
 
+// Simple FilterContext implementation.
 type Context struct {
 	FResponseWriter http.ResponseWriter
 	FRequest        *http.Request

@@ -325,8 +325,8 @@ func TestAppliesFilters(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	fr := make(filters.Registry)
-	fr.Register(filters.CreateRequestHeader())
-	fr.Register(filters.CreateResponseHeader())
+	fr.Register(filters.NewRequestHeaderSpec())
+	fr.Register(filters.NewResponseHeaderSpec())
 
 	doc := fmt.Sprintf(`hello:
 		Path("/hello") ->
@@ -363,7 +363,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	fr := make(filters.Registry)
-	fr.Register(filters.CreateResponseHeader())
+	fr.Register(filters.NewResponseHeaderSpec())
 
 	doc := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
 	dc, err := testdataclient.NewDoc(doc)
