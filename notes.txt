@@ -4,15 +4,15 @@ ExampleClient_Update: sometimes fails, but the output shows no difference -> iss
 different platforms
 
 [doc]
+update code doc
 document custom filtering
 move docs from readme to go
-update code doc
 pathmux documentation
-which email to the maintainers file?
+update the links in the documentation
+remove the name 'pathRewrite' from everywhere
+updating the grammar in the readme
 
-fix the license file
 remove notes.txt
-license in the files
 reconsider what goes to options
 remove custom tooling from .gitignore
 oauth scopes missing from run.go
@@ -24,3 +24,5 @@ header regexp matching and other todos
 consider if the initial empty matcher is useful at all, document delay if needed
 oauth takes credentials dir from env in the package, move dir parameter to options
 race detection
+raise the default poll timeout on the package level
+vendoring
