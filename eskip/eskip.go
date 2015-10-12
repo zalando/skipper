@@ -12,17 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package eskip implements parsing route definitions for Skipper.
-//
-// For documentation of the definition language, please, refer to the
-// Skipper documentation. (URL tbd)
-//
-// First time install:
-//
-//  go generate && go install
-//
-// (Once the parser has been generated with `go generate`, it is enough
-// to call `go install` only.)
 package eskip
 
 //go:generate go tool yacc -o parser.go -p eskip parser.y
@@ -43,16 +32,8 @@ type matcher struct {
 	args []interface{}
 }
 
-// Structure containing a routing filter and its arguments for a route.
-type Filter struct {
-
-	// name of the filter
-	Name string
-
-	// filter arguments specific for the route
-	Args []interface{}
-}
-
+// Route definition used during the parser processes the raw routing
+// document.
 type parsedRoute struct {
 	id       string
 	matchers []*matcher
@@ -61,42 +42,62 @@ type parsedRoute struct {
 	backend  string
 }
 
-// Structure containing information for a route.
+// A Filter object represents a parsed filter expression.
+type Filter struct {
+
+	// name of the filter specification
+	Name string
+
+	// filter arguments applied withing a particular route
+	Args []interface{}
+}
+
+// A Route object represents a parsed route expression.
 type Route struct {
 
-	// id of the route
+	// id of the route definition.
+	// E.g. route1: ...
 	Id string
 
-	// path to be matched
+	// exact path to be matched.
+	// E.g. Path("/some/path")
 	Path string
 
-	// host regular expression to match
+	// host regular expressions to match.
+	// E.g. Host(/[.]example[.]org/)
 	HostRegexps []string
 
-	// path regular expressions to match
+	// path regular expressions to match.
+	// E.g. PathRegexp(/\/api\//)
 	PathRegexps []string
 
-	// method to match
+	// method to match.
+	// E.g. Method("HEAD")
 	Method string
 
-	// exact header definitions to match
+	// exact header definitions to match.
+	// E.g. Header("Accept", "application/json")
 	Headers map[string]string
 
-	// header regular expressions to match
+	// header regular expressions to match.
+	// E.g. HeaderRegexp("Accept", /\Wapplication\/json\W/)
 	HeaderRegexps map[string][]string
 
-	// set of filters parsed for the route
+	// set of filters in a particular route.
+	// E.g. redirect(302, "https://www.example.org/hello")
 	Filters []*Filter
 
 	// indicates that the parsed route has shunt backend
 	// (<shunt>, no forwarding to a backend
 	Shunt bool
 
-	// the address of a backend for a parsed route
+	// the address of a backend for a parsed route.
+	// E.g. "https://www.example.org"
 	Backend string
 }
 
-func getMatcherString(r *parsedRoute, name string) (string, error) {
+// Returns the first argument of a matcher with the given name. (Path and Method)
+func getFirstMatcherString(r *parsedRoute, name string) (string, error) {
 	for _, m := range r.matchers {
 		if (m.name == name) && len(m.args) > 0 {
 			p, ok := m.args[0].(string)
@@ -111,22 +112,25 @@ func getMatcherString(r *parsedRoute, name string) (string, error) {
 	return "", nil
 }
 
+// Returns all arguments of a matcher with the given name.
 func getMatcherStrings(r *parsedRoute, name string) ([]string, error) {
-	var rxs []string
+	var ss []string
 	for _, m := range r.matchers {
 		if m.name == name && len(m.args) > 0 {
-			rx, ok := m.args[0].(string)
+			s, ok := m.args[0].(string)
 			if !ok {
 				return nil, errors.New("invalid matcher argument")
 			}
 
-			rxs = append(rxs, rx)
+			ss = append(ss, s)
 		}
 	}
 
-	return rxs, nil
+	return ss, nil
 }
 
+// returns a map of the first arguments and all second arguments for a matcher
+// with the given name. (HeaderRegexps and Header)
 func getMatcherArgMap(r *parsedRoute, name string) (map[string][]string, error) {
 	argMap := make(map[string][]string)
 	for _, m := range r.matchers {
@@ -148,6 +152,8 @@ func getMatcherArgMap(r *parsedRoute, name string) (map[string][]string, error) 
 	return argMap, nil
 }
 
+// Converts a parsing route objects to the exported route definition with
+// pre-processed but not validated matchers.
 func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	var err error
 	withError := func(f func()) {
@@ -165,10 +171,10 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	rd.Shunt = r.shunt
 	rd.Backend = r.backend
 
-	withError(func() { rd.Path, err = getMatcherString(r, "Path") })
+	withError(func() { rd.Path, err = getFirstMatcherString(r, "Path") })
 	withError(func() { rd.HostRegexps, err = getMatcherStrings(r, "Host") })
 	withError(func() { rd.PathRegexps, err = getMatcherStrings(r, "PathRegexp") })
-	withError(func() { rd.Method, err = getMatcherString(r, "Method") })
+	withError(func() { rd.Method, err = getFirstMatcherString(r, "Method") })
 	withError(func() { rd.HeaderRegexps, err = getMatcherArgMap(r, "HeaderRegexp") })
 
 	withError(func() {
@@ -185,12 +191,14 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	return rd, err
 }
 
+// executes the parser.
 func parse(code string) ([]*parsedRoute, error) {
 	l := newLexer(code)
 	eskipParse(l)
 	return l.routes, l.err
 }
 
+// hacks a filter expression into a route expression for parsing.
 func filtersToRoute(f string) string {
 	f = strings.TrimSpace(f)
 	if f == "" {
@@ -200,7 +208,7 @@ func filtersToRoute(f string) string {
 	return fmt.Sprintf("Any() -> %s -> <shunt>", f)
 }
 
-// Parses a route or a routing document to a set of routes.
+// Parses a route expression or a routing document to a set of route definitions.
 func Parse(code string) ([]*Route, error) {
 	parsedRoutes, err := parse(code)
 	if err != nil {
@@ -220,6 +228,7 @@ func Parse(code string) ([]*Route, error) {
 	return routeDefinitions, nil
 }
 
+// Parses a filter chain into a list of parsed filter definitions.
 func ParseFilters(f string) ([]*Filter, error) {
 	rs, err := parse(filtersToRoute(f))
 	if err != nil {

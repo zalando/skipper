@@ -29,7 +29,7 @@ func Example() {
         // route definition to a jsx page renderer
         route0:
             PathRegexp(/\.html$/) && HeaderRegexp("Accept", "text/html") ->
-            pathRewrite(/\.html$/, ".jsx") ->
+            modPath(/\.html$/, ".jsx") ->
             requestHeader("X-Type", "page") ->
             "https://render.example.org";
         
@@ -121,7 +121,7 @@ func ExampleRoute() {
 func ExampleParse() {
 	code := `
         PathRegexp(/\.html$/) && Header("Accept", "text/html") ->
-        pathRewrite(/\.html$/, ".jsx") ->
+        modPath(/\.html$/, ".jsx") ->
         requestHeader("X-Type", "page") ->
         "https://render.example.org"`
 

@@ -21,7 +21,7 @@ import (
 const (
 	singleRouteExample = `
         PathRegexp(/\.html$/) && Header("Accept", "text/html") ->
-        pathRewrite(/\.html$/, ".jsx") ->
+        modPath(/\.html$/, ".jsx") ->
         requestHeader("X-Type", "page") ->
         "https://render.example.com"`
 
@@ -52,7 +52,7 @@ func checkSingleRouteExample(r *parsedRoute, t *testing.T) {
 		t.Error("failed to parse filters", len(r.filters))
 	}
 
-	if r.filters[0].Name != "pathRewrite" || r.filters[1].Name != "requestHeader" {
+	if r.filters[0].Name != "modPath" || r.filters[1].Name != "requestHeader" {
 		t.Error("failed to parse filter name", r.filters[0].Name, r.filters[1].Name)
 	}
 

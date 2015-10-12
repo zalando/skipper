@@ -153,7 +153,7 @@ number and regexp.
 
 A route with multiple filters may look like this:
 
-    Path("/api/<string>") -> pathRewrite(/^\/api/, "") -> responseHeader("Server", "Example API") -> "https://api.example.com"
+    Path("/api/<string>") -> modPath(/^\/api/, "") -> responseHeader("Server", "Example API") -> "https://api.example.com"
 
 
 ### Filtering
@@ -189,7 +189,7 @@ This filter can be used to modify the request path. It executes a replace-all ca
 arguments: a regexp expression to match the whole or parts of the path, and a replacement string. It can be used
 to set fixed path for a request, too:
 
-    PathRegexp(/[?&]doc(&.*)?/) -> pathRewrite(/.*/, "/doc") -> "https://api.example.com/doc"
+    PathRegexp(/[?&]doc(&.*)?/) -> modPath(/.*/, "/doc") -> "https://api.example.com/doc"
 
 
 ##### Request header
