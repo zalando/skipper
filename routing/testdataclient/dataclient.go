@@ -5,7 +5,8 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-type C struct {
+type Client struct {
+	initDoc      string
 	routes       map[string]*eskip.Route
 	upsert       []*eskip.Route
 	deletedIds   []string
@@ -13,18 +14,27 @@ type C struct {
 	signalUpdate chan int
 }
 
-func New(initial []*eskip.Route) *C {
+func New(initial []*eskip.Route) *Client {
 	routes := make(map[string]*eskip.Route)
 	for _, r := range initial {
 		routes[r.Id] = r
 	}
 
-	return &C{
+	return &Client{
 		routes:       routes,
 		signalUpdate: make(chan int)}
 }
 
-func (c *C) GetInitial() ([]*eskip.Route, error) {
+func NewDoc(doc string) (*Client, error) {
+	routes, err := eskip.Parse(doc)
+	if err != nil {
+		return nil, err
+	}
+
+	return New(routes), nil
+}
+
+func (c *Client) GetInitial() ([]*eskip.Route, error) {
 	if c.failNext > 0 {
 		c.upsert, c.deletedIds = nil, nil
 		c.failNext--
@@ -39,7 +49,7 @@ func (c *C) GetInitial() ([]*eskip.Route, error) {
 	return routes, nil
 }
 
-func (c *C) GetUpdate() ([]*eskip.Route, []string, error) {
+func (c *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 	<-c.signalUpdate
 
 	for _, id := range c.deletedIds {
@@ -65,11 +75,21 @@ func (c *C) GetUpdate() ([]*eskip.Route, []string, error) {
 	return u, d, nil
 }
 
-func (c *C) Update(upsert []*eskip.Route, deletedIds []string) {
+func (c *Client) Update(upsert []*eskip.Route, deletedIds []string) {
 	c.upsert, c.deletedIds = upsert, deletedIds
 	c.signalUpdate <- 42
 }
 
-func (c *C) FailNext() {
+func (c *Client) UpdateDoc(upsertDoc string, deletedIds []string) error {
+	routes, err := eskip.Parse(upsertDoc)
+	if err != nil {
+		return err
+	}
+
+	c.Update(routes, deletedIds)
+	return nil
+}
+
+func (c *Client) FailNext() {
 	c.failNext++
 }

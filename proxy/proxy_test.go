@@ -3,7 +3,6 @@ package proxy
 import (
 	"bytes"
 	"fmt"
-	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -89,6 +88,7 @@ func TestGetRoundtrip(t *testing.T) {
 			t.Error("wrong request header")
 		}
 	})
+
 	defer s.Close()
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
@@ -98,8 +98,8 @@ func TestGetRoundtrip(t *testing.T) {
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
 
-	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	routes, err := eskip.Parse(data)
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -108,7 +108,7 @@ func TestGetRoundtrip(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)},
+		[]routing.DataClient{dc},
 		0}), false)
 
 	delay()
@@ -151,8 +151,8 @@ func TestPostRoundtrip(t *testing.T) {
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
 
-	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	routes, err := eskip.Parse(data)
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -161,7 +161,7 @@ func TestPostRoundtrip(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)},
+		[]routing.DataClient{dc},
 		0}), false)
 
 	delay()
@@ -186,11 +186,11 @@ func TestRoute(t *testing.T) {
 	s2 := startTestServer(payload2, 0, voidCheck)
 	defer s2.Close()
 
-	data := fmt.Sprintf(`
+	doc := fmt.Sprintf(`
 		route1: Path("/host-one/*any") -> "%s";
 		route2: Path("/host-two/*any") -> "%s"
 	`, s1.URL, s2.URL)
-	routes, err := eskip.Parse(data)
+	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -199,7 +199,7 @@ func TestRoute(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)},
+		[]routing.DataClient{dc},
 		0}), false)
 
 	delay()
@@ -238,8 +238,8 @@ func TestStreaming(t *testing.T) {
 	s := startTestServer(payload, expectedParts, voidCheck)
 	defer s.Close()
 
-	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	routes, err := eskip.Parse(data)
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -248,7 +248,7 @@ func TestStreaming(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)},
+		[]routing.DataClient{dc},
 		0}), false)
 
 	delay()
@@ -311,17 +311,15 @@ func TestAppliesFilters(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	fr := make(filters.Registry)
-	reqh := filters.CreateRequestHeader()
-	rsph := filters.CreateResponseHeader()
-	fr[reqh.Name()] = reqh
-	fr[rsph.Name()] = rsph
+	fr.Register(filters.CreateRequestHeader())
+	fr.Register(filters.CreateResponseHeader())
 
-	data := fmt.Sprintf(`hello:
+	doc := fmt.Sprintf(`hello:
 		Path("/hello") ->
 		requestHeader("X-Test-Request-Header", "request header value") ->
 		responseHeader("X-Test-Response-Header", "response header value") ->
 		"%s"`, s.URL)
-	routes, err := eskip.Parse(data)
+	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -330,7 +328,7 @@ func TestAppliesFilters(t *testing.T) {
 		fr,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)},
+		[]routing.DataClient{dc},
 		0}), false)
 
 	delay()
@@ -351,11 +349,10 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	fr := make(filters.Registry)
-	rsph := filters.CreateResponseHeader()
-	fr[rsph.Name()] = rsph
+	fr.Register(filters.CreateResponseHeader())
 
-	data := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
-	routes, err := eskip.Parse(data)
+	doc := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
+	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -364,7 +361,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		fr,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)},
+		[]routing.DataClient{dc},
 		0}), false)
 
 	delay()
@@ -398,8 +395,8 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		return r == req
 	}}
 
-	data := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
-	routes, err := eskip.Parse(data)
+	doc := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
+	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -408,7 +405,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)},
+		[]routing.DataClient{dc},
 		0}), false, prt)
 
 	delay()
@@ -446,8 +443,8 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		return r == req
 	}}
 
-	data := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s1.URL)
-	routes, err := eskip.Parse(data)
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s1.URL)
+	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -456,7 +453,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)},
+		[]routing.DataClient{dc},
 		0}), false, prt)
 
 	delay()
@@ -478,8 +475,8 @@ func TestFlusherImplementation(t *testing.T) {
 	ts := httptest.NewServer(h)
 	defer ts.Close()
 
-	data := fmt.Sprintf(`Any() -> "%s"`, ts.URL)
-	routes, err := eskip.Parse(data)
+	doc := fmt.Sprintf(`Any() -> "%s"`, ts.URL)
+	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -488,7 +485,7 @@ func TestFlusherImplementation(t *testing.T) {
 		nil,
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
-		[]routing.DataClient{testdataclient.New(routes)},
+		[]routing.DataClient{dc},
 		0}), false)
 
 	delay()
