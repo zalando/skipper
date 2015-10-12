@@ -5,14 +5,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"strings"
 )
 
 const (
-	credentialsDir = "CREDENTIALS_DIR"
-	grantType      = "password"
+	grantType    = "password"
+	clientJsonFn = "client.json"
+	userJsonFn   = "user.json"
 )
 
 type clientCredentials struct {
@@ -33,22 +33,23 @@ type authResponse struct {
 }
 
 type OAuthClient struct {
+	credentialsDir   string
 	oauthUrl         string
 	permissionScopes string
 	httpClient       *http.Client
 }
 
-func New(oauthUrl, permissionScopes string) *OAuthClient {
-	return &OAuthClient{oauthUrl, permissionScopes, &http.Client{}}
+func New(credentialsDir, oauthUrl, permissionScopes string) *OAuthClient {
+	return &OAuthClient{credentialsDir, oauthUrl, permissionScopes, &http.Client{}}
 }
 
 func (oc *OAuthClient) Token() (string, error) {
-	uc, err := getUserCredentials()
+	uc, err := oc.getUserCredentials()
 	if err != nil {
 		return "", err
 	}
 
-	cc, err := getClientCredentials()
+	cc, err := oc.getClientCredentials()
 	if err != nil {
 		return "", err
 	}
@@ -92,8 +93,8 @@ func (oc *OAuthClient) getAuthPostBody(us *userCredentials) string {
 	return parameters.Encode()
 }
 
-func getCredentials(to interface{}, fn string) error {
-	data, err := getCredentialsData(fn)
+func (oc *OAuthClient) getCredentials(to interface{}, fn string) error {
+	data, err := ioutil.ReadFile(path.Join(oc.credentialsDir, fn))
 	if err != nil {
 		return err
 	}
@@ -101,24 +102,14 @@ func getCredentials(to interface{}, fn string) error {
 	return json.Unmarshal(data, to)
 }
 
-func getClientCredentials() (*clientCredentials, error) {
+func (oc *OAuthClient) getClientCredentials() (*clientCredentials, error) {
 	cc := &clientCredentials{}
-	err := getCredentials(&cc, "client.json")
+	err := oc.getCredentials(&cc, clientJsonFn)
 	return cc, err
 }
 
-func getUserCredentials() (*userCredentials, error) {
+func (oc *OAuthClient) getUserCredentials() (*userCredentials, error) {
 	uc := &userCredentials{}
-	err := getCredentials(&uc, "user.json")
+	err := oc.getCredentials(&uc, userJsonFn)
 	return uc, err
-}
-
-func getCredentialsData(fn string) ([]byte, error) {
-	dir := getCredentialsDir()
-	fn = path.Join(dir, fn)
-	return ioutil.ReadFile(fn)
-}
-
-func getCredentialsDir() string {
-	return os.Getenv("CREDENTIALS_DIR")
 }
