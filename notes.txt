@@ -11,6 +11,9 @@ pathmux documentation
 update the links in the documentation
 remove the name 'pathRewrite' from everywhere
 updating the grammar in the readme
+compilation, testing, etc
+useful stuff from the readme
+doc comment format for package documentation
 
 remove notes.txt
 reconsider what goes to options
@@ -26,3 +29,5 @@ oauth takes credentials dir from env in the package, move dir parameter to optio
 race detection
 raise the default poll timeout on the package level
 vendoring
+options reading to the run package
+apply cmd changes

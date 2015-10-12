@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// filter to strip query parameters from the request and optionally transpose them to request headers
 package filters
 
 import (
@@ -23,14 +22,18 @@ import (
 	"strconv"
 )
 
-const StripQueryName = "stripQuery"
-
+// Filter to strip query parameters from the request and optionally transpose them to request headers.
+//
+// It always removes the query parameter from the request URL, and if the first filter argument is
+// "true", preserves the query parameter in the form of x-query-param-<queryParamName>: <queryParamValue>
+// headers, so that ?foo=bar becomes x-query-param-foo: bar
+//
+// Implements both Spec and Filter.
 type StripQuery struct {
-	// preserves the query parameter in the form of x-query-param-<queryParamName>: <queryParamValue> headers
-	// ?foo=bar becomes x-query-param-foo: bar
 	preserveAsHeader bool
 }
 
+// "stripQuery"
 func (spec *StripQuery) Name() string { return StripQueryName }
 
 // copied from textproto/reader
@@ -53,6 +56,7 @@ func sanitize(input string) string {
 	return b.String()
 }
 
+// Strips the query parameters and optionally preserves them in the X-Query-Param-xyz headers.
 func (f *StripQuery) Request(ctx FilterContext) {
 	r := ctx.Request()
 	if r == nil {
@@ -82,8 +86,11 @@ func (f *StripQuery) Request(ctx FilterContext) {
 	url.RawQuery = ""
 }
 
+// Noop.
 func (f *StripQuery) Response(ctx FilterContext) {}
 
+// Creates instances of the StripQuery filter. Accepts one optional argument:
+// "true", in order to preserve the stripped parameters in the request header.
 func (mw *StripQuery) CreateFilter(config []interface{}) (Filter, error) {
 	var preserveAsHeader = false
 	if len(config) == 1 {

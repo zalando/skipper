@@ -42,7 +42,7 @@ type parsedRoute struct {
 	backend  string
 }
 
-// A Filter object represents a parsed filter expression.
+// A Filter object represents a parsed, in-memory filter expression.
 type Filter struct {
 
 	// name of the filter specification
@@ -52,7 +52,7 @@ type Filter struct {
 	Args []interface{}
 }
 
-// A Route object represents a parsed route expression.
+// A Route object represents a parsed, in-memory route expression.
 type Route struct {
 
 	// id of the route definition.
@@ -96,7 +96,8 @@ type Route struct {
 	Backend string
 }
 
-// Returns the first argument of a matcher with the given name. (Path and Method)
+// Returns the first argument of a matcher with the given name.
+// (Used for Path and Method.)
 func getFirstMatcherString(r *parsedRoute, name string) (string, error) {
 	for _, m := range r.matchers {
 		if (m.name == name) && len(m.args) > 0 {
@@ -113,6 +114,7 @@ func getFirstMatcherString(r *parsedRoute, name string) (string, error) {
 }
 
 // Returns all arguments of a matcher with the given name.
+// (Used for PathRegexp and Host.)
 func getMatcherStrings(r *parsedRoute, name string) ([]string, error) {
 	var ss []string
 	for _, m := range r.matchers {
@@ -130,7 +132,7 @@ func getMatcherStrings(r *parsedRoute, name string) ([]string, error) {
 }
 
 // returns a map of the first arguments and all second arguments for a matcher
-// with the given name. (HeaderRegexps and Header)
+// with the given name. (Used for HeaderRegexps and Header.)
 func getMatcherArgMap(r *parsedRoute, name string) (map[string][]string, error) {
 	argMap := make(map[string][]string)
 	for _, m := range r.matchers {

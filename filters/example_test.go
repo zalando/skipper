@@ -77,8 +77,7 @@ func Example() {
 		log.Fatal(err)
 	}
 
-	// create http.Handler, where all requests will be logged,
-	// prefixed with the request type (ui or api):
+	// create http.Handler:
 	proxy.New(
 		routing.New(routing.Options{
 			FilterRegistry: registry,

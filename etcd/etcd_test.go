@@ -22,7 +22,8 @@ import (
 )
 
 func init() {
-	err := Etcd()
+    // start an etcd server
+	err := startEtcd()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -108,7 +109,7 @@ func resetData(t *testing.T) {
 		"https://www.example.org"
 	`
 
-	c := etcd.NewClient(EtcdUrls)
+	c := etcd.NewClient(etcdUrls)
 
 	// for the tests, considering errors on delete as not-found
 	c.Delete("/skippertest", true)
@@ -121,7 +122,7 @@ func resetData(t *testing.T) {
 }
 
 func TestReceivesError(t *testing.T) {
-	c := New(EtcdUrls, "/skippertest-invalid")
+	c := New(etcdUrls, "/skippertest-invalid")
 	_, err := c.GetInitial()
 	if err == nil {
 		t.Error("failed to fail")
@@ -131,7 +132,7 @@ func TestReceivesError(t *testing.T) {
 func TestReceivesInitial(t *testing.T) {
 	resetData(t)
 
-	c := New(EtcdUrls, "/skippertest")
+	c := New(etcdUrls, "/skippertest")
 	rs, err := c.GetInitial()
 
 	if err != nil {
@@ -146,10 +147,10 @@ func TestReceivesInitial(t *testing.T) {
 func TestReceivesUpdates(t *testing.T) {
 	resetData(t)
 
-	c := New(EtcdUrls, "/skippertest")
+	c := New(etcdUrls, "/skippertest")
 	c.GetInitial()
 
-	e := etcd.NewClient(EtcdUrls)
+	e := etcd.NewClient(etcdUrls)
 	_, err := e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
 	if err != nil {
 		t.Error(err)
@@ -172,13 +173,13 @@ func TestReceivesUpdates(t *testing.T) {
 func TestReceiveInsert(t *testing.T) {
 	resetData(t)
 
-	c := New(EtcdUrls, "/skippertest")
+	c := New(etcdUrls, "/skippertest")
 	_, err := c.GetInitial()
 	if err != nil {
 		t.Error(err)
 	}
 
-	e := etcd.NewClient(EtcdUrls)
+	e := etcd.NewClient(etcdUrls)
 	_, err = e.Set("/skippertest/routes/catalog", `Path("/pdp") -> "https://catalog.example.org"`, 0)
 	if err != nil {
 		t.Error(err)
@@ -201,10 +202,10 @@ func TestReceiveInsert(t *testing.T) {
 func TestReceiveDelete(t *testing.T) {
 	resetData(t)
 
-	c := New(EtcdUrls, "/skippertest")
+	c := New(etcdUrls, "/skippertest")
 	c.GetInitial()
 
-	e := etcd.NewClient(EtcdUrls)
+	e := etcd.NewClient(etcdUrls)
 	e.Delete("/skippertest/routes/pdp", false)
 
 	rs, ds, err := c.GetUpdate()

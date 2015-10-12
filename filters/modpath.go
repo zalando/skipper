@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// provides a filter that can rewrite the request path.
-//
-// the filters expect a regular expression in the 'expression' field of the filter config to match one or more parts of the request
-// path, and a replacement string in the 'replacement' field. when processing a request, it calls ReplaceAll on
-// the path.
 package filters
 
 import (
@@ -24,19 +19,22 @@ import (
 	"regexp"
 )
 
-const ModPathName = "modPath"
-
+// Filter to execute regexp.ReplaceAll on the request path.
+// Implements both Spec and Filter.
 type ModPath struct {
 	rx          *regexp.Regexp
 	replacement []byte
 }
 
+// "modPath"
 func (spec *ModPath) Name() string { return ModPathName }
 
 func invalidConfig(config []interface{}) error {
 	return fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", ModPathName, config)
 }
 
+// Creates instances of the ModPath filter. Expects two arguments: the
+// expression to match and the replacement.
 func (spec *ModPath) CreateFilter(config []interface{}) (Filter, error) {
 	if len(config) != 2 {
 		return nil, invalidConfig(config)
@@ -61,9 +59,11 @@ func (spec *ModPath) CreateFilter(config []interface{}) (Filter, error) {
 	return f, nil
 }
 
+// Modifies the path with regexp.ReplaceAll.
 func (f *ModPath) Request(ctx FilterContext) {
 	req := ctx.Request()
 	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), f.replacement))
 }
 
+// Noop.
 func (f *ModPath) Response(ctx FilterContext) {}

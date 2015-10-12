@@ -12,12 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This package contains specifications for filters.
-//
-// To create a filterin, create first a subdirectory, conventionally with the name of your
-// filter, implement the skipper.FilterSpec and skipper.Filter interfaces, and add the registering call
-// to the Register function in filters.go.
-//
-// For convenience, the noop filter can be composed into the implemented filter, and only the so the
-// implementation can shadow only the methods that are relevant ("override").
+/*
+Package filters contains definitions for skipper filtering and a default set
+of filters.
+
+The term 'filter' refers to filtering as in signal processing rather than
+selecting subsets of some set. Filters are used to augment both the inbound
+request's properties before forwarding it to the route endpoint, and the
+outbound response's properties before returning it to the original client.
+
+Filter implementations are based on filter specifications that provide a
+filter name and a 'factory' method to create filter instances. The filter name
+is used to identify a filter in a route definition. The filter specifications
+can be used by multiple routes, while the filter instances belong to a single
+route. Filter instances are created while the route definitions are parsed and
+initialized, based on the specifications stored in the filter registry.
+Different filter instances can be created with different arguments.
+
+Once a route is identified during request processing, a context object is
+created that is unique to the request, holding the current request, the
+response (once it is available), and some further information and state
+related to the current request/response.
+
+Each filter in a route is called twice, once for the request in the order of
+their position in the route definition, and once for the response in reverse
+order.
+
+Filters can handle the request themselves, meaning that they can set the
+response status, headers and send any particular response body. In this case,
+it is the filter's responsibility to mark the request served.
+*/
 package filters
