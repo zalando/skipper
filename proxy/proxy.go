@@ -257,6 +257,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
+	addBranding(rs)
+
 	c.res = rs
 	applyFiltersToResponse(f, c)
 
@@ -265,4 +267,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(rs.StatusCode)
 		copyStream(w.(flusherWriter), rs.Body)
 	}
+}
+
+func addBranding(rs *http.Response) {
+	rs.Header.Set("X-Powered-By", "Skipper")
+	rs.Header.Set("Server", "Skipper")
 }
