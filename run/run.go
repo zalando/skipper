@@ -31,6 +31,7 @@ type Options struct {
 	RoutesFile                string
 	CustomFilters             []filters.Spec
 	IgnoreTrailingSlash       bool
+    OAuthCredentialsDir string
 	OAuthUrl                  string
 	OAuthScope                string
 	InnkeeperAuthToken        string
@@ -74,7 +75,7 @@ func createInnkeeperAuthentication(o Options) innkeeper.Authentication {
 		return innkeeper.FixedToken(o.InnkeeperAuthToken)
 	}
 
-	return oauth.New(o.OAuthUrl, o.OAuthScope)
+	return oauth.New(o.OAuthCredentialsDir, o.OAuthUrl, o.OAuthScope)
 }
 
 // Run skipper.
