@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package etcd implements a DataClient for reading the skipper route
+// definitions from an etcd service.
+//
+// link, entry structure
+// package needed for testing
+//
+// (See the DataClient interface in the github.com/zalando/skipper/routing
+// package.)
 package etcd
 
 import (
@@ -23,16 +31,26 @@ import (
 
 const routesPath = "/routes"
 
+// Client providing the initial route definitions and updates from an etcd
+// service.
 type Client struct {
 	routesRoot string
 	etcd       *etcd.Client
 	etcdIndex  uint64
 }
 
+// Creates a new Client, connecting to an etcd cluster reachable at 'urls'.
+// Storage root specififies the etcd node under which the skipper routes
+// are stored. E.g. if storageRoot is '/skipper-dev', the route definitions
+// should be stored under /v2/keys/skipper/routes/...
 func New(urls []string, storageRoot string) *Client {
 	return &Client{storageRoot + routesPath, etcd.NewClient(urls), 0}
 }
 
+// Finds all route expressions in the containing directory node or.
+// Prepends the expressions with the etcd key as the route id.
+// Returns a map where the keys are the etcd keys and the values are the
+// eskip route expressions.
 func (s *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]string, uint64) {
 	if n.ModifiedIndex > highestIndex {
 		highestIndex = n.ModifiedIndex
@@ -59,7 +77,8 @@ func (s *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]stri
 	return map[string]string{id: r}, highestIndex
 }
 
-func getRoutes(data map[string]string) ([]*eskip.Route, error) {
+// Parses the set of eskip routes.
+func parseRoutes(data map[string]string) ([]*eskip.Route, error) {
 	var routeDefs []string
 	for _, r := range data {
 		routeDefs = append(routeDefs, r)
@@ -69,7 +88,8 @@ func getRoutes(data map[string]string) ([]*eskip.Route, error) {
 	return eskip.Parse(doc)
 }
 
-func getDeletedIds(data map[string]string) []string {
+// converts a set of eskip routes into a list of their ids.
+func getRouteIds(data map[string]string) []string {
 	var deletedIds []string
 	for id, _ := range data {
 		deletedIds = append(deletedIds, id)
@@ -78,6 +98,7 @@ func getDeletedIds(data map[string]string) []string {
 	return deletedIds
 }
 
+// Returns all the route definitions currently stored in etcd.
 func (s *Client) GetInitial() ([]*eskip.Route, error) {
 	response, err := s.etcd.Get(s.routesRoot, false, true)
 	if err != nil {
@@ -85,7 +106,7 @@ func (s *Client) GetInitial() ([]*eskip.Route, error) {
 	}
 
 	data, etcdIndex := s.iterateDefs(response.Node, 0)
-	routes, err := getRoutes(data)
+	routes, err := parseRoutes(data)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +115,8 @@ func (s *Client) GetInitial() ([]*eskip.Route, error) {
 	return routes, nil
 }
 
+// Returns the updates (upserts and deletes) since the last initial request
+// or update.
 func (s *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 	response, err := s.etcd.Watch(s.routesRoot, s.etcdIndex+1, true, nil, nil)
 	if err != nil {
@@ -107,9 +130,9 @@ func (s *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 	)
 
 	if response.Action == "delete" {
-		deletedIds = getDeletedIds(data)
+		deletedIds = getRouteIds(data)
 	} else {
-		routes, err = getRoutes(data)
+		routes, err = parseRoutes(data)
 		if err != nil {
 			return nil, nil, err
 		}

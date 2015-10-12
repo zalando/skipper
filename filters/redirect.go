@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Filter for http redirects. Accepts two arguments:
-// a number as the redirect status code, and a string as the redirect location.
-// This filter marks the request context served, and should be used only with shunt routes.
 package filters
 
 import (
@@ -22,15 +19,18 @@ import (
 	"net/url"
 )
 
-const RedirectName = "redirect"
-
+// Filter to return an HTTP redirect resposne. Marks the request as served.
+// Implements both Spec and Filter.
 type Redirect struct {
 	code     int
 	location *url.URL
 }
 
+// "redirect"
 func (spec *Redirect) Name() string { return RedirectName }
 
+// Creates an instance of the Redirect filter. Expects two arguments: the
+// redirect status code and the redirect location.
 func (spec *Redirect) CreateFilter(config []interface{}) (Filter, error) {
 	invalidArgs := func() (Filter, error) {
 		return nil, errors.New("invalid arguments")
@@ -58,8 +58,11 @@ func (spec *Redirect) CreateFilter(config []interface{}) (Filter, error) {
 	return &Redirect{int(code), u}, nil
 }
 
+// Noop.
 func (f *Redirect) Request(ctx FilterContext) {}
 
+// Sets the status code and the location header of the response. Marks the
+// request served.
 func (f *Redirect) Response(ctx FilterContext) {
 	w := ctx.ResponseWriter()
 
