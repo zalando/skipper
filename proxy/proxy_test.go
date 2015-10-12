@@ -126,6 +126,14 @@ func TestGetRoundtrip(t *testing.T) {
 		t.Error("wrong content length")
 	}
 
+	if xpb, ok := w.Header()["X-Powered-By"]; !ok || xpb[0] != "Skipper" {
+		t.Error("Wrong X-Powered-By header value")
+	}
+
+	if xpb, ok := w.Header()["Server"]; !ok || xpb[0] != "Skipper" {
+		t.Error("Wrong Server header value")
+	}
+
 	if !bytes.Equal(w.Body.Bytes(), payload) {
 		t.Error("wrong content", string(w.Body.Bytes()))
 	}
