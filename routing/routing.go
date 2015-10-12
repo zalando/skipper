@@ -42,8 +42,9 @@ type Routing struct {
 }
 
 func feedMatchers(updateBuffer int, current *matcher) (chan<- *matcher, <-chan *matcher) {
+	// todo: use updateBuffer, when benchmarks show that it matters
 	in := make(chan *matcher)
-	out := make(chan *matcher, updateBuffer)
+	out := make(chan *matcher, 0)
 
 	go func() {
 		for {
