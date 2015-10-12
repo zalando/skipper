@@ -24,8 +24,8 @@ const (
 	innkeeperUrlUsage              = "url of the innkeeper API"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	oauthUrlUsage                  = "OAuth2 URL for Innkeeper authentication"
-    oauthScopeUsage = "OAuth2 scope to access route definitions in Innkeeper"
-    oauthCredentialsDirUsage = "directory where oauth credentials are stored: client.json and user.json"
+	oauthScopeUsage                = "OAuth2 scope to access route definitions in Innkeeper"
+	oauthCredentialsDirUsage       = "directory where oauth credentials are stored: client.json and user.json"
 	routesFileUsage                = "routes file to use instead of etcd"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "global pre-route filters for routes from Innkeeper"
@@ -42,8 +42,8 @@ var (
 	sourcePollTimeout         int
 	routesFile                string
 	oauthUrl                  string
-    oauthScope string
-    oauthCredentialsDir string
+	oauthScope                string
+	oauthCredentialsDir       string
 	innkeeperAuthToken        string
 	innkeeperPreRouteFilters  string
 	innkeeperPostRouteFilters string
@@ -76,11 +76,11 @@ func main() {
 		Insecure:                  insecure,
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
-		RoutesFile:            routesFile,
+		RoutesFile:                routesFile,
 		IgnoreTrailingSlash:       false,
 		OAuthUrl:                  oauthUrl,
-        OAuthScope: oauthScope,
-        OAuthCredentialsDir: oauthCredentialsDir,
+		OAuthScope:                oauthScope,
+		OAuthCredentialsDir:       oauthCredentialsDir,
 		InnkeeperAuthToken:        innkeeperAuthToken,
 		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
 		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
