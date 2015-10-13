@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package eskipfile implements a DataClient for reading the skipper route
-// definitions from an eskip formatted file when opened.
-//
-// (See the DataClient interface in the github.com/zalando/skipper/routing
-// package.)
+/*
+Package eskipfile implements a DataClient for reading the skipper route
+definitions from an eskip formatted file when opened.
+
+(See the DataClient interface in the github.com/zalando/skipper/routing
+package.)
+*/
 package eskipfile
 
 import (
@@ -24,7 +26,7 @@ import (
 	"io/ioutil"
 )
 
-// Client contains the route definitions from an eskip file.
+// A Client contains the route definitions from an eskip file.
 type Client struct{ routes []*eskip.Route }
 
 // Opens an eskip file and parses it, returning a DataClient implementation.
@@ -44,7 +46,7 @@ func Open(path string) (*Client, error) {
 }
 
 // Returns the parsed route definitions found in the file.
-func (c Client) GetInitial() ([]*eskip.Route, error)          { return c.routes, nil }
+func (c Client) GetInitial() ([]*eskip.Route, error) { return c.routes, nil }
 
 // Noop. The current implementation doesn't support watching the eskip
 // file for changes.

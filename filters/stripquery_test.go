@@ -24,7 +24,7 @@ import (
 )
 
 func TestCreateStripQueryFilter(t *testing.T) {
-	sqs := &filters.StripQuery{}
+	sqs := filters.NewStripQuery()
 	if sqs.Name() != "stripQuery" {
 		t.Error("wrong name")
 	}
@@ -44,7 +44,7 @@ func TestCreateStripQueryFilter(t *testing.T) {
 }
 
 func TestStripQuery(t *testing.T) {
-	sqs := &filters.StripQuery{}
+	sqs := filters.NewStripQuery()
 
 	f, _ := sqs.CreateFilter(nil)
 
@@ -73,7 +73,7 @@ var headerTests = []struct {
 }
 
 func TestPreserveQuery(t *testing.T) {
-	sqs := &filters.StripQuery{}
+	sqs := filters.NewStripQuery()
 
 	f, _ := sqs.CreateFilter([]interface{}{"true"})
 

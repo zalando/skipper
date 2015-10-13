@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package filtertest implements mock versions of the Filter, Spec and
-// FilterContext interfaces used during tests.
+/*
+Package filtertest implements mock versions of the Filter, Spec and
+FilterContext interfaces used during tests.
+*/
 package filtertest
 
 import (
@@ -22,6 +24,7 @@ import (
 )
 
 // Noop filter, used to verify the filter name and the args in the route.
+// Implements both the Filter and the Spec interfaces.
 type Filter struct {
 	FilterName string
 	Args       []interface{}

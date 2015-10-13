@@ -12,6 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/*
+Package oauth implements an authentication client to be used with OAuth2
+authentication services.
+
+The package uses two json documents to retrieve the credentials, with the
+file names: client.json and user.json. These documents must be found on the
+file system under the directory passed in with the credentialsDir argument.
+
+The structure of the client credentials document:
+
+    {"client_id": "testclientid", "client_secret": "testsecret"}
+
+The structure of the user credentials document:
+
+    {"application_usernmae": "testusername", "application_password": "testpassword"}
+
+The GetToken method ignores the expiration date and makes a new request to the
+OAuth2 service on every call, so storing the token, if necessary, is the
+responsibility of the calling code.
+*/
 package oauth
 
 import (
@@ -19,15 +39,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"strings"
 )
 
-const (
-	credentialsDir = "CREDENTIALS_DIR"
-	grantType      = "password"
-)
+const grantType = "password"
 
 type clientCredentials struct {
 	Id     string `json:"client_id"`
@@ -46,23 +62,27 @@ type authResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
+// An OAuthClient implements authentication to an OAuth2 service.
 type OAuthClient struct {
+	credentialsDir   string
 	oauthUrl         string
 	permissionScopes string
 	httpClient       *http.Client
 }
 
-func New(oauthUrl, permissionScopes string) *OAuthClient {
-	return &OAuthClient{oauthUrl, permissionScopes, &http.Client{}}
+// Returns a new OAuthClient.
+func New(credentialsDir, oauthUrl, permissionScopes string) *OAuthClient {
+	return &OAuthClient{credentialsDir, oauthUrl, permissionScopes, &http.Client{}}
 }
 
-func (oc *OAuthClient) Token() (string, error) {
-	uc, err := getUserCredentials()
+// Returns a new authentication token.
+func (oc *OAuthClient) GetToken() (string, error) {
+	uc, err := oc.getUserCredentials()
 	if err != nil {
 		return "", err
 	}
 
-	cc, err := getClientCredentials()
+	cc, err := oc.getClientCredentials()
 	if err != nil {
 		return "", err
 	}
@@ -97,6 +117,7 @@ func (oc *OAuthClient) Token() (string, error) {
 	return ar.AccessToken, nil
 }
 
+// Prepares the POST body of the authentication request.
 func (oc *OAuthClient) getAuthPostBody(us *userCredentials) string {
 	parameters := url.Values{}
 	parameters.Add("grant_type", grantType)
@@ -106,8 +127,9 @@ func (oc *OAuthClient) getAuthPostBody(us *userCredentials) string {
 	return parameters.Encode()
 }
 
-func getCredentials(to interface{}, fn string) error {
-	data, err := getCredentialsData(fn)
+// Loads and parses the credentials from a credentials document.
+func (oc *OAuthClient) getCredentials(to interface{}, fn string) error {
+	data, err := ioutil.ReadFile(path.Join(oc.credentialsDir, fn))
 	if err != nil {
 		return err
 	}
@@ -115,24 +137,16 @@ func getCredentials(to interface{}, fn string) error {
 	return json.Unmarshal(data, to)
 }
 
-func getClientCredentials() (*clientCredentials, error) {
+// Loads and parses the client credentials.
+func (oc *OAuthClient) getClientCredentials() (*clientCredentials, error) {
 	cc := &clientCredentials{}
-	err := getCredentials(&cc, "client.json")
+	err := oc.getCredentials(&cc, "client.json")
 	return cc, err
 }
 
-func getUserCredentials() (*userCredentials, error) {
+// Loads and parses the user credentials.
+func (oc *OAuthClient) getUserCredentials() (*userCredentials, error) {
 	uc := &userCredentials{}
-	err := getCredentials(&uc, "user.json")
+	err := oc.getCredentials(&uc, "user.json")
 	return uc, err
-}
-
-func getCredentialsData(fn string) ([]byte, error) {
-	dir := getCredentialsDir()
-	fn = path.Join(dir, fn)
-	return ioutil.ReadFile(fn)
-}
-
-func getCredentialsDir() string {
-	return os.Getenv("CREDENTIALS_DIR")
 }
