@@ -33,7 +33,7 @@ func TestStatic(t *testing.T) {
 		t.Error("failed to create test file")
 	}
 
-	s := &filters.Static{}
+	s := filters.NewStatic()
 	f, err := s.CreateFilter([]interface{}{"/static", "/tmp"})
 	if err != nil {
 		t.Error("failed to create filter")

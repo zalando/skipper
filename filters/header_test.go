@@ -22,7 +22,7 @@ import (
 )
 
 func TestRequestHeader(t *testing.T) {
-	spec := filters.NewRequestHeaderSpec()
+	spec := filters.NewRequestHeader()
 	if spec.Name() != "requestHeader" {
 		t.Error("invalid name")
 	}
@@ -45,7 +45,7 @@ func TestRequestHeader(t *testing.T) {
 }
 
 func TestRequestHeaderInvalidConfigLength(t *testing.T) {
-	spec := filters.NewRequestHeaderSpec()
+	spec := filters.NewRequestHeader()
 	_, err := spec.CreateFilter([]interface{}{"Some-Header"})
 	if err == nil {
 		t.Error("failed to fail")
@@ -53,7 +53,7 @@ func TestRequestHeaderInvalidConfigLength(t *testing.T) {
 }
 
 func TestRequestHeaderInvalidConfigKey(t *testing.T) {
-	spec := filters.NewRequestHeaderSpec()
+	spec := filters.NewRequestHeader()
 	_, err := spec.CreateFilter([]interface{}{1, "some-value"})
 	if err == nil {
 		t.Error("failed to fail")
@@ -61,7 +61,7 @@ func TestRequestHeaderInvalidConfigKey(t *testing.T) {
 }
 
 func TestRequestHeaderInvalidConfigValue(t *testing.T) {
-	spec := filters.NewRequestHeaderSpec()
+	spec := filters.NewRequestHeader()
 	_, err := spec.CreateFilter([]interface{}{"Some-Header", 2})
 	if err == nil {
 		t.Error("failed to fail")
@@ -69,7 +69,7 @@ func TestRequestHeaderInvalidConfigValue(t *testing.T) {
 }
 
 func TestResponseHeader(t *testing.T) {
-	spec := filters.NewResponseHeaderSpec()
+	spec := filters.NewResponseHeader()
 	if spec.Name() != "responseHeader" {
 		t.Error("invalid name")
 	}
@@ -88,7 +88,7 @@ func TestResponseHeader(t *testing.T) {
 }
 
 func TestResponseHeaderInvalidConfigLength(t *testing.T) {
-	spec := filters.NewResponseHeaderSpec()
+	spec := filters.NewResponseHeader()
 	_, err := spec.CreateFilter([]interface{}{"Some-Header"})
 	if err == nil {
 		t.Error("failed to fail")
@@ -96,7 +96,7 @@ func TestResponseHeaderInvalidConfigLength(t *testing.T) {
 }
 
 func TestResponseHeaderInvalidConfigKey(t *testing.T) {
-	spec := filters.NewResponseHeaderSpec()
+	spec := filters.NewResponseHeader()
 	_, err := spec.CreateFilter([]interface{}{1, "some-value"})
 	if err == nil {
 		t.Error("failed to fail")
@@ -104,7 +104,7 @@ func TestResponseHeaderInvalidConfigKey(t *testing.T) {
 }
 
 func TestResponseHeaderInvalidConfigValue(t *testing.T) {
-	spec := filters.NewResponseHeaderSpec()
+	spec := filters.NewResponseHeader()
 	_, err := spec.CreateFilter([]interface{}{"Some-Header", 2})
 	if err == nil {
 		t.Error("failed to fail")

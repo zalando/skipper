@@ -20,8 +20,12 @@ import (
 	"path"
 )
 
-// Filter to serve static content from a file system location. Marks the
-// request as served.
+type static struct {
+	webRoot, root string
+}
+
+// Returns a filter Spec to serve static content from a file system location.
+// Marks the request as served.
 //
 // It takes the request path prefix from the first argument, clips it from the
 // start of the path, appends to the file system root from the second
@@ -29,16 +33,14 @@ import (
 // system.
 //
 // Implements both Spec and Filter.
-type Static struct {
-	webRoot, root string
-}
+func NewStatic() Spec { return &static{} }
 
 // "static"
-func (spec *Static) Name() string { return StaticName }
+func (spec *static) Name() string { return StaticName }
 
-// Creates instances of the Static filter. Expects two argument: request path
+// Creates instances of the static filter. Expects two argument: request path
 // prefix and file system root.
-func (spec *Static) CreateFilter(config []interface{}) (Filter, error) {
+func (spec *static) CreateFilter(config []interface{}) (Filter, error) {
 	if len(config) != 2 {
 		return nil, fmt.Errorf("invalid number of args: %d, expected 1", len(config))
 	}
@@ -53,14 +55,14 @@ func (spec *Static) CreateFilter(config []interface{}) (Filter, error) {
 		return nil, fmt.Errorf("invalid argument type, expected string for path to root dir")
 	}
 
-	return &Static{webRoot, root}, nil
+	return &static{webRoot, root}, nil
 }
 
 // Noop.
-func (f *Static) Request(FilterContext) {}
+func (f *static) Request(FilterContext) {}
 
 // Serves content from the file system and marks the request served.
-func (f *Static) Response(ctx FilterContext) {
+func (f *static) Response(ctx FilterContext) {
 	r := ctx.Request()
 	p := r.URL.Path
 

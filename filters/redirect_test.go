@@ -23,7 +23,7 @@ import (
 )
 
 func TestRedirect(t *testing.T) {
-	spec := &filters.Redirect{}
+	spec := filters.NewRedirect()
 	f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), "https://example.org"})
 	if err != nil {
 		t.Error(err)
@@ -42,7 +42,7 @@ func TestRedirect(t *testing.T) {
 }
 
 func TestRedirectRelative(t *testing.T) {
-	spec := &filters.Redirect{}
+	spec := filters.NewRedirect()
 	f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), "/relative/url"})
 	if err != nil {
 		t.Error(err)

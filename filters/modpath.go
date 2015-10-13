@@ -19,23 +19,25 @@ import (
 	"regexp"
 )
 
-// Filter to execute regexp.ReplaceAll on the request path.
-// Implements both Spec and Filter.
-type ModPath struct {
+type modPath struct {
 	rx          *regexp.Regexp
 	replacement []byte
 }
 
+// Returns a new modpath filter Spec, whose instances execute
+// regexp.ReplaceAll on the request path.
+func NewModPath() Spec { return &modPath{} }
+
 // "modPath"
-func (spec *ModPath) Name() string { return ModPathName }
+func (spec *modPath) Name() string { return ModPathName }
 
 func invalidConfig(config []interface{}) error {
 	return fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", ModPathName, config)
 }
 
-// Creates instances of the ModPath filter. Expects two arguments: the
+// Creates instances of the modPath filter. Expects two arguments: the
 // expression to match and the replacement.
-func (spec *ModPath) CreateFilter(config []interface{}) (Filter, error) {
+func (spec *modPath) CreateFilter(config []interface{}) (Filter, error) {
 	if len(config) != 2 {
 		return nil, invalidConfig(config)
 	}
@@ -55,15 +57,15 @@ func (spec *ModPath) CreateFilter(config []interface{}) (Filter, error) {
 		return nil, err
 	}
 
-	f := &ModPath{rx, []byte(replacement)}
+	f := &modPath{rx, []byte(replacement)}
 	return f, nil
 }
 
 // Modifies the path with regexp.ReplaceAll.
-func (f *ModPath) Request(ctx FilterContext) {
+func (f *modPath) Request(ctx FilterContext) {
 	req := ctx.Request()
 	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), f.replacement))
 }
 
 // Noop.
-func (f *ModPath) Response(ctx FilterContext) {}
+func (f *modPath) Response(ctx FilterContext) {}

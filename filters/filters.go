@@ -5,41 +5,41 @@ import "net/http"
 const (
 	RequestHeaderName  = "requestHeader"
 	ResponseHeaderName = "responseHeader"
-    ModPathName = "modPath"
-    RedirectName = "redirect"
-    StaticName = "static"
-    StripQueryName = "stripQuery"
+	ModPathName        = "modPath"
+	RedirectName       = "redirect"
+	StaticName         = "static"
+	StripQueryName     = "stripQuery"
 )
 
 // Context object providing state and information that is unique to a request.
 type FilterContext interface {
 
-    // The response writer object belonging to the incoming request. Used by
-    // filters that handle the requests themselves.
+	// The response writer object belonging to the incoming request. Used by
+	// filters that handle the requests themselves.
 	ResponseWriter() http.ResponseWriter
 
-    // The incoming request object. It is forwarded to the route endpoint
-    // with its properties changed by the filters.
+	// The incoming request object. It is forwarded to the route endpoint
+	// with its properties changed by the filters.
 	Request() *http.Request
 
-    // The response object. It is returned to the client with its
-    // properties changed by the filters.
+	// The response object. It is returned to the client with its
+	// properties changed by the filters.
 	Response() *http.Response
 
-    // Returns true if the request was served by any of the filters in a
-    // route.
+	// Returns true if the request was served by any of the filters in a
+	// route.
 	Served() bool
 
-    // Marks a request served. Used by filters that handle the requests
-    // themselves.
+	// Marks a request served. Used by filters that handle the requests
+	// themselves.
 	MarkServed()
 
-    // Provides the wildcard parameter values from the request path by their
-    // name as the key.
+	// Provides the wildcard parameter values from the request path by their
+	// name as the key.
 	PathParam(string) string
 
-    // Provides a read-write state bag, unique to a request and shared by all
-    // the filters in the route.
+	// Provides a read-write state bag, unique to a request and shared by all
+	// the filters in the route.
 	StateBag() map[string]interface{}
 }
 
@@ -47,11 +47,11 @@ type FilterContext interface {
 // route.
 type Filter interface {
 
-    // The Request method is called while processing the incoming request.
+	// The Request method is called while processing the incoming request.
 	Request(FilterContext)
 
-    // The Response method is called while processing the response to be
-    // returned.
+	// The Response method is called while processing the response to be
+	// returned.
 	Response(FilterContext)
 }
 
@@ -63,8 +63,8 @@ type Spec interface {
 	// The name of the Spec is used to identify filters in a route definition.
 	Name() string
 
-    // Creates a Filter instance. Called with the arguments in the route
-    // definition while initializing a route.
+	// Creates a Filter instance. Called with the arguments in the route
+	// definition while initializing a route.
 	CreateFilter(config []interface{}) (Filter, error)
 }
 
@@ -80,13 +80,13 @@ func (r Registry) Register(s Spec) {
 // specifications found in the filters package.
 func Defaults() Registry {
 	defaultSpecs := []Spec{
-		NewRequestHeaderSpec(),
-		NewResponseHeaderSpec(),
-		&ModPath{},
-		&HealthCheck{},
-		&Static{},
-		&Redirect{},
-		&StripQuery{}}
+		NewRequestHeader(),
+		NewResponseHeader(),
+		NewModPath(),
+		NewHealthCheck(),
+		NewStatic(),
+		NewRedirect(),
+		NewStripQuery()}
 
 	r := make(Registry)
 	for _, s := range defaultSpecs {

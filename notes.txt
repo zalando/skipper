@@ -14,6 +14,7 @@ updating the grammar in the readme
 compilation, testing, etc
 useful stuff from the readme
 doc comment format for package documentation
+etcd package needed for testing to the readme
 
 remove notes.txt
 reconsider what goes to options
@@ -31,3 +32,5 @@ raise the default poll timeout on the package level
 vendoring
 options reading to the run package
 apply cmd changes
+to the blog post: router in a single process app -> in microservices -> undefined number and type of
+microservices

@@ -16,13 +16,15 @@ package filters
 
 import "net/http"
 
-// Filter to set the status code of the response to 200 OK.
-// Implements both Spec and Filter.
-type HealthCheck struct{}
+type healthCheck struct{}
+
+// Creates a new filter Spec, whose instances set the status code of the
+// response to 200 OK.
+func NewHealthCheck() Spec { return &healthCheck{} }
 
 // "healthcheck"
-func (h *HealthCheck) Name() string                                 { return "healthcheck" }
+func (h *healthCheck) Name() string { return "healthcheck" }
 
-func (h *HealthCheck) CreateFilter(_ []interface{}) (Filter, error) { return h, nil }
-func (h *HealthCheck) Request(ctx FilterContext)                    {}
-func (h *HealthCheck) Response(ctx FilterContext)                   { ctx.Response().StatusCode = http.StatusOK }
+func (h *healthCheck) CreateFilter(_ []interface{}) (Filter, error) { return h, nil }
+func (h *healthCheck) Request(ctx FilterContext)                    {}
+func (h *healthCheck) Response(ctx FilterContext)                   { ctx.Response().StatusCode = http.StatusOK }

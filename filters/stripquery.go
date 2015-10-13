@@ -22,19 +22,21 @@ import (
 	"strconv"
 )
 
-// Filter to strip query parameters from the request and optionally transpose them to request headers.
-//
-// It always removes the query parameter from the request URL, and if the first filter argument is
-// "true", preserves the query parameter in the form of x-query-param-<queryParamName>: <queryParamValue>
-// headers, so that ?foo=bar becomes x-query-param-foo: bar
-//
-// Implements both Spec and Filter.
-type StripQuery struct {
+type stripQuery struct {
 	preserveAsHeader bool
 }
 
+// Returns a filter Spec to strip query parameters from the request and
+// optionally transpose them to request headers.
+//
+// It always removes the query parameter from the request URL, and if the
+// first filter argument is "true", preserves the query parameter in the form
+// of x-query-param-<queryParamName>: <queryParamValue> headers, so that
+// ?foo=bar becomes x-query-param-foo: bar
+func NewStripQuery() Spec { return &stripQuery{} }
+
 // "stripQuery"
-func (spec *StripQuery) Name() string { return StripQueryName }
+func (spec *stripQuery) Name() string { return StripQueryName }
 
 // copied from textproto/reader
 func validHeaderFieldByte(b byte) bool {
@@ -57,7 +59,7 @@ func sanitize(input string) string {
 }
 
 // Strips the query parameters and optionally preserves them in the X-Query-Param-xyz headers.
-func (f *StripQuery) Request(ctx FilterContext) {
+func (f *stripQuery) Request(ctx FilterContext) {
 	r := ctx.Request()
 	if r == nil {
 		return
@@ -87,11 +89,11 @@ func (f *StripQuery) Request(ctx FilterContext) {
 }
 
 // Noop.
-func (f *StripQuery) Response(ctx FilterContext) {}
+func (f *stripQuery) Response(ctx FilterContext) {}
 
-// Creates instances of the StripQuery filter. Accepts one optional argument:
+// Creates instances of the stripQuery filter. Accepts one optional argument:
 // "true", in order to preserve the stripped parameters in the request header.
-func (mw *StripQuery) CreateFilter(config []interface{}) (Filter, error) {
+func (mw *stripQuery) CreateFilter(config []interface{}) (Filter, error) {
 	var preserveAsHeader = false
 	if len(config) == 1 {
 		preserveAsHeaderString, ok := config[0].(string)
@@ -102,5 +104,5 @@ func (mw *StripQuery) CreateFilter(config []interface{}) (Filter, error) {
 			preserveAsHeader = true
 		}
 	}
-	return &StripQuery{preserveAsHeader}, nil
+	return &stripQuery{preserveAsHeader}, nil
 }
