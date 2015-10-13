@@ -22,7 +22,7 @@ import (
 )
 
 func init() {
-    // start an etcd server
+	// start an etcd server
 	err := startEtcd()
 	if err != nil {
 		log.Fatal(err)

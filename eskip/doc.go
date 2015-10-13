@@ -177,6 +177,5 @@ structured, in-memory route definitions.
 The eskip parser does not validate the routes against semantic rules, e.g.
 whether a matcher expression is valid, or a filter implementation is
 available. This validation happens during processing the parsed definitions.
-
 */
 package eskip

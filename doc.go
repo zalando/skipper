@@ -13,8 +13,8 @@
 // limitations under the License.
 
 /*
-Package skipper provides a routing library with flexible routing configuation
-and updates.
+Package skipper provides an http routing library with flexible routing configuation
+and on-the-fly updates.
 
 Filters
 

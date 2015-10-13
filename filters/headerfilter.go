@@ -52,17 +52,17 @@ func headerFilterConfig(config []interface{}) (string, string, error) {
 	return key, value, nil
 }
 
-// Creates a filter specification that is used to set headers for requests.
+// Returns a filter specification that is used to set headers for requests.
 // Instances expect two arguments: the header name and the header value.
 // Name: "requestHeader"
-func NewRequestHeaderSpec() Spec {
+func NewRequestHeader() Spec {
 	return &headerFilter{typ: requestHeader, name: RequestHeaderName}
 }
 
-// Creates a filter specification that is used to set headers for responses.
+// Returns a filter specification that is used to set headers for responses.
 // Instances expect two arguments: the header name and the header value.
 // Name: "responseHeader"
-func NewResponseHeaderSpec() Spec {
+func NewResponseHeader() Spec {
 	return &headerFilter{typ: responseHeader, name: ResponseHeaderName}
 }
 

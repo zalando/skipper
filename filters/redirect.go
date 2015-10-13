@@ -19,19 +19,22 @@ import (
 	"net/url"
 )
 
-// Filter to return an HTTP redirect resposne. Marks the request as served.
-// Implements both Spec and Filter.
-type Redirect struct {
+// Filter to return
+type redirect struct {
 	code     int
 	location *url.URL
 }
 
-// "redirect"
-func (spec *Redirect) Name() string { return RedirectName }
+// Returns a new filter Spec, whose instances create an HTTP redirect
+// resposne. Marks the request as served.
+func NewRedirect() Spec { return &redirect{} }
 
-// Creates an instance of the Redirect filter. Expects two arguments: the
+// "redirect"
+func (spec *redirect) Name() string { return RedirectName }
+
+// Creates an instance of the redirect filter. Expects two arguments: the
 // redirect status code and the redirect location.
-func (spec *Redirect) CreateFilter(config []interface{}) (Filter, error) {
+func (spec *redirect) CreateFilter(config []interface{}) (Filter, error) {
 	invalidArgs := func() (Filter, error) {
 		return nil, errors.New("invalid arguments")
 	}
@@ -55,15 +58,15 @@ func (spec *Redirect) CreateFilter(config []interface{}) (Filter, error) {
 		return invalidArgs()
 	}
 
-	return &Redirect{int(code), u}, nil
+	return &redirect{int(code), u}, nil
 }
 
 // Noop.
-func (f *Redirect) Request(ctx FilterContext) {}
+func (f *redirect) Request(ctx FilterContext) {}
 
 // Sets the status code and the location header of the response. Marks the
 // request served.
-func (f *Redirect) Response(ctx FilterContext) {
+func (f *redirect) Response(ctx FilterContext) {
 	w := ctx.ResponseWriter()
 
 	u := *f.location

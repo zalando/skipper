@@ -117,8 +117,8 @@ func newLexer(code string) *eskipLex {
 			expression:    "[a-zA-Z_]\\w*",
 			captureGroups: 0}}
 
-    // mapping between the token expressions and the related capture groups
-    // in the merged token expression
+	// mapping between the token expressions and the related capture groups
+	// in the merged token expression
 	tokenRxss := make([]string, len(tokenRxs))
 	captureGroups := initialCaptureGroups
 	for i, trx := range tokenRxs {
@@ -127,7 +127,7 @@ func newLexer(code string) *eskipLex {
 		tokenRxss[i] = fmt.Sprintf("(%s)", trx.expression)
 	}
 
-    // compile all token expressions into a single expression
+	// compile all token expressions into a single expression
 	// let it panic, expression not coming from external source
 	rx := regexp.MustCompile(fmt.Sprintf(rxFmt, strings.Join(tokenRxss, "|")))
 
@@ -204,16 +204,16 @@ func (l *eskipLex) getToken(m []string) (int, string) {
 
 // lexer implementation
 func (l *eskipLex) Lex(lval *eskipSymType) int {
-    // done
+	// done
 	if len(l.code) == 0 {
 		return -1
 	}
 
-    // step position
+	// step position
 	l.lastPosition += len(l.lastRaw)
 	m := l.matchToken()
 
-    // no match, error, done
+	// no match, error, done
 	if len(m) == 0 {
 		l.Error("invalid token")
 		return -1

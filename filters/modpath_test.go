@@ -22,7 +22,7 @@ import (
 )
 
 func TestNoConfig(t *testing.T) {
-	spec := &filters.ModPath{}
+	spec := filters.NewModPath()
 	_, err := spec.CreateFilter(nil)
 	if err == nil {
 		t.Error("failed to fail")
@@ -30,7 +30,7 @@ func TestNoConfig(t *testing.T) {
 }
 
 func TestInvalidConfig(t *testing.T) {
-	spec := &filters.ModPath{}
+	spec := filters.NewModPath()
 	_, err := spec.CreateFilter([]interface{}{"invalid regexp: }*", 42})
 	if err == nil {
 		t.Error("failed to fail")
@@ -38,7 +38,7 @@ func TestInvalidConfig(t *testing.T) {
 }
 
 func TestModifyPath(t *testing.T) {
-	spec := &filters.ModPath{}
+	spec := filters.NewModPath()
 	f, err := spec.CreateFilter([]interface{}{"/replace-this/", "/with-this/"})
 	if err != nil {
 		t.Error(err)

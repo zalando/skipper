@@ -29,8 +29,6 @@ const (
 )
 
 func setup() error {
-	os.Setenv(credentialsDir, ".")
-
 	err := createFileWithContent("client.json", clientJson)
 	if err == nil {
 		err = createFileWithContent("user.json", userJson)
@@ -87,27 +85,10 @@ func createFileWithContent(fileName string, content string) error {
 
 func TestGetAuthPostBody(t *testing.T) {
 	us := &userCredentials{"user", "pass"}
-	c := New("", "scope0 scope1")
+	c := New("", "", "scope0 scope1")
 	postBody := c.getAuthPostBody(us)
 	if postBody != "grant_type=password&password=pass&scope=scope0+scope1&username=user" {
 		t.Error("the post body is not correct", postBody)
-	}
-}
-
-func TestGetCredentialsJson(t *testing.T) {
-	if err := setup(); err != nil {
-		t.Error(err)
-		return
-	}
-
-	json, err := getCredentialsData("client.json")
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	if string(json) != clientJson {
-		t.Error("the json is not correct", json)
 	}
 }
 
@@ -117,7 +98,8 @@ func TestGetClient(t *testing.T) {
 		return
 	}
 
-	client, _ := getClientCredentials()
+	oc := New("", "", "")
+	client, _ := oc.getClientCredentials()
 	if client.Id != "theclientid" {
 		t.Error("the client id is not correct")
 	}
@@ -132,7 +114,8 @@ func TestGetUser(t *testing.T) {
 		return
 	}
 
-	user, err := getUserCredentials()
+	oc := New("", "", "")
+	user, err := oc.getUserCredentials()
 	if err != nil {
 		t.Error(err)
 		return
@@ -149,8 +132,8 @@ func TestGetUser(t *testing.T) {
 
 func TestAuthenticate(t *testing.T) {
 	oas := httptest.NewServer(successHandler)
-	oauthClient := New(oas.URL, "scope0 scope1")
-	authToken, err := oauthClient.Token()
+	oauthClient := New("", oas.URL, "scope0 scope1")
+	authToken, err := oauthClient.GetToken()
 
 	if err != nil {
 		t.Error(err)
@@ -163,8 +146,8 @@ func TestAuthenticate(t *testing.T) {
 
 func TestAuthenticateFail(t *testing.T) {
 	oas := httptest.NewServer(failureHandler)
-	oauthClient := New(oas.URL, "scope0 scope1")
-	authToken, err := oauthClient.Token()
+	oauthClient := New("", oas.URL, "scope0 scope1")
+	authToken, err := oauthClient.GetToken()
 
 	if err == nil {
 		t.Error("failed to fail")

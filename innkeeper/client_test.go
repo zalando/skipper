@@ -30,7 +30,7 @@ const testAuthenticationToken = "test token"
 
 type autoAuth bool
 
-func (aa autoAuth) Token() (string, error) {
+func (aa autoAuth) GetToken() (string, error) {
 	if aa {
 		return testAuthenticationToken, nil
 	}

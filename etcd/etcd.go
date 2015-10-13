@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package etcd implements a DataClient for reading the skipper route
-// definitions from an etcd service.
-//
-// link, entry structure
-// package needed for testing
-//
-// (See the DataClient interface in the github.com/zalando/skipper/routing
-// package.)
+/*
+Package etcd implements a DataClient for reading the skipper route
+definitions from an etcd service.
+
+(See the DataClient interface in the github.com/zalando/skipper/routing
+package.)
+
+etcd is a ditributed configuation service: https://github.com/coreos/etcd. The
+route definitions are stored under individual keys as eskip route expressions.
+When loaded from etcd, the routes will get the etcd key as id.
+*/
 package etcd
 
 import (
@@ -31,8 +34,8 @@ import (
 
 const routesPath = "/routes"
 
-// Client providing the initial route definitions and updates from an etcd
-// service.
+// A Client is used to load the whole set of routes and the updates from an
+// etcd store.
 type Client struct {
 	routesRoot string
 	etcd       *etcd.Client
@@ -40,17 +43,17 @@ type Client struct {
 }
 
 // Creates a new Client, connecting to an etcd cluster reachable at 'urls'.
-// Storage root specififies the etcd node under which the skipper routes
-// are stored. E.g. if storageRoot is '/skipper-dev', the route definitions
-// should be stored under /v2/keys/skipper/routes/...
+// The storage root argument specififies the etcd node under which the skipper
+// routes are stored. E.g. if storageRoot is '/skipper-dev', the route
+// definitions should be stored under /v2/keys/skipper-dev/routes/...
 func New(urls []string, storageRoot string) *Client {
 	return &Client{storageRoot + routesPath, etcd.NewClient(urls), 0}
 }
 
-// Finds all route expressions in the containing directory node or.
+// Finds all route expressions in the containing directory node.
 // Prepends the expressions with the etcd key as the route id.
 // Returns a map where the keys are the etcd keys and the values are the
-// eskip route expressions.
+// eskip route definitions.
 func (s *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]string, uint64) {
 	if n.ModifiedIndex > highestIndex {
 		highestIndex = n.ModifiedIndex
@@ -77,7 +80,7 @@ func (s *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]stri
 	return map[string]string{id: r}, highestIndex
 }
 
-// Parses the set of eskip routes.
+// Parses a set of eskip routes.
 func parseRoutes(data map[string]string) ([]*eskip.Route, error) {
 	var routeDefs []string
 	for _, r := range data {
@@ -88,14 +91,14 @@ func parseRoutes(data map[string]string) ([]*eskip.Route, error) {
 	return eskip.Parse(doc)
 }
 
-// converts a set of eskip routes into a list of their ids.
+// Collects all the ids from a set of routes.
 func getRouteIds(data map[string]string) []string {
-	var deletedIds []string
+	var ids []string
 	for id, _ := range data {
-		deletedIds = append(deletedIds, id)
+		ids = append(ids, id)
 	}
 
-	return deletedIds
+	return ids
 }
 
 // Returns all the route definitions currently stored in etcd.

@@ -38,6 +38,8 @@ const (
 	innkeeperUrlUsage              = "url of the innkeeper API"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources"
 	oauthUrlUsage                  = "OAuth2 URL for Innkeeper authentication"
+	oauthScopeUsage                = "the whitespace separated list of oauth scopes"
+	oauthCredentialsDirUsage       = "directory containing the OAuth2 credentials documents"
 	routesFileUsage                = "routes file to use instead of etcd"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "global pre-route filters for routes from Innkeeper"
@@ -54,6 +56,8 @@ var (
 	sourcePollTimeout         int64
 	routesFile                string
 	oauthUrl                  string
+	oauthScope                string
+	oauthCredentialsDir       string
 	innkeeperAuthToken        string
 	innkeeperPreRouteFilters  string
 	innkeeperPostRouteFilters string
@@ -69,6 +73,8 @@ func init() {
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.StringVar(&oauthUrl, "oauth-url", "", oauthUrlUsage)
+	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
+	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
 	flag.StringVar(&innkeeperAuthToken, "innkeeper-auth-token", "", innkeeperAuthTokenUsage)
 	flag.StringVar(&innkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", innkeeperPreRouteFiltersUsage)
 	flag.StringVar(&innkeeperPostRouteFilters, "innkeeper-post-route-filters", "", innkeeperPostRouteFiltersUsage)
@@ -87,6 +93,8 @@ func main() {
 		RoutesFile:                routesFile,
 		IgnoreTrailingSlash:       false,
 		OAuthUrl:                  oauthUrl,
+		OAuthScope:                oauthScope,
+		OAuthCredentialsDir:       oauthCredentialsDir,
 		InnkeeperAuthToken:        innkeeperAuthToken,
 		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
 		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,

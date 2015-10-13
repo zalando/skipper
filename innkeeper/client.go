@@ -12,6 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/*
+Package innkeeper implements a DataClient for reading skipper route
+definitions from an Innkeeper service.
+
+(See the DataClient interface in the github.com/zalando/skipper/routing
+package.)
+
+Innkeeper is a service to maintain large sets of routes in a multi-user
+environment with OAuth2 authentication and permission scopes.
+
+See: https://github.com/zalando/innkeeper
+*/
 package innkeeper
 
 import (
@@ -57,71 +69,93 @@ const (
 	fixedRedirectStatus = http.StatusFound
 )
 
-type pathMatch struct {
-	Typ   pathMatchType `json:"type"`
-	Match string        `json:"match"`
-}
+// json serialization object for innkeeper route definitions
+type (
+	pathMatch struct {
+		Typ   pathMatchType `json:"type"`
+		Match string        `json:"match"`
+	}
 
-type pathRewrite struct {
-	Match   string `json:"match"`
-	Replace string `json:"replace"`
-}
+	pathRewrite struct {
+		Match   string `json:"match"`
+		Replace string `json:"replace"`
+	}
 
-type headerData struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
+	headerData struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
 
-type endpoint struct {
-	Typ      endpointType `json:"type"`
-	Protocol string       `json:"protocol"`
-	Hostname string       `json:"hostname"`
-	Port     int          `json:"port"`
-	Path     string       `json:"path"`
-}
+	endpoint struct {
+		Typ      endpointType `json:"type"`
+		Protocol string       `json:"protocol"`
+		Hostname string       `json:"hostname"`
+		Port     int          `json:"port"`
+		Path     string       `json:"path"`
+	}
 
-type routeDef struct {
-	// non-parsed field
-	matchMethod string
+	routeDef struct {
+		// non-parsed field
+		matchMethod string
 
-	MatchMethods    []string     `json:"match_methods"`
-	MatchHeaders    []headerData `json:"match_headers"`
-	MatchPath       pathMatch    `json:"match_path"`
-	RewritePath     *pathRewrite `json:"rewrite_path"`
-	RequestHeaders  []headerData `json:"request_headers"`
-	ResponseHeaders []headerData `json:"response_headers"`
-	Endpoint        endpoint     `json:"endpoint"`
-}
+		MatchMethods    []string     `json:"match_methods"`
+		MatchHeaders    []headerData `json:"match_headers"`
+		MatchPath       pathMatch    `json:"match_path"`
+		RewritePath     *pathRewrite `json:"rewrite_path"`
+		RequestHeaders  []headerData `json:"request_headers"`
+		ResponseHeaders []headerData `json:"response_headers"`
+		Endpoint        endpoint     `json:"endpoint"`
+	}
 
-type routeData struct {
-	Id        int64    `json:"id"`
-	CreatedAt string   `json:"createdAt"`
-	DeletedAt string   `json:"deletedAt"`
-	Route     routeDef `json:"route"`
-}
+	routeData struct {
+		Id        int64    `json:"id"`
+		CreatedAt string   `json:"createdAt"`
+		DeletedAt string   `json:"deletedAt"`
+		Route     routeDef `json:"route"`
+	}
+)
 
+// json serialization object for innkeeper error messages
 type apiError struct {
 	Message   string `json:"message"`
 	ErrorType string `json:"type"`
 }
 
-// Provides an Authentication implementation with fixed token string
-type FixedToken string
-
-func (fa FixedToken) Token() (string, error) { return string(fa), nil }
-
+// An Authentication object provides authentication to Innkeeper.
 type Authentication interface {
-	Token() (string, error)
+	GetToken() (string, error)
 }
 
+// A FixedToken provides Innkeeper authentication by an unchanged token
+// string.
+type FixedToken string
+
+// Returns the fixed token.
+func (ft FixedToken) GetToken() (string, error) { return string(ft), nil }
+
+// Initialization options for the Innkeeper client.
 type Options struct {
-	Address          string
-	Insecure         bool
-	Authentication   Authentication
-	PreRouteFilters  string
+
+	// The network address where the Innkeeper API is accessible.
+	Address string
+
+	// When true, TLS certificate verification is skipped.
+	Insecure bool
+
+	// Authentication to be used when connecting to Innkeeper.
+	Authentication Authentication
+
+	// An eskip filter chain expression to prepend to each route loaded
+	// from Innkeeper. (E.g. "filter1() -> filter2() -> filter3()")
+	PreRouteFilters string
+
+	// An eskip filter chain expression to append to each route loaded
+	// from Innkeeper. (E.g. "filter1() -> filter2() -> filter3()")
 	PostRouteFilters string
 }
 
+// A Client is used to load the whole set of routes and the updates from an
+// Innkeeper service.
 type Client struct {
 	opts             Options
 	preRouteFilters  []*eskip.Filter
@@ -131,6 +165,7 @@ type Client struct {
 	lastChanged      string
 }
 
+// Returns a new Client.
 func New(o Options) (*Client, error) {
 	preFilters, err := eskip.ParseFilters(o.PreRouteFilters)
 	if err != nil {
@@ -150,6 +185,9 @@ func New(o Options) (*Client, error) {
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}}}, nil
 }
 
+// Generate a separate route for each method if an Innkeeper route contains
+// more than one method condition, because eskip routes can contain only a
+// single method condition.
 func splitOnMethods(data []*routeData) []*routeData {
 	var split []*routeData
 	for _, d := range data {
@@ -168,6 +206,7 @@ func splitOnMethods(data []*routeData) []*routeData {
 	return split
 }
 
+// Converts Innkeeper header conditions to a header map.
 func convertHeaders(d *routeData) map[string]string {
 	hs := make(map[string]string)
 	for _, h := range d.Route.MatchHeaders {
@@ -177,10 +216,13 @@ func convertHeaders(d *routeData) map[string]string {
 	return hs
 }
 
+// In the current API specification of Innkeeper, a protocol can be HTTPS or
+// HTTP.
 func innkeeperProcotolToScheme(p string) string {
 	return strings.ToLower(p)
 }
 
+// Converts an Innkeeper endpoint structure into an endpoint address.
 func innkeeperEndpointToUrl(e *endpoint, withPath bool) string {
 	scheme := innkeeperProcotolToScheme(e.Protocol)
 	host := fmt.Sprintf("%s:%d", e.Hostname, e.Port)
@@ -193,6 +235,8 @@ func innkeeperEndpointToUrl(e *endpoint, withPath bool) string {
 	return u.String()
 }
 
+// Converts the Innkeeper filter objects in a route definition to their eskip
+// representation.
 func convertFilters(d *routeData) []*eskip.Filter {
 	var fs []*eskip.Filter
 
@@ -230,6 +274,7 @@ func convertFilters(d *routeData) []*eskip.Filter {
 	return fs
 }
 
+// Converts an Innkeeper backend to an eskip endpoint address or a shunt.
 func convertBackend(d *routeData) (bool, string) {
 	var backend string
 	shunt := d.Route.Endpoint.Typ == endpointPermanentRedirect
@@ -240,6 +285,7 @@ func convertBackend(d *routeData) (bool, string) {
 	return shunt, backend
 }
 
+// Converts an Innkeeper route definition to its eskip representation.
 func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*eskip.Filter) *eskip.Route {
 	var p string
 	if d.Route.MatchPath.Typ == pathMatchStrict {
@@ -271,6 +317,7 @@ func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*
 		Backend:     backend}
 }
 
+// Converts a set of Innkeeper route definitions to their eskip representation.
 func convertData(data []*routeData, preRouteFilters, postRouteFilters []*eskip.Filter) ([]*eskip.Route, []string, string) {
 	var (
 		routes      []*eskip.Route
@@ -301,6 +348,7 @@ func convertData(data []*routeData, preRouteFilters, postRouteFilters []*eskip.F
 	return routes, deleted, lastChanged
 }
 
+// Parses an Innkeeper API error message and returns its type.
 func parseApiError(r io.Reader) (string, error) {
 	message, err := ioutil.ReadAll(r)
 
@@ -316,18 +364,20 @@ func parseApiError(r io.Reader) (string, error) {
 	return ae.ErrorType, nil
 }
 
+// Checks whether an API error is authentication/authorization related.
 func isApiAuthError(error string) bool {
 	aerr := authErrorType(error)
 	return aerr == authErrorPermission || aerr == authErrorAuthentication
 }
 
+// Authenticates a client and stores the authentication token.
 func (c *Client) authenticate() error {
 	if c.opts.Authentication == nil {
 		c.authToken = ""
 		return nil
 	}
 
-	t, err := c.opts.Authentication.Token()
+	t, err := c.opts.Authentication.GetToken()
 	if err != nil {
 		return err
 	}
@@ -336,6 +386,8 @@ func (c *Client) authenticate() error {
 	return nil
 }
 
+// Checks if an http response status indicates an error, and returns an error
+// object if it does.
 func getHttpError(r *http.Response) (error, bool) {
 	switch {
 	case r.StatusCode < http.StatusBadRequest:
@@ -349,6 +401,10 @@ func getHttpError(r *http.Response) (error, bool) {
 	}
 }
 
+// Calls an http request to an Innkeeper URL for route definitions.
+// If authRetry is true, and the request fails due to an
+// authentication/authorization related problem, it retries the request with
+// reauthenticating first.
 func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -399,6 +455,7 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 	return result, err
 }
 
+// Returns all active routes from Innkeeper.
 func (c *Client) GetInitial() ([]*eskip.Route, error) {
 	d, err := c.requestData(true, c.opts.Address+allRoutesPath)
 	if err != nil {
@@ -413,6 +470,7 @@ func (c *Client) GetInitial() ([]*eskip.Route, error) {
 	return routes, nil
 }
 
+// Returns all new and deleted routes from Innkeeper since the last GetInitial request.
 func (c *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 	d, err := c.requestData(true, c.opts.Address+fmt.Sprintf(updatePathFmt, c.lastChanged))
 	if err != nil {
