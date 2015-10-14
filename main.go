@@ -15,7 +15,7 @@ const (
 	defaultAddress           = ":9090"
 	defaultEtcdUrls          = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultStorageRoot       = "/skipper"
-	defaultSourcePollTimeout = 180
+	defaultSourcePollTimeout = int64(3000)
 
 	addressUsage                   = "address where skipper should listen on"
 	etcdUrlsUsage                  = "urls where etcd can be found"
@@ -39,7 +39,7 @@ var (
 	insecure                  bool
 	storageRoot               string
 	innkeeperUrl              string
-	sourcePollTimeout         int
+	sourcePollTimeout         int64
 	routesFile                string
 	oauthUrl                  string
 	oauthScope                string
@@ -56,7 +56,7 @@ func init() {
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.StringVar(&storageRoot, "storage-root", defaultStorageRoot, storageRootUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
-	flag.IntVar(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
+	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.StringVar(&oauthUrl, "oauth-url", "", oauthUrlUsage)
 	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
