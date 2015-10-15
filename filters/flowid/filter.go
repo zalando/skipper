@@ -1,6 +1,7 @@
 package flowid
 
 import (
+	"errors"
 	"github.com/zalando/skipper/skipper"
 )
 
@@ -12,10 +13,15 @@ const (
 type flowId struct {
 	id            string
 	reuseExisting bool
+	flowIdLength  uint8
 }
 
-func New(id string, allowOverride bool) skipper.Filter {
-	return &flowId{id, allowOverride}
+var (
+	ErrInvalidFilterParameters = errors.New("Invalid filter parameters")
+)
+
+func New(id string, allowOverride bool, len uint8) skipper.Filter {
+	return &flowId{id, allowOverride, len}
 }
 
 func (this *flowId) Id() string { return this.id }
@@ -28,13 +34,12 @@ func (this *flowId) Request(fc skipper.FilterContext) {
 
 	if this.reuseExisting {
 		flowId = r.Header.Get(flowIdHeaderName)
+		if isValid(flowId) {
+			return
+		}
 	}
 
-	var err error
-	if !isValid(flowId) {
-		flowId, err = newFlowId(defaultLen)
-	}
-
+	flowId, err := newFlowId(this.flowIdLength)
 	if err == nil {
 		fc.Request().Header.Set(flowIdHeaderName, flowId)
 	}
@@ -43,6 +48,21 @@ func (this *flowId) Request(fc skipper.FilterContext) {
 func (this *flowId) Response(skipper.FilterContext) {}
 
 func (this *flowId) MakeFilter(id string, fc skipper.FilterConfig) (skipper.Filter, error) {
-	reuseExisting, _ := fc[0].(bool)
-	return New(id, reuseExisting), nil
+	var reuseExisting bool
+	if len(fc) > 0 {
+		if r, ok := fc[0].(bool); ok {
+			reuseExisting = r
+		} else {
+			return nil, ErrInvalidFilterParameters
+		}
+	}
+	var flowIdLength uint8 = defaultLen
+	if len(fc) > 1 {
+		if l, ok := fc[1].(float64); ok && l >= minLength && l <= maxLength {
+			flowIdLength = uint8(l)
+		} else {
+			return nil, ErrInvalidFilterParameters
+		}
+	}
+	return New(id, reuseExisting, flowIdLength), nil
 }

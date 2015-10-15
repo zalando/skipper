@@ -4,13 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"regexp"
 	"fmt"
+	"regexp"
 )
 
 const (
 	defaultLen = 16
-	maxLength  = 255
+	maxLength  = 254
 	minLength  = 8
 )
 
@@ -19,9 +19,8 @@ var (
 	flowIdRegex, _ = regexp.Compile(`^[\w+/=\-]+$`)
 )
 
-
 func newFlowId(len uint8) (string, error) {
-	if len < minLength || len%2 != 0 {
+	if len < minLength || len > maxLength || len%2 != 0 {
 		return "", ErrInvalidLen
 	}
 
