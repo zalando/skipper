@@ -1,12 +1,43 @@
 # Flow ID Filter
 
-Flow IDs let you correlate router logs for a given request against the upstream application logs for that same request.
-If your upstream application makes other requests to other services it can provide the same Flow ID value so that all
+Flow Ids let you correlate router logs for a given request against the upstream application logs for that same request.
+If your upstream application makes other requests to other services it can provide the same Flow Id value so that all
 of those logs can be correlated.
 
 ## How it works
+
 Skipper generates a unique Flow ID for every HTTP request that it receives. The Flow ID is then passed to your 
-upstream application as an HTTP header called X-Flow-Id.
+upstream application as an HTTP header called `X-Flow-Id`.
+
+The filter takes 2 optional parameters:
+
+1. Accept existing `X-Flow-Id` header
+2. Flow Id length
+	 
+The first parameter is a boolean parameter that, when set to true, will make the filter skip the generation of
+a new flow id. If the existing header value is not a valid flow id it is ignored and a new flow id is also generated.
+
+The second parameter is a number that defines the length of the generated flow ids. Valid options are any even number
+between 8 and 254.
+
+## Usage
+
+The filter can be used with many different combinations of parameters. It can also be used without any parameter, since 
+both are options.
+
+### Default parameters
+	FlowId()
+Without any parameters, the filter doesn't reuse existing `X-Flow-Id` headers and generates new ones with 16 bytes.
+
+### Reuse existing flow id
+	FlowId(true)
+With only the first parameter with the boolean value `true` the filter will accept existing `X-Flow-Id` headers, if 
+they're present in the request.
+
+### Generate bigger flow ids
+	FlowId(false, 64)
+This example doesn't accept existing `X-Flow-Id` headers and will always generate new flow ids with 64 bytes.
+
 
 ## Some benchmarks
 
