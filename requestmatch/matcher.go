@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strings"
 )
 
 const freeWildcardExp = "/[*][^/]+$"
@@ -114,6 +115,24 @@ func compileRxs(exps []string) ([]*regexp.Regexp, error) {
 	return rxs, nil
 }
 
+func keyValToLower(kv map[string]string) map[string]string {
+	kvl := make(map[string]string)
+	for k, v := range kv {
+		kvl[strings.ToLower(k)] = v
+	}
+
+	return kvl
+}
+
+func headerRegexpsToLower(hrx map[string][]*regexp.Regexp) map[string][]*regexp.Regexp {
+	hrxl := make(map[string][]*regexp.Regexp)
+	for k, v := range hrx {
+		hrxl[strings.ToLower(k)] = v
+	}
+
+	return hrxl
+}
+
 func makeLeaf(d Definition) (*leafMatcher, error) {
 	hostRxs, err := compileRxs(d.HostRegexps())
 	if err != nil {
@@ -140,8 +159,8 @@ func makeLeaf(d Definition) (*leafMatcher, error) {
 		method:         d.Method(),
 		hostRxs:        hostRxs,
 		pathRxs:        pathRxs,
-		headersExact:   d.Headers(),
-		headersRegexps: allHeaderRxs,
+		headersExact:   keyValToLower(d.Headers()),
+		headersRegexps: headerRegexpsToLower(allHeaderRxs),
 		value:          d.Value()}, nil
 }
 
@@ -230,6 +249,15 @@ func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]st
 	return pm.leaves, params
 }
 
+func headerToLower(h http.Header) http.Header {
+	hl := make(http.Header)
+	for k, v := range h {
+		hl[strings.ToLower(k)] = v
+	}
+
+	return hl
+}
+
 func matchRegexps(rxs []*regexp.Regexp, s string) bool {
 	for _, rx := range rxs {
 		if !rx.MatchString(s) {
@@ -257,6 +285,12 @@ func matchHeader(h http.Header, key string, check func(string) bool) bool {
 
 func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h http.Header) bool {
 	// todo: would be better to allow any that match, even if slower
+
+	if len(exact) == 0 && len(hrxs) == 0 {
+		return true
+	}
+
+	h = headerToLower(h)
 
 	for k, v := range exact {
 		if !matchHeader(h, k, func(val string) bool { return val == v }) {
