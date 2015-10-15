@@ -9,7 +9,7 @@ func TestFlowIdInvalidLength(t *testing.T) {
 	}
 
 	_, err = newFlowId(15)
-	if err == nil {
+	if err != ErrInvalidLen {
 		t.Errorf("Request for an invalid flow id length (odd number) succeeded and it shouldn't")
 	}
 }
