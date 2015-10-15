@@ -20,38 +20,41 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 )
 
 // custom filter type:
-type setTestResponse struct{}
+type setEchoHeader struct{}
 
-func (s *setTestResponse) Name() string                                         { return "setTestResponse" }
-func (s *setTestResponse) CreateFilter(_ []interface{}) (filters.Filter, error) { return s, nil }
-func (f *setTestResponse) Response(_ filters.FilterContext)                     {}
+func (s *setEchoHeader) Name() string                                         { return "setEchoHeader" }
+func (s *setEchoHeader) CreateFilter(_ []interface{}) (filters.Filter, error) { return s, nil }
+func (f *setEchoHeader) Response(_ filters.FilterContext)                     {}
 
-// the filter copies the path parameter 'response' to the 'X-Response' header
-func (f *setTestResponse) Request(ctx filters.FilterContext) {
-	ctx.Request().Header.Set("X-Response", ctx.PathParam("response"))
+// the filter copies the path parameter 'echo' to the 'X-Echo' header
+func (f *setEchoHeader) Request(ctx filters.FilterContext) {
+	ctx.Request().Header.Set("X-Echo", ctx.PathParam("echo"))
 }
 
 func Example() {
-	// create a target server. It will return the value of the 'X-Response' header as the response body:
+	// create a target backend server. It will return the value of the 'X-Echo' request header
+	// as the response body:
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(r.Header.Get("X-Response")))
+		w.Write([]byte(r.Header.Get("X-Echo")))
 	}))
 
 	defer targetServer.Close()
 
 	// create a filter registry, and register the custom filter:
 	filterRegistry := filters.Defaults()
-	filterRegistry.Register(&setTestResponse{})
+	filterRegistry.Register(&setEchoHeader{})
 
-	// create a data client with a predefined route, referencing the filter:
-	routeDoc := fmt.Sprintf(`Path("/return/:response") -> setTestResponse() -> "%s"`, targetServer.URL)
+	// create a data client with a predefined route, referencing the filter and a path condition
+	// containing a wildcard called 'echo':
+	routeDoc := fmt.Sprintf(`Path("/return/:echo") -> setEchoHeader() -> "%s"`, targetServer.URL)
 	dataClient, err := testdataclient.NewDoc(routeDoc)
 	if err != nil {
 		log.Fatal(err)
@@ -61,11 +64,11 @@ func Example() {
 	proxy := proxy.New(routing.New(routing.Options{
 		FilterRegistry: filterRegistry,
 		DataClients:    []routing.DataClient{dataClient}}), false)
-	routerServer := httptest.NewServer(proxy)
-	defer routerServer.Close()
+	router := httptest.NewServer(proxy)
+	defer router.Close()
 
 	// make a request to the proxy:
-	rsp, err := http.Get(fmt.Sprintf("%s/return/Hello,+world!", routerServer.URL))
+	rsp, err := http.Get(fmt.Sprintf("%s/return/Hello,+world!", router.URL))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -73,12 +76,9 @@ func Example() {
 	defer rsp.Body.Close()
 
 	// print out the response:
-	data, err := ioutil.ReadAll(rsp.Body)
-	if err != nil {
+	if _, err := io.Copy(os.Stdout, rsp.Body); err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println(string(data))
 
 	// Output:
 	// Hello, world!
