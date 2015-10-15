@@ -12,61 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package requestmatch implements matching http requests to associated values.
-//
-// Matching is based on the attributes of http requests, where a request matches
-// a definition if it fulfills all condition in it. The evaluation happens in the
-// following order:
-//
-// 1. The request path is used to find leaf definitions in a lookup tree. If no
-// path match was found, the leaf definitions in the root are taken that don't
-// have a condition for path matching.
-//
-// 2. If any leaf definitions were found, they are evaluated against the request
-// and the associated value of the first matching definition is returned. The order
-// of the evaluation happens from the strictest definition to the least strict
-// definition, where strictness is proportional to the number of non-empty
-// conditions in the definition.
-//
-// Path matching supports two kind of wildcards:
-//
-// - a simple wildcard matches a single tag in a path. E.g: /users/:name/roles
-// will be matched by /users/jdoe/roles, and the value of the parameter 'name' will
-// be 'jdoe'
-//
-// - a freeform wildcard matches the last segment of a path, with any number of
-// tags in it. E.g: /assets/*assetpath will be matched by /assets/images/logo.png,
-// and the value of the parameter 'assetpath' will be '/images/logo.png'.
-
-/*
-mathcing http requests to skipper routes
-
-using an internal lookup tree
-
-matches if all conditions fulfilled in the route
-
-evaluation order:
-
-1. path in the lookup tree for leaf definitions, if no match leaf definitions in the
-root. root leaf that have no path condition (no regexp)
-
-2. in the leaf matching based on the rest of the conditions, from the most strict to the
-least strict
-
-path matching supports two kinds of wildcards
-
-- simple wildcard matching a single name in the path
-
-- freeform wildcard at the end of the path matching multiple names
-
-wildcards in the response
-
-routing definitions from data clients, merged, poll timeout
-
-route definitions converted to routes with real filter instances using the registry
-
-tail slash option
-*/
 package routing
 
 import (
@@ -76,10 +21,15 @@ import (
 	"time"
 )
 
+// Control flags for route matching.
 type MatchingOptions uint
 
 const (
+
+    // All options are default.
 	MatchingOptionsNone MatchingOptions = 0
+
+    // Ignore tailing slash in paths.
 	IgnoreTrailingSlash MatchingOptions = 1 << iota
 )
 
@@ -87,29 +37,67 @@ func (o MatchingOptions) ignoreTrailingSlash() bool {
 	return o&IgnoreTrailingSlash > 0
 }
 
+// DataClient instances provide different data sources for
+// route definitions.
 type DataClient interface {
 	GetInitial() ([]*eskip.Route, error)
 	GetUpdate() ([]*eskip.Route, []string, error)
 }
 
+// Initialization optoins for routing.
 type Options struct {
+
+    // Registry containing the available filters
+    // during processing the filter chains in the
+    // route definitions.
 	FilterRegistry  filters.Registry
+
+    // Matching options are flags that control the
+    // route matching.
 	MatchingOptions MatchingOptions
+
+    // The timeout between to requests to the data
+    // clients for upserted/deleted route definitions.
 	PollTimeout     time.Duration
+
+    // The set of different data clients where the
+    // route definitions are read from.
 	DataClients     []DataClient
+
+    // Performance tuning option. When zero, on every update
+    // from the data clients, the newly constructed routing
+    // table will take effect on the next routing query. In
+    // case of higher values, the routing queries have priority
+    // but the new routing table takes effect only a few requests
+    // later.
+    //
+    // Currently not used, the performance benefir needs to be
+    // benchmarked yet.
 	UpdateBuffer    int
 }
 
+// Route object with preprocessed filter instances.
 type Route struct {
+
+    // Fields from the static route definition.
 	eskip.Route
+
+    // The backend scheme and host.
 	Scheme, Host string
+
+    // The preprocessed filter instances.
 	Filters      []filters.Filter
 }
 
+// Routing ('router') instance providing the live
+// updatable request matching.
 type Routing struct {
 	getMatcher <-chan *matcher
 }
 
+// starts a goroutine that continuously feeds the latest routing settings
+// on the output channel, and receives the next updated settings on the
+// input channel.
 func feedMatchers(updateBuffer int, current *matcher) (chan<- *matcher, <-chan *matcher) {
 	// todo: use updateBuffer, when benchmarks show that it matters
 	in := make(chan *matcher)
@@ -127,6 +115,8 @@ func feedMatchers(updateBuffer int, current *matcher) (chan<- *matcher, <-chan *
 	return in, out
 }
 
+// Creates a new routing instance, and starts listening for route
+// definition updates.
 func New(o Options) *Routing {
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
 	matchersIn, matchersOut := feedMatchers(o.UpdateBuffer, initialMatcher)
@@ -134,6 +124,11 @@ func New(o Options) *Routing {
 	return &Routing{matchersOut}
 }
 
+// Matches a request to the current routing table.
+//
+// If the request matches a route, returns the route and map of parameters
+// constructed from the wildcard parameters in the path condition if any. If
+// there is no match, it returns nil.
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	m := <-r.getMatcher
 	return m.match(req)
