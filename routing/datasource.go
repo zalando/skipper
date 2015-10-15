@@ -39,6 +39,10 @@ type incomingData struct {
 	deletedIds     []string
 }
 
+// continously receives route definitions from a data client on the the output channel.
+// The function does not return. When started, it request for the whole current set of
+// routes, and continues polling for the subsequent updates. When a communication error
+// occurs, it re-requests the whole valid set, and continues polling.
 func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *incomingData) {
 	receiveInitial := func() {
 		for {
@@ -75,6 +79,8 @@ func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *inco
 	}
 }
 
+// applies incoming route definitions to key/route map, where
+// the keys are the route ids.
 func applyIncoming(defs routeDefs, d *incomingData) routeDefs {
 	if d.typ == incomingReset || defs == nil {
 		defs = make(routeDefs)
@@ -95,6 +101,7 @@ func applyIncoming(defs routeDefs, d *incomingData) routeDefs {
 	return defs
 }
 
+// merges the route definitions from multiple data clients by route id
 func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
 	mergeById := make(routeDefs)
 	for _, defs := range defsByClient {
@@ -111,6 +118,9 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
 	return all
 }
 
+// receives the initial set of the route definitiosn and their
+// updates from multiple data clients, merges them by route id
+// and sends the merged route definitions to the output channel.
 func receiveRouteDefs(o Options) <-chan []*eskip.Route {
 	in := make(chan *incomingData)
 	out := make(chan []*eskip.Route)
@@ -132,6 +142,8 @@ func receiveRouteDefs(o Options) <-chan []*eskip.Route {
 	return out
 }
 
+// splits the backend address of a route definition into separate
+// scheme and host variables.
 func splitBackend(r *eskip.Route) (string, string, error) {
 	if r.Shunt {
 		return "", "", nil
@@ -145,6 +157,8 @@ func splitBackend(r *eskip.Route) (string, string, error) {
 	return bu.Scheme, bu.Host, nil
 }
 
+// creates a filter instance based on its definition and its
+// specification in the filter registry.
 func createFilter(fr filters.Registry, def *eskip.Filter) (filters.Filter, error) {
 	spec, ok := fr[def.Name]
 	if !ok {
@@ -154,6 +168,8 @@ func createFilter(fr filters.Registry, def *eskip.Filter) (filters.Filter, error
 	return spec.CreateFilter(def.Args)
 }
 
+// creates filter instances based on their definition
+// and the filter registry.
 func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]filters.Filter, error) {
 	var fs []filters.Filter
 	for _, def := range defs {
@@ -168,6 +184,7 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]filters.Filter,
 	return fs, nil
 }
 
+// processes a route definition for the routing table
 func processRouteDef(fr filters.Registry, def *eskip.Route) (*Route, error) {
 	scheme, host, err := splitBackend(def)
 	if err != nil {
@@ -182,6 +199,7 @@ func processRouteDef(fr filters.Registry, def *eskip.Route) (*Route, error) {
 	return &Route{*def, scheme, host, fs}, nil
 }
 
+// processes a set of route definitions for the routing table
 func processRouteDefs(fr filters.Registry, defs []*eskip.Route) []*Route {
 	var routes []*Route
 	for _, def := range defs {
@@ -196,6 +214,8 @@ func processRouteDefs(fr filters.Registry, defs []*eskip.Route) []*Route {
 	return routes
 }
 
+// receives the next version of the routing table on the output channel,
+// when an update is received on one of the data clients.
 func receiveRouteMatcher(o Options, out chan<- *matcher) {
 	updates := receiveRouteDefs(o)
 	for {

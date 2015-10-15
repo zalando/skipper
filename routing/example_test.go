@@ -38,11 +38,11 @@ func Example() {
 		MatchingOptions: routing.IgnoreTrailingSlash,
 		DataClients:     []routing.DataClient{dataClient}})
 
-	// let the route data be propagated:
+	// let the route data get propagated in the background:
 	time.Sleep(36 * time.Millisecond)
 
 	// create a request:
-	req, err := http.NewRequest("GET", "https://www.example.com/some/path/to/resource", nil)
+	req, err := http.NewRequest("GET", "https://www.example.com/some/path/to/Hello,+world!", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,5 +59,5 @@ func Example() {
 
 	// Output:
 	// https://www.example.org
-	// resource
+	// Hello, world!
 }

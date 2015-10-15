@@ -34,9 +34,6 @@ type leafMatcher struct {
 
 type leafMatchers []*leafMatcher
 
-func (ls leafMatchers) Len() int      { return len(ls) }
-func (ls leafMatchers) Swap(i, j int) { ls[i], ls[j] = ls[j], ls[i] }
-
 func leafWeight(l *leafMatcher) int {
 	w := 0
 
@@ -52,24 +49,25 @@ func leafWeight(l *leafMatcher) int {
 	return w
 }
 
-func (ls leafMatchers) Less(i, j int) bool {
-	return leafWeight(ls[i]) > leafWeight(ls[j])
-}
+// Sorting of leaf matchers:
+func (ls leafMatchers) Len() int      { return len(ls) }
+func (ls leafMatchers) Swap(i, j int) { ls[i], ls[j] = ls[j], ls[i] }
+func (ls leafMatchers) Less(i, j int) bool { return leafWeight(ls[i]) > leafWeight(ls[j]) }
 
 type pathMatcher struct {
 	leaves            leafMatchers
 	freeWildcardParam string
 }
 
-// A Matcher represents a preprocessed set of definitions and their associated
-// values.
+// root structure representing the routing table, with an
+// internal path matching tree and the root matchers.
 type matcher struct {
 	paths           *pathmux.Tree
 	rootLeaves      leafMatchers
 	matchingOptions MatchingOptions
 }
 
-// An error created if a definition cannot be preprocessed.
+// An error created if a route definition cannot be processed.
 type definitionError struct {
 	Id       string
 	Index    int
@@ -84,12 +82,14 @@ func (err *definitionError) Error() string {
 	return fmt.Sprintf("%s [%d]: %v", err.Id, err.Index, err.Original)
 }
 
+// rx identifying the 'free form' wildcards at the end of the paths
 var freeWildcardRx *regexp.Regexp
 
 func init() {
 	freeWildcardRx = regexp.MustCompile("/[*][^/]+$")
 }
 
+// compiles all rxs or fails
 func compileRxs(exps []string) ([]*regexp.Regexp, error) {
 	rxs := make([]*regexp.Regexp, len(exps))
 	for i, exp := range exps {
@@ -104,6 +104,9 @@ func compileRxs(exps []string) ([]*regexp.Regexp, error) {
 	return rxs, nil
 }
 
+// creates a new leaf matcher. preprocesses the
+// Host, PathRegexp, Header and HeaderRegexp
+// conditions.
 func newLeaf(r *Route) (*leafMatcher, error) {
 	hostRxs, err := compileRxs(r.HostRegexps)
 	if err != nil {
@@ -135,6 +138,7 @@ func newLeaf(r *Route) (*leafMatcher, error) {
 		route:         r}, nil
 }
 
+// returns the free form wildcard parameter of a path
 func freeWildcardParam(path string) string {
 	param := freeWildcardRx.FindString(path)
 	if param == "" {
@@ -145,8 +149,17 @@ func freeWildcardParam(path string) string {
 	return param[2:]
 }
 
-// Constructs a Matcher based on the provided definitions. If `ignoreTrailingSlash`
-// is true, the Matcher handles paths with or without a trailing slash equally.
+// constructs a matcher based on the provided definitions.
+//
+// If `ignoreTrailingSlash` is true, the matcher handles
+// paths with or without a trailing slash equally.
+//
+// It constructs the route definition into a trie structure
+// based on their path condition, if any, and puts the routes
+// with the same path condition into a leaf matcher structure
+// where they get evaluated after the leaf was matched based
+// on the rest of the conditions so that most strict route
+// definition matches first.
 func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	var (
 		errors     []*definitionError
@@ -203,6 +216,7 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	return &matcher{pathTree, rootLeaves, o}, errors
 }
 
+// matches a path in the path trie structure.
 func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]string) {
 	v, params := tree.Lookup(path)
 	if v == nil {
@@ -220,6 +234,7 @@ func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]st
 	return pm.leaves, params
 }
 
+// matches the path regexp conditions in a leaf matcher.
 func matchRegexps(rxs []*regexp.Regexp, s string) bool {
 	for _, rx := range rxs {
 		if !rx.MatchString(s) {
@@ -230,6 +245,7 @@ func matchRegexps(rxs []*regexp.Regexp, s string) bool {
 	return true
 }
 
+// matches a set of request headers to a fix and regexp header condition 
 func matchHeader(h http.Header, key string, check func(string) bool) bool {
 	vals, has := h[key]
 	if !has {
@@ -245,6 +261,7 @@ func matchHeader(h http.Header, key string, check func(string) bool) bool {
 	return false
 }
 
+// matches a set of request headers to the fix and regexp header conditions
 func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h http.Header) bool {
 	// todo: would be better to allow any that match, even if slower
 
@@ -265,6 +282,7 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 	return true
 }
 
+// matches a request to the conditions in a leaf matcher
 func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 	if l.method != "" && l.method != req.Method {
 		return false
@@ -285,6 +303,7 @@ func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 	return true
 }
 
+// matches a request to a set of leaf matchers
 func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatcher {
 	for _, l := range leaves {
 		if matchLeaf(l, req, path) {
@@ -295,7 +314,7 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatch
 	return nil
 }
 
-// Tries to match a request against the available definitions. If a match is found,
+// tries to match a request against the available definitions. If a match is found,
 // returns the associated value, and the wildcard parameters from the path definition,
 // if any.
 func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
