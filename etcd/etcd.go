@@ -76,6 +76,10 @@ func (s *Client) GetInitial() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
+	if response.EtcdIndex > etcdIndex {
+		etcdIndex = response.EtcdIndex
+	}
+
 	s.etcdIndex = etcdIndex
 	return routes, nil
 }
@@ -99,6 +103,10 @@ func (s *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+	}
+
+	if response.EtcdIndex > etcdIndex {
+		etcdIndex = response.EtcdIndex
 	}
 
 	s.etcdIndex = etcdIndex
