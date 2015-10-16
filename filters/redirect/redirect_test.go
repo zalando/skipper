@@ -4,6 +4,7 @@ import (
 	"github.com/zalando/skipper/mock"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -14,7 +15,7 @@ func TestRedirect(t *testing.T) {
 		t.Error(err)
 	}
 
-	ctx := &mock.FilterContext{FResponseWriter: httptest.NewRecorder()}
+	ctx := &mock.FilterContext{FResponseWriter: httptest.NewRecorder(), FRequest: &http.Request{URL: &url.URL{}}}
 	f.Response(ctx)
 
 	if ctx.FResponseWriter.(*httptest.ResponseRecorder).Code != http.StatusFound {
@@ -47,4 +48,106 @@ func TestRedirectRelative(t *testing.T) {
 	if ctx.FResponseWriter.Header().Get("Location") != "https://example.org/relative/url" {
 		t.Error("invalid location")
 	}
+}
+
+func testLocation(t *testing.T, filterLocation, checkLocation string) {
+	spec := &Redirect{}
+	f, err := spec.MakeFilter("redirect0", []interface{}{float64(http.StatusFound), filterLocation})
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx := &mock.FilterContext{
+		FResponseWriter: httptest.NewRecorder(),
+		FRequest: &http.Request{
+			URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
+			Host: "incoming.example.org"}}
+	f.Response(ctx)
+
+	if ctx.ResponseWriter().(*httptest.ResponseRecorder).Code != http.StatusFound {
+		t.Error("invalid status code")
+	}
+
+	if ctx.FResponseWriter.Header().Get("Location") != checkLocation {
+		t.Error("invalid location", ctx.FResponseWriter.Header().Get("Location"))
+	}
+}
+
+func TestSchemeOnly(t *testing.T) {
+	testLocation(t,
+		"http:",
+		"http://incoming.example.org/some/path?foo=1&bar=2")
+
+}
+
+func TestSchemeAndHost(t *testing.T) {
+	testLocation(t,
+		"http://redirect.example.org",
+		"http://redirect.example.org/some/path?foo=1&bar=2")
+}
+
+func TestSchemeAndHostAndPath(t *testing.T) {
+	testLocation(t,
+		"http://redirect.example.org/some/other/path",
+		"http://redirect.example.org/some/other/path?foo=1&bar=2")
+}
+
+func TestSchemeAndHostAndPathAndQuery(t *testing.T) {
+	testLocation(t,
+		"http://redirect.example.org/some/other/path?newquery=3",
+		"http://redirect.example.org/some/other/path?newquery=3")
+}
+
+func TestHostOnly(t *testing.T) {
+	testLocation(t,
+		"//redirect.example.org",
+		"https://redirect.example.org/some/path?foo=1&bar=2")
+}
+
+func TestHostAndPath(t *testing.T) {
+	testLocation(t,
+		"//redirect.example.org/some/other/path",
+		"https://redirect.example.org/some/other/path?foo=1&bar=2")
+}
+
+func TestHostAndPathAndQuery(t *testing.T) {
+	testLocation(t,
+		"//redirect.example.org/some/other/path?newquery=3",
+		"https://redirect.example.org/some/other/path?newquery=3")
+}
+
+func TestPathOnly(t *testing.T) {
+	testLocation(t,
+		"/some/other/path",
+		"https://incoming.example.org/some/other/path?foo=1&bar=2")
+}
+
+func TestPathAndQuery(t *testing.T) {
+	testLocation(t,
+		"/some/other/path?newquery=3",
+		"https://incoming.example.org/some/other/path?newquery=3")
+}
+
+func TestQueryOnly(t *testing.T) {
+	testLocation(t,
+		"?newquery=3",
+		"https://incoming.example.org/some/path?newquery=3")
+}
+
+func TestSchemeAndPath(t *testing.T) {
+	testLocation(t,
+		"http:///some/other/path",
+		"http://incoming.example.org/some/other/path?foo=1&bar=2")
+}
+
+func TestSchemeAndPathAndQuery(t *testing.T) {
+	testLocation(t,
+		"http:///some/other/path?newquery=3",
+		"http://incoming.example.org/some/other/path?newquery=3")
+}
+
+func TestSchemeAndQuery(t *testing.T) {
+	testLocation(t,
+		"http://?newquery=3",
+		"http://incoming.example.org/some/path?newquery=3")
 }
