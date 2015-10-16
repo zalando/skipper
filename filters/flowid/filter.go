@@ -1,7 +1,7 @@
 package flowid
 
 import (
-	"errors"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/skipper"
 )
 
@@ -15,10 +15,6 @@ type flowId struct {
 	reuseExisting bool
 	flowIdLength  uint8
 }
-
-var (
-	ErrInvalidFilterParameters = errors.New("Invalid filter parameters")
-)
 
 func New(id string, allowOverride bool, len uint8) skipper.Filter {
 	return &flowId{id, allowOverride, len}
@@ -53,7 +49,7 @@ func (this *flowId) MakeFilter(id string, fc skipper.FilterConfig) (skipper.Filt
 		if r, ok := fc[0].(bool); ok {
 			reuseExisting = r
 		} else {
-			return nil, ErrInvalidFilterParameters
+			return nil, filters.ErrInvalidFilterParameters
 		}
 	}
 	var flowIdLength uint8 = defaultLen
@@ -61,7 +57,7 @@ func (this *flowId) MakeFilter(id string, fc skipper.FilterConfig) (skipper.Filt
 		if l, ok := fc[1].(float64); ok && l >= minLength && l <= maxLength {
 			flowIdLength = uint8(l)
 		} else {
-			return nil, ErrInvalidFilterParameters
+			return nil, filters.ErrInvalidFilterParameters
 		}
 	}
 	return New(id, reuseExisting, flowIdLength), nil
