@@ -1,6 +1,7 @@
 package flowid
 
 import (
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/mock"
 	"github.com/zalando/skipper/skipper"
 	"net/http"
@@ -79,13 +80,13 @@ func TestFlowIdWithSpecificLen(t *testing.T) {
 func TestFlowIdWithInvalidParameters(t *testing.T) {
 	fc := skipper.FilterConfig{"wrong-parameter-type"}
 	_, err := testFlowIdSpec.MakeFilter(filterName, fc)
-	if err != ErrInvalidFilterParameters {
+	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("Expected an invalid parameters error, got %s", err)
 	}
 
 	fc = skipper.FilterConfig{true, float64(minLength - 1)}
 	_, err = testFlowIdSpec.MakeFilter(filterName, fc)
-	if err != ErrInvalidFilterParameters {
+	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("Expected an invalid parameters error, got %s", err)
 	}
 }

@@ -15,8 +15,8 @@ const (
 )
 
 var (
-	ErrInvalidLen  = errors.New(fmt.Sprintf("Invalid length. len must be >= %d and < %d", minLength, maxLength))
-	flowIdRegex, _ = regexp.Compile(`^[\w+/=\-]+$`)
+	ErrInvalidLen = errors.New(fmt.Sprintf("Invalid length. len must be >= %d and < %d", minLength, maxLength))
+	flowIdRegex   = regexp.MustCompile(`^[\w+/=\-]+$`)
 )
 
 func newFlowId(len uint8) (string, error) {
