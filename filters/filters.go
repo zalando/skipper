@@ -3,7 +3,6 @@ package filters
 import (
 	// import filter packages here:
 
-	"errors"
 	"github.com/zalando/skipper/filters/healthcheck"
 	"github.com/zalando/skipper/filters/humanstxt"
 	"github.com/zalando/skipper/filters/pathrewrite"
@@ -13,10 +12,7 @@ import (
 	"github.com/zalando/skipper/filters/static"
 	"github.com/zalando/skipper/filters/stripquery"
 	"github.com/zalando/skipper/skipper"
-)
-
-var (
-	ErrInvalidFilterParameters = errors.New("Invalid filter parameters")
+	"github.com/zalando/skipper/filters/flowid"
 )
 
 // takes a registry object and registers the filter spec in the package
@@ -33,6 +29,7 @@ func Register(registry skipper.FilterRegistry) {
 		static.Make(),
 		stripquery.Make(),
 		&redirect.Redirect{},
+		flowid.New(),
 	)
 }
 
