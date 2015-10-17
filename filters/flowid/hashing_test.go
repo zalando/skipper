@@ -1,6 +1,8 @@
 package flowid
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestFlowIdInvalidLength(t *testing.T) {
 	_, err := newFlowId(0)
@@ -8,15 +10,15 @@ func TestFlowIdInvalidLength(t *testing.T) {
 		t.Errorf("Request for an invalid flow id length (0) succeeded and it shouldn't")
 	}
 
-	_, err = newFlowId(15)
+	_, err = newFlowId(100)
 	if err != ErrInvalidLen {
-		t.Errorf("Request for an invalid flow id length (odd number) succeeded and it shouldn't")
+		t.Errorf("Request for an invalid flow id length (100) succeeded and it shouldn't")
 	}
 }
 
 func TestFlowIdLength(t *testing.T) {
-	for expected := minLength; expected <= maxLength; expected += 2 {
-		flowId, err := newFlowId(uint8(expected))
+	for expected := minLength; expected <= maxLength; expected++ {
+		flowId, err := newFlowId(expected)
 		if err != nil {
 			t.Errorf("Failed to generate flowId with len %d", expected)
 		}
@@ -56,9 +58,8 @@ func BenchmarkFlowIdLen64(b *testing.B) {
 	testFlowIdWithLen(b.N, 64)
 }
 
-func testFlowIdWithLen(times int, len uint8) {
+func testFlowIdWithLen(times int, l int) {
 	for i := 0; i < times; i++ {
-		newFlowId(len)
+		newFlowId(l)
 	}
-
 }

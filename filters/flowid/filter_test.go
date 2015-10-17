@@ -1,7 +1,6 @@
 package flowid
 
 import (
-	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/mock"
 	"github.com/zalando/skipper/skipper"
 	"net/http"
@@ -14,9 +13,9 @@ const (
 )
 
 var (
-	testFlowIdSpec           = &flowId{}
-	filterConfigWithReuse    = skipper.FilterConfig{true}
-	filterConfigWithoutReuse = skipper.FilterConfig{false}
+	testFlowIdSpec           = &flowIdSpec{}
+	filterConfigWithReuse    = skipper.FilterConfig{reuseParameterValue}
+	filterConfigWithoutReuse = skipper.FilterConfig{"dummy"}
 )
 
 func TestNewFlowIdGeneration(t *testing.T) {
@@ -64,7 +63,7 @@ func TestFlowIdRejectInvalidReusedFlowId(t *testing.T) {
 }
 
 func TestFlowIdWithSpecificLen(t *testing.T) {
-	fc := skipper.FilterConfig{true, float64(42.0)}
+	fc := skipper.FilterConfig{reuseParameterValue, float64(42.0)}
 	f, _ := testFlowIdSpec.MakeFilter(filterName, fc)
 	fctx := buildfilterContext()
 	f.Request(fctx)
@@ -78,16 +77,16 @@ func TestFlowIdWithSpecificLen(t *testing.T) {
 }
 
 func TestFlowIdWithInvalidParameters(t *testing.T) {
-	fc := skipper.FilterConfig{"wrong-parameter-type"}
+	fc := skipper.FilterConfig{true}
 	_, err := testFlowIdSpec.MakeFilter(filterName, fc)
-	if err != filters.ErrInvalidFilterParameters {
-		t.Errorf("Expected an invalid parameters error, got %s", err)
+	if err != skipper.ErrInvalidFilterParameters {
+		t.Errorf("Expected an invalid parameters error, got %v", err)
 	}
 
-	fc = skipper.FilterConfig{true, float64(minLength - 1)}
+	fc = skipper.FilterConfig{"", float64(minLength - 1)}
 	_, err = testFlowIdSpec.MakeFilter(filterName, fc)
-	if err != filters.ErrInvalidFilterParameters {
-		t.Errorf("Expected an invalid parameters error, got %s", err)
+	if err != skipper.ErrInvalidFilterParameters {
+		t.Errorf("Expected an invalid parameters error, got %v", err)
 	}
 }
 
