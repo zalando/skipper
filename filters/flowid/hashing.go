@@ -1,35 +1,44 @@
 package flowid
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/rand"
 	"regexp"
 )
 
 const (
-	defaultLen = 16
-	maxLength  = 254
-	minLength  = 8
+	maxLength       = 64
+	minLength       = 8
+	flowIdAlphabet  = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-+"
+	alphabetBitMask = 63
 )
 
 var (
-	ErrInvalidLen = errors.New(fmt.Sprintf("Invalid length. len must be >= %d and < %d", minLength, maxLength))
-	flowIdRegex   = regexp.MustCompile(`^[\w+/=\-]+$`)
+	ErrInvalidLen = errors.New(fmt.Sprintf("Invalid length. Must be between %d and %d", minLength, maxLength))
+	flowIdRegex   = regexp.MustCompile(`^[0-9a-zA-Z+-]+$`)
 )
 
-func newFlowId(len uint8) (string, error) {
-	if len < minLength || len > maxLength || len%2 != 0 {
+// newFlowId returns a random flowId using the flowIdAlphabet with length l
+// The alphabet is limited to 64 elements and requires a random 6 bit value to index any of them
+// The cost to rnd.IntXX is not very relevant but the bit shifting operations are faster
+// For this reason a single call to rnd.Int63 is used and its bits are mapped up to 8 chunks of 8 bits each
+// A final right shift truncates the extra unnecessary bits
+func newFlowId(l int) (string, error) {
+	if l < minLength || l > maxLength {
 		return "", ErrInvalidLen
 	}
 
-	u := make([]byte, hex.DecodedLen(int(len)))
-	buf := make([]byte, len)
+	u := make([]byte, l)
+	for i := 0; i < l; i += 10 {
+		b := rand.Int63()
+		for e := 0; e < 10 && i+e < l; e++ {
+			c := byte(b>>uint(6*e)) & alphabetBitMask // 6 bits only
+			u[i+e] = flowIdAlphabet[c]
+		}
+	}
 
-	rand.Read(u)
-	hex.Encode(buf, u)
-	return string(buf), nil
+	return string(u), nil
 }
 
 func isValid(flowId string) bool {
