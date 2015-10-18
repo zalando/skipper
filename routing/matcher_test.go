@@ -80,24 +80,24 @@ const testRouteDoc = `
 `
 
 var (
-    // random routes used for benchmarking
-	randomRoutes   []*Route
+	// random routes used for benchmarking
+	randomRoutes []*Route
 
-    // random requests used for benchmarking.
-    // part of the requests must match the random routes
-    // other part of them should not match them
+	// random requests used for benchmarking.
+	// part of the requests must match the random routes
+	// other part of them should not match them
 	randomRequests []*http.Request
 
-    // matchers with different number of routes in them
+	// matchers with different number of routes in them
 	testMatcher1 *matcher
 	testMatcher2 *matcher
 	testMatcher3 *matcher
 	testMatcher4 *matcher
 
-    // flag inidicating if the test routes and matcher were already initialized
+	// flag inidicating if the test routes and matcher were already initialized
 	benchmarkMatchersInitialzed bool
 
-    // a matcher with a generic set of routes
+	// a matcher with a generic set of routes
 	testMatcherGeneric *matcher
 )
 
