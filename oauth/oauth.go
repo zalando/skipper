@@ -43,7 +43,11 @@ import (
 	"strings"
 )
 
-const grantType = "password"
+const (
+	grantType    = "password"
+	clientJsonFn = "client.json"
+	userJsonFn   = "user.json"
+)
 
 type clientCredentials struct {
 	Id     string `json:"client_id"`
@@ -140,13 +144,13 @@ func (oc *OAuthClient) getCredentials(to interface{}, fn string) error {
 // Loads and parses the client credentials.
 func (oc *OAuthClient) getClientCredentials() (*clientCredentials, error) {
 	cc := &clientCredentials{}
-	err := oc.getCredentials(&cc, "client.json")
+	err := oc.getCredentials(&cc, clientJsonFn)
 	return cc, err
 }
 
 // Loads and parses the user credentials.
 func (oc *OAuthClient) getUserCredentials() (*userCredentials, error) {
 	uc := &userCredentials{}
-	err := oc.getCredentials(&uc, "user.json")
+	err := oc.getCredentials(&uc, userJsonFn)
 	return uc, err
 }
