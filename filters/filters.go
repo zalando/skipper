@@ -3,6 +3,7 @@ package filters
 import (
 	// import filter packages here:
 
+	"github.com/zalando/skipper/filters/flowid"
 	"github.com/zalando/skipper/filters/healthcheck"
 	"github.com/zalando/skipper/filters/humanstxt"
 	"github.com/zalando/skipper/filters/pathrewrite"
@@ -12,7 +13,6 @@ import (
 	"github.com/zalando/skipper/filters/static"
 	"github.com/zalando/skipper/filters/stripquery"
 	"github.com/zalando/skipper/skipper"
-	"github.com/zalando/skipper/filters/flowid"
 )
 
 // takes a registry object and registers the filter spec in the package
