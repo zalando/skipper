@@ -64,11 +64,11 @@ func TestParsePathRegexpsMatcher(t *testing.T) {
 
 func TestParseHeaderRegexps(t *testing.T) {
 	r, err := Parse(`
-        HeaderRegexp("Header-0", "value-0") &&
-        HeaderRegexp("Header-0", "value-1") &&
-        HeaderRegexp("Header-1", "value-2") &&
-        HeaderRegexp("Header-1", "value-3") ->
-        "https://www.example.org"`)
+		HeaderRegexp("Header-0", "value-0") &&
+		HeaderRegexp("Header-0", "value-1") &&
+		HeaderRegexp("Header-1", "value-2") &&
+		HeaderRegexp("Header-1", "value-3") ->
+		"https://www.example.org"`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -85,9 +85,9 @@ func TestParseHeaderRegexps(t *testing.T) {
 
 func TestParseHeaders(t *testing.T) {
 	r, err := Parse(`
-        Header("Header-0", "value-0") &&
-        Header("Header-1", "value-1") ->
-        "https://www.example.org"`)
+		Header("Header-0", "value-0") &&
+		Header("Header-1", "value-1") ->
+		"https://www.example.org"`)
 	if err != nil {
 		t.Error(err)
 	}

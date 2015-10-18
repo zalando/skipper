@@ -201,7 +201,7 @@ func TestParsingInnkeeperRoute(t *testing.T) {
                 "match": "/route",
                 "type": "STRICT"
             },
-            "rewrite_path": {
+            "path_rewrite": {
                 "match": "_",
                 "replace": "-"
             },
