@@ -24,19 +24,16 @@ request if it is a 'shunt' route.
 
 Proxy Mechanism
 
-To effectively use this package, it is important to understand its request
-handling mechanism:
-
 1. route matching:
 
-the incoming request is matched to the current routing table, implemented in
+The incoming request is matched to the current routing table, implemented in
 github.com/zalando/skipper/routing. The result may be a route, which will be
 used for forwarding or handling the request, or nil, in which case the proxy
 responds with 404.
 
 2. downstream request augmentation:
 
-in case of a matched route, the request
+In case of a matched route, the request
 handling method of all filters in the route will be executed in the order they
 are defined. The filters share a context object, that provides the in-memory
 represenation of the incoming request, the outgoing response writer, the path
@@ -46,40 +43,40 @@ modify the request or pass data to each other using the state bag.
 
 3.a downstream request:
 
-the incoming and augmented request is mapped to an outgoing request and
+The incoming and augmented request is mapped to an outgoing request and
 executed, addressing the endpoint defined by the current route.
 
 3.b shunt:
 
-in case the route is a 'shunt', an empty response is constructed
+In case the route is a 'shunt', an empty response is created
 with default 404 status.
 
 4. upstream response augmentation:
 
-the response handling method of all filters in the current route definition
+The response handling method of all filters in the current route definition
 will be exectuted, but this time in reverse order. The filter context is the
 same instance as the one in step 2, but this time it includes the response
-object, too. If the route is a shunt route, one of the filters needs to handle
+object from step 3. If the route is a shunt route, one of the filters needs to handle
 the request latest in this phase by setting the right status and response
 headers, and writing the response body, if any, to the writer in the filter
 context, and mark the request as 'served'.
 
 5. response:
 
-in case none of the filters handled the request, the response properties,
+In case none of the filters handled the request, the response properties,
 including the status and the headers, are mapped to the outgoing response
-writer, and the response body is streamed to it, in a flushing way.
+writer, and the response body is streamed to it, with continuos flushing.
 
 Routing Rules
 
 The route matching is implemented in the github.com/zalando/skipper/routing
 package. From the standpoint of the proxy, it is important that the routing
 rules are not constant, but they can be continously updated by new definitions
-originated in one or more data source.
+originated in one or more data sources.
 
-The only exceptions are the priority routes, that are custom route
-implementations, with custom matching logic, and are tested before the
-standard routing table.
+The only exceptions are the priority routes, that are not originated from the
+external data sources, and are tested against the requests before the standard
+routing table.
 */
 package proxy
 

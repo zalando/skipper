@@ -50,8 +50,8 @@ func leafWeight(l *leafMatcher) int {
 }
 
 // Sorting of leaf matchers:
-func (ls leafMatchers) Len() int      { return len(ls) }
-func (ls leafMatchers) Swap(i, j int) { ls[i], ls[j] = ls[j], ls[i] }
+func (ls leafMatchers) Len() int           { return len(ls) }
+func (ls leafMatchers) Swap(i, j int)      { ls[i], ls[j] = ls[j], ls[i] }
 func (ls leafMatchers) Less(i, j int) bool { return leafWeight(ls[i]) > leafWeight(ls[j]) }
 
 type pathMatcher struct {
@@ -245,7 +245,7 @@ func matchRegexps(rxs []*regexp.Regexp, s string) bool {
 	return true
 }
 
-// matches a set of request headers to a fix and regexp header condition 
+// matches a set of request headers to a fix and regexp header condition
 func matchHeader(h http.Header, key string, check func(string) bool) bool {
 	vals, has := h[key]
 	if !has {
