@@ -25,7 +25,7 @@
 // and the value of the parameter 'assetpath' will be '/images/logo.png'.
 
 /*
-mathcing http requests to skipper routes
+matching http requests to skipper routes
 
 using an internal lookup tree
 

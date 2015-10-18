@@ -26,10 +26,10 @@ type MatchingOptions uint
 
 const (
 
-    // All options are default.
+	// All options are default.
 	MatchingOptionsNone MatchingOptions = 0
 
-    // Ignore tailing slash in paths.
+	// Ignore tailing slash in paths.
 	IgnoreTrailingSlash MatchingOptions = 1 << iota
 )
 
@@ -47,46 +47,46 @@ type DataClient interface {
 // Initialization optoins for routing.
 type Options struct {
 
-    // Registry containing the available filters
-    // during processing the filter chains in the
-    // route definitions.
-	FilterRegistry  filters.Registry
+	// Registry containing the available filters
+	// during processing the filter chains in the
+	// route definitions.
+	FilterRegistry filters.Registry
 
-    // Matching options are flags that control the
-    // route matching.
+	// Matching options are flags that control the
+	// route matching.
 	MatchingOptions MatchingOptions
 
-    // The timeout between to requests to the data
-    // clients for upserted/deleted route definitions.
-	PollTimeout     time.Duration
+	// The timeout between to requests to the data
+	// clients for upserted/deleted route definitions.
+	PollTimeout time.Duration
 
-    // The set of different data clients where the
-    // route definitions are read from.
-	DataClients     []DataClient
+	// The set of different data clients where the
+	// route definitions are read from.
+	DataClients []DataClient
 
-    // Performance tuning option. When zero, on every update
-    // from the data clients, the newly constructed routing
-    // table will take effect on the next routing query. In
-    // case of higher values, the routing queries have priority
-    // but the new routing table takes effect only a few requests
-    // later.
-    //
-    // Currently not used, the performance benefir needs to be
-    // benchmarked yet.
-	UpdateBuffer    int
+	// Performance tuning option. When zero, on every update
+	// from the data clients, the newly constructed routing
+	// table will take effect on the next routing query. In
+	// case of higher values, the routing queries have priority
+	// but the new routing table takes effect only a few requests
+	// later.
+	//
+	// Currently not used, the performance benefir needs to be
+	// benchmarked yet.
+	UpdateBuffer int
 }
 
 // Route object with preprocessed filter instances.
 type Route struct {
 
-    // Fields from the static route definition.
+	// Fields from the static route definition.
 	eskip.Route
 
-    // The backend scheme and host.
+	// The backend scheme and host.
 	Scheme, Host string
 
-    // The preprocessed filter instances.
-	Filters      []filters.Filter
+	// The preprocessed filter instances.
+	Filters []filters.Filter
 }
 
 // Routing ('router') instance providing the live
