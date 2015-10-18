@@ -406,7 +406,7 @@ func TestMatchHeadersExactFalse(t *testing.T) {
 	h := make(http.Header)
 	h["Some-Header"] = []string{"some-value"}
 	h["Some-Other-Header"] = []string{"some-other-value-0", "some-other-value-1"}
-	if matchHeaders(map[string]string{"some-header": "some-wrong-value"}, nil, h) {
+	if matchHeaders(map[string]string{"Some-Header": "some-wrong-value"}, nil, h) {
 		t.Error("failed not to match header")
 	}
 }
@@ -415,7 +415,7 @@ func TestMatchHeadersExactTrue(t *testing.T) {
 	h := make(http.Header)
 	h["Some-Header"] = []string{"some-value"}
 	h["Some-Other-Header"] = []string{"some-other-value-0", "some-other-value-1"}
-	if !matchHeaders(map[string]string{"some-header": "some-value"}, nil, h) {
+	if !matchHeaders(map[string]string{"Some-Header": "some-value"}, nil, h) {
 		t.Error("failed to match header")
 	}
 }
@@ -425,7 +425,7 @@ func TestMatchHeadersRegexpFalse(t *testing.T) {
 	h := make(http.Header)
 	h["Some-Header"] = []string{"some-value"}
 	h["Some-Other-Header"] = []string{"some-other-value-0", "some-other-value-1"}
-	if matchHeaders(nil, map[string][]*regexp.Regexp{"some-header": []*regexp.Regexp{rx}}, h) {
+	if matchHeaders(nil, map[string][]*regexp.Regexp{"Some-Header": []*regexp.Regexp{rx}}, h) {
 		t.Error("failed not to match header")
 	}
 }
@@ -435,7 +435,7 @@ func TestMatchHeadersRegexpTrue(t *testing.T) {
 	h := make(http.Header)
 	h["Some-Header"] = []string{"some-value"}
 	h["Some-Other-Header"] = []string{"some-other-value-0", "some-other-value-1"}
-	if !matchHeaders(nil, map[string][]*regexp.Regexp{"some-header": []*regexp.Regexp{rx}}, h) {
+	if !matchHeaders(nil, map[string][]*regexp.Regexp{"Some-Header": []*regexp.Regexp{rx}}, h) {
 		t.Error("failed not to match header")
 	}
 }
@@ -559,8 +559,8 @@ func TestMatchLeaf(t *testing.T) {
 		method:         "PUT",
 		hostRxs:        []*regexp.Regexp{rxh},
 		pathRxs:        []*regexp.Regexp{rxp},
-		headersExact:   keyValToLower(map[string]string{"Some-Header": "some-value"}),
-		headersRegexps: headerRegexpsToLower(map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}})}
+		headersExact:   map[string]string{"Some-Header": "some-value"},
+		headersRegexps: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
 	if !matchLeaf(l, req, "/some/path") {
 		t.Error("failed to match leaf")
 	}
@@ -1090,7 +1090,7 @@ func TestFreeWildcardParamWithSlash(t *testing.T) {
 	}
 }
 
-func TestHeaderMatchCaseInsensitiveTo(t *testing.T) {
+func TestHeaderMatchCaseInsensitive(t *testing.T) {
 	routes, err := eskip.Parse(`Header("some-header", "some-value") -> "https://example.org"`)
 	if err != nil {
 		t.Error(err)
@@ -1105,26 +1105,7 @@ func TestHeaderMatchCaseInsensitiveTo(t *testing.T) {
 
 	r, _ := m.Match(&http.Request{URL: &url.URL{}, Header: http.Header{"Some-Header": []string{"some-value"}}})
 	if r == nil {
-		t.Error("failed to match header, case insensitive, to")
-	}
-}
-
-func TestHeaderMatchCaseInsensitiveFrom(t *testing.T) {
-	routes, err := eskip.Parse(`Header("Some-Header", "some-value") -> "https://example.org"`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	rd := &def{routes[0]}
-
-	m, errs := Make([]Definition{rd}, false)
-	if len(errs) != 0 {
-		t.Error("failed to make matcher")
-	}
-
-	r, _ := m.Match(&http.Request{URL: &url.URL{}, Header: http.Header{"some-header": []string{"some-value"}}})
-	if r == nil {
-		t.Error("failed to match header, case insensitive, from")
+		t.Error("failed to match header, case insensitive")
 	}
 }
 
