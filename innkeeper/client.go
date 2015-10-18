@@ -101,7 +101,7 @@ type (
 		MatchMethods    []string     `json:"match_methods"`
 		MatchHeaders    []headerData `json:"match_headers"`
 		MatchPath       pathMatch    `json:"match_path"`
-		RewritePath     *pathRewrite `json:"rewrite_path"`
+		RewritePath     *pathRewrite `json:"path_rewrite"`
 		RequestHeaders  []headerData `json:"request_headers"`
 		ResponseHeaders []headerData `json:"response_headers"`
 		Endpoint        endpoint     `json:"endpoint"`

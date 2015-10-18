@@ -45,8 +45,8 @@ type Options struct {
 	RoutesFile                string
 	CustomFilters             []filters.Spec
 	IgnoreTrailingSlash       bool
-	OAuthUrl                  string
 	OAuthCredentialsDir       string
+	OAuthUrl                  string
 	OAuthScope                string
 	InnkeeperAuthToken        string
 	InnkeeperPreRouteFilters  string
