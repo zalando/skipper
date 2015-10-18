@@ -2,8 +2,8 @@ package flowid
 
 import (
 	"github.com/zalando/skipper/skipper"
-	"strings"
 	"log"
+	"strings"
 )
 
 const (
@@ -25,30 +25,30 @@ func New() skipper.FilterSpec {
 	return &flowIdSpec{}
 }
 
-func (this *flowId) Id() string { return this.id }
+func (f *flowId) Id() string { return f.id }
 
-func (this *flowId) Request(fc skipper.FilterContext) {
+func (f *flowId) Request(fc skipper.FilterContext) {
 	r := fc.Request()
 	var flowId string
 
-	if this.reuseExisting {
+	if f.reuseExisting {
 		flowId = r.Header.Get(flowIdHeaderName)
 		if isValid(flowId) {
 			return
 		}
 	}
 
-	flowId, err := newFlowId(this.flowIdLength)
+	flowId, err := newFlowId(f.flowIdLength)
 	if err == nil {
-		fc.Request().Header.Set(flowIdHeaderName, flowId)
+		r.Header.Set(flowIdHeaderName, flowId)
 	} else {
 		log.Println(err)
 	}
 }
 
-func (this *flowId) Response(skipper.FilterContext) {}
+func (f *flowId) Response(skipper.FilterContext) {}
 
-func (this *flowIdSpec) MakeFilter(id string, fc skipper.FilterConfig) (skipper.Filter, error) {
+func (spec *flowIdSpec) MakeFilter(id string, fc skipper.FilterConfig) (skipper.Filter, error) {
 	var reuseExisting bool
 	if len(fc) > 0 {
 		if r, ok := fc[0].(string); ok {
@@ -68,4 +68,4 @@ func (this *flowIdSpec) MakeFilter(id string, fc skipper.FilterConfig) (skipper.
 	return &flowId{id, reuseExisting, flowIdLength}, nil
 }
 
-func (this *flowIdSpec) Name() string { return filterName }
+func (spec *flowIdSpec) Name() string { return filterName }
