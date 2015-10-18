@@ -33,7 +33,6 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
-	"strings"
 )
 
 const freeWildcardExp = "/[*][^/]+$"
@@ -115,22 +114,22 @@ func compileRxs(exps []string) ([]*regexp.Regexp, error) {
 	return rxs, nil
 }
 
-func keyValToLower(kv map[string]string) map[string]string {
-	kvl := make(map[string]string)
-	for k, v := range kv {
-		kvl[strings.ToLower(k)] = v
+func canonicalizeHeaders(h map[string]string) map[string]string {
+	ch := make(map[string]string)
+	for k, v := range h {
+		ch[http.CanonicalHeaderKey(k)] = v
 	}
 
-	return kvl
+	return ch
 }
 
-func headerRegexpsToLower(hrx map[string][]*regexp.Regexp) map[string][]*regexp.Regexp {
-	hrxl := make(map[string][]*regexp.Regexp)
+func canonicalizeHeaderRegexps(hrx map[string][]*regexp.Regexp) map[string][]*regexp.Regexp {
+	chrx := make(map[string][]*regexp.Regexp)
 	for k, v := range hrx {
-		hrxl[strings.ToLower(k)] = v
+		chrx[http.CanonicalHeaderKey(k)] = v
 	}
 
-	return hrxl
+	return chrx
 }
 
 func makeLeaf(d Definition) (*leafMatcher, error) {
@@ -159,8 +158,8 @@ func makeLeaf(d Definition) (*leafMatcher, error) {
 		method:         d.Method(),
 		hostRxs:        hostRxs,
 		pathRxs:        pathRxs,
-		headersExact:   keyValToLower(d.Headers()),
-		headersRegexps: headerRegexpsToLower(allHeaderRxs),
+		headersExact:   canonicalizeHeaders(d.Headers()),
+		headersRegexps: canonicalizeHeaderRegexps(allHeaderRxs),
 		value:          d.Value()}, nil
 }
 
@@ -249,15 +248,6 @@ func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]st
 	return pm.leaves, params
 }
 
-func headerToLower(h http.Header) http.Header {
-	hl := make(http.Header)
-	for k, v := range h {
-		hl[strings.ToLower(k)] = v
-	}
-
-	return hl
-}
-
 func matchRegexps(rxs []*regexp.Regexp, s string) bool {
 	for _, rx := range rxs {
 		if !rx.MatchString(s) {
@@ -289,8 +279,6 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 	if len(exact) == 0 && len(hrxs) == 0 {
 		return true
 	}
-
-	h = headerToLower(h)
 
 	for k, v := range exact {
 		if !matchHeader(h, k, func(val string) bool { return val == v }) {
