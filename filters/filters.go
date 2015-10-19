@@ -3,6 +3,7 @@ package filters
 import (
 	// import filter packages here:
 
+	"github.com/zalando/skipper/filters/flowid"
 	"github.com/zalando/skipper/filters/healthcheck"
 	"github.com/zalando/skipper/filters/humanstxt"
 	"github.com/zalando/skipper/filters/pathrewrite"
@@ -28,6 +29,7 @@ func Register(registry skipper.FilterRegistry) {
 		static.Make(),
 		stripquery.Make(),
 		&redirect.Redirect{},
+		flowid.New(),
 	)
 }
 
