@@ -24,9 +24,9 @@ func TestNewFlowIdGeneration(t *testing.T) {
 	f.Request(fc)
 
 	flowId := fc.Request().Header.Get(filters.FlowIdHeaderName)
-    if flowId == "" {
+	if flowId == "" {
 		t.Errorf("flowId not generated")
-    }
+	}
 }
 
 func TestFlowIdReuseExisting(t *testing.T) {

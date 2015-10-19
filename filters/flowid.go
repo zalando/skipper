@@ -4,23 +4,23 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"math/rand"
 	"regexp"
+	"strings"
 )
 
 const (
-	defaultLen          = 16
+	defaultLen      = 16
 	flowIdAlphabet  = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-+"
 	alphabetBitMask = 63
 )
 
 const (
-	FlowIdName          = "flowId"
+	FlowIdName                = "flowId"
 	FlowIdReuseParameterValue = "reuse"
-	FlowIdHeaderName    = "X-Flow-Id"
-	FlowIdMaxLength       = 64
-	FlowIdMinLength       = 8
+	FlowIdHeaderName          = "X-Flow-Id"
+	FlowIdMaxLength           = 64
+	FlowIdMinLength           = 8
 )
 
 var (
