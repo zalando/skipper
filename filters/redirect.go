@@ -6,6 +6,7 @@ package filters
 import (
 	"errors"
 	"net/url"
+    "net/http"
 )
 
 const RedirectName = "redirect"
@@ -46,16 +47,53 @@ func (spec *Redirect) CreateFilter(config []interface{}) (Filter, error) {
 
 func (f *Redirect) Request(ctx FilterContext) {}
 
-func (f *Redirect) Response(ctx FilterContext) {
-	w := ctx.ResponseWriter()
+func (f *Redirect) copyOfLocation() *url.URL {
+	v := *f.location
+	return &v
+}
 
-	u := *f.location
-	if u.Host == "" {
-		u.Scheme = ctx.Request().URL.Scheme
-		u.Host = ctx.Request().URL.Host
+func getRequestHost(r *http.Request) string {
+	h := r.Header.Get("Host")
+
+	if h == "" {
+		h = r.Host
 	}
 
-	w.Header().Set("Location", (&u).String())
+	if h == "" {
+		h = r.URL.Host
+	}
+
+	return h
+}
+
+func (f *Redirect) Response(ctx FilterContext) {
+	r := ctx.Request()
+	w := ctx.ResponseWriter()
+	u := f.copyOfLocation()
+
+	if u.Scheme == "" {
+		if r.URL.Scheme != "" {
+			u.Scheme = r.URL.Scheme
+		} else {
+			u.Scheme = "https"
+		}
+	}
+
+	u.User = r.URL.User
+
+	if u.Host == "" {
+		u.Host = getRequestHost(r)
+	}
+
+	if u.Path == "" {
+		u.Path = r.URL.Path
+	}
+
+	if u.RawQuery == "" {
+		u.RawQuery = r.URL.RawQuery
+	}
+
+	w.Header().Set("Location", u.String())
 	w.WriteHeader(f.code)
 	ctx.MarkServed()
 }
