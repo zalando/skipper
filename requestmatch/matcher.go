@@ -114,6 +114,24 @@ func compileRxs(exps []string) ([]*regexp.Regexp, error) {
 	return rxs, nil
 }
 
+func canonicalizeHeaders(h map[string]string) map[string]string {
+	ch := make(map[string]string)
+	for k, v := range h {
+		ch[http.CanonicalHeaderKey(k)] = v
+	}
+
+	return ch
+}
+
+func canonicalizeHeaderRegexps(hrx map[string][]*regexp.Regexp) map[string][]*regexp.Regexp {
+	chrx := make(map[string][]*regexp.Regexp)
+	for k, v := range hrx {
+		chrx[http.CanonicalHeaderKey(k)] = v
+	}
+
+	return chrx
+}
+
 func makeLeaf(d Definition) (*leafMatcher, error) {
 	hostRxs, err := compileRxs(d.HostRegexps())
 	if err != nil {
@@ -140,8 +158,8 @@ func makeLeaf(d Definition) (*leafMatcher, error) {
 		method:         d.Method(),
 		hostRxs:        hostRxs,
 		pathRxs:        pathRxs,
-		headersExact:   d.Headers(),
-		headersRegexps: allHeaderRxs,
+		headersExact:   canonicalizeHeaders(d.Headers()),
+		headersRegexps: canonicalizeHeaderRegexps(allHeaderRxs),
 		value:          d.Value()}, nil
 }
 
