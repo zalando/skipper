@@ -1,8 +1,8 @@
 package filters
 
 import (
-    "net/http"
-    "errors"
+	"errors"
+	"net/http"
 )
 
 // Context object providing the request and response objects to the filters.
@@ -61,7 +61,7 @@ func Defaults() Registry {
 		&Static{},
 		&Redirect{},
 		&StripQuery{},
-        NewFlowId()}
+		NewFlowId()}
 
 	r := make(Registry)
 	for _, s := range defaultSpecs {

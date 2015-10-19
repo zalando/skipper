@@ -160,7 +160,7 @@ func newLeaf(r *Route) (*leafMatcher, error) {
 		method:        r.Method,
 		hostRxs:       hostRxs,
 		pathRxs:       pathRxs,
-		headersExact:   canonicalizeHeaders(r.Headers),
+		headersExact:  canonicalizeHeaders(r.Headers),
 		headersRegexp: canonicalizeHeaderRegexps(allHeaderRxs),
 		route:         r}, nil
 }

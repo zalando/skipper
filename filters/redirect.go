@@ -5,8 +5,8 @@ package filters
 
 import (
 	"errors"
+	"net/http"
 	"net/url"
-    "net/http"
 )
 
 const RedirectName = "redirect"
