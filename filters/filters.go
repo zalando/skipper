@@ -1,6 +1,9 @@
 package filters
 
-import "net/http"
+import (
+    "net/http"
+    "errors"
+)
 
 // Context object providing the request and response objects to the filters.
 type FilterContext interface {
@@ -12,6 +15,8 @@ type FilterContext interface {
 	PathParam(string) string
 	StateBag() map[string]interface{}
 }
+
+var ErrInvalidFilterParameters = errors.New("Invalid filter parameters")
 
 // Filters are created by the Spec components, optionally using filter specific settings.
 // When implementing filters, it needs to be taken into consideration, that filter instances are route specific
@@ -55,7 +60,8 @@ func Defaults() Registry {
 		&HealthCheck{},
 		&Static{},
 		&Redirect{},
-		&StripQuery{}}
+		&StripQuery{},
+        NewFlowId()}
 
 	r := make(Registry)
 	for _, s := range defaultSpecs {
