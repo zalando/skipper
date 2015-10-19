@@ -13,7 +13,7 @@ import (
 type Redirect struct {
 	id       string
 	code     int
-	location string
+	location *url.URL
 }
 
 func (spec *Redirect) Name() string { return "redirect" }
@@ -37,26 +37,61 @@ func (spec *Redirect) MakeFilter(id string, c skipper.FilterConfig) (skipper.Fil
 		return invalidArgs()
 	}
 
-	return &Redirect{id, int(code), location}, nil
+	lu, err := url.Parse(location)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Redirect{id, int(code), lu}, nil
 }
 
 func (f *Redirect) Id() string                        { return f.id }
 func (f *Redirect) Request(ctx skipper.FilterContext) {}
 
-func (f *Redirect) Response(ctx skipper.FilterContext) {
-	w := ctx.ResponseWriter()
+func (f *Redirect) copyOfLocation() *url.URL {
+	v := *f.location
+	return &v
+}
 
-	u, err := url.Parse(f.location)
+func getRequestHost(r *http.Request) string {
+	h := r.Header.Get("Host")
 
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		ctx.MarkServed()
-		return
+	if h == "" {
+		h = r.Host
 	}
 
+	if h == "" {
+		h = r.URL.Host
+	}
+
+	return h
+}
+
+func (f *Redirect) Response(ctx skipper.FilterContext) {
+	r := ctx.Request()
+	w := ctx.ResponseWriter()
+	u := f.copyOfLocation()
+
+	if u.Scheme == "" {
+		if r.URL.Scheme != "" {
+			u.Scheme = r.URL.Scheme
+		} else {
+			u.Scheme = "https"
+		}
+	}
+
+	u.User = r.URL.User
+
 	if u.Host == "" {
-		u.Scheme = ctx.Request().URL.Scheme
-		u.Host = ctx.Request().URL.Host
+		u.Host = getRequestHost(r)
+	}
+
+	if u.Path == "" {
+		u.Path = r.URL.Path
+	}
+
+	if u.RawQuery == "" {
+		u.RawQuery = r.URL.RawQuery
 	}
 
 	w.Header().Set("Location", u.String())
