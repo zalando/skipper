@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/*
+Package testdataclient provides test implementation for the DataClient
+interface in the github.com/zalando/skipper/routing package.
+
+It uses in-memory route definitions that are passed in on construction,
+and can upserted/deleted programmatically.
+*/
 package testdataclient
 
 import (
@@ -19,6 +26,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
+// DataClient implementation.
 type Client struct {
 	initDoc      string
 	routes       map[string]*eskip.Route
@@ -28,6 +36,7 @@ type Client struct {
 	signalUpdate chan int
 }
 
+// Creates a Client with an initial set of route definitions.
 func New(initial []*eskip.Route) *Client {
 	routes := make(map[string]*eskip.Route)
 	for _, r := range initial {
@@ -39,6 +48,8 @@ func New(initial []*eskip.Route) *Client {
 		signalUpdate: make(chan int)}
 }
 
+// Creates a Client with an initial set of route definitions in eskip
+// format. If parsing the eskip document fails, returns an error.
 func NewDoc(doc string) (*Client, error) {
 	routes, err := eskip.Parse(doc)
 	if err != nil {
@@ -48,6 +59,7 @@ func NewDoc(doc string) (*Client, error) {
 	return New(routes), nil
 }
 
+// Returns the initial/current set of route definitions.
 func (c *Client) GetInitial() ([]*eskip.Route, error) {
 	if c.failNext > 0 {
 		c.upsert, c.deletedIds = nil, nil
@@ -63,6 +75,8 @@ func (c *Client) GetInitial() ([]*eskip.Route, error) {
 	return routes, nil
 }
 
+// Returns the route definitions upserted/deleted since the last call to
+// GetInitial.
 func (c *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 	<-c.signalUpdate
 
@@ -89,11 +103,16 @@ func (c *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 	return u, d, nil
 }
 
+// Updates the current set of routes with new/modified and deleted
+// route definitions.
 func (c *Client) Update(upsert []*eskip.Route, deletedIds []string) {
 	c.upsert, c.deletedIds = upsert, deletedIds
 	c.signalUpdate <- 42
 }
 
+// Updates the current set of routes with new/modified and deleted
+// route definitions in eskip format. In case the parsing of the
+// document fails, it returns an error.
 func (c *Client) UpdateDoc(upsertDoc string, deletedIds []string) error {
 	routes, err := eskip.Parse(upsertDoc)
 	if err != nil {
@@ -104,6 +123,9 @@ func (c *Client) UpdateDoc(upsertDoc string, deletedIds []string) error {
 	return nil
 }
 
+// Sets the Client to fail on the next call to GetInitial or GetUpdate.
+// Repeated call to FailNext will result the Client to fail as manu
+// times as it was called.
 func (c *Client) FailNext() {
 	c.failNext++
 }

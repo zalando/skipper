@@ -1,56 +1,62 @@
-// Package requestmatch implements matching http requests to associated values.
+// Copyright 2015 Zalando SE
 //
-// Matching is based on the attributes of http requests, where a request matches
-// a definition if it fulfills all condition in it. The evaluation happens in the
-// following order:
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// 1. The request path is used to find leaf definitions in a lookup tree. If no
-// path match was found, the leaf definitions in the root are taken that don't
-// have a condition for path matching.
+// http://www.apache.org/licenses/LICENSE-2.0
 //
-// 2. If any leaf definitions were found, they are evaluated against the request
-// and the associated value of the first matching definition is returned. The order
-// of the evaluation happens from the strictest definition to the least strict
-// definition, where strictness is proportional to the number of non-empty
-// conditions in the definition.
-//
-// Path matching supports two kind of wildcards:
-//
-// - a simple wildcard matches a single tag in a path. E.g: /users/:name/roles
-// will be matched by /users/jdoe/roles, and the value of the parameter 'name' will
-// be 'jdoe'
-//
-// - a freeform wildcard matches the last segment of a path, with any number of
-// tags in it. E.g: /assets/*assetpath will be matched by /assets/images/logo.png,
-// and the value of the parameter 'assetpath' will be '/images/logo.png'.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /*
-matching http requests to skipper routes
+Package routing implements matching of http requests to a continuously
+updatable set of skipper routes.
 
-using an internal lookup tree
+Request evaluation
 
-matches if all conditions fulfilled in the route
+1. The path in the http request is used to find one or more matching
+route definitions in a lookup tree.
 
-evaluation order:
+2. The rest of the request attributes is matched against the non-path
+conditions of the routes found in the lookup tree, from the most to the
+least strict one. The result is the first route whose every condition is
+met.
 
-1. path in the lookup tree for leaf definitions, if no match leaf definitions in the
-root. root leaf that have no path condition (no regexp)
+(The regular expression conditions for the path, 'PathRegexp', are
+applied only in the 2. step.)
 
-2. in the leaf matching based on the rest of the conditions, from the most strict to the
-least strict
+Wildcards
 
-path matching supports two kinds of wildcards
+Path matching supports two kinds of wildcards:
 
-- simple wildcard matching a single name in the path
+- simple wildcard: e.g. /some/:wildcard/path. Simple wildcards are
+matching a single name in the request path.
 
-- freeform wildcard at the end of the path matching multiple names
+- freeform wildcard: e.g. /some/path/*wildcard. Freeform wildcards are
+matching any number of names at the end of the request path.
 
-wildcards in the response
+If a matched route contains wildcards in the path condition, the
+wildcard keys mapped to the values will be returned with the route.
 
-routing definitions from data clients, merged, poll timeout
+Data clients
 
-route definitions converted to routes with real filter instances using the registry
+Routing definitions are not directly passed to the routing instance, but
+they are loaded from clients that implement the DataClient interface.
+The router initially loads the complete set of the routes from each
+client, merges the different sets based on the route id, and converts
+them into their runtime representation, with initialized filters based
+on the filter specifications in the filter registry.
 
-tail slash option
+During operation, the router regularly polls the data clients for
+updates, and if an update is received, generates a new lookup tree. In
+case of communication failure during polling, it reloads the whole set
+of routes from the failing client.
+
+For a full description of the route definitions, see the documentation
+of the github.com/zalando/skipper/eskip package.
 */
 package routing

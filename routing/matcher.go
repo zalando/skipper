@@ -59,8 +59,7 @@ type pathMatcher struct {
 	freeWildcardParam string
 }
 
-// root structure representing the routing table, with an
-// internal path matching tree and the root matchers.
+// root structure representing the routing tree.
 type matcher struct {
 	paths           *pathmux.Tree
 	rootLeaves      leafMatchers

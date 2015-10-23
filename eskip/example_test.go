@@ -24,7 +24,7 @@ func Example() {
 	code := `
 
 		// Skipper - Eskip:
-		// routing table document, containing multiple route definitions
+		// a routing table document, containing multiple route definitions
 
 		// route definition to a jsx page renderer
 
