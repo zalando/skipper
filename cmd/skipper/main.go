@@ -15,6 +15,18 @@
 // skipper program main
 //
 // for a summary about skipper, please see the readme file.
+
+/*
+The skipper command provides an executable version of the Skipper
+library with the default set of filters.
+
+For the list of command line options run:
+
+    skipper -help
+
+For details about the usage and extensibility of Skipper, please see the
+documentation of the github.com/zalando/skipper package.
+*/
 package main
 
 import (

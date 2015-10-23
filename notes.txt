@@ -15,6 +15,7 @@ compilation, testing, etc
 useful stuff from the readme
 doc comment format for package documentation
 etcd package needed for testing to the readme
+any example of packages referencing each other?
 
 remove notes.txt
 reconsider what goes to options
