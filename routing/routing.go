@@ -29,7 +29,7 @@ const (
 	// All options are default.
 	MatchingOptionsNone MatchingOptions = 0
 
-	// Ignore tailing slash in paths.
+	// Ignore trailing slash in paths.
 	IgnoreTrailingSlash MatchingOptions = 1 << iota
 )
 
@@ -37,42 +37,46 @@ func (o MatchingOptions) ignoreTrailingSlash() bool {
 	return o&IgnoreTrailingSlash > 0
 }
 
-// DataClient instances provide different data sources for
+// DataClient instances provide data sources for
 // route definitions.
 type DataClient interface {
 	GetInitial() ([]*eskip.Route, error)
 	GetUpdate() ([]*eskip.Route, []string, error)
 }
 
-// Initialization optoins for routing.
+// Initialization options for routing.
 type Options struct {
 
-	// Registry containing the available filters
-	// during processing the filter chains in the
-	// route definitions.
+	// Registry containing the available filter
+	// specifications that are used during processing
+	// the filter chains in the route definitions.
 	FilterRegistry filters.Registry
 
 	// Matching options are flags that control the
 	// route matching.
 	MatchingOptions MatchingOptions
 
-	// The timeout between to requests to the data
-	// clients for upserted/deleted route definitions.
+	// The timeout between requests to the data
+	// clients for route definition updates.
 	PollTimeout time.Duration
 
 	// The set of different data clients where the
 	// route definitions are read from.
 	DataClients []DataClient
 
-	// Performance tuning option. When zero, on every update
-	// from the data clients, the newly constructed routing
-	// table will take effect on the next routing query. In
-	// case of higher values, the routing queries have priority
-	// but the new routing table takes effect only a few requests
-	// later.
+	// Performance tuning option.
 	//
-	// Currently not used, the performance benefir needs to be
-	// benchmarked yet.
+	// When zero, the newly constructed routing
+	// tree will take effect on the next routing
+	// query after every update from the data
+	// clients. In case of higher values, the
+	// routing queries have priority over the
+	// update channel, but the next routing tree
+	// takes effect only a few requests later.
+	//
+	// (Currently disabled and used with hard wired
+	// 0, until the performance benefit is verified
+	// by benchmarks.)
 	UpdateBuffer int
 }
 
@@ -89,7 +93,7 @@ type Route struct {
 	Filters []filters.Filter
 }
 
-// Routing ('router') instance providing the live
+// Routing ('router') instance providing live
 // updatable request matching.
 type Routing struct {
 	getMatcher <-chan *matcher
@@ -115,7 +119,7 @@ func feedMatchers(updateBuffer int, current *matcher) (chan<- *matcher, <-chan *
 	return in, out
 }
 
-// Creates a new routing instance, and starts listening for route
+// Initializes a new routing instance, and starts listening for route
 // definition updates.
 func New(o Options) *Routing {
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
@@ -124,7 +128,7 @@ func New(o Options) *Routing {
 	return &Routing{matchersOut}
 }
 
-// Matches a request to the current routing table.
+// Matches a request in the current routing tree.
 //
 // If the request matches a route, returns the route and map of parameters
 // constructed from the wildcard parameters in the path condition if any. If
