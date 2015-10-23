@@ -18,14 +18,14 @@ import (
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
-	"log"
 )
 
 func Example() {
-	// open file with routing table:
+	// open file with a routing table:
 	dataClient, err := eskipfile.Open("/some/path/to/routing-table.eskip")
 	if err != nil {
-		log.Fatal(err)
+		// log.Fatal(err)
+		return
 	}
 
 	// create http.Handler:
