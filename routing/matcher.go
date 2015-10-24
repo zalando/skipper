@@ -103,6 +103,26 @@ func compileRxs(exps []string) ([]*regexp.Regexp, error) {
 	return rxs, nil
 }
 
+// canonicalizes the keys of the header conditions
+func canonicalizeHeaders(h map[string]string) map[string]string {
+	ch := make(map[string]string)
+	for k, v := range h {
+		ch[http.CanonicalHeaderKey(k)] = v
+	}
+
+	return ch
+}
+
+// canonicalizes the keys of the header regexp conditions
+func canonicalizeHeaderRegexps(hrx map[string][]*regexp.Regexp) map[string][]*regexp.Regexp {
+	chrx := make(map[string][]*regexp.Regexp)
+	for k, v := range hrx {
+		chrx[http.CanonicalHeaderKey(k)] = v
+	}
+
+	return chrx
+}
+
 // creates a new leaf matcher. preprocesses the
 // Host, PathRegexp, Header and HeaderRegexp
 // conditions.
@@ -132,8 +152,8 @@ func newLeaf(r *Route) (*leafMatcher, error) {
 		method:        r.Method,
 		hostRxs:       hostRxs,
 		pathRxs:       pathRxs,
-		headersExact:  r.Headers,
-		headersRegexp: allHeaderRxs,
+		headersExact:  canonicalizeHeaders(r.Headers),
+		headersRegexp: canonicalizeHeaderRegexps(allHeaderRxs),
 		route:         r}, nil
 }
 
