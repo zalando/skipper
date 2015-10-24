@@ -16,6 +16,16 @@ useful stuff from the readme
 doc comment format for package documentation
 etcd package needed for testing to the readme
 any example of packages referencing each other?
+readme referencing godoc
+matching conditions in the routing doc
+incorporate the flowid filter
+try lists with code formatting?
+arguments in filter doc
+more structure in filter doc to reflect what a specification and what a filter is
+capitalize titles
+consider removing the dash lists from everywhere
+members in the skipper package
+update the flag usage strings
 
 remove notes.txt
 reconsider what goes to options
@@ -35,3 +45,11 @@ options reading to the run package
 apply cmd changes
 to the blog post: router in a single process app -> in microservices -> undefined number and type of
 microservices
+data client evaluation
+etcd requested even when routes file set
+in the notfound example, how is the status set?
+benchmarking broken due to initializing during the first one
+check if etcd getupdate doesn't leak
+prefix options for given storage type
+consider renaming the filters
+make the naming of the filter options clear -> parameters

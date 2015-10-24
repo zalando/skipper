@@ -16,8 +16,7 @@
 Package etcd implements a DataClient for reading the skipper route
 definitions from an etcd service.
 
-(See the DataClient interface in the github.com/zalando/skipper/routing
-package.)
+(See the DataClient interface in the skipper/routing package.)
 
 etcd is a ditributed configuation service: https://github.com/coreos/etcd. The
 route definitions are stored under individual keys as eskip route expressions.
@@ -124,6 +123,9 @@ func (s *Client) GetInitial() ([]*eskip.Route, error) {
 
 // Returns the updates (upserts and deletes) since the last initial request
 // or update.
+//
+// It uses etcd's watch functionality that results in blocking this call
+// until the next change is detected in etcd.
 func (s *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 	response, err := s.etcd.Watch(s.routesRoot, s.etcdIndex+1, true, nil, nil)
 	if err != nil {

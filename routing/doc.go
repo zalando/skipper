@@ -57,6 +57,6 @@ case of communication failure during polling, it reloads the whole set
 of routes from the failing client.
 
 For a full description of the route definitions, see the documentation
-of the github.com/zalando/skipper/eskip package.
+of the skipper/eskip package.
 */
 package routing

@@ -16,8 +16,7 @@
 Package eskipfile implements a DataClient for reading the skipper route
 definitions from an eskip formatted file when opened.
 
-(See the DataClient interface in the github.com/zalando/skipper/routing
-package.)
+(See the DataClient interface in the skipper/routing package.)
 */
 package eskipfile
 

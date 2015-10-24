@@ -16,10 +16,9 @@
 Package filters contains definitions for skipper filtering and a default set
 of filters.
 
-The term 'filter' refers to filtering as in signal processing rather than
-selecting subsets of some set. Filters are used to augment both the inbound
-request's properties before forwarding it to the route endpoint, and the
-outbound response's properties before returning it to the original client.
+Filters are used to augment both the inbound request's properties before
+forwarding it to the route endpoint, and the outbound response's
+properties before returning it to the original client.
 
 Filter implementations are based on filter specifications that provide a
 filter name and a 'factory' method to create filter instances. The filter name
@@ -32,7 +31,7 @@ Different filter instances can be created with different arguments.
 Once a route is identified during request processing, a context object is
 created that is unique to the request, holding the current request, the
 response (once it is available), and some further information and state
-related to the current request/response.
+related to the current flow.
 
 Each filter in a route is called twice, once for the request in the order of
 their position in the route definition, and once for the response in reverse

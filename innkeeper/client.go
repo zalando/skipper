@@ -16,8 +16,7 @@
 Package innkeeper implements a DataClient for reading skipper route
 definitions from an Innkeeper service.
 
-(See the DataClient interface in the github.com/zalando/skipper/routing
-package.)
+(See the DataClient interface in the skipper/routing package.)
 
 Innkeeper is a service to maintain large sets of routes in a multi-user
 environment with OAuth2 authentication and permission scopes.
