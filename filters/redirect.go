@@ -16,6 +16,7 @@ package filters
 
 import (
 	"errors"
+	"net/http"
 	"net/url"
 )
 
@@ -64,18 +65,55 @@ func (spec *redirect) CreateFilter(config []interface{}) (Filter, error) {
 // Noop.
 func (f *redirect) Request(ctx FilterContext) {}
 
+func (f *redirect) copyOfLocation() *url.URL {
+	v := *f.location
+	return &v
+}
+
+func getRequestHost(r *http.Request) string {
+	h := r.Header.Get("Host")
+
+	if h == "" {
+		h = r.Host
+	}
+
+	if h == "" {
+		h = r.URL.Host
+	}
+
+	return h
+}
+
 // Sets the status code and the location header of the response. Marks the
 // request served.
 func (f *redirect) Response(ctx FilterContext) {
+	r := ctx.Request()
 	w := ctx.ResponseWriter()
+	u := f.copyOfLocation()
 
-	u := *f.location
-	if u.Host == "" {
-		u.Scheme = ctx.Request().URL.Scheme
-		u.Host = ctx.Request().URL.Host
+	if u.Scheme == "" {
+		if r.URL.Scheme != "" {
+			u.Scheme = r.URL.Scheme
+		} else {
+			u.Scheme = "https"
+		}
 	}
 
-	w.Header().Set("Location", (&u).String())
+	u.User = r.URL.User
+
+	if u.Host == "" {
+		u.Host = getRequestHost(r)
+	}
+
+	if u.Path == "" {
+		u.Path = r.URL.Path
+	}
+
+	if u.RawQuery == "" {
+		u.RawQuery = r.URL.RawQuery
+	}
+
+	w.Header().Set("Location", u.String())
 	w.WriteHeader(f.code)
 	ctx.MarkServed()
 }
