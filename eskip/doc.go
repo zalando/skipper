@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /*
-Package eskip implements a DSL for describing Skipper route expressions,
+Package eskip implements a DSL for describing skipper route expressions,
 route definitions and complete routing tables.
 
 Grammar Summary
@@ -107,7 +107,7 @@ A filter example:
 
     responseHeader("max-age", "86400") -> static("/", "/var/www/public")
 
-The default Skipper implementation provides the following builtin filters:
+The default skipper implementation provides the following builtin filters:
 
     requestHeader("header-name", "header-value")
 
@@ -123,11 +123,11 @@ The default Skipper implementation provides the following builtin filters:
 
     stripQuery("true")
 
-For details about the builtin filters, please, refer to
-the documentation of the github.com/zalando/skipper/filters package. Skipper
-is designed to be extendable primarily by implementing custom filters, for
-details about how to create custom filters, please, refer to the
-documentation of the main Skipper package (github.com/zalando/skipper).
+For details about the builtin filters, please, refer to the
+documentation of the skipper/filters package. Skipper is designed to be
+extendable primarily by implementing custom filters, for details about
+how to create custom filters, please, refer to the documentation of the
+main skipper package.
 
 Backend
 

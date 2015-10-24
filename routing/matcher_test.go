@@ -270,6 +270,12 @@ func initRandomPaths() {
 	benchmarkMatchersInitialzed = true
 }
 
+func initBenchmark(b *testing.B, init func()) {
+	b.StopTimer()
+	init()
+	b.StartTimer()
+}
+
 func init() {
 	initGenericMatcher()
 }
@@ -1058,22 +1064,22 @@ func BenchmarkGeneric(b *testing.B) {
 }
 
 func BenchmarkPathTree1(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 	benchmarkLookup(b, testMatcher1, benchmarkingCountPhase1)
 }
 
 func BenchmarkPathTree2(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 	benchmarkLookup(b, testMatcher2, benchmarkingCountPhase2)
 }
 
 func BenchmarkPathTree3(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 	benchmarkLookup(b, testMatcher3, benchmarkingCountPhase3)
 }
 
 func BenchmarkPathTree4(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 	benchmarkLookup(b, testMatcher4, benchmarkingCountPhase4)
 }
 
@@ -1096,7 +1102,7 @@ func BenchmarkConstructionGeneric(b *testing.B) {
 }
 
 func BenchmarkConstructionMass(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 
 	const count = 10000
 	routes := make([]*Route, count)
