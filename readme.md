@@ -7,10 +7,8 @@ the requests and responses with filters.
 - routes each request to the configured server endpoint
 - allows altering the requests and responses with filters independently configured for each route
 - optionally acts as a final endpoint (shunt)
-- the routing definitions are stored in etcd, which is a clustered configuration service and allows updating the
-  settings without restarting the router
+- the routing definitions are stored in [Innkeeper](https://github.com/zalando/innkeeper) or [etcd](https://github.com/coreos/etcd/)
 
-Etcd: [https://github.com/coreos/etcd/](https://github.com/coreos/etcd/)
 
 Skipper's design is largely inspired by Mailgun's Vulcand, and just as Vulcand, it uses Mailgun's Route package
 to identify which route a request belongs to.
