@@ -14,7 +14,7 @@
 
 /*
 Package testdataclient provides test implementation for the DataClient
-interface in the github.com/zalando/skipper/routing package.
+interface in the skipper/routing package.
 
 It uses in-memory route definitions that are passed in on construction,
 and can upserted/deleted programmatically.

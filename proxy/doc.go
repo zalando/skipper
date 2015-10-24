@@ -27,9 +27,9 @@ Proxy Mechanism
 1. route matching:
 
 The incoming request is matched to the current routing tree, implemented
-in github.com/zalando/skipper/routing. The result may be a route, which
-will be used for forwarding or handling the request, or nil, in which
-case the proxy responds with 404.
+in skipper/routing. The result may be a route, which will be used for
+forwarding or handling the request, or nil, in which case the proxy
+responds with 404.
 
 2. downstream request augmentation:
 
@@ -37,10 +37,9 @@ In case of a matched route, the request handling method of all filters
 in the route will be executed in the order they are defined. The filters
 share a context object, that provides the in-memory represenation of the
 incoming request, the outgoing response writer, the path parameters
-derived from the actual request path
-(see github.com/zalando/skipper/routing) and a free-form state bag. The
-filters may modify the request or pass data to each other using the
-state bag.
+derived from the actual request path (see skipper/routing) and a
+free-form state bag. The filters may modify the request or pass data to
+each other using the state bag.
 
 3.a downstream request:
 
@@ -72,10 +71,9 @@ continuous flushing.
 
 Routing Rules
 
-The route matching is implemented in the
-github.com/zalando/skipper/routing package. The routing rules are not
-static, but they can be continously updated by new definitions
-originated in one or more data sources.
+The route matching is implemented in the skipper/routing package. The
+routing rules are not static, but they can be continously updated by new
+definitions originated in one or more data sources.
 
 The only exceptions are the priority routes, that are not originated
 from the external data sources, and are tested against the requests
