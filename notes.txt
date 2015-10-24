@@ -4,9 +4,6 @@ ExampleClient_Update: sometimes fails, but the output shows no difference -> iss
 different platforms
 
 [doc]
-update code doc
-document custom filtering
-move docs from readme to go
 pathmux documentation
 update the links in the documentation
 remove the name 'pathRewrite' from everywhere
@@ -26,6 +23,7 @@ capitalize titles
 consider removing the dash lists from everywhere
 members in the skipper package
 update the flag usage strings
+consolidate reamde.md
 
 remove notes.txt
 reconsider what goes to options
