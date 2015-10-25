@@ -17,8 +17,8 @@
 // for a summary about skipper, please see the readme file.
 
 /*
-Command skipper provides an executable version of the skipper
-library with the default set of filters.
+Command skipper provides a default executable skipper with the default
+set of filters.
 
 For the list of command line options run:
 

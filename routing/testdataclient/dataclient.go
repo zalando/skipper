@@ -124,7 +124,7 @@ func (c *Client) UpdateDoc(upsertDoc string, deletedIds []string) error {
 }
 
 // Sets the Client to fail on the next call to GetInitial or GetUpdate.
-// Repeated call to FailNext will result the Client to fail as manu
+// Repeated call to FailNext will result the Client to fail as many
 // times as it was called.
 func (c *Client) FailNext() {
 	c.failNext++

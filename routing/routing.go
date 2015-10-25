@@ -130,9 +130,9 @@ func New(o Options) *Routing {
 
 // Matches a request in the current routing tree.
 //
-// If the request matches a route, returns the route and map of parameters
-// constructed from the wildcard parameters in the path condition if any. If
-// there is no match, it returns nil.
+// If the request matches a route, returns the route and a map of
+// parameters constructed from the wildcard parameters in the path
+// condition if any. If there is no match, it returns nil.
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	m := <-r.getMatcher
 	return m.match(req)

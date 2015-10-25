@@ -13,15 +13,16 @@
 // limitations under the License.
 
 /*
-Package eskip implements a DSL for describing skipper route expressions,
-route definitions and complete routing tables.
+Package eskip implements in-memory representation of skipper route
+definitions and a DSL for describing skipper route expressions, route
+definitions and complete routing tables.
 
 
 Grammar Summary
 
-A routing table is built up from 0 or more route definitions. The definitions
-are separated by ';'. A route definition contains one route expression
-prefixed by its ID and a ':'.
+A routing table is built up from 0 or more route definitions. The
+definitions are separated by ';'. A route definition contains one route
+expression prefixed by its id and a ':'.
 
 A routing table example:
 
@@ -36,8 +37,8 @@ A routing table example:
 
 A route expression always contains a matcher expression and a backend
 expression, and it can contain optional filter expressions. The matcher
-expression, each filter and the backend are separated by '->'. The filters
-take place between the matcher and the backend.
+expression, each filter and the backend are separated by '->'. The
+filters take place between the matcher and the backend.
 
 A route expression example:
 
@@ -48,9 +49,9 @@ A route expression example:
 
 Matcher Expressions
 
-A matcher expression contains one or more conditions. An
-incoming request must fulfil each of them to match the route. The
-conditions are separated by '&&'.
+A matcher expression contains one or more conditions. An incoming
+request must fulfil each of them to match the route. The conditions are
+separated by '&&'.
 
 A matcher expression example:
 
@@ -60,12 +61,12 @@ The following condition expressions are recognized:
 
     Path("/some/path")
 
-The path condition accepts a single parameter, that can be a fixed path like
-"/some/path", or it can contain wildcards in place of one or more names in the
-path, e.g. "/some/:dir/:name", or it can end with a free wildcard like
-"/some/path/*param", where the free wildcard can contain a sub-path with
-multiple names. The parameters are available to the filters while processing
-the matched requests.
+The path condition accepts a single parameter, that can be a fixed path
+like "/some/path", or it can contain wildcards in place of one or more
+names in the path, e.g. "/some/:dir/:name", or it can end with a free
+wildcard like "/some/path/*param", where the free wildcard can contain a
+sub-path with multiple names. The parameters are available to the
+filters while processing the matched requests.
 
     PathRegexp(/regular-expression/)
 
@@ -75,8 +76,8 @@ expression can be surrounded by '/' or '"'.
 
     Host(/host-regular-expression/)
 
-The host condition accepts a regular expression as a single parameter that
-needs to be matched by the host header in the request.
+The host condition accepts a regular expression as a single parameter
+that needs to be matched by the host header in the request.
 
     Method("HEAD")
 
@@ -84,14 +85,14 @@ The method condition is used to match the http request method.
 
     Header("Accept", "application/json")
 
-The header condition is used to match the http headers in the request. It
-accepts two parameters, the name of the header field and the exact header
-value to match.
+The header condition is used to match the http headers in the request.
+It accepts two parameters, the name of the header field and the exact
+header value to match.
 
     HeaderRegexp("Accept", /\Wapplication\/json\W/)
 
-The header regexp condition works similar to the header expression, but the
-value to be matched is a regular expression.
+The header regexp condition works similar to the header expression, but
+the value to be matched is a regular expression.
 
     Any()
 
@@ -100,17 +101,18 @@ Catch all condition.
 
 Filters
 
-Filters are used to augment the incoming requests and the outgoing responses,
-or do other useful or fun stuff. Filters can have different numbers of
-parameters depending on the implementation of the particular filter. The
-parameters can be of type string ("a string"), number (3.1415) or regular
-expression (/[.]html$/ or "[.]html$").
+Filters are used to augment the incoming requests and the outgoing
+responses, or do other useful or fun stuff. Filters can have different
+numbers of parameters depending on the implementation of the particular
+filter. The parameters can be of type string ("a string"), number
+(3.1415) or regular expression (/[.]html$/ or "[.]html$").
 
 A filter example:
 
     responseHeader("max-age", "86400") -> static("/", "/var/www/public")
 
-The default skipper implementation provides the following builtin filters:
+The default skipper implementation provides the following built-in
+filters:
 
     requestHeader("header-name", "header-value")
 
@@ -128,7 +130,7 @@ The default skipper implementation provides the following builtin filters:
 
     stripQuery("true")
 
-For details about the builtin filters, please, refer to the
+For details about the built-in filters, please, refer to the
 documentation of the skipper/filters package. Skipper is designed to be
 extendable primarily by implementing custom filters, for details about
 how to create custom filters, please, refer to the documentation of the
@@ -137,7 +139,7 @@ root skipper package.
 
 Backend
 
-There are two types of backend: a network endpoint address or a shunt.
+There are two types of backends: a network endpoint address or a shunt.
 
 A network endpoint address example:
 
@@ -152,9 +154,9 @@ A shunt backend:
     <shunt>
 
 The shunt backend means that the route will not forward the request to a
-network endpoint, but the router will handle the request itself. By default,
-the response is in this case 404 Not found, unless a filter in the route does
-not change it.
+network endpoint, but the router will handle the request itself. By
+default, the response is in this case 404 Not found, unless a filter in
+the route does not change it.
 
 
 Comments
@@ -173,18 +175,19 @@ Example with comments:
 Parsing Filters
 
 The eskip.ParseFilters method can be used to parse a chain of filters,
-without the matcher and backend part of the route expression.
+without the matcher and backend part of a full route expression.
 
 
 Parsing
 
-Parsing a routing table or a route expression happens with the eskip.Parse
-function. In case of grammar error, it returns an error with approximate
-position of the invalid syntax element, otherwise it returns a list of
-structured, in-memory route definitions.
+Parsing a routing table or a route expression happens with the
+eskip.Parse function. In case of grammar error, it returns an error with
+the approximate position of the invalid syntax element, otherwise it
+returns a list of structured, in-memory route definitions.
 
-The eskip parser does not validate the routes against semantic rules, e.g.
-whether a matcher expression is valid, or a filter implementation is
-available. This validation happens during processing the parsed definitions.
+The eskip parser does not validate the routes against semantic rules,
+e.g.  whether a matcher expression is valid, or a filter implementation
+is available. This validation happens during processing the parsed
+definitions.
 */
 package eskip

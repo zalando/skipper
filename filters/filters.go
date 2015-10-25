@@ -40,7 +40,7 @@ type FilterContext interface {
 // Filters are created by the Spec components, optionally using filter specific settings.
 // When implementing filters, it needs to be taken into consideration, that filter instances are route specific
 // and not request specific, so any state stored with a filter is shared between all requests and can cause
-// concurrency issues (as in don't do that).
+// concurrency issues.
 type Filter interface {
 
 	// The Request method is called while processing the incoming request.
@@ -68,7 +68,7 @@ type Spec interface {
 type Registry map[string]Spec
 
 // Error used in case of invalid filter parameters.
-var ErrInvalidFilterParameters = errors.New("Invalid filter parameters")
+var ErrInvalidFilterParameters = errors.New("invalid filter parameters")
 
 // Registers a filter specification.
 func (r Registry) Register(s Spec) {

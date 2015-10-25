@@ -26,8 +26,8 @@ Skipper can load and update the route definitions from multiple data
 sources without being restarted.
 
 Skipper provides a default executable command with a few built-in
-filters but its primary use case is to extend it with custom filters and
-compiling one's own variant. See section 'Extending Skipper'.
+filters, but its primary use case is to extend it with custom filters
+and compiling one's own variant. See section 'Extending Skipper'.
 
 Skipper took the core design and inspiration from Vulcand:
 https://github.com/mailgun/vulcand.
@@ -69,9 +69,9 @@ all the filters, but in reverse order, and then finally mapped as the
 response to the original incoming request.
 
 Besides the default proxying mechanism, it is possible to define routes
-without a real network backend endpoint, 'shunt' backend, in which case
-one of the filters needs to handle the request (e.g. the 'static'
-filter).
+without a real network backend endpoint. This is called a 'shunt'
+backend, in which case one of the filters needs to handle the request
+(e.g. the 'static' filter).
 
 For details, see the documentation of the proxy subdirectory.
 
@@ -93,12 +93,11 @@ For details, see the documentation of the routing subdirectory.
 Filters - Augmenting Requests
 
 Filters are executed in order of definition on the request and in
-reverse order on the response, and are used to modify request and
-response attributes, like setting headers, or execute background tasks,
-e.g. like logging.  Some filters may handle the requests without
-proxying them to service backends. Filters, depending on their
-implementation, may accept/require parameters, that are set specific to
-the route.
+reverse order on the response. They are used to modify request and
+response attributes like headers, or execute background tasks, e.g. like
+logging.  Some filters may handle the requests without proxying them to
+service backends. Filters, depending on their implementation, may
+accept/require parameters, that are set specific to the route.
 
 For details, see the documentation of the filters subdirectory.
 
@@ -148,7 +147,7 @@ https://github.com/zalando/innkeeper.
 
 - static file: package eskipfile implements a simple data client, which
 can load route definitions from a static file in eskip format.
-Currently, it doesn't support updates.
+Currently, it supports only loading on startup and no updates.
 
 Skipper accepts additional data sources, when extended. Sources must
 implement the DataClient interface in the routing package.
@@ -157,10 +156,11 @@ implement the DataClient interface in the routing package.
 Running Skipper
 
 Skipper can be started with the default executable command 'skipper', or
-as a library built into a program.  Starting skipper as a library
-happens by calling the Run function. Each option accepted by the Run
-function is also wired in the default executable as a command line flag.
-E.g. EtcdUrls becomes -etcd-urls as a comma separated list.
+as a library built into a program.  The simplest way to start skipper as
+a library is by calling the Run function of the current, root package.
+Each option accepted by the Run function is also wired in the default
+executable as a command line flag.  E.g. EtcdUrls becomes -etcd-urls as
+a comma separated list.
 
 
 Extending Skipper
@@ -174,7 +174,7 @@ Custom Filters
 To create a custom filter, the Spec interface of the filters package
 needs to be implemented. Spec is the specification of a filter, and it
 is used to create concrete filter instances for each route that
-references it, while the route definitions are processed.
+references it, during the route definitions are processed.
 
 Example, hellofilter.go:
 
@@ -213,7 +213,7 @@ Example, hellofilter.go:
 
 The above example creates a filter specification, whose filter instances
 will set the X-Hello header for every response in the routes they are
-included. The name of the filter is 'hello', and can be referenced in
+included in. The name of the filter is 'hello', and can be referenced in
 route definitions as:
 
     Any() -> hello("world") -> "https://www.example.org"
@@ -221,7 +221,7 @@ route definitions as:
 
 Custom Build
 
-The simplest way to creating a custom skipper variant, is to implement
+The easiest way of creating a custom skipper variant, is to implement
 the required filters as in the above example, importing the skipper
 package, and starting it with the Run function.
 
@@ -253,7 +253,7 @@ Start the custom router:
 
 Proxy Package Used Individually
 
-The Run function the root skipper package starts its own listener and
+The Run function in the root skipper package starts its own listener and
 doesn't provide the best composability. The proxy package, however,
 provides a standard http.Handler, so it is possible to use it in a more
 complex solution as a building block for routing.

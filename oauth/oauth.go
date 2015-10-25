@@ -74,7 +74,7 @@ type OAuthClient struct {
 	httpClient       *http.Client
 }
 
-// Returns a new OAuthClient.
+// Initializes a new OAuthClient.
 func New(credentialsDir, oauthUrl, permissionScopes string) *OAuthClient {
 	return &OAuthClient{credentialsDir, oauthUrl, permissionScopes, &http.Client{}}
 }

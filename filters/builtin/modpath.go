@@ -27,7 +27,8 @@ type modPath struct {
 
 // Returns a new modpath filter Spec, whose instances execute
 // regexp.ReplaceAll on the request path. Instances expect two
-// parameters: the expression to match and the replacement.
+// parameters: the expression to match and the replacement string.
+// Name: "modpath".
 func NewModPath() filters.Spec { return &modPath{} }
 
 // "modPath"
