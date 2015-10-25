@@ -16,7 +16,7 @@ package routing_test
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"log"
@@ -34,7 +34,7 @@ func Example() {
 
 	// create a router:
 	r := routing.New(routing.Options{
-		FilterRegistry:  filters.Defaults(),
+		FilterRegistry:  builtin.MakeRegistry(),
 		MatchingOptions: routing.IgnoreTrailingSlash,
 		DataClients:     []routing.DataClient{dataClient}})
 

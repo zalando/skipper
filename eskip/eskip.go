@@ -28,7 +28,7 @@ type matcher struct {
 	// The name of the matcher, e.g. Path or Header
 	name string
 
-	// The arguments of the matcher, e.g. the path to be matched.
+	// The parameters of the matcher, e.g. the path to be matched.
 	args []interface{}
 }
 
@@ -48,7 +48,7 @@ type Filter struct {
 	// name of the filter specification
 	Name string
 
-	// filter arguments applied withing a particular route
+	// filter parameters applied withing a particular route
 	Args []interface{}
 }
 
@@ -96,14 +96,14 @@ type Route struct {
 	Backend string
 }
 
-// Returns the first argument of a matcher with the given name.
+// Returns the first parameter of a matcher with the given name.
 // (Used for Path and Method.)
 func getFirstMatcherString(r *parsedRoute, name string) (string, error) {
 	for _, m := range r.matchers {
 		if (m.name == name) && len(m.args) > 0 {
 			p, ok := m.args[0].(string)
 			if !ok {
-				return "", errors.New("invalid matcher argument")
+				return "", errors.New("invalid matcher parameter")
 			}
 
 			return p, nil
@@ -113,7 +113,7 @@ func getFirstMatcherString(r *parsedRoute, name string) (string, error) {
 	return "", nil
 }
 
-// Returns all arguments of a matcher with the given name.
+// Returns all parameters of a matcher with the given name.
 // (Used for PathRegexp and Host.)
 func getMatcherStrings(r *parsedRoute, name string) ([]string, error) {
 	var ss []string
@@ -121,7 +121,7 @@ func getMatcherStrings(r *parsedRoute, name string) ([]string, error) {
 		if m.name == name && len(m.args) > 0 {
 			s, ok := m.args[0].(string)
 			if !ok {
-				return nil, errors.New("invalid matcher argument")
+				return nil, errors.New("invalid matcher parameter")
 			}
 
 			ss = append(ss, s)
@@ -131,7 +131,7 @@ func getMatcherStrings(r *parsedRoute, name string) ([]string, error) {
 	return ss, nil
 }
 
-// returns a map of the first arguments and all second arguments for a matcher
+// returns a map of the first parameters and all second parameters for a matcher
 // with the given name. (Used for HeaderRegexps and Header.)
 func getMatcherArgMap(r *parsedRoute, name string) (map[string][]string, error) {
 	argMap := make(map[string][]string)
@@ -139,12 +139,12 @@ func getMatcherArgMap(r *parsedRoute, name string) (map[string][]string, error) 
 		if m.name == name && len(m.args) >= 2 {
 			k, ok := m.args[0].(string)
 			if !ok {
-				return nil, errors.New("invalid matcher key argument")
+				return nil, errors.New("invalid matcher key parameter")
 			}
 
 			v, ok := m.args[1].(string)
 			if !ok {
-				return nil, errors.New("invalid matcher value argument")
+				return nil, errors.New("invalid matcher value parameter")
 			}
 
 			argMap[k] = append(argMap[k], v)

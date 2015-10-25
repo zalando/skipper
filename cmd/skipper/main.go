@@ -17,7 +17,7 @@
 // for a summary about skipper, please see the readme file.
 
 /*
-The skipper command provides an executable version of the skipper
+Command skipper provides an executable version of the skipper
 library with the default set of filters.
 
 For the list of command line options run:
@@ -46,16 +46,16 @@ const (
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
 	etcdStorageRootUsage           = "path prefix for skipper related data in the etcd storage"
-	insecureUsage                  = "set this flag to allow invalid certificates for tls connections"
 	innkeeperUrlUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
-	innkeeperPreRouteFiltersUsage  = "global pre-route filters for routes from Innkeeper"
-	innkeeperPostRouteFiltersUsage = "global post-route filters for routes from Innkeeper"
-	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
+	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
+	innkeeperPostRouteFiltersUsage = "filters to be appended to each route loaded from Innkeeper"
 	oauthUrlUsage                  = "OAuth2 URL for Innkeeper authentication"
-	oauthScopeUsage                = "the whitespace separated list of oauth scopes"
 	oauthCredentialsDirUsage       = "directory where oauth credentials are stored: client.json and user.json"
+	oauthScopeUsage                = "the whitespace separated list of oauth scopes"
 	routesFileUsage                = "file containing static route definitions"
+	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
+	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	devModeUsage                   = "enables developer time behavior, like ubuffered routing updates"
 )
 

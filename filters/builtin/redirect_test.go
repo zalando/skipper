@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters_test
+package builtin
 
 import (
-	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +23,7 @@ import (
 )
 
 func TestRedirect(t *testing.T) {
-	spec := filters.NewRedirect()
+	spec := NewRedirect()
 	f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), "https://example.org"})
 	if err != nil {
 		t.Error(err)
@@ -43,7 +42,7 @@ func TestRedirect(t *testing.T) {
 }
 
 func TestRedirectRelative(t *testing.T) {
-	spec := filters.NewRedirect()
+	spec := NewRedirect()
 	f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), "/relative/url"})
 	if err != nil {
 		t.Error(err)
@@ -66,7 +65,7 @@ func TestRedirectRelative(t *testing.T) {
 }
 
 func testLocation(t *testing.T, filterLocation, checkLocation string) {
-    spec := filters.NewRedirect()
+	spec := NewRedirect()
 	f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), filterLocation})
 	if err != nil {
 		t.Error(err)

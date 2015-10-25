@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters
+package builtin
 
 import (
-	"errors"
+	"github.com/zalando/skipper/filters"
 	"strings"
 )
 
@@ -33,47 +33,47 @@ type headerFilter struct {
 	name, key, value string
 }
 
-// verifies that the filter config has two string arguments
+// verifies that the filter config has two string parameters
 func headerFilterConfig(config []interface{}) (string, string, error) {
 	if len(config) != 2 {
-		return "", "", errors.New("invalid number of args, expecting 2")
+		return "", "", filters.ErrInvalidFilterParameters
 	}
 
 	key, ok := config[0].(string)
 	if !ok {
-		return "", "", errors.New("invalid header key, expecting string")
+		return "", "", filters.ErrInvalidFilterParameters
 	}
 
 	value, ok := config[1].(string)
 	if !ok {
-		return "", "", errors.New("invalid header value, expecting string")
+		return "", "", filters.ErrInvalidFilterParameters
 	}
 
 	return key, value, nil
 }
 
 // Returns a filter specification that is used to set headers for requests.
-// Instances expect two arguments: the header name and the header value.
-// Name: "requestHeader"
-func NewRequestHeader() Spec {
+// Instances expect two parameters: the header name and the header value.
+// Name: "requestHeader".
+func NewRequestHeader() filters.Spec {
 	return &headerFilter{typ: requestHeader, name: RequestHeaderName}
 }
 
 // Returns a filter specification that is used to set headers for responses.
-// Instances expect two arguments: the header name and the header value.
-// Name: "responseHeader"
-func NewResponseHeader() Spec {
+// Instances expect two parameters: the header name and the header value.
+// Name: "responseHeader".
+func NewResponseHeader() filters.Spec {
 	return &headerFilter{typ: responseHeader, name: ResponseHeaderName}
 }
 
 func (spec *headerFilter) Name() string { return spec.name }
 
-func (spec *headerFilter) CreateFilter(config []interface{}) (Filter, error) {
+func (spec *headerFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
 	key, value, err := headerFilterConfig(config)
 	return &headerFilter{typ: spec.typ, key: key, value: value}, err
 }
 
-func (f *headerFilter) Request(ctx FilterContext) {
+func (f *headerFilter) Request(ctx filters.FilterContext) {
 	if f.typ == requestHeader {
 		req := ctx.Request()
 		if strings.ToLower(f.key) == "host" {
@@ -84,7 +84,7 @@ func (f *headerFilter) Request(ctx FilterContext) {
 	}
 }
 
-func (f *headerFilter) Response(ctx FilterContext) {
+func (f *headerFilter) Response(ctx filters.FilterContext) {
 	if f.typ == responseHeader {
 		ctx.Response().Header.Add(f.key, f.value)
 	}

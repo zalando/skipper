@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters_test
+package builtin
 
 import (
-	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
 	"net/url"
@@ -24,7 +23,7 @@ import (
 )
 
 func TestCreateStripQueryFilter(t *testing.T) {
-	sqs := filters.NewStripQuery()
+	sqs := NewStripQuery()
 	if sqs.Name() != "stripQuery" {
 		t.Error("wrong name")
 	}
@@ -44,7 +43,7 @@ func TestCreateStripQueryFilter(t *testing.T) {
 }
 
 func TestStripQuery(t *testing.T) {
-	sqs := filters.NewStripQuery()
+	sqs := NewStripQuery()
 
 	f, _ := sqs.CreateFilter(nil)
 
@@ -73,7 +72,7 @@ var headerTests = []struct {
 }
 
 func TestPreserveQuery(t *testing.T) {
-	sqs := filters.NewStripQuery()
+	sqs := NewStripQuery()
 
 	f, _ := sqs.CreateFilter([]interface{}{"true"})
 

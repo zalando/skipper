@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters
+package builtin
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
+	"github.com/zalando/skipper/filters"
 	"net/http"
 	"strconv"
 )
@@ -30,10 +30,10 @@ type stripQuery struct {
 // optionally transpose them to request headers.
 //
 // It always removes the query parameter from the request URL, and if the
-// first filter argument is "true", preserves the query parameter in the form
+// first filter parameter is "true", preserves the query parameter in the form
 // of x-query-param-<queryParamName>: <queryParamValue> headers, so that
 // ?foo=bar becomes x-query-param-foo: bar
-func NewStripQuery() Spec { return &stripQuery{} }
+func NewStripQuery() filters.Spec { return &stripQuery{} }
 
 // "stripQuery"
 func (spec *stripQuery) Name() string { return StripQueryName }
@@ -59,7 +59,7 @@ func sanitize(input string) string {
 }
 
 // Strips the query parameters and optionally preserves them in the X-Query-Param-xyz headers.
-func (f *stripQuery) Request(ctx FilterContext) {
+func (f *stripQuery) Request(ctx filters.FilterContext) {
 	r := ctx.Request()
 	if r == nil {
 		return
@@ -89,16 +89,16 @@ func (f *stripQuery) Request(ctx FilterContext) {
 }
 
 // Noop.
-func (f *stripQuery) Response(ctx FilterContext) {}
+func (f *stripQuery) Response(ctx filters.FilterContext) {}
 
-// Creates instances of the stripQuery filter. Accepts one optional argument:
+// Creates instances of the stripQuery filter. Accepts one optional parameter:
 // "true", in order to preserve the stripped parameters in the request header.
-func (mw *stripQuery) CreateFilter(config []interface{}) (Filter, error) {
+func (mw *stripQuery) CreateFilter(config []interface{}) (filters.Filter, error) {
 	var preserveAsHeader = false
 	if len(config) == 1 {
 		preserveAsHeaderString, ok := config[0].(string)
 		if !ok {
-			return nil, errors.New("invalid config type, expecting string")
+			return nil, filters.ErrInvalidFilterParameters
 		}
 		if preserveAsHeaderString == "true" {
 			preserveAsHeader = true

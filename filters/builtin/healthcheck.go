@@ -12,19 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters
+package builtin
 
-import "net/http"
+import (
+	"github.com/zalando/skipper/filters"
+	"net/http"
+)
 
 type healthCheck struct{}
 
 // Creates a new filter Spec, whose instances set the status code of the
 // response to 200 OK.
-func NewHealthCheck() Spec { return &healthCheck{} }
+func NewHealthCheck() filters.Spec { return &healthCheck{} }
 
 // "healthcheck"
-func (h *healthCheck) Name() string { return "healthcheck" }
+func (h *healthCheck) Name() string { return HealthCheckName }
 
-func (h *healthCheck) CreateFilter(_ []interface{}) (Filter, error) { return h, nil }
-func (h *healthCheck) Request(ctx FilterContext)                    {}
-func (h *healthCheck) Response(ctx FilterContext)                   { ctx.Response().StatusCode = http.StatusOK }
+func (h *healthCheck) CreateFilter(_ []interface{}) (filters.Filter, error) { return h, nil }
+func (h *healthCheck) Request(ctx filters.FilterContext)                    {}
+func (h *healthCheck) Response(ctx filters.FilterContext)                   { ctx.Response().StatusCode = http.StatusOK }
