@@ -7,8 +7,9 @@ requests and responses with filters.
 - routes each request to the configured server endpoint
 - allows altering the requests and responses with filters independently configured for each route
 - optionally acts as a final endpoint (shunt)
-- updates the routing rules without restarting, supporting multiple data sources, like
-  [Innkeeper](https://github.com/zalando/innkeeper) or [etcd](https://github.com/coreos/etcd)
+- updates the routing rules without restarting, supporting multiple types of data sources, like
+  [Innkeeper](https://github.com/zalando/innkeeper), [etcd](https://github.com/coreos/etcd) or static files
+- extensible by custom filters
 
 Skipper's design is largely inspired by [Vulcand](https://github.com/mailgun/vulcand).
 
@@ -44,7 +45,7 @@ Skipper is documented in detail in godoc:
 
 ### Compiling
 
-Getting the code:
+Getting the code (with optionally creating a workspace):
 
     mkdir ws
     cd ws

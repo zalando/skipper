@@ -3,13 +3,6 @@ TestProcessesFilterDefinitions timeout -> issue, seems like it may be related to
 ExampleClient_Update: sometimes fails, but the output shows no difference -> issue
 different platforms
 
-[doc]
-update the readme.md
-- etcd package needed for testing to the readme
-- readme referencing godoc
-proof read
-usage of upstream and downstream?
-
 remove notes.txt
 reconsider what goes to options
 remove custom tooling from .gitignore
@@ -31,8 +24,6 @@ microservices
 data client evaluation
 etcd requested even when routes file set
 in the notfound example, how is the status set?
-benchmarking broken due to initializing during the first one
-check if etcd getupdate doesn't leak
-prefix options for given storage type
-consider renaming the filters
 use the existing fixed errors where applicable
+in static and redirect, check if the request is served and log the warning if yes
+naming of GetInitial: it has side effects

@@ -34,7 +34,7 @@ type static struct {
 // rest of the path to the directory path. Then, it uses the resulting
 // path to serve static content from the file system.
 //
-// Implements both Spec and Filter.
+// Name: "static".
 func NewStatic() filters.Spec { return &static{} }
 
 // "static"

@@ -13,12 +13,12 @@
 // limitations under the License.
 
 /*
-Package filters contains definitions for skipper filtering and a default set
-of filters.
+Package filters contains definitions for skipper filtering and a default,
+built-in set of filters.
 
-Filters are used to augment both the inbound request's properties before
+Filters are used to augment both the inbound request's attributes before
 forwarding it to the route endpoint, and the outbound response's
-properties before returning it to the original client.
+attributes before returning it to the original client.
 
 
 Filter Specification and Filter Instances
@@ -46,8 +46,9 @@ order.
 
 Handling Requests with Filters
 
-Filters can handle the request themselves, meaning that they can set the
+Filters can handle the requests themselves, meaning that they can set the
 response status, headers and send any particular response body. In this case,
-it is the filter's responsibility to mark the request served.
+it is the filter's responsibility to mark the request served to avoid
+generating the default response.
 */
 package filters
