@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters_test
+package builtin
 
 import (
 	"bytes"
-	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"io/ioutil"
 	"net/http"
@@ -33,7 +32,7 @@ func TestStatic(t *testing.T) {
 		t.Error("failed to create test file")
 	}
 
-	s := filters.NewStatic()
+	s := NewStatic()
 	f, err := s.CreateFilter([]interface{}{"/static", "/tmp"})
 	if err != nil {
 		t.Error("failed to create filter")

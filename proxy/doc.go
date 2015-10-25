@@ -22,6 +22,7 @@ This typically means augmenting the request with the filters and
 forwarding it to the route endpoint, but it may also mean to internally
 handle the request if it is a 'shunt' route.
 
+
 Proxy Mechanism
 
 1. route matching:
@@ -30,6 +31,7 @@ The incoming request is matched to the current routing tree, implemented
 in skipper/routing. The result may be a route, which will be used for
 forwarding or handling the request, or nil, in which case the proxy
 responds with 404.
+
 
 2. downstream request augmentation:
 
@@ -41,15 +43,18 @@ derived from the actual request path (see skipper/routing) and a
 free-form state bag. The filters may modify the request or pass data to
 each other using the state bag.
 
+
 3.a downstream request:
 
 The incoming and augmented request is mapped to an outgoing request and
 executed, addressing the endpoint defined by the current route.
 
+
 3.b shunt:
 
 In case the route is a 'shunt', an empty response is created with
 default 404 status.
+
 
 4. upstream response augmentation:
 
@@ -62,12 +67,14 @@ setting the right status and response headers, and writing the response
 body, if any, to the writer in the filter context, and mark the request
 as 'served'.
 
+
 5. response:
 
 In case none of the filters handled the request, the response
 properties, including the status and the headers, are mapped to the
 outgoing response writer, and the response body is streamed to it, with
 continuous flushing.
+
 
 Routing Rules
 

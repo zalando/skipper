@@ -25,9 +25,9 @@ each route.
 Skipper can load and update the route definitions from multiple data
 sources without being restarted.
 
-Skipper provides a default executable command but its primary use case
-is to extend it with custom filters and compiling one's own variant. See
-section 'Extending skipper'.
+Skipper provides a default executable command with a few built-in
+filters but its primary use case is to extend it with custom filters and
+compiling one's own variant. See section 'Extending Skipper'.
 
 Skipper took the core design and inspiration from Vulcand:
 https://github.com/mailgun/vulcand.
@@ -56,7 +56,7 @@ Start skipper and make an HTTP request through skipper:
     curl localhost:9090/hello
 
 
-Mechanism
+Routing Mechanism
 
 The core of skipper's request processing is implemented by a rewerse
 proxy in the 'proxy' package. The proxy takes the incoming request,
@@ -76,7 +76,7 @@ filter).
 For details, see the documentation of the proxy subdirectory.
 
 
-Matching requests
+Matching Requests
 
 Finding the route for a request happens by matching the request
 attributes against the conditions in the route definitions. Route
@@ -90,7 +90,7 @@ meaning that a request must fulfil each condition to match a route.
 For details, see the documentation of the routing subdirectory.
 
 
-Filters - Augmenting requests
+Filters - Augmenting Requests
 
 Filters are executed in order of definition on the request and in
 reverse order on the response, and are used to modify request and
@@ -103,7 +103,7 @@ the route.
 For details, see the documentation of the filters subdirectory.
 
 
-Service backends
+Service Backends
 
 Each route has a backend, one of two kinds: network service or shunt.
 
@@ -118,7 +118,7 @@ make requests to a backend service. In this case, it is the
 responsibility of one of the filters to generate the response.
 
 
-Route definitions
+Route Definitions
 
 Route definitions consist of request matching conditions, optional
 filters and a route backend. The eskip package implements the in-memory
@@ -132,7 +132,7 @@ parser.)
 For details, see the documentation of the eskip subdirectory.
 
 
-Data sources
+Data Sources
 
 Skipper loads the route definitions from one or more sources, and
 receives incremental updates while running. It provides three different
@@ -140,7 +140,8 @@ data clients:
 
 - Innkeeper: the Innkeeper service implements a storage for large sets
 of skipper routes, with an HTTP+JSON API, OAuth2 authentication and role
-management. See the innkeeper subdirectory.
+management. See the innkeeper subdirectory and
+https://github.com/zalando/innkeeper.
 
 - etcd: skipper can load routes and receive updates from etcd clusters
 (https://github.com/coreos/etcd). See the etcd subdirectory.
@@ -153,7 +154,7 @@ Skipper accepts additional data sources, when extended. Sources must
 implement the DataClient interface in the routing package.
 
 
-Running skipper
+Running Skipper
 
 Skipper can be started with the default executable command 'skipper', or
 as a library built into a program.  Starting skipper as a library
@@ -162,25 +163,24 @@ function is also wired in the default executable as a command line flag.
 E.g. EtcdUrls becomes -etcd-urls as a comma separated list.
 
 
-Extending skipper
+Extending Skipper
 
 Skipper doesn't use dynamically loaded plugins, but it can be used as a
 library and extended with custom filters and/or custom data sources.
 
 
-Custom filters
+Custom Filters
 
 To create a custom filter, the Spec interface of the filters package
 needs to be implemented. Spec is the specification of a filter, and it
 is used to create concrete filter instances for each route that
-references it, when the route definitions are processed.
+references it, while the route definitions are processed.
 
 Example, hellofilter.go:
 
     package main
 
     import (
-        "errors"
         "fmt"
         "github.com/zalando/skipper/filters"
     )
@@ -188,38 +188,38 @@ Example, hellofilter.go:
     type helloSpec struct {}
 
     type helloFilter struct {
-        name string
+        who string
     }
 
     func (s *helloSpec) Name() string { return "hello" }
 
     func (s *helloSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
         if len(config) == 0 {
-            return nil, errors.New("not enough filter arguments")
+            return nil, filters.ErrInvalidFilterParameters
         }
 
-        if name, ok := config[0].(string); ok {
-            return &helloFilter{name}, nil
+        if who, ok := config[0].(string); ok {
+            return &helloFilter{who}, nil
         } else {
-            return nil, errors.New("invalid argument type, string expected")
+            return nil, filters.ErrInvalidFilterParameters
         }
     }
 
     func (f *helloFilter) Request(ctx filters.FilterContext) {}
 
     func (f *helloFilter) Response(ctx filters.FilterContext) {
-        ctx.Response().Header.Set("X-Hello", fmt.Sprintf("Hello, %s!", f.name))
+        ctx.Response().Header.Set("X-Hello", fmt.Sprintf("Hello, %s!", f.who))
     }
 
 The above example creates a filter specification, whose filter instances
 will set the X-Hello header for every response in the routes they are
-included. The name of the filter is 'hello', and can be referenced route
-definitions as:
+included. The name of the filter is 'hello', and can be referenced in
+route definitions as:
 
     Any() -> hello("world") -> "https://www.example.org"
 
 
-Custom build
+Custom Build
 
 The simplest way to creating a custom skipper variant, is to implement
 the required filters as in the above example, importing the skipper
@@ -251,7 +251,7 @@ Start the custom router:
     go run hello.go
 
 
-Proxy package used individually
+Proxy Package Used Individually
 
 The Run function the root skipper package starts its own listener and
 doesn't provide the best composability. The proxy package, however,
@@ -259,7 +259,7 @@ provides a standard http.Handler, so it is possible to use it in a more
 complex solution as a building block for routing.
 
 
-Performance considerations
+Performance Considerations
 
 While the real life performance of the router depends on the environment
 and the used filters, in ideal circumstances and without filters, the

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"io"
@@ -333,8 +334,8 @@ func TestAppliesFilters(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	fr := make(filters.Registry)
-	fr.Register(filters.NewRequestHeader())
-	fr.Register(filters.NewResponseHeader())
+	fr.Register(builtin.NewRequestHeader())
+	fr.Register(builtin.NewResponseHeader())
 
 	doc := fmt.Sprintf(`hello:
 		Path("/hello") ->
@@ -371,7 +372,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	fr := make(filters.Registry)
-	fr.Register(filters.NewResponseHeader())
+	fr.Register(builtin.NewResponseHeader())
 
 	doc := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
 	dc, err := testdataclient.NewDoc(doc)

@@ -17,6 +17,7 @@ package filtertest_test
 import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -34,7 +35,7 @@ func (f *customFilter) Response(ctx filters.FilterContext) {}
 
 func ExampleFilter() {
 	// create a test filter and add to registry:
-	fr := filters.Defaults()
+	fr := builtin.MakeRegistry()
 	fr.Register(&filtertest.Filter{FilterName: "testFilter"})
 
 	// create a data client, with a predefined route referencing the filter:

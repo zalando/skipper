@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters_test
+package builtin
 
 import (
-	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
 	"testing"
 )
 
 func TestNoConfig(t *testing.T) {
-	spec := filters.NewModPath()
+	spec := NewModPath()
 	_, err := spec.CreateFilter(nil)
 	if err == nil {
 		t.Error("failed to fail")
@@ -30,7 +29,7 @@ func TestNoConfig(t *testing.T) {
 }
 
 func TestInvalidConfig(t *testing.T) {
-	spec := filters.NewModPath()
+	spec := NewModPath()
 	_, err := spec.CreateFilter([]interface{}{"invalid regexp: }*", 42})
 	if err == nil {
 		t.Error("failed to fail")
@@ -38,7 +37,7 @@ func TestInvalidConfig(t *testing.T) {
 }
 
 func TestModifyPath(t *testing.T) {
-	spec := filters.NewModPath()
+	spec := NewModPath()
 	f, err := spec.CreateFilter([]interface{}{"/replace-this/", "/with-this/"})
 	if err != nil {
 		t.Error(err)

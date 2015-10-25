@@ -15,8 +15,8 @@
 package filters_test
 
 import (
-	"errors"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -33,12 +33,12 @@ func (s *customSpec) Name() string {
 // a specification can be used to create filter instances with different config
 func (s *customSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
 	if len(config) == 0 {
-		return nil, errors.New("missing prefix argument for filter: customFilter")
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	prefix, ok := config[0].(string)
 	if !ok {
-		return nil, errors.New("invalid type of prefix argument for filter: customFilter")
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	return &customFilter{prefix}, nil
@@ -53,7 +53,7 @@ func (f *customFilter) Response(_ filters.FilterContext) {}
 
 func Example() {
 	// create registry
-	registry := filters.Defaults()
+	registry := builtin.MakeRegistry()
 
 	// create and register the filter specification
 	spec := &customSpec{name: "customFilter"}
