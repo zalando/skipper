@@ -31,7 +31,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -246,25 +246,25 @@ func convertFilters(d *routeData) []*eskip.Filter {
 		}
 
 		fs = append(fs, &eskip.Filter{
-			filters.ModPathName,
+			builtin.ModPathName,
 			[]interface{}{rx, d.Route.RewritePath.Replace}})
 	}
 
 	for _, h := range d.Route.RequestHeaders {
 		fs = append(fs, &eskip.Filter{
-			filters.RequestHeaderName,
+			builtin.RequestHeaderName,
 			[]interface{}{h.Name, h.Value}})
 	}
 
 	for _, h := range d.Route.ResponseHeaders {
 		fs = append(fs, &eskip.Filter{
-			filters.ResponseHeaderName,
+			builtin.ResponseHeaderName,
 			[]interface{}{h.Name, h.Value}})
 	}
 
 	if d.Route.Endpoint.Typ == endpointPermanentRedirect {
 		fs = append(fs, &eskip.Filter{
-			filters.RedirectName,
+			builtin.RedirectName,
 			[]interface{}{
 				fixedRedirectStatus,
 				innkeeperEndpointToUrl(&d.Route.Endpoint, true)}})

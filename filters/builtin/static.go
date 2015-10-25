@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters
+package builtin
 
 import (
 	"fmt"
+	"github.com/zalando/skipper/filters"
 	"net/http"
 	"path"
 )
@@ -24,45 +25,46 @@ type static struct {
 	webRoot, root string
 }
 
-// Returns a filter Spec to serve static content from a file system location.
-// Marks the request as served.
+// Returns a filter Spec to serve static content from a file system
+// location. Marks the request as served.
 //
-// It takes the request path prefix from the first argument, clips it from the
-// start of the path, appends to the file system root from the second
-// argument, and uses the resulting path to serve content from the file
-// system.
+// Filter instances of this specification expect two parameters: a
+// request path prefix and a local directory path. When processing a
+// request, it clips the prefix from the request path, and appends the
+// rest of the path to the directory path. Then, it uses the resulting
+// path to serve static content from the file system.
 //
 // Implements both Spec and Filter.
-func NewStatic() Spec { return &static{} }
+func NewStatic() filters.Spec { return &static{} }
 
 // "static"
 func (spec *static) Name() string { return StaticName }
 
-// Creates instances of the static filter. Expects two argument: request path
+// Creates instances of the static filter. Expects two parameters: request path
 // prefix and file system root.
-func (spec *static) CreateFilter(config []interface{}) (Filter, error) {
+func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 	if len(config) != 2 {
 		return nil, fmt.Errorf("invalid number of args: %d, expected 1", len(config))
 	}
 
 	webRoot, ok := config[0].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid argument type, expected string for web root prefix")
+		return nil, fmt.Errorf("invalid parameter type, expected string for web root prefix")
 	}
 
 	root, ok := config[1].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid argument type, expected string for path to root dir")
+		return nil, fmt.Errorf("invalid parameter type, expected string for path to root dir")
 	}
 
 	return &static{webRoot, root}, nil
 }
 
 // Noop.
-func (f *static) Request(FilterContext) {}
+func (f *static) Request(filters.FilterContext) {}
 
 // Serves content from the file system and marks the request served.
-func (f *static) Response(ctx FilterContext) {
+func (f *static) Response(ctx filters.FilterContext) {
 	r := ctx.Request()
 	p := r.URL.Path
 

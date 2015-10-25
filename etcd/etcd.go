@@ -18,9 +18,18 @@ definitions from an etcd service.
 
 (See the DataClient interface in the skipper/routing package.)
 
-etcd is a ditributed configuation service: https://github.com/coreos/etcd. The
-route definitions are stored under individual keys as eskip route expressions.
-When loaded from etcd, the routes will get the etcd key as id.
+etcd is a generic, ditributed configuation service:
+https://github.com/coreos/etcd. The route definitions are stored under
+individual keys as eskip route expressions. When loaded from etcd, the
+routes will get the etcd key as id.
+
+Note to contributors: this package requires etcd for running the tests.
+
+    go get github.com/coreos/etcd
+
+The etcd packages need to be downloaded separately before running the
+tests, because the skipper program itself doesn't depend on it, only the
+tests.
 */
 package etcd
 
@@ -42,7 +51,7 @@ type Client struct {
 }
 
 // Creates a new Client, connecting to an etcd cluster reachable at 'urls'.
-// The storage root argument specififies the etcd node under which the skipper
+// The storage root argument specifies the etcd node under which the skipper
 // routes are stored. E.g. if storageRoot is '/skipper-dev', the route
 // definitions should be stored under /v2/keys/skipper-dev/routes/...
 func New(urls []string, storageRoot string) *Client {

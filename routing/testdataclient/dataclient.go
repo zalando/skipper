@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /*
-Package testdataclient provides test implementation for the DataClient
+Package testdataclient provides a test implementation for the DataClient
 interface in the skipper/routing package.
 
 It uses in-memory route definitions that are passed in on construction,

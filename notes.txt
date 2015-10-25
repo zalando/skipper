@@ -4,26 +4,11 @@ ExampleClient_Update: sometimes fails, but the output shows no difference -> iss
 different platforms
 
 [doc]
-pathmux documentation
-update the links in the documentation
-remove the name 'pathRewrite' from everywhere
-updating the grammar in the readme
-compilation, testing, etc
-useful stuff from the readme
-doc comment format for package documentation
-etcd package needed for testing to the readme
-any example of packages referencing each other?
-readme referencing godoc
-matching conditions in the routing doc
-incorporate the flowid filter
-try lists with code formatting?
-arguments in filter doc
-more structure in filter doc to reflect what a specification and what a filter is
-capitalize titles
-consider removing the dash lists from everywhere
-members in the skipper package
-update the flag usage strings
-consolidate reamde.md
+update the readme.md
+- etcd package needed for testing to the readme
+- readme referencing godoc
+proof read
+usage of upstream and downstream?
 
 remove notes.txt
 reconsider what goes to options
@@ -50,5 +35,4 @@ benchmarking broken due to initializing during the first one
 check if etcd getupdate doesn't leak
 prefix options for given storage type
 consider renaming the filters
-make the naming of the filter options clear -> parameters
 use the existing fixed errors where applicable

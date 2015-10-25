@@ -5,15 +5,6 @@ import (
 	"net/http"
 )
 
-const (
-	RequestHeaderName  = "requestHeader"
-	ResponseHeaderName = "responseHeader"
-	ModPathName        = "modPath"
-	RedirectName       = "redirect"
-	StaticName         = "static"
-	StripQueryName     = "stripQuery"
-)
-
 // Context object providing state and information that is unique to a request.
 type FilterContext interface {
 
@@ -46,9 +37,6 @@ type FilterContext interface {
 	StateBag() map[string]interface{}
 }
 
-// Error used in case of invalid filter parameters.
-var ErrInvalidFilterParameters = errors.New("Invalid filter parameters")
-
 // Filters are created by the Spec components, optionally using filter specific settings.
 // When implementing filters, it needs to be taken into consideration, that filter instances are route specific
 // and not request specific, so any state stored with a filter is shared between all requests and can cause
@@ -71,7 +59,7 @@ type Spec interface {
 	// The name of the Spec is used to identify filters in a route definition.
 	Name() string
 
-	// Creates a Filter instance. Called with the arguments in the route
+	// Creates a Filter instance. Called with the parameters in the route
 	// definition while initializing a route.
 	CreateFilter(config []interface{}) (Filter, error)
 }
@@ -79,28 +67,10 @@ type Spec interface {
 // Registry used to lookup Spec objects while initializing routes.
 type Registry map[string]Spec
 
+// Error used in case of invalid filter parameters.
+var ErrInvalidFilterParameters = errors.New("Invalid filter parameters")
+
 // Registers a filter specification.
 func (r Registry) Register(s Spec) {
 	r[s.Name()] = s
-}
-
-// Returns a Registry object initialized with the default set of filter
-// specifications found in the filters package.
-func Defaults() Registry {
-	defaultSpecs := []Spec{
-		NewRequestHeader(),
-		NewResponseHeader(),
-		NewModPath(),
-		NewHealthCheck(),
-		NewStatic(),
-		NewRedirect(),
-		NewStripQuery(),
-		NewFlowId()}
-
-	r := make(Registry)
-	for _, s := range defaultSpecs {
-		r.Register(s)
-	}
-
-	return r
 }

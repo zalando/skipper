@@ -171,7 +171,7 @@ Built-in filters:
 
 This filters always sets the response status to 200.
 
-    Path("/healthcheck") -> healtcheck() -> <shunt>
+    Path("/healthcheck") -> healthcheck() -> <shunt>
 
 
 ##### Humans.txt

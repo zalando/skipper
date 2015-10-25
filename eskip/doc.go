@@ -16,6 +16,7 @@
 Package eskip implements a DSL for describing skipper route expressions,
 route definitions and complete routing tables.
 
+
 Grammar Summary
 
 A routing table is built up from 0 or more route definitions. The definitions
@@ -43,6 +44,7 @@ A route expression example:
     Path("/api/*resource") && Header("Accept", "application/json") ->
         modPath("^/api", "") -> requestHeader("X-Type", "external") ->
         "https://api.example.org"
+
 
 Matcher Expressions
 
@@ -95,6 +97,7 @@ value to be matched is a regular expression.
 
 Catch all condition.
 
+
 Filters
 
 Filters are used to augment the incoming requests and the outgoing responses,
@@ -113,11 +116,13 @@ The default skipper implementation provides the following builtin filters:
 
     responseHeader("header-name", "header-value")
 
-    healthcheck()
-
     modPath(/regular-expression/, "replacement")
 
     redirect(302, "https://ui.example.org")
+
+    flowId("reuse", 64)
+
+    healthcheck()
 
     static("/images", "/var/www/images")
 
@@ -127,7 +132,8 @@ For details about the builtin filters, please, refer to the
 documentation of the skipper/filters package. Skipper is designed to be
 extendable primarily by implementing custom filters, for details about
 how to create custom filters, please, refer to the documentation of the
-main skipper package.
+root skipper package.
+
 
 Backend
 
@@ -150,6 +156,7 @@ network endpoint, but the router will handle the request itself. By default,
 the response is in this case 404 Not found, unless a filter in the route does
 not change it.
 
+
 Comments
 
 An eskip document can contain comments. The rule for comments is simple:
@@ -162,10 +169,12 @@ Example with comments:
     route1: Path("/api") -> "https://api.example.org";
     route2: Any() -> <shunt> // everything else 404
 
-Parsing filters
+
+Parsing Filters
 
 The eskip.ParseFilters method can be used to parse a chain of filters,
 without the matcher and backend part of the route expression.
+
 
 Parsing
 

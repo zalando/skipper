@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters
+package builtin
 
 import (
-	"errors"
+	"github.com/zalando/skipper/filters"
 	"net/http"
 	"net/url"
 )
@@ -27,17 +27,17 @@ type redirect struct {
 }
 
 // Returns a new filter Spec, whose instances create an HTTP redirect
-// resposne. Marks the request as served.
-func NewRedirect() Spec { return &redirect{} }
+// resposne. Marks the request as served. Instances expect two
+// parameters: the redirect status code and the redirect location.
+func NewRedirect() filters.Spec { return &redirect{} }
 
 // "redirect"
 func (spec *redirect) Name() string { return RedirectName }
 
-// Creates an instance of the redirect filter. Expects two arguments: the
-// redirect status code and the redirect location.
-func (spec *redirect) CreateFilter(config []interface{}) (Filter, error) {
-	invalidArgs := func() (Filter, error) {
-		return nil, errors.New("invalid arguments")
+// Creates an instance of the redirect filter.
+func (spec *redirect) CreateFilter(config []interface{}) (filters.Filter, error) {
+	invalidArgs := func() (filters.Filter, error) {
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	if len(config) != 2 {
@@ -63,7 +63,7 @@ func (spec *redirect) CreateFilter(config []interface{}) (Filter, error) {
 }
 
 // Noop.
-func (f *redirect) Request(ctx FilterContext) {}
+func (f *redirect) Request(ctx filters.FilterContext) {}
 
 func (f *redirect) copyOfLocation() *url.URL {
 	v := *f.location
@@ -86,7 +86,7 @@ func getRequestHost(r *http.Request) string {
 
 // Sets the status code and the location header of the response. Marks the
 // request served.
-func (f *redirect) Response(ctx FilterContext) {
+func (f *redirect) Response(ctx filters.FilterContext) {
 	r := ctx.Request()
 	w := ctx.ResponseWriter()
 	u := f.copyOfLocation()

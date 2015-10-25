@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
@@ -51,7 +52,7 @@ type Options struct {
 	InnkeeperUrl string
 
 	// Fixed token for innkeeper authentication. (Used mainly in
-	// developer environments.
+	// development environments.)
 	InnkeeperAuthToken string
 
 	// Filters to be prepended to each route loaded from Innkeeper.
@@ -145,7 +146,7 @@ func Run(o Options) error {
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
-	registry := filters.Defaults()
+	registry := builtin.MakeRegistry()
 	for _, f := range o.CustomFilters {
 		registry.Register(f)
 	}

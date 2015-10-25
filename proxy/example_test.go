@@ -17,6 +17,7 @@ package proxy_test
 import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -49,7 +50,7 @@ func Example() {
 	defer targetServer.Close()
 
 	// create a filter registry, and register the custom filter:
-	filterRegistry := filters.Defaults()
+	filterRegistry := builtin.MakeRegistry()
 	filterRegistry.Register(&setEchoHeader{})
 
 	// create a data client with a predefined route, referencing the filter and a path condition

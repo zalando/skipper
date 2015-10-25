@@ -16,7 +16,8 @@
 Package routing implements matching of http requests to a continuously
 updatable set of skipper routes.
 
-Request evaluation
+
+Request Evaluation
 
 1. The path in the http request is used to find one or more matching
 route definitions in a lookup tree.
@@ -29,6 +30,30 @@ met.
 (The regular expression conditions for the path, 'PathRegexp', are
 applied only in the 2. step.)
 
+
+Matching Conditions
+
+The following types of conditions are supported in the route definitions.
+
+- Path: the route definitions may contain a single path condition,
+optionally with wildcards, used to look up routes in the lookup tree.
+
+- PathRegexp: regular expressions to match the path.
+
+- Host: regular expressions that the host header in the request must
+match.
+
+- Method: the HTTP method that the request must match if present.
+
+- Header: a header key and exact value that must be present in the
+request. Note that Header("Key", "Value") is equivalent to
+HeaderRegexp("Key", "^Value$").
+
+- HeaderRegexp: a header key and a regular expression, where the key
+must be present in the request and one of the associated values must
+match the expression.
+
+
 Wildcards
 
 Path matching supports two kinds of wildcards:
@@ -39,10 +64,8 @@ matching a single name in the request path.
 - freeform wildcard: e.g. /some/path/*wildcard. Freeform wildcards are
 matching any number of names at the end of the request path.
 
-If a matched route contains wildcards in the path condition, the
-wildcard keys mapped to the values will be returned with the route.
 
-Data clients
+Data Clients
 
 Routing definitions are not directly passed to the routing instance, but
 they are loaded from clients that implement the DataClient interface.

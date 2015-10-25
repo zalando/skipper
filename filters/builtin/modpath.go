@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package filters
+package builtin
 
 import (
 	"fmt"
+	"github.com/zalando/skipper/filters"
 	"regexp"
 )
 
@@ -25,8 +26,9 @@ type modPath struct {
 }
 
 // Returns a new modpath filter Spec, whose instances execute
-// regexp.ReplaceAll on the request path.
-func NewModPath() Spec { return &modPath{} }
+// regexp.ReplaceAll on the request path. Instances expect two
+// parameters: the expression to match and the replacement.
+func NewModPath() filters.Spec { return &modPath{} }
 
 // "modPath"
 func (spec *modPath) Name() string { return ModPathName }
@@ -35,9 +37,8 @@ func invalidConfig(config []interface{}) error {
 	return fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", ModPathName, config)
 }
 
-// Creates instances of the modPath filter. Expects two arguments: the
-// expression to match and the replacement.
-func (spec *modPath) CreateFilter(config []interface{}) (Filter, error) {
+// Creates instances of the modPath filter.
+func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) {
 	if len(config) != 2 {
 		return nil, invalidConfig(config)
 	}
@@ -62,10 +63,10 @@ func (spec *modPath) CreateFilter(config []interface{}) (Filter, error) {
 }
 
 // Modifies the path with regexp.ReplaceAll.
-func (f *modPath) Request(ctx FilterContext) {
+func (f *modPath) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), f.replacement))
 }
 
 // Noop.
-func (f *modPath) Response(ctx FilterContext) {}
+func (f *modPath) Response(ctx filters.FilterContext) {}
