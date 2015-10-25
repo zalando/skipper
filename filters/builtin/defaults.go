@@ -19,8 +19,8 @@ const (
 )
 
 // Returns a Registry object initialized with the default set of filter
-// specifications found in the filters package. (builtin, including the
-// flowid filter.)
+// specifications found in the filters package. (including the builtin
+// and the flowid subdirectories.)
 func MakeRegistry() filters.Registry {
 	r := make(filters.Registry)
 	for _, s := range []filters.Spec{

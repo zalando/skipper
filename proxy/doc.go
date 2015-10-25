@@ -19,8 +19,8 @@ updated skipper routing rules.
 The proxy matches each incoming request to the lookup tree for the first
 matching route, and handles it accordingly to the rules defined in it.
 This typically means augmenting the request with the filters and
-forwarding it to the route endpoint, but it may also mean to internally
-handle the request if it is a 'shunt' route.
+forwarding it to the route endpoint, but it may also mean to handle the
+request internally if it is a 'shunt' route.
 
 
 Proxy Mechanism
@@ -33,7 +33,7 @@ forwarding or handling the request, or nil, in which case the proxy
 responds with 404.
 
 
-2. downstream request augmentation:
+2. upstream request augmentation:
 
 In case of a matched route, the request handling method of all filters
 in the route will be executed in the order they are defined. The filters
@@ -44,7 +44,7 @@ free-form state bag. The filters may modify the request or pass data to
 each other using the state bag.
 
 
-3.a downstream request:
+3.a upstream request:
 
 The incoming and augmented request is mapped to an outgoing request and
 executed, addressing the endpoint defined by the current route.
@@ -56,7 +56,7 @@ In case the route is a 'shunt', an empty response is created with
 default 404 status.
 
 
-4. upstream response augmentation:
+4. downstream response augmentation:
 
 The response handling method of all filters in the current route
 definition will be exectuted, but this time in reverse order. The filter

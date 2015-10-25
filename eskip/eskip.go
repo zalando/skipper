@@ -52,46 +52,46 @@ type Filter struct {
 	Args []interface{}
 }
 
-// A Route object represents a parsed, in-memory route expression.
+// A Route object represents a parsed, in-memory route definition.
 type Route struct {
 
-	// id of the route definition.
+	// Id of the route definition.
 	// E.g. route1: ...
 	Id string
 
-	// exact path to be matched.
+	// Exact path to be matched.
 	// E.g. Path("/some/path")
 	Path string
 
-	// host regular expressions to match.
+	// Host regular expressions to match.
 	// E.g. Host(/[.]example[.]org/)
 	HostRegexps []string
 
-	// path regular expressions to match.
+	// Path regular expressions to match.
 	// E.g. PathRegexp(/\/api\//)
 	PathRegexps []string
 
-	// method to match.
+	// Method to match.
 	// E.g. Method("HEAD")
 	Method string
 
-	// exact header definitions to match.
+	// Exact header definitions to match.
 	// E.g. Header("Accept", "application/json")
 	Headers map[string]string
 
-	// header regular expressions to match.
+	// Header regular expressions to match.
 	// E.g. HeaderRegexp("Accept", /\Wapplication\/json\W/)
 	HeaderRegexps map[string][]string
 
-	// set of filters in a particular route.
+	// Set of filters in a particular route.
 	// E.g. redirect(302, "https://www.example.org/hello")
 	Filters []*Filter
 
-	// indicates that the parsed route has shunt backend
-	// (<shunt>, no forwarding to a backend
+	// Indicates that the parsed route has a shunt backend.
+	// (<shunt>, no forwarding to a backend)
 	Shunt bool
 
-	// the address of a backend for a parsed route.
+	// The address of a backend for a parsed route.
 	// E.g. "https://www.example.org"
 	Backend string
 }

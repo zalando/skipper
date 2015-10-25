@@ -33,6 +33,8 @@ type stripQuery struct {
 // first filter parameter is "true", preserves the query parameter in the form
 // of x-query-param-<queryParamName>: <queryParamValue> headers, so that
 // ?foo=bar becomes x-query-param-foo: bar
+//
+// Name: "stripQuery".
 func NewStripQuery() filters.Spec { return &stripQuery{} }
 
 // "stripQuery"

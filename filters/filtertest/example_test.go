@@ -34,7 +34,7 @@ func (f *customFilter) Request(ctx filters.FilterContext) {
 func (f *customFilter) Response(ctx filters.FilterContext) {}
 
 func ExampleFilter() {
-	// create a test filter and add to registry:
+	// create a test filter and add to the registry:
 	fr := builtin.MakeRegistry()
 	fr.Register(&filtertest.Filter{FilterName: "testFilter"})
 

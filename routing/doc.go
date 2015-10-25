@@ -28,7 +28,7 @@ least strict one. The result is the first route whose every condition is
 met.
 
 (The regular expression conditions for the path, 'PathRegexp', are
-applied only in the 2. step.)
+applied only in step 2.)
 
 
 Matching Conditions
@@ -43,7 +43,7 @@ optionally with wildcards, used to look up routes in the lookup tree.
 - Host: regular expressions that the host header in the request must
 match.
 
-- Method: the HTTP method that the request must match if present.
+- Method: the HTTP method that the request must match.
 
 - Header: a header key and exact value that must be present in the
 request. Note that Header("Key", "Value") is equivalent to
@@ -75,7 +75,7 @@ them into their runtime representation, with initialized filters based
 on the filter specifications in the filter registry.
 
 During operation, the router regularly polls the data clients for
-updates, and if an update is received, generates a new lookup tree. In
+updates, and, if an update is received, generates a new lookup tree. In
 case of communication failure during polling, it reloads the whole set
 of routes from the failing client.
 

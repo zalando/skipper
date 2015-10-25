@@ -22,7 +22,7 @@ import (
 type healthCheck struct{}
 
 // Creates a new filter Spec, whose instances set the status code of the
-// response to 200 OK.
+// response to 200 OK. Name: "healthcheck".
 func NewHealthCheck() filters.Spec { return &healthCheck{} }
 
 // "healthcheck"
