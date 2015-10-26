@@ -45,7 +45,7 @@ const (
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
-	etcdStorageRootUsage           = "path prefix for skipper related data in the etcd storage"
+	etcdStorageRootUsage           = "path prefix for skipper related data in etcd"
 	innkeeperUrlUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"

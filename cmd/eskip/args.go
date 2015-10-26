@@ -44,6 +44,7 @@ var (
 var (
 	nowrite = &noopWriter{}
 	flags   *flag.FlagSet
+	isTest  = false
 )
 
 func initFlags() {
@@ -108,7 +109,7 @@ func processStdin() (*medium, error) {
 	// what can go wrong
 	fdint := int(os.Stdin.Fd())
 
-	if !terminal.IsTerminal(fdint) {
+	if isTest || terminal.IsTerminal(fdint) {
 		return nil, nil
 	}
 
