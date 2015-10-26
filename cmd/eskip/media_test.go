@@ -17,7 +17,7 @@ func checkMedium(t *testing.T, left, right *medium, testIndex, itemIndex int) {
 	if left.typ != right.typ ||
 		left.path != right.path ||
 		left.eskip != right.eskip {
-		t.Error("failed to parse medium", left.typ, right.typ, testIndex, itemIndex)
+		t.Error("failed to parse medium", testIndex, itemIndex)
 	}
 
 	if len(left.urls) == len(right.urls) {

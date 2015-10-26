@@ -86,7 +86,7 @@ func main() {
 	}
 
 	if cmd == help {
-		exitHint(helpCmd(nil, nil))
+		exit(helpCmd(nil, nil))
 	}
 
 	media, err := processArgs()
