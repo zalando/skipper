@@ -41,16 +41,6 @@ func checkMedium(t *testing.T, left, right *medium, testIndex, itemIndex int) {
 	}
 }
 
-func TestInvalidCommand(t *testing.T) {
-	_, _, err := validateSelectMedia("invalid", nil)
-	if err != invalidCommand {
-		t.Error("failed to fail")
-	}
-}
-
-func TestTooManuInputs(t *testing.T) {
-}
-
 func TestValidateSelectMedia(t *testing.T) {
 	for i, item := range []struct {
 		command command

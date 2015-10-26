@@ -37,16 +37,22 @@ func printStderr(args ...interface{}) {
 	fmt.Fprintln(os.Stderr, args...)
 }
 
-func exit(err error) {
+func exitErrHint(err error, hint bool) {
 	if err == nil {
 		os.Exit(0)
 	}
 
 	printStderr(err)
-	printStderr()
-	hint()
+	if hint {
+		printStderr()
+		printHint()
+	}
+
 	os.Exit(-1)
 }
+
+func exitHint(err error) { exitErrHint(err, true) }
+func exit(err error)     { exitErrHint(err, false) }
 
 func getCommand() (command, error) {
 	if len(os.Args) < 2 {
@@ -76,21 +82,21 @@ func deleteCmd(in, out *medium) error {
 func main() {
 	cmd, err := getCommand()
 	if err != nil {
-		exit(err)
+		exitHint(err)
 	}
 
 	if cmd == help {
-		exit(helpCmd(nil, nil))
+		exitHint(helpCmd(nil, nil))
 	}
 
 	media, err := processArgs()
 	if err != nil {
-		exit(err)
+		exitHint(err)
 	}
 
 	in, out, err := validateSelectMedia(cmd, media)
 	if err != nil {
-		exit(err)
+		exitHint(err)
 	}
 
 	exit(commands[cmd](in, out))
