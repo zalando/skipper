@@ -108,6 +108,10 @@ func (r *Route) String() string {
 }
 
 func String(routes ...*Route) string {
+	if len(routes) == 1 && routes[0].Id == "" {
+		return routes[0].String()
+	}
+
 	rs := make([]string, len(routes))
 	for i, r := range routes {
 		rs[i] = fmt.Sprintf("%s: %s", r.Id, r.String())

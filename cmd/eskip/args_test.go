@@ -10,17 +10,20 @@ func init() {
 	isTest = true
 }
 
+func resetFlagVars() {
+	etcdUrls = ""
+	etcdStorageRoot = ""
+	inlineRoutes = ""
+	inlineRouteIds = ""
+}
+
 func preserveArgs(args []string, f func()) {
 	os.Args, args = append([]string{"eskip", "cmd"}, args...), os.Args
 	defer func() {
 		os.Args = args
 	}()
 
-	etcdUrls = ""
-	etcdStorageRoot = ""
-	inlineRoutes = ""
-	inlineRouteIds = ""
-
+	resetFlagVars()
 	initFlags()
 
 	f()

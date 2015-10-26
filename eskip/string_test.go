@@ -84,6 +84,13 @@ func TestRouteString(t *testing.T) {
 	}
 }
 
+func TestRouteExpression(t *testing.T) {
+	r := &Route{Method: "GET", Backend: "https://www.example.org"}
+	if r.String() != `Method("GET") -> "https://www.example.org"` {
+		t.Error("failed to serialize a route expression")
+	}
+}
+
 func TestDocString(t *testing.T) {
 	testDoc(t, `route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
 		`route2: Path("/some/path") -> "https://www.example.org"`)
