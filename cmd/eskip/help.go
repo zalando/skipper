@@ -4,7 +4,7 @@ import "os"
 
 const helpHint = "To print eskip usage, enter:\n\neskip help"
 
-func hint() {
+func printHint() {
 	printStderr(helpHint)
 }
 

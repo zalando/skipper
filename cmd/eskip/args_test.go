@@ -6,6 +6,10 @@ import (
 	"testing"
 )
 
+func init() {
+	isTest = true
+}
+
 func preserveArgs(args []string, f func()) {
 	os.Args, args = append([]string{"eskip", "cmd"}, args...), os.Args
 	defer func() {
