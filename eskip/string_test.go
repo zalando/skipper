@@ -5,10 +5,6 @@ import (
 )
 
 func findDiffPos(left, right string) int {
-	if len(left) != len(right) {
-		return -1
-	}
-
 	pos := 0
 	for i := 0; i < len(left); i++ {
 		if left[i:i+1] != right[i:i+1] {
