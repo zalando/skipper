@@ -24,7 +24,7 @@ const (
 	inlineIdsUsage       = "comma separated route ids"
 )
 
-// used to prevent to flag.FlagSet of printing errors in the wrong place
+// used to prevent flag.FlagSet of printing errors in the wrong place
 type noopWriter struct{}
 
 func (w *noopWriter) Write(b []byte) (int, error) {
