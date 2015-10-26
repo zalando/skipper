@@ -64,7 +64,7 @@ func checkRoutes(in *medium) ([]*eskip.Route, error) {
 	}
 }
 
-func printRoutes(routes []*eskip.Route, out *medium) error {
+func printRoutes(routes []*eskip.Route) error {
 	_, err := fmt.Println(eskip.String(routes...))
 	return err
 }
@@ -74,11 +74,11 @@ func checkCmd(in, _ *medium) error {
 	return err
 }
 
-func printCmd(in, out *medium) error {
+func printCmd(in, _ *medium) error {
 	routes, err := checkRoutes(in)
 	if err != nil {
 		return err
 	}
 
-	return printRoutes(routes, out)
+	return printRoutes(routes)
 }
