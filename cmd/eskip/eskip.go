@@ -67,18 +67,6 @@ func getCommand() (command, error) {
 	}
 }
 
-func upsertCmd(in, out *medium) error {
-	return nil
-}
-
-func resetCmd(in, out *medium) error {
-	return nil
-}
-
-func deleteCmd(in, out *medium) error {
-	return nil
-}
-
 func main() {
 	cmd, err := getCommand()
 	if err != nil {

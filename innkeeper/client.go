@@ -455,7 +455,7 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 }
 
 // Returns all active routes from Innkeeper.
-func (c *Client) GetInitial() ([]*eskip.Route, error) {
+func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	d, err := c.requestData(true, c.opts.Address+allRoutesPath)
 	if err != nil {
 		return nil, err
@@ -469,8 +469,8 @@ func (c *Client) GetInitial() ([]*eskip.Route, error) {
 	return routes, nil
 }
 
-// Returns all new and deleted routes from Innkeeper since the last GetInitial request.
-func (c *Client) GetUpdate() ([]*eskip.Route, []string, error) {
+// Returns all new and deleted routes from Innkeeper since the last LoadAll request.
+func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	d, err := c.requestData(true, c.opts.Address+fmt.Sprintf(updatePathFmt, c.lastChanged))
 	if err != nil {
 		return nil, nil, err

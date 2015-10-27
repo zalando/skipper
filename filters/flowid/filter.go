@@ -36,7 +36,7 @@ func (f *flowId) Request(fc filters.FilterContext) {
 		}
 	}
 
-	flowId, err := newFlowId(f.flowIdLength)
+	flowId, err := NewFlowId(f.flowIdLength)
 	if err == nil {
 		r.Header.Set(HeaderName, flowId)
 	} else {

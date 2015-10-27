@@ -11,6 +11,15 @@ import (
 	"os"
 )
 
+func urlsString(urls []*url.URL) []string {
+	surls := make([]string, len(urls))
+	for i, u := range urls {
+		surls[i] = u.String()
+	}
+
+	return surls
+}
+
 func loadReader(r io.Reader) ([]*eskip.Route, error) {
 
 	// this pretty much disables continuous piping,
@@ -32,24 +41,29 @@ func loadFile(path string) ([]*eskip.Route, error) {
 		return nil, err
 	}
 
-	return client.GetInitial()
+	return client.LoadAll()
 }
 
 func loadEtcd(urls []*url.URL, storageRoot string) ([]*eskip.Route, error) {
-	surls := make([]string, len(urls))
-	for i, u := range urls {
-		surls[i] = u.String()
-	}
-
-	client := etcdclient.New(surls, storageRoot)
-	return client.GetInitial()
+	// should return the invalid routes, too
+	client := etcdclient.New(urlsString(urls), storageRoot)
+	return client.LoadAll()
 }
 
 func loadString(doc string) ([]*eskip.Route, error) {
 	return eskip.Parse(doc)
 }
 
-func checkRoutes(in *medium) ([]*eskip.Route, error) {
+func loadIds(ids []string) []*eskip.Route {
+	routes := make([]*eskip.Route, len(ids))
+	for i, id := range ids {
+		routes[i] = &eskip.Route{Id: id}
+	}
+
+	return routes
+}
+
+func loadRoutes(in *medium) ([]*eskip.Route, error) {
 	switch in.typ {
 	case stdin:
 		return loadReader(os.Stdin)
@@ -59,6 +73,8 @@ func checkRoutes(in *medium) ([]*eskip.Route, error) {
 		return loadEtcd(in.urls, in.path)
 	case inline:
 		return loadString(in.eskip)
+	case inlineIds:
+		return loadIds(in.ids), nil
 	default:
 		return nil, invalidInputType
 	}
@@ -70,12 +86,12 @@ func printRoutes(routes []*eskip.Route) error {
 }
 
 func checkCmd(in, _ *medium) error {
-	_, err := checkRoutes(in)
+	_, err := loadRoutes(in)
 	return err
 }
 
 func printCmd(in, _ *medium) error {
-	routes, err := checkRoutes(in)
+	routes, err := loadRoutes(in)
 	if err != nil {
 		return err
 	}
