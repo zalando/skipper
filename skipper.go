@@ -85,6 +85,10 @@ type Options struct {
 	// lookup.
 	IgnoreTrailingSlash bool
 
+	// Priority routes that are matched against the requests before
+	// the standard routes from the data clients.
+	PriorityRoutes []proxy.PriorityRoute
+
 	// Dev mode. Currently this flag disables prioritization of the
 	// consumer side over the feeding side during the routing updates to
 	// populate the updated routes faster.
@@ -178,7 +182,7 @@ func Run(o Options) error {
 		updateBuffer})
 
 	// create the proxy
-	proxy := proxy.New(routing, o.Insecure)
+	proxy := proxy.New(routing, o.Insecure, o.PriorityRoutes...)
 
 	// start the http server
 	log.Printf("listening on %v\n", o.Address)
