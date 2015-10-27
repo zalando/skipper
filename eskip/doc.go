@@ -172,6 +172,14 @@ Example with comments:
     route2: Any() -> <shunt> // everything else 404
 
 
+Regular expressions
+
+The matching conditions and the built-in filters that use regular
+expressions, use the go stdlib regexp. For dialect, please refer to:
+
+https://github.com/google/re2/wiki/Syntax
+
+
 Parsing Filters
 
 The eskip.ParseFilters method can be used to parse a chain of filters,
