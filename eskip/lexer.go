@@ -22,6 +22,8 @@ import (
 	"strings"
 )
 
+// used for wrapping tokenizer expressions and extending
+// them with metadata
 type tokenRx struct {
 	token         int
 	expression    string
@@ -29,6 +31,7 @@ type tokenRx struct {
 	matchIndex    int
 }
 
+// implements the lexer instance
 type eskipLex struct {
 	tokenRxs     []*tokenRx
 	rx           *regexp.Regexp
@@ -41,6 +44,7 @@ type eskipLex struct {
 	err          error
 }
 
+// creates and initializes a lexer instance
 func newLexer(code string) *eskipLex {
 	const (
 		rxFmt                = "^(\\s*|//.*\n)*(%s)(\\s*|//.*\n)*"
@@ -113,6 +117,8 @@ func newLexer(code string) *eskipLex {
 			expression:    "[a-zA-Z_]\\w*",
 			captureGroups: 0}}
 
+	// mapping between the token expressions and the related capture groups
+	// in the merged token expression
 	tokenRxss := make([]string, len(tokenRxs))
 	captureGroups := initialCaptureGroups
 	for i, trx := range tokenRxs {
@@ -121,12 +127,14 @@ func newLexer(code string) *eskipLex {
 		tokenRxss[i] = fmt.Sprintf("(%s)", trx.expression)
 	}
 
+	// compile all token expressions into a single expression
 	// let it panic, expression not coming from external source
 	rx := regexp.MustCompile(fmt.Sprintf(rxFmt, strings.Join(tokenRxss, "|")))
 
 	return &eskipLex{tokenRxs: tokenRxs, rx: rx, code: code}
 }
 
+// unescape tokens
 func unescape(s string, chars string) string {
 	r := make([]string, 0, len(s))
 	escaped := false
@@ -169,20 +177,7 @@ func convertRegexp(s string) string {
 	return unescape(s[1:len(s)-1], "/")
 }
 
-func argsToString(args []interface{}) string {
-	s := make([]string, len(args))
-	for i, ai := range args {
-		switch a := ai.(type) {
-		case float64:
-			s[i] = fmt.Sprint(a)
-		case string:
-			s[i] = fmt.Sprintf("`%v`", a)
-		}
-	}
-
-	return strings.Join(s, ", ")
-}
-
+// match a token at the current position
 func (l *eskipLex) matchToken() []string {
 	m := l.rx.FindStringSubmatch(l.code)
 	if len(m) == 0 {
@@ -195,6 +190,7 @@ func (l *eskipLex) matchToken() []string {
 	return m
 }
 
+// get the matched token based on the matched capture group
 func (l *eskipLex) getToken(m []string) (int, string) {
 	for _, trx := range l.tokenRxs {
 		s := m[trx.matchIndex]
@@ -206,13 +202,18 @@ func (l *eskipLex) getToken(m []string) (int, string) {
 	return -1, ""
 }
 
+// lexer implementation
 func (l *eskipLex) Lex(lval *eskipSymType) int {
+	// done
 	if len(l.code) == 0 {
 		return -1
 	}
 
+	// step position
 	l.lastPosition += len(l.lastRaw)
 	m := l.matchToken()
+
+	// no match, error, done
 	if len(m) == 0 {
 		l.Error("invalid token")
 		return -1
@@ -221,9 +222,11 @@ func (l *eskipLex) Lex(lval *eskipSymType) int {
 	t, s := l.getToken(m)
 	lval.token = s
 	l.lastToken = s
+
 	return t
 }
 
+// error with approximate position
 func (l *eskipLex) Error(err string) {
 	l.err = errors.New(fmt.Sprintf(
 		"parse failed after token %s, position %d: %s",

@@ -1,3 +1,17 @@
+// Copyright 2015 Zalando SE
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package routing
 
 import (
@@ -19,7 +33,7 @@ const (
 	benchmarkingCountPhase4 = 1000000
 )
 
-// defs in eskip format
+// a generic, mixed set of definitions in eskip format
 const testRouteDoc = `
     header: Path("/tessera/header") -> "https://header.my-department.example.org";
     footer: Path("/tessera/footer") -> "https://footer.my-department.example.org";
@@ -66,19 +80,28 @@ const testRouteDoc = `
 `
 
 var (
-	randomRoutes   []*Route
+	// random routes used for benchmarking
+	randomRoutes []*Route
+
+	// random requests used for benchmarking.
+	// part of the requests must match the random routes
+	// other part of them should not match them
 	randomRequests []*http.Request
 
+	// matchers with different number of routes in them
 	testMatcher1 *matcher
 	testMatcher2 *matcher
 	testMatcher3 *matcher
 	testMatcher4 *matcher
 
+	// flag inidicating if the test routes and matcher were already initialized
 	benchmarkMatchersInitialzed bool
 
+	// a matcher with a generic set of routes
 	testMatcherGeneric *matcher
 )
 
+// parse a routing doc and process it to runtime routes
 func docToRoutes(doc string) ([]*Route, error) {
 	defs, err := eskip.Parse(doc)
 	if err != nil {
@@ -88,6 +111,7 @@ func docToRoutes(doc string) ([]*Route, error) {
 	return processRouteDefs(nil, defs), nil
 }
 
+// parse a routing document with a single route
 func docToRoute(doc string) (*Route, error) {
 	routes, err := docToRoutes(doc)
 	if err != nil {
@@ -101,6 +125,7 @@ func docToRoute(doc string) (*Route, error) {
 	return routes[0], nil
 }
 
+// create a test matcher with matching options
 func newTestMatcherOpts(routes []*Route, o MatchingOptions) (*matcher, error) {
 	if len(routes) == 0 {
 		return nil, errors.New("we need at least one route for this test")
@@ -118,10 +143,12 @@ func newTestMatcherOpts(routes []*Route, o MatchingOptions) (*matcher, error) {
 	return matcher, nil
 }
 
+// create a test matcher with default matching options
 func newTestMatcher(routes []*Route) (*matcher, error) {
 	return newTestMatcherOpts(routes, MatchingOptionsNone)
 }
 
+// create a matcher from a routing document with matching options
 func docToMatcherOpts(doc string, o MatchingOptions) (*matcher, error) {
 	rs, err := docToRoutes(doc)
 	if err != nil {
@@ -131,10 +158,12 @@ func docToMatcherOpts(doc string, o MatchingOptions) (*matcher, error) {
 	return newTestMatcherOpts(rs, o)
 }
 
+// create a matcher from a routing document with default matching options
 func docToMatcher(doc string) (*matcher, error) {
 	return docToMatcherOpts(doc, MatchingOptionsNone)
 }
 
+// create a matcher based on the generic test routes
 func initGenericMatcher() {
 	m, err := docToMatcher(testRouteDoc)
 	if err != nil {
@@ -144,6 +173,7 @@ func initGenericMatcher() {
 	testMatcherGeneric = m
 }
 
+// generate random paths
 func generatePaths(pg *pathGenerator, count int) []string {
 	paths := make([]string, count)
 
@@ -154,6 +184,7 @@ func generatePaths(pg *pathGenerator, count int) []string {
 	return paths
 }
 
+// generate routes based on a set of paths
 func generateRoutes(paths []string) []*Route {
 	defs := make([]*eskip.Route, len(paths))
 	for i, p := range paths {
@@ -167,6 +198,7 @@ func generateRoutes(paths []string) []*Route {
 	return processRouteDefs(nil, defs)
 }
 
+// generate requests based on a set of paths
 func generateRequests(paths []string) ([]*http.Request, error) {
 	requests := make([]*http.Request, len(paths))
 	for i := 0; i < len(paths); i++ {
@@ -181,6 +213,7 @@ func generateRequests(paths []string) ([]*http.Request, error) {
 	return requests, nil
 }
 
+// initialize routes, matchers and requests with random paths
 func initRandomPaths() {
 	const count = benchmarkingCountPhase4
 
@@ -235,6 +268,11 @@ func initRandomPaths() {
 	testMatcher4 = mkmatcher(randomPaths[0:benchmarkingCountPhase4], randomRoutes[0:benchmarkingCountPhase4])
 
 	benchmarkMatchersInitialzed = true
+}
+
+func initBenchmark(b *testing.B, init func()) {
+	init()
+	b.ResetTimer()
 }
 
 func init() {
@@ -1037,22 +1075,22 @@ func BenchmarkGeneric(b *testing.B) {
 }
 
 func BenchmarkPathTree1(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 	benchmarkLookup(b, testMatcher1, benchmarkingCountPhase1)
 }
 
 func BenchmarkPathTree2(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 	benchmarkLookup(b, testMatcher2, benchmarkingCountPhase2)
 }
 
 func BenchmarkPathTree3(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 	benchmarkLookup(b, testMatcher3, benchmarkingCountPhase3)
 }
 
 func BenchmarkPathTree4(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 	benchmarkLookup(b, testMatcher4, benchmarkingCountPhase4)
 }
 
@@ -1075,7 +1113,7 @@ func BenchmarkConstructionGeneric(b *testing.B) {
 }
 
 func BenchmarkConstructionMass(b *testing.B) {
-	initRandomPaths()
+	initBenchmark(b, initRandomPaths)
 
 	const count = 10000
 	routes := make([]*Route, count)
