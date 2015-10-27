@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// skipper program main
-//
-// for a summary about skipper, please see the readme file.
-
 /*
 Command skipper provides a default executable skipper with the default
 set of filters.
