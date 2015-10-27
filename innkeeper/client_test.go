@@ -452,7 +452,7 @@ func TestReceivesEmpty(t *testing.T) {
 		return
 	}
 
-	rs, err := c.GetInitial()
+	rs, err := c.LoadAll()
 	if err != nil || len(rs) != 0 {
 		t.Error(err, "failed to receive empty")
 	}
@@ -468,7 +468,7 @@ func TestReceivesInitial(t *testing.T) {
 		return
 	}
 
-	rs, err := c.GetInitial()
+	rs, err := c.LoadAll()
 	if err != nil {
 		t.Error(err)
 	}
@@ -487,7 +487,7 @@ func TestFailingAuthOnReceive(t *testing.T) {
 		return
 	}
 
-	_, err = c.GetInitial()
+	_, err = c.LoadAll()
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -504,7 +504,7 @@ func TestReceivesUpdates(t *testing.T) {
 		return
 	}
 
-	c.GetInitial()
+	c.LoadAll()
 
 	d = testData()
 	d[2].DeletedAt = "2015-09-28T16:58:56.958"
@@ -516,7 +516,7 @@ func TestReceivesUpdates(t *testing.T) {
 	d = append(d, newRoute)
 	h.data = d
 
-	rs, ds, err := c.GetUpdate()
+	rs, ds, err := c.LoadUpdate()
 	if err != nil {
 		t.Error(err)
 	}
@@ -538,7 +538,7 @@ func TestFailingAuthOnUpdate(t *testing.T) {
 		return
 	}
 
-	c.GetInitial()
+	c.LoadAll()
 
 	c.authToken = ""
 	c.opts.Authentication = autoAuth(false)
@@ -552,7 +552,7 @@ func TestFailingAuthOnUpdate(t *testing.T) {
 	d = append(d, newRoute)
 	h.data = d
 
-	_, _, err = c.GetUpdate()
+	_, _, err = c.LoadUpdate()
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -576,7 +576,7 @@ func TestUsesPreAndPostRouteFilters(t *testing.T) {
 		return
 	}
 
-	rs, err := c.GetInitial()
+	rs, err := c.LoadAll()
 	if err != nil {
 		t.Error(err)
 	}
