@@ -26,7 +26,7 @@ The structure of the client credentials document:
 
 The structure of the user credentials document:
 
-    {"application_usernmae": "testusername", "application_password": "testpassword"}
+    {"application_username": "testusername", "application_password": "testpassword"}
 
 The GetToken method ignores the expiration date and makes a new request to the
 OAuth2 service on every call, so storing the token, if necessary, is the

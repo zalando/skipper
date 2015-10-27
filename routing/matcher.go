@@ -82,11 +82,7 @@ func (err *definitionError) Error() string {
 }
 
 // rx identifying the 'free form' wildcards at the end of the paths
-var freeWildcardRx *regexp.Regexp
-
-func init() {
-	freeWildcardRx = regexp.MustCompile("/[*][^/]+$")
-}
+var freeWildcardRx = regexp.MustCompile("/[*][^/]+$")
 
 // compiles all rxs or fails
 func compileRxs(exps []string) ([]*regexp.Regexp, error) {

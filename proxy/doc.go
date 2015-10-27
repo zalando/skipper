@@ -37,7 +37,7 @@ responds with 404.
 
 In case of a matched route, the request handling method of all filters
 in the route will be executed in the order they are defined. The filters
-share a context object, that provides the in-memory represenation of the
+share a context object, that provides the in-memory representation of the
 incoming request, the outgoing response writer, the path parameters
 derived from the actual request path (see skipper/routing) and a
 free-form state bag. The filters may modify the request or pass data to
@@ -59,7 +59,7 @@ default 404 status.
 4. downstream response augmentation:
 
 The response handling method of all filters in the current route
-definition will be exectuted, but this time in reverse order. The filter
+definition will be executed, but this time in reverse order. The filter
 context is the same instance as the one in step 2, but this time it
 includes the response object from step 3. If the route is a shunt route,
 one of the filters needs to handle the request latest in this phase by
