@@ -8,14 +8,17 @@ import (
 )
 
 const (
-	maxLength       = 64
-	minLength       = 8
 	flowIdAlphabet  = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-+"
 	alphabetBitMask = 63
 )
 
+const (
+	MaxLength = 64
+	MinLength = 8
+)
+
 var (
-	ErrInvalidLen = errors.New(fmt.Sprintf("Invalid length. Must be between %d and %d", minLength, maxLength))
+	ErrInvalidLen = errors.New(fmt.Sprintf("Invalid length. Must be between %d and %d", MinLength, MaxLength))
 	flowIdRegex   = regexp.MustCompile(`^[0-9a-zA-Z+-]+$`)
 )
 
@@ -25,7 +28,7 @@ var (
 // For this reason a single call to rnd.Int63 is used and its bits are mapped up to 10 chunks of 6 bits each
 // The byte data type carries 2 additional bits for the next chunk which are cleared with the alphabet bit mask
 func newFlowId(l int) (string, error) {
-	if l < minLength || l > maxLength {
+	if l < MinLength || l > MaxLength {
 		return "", ErrInvalidLen
 	}
 
@@ -42,5 +45,5 @@ func newFlowId(l int) (string, error) {
 }
 
 func isValid(flowId string) bool {
-	return len(flowId) >= minLength && len(flowId) <= maxLength && flowIdRegex.MatchString(flowId)
+	return len(flowId) >= MinLength && len(flowId) <= MaxLength && flowIdRegex.MatchString(flowId)
 }

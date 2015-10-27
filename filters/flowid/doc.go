@@ -1,9 +1,13 @@
 /*
+Package flowid implements a filter used for identifying incoming requests through their complete lifecycle for
+logging and monitoring or else.
+
 Flow Ids let you correlate router logs for a given request against the upstream application logs for that same request.
 If your upstream application makes other requests to other services it can provide the same Flow Id value so that all
 of those logs can be correlated.
 
-How it works
+
+How It Works
 
 Skipper generates a unique Flow Id for every HTTP request that it receives. The Flow ID is then passed to your
 upstream application as an HTTP header called X-Flow-Id.
@@ -19,6 +23,7 @@ headers.
 
 The second parameter is a number that defines the length of the generated flow ids. Valid options are any even number
 between 8 and 64.
+
 
 Usage
 
@@ -45,7 +50,7 @@ Generate bigger flow ids
 This example doesn't accept a X-Flow-Id header and will always generate new flow ids with 64 bytes.
 
 
-Some benchmarks
+Some Benchmarks
 
 To decide upon which hashing mechanism to use we tested some versions of UUID v1 - v4 and some other implementations.
 The results are as follow:

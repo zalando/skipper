@@ -1,56 +1,83 @@
-// a reverse proxy routing between frontends and backends based on the definitions in the received settings. on
-// every request and response, it executes the filters if there are any defined for the given route.
+// Copyright 2015 Zalando SE
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package proxy
 
 import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"github.com/zalando/skipper/skipper"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/routing"
 	"io"
 	"log"
 	"net/http"
 )
 
 const (
-	defaultSettingsBufferSize = 32
-	proxyBufferSize           = 8192
-	proxyErrorFmt             = "proxy: %s"
+	proxyBufferSize = 8192
+	proxyErrorFmt   = "proxy: %s"
 
 	// TODO: this should be fine tuned, yet, with benchmarks.
 	// In case it doesn't make a big difference, then a lower value
-	// can be safer, but the default 2 turned out to be low during
-	// benchmarks.
+	// can be safer, but the default 2 turned out to be too low during
+	// previous benchmarks.
+	//
+	// Also: it should be a parameter.
 	idleConnsPerHost = 64
 )
+
+// Priority routes are custom route implementations that are matched against
+// each request before the routes in the general lookup tree.
+type PriorityRoute interface {
+
+	// If the request is matched, returns a route, otherwise nil.
+	// Additionally it may return a parameter map used by the filters
+	// in the route.
+	Match(*http.Request) (*routing.Route, map[string]string)
+}
 
 type flusherWriter interface {
 	http.Flusher
 	io.Writer
 }
 
+// a byte buffer implementing the Closer interface
 type shuntBody struct {
 	*bytes.Buffer
 }
 
 type proxy struct {
-	settings       <-chan skipper.Settings
+	routing        *routing.Routing
 	roundTripper   http.RoundTripper
-	priorityRoutes []skipper.PriorityRoute
+	priorityRoutes []PriorityRoute
 }
 
 type filterContext struct {
-	w        http.ResponseWriter
-	req      *http.Request
-	res      *http.Response
-	served   bool
-	stateBag skipper.StateBag
+	w          http.ResponseWriter
+	req        *http.Request
+	res        *http.Response
+	served     bool
+	pathParams map[string]string
+	stateBag   map[string]interface{}
 }
 
 func (sb shuntBody) Close() error {
 	return nil
 }
 
+// creates a formatted error
 func proxyError(m string) error {
 	return fmt.Errorf(proxyErrorFmt, m)
 }
@@ -67,6 +94,8 @@ func cloneHeader(h http.Header) http.Header {
 	return hh
 }
 
+// copies a stream with flushing on every successful read operation
+// (similar to io.Copy but with flushing)
 func copyStream(to flusherWriter, from io.Reader) error {
 	b := make([]byte, proxyBufferSize)
 
@@ -91,10 +120,12 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
-func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
+// creates an outgoing http request to be forwarded to the route endpoint
+// based on the augmented incoming request
+func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 	u := r.URL
-	u.Scheme = b.Scheme()
-	u.Host = b.Host()
+	u.Scheme = rt.Scheme
+	u.Host = rt.Host
 
 	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
 	if err != nil {
@@ -105,87 +136,66 @@ func mapRequest(r *http.Request, b skipper.Backend) (*http.Request, error) {
 	return rr, nil
 }
 
-func getSettingsBufferSize() int {
-	// todo: return defaultFeedBufferSize when not dev env
-	return 0
-}
-
-// creates a proxy. it expects a settings source, that provides the current settings during each request.
-// if the 'insecure' parameter is true, the proxy skips the TLS verification for the requests made to the
-// backends.
-func Make(sd skipper.SettingsSource, insecure bool, pr ...skipper.PriorityRoute) http.Handler {
-	sc := make(chan skipper.Settings, getSettingsBufferSize())
-	sd.Subscribe(sc)
-
+// Creates a proxy. It expects a routing instance that is used to match
+// the incoming requests to routes. If the 'insecure' parameter is true, the
+// proxy skips the TLS verification for the requests made to the
+// route backends. It accepts an optional list of priority routes to
+// be used for matching before the general lookup tree.
+func New(r *routing.Routing, insecure bool, pr ...PriorityRoute) http.Handler {
 	tr := &http.Transport{}
 	if insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{sc, tr, pr}
+	return &proxy{r, tr, pr}
 }
 
-func applyFilterSafe(id string, p func()) {
+// calls a function with recovering from panics and logging them
+func callSafe(p func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("filter", id, err)
+			log.Println("filter", err)
 		}
 	}()
 
 	p()
 }
 
-func applyFiltersToRequest(f []skipper.Filter, ctx skipper.FilterContext) {
+// applies all filters to a request
+func applyFiltersToRequest(f []filters.Filter, ctx filters.FilterContext) {
 	for _, fi := range f {
-		applyFilterSafe(fi.Id(), func() {
-			fi.Request(ctx)
-		})
+		callSafe(func() { fi.Request(ctx) })
 	}
 }
 
-func applyFiltersToResponse(f []skipper.Filter, ctx skipper.FilterContext) {
+// applies all filters to a response
+func applyFiltersToResponse(f []filters.Filter, ctx filters.FilterContext) {
 	for i, _ := range f {
 		fi := f[len(f)-1-i]
-		applyFilterSafe(fi.Id(), func() {
-			fi.Response(ctx)
-		})
+		callSafe(func() { fi.Response(ctx) })
 	}
 }
 
-func (c *filterContext) ResponseWriter() http.ResponseWriter {
-	return c.w
-}
+func (c *filterContext) ResponseWriter() http.ResponseWriter { return c.w }
+func (c *filterContext) Request() *http.Request              { return c.req }
+func (c *filterContext) Response() *http.Response            { return c.res }
+func (c *filterContext) MarkServed()                         { c.served = true }
+func (c *filterContext) Served() bool                        { return c.served }
+func (c *filterContext) PathParam(key string) string         { return c.pathParams[key] }
+func (c *filterContext) StateBag() map[string]interface{}    { return c.stateBag }
 
-func (c *filterContext) Request() *http.Request {
-	return c.req
-}
-
-func (c *filterContext) Response() *http.Response {
-	return c.res
-}
-
-func (c *filterContext) MarkServed() {
-	c.served = true
-}
-
-func (c *filterContext) IsServed() bool {
-	return c.served
-}
-
-func (c *filterContext) StateBag() skipper.StateBag {
-	return c.stateBag
-}
-
+// creates an empty shunt response with the status code initially 404
 func shunt(r *http.Request) *http.Response {
 	return &http.Response{
-		StatusCode: 404,
+		StatusCode: http.StatusNotFound,
 		Header:     make(http.Header),
 		Body:       &shuntBody{&bytes.Buffer{}},
 		Request:    r}
 }
 
-func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, error) {
-	rr, err := mapRequest(r, b)
+// executes an http roundtrip to a route backend
+func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, error) {
+	rr, err := mapRequest(r, rt)
 	if err != nil {
 		return nil, err
 	}
@@ -197,53 +207,43 @@ func (p *proxy) roundtrip(r *http.Request, b skipper.Backend) (*http.Response, e
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hterr := func(err error) {
 		// todo: just a bet that we shouldn't send here 50x
-		http.Error(w, http.StatusText(404), 404)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		log.Println(err)
 	}
 
-	var rt skipper.Route
+	var (
+		rt     *routing.Route
+		params map[string]string
+	)
+
 	for _, prt := range p.priorityRoutes {
-		if prt.Match(r) {
-			rt = prt
+		rt, params = prt.Match(r)
+		if rt != nil {
 			break
 		}
 	}
 
 	if rt == nil {
-		s := <-p.settings
-		if s == nil {
-			hterr(proxyError("missing settings"))
-			return
-		}
-
-		var err error
-		rt, err = s.Route(r)
-		if rt == nil || err != nil {
-			// todo: we need a somewhat more extensive logging here
-			hterr(proxyError(fmt.Sprintf("routing failed: %v %v", r.URL, err)))
+		rt, params = p.routing.Route(r)
+		if rt == nil {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return
 		}
 	}
 
-	f := rt.Filters()
-	c := &filterContext{w, r, nil, false, make(skipper.StateBag)}
+	f := rt.Filters
+	c := &filterContext{w, r, nil, false, params, make(map[string]interface{})}
 	applyFiltersToRequest(f, c)
-
-	b := rt.Backend()
-	if b == nil {
-		hterr(proxyError("missing backend"))
-		return
-	}
 
 	var (
 		rs  *http.Response
 		err error
 	)
 
-	if b.IsShunt() {
+	if rt.Shunt {
 		rs = shunt(r)
 	} else {
-		rs, err = p.roundtrip(r, b)
+		rs, err = p.roundtrip(r, rt)
 		if err != nil {
 			hterr(err)
 			return
@@ -262,7 +262,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.res = rs
 	applyFiltersToResponse(f, c)
 
-	if !c.IsServed() {
+	if !c.Served() {
 		copyHeader(w.Header(), rs.Header)
 		w.WriteHeader(rs.StatusCode)
 		copyStream(w.(flusherWriter), rs.Body)
