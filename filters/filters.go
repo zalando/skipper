@@ -1,42 +1,77 @@
 package filters
 
 import (
-	// import filter packages here:
-
-	"github.com/zalando/skipper/filters/flowid"
-	"github.com/zalando/skipper/filters/healthcheck"
-	"github.com/zalando/skipper/filters/humanstxt"
-	"github.com/zalando/skipper/filters/pathrewrite"
-	"github.com/zalando/skipper/filters/redirect"
-	"github.com/zalando/skipper/filters/requestheader"
-	"github.com/zalando/skipper/filters/responseheader"
-	"github.com/zalando/skipper/filters/static"
-	"github.com/zalando/skipper/filters/stripquery"
-	"github.com/zalando/skipper/skipper"
+	"errors"
+	"net/http"
 )
 
-// takes a registry object and registers the filter spec in the package
-func Register(registry skipper.FilterRegistry) {
-	registry.Add(
+// Context object providing state and information that is unique to a request.
+type FilterContext interface {
 
-		// add filter specs to be used here:
+	// The response writer object belonging to the incoming request. Used by
+	// filters that handle the requests themselves.
+	ResponseWriter() http.ResponseWriter
 
-		requestheader.Make(),
-		responseheader.Make(),
-		pathrewrite.Make(),
-		healthcheck.Make(),
-		humanstxt.Make(),
-		static.Make(),
-		stripquery.Make(),
-		&redirect.Redirect{},
-		flowid.New(),
-	)
+	// The incoming request object. It is forwarded to the route endpoint
+	// with its properties changed by the filters.
+	Request() *http.Request
+
+	// The response object. It is returned to the client with its
+	// properties changed by the filters.
+	Response() *http.Response
+
+	// Returns true if the request was served by any of the filters in a
+	// route.
+	Served() bool
+
+	// Marks a request served. Used by filters that handle the requests
+	// themselves.
+	MarkServed()
+
+	// Provides the wildcard parameter values from the request path by their
+	// name as the key.
+	PathParam(string) string
+
+	// Provides a read-write state bag, unique to a request and shared by all
+	// the filters in the route.
+	StateBag() map[string]interface{}
 }
 
-// creates the default implementation of a skipper.FilterRegistry object and registers the filter specs in the
-// package
-func RegisterDefault() skipper.FilterRegistry {
-	r := makeRegistry()
-	Register(r)
-	return r
+// Filters are created by the Spec components, optionally using filter
+// specific settings. When implementing filters, it needs to be taken
+// into consideration, that filter instances are route specific and not
+// request specific, so any state stored with a filter is shared between
+// all requests for the same route and can cause concurrency issues.
+type Filter interface {
+
+	// The Request method is called while processing the incoming request.
+	Request(FilterContext)
+
+	// The Response method is called while processing the response to be
+	// returned.
+	Response(FilterContext)
+}
+
+// Spec objects are specifications for filters. When initializing the routes,
+// the Filter instances are created using the Spec objects found in the
+// registry.
+type Spec interface {
+
+	// The name of the Spec is used to identify filters in a route definition.
+	Name() string
+
+	// Creates a Filter instance. Called with the parameters in the route
+	// definition while initializing a route.
+	CreateFilter(config []interface{}) (Filter, error)
+}
+
+// Registry used to lookup Spec objects while initializing routes.
+type Registry map[string]Spec
+
+// Error used in case of invalid filter parameters.
+var ErrInvalidFilterParameters = errors.New("invalid filter parameters")
+
+// Registers a filter specification.
+func (r Registry) Register(s Spec) {
+	r[s.Name()] = s
 }

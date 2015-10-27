@@ -1,8 +1,8 @@
 package flowid
 
 import (
-	"github.com/zalando/skipper/mock"
-	"github.com/zalando/skipper/skipper"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
 	"testing"
 )
@@ -13,62 +13,62 @@ const (
 )
 
 var (
-	testFlowIdSpec           = &flowIdSpec{}
-	filterConfigWithReuse    = skipper.FilterConfig{reuseParameterValue}
-	filterConfigWithoutReuse = skipper.FilterConfig{"dummy"}
+	testFlowIdSpec           = New()
+	filterConfigWithReuse    = []interface{}{ReuseParameterValue}
+	filterConfigWithoutReuse = []interface{}{"dummy"}
 )
 
 func TestNewFlowIdGeneration(t *testing.T) {
-	f, _ := testFlowIdSpec.MakeFilter(filterName, filterConfigWithReuse)
+	f, _ := testFlowIdSpec.CreateFilter(filterConfigWithReuse)
 	fc := buildfilterContext()
 	f.Request(fc)
 
-	flowId := fc.Request().Header.Get(flowIdHeaderName)
-	if !isValid(flowId) {
-		t.Errorf("'%s' is not a valid flow id", flowId)
+	flowId := fc.Request().Header.Get(HeaderName)
+	if flowId == "" {
+		t.Errorf("flowId not generated")
 	}
 }
 
 func TestFlowIdReuseExisting(t *testing.T) {
-	f, _ := testFlowIdSpec.MakeFilter(filterName, filterConfigWithReuse)
-	fc := buildfilterContext(flowIdHeaderName, testFlowId)
+	f, _ := testFlowIdSpec.CreateFilter(filterConfigWithReuse)
+	fc := buildfilterContext(HeaderName, testFlowId)
 	f.Request(fc)
 
-	flowId := fc.Request().Header.Get(flowIdHeaderName)
+	flowId := fc.Request().Header.Get(HeaderName)
 	if flowId != testFlowId {
 		t.Errorf("Got wrong flow id. Expected '%s' got '%s'", testFlowId, flowId)
 	}
 }
 
 func TestFlowIdIgnoreReuseExisting(t *testing.T) {
-	f, _ := testFlowIdSpec.MakeFilter(filterName, filterConfigWithoutReuse)
-	fc := buildfilterContext(flowIdHeaderName, testFlowId)
+	f, _ := testFlowIdSpec.CreateFilter(filterConfigWithoutReuse)
+	fc := buildfilterContext(HeaderName, testFlowId)
 	f.Request(fc)
 
-	flowId := fc.Request().Header.Get(flowIdHeaderName)
+	flowId := fc.Request().Header.Get(HeaderName)
 	if flowId == testFlowId {
 		t.Errorf("Got wrong flow id. Expected a newly generated flowid but got the test flow id '%s'", flowId)
 	}
 }
 
 func TestFlowIdRejectInvalidReusedFlowId(t *testing.T) {
-	f, _ := testFlowIdSpec.MakeFilter(filterName, filterConfigWithReuse)
-	fc := buildfilterContext(flowIdHeaderName, invalidFlowId)
+	f, _ := testFlowIdSpec.CreateFilter(filterConfigWithReuse)
+	fc := buildfilterContext(HeaderName, invalidFlowId)
 	f.Request(fc)
 
-	flowId := fc.Request().Header.Get(flowIdHeaderName)
+	flowId := fc.Request().Header.Get(HeaderName)
 	if flowId == invalidFlowId {
 		t.Errorf("Got wrong flow id. Expected a newly generated flowid but got the test flow id '%s'", flowId)
 	}
 }
 
 func TestFlowIdWithSpecificLen(t *testing.T) {
-	fc := skipper.FilterConfig{reuseParameterValue, float64(42.0)}
-	f, _ := testFlowIdSpec.MakeFilter(filterName, fc)
+	fc := []interface{}{ReuseParameterValue, float64(42.0)}
+	f, _ := testFlowIdSpec.CreateFilter(fc)
 	fctx := buildfilterContext()
 	f.Request(fctx)
 
-	flowId := fctx.Request().Header.Get(flowIdHeaderName)
+	flowId := fctx.Request().Header.Get(HeaderName)
 
 	l := len(flowId)
 	if l != 42 {
@@ -77,23 +77,23 @@ func TestFlowIdWithSpecificLen(t *testing.T) {
 }
 
 func TestFlowIdWithInvalidParameters(t *testing.T) {
-	fc := skipper.FilterConfig{true}
-	_, err := testFlowIdSpec.MakeFilter(filterName, fc)
-	if err != skipper.ErrInvalidFilterParameters {
+	fc := []interface{}{true}
+	_, err := testFlowIdSpec.CreateFilter(fc)
+	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("Expected an invalid parameters error, got %v", err)
 	}
 
-	fc = skipper.FilterConfig{"", float64(minLength - 1)}
-	_, err = testFlowIdSpec.MakeFilter(filterName, fc)
-	if err != skipper.ErrInvalidFilterParameters {
+	fc = []interface{}{"", float64(MinLength - 1)}
+	_, err = testFlowIdSpec.CreateFilter(fc)
+	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("Expected an invalid parameters error, got %v", err)
 	}
 }
 
-func buildfilterContext(headers ...string) skipper.FilterContext {
+func buildfilterContext(headers ...string) filters.FilterContext {
 	r, _ := http.NewRequest("GET", "http://example.org", nil)
 	for i := 0; i < len(headers); i += 2 {
 		r.Header.Set(headers[i], headers[i+1])
 	}
-	return &mock.FilterContext{FRequest: r}
+	return &filtertest.Context{FRequest: r}
 }
