@@ -27,7 +27,7 @@ type redirect struct {
 }
 
 // Returns a new filter Spec, whose instances create an HTTP redirect
-// resposne. Marks the request as served. Instances expect two
+// response. Marks the request as served. Instances expect two
 // parameters: the redirect status code and the redirect location.
 // Name: "redirect".
 func NewRedirect() filters.Spec { return &redirect{} }

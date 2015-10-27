@@ -175,7 +175,7 @@ Example with comments:
 Regular expressions
 
 The matching conditions and the built-in filters that use regular
-expressions, use the go stdlib regexp. For dialect, please refer to:
+expressions, use the go stdlib regexp, which uses re2:
 
 https://github.com/google/re2/wiki/Syntax
 
