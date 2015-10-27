@@ -1,29 +1,17 @@
-// Package requestmatch implements matching http requests to associated values.
+// Copyright 2015 Zalando SE
 //
-// Matching is based on the attributes of http requests, where a request matches
-// a definition if it fulfills all condition in it. The evaluation happens in the
-// following order:
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// 1. The request path is used to find leaf definitions in a lookup tree. If no
-// path match was found, the leaf definitions in the root are taken that don't
-// have a condition for path matching.
+// http://www.apache.org/licenses/LICENSE-2.0
 //
-// 2. If any leaf definitions were found, they are evaluated against the request
-// and the associated value of the first matching definition is returned. The order
-// of the evaluation happens from the strictest definition to the least strict
-// definition, where strictness is proportional to the number of non-empty
-// conditions in the definition.
-//
-// Path matching supports two kind of wildcards:
-//
-// - a simple wildcard matches a single tag in a path. E.g: /users/:name/roles
-// will be matched by /users/jdoe/roles, and the value of the parameter 'name' will
-// be 'jdoe'
-//
-// - a freeform wildcard matches the last segment of a path, with any number of
-// tags in it. E.g: /assets/*assetpath will be matched by /assets/images/logo.png,
-// and the value of the parameter 'assetpath' will be '/images/logo.png'.
-//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package routing
 
 import (
@@ -46,9 +34,6 @@ type leafMatcher struct {
 
 type leafMatchers []*leafMatcher
 
-func (ls leafMatchers) Len() int      { return len(ls) }
-func (ls leafMatchers) Swap(i, j int) { ls[i], ls[j] = ls[j], ls[i] }
-
 func leafWeight(l *leafMatcher) int {
 	w := 0
 
@@ -64,24 +49,24 @@ func leafWeight(l *leafMatcher) int {
 	return w
 }
 
-func (ls leafMatchers) Less(i, j int) bool {
-	return leafWeight(ls[i]) > leafWeight(ls[j])
-}
+// Sorting of leaf matchers:
+func (ls leafMatchers) Len() int           { return len(ls) }
+func (ls leafMatchers) Swap(i, j int)      { ls[i], ls[j] = ls[j], ls[i] }
+func (ls leafMatchers) Less(i, j int) bool { return leafWeight(ls[i]) > leafWeight(ls[j]) }
 
 type pathMatcher struct {
 	leaves            leafMatchers
 	freeWildcardParam string
 }
 
-// A Matcher represents a preprocessed set of definitions and their associated
-// values.
+// root structure representing the routing tree.
 type matcher struct {
 	paths           *pathmux.Tree
 	rootLeaves      leafMatchers
 	matchingOptions MatchingOptions
 }
 
-// An error created if a definition cannot be preprocessed.
+// An error created if a route definition cannot be processed.
 type definitionError struct {
 	Id       string
 	Index    int
@@ -96,12 +81,10 @@ func (err *definitionError) Error() string {
 	return fmt.Sprintf("%s [%d]: %v", err.Id, err.Index, err.Original)
 }
 
-var freeWildcardRx *regexp.Regexp
+// rx identifying the 'free form' wildcards at the end of the paths
+var freeWildcardRx = regexp.MustCompile("/[*][^/]+$")
 
-func init() {
-	freeWildcardRx = regexp.MustCompile("/[*][^/]+$")
-}
-
+// compiles all rxs or fails
 func compileRxs(exps []string) ([]*regexp.Regexp, error) {
 	rxs := make([]*regexp.Regexp, len(exps))
 	for i, exp := range exps {
@@ -116,6 +99,7 @@ func compileRxs(exps []string) ([]*regexp.Regexp, error) {
 	return rxs, nil
 }
 
+// canonicalizes the keys of the header conditions
 func canonicalizeHeaders(h map[string]string) map[string]string {
 	ch := make(map[string]string)
 	for k, v := range h {
@@ -125,6 +109,7 @@ func canonicalizeHeaders(h map[string]string) map[string]string {
 	return ch
 }
 
+// canonicalizes the keys of the header regexp conditions
 func canonicalizeHeaderRegexps(hrx map[string][]*regexp.Regexp) map[string][]*regexp.Regexp {
 	chrx := make(map[string][]*regexp.Regexp)
 	for k, v := range hrx {
@@ -134,6 +119,9 @@ func canonicalizeHeaderRegexps(hrx map[string][]*regexp.Regexp) map[string][]*re
 	return chrx
 }
 
+// creates a new leaf matcher. preprocesses the
+// Host, PathRegexp, Header and HeaderRegexp
+// conditions.
 func newLeaf(r *Route) (*leafMatcher, error) {
 	hostRxs, err := compileRxs(r.HostRegexps)
 	if err != nil {
@@ -165,6 +153,7 @@ func newLeaf(r *Route) (*leafMatcher, error) {
 		route:         r}, nil
 }
 
+// returns the free form wildcard parameter of a path
 func freeWildcardParam(path string) string {
 	param := freeWildcardRx.FindString(path)
 	if param == "" {
@@ -175,8 +164,17 @@ func freeWildcardParam(path string) string {
 	return param[2:]
 }
 
-// Constructs a Matcher based on the provided definitions. If `ignoreTrailingSlash`
-// is true, the Matcher handles paths with or without a trailing slash equally.
+// constructs a matcher based on the provided definitions.
+//
+// If `ignoreTrailingSlash` is true, the matcher handles
+// paths with or without a trailing slash equally.
+//
+// It constructs the route definition into a trie structure
+// based on their path condition, if any, and puts the routes
+// with the same path condition into a leaf matcher structure
+// where they get evaluated after the leaf was matched based
+// on the rest of the conditions so that most strict route
+// definition matches first.
 func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	var (
 		errors     []*definitionError
@@ -233,6 +231,7 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	return &matcher{pathTree, rootLeaves, o}, errors
 }
 
+// matches a path in the path trie structure.
 func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]string) {
 	v, params := tree.Lookup(path)
 	if v == nil {
@@ -250,6 +249,7 @@ func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]st
 	return pm.leaves, params
 }
 
+// matches the path regexp conditions in a leaf matcher.
 func matchRegexps(rxs []*regexp.Regexp, s string) bool {
 	for _, rx := range rxs {
 		if !rx.MatchString(s) {
@@ -260,6 +260,7 @@ func matchRegexps(rxs []*regexp.Regexp, s string) bool {
 	return true
 }
 
+// matches a set of request headers to a fix and regexp header condition
 func matchHeader(h http.Header, key string, check func(string) bool) bool {
 	vals, has := h[key]
 	if !has {
@@ -275,6 +276,7 @@ func matchHeader(h http.Header, key string, check func(string) bool) bool {
 	return false
 }
 
+// matches a set of request headers to the fix and regexp header conditions
 func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h http.Header) bool {
 	// todo: would be better to allow any that match, even if slower
 
@@ -295,6 +297,7 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 	return true
 }
 
+// matches a request to the conditions in a leaf matcher
 func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 	if l.method != "" && l.method != req.Method {
 		return false
@@ -315,6 +318,7 @@ func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 	return true
 }
 
+// matches a request to a set of leaf matchers
 func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatcher {
 	for _, l := range leaves {
 		if matchLeaf(l, req, path) {
@@ -325,7 +329,7 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatch
 	return nil
 }
 
-// Tries to match a request against the available definitions. If a match is found,
+// tries to match a request against the available definitions. If a match is found,
 // returns the associated value, and the wildcard parameters from the path definition,
 // if any.
 func (m *matcher) match(r *http.Request) (*Route, map[string]string) {

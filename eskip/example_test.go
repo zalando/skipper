@@ -24,26 +24,26 @@ func Example() {
 	code := `
 
 		// Skipper - Eskip:
-		// routing table document, containing multiple route definitions
+		// a routing table document, containing multiple route definitions
 
 		// route definition to a jsx page renderer
+
 		route0:
 			PathRegexp(/\.html$/) && HeaderRegexp("Accept", "text/html") ->
-			pathRewrite(/\.html$/, ".jsx") ->
+			modPath(/\.html$/, ".jsx") ->
 			requestHeader("X-Type", "page") ->
 			"https://render.example.org";
 		
 		route1: Path("/some/path") -> "https://backend-0.example.org"; // a simple route
 
 		// route definition with a shunt (no backend address)
-		route2: Path("/some/other/path") -> fixPath() -> <shunt>;
+		route2: Path("/some/other/path") -> static("/", "/var/www") -> <shunt>;
 		
 		// route definition directing requests to an api endpoint
 		route3:
 			Method("POST") && Path("/api") ->
 			requestHeader("X-Type", "ajax-post") ->
 			"https://api.example.org"
-
 		`
 
 	routes, err := eskip.Parse(code)
@@ -121,7 +121,7 @@ func ExampleRoute() {
 func ExampleParse() {
 	code := `
 		PathRegexp(/\.html$/) && Header("Accept", "text/html") ->
-		pathRewrite(/\.html$/, ".jsx") ->
+		modPath(/\.html$/, ".jsx") ->
 		requestHeader("X-Type", "page") ->
 		"https://render.example.org"`
 

@@ -1,4 +1,4 @@
-package filters_test
+package flowid
 
 import (
 	"github.com/zalando/skipper/filters"
@@ -13,8 +13,8 @@ const (
 )
 
 var (
-	testFlowIdSpec           = filters.NewFlowId()
-	filterConfigWithReuse    = []interface{}{filters.FlowIdReuseParameterValue}
+	testFlowIdSpec           = New()
+	filterConfigWithReuse    = []interface{}{ReuseParameterValue}
 	filterConfigWithoutReuse = []interface{}{"dummy"}
 )
 
@@ -23,7 +23,7 @@ func TestNewFlowIdGeneration(t *testing.T) {
 	fc := buildfilterContext()
 	f.Request(fc)
 
-	flowId := fc.Request().Header.Get(filters.FlowIdHeaderName)
+	flowId := fc.Request().Header.Get(HeaderName)
 	if flowId == "" {
 		t.Errorf("flowId not generated")
 	}
@@ -31,10 +31,10 @@ func TestNewFlowIdGeneration(t *testing.T) {
 
 func TestFlowIdReuseExisting(t *testing.T) {
 	f, _ := testFlowIdSpec.CreateFilter(filterConfigWithReuse)
-	fc := buildfilterContext(filters.FlowIdHeaderName, testFlowId)
+	fc := buildfilterContext(HeaderName, testFlowId)
 	f.Request(fc)
 
-	flowId := fc.Request().Header.Get(filters.FlowIdHeaderName)
+	flowId := fc.Request().Header.Get(HeaderName)
 	if flowId != testFlowId {
 		t.Errorf("Got wrong flow id. Expected '%s' got '%s'", testFlowId, flowId)
 	}
@@ -42,10 +42,10 @@ func TestFlowIdReuseExisting(t *testing.T) {
 
 func TestFlowIdIgnoreReuseExisting(t *testing.T) {
 	f, _ := testFlowIdSpec.CreateFilter(filterConfigWithoutReuse)
-	fc := buildfilterContext(filters.FlowIdHeaderName, testFlowId)
+	fc := buildfilterContext(HeaderName, testFlowId)
 	f.Request(fc)
 
-	flowId := fc.Request().Header.Get(filters.FlowIdHeaderName)
+	flowId := fc.Request().Header.Get(HeaderName)
 	if flowId == testFlowId {
 		t.Errorf("Got wrong flow id. Expected a newly generated flowid but got the test flow id '%s'", flowId)
 	}
@@ -53,22 +53,22 @@ func TestFlowIdIgnoreReuseExisting(t *testing.T) {
 
 func TestFlowIdRejectInvalidReusedFlowId(t *testing.T) {
 	f, _ := testFlowIdSpec.CreateFilter(filterConfigWithReuse)
-	fc := buildfilterContext(filters.FlowIdHeaderName, invalidFlowId)
+	fc := buildfilterContext(HeaderName, invalidFlowId)
 	f.Request(fc)
 
-	flowId := fc.Request().Header.Get(filters.FlowIdHeaderName)
+	flowId := fc.Request().Header.Get(HeaderName)
 	if flowId == invalidFlowId {
 		t.Errorf("Got wrong flow id. Expected a newly generated flowid but got the test flow id '%s'", flowId)
 	}
 }
 
 func TestFlowIdWithSpecificLen(t *testing.T) {
-	fc := []interface{}{filters.FlowIdReuseParameterValue, float64(42.0)}
+	fc := []interface{}{ReuseParameterValue, float64(42.0)}
 	f, _ := testFlowIdSpec.CreateFilter(fc)
 	fctx := buildfilterContext()
 	f.Request(fctx)
 
-	flowId := fctx.Request().Header.Get(filters.FlowIdHeaderName)
+	flowId := fctx.Request().Header.Get(HeaderName)
 
 	l := len(flowId)
 	if l != 42 {
@@ -83,7 +83,7 @@ func TestFlowIdWithInvalidParameters(t *testing.T) {
 		t.Errorf("Expected an invalid parameters error, got %v", err)
 	}
 
-	fc = []interface{}{"", float64(filters.FlowIdMinLength - 1)}
+	fc = []interface{}{"", float64(MinLength - 1)}
 	_, err = testFlowIdSpec.CreateFilter(fc)
 	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("Expected an invalid parameters error, got %v", err)

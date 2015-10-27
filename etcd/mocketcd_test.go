@@ -1,3 +1,17 @@
+// Copyright 2015 Zalando SE
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package etcd
 
 import (
@@ -17,7 +31,7 @@ const (
 	PeerPort2   = 9701
 )
 
-var EtcdUrls []string
+var etcdUrls []string
 
 var started bool = false
 
@@ -34,15 +48,16 @@ func formatFlag(key, value string) string {
 	return fmt.Sprintf("%s=%s", key, value)
 }
 
-func Etcd() error {
+// starts an etcd server
+func startEtcd() error {
 	// assuming that the tests won't try to start it concurrently,
 	// fix this only when it turns out to be a wrong assumption
 	if started {
 		return nil
 	}
 
-	EtcdUrls = makeLocalUrls(ClientPort1, ClientPort2)
-	clientUrlsString := strings.Join(EtcdUrls, ",")
+	etcdUrls = makeLocalUrls(ClientPort1, ClientPort2)
+	clientUrlsString := strings.Join(etcdUrls, ",")
 
 	var args []string
 	args, os.Args = os.Args, []string{
@@ -60,7 +75,7 @@ func Etcd() error {
 	wait := make(chan int)
 	go func() {
 		for {
-			c := etcd.NewClient(EtcdUrls)
+			c := etcd.NewClient(etcdUrls)
 			_, err := c.Get("/", false, false)
 
 			if err == nil {
