@@ -20,6 +20,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type stripQuery struct {
@@ -102,7 +103,7 @@ func (mw *stripQuery) CreateFilter(config []interface{}) (filters.Filter, error)
 		if !ok {
 			return nil, filters.ErrInvalidFilterParameters
 		}
-		if preserveAsHeaderString == "true" {
+		if strings.ToLower(preserveAsHeaderString) == "true" {
 			preserveAsHeader = true
 		}
 	}

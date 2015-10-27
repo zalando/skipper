@@ -18,7 +18,7 @@ definitions from an etcd service.
 
 (See the DataClient interface in the skipper/routing package.)
 
-etcd is a generic, distributed configuation service:
+etcd is a generic, distributed configuration service:
 https://github.com/coreos/etcd. The route definitions are stored under
 individual keys as eskip route expressions. When loaded from etcd, the
 routes will get the etcd key as id.
