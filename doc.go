@@ -172,7 +172,7 @@ library and extended with custom filters and/or custom data sources.
 Custom Filters
 
 To create a custom filter, the Spec interface of the filters package
-needs to be implemented. Spec is the specification of a filter, and it
+needs to be implemented. 'Spec' is the specification of a filter, and it
 is used to create concrete filter instances for each route that
 references it, during the route definitions are processed.
 
@@ -214,7 +214,7 @@ Example, hellofilter.go:
 The above example creates a filter specification, whose filter instances
 will set the X-Hello header for every response in the routes they are
 included in. The name of the filter is 'hello', and can be referenced in
-route definitions as:
+a route definitions as:
 
     Any() -> hello("world") -> "https://www.example.org"
 
@@ -242,7 +242,7 @@ Example, hello.go:
             CustomFilters: []filters.Spec{&helloSpec{}}}))
     }
 
-Routes file, routes.eskip:
+A file containing the routes, routes.eskip:
 
     Any() -> hello("world") -> "https://www.example.org"
 
