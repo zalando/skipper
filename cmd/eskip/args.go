@@ -42,9 +42,9 @@ var (
 )
 
 var (
+	isTest  = false
 	nowrite = &noopWriter{}
 	flags   *flag.FlagSet
-	isTest  = false
 )
 
 func initFlags() {
