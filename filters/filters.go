@@ -37,10 +37,11 @@ type FilterContext interface {
 	StateBag() map[string]interface{}
 }
 
-// Filters are created by the Spec components, optionally using filter specific settings.
-// When implementing filters, it needs to be taken into consideration, that filter instances are route specific
-// and not request specific, so any state stored with a filter is shared between all requests and can cause
-// concurrency issues.
+// Filters are created by the Spec components, optionally using filter
+// specific settings. When implementing filters, it needs to be taken
+// into consideration, that filter instances are route specific and not
+// request specific, so any state stored with a filter is shared between
+// all requests for the same route and can cause concurrency issues.
 type Filter interface {
 
 	// The Request method is called while processing the incoming request.
