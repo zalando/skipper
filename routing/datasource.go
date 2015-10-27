@@ -42,7 +42,9 @@ type incomingData struct {
 // continously receives route definitions from a data client on the the output channel.
 // The function does not return. When started, it request for the whole current set of
 // routes, and continues polling for the subsequent updates. When a communication error
-// occurs, it re-requests the whole valid set, and continues polling.
+// occurs, it re-requests the whole valid set, and continues polling. Currently, the
+// routes with the same id coming from different sources are merged in an
+// undeterministic way, but this may change in the future.
 func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *incomingData) {
 	receiveInitial := func() {
 		for {
@@ -121,6 +123,9 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
 // receives the initial set of the route definitiosn and their
 // updates from multiple data clients, merges them by route id
 // and sends the merged route definitions to the output channel.
+//
+// The active set of routes from last successful update are used until the
+// next successful update.
 func receiveRouteDefs(o Options) <-chan []*eskip.Route {
 	in := make(chan *incomingData)
 	out := make(chan []*eskip.Route)

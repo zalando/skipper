@@ -271,9 +271,8 @@ func initRandomPaths() {
 }
 
 func initBenchmark(b *testing.B, init func()) {
-	b.StopTimer()
 	init()
-	b.StartTimer()
+	b.ResetTimer()
 }
 
 func init() {

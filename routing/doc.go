@@ -24,11 +24,16 @@ route definitions in a lookup tree.
 
 2. The rest of the request attributes is matched against the non-path
 conditions of the routes found in the lookup tree, from the most to the
-least strict one. The result is the first route whose every condition is
+least strict one. The result is the first route where every condition is
 met.
 
 (The regular expression conditions for the path, 'PathRegexp', are
 applied only in step 2.)
+
+The matching conditions and the built-in filters that use regular
+expressions, use the go stdlib regexp, which uses re2:
+
+https://github.com/google/re2/wiki/Syntax
 
 
 Matching Conditions
@@ -78,6 +83,12 @@ During operation, the router regularly polls the data clients for
 updates, and, if an update is received, generates a new lookup tree. In
 case of communication failure during polling, it reloads the whole set
 of routes from the failing client.
+
+The active set of routes from last successful update are used until the
+next successful update.
+
+Currently, the routes with the same id coming from different sources are
+merged in an undeterministic way, but this may change in the future.
 
 For a full description of the route definitions, see the documentation
 of the skipper/eskip package.
