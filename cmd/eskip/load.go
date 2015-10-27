@@ -25,7 +25,7 @@ func loadReader(r io.Reader) ([]*eskip.Route, error) {
 	// this pretty much disables continuous piping,
 	// but since the reset command first upserts all
 	// and deletes the diff only after, it may not
-	// even be consistent to do continous streaming.
+	// even be consistent to do continous piping.
 	// May change in the future.
 	doc, err := ioutil.ReadAll(r)
 	if err != nil {

@@ -14,7 +14,7 @@
 
 /*
 Package eskip implements in-memory representation of skipper route
-definitions and a DSL for describing skipper route expressions, route
+expressions and a DSL for describing skipper route expressions, route
 definitions and complete routing tables.
 
 
