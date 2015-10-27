@@ -1,8 +1,6 @@
 package flowid
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestFlowIdInvalidLength(t *testing.T) {
 	_, err := newFlowId(0)
@@ -17,7 +15,7 @@ func TestFlowIdInvalidLength(t *testing.T) {
 }
 
 func TestFlowIdLength(t *testing.T) {
-	for expected := minLength; expected <= maxLength; expected++ {
+	for expected := MinLength; expected <= MaxLength; expected++ {
 		flowId, err := newFlowId(expected)
 		if err != nil {
 			t.Errorf("Failed to generate flowId with len %d", expected)

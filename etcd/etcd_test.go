@@ -1,85 +1,35 @@
+// Copyright 2015 Zalando SE
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package etcd
 
 import (
-	"encoding/json"
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/zalando/eskip"
-	"github.com/zalando/skipper/mock"
-	"github.com/zalando/skipper/skipper"
+	"github.com/zalando/skipper/eskip"
 	"log"
 	"testing"
-	"time"
 )
 
 func init() {
-	err := mock.Etcd()
+	// start an etcd server
+	err := startEtcd()
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-const (
-	testRoute = `
-
-        PathRegexp(".*\\.html") ->
-        customHeader(3.14) ->
-        xSessionId("v4") ->
-        "https://www.example.org"
-    `
-
-	testDoc = "pdp:" + testRoute
-)
-
-func marshalAndIgnore(d interface{}) []byte {
-	b, _ := json.Marshal(d)
-	return b
-}
-
-func setAll(c *etcd.Client, dir string, data map[string]string) error {
-	for name, item := range data {
-		_, err := c.Set(dir+name, item, 0)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func resetData(t *testing.T) {
-	c := etcd.NewClient(mock.EtcdUrls)
-
-	// for the tests, considering errors as not-found
-	c.Delete("/skippertest", true)
-
-	err := setAll(c, "/skippertest/routes/", map[string]string{"pdp": testRoute})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-}
-
-func checkBackend(rd skipper.RawData, routeId, backend string) bool {
-	d, err := eskip.Parse(rd.Get())
-	if err != nil {
-		return false
-	}
-
-	for _, r := range d {
-		if r.Id == routeId {
-			return r.Backend == backend
-		}
-	}
-
-	return false
-}
-
-func checkInitial(rd skipper.RawData) bool {
-	d, err := eskip.Parse(rd.Get())
-	if err != nil {
-		return false
-	}
-
+func checkInitial(d []*eskip.Route) bool {
 	if len(d) != 1 {
 		return false
 	}
@@ -120,7 +70,7 @@ func checkInitial(rd skipper.RawData) bool {
 		return false
 	}
 
-	if !checkFilter(r.Filters[1], "xSessionId", "v4") {
+	if !checkFilter(r.Filters[1], "xSessionId", "s4") {
 		return false
 	}
 
@@ -131,187 +81,143 @@ func checkInitial(rd skipper.RawData) bool {
 	return true
 }
 
-func waitForEtcd(dc skipper.DataClient, test func(skipper.RawData) bool) bool {
-	for {
-		select {
-		case d := <-dc.Receive():
-			if test(d) {
-				return true
-			}
-		case <-time.After(45 * time.Millisecond):
-			return false
+func checkBackend(d []*eskip.Route, routeId, backend string) bool {
+	for _, r := range d {
+		if r.Id == routeId {
+			return r.Backend == backend
 		}
+	}
+
+	return false
+}
+
+func checkDeleted(ids []string, routeId string) bool {
+	for _, id := range ids {
+		if id == routeId {
+			return true
+		}
+	}
+
+	return false
+}
+
+func resetData(t *testing.T) {
+	const testRoute = `
+		PathRegexp(".*\\.html") ->
+		customHeader(3.14) ->
+		xSessionId("s4") ->
+		"https://www.example.org"
+	`
+
+	c := etcd.NewClient(etcdUrls)
+
+	// for the tests, considering errors on delete as not-found
+	c.Delete("/skippertest", true)
+
+	_, err := c.Set("/skippertest/routes/pdp", testRoute, 0)
+	if err != nil {
+		t.Error(err)
+		return
 	}
 }
 
-func TestReceivesInitialSettings(t *testing.T) {
+func TestReceivesError(t *testing.T) {
+	c := New(etcdUrls, "/skippertest-invalid")
+	_, err := c.GetInitial()
+	if err == nil {
+		t.Error("failed to fail")
+	}
+}
+
+func TestReceivesInitial(t *testing.T) {
 	resetData(t)
-	dc, err := Make(mock.EtcdUrls, "/skippertest")
+
+	c := New(etcdUrls, "/skippertest")
+	rs, err := c.GetInitial()
+
 	if err != nil {
 		t.Error(err)
 	}
 
-	select {
-	case d := <-dc.Receive():
-		if !checkInitial(d) {
-			t.Error("failed to receive data")
-		}
-
-		// not sure how much to invest here to do this more properly,
-		// normally 30ms should be enough and this dumbeddown approach
-		// works, but already happened once that it wasn't enough
-	case <-time.After(30 * time.Millisecond):
-		t.Error("receive timeout")
+	if !checkInitial(rs) {
+		t.Error("failed to receive the right docs")
 	}
 }
 
-func TestReceivesUpdatedSettings(t *testing.T) {
+func TestReceivesUpdates(t *testing.T) {
 	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
-	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.example.org/pdp-updated.html"`, 0)
 
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
-	select {
-	case d := <-dc.Receive():
-		if !checkBackend(d, "pdp", "http://www.example.org/pdp-updated.html") {
-			t.Error("failed to receive the right backend")
-		}
-	case <-time.After(15 * time.Millisecond):
-		t.Error("receive timeout")
-	}
-}
+	c := New(etcdUrls, "/skippertest")
+	c.GetInitial()
 
-func TestRecieveInitialAndUpdates(t *testing.T) {
-	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
-
-	if !waitForEtcd(dc, checkInitial) {
-		t.Error("failed to get initial set of data")
-	}
-
-	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.example.org/pdp-updated-1.html"`, 0)
-	if !waitForEtcd(dc, func(d skipper.RawData) bool {
-		return checkBackend(d, "pdp", "http://www.example.org/pdp-updated-1.html")
-	}) {
-		t.Error("failed to get updated backend")
-	}
-
-	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.example.org/pdp-updated-2.html"`, 0)
-	if !waitForEtcd(dc, func(d skipper.RawData) bool {
-		return checkBackend(d, "pdp", "http://www.example.org/pdp-updated-2.html")
-	}) {
-		t.Error("failed to get updated backend")
-	}
-
-	c.Set("/skippertest/routes/pdp", `Path("/pdp") -> "http://www.example.org/pdp-updated-3.html"`, 0)
-	if !waitForEtcd(dc, func(d skipper.RawData) bool {
-		return checkBackend(d, "pdp", "http://www.example.org/pdp-updated-3.html")
-	}) {
-		t.Error("failed to get updated backend")
-	}
-}
-
-func TestReceiveInserts(t *testing.T) {
-	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
-
-	if !waitForEtcd(dc, checkInitial) {
-		t.Error("failed to get initial data")
-	}
-
-	waitForInserts := func(done chan int) {
-		var insert1, insert2, insert3 bool
-		for {
-			if insert1 && insert2 && insert3 {
-				done <- 0
-				return
-			}
-
-			d := <-dc.Receive()
-			insert1 = checkBackend(d, "pdp1", "http://www.example.org/pdp-inserted-1.html")
-			insert2 = checkBackend(d, "pdp2", "http://www.example.org/pdp-inserted-2.html")
-			insert3 = checkBackend(d, "pdp3", "http://www.example.org/pdp-inserted-3.html")
-		}
-	}
-
-	c.Set("/skippertest/routes/pdp1", `Path("/pdp1") -> "http://www.example.org/pdp-inserted-1.html"`, 0)
-	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.example.org/pdp-inserted-2.html"`, 0)
-	c.Set("/skippertest/routes/pdp3", `Path("/pdp3") -> "http://www.example.org/pdp-inserted-3.html"`, 0)
-
-	done := make(chan int)
-	go waitForInserts(done)
-	select {
-	case <-time.After(3 * time.Second):
-		t.Error("failed to receive all inserts")
-	case <-done:
-	}
-}
-
-func TestDeleteRoute(t *testing.T) {
-	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
-
-	if !waitForEtcd(dc, checkInitial) {
-		t.Error("failed to get initial data")
-	}
-
-	_, err := c.Delete("/skippertest/routes/pdp", false)
+	e := etcd.NewClient(etcdUrls)
+	_, err := e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
 	if err != nil {
-		t.Error("failed to delete route")
+		t.Error(err)
 	}
 
-	if !waitForEtcd(dc, func(rd skipper.RawData) bool {
-		d, err := eskip.Parse(rd.Get())
-		if err != nil {
-			return false
-		}
+	rs, ds, err := c.GetUpdate()
+	if err != nil {
+		t.Error(err)
+	}
 
-		return len(d) == 0
-	}) {
-		t.Error("failed to delete route")
+	if !checkBackend(rs, "pdp", "https://updated.example.org") {
+		t.Error("failed to receive the right backend")
+	}
+
+	if len(ds) != 0 {
+		t.Error("unexpected delete")
 	}
 }
 
-func TestInsertUpdateDelete(t *testing.T) {
+func TestReceiveInsert(t *testing.T) {
 	resetData(t)
-	c := etcd.NewClient(mock.EtcdUrls)
-	dc, _ := Make(mock.EtcdUrls, "/skippertest")
 
-	if !waitForEtcd(dc, checkInitial) {
-		t.Error("faield to get initial data")
+	c := New(etcdUrls, "/skippertest")
+	_, err := c.GetInitial()
+	if err != nil {
+		t.Error(err)
 	}
 
-	c.Set("/skippertest/routes/pdp1", `Path("/pdp1") -> "http://www.example.org/pdp-inserted-1.html"`, 0)
-	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.example.org/pdp-inserted-2.html"`, 0)
-	c.Delete("/skippertest/routes/pdp1", false)
-	c.Set("/skippertest/routes/pdp2", `Path("/pdp2") -> "http://www.example.org/pdp-mod-2.html"`, 0)
+	e := etcd.NewClient(etcdUrls)
+	_, err = e.Set("/skippertest/routes/catalog", `Path("/pdp") -> "https://catalog.example.org"`, 0)
+	if err != nil {
+		t.Error(err)
+	}
 
-	if !waitForEtcd(dc, func(rd skipper.RawData) bool {
-		d, err := eskip.Parse(rd.Get())
-		if err != nil {
-			return false
-		}
+	rs, ds, err := c.GetUpdate()
+	if err != nil {
+		t.Error(err)
+	}
 
-		if len(d) != 2 {
-			return false
-		}
+	if !checkBackend(rs, "catalog", "https://catalog.example.org") {
+		t.Error("failed to receive the right backend")
+	}
 
-		var originalOk, modOk bool
-		for _, r := range d {
-			if r.Id == "pdp" && r.Backend == "https://www.example.org" {
-				originalOk = true
-			}
+	if len(ds) != 0 {
+		t.Error("unexpected delete")
+	}
+}
 
-			if r.Id == "pdp2" && r.Backend == "http://www.example.org/pdp-mod-2.html" {
-				modOk = true
-			}
-		}
+func TestReceiveDelete(t *testing.T) {
+	resetData(t)
 
-		return originalOk && modOk
-	}) {
-		t.Error("failed to delete route")
+	c := New(etcdUrls, "/skippertest")
+	c.GetInitial()
+
+	e := etcd.NewClient(etcdUrls)
+	e.Delete("/skippertest/routes/pdp", false)
+
+	rs, ds, err := c.GetUpdate()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !checkDeleted(ds, "pdp") {
+		t.Error("failed to receive the right deleted id")
+	}
+
+	if len(rs) != 0 {
+		t.Error("unexpected upsert")
 	}
 }
