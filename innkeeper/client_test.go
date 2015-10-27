@@ -1,10 +1,24 @@
+// Copyright 2015 Zalando SE
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package innkeeper
 
 import (
 	"encoding/json"
 	"errors"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +30,7 @@ const testAuthenticationToken = "test token"
 
 type autoAuth bool
 
-func (aa autoAuth) Token() (string, error) {
+func (aa autoAuth) GetToken() (string, error) {
 	if aa {
 		return testAuthenticationToken, nil
 	}
@@ -393,11 +407,11 @@ func TestConvertFilters(t *testing.T) {
 		ResponseHeaders: []headerData{{Name: "header1", Value: "value1"}}}}
 	rs := convertRoute("", d, nil, nil)
 	if len(rs.Filters) != 3 ||
-		rs.Filters[0].Name != filters.ModPathName || len(rs.Filters[0].Args) != 2 ||
+		rs.Filters[0].Name != builtin.ModPathName || len(rs.Filters[0].Args) != 2 ||
 		rs.Filters[0].Args[0] != "test-rx" || rs.Filters[0].Args[1] != "replacement" ||
-		rs.Filters[1].Name != filters.RequestHeaderName || len(rs.Filters[1].Args) != 2 ||
+		rs.Filters[1].Name != builtin.RequestHeaderName || len(rs.Filters[1].Args) != 2 ||
 		rs.Filters[1].Args[0] != "header0" || rs.Filters[1].Args[1] != "value0" ||
-		rs.Filters[2].Name != filters.ResponseHeaderName || len(rs.Filters[2].Args) != 2 ||
+		rs.Filters[2].Name != builtin.ResponseHeaderName || len(rs.Filters[2].Args) != 2 ||
 		rs.Filters[2].Args[0] != "header1" || rs.Filters[2].Args[1] != "value1" {
 		t.Error("failed to convert filters")
 	}
@@ -412,7 +426,7 @@ func TestConvertShunt(t *testing.T) {
 		Path:     "/some/path"}}}
 	rs := convertRoute("", d, nil, nil)
 	if !rs.Shunt || len(rs.Filters) != 1 ||
-		rs.Filters[0].Name != filters.RedirectName ||
+		rs.Filters[0].Name != builtin.RedirectName ||
 		len(rs.Filters[0].Args) != 2 ||
 		rs.Filters[0].Args[0] != fixedRedirectStatus ||
 		rs.Filters[0].Args[1] != "https://www.example.org:443/some/path" {
@@ -585,7 +599,7 @@ func TestUsesPreAndPostRouteFilters(t *testing.T) {
 			t.Error("failed to parse filters")
 		}
 
-		if r.Filters[2].Name != filters.ModPathName ||
+		if r.Filters[2].Name != builtin.ModPathName ||
 			len(r.Filters[2].Args) != 2 ||
 			r.Filters[2].Args[0] != ".*" ||
 			r.Filters[2].Args[1] != "replacement" {
