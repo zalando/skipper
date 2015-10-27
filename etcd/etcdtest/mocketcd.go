@@ -12,26 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcd
+/*
+Package etcdtest implements an easy startup script to start a local etcd
+instance for testing purpose.
+*/
+package etcdtest
 
 import (
 	"errors"
 	"fmt"
 	"github.com/coreos/etcd/etcdmain"
 	"github.com/coreos/go-etcd/etcd"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
 )
 
-const (
-	ClientPort1 = 9379
-	ClientPort2 = 9401
-	PeerPort1   = 9380
-	PeerPort2   = 9701
-)
-
-var etcdUrls []string
+var Urls []string
 
 var started bool = false
 
@@ -48,23 +46,27 @@ func formatFlag(key, value string) string {
 	return fmt.Sprintf("%s=%s", key, value)
 }
 
-// starts an etcd server
-func startEtcd() error {
+func randPort() int {
+	return (1 << 15) + rand.Intn(1<<15)
+}
+
+// Starts an etcd server.
+func Start() error {
 	// assuming that the tests won't try to start it concurrently,
 	// fix this only when it turns out to be a wrong assumption
 	if started {
 		return nil
 	}
 
-	etcdUrls = makeLocalUrls(ClientPort1, ClientPort2)
-	clientUrlsString := strings.Join(etcdUrls, ",")
+	Urls = makeLocalUrls(randPort(), randPort())
+	clientUrlsString := strings.Join(Urls, ",")
 
 	var args []string
 	args, os.Args = os.Args, []string{
 		"etcd",
 		formatFlag("-listen-client-urls", clientUrlsString),
 		formatFlag("-advertise-client-urls", clientUrlsString),
-		formatFlag("-listen-peer-urls", strings.Join(makeLocalUrls(PeerPort1, PeerPort2), ","))}
+		formatFlag("-listen-peer-urls", strings.Join(makeLocalUrls(randPort(), randPort()), ","))}
 
 	go func() {
 		// best mock is the real thing
@@ -75,7 +77,7 @@ func startEtcd() error {
 	wait := make(chan int)
 	go func() {
 		for {
-			c := etcd.NewClient(etcdUrls)
+			c := etcd.NewClient(Urls)
 			_, err := c.Get("/", false, false)
 
 			if err == nil {

@@ -23,6 +23,9 @@ https://github.com/coreos/etcd. The route definitions are stored under
 individual keys as eskip route expressions. When loaded from etcd, the
 routes will get the etcd key as id.
 
+In addition to the DataClient implementation, type Client provides
+methods to Upsert and Delete routes.
+
 Note to contributors: this package requires etcd for running the tests.
 
     go get github.com/coreos/etcd
@@ -34,8 +37,10 @@ tests.
 package etcd
 
 import (
+	"errors"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/eskip"
+	"net/http"
 	"path"
 	"strings"
 )
@@ -50,6 +55,8 @@ type Client struct {
 	etcdIndex  uint64
 }
 
+var missingRouteId = errors.New("missing route id")
+
 // Creates a new Client, connecting to an etcd cluster reachable at 'urls'.
 // The storage root argument specifies the etcd node under which the skipper
 // routes are stored. E.g. if storageRoot is '/skipper-dev', the route
@@ -62,15 +69,15 @@ func New(urls []string, storageRoot string) *Client {
 // Prepends the expressions with the etcd key as the route id.
 // Returns a map where the keys are the etcd keys and the values are the
 // eskip route definitions.
-func (s *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]string, uint64) {
+func (c *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]string, uint64) {
 	if n.ModifiedIndex > highestIndex {
 		highestIndex = n.ModifiedIndex
 	}
 
 	routes := make(map[string]string)
-	if n.Key == s.routesRoot {
+	if n.Key == c.routesRoot {
 		for _, ni := range n.Nodes {
-			routesi, hi := s.iterateDefs(ni, highestIndex)
+			routesi, hi := c.iterateDefs(ni, highestIndex)
 			for id, r := range routesi {
 				routes[id] = r
 			}
@@ -79,12 +86,12 @@ func (s *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]stri
 		}
 	}
 
-	if path.Dir(n.Key) != s.routesRoot {
+	if path.Dir(n.Key) != c.routesRoot {
 		return routes, highestIndex
 	}
 
 	id := path.Base(n.Key)
-	r := id + ":" + n.Value
+	r := id + ": " + n.Value
 	return map[string]string{id: r}, highestIndex
 }
 
@@ -96,6 +103,7 @@ func parseRoutes(data map[string]string) ([]*eskip.Route, error) {
 	}
 
 	doc := strings.Join(routeDefs, ";")
+	println(doc)
 	return eskip.Parse(doc)
 }
 
@@ -110,13 +118,14 @@ func getRouteIds(data map[string]string) []string {
 }
 
 // Returns all the route definitions currently stored in etcd.
-func (s *Client) GetInitial() ([]*eskip.Route, error) {
-	response, err := s.etcd.Get(s.routesRoot, false, true)
+func (c *Client) LoadAll() ([]*eskip.Route, error) {
+	response, err := c.etcd.Get(c.routesRoot, false, true)
 	if err != nil {
 		return nil, err
 	}
 
-	data, etcdIndex := s.iterateDefs(response.Node, 0)
+	data, etcdIndex := c.iterateDefs(response.Node, 0)
+	// TODO: should not completely fail
 	routes, err := parseRoutes(data)
 	if err != nil {
 		return nil, err
@@ -126,7 +135,7 @@ func (s *Client) GetInitial() ([]*eskip.Route, error) {
 		etcdIndex = response.EtcdIndex
 	}
 
-	s.etcdIndex = etcdIndex
+	c.etcdIndex = etcdIndex
 	return routes, nil
 }
 
@@ -135,13 +144,13 @@ func (s *Client) GetInitial() ([]*eskip.Route, error) {
 //
 // It uses etcd's watch functionality that results in blocking this call
 // until the next change is detected in etcd.
-func (s *Client) GetUpdate() ([]*eskip.Route, []string, error) {
-	response, err := s.etcd.Watch(s.routesRoot, s.etcdIndex+1, true, nil, nil)
+func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
+	response, err := c.etcd.Watch(c.routesRoot, c.etcdIndex+1, true, nil, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	data, etcdIndex := s.iterateDefs(response.Node, s.etcdIndex)
+	data, etcdIndex := c.iterateDefs(response.Node, c.etcdIndex)
 	var (
 		routes     []*eskip.Route
 		deletedIds []string
@@ -150,6 +159,7 @@ func (s *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 	if response.Action == "delete" {
 		deletedIds = getRouteIds(data)
 	} else {
+		// TODO: should not completely fail
 		routes, err = parseRoutes(data)
 		if err != nil {
 			return nil, nil, err
@@ -160,6 +170,30 @@ func (s *Client) GetUpdate() ([]*eskip.Route, []string, error) {
 		etcdIndex = response.EtcdIndex
 	}
 
-	s.etcdIndex = etcdIndex
+	c.etcdIndex = etcdIndex
 	return routes, deletedIds, nil
+}
+
+// Inserts or updates a routes in etcd.
+func (c *Client) Upsert(r *eskip.Route) error {
+	if r.Id == "" {
+		return missingRouteId
+	}
+
+	_, err := c.etcd.Set(c.routesRoot+"/"+r.Id, r.String(), 0)
+	return err
+}
+
+// Deletes a route from etcd.
+func (c *Client) Delete(id string) error {
+	if id == "" {
+		return missingRouteId
+	}
+
+	response, err := c.etcd.RawDelete(c.routesRoot+"/"+id, false, false)
+	if response.StatusCode == http.StatusNotFound {
+		return nil
+	}
+
+	return err
 }

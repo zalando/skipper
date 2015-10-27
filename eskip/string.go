@@ -95,6 +95,7 @@ func (r *Route) backendString() string {
 	return fmt.Sprintf(`"%s"`, r.Backend)
 }
 
+// Serializes a route expression. Omits the route id if any.
 func (r *Route) String() string {
 	s := []string{r.condString()}
 
@@ -107,6 +108,7 @@ func (r *Route) String() string {
 	return strings.Join(s, " -> ")
 }
 
+// Serializes a set of routes.
 func String(routes ...*Route) string {
 	if len(routes) == 1 && routes[0].Id == "" {
 		return routes[0].String()
