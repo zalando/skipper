@@ -17,10 +17,9 @@ Package skipper provides an HTTP routing library with flexible
 configuration and runtime update of the routing rules.
 
 Skipper acts as an HTTP reverse proxy that maps incoming requests to
-multiple HTTP backend services, based on routes selected by the
-attributes of the incoming requests. In between, both the requests and
-responses can be augmented by a filter chain defined individually for
-each route.
+multiple HTTP backend services, based on routes selected by the request
+attributes. In between, both the requests and responses can be augmented
+by a filter chain defined individually for each route.
 
 Skipper can load and update the route definitions from multiple data
 sources without being restarted.
@@ -94,8 +93,8 @@ Filters - Augmenting Requests
 
 Filters are executed in order of definition on the request and in
 reverse order on the response. They are used to modify request and
-response attributes like headers, or execute background tasks, e.g. like
-logging.  Some filters may handle the requests without proxying them to
+response attributes like headers, or execute background tasks, like
+logging. Some filters may handle the requests without proxying them to
 service backends. Filters, depending on their implementation, may
 accept/require parameters, that are set specific to the route.
 
