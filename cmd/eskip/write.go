@@ -15,19 +15,25 @@ var (
 	routeIdRx          = regexp.MustCompile("\\W")
 )
 
+func ensureId(r *eskip.Route) {
+    if r.Id != "" {
+        return
+    }
+
+    id, err := flowid.NewFlowId(randomIdLength)
+    if err != nil {
+        return nil, failedToGenerateId
+    }
+
+    id = routeIdRx.ReplaceAllString(id, "x")
+    r.Id = "route" + id
+}
+
 func upsertAll(routes []*eskip.Route, out *medium) (map[string]bool, error) {
 	upserted := map[string]bool{}
 	client := etcdclient.New(urlsString(out.urls), out.path)
 	for _, r := range routes {
-		if r.Id == "" {
-			id, err := flowid.NewFlowId(randomIdLength)
-			if err != nil {
-				return nil, failedToGenerateId
-			}
-
-			id = routeIdRx.ReplaceAllString(id, "x")
-			r.Id = "route" + id
-		}
+        ensureId(r)
 
 		err := client.Upsert(r)
 		if err != nil {
