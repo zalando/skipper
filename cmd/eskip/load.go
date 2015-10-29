@@ -1,3 +1,17 @@
+// Copyright 2015 Zalando SE
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -21,6 +35,8 @@ type loadResult struct {
 
 var invalidRouteExpression = errors.New("one or more invalid route expressions")
 
+// store all loaded routes, even if invalid, and store the
+// parse errors if any.
 func mapRouteInfo(allInfo []*etcdclient.RouteInfo) loadResult {
 	lr := loadResult{make(routeList, len(allInfo)), make(map[string]error)}
 	for i, info := range allInfo {
@@ -33,16 +49,9 @@ func mapRouteInfo(allInfo []*etcdclient.RouteInfo) loadResult {
 	return lr
 }
 
-func urlStrings(urls []*url.URL) []string {
-	surls := make([]string, len(urls))
-	for i, u := range urls {
-		surls[i] = u.String()
-	}
-
-	return surls
-}
-
+// load and parse routes from a reader (used for stdin).
 func loadReader(r io.Reader) (loadResult, error) {
+
 	// this pretty much disables continuous piping,
 	// but since the reset command first upserts all
 	// and deletes the diff only after, it may not
@@ -57,6 +66,7 @@ func loadReader(r io.Reader) (loadResult, error) {
 	return loadResult{routes: routes}, err
 }
 
+// load and parse routes from a file using the eskipfile client.
 func loadFile(path string) (loadResult, error) {
 	client, err := eskipfile.Open(path)
 	if err != nil {
@@ -67,17 +77,20 @@ func loadFile(path string) (loadResult, error) {
 	return loadResult{routes: routes}, err
 }
 
-func loadEtcd(urls []*url.URL, storageRoot string) (loadResult, error) {
-	client := etcdclient.New(urlStrings(urls), storageRoot)
+// load and parse routes from etcd.
+func loadEtcd(urls []*url.URL, prefix string) (loadResult, error) {
+	client := etcdclient.New(urlsToStrings(urls), prefix)
 	info, err := client.LoadAndParseAll()
 	return mapRouteInfo(info), err
 }
 
+// parse routes from a string.
 func loadString(doc string) (loadResult, error) {
 	routes, err := eskip.Parse(doc)
 	return loadResult{routes: routes}, err
 }
 
+// generate empty route objects from ids.
 func loadIds(ids []string) (loadResult, error) {
 	routes := make(routeList, len(ids))
 	for i, id := range ids {
@@ -87,6 +100,7 @@ func loadIds(ids []string) (loadResult, error) {
 	return loadResult{routes: routes}, nil
 }
 
+// load routes from input medium.
 func loadRoutes(in *medium) (loadResult, error) {
 	switch in.typ {
 	case stdin:
@@ -104,6 +118,8 @@ func loadRoutes(in *medium) (loadResult, error) {
 	}
 }
 
+// print parse errors and return a generic error
+// if any.
 func checkParseErrors(lr loadResult) error {
 	if len(lr.parseErrors) == 0 {
 		return nil
@@ -116,6 +132,7 @@ func checkParseErrors(lr loadResult) error {
 	return invalidRouteExpression
 }
 
+// load, parse routes and print parse errors if any.
 func loadRoutesChecked(m *medium) (routeList, error) {
 	lr, err := loadRoutes(m)
 	if err != nil {
@@ -125,16 +142,19 @@ func loadRoutesChecked(m *medium) (routeList, error) {
 	return lr.routes, checkParseErrors(lr)
 }
 
+// load and parse routes, ignore parse errors.
 func loadRoutesUnchecked(m *medium) routeList {
 	lr, _ := loadRoutes(m)
 	return lr.routes
 }
 
+// command executed for check.
 func checkCmd(in, _ *medium) error {
 	_, err := loadRoutesChecked(in)
 	return err
 }
 
+// command executed for print.
 func printCmd(in, _ *medium) error {
 	lr, err := loadRoutes(in)
 	if err != nil {
@@ -145,7 +165,11 @@ func printCmd(in, _ *medium) error {
 		if perr, hasError := lr.parseErrors[r.Id]; hasError {
 			printStderr(r.Id, perr)
 		} else {
-			fmt.Println(r.String())
+			if r.Id == "" {
+				fmt.Println(r.String())
+			} else {
+				fmt.Printf("%s: %s;\n", r.Id, r.String())
+			}
 		}
 	}
 

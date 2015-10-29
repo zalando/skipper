@@ -1,3 +1,17 @@
+// Copyright 2015 Zalando SE
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -30,13 +44,16 @@ var (
 	missingInput     = errors.New("missing input")
 )
 
-func validateSelectRead(media []*medium) (input, output *medium, err error) {
+// validate medium from args, and check if it can be used
+// as input. Select default etcd, if no medium specified.
+// (check and print)
+func validateSelectRead(media []*medium) (input, _ *medium, err error) {
 	if len(media) > 1 {
 		return nil, nil, tooManyInputs
 	}
 
 	if len(media) == 0 {
-		m, err := processEtcdArgs(defaultEtcdUrls, defaultEtcdStorageRoot)
+		m, err := processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
 		return m, nil, err
 	}
 
@@ -47,6 +64,9 @@ func validateSelectRead(media []*medium) (input, output *medium, err error) {
 	return media[0], nil, nil
 }
 
+// validate media from args, and check if input was specified.
+// Select default etcd if no output etcd was specified.
+// (upsert, reset, delete)
 func validateSelectWrite(cmd command, media []*medium) (input, output *medium, err error) {
 	if len(media) == 0 {
 		return nil, nil, missingInput
@@ -75,7 +95,7 @@ func validateSelectWrite(cmd command, media []*medium) (input, output *medium, e
 
 	if out == nil {
 		var err error
-		out, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdStorageRoot)
+		out, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -84,6 +104,7 @@ func validateSelectWrite(cmd command, media []*medium) (input, output *medium, e
 	return in, out, nil
 }
 
+// Validate media from args for the current command, and select input and/or output.
 func validateSelectMedia(cmd command, media []*medium) (input, output *medium, err error) {
 	switch cmd {
 	case check, print:
