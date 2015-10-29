@@ -49,6 +49,10 @@ Create a file with a route:
 
     echo 'hello: Path("/hello") -> "https://www.example.org"' > example.eskip
 
+Optionally, verify the syntax of the file:
+
+    eskip check example.eskip
+
 Start skipper and make an HTTP request through skipper:
 
     skipper -routes-file example.eskip &
@@ -57,7 +61,7 @@ Start skipper and make an HTTP request through skipper:
 
 Routing Mechanism
 
-The core of skipper's request processing is implemented by a rewerse
+The core of skipper's request processing is implemented by a reverse
 proxy in the 'proxy' package. The proxy takes the incoming request,
 passes it to the routing engine to receive the best matching route. If a
 route is found, the request is passed to all filters defined by it. The
@@ -159,7 +163,15 @@ as a library built into a program.  The simplest way to start skipper as
 a library is by calling the Run function of the current, root package.
 Each option accepted by the Run function is also wired in the default
 executable as a command line flag.  E.g. EtcdUrls becomes -etcd-urls as
-a comma separated list.
+a comma separated list. For command line help, enter:
+
+    skipper -help
+
+And additional utility, eskip can be used to verify, print, update and
+delete routes from/to files or etcd (Innkeeper on the roadmap). See the
+cmd/eskip command package, and/or enter in the command line:
+
+    eskip -help
 
 
 Extending Skipper

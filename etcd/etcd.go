@@ -69,7 +69,7 @@ type Client struct {
 var missingRouteId = errors.New("missing route id")
 
 // Creates a new Client, connecting to an etcd cluster reachable at 'urls'.
-// The prefix root argument specifies the etcd node under which the skipper
+// The prefix argument specifies the etcd node under which the skipper
 // routes are stored. E.g. if prefix is '/skipper-dev', the route
 // definitions should be stored under /v2/keys/skipper-dev/routes/...
 func New(urls []string, prefix string) *Client {
