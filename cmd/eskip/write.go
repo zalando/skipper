@@ -124,7 +124,7 @@ func upsertCmd(in, out *medium) error {
 		return err
 	}
 
-	// upsert routes that don't exist or are different:
+	// upsert routes:
 	return upsertAll(routes, out)
 }
 
