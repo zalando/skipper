@@ -32,20 +32,6 @@ func mapRoutes(routes routeList) routeMap {
 	return m
 }
 
-func loadRoutesChecked(m *medium) (routeList, error) {
-	lr, err := loadRoutes(m)
-	if err != nil {
-		return nil, err
-	}
-
-	return lr.routes, checkParseErrors(lr)
-}
-
-func loadRoutesUnchecked(m *medium) routeList {
-	lr, _ := loadRoutes(m)
-	return lr.routes
-}
-
 func ensureId(r *eskip.Route) error {
 	if r.Id != "" {
 		return nil

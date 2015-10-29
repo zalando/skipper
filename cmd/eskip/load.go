@@ -116,6 +116,20 @@ func checkParseErrors(lr loadResult) error {
 	return invalidRouteExpression
 }
 
+func loadRoutesChecked(m *medium) (routeList, error) {
+	lr, err := loadRoutes(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return lr.routes, checkParseErrors(lr)
+}
+
+func loadRoutesUnchecked(m *medium) routeList {
+	lr, _ := loadRoutes(m)
+	return lr.routes
+}
+
 func checkCmd(in, _ *medium) error {
 	lr, err := loadRoutes(in)
 	if err != nil {
