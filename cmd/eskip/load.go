@@ -131,12 +131,8 @@ func loadRoutesUnchecked(m *medium) routeList {
 }
 
 func checkCmd(in, _ *medium) error {
-	lr, err := loadRoutes(in)
-	if err != nil {
-		return err
-	}
-
-	return checkParseErrors(lr)
+	_, err := loadRoutesChecked(in)
+	return err
 }
 
 func printCmd(in, _ *medium) error {
