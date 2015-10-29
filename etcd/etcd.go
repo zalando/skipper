@@ -69,11 +69,11 @@ type Client struct {
 var missingRouteId = errors.New("missing route id")
 
 // Creates a new Client, connecting to an etcd cluster reachable at 'urls'.
-// The storage root argument specifies the etcd node under which the skipper
-// routes are stored. E.g. if storageRoot is '/skipper-dev', the route
+// The prefix root argument specifies the etcd node under which the skipper
+// routes are stored. E.g. if prefix is '/skipper-dev', the route
 // definitions should be stored under /v2/keys/skipper-dev/routes/...
-func New(urls []string, storageRoot string) *Client {
-	return &Client{storageRoot + routesPath, etcd.NewClient(urls), 0}
+func New(urls []string, prefix string) *Client {
+	return &Client{prefix + routesPath, etcd.NewClient(urls), 0}
 }
 
 // Finds all route expressions in the containing directory node.
@@ -156,6 +156,8 @@ func getRouteIds(data map[string]string) []string {
 	return ids
 }
 
+// Converts route info to route objects logging those whose
+// parsing failed.
 func infoToRoutesLogged(info []*RouteInfo) []*eskip.Route {
 	var routes []*eskip.Route
 	for _, ri := range info {

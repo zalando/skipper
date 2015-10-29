@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /*
-Command skipper provides a default executable skipper with the default
+This command provides an executable version of skipper with the default
 set of filters.
 
 For the list of command line options run:
@@ -39,12 +39,12 @@ import (
 const (
 	defaultAddress           = ":9090"
 	defaultEtcdUrls          = "http://127.0.0.1:2379,http://127.0.0.1:4001"
-	defaultEtcdStorageRoot   = "/skipper"
+	defaultEtcdPrefix        = "/skipper"
 	defaultSourcePollTimeout = int64(3000)
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
-	etcdStorageRootUsage           = "path prefix for skipper related data in etcd"
+	etcdPrefixUsage                = "path prefix for skipper related data in etcd"
 	innkeeperUrlUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
@@ -61,7 +61,7 @@ const (
 var (
 	address                   string
 	etcdUrls                  string
-	etcdStorageRoot           string
+	etcdPrefix                string
 	insecure                  bool
 	innkeeperUrl              string
 	sourcePollTimeout         int64
@@ -79,7 +79,7 @@ func init() {
 	flag.StringVar(&address, "address", defaultAddress, addressUsage)
 	flag.StringVar(&etcdUrls, "etcd-urls", defaultEtcdUrls, etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
-	flag.StringVar(&etcdStorageRoot, "storage-root", defaultEtcdStorageRoot, etcdStorageRootUsage)
+	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
@@ -97,7 +97,7 @@ func main() {
 	log.Fatal(skipper.Run(skipper.Options{
 		Address:                   address,
 		EtcdUrls:                  strings.Split(etcdUrls, ","),
-		EtcdStorageRoot:           etcdStorageRoot,
+		EtcdPrefix:                etcdPrefix,
 		Insecure:                  insecure,
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
