@@ -333,3 +333,43 @@ func TestDelete(t *testing.T) {
 		t.Error("failed to delete route")
 	}
 }
+
+func TestLoadWithParseFailures(t *testing.T) {
+	deleteData()
+	e := etcd.NewClient(etcdtest.Urls)
+
+	_, err := e.Set("/skippertest/routes/catalog", `Path("/pdp") -> "https://catalog.example.org"`, 0)
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = e.Set("/skippertest/routes/cms", "invalid expression", 0)
+	if err != nil {
+		t.Error(err)
+	}
+
+	c := New(etcdtest.Urls, "/skippertest")
+	routeInfo, err := c.LoadAndParseAll()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(routeInfo) != 2 {
+		t.Error("failed to load all routes", len(routeInfo))
+	}
+
+	var parseError error
+	for _, ri := range routeInfo {
+		if ri.ParseError != nil {
+			if parseError != nil {
+				t.Error("too many errors")
+			}
+
+			parseError = ri.ParseError
+		}
+	}
+
+	if parseError == nil {
+		t.Error("failed to detect parse error")
+	}
+}

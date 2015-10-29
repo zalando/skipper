@@ -40,12 +40,23 @@ import (
 	"errors"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/eskip"
+	"log"
 	"net/http"
 	"path"
-	"strings"
 )
 
 const routesPath = "/routes"
+
+// RouteInfo contains a route id, plus the loaded and parsed route or
+// the parse error in case of failure.
+type RouteInfo struct {
+
+	// The route id plus the route data or if parsing was successful.
+	eskip.Route
+
+	// The parsing error if the parsing failed.
+	ParseError error
+}
 
 // A Client is used to load the whole set of routes and the updates from an
 // etcd store.
@@ -95,48 +106,94 @@ func (c *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]stri
 	return map[string]string{id: r}, highestIndex
 }
 
-// Parses a set of eskip routes.
-func parseRoutes(data map[string]string) ([]*eskip.Route, error) {
-	var routeDefs []string
-	for _, r := range data {
-		routeDefs = append(routeDefs, r)
+// Parses a single route expression, fails if more than one
+// expressions in the data.
+func parseOne(data string) (*eskip.Route, error) {
+	r, err := eskip.Parse(data)
+	if err != nil {
+		return nil, err
 	}
 
-	doc := strings.Join(routeDefs, ";")
-	println(doc)
-	return eskip.Parse(doc)
+	if len(r) != 1 {
+		return nil, errors.New("invalid route entry: multiple route expressions")
+	}
+
+	return r[0], nil
+}
+
+// Parses a set of eskip routes.
+func parseRoutes(data map[string]string) []*RouteInfo {
+	allInfo := make([]*RouteInfo, len(data))
+	index := 0
+	for id, d := range data {
+		info := &RouteInfo{}
+
+		r, err := parseOne(d)
+		if err == nil {
+			info.Route = *r
+		} else {
+			info.ParseError = err
+		}
+
+		info.Id = id
+
+		allInfo[index] = info
+		index++
+	}
+
+	return allInfo
 }
 
 // Collects all the ids from a set of routes.
 func getRouteIds(data map[string]string) []string {
-	var ids []string
+	ids := make([]string, len(data))
+	index := 0
 	for id, _ := range data {
-		ids = append(ids, id)
+		ids[index] = id
+		index++
 	}
 
 	return ids
 }
 
-// Returns all the route definitions currently stored in etcd.
-func (c *Client) LoadAll() ([]*eskip.Route, error) {
+func infoToRoutesLogged(info []*RouteInfo) []*eskip.Route {
+	var routes []*eskip.Route
+	for _, ri := range info {
+		if ri.ParseError == nil {
+			routes = append(routes, &ri.Route)
+		} else {
+			log.Println("error while parsing routes", ri.Id, ri.ParseError)
+		}
+	}
+
+	return routes
+}
+
+// Returns all the route definitions currently stored in etcd,
+// or the parsing error in case of failure.
+func (c *Client) LoadAndParseAll() ([]*RouteInfo, error) {
 	response, err := c.etcd.Get(c.routesRoot, false, true)
 	if err != nil {
 		return nil, err
 	}
 
 	data, etcdIndex := c.iterateDefs(response.Node, 0)
-	// TODO: should not completely fail
-	routes, err := parseRoutes(data)
-	if err != nil {
-		return nil, err
-	}
-
 	if response.EtcdIndex > etcdIndex {
 		etcdIndex = response.EtcdIndex
 	}
 
 	c.etcdIndex = etcdIndex
-	return routes, nil
+	return parseRoutes(data), nil
+}
+
+// Returns all the route definitions currently stored in etcd.
+func (c *Client) LoadAll() ([]*eskip.Route, error) {
+	routeInfo, err := c.LoadAndParseAll()
+	if err != nil {
+		return nil, err
+	}
+
+	return infoToRoutesLogged(routeInfo), nil
 }
 
 // Returns the updates (upserts and deletes) since the last initial request
@@ -151,6 +208,12 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	}
 
 	data, etcdIndex := c.iterateDefs(response.Node, c.etcdIndex)
+	if response.EtcdIndex > etcdIndex {
+		etcdIndex = response.EtcdIndex
+	}
+
+	c.etcdIndex = etcdIndex
+
 	var (
 		routes     []*eskip.Route
 		deletedIds []string
@@ -159,18 +222,10 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	if response.Action == "delete" {
 		deletedIds = getRouteIds(data)
 	} else {
-		// TODO: should not completely fail
-		routes, err = parseRoutes(data)
-		if err != nil {
-			return nil, nil, err
-		}
+		routeInfo := parseRoutes(data)
+		routes = infoToRoutesLogged(routeInfo)
 	}
 
-	if response.EtcdIndex > etcdIndex {
-		etcdIndex = response.EtcdIndex
-	}
-
-	c.etcdIndex = etcdIndex
 	return routes, deletedIds, nil
 }
 
