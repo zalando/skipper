@@ -1,3 +1,17 @@
+// Copyright 2015 Zalando SE
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -22,7 +36,7 @@ func init() {
 
 func TestUpsertLoadFail(t *testing.T) {
 	in := &medium{typ: inline, eskip: "invalid doc"}
-	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdStorageRoot}
+	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	err := upsertCmd(in, out)
 	if err == nil {
 		t.Error("failed to fail")
@@ -30,10 +44,10 @@ func TestUpsertLoadFail(t *testing.T) {
 }
 
 func TestUpsertGeneratesId(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdStorageRoot)
+	deleteRoutesFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `Method("POST") -> <shunt>`}
-	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdStorageRoot}
+	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 
 	err := upsertCmd(in, out)
 	if err != nil {
@@ -51,10 +65,10 @@ func TestUpsertGeneratesId(t *testing.T) {
 }
 
 func TestUpsertUsesId(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdStorageRoot)
+	deleteRoutesFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
-	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdStorageRoot}
+	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 
 	err := upsertCmd(in, out)
 	if err != nil {
@@ -73,7 +87,7 @@ func TestUpsertUsesId(t *testing.T) {
 
 func TestResetLoadFail(t *testing.T) {
 	in := &medium{typ: inline, eskip: "invalid doc"}
-	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdStorageRoot}
+	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	err := resetCmd(in, out)
 	if err == nil {
 		t.Error("failed to fail")
@@ -81,13 +95,13 @@ func TestResetLoadFail(t *testing.T) {
 }
 
 func TestResetLoadExistingFails(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdStorageRoot)
+	deleteRoutesFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route2: Method("POST") -> <shunt>`}
-	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdStorageRoot}
+	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 
 	c := etcdclient.NewClient(etcdtest.Urls)
-	_, err := c.Set(defaultEtcdStorageRoot+"/routes/route1", "invalid doc", 0)
+	_, err := c.Set(defaultEtcdPrefix+"/routes/route1", "invalid doc", 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -97,31 +111,31 @@ func TestResetLoadExistingFails(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = c.Get(defaultEtcdStorageRoot+"/routes/route1", false, false)
+	_, err = c.Get(defaultEtcdPrefix+"/routes/route1", false, false)
 	if err == nil {
 		t.Error(err)
 	}
 
-	_, err = c.Get(defaultEtcdStorageRoot+"/routes/route2", false, false)
+	_, err = c.Get(defaultEtcdPrefix+"/routes/route2", false, false)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestReset(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdStorageRoot)
+	deleteRoutesFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route2: Method("PUT") -> <shunt>; route3: Method("HEAD") -> <shunt>`}
-	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdStorageRoot}
+	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 
 	c := etcdclient.NewClient(etcdtest.Urls)
 
-	_, err := c.Set(defaultEtcdStorageRoot+"/routes/route1", `Method("GET") -> <shunt>`, 0)
+	_, err := c.Set(defaultEtcdPrefix+"/routes/route1", `Method("GET") -> <shunt>`, 0)
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = c.Set(defaultEtcdStorageRoot+"/routes/route2", `Method("POST") -> <shunt>`, 0)
+	_, err = c.Set(defaultEtcdPrefix+"/routes/route2", `Method("POST") -> <shunt>`, 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -168,7 +182,7 @@ func TestReset(t *testing.T) {
 
 func TestDeleteLoadFails(t *testing.T) {
 	in := &medium{typ: inline, eskip: "invalid doc"}
-	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdStorageRoot}
+	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	err := deleteCmd(in, out)
 	if err == nil {
 		t.Error("failed to fail")
@@ -176,10 +190,10 @@ func TestDeleteLoadFails(t *testing.T) {
 }
 
 func TestDeleteFromIds(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdStorageRoot)
+	deleteRoutesFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
-	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdStorageRoot}
+	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 
 	err := upsertCmd(in, out)
 	if err != nil {
@@ -203,10 +217,10 @@ func TestDeleteFromIds(t *testing.T) {
 }
 
 func TestDeleteFromRoutes(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdStorageRoot)
+	deleteRoutesFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
-	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdStorageRoot}
+	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 
 	err := upsertCmd(in, out)
 	if err != nil {
