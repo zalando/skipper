@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/eskipfile"
@@ -11,7 +12,28 @@ import (
 	"os"
 )
 
-func urlsString(urls []*url.URL) []string {
+type routeList []*eskip.Route
+
+type loadResult struct {
+	routes      routeList
+	parseErrors map[string]error
+}
+
+var invalidRouteExpression = errors.New("one or more invalid route expressions")
+
+func mapRouteInfo(allInfo []*etcdclient.RouteInfo) loadResult {
+	lr := loadResult{make(routeList, len(allInfo)), make(map[string]error)}
+	for i, info := range allInfo {
+		lr.routes[i] = &info.Route
+		if info.ParseError != nil {
+			lr.parseErrors[info.Id] = info.ParseError
+		}
+	}
+
+	return lr
+}
+
+func urlStrings(urls []*url.URL) []string {
 	surls := make([]string, len(urls))
 	for i, u := range urls {
 		surls[i] = u.String()
@@ -20,8 +42,7 @@ func urlsString(urls []*url.URL) []string {
 	return surls
 }
 
-func loadReader(r io.Reader) ([]*eskip.Route, error) {
-
+func loadReader(r io.Reader) (loadResult, error) {
 	// this pretty much disables continuous piping,
 	// but since the reset command first upserts all
 	// and deletes the diff only after, it may not
@@ -29,41 +50,44 @@ func loadReader(r io.Reader) ([]*eskip.Route, error) {
 	// May change in the future.
 	doc, err := ioutil.ReadAll(r)
 	if err != nil {
-		return nil, err
+		return loadResult{}, err
 	}
 
-	return eskip.Parse(string(doc))
+	routes, err := eskip.Parse(string(doc))
+	return loadResult{routes: routes}, err
 }
 
-func loadFile(path string) ([]*eskip.Route, error) {
+func loadFile(path string) (loadResult, error) {
 	client, err := eskipfile.Open(path)
 	if err != nil {
-		return nil, err
+		return loadResult{}, err
 	}
 
-	return client.LoadAll()
+	routes, err := client.LoadAll()
+	return loadResult{routes: routes}, err
 }
 
-func loadEtcd(urls []*url.URL, storageRoot string) ([]*eskip.Route, error) {
-	// should return the invalid routes, too
-	client := etcdclient.New(urlsString(urls), storageRoot)
-	return client.LoadAll()
+func loadEtcd(urls []*url.URL, storageRoot string) (loadResult, error) {
+	client := etcdclient.New(urlStrings(urls), storageRoot)
+	info, err := client.LoadAndParseAll()
+	return mapRouteInfo(info), err
 }
 
-func loadString(doc string) ([]*eskip.Route, error) {
-	return eskip.Parse(doc)
+func loadString(doc string) (loadResult, error) {
+	routes, err := eskip.Parse(doc)
+	return loadResult{routes: routes}, err
 }
 
-func loadIds(ids []string) []*eskip.Route {
-	routes := make([]*eskip.Route, len(ids))
+func loadIds(ids []string) (loadResult, error) {
+	routes := make(routeList, len(ids))
 	for i, id := range ids {
 		routes[i] = &eskip.Route{Id: id}
 	}
 
-	return routes
+	return loadResult{routes: routes}, nil
 }
 
-func loadRoutes(in *medium) ([]*eskip.Route, error) {
+func loadRoutes(in *medium) (loadResult, error) {
 	switch in.typ {
 	case stdin:
 		return loadReader(os.Stdin)
@@ -74,27 +98,50 @@ func loadRoutes(in *medium) ([]*eskip.Route, error) {
 	case inline:
 		return loadString(in.eskip)
 	case inlineIds:
-		return loadIds(in.ids), nil
+		return loadIds(in.ids)
 	default:
-		return nil, invalidInputType
+		return loadResult{}, invalidInputType
 	}
 }
 
-func printRoutes(routes []*eskip.Route) error {
-	_, err := fmt.Println(eskip.String(routes...))
-	return err
+func checkParseErrors(lr loadResult) error {
+	if len(lr.parseErrors) == 0 {
+		return nil
+	}
+
+	for id, perr := range lr.parseErrors {
+		printStderr(id, perr)
+	}
+
+	return invalidRouteExpression
 }
 
 func checkCmd(in, _ *medium) error {
-	_, err := loadRoutes(in)
-	return err
-}
-
-func printCmd(in, _ *medium) error {
-	routes, err := loadRoutes(in)
+	lr, err := loadRoutes(in)
 	if err != nil {
 		return err
 	}
 
-	return printRoutes(routes)
+	return checkParseErrors(lr)
+}
+
+func printCmd(in, _ *medium) error {
+	lr, err := loadRoutes(in)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range lr.routes {
+		if perr, hasError := lr.parseErrors[r.Id]; hasError {
+			printStderr(r.Id, perr)
+		} else {
+			fmt.Println(r.String())
+		}
+	}
+
+	if len(lr.parseErrors) > 0 {
+		return invalidRouteExpression
+	}
+
+	return nil
 }

@@ -159,8 +159,8 @@ func TestCheckEtcdInvalid(t *testing.T) {
 	}
 
 	err = checkCmd(&medium{typ: etcd, urls: urls, path: "/skippertest"}, nil)
-	if err == nil {
-		t.Error("failed to fail")
+	if err != invalidRouteExpression {
+		t.Error("failed to fail properly")
 	}
 }
 

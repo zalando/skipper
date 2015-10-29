@@ -40,7 +40,7 @@ func TestUpsertGeneratesId(t *testing.T) {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutes(out)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -61,7 +61,7 @@ func TestUpsertUsesId(t *testing.T) {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutes(out)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -98,7 +98,7 @@ func TestResetLoadExistingFails(t *testing.T) {
 	}
 
 	_, err = c.Get(defaultEtcdStorageRoot+"/routes/route1", false, false)
-	if err != nil {
+	if err == nil {
 		t.Error(err)
 	}
 
@@ -131,7 +131,7 @@ func TestReset(t *testing.T) {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutes(out)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -192,7 +192,7 @@ func TestDeleteFromIds(t *testing.T) {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutes(out)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -219,7 +219,7 @@ func TestDeleteFromRoutes(t *testing.T) {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutes(out)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}

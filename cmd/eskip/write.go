@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"github.com/zalando/skipper/eskip"
 	etcdclient "github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters/flowid"
@@ -10,44 +9,90 @@ import (
 
 const randomIdLength = 16
 
-var (
-	failedToGenerateId = errors.New("failed to generate id")
-	routeIdRx          = regexp.MustCompile("\\W")
+type (
+	routeCond     func(*eskip.Route) bool
+	twoRoutesCond func(left, right *eskip.Route) bool
+	routeMap      map[string]*eskip.Route
 )
 
-func ensureId(r *eskip.Route) {
-    if r.Id != "" {
-        return
-    }
+var routeIdRx = regexp.MustCompile("\\W")
 
-    id, err := flowid.NewFlowId(randomIdLength)
-    if err != nil {
-        return nil, failedToGenerateId
-    }
+func any(_ *eskip.Route) bool { return true }
 
-    id = routeIdRx.ReplaceAllString(id, "x")
-    r.Id = "route" + id
+func routeDiffers(left, right *eskip.Route) bool {
+	return left.String() != right.String()
 }
 
-func upsertAll(routes []*eskip.Route, out *medium) (map[string]bool, error) {
-	upserted := map[string]bool{}
-	client := etcdclient.New(urlsString(out.urls), out.path)
+func mapRoutes(routes routeList) routeMap {
+	m := make(routeMap)
 	for _, r := range routes {
-        ensureId(r)
-
-		err := client.Upsert(r)
-		if err != nil {
-			return nil, err
-		}
-
-		upserted[r.Id] = true
+		m[r.Id] = r
 	}
 
-	return upserted, nil
+	return m
 }
 
-func deleteAllIf(routes []*eskip.Route, out *medium, cond func(*eskip.Route) bool) error {
-	client := etcdclient.New(urlsString(out.urls), out.path)
+func loadRoutesChecked(m *medium) (routeList, error) {
+	lr, err := loadRoutes(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return lr.routes, checkParseErrors(lr)
+}
+
+func loadRoutesUnchecked(m *medium) routeList {
+	lr, _ := loadRoutes(m)
+	return lr.routes
+}
+
+func ensureId(r *eskip.Route) error {
+	if r.Id != "" {
+		return nil
+	}
+
+	id, err := flowid.NewFlowId(randomIdLength)
+	if err != nil {
+		return err
+	}
+
+	id = routeIdRx.ReplaceAllString(id, "x")
+	r.Id = "route" + id
+	return nil
+}
+
+func upsertAll(routes routeList, m *medium) error {
+	client := etcdclient.New(urlStrings(m.urls), m.path)
+	for _, r := range routes {
+		ensureId(r)
+		err := client.Upsert(r)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func takeDiff(ref routeList, routes routeList, altCond twoRoutesCond) routeList {
+	mref := mapRoutes(ref)
+	var diff routeList
+	for _, r := range routes {
+		if rr, exists := mref[r.Id]; !exists || altCond(rr, r) {
+			diff = append(diff, r)
+		}
+	}
+
+	return diff
+}
+
+func upsertDifferent(existing routeList, update routeList, m *medium) error {
+	diff := takeDiff(existing, update, routeDiffers)
+	return upsertAll(diff, m)
+}
+
+func deleteAllIf(routes routeList, m *medium, cond routeCond) error {
+	client := etcdclient.New(urlStrings(m.urls), m.path)
 	for _, r := range routes {
 		if !cond(r) {
 			continue
@@ -63,42 +108,41 @@ func deleteAllIf(routes []*eskip.Route, out *medium, cond func(*eskip.Route) boo
 }
 
 func upsertCmd(in, out *medium) error {
-	routes, err := loadRoutes(in)
+	routes, err := loadRoutesChecked(in)
 	if err != nil {
 		return err
 	}
 
-	// TODO: to preserve performance, it should only update what differs or new
-	_, err = upsertAll(routes, out)
-	return err
+	existing := loadRoutesUnchecked(out)
+	return upsertDifferent(existing, routes, out)
 }
 
 func resetCmd(in, out *medium) error {
-	routes, err := loadRoutes(in)
+	routes, err := loadRoutesChecked(in)
 	if err != nil {
 		return err
 	}
 
-	// TODO:
-	// should get all the ids, regardless if it is valid, and
-	// then use the error if any
-	existing, _ := loadRoutes(out)
-
-	upserted, err := upsertAll(routes, out)
+	existing := loadRoutesUnchecked(out)
+	err = upsertDifferent(existing, routes, out)
 	if err != nil {
 		return err
 	}
 
-	return deleteAllIf(existing, out,
-		func(r *eskip.Route) bool { return !upserted[r.Id] })
+	rm := mapRoutes(routes)
+	notSet := func(r *eskip.Route) bool {
+		_, set := rm[r.Id]
+		return !set
+	}
+
+	return deleteAllIf(existing, out, notSet)
 }
 
 func deleteCmd(in, out *medium) error {
-	routes, err := loadRoutes(in)
+	routes, err := loadRoutesChecked(in)
 	if err != nil {
 		return err
 	}
 
-	return deleteAllIf(routes, out,
-		func(_ *eskip.Route) bool { return true })
+	return deleteAllIf(routes, out, any)
 }
