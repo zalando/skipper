@@ -52,6 +52,7 @@ func ensureId(r *eskip.Route) error {
 		return nil
 	}
 
+	// using this to avoid adding a new dependency.
 	id, err := flowid.NewFlowId(randomIdLength)
 	if err != nil {
 		return err
