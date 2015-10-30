@@ -24,16 +24,15 @@ import (
 const randomIdLength = 16
 
 type (
-	routeCond     func(*eskip.Route) bool
-	twoRoutesCond func(left, right *eskip.Route) bool
-	routeMap      map[string]*eskip.Route
+	routePredicate func(*eskip.Route) bool
+	routeMap       map[string]*eskip.Route
 )
 
 var routeIdRx = regexp.MustCompile("\\W")
 
 func any(_ *eskip.Route) bool { return true }
 
-func routeDiffers(left, right *eskip.Route) bool {
+func routesDiffer(left, right *eskip.Route) bool {
 	return left.String() != right.String()
 }
 
@@ -79,12 +78,12 @@ func upsertAll(routes routeList, m *medium) error {
 	return nil
 }
 
-// take items from 'routes' that don't exist in 'ref' or fulfil 'altCond'.
-func takeDiff(ref routeList, routes routeList, altCond twoRoutesCond) routeList {
+// take items from 'routes' that don't exist in 'ref' or are different.
+func takeDiff(ref routeList, routes routeList) routeList {
 	mref := mapRoutes(ref)
 	var diff routeList
 	for _, r := range routes {
-		if rr, exists := mref[r.Id]; !exists || altCond(rr, r) {
+		if rr, exists := mref[r.Id]; !exists || routesDiffer(rr, r) {
 			diff = append(diff, r)
 		}
 	}
@@ -95,12 +94,12 @@ func takeDiff(ref routeList, routes routeList, altCond twoRoutesCond) routeList 
 // insert/update routes from 'update' that don't exist in 'existing' or
 // are different from the one with the same id in 'existing'.
 func upsertDifferent(existing routeList, update routeList, m *medium) error {
-	diff := takeDiff(existing, update, routeDiffers)
+	diff := takeDiff(existing, update)
 	return upsertAll(diff, m)
 }
 
 // delete all items in 'routes' that fulfil 'cond'.
-func deleteAllIf(routes routeList, m *medium, cond routeCond) error {
+func deleteAllIf(routes routeList, m *medium, cond routePredicate) error {
 	client := etcdclient.New(urlsToStrings(m.urls), m.path)
 	for _, r := range routes {
 		if !cond(r) {
