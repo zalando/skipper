@@ -26,7 +26,7 @@ var testEtcdUrls []*url.URL
 
 func init() {
 	etcdtest.Start()
-	urls, err := parseUrls(etcdtest.Urls)
+	urls, err := stringsToUrls(etcdtest.Urls)
 	if err != nil {
 		log.Fatal(err)
 	}
