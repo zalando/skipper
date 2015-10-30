@@ -14,7 +14,7 @@
 
 /*
 Package testdataclient provides a test implementation for the DataClient
-interface in the skipper/routing package.
+interface of the skipper/routing package.
 
 It uses in-memory route definitions that are passed in on construction,
 and can upserted/deleted programmatically.
@@ -60,7 +60,7 @@ func NewDoc(doc string) (*Client, error) {
 }
 
 // Returns the initial/current set of route definitions.
-func (c *Client) GetInitial() ([]*eskip.Route, error) {
+func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	if c.failNext > 0 {
 		c.upsert, c.deletedIds = nil, nil
 		c.failNext--
@@ -76,8 +76,8 @@ func (c *Client) GetInitial() ([]*eskip.Route, error) {
 }
 
 // Returns the route definitions upserted/deleted since the last call to
-// GetInitial.
-func (c *Client) GetUpdate() ([]*eskip.Route, []string, error) {
+// LoadAll.
+func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	<-c.signalUpdate
 
 	for _, id := range c.deletedIds {
@@ -123,7 +123,7 @@ func (c *Client) UpdateDoc(upsertDoc string, deletedIds []string) error {
 	return nil
 }
 
-// Sets the Client to fail on the next call to GetInitial or GetUpdate.
+// Sets the Client to fail on the next call to LoadAll or LoadUpdate.
 // Repeated call to FailNext will result the Client to fail as many
 // times as it was called.
 func (c *Client) FailNext() {

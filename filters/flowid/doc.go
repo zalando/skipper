@@ -32,20 +32,20 @@ both are options.
 
 Default parameters
 
-	FlowId()
+	flowId()
 
 Without any parameters, the filter doesn't reuse existing X-Flow-Id headers and generates new ones with 16 bytes.
 
 Reuse existing flow id
 
-	FlowId("reuse")
+	flowId("reuse")
 
 With only the first parameter with the string "reuse" the filter will accept an existing X-Flow-Id header, if
 it's present in the request.
 
 Generate bigger flow ids
 
-	FlowId("fo shizzle", 64)
+	flowId("fo shizzle", 64)
 
 This example doesn't accept a X-Flow-Id header and will always generate new flow ids with 64 bytes.
 
