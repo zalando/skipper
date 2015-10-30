@@ -19,7 +19,6 @@ import (
 	etcdclient "github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
-	"net/url"
 	"os"
 	"testing"
 )
@@ -27,20 +26,6 @@ import (
 const testStdinName = "testStdin"
 
 var ioError = errors.New("io error")
-
-func parseUrls(surls []string) ([]*url.URL, error) {
-	urls := make([]*url.URL, len(surls))
-	for i, s := range surls {
-		u, err := url.Parse(s)
-		if err != nil {
-			return nil, err
-		}
-
-		urls[i] = u
-	}
-
-	return urls, nil
-}
 
 func deleteRoutesFrom(prefix string) {
 	c := etcdclient.NewClient(etcdtest.Urls)
@@ -160,7 +145,7 @@ func TestCheckFile(t *testing.T) {
 }
 
 func TestCheckEtcdInvalid(t *testing.T) {
-	urls, err := parseUrls(etcdtest.Urls)
+	urls, err := stringsToUrls(etcdtest.Urls)
 	if err != nil {
 		t.Error(err)
 	}
@@ -179,7 +164,7 @@ func TestCheckEtcdInvalid(t *testing.T) {
 }
 
 func TestCheckEtcd(t *testing.T) {
-	urls, err := parseUrls(etcdtest.Urls)
+	urls, err := stringsToUrls(etcdtest.Urls)
 	if err != nil {
 		t.Error(err)
 	}
