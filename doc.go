@@ -17,10 +17,9 @@ Package skipper provides an HTTP routing library with flexible
 configuration and runtime update of the routing rules.
 
 Skipper acts as an HTTP reverse proxy that maps incoming requests to
-multiple HTTP backend services, based on routes selected by the
-attributes of the incoming requests. In between, both the requests and
-responses can be augmented by a filter chain defined individually for
-each route.
+multiple HTTP backend services, based on routes selected by the request
+attributes. In between, both the requests and responses can be augmented
+by a filter chain defined individually for each route.
 
 Skipper can load and update the route definitions from multiple data
 sources without being restarted.
@@ -50,6 +49,10 @@ Create a file with a route:
 
     echo 'hello: Path("/hello") -> "https://www.example.org"' > example.eskip
 
+Optionally, verify the syntax of the file:
+
+    eskip check example.eskip
+
 Start skipper and make an HTTP request through skipper:
 
     skipper -routes-file example.eskip &
@@ -58,7 +61,7 @@ Start skipper and make an HTTP request through skipper:
 
 Routing Mechanism
 
-The core of skipper's request processing is implemented by a rewerse
+The core of skipper's request processing is implemented by a reverse
 proxy in the 'proxy' package. The proxy takes the incoming request,
 passes it to the routing engine to receive the best matching route. If a
 route is found, the request is passed to all filters defined by it. The
@@ -94,8 +97,8 @@ Filters - Augmenting Requests
 
 Filters are executed in order of definition on the request and in
 reverse order on the response. They are used to modify request and
-response attributes like headers, or execute background tasks, e.g. like
-logging.  Some filters may handle the requests without proxying them to
+response attributes like headers, or execute background tasks, like
+logging. Some filters may handle the requests without proxying them to
 service backends. Filters, depending on their implementation, may
 accept/require parameters, that are set specific to the route.
 
@@ -160,7 +163,15 @@ as a library built into a program.  The simplest way to start skipper as
 a library is by calling the Run function of the current, root package.
 Each option accepted by the Run function is also wired in the default
 executable as a command line flag.  E.g. EtcdUrls becomes -etcd-urls as
-a comma separated list.
+a comma separated list. For command line help, enter:
+
+    skipper -help
+
+An additional utility, eskip can be used to verify, print, update and
+delete routes from/to files or etcd (Innkeeper on the roadmap). See the
+cmd/eskip command package, and/or enter in the command line:
+
+    eskip -help
 
 
 Extending Skipper
@@ -172,7 +183,7 @@ library and extended with custom filters and/or custom data sources.
 Custom Filters
 
 To create a custom filter, the Spec interface of the filters package
-needs to be implemented. Spec is the specification of a filter, and it
+needs to be implemented. 'Spec' is the specification of a filter, and it
 is used to create concrete filter instances for each route that
 references it, during the route definitions are processed.
 
@@ -214,7 +225,7 @@ Example, hellofilter.go:
 The above example creates a filter specification, whose filter instances
 will set the X-Hello header for every response in the routes they are
 included in. The name of the filter is 'hello', and can be referenced in
-route definitions as:
+a route definitions as:
 
     Any() -> hello("world") -> "https://www.example.org"
 
@@ -242,7 +253,7 @@ Example, hello.go:
             CustomFilters: []filters.Spec{&helloSpec{}}}))
     }
 
-Routes file, routes.eskip:
+A file containing the routes, routes.eskip:
 
     Any() -> hello("world") -> "https://www.example.org"
 
