@@ -68,7 +68,7 @@ func ExampleClient_Update() {
 		{Id: "route2", Path: "/some/path", Backend: "https://www2.example.org"}})
 
 	// check initial routes:
-	routes, err := dc.GetInitial()
+	routes, err := dc.LoadAll()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func ExampleClient_Update() {
 	}()
 
 	// receive the update:
-	routes, deletedIds, err := dc.GetUpdate()
+	routes, deletedIds, err := dc.LoadUpdate()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func ExampleClient_Update() {
 	}
 
 	// check all routes again:
-	routes, err = dc.GetInitial()
+	routes, err = dc.LoadAll()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -139,13 +139,13 @@ func ExampleClient_FailNext() {
 	dc.FailNext()
 
 	// wait for the third request to succeed:
-	_, err = dc.GetInitial()
+	_, err = dc.LoadAll()
 	fmt.Println(err)
 
-	_, err = dc.GetInitial()
+	_, err = dc.LoadAll()
 	fmt.Println(err)
 
-	routes, err := dc.GetInitial()
+	routes, err := dc.LoadAll()
 	if err != nil || len(routes) != 1 {
 		log.Fatal(err, len(routes))
 	}

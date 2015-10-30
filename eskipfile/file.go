@@ -46,8 +46,8 @@ func Open(path string) (*Client, error) {
 }
 
 // Returns the parsed route definitions found in the file.
-func (c Client) GetInitial() ([]*eskip.Route, error) { return c.routes, nil }
+func (c Client) LoadAll() ([]*eskip.Route, error) { return c.routes, nil }
 
 // Noop. The current implementation doesn't support watching the eskip
 // file for changes.
-func (c Client) GetUpdate() ([]*eskip.Route, []string, error) { return nil, nil, nil }
+func (c Client) LoadUpdate() ([]*eskip.Route, []string, error) { return nil, nil, nil }

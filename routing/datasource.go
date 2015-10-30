@@ -48,7 +48,7 @@ type incomingData struct {
 func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *incomingData) {
 	receiveInitial := func() {
 		for {
-			routes, err := c.GetInitial()
+			routes, err := c.LoadAll()
 			if err != nil {
 				log.Println("error while receiveing initial data;", err)
 				time.Sleep(pollTimeout)
@@ -63,7 +63,7 @@ func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *inco
 	receiveUpdates := func() {
 		for {
 			time.Sleep(pollTimeout)
-			routes, deletedIds, err := c.GetUpdate()
+			routes, deletedIds, err := c.LoadUpdate()
 			if err != nil {
 				log.Println("error while receiving update;", err)
 				return

@@ -31,6 +31,10 @@ Create a file with a route:
 
     echo 'hello: Path("/hello") -> "https://www.example.org"' > example.eskip
 
+Optionally, verify the syntax of the file:
+
+    eskip check example.eskip
+
 Start skipper and make an HTTP request through skipper:
 
     skipper -routes-file example.eskip &

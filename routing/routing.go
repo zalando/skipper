@@ -40,8 +40,8 @@ func (o MatchingOptions) ignoreTrailingSlash() bool {
 // DataClient instances provide data sources for
 // route definitions.
 type DataClient interface {
-	GetInitial() ([]*eskip.Route, error)
-	GetUpdate() ([]*eskip.Route, []string, error)
+	LoadAll() ([]*eskip.Route, error)
+	LoadUpdate() ([]*eskip.Route, []string, error)
 }
 
 // Initialization options for routing.
