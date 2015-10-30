@@ -167,7 +167,7 @@ a comma separated list. For command line help, enter:
 
     skipper -help
 
-And additional utility, eskip can be used to verify, print, update and
+An additional utility, eskip can be used to verify, print, update and
 delete routes from/to files or etcd (Innkeeper on the roadmap). See the
 cmd/eskip command package, and/or enter in the command line:
 
