@@ -46,7 +46,7 @@ Delete all routes from etcd:
 
     eskip print | eskip delete
 
-Copy all routes in etcd to under another prefix:
+Copy all routes in etcd under a different prefix:
 
     eskip print | eskip upsert -etcd-prefix /skipper-backup
 
