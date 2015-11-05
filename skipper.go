@@ -77,9 +77,8 @@ type Options struct {
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
 
-	// Flag indicating to ignore the verification of the TLS
-	// certificates of the backend services.
-	Insecure bool
+	// Flags controlling the proxy behavior.
+	ProxyOptions proxy.Options
 
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
@@ -109,7 +108,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.InnkeeperUrl != "" {
 		ic, err := innkeeper.New(innkeeper.Options{
-			o.InnkeeperUrl, o.Insecure, auth,
+			o.InnkeeperUrl, o.ProxyOptions.Insecure(), auth,
 			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
 		if err != nil {
 			return nil, err
@@ -182,7 +181,7 @@ func Run(o Options) error {
 		updateBuffer})
 
 	// create the proxy
-	proxy := proxy.New(routing, o.Insecure, o.PriorityRoutes...)
+	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
 
 	// start the http server
 	log.Printf("listening on %v\n", o.Address)
