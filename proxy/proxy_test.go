@@ -45,6 +45,31 @@ type priorityRoute struct {
 	match  func(r *http.Request) bool
 }
 
+type (
+	preserveOriginalSpec   struct{}
+	preserveOriginalFilter struct{}
+)
+
+func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
+
+func (cors *preserveOriginalSpec) CreateFilter(_ []interface{}) (filters.Filter, error) {
+	return &preserveOriginalFilter{}, nil
+}
+
+func preserveHeader(from, to http.Header) {
+	for key, vals := range from {
+		to[key+"-Preserved"] = vals
+	}
+}
+
+func (corf *preserveOriginalFilter) Request(ctx filters.FilterContext) {
+	preserveHeader(ctx.OriginalRequest().Header, ctx.Request().Header)
+}
+
+func (corf *preserveOriginalFilter) Response(ctx filters.FilterContext) {
+	preserveHeader(ctx.OriginalResponse().Header, ctx.Response().Header)
+}
+
 func (prt *priorityRoute) Match(r *http.Request) (*routing.Route, map[string]string) {
 	if prt.match(r) {
 		return prt.route, prt.params
@@ -70,6 +95,8 @@ func writeParts(w io.Writer, parts int, data []byte) {
 func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		check(r)
+
+		w.Header().Set("X-Test-Response-Header", "response header value")
 
 		if len(payload) <= 0 {
 			return
@@ -124,7 +151,7 @@ func TestGetRoundtrip(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), false)
+		0}), OptionsNone)
 
 	delay()
 
@@ -185,7 +212,7 @@ func TestPostRoundtrip(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), false)
+		0}), OptionsNone)
 
 	delay()
 
@@ -223,7 +250,7 @@ func TestRoute(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), false)
+		0}), OptionsNone)
 
 	delay()
 
@@ -272,7 +299,7 @@ func TestStreaming(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), false)
+		0}), OptionsNone)
 
 	delay()
 
@@ -352,7 +379,7 @@ func TestAppliesFilters(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), false)
+		0}), OptionsNone)
 
 	delay()
 
@@ -385,7 +412,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), false)
+		0}), OptionsNone)
 
 	delay()
 
@@ -418,7 +445,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		return r == req
 	}}
 
-	doc := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
+	doc := `hello: Path("/hello") -> <shunt>`
 	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
@@ -429,7 +456,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), false, prt)
+		0}), OptionsNone, prt)
 
 	delay()
 
@@ -477,7 +504,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), false, prt)
+		0}), OptionsNone, prt)
 
 	delay()
 
@@ -509,7 +536,7 @@ func TestFlusherImplementation(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), false)
+		0}), OptionsNone)
 
 	delay()
 
@@ -533,5 +560,45 @@ func TestFlusherImplementation(t *testing.T) {
 	}
 	if string(b) != "Hello, world!" {
 		t.Error("failed to receive response")
+	}
+}
+
+func TestOriginalRequestResponse(t *testing.T) {
+	s := startTestServer(nil, 0, func(r *http.Request) {
+		if th, ok := r.Header["X-Test-Header-Preserved"]; !ok || th[0] != "test value" {
+			t.Error("wrong request header")
+		}
+	})
+
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"X-Test-Header": []string{"test value"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> preserveOriginal() -> "%s"`, s.URL)
+	dc, err := testdataclient.NewDoc(doc)
+	if err != nil {
+		t.Error(err)
+	}
+
+	fr := builtin.MakeRegistry()
+	fr.Register(&preserveOriginalSpec{})
+	p := New(routing.New(routing.Options{
+		fr,
+		routing.MatchingOptionsNone,
+		sourcePollTimeout,
+		[]routing.DataClient{dc},
+		0}), OptionsPreserveOriginal)
+
+	delay()
+
+	p.ServeHTTP(w, r)
+
+	if th, ok := w.Header()["X-Test-Response-Header-Preserved"]; !ok || th[0] != "response header value" {
+		t.Error("wrong response header", ok)
 	}
 }

@@ -49,7 +49,7 @@ func ExampleFilter() {
 		routing.New(routing.Options{
 			DataClients:    []routing.DataClient{dc},
 			FilterRegistry: fr}),
-		false)
+		proxy.OptionsNone)
 }
 
 func ExampleContext() {
