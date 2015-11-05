@@ -31,6 +31,7 @@ package main
 import (
 	"flag"
 	"github.com/zalando/skipper"
+	"github.com/zalando/skipper/proxy"
 	"log"
 	"strings"
 	"time"
@@ -94,11 +95,10 @@ func init() {
 }
 
 func main() {
-	log.Fatal(skipper.Run(skipper.Options{
+	options := skipper.Options{
 		Address:                   address,
 		EtcdUrls:                  strings.Split(etcdUrls, ","),
 		EtcdPrefix:                etcdPrefix,
-		Insecure:                  insecure,
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 		RoutesFile:                routesFile,
@@ -109,5 +109,10 @@ func main() {
 		InnkeeperAuthToken:        innkeeperAuthToken,
 		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
 		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
-		DevMode:                   devMode}))
+		DevMode:                   devMode}
+	if insecure {
+		options.ProxyOptions |= proxy.OptionsInsecure
+	}
+
+	log.Fatal(skipper.Run(options))
 }
