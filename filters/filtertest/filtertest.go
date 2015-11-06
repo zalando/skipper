@@ -51,6 +51,8 @@ func (fc *Context) MarkServed()                         { fc.FServed = true }
 func (fc *Context) Served() bool                        { return fc.FServed }
 func (fc *Context) PathParam(key string) string         { return fc.FParams[key] }
 func (fc *Context) StateBag() map[string]interface{}    { return fc.FStateBag }
+func (fc *Context) OriginalRequest() *http.Request      { return nil }
+func (fc *Context) OriginalResponse() *http.Response    { return nil }
 
 func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
 	return &Filter{spec.FilterName, config}, nil

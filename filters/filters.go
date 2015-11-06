@@ -20,6 +20,20 @@ type FilterContext interface {
 	// properties changed by the filters.
 	Response() *http.Response
 
+	// The copy (deep) of the original incoming request or nil if the
+	// implementation does not provide it.
+	//
+	// The object received from this method contains an empty body, and all
+	// payload related properties have zero value.
+	OriginalRequest() *http.Request
+
+	// The copy (deep) of the original incoming response or nil if the
+	// implementation does not provide it.
+	//
+	// The object received from this method contains an empty body, and all
+	// payload related properties have zero value.
+	OriginalResponse() *http.Response
+
 	// Returns true if the request was served by any of the filters in a
 	// route.
 	Served() bool

@@ -32,5 +32,5 @@ func Example() {
 	proxy.New(
 		routing.New(routing.Options{
 			DataClients: []routing.DataClient{dataClient}}),
-		false)
+		proxy.OptionsNone)
 }
