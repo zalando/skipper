@@ -65,7 +65,7 @@ func Example() {
 	// create a proxy instance, and start an http server:
 	proxy := proxy.New(routing.New(routing.Options{
 		FilterRegistry: filterRegistry,
-		DataClients:    []routing.DataClient{dataClient}}), false)
+		DataClients:    []routing.DataClient{dataClient}}), proxy.OptionsNone)
 	router := httptest.NewServer(proxy)
 	defer router.Close()
 
@@ -113,6 +113,6 @@ func ExamplePriorityRoute() {
 		routing.New(routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
 			DataClients:    []routing.DataClient{dataClient}}),
-		false,
+		proxy.OptionsNone,
 		pr)
 }

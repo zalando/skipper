@@ -23,6 +23,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 )
 
 const (
@@ -37,6 +38,28 @@ const (
 	// Also: it should be a parameter.
 	idleConnsPerHost = 64
 )
+
+type Options uint
+
+const (
+	OptionsNone Options = 0
+
+	// Flag indicating to ignore the verification of the TLS
+	// certificates of the backend services.
+	OptionsInsecure Options = 1 << iota
+
+	// Flag indicating whether filters require the preserved original
+	// metadata of the request and the response.
+	OptionsPreserveOriginal
+)
+
+func (o Options) Insecure() bool {
+	return o&OptionsInsecure != 0
+}
+
+func (o Options) PreserveOriginal() bool {
+	return o&OptionsPreserveOriginal != 0
+}
 
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
@@ -54,26 +77,29 @@ type flusherWriter interface {
 }
 
 // a byte buffer implementing the Closer interface
-type shuntBody struct {
+type bodyBuffer struct {
 	*bytes.Buffer
 }
 
 type proxy struct {
-	routing        *routing.Routing
-	roundTripper   http.RoundTripper
-	priorityRoutes []PriorityRoute
+	routing          *routing.Routing
+	roundTripper     http.RoundTripper
+	priorityRoutes   []PriorityRoute
+	preserveOriginal bool
 }
 
 type filterContext struct {
-	w          http.ResponseWriter
-	req        *http.Request
-	res        *http.Response
-	served     bool
-	pathParams map[string]string
-	stateBag   map[string]interface{}
+	w                http.ResponseWriter
+	req              *http.Request
+	res              *http.Response
+	served           bool
+	pathParams       map[string]string
+	stateBag         map[string]interface{}
+	originalRequest  *http.Request
+	originalResponse *http.Response
 }
 
-func (sb shuntBody) Close() error {
+func (sb bodyBuffer) Close() error {
 	return nil
 }
 
@@ -141,13 +167,13 @@ func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 // proxy skips the TLS verification for the requests made to the
 // route backends. It accepts an optional list of priority routes to
 // be used for matching before the general lookup tree.
-func New(r *routing.Routing, insecure bool, pr ...PriorityRoute) http.Handler {
+func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler {
 	tr := &http.Transport{}
-	if insecure {
+	if options.Insecure() {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{r, tr, pr}
+	return &proxy{r, tr, pr, options.PreserveOriginal()}
 }
 
 // calls a function with recovering from panics and logging them
@@ -176,6 +202,45 @@ func applyFiltersToResponse(f []filters.Filter, ctx filters.FilterContext) {
 	}
 }
 
+func cloneUrl(u *url.URL) *url.URL {
+	uc := *u
+	return &uc
+}
+
+func cloneRequestMetadata(r *http.Request) *http.Request {
+	return &http.Request{
+		Method:           r.Method,
+		URL:              cloneUrl(r.URL),
+		Proto:            r.Proto,
+		ProtoMajor:       r.ProtoMajor,
+		ProtoMinor:       r.ProtoMinor,
+		Header:           cloneHeader(r.Header),
+		Body:             &bodyBuffer{&bytes.Buffer{}},
+		ContentLength:    r.ContentLength,
+		TransferEncoding: r.TransferEncoding,
+		Close:            r.Close,
+		Host:             r.Host,
+		RemoteAddr:       r.RemoteAddr,
+		RequestURI:       r.RequestURI,
+		TLS:              r.TLS}
+}
+
+func cloneResponseMetadata(r *http.Response) *http.Response {
+	return &http.Response{
+		Status:           r.Status,
+		StatusCode:       r.StatusCode,
+		Proto:            r.Proto,
+		ProtoMajor:       r.ProtoMajor,
+		ProtoMinor:       r.ProtoMinor,
+		Header:           cloneHeader(r.Header),
+		Body:             &bodyBuffer{&bytes.Buffer{}},
+		ContentLength:    r.ContentLength,
+		TransferEncoding: r.TransferEncoding,
+		Close:            r.Close,
+		Request:          r.Request,
+		TLS:              r.TLS}
+}
+
 func (c *filterContext) ResponseWriter() http.ResponseWriter { return c.w }
 func (c *filterContext) Request() *http.Request              { return c.req }
 func (c *filterContext) Response() *http.Response            { return c.res }
@@ -184,12 +249,20 @@ func (c *filterContext) Served() bool                        { return c.served }
 func (c *filterContext) PathParam(key string) string         { return c.pathParams[key] }
 func (c *filterContext) StateBag() map[string]interface{}    { return c.stateBag }
 
+func (c *filterContext) OriginalRequest() *http.Request {
+	return c.originalRequest
+}
+
+func (c *filterContext) OriginalResponse() *http.Response {
+	return c.originalResponse
+}
+
 // creates an empty shunt response with the status code initially 404
 func shunt(r *http.Request) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusNotFound,
 		Header:     make(http.Header),
-		Body:       &shuntBody{&bytes.Buffer{}},
+		Body:       &bodyBuffer{&bytes.Buffer{}},
 		Request:    r}
 }
 
@@ -232,7 +305,14 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := rt.Filters
-	c := &filterContext{w, r, nil, false, params, make(map[string]interface{})}
+	c := &filterContext{
+		w:          w,
+		req:        r,
+		pathParams: params,
+		stateBag:   make(map[string]interface{})}
+	if p.preserveOriginal {
+		c.originalRequest = cloneRequestMetadata(r)
+	}
 	applyFiltersToRequest(f, c)
 
 	var (
@@ -260,6 +340,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	addBranding(rs)
 
 	c.res = rs
+	if p.preserveOriginal {
+		c.originalResponse = cloneResponseMetadata(rs)
+	}
 	applyFiltersToResponse(f, c)
 
 	if !c.Served() {
