@@ -82,5 +82,5 @@ func Example() {
 		routing.New(routing.Options{
 			FilterRegistry: registry,
 			DataClients:    []routing.DataClient{dataClient}}),
-		false)
+		proxy.OptionsNone)
 }
