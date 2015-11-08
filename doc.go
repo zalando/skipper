@@ -43,7 +43,7 @@ Skipper is 'go get' compatible. If needed, create a go workspace first:
 
 Get the skipper packages:
 
-    go get github.com/zalando/skipper
+    go get github.com/zalando/skipper/...
 
 Create a file with a route:
 
