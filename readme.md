@@ -55,16 +55,12 @@ Getting the code (with optionally creating a workspace):
     cd ws
     export GOPATH=$(pwd)
     export PATH=$PATH:$GOPATH/bin
-    go get github.com/zalando/skipper
+    go get -t github.com/zalando/skipper
 
 Build:
 
     cd src/github.com/zalando/skipper
     go install ./cmd/skipper
-
-The tests require [etcd](https://github.com/coreos/etcd) in the workspace:
-
-    go get github.com/coreos/etcd
 
 Test:
 
