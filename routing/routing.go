@@ -82,7 +82,7 @@ type Options struct {
 // Filter contains extensions to generic filter
 // interface, serving mainly logging/monitoring
 // purpose.
-type Filter struct {
+type RouteFilter struct {
 	filters.Filter
 	Name  string
 	Index int
@@ -98,7 +98,7 @@ type Route struct {
 	Scheme, Host string
 
 	// The preprocessed filter instances.
-	Filters []*Filter
+	Filters []*RouteFilter
 }
 
 // Routing ('router') instance providing live
