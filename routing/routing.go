@@ -25,7 +25,6 @@ import (
 type MatchingOptions uint
 
 const (
-
 	// All options are default.
 	MatchingOptionsNone MatchingOptions = 0
 
@@ -80,6 +79,15 @@ type Options struct {
 	UpdateBuffer int
 }
 
+// Filter contains extensions to generic filter
+// interface, serving mainly logging/monitoring
+// purpose.
+type Filter struct {
+	filters.Filter
+	Name  string
+	Index int
+}
+
 // Route object with preprocessed filter instances.
 type Route struct {
 
@@ -90,7 +98,7 @@ type Route struct {
 	Scheme, Host string
 
 	// The preprocessed filter instances.
-	Filters []filters.Filter
+	Filters []*Filter
 }
 
 // Routing ('router') instance providing live
