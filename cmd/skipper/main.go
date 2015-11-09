@@ -39,7 +39,6 @@ import (
 
 const (
 	defaultAddress           = ":9090"
-	defaultEtcdUrls          = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix        = "/skipper"
 	defaultSourcePollTimeout = int64(3000)
 
@@ -78,7 +77,7 @@ var (
 
 func init() {
 	flag.StringVar(&address, "address", defaultAddress, addressUsage)
-	flag.StringVar(&etcdUrls, "etcd-urls", defaultEtcdUrls, etcdUrlsUsage)
+	flag.StringVar(&etcdUrls, "etcd-urls", "", etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
@@ -95,9 +94,14 @@ func init() {
 }
 
 func main() {
+	var eus []string
+	if len(etcdUrls) > 0 {
+		eus = strings.Split(etcdUrls, ",")
+	}
+
 	options := skipper.Options{
 		Address:                   address,
-		EtcdUrls:                  strings.Split(etcdUrls, ","),
+		EtcdUrls:                  eus,
 		EtcdPrefix:                etcdPrefix,
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
