@@ -26,10 +26,6 @@ routes will get the etcd key as id.
 In addition to the DataClient implementation, type Client provides
 methods to Upsert and Delete routes.
 
-Note to contributors: this package requires etcd for running the tests.
-
-    go get github.com/coreos/etcd
-
 The etcd packages need to be downloaded separately before running the
 tests, because the skipper program itself doesn't depend on it, only the
 tests.
