@@ -175,15 +175,15 @@ func createFilter(fr filters.Registry, def *eskip.Filter) (filters.Filter, error
 
 // creates filter instances based on their definition
 // and the filter registry.
-func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]filters.Filter, error) {
-	var fs []filters.Filter
-	for _, def := range defs {
+func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]*Filter, error) {
+	var fs []*Filter
+	for i, def := range defs {
 		f, err := createFilter(fr, def)
 		if err != nil {
 			return nil, err
 		}
 
-		fs = append(fs, f)
+		fs = append(fs, &Filter{f, def.Name, i})
 	}
 
 	return fs, nil
