@@ -188,14 +188,14 @@ func callSafe(p func()) {
 }
 
 // applies all filters to a request
-func applyFiltersToRequest(f []*routing.Filter, ctx filters.FilterContext) {
+func applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.FilterContext) {
 	for _, fi := range f {
 		callSafe(func() { fi.Request(ctx) })
 	}
 }
 
 // applies all filters to a response
-func applyFiltersToResponse(f []*routing.Filter, ctx filters.FilterContext) {
+func applyFiltersToResponse(f []*routing.RouteFilter, ctx filters.FilterContext) {
 	for i, _ := range f {
 		fi := f[len(f)-1-i]
 		callSafe(func() { fi.Response(ctx) })
