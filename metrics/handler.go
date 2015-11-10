@@ -35,9 +35,7 @@ func (m *MetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b, err := json.Marshal(m.reg)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			// not sure if should return the errors, not writing anything only an error status code
-			// will make automatically add the standard message for the status, and i think that's
-			// enough for the public.
+			// not sure if should return the errors, https.StatusText(int) should be enough for the public.
 			w.Write([]byte(err.Error()))
 			return
 		}
