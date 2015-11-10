@@ -21,10 +21,12 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
+	slog "github.com/zalando/skipper/log"
 	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -136,6 +138,11 @@ func createInnkeeperAuthentication(o Options) innkeeper.Authentication {
 
 // Run skipper.
 func Run(o Options) error {
+	// init log
+	slog.Init(slog.Options{
+		ApplicationLogPrefix: "[APPLICATION_LOG] ",
+		AccessLogOutput:      os.Stderr})
+
 	// create authentication for Innkeeper
 	auth := createInnkeeperAuthentication(o)
 
@@ -189,6 +196,6 @@ func Run(o Options) error {
 	// metricsHandler :=
 
 	// start the http server
-	log.Infof("listening on %v\n", o.Address)
+	log.Infof("listening on %v", o.Address)
 	return http.ListenAndServe(o.Address, proxy)
 }

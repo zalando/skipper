@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	slog "github.com/zalando/skipper/log"
 	"github.com/zalando/skipper/routing"
 	"io"
 	"net/http"
@@ -308,6 +309,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rt, params := p.matchAndRoute(r)
 	if rt == nil {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		println("logging access")
+		// TODO: use always the original request, clone it, always
+		slog.Access(&slog.AccessEntry{Request: r})
 		return
 	}
 	// </measure>
