@@ -1,0 +1,10 @@
+sudo: false
+
+language: go
+
+script:
+  - go test github.com/zalando/skipper/...
+
+notifications:
+  email:
+    - arpad.ryszka@zalando.de
