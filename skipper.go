@@ -15,6 +15,7 @@
 package skipper
 
 import (
+	"github.com/golang/glog"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
@@ -23,7 +24,6 @@ import (
 	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
-	"log"
 	"net/http"
 	"time"
 )
@@ -100,6 +100,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	if o.RoutesFile != "" {
 		f, err := eskipfile.Open(o.RoutesFile)
 		if err != nil {
+			glog.Error(err)
 			return nil, err
 		}
 
@@ -111,6 +112,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			o.InnkeeperUrl, o.ProxyOptions.Insecure(), auth,
 			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
 		if err != nil {
+			glog.Error(err)
 			return nil, err
 		}
 
@@ -144,7 +146,7 @@ func Run(o Options) error {
 	}
 
 	if len(dataClients) == 0 {
-		log.Println("warning: no route source specified")
+		glog.Warning("no route source specified")
 	}
 
 	// create a filter registry with the available filter specs registered,
@@ -183,7 +185,10 @@ func Run(o Options) error {
 	// create the proxy
 	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
 
-	// start the http server
-	log.Printf("listening on %v\n", o.Address)
+	// create the metrics wrapper
+	metricsHandler :=
+
+		// start the http server
+		glog.Infof("listening on %v\n", o.Address)
 	return http.ListenAndServe(o.Address, proxy)
 }
