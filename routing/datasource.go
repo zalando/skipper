@@ -16,9 +16,9 @@ package routing
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"log"
 	"net/url"
 	"time"
 )
