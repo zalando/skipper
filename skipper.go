@@ -16,11 +16,13 @@ package skipper
 
 import (
 	"github.com/golang/glog"
+	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
+	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -182,13 +184,22 @@ func Run(o Options) error {
 		dataClients,
 		updateBuffer})
 
-	// create the proxy
-	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
+	r := metrics.NewRegistry()
 
-	// create the metrics wrapper
-	// metricsHandler :=
+	// Have some options enabling these?
+	metrics.RegisterDebugGCStats(r)
+	go metrics.CaptureDebugGCStats(r, 5e9)
+
+	metrics.RegisterRuntimeMemStats(r)
+	go metrics.CaptureRuntimeMemStats(r, 5e9)
+
+	// create the proxy
+	proxy := proxy.New(routing, o.ProxyOptions, r, o.PriorityRoutes...)
+
+	// create the access log handler
+	loggingHandler := logging.NewHandler(proxy, r)
 
 	// start the http server
 	glog.Infof("listening on %v\n", o.Address)
-	return http.ListenAndServe(o.Address, proxy)
+	return http.ListenAndServe(o.Address, loggingHandler)
 }

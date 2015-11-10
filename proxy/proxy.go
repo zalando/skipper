@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"github.com/golang/glog"
+	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/routing"
 	"io"
@@ -85,6 +86,7 @@ type proxy struct {
 	roundTripper     http.RoundTripper
 	priorityRoutes   []PriorityRoute
 	preserveOriginal bool
+	registry         metrics.Registry
 }
 
 type filterContext struct {
@@ -161,13 +163,13 @@ func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 // proxy skips the TLS verification for the requests made to the
 // route backends. It accepts an optional list of priority routes to
 // be used for matching before the general lookup tree.
-func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler {
+func New(r *routing.Routing, options Options, reg metrics.Registry, pr ...PriorityRoute) http.Handler {
 	tr := &http.Transport{}
 	if options.Insecure() {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{r, tr, pr, options.PreserveOriginal()}
+	return &proxy{r, tr, pr, options.PreserveOriginal(), reg}
 }
 
 // calls a function with recovering from panics and logging them
@@ -304,12 +306,18 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		glog.Error(err)
 	}
 
-	// <measure>
-	rt, params := p.matchAndRoute(r)
-	if rt == nil {
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		return
-	}
+	// Example
+	var (
+		rt     *routing.Route
+		params map[string]string
+	)
+	metrics.GetOrRegisterTimer("zmon.skipper.routing.matcher", p.registry).Time(func() {
+		rt, params = p.matchAndRoute(r)
+		if rt == nil {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+	})
 	// </measure>
 
 	// <measure>
