@@ -17,7 +17,7 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
-	"github.com/golang/glog"
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/routing"
 	"io"
@@ -174,7 +174,7 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler 
 func callSafe(p func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			glog.Error("filter", err)
+			log.Error("filter", err)
 		}
 	}()
 
@@ -301,7 +301,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hterr := func(err error) {
 		// todo: just a bet that we shouldn't send here 50x
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		glog.Error(err)
+		log.Error(err)
 	}
 
 	// <measure>
@@ -342,7 +342,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			err = rs.Body.Close()
 			if err != nil {
-				glog.Error(err)
+				log.Error(err)
 			}
 		}()
 	}

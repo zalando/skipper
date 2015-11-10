@@ -30,9 +30,9 @@ package main
 
 import (
 	"flag"
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/proxy"
-	"log"
 	"strings"
 	"time"
 )
