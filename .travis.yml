@@ -6,7 +6,7 @@ go:
   - tip
 
 script:
-  - go test github.com/zalando/skipper/...
+  - go test github.com/zalando/skipper/... -test.short
 
 notifications:
   email:

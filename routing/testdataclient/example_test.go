@@ -61,7 +61,7 @@ func ExampleNewDoc() {
 	}
 }
 
-func ExampleClient_Update() {
+func DisabledExampleClient_Update() {
 	// create a data client:
 	dc := testdataclient.New([]*eskip.Route{
 		{Id: "route1", Path: "/some/path", Backend: "https://www1.example.org"},
