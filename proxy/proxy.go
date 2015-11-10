@@ -182,7 +182,7 @@ func callSafe(p func()) {
 }
 
 // applies all filters to a request
-func applyFiltersToRequest(f []filters.Filter, ctx filters.FilterContext) {
+func applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.FilterContext) {
 	for _, fi := range f {
 		// <measure>
 		// missing filter name :(
@@ -192,7 +192,7 @@ func applyFiltersToRequest(f []filters.Filter, ctx filters.FilterContext) {
 }
 
 // applies all filters to a response
-func applyFiltersToResponse(f []filters.Filter, ctx filters.FilterContext) {
+func applyFiltersToResponse(f []*routing.RouteFilter, ctx filters.FilterContext) {
 	count := len(f)
 	for i, _ := range f {
 		fi := f[count-1-i]
@@ -274,6 +274,11 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, e
 	}
 
 	return p.roundTripper.RoundTrip(rr)
+}
+
+func addBranding(rs *http.Response) {
+	rs.Header.Set("X-Powered-By", "Skipper")
+	rs.Header.Set("Server", "Skipper")
 }
 
 func (p *proxy) matchAndRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
@@ -359,9 +364,4 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		copyStream(w.(flusherWriter), rs.Body)
 	}
 	// </measure>
-}
-
-func addBranding(rs *http.Response) {
-	rs.Header.Set("X-Powered-By", "Skipper")
-	rs.Header.Set("Server", "Skipper")
 }

@@ -186,9 +186,9 @@ func Run(o Options) error {
 	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
 
 	// create the metrics wrapper
-	metricsHandler :=
+	// metricsHandler :=
 
-		// start the http server
-		glog.Infof("listening on %v\n", o.Address)
+	// start the http server
+	glog.Infof("listening on %v\n", o.Address)
 	return http.ListenAndServe(o.Address, proxy)
 }
