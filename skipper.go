@@ -15,7 +15,7 @@
 package skipper
 
 import (
-	"github.com/golang/glog"
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
@@ -100,7 +100,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	if o.RoutesFile != "" {
 		f, err := eskipfile.Open(o.RoutesFile)
 		if err != nil {
-			glog.Error(err)
+			log.Error(err)
 			return nil, err
 		}
 
@@ -112,7 +112,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			o.InnkeeperUrl, o.ProxyOptions.Insecure(), auth,
 			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
 		if err != nil {
-			glog.Error(err)
+			log.Error(err)
 			return nil, err
 		}
 
@@ -146,7 +146,7 @@ func Run(o Options) error {
 	}
 
 	if len(dataClients) == 0 {
-		glog.Warning("no route source specified")
+		log.Warning("no route source specified")
 	}
 
 	// create a filter registry with the available filter specs registered,
@@ -189,6 +189,6 @@ func Run(o Options) error {
 	// metricsHandler :=
 
 	// start the http server
-	glog.Infof("listening on %v\n", o.Address)
+	log.Infof("listening on %v\n", o.Address)
 	return http.ListenAndServe(o.Address, proxy)
 }
