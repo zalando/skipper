@@ -220,6 +220,12 @@ func TestUpdateDoesNotChangeRouting(t *testing.T) {
 }
 
 func TestMergesMultipleSources(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	t.Error()
+
 	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
 	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
 	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
@@ -329,6 +335,10 @@ func TestIgnoresInvalidBackend(t *testing.T) {
 }
 
 func TestProcessesFilterDefinitions(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	fr := make(filters.Registry)
 	fs := &filtertest.Filter{FilterName: "filter1"}
 	fr.Register(fs)
