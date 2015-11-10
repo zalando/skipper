@@ -17,11 +17,10 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
-	"fmt"
+	"github.com/golang/glog"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/routing"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 )
@@ -103,11 +102,6 @@ func (sb bodyBuffer) Close() error {
 	return nil
 }
 
-// creates a formatted error
-func proxyError(m string) error {
-	return fmt.Errorf(proxyErrorFmt, m)
-}
-
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
 		to[http.CanonicalHeaderKey(k)] = v
@@ -180,7 +174,7 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler 
 func callSafe(p func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("filter", err)
+			glog.Error("filter", err)
 		}
 	}()
 
@@ -190,15 +184,21 @@ func callSafe(p func()) {
 // applies all filters to a request
 func applyFiltersToRequest(f []filters.Filter, ctx filters.FilterContext) {
 	for _, fi := range f {
+		// <measure>
+		// missing filter name :(
 		callSafe(func() { fi.Request(ctx) })
+		// </measure>
 	}
 }
 
 // applies all filters to a response
 func applyFiltersToResponse(f []filters.Filter, ctx filters.FilterContext) {
+	count := len(f)
 	for i, _ := range f {
-		fi := f[len(f)-1-i]
+		fi := f[count-1-i]
+		// <measure>
 		callSafe(func() { fi.Response(ctx) })
+		// </measure>
 	}
 }
 
@@ -276,19 +276,7 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, e
 	return p.roundTripper.RoundTrip(rr)
 }
 
-// http.Handler implementation
-func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	hterr := func(err error) {
-		// todo: just a bet that we shouldn't send here 50x
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		log.Println(err)
-	}
-
-	var (
-		rt     *routing.Route
-		params map[string]string
-	)
-
+func (p *proxy) matchAndRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
 	for _, prt := range p.priorityRoutes {
 		rt, params = prt.Match(r)
 		if rt != nil {
@@ -297,13 +285,29 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rt == nil {
-		rt, params = p.routing.Route(r)
-		if rt == nil {
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-			return
-		}
+		return p.routing.Route(r)
 	}
 
+	return nil, nil
+}
+
+// http.Handler implementation
+func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	hterr := func(err error) {
+		// todo: just a bet that we shouldn't send here 50x
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		glog.Error(err)
+	}
+
+	// <measure>
+	rt, params := p.matchAndRoute(r)
+	if rt == nil {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
+	}
+	// </measure>
+
+	// <measure>
 	f := rt.Filters
 	c := &filterContext{
 		w:          w,
@@ -314,12 +318,13 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		c.originalRequest = cloneRequestMetadata(r)
 	}
 	applyFiltersToRequest(f, c)
+	// </measure>
 
+	// <measure>
 	var (
 		rs  *http.Response
 		err error
 	)
-
 	if rt.Shunt {
 		rs = shunt(r)
 	} else {
@@ -332,24 +337,28 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			err = rs.Body.Close()
 			if err != nil {
-				log.Println(err)
+				glog.Error(err)
 			}
 		}()
 	}
-
 	addBranding(rs)
+	// </measure>
 
+	// <measure>
 	c.res = rs
 	if p.preserveOriginal {
 		c.originalResponse = cloneResponseMetadata(rs)
 	}
 	applyFiltersToResponse(f, c)
+	// </measure>
 
+	// <measure>
 	if !c.Served() {
 		copyHeader(w.Header(), rs.Header)
 		w.WriteHeader(rs.StatusCode)
 		copyStream(w.(flusherWriter), rs.Body)
 	}
+	// </measure>
 }
 
 func addBranding(rs *http.Response) {
