@@ -33,6 +33,7 @@ func (lh *LoggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.RequestURI == "/metrics" {
 		w.WriteHeader(http.StatusOK)
 		metrics.WriteJSONOnce(lh.registry, w)
+		return
 	}
 
 	now := time.Now()
@@ -46,5 +47,5 @@ func (lh *LoggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.code = 200
 	}
 
-	log.Infof("dump access.log with duration", dur)
+	log.Infof("dump access.log with duration %v", dur)
 }

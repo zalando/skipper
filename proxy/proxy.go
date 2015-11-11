@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 const (
@@ -183,27 +184,6 @@ func callSafe(p func()) {
 	p()
 }
 
-// applies all filters to a request
-func applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.FilterContext) {
-	for _, fi := range f {
-		// <measure>
-		// missing filter name :(
-		callSafe(func() { fi.Request(ctx) })
-		// </measure>
-	}
-}
-
-// applies all filters to a response
-func applyFiltersToResponse(f []*routing.RouteFilter, ctx filters.FilterContext) {
-	count := len(f)
-	for i, _ := range f {
-		fi := f[count-1-i]
-		// <measure>
-		callSafe(func() { fi.Response(ctx) })
-		// </measure>
-	}
-}
-
 func cloneUrl(u *url.URL) *url.URL {
 	uc := *u
 	return &uc
@@ -268,6 +248,15 @@ func shunt(r *http.Request) *http.Response {
 		Request:    r}
 }
 
+// applies all filters to a request
+func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.FilterContext) {
+	for _, fi := range f {
+		metrics.GetOrRegisterTimer("zmon.skipper.proxy.request."+fi.Name, p.registry).Time(func() {
+			callSafe(func() { fi.Request(ctx) })
+		})
+	}
+}
+
 // executes an http roundtrip to a route backend
 func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, error) {
 	rr, err := mapRequest(r, rt)
@@ -276,6 +265,17 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, e
 	}
 
 	return p.roundTripper.RoundTrip(rr)
+}
+
+// applies all filters to a response
+func (p *proxy) applyFiltersToResponse(f []*routing.RouteFilter, ctx filters.FilterContext) {
+	count := len(f)
+	for i, _ := range f {
+		fi := f[count-1-i]
+		metrics.GetOrRegisterTimer("zmon.skipper.proxy.response."+fi.Name, p.registry).Time(func() {
+			callSafe(func() { fi.Response(ctx) })
+		})
+	}
 }
 
 func addBranding(rs *http.Response) {
@@ -302,24 +302,19 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Error(err)
 	}
 
-	// Example
-	var (
-		rt     *routing.Route
-		params map[string]string
-	)
-	metrics.GetOrRegisterTimer("zmon.skipper.routing.matcher", p.registry).Time(func() {
-		rt, params = p.matchAndRoute(r)
-		if rt == nil {
-			println("no route here")
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		}
-	})
+	start := time.Now()
+	rt, params := p.matchAndRoute(r)
+	if rt == nil {
+		println("no route here")
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+	}
 
 	if rt == nil {
 		return
 	}
+	metrics.GetOrRegisterTimer("zmon.skipper.proxy.routing", p.registry).UpdateSince(start)
 
-	// <measure>
+	start = time.Now()
 	f := rt.Filters
 	c := &filterContext{
 		w:          w,
@@ -329,10 +324,10 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if p.preserveOriginal {
 		c.originalRequest = cloneRequestMetadata(r)
 	}
-	applyFiltersToRequest(f, c)
-	// </measure>
+	p.applyFiltersToRequest(f, c)
+	metrics.GetOrRegisterTimer("zmon.skipper.proxy.request", p.registry).UpdateSince(start)
 
-	// <measure>
+	start = time.Now()
 	var (
 		rs  *http.Response
 		err error
@@ -354,21 +349,21 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 	addBranding(rs)
-	// </measure>
+	metrics.GetOrRegisterTimer("zmon.skipper.proxy.backend."+rt.Id, p.registry).UpdateSince(start)
 
-	// <measure>
+	start = time.Now()
 	c.res = rs
 	if p.preserveOriginal {
 		c.originalResponse = cloneResponseMetadata(rs)
 	}
-	applyFiltersToResponse(f, c)
-	// </measure>
+	p.applyFiltersToResponse(f, c)
+	metrics.GetOrRegisterTimer("zmon.skipper.proxy.response", p.registry).UpdateSince(start)
 
-	// <measure>
+	start = time.Now()
 	if !c.Served() {
 		copyHeader(w.Header(), rs.Header)
 		w.WriteHeader(rs.StatusCode)
 		copyStream(w.(flusherWriter), rs.Body)
 	}
-	// </measure>
+	metrics.GetOrRegisterTimer("zmon.skipper.proxy.flush", p.registry).UpdateSince(start)
 }
