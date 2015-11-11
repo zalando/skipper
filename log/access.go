@@ -5,7 +5,6 @@ import (
 	"github.com/Sirupsen/logrus"
 	"net"
 	"net/http"
-	"strings"
 )
 
 type accessLogFormatter int
@@ -37,19 +36,12 @@ func remoteAddr(r *http.Request) string {
 
 // strip port from addresses with hostname, ipv4 or ipv6
 func stripPort(address string) string {
-	ip := net.ParseIP(address)
-	if ip != nil {
-		// ipv4 or ipv6 without a port
-		return address
+	h, _, err := net.SplitHostPort(address)
+	if err != nil {
+		h = ""
 	}
 
-	lastColon := strings.LastIndex(address, ":")
-	if lastColon < 0 {
-		// hostname without port
-		return address
-	}
-
-	return address[:lastColon]
+	return h
 }
 
 func remoteHost(r *http.Request) string {
