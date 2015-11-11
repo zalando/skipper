@@ -17,7 +17,7 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
-	"github.com/golang/glog"
+	log "github.com/Sirupsen/logrus"
 	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/routing"
@@ -176,7 +176,7 @@ func New(r *routing.Routing, options Options, reg metrics.Registry, pr ...Priori
 func callSafe(p func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			glog.Error("filter", err)
+			log.Error("filter", err)
 		}
 	}()
 
@@ -287,15 +287,11 @@ func (p *proxy) matchAndRoute(r *http.Request) (rt *routing.Route, params map[st
 	for _, prt := range p.priorityRoutes {
 		rt, params = prt.Match(r)
 		if rt != nil {
-			break
+			return rt, params
 		}
 	}
 
-	if rt == nil {
-		return p.routing.Route(r)
-	}
-
-	return nil, nil
+	return p.routing.Route(r)
 }
 
 // http.Handler implementation
@@ -303,7 +299,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hterr := func(err error) {
 		// todo: just a bet that we shouldn't send here 50x
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		glog.Error(err)
+		log.Error(err)
 	}
 
 	// Example
@@ -314,11 +310,14 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	metrics.GetOrRegisterTimer("zmon.skipper.routing.matcher", p.registry).Time(func() {
 		rt, params = p.matchAndRoute(r)
 		if rt == nil {
+			println("no route here")
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-			return
 		}
 	})
-	// </measure>
+
+	if rt == nil {
+		return
+	}
 
 	// <measure>
 	f := rt.Filters
@@ -350,7 +349,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			err = rs.Body.Close()
 			if err != nil {
-				glog.Error(err)
+				log.Error(err)
 			}
 		}()
 	}
