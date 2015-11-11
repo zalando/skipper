@@ -1,7 +1,7 @@
 package logging
 
 import (
-	"github.com/golang/glog"
+	log "github.com/Sirupsen/logrus"
 	"github.com/rcrowley/go-metrics"
 	"net/http"
 	"time"
@@ -46,5 +46,5 @@ func (lh *LoggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.code = 200
 	}
 
-	glog.Infof("dump access.log with duration", dur)
+	log.Infof("dump access.log with duration", dur)
 }
