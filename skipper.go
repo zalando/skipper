@@ -15,18 +15,20 @@
 package skipper
 
 import (
-	"github.com/golang/glog"
+	log "github.com/Sirupsen/logrus"
 	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
+	slog "github.com/zalando/skipper/log"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -102,7 +104,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	if o.RoutesFile != "" {
 		f, err := eskipfile.Open(o.RoutesFile)
 		if err != nil {
-			glog.Error(err)
+			log.Error(err)
 			return nil, err
 		}
 
@@ -114,7 +116,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			o.InnkeeperUrl, o.ProxyOptions.Insecure(), auth,
 			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
 		if err != nil {
-			glog.Error(err)
+			log.Error(err)
 			return nil, err
 		}
 
@@ -138,6 +140,11 @@ func createInnkeeperAuthentication(o Options) innkeeper.Authentication {
 
 // Run skipper.
 func Run(o Options) error {
+	// init log
+	slog.Init(slog.Options{
+		ApplicationLogPrefix: "[APPLICATION_LOG] ",
+		AccessLogOutput:      os.Stderr})
+
 	// create authentication for Innkeeper
 	auth := createInnkeeperAuthentication(o)
 
@@ -148,7 +155,7 @@ func Run(o Options) error {
 	}
 
 	if len(dataClients) == 0 {
-		glog.Warning("no route source specified")
+		log.Warning("no route source specified")
 	}
 
 	// create a filter registry with the available filter specs registered,
@@ -200,6 +207,6 @@ func Run(o Options) error {
 	loggingHandler := logging.NewHandler(proxy, r)
 
 	// start the http server
-	glog.Infof("listening on %v\n", o.Address)
+	log.Infof("listening on %v", o.Address)
 	return http.ListenAndServe(o.Address, loggingHandler)
 }

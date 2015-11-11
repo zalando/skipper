@@ -34,9 +34,9 @@ package etcd
 
 import (
 	"errors"
+	log "github.com/Sirupsen/logrus"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/eskip"
-	"log"
 	"net/http"
 	"path"
 )

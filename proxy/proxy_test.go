@@ -17,6 +17,7 @@ package proxy
 import (
 	"bytes"
 	"fmt"
+	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/routing"
@@ -151,7 +152,7 @@ func TestGetRoundtrip(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone)
+		0}), OptionsNone, metrics.NewRegistry())
 
 	delay()
 
@@ -212,7 +213,7 @@ func TestPostRoundtrip(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone)
+		0}), OptionsNone, metrics.NewRegistry())
 
 	delay()
 
@@ -250,7 +251,7 @@ func TestRoute(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone)
+		0}), OptionsNone, metrics.NewRegistry())
 
 	delay()
 
@@ -299,7 +300,7 @@ func TestStreaming(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone)
+		0}), OptionsNone, metrics.NewRegistry())
 
 	delay()
 
@@ -379,7 +380,7 @@ func TestAppliesFilters(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone)
+		0}), OptionsNone, metrics.NewRegistry())
 
 	delay()
 
@@ -412,7 +413,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone)
+		0}), OptionsNone, metrics.NewRegistry())
 
 	delay()
 
@@ -456,7 +457,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, prt)
+		0}), OptionsNone, metrics.NewRegistry(), prt)
 
 	delay()
 
@@ -504,7 +505,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, prt)
+		0}), OptionsNone, metrics.NewRegistry(), prt)
 
 	delay()
 
@@ -536,7 +537,7 @@ func TestFlusherImplementation(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone)
+		0}), OptionsNone, metrics.NewRegistry())
 
 	delay()
 
@@ -592,7 +593,7 @@ func TestOriginalRequestResponse(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsPreserveOriginal)
+		0}), OptionsPreserveOriginal, metrics.NewRegistry())
 
 	delay()
 

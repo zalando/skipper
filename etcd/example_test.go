@@ -15,6 +15,7 @@
 package etcd_test
 
 import (
+	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy"
@@ -30,5 +31,5 @@ func Example() {
 		routing.New(routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
 			DataClients:    []routing.DataClient{dataClient}}),
-		proxy.OptionsNone)
+		proxy.OptionsNone, metrics.NewRegistry())
 }
