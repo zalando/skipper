@@ -17,6 +17,7 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/filters"
@@ -184,6 +185,18 @@ func callSafe(p func()) {
 	p()
 }
 
+func newFilterContext(w http.ResponseWriter, r *http.Request, params map[string]string, preserveOriginal bool) *filterContext {
+	c := &filterContext{
+		w:          w,
+		req:        r,
+		pathParams: params,
+		stateBag:   make(map[string]interface{})}
+	if preserveOriginal {
+		c.originalRequest = cloneRequestMetadata(r)
+	}
+	return c
+}
+
 func cloneUrl(u *url.URL) *url.URL {
 	uc := *u
 	return &uc
@@ -307,25 +320,16 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if rt == nil {
 		println("no route here")
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-	}
-
-	if rt == nil {
 		return
 	}
 	metrics.GetOrRegisterTimer("zmon.skipper.proxy.routing", p.registry).UpdateSince(start)
 
-	start = time.Now()
 	f := rt.Filters
-	c := &filterContext{
-		w:          w,
-		req:        r,
-		pathParams: params,
-		stateBag:   make(map[string]interface{})}
-	if p.preserveOriginal {
-		c.originalRequest = cloneRequestMetadata(r)
-	}
-	p.applyFiltersToRequest(f, c)
-	metrics.GetOrRegisterTimer("zmon.skipper.proxy.request", p.registry).UpdateSince(start)
+	c := newFilterContext(w, r, params, p.preserveOriginal)
+
+	metrics.GetOrRegisterTimer("zmon.skipper.proxy.request", p.registry).Time(func() {
+		p.applyFiltersToRequest(f, c)
+	})
 
 	start = time.Now()
 	var (
@@ -351,19 +355,20 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	addBranding(rs)
 	metrics.GetOrRegisterTimer("zmon.skipper.proxy.backend."+rt.Id, p.registry).UpdateSince(start)
 
-	start = time.Now()
-	c.res = rs
-	if p.preserveOriginal {
-		c.originalResponse = cloneResponseMetadata(rs)
-	}
-	p.applyFiltersToResponse(f, c)
-	metrics.GetOrRegisterTimer("zmon.skipper.proxy.response", p.registry).UpdateSince(start)
+	metrics.GetOrRegisterTimer("zmon.skipper.proxy.response", p.registry).Time(func() {
+		c.res = rs
+		if p.preserveOriginal {
+			c.originalResponse = cloneResponseMetadata(rs)
+		}
+		p.applyFiltersToResponse(f, c)
+	})
 
-	start = time.Now()
 	if !c.Served() {
-		copyHeader(w.Header(), rs.Header)
-		w.WriteHeader(rs.StatusCode)
-		copyStream(w.(flusherWriter), rs.Body)
+		metric := fmt.Sprintf("zmon.response.%d.%s.skipper.%s", rs.StatusCode, r.Method, rt.Id)
+		metrics.GetOrRegisterTimer(metric, p.registry).Time(func() {
+			copyHeader(w.Header(), rs.Header)
+			w.WriteHeader(rs.StatusCode)
+			copyStream(w.(flusherWriter), rs.Body)
+		})
 	}
-	metrics.GetOrRegisterTimer("zmon.skipper.proxy.flush", p.registry).UpdateSince(start)
 }
