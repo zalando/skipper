@@ -2,16 +2,16 @@
 
 # Skipper
 
-Skipper is an HTTP router acting as a reverse proxy with support for flexible route definitions and altering the
-requests and responses with filters.
+Skipper is an HTTP router that acts as a reverse proxy (with support for flexible route definitions), alters
+requests, and responses with filters. It:
 
-- identifies routes based on the properties of the requests, like path, method, host and headers
+- identifies routes based on the properties of the requests, such as path, method, host and headers
 - routes each request to the configured server endpoint
-- allows altering the requests and responses with filters independently configured for each route
+- allows alteration of requests and responses with filters independently configured for each route
 - optionally acts as a final endpoint (shunt)
-- updates the routing rules without restarting, supporting multiple types of data sources, like
-  [Innkeeper](https://github.com/zalando/innkeeper), [etcd](https://github.com/coreos/etcd) or static files
-- extensible by custom filters
+- updates the routing rules without restarting, while supporting multiple types of data sources — including
+  [Innkeeper](https://github.com/zalando/innkeeper), [etcd](https://github.com/coreos/etcd) and static files
+- is extensible by custom filters
 
 Skipper's design is largely inspired by [Vulcand](https://github.com/mailgun/vulcand).
 
@@ -25,7 +25,7 @@ Skipper is 'go get' compatible. If needed, create a go workspace first:
     export GOPATH=$(pwd)
     export PATH=$PATH:$GOPATH/bin
 
-Get the skipper packages:
+Get the Skipper packages:
 
     go get github.com/zalando/skipper/...
 
@@ -37,7 +37,7 @@ Optionally, verify the syntax of the file:
 
     eskip check example.eskip
 
-Start skipper and make an HTTP request through skipper:
+Start Skipper and make an HTTP request through skipper:
 
     skipper -routes-file example.eskip &
     curl localhost:9090/hello
@@ -51,7 +51,7 @@ Skipper is documented in detail in godoc:
 
 ### Compiling
 
-Getting the code (with optionally creating a workspace):
+Getting the code (optionally, you can create a workspace):
 
     mkdir ws
     cd ws
@@ -68,6 +68,8 @@ Test:
 
     go test ./...
 
+### How to contribute
+(Suggest creating a list of bug fixes, feature adds, etc.)
 
 ### License
 
