@@ -36,12 +36,11 @@ func remoteAddr(r *http.Request) string {
 
 // strip port from addresses with hostname, ipv4 or ipv6
 func stripPort(address string) string {
-	h, _, err := net.SplitHostPort(address)
-	if err != nil {
-		h = ""
-	}
+	if h, _, err := net.SplitHostPort(address); err == nil {
+		return h
+    }
 
-	return h
+	return address
 }
 
 func remoteHost(r *http.Request) string {
