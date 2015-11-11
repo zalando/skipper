@@ -1,0 +1,13 @@
+sudo: false
+
+language: go
+
+go:
+  - tip
+
+script:
+  - go test github.com/zalando/skipper/... -test.short
+
+notifications:
+  email:
+    - team-spearheads@zalando.de
