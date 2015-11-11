@@ -85,5 +85,54 @@ definitions originated in one or more data sources.
 The only exceptions are the priority routes, that are not originated
 from the external data sources, and are tested against the requests
 before the general routing tree.
+
+
+Example
+
+The below example demonstrates creating a routing proxy as a standard
+http.Handler interface:
+
+	// create a target backend server. It will return the value of the 'X-Echo' request header
+	// as the response body:
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(r.Header.Get("X-Echo")))
+	}))
+
+	defer targetServer.Close()
+
+	// create a filter registry, and register the custom filter:
+	filterRegistry := builtin.MakeRegistry()
+	filterRegistry.Register(&setEchoHeader{})
+
+	// create a data client with a predefined route, referencing the filter and a path condition
+	// containing a wildcard called 'echo':
+	routeDoc := fmt.Sprintf(`Path("/return/:echo") -> setEchoHeader() -> "%s"`, targetServer.URL)
+	dataClient, err := testdataclient.NewDoc(routeDoc)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// create a proxy instance, and start an http server:
+	proxy := proxy.New(routing.New(routing.Options{
+		FilterRegistry: filterRegistry,
+		DataClients:    []routing.DataClient{dataClient}}), proxy.OptionsNone)
+	router := httptest.NewServer(proxy)
+	defer router.Close()
+
+	// make a request to the proxy:
+	rsp, err := http.Get(fmt.Sprintf("%s/return/Hello,+world!", router.URL))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer rsp.Body.Close()
+
+	// print out the response:
+	if _, err := io.Copy(os.Stdout, rsp.Body); err != nil {
+		log.Fatal(err)
+	}
+
+	// Output:
+	// Hello, world!
 */
 package proxy

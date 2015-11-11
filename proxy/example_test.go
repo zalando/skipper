@@ -41,7 +41,7 @@ func (f *setEchoHeader) Request(ctx filters.FilterContext) {
 	ctx.Request().Header.Set("X-Echo", ctx.PathParam("echo"))
 }
 
-func Example() {
+func DisabledExample() {
 	// create a target backend server. It will return the value of the 'X-Echo' request header
 	// as the response body:
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

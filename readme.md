@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/zalando/skipper.svg)](https://travis-ci.org/zalando/skipper)
+
 # Skipper
 
 Skipper is an HTTP router acting as a reverse proxy with support for flexible route definitions and altering the
