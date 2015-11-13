@@ -1,4 +1,4 @@
-package log
+package logging
 
 import (
 	"github.com/Sirupsen/logrus"
@@ -64,14 +64,3 @@ func Init(o Options) {
 
 func ApplicationLog() *logrus.Logger { return appLog }
 func AccessLog() *logrus.Logger      { return accessLog }
-
-func Access(entry *AccessEntry) {
-	if accessLog == nil || entry == nil {
-		return
-	}
-
-	accessLog.WithFields(logrus.Fields{
-		"request":    entry.Request,
-		"response":   entry.Response,
-		"statusCode": entry.StatusCode}).Info()
-}

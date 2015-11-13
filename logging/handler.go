@@ -30,6 +30,8 @@ func NewHandler(next http.Handler, r metrics.Registry) http.Handler {
 }
 
 func (lh *LoggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// how does this solution compare to the one where we
+	// would open another listener for the metrics?
 	if r.RequestURI == "/metrics" {
 		w.WriteHeader(http.StatusOK)
 		metrics.WriteJSONOnce(lh.registry, w)
@@ -38,7 +40,7 @@ func (lh *LoggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 
-	h := &loggingWrapper{writer: w}
+	h := &loggingWriter{writer: w}
 	lh.proxy.ServeHTTP(h, r)
 
 	dur := time.Now().Sub(now)
