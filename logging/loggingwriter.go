@@ -26,3 +26,7 @@ func (lw *loggingWriter) WriteHeader(code int) {
 func (lw *loggingWriter) Header() http.Header {
 	return lw.writer.Header()
 }
+
+func (lw *loggingWriter) Flush() {
+	lw.writer.(http.Flusher).Flush()
+}

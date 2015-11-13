@@ -11,8 +11,8 @@ import (
 const (
 	dateFormat = "02/Jan/2006:15:04:05 -0700"
 	// format:
-	// remote_host - [date] "method uri protocol" status response_size "referer" "user_agent"
-	accessLogFormat = `%s - [%s] "%s %s %s" %d %d "%s" "%s"`
+	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
+	accessLogFormat = `%s - - [%s] "%s %s %s" %d %d "%s" "%s" %d`
 )
 
 type accessLogFormatter struct {
@@ -21,9 +21,10 @@ type accessLogFormatter struct {
 
 type AccessEntry struct {
 	Request      *http.Request
-	Response     *http.Response
 	StatusCode   int
 	ResponseSize int64
+	Duration     time.Duration
+	RequestTime  time.Time
 }
 
 func remoteAddr(r *http.Request) string {
@@ -64,26 +65,10 @@ func remoteHost(r *http.Request) string {
 	return "-"
 }
 
-func timestamp() string {
-	return time.Now().Format(dateFormat)
-}
-
-func getStatus(entry *AccessEntry) int {
-	if entry.StatusCode != 0 {
-		return entry.StatusCode
-	}
-
-	if entry.Response != nil && entry.Response.StatusCode != 0 {
-		return entry.Response.StatusCode
-	}
-
-	return http.StatusNotFound
-}
-
 func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	keys := []string{
 		"host", "timestamp", "method", "uri", "proto",
-		"status", "response-size", "referer", "user-agent"}
+		"status", "response-size", "referer", "user-agent", "duration"}
 
 	values := make([]interface{}, len(keys))
 	for i, key := range keys {
@@ -98,7 +83,7 @@ func Access(entry *AccessEntry) {
 		return
 	}
 
-	ts := timestamp()
+	ts := entry.RequestTime.Format(dateFormat)
 
 	host := "-"
 	method := ""
@@ -107,8 +92,9 @@ func Access(entry *AccessEntry) {
 	referer := ""
 	userAgent := ""
 
-	status := getStatus(entry)
+	status := entry.StatusCode
 	responseSize := entry.ResponseSize
+	duration := int64(entry.Duration / time.Millisecond)
 
 	if entry.Request != nil {
 		host = remoteHost(entry.Request)
@@ -128,5 +114,6 @@ func Access(entry *AccessEntry) {
 		"referer":       referer,
 		"user-agent":    userAgent,
 		"status":        status,
-		"response-size": responseSize}).Info()
+		"response-size": responseSize,
+		"duration":      duration}).Infoln()
 }
