@@ -5,14 +5,25 @@ import (
 	"github.com/Sirupsen/logrus"
 	"net"
 	"net/http"
+    "time"
 )
 
-type accessLogFormatter int
+const (
+    dateFormat = "02/Jan/2006:15:04:05 -0700"
+    // format:
+    // remote_host - [date] "method uri protocol" status response_size "referer" "user_agent"
+    accessLogFormat = `%s - [%s] "%s %s %s" %d %d "%s" "%s"`
+)
+
+type accessLogFormatter struct {
+    format string
+}
 
 type AccessEntry struct {
 	Request    *http.Request
 	Response   *http.Response
 	StatusCode int
+    ResponseSize int64
 }
 
 func remoteAddr(r *http.Request) string {
@@ -53,25 +64,69 @@ func remoteHost(r *http.Request) string {
 	return "-"
 }
 
-func requestUser(r *http.Request) string {
-	u, _, _ := r.BasicAuth()
-	if u != "" {
-		return u
-	}
+func timestamp() string {
+    return time.Now().Format(dateFormat)
+}
 
-	return "-"
+func getStatus(entry *AccessEntry) int {
+    if entry.StatusCode != 0 {
+        return entry.StatusCode
+    }
+
+    if entry.Response != nil && entry.Response.StatusCode != 0 {
+        return entry.Response.StatusCode
+    }
+
+    return http.StatusNotFound
 }
 
 func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
-	host := "-"
-	user := "-"
+    keys := []string{
+        "host", "timestamp", "method", "uri", "proto",
+        "status", "response-size", "referer", "user-agent"}
 
-	req, _ := e.Data["request"].(*http.Request)
+    values := make([]interface{}, len(keys))
+    for i, key := range keys {
+        values[i] = e.Data[key]
+    }
 
-	if req != nil {
-		host = remoteHost(req)
-		user = requestUser(req)
+	return []byte(fmt.Sprintf(f.format, values...)), nil
+}
+
+func Access(entry *AccessEntry) {
+	if accessLog == nil || entry == nil {
+		return
 	}
 
-	return []byte(fmt.Sprintf("%s %s", host, user)), nil
+    ts := timestamp()
+
+	host := "-"
+    method := ""
+    uri := ""
+    proto := ""
+    referer := ""
+    userAgent := ""
+
+    status := getStatus(entry)
+    responseSize := entry.ResponseSize
+
+    if entry.Request != nil {
+        host = remoteHost(entry.Request)
+        method = entry.Request.Method
+        uri = entry.Request.RequestURI
+        proto = entry.Request.Proto
+        referer = entry.Request.Referer()
+        userAgent = entry.Request.UserAgent()
+    }
+
+	accessLog.WithFields(logrus.Fields{
+        "timestamp": ts,
+        "host": host,
+        "method": method,
+        "uri": uri,
+        "proto": proto,
+        "referer": referer,
+        "user-agent": userAgent,
+        "status": status,
+        "response-size": responseSize}).Info()
 }
