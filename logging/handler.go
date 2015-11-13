@@ -1,25 +1,12 @@
 package logging
 
 import (
-	log "github.com/Sirupsen/logrus"
 	"github.com/rcrowley/go-metrics"
 	"net/http"
 	"time"
 )
 
-const (
-	// DefaultLogFilename is the default log filename.
-	DefaultLogFilename = "access.log"
-	// CommonLogFormat is the common log format.
-	CommonLogFormat = `{remote} ` + CommonLogEmptyValue + ` [{when}] "{method} {uri} {proto}" {status} {size}`
-	// CommonLogEmptyValue is the common empty log value.
-	CommonLogEmptyValue = "-"
-	// CombinedLogFormat is the combined log format.
-	CombinedLogFormat = CommonLogFormat + ` "{>Referer}" "{>User-Agent}"`
-	// DefaultLogFormat is the default log format.
-	DefaultLogFormat = CommonLogFormat
-)
-
+// The logging handler wraps the proxy handler to produce an access log compatible to Apache's common log format
 type LoggingHandler struct {
 	registry metrics.Registry
 	proxy    http.Handler
@@ -49,5 +36,12 @@ func (lh *LoggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.code = 200
 	}
 
-	log.Infof("dump access.log with duration %v", dur)
+	entry := &AccessEntry{
+		Request:      r,
+		ResponseSize: h.bytes,
+		StatusCode:   h.code,
+		RequestTime:  now,
+		Duration:     dur,
+	}
+	Access(entry)
 }
