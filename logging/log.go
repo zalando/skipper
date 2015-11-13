@@ -46,7 +46,7 @@ func initApplicationLog(prefix string, output io.Writer) {
 
 func initAccessLog(output io.Writer) {
 	l := logrus.New()
-	l.Formatter = new(accessLogFormatter)
+	l.Formatter = &accessLogFormatter{accessLogFormat}
 	l.Out = output
 	l.Level = logrus.InfoLevel
 	accessLog = l
