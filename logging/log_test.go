@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const logEntry = `127.0.0.1 - - [10/Oct/2000:13:55:36 +0000] "GET /apache_pb.gif HTTP/1.1" 200 2326 "" "" 42`
+const logEntry = `127.0.0.1 - - [10/Oct/2000:13:55:36 +0000] "GET /apache_pb.gif HTTP/1.1" 200 2326 "" "" 42` + "\n"
 
 func TestLogging(t *testing.T) {
 	var buf bytes.Buffer

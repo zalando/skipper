@@ -17,7 +17,6 @@ package proxy
 import (
 	"bytes"
 	"fmt"
-	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/routing"
@@ -152,7 +151,7 @@ func TestGetRoundtrip(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, metrics.NewRegistry())
+		0}), OptionsNone)
 
 	delay()
 
@@ -163,7 +162,7 @@ func TestGetRoundtrip(t *testing.T) {
 	}
 
 	if ct, ok := w.Header()["Content-Type"]; !ok || ct[0] != "text/plain" {
-		t.Error("wrong content type")
+		t.Errorf("wrong content type. Expected 'text/plain' but got '%s'", w.Header().Get("Content-Type"))
 	}
 
 	if cl, ok := w.Header()["Content-Length"]; !ok || cl[0] != strconv.Itoa(len(payload)) {
@@ -213,7 +212,7 @@ func TestPostRoundtrip(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, metrics.NewRegistry())
+		0}), OptionsNone)
 
 	delay()
 
@@ -251,7 +250,7 @@ func TestRoute(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, metrics.NewRegistry())
+		0}), OptionsNone)
 
 	delay()
 
@@ -300,7 +299,7 @@ func TestStreaming(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, metrics.NewRegistry())
+		0}), OptionsNone)
 
 	delay()
 
@@ -380,7 +379,7 @@ func TestAppliesFilters(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, metrics.NewRegistry())
+		0}), OptionsNone)
 
 	delay()
 
@@ -413,7 +412,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, metrics.NewRegistry())
+		0}), OptionsNone)
 
 	delay()
 
@@ -457,7 +456,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, metrics.NewRegistry(), prt)
+		0}), OptionsNone, prt)
 
 	delay()
 
@@ -505,7 +504,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, metrics.NewRegistry(), prt)
+		0}), OptionsNone, prt)
 
 	delay()
 
@@ -537,7 +536,7 @@ func TestFlusherImplementation(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsNone, metrics.NewRegistry())
+		0}), OptionsNone)
 
 	delay()
 
@@ -593,7 +592,7 @@ func TestOriginalRequestResponse(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
-		0}), OptionsPreserveOriginal, metrics.NewRegistry())
+		0}), OptionsPreserveOriginal)
 
 	delay()
 

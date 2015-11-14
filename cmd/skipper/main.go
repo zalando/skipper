@@ -41,6 +41,7 @@ const (
 	defaultAddress           = ":9090"
 	defaultEtcdPrefix        = "/skipper"
 	defaultSourcePollTimeout = int64(3000)
+	defaultMetricsListener   = ":9911"
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -56,6 +57,10 @@ const (
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	devModeUsage                   = "enables developer time behavior, like ubuffered routing updates"
+	metricsListenerUsage           = "network address used expose the /metrics endpoint. An empty value disabled metrics"
+	metricsPrefixUsage             = "allows you to customize the exported metrics keys with your own prefix"
+	debugGcMetricsUsage            = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
+	runtimeMetricsUsage            = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
 )
 
 var (
@@ -73,6 +78,10 @@ var (
 	innkeeperPreRouteFilters  string
 	innkeeperPostRouteFilters string
 	devMode                   bool
+	metricsListener           string
+	metricsPrefix             string
+	debugGcMetrics            bool
+	runtimeMetrics            bool
 )
 
 func init() {
@@ -90,6 +99,10 @@ func init() {
 	flag.StringVar(&innkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", innkeeperPreRouteFiltersUsage)
 	flag.StringVar(&innkeeperPostRouteFilters, "innkeeper-post-route-filters", "", innkeeperPostRouteFiltersUsage)
 	flag.BoolVar(&devMode, "dev-mode", false, devModeUsage)
+	flag.StringVar(&metricsListener, "metrics-listener", defaultMetricsListener, metricsListenerUsage)
+	flag.StringVar(&metricsPrefix, "metrics-prefix", "", metricsPrefixUsage)
+	flag.BoolVar(&debugGcMetrics, "debug-gc-metrics", false, debugGcMetricsUsage)
+	flag.BoolVar(&runtimeMetrics, "runtime-metrics", true, runtimeMetricsUsage)
 	flag.Parse()
 }
 
@@ -113,7 +126,11 @@ func main() {
 		InnkeeperAuthToken:        innkeeperAuthToken,
 		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
 		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
-		DevMode:                   devMode}
+		DevMode:                   devMode,
+		MetricsListener:           metricsListener,
+		MetricsPrefix:             metricsPrefix,
+		EnableDebugGcMetrics:      debugGcMetrics,
+		EnableRuntimeMetrics:      runtimeMetrics}
 	if insecure {
 		options.ProxyOptions |= proxy.OptionsInsecure
 	}
