@@ -16,13 +16,13 @@ package skipper
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -95,6 +95,19 @@ type Options struct {
 	// consumer side over the feeding side during the routing updates to
 	// populate the updated routes faster.
 	DevMode bool
+
+	// Network address for the /metrics endpoint
+	MetricsListener string
+
+	// Skipper provides a set of metrics with different keys which are exposed via HTTP in JSON
+	// You can customize those key names with your own prefix
+	MetricsPrefix string
+
+	// Flag that enables reporting of the Go garbage collector statistics exported in debug.GCStats
+	EnableDebugGcMetrics bool
+
+	// Flag that enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats
+	EnableRuntimeMetrics bool
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -144,6 +157,14 @@ func Run(o Options) error {
 		ApplicationLogPrefix: "[APPLICATION_LOG] ",
 		AccessLogOutput:      os.Stderr})
 
+	// init metrics
+	metrics.Init(metrics.Options{
+		Listener:             o.MetricsListener,
+		Prefix:               o.MetricsPrefix,
+		EnableDebugGcMetrics: o.EnableDebugGcMetrics,
+		EnableRuntimeMetrics: o.EnableRuntimeMetrics,
+	})
+
 	// create authentication for Innkeeper
 	auth := createInnkeeperAuthentication(o)
 
@@ -190,22 +211,13 @@ func Run(o Options) error {
 		dataClients,
 		updateBuffer})
 
-	r := metrics.NewRegistry()
-
-	// Have some options enabling these?
-	metrics.RegisterDebugGCStats(r)
-	go metrics.CaptureDebugGCStats(r, 5e9)
-
-	metrics.RegisterRuntimeMemStats(r)
-	go metrics.CaptureRuntimeMemStats(r, 5e9)
-
 	// create the proxy
-	proxy := proxy.New(routing, o.ProxyOptions, r, o.PriorityRoutes...)
+	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
 
 	// create the access log handler
-	loggingHandler := logging.NewHandler(proxy, r)
+	loggingHandler := logging.NewHandler(proxy)
 
 	// start the http server
-	log.Infof("listening on %v", o.Address)
+	log.Infof("proxy listener on %v", o.Address)
 	return http.ListenAndServe(o.Address, loggingHandler)
 }

@@ -17,10 +17,9 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
-	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"io"
 	"net/http"
@@ -88,7 +87,6 @@ type proxy struct {
 	roundTripper     http.RoundTripper
 	priorityRoutes   []PriorityRoute
 	preserveOriginal bool
-	registry         metrics.Registry
 }
 
 type filterContext struct {
@@ -165,13 +163,13 @@ func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 // proxy skips the TLS verification for the requests made to the
 // route backends. It accepts an optional list of priority routes to
 // be used for matching before the general lookup tree.
-func New(r *routing.Routing, options Options, reg metrics.Registry, pr ...PriorityRoute) http.Handler {
+func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler {
 	tr := &http.Transport{}
 	if options.Insecure() {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{r, tr, pr, options.PreserveOriginal(), reg}
+	return &proxy{r, tr, pr, options.PreserveOriginal()}
 }
 
 // calls a function with recovering from panics and logging them
@@ -264,7 +262,7 @@ func shunt(r *http.Request) *http.Response {
 // applies all filters to a request
 func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.FilterContext) {
 	for _, fi := range f {
-		metrics.GetOrRegisterTimer("zmon.skipper.proxy.request."+fi.Name, p.registry).Time(func() {
+		metrics.MeasureFilterRequest(fi.Name, func() {
 			callSafe(func() { fi.Request(ctx) })
 		})
 	}
@@ -285,7 +283,7 @@ func (p *proxy) applyFiltersToResponse(f []*routing.RouteFilter, ctx filters.Fil
 	count := len(f)
 	for i, _ := range f {
 		fi := f[count-1-i]
-		metrics.GetOrRegisterTimer("zmon.skipper.proxy.response."+fi.Name, p.registry).Time(func() {
+		metrics.MeasureFilterResponse(fi.Name, func() {
 			callSafe(func() { fi.Response(ctx) })
 		})
 	}
@@ -322,12 +320,12 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
-	metrics.GetOrRegisterTimer("zmon.skipper.proxy.routing", p.registry).UpdateSince(start)
+	metrics.MeasureRouting(start)
 
 	f := rt.Filters
 	c := newFilterContext(w, r, params, p.preserveOriginal)
 
-	metrics.GetOrRegisterTimer("zmon.skipper.proxy.request", p.registry).Time(func() {
+	metrics.MeasureAllFiltersRequest(rt.Id, func() {
 		p.applyFiltersToRequest(f, c)
 	})
 
@@ -353,9 +351,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 	addBranding(rs)
-	metrics.GetOrRegisterTimer("zmon.skipper.proxy.backend."+rt.Id, p.registry).UpdateSince(start)
+	metrics.MeasureBackend(rt.Id, start)
 
-	metrics.GetOrRegisterTimer("zmon.skipper.proxy.response", p.registry).Time(func() {
+	metrics.MeasureAllFiltersResponse(rt.Id, func() {
 		c.res = rs
 		if p.preserveOriginal {
 			c.originalResponse = cloneResponseMetadata(rs)
@@ -364,8 +362,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if !c.Served() {
-		metric := fmt.Sprintf("zmon.response.%d.%s.skipper.%s", rs.StatusCode, r.Method, rt.Id)
-		metrics.GetOrRegisterTimer(metric, p.registry).Time(func() {
+		metrics.MeasureResponse(rs.StatusCode, r.Method, rt.Id, func() {
 			copyHeader(w.Header(), rs.Header)
 			w.WriteHeader(rs.StatusCode)
 			copyStream(w.(flusherWriter), rs.Body)
