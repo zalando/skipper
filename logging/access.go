@@ -9,10 +9,13 @@ import (
 )
 
 const (
-	dateFormat = "02/Jan/2006:15:04:05 -0700"
+	dateFormat      = "02/Jan/2006:15:04:05 -0700"
+	commonLogFormat = `%s - - [%s] "%s %s %s" %d %d`
 	// format:
 	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
-	accessLogFormat = `%s - - [%s] "%s %s %s" %d %d "%s" "%s" %d`
+	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
+	// We add the duration in ms
+	accessLogFormat = combinedLogFormat + " %d\n"
 )
 
 type accessLogFormatter struct {

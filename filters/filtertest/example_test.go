@@ -16,7 +16,6 @@ package filtertest_test
 
 import (
 	"fmt"
-	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -50,7 +49,7 @@ func ExampleFilter() {
 		routing.New(routing.Options{
 			DataClients:    []routing.DataClient{dc},
 			FilterRegistry: fr}),
-		proxy.OptionsNone, metrics.NewRegistry())
+		proxy.OptionsNone)
 }
 
 func ExampleContext() {

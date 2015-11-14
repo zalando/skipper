@@ -15,7 +15,6 @@
 package eskipfile_test
 
 import (
-	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -33,5 +32,5 @@ func Example() {
 	proxy.New(
 		routing.New(routing.Options{
 			DataClients: []routing.DataClient{dataClient}}),
-		proxy.OptionsNone, metrics.NewRegistry())
+		proxy.OptionsNone)
 }

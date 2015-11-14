@@ -16,7 +16,6 @@ package proxy_test
 
 import (
 	"fmt"
-	"github.com/rcrowley/go-metrics"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
@@ -66,7 +65,7 @@ func DisabledExample() {
 	// create a proxy instance, and start an http server:
 	proxy := proxy.New(routing.New(routing.Options{
 		FilterRegistry: filterRegistry,
-		DataClients:    []routing.DataClient{dataClient}}), proxy.OptionsNone, metrics.NewRegistry())
+		DataClients:    []routing.DataClient{dataClient}}), proxy.OptionsNone)
 	router := httptest.NewServer(proxy)
 	defer router.Close()
 
@@ -115,6 +114,5 @@ func ExamplePriorityRoute() {
 			FilterRegistry: builtin.MakeRegistry(),
 			DataClients:    []routing.DataClient{dataClient}}),
 		proxy.OptionsNone,
-		metrics.NewRegistry(),
 		pr)
 }
