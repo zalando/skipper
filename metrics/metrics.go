@@ -2,8 +2,8 @@ package metrics
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/rcrowley/go-metrics"
-	"github.com/zalando/skipper/logging"
 	"net/http"
 	"time"
 )
@@ -31,7 +31,7 @@ var (
 
 func Init(o Options) {
 	if o.Listener == "" {
-		logging.ApplicationLog().Infoln("Metrics are disabled")
+		log.Infoln("Metrics are disabled")
 		return
 	}
 
@@ -60,7 +60,7 @@ func Init(o Options) {
 	metrics.NewRegisteredTimer(KeyRouting, reg)
 
 	handler := new(metricsHandler)
-	logging.ApplicationLog().Infof("metrics listener on %s/metrics", o.Listener)
+	log.Infof("metrics listener on %s/metrics", o.Listener)
 	go http.ListenAndServe(o.Listener, handler)
 }
 
