@@ -81,7 +81,7 @@ See more: https://github.com/zalando/skipper
 
 Media types:
 
-etcd          endpoint(s) to an etcd cluster. See more about etcd:
+etcd          endpoint(s) of an etcd cluster. See more about etcd:
               https://github.com/coreos/etcd
 stdin         standard input when not tty, expecting routes
 file          a file containing routes

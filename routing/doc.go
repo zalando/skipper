@@ -41,7 +41,7 @@ Matching Conditions
 The following types of conditions are supported in the route definitions.
 
 - Path: the route definitions may contain a single path condition,
-optionally with wildcards, used to look up routes in the lookup tree.
+optionally with wildcards, used for looking up routes in the lookup tree.
 
 - PathRegexp: regular expressions to match the path.
 
@@ -84,11 +84,12 @@ updates, and, if an update is received, generates a new lookup tree. In
 case of communication failure during polling, it reloads the whole set
 of routes from the failing client.
 
-The active set of routes from last successful update are used until the
-next successful update.
+The active set of routes from the last successful update are used until
+the next successful update happens.
 
 Currently, the routes with the same id coming from different sources are
-merged in an undeterministic way, but this may change in the future.
+merged in an undeterministic way, but this behavior may change in the
+future.
 
 For a full description of the route definitions, see the documentation
 of the skipper/eskip package.
