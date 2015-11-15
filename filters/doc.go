@@ -48,7 +48,7 @@ Handling Requests with Filters
 
 Filters can handle the requests themselves, meaning that they can set the
 response status, headers and send any particular response body. In this case,
-it is the filter's responsibility to mark the request served to avoid
+it is the filter's responsibility to mark the request as served to avoid
 generating the default response.
 */
 package filters

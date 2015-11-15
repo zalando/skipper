@@ -95,8 +95,8 @@ For details, see the documentation of the routing subdirectory.
 
 Filters - Augmenting Requests
 
-Filters are executed in order of definition on the request and in
-reverse order on the response. They are used to modify request and
+Filters are applied in order of definition to the request and in
+reverse order to the response. They are used to modify request and
 response attributes like headers, or execute background tasks, like
 logging. Some filters may handle the requests without proxying them to
 service backends. Filters, depending on their implementation, may
@@ -111,9 +111,9 @@ Each route has a backend, one of two kinds: network service or shunt.
 
 Network services can serve any web page or network API. They are
 specified by their network address, including the protocol scheme, the
-domain name or the ip address, and optionally the port number: e.g.
+domain name or the IP address, and optionally the port number: e.g.
 "https://www.example.org:4242". (The path and query are passed from the
-original request or set by filters.)
+original request, or set by filters.)
 
 A shunt route means that skipper handles the request alone and doesn't
 make requests to a backend service. In this case, it is the
@@ -126,7 +126,7 @@ Route definitions consist of request matching conditions, optional
 filters and a route backend. The eskip package implements the in-memory
 and text representations of route definitions with a parser.
 
-(Note for contributors: in order to stay compatible with 'go get', the
+(Note to contributors: in order to stay compatible with 'go get', the
 generated part of the parser is stored in the repository. When changing
 the grammar, 'go generate' needs to be executed explicitly to update the
 parser.)
@@ -225,7 +225,7 @@ Example, hellofilter.go:
 The above example creates a filter specification, whose filter instances
 will set the X-Hello header for every response in the routes they are
 included in. The name of the filter is 'hello', and can be referenced in
-a route definitions as:
+a route definition as:
 
     Any() -> hello("world") -> "https://www.example.org"
 
