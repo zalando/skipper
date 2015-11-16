@@ -16,14 +16,7 @@ type Options struct {
 	AccessLogOutput      io.Writer
 }
 
-var (
-	appLog    *logrus.Logger
-	accessLog *logrus.Logger
-)
-
-func init() {
-	appLog = logrus.StandardLogger()
-}
+var accessLog *logrus.Logger
 
 func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	b, err := f.formatter.Format(e)
@@ -36,7 +29,8 @@ func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 func initApplicationLog(prefix string, output io.Writer) {
 	if prefix != "" {
-		logrus.SetFormatter(&prefixFormatter{prefix, appLog.Formatter})
+		logrus.SetFormatter(&prefixFormatter{
+			prefix, logrus.StandardLogger().Formatter})
 	}
 
 	if output != nil {
@@ -62,5 +56,5 @@ func Init(o Options) {
 	}
 }
 
-func ApplicationLog() *logrus.Logger { return appLog }
+func ApplicationLog() *logrus.Logger { return logrus.StandardLogger() }
 func AccessLog() *logrus.Logger      { return accessLog }
