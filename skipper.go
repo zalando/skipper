@@ -26,8 +26,10 @@ import (
 	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
+	"io"
 	"net/http"
 	"os"
+	"path"
 	"time"
 )
 
@@ -108,6 +110,31 @@ type Options struct {
 
 	// Flag that enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats
 	EnableRuntimeMetrics bool
+
+	// Output file for the application log. Default value: /dev/stderr.
+	//
+	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
+	// to os.Stderr or os.Stdout.
+	//
+	// Warning: passing an arbitrary file will try to open it append
+	// on start and use it, or fail on start, but the current
+	// implementation doesn't support any more sophisticated handling
+	// of temporary failures or log-rolling.
+	ApplicationLogOutput string
+
+	// Application log prefix. Default value: "".
+	ApplicationLogPrefix string
+
+	// Output file for the access log. Default value: "", not logging.
+	//
+	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
+	// to os.Stderr or os.Stdout.
+	//
+	// Warning: passing an arbitrary file will try to open for append
+	// it on start and use it, or fail on start, but the current
+	// implementation // doesn't support any more sophisticated handling
+	// of temporary failures or log-rolling.
+	AccessLogOutput string
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -150,12 +177,56 @@ func createInnkeeperAuthentication(o Options) innkeeper.Authentication {
 	return oauth.New(o.OAuthCredentialsDir, o.OAuthUrl, o.OAuthScope)
 }
 
+func getLogOutput(name string) (io.Writer, error) {
+	name = path.Clean(name)
+
+	if name == "/dev/stdout" {
+		return os.Stdout, nil
+	}
+
+	if name == "/dev/stderr" {
+		return os.Stderr, nil
+	}
+
+	return os.OpenFile(name, os.O_APPEND, os.ModeAppend)
+}
+
+func initLog(o Options) error {
+	var (
+		logOutput       io.Writer
+		accessLogOutput io.Writer
+		err             error
+	)
+
+	if o.ApplicationLogOutput != "" {
+		logOutput, err = getLogOutput(o.ApplicationLogOutput)
+		if err != nil {
+			return err
+		}
+	}
+
+	if o.AccessLogOutput != "" {
+		accessLogOutput, err = getLogOutput(o.AccessLogOutput)
+		if err != nil {
+			return err
+		}
+	}
+
+	logging.Init(logging.Options{
+		ApplicationLogPrefix: o.ApplicationLogPrefix,
+		ApplicationLogOutput: logOutput,
+		AccessLogOutput:      accessLogOutput})
+
+	return nil
+}
+
 // Run skipper.
 func Run(o Options) error {
 	// init log
-	logging.Init(logging.Options{
-		ApplicationLogPrefix: "[APPLICATION_LOG] ",
-		AccessLogOutput:      os.Stderr})
+	err := initLog(o)
+	if err != nil {
+		return err
+	}
 
 	// init metrics
 	metrics.Init(metrics.Options{
