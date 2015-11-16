@@ -57,8 +57,8 @@ const (
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	devModeUsage                   = "enables developer time behavior, like ubuffered routing updates"
-	metricsListenerUsage           = "network address used expose the /metrics endpoint. An empty value disabled metrics"
-	metricsPrefixUsage             = "allows you to customize the exported metrics keys with your own prefix"
+	metricsListenerUsage           = "network address used for exposing the /metrics endpoint. An empty value disables metrics."
+	metricsPrefixUsage             = "allows setting a custom path prefix for metrics export"
 	debugGcMetricsUsage            = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
 	runtimeMetricsUsage            = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
 )
