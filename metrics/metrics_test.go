@@ -30,7 +30,6 @@ func TestDefaultOptions(t *testing.T) {
 	if test != 1 {
 		t.Error("Failed to execute timed function without a registry")
 	}
-
 }
 
 func TestDefaultOptionsWithAListener(t *testing.T) {
@@ -141,5 +140,4 @@ func TestHttpEndpoint(t *testing.T) {
 	if !strings.Contains(rw3.Body.String(), "runtime.") {
 		t.Error("Metrics endpoint should've returned some runtime metrics in it")
 	}
-
 }
