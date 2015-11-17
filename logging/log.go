@@ -14,6 +14,7 @@ type Options struct {
 	ApplicationLogPrefix string
 	ApplicationLogOutput io.Writer
 	AccessLogOutput      io.Writer
+	AccessLogDisabled    bool
 }
 
 var accessLog *logrus.Logger
