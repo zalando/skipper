@@ -208,22 +208,18 @@ func initLog(o Options) error {
 		}
 	}
 
-	if !o.AccessLogDisabled {
-		alo := o.AccessLogOutput
-		if alo == "" {
-			accessLogOutput = os.Stderr
-		} else {
-			accessLogOutput, err = getLogOutput(alo)
-			if err != nil {
-				return err
-			}
+	if !o.AccessLogDisabled && o.AccessLogOutput != "" {
+		accessLogOutput, err = getLogOutput(o.AccessLogOutput)
+		if err != nil {
+			return err
 		}
 	}
 
 	logging.Init(logging.Options{
 		ApplicationLogPrefix: o.ApplicationLogPrefix,
 		ApplicationLogOutput: logOutput,
-		AccessLogOutput:      accessLogOutput})
+		AccessLogOutput:      accessLogOutput,
+		AccessLogDisabled:    o.AccessLogDisabled})
 
 	return nil
 }

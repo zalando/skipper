@@ -3,6 +3,7 @@ package logging
 import (
 	"github.com/Sirupsen/logrus"
 	"io"
+	"os"
 )
 
 type prefixFormatter struct {
@@ -25,6 +26,9 @@ type Options struct {
 	// Output for the access log entries, when nil, os.Stderr is
 	// used.
 	AccessLogOutput io.Writer
+
+	// When set, no access log is printed.
+	AccessLogDisabled bool
 }
 
 var accessLog *logrus.Logger
@@ -63,7 +67,11 @@ func Init(o Options) {
 		initApplicationLog(o.ApplicationLogPrefix, o.ApplicationLogOutput)
 	}
 
-	if o.AccessLogOutput != nil {
+	if !o.AccessLogDisabled {
+		if o.AccessLogOutput == nil {
+			o.AccessLogOutput = os.Stderr
+		}
+
 		initAccessLog(o.AccessLogOutput)
 	}
 }
