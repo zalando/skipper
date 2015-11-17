@@ -22,25 +22,28 @@ type accessLogFormatter struct {
 	format string
 }
 
+// Access log entry.
 type AccessEntry struct {
-	Request      *http.Request
-	StatusCode   int
+
+	// The client request.
+	Request *http.Request
+
+	// The status code of the response.
+	StatusCode int
+
+	// The size of the response in bytes.
 	ResponseSize int64
-	Duration     time.Duration
-	RequestTime  time.Time
+
+	// The time spent processing request.
+	Duration time.Duration
+
+	// The time that the request was received.
+	RequestTime time.Time
 }
 
+// The remote address of the client. When the 'X-Forwarded-For'
+// header is set, then it is used instead.
 func remoteAddr(r *http.Request) string {
-	// in case a proxy on the remote end sets the x-forwarded-for header,
-	// then we may get meaningless ip addresses here. Input needed. On,
-	// the other hand, Apache documentation,
-	// https://httpd.apache.org/docs/1.3/logs.html#common, says that it
-	// 'will be' the address of the proxy. If the proxy is the elb, or
-	// something on our end, then that's not very interesting. The go
-	// RemoteAddr field will be the proxy.
-
-	// can this contain multiple values? what's the meaning of it then?
-	// each proxy appends its own? no way to decide on the order.
 	ff := r.Header.Get("X-Forwarded-For")
 	if ff != "" {
 		return ff
@@ -81,6 +84,7 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return []byte(fmt.Sprintf(f.format, values...)), nil
 }
 
+// Logs an access event in Apache combined log format.
 func Access(entry *AccessEntry) {
 	if accessLog == nil || entry == nil {
 		return
