@@ -61,6 +61,9 @@ const (
 	metricsPrefixUsage             = "allows setting a custom path prefix for metrics export"
 	debugGcMetricsUsage            = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
 	runtimeMetricsUsage            = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
+	applicationLogUsage            = "output file for the application log. When not set, /dev/stderr is used"
+	applicationLogPrefixUsage      = "prefix for each log entry"
+	accessLogUsage                 = "output file for the access log. When not set, no access log is printed"
 )
 
 var (
@@ -82,6 +85,9 @@ var (
 	metricsPrefix             string
 	debugGcMetrics            bool
 	runtimeMetrics            bool
+	applicationLog            string
+	applicationLogPrefix      string
+	accessLog                 string
 )
 
 func init() {
@@ -103,6 +109,9 @@ func init() {
 	flag.StringVar(&metricsPrefix, "metrics-prefix", "", metricsPrefixUsage)
 	flag.BoolVar(&debugGcMetrics, "debug-gc-metrics", false, debugGcMetricsUsage)
 	flag.BoolVar(&runtimeMetrics, "runtime-metrics", true, runtimeMetricsUsage)
+	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
+	flag.StringVar(&applicationLogPrefix, "application-log-prefix", "", applicationLogPrefixUsage)
+	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.Parse()
 }
 
@@ -130,7 +139,10 @@ func main() {
 		MetricsListener:           metricsListener,
 		MetricsPrefix:             metricsPrefix,
 		EnableDebugGcMetrics:      debugGcMetrics,
-		EnableRuntimeMetrics:      runtimeMetrics}
+		EnableRuntimeMetrics:      runtimeMetrics,
+		ApplicationLogOutput:      applicationLog,
+		ApplicationLogPrefix:      applicationLogPrefix,
+		AccessLogOutput:           accessLog}
 	if insecure {
 		options.ProxyOptions |= proxy.OptionsInsecure
 	}
