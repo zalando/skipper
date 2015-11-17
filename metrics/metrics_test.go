@@ -1,8 +1,12 @@
 package metrics
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"github.com/rcrowley/go-metrics"
 	"net/http"
-	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +36,7 @@ func TestDefaultOptions(t *testing.T) {
 	}
 }
 
-func TestDefaultOptionsWithAListener(t *testing.T) {
+func TestDefaultOptionsWithListener(t *testing.T) {
 	o := Options{Listener: ":0"}
 	Init(o)
 
@@ -50,15 +54,6 @@ func TestDefaultOptionsWithAListener(t *testing.T) {
 
 	if reg.Get("runtime.MemStats.Alloc") != nil {
 		t.Error("Default options should not enable runtime stats")
-	}
-}
-
-func TestMetricsPrefix(t *testing.T) {
-	o := Options{Listener: ":0", Prefix: "test."}
-	Init(o)
-
-	if !strings.HasPrefix(KeyRouting, "test.") {
-		t.Errorf("Metrics key should have the 'test.' prefix. Got '%s'", KeyRouting)
 	}
 }
 
@@ -110,34 +105,71 @@ func TestMeasurement(t *testing.T) {
 	}
 }
 
-func TestHttpEndpoint(t *testing.T) {
-	o := Options{Listener: ":0", EnableRuntimeMetrics: true}
-	Init(o)
-	r1, _ := http.NewRequest("GET", "/", nil)
-	rw1 := httptest.NewRecorder()
+type proxyMetricTest struct {
+	metricsKey  string
+	measureFunc func()
+}
 
-	mh := new(metricsHandler)
+var proxyMetricsTests = []proxyMetricTest{
+	// T1 - Measure routing
+	{KeyRouting, func() { MeasureRouting(time.Now()) }},
+	// T2 - Measure filter request
+	{fmt.Sprintf(KeyFilterRequest, "foo"), func() { MeasureFilterRequest("foo", func() { time.Sleep(5) }) }},
+	// T3 - Measure all filters request
+	{fmt.Sprintf(KeyFiltersRequest, "bar"), func() { MeasureAllFiltersRequest("bar", func() { time.Sleep(5) }) }},
+	// T4 - Measure proxy backend
+	{fmt.Sprintf(KeyProxyBackend, "baz"), func() { MeasureBackend("baz", time.Now()) }},
+	// T5 - Measure filters response
+	{fmt.Sprintf(KeyFilterResponse, "qux"), func() { MeasureFilterResponse("qux", func() { time.Sleep(5) }) }},
+	// T6 - Measure all filters response
+	{fmt.Sprintf(KeyFiltersResponse, "quux"), func() { MeasureAllFiltersResponse("quux", func() { time.Sleep(5) }) }},
+	// T7 - Measure response
+	{fmt.Sprintf(KeyResponse, http.StatusOK, "GET", "norf"),
+		func() { MeasureResponse(http.StatusOK, "GET", "norf", func() { time.Sleep(5) }) }},
+}
 
-	mh.ServeHTTP(rw1, r1)
-	if rw1.Code != http.StatusBadRequest {
-		t.Error("The root resource should not provide a valid response")
+func TestProxyMetrics(t *testing.T) {
+	for _, pmt := range proxyMetricsTests {
+		Init(Options{Listener: ":0"})
+		pmt.measureFunc()
+		reg.Each(func(key string, _ interface{}) {
+			if key != pmt.metricsKey {
+				t.Errorf("Registry contained unexpected metric for key '%s'. Found '%s'", pmt.metricsKey, key)
+			}
+		})
 	}
+}
 
-	r2, _ := http.NewRequest("POST", "/metrics", nil)
-	rw2 := httptest.NewRecorder()
-	mh.ServeHTTP(rw2, r2)
-	if rw2.Code != http.StatusBadRequest {
-		t.Error("POST method should not provide a valid response")
-	}
+type serializationResult map[string]map[string]interface{}
 
-	r3, _ := http.NewRequest("GET", "/metrics", nil)
-	rw3 := httptest.NewRecorder()
-	mh.ServeHTTP(rw3, r3)
-	if rw3.Code != http.StatusOK {
-		t.Error("Metrics endpoint should provide a valid response")
-	}
+type serializationTest struct {
+	i        interface{}
+	expected serializationResult
+}
 
-	if !strings.Contains(rw3.Body.String(), "runtime.") {
-		t.Error("Metrics endpoint should've returned some runtime metrics in it")
+var serializationTests = []serializationTest{
+	{metrics.NewGauge, serializationResult{"test": {"value": 0.0}}},
+	{metrics.NewTimer, serializationResult{"test": {"15m.rate": 0.0, "1m.rate": 0.0, "5m.rate": 0.0,
+		"75%": 0.0, "95%": 0.0, "99%": 0.0, "99.9%": 0.0, "count": 0.0, "max": 0.0, "mean": 0.0, "mean.rate": 0.0,
+		"median": 0.0, "min": 0.0, "stddev": 0.0}}},
+	{func() metrics.Histogram { return metrics.NewHistogram(nil) }, serializationResult{"test": {"75%": 0.0, "95%": 0.0,
+		"99%": 0.0, "99.9%": 0.0, "count": 0.0, "max": 0.0, "mean": 0.0, "median": 0.0, "min": 0.0, "stddev": 0.0}}},
+	{func() int { return 42 }, serializationResult{"test": {"error": "unknown metrics type int"}}},
+}
+
+func TestMetricSerialization(t *testing.T) {
+	metrics.UseNilMetrics = true
+	for _, st := range serializationTests {
+		m := reflect.ValueOf(st.i).Call(nil)[0].Interface()
+		metrics := skipperMetrics{"test": m}
+		var buf bytes.Buffer
+		json.NewEncoder(&buf).Encode(metrics)
+		var got serializationResult
+		json.Unmarshal(buf.Bytes(), &got)
+
+		if !reflect.DeepEqual(got, st.expected) {
+			t.Errorf("Got wrong serialization result. Expected '%v' but got '%v'", st.expected, got)
+		}
+
 	}
 }
