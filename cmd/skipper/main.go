@@ -16,7 +16,7 @@
 This command provides an executable version of skipper with the default
 set of filters.
 
-For the list of command line options run:
+For the list of command line options, run:
 
     skipper -help
 
