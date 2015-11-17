@@ -10,11 +10,21 @@ type prefixFormatter struct {
 	formatter logrus.Formatter
 }
 
+// Init options for logging.
 type Options struct {
+
+	// Prefix for application log entries. Primarily used to be
+	// able to select between access log and application log
+	// entries.
 	ApplicationLogPrefix string
+
+	// Output for the application log entries, when nil,
+	// os.Stderr is used.
 	ApplicationLogOutput io.Writer
-	AccessLogOutput      io.Writer
-	AccessLogDisabled    bool
+
+	// Output for the access log entries, when nil, os.Stderr is
+	// used.
+	AccessLogOutput io.Writer
 }
 
 var accessLog *logrus.Logger
@@ -47,6 +57,7 @@ func initAccessLog(output io.Writer) {
 	accessLog = l
 }
 
+// Initializes logging.
 func Init(o Options) {
 	if o.ApplicationLogPrefix != "" || o.ApplicationLogOutput != nil {
 		initApplicationLog(o.ApplicationLogPrefix, o.ApplicationLogOutput)
@@ -56,6 +67,3 @@ func Init(o Options) {
 		initAccessLog(o.AccessLogOutput)
 	}
 }
-
-func ApplicationLog() *logrus.Logger { return logrus.StandardLogger() }
-func AccessLog() *logrus.Logger      { return accessLog }

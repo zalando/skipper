@@ -10,6 +10,8 @@ type loggingHandler struct {
 	proxy http.Handler
 }
 
+// Creates an http.Handler that provides access log
+// for the underlying handler.
 func NewHandler(next http.Handler) http.Handler {
 	return &loggingHandler{proxy: next}
 }
