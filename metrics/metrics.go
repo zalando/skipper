@@ -1,3 +1,23 @@
+/*
+Package metrics implements collection of common performance metrics.
+
+It uses the Go implementation of the Coda Hale metrics library:
+
+https://github.com/dropwizard/metrics
+
+The collected metrics include the total request processing time, the
+time of looking up routes, the time spent with processing all filters
+and every single filter, the time waiting for the response from the
+backend services, and the time spent with forwarding the response to the
+client.
+
+For the keys used for the different metrics, please, see the Key*
+variables.
+
+To enable metrics, it needs to be initialized with a Listener address.
+In this case, Skipper will start an additional http listener, where the
+current metrics values can be downloaded.
+*/
 package metrics
 
 import (
@@ -10,17 +30,30 @@ import (
 
 type metricsHandler int
 
+// Options for initializing metrics collection.
 type Options struct {
-	Listener             string
-	Prefix               string
+	// Network address where the current metrics values
+	// can be pulled from. If not set, the collection of
+	// the metrics is disabled.
+	Listener string
+
+	// Common prefix for the keys of the different
+	// collected metrics.
+	Prefix string
+
+	// If set, garbage collector metrics are collected
+	// in addition to the http traffic metrics.
 	EnableDebugGcMetrics bool
+
+	// If set, Go runtime metrics are collected in
+	// addition to the http http traffic metrics.
 	EnableRuntimeMetrics bool
 }
 
 var (
 	reg metrics.Registry
 
-	KeyRouting         = "skipper.routing"
+	KeyRouteLookup     = "skipper.route.lookup"
 	KeyFilterRequest   = "skipper.filter.%s.request"
 	KeyFiltersRequest  = "skipper.filters.request.%s"
 	KeyProxyBackend    = "skipper.backend.%s"
@@ -29,6 +62,7 @@ var (
 	KeyResponse        = "response.%d.%s.skipper.%s"
 )
 
+// Initializes the collection of metrics.
 func Init(o Options) {
 	if o.Listener == "" {
 		log.Infoln("Metrics are disabled")
@@ -36,7 +70,7 @@ func Init(o Options) {
 	}
 
 	if o.Prefix != "" {
-		KeyRouting = o.Prefix + KeyRouting
+		KeyRouteLookup = o.Prefix + KeyRouteLookup
 		KeyFilterRequest = o.Prefix + KeyFilterRequest
 		KeyFiltersRequest = o.Prefix + KeyFiltersRequest
 		KeyProxyBackend = o.Prefix + KeyProxyBackend
@@ -57,7 +91,7 @@ func Init(o Options) {
 		go metrics.CaptureRuntimeMemStats(reg, 5e9)
 	}
 
-	metrics.NewRegisteredTimer(KeyRouting, reg)
+	metrics.NewRegisteredTimer(KeyRouteLookup, reg)
 
 	handler := new(metricsHandler)
 	log.Infof("metrics listener on %s/metrics", o.Listener)
@@ -85,8 +119,8 @@ func measure(key string, f func()) {
 	}
 }
 
-func MeasureRouting(start time.Time) {
-	measureSince(KeyRouting, start)
+func MeasureRouteLookup(start time.Time) {
+	measureSince(KeyRouteLookup, start)
 }
 
 func MeasureFilterRequest(filterName string, f func()) {
@@ -113,9 +147,11 @@ func MeasureResponse(code int, method string, routeId string, f func()) {
 	measure(fmt.Sprintf(KeyResponse, code, method, routeId), f)
 }
 
-// This listener is ony used to expose the metrics
-// Maybe it could be used to serve different groups of metrics or specific keys like a proper REST api
+// This listener is used to expose the collected metrics.
 func (mh *metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// TODO:
+	// maybe it could be used to serve different groups of metrics or specific keys like a proper REST api
+	// (+1)
 	if r.Method == "GET" && r.URL.RequestURI() == "/metrics" {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
@@ -124,5 +160,6 @@ func (mh *metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusBadRequest)
 	w.Header().Set("Content-Type", "application/problem+json")
-	fmt.Fprint(w, `{"title":"Metrics Error", "detail": "Invalid request. Please send a GET request to /metrics"}`)
+	fmt.Fprint(w,
+		`{"title":"Metrics Error", "detail": "Invalid request. Please send a GET request to /metrics"}`)
 }

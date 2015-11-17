@@ -42,7 +42,9 @@ func TestCustomOutputForAccessLog(t *testing.T) {
 
 func TestDisableAccessLog(t *testing.T) {
 	var buf bytes.Buffer
-	Init(Options{ApplicationLogOutput: &buf})
+	Init(Options{
+		AccessLogOutput:   &buf,
+		AccessLogDisabled: true})
 	Access(&AccessEntry{StatusCode: http.StatusTeapot})
 	if buf.Len() != 0 {
 		t.Error("failed to disable access log")
