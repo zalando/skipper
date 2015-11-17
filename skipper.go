@@ -118,23 +118,26 @@ type Options struct {
 	//
 	// Warning: passing an arbitrary file will try to open it append
 	// on start and use it, or fail on start, but the current
-	// implementation doesn't support any more sophisticated handling
+	// implementation doesn't support any more proper handling
 	// of temporary failures or log-rolling.
 	ApplicationLogOutput string
 
-	// Application log prefix. Default value: "".
+	// Application log prefix. Default value: "[APPLICATION_LOG]".
 	ApplicationLogPrefix string
 
-	// Output file for the access log. Default value: "", not logging.
+	// Output file for the access log. Default value: /dev/stderr.
 	//
 	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
 	// to os.Stderr or os.Stdout.
 	//
 	// Warning: passing an arbitrary file will try to open for append
 	// it on start and use it, or fail on start, but the current
-	// implementation // doesn't support any more sophisticated handling
+	// implementation doesn't support any more proper handling
 	// of temporary failures or log-rolling.
 	AccessLogOutput string
+
+	// Disables the access log.
+	AccessLogDisabled bool
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -205,10 +208,15 @@ func initLog(o Options) error {
 		}
 	}
 
-	if o.AccessLogOutput != "" {
-		accessLogOutput, err = getLogOutput(o.AccessLogOutput)
-		if err != nil {
-			return err
+	if !o.AccessLogDisabled {
+		alo := o.AccessLogOutput
+		if alo == "" {
+			accessLogOutput = os.Stderr
+		} else {
+			accessLogOutput, err = getLogOutput(alo)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
