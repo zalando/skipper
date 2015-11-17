@@ -63,7 +63,8 @@ const (
 	runtimeMetricsUsage            = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
 	applicationLogUsage            = "output file for the application log. When not set, /dev/stderr is used"
 	applicationLogPrefixUsage      = "prefix for each log entry"
-	accessLogUsage                 = "output file for the access log. When not set, no access log is printed"
+	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
+	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
 )
 
 var (
@@ -88,6 +89,7 @@ var (
 	applicationLog            string
 	applicationLogPrefix      string
 	accessLog                 string
+	accessLogDisabled         bool
 )
 
 func init() {
@@ -112,6 +114,7 @@ func init() {
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", "", applicationLogPrefixUsage)
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
+	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
 	flag.Parse()
 }
 
@@ -142,7 +145,8 @@ func main() {
 		EnableRuntimeMetrics:      runtimeMetrics,
 		ApplicationLogOutput:      applicationLog,
 		ApplicationLogPrefix:      applicationLogPrefix,
-		AccessLogOutput:           accessLog}
+		AccessLogOutput:           accessLog,
+		AccessLogDisabled:         accessLogDisabled}
 	if insecure {
 		options.ProxyOptions |= proxy.OptionsInsecure
 	}
