@@ -17,13 +17,13 @@ func TestDefaultOptions(t *testing.T) {
 		t.Error("Default Options should not create a registry or enable metrics")
 	}
 
-	timer := getTimer(KeyRouting)
+	timer := getTimer(KeyRouteLookup)
 	if timer != nil {
-		t.Errorf("Able to get metric timer for key '%s' and it shouldn't be possible", KeyRouting)
+		t.Errorf("Able to get metric timer for key '%s' and it shouldn't be possible", KeyRouteLookup)
 	}
 
 	var test = 42
-	measure(KeyRouting, func() {
+	measure(KeyRouteLookup, func() {
 		test = 1
 	})
 
@@ -40,7 +40,7 @@ func TestDefaultOptionsWithAListener(t *testing.T) {
 		t.Error("Options containing a listener should create a registry")
 	}
 
-	if !strings.HasPrefix(KeyRouting, "skipper.") {
+	if !strings.HasPrefix(KeyRouteLookup, "skipper.") {
 		t.Error("Metric key has been prefixed. Expected to start with 'skipper.'")
 	}
 
@@ -57,8 +57,8 @@ func TestMetricsPrefix(t *testing.T) {
 	o := Options{Listener: ":0", Prefix: "test."}
 	Init(o)
 
-	if !strings.HasPrefix(KeyRouting, "test.") {
-		t.Errorf("Metrics key should have the 'test.' prefix. Got '%s'", KeyRouting)
+	if !strings.HasPrefix(KeyRouteLookup, "test.") {
+		t.Errorf("Metrics key should have the 'test.' prefix. Got '%s'", KeyRouteLookup)
 	}
 }
 
