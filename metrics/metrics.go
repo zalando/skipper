@@ -27,17 +27,17 @@ type Options struct {
 	EnableDebugGcMetrics bool
 
 	// If set, Go runtime metrics are collected in
-	// addition to the http http traffic metrics.
+	// addition to the http traffic metrics.
 	EnableRuntimeMetrics bool
 }
 
 const (
-	KeyRouteLookup     = "skipper.routelookup"
-	KeyFilterRequest   = "skipper.filter.%s.request"
-	KeyFiltersRequest  = "skipper.filters.request.%s"
-	KeyProxyBackend    = "skipper.backend.%s"
-	KeyFilterResponse  = "skipper.filter.%s.response"
-	KeyFiltersResponse = "skipper.filters.response.%s"
+	KeyRouteLookup     = "routelookup"
+	KeyFilterRequest   = "filter.%s.request"
+	KeyFiltersRequest  = "filters.request.%s"
+	KeyProxyBackend    = "backend.%s"
+	KeyFilterResponse  = "filter.%s.response"
+	KeyFiltersResponse = "filters.response.%s"
 	KeyResponse        = "response.%d.%s.skipper.%s"
 )
 

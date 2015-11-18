@@ -7,7 +7,6 @@ import (
 	"github.com/rcrowley/go-metrics"
 	"net/http"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 )
@@ -23,7 +22,7 @@ func TestDefaultOptions(t *testing.T) {
 
 	timer := getTimer(KeyRouteLookup)
 	if timer != nil {
-		t.Errorf("Able to get metric timer for key '%s' and it shouldn't be possible", KeyRouteLookup)
+		t.Errorf("Able to get metric timer for key '%s' while it shouldn't be possible", KeyRouteLookup)
 	}
 
 	var test = 42
@@ -42,10 +41,6 @@ func TestDefaultOptionsWithListener(t *testing.T) {
 
 	if reg == nil {
 		t.Error("Options containing a listener should create a registry")
-	}
-
-	if !strings.HasPrefix(KeyRouteLookup, "skipper.") {
-		t.Error("Metric key has been prefixed. Expected to start with 'skipper.'")
 	}
 
 	if reg.Get("debug.GCStats.LastGC") != nil {
