@@ -183,7 +183,12 @@ func callSafe(p func()) {
 	p()
 }
 
-func newFilterContext(w http.ResponseWriter, r *http.Request, params map[string]string, preserveOriginal bool) *filterContext {
+func newFilterContext(
+	w http.ResponseWriter,
+	r *http.Request,
+	params map[string]string,
+	preserveOriginal bool) *filterContext {
+
 	c := &filterContext{
 		w:          w,
 		req:        r,
@@ -192,6 +197,7 @@ func newFilterContext(w http.ResponseWriter, r *http.Request, params map[string]
 	if preserveOriginal {
 		c.originalRequest = cloneRequestMetadata(r)
 	}
+
 	return c
 }
 
@@ -250,7 +256,7 @@ func (c *filterContext) OriginalResponse() *http.Response {
 	return c.originalResponse
 }
 
-// creates an empty shunt response with the status code initially 404
+// creates an empty shunt response with the initial status code of 404
 func shunt(r *http.Request) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusNotFound,
@@ -294,7 +300,7 @@ func addBranding(rs *http.Response) {
 	rs.Header.Set("Server", "Skipper")
 }
 
-func (p *proxy) matchAndRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
+func (p *proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
 	for _, prt := range p.priorityRoutes {
 		rt, params = prt.Match(r)
 		if rt != nil {
@@ -307,20 +313,14 @@ func (p *proxy) matchAndRoute(r *http.Request) (rt *routing.Route, params map[st
 
 // http.Handler implementation
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	hterr := func(err error) {
-		// todo: just a bet that we shouldn't send here 50x
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		log.Error(err)
-	}
-
 	start := time.Now()
-	rt, params := p.matchAndRoute(r)
+	rt, params := p.lookupRoute(r)
 	if rt == nil {
-		println("no route here")
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
-	metrics.MeasureRouting(start)
+
+	metrics.MeasureRouteLookup(start)
 
 	f := rt.Filters
 	c := newFilterContext(w, r, params, p.preserveOriginal)
@@ -329,17 +329,21 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.applyFiltersToRequest(f, c)
 	})
 
-	start = time.Now()
 	var (
 		rs  *http.Response
 		err error
 	)
+
+	start = time.Now()
 	if rt.Shunt {
 		rs = shunt(r)
 	} else {
 		rs, err = p.roundtrip(r, rt)
 		if err != nil {
-			hterr(err)
+			http.Error(w,
+				http.StatusText(http.StatusInternalServerError),
+				http.StatusInternalServerError)
+			log.Error(err)
 			return
 		}
 
@@ -350,6 +354,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 	}
+
 	addBranding(rs)
 	metrics.MeasureBackend(rt.Id, start)
 
@@ -358,6 +363,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if p.preserveOriginal {
 			c.originalResponse = cloneResponseMetadata(rs)
 		}
+
 		p.applyFiltersToResponse(f, c)
 	})
 
@@ -365,7 +371,10 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		metrics.MeasureResponse(rs.StatusCode, r.Method, rt.Id, func() {
 			copyHeader(w.Header(), rs.Header)
 			w.WriteHeader(rs.StatusCode)
-			copyStream(w.(flusherWriter), rs.Body)
+			err := copyStream(w.(flusherWriter), rs.Body)
+			if err != nil {
+				log.Error(err)
+			}
 		})
 	}
 }

@@ -10,6 +10,8 @@ type loggingHandler struct {
 	proxy http.Handler
 }
 
+// Creates an http.Handler that provides access log
+// for the underlying handler.
 func NewHandler(next http.Handler) http.Handler {
 	return &loggingHandler{proxy: next}
 }
@@ -17,19 +19,19 @@ func NewHandler(next http.Handler) http.Handler {
 func (lh *loggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 
-	h := &loggingWriter{writer: w}
-	lh.proxy.ServeHTTP(h, r)
+	lw := &loggingWriter{writer: w}
+	lh.proxy.ServeHTTP(lw, r)
 
 	dur := time.Now().Sub(now)
 
-	if h.code == 0 {
-		h.code = 200
+	if lw.code == 0 {
+		lw.code = 200
 	}
 
 	entry := &AccessEntry{
 		Request:      r,
-		ResponseSize: h.bytes,
-		StatusCode:   h.code,
+		ResponseSize: lw.bytes,
+		StatusCode:   lw.code,
 		RequestTime:  now,
 		Duration:     dur,
 	}
