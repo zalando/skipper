@@ -270,6 +270,15 @@ provides a standard http.Handler, so it is possible to use it in a more
 complex solution as a building block for routing.
 
 
+Logging and Metrics
+
+Skipper provides detailed logging about unexpected failures, access logs
+in the Apache combined log format. If set up so, Skipper also collects
+detailed performance metrics, and exposes them on a separate listener
+endpoint for pulling snapshots. For more details, see the documentation
+of the logging and metrics subdirectories.
+
+
 Performance Considerations
 
 While the real life performance of the router depends on the environment

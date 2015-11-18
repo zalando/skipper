@@ -11,15 +11,28 @@ import (
 
 type skipperMetrics map[string]interface{}
 
+// Options for initializing metrics collection.
 type Options struct {
-	Listener             string
-	Prefix               string
+	// Network address where the current metrics values
+	// can be pulled from. If not set, the collection of
+	// the metrics is disabled.
+	Listener string
+
+	// Common prefix for the keys of the different
+	// collected metrics.
+	Prefix string
+
+	// If set, garbage collector metrics are collected
+	// in addition to the http traffic metrics.
 	EnableDebugGcMetrics bool
+
+	// If set, Go runtime metrics are collected in
+	// addition to the http http traffic metrics.
 	EnableRuntimeMetrics bool
 }
 
 const (
-	KeyRouting         = "skipper.routing"
+	KeyRouteLookup     = "skipper.routelookup"
 	KeyFilterRequest   = "skipper.filter.%s.request"
 	KeyFiltersRequest  = "skipper.filters.request.%s"
 	KeyProxyBackend    = "skipper.backend.%s"
@@ -30,6 +43,7 @@ const (
 
 var reg metrics.Registry
 
+// Initializes the collection of metrics.
 func Init(o Options) {
 	if o.Listener == "" {
 		log.Infoln("Metrics are disabled")
@@ -74,8 +88,8 @@ func measure(key string, f func()) {
 	}
 }
 
-func MeasureRouting(start time.Time) {
-	measureSince(KeyRouting, start)
+func MeasureRouteLookup(start time.Time) {
+	measureSince(KeyRouteLookup, start)
 }
 
 func MeasureFilterRequest(filterName string, f func()) {
@@ -102,6 +116,7 @@ func MeasureResponse(code int, method string, routeId string, f func()) {
 	measure(fmt.Sprintf(KeyResponse, code, method, routeId), f)
 }
 
+// This listener is used to expose the collected metrics.
 func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 	data := make(map[string]map[string]interface{})
 	for name, metric := range sm {
@@ -142,7 +157,9 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 		default:
 			values["error"] = fmt.Sprintf("unknown metrics type %T", m)
 		}
+
 		data[name] = values
 	}
+
 	return json.Marshal(data)
 }

@@ -21,13 +21,13 @@ func TestDefaultOptions(t *testing.T) {
 		t.Error("Default Options should not create a registry or enable metrics")
 	}
 
-	timer := getTimer(KeyRouting)
+	timer := getTimer(KeyRouteLookup)
 	if timer != nil {
-		t.Errorf("Able to get metric timer for key '%s' and it shouldn't be possible", KeyRouting)
+		t.Errorf("Able to get metric timer for key '%s' and it shouldn't be possible", KeyRouteLookup)
 	}
 
 	var test = 42
-	measure(KeyRouting, func() {
+	measure(KeyRouteLookup, func() {
 		test = 1
 	})
 
@@ -44,7 +44,7 @@ func TestDefaultOptionsWithListener(t *testing.T) {
 		t.Error("Options containing a listener should create a registry")
 	}
 
-	if !strings.HasPrefix(KeyRouting, "skipper.") {
+	if !strings.HasPrefix(KeyRouteLookup, "skipper.") {
 		t.Error("Metric key has been prefixed. Expected to start with 'skipper.'")
 	}
 
@@ -112,7 +112,7 @@ type proxyMetricTest struct {
 
 var proxyMetricsTests = []proxyMetricTest{
 	// T1 - Measure routing
-	{KeyRouting, func() { MeasureRouting(time.Now()) }},
+	{KeyRouteLookup, func() { MeasureRouteLookup(time.Now()) }},
 	// T2 - Measure filter request
 	{fmt.Sprintf(KeyFilterRequest, "foo"), func() { MeasureFilterRequest("foo", func() { time.Sleep(5) }) }},
 	// T3 - Measure all filters request
