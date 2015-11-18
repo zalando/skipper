@@ -2,33 +2,51 @@ package logging
 
 import (
 	"bytes"
+	log "github.com/Sirupsen/logrus"
 	"net/http"
+	"strconv"
+	"strings"
 	"testing"
-	"time"
 )
 
-const logEntry = `127.0.0.1 - - [10/Oct/2000:13:55:36 +0000] "GET /apache_pb.gif HTTP/1.1" 200 2326 "" "" 42` + "\n"
-
-func TestLogging(t *testing.T) {
+func TestCustomOutputForApplicationLog(t *testing.T) {
 	var buf bytes.Buffer
-
-	o := Options{ApplicationLogPrefix: "", ApplicationLogOutput: &buf, AccessLogOutput: &buf}
-	Init(o)
-
-	r, _ := http.NewRequest("GET", "http://frank@127.0.0.1", nil)
-	r.RequestURI = "/apache_pb.gif"
-	r.RemoteAddr = "127.0.0.1"
-
-	entry := &AccessEntry{
-		Request:      r,
-		ResponseSize: 2326,
-		StatusCode:   http.StatusOK,
-		RequestTime:  time.Date(2000, 10, 10, 13, 55, 36, 0, time.FixedZone("Test", -7)),
-		Duration:     42 * time.Millisecond,
+	Init(Options{ApplicationLogOutput: &buf})
+	msg := "Hello, world!"
+	log.Infof(msg)
+	if !strings.Contains(buf.String(), msg) {
+		t.Error("failed to use custom output")
 	}
-	Access(entry)
+}
 
-	if buf.String() != logEntry {
-		t.Errorf("Got wrong log. Expected '%s' but got '%s'", logEntry, buf.String())
+func TestCustomPrefixForApplicationLog(t *testing.T) {
+	var buf bytes.Buffer
+	prefix := "[TEST_PREFIX]"
+	Init(Options{
+		ApplicationLogOutput: &buf,
+		ApplicationLogPrefix: prefix})
+	log.Infof("Hello, world!")
+	if strings.Index(buf.String(), prefix) != 0 {
+		t.Error("failed to use custom prefix")
+	}
+}
+
+func TestCustomOutputForAccessLog(t *testing.T) {
+	var buf bytes.Buffer
+	Init(Options{AccessLogOutput: &buf})
+	Access(&AccessEntry{StatusCode: http.StatusTeapot})
+	if !strings.Contains(buf.String(), strconv.Itoa(http.StatusTeapot)) {
+		t.Error("failed to use custom access log output")
+	}
+}
+
+func TestDisableAccessLog(t *testing.T) {
+	var buf bytes.Buffer
+	Init(Options{
+		AccessLogOutput:   &buf,
+		AccessLogDisabled: true})
+	Access(&AccessEntry{StatusCode: http.StatusTeapot})
+	if buf.Len() != 0 {
+		t.Error("failed to disable access log")
 	}
 }
