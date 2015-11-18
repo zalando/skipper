@@ -46,7 +46,6 @@ func (mh *metricsHandler) sendMetrics(w http.ResponseWriter, p string) {
 }
 
 // This listener is only used to expose the metrics
-// Maybe it could be used to serve different groups of metrics or specific keys like a proper REST api
 func (mh *metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := r.URL.Path
 	if r.Method == "GET" && (p == "/metrics" || strings.HasPrefix(p, "/metrics/")) {

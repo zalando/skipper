@@ -42,6 +42,7 @@ const (
 	defaultEtcdPrefix        = "/skipper"
 	defaultSourcePollTimeout = int64(3000)
 	defaultMetricsListener   = ":9911"
+	defaultMetricsPrefix     = "skipper."
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -108,7 +109,7 @@ func init() {
 	flag.StringVar(&innkeeperPostRouteFilters, "innkeeper-post-route-filters", "", innkeeperPostRouteFiltersUsage)
 	flag.BoolVar(&devMode, "dev-mode", false, devModeUsage)
 	flag.StringVar(&metricsListener, "metrics-listener", defaultMetricsListener, metricsListenerUsage)
-	flag.StringVar(&metricsPrefix, "metrics-prefix", "", metricsPrefixUsage)
+	flag.StringVar(&metricsPrefix, "metrics-prefix", defaultMetricsPrefix, metricsPrefixUsage)
 	flag.BoolVar(&debugGcMetrics, "debug-gc-metrics", false, debugGcMetricsUsage)
 	flag.BoolVar(&runtimeMetrics, "runtime-metrics", true, runtimeMetricsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
