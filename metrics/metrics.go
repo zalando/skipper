@@ -21,6 +21,7 @@ current metrics values can be downloaded.
 package metrics
 
 import (
+	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/rcrowley/go-metrics"
@@ -28,7 +29,7 @@ import (
 	"time"
 )
 
-type metricsHandler int
+type skipperMetrics map[string]interface{}
 
 // Options for initializing metrics collection.
 type Options struct {
@@ -50,10 +51,8 @@ type Options struct {
 	EnableRuntimeMetrics bool
 }
 
-var (
-	reg metrics.Registry
-
-	KeyRouteLookup     = "skipper.route.lookup"
+const (
+	KeyRouteLookup     = "skipper.routelookup"
 	KeyFilterRequest   = "skipper.filter.%s.request"
 	KeyFiltersRequest  = "skipper.filters.request.%s"
 	KeyProxyBackend    = "skipper.backend.%s"
@@ -62,6 +61,8 @@ var (
 	KeyResponse        = "response.%d.%s.skipper.%s"
 )
 
+var reg metrics.Registry
+
 // Initializes the collection of metrics.
 func Init(o Options) {
 	if o.Listener == "" {
@@ -69,33 +70,21 @@ func Init(o Options) {
 		return
 	}
 
-	if o.Prefix != "" {
-		KeyRouteLookup = o.Prefix + KeyRouteLookup
-		KeyFilterRequest = o.Prefix + KeyFilterRequest
-		KeyFiltersRequest = o.Prefix + KeyFiltersRequest
-		KeyProxyBackend = o.Prefix + KeyProxyBackend
-		KeyFilterResponse = o.Prefix + KeyFilterResponse
-		KeyFiltersResponse = o.Prefix + KeyFiltersResponse
-		KeyResponse = o.Prefix + KeyResponse
-	}
-
-	reg = metrics.NewRegistry()
-
+	r := metrics.NewRegistry()
 	if o.EnableDebugGcMetrics {
-		metrics.RegisterDebugGCStats(reg)
-		go metrics.CaptureDebugGCStats(reg, 5e9)
+		metrics.RegisterDebugGCStats(r)
+		go metrics.CaptureDebugGCStats(r, 5e9)
 	}
 
 	if o.EnableRuntimeMetrics {
-		metrics.RegisterRuntimeMemStats(reg)
-		go metrics.CaptureRuntimeMemStats(reg, 5e9)
+		metrics.RegisterRuntimeMemStats(r)
+		go metrics.CaptureRuntimeMemStats(r, 5e9)
 	}
 
-	metrics.NewRegisteredTimer(KeyRouteLookup, reg)
-
-	handler := new(metricsHandler)
+	handler := &metricsHandler{registry: r, options: o}
 	log.Infof("metrics listener on %s/metrics", o.Listener)
 	go http.ListenAndServe(o.Listener, handler)
+	reg = r
 }
 
 func getTimer(key string) metrics.Timer {
@@ -148,18 +137,49 @@ func MeasureResponse(code int, method string, routeId string, f func()) {
 }
 
 // This listener is used to expose the collected metrics.
-func (mh *metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// TODO:
-	// maybe it could be used to serve different groups of metrics or specific keys like a proper REST api
-	// (+1)
-	if r.Method == "GET" && r.URL.RequestURI() == "/metrics" {
-		w.WriteHeader(http.StatusOK)
-		w.Header().Set("Content-Type", "application/json")
-		metrics.WriteJSONOnce(reg, w)
-		return
+func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
+	data := make(map[string]map[string]interface{})
+	for name, metric := range sm {
+		values := make(map[string]interface{})
+		switch m := metric.(type) {
+		case metrics.Gauge:
+			values["value"] = m.Value()
+		case metrics.Histogram:
+			h := m.Snapshot()
+			ps := h.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999})
+			values["count"] = h.Count()
+			values["min"] = h.Min()
+			values["max"] = h.Max()
+			values["mean"] = h.Mean()
+			values["stddev"] = h.StdDev()
+			values["median"] = ps[0]
+			values["75%"] = ps[1]
+			values["95%"] = ps[2]
+			values["99%"] = ps[3]
+			values["99.9%"] = ps[4]
+		case metrics.Timer:
+			t := m.Snapshot()
+			ps := t.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999})
+			values["count"] = t.Count()
+			values["min"] = t.Min()
+			values["max"] = t.Max()
+			values["mean"] = t.Mean()
+			values["stddev"] = t.StdDev()
+			values["median"] = ps[0]
+			values["75%"] = ps[1]
+			values["95%"] = ps[2]
+			values["99%"] = ps[3]
+			values["99.9%"] = ps[4]
+			values["1m.rate"] = t.Rate1()
+			values["5m.rate"] = t.Rate5()
+			values["15m.rate"] = t.Rate15()
+			values["mean.rate"] = t.RateMean()
+		default:
+			values["error"] = fmt.Sprintf("unknown metrics type %T", m)
+		}
+
+		data[name] = values
 	}
-	w.WriteHeader(http.StatusBadRequest)
-	w.Header().Set("Content-Type", "application/problem+json")
-	fmt.Fprint(w,
-		`{"title":"Metrics Error", "detail": "Invalid request. Please send a GET request to /metrics"}`)
+
+	return json.Marshal(data)
 }
