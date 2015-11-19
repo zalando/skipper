@@ -49,6 +49,10 @@ type FilterContext interface {
 	// Provides a read-write state bag, unique to a request and shared by all
 	// the filters in the route.
 	StateBag() map[string]interface{}
+
+	// Gives filters access to the backend url specified in the route or an empty
+	// value in case it's a shunt
+	BackendUrl() string
 }
 
 // Filters are created by the Spec components, optionally using filter
