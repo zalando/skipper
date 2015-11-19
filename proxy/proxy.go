@@ -97,6 +97,7 @@ type filterContext struct {
 	stateBag         map[string]interface{}
 	originalRequest  *http.Request
 	originalResponse *http.Response
+	backendUrl       string
 }
 
 func (sb bodyBuffer) Close() error {
@@ -248,6 +249,7 @@ func (c *filterContext) MarkServed()                         { c.served = true }
 func (c *filterContext) Served() bool                        { return c.served }
 func (c *filterContext) PathParam(key string) string         { return c.pathParams[key] }
 func (c *filterContext) StateBag() map[string]interface{}    { return c.stateBag }
+func (c *filterContext) BackendUrl() string                  { return c.backendUrl }
 
 func (c *filterContext) OriginalRequest() *http.Request {
 	return c.originalRequest
@@ -309,7 +311,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w:          w,
 		req:        r,
 		pathParams: params,
-		stateBag:   make(map[string]interface{})}
+		stateBag:   make(map[string]interface{}),
+		backendUrl: rt.Backend}
 	if p.preserveOriginal {
 		c.originalRequest = cloneRequestMetadata(r)
 	}

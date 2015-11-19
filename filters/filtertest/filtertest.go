@@ -38,6 +38,7 @@ type Context struct {
 	FServed         bool
 	FParams         map[string]string
 	FStateBag       map[string]interface{}
+	FBackendUrl     string
 }
 
 func (spec *Filter) Name() string                    { return spec.FilterName }
@@ -53,6 +54,7 @@ func (fc *Context) PathParam(key string) string         { return fc.FParams[key]
 func (fc *Context) StateBag() map[string]interface{}    { return fc.FStateBag }
 func (fc *Context) OriginalRequest() *http.Request      { return nil }
 func (fc *Context) OriginalResponse() *http.Response    { return nil }
+func (fc *Context) BackendUrl() string                  { return fc.FBackendUrl }
 
 func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
 	return &Filter{spec.FilterName, config}, nil
