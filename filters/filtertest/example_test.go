@@ -29,6 +29,7 @@ type customFilter struct{}
 
 func (f *customFilter) Request(ctx filters.FilterContext) {
 	ctx.StateBag()["filter called"] = true
+	ctx.StateBag()["url"] = ctx.BackendUrl()
 }
 
 func (f *customFilter) Response(ctx filters.FilterContext) {}
@@ -62,7 +63,9 @@ func ExampleContext() {
 	// call the request handler method of the filter:
 	filter.Request(ctx)
 	fmt.Printf("%t", ctx.StateBag()["filter called"].(bool))
+	fmt.Printf("%v", ctx.StateBag()["url"])
 
 	// Output:
 	// true
+	// https://www.example.org
 }
