@@ -15,16 +15,21 @@
 package skipper
 
 import (
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
+	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
-	"log"
+	"io"
 	"net/http"
+	"os"
+	"path"
 	"time"
 )
 
@@ -92,6 +97,47 @@ type Options struct {
 	// consumer side over the feeding side during the routing updates to
 	// populate the updated routes faster.
 	DevMode bool
+
+	// Network address for the /metrics endpoint
+	MetricsListener string
+
+	// Skipper provides a set of metrics with different keys which are exposed via HTTP in JSON
+	// You can customize those key names with your own prefix
+	MetricsPrefix string
+
+	// Flag that enables reporting of the Go garbage collector statistics exported in debug.GCStats
+	EnableDebugGcMetrics bool
+
+	// Flag that enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats
+	EnableRuntimeMetrics bool
+
+	// Output file for the application log. Default value: /dev/stderr.
+	//
+	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
+	// to os.Stderr or os.Stdout.
+	//
+	// Warning: passing an arbitrary file will try to open it append
+	// on start and use it, or fail on start, but the current
+	// implementation doesn't support any more proper handling
+	// of temporary failures or log-rolling.
+	ApplicationLogOutput string
+
+	// Application log prefix. Default value: "[APP]".
+	ApplicationLogPrefix string
+
+	// Output file for the access log. Default value: /dev/stderr.
+	//
+	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
+	// to os.Stderr or os.Stdout.
+	//
+	// Warning: passing an arbitrary file will try to open for append
+	// it on start and use it, or fail on start, but the current
+	// implementation doesn't support any more proper handling
+	// of temporary failures or log-rolling.
+	AccessLogOutput string
+
+	// Disables the access log.
+	AccessLogDisabled bool
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -100,6 +146,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	if o.RoutesFile != "" {
 		f, err := eskipfile.Open(o.RoutesFile)
 		if err != nil {
+			log.Error(err)
 			return nil, err
 		}
 
@@ -111,6 +158,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			o.InnkeeperUrl, o.ProxyOptions.Insecure(), auth,
 			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
 		if err != nil {
+			log.Error(err)
 			return nil, err
 		}
 
@@ -132,8 +180,66 @@ func createInnkeeperAuthentication(o Options) innkeeper.Authentication {
 	return oauth.New(o.OAuthCredentialsDir, o.OAuthUrl, o.OAuthScope)
 }
 
+func getLogOutput(name string) (io.Writer, error) {
+	name = path.Clean(name)
+
+	if name == "/dev/stdout" {
+		return os.Stdout, nil
+	}
+
+	if name == "/dev/stderr" {
+		return os.Stderr, nil
+	}
+
+	return os.OpenFile(name, os.O_APPEND, os.ModeAppend)
+}
+
+func initLog(o Options) error {
+	var (
+		logOutput       io.Writer
+		accessLogOutput io.Writer
+		err             error
+	)
+
+	if o.ApplicationLogOutput != "" {
+		logOutput, err = getLogOutput(o.ApplicationLogOutput)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !o.AccessLogDisabled && o.AccessLogOutput != "" {
+		accessLogOutput, err = getLogOutput(o.AccessLogOutput)
+		if err != nil {
+			return err
+		}
+	}
+
+	logging.Init(logging.Options{
+		ApplicationLogPrefix: o.ApplicationLogPrefix,
+		ApplicationLogOutput: logOutput,
+		AccessLogOutput:      accessLogOutput,
+		AccessLogDisabled:    o.AccessLogDisabled})
+
+	return nil
+}
+
 // Run skipper.
 func Run(o Options) error {
+	// init log
+	err := initLog(o)
+	if err != nil {
+		return err
+	}
+
+	// init metrics
+	metrics.Init(metrics.Options{
+		Listener:             o.MetricsListener,
+		Prefix:               o.MetricsPrefix,
+		EnableDebugGcMetrics: o.EnableDebugGcMetrics,
+		EnableRuntimeMetrics: o.EnableRuntimeMetrics,
+	})
+
 	// create authentication for Innkeeper
 	auth := createInnkeeperAuthentication(o)
 
@@ -144,7 +250,7 @@ func Run(o Options) error {
 	}
 
 	if len(dataClients) == 0 {
-		log.Println("warning: no route source specified")
+		log.Warning("no route source specified")
 	}
 
 	// create a filter registry with the available filter specs registered,
@@ -183,7 +289,10 @@ func Run(o Options) error {
 	// create the proxy
 	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
 
+	// create the access log handler
+	loggingHandler := logging.NewHandler(proxy)
+
 	// start the http server
-	log.Printf("listening on %v\n", o.Address)
-	return http.ListenAndServe(o.Address, proxy)
+	log.Infof("proxy listener on %v", o.Address)
+	return http.ListenAndServe(o.Address, loggingHandler)
 }
