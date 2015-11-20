@@ -17,13 +17,14 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
-	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 const (
@@ -104,11 +105,6 @@ func (sb bodyBuffer) Close() error {
 	return nil
 }
 
-// creates a formatted error
-func proxyError(m string) error {
-	return fmt.Errorf(proxyErrorFmt, m)
-}
-
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
 		to[http.CanonicalHeaderKey(k)] = v
@@ -181,26 +177,31 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler 
 func callSafe(p func()) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("filter", err)
+			log.Error("filter", err)
 		}
 	}()
 
 	p()
 }
 
-// applies all filters to a request
-func applyFiltersToRequest(f []filters.Filter, ctx filters.FilterContext) {
-	for _, fi := range f {
-		callSafe(func() { fi.Request(ctx) })
-	}
-}
+func newFilterContext(
+	w http.ResponseWriter,
+	r *http.Request,
+	params map[string]string,
+	preserveOriginal bool,
+	route *routing.Route) *filterContext {
 
-// applies all filters to a response
-func applyFiltersToResponse(f []filters.Filter, ctx filters.FilterContext) {
-	for i, _ := range f {
-		fi := f[len(f)-1-i]
-		callSafe(func() { fi.Response(ctx) })
+	c := &filterContext{
+		w:          w,
+		req:        r,
+		pathParams: params,
+		stateBag:   make(map[string]interface{}),
+		backendUrl: route.Backend}
+	if preserveOriginal {
+		c.originalRequest = cloneRequestMetadata(r)
 	}
+
+	return c
 }
 
 func cloneUrl(u *url.URL) *url.URL {
@@ -259,13 +260,22 @@ func (c *filterContext) OriginalResponse() *http.Response {
 	return c.originalResponse
 }
 
-// creates an empty shunt response with the status code initially 404
+// creates an empty shunt response with the initial status code of 404
 func shunt(r *http.Request) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusNotFound,
 		Header:     make(http.Header),
 		Body:       &bodyBuffer{&bytes.Buffer{}},
 		Request:    r}
+}
+
+// applies all filters to a request
+func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.FilterContext) {
+	for _, fi := range f {
+		metrics.MeasureFilterRequest(fi.Name, func() {
+			callSafe(func() { fi.Request(ctx) })
+		})
+	}
 }
 
 // executes an http roundtrip to a route backend
@@ -278,84 +288,93 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, e
 	return p.roundTripper.RoundTrip(rr)
 }
 
-// http.Handler implementation
-func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	hterr := func(err error) {
-		// todo: just a bet that we shouldn't send here 50x
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		log.Println(err)
-	}
-
-	var (
-		rt     *routing.Route
-		params map[string]string
-	)
-
-	for _, prt := range p.priorityRoutes {
-		rt, params = prt.Match(r)
-		if rt != nil {
-			break
-		}
-	}
-
-	if rt == nil {
-		rt, params = p.routing.Route(r)
-		if rt == nil {
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-			return
-		}
-	}
-
-	f := rt.Filters
-	c := &filterContext{
-		w:          w,
-		req:        r,
-		pathParams: params,
-		stateBag:   make(map[string]interface{}),
-		backendUrl: rt.Backend}
-	if p.preserveOriginal {
-		c.originalRequest = cloneRequestMetadata(r)
-	}
-	applyFiltersToRequest(f, c)
-
-	var (
-		rs  *http.Response
-		err error
-	)
-
-	if rt.Shunt {
-		rs = shunt(r)
-	} else {
-		rs, err = p.roundtrip(r, rt)
-		if err != nil {
-			hterr(err)
-			return
-		}
-
-		defer func() {
-			err = rs.Body.Close()
-			if err != nil {
-				log.Println(err)
-			}
-		}()
-	}
-
-	addBranding(rs)
-
-	c.res = rs
-	if p.preserveOriginal {
-		c.originalResponse = cloneResponseMetadata(rs)
-	}
-	applyFiltersToResponse(f, c)
-
-	if !c.Served() {
-		copyHeader(w.Header(), rs.Header)
-		w.WriteHeader(rs.StatusCode)
-		copyStream(w.(flusherWriter), rs.Body)
+// applies all filters to a response in reverse order
+func (p *proxy) applyFiltersToResponse(f []*routing.RouteFilter, ctx filters.FilterContext) {
+	count := len(f)
+	for i, _ := range f {
+		fi := f[count-1-i]
+		metrics.MeasureFilterResponse(fi.Name, func() {
+			callSafe(func() { fi.Response(ctx) })
+		})
 	}
 }
 
 func addBranding(rs *http.Response) {
 	rs.Header.Set("X-Powered-By", "Skipper")
 	rs.Header.Set("Server", "Skipper")
+}
+
+func (p *proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
+	for _, prt := range p.priorityRoutes {
+		rt, params = prt.Match(r)
+		if rt != nil {
+			return rt, params
+		}
+	}
+
+	return p.routing.Route(r)
+}
+
+// http.Handler implementation
+func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	rt, params := p.lookupRoute(r)
+	if rt == nil {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
+	}
+	metrics.MeasureRouteLookup(start)
+
+	f := rt.Filters
+	c := newFilterContext(w, r, params, p.preserveOriginal, rt)
+	metrics.MeasureAllFiltersRequest(rt.Id, func() {
+		p.applyFiltersToRequest(f, c)
+	})
+
+	start = time.Now()
+	var (
+		rs  *http.Response
+		err error
+	)
+	if rt.Shunt {
+		rs = shunt(r)
+	} else {
+		rs, err = p.roundtrip(r, rt)
+		if err != nil {
+			http.Error(w,
+				http.StatusText(http.StatusInternalServerError),
+				http.StatusInternalServerError)
+			log.Error(err)
+			return
+		}
+
+		defer func() {
+			err = rs.Body.Close()
+			if err != nil {
+				log.Error(err)
+			}
+		}()
+	}
+	addBranding(rs)
+	metrics.MeasureBackend(rt.Id, start)
+
+	metrics.MeasureAllFiltersResponse(rt.Id, func() {
+		c.res = rs
+		if p.preserveOriginal {
+			c.originalResponse = cloneResponseMetadata(rs)
+		}
+
+		p.applyFiltersToResponse(f, c)
+	})
+
+	if !c.Served() {
+		metrics.MeasureResponse(rs.StatusCode, r.Method, rt.Id, func() {
+			copyHeader(w.Header(), rs.Header)
+			w.WriteHeader(rs.StatusCode)
+			err := copyStream(w.(flusherWriter), rs.Body)
+			if err != nil {
+				log.Error(err)
+			}
+		})
+	}
 }

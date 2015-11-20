@@ -162,7 +162,7 @@ func TestGetRoundtrip(t *testing.T) {
 	}
 
 	if ct, ok := w.Header()["Content-Type"]; !ok || ct[0] != "text/plain" {
-		t.Error("wrong content type")
+		t.Errorf("wrong content type. Expected 'text/plain' but got '%s'", w.Header().Get("Content-Type"))
 	}
 
 	if cl, ok := w.Header()["Content-Length"]; !ok || cl[0] != strconv.Itoa(len(payload)) {
