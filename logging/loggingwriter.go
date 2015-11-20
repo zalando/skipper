@@ -2,7 +2,6 @@ package logging
 
 import "net/http"
 
-// this name reflects it more what it is
 type loggingWriter struct {
 	writer http.ResponseWriter
 	code   int

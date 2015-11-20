@@ -12,7 +12,7 @@ the client.
 
 Options
 
-To enable metrics, it needs to be initialized with a Listener address.In this case, Skipper will start an additional
+To enable metrics, it needs to be initialized with a Listener address. In this case, Skipper will start an additional
 http listener, where the current metrics values can be downloaded.
 
 You can define a custom Prefix to every reported metrics key. This allows you to avoid conflicts between Skipper's
@@ -26,7 +26,7 @@ REST API
 This listener accepts GET requests on the /metrics endpoint like any other REST api. A request to "/metrics" should
 return a JSON response including all the collected metrics. Please note that a lot of metrics are created lazily
 whenever a request triggers them. This means that your response object content will depend on your own routes and
-the filters used.
+the filters used. In the case there are no metrics due to inactivity, if can receive a 404 response instead.
 
 You can also query for specific metrics, individually or by prefix matching. You can either use the metrics key name
 and you should get back only the values for that particular key or a prefix in which case you should get all the

@@ -31,8 +31,6 @@ type Options struct {
 	AccessLogDisabled bool
 }
 
-var accessLog *logrus.Logger
-
 func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	b, err := f.formatter.Format(e)
 	if err != nil {

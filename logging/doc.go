@@ -17,7 +17,7 @@ methods. Example:
         log.Errorf("nothing to do")
     }
 
-During startup initialization, it possible to redirect the log output
+During startup initialization, it is possible to redirect the log output
 from the default /dev/stderr to another file, and to set a common
 prefix for each log entry. Setting the prefix may be a good idea when
 the access log is enabled and its output is the same as the one of the
