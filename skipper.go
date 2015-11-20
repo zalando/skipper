@@ -122,7 +122,7 @@ type Options struct {
 	// of temporary failures or log-rolling.
 	ApplicationLogOutput string
 
-	// Application log prefix. Default value: "[APPLICATION_LOG]".
+	// Application log prefix. Default value: "[APP]".
 	ApplicationLogPrefix string
 
 	// Output file for the access log. Default value: /dev/stderr.
