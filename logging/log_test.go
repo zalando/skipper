@@ -26,7 +26,8 @@ func TestCustomPrefixForApplicationLog(t *testing.T) {
 		ApplicationLogOutput: &buf,
 		ApplicationLogPrefix: prefix})
 	log.Infof("Hello, world!")
-	if strings.Index(buf.String(), prefix) != 0 {
+	got := buf.String()
+	if !strings.HasPrefix(got, "[TEST_PREFIX]") || strings.Index(got, "Hello, world!") < 0 {
 		t.Error("failed to use custom prefix")
 	}
 }

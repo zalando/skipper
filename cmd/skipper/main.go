@@ -38,12 +38,13 @@ import (
 )
 
 const (
-	defaultAddress           = ":9090"
-	defaultEtcdPrefix        = "/skipper"
-	defaultSourcePollTimeout = int64(3000)
-	defaultMetricsListener   = ":9911"
-	defaultMetricsPrefix     = "skipper."
-	defaultRuntimeMetrics    = true
+	defaultAddress              = ":9090"
+	defaultEtcdPrefix           = "/skipper"
+	defaultSourcePollTimeout    = int64(3000)
+	defaultMetricsListener      = ":9911"
+	defaultMetricsPrefix        = "skipper."
+	defaultRuntimeMetrics       = true
+	defaultApplicationLogPrefix = "[APP]"
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -114,7 +115,7 @@ func init() {
 	flag.BoolVar(&debugGcMetrics, "debug-gc-metrics", false, debugGcMetricsUsage)
 	flag.BoolVar(&runtimeMetrics, "runtime-metrics", defaultRuntimeMetrics, runtimeMetricsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
-	flag.StringVar(&applicationLogPrefix, "application-log-prefix", "", applicationLogPrefixUsage)
+	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
 	flag.Parse()
