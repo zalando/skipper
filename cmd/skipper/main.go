@@ -30,17 +30,21 @@ package main
 
 import (
 	"flag"
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/proxy"
-	"log"
 	"strings"
 	"time"
 )
 
 const (
-	defaultAddress           = ":9090"
-	defaultEtcdPrefix        = "/skipper"
-	defaultSourcePollTimeout = int64(3000)
+	defaultAddress              = ":9090"
+	defaultEtcdPrefix           = "/skipper"
+	defaultSourcePollTimeout    = int64(3000)
+	defaultMetricsListener      = ":9911"
+	defaultMetricsPrefix        = "skipper."
+	defaultRuntimeMetrics       = true
+	defaultApplicationLogPrefix = "[APP]"
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -56,6 +60,14 @@ const (
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	devModeUsage                   = "enables developer time behavior, like ubuffered routing updates"
+	metricsListenerUsage           = "network address used for exposing the /metrics endpoint. An empty value disables metrics."
+	metricsPrefixUsage             = "allows setting a custom path prefix for metrics export"
+	debugGcMetricsUsage            = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
+	runtimeMetricsUsage            = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
+	applicationLogUsage            = "output file for the application log. When not set, /dev/stderr is used"
+	applicationLogPrefixUsage      = "prefix for each log entry"
+	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
+	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
 )
 
 var (
@@ -73,6 +85,14 @@ var (
 	innkeeperPreRouteFilters  string
 	innkeeperPostRouteFilters string
 	devMode                   bool
+	metricsListener           string
+	metricsPrefix             string
+	debugGcMetrics            bool
+	runtimeMetrics            bool
+	applicationLog            string
+	applicationLogPrefix      string
+	accessLog                 string
+	accessLogDisabled         bool
 )
 
 func init() {
@@ -90,6 +110,14 @@ func init() {
 	flag.StringVar(&innkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", innkeeperPreRouteFiltersUsage)
 	flag.StringVar(&innkeeperPostRouteFilters, "innkeeper-post-route-filters", "", innkeeperPostRouteFiltersUsage)
 	flag.BoolVar(&devMode, "dev-mode", false, devModeUsage)
+	flag.StringVar(&metricsListener, "metrics-listener", defaultMetricsListener, metricsListenerUsage)
+	flag.StringVar(&metricsPrefix, "metrics-prefix", defaultMetricsPrefix, metricsPrefixUsage)
+	flag.BoolVar(&debugGcMetrics, "debug-gc-metrics", false, debugGcMetricsUsage)
+	flag.BoolVar(&runtimeMetrics, "runtime-metrics", defaultRuntimeMetrics, runtimeMetricsUsage)
+	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
+	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
+	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
+	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
 	flag.Parse()
 }
 
@@ -113,7 +141,15 @@ func main() {
 		InnkeeperAuthToken:        innkeeperAuthToken,
 		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
 		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
-		DevMode:                   devMode}
+		DevMode:                   devMode,
+		MetricsListener:           metricsListener,
+		MetricsPrefix:             metricsPrefix,
+		EnableDebugGcMetrics:      debugGcMetrics,
+		EnableRuntimeMetrics:      runtimeMetrics,
+		ApplicationLogOutput:      applicationLog,
+		ApplicationLogPrefix:      applicationLogPrefix,
+		AccessLogOutput:           accessLog,
+		AccessLogDisabled:         accessLogDisabled}
 	if insecure {
 		options.ProxyOptions |= proxy.OptionsInsecure
 	}

@@ -364,7 +364,7 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 			return
 		}
 
-		if f, ok := r.Filters[0].(*filtertest.Filter); !ok ||
+		if f, ok := r.Filters[0].Filter.(*filtertest.Filter); !ok ||
 			f.FilterName != fs.Name() || len(f.Args) != 2 ||
 			f.Args[0] != float64(3.14) || f.Args[1] != "Hello, world!" {
 			t.Error("failed to process filters")
