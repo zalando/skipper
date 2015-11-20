@@ -98,6 +98,7 @@ type filterContext struct {
 	stateBag         map[string]interface{}
 	originalRequest  *http.Request
 	originalResponse *http.Response
+	backendUrl       string
 }
 
 func (sb bodyBuffer) Close() error {
@@ -187,13 +188,15 @@ func newFilterContext(
 	w http.ResponseWriter,
 	r *http.Request,
 	params map[string]string,
-	preserveOriginal bool) *filterContext {
+	preserveOriginal bool,
+	route *routing.Route) *filterContext {
 
 	c := &filterContext{
 		w:          w,
 		req:        r,
 		pathParams: params,
-		stateBag:   make(map[string]interface{})}
+		stateBag:   make(map[string]interface{}),
+		backendUrl: route.Backend}
 	if preserveOriginal {
 		c.originalRequest = cloneRequestMetadata(r)
 	}
@@ -247,6 +250,7 @@ func (c *filterContext) MarkServed()                         { c.served = true }
 func (c *filterContext) Served() bool                        { return c.served }
 func (c *filterContext) PathParam(key string) string         { return c.pathParams[key] }
 func (c *filterContext) StateBag() map[string]interface{}    { return c.stateBag }
+func (c *filterContext) BackendUrl() string                  { return c.backendUrl }
 
 func (c *filterContext) OriginalRequest() *http.Request {
 	return c.originalRequest
@@ -319,22 +323,19 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
-
 	metrics.MeasureRouteLookup(start)
 
 	f := rt.Filters
-	c := newFilterContext(w, r, params, p.preserveOriginal)
-
+	c := newFilterContext(w, r, params, p.preserveOriginal, rt)
 	metrics.MeasureAllFiltersRequest(rt.Id, func() {
 		p.applyFiltersToRequest(f, c)
 	})
 
+	start = time.Now()
 	var (
 		rs  *http.Response
 		err error
 	)
-
-	start = time.Now()
 	if rt.Shunt {
 		rs = shunt(r)
 	} else {
@@ -354,7 +355,6 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 	}
-
 	addBranding(rs)
 	metrics.MeasureBackend(rt.Id, start)
 
