@@ -79,10 +79,10 @@ continuous flushing.
 Routing Rules
 
 The route matching is implemented in the skipper/routing package. The
-routing rules are not static, but they can be continously updated by new
-definitions originated in one or more data sources.
+routing rules are not static, but they can be continuously updated by
+new definitions originated in one or more data sources.
 
-The only exceptions are the priority routes, that are not originated
+The only exceptions are the priority routes, that have not originated
 from the external data sources, and are tested against the requests
 before the general routing tree.
 

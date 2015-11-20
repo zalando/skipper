@@ -35,8 +35,8 @@ A routing table example:
         modPath(/.+/, "/notfound.html") -> static("/", "/var/www") ->
         <shunt>
 
-A route expression always contains a matcher expression and a backend
-expression, and it can contain optional filter expressions. The matcher
+A route expression always contains a match expression and a backend
+expression, and it can contain optional filter expressions. The match
 expression, each filter and the backend are separated by '->'. The
 filters take place between the matcher and the backend.
 
@@ -47,13 +47,13 @@ A route expression example:
         "https://api.example.org"
 
 
-Matcher Expressions
+Match Expressions
 
-A matcher expression contains one or more conditions. An incoming
+A match expression contains one or more conditions. An incoming
 request must fulfil each of them to match the route. The conditions are
 separated by '&&'.
 
-A matcher expression example:
+A match expression example:
 
     Path("/api/*resource") && Header("Accept", "application/json")
 
@@ -194,7 +194,7 @@ the approximate position of the invalid syntax element, otherwise it
 returns a list of structured, in-memory route definitions.
 
 The eskip parser does not validate the routes against semantic rules,
-e.g.  whether a matcher expression is valid, or a filter implementation
+e.g., whether a match expression is valid, or a filter implementation
 is available. This validation happens during processing the parsed
 definitions.
 
