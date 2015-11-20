@@ -39,6 +39,8 @@ const (
 	KeyFilterResponse  = "filter.%s.response"
 	KeyFiltersResponse = "filters.response.%s"
 	KeyResponse        = "response.%d.%s.skipper.%s"
+
+	statsRefreshDuration = time.Duration(5 * time.Second)
 )
 
 var reg metrics.Registry
@@ -53,12 +55,12 @@ func Init(o Options) {
 	r := metrics.NewRegistry()
 	if o.EnableDebugGcMetrics {
 		metrics.RegisterDebugGCStats(r)
-		go metrics.CaptureDebugGCStats(r, 5e9)
+		go metrics.CaptureDebugGCStats(r, statsRefreshDuration)
 	}
 
 	if o.EnableRuntimeMetrics {
 		metrics.RegisterRuntimeMemStats(r)
-		go metrics.CaptureRuntimeMemStats(r, 5e9)
+		go metrics.CaptureRuntimeMemStats(r, statsRefreshDuration)
 	}
 
 	handler := &metricsHandler{registry: r, options: o}

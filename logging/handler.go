@@ -24,10 +24,6 @@ func (lh *loggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	dur := time.Now().Sub(now)
 
-	if lw.code == 0 {
-		lw.code = 200
-	}
-
 	entry := &AccessEntry{
 		Request:      r,
 		ResponseSize: lw.bytes,
@@ -35,5 +31,5 @@ func (lh *loggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		RequestTime:  now,
 		Duration:     dur,
 	}
-	Access(entry)
+	LogAccess(entry)
 }

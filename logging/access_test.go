@@ -32,7 +32,7 @@ func testAccessEntry() *AccessEntry {
 func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string) {
 	var buf bytes.Buffer
 	Init(Options{AccessLogOutput: &buf})
-	Access(entry)
+	LogAccess(entry)
 	got := buf.String()
 	if got != "" {
 		got = got[:len(got)-1]

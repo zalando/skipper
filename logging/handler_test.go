@@ -48,18 +48,3 @@ func TestLogsAccess(t *testing.T) {
 		t.Error("failed to log access")
 	}
 }
-
-func TestSets200OnMissingStatus(t *testing.T) {
-	var accessLog bytes.Buffer
-	Init(Options{AccessLogOutput: &accessLog})
-
-	innerHandler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {})
-	h := NewHandler(innerHandler)
-
-	h.ServeHTTP(httptest.NewRecorder(), &http.Request{})
-
-	output := accessLog.String()
-	if !strings.Contains(output, strconv.Itoa(http.StatusOK)) {
-		t.Error("failed to log access")
-	}
-}

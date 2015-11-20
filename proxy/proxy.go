@@ -288,7 +288,7 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, e
 	return p.roundTripper.RoundTrip(rr)
 }
 
-// applies all filters to a response
+// applies all filters to a response in reverse order
 func (p *proxy) applyFiltersToResponse(f []*routing.RouteFilter, ctx filters.FilterContext) {
 	count := len(f)
 	for i, _ := range f {
