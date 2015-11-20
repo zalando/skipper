@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 +0000] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`
+const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`
 
 func testRequest() *http.Request {
 	r, _ := http.NewRequest("GET", "http://frank@127.0.0.1", nil)
@@ -17,7 +17,8 @@ func testRequest() *http.Request {
 }
 
 func testDate() time.Time {
-	return time.Date(2000, 10, 10, 13, 55, 36, 0, time.FixedZone("Test", -7))
+	l := time.FixedZone("foo", -7*3600)
+	return time.Date(2000, 10, 10, 13, 55, 36, 0, l)
 }
 
 func testAccessEntry() *AccessEntry {
@@ -56,23 +57,17 @@ func TestAccessLogIgnoresEmptyEntry(t *testing.T) {
 func TestNoPanicOnMissingRequest(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request = nil
-	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 +0000] "  " 418 2326 "" "" 42`)
-}
-
-func TestUseXForwarded(t *testing.T) {
-	entry := testAccessEntry()
-	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3")
-	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 +0000] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
+	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "  " 418 2326 "" "" 42`)
 }
 
 func TestStripPort(t *testing.T) {
 	entry := testAccessEntry()
-	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
-	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 +0000] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
+	entry.Request.RemoteAddr = "192.168.3.3:6969"
+	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
 }
 
 func TestMissingHostFallback(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.RemoteAddr = ""
-	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 +0000] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
+	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
 }

@@ -43,17 +43,6 @@ type AccessEntry struct {
 
 var accessLog *logrus.Logger
 
-// The remote address of the client. When the 'X-Forwarded-For'
-// header is set, then it is used instead.
-func remoteAddr(r *http.Request) string {
-	ff := r.Header.Get("X-Forwarded-For")
-	if ff != "" {
-		return ff
-	}
-
-	return r.RemoteAddr
-}
-
 // strip port from addresses with hostname, ipv4 or ipv6
 func stripPort(address string) string {
 	if h, _, err := net.SplitHostPort(address); err == nil {
@@ -64,7 +53,7 @@ func stripPort(address string) string {
 }
 
 func remoteHost(r *http.Request) string {
-	a := remoteAddr(r)
+	a := r.RemoteAddr
 	h := stripPort(a)
 	if h != "" {
 		return h

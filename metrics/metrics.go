@@ -34,10 +34,10 @@ type Options struct {
 const (
 	KeyRouteLookup     = "routelookup"
 	KeyFilterRequest   = "filter.%s.request"
-	KeyFiltersRequest  = "filters.request.%s"
+	KeyFiltersRequest  = "allfilters.request.%s"
 	KeyProxyBackend    = "backend.%s"
 	KeyFilterResponse  = "filter.%s.response"
-	KeyFiltersResponse = "filters.response.%s"
+	KeyFiltersResponse = "allfilters.response.%s"
 	KeyResponse        = "response.%d.%s.skipper.%s"
 
 	statsRefreshDuration = time.Duration(5 * time.Second)
