@@ -41,6 +41,8 @@ type AccessEntry struct {
 	RequestTime time.Time
 }
 
+var accessLog *logrus.Logger
+
 // The remote address of the client. When the 'X-Forwarded-For'
 // header is set, then it is used instead.
 func remoteAddr(r *http.Request) string {
@@ -84,8 +86,8 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return []byte(fmt.Sprintf(f.format, values...)), nil
 }
 
-// Logs an access event in Apache combined log format.
-func Access(entry *AccessEntry) {
+// Logs an access event in Apache combined log format (with a minor customization with the duration).
+func LogAccess(entry *AccessEntry) {
 	if accessLog == nil || entry == nil {
 		return
 	}

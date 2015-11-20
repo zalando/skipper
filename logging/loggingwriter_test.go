@@ -55,3 +55,13 @@ func TestFlushesPartialPayload(t *testing.T) {
 		t.Error("failed to flush underlying writer")
 	}
 }
+
+func TestSets200OnMissingStatus(t *testing.T) {
+	rr := httptest.NewRecorder()
+	w := &loggingWriter{writer: rr}
+	w.WriteHeader(0)
+
+	if w.code != http.StatusOK {
+		t.Error("failed to overwrite status code. Expected 200 but got %d", w.code)
+	}
+}
