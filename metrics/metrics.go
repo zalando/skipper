@@ -77,45 +77,40 @@ func getTimer(key string) metrics.Timer {
 }
 
 func measureSince(key string, start time.Time) {
-	if t := getTimer(key); t != nil {
-		t.UpdateSince(start)
-	}
-}
-
-func measure(key string, f func()) {
-	if t := getTimer(key); t != nil {
-		t.Time(f)
-	} else {
-		f()
-	}
+	d := time.Since(start)
+	go func() {
+		if t := getTimer(key); t != nil {
+			t.Update(d)
+		}
+	}()
 }
 
 func MeasureRouteLookup(start time.Time) {
 	measureSince(KeyRouteLookup, start)
 }
 
-func MeasureFilterRequest(filterName string, f func()) {
-	measure(fmt.Sprintf(KeyFilterRequest, filterName), f)
+func MeasureFilterRequest(filterName string, start time.Time) {
+	measureSince(fmt.Sprintf(KeyFilterRequest, filterName), start)
 }
 
-func MeasureAllFiltersRequest(routeId string, f func()) {
-	measure(fmt.Sprintf(KeyFiltersRequest, routeId), f)
+func MeasureAllFiltersRequest(routeId string, start time.Time) {
+	measureSince(fmt.Sprintf(KeyFiltersRequest, routeId), start)
 }
 
 func MeasureBackend(routeId string, start time.Time) {
 	measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
 }
 
-func MeasureFilterResponse(filterName string, f func()) {
-	measure(fmt.Sprintf(KeyFilterResponse, filterName), f)
+func MeasureFilterResponse(filterName string, start time.Time) {
+	measureSince(fmt.Sprintf(KeyFilterResponse, filterName), start)
 }
 
-func MeasureAllFiltersResponse(routeId string, f func()) {
-	measure(fmt.Sprintf(KeyFiltersResponse, routeId), f)
+func MeasureAllFiltersResponse(routeId string, start time.Time) {
+	measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
 }
 
-func MeasureResponse(code int, method string, routeId string, f func()) {
-	measure(fmt.Sprintf(KeyResponse, code, method, routeId), f)
+func MeasureResponse(code int, method string, routeId string, start time.Time) {
+	measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
 }
 
 // This listener is used to expose the collected metrics.
