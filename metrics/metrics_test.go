@@ -24,15 +24,6 @@ func TestDefaultOptions(t *testing.T) {
 	if timer != nil {
 		t.Errorf("Able to get metric timer for key '%s' while it shouldn't be possible", KeyRouteLookup)
 	}
-
-	var test = 42
-	measure(KeyRouteLookup, func() {
-		test = 1
-	})
-
-	if test != 1 {
-		t.Error("Failed to execute timed function without a registry")
-	}
 }
 
 func TestDefaultOptionsWithListener(t *testing.T) {
@@ -82,6 +73,7 @@ func TestMeasurement(t *testing.T) {
 	time.Sleep(5)
 	measureSince("TestMeasurement1", now)
 
+	time.Sleep(20 * time.Millisecond)
 	if t1.Count() == 0 || t1.Max() == 0 {
 		t.Error("'TestMeasurement1' metric should have some numbers")
 	}
@@ -91,9 +83,8 @@ func TestMeasurement(t *testing.T) {
 		t.Error("'TestMeasurement2' metric should only have zeroes")
 	}
 
-	measure("TestMeasurement2", func() {
-		time.Sleep(5)
-	})
+	measureSince("TestMeasurement2", now)
+	time.Sleep(20 * time.Millisecond)
 
 	if t2.Count() == 0 || t2.Max() == 0 {
 		t.Error("'TestMeasurement2' metric should have some numbers")
@@ -109,18 +100,18 @@ var proxyMetricsTests = []proxyMetricTest{
 	// T1 - Measure routing
 	{KeyRouteLookup, func() { MeasureRouteLookup(time.Now()) }},
 	// T2 - Measure filter request
-	{fmt.Sprintf(KeyFilterRequest, "foo"), func() { MeasureFilterRequest("foo", func() { time.Sleep(5) }) }},
+	{fmt.Sprintf(KeyFilterRequest, "foo"), func() { MeasureFilterRequest("foo", time.Now()) }},
 	// T3 - Measure all filters request
-	{fmt.Sprintf(KeyFiltersRequest, "bar"), func() { MeasureAllFiltersRequest("bar", func() { time.Sleep(5) }) }},
+	{fmt.Sprintf(KeyFiltersRequest, "bar"), func() { MeasureAllFiltersRequest("bar", time.Now()) }},
 	// T4 - Measure proxy backend
 	{fmt.Sprintf(KeyProxyBackend, "baz"), func() { MeasureBackend("baz", time.Now()) }},
 	// T5 - Measure filters response
-	{fmt.Sprintf(KeyFilterResponse, "qux"), func() { MeasureFilterResponse("qux", func() { time.Sleep(5) }) }},
+	{fmt.Sprintf(KeyFilterResponse, "qux"), func() { MeasureFilterResponse("qux", time.Now()) }},
 	// T6 - Measure all filters response
-	{fmt.Sprintf(KeyFiltersResponse, "quux"), func() { MeasureAllFiltersResponse("quux", func() { time.Sleep(5) }) }},
+	{fmt.Sprintf(KeyFiltersResponse, "quux"), func() { MeasureAllFiltersResponse("quux", time.Now()) }},
 	// T7 - Measure response
 	{fmt.Sprintf(KeyResponse, http.StatusOK, "GET", "norf"),
-		func() { MeasureResponse(http.StatusOK, "GET", "norf", func() { time.Sleep(5) }) }},
+		func() { MeasureResponse(http.StatusOK, "GET", "norf", time.Now()) }},
 }
 
 func TestProxyMetrics(t *testing.T) {
