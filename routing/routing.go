@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"net/http"
+	"sync/atomic"
 	"time"
 )
 
@@ -104,36 +105,28 @@ type Route struct {
 // Routing ('router') instance providing live
 // updatable request matching.
 type Routing struct {
-	getMatcher <-chan *matcher
-}
-
-// starts a goroutine that continuously feeds the latest routing settings
-// on the output channel, and receives the next updated settings on the
-// input channel.
-func feedMatchers(updateBuffer int, current *matcher) (chan<- *matcher, <-chan *matcher) {
-	// todo: use updateBuffer, when benchmarks show that it matters
-	in := make(chan *matcher)
-	out := make(chan *matcher, 0)
-
-	go func() {
-		for {
-			select {
-			case current = <-in:
-			case out <- current:
-			}
-		}
-	}()
-
-	return in, out
+	matcher atomic.Value
 }
 
 // Initializes a new routing instance, and starts listening for route
 // definition updates.
 func New(o Options) *Routing {
+	r := &Routing{}
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
-	matchersIn, matchersOut := feedMatchers(o.UpdateBuffer, initialMatcher)
-	go receiveRouteMatcher(o, matchersIn)
-	return &Routing{matchersOut}
+	r.matcher.Store(initialMatcher)
+	r.startReceivingUpdates(o)
+	return r
+}
+
+func (r *Routing) startReceivingUpdates(o Options) {
+	c := make(chan *matcher)
+	go receiveRouteMatcher(o, c)
+	go func() {
+		for {
+			m := <-c
+			r.matcher.Store(m)
+		}
+	}()
 }
 
 // Matches a request in the current routing tree.
@@ -142,6 +135,6 @@ func New(o Options) *Routing {
 // parameters constructed from the wildcard parameters in the path
 // condition if any. If there is no match, it returns nil.
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
-	m := <-r.getMatcher
+	m := r.matcher.Load().(*matcher)
 	return m.match(req)
 }
