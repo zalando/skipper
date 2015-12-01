@@ -271,10 +271,11 @@ func shunt(r *http.Request) *http.Response {
 
 // applies all filters to a request
 func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.FilterContext) {
+	var start time.Time
 	for _, fi := range f {
-		metrics.MeasureFilterRequest(fi.Name, func() {
-			callSafe(func() { fi.Request(ctx) })
-		})
+		start = time.Now()
+		callSafe(func() { fi.Request(ctx) })
+		metrics.MeasureFilterRequest(fi.Name, start)
 	}
 }
 
@@ -291,11 +292,12 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, e
 // applies all filters to a response in reverse order
 func (p *proxy) applyFiltersToResponse(f []*routing.RouteFilter, ctx filters.FilterContext) {
 	count := len(f)
+	var start time.Time
 	for i, _ := range f {
 		fi := f[count-1-i]
-		metrics.MeasureFilterResponse(fi.Name, func() {
-			callSafe(func() { fi.Response(ctx) })
-		})
+		start = time.Now()
+		callSafe(func() { fi.Response(ctx) })
+		metrics.MeasureFilterResponse(fi.Name, start)
 	}
 }
 
@@ -325,11 +327,11 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	metrics.MeasureRouteLookup(start)
 
+	start = time.Now()
 	f := rt.Filters
 	c := newFilterContext(w, r, params, p.preserveOriginal, rt)
-	metrics.MeasureAllFiltersRequest(rt.Id, func() {
-		p.applyFiltersToRequest(f, c)
-	})
+	p.applyFiltersToRequest(f, c)
+	metrics.MeasureAllFiltersRequest(rt.Id, start)
 
 	start = time.Now()
 	var (
@@ -358,23 +360,24 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	addBranding(rs)
 	metrics.MeasureBackend(rt.Id, start)
 
-	metrics.MeasureAllFiltersResponse(rt.Id, func() {
-		c.res = rs
-		if p.preserveOriginal {
-			c.originalResponse = cloneResponseMetadata(rs)
-		}
+	start = time.Now()
+	c.res = rs
+	if p.preserveOriginal {
+		c.originalResponse = cloneResponseMetadata(rs)
+	}
 
-		p.applyFiltersToResponse(f, c)
-	})
+	p.applyFiltersToResponse(f, c)
+	metrics.MeasureAllFiltersResponse(rt.Id, start)
 
 	if !c.Served() {
-		metrics.MeasureResponse(rs.StatusCode, r.Method, rt.Id, func() {
-			copyHeader(w.Header(), rs.Header)
-			w.WriteHeader(rs.StatusCode)
-			err := copyStream(w.(flusherWriter), rs.Body)
-			if err != nil {
-				log.Error(err)
-			}
-		})
+		start = time.Now()
+		copyHeader(w.Header(), rs.Header)
+		w.WriteHeader(rs.StatusCode)
+		err := copyStream(w.(flusherWriter), rs.Body)
+		if err != nil {
+			log.Error(err)
+		} else {
+			metrics.MeasureResponse(rs.StatusCode, r.Method, rt.Id, start)
+		}
 	}
 }
