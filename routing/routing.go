@@ -108,26 +108,6 @@ type Routing struct {
 	matcher atomic.Value
 }
 
-// starts a goroutine that continuously feeds the latest routing settings
-// on the output channel, and receives the next updated settings on the
-// input channel.
-func feedMatchers(updateBuffer int, current *matcher) (chan<- *matcher, <-chan *matcher) {
-	// todo: use updateBuffer, when benchmarks show that it matters
-	in := make(chan *matcher)
-	out := make(chan *matcher, 0)
-
-	go func() {
-		for {
-			select {
-			case current = <-in:
-			case out <- current:
-			}
-		}
-	}()
-
-	return in, out
-}
-
 // Initializes a new routing instance, and starts listening for route
 // definition updates.
 func New(o Options) *Routing {
