@@ -124,10 +124,13 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 	data := make(map[string]map[string]interface{})
 	for name, metric := range sm {
 		values := make(map[string]interface{})
+		var metricsFamily string
 		switch m := metric.(type) {
 		case metrics.Gauge:
+			metricsFamily = "gauges"
 			values["value"] = m.Value()
 		case metrics.Histogram:
+			metricsFamily = "histograms"
 			h := m.Snapshot()
 			ps := h.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999})
 			values["count"] = h.Count()
@@ -141,6 +144,7 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 			values["99%"] = ps[3]
 			values["99.9%"] = ps[4]
 		case metrics.Timer:
+			metricsFamily = "timers"
 			t := m.Snapshot()
 			ps := t.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999})
 			values["count"] = t.Count()
@@ -158,10 +162,13 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 			values["15m.rate"] = t.Rate15()
 			values["mean.rate"] = t.RateMean()
 		default:
+			metricsFamily = "unknown"
 			values["error"] = fmt.Sprintf("unknown metrics type %T", m)
 		}
-
-		data[name] = values
+		if data[metricsFamily] == nil {
+			data[metricsFamily] = make(map[string]interface{})
+		}
+		data[metricsFamily][name] = values
 	}
 
 	return json.Marshal(data)
