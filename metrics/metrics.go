@@ -69,20 +69,26 @@ func Init(o Options) {
 	reg = r
 }
 
+func createTimer() metrics.Timer {
+	return metrics.NewCustomTimer(metrics.NewHistogram(metrics.NewUniformSample(1024)), metrics.NewMeter())
+}
+
 func getTimer(key string) metrics.Timer {
 	if reg == nil {
 		return nil
 	}
-	return reg.GetOrRegister(key, metrics.NewTimer()).(metrics.Timer)
+	return reg.GetOrRegister(key, createTimer).(metrics.Timer)
+}
+
+func updatetimer(key string, d time.Duration) {
+	if t := getTimer(key); t != nil {
+		t.Update(d)
+	}
 }
 
 func measureSince(key string, start time.Time) {
 	d := time.Since(start)
-	go func() {
-		if t := getTimer(key); t != nil {
-			t.Update(d)
-		}
-	}()
+	go updatetimer(key, d)
 }
 
 func MeasureRouteLookup(start time.Time) {
