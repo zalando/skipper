@@ -41,6 +41,8 @@ const (
 	KeyResponse        = "response.%d.%s.skipper.%s"
 
 	statsRefreshDuration = time.Duration(5 * time.Second)
+
+	defaultReservoirSize = 1024
 )
 
 var reg metrics.Registry
@@ -70,7 +72,7 @@ func Init(o Options) {
 }
 
 func createTimer() metrics.Timer {
-	return metrics.NewCustomTimer(metrics.NewHistogram(metrics.NewUniformSample(1024)), metrics.NewMeter())
+	return metrics.NewCustomTimer(metrics.NewHistogram(metrics.NewUniformSample(defaultReservoirSize)), metrics.NewMeter())
 }
 
 func getTimer(key string) metrics.Timer {
@@ -80,7 +82,7 @@ func getTimer(key string) metrics.Timer {
 	return reg.GetOrRegister(key, createTimer).(metrics.Timer)
 }
 
-func updatetimer(key string, d time.Duration) {
+func updateTimer(key string, d time.Duration) {
 	if t := getTimer(key); t != nil {
 		t.Update(d)
 	}
@@ -88,7 +90,7 @@ func updatetimer(key string, d time.Duration) {
 
 func measureSince(key string, start time.Time) {
 	d := time.Since(start)
-	go updatetimer(key, d)
+	go updateTimer(key, d)
 }
 
 func MeasureRouteLookup(start time.Time) {
