@@ -41,6 +41,8 @@ const (
 	KeyResponse        = "response.%d.%s.skipper.%s"
 
 	statsRefreshDuration = time.Duration(5 * time.Second)
+
+	defaultReservoirSize = 1024
 )
 
 var reg metrics.Registry
@@ -69,20 +71,26 @@ func Init(o Options) {
 	reg = r
 }
 
+func createTimer() metrics.Timer {
+	return metrics.NewCustomTimer(metrics.NewHistogram(metrics.NewUniformSample(defaultReservoirSize)), metrics.NewMeter())
+}
+
 func getTimer(key string) metrics.Timer {
 	if reg == nil {
 		return nil
 	}
-	return reg.GetOrRegister(key, metrics.NewTimer()).(metrics.Timer)
+	return reg.GetOrRegister(key, createTimer).(metrics.Timer)
+}
+
+func updateTimer(key string, d time.Duration) {
+	if t := getTimer(key); t != nil {
+		t.Update(d)
+	}
 }
 
 func measureSince(key string, start time.Time) {
 	d := time.Since(start)
-	go func() {
-		if t := getTimer(key); t != nil {
-			t.Update(d)
-		}
-	}()
+	go updateTimer(key, d)
 }
 
 func MeasureRouteLookup(start time.Time) {
@@ -118,10 +126,13 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 	data := make(map[string]map[string]interface{})
 	for name, metric := range sm {
 		values := make(map[string]interface{})
+		var metricsFamily string
 		switch m := metric.(type) {
 		case metrics.Gauge:
+			metricsFamily = "gauges"
 			values["value"] = m.Value()
 		case metrics.Histogram:
+			metricsFamily = "histograms"
 			h := m.Snapshot()
 			ps := h.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999})
 			values["count"] = h.Count()
@@ -135,6 +146,7 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 			values["99%"] = ps[3]
 			values["99.9%"] = ps[4]
 		case metrics.Timer:
+			metricsFamily = "timers"
 			t := m.Snapshot()
 			ps := t.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999})
 			values["count"] = t.Count()
@@ -152,10 +164,13 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 			values["15m.rate"] = t.Rate15()
 			values["mean.rate"] = t.RateMean()
 		default:
+			metricsFamily = "unknown"
 			values["error"] = fmt.Sprintf("unknown metrics type %T", m)
 		}
-
-		data[name] = values
+		if data[metricsFamily] == nil {
+			data[metricsFamily] = make(map[string]interface{})
+		}
+		data[metricsFamily][name] = values
 	}
 
 	return json.Marshal(data)
