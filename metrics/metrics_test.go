@@ -126,7 +126,7 @@ func TestProxyMetrics(t *testing.T) {
 	}
 }
 
-type serializationResult map[string]map[string]interface{}
+type serializationResult map[string]map[string]map[string]interface{}
 
 type serializationTest struct {
 	i        interface{}
@@ -134,13 +134,14 @@ type serializationTest struct {
 }
 
 var serializationTests = []serializationTest{
-	{metrics.NewGauge, serializationResult{"test": {"value": 0.0}}},
-	{metrics.NewTimer, serializationResult{"test": {"15m.rate": 0.0, "1m.rate": 0.0, "5m.rate": 0.0,
+	{metrics.NewGauge, serializationResult{"gauges": {"test": {"value": 0.0}}}},
+	{metrics.NewTimer, serializationResult{"timers": {"test": {"15m.rate": 0.0, "1m.rate": 0.0, "5m.rate": 0.0,
 		"75%": 0.0, "95%": 0.0, "99%": 0.0, "99.9%": 0.0, "count": 0.0, "max": 0.0, "mean": 0.0, "mean.rate": 0.0,
-		"median": 0.0, "min": 0.0, "stddev": 0.0}}},
-	{func() metrics.Histogram { return metrics.NewHistogram(nil) }, serializationResult{"test": {"75%": 0.0, "95%": 0.0,
-		"99%": 0.0, "99.9%": 0.0, "count": 0.0, "max": 0.0, "mean": 0.0, "median": 0.0, "min": 0.0, "stddev": 0.0}}},
-	{func() int { return 42 }, serializationResult{"test": {"error": "unknown metrics type int"}}},
+		"median": 0.0, "min": 0.0, "stddev": 0.0}}}},
+	{func() metrics.Histogram { return metrics.NewHistogram(nil) }, serializationResult{"histograms": {"test": {"75%": 0.0,
+		"95%": 0.0, "99%": 0.0, "99.9%": 0.0, "count": 0.0, "max": 0.0, "mean": 0.0, "median": 0.0, "min": 0.0,
+		"stddev": 0.0}}}},
+	{func() int { return 42 }, serializationResult{"unknown": {"test": {"error": "unknown metrics type int"}}}},
 }
 
 func TestMetricSerialization(t *testing.T) {
