@@ -43,12 +43,12 @@ func TestAllMetricsRequest(t *testing.T) {
 		t.Error("Metrics endpoint should provide a valid response")
 	}
 
-	var data map[string]interface{}
+	var data map[string]map[string]interface{}
 	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
 		t.Error("Unable to unmarshal metrics response")
 	}
 
-	if _, ok := data["runtime.MemStats.NumGC"]; !ok {
+	if _, ok := data["gauges"]["runtime.MemStats.NumGC"]; !ok {
 		t.Error("Metrics endpoint should've returned some runtime metrics in it")
 	}
 }
@@ -66,7 +66,7 @@ func TestSingleMetricsRequest(t *testing.T) {
 		t.Error("Metrics endpoint should provide a valid response")
 	}
 
-	var data map[string]interface{}
+	var data map[string]map[string]interface{}
 	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
 		t.Error("Unable to unmarshal metrics response")
 	}
@@ -75,7 +75,7 @@ func TestSingleMetricsRequest(t *testing.T) {
 		t.Error("Metrics endpoint for exact match should've returned exactly te requested item")
 	}
 
-	if _, ok := data["runtime.MemStats.NumGC"]; !ok {
+	if _, ok := data["gauges"]["runtime.MemStats.NumGC"]; !ok {
 		t.Error("Metrics endpoint should've returned some runtime metrics in it")
 	}
 }
@@ -93,7 +93,7 @@ func TestSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
 		t.Error("Metrics endpoint should provide a valid response for exact match using prefix")
 	}
 
-	var data map[string]interface{}
+	var data map[string]map[string]interface{}
 	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
 		t.Error("Unable to unmarshal metrics response for exact match using prefix")
 	}
@@ -102,7 +102,7 @@ func TestSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
 		t.Error("Metrics endpoint for exact match using prefix should've returned exactly te requested item")
 	}
 
-	if _, ok := data["zmon.runtime.MemStats.NumGC"]; !ok {
+	if _, ok := data["gauges"]["zmon.runtime.MemStats.NumGC"]; !ok {
 		t.Error("Metrics endpoint for exact match using prefix should've returned some runtime metrics in it")
 	}
 }
@@ -120,7 +120,7 @@ func TestMetricsRequestWithPattern(t *testing.T) {
 		t.Error("Metrics endpoint should provide a valid response")
 	}
 
-	var data map[string]interface{}
+	var data map[string]map[string]interface{}
 	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
 		t.Error("Unable to unmarshal metrics response")
 	}
@@ -129,9 +129,15 @@ func TestMetricsRequestWithPattern(t *testing.T) {
 		t.Error("Metrics endpoint for prefix should've returned some runtime metrics in it")
 	}
 
-	for k, _ := range data {
-		if !strings.HasPrefix(k, "runtime.Num") {
-			t.Error("Metrics endpoint returned metrics with the wrong prefix")
+	for k, v := range data {
+		if k != "gauges" {
+			t.Error("Metrics should report `gauges` metrics")
+		} else {
+			for k2, _ := range v {
+				if !strings.HasPrefix(k2, "runtime.Num") {
+					t.Error("Metrics endpoint returned metrics with the wrong prefix")
+				}
+			}
 		}
 	}
 }
