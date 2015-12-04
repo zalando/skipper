@@ -504,8 +504,6 @@ func TestConvertShunt(t *testing.T) {
 		Args: []interface{}{fixedRedirectStatus, "https://www.example.org:443/some/path"}}}}}
 	rs := convertRoute("", d, nil, nil)
 
-	println(len(rs.Filters))
-
 	if !rs.Shunt || len(rs.Filters) != 1 ||
 		rs.Filters[0].Name != builtin.RedirectName ||
 		len(rs.Filters[0].Args) != 2 ||
