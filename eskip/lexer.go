@@ -47,7 +47,7 @@ type eskipLex struct {
 // creates and initializes a lexer instance
 func newLexer(code string) *eskipLex {
 	const (
-		rxFmt                = "^(\\s*|//.*\n)*(%s)(\\s*|//.*\n)*"
+		rxFmt                = "^(\\s*|//.*\r?\n|//.*$)*(%s)(\\s*|//.*\r?\n|//.*$)*"
 		initialCaptureGroups = 3
 	)
 
