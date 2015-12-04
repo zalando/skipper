@@ -123,3 +123,10 @@ func TestParseFilters(t *testing.T) {
 		t.Error("failed to parse filters")
 	}
 }
+
+func TestParseCommentAsLastToken(t *testing.T) {
+	r, err := Parse("route: Any() -> <shunt>; // some comment")
+	if err != nil || len(r) != 1 {
+		t.Error("failed to parse comment as last token", err, len(r))
+	}
+}
