@@ -85,21 +85,64 @@ func innkeeperServer(data []*routeData) *httptest.Server {
 
 func testData() []*routeData {
 	return []*routeData{
-		&routeData{1, "2015-09-28T16:58:56.955", "", routeDef{
-			"", nil, nil,
-			pathMatch{pathMatchStrict, "/"},
-			nil, nil, nil,
-			endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, ""}}},
-		&routeData{2, "", "2015-09-28T16:58:56.956", routeDef{
-			"", nil, nil,
-			pathMatch{pathMatchStrict, "/catalog"},
-			&pathRewrite{Match: "", Replace: "/catalog"}, nil, nil,
-			endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, ""}}},
-		&routeData{3, "2015-09-28T16:58:56.957", "", routeDef{
-			"", nil, nil,
-			pathMatch{pathMatchStrict, "/catalog"},
-			&pathRewrite{Match: "", Replace: "/new-catalog"}, nil, nil,
-			endpoint{endpointReverseProxy, "HTTPS", "catalog.example.org", 443, ""}}}}
+		&routeData{
+			Id:         1,
+			Name:       "",
+			ActivateAt: "2015-09-28T16:58:56.955",
+			CreatedAt:  "2015-09-28T16:58:56.955",
+			DeletedAt:  "",
+			Route: routeDef{
+				Matcher: matcher{
+					HostMatcher:    "",
+					PathMatcher:    pathMatcher{matchStrict, "/"},
+					MethodMatcher:  "GET",
+					HeaderMatchers: nil},
+				Filters:  nil,
+				Endpoint: "https://example.org:443"},
+		}, &routeData{
+			Id:         2,
+			Name:       "",
+			ActivateAt: "2015-09-28T16:58:56.955",
+			CreatedAt:  "2015-09-28T16:58:56.955",
+			DeletedAt:  "2015-09-28T16:58:56.956",
+			Route: routeDef{
+				Matcher: matcher{
+					HostMatcher:    "",
+					PathMatcher:    pathMatcher{matchStrict, "/"},
+					MethodMatcher:  "GET",
+					HeaderMatchers: nil},
+				Filters:  nil,
+				Endpoint: "https://example.org:443"},
+		}, &routeData{
+			Id:         3,
+			Name:       "",
+			ActivateAt: "2015-09-28T16:58:56.955",
+			CreatedAt:  "2015-09-28T16:58:56.955",
+			DeletedAt:  "2015-09-28T16:58:56.956",
+			Route: routeDef{
+				Matcher: matcher{
+					HostMatcher:    "",
+					PathMatcher:    pathMatcher{matchStrict, "/"},
+					MethodMatcher:  "GET",
+					HeaderMatchers: nil},
+				Filters: []filter{
+					filter{Name: "pathRewrite", Args: []interface{}{"", "/catalog"}}},
+				Endpoint: "https://example.org:443/"},
+		}, &routeData{
+			Id:         4,
+			Name:       "",
+			ActivateAt: "2015-09-28T16:58:56.957",
+			CreatedAt:  "2015-09-28T16:58:56.957",
+			DeletedAt:  "",
+			Route: routeDef{
+				Matcher: matcher{
+					HostMatcher:    "",
+					PathMatcher:    pathMatcher{matchStrict, "/catalog"},
+					MethodMatcher:  "GET",
+					HeaderMatchers: nil},
+				Filters: []filter{
+					filter{Name: "pathRewrite", Args: []interface{}{"", "/new-catalog"}}},
+				Endpoint: "https://catalog.example.org:443"}}}
 }
 
 func checkDoc(t *testing.T, rs []*eskip.Route, d []*routeData) {
@@ -185,42 +228,23 @@ func checkDoc(t *testing.T, rs []*eskip.Route, d []*routeData) {
 	}
 }
 
-func TestParsingInnkeeperRoute(t *testing.T) {
+func TestParsingInnkeeperSimpleRoute(t *testing.T) {
 	const testInnkeeperRoute = `{
-        "id": 1,
-        "createdAt": "2015-09-28T16:58:56.955",
-        "deletedAt": "2015-09-28T16:58:56.956",
-        "route": {
-            "description": "The New Route",
-            "match_methods": ["GET"],
-            "match_headers": [
-                {"name": "header0", "value": "value0"},
-                {"name": "header1", "value": "value1"}
-            ],
-            "match_path": {
-                "match": "/route",
-                "type": "STRICT"
-            },
-            "path_rewrite": {
-                "match": "_",
-                "replace": "-"
-            },
-            "request_headers": [
-                {"name": "header2", "value": "value2"},
-                {"name": "header3", "value": "value3"}
-            ],
-            "response_headers": [
-                {"name": "header4", "value": "value4"},
-                {"name": "header5", "value": "value5"}
-            ],
-            "endpoint": {
-                "hostname": "www.example.org",
-                "port": 443,
-                "protocol": "HTTPS",
-                "type": "REVERSE_PROXY"
-            }
-        }
-    }`
+			"name": "THE_ROUTE",
+			"description": "this is a route",
+			"activate_at": "2015-09-28T16:58:56.957",
+			"id": 1,
+			"created_at": "2015-09-28T16:58:56.955",
+			"deleted_at": "2015-09-28T16:58:56.956",
+			"route": {
+				"matcher": {
+					"path_matcher": {
+						"match": "/hello-*",
+						"type": "REGEX"
+					}
+				}
+			}
+		}`
 
 	r := routeData{}
 	err := json.Unmarshal([]byte(testInnkeeperRoute), &r)
@@ -228,53 +252,60 @@ func TestParsingInnkeeperRoute(t *testing.T) {
 		t.Error(err)
 	}
 
-	if r.Id != 1 || r.CreatedAt != "2015-09-28T16:58:56.955" || r.DeletedAt != "2015-09-28T16:58:56.956" {
+	if r.Name != "THE_ROUTE" {
+		t.Error("failed to parse the name")
+	}
+
+	if r.Id != 1 || r.CreatedAt != "2015-09-28T16:58:56.955" || r.DeletedAt != "2015-09-28T16:58:56.956" ||
+		r.ActivateAt != "2015-09-28T16:58:56.957" {
 		t.Error("failed to parse route data")
 	}
 
-	if len(r.Route.MatchMethods) != 1 || r.Route.MatchMethods[0] != "GET" {
-		t.Error("failed to parse methods")
+	if r.Route.Matcher.PathMatcher.Match != "/hello-*" || r.Route.Matcher.PathMatcher.Typ != "REGEX" {
+		t.Error("failed to parse path matcher")
 	}
 
-	if len(r.Route.MatchHeaders) != 2 ||
-		r.Route.MatchHeaders[0].Name != "header0" || r.Route.MatchHeaders[0].Value != "value0" ||
-		r.Route.MatchHeaders[1].Name != "header1" || r.Route.MatchHeaders[1].Value != "value1" {
-		t.Error("failed to parse methods")
-	}
-
-	if r.Route.MatchPath.Typ != "STRICT" || r.Route.MatchPath.Match != "/route" {
-		t.Error("failed to parse path match", r.Route.MatchPath.Typ, r.Route.MatchPath.Match)
-	}
-
-	if r.Route.RewritePath == nil || r.Route.RewritePath.Match != "_" || r.Route.RewritePath.Replace != "-" {
-		t.Error("failed to path rewrite")
-	}
-
-	if len(r.Route.RequestHeaders) != 2 ||
-		r.Route.RequestHeaders[0].Name != "header2" || r.Route.RequestHeaders[0].Name != "header2" ||
-		r.Route.RequestHeaders[1].Name != "header3" || r.Route.RequestHeaders[1].Name != "header3" {
-		t.Error("failed to parse request headers")
-	}
-
-	if len(r.Route.ResponseHeaders) != 2 ||
-		r.Route.ResponseHeaders[0].Name != "header4" || r.Route.ResponseHeaders[0].Name != "header4" ||
-		r.Route.ResponseHeaders[1].Name != "header5" || r.Route.ResponseHeaders[1].Name != "header5" {
-		t.Error("failed to parse request headers")
-	}
-
-	if r.Route.Endpoint.Hostname != "www.example.org" ||
-		r.Route.Endpoint.Port != 443 ||
-		r.Route.Endpoint.Protocol != "HTTPS" ||
-		r.Route.Endpoint.Typ != "REVERSE_PROXY" {
-		t.Error("failed to parse endpoint")
+	if r.Route.Endpoint != "" {
+		t.Error("failed to parse the endpoint")
 	}
 }
 
-func TestParsingInnkeeperRouteNoPathRewrite(t *testing.T) {
+func TestParsingInnkeeperComplexRoute(t *testing.T) {
 	const testInnkeeperRoute = `{
-        "id": 1,
-        "route": {}
-    }`
+			"name": "THE_ROUTE",
+			"description": "this is a route",
+			"activate_at": "2015-09-28T16:58:56.957",
+			"id": 1,
+			"created_at": "2015-09-28T16:58:56.955",
+			"deleted_at": "2015-09-28T16:58:56.956",
+			"route": {
+				"matcher": {
+					"host_matcher": "example.com",
+					"path_matcher": {
+						"match": "/hello-*",
+						"type": "REGEX"
+					},
+					"method_matcher": "POST",
+					"header_matchers": [{
+						"name": "X-Host",
+						"value": "www.*",
+						"type": "REGEX"
+					}, {
+						"name": "X-Port",
+						"value": "8080",
+						"type": "STRICT"
+					}]
+				},
+				"filters": [{
+					"name": "someFilter",
+					"args": ["Hello", 123]
+				}, {
+					"name": "someOtherFilter",
+					"args": ["Hello", 123, "World"]
+				}],
+				"endpoint": "https://www.endpoint.com:8080/endpoint"
+			}
+		}`
 
 	r := routeData{}
 	err := json.Unmarshal([]byte(testInnkeeperRoute), &r)
@@ -282,37 +313,84 @@ func TestParsingInnkeeperRouteNoPathRewrite(t *testing.T) {
 		t.Error(err)
 	}
 
-	if r.Route.RewritePath != nil {
-		t.Error("failed to path rewrite")
+	if r.Name != "THE_ROUTE" {
+		t.Error("failed to parse the name")
+	}
+
+	if r.Id != 1 || r.CreatedAt != "2015-09-28T16:58:56.955" || r.DeletedAt != "2015-09-28T16:58:56.956" ||
+		r.ActivateAt != "2015-09-28T16:58:56.957" {
+		t.Error("failed to parse route data")
+	}
+
+	if r.Route.Matcher.HostMatcher != "example.com" {
+		t.Error("failed to parse the host matcher")
+	}
+
+	if r.Route.Matcher.MethodMatcher != "POST" {
+		t.Error("failed to parse the method matcher")
+	}
+
+	if r.Route.Matcher.PathMatcher.Match != "/hello-*" || r.Route.Matcher.PathMatcher.Typ != "REGEX" {
+		t.Error("failed to parse path matcher")
+	}
+
+	if len(r.Route.Matcher.HeaderMatchers) != 2 || r.Route.Matcher.HeaderMatchers[0].Name != "X-Host" ||
+		r.Route.Matcher.HeaderMatchers[0].Typ != "REGEX" ||
+		r.Route.Matcher.HeaderMatchers[0].Value != "www.*" {
+		t.Error("failed to parse header matchers")
+	}
+
+	if len(r.Route.Filters) != 2 {
+		t.Error("failed to parse the filters")
+	}
+
+	if r.Route.Filters[0].Name != "someFilter" {
+		t.Error("failed to parse the filter name")
+	}
+
+	args := r.Route.Filters[0].Args
+
+	if len(args) != 2 && args[0] != "Hello" && args[1] != 123 {
+		t.Error("failed to parse the filter args")
+	}
+
+	if r.Route.Endpoint != "https://www.endpoint.com:8080/endpoint" {
+		t.Error("failed to parse the endpoint")
 	}
 }
 
 func TestParsingMultipleInnkeeperRoutes(t *testing.T) {
 	const testInnkeeperRoutes = `[{
-        "id": 1,
-        "route": {
-            "description": "The New Route",
-            "match_path": {
-                "match": "/route",
-                "type": "STRICT"
-            },
-            "endpoint": {
-                "hostname": "domain.eu"
-            }
-        }
-    }, {
-        "id": 2,
-        "route": {
-            "description": "The New Route",
-            "match_path": {
-                "match": "/route",
-                "type": "STRICT"
-            },
-            "endpoint": {
-                "hostname": "domain.eu"
-            }
-        }
-    }]`
+			"name": "THE_ROUTE",
+			"description": "this is a route",
+			"activate_at": "2015-09-28T16:58:56.957",
+			"id": 1,
+			"created_at": "2015-09-28T16:58:56.955",
+			"deleted_at": "2015-09-28T16:58:56.956",
+			"route": {
+				"matcher": {
+					"path_matcher": {
+						"match": "/hello-*",
+						"type": "REGEX"
+					}
+				}
+			}
+		}, {
+			"name": "THE_ROUTE",
+			"description": "this is a route",
+			"activate_at": "2015-09-28T16:58:56.957",
+			"id": 2,
+			"created_at": "2015-09-28T16:58:56.955",
+			"deleted_at": "2015-09-28T16:58:56.956",
+			"route": {
+				"matcher": {
+					"path_matcher": {
+						"match": "/hello-*",
+						"type": "REGEX"
+					}
+				}
+			}
+		}]`
 
 	rs := []*routeData{}
 	err := json.Unmarshal([]byte(testInnkeeperRoutes), &rs)
@@ -326,7 +404,7 @@ func TestParsingMultipleInnkeeperRoutes(t *testing.T) {
 }
 
 func TestParsingMultipleInnkeeperRoutesWithDelete(t *testing.T) {
-	const testInnkeeperRoutes = `[{"id": 1}, {"id": 2, "deletedAt": "2015-09-28T16:58:56.956"}]`
+	const testInnkeeperRoutes = `[{"id": 1}, {"id": 2, "deleted_at": "2015-09-28T16:58:56.956"}]`
 
 	rs := []*routeData{}
 	err := json.Unmarshal([]byte(testInnkeeperRoutes), &rs)
@@ -363,17 +441,17 @@ func TestConvertDoc(t *testing.T) {
 	test(rs[0].Shunt, false)
 	test(rs[0].Backend, "https://example.org:443")
 
-	test(rs[1].Id, "route3")
+	test(rs[1].Id, "route4")
 	test(rs[1].Path, "/catalog")
 	test(rs[1].Shunt, false)
 	test(rs[1].Backend, "https://catalog.example.org:443")
 
-	test(len(deleted), 1)
+	test(len(deleted), 2)
 	test(lastChange, "2015-09-28T16:58:56.957")
 }
 
 func TestConvertRoutePathRegexp(t *testing.T) {
-	d := &routeData{Route: routeDef{MatchPath: pathMatch{Typ: pathMatchRegexp, Match: "test-rx"}}}
+	d := &routeData{Route: routeDef{Matcher: matcher{PathMatcher: pathMatcher{Typ: matchRegexp, Match: "test-rx"}}}}
 	r := convertRoute("testRoute", d, nil, nil)
 	if len(r.PathRegexps) != 1 || r.PathRegexps[0] != "test-rx" {
 		t.Error("failed to convert path regexp")
@@ -381,30 +459,34 @@ func TestConvertRoutePathRegexp(t *testing.T) {
 }
 
 func TestConvertRouteMethods(t *testing.T) {
-	d := &routeData{Id: 42, Route: routeDef{MatchMethods: []string{"GET", "HEAD"}}}
+	d := &routeData{Id: 42, Route: routeDef{Matcher: matcher{MethodMatcher: "GET"}}}
 	rs, _, _ := convertData([]*routeData{d}, nil, nil)
-	if len(rs) != 2 ||
-		rs[0].Id != "route42GET" || rs[0].Method != "GET" ||
-		rs[1].Method != "HEAD" || rs[1].Method != "HEAD" {
+	if len(rs) != 1 ||
+		rs[0].Id != "route42" || rs[0].Method != "GET" {
 		t.Error("failed to convert methods")
 	}
 }
 
 func TestConvertRouteHeaders(t *testing.T) {
-	d := &routeData{Route: routeDef{MatchHeaders: []headerData{
-		{Name: "header0", Value: "value0"},
-		{Name: "header1", Value: "value1"}}}}
+	d := &routeData{Route: routeDef{Matcher: matcher{HeaderMatchers: []headerMatcher{
+		{Name: "header0", Value: "value0", Typ: matchStrict},
+		{Name: "header1", Value: "value1", Typ: matchStrict}}}}}
 	rs := convertRoute("", d, nil, nil)
-	if len(rs.Headers) != 2 || rs.Headers["header0"] != "value0" || rs.Headers["header1"] != "value1" {
+
+	if len(rs.Headers) != 2 || rs.Headers["header0"] != "value0" ||
+		rs.Headers["header1"] != "value1" {
 		t.Error("failed to convert headers")
 	}
 }
 
 func TestConvertFilters(t *testing.T) {
 	d := &routeData{Route: routeDef{
-		RewritePath:     &pathRewrite{Match: "test-rx", Replace: "replacement"},
-		RequestHeaders:  []headerData{{Name: "header0", Value: "value0"}},
-		ResponseHeaders: []headerData{{Name: "header1", Value: "value1"}}}}
+		Filters: []filter{
+			filter{Name: builtin.ModPathName, Args: []interface{}{"test-rx", "replacement"}},
+			filter{Name: builtin.RequestHeaderName, Args: []interface{}{"header0", "value0"}},
+			filter{Name: builtin.ResponseHeaderName, Args: []interface{}{"header1", "value1"}},
+		}}}
+
 	rs := convertRoute("", d, nil, nil)
 	if len(rs.Filters) != 3 ||
 		rs.Filters[0].Name != builtin.ModPathName || len(rs.Filters[0].Args) != 2 ||
@@ -418,13 +500,10 @@ func TestConvertFilters(t *testing.T) {
 }
 
 func TestConvertShunt(t *testing.T) {
-	d := &routeData{Route: routeDef{Endpoint: endpoint{
-		Typ:      endpointPermanentRedirect,
-		Protocol: "HTTPS",
-		Hostname: "www.example.org",
-		Port:     443,
-		Path:     "/some/path"}}}
+	d := &routeData{Route: routeDef{Filters: []filter{filter{Name: builtin.RedirectName,
+		Args: []interface{}{fixedRedirectStatus, "https://www.example.org:443/some/path"}}}}}
 	rs := convertRoute("", d, nil, nil)
+
 	if !rs.Shunt || len(rs.Filters) != 1 ||
 		rs.Filters[0].Name != builtin.RedirectName ||
 		len(rs.Filters[0].Args) != 2 ||
@@ -508,11 +587,23 @@ func TestReceivesUpdates(t *testing.T) {
 
 	d = testData()
 	d[2].DeletedAt = "2015-09-28T16:58:56.958"
-	newRoute := &routeData{4, "2015-09-28T16:58:56.959", "", routeDef{
-		"", nil, nil,
-		pathMatch{pathMatchStrict, "/catalog"},
-		nil, nil, nil,
-		endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, "/even-newer-catalog"}}}
+
+	newRoute := &routeData{
+		Id:         4,
+		Name:       "",
+		ActivateAt: "2015-09-28T16:58:56.959",
+		CreatedAt:  "2015-09-28T16:58:56.959",
+		DeletedAt:  "",
+		Route: routeDef{
+			Matcher: matcher{
+				HostMatcher:    "",
+				PathMatcher:    pathMatcher{matchStrict, "/"},
+				MethodMatcher:  "GET",
+				HeaderMatchers: nil},
+			Filters:  nil,
+			Endpoint: "https://example.org:443/even-newer-catalog"},
+	}
+
 	d = append(d, newRoute)
 	h.data = d
 
@@ -544,11 +635,23 @@ func TestFailingAuthOnUpdate(t *testing.T) {
 	c.opts.Authentication = autoAuth(false)
 	d = testData()
 	d[2].DeletedAt = "2015-09-28T16:58:56.958"
-	newRoute := &routeData{4, "2015-09-28T16:58:56.959", "", routeDef{
-		"", nil, nil,
-		pathMatch{pathMatchStrict, "/catalog"},
-		nil, nil, nil,
-		endpoint{endpointReverseProxy, "HTTPS", "example.org", 443, "/even-newer-catalog"}}}
+
+	newRoute := &routeData{
+		Id:         4,
+		Name:       "",
+		ActivateAt: "2015-09-28T16:58:56.959",
+		CreatedAt:  "2015-09-28T16:58:56.959",
+		DeletedAt:  "",
+		Route: routeDef{
+			Matcher: matcher{
+				HostMatcher:    "",
+				PathMatcher:    pathMatcher{matchStrict, "/"},
+				MethodMatcher:  "GET",
+				HeaderMatchers: nil},
+			Filters:  nil,
+			Endpoint: "https://example.org:443/even-newer-catalog"},
+	}
+
 	d = append(d, newRoute)
 	h.data = d
 
@@ -561,7 +664,7 @@ func TestFailingAuthOnUpdate(t *testing.T) {
 func TestUsesPreAndPostRouteFilters(t *testing.T) {
 	d := testData()
 	for _, di := range d {
-		di.Route.RewritePath = &pathRewrite{"", "replacement"}
+		di.Route.Filters = []filter{filter{Name: builtin.ModPathName, Args: []interface{}{".*", "replacement"}}}
 	}
 
 	s := innkeeperServer(d)
@@ -583,33 +686,33 @@ func TestUsesPreAndPostRouteFilters(t *testing.T) {
 
 	for _, r := range rs {
 		if len(r.Filters) != 4 {
-			t.Error("failed to parse filters")
+			t.Error("failed to parse filters 1")
 		}
 
 		if r.Filters[0].Name != "filter1" ||
 			len(r.Filters[0].Args) != 1 ||
 			r.Filters[0].Args[0] != float64(3.14) {
-			t.Error("failed to parse filters")
+			t.Error("failed to parse filters 2")
 		}
 
 		if r.Filters[1].Name != "filter2" ||
 			len(r.Filters[1].Args) != 2 ||
 			r.Filters[1].Args[0] != "key" ||
 			r.Filters[1].Args[1] != float64(42) {
-			t.Error("failed to parse filters")
+			t.Error("failed to parse filters 3")
 		}
 
 		if r.Filters[2].Name != builtin.ModPathName ||
 			len(r.Filters[2].Args) != 2 ||
 			r.Filters[2].Args[0] != ".*" ||
 			r.Filters[2].Args[1] != "replacement" {
-			t.Error("failed to parse filters")
+			t.Error("failed to parse filters 4")
 		}
 
 		if r.Filters[3].Name != "filter3" ||
 			len(r.Filters[3].Args) != 1 ||
 			r.Filters[3].Args[0] != "Hello, world!" {
-			t.Error("failed to parse filters")
+			t.Error("failed to parse filters 5")
 		}
 	}
 }
