@@ -15,6 +15,7 @@
 package routing
 
 import (
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"net/http"
@@ -125,6 +126,7 @@ func (r *Routing) startReceivingUpdates(o Options) {
 		for {
 			m := <-c
 			r.matcher.Store(m)
+			log.Println("route settings applied")
 		}
 	}()
 }

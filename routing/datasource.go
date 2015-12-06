@@ -231,6 +231,7 @@ func receiveRouteMatcher(o Options, out chan<- *matcher) {
 			log.Println(err)
 		}
 
+		log.Println("route settings received")
 		out <- m
 	}
 }
