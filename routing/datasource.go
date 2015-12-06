@@ -50,7 +50,7 @@ func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *inco
 		for {
 			routes, err := c.LoadAll()
 			if err != nil {
-				log.Println("error while receiveing initial data;", err)
+				log.Error("error while receiveing initial data;", err)
 				time.Sleep(pollTimeout)
 				continue
 			}
@@ -65,7 +65,7 @@ func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *inco
 			time.Sleep(pollTimeout)
 			routes, deletedIds, err := c.LoadUpdate()
 			if err != nil {
-				log.Println("error while receiving update;", err)
+				log.Error("error while receiving update;", err)
 				return
 			}
 
@@ -212,7 +212,7 @@ func processRouteDefs(fr filters.Registry, defs []*eskip.Route) []*Route {
 		if err == nil {
 			routes = append(routes, route)
 		} else {
-			log.Println(err)
+			log.Error(err)
 		}
 	}
 
@@ -228,7 +228,7 @@ func receiveRouteMatcher(o Options, out chan<- *matcher) {
 		routes := processRouteDefs(o.FilterRegistry, defs)
 		m, errs := newMatcher(routes, o.MatchingOptions)
 		for _, err := range errs {
-			log.Println(err)
+			log.Error(err)
 		}
 
 		log.Println("route settings received")
