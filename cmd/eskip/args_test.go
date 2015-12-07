@@ -91,6 +91,35 @@ func TestProcessArgs(t *testing.T) {
 			path: "/skipper"}},
 	}, {
 
+		// innkeeper-url
+		[]string{"-innkeeper-url", "https://innkeeper.example.org", "-oauth-token", "token1234"},
+		false,
+		nil,
+		[]*medium{{
+			typ: innkeeper,
+			urls: []*url.URL{
+				{Scheme: "https", Host: "innkeeper.example.org"}},
+			oauthToken: "token1234"}},
+	}, {
+
+		// innkeeper-url missing token
+		[]string{"-innkeeper-url", "https://innkeeper.example.org"},
+		true,
+		missingOAuthToken,
+		nil,
+	}, {
+
+		// innkeeper-url missing innkeeper url
+		[]string{"-oauth-token", "token1234"},
+		false,
+		nil,
+		[]*medium{{
+			typ: innkeeper,
+			urls: []*url.URL{
+				{Scheme: "http", Host: "127.0.0.1:8080"}},
+			oauthToken: "token1234"}},
+	}, {
+
 		// inline routes
 		[]string{"-routes", `Method("POST") -> "https://www.example.org"`},
 		false,
