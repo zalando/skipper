@@ -107,6 +107,7 @@ func loadRoutes(in *medium) (loadResult, error) {
 		return loadReader(os.Stdin)
 	case file:
 		return loadFile(in.path)
+		// TODO: case innkeeper
 	case etcd:
 		return loadEtcd(in.urls, in.path)
 	case inline:
