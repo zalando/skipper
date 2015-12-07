@@ -22,7 +22,7 @@ import (
 func checkMedium(t *testing.T, left, right *medium, testIndex, itemIndex int) {
 	if left == nil || right == nil {
 		if left != right {
-			t.Error("failed to parse medium")
+			t.Error("failed to parse medium", testIndex, itemIndex)
 		}
 
 		return
@@ -64,16 +64,6 @@ func TestValidateSelectMedia(t *testing.T) {
 		in      *medium
 		out     *medium
 	}{{
-
-		// invalid command:
-		"invalid",
-		nil,
-		true,
-		invalidCommand,
-		nil,
-		nil,
-	}, {
-
 		// too many inputs
 		"check",
 		[]*medium{{}, {}},
@@ -157,26 +147,34 @@ func TestValidateSelectMedia(t *testing.T) {
 		false,
 		nil,
 		&medium{typ: inlineIds},
-		&medium{
-			typ: etcd,
-			urls: []*url.URL{
-				{Scheme: "http", Host: "127.0.0.1:2379"},
-				{Scheme: "http", Host: "127.0.0.1:4001"}},
-			path: "/skipper"},
+		nil,
 	}, {
 
-		// output defaults to etcd when write
+		// missing input
+		"delete",
+		[]*medium{{typ: innkeeper}},
+		true,
+		missingInput,
+		nil,
+		nil,
+	}, {
+
+		// wrong input
+		"delete",
+		[]*medium{{typ: stdin}},
+		true,
+		invalidInputType,
+		nil,
+		nil,
+	}, {
+
+		// output defaults to null when write
 		"upsert",
 		[]*medium{{typ: stdin}},
 		false,
 		nil,
 		&medium{typ: stdin},
-		&medium{
-			typ: etcd,
-			urls: []*url.URL{
-				{Scheme: "http", Host: "127.0.0.1:2379"},
-				{Scheme: "http", Host: "127.0.0.1:4001"}},
-			path: "/skipper"},
+		nil,
 	}, {
 
 		// input and output specified

@@ -113,6 +113,12 @@ func main() {
 		exitHint(err)
 	}
 
+	in, out, err = addDefaultMedia(cmd, in, out)
+
+	if err != nil {
+		exitHint(err)
+	}
+
 	// execute command:
 	exit(commands[cmd](in, out))
 }
