@@ -159,9 +159,18 @@ func TestValidateSelectMedia(t *testing.T) {
 		nil,
 	}, {
 
-		// wrong input
+		// stdin input should be supported for delete
 		"delete",
 		[]*medium{{typ: stdin}},
+		false,
+		nil,
+		&medium{typ: stdin},
+		nil,
+	}, {
+
+		// inlineIds should not be supported
+		"upsert",
+		[]*medium{{typ: inlineIds}},
 		true,
 		invalidInputType,
 		nil,
