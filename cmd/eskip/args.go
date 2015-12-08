@@ -94,7 +94,7 @@ func urlsToStrings(urls []*url.URL) []string {
 	return surls
 }
 
-func stringsToUrls(strs []string) ([]*url.URL, error) {
+func stringsToUrls(strs ...string) ([]*url.URL, error) {
 	urls := make([]*url.URL, len(strs))
 	for i, su := range strs {
 		u, err := url.Parse(su)
@@ -124,7 +124,7 @@ func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
 	}
 
 	surls := strings.Split(etcdUrls, ",")
-	urls, err := stringsToUrls(surls)
+	urls, err := stringsToUrls(surls...)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func processInnkeeperArgs(innkeeperUrl, oauthToken string) (*medium, error) {
 		innkeeperUrl = defaultInnkeeperUrl
 	}
 
-	urls, err := stringsToUrls([]string{innkeeperUrl})
+	urls, err := stringsToUrls(innkeeperUrl)
 	if err != nil {
 		return nil, err
 	}
