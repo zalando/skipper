@@ -126,8 +126,6 @@ func validateSelectDelete(media []*medium) (in, out *medium, err error) {
 
 	if in == nil {
 		return nil, nil, missingInput
-	} else if in.typ != inlineIds {
-		return nil, nil, invalidInputType
 	}
 
 	return in, out, nil

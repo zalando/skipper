@@ -13,29 +13,19 @@ var commandToDefaultMediums = map[command]defaultFunc{
 func defaultRead(in, out *medium) (input, output *medium, err error) {
 	input = in
 	if input == nil {
-		// take innkeeper as default
 		input, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
-
-		if err != nil {
-			return nil, nil, err
-		}
 	}
-	return input, nil, nil
+	return
 }
 
 func defaultWrite(in, out *medium) (input, output *medium, err error) {
 	input = in
 	output = out
 	if out == nil {
-		var err error
-		// innkeeper as default
 		output, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
-		if err != nil {
-			return nil, nil, err
-		}
 	}
 
-	return input, output, nil
+	return
 }
 
 // selects a default medium for in or out, in case it's needed and not specified

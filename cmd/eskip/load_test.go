@@ -145,7 +145,7 @@ func TestCheckFile(t *testing.T) {
 }
 
 func TestCheckEtcdInvalid(t *testing.T) {
-	urls, err := stringsToUrls(etcdtest.Urls)
+	urls, err := stringsToUrls(etcdtest.Urls...)
 	if err != nil {
 		t.Error(err)
 	}
@@ -164,7 +164,7 @@ func TestCheckEtcdInvalid(t *testing.T) {
 }
 
 func TestCheckEtcd(t *testing.T) {
-	urls, err := stringsToUrls(etcdtest.Urls)
+	urls, err := stringsToUrls(etcdtest.Urls...)
 	if err != nil {
 		t.Error(err)
 	}
