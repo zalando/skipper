@@ -50,7 +50,7 @@ const (
 	authHeaderName = "Authorization"
 
 	matchStrict = matchType("STRICT")
-	matchRegexp = matchType("REGEXP")
+	matchRegexp = matchType("REGEX")
 
 	authErrorPermission     = authErrorType("AUTH1")
 	authErrorAuthentication = authErrorType("AUTH2")
@@ -203,6 +203,13 @@ func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*
 		prx = []string{d.Route.Matcher.PathMatcher.Match}
 	}
 
+	var hst []string
+	if d.Route.Matcher.HostMatcher != "" {
+		hst = []string{d.Route.Matcher.HostMatcher}
+	}
+
+	println("host: ", d.Route.Matcher.HostMatcher)
+
 	m := d.Route.Matcher.MethodMatcher
 	hs, hrs := convertHeaders(d)
 
@@ -212,6 +219,7 @@ func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*
 
 	return &eskip.Route{
 		Id:            id,
+		HostRegexps:   hst,
 		Path:          p,
 		PathRegexps:   prx,
 		Method:        m,
