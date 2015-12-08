@@ -208,8 +208,6 @@ func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*
 		hst = []string{d.Route.Matcher.HostMatcher}
 	}
 
-	println("host: ", d.Route.Matcher.HostMatcher)
-
 	m := d.Route.Matcher.MethodMatcher
 	hs, hrs := convertHeaders(d)
 
