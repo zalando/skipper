@@ -80,12 +80,12 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 			req.Host = f.value
 		}
 
-		req.Header.Add(f.key, f.value)
+		req.Header.Set(f.key, f.value)
 	}
 }
 
 func (f *headerFilter) Response(ctx filters.FilterContext) {
 	if f.typ == responseHeader {
-		ctx.Response().Header.Add(f.key, f.value)
+		ctx.Response().Header.Set(f.key, f.value)
 	}
 }
