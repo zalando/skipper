@@ -20,6 +20,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/eskipfile"
 	etcdclient "github.com/zalando/skipper/etcd"
+	innkeeperclient "github.com/zalando/skipper/innkeeper"
 	"io"
 	"io/ioutil"
 	"net/url"
@@ -77,6 +78,24 @@ func loadFile(path string) (loadResult, error) {
 	return loadResult{routes: routes}, err
 }
 
+// load and parse routes from innkeeper
+func loadInnkeeper(url *url.URL, oauthToken string) (loadResult, error) {
+	auth := innkeeperclient.CreateInnkeeperAuthentication(innkeeperclient.AuthOptions{
+		InnkeeperAuthToken: oauthToken})
+
+	ic, err := innkeeperclient.New(innkeeperclient.Options{
+		Address:        url.String(),
+		Insecure:       true,
+		Authentication: auth})
+	if err != nil {
+		return loadResult{}, err
+	}
+
+	routes, err := ic.LoadAll()
+
+	return loadResult{routes: routes}, err
+}
+
 // load and parse routes from etcd.
 func loadEtcd(urls []*url.URL, prefix string) (loadResult, error) {
 	client := etcdclient.New(urlsToStrings(urls), prefix)
@@ -107,7 +126,8 @@ func loadRoutes(in *medium) (loadResult, error) {
 		return loadReader(os.Stdin)
 	case file:
 		return loadFile(in.path)
-		// TODO: case innkeeper
+	case innkeeper:
+		return loadInnkeeper(in.urls[0], in.oauthToken)
 	case etcd:
 		return loadEtcd(in.urls, in.path)
 	case inline:

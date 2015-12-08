@@ -110,18 +110,6 @@ type apiError struct {
 	Detail    string `json:"detail"`
 }
 
-// An Authentication object provides authentication to Innkeeper.
-type Authentication interface {
-	GetToken() (string, error)
-}
-
-// A FixedToken provides Innkeeper authentication by an unchanged token
-// string.
-type FixedToken string
-
-// Returns the fixed token.
-func (ft FixedToken) GetToken() (string, error) { return string(ft), nil }
-
 // Initialization options for the Innkeeper client.
 type Options struct {
 

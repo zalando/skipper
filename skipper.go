@@ -23,7 +23,6 @@ import (
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
-	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"io"
@@ -172,14 +171,6 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	return clients, nil
 }
 
-func createInnkeeperAuthentication(o Options) innkeeper.Authentication {
-	if o.InnkeeperAuthToken != "" {
-		return innkeeper.FixedToken(o.InnkeeperAuthToken)
-	}
-
-	return oauth.New(o.OAuthCredentialsDir, o.OAuthUrl, o.OAuthScope)
-}
-
 func getLogOutput(name string) (io.Writer, error) {
 	name = path.Clean(name)
 
@@ -241,7 +232,11 @@ func Run(o Options) error {
 	})
 
 	// create authentication for Innkeeper
-	auth := createInnkeeperAuthentication(o)
+	auth := innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{
+		InnkeeperAuthToken:  o.InnkeeperAuthToken,
+		OAuthCredentialsDir: o.OAuthCredentialsDir,
+		OAuthUrl:            o.OAuthUrl,
+		OAuthScope:          o.OAuthScope})
 
 	// create data client
 	dataClients, err := createDataClients(o, auth)
