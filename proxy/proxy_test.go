@@ -48,7 +48,7 @@ type priorityRoute struct {
 type (
 	preserveOriginalSpec   struct{}
 	preserveOriginalFilter struct{}
-    hostHeaderSpecFilter   string
+	hostHeaderSpecFilter   string
 )
 
 func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
@@ -74,11 +74,11 @@ func (corf *preserveOriginalFilter) Response(ctx filters.FilterContext) {
 func (hh hostHeaderSpecFilter) Name() string { return "host" }
 
 func (hh hostHeaderSpecFilter) CreateFilter(args []interface{}) (filters.Filter, error) {
-    return hostHeaderSpecFilter(args[0].(string)), nil
+	return hostHeaderSpecFilter(args[0].(string)), nil
 }
 
 func (hh hostHeaderSpecFilter) Request(ctx filters.FilterContext) {
-    ctx.Request().Header.Set("Host", string(hh))
+	ctx.Request().Header.Set("Host", string(hh))
 }
 
 func (hh hostHeaderSpecFilter) Response(ctx filters.FilterContext) {}
@@ -617,23 +617,23 @@ func TestOriginalRequestResponse(t *testing.T) {
 }
 
 func TestEndpointHostInRequestAsDefault(t *testing.T) {
-    var s *httptest.Server
-    s = startTestServer(nil, 0, func(r *http.Request) {
-        u, err := url.Parse(s.URL)
-        if err != nil {
-            t.Error(err)
-            return
-        }
+	var s *httptest.Server
+	s = startTestServer(nil, 0, func(r *http.Request) {
+		u, err := url.Parse(s.URL)
+		if err != nil {
+			t.Error(err)
+			return
+		}
 
-        if r.Host != u.Host {
-            t.Error("failed to make request with the default host")
-        }
-    })
+		if r.Host != u.Host {
+			t.Error("failed to make request with the default host")
+		}
+	})
 
 	defer s.Close()
 
-    r, err := http.NewRequest("GET", "https://www.example.org/hello", nil)
-    r.Header.Set("X-Test-Header", "test value")
+	r, err := http.NewRequest("GET", "https://www.example.org/hello", nil)
+	r.Header.Set("X-Test-Header", "test value")
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
@@ -656,17 +656,17 @@ func TestEndpointHostInRequestAsDefault(t *testing.T) {
 }
 
 func TestCustomHostInRequestFromHeaderSetByFilter(t *testing.T) {
-    var s *httptest.Server
-    s = startTestServer(nil, 0, func(r *http.Request) {
-        if r.Host != "www.example.org" {
-            t.Error("failed to make request with custom host")
-        }
-    })
+	var s *httptest.Server
+	s = startTestServer(nil, 0, func(r *http.Request) {
+		if r.Host != "www.example.org" {
+			t.Error("failed to make request with custom host")
+		}
+	})
 
 	defer s.Close()
 
-    r, err := http.NewRequest("GET", "https://www.example.org/hello", nil)
-    r.Header.Set("X-Test-Header", "test value")
+	r, err := http.NewRequest("GET", "https://www.example.org/hello", nil)
+	r.Header.Set("X-Test-Header", "test value")
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> host("www.example.org") -> "%s"`, s.URL)
@@ -676,7 +676,7 @@ func TestCustomHostInRequestFromHeaderSetByFilter(t *testing.T) {
 	}
 
 	fr := builtin.MakeRegistry()
-    fr.Register(hostHeaderSpecFilter("spec"))
+	fr.Register(hostHeaderSpecFilter("spec"))
 	p := New(routing.New(routing.Options{
 		fr,
 		routing.MatchingOptionsNone,
