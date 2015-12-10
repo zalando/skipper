@@ -22,7 +22,7 @@ import (
 
 type (
 	command     string
-	commandFunc func(in, out *medium) error
+	commandFunc func(in, out *medium, writeClient *WriteClient) error
 )
 
 const (
@@ -119,6 +119,12 @@ func main() {
 		exitHint(err)
 	}
 
+	writeClient, err := createWriteClient(out)
+
+	if err != nil {
+		exitHint(err)
+	}
+
 	// execute command:
-	exit(commands[cmd](in, out))
+	exit(commands[cmd](in, out, &writeClient))
 }

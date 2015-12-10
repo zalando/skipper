@@ -27,8 +27,6 @@ import (
 	"os"
 )
 
-type routeList []*eskip.Route
-
 type loadResult struct {
 	routes      routeList
 	parseErrors map[string]error
@@ -87,6 +85,7 @@ func loadInnkeeper(url *url.URL, oauthToken string) (loadResult, error) {
 		Address:        url.String(),
 		Insecure:       true,
 		Authentication: auth})
+
 	if err != nil {
 		return loadResult{}, err
 	}
@@ -170,13 +169,13 @@ func loadRoutesUnchecked(m *medium) routeList {
 }
 
 // command executed for check.
-func checkCmd(in, _ *medium) error {
+func checkCmd(in, _ *medium, _ *WriteClient) error {
 	_, err := loadRoutesChecked(in)
 	return err
 }
 
 // command executed for print.
-func printCmd(in, _ *medium) error {
+func printCmd(in, _ *medium, _ *WriteClient) error {
 	lr, err := loadRoutes(in)
 	if err != nil {
 		return err

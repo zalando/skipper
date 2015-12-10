@@ -35,6 +35,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"net/http"
 	"path"
+	"github.com/zalando/skipper/routeid"
 )
 
 const routesPath = "/routes"
@@ -245,4 +246,16 @@ func (c *Client) Delete(id string) error {
 	}
 
 	return err
+}
+
+
+func (c *Client) UpsertAll(routes []*eskip.Route) error {
+	for _, r := range routes {
+		r.Id = routeid.GenerateIfNeeded(r.Id)
+		err := c.Upsert(r)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

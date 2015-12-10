@@ -92,7 +92,7 @@ func validateSelectWrite(media []*medium) (input, output *medium, err error) {
 			return nil, nil, invalidInputType
 		}
 
-		if m.typ == etcd {
+		if m.typ == etcd || m.typ == innkeeper {
 			out = m
 		} else {
 			in = m
