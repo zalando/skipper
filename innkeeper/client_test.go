@@ -146,7 +146,7 @@ func testData() []*routeData {
 }
 
 func checkDoc(t *testing.T, rs []*eskip.Route, d []*routeData) {
-	check, _, _ := convertData(d, nil, nil)
+	check, _, _ := convertJsonToEskip(d, nil, nil)
 	if len(rs) != len(check) {
 		t.Error("doc lengths do not match")
 		return
@@ -429,7 +429,7 @@ func TestConvertDoc(t *testing.T) {
 		t.Error(append([]interface{}{"failed to convert data", left, right}, msg...)...)
 	}
 
-	rs, deleted, lastChange := convertData(testData(), nil, nil)
+	rs, deleted, lastChange := convertJsonToEskip(testData(), nil, nil)
 
 	test(len(rs), 2)
 	if failed {
@@ -451,7 +451,7 @@ func TestConvertDoc(t *testing.T) {
 }
 
 func TestConvertRoutePathRegexp(t *testing.T) {
-	d := &routeData{Route: routeDef{Matcher: matcher{PathMatcher: pathMatcher{Typ: matchRegexp, Match: "test-rx"}}}}
+	d := &routeData{Route: routeDef{Matcher: matcher{PathMatcher: pathMatcher{Typ: matchRegex, Match: "test-rx"}}}}
 	r := convertRoute("testRoute", d, nil, nil)
 	if len(r.PathRegexps) != 1 || r.PathRegexps[0] != "test-rx" {
 		t.Error("failed to convert path regexp")
@@ -460,7 +460,7 @@ func TestConvertRoutePathRegexp(t *testing.T) {
 
 func TestConvertRouteMethods(t *testing.T) {
 	d := &routeData{Id: 42, Route: routeDef{Matcher: matcher{MethodMatcher: "GET"}}}
-	rs, _, _ := convertData([]*routeData{d}, nil, nil)
+	rs, _, _ := convertJsonToEskip([]*routeData{d}, nil, nil)
 	if len(rs) != 1 ||
 		rs[0].Id != "route42" || rs[0].Method != "GET" {
 		t.Error("failed to convert methods")
@@ -516,7 +516,7 @@ func TestConvertShunt(t *testing.T) {
 func TestConvertDeletedChangeLatest(t *testing.T) {
 	d := testData()
 	d[1].DeletedAt = "2015-09-28T16:58:56.958"
-	_, _, lastChange := convertData(d, nil, nil)
+	_, _, lastChange := convertJsonToEskip(d, nil, nil)
 	if lastChange != "2015-09-28T16:58:56.958" {
 		t.Error("failed to detect deleted last change")
 	}
