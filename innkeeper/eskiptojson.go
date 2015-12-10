@@ -27,8 +27,8 @@ func convertPathMatcher(r *eskip.Route) *pathMatcher {
 		Typ:   pathMatchType}
 }
 
-func convertMethod(r *eskip.Route) (string) {
-		return r.Method
+func convertMethod(r *eskip.Route) string {
+	return r.Method
 }
 
 func convertHost(r *eskip.Route) (host string) {
