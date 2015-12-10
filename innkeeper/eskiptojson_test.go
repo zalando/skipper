@@ -1,11 +1,10 @@
 package innkeeper
 
 import (
-	"testing"
-	"github.com/zalando/skipper/eskip"
 	"github.com/coreos/etcd/Godeps/_workspace/src/github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper/eskip"
+	"testing"
 )
-
 
 func TestConvertPathMatcherStrict(t *testing.T) {
 
@@ -72,7 +71,7 @@ func TestConvertHostEmpty(t *testing.T) {
 func TestConvertHeaderMatchers(t *testing.T) {
 	route := &eskip.Route{
 		HeaderRegexps: map[string][]string{"header": []string{"first"}},
-	   Headers:map[string]string{"header1": "second"}}
+		Headers:       map[string]string{"header1": "second"}}
 
 	headerMatchers := convertHeaderMatchers(route)
 	assert.Equal(t, 2, len(headerMatchers))
@@ -95,8 +94,8 @@ func TestConvertHeaderMatchersEmpty(t *testing.T) {
 
 func TestConvertFilWithArgs(t *testing.T) {
 	route := &eskip.Route{Filters: []*eskip.Filter{
-		&eskip.Filter{Name:"filter1", Args:[]interface{}{"Hello", 1}},
-		&eskip.Filter{Name:"filter2", Args:[]interface{}{2, "Hello1", "World"}},
+		&eskip.Filter{Name: "filter1", Args: []interface{}{"Hello", 1}},
+		&eskip.Filter{Name: "filter2", Args: []interface{}{2, "Hello1", "World"}},
 	}}
 
 	filters := convertFil(route)
@@ -114,8 +113,8 @@ func TestConvertFilWithArgs(t *testing.T) {
 
 func TestConvertFilWithoutArgs(t *testing.T) {
 	route := &eskip.Route{Filters: []*eskip.Filter{
-		&eskip.Filter{Name:"filter1", Args:[]interface{}{}},
-		&eskip.Filter{Name:"filter2"},
+		&eskip.Filter{Name: "filter1", Args: []interface{}{}},
+		&eskip.Filter{Name: "filter2"},
 	}}
 
 	filters := convertFil(route)
@@ -125,7 +124,6 @@ func TestConvertFilWithoutArgs(t *testing.T) {
 	assert.Equal(t, "filter2", filters[1].Name)
 	assert.Equal(t, 0, len(filters[1].Args))
 }
-
 
 func TestConvertFilEmpty(t *testing.T) {
 	route := &eskip.Route{}
@@ -151,20 +149,18 @@ func TestConvertEndpointEmpty(t *testing.T) {
 	assert.Equal(t, "", endpoint)
 }
 
-
-
 func TestConvertEskipToInnkeeper(t *testing.T) {
 
 	route := []*eskip.Route{{
-		Id: "theid",
-		HostRegexps: []string{"www.matcher.com"},
-		Method: "GET",
-		PathRegexps: []string{"/hello*"},
+		Id:            "theid",
+		HostRegexps:   []string{"www.matcher.com"},
+		Method:        "GET",
+		PathRegexps:   []string{"/hello*"},
 		HeaderRegexps: map[string][]string{"header": []string{"first"}},
-		Headers:map[string]string{"header1": "second"},
+		Headers:       map[string]string{"header1": "second"},
 		Filters: []*eskip.Filter{
-		&eskip.Filter{Name:"filter1", Args:[]interface{}{"Hello", 1}},
-		&eskip.Filter{Name:"filter2", Args:[]interface{}{2, "Hello1", "World"}}},
+			&eskip.Filter{Name: "filter1", Args: []interface{}{"Hello", 1}},
+			&eskip.Filter{Name: "filter2", Args: []interface{}{2, "Hello1", "World"}}},
 		Backend: "www.backend.com"}}
 
 	routes := convertEskipToInnkeeper(route)
@@ -178,7 +174,7 @@ func TestConvertEskipToInnkeeper(t *testing.T) {
 
 func TestEskipToInnkeeperMinimal(t *testing.T) {
 	route := []*eskip.Route{{
-		Id: "theid",
+		Id:     "theid",
 		Method: "GET"}}
 
 	routes := convertEskipToInnkeeper(route)
@@ -190,4 +186,3 @@ func TestEskipToInnkeeperMinimal(t *testing.T) {
 	assert.Equal(t, 0, len(routes[0].Route.Matcher.HeaderMatchers))
 	assert.Equal(t, "", routes[0].Route.Endpoint)
 }
-

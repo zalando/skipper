@@ -33,9 +33,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/routeid"
 	"net/http"
 	"path"
-	"github.com/zalando/skipper/routeid"
 )
 
 const routesPath = "/routes"
@@ -247,7 +247,6 @@ func (c *Client) Delete(id string) error {
 
 	return err
 }
-
 
 func (c *Client) UpsertAll(routes []*eskip.Route) error {
 	for _, r := range routes {
