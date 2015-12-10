@@ -17,18 +17,14 @@ package main
 import (
 	"github.com/zalando/skipper/eskip"
 	etcdclient "github.com/zalando/skipper/etcd"
-	"github.com/zalando/skipper/filters/flowid"
-	"regexp"
 )
 
-const randomIdLength = 16
+type routeList []*eskip.Route
 
 type (
 	routePredicate func(*eskip.Route) bool
 	routeMap       map[string]*eskip.Route
 )
-
-var routeIdRx = regexp.MustCompile("\\W")
 
 func any(_ *eskip.Route) bool { return true }
 
@@ -43,40 +39,6 @@ func mapRoutes(routes routeList) routeMap {
 	}
 
 	return m
-}
-
-// generate weak random id for a route if
-// it doesn't have one.
-func ensureId(r *eskip.Route) error {
-	if r.Id != "" {
-		return nil
-	}
-
-	// using this to avoid adding a new dependency.
-	id, err := flowid.NewFlowId(randomIdLength)
-	if err != nil {
-		return err
-	}
-
-	// replace characters that are not allowed
-	// for eskip route ids.
-	id = routeIdRx.ReplaceAllString(id, "x")
-	r.Id = "route" + id
-	return nil
-}
-
-// insert/update all routes to a medium (currently only etcd).
-func upsertAll(routes routeList, m *medium) error {
-	client := etcdclient.New(urlsToStrings(m.urls), m.path)
-	for _, r := range routes {
-		ensureId(r)
-		err := client.Upsert(r)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // take items from 'routes' that don't exist in 'ref' or are different.
@@ -94,9 +56,9 @@ func takeDiff(ref routeList, routes routeList) routeList {
 
 // insert/update routes from 'update' that don't exist in 'existing' or
 // are different from the one with the same id in 'existing'.
-func upsertDifferent(existing routeList, update routeList, m *medium) error {
+func upsertDifferent(existing routeList, update routeList, writeClient *WriteClient) error {
 	diff := takeDiff(existing, update)
-	return upsertAll(diff, m)
+	return (*writeClient).UpsertAll(diff)
 }
 
 // delete all items in 'routes' that fulfil 'cond'.
@@ -117,19 +79,18 @@ func deleteAllIf(routes routeList, m *medium, cond routePredicate) error {
 }
 
 // command executed for upsert.
-func upsertCmd(in, out *medium) error {
+func upsertCmd(in, out *medium, writeClient *WriteClient) error {
 	// take input routes:
 	routes, err := loadRoutesChecked(in)
 	if err != nil {
 		return err
 	}
 
-	// upsert routes:
-	return upsertAll(routes, out)
+	return (*writeClient).UpsertAll(routes)
 }
 
 // command executed for reset.
-func resetCmd(in, out *medium) error {
+func resetCmd(in, out *medium, writeClient *WriteClient) error {
 	// take input routes:
 	routes, err := loadRoutesChecked(in)
 	if err != nil {
@@ -140,7 +101,7 @@ func resetCmd(in, out *medium) error {
 	existing := loadRoutesUnchecked(out)
 
 	// upsert routes that don't exist or are different:
-	err = upsertDifferent(existing, routes, out)
+	err = upsertDifferent(existing, routes, writeClient)
 	if err != nil {
 		return err
 	}
@@ -156,7 +117,7 @@ func resetCmd(in, out *medium) error {
 }
 
 // command executed for delete.
-func deleteCmd(in, out *medium) error {
+func deleteCmd(in, out *medium, writeClient *WriteClient) error {
 	// take input routes:
 	routes, err := loadRoutesChecked(in)
 	if err != nil {
