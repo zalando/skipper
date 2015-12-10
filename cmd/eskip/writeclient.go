@@ -2,9 +2,9 @@ package main
 
 import "github.com/zalando/skipper/eskip"
 import (
-innkeeperclient "github.com/zalando/skipper/innkeeper"
-"errors"
+	"errors"
 	etcdclient "github.com/zalando/skipper/etcd"
+	innkeeperclient "github.com/zalando/skipper/innkeeper"
 )
 
 type WriteClient interface {
@@ -23,7 +23,7 @@ func createWriteClient(out *medium) (WriteClient, error) {
 
 	switch out.typ {
 	case innkeeper:
-		auth := innkeeperclient.CreateInnkeeperAuthentication(innkeeperclient.AuthOptions{InnkeeperAuthToken:out.oauthToken})
+		auth := innkeeperclient.CreateInnkeeperAuthentication(innkeeperclient.AuthOptions{InnkeeperAuthToken: out.oauthToken})
 
 		ic, err := innkeeperclient.New(innkeeperclient.Options{
 			Address:        out.urls[0].String(),
@@ -39,5 +39,3 @@ func createWriteClient(out *medium) (WriteClient, error) {
 	}
 	return nil, invalidOutput
 }
-
-

@@ -94,7 +94,7 @@ func testData() []*routeData {
 			Route: routeDef{
 				Matcher: matcher{
 					HostMatcher:    "",
-					PathMatcher:    pathMatcher{matchStrict, "/"},
+					PathMatcher:    &pathMatcher{matchStrict, "/"},
 					MethodMatcher:  "GET",
 					HeaderMatchers: nil},
 				Filters:  nil,
@@ -108,7 +108,7 @@ func testData() []*routeData {
 			Route: routeDef{
 				Matcher: matcher{
 					HostMatcher:    "",
-					PathMatcher:    pathMatcher{matchStrict, "/"},
+					PathMatcher:    &pathMatcher{matchStrict, "/"},
 					MethodMatcher:  "GET",
 					HeaderMatchers: nil},
 				Filters:  nil,
@@ -122,7 +122,7 @@ func testData() []*routeData {
 			Route: routeDef{
 				Matcher: matcher{
 					HostMatcher:    "",
-					PathMatcher:    pathMatcher{matchStrict, "/"},
+					PathMatcher:    &pathMatcher{matchStrict, "/"},
 					MethodMatcher:  "GET",
 					HeaderMatchers: nil},
 				Filters: []filter{
@@ -137,7 +137,7 @@ func testData() []*routeData {
 			Route: routeDef{
 				Matcher: matcher{
 					HostMatcher:    "",
-					PathMatcher:    pathMatcher{matchStrict, "/catalog"},
+					PathMatcher:    &pathMatcher{matchStrict, "/catalog"},
 					MethodMatcher:  "GET",
 					HeaderMatchers: nil},
 				Filters: []filter{
@@ -451,7 +451,7 @@ func TestConvertDoc(t *testing.T) {
 }
 
 func TestConvertRoutePathRegexp(t *testing.T) {
-	d := &routeData{Route: routeDef{Matcher: matcher{PathMatcher: pathMatcher{Typ: matchRegex, Match: "test-rx"}}}}
+	d := &routeData{Route: routeDef{Matcher: matcher{PathMatcher: &pathMatcher{Typ: matchRegex, Match: "test-rx"}}}}
 	r := convertRoute("testRoute", d, nil, nil)
 	if len(r.PathRegexps) != 1 || r.PathRegexps[0] != "test-rx" {
 		t.Error("failed to convert path regexp")
@@ -597,7 +597,7 @@ func TestReceivesUpdates(t *testing.T) {
 		Route: routeDef{
 			Matcher: matcher{
 				HostMatcher:    "",
-				PathMatcher:    pathMatcher{matchStrict, "/"},
+				PathMatcher:    &pathMatcher{matchStrict, "/"},
 				MethodMatcher:  "GET",
 				HeaderMatchers: nil},
 			Filters:  nil,
@@ -645,7 +645,7 @@ func TestFailingAuthOnUpdate(t *testing.T) {
 		Route: routeDef{
 			Matcher: matcher{
 				HostMatcher:    "",
-				PathMatcher:    pathMatcher{matchStrict, "/"},
+				PathMatcher:    &pathMatcher{matchStrict, "/"},
 				MethodMatcher:  "GET",
 				HeaderMatchers: nil},
 			Filters:  nil,

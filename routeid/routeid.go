@@ -1,7 +1,8 @@
 package routeid
+
 import (
-"regexp"
-"github.com/zalando/skipper/filters/flowid"
+	"github.com/zalando/skipper/filters/flowid"
+	"regexp"
 )
 
 const randomIdLength = 16
@@ -10,7 +11,7 @@ var routeIdRx = regexp.MustCompile("\\W")
 
 // generate weak random id for a route if
 // it doesn't have one.
-func GenerateIfNeeded(existingId string) (string) {
+func GenerateIfNeeded(existingId string) string {
 	if existingId != "" {
 		return existingId
 	}
