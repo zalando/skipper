@@ -16,7 +16,6 @@ package main
 
 import (
 	"github.com/zalando/skipper/eskip"
-	etcdclient "github.com/zalando/skipper/etcd"
 )
 
 type (
@@ -58,23 +57,6 @@ func upsertDifferent(existing eskip.RouteList, update eskip.RouteList, writeClie
 	return (*writeClient).UpsertAll(diff)
 }
 
-// delete all items in 'routes' that fulfil 'cond'.
-func deleteAllIf(routes eskip.RouteList, m *medium, cond eskip.RoutePredicate) error {
-	client := etcdclient.New(urlsToStrings(m.urls), m.path)
-	for _, r := range routes {
-		if !cond(r) {
-			continue
-		}
-
-		err := client.Delete(r.Id)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // command executed for upsert.
 func upsertCmd(in, out *medium, writeClient *WriteClient) error {
 	// take input routes:
@@ -110,7 +92,7 @@ func resetCmd(in, out *medium, writeClient *WriteClient) error {
 		return !set
 	}
 
-	return deleteAllIf(existing, out, notSet)
+	return (*writeClient).DeleteAllIf(existing, notSet)
 }
 
 // command executed for delete.
@@ -122,5 +104,5 @@ func deleteCmd(in, out *medium, writeClient *WriteClient) error {
 	}
 
 	// delete them:
-	return deleteAllIf(routes, out, any)
+	return (*writeClient).DeleteAllIf(routes, any)
 }

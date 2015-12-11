@@ -260,5 +260,16 @@ func (c *Client) UpsertAll(routes eskip.RouteList) error {
 }
 
 func (c *Client) DeleteAllIf(routes eskip.RouteList, cond eskip.RoutePredicate) error {
+	for _, r := range routes {
+		if !cond(r) {
+			continue
+		}
+
+		err := c.Delete(r.Id)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
