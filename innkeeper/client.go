@@ -454,3 +454,8 @@ func (c *Client) UpsertAll(routes []*eskip.Route) error {
 
 	return nil
 }
+
+
+func (c *Client) DeleteAllIf(routes eskip.RouteList, cond eskip.RoutePredicate) error {
+	return nil
+}
