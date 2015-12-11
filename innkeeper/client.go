@@ -334,8 +334,6 @@ func (c *Client) writeRoute(url string, route *routeData) error {
 		return err
 	}
 
-	//println("write route - ", string(res), " token ", authToken)
-
 	req.Header.Add(authHeaderName, authToken)
 	req.Header.Set("Content-Type", "application/json")
 	response, err := c.httpClient.Do(req)
