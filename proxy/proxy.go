@@ -154,8 +154,13 @@ func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	rr.Host = r.Host
+
 	rr.Header = cloneHeader(r.Header)
+	headerHost := rr.Header.Get("Host")
+	if headerHost != "" {
+		rr.Host = headerHost
+	}
+
 	return rr, nil
 }
 
