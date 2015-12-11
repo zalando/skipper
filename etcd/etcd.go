@@ -248,7 +248,7 @@ func (c *Client) Delete(id string) error {
 	return err
 }
 
-func (c *Client) UpsertAll(routes []*eskip.Route) error {
+func (c *Client) UpsertAll(routes eskip.RouteList) error {
 	for _, r := range routes {
 		r.Id = routeid.GenerateIfNeeded(r.Id)
 		err := c.Upsert(r)
