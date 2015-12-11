@@ -40,17 +40,6 @@ import (
 
 const routesPath = "/routes"
 
-// RouteInfo contains a route id, plus the loaded and parsed route or
-// the parse error in case of failure.
-type RouteInfo struct {
-
-	// The route id plus the route data or if parsing was successful.
-	eskip.Route
-
-	// The parsing error if the parsing failed.
-	ParseError error
-}
-
 // A Client is used to load the whole set of routes and the updates from an
 // etcd store.
 type Client struct {
@@ -115,11 +104,11 @@ func parseOne(data string) (*eskip.Route, error) {
 }
 
 // Parses a set of eskip routes.
-func parseRoutes(data map[string]string) []*RouteInfo {
-	allInfo := make([]*RouteInfo, len(data))
+func parseRoutes(data map[string]string) []*eskip.RouteInfo {
+	allInfo := make([]*eskip.RouteInfo, len(data))
 	index := 0
 	for id, d := range data {
-		info := &RouteInfo{}
+		info := &eskip.RouteInfo{}
 
 		r, err := parseOne(d)
 		if err == nil {
@@ -151,7 +140,7 @@ func getRouteIds(data map[string]string) []string {
 
 // Converts route info to route objects logging those whose
 // parsing failed.
-func infoToRoutesLogged(info []*RouteInfo) []*eskip.Route {
+func infoToRoutesLogged(info []*eskip.RouteInfo) []*eskip.Route {
 	var routes []*eskip.Route
 	for _, ri := range info {
 		if ri.ParseError == nil {
@@ -166,7 +155,7 @@ func infoToRoutesLogged(info []*RouteInfo) []*eskip.Route {
 
 // Returns all the route definitions currently stored in etcd,
 // or the parsing error in case of failure.
-func (c *Client) LoadAndParseAll() ([]*RouteInfo, error) {
+func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 	response, err := c.etcd.Get(c.routesRoot, false, true)
 	if err != nil {
 		return nil, err
@@ -182,7 +171,7 @@ func (c *Client) LoadAndParseAll() ([]*RouteInfo, error) {
 }
 
 // Returns all the route definitions currently stored in etcd.
-func (c *Client) LoadAll() ([]*eskip.Route, error) {
+func (c *Client) LoadAll() (eskip.RouteList, error) {
 	routeInfo, err := c.LoadAndParseAll()
 	if err != nil {
 		return nil, err
@@ -196,7 +185,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 //
 // It uses etcd's watch functionality that results in blocking this call
 // until the next change is detected in etcd.
-func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
+func (c *Client) LoadUpdate() (eskip.RouteList, []string, error) {
 	response, err := c.etcd.Watch(c.routesRoot, c.etcdIndex+1, true, nil, nil)
 	if err != nil {
 		return nil, nil, err

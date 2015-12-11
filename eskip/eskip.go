@@ -100,6 +100,17 @@ type RoutePredicate func(*Route) bool
 
 type RouteList []*Route
 
+// RouteInfo contains a route id, plus the loaded and parsed route or
+// the parse error in case of failure.
+type RouteInfo struct {
+
+	// The route id plus the route data or if parsing was successful.
+	Route
+
+	// The parsing error if the parsing failed.
+	ParseError error
+}
+
 // Returns the first parameter of a matcher with the given name.
 // (Used for Path and Method.)
 func getFirstMatcherString(r *parsedRoute, name string) (string, error) {

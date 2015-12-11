@@ -16,6 +16,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	etcdclient "github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
@@ -158,6 +159,7 @@ func TestCheckEtcdInvalid(t *testing.T) {
 	}
 
 	err = checkCmd(&medium{typ: etcd, urls: urls, path: "/skippertest"}, nil, nil)
+	fmt.Errorf("XXXXX %s", err)
 	if err != invalidRouteExpression {
 		t.Error("failed to fail properly")
 	}
