@@ -19,10 +19,7 @@ import (
 	etcdclient "github.com/zalando/skipper/etcd"
 )
 
-type routeList []*eskip.Route
-
 type (
-	routePredicate func(*eskip.Route) bool
 	routeMap       map[string]*eskip.Route
 )
 
@@ -32,7 +29,7 @@ func routesDiffer(left, right *eskip.Route) bool {
 	return left.String() != right.String()
 }
 
-func mapRoutes(routes routeList) routeMap {
+func mapRoutes(routes eskip.RouteList) routeMap {
 	m := make(routeMap)
 	for _, r := range routes {
 		m[r.Id] = r
@@ -42,9 +39,9 @@ func mapRoutes(routes routeList) routeMap {
 }
 
 // take items from 'routes' that don't exist in 'ref' or are different.
-func takeDiff(ref routeList, routes routeList) routeList {
+func takeDiff(ref eskip.RouteList, routes eskip.RouteList) eskip.RouteList {
 	mref := mapRoutes(ref)
-	var diff routeList
+	var diff eskip.RouteList
 	for _, r := range routes {
 		if rr, exists := mref[r.Id]; !exists || routesDiffer(rr, r) {
 			diff = append(diff, r)
@@ -56,13 +53,13 @@ func takeDiff(ref routeList, routes routeList) routeList {
 
 // insert/update routes from 'update' that don't exist in 'existing' or
 // are different from the one with the same id in 'existing'.
-func upsertDifferent(existing routeList, update routeList, writeClient *WriteClient) error {
+func upsertDifferent(existing eskip.RouteList, update eskip.RouteList, writeClient *WriteClient) error {
 	diff := takeDiff(existing, update)
 	return (*writeClient).UpsertAll(diff)
 }
 
 // delete all items in 'routes' that fulfil 'cond'.
-func deleteAllIf(routes routeList, m *medium, cond routePredicate) error {
+func deleteAllIf(routes eskip.RouteList, m *medium, cond eskip.RoutePredicate) error {
 	client := etcdclient.New(urlsToStrings(m.urls), m.path)
 	for _, r := range routes {
 		if !cond(r) {

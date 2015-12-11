@@ -9,6 +9,7 @@ import (
 
 type WriteClient interface {
 	UpsertAll(routes []*eskip.Route) error
+	DeleteAllIf(routes eskip.RouteList, cond eskip.RoutePredicate) error
 }
 
 var (
@@ -29,6 +30,7 @@ func createWriteClient(out *medium) (WriteClient, error) {
 			Address:        out.urls[0].String(),
 			Insecure:       true,
 			Authentication: auth})
+
 		if err != nil {
 			return nil, err
 		}
