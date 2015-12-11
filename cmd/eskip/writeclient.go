@@ -8,7 +8,7 @@ import (
 )
 
 type WriteClient interface {
-	UpsertAll(routes []*eskip.Route) error
+	UpsertAll(routes eskip.RouteList) error
 	DeleteAllIf(routes eskip.RouteList, cond eskip.RoutePredicate) error
 }
 
