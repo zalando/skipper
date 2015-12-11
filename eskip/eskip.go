@@ -96,6 +96,10 @@ type Route struct {
 	Backend string
 }
 
+type RoutePredicate func(*Route) bool
+
+type RouteList []*Route
+
 // Returns the first parameter of a matcher with the given name.
 // (Used for Path and Method.)
 func getFirstMatcherString(r *parsedRoute, name string) (string, error) {

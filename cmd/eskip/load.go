@@ -28,7 +28,7 @@ import (
 )
 
 type loadResult struct {
-	routes      routeList
+	routes      eskip.RouteList
 	parseErrors map[string]error
 }
 
@@ -37,7 +37,7 @@ var invalidRouteExpression = errors.New("one or more invalid route expressions")
 // store all loaded routes, even if invalid, and store the
 // parse errors if any.
 func mapRouteInfo(allInfo []*etcdclient.RouteInfo) loadResult {
-	lr := loadResult{make(routeList, len(allInfo)), make(map[string]error)}
+	lr := loadResult{make(eskip.RouteList, len(allInfo)), make(map[string]error)}
 	for i, info := range allInfo {
 		lr.routes[i] = &info.Route
 		if info.ParseError != nil {
@@ -110,7 +110,7 @@ func loadString(doc string) (loadResult, error) {
 
 // generate empty route objects from ids.
 func loadIds(ids []string) (loadResult, error) {
-	routes := make(routeList, len(ids))
+	routes := make(eskip.RouteList, len(ids))
 	for i, id := range ids {
 		routes[i] = &eskip.Route{Id: id}
 	}
@@ -153,7 +153,7 @@ func checkParseErrors(lr loadResult) error {
 }
 
 // load, parse routes and print parse errors if any.
-func loadRoutesChecked(m *medium) (routeList, error) {
+func loadRoutesChecked(m *medium) (eskip.RouteList, error) {
 	lr, err := loadRoutes(m)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func loadRoutesChecked(m *medium) (routeList, error) {
 }
 
 // load and parse routes, ignore parse errors.
-func loadRoutesUnchecked(m *medium) routeList {
+func loadRoutesUnchecked(m *medium) eskip.RouteList {
 	lr, _ := loadRoutes(m)
 	return lr.routes
 }
