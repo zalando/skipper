@@ -19,7 +19,7 @@ import (
 )
 
 type (
-	routeMap       map[string]*eskip.Route
+	routeMap map[string]*eskip.Route
 )
 
 func any(_ *eskip.Route) bool { return true }

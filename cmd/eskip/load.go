@@ -18,13 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/eskipfile"
-	etcdclient "github.com/zalando/skipper/etcd"
-	innkeeperclient "github.com/zalando/skipper/innkeeper"
-	"io"
-	"io/ioutil"
-	"net/url"
-	"os"
 )
 
 type loadResult struct {
@@ -36,7 +29,7 @@ var invalidRouteExpression = errors.New("one or more invalid route expressions")
 
 // store all loaded routes, even if invalid, and store the
 // parse errors if any.
-func mapRouteInfo(allInfo []*etcdclient.RouteInfo) loadResult {
+func mapRouteInfo(allInfo []*eskip.RouteInfo) loadResult {
 	lr := loadResult{make(eskip.RouteList, len(allInfo)), make(map[string]error)}
 	for i, info := range allInfo {
 		lr.routes[i] = &info.Route
@@ -48,94 +41,17 @@ func mapRouteInfo(allInfo []*etcdclient.RouteInfo) loadResult {
 	return lr
 }
 
-// load and parse routes from a reader (used for stdin).
-func loadReader(r io.Reader) (loadResult, error) {
-
-	// this pretty much disables continuous piping,
-	// but since the reset command first upserts all
-	// and deletes the diff only after, it may not
-	// even be consistent to do continous piping.
-	// May change in the future.
-	doc, err := ioutil.ReadAll(r)
-	if err != nil {
-		return loadResult{}, err
-	}
-
-	routes, err := eskip.Parse(string(doc))
-	return loadResult{routes: routes}, err
-}
-
-// load and parse routes from a file using the eskipfile client.
-func loadFile(path string) (loadResult, error) {
-	client, err := eskipfile.Open(path)
-	if err != nil {
-		return loadResult{}, err
-	}
-
-	routes, err := client.LoadAll()
-	return loadResult{routes: routes}, err
-}
-
-// load and parse routes from innkeeper
-func loadInnkeeper(url *url.URL, oauthToken string) (loadResult, error) {
-	auth := innkeeperclient.CreateInnkeeperAuthentication(innkeeperclient.AuthOptions{
-		InnkeeperAuthToken: oauthToken})
-
-	ic, err := innkeeperclient.New(innkeeperclient.Options{
-		Address:        url.String(),
-		Insecure:       true,
-		Authentication: auth})
-
-	if err != nil {
-		return loadResult{}, err
-	}
-
-	routes, err := ic.LoadAll()
-
-	return loadResult{routes: routes}, err
-}
-
-// load and parse routes from etcd.
-func loadEtcd(urls []*url.URL, prefix string) (loadResult, error) {
-	client := etcdclient.New(urlsToStrings(urls), prefix)
-	info, err := client.LoadAndParseAll()
-	return mapRouteInfo(info), err
-}
-
-// parse routes from a string.
-func loadString(doc string) (loadResult, error) {
-	routes, err := eskip.Parse(doc)
-	return loadResult{routes: routes}, err
-}
-
-// generate empty route objects from ids.
-func loadIds(ids []string) (loadResult, error) {
-	routes := make(eskip.RouteList, len(ids))
-	for i, id := range ids {
-		routes[i] = &eskip.Route{Id: id}
-	}
-
-	return loadResult{routes: routes}, nil
-}
-
 // load routes from input medium.
 func loadRoutes(in *medium) (loadResult, error) {
-	switch in.typ {
-	case stdin:
-		return loadReader(os.Stdin)
-	case file:
-		return loadFile(in.path)
-	case innkeeper:
-		return loadInnkeeper(in.urls[0], in.oauthToken)
-	case etcd:
-		return loadEtcd(in.urls, in.path)
-	case inline:
-		return loadString(in.eskip)
-	case inlineIds:
-		return loadIds(in.ids)
-	default:
-		return loadResult{}, invalidInputType
+	readClient, err := createReadClient(in)
+
+	if err != nil {
+		return loadResult{}, err
 	}
+
+	routeInfos, err := readClient.LoadAndParseAll()
+
+	return mapRouteInfo(routeInfos), err
 }
 
 // print parse errors and return a generic error
