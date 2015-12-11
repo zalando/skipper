@@ -9,6 +9,7 @@ import (
 
 type WriteClient interface {
 	UpsertAll(routes eskip.RouteList) error
+	// delete all items in 'routes' that fulfil 'cond'.
 	DeleteAllIf(routes eskip.RouteList, cond eskip.RoutePredicate) error
 }
 
