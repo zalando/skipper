@@ -60,7 +60,19 @@ func TestNoPanicOnMissingRequest(t *testing.T) {
 	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "  " 418 2326 "" "" 42`)
 }
 
-func TestStripPort(t *testing.T) {
+func TestUseXForwarded(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3")
+	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
+}
+
+func TestStripPortFwd4(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
+	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
+}
+
+func TestStripPortNoFwd4(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.RemoteAddr = "192.168.3.3:6969"
 	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
