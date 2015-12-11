@@ -441,7 +441,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	return routes, deleted, nil
 }
 
-func (c *Client) UpsertAll(routes []*eskip.Route) error {
+func (c *Client) UpsertAll(routes eskip.RouteList) error {
 	// convert the routes to the innkeeper json structs
 	data := convertEskipToInnkeeper(routes)
 
