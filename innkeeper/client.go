@@ -427,7 +427,7 @@ func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 }
 
 // Returns all active routes from Innkeeper.
-func (c *Client) LoadAll() (eskip.RouteList, error) {
+func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	d, err := c.requestData(true, c.opts.Address+allRoutesPath)
 	if err != nil {
 		return nil, err
@@ -442,7 +442,7 @@ func (c *Client) LoadAll() (eskip.RouteList, error) {
 }
 
 // Returns all new and deleted routes from Innkeeper since the last LoadAll request.
-func (c *Client) LoadUpdate() (eskip.RouteList, []string, error) {
+func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	d, err := c.requestData(true, c.opts.Address+fmt.Sprintf(updatePathFmt, c.lastChanged))
 	if err != nil {
 		return nil, nil, err
@@ -456,7 +456,7 @@ func (c *Client) LoadUpdate() (eskip.RouteList, []string, error) {
 	return routes, deleted, nil
 }
 
-func (c *Client) UpsertAll(routes eskip.RouteList) error {
+func (c *Client) UpsertAll(routes []*eskip.Route) error {
 	// convert the routes to the innkeeper json structs
 	data := convertEskipToInnkeeper(routes)
 
@@ -470,6 +470,6 @@ func (c *Client) UpsertAll(routes eskip.RouteList) error {
 	return nil
 }
 
-func (c *Client) DeleteAllIf(routes eskip.RouteList, cond eskip.RoutePredicate) error {
+func (c *Client) DeleteAllIf(routes []*eskip.Route, cond eskip.RoutePredicate) error {
 	return nil
 }

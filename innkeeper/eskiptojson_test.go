@@ -1,7 +1,7 @@
 package innkeeper
 
 import (
-	"github.com/coreos/etcd/Godeps/_workspace/src/github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"testing"
 )

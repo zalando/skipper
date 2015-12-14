@@ -10,10 +10,8 @@ import (
 	"os"
 )
 
-type ReadClient interface {
+type readClient interface {
 	LoadAndParseAll() ([]*eskip.RouteInfo, error)
-
-	LoadUpdate() (eskip.RouteList, []string, error)
 }
 
 type stdinReader struct {
@@ -29,8 +27,8 @@ type idsReader struct {
 }
 
 // TODO eliminate duplicate code in write and read clients
-func createReadClient(m *medium) (ReadClient, error) {
-	// no out put, no client
+func createReadClient(m *medium) (readClient, error) {
+	// no output, no client
 	if m == nil {
 		return nil, nil
 	}
@@ -50,8 +48,7 @@ func createReadClient(m *medium) (ReadClient, error) {
 		return ic, nil
 
 	case etcd:
-		client := etcdclient.New(urlsToStrings(m.urls), m.path)
-		return client, nil
+		return etcdclient.New(urlsToStrings(m.urls), m.path), nil
 
 	case stdin:
 		return &stdinReader{reader: os.Stdin}, nil
@@ -90,20 +87,12 @@ func (r *stdinReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 	return routesToRouteInfos(routes), nil
 }
 
-func (r *stdinReader) LoadUpdate() (eskip.RouteList, []string, error) {
-	return nil, nil, nil
-}
-
 func (r *inlineReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 	routes, err := eskip.Parse(r.routes)
 	if err != nil {
 		return nil, err
 	}
 	return routesToRouteInfos(routes), nil
-}
-
-func (r *inlineReader) LoadUpdate() (eskip.RouteList, []string, error) {
-	return nil, nil, nil
 }
 
 func (r *idsReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
@@ -115,11 +104,7 @@ func (r *idsReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 	return routeInfos, nil
 }
 
-func (r *idsReader) LoadUpdate() (eskip.RouteList, []string, error) {
-	return nil, nil, nil
-}
-
-func routesToRouteInfos(routes eskip.RouteList) (routeInfos []*eskip.RouteInfo) {
+func routesToRouteInfos(routes []*eskip.Route) (routeInfos []*eskip.RouteInfo) {
 	for _, route := range routes {
 		routeInfos = append(routeInfos, &eskip.RouteInfo{*route, nil})
 	}

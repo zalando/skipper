@@ -60,7 +60,7 @@ func NewDoc(doc string) (*Client, error) {
 }
 
 // Returns the initial/current set of route definitions.
-func (c *Client) LoadAll() (eskip.RouteList, error) {
+func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	if c.failNext > 0 {
 		c.upsert, c.deletedIds = nil, nil
 		c.failNext--
@@ -77,7 +77,7 @@ func (c *Client) LoadAll() (eskip.RouteList, error) {
 
 // Returns the route definitions upserted/deleted since the last call to
 // LoadAll.
-func (c *Client) LoadUpdate() (eskip.RouteList, []string, error) {
+func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	<-c.signalUpdate
 
 	for _, id := range c.deletedIds {
@@ -101,16 +101,6 @@ func (c *Client) LoadUpdate() (eskip.RouteList, []string, error) {
 
 	u, d, c.upsert, c.deletedIds = c.upsert, c.deletedIds, nil, nil
 	return u, d, nil
-}
-
-func (c *Client) UpsertAll(routes eskip.RouteList) error {
-	// TODO implement this
-	return nil
-}
-
-func (c *Client) DeleteAllIf(routes eskip.RouteList, cond eskip.RoutePredicate) error {
-	// TODO implement this
-	return nil
 }
 
 // Updates the current set of routes with new/modified and deleted

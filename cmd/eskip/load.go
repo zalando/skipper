@@ -21,7 +21,7 @@ import (
 )
 
 type loadResult struct {
-	routes      eskip.RouteList
+	routes      []*eskip.Route
 	parseErrors map[string]error
 }
 
@@ -30,7 +30,7 @@ var invalidRouteExpression = errors.New("one or more invalid route expressions")
 // store all loaded routes, even if invalid, and store the
 // parse errors if any.
 func mapRouteInfo(allInfo []*eskip.RouteInfo) loadResult {
-	lr := loadResult{make(eskip.RouteList, len(allInfo)), make(map[string]error)}
+	lr := loadResult{make([]*eskip.Route, len(allInfo)), make(map[string]error)}
 	for i, info := range allInfo {
 		lr.routes[i] = &info.Route
 		if info.ParseError != nil {
@@ -69,7 +69,7 @@ func checkParseErrors(lr loadResult) error {
 }
 
 // load, parse routes and print parse errors if any.
-func loadRoutesChecked(m *medium) (eskip.RouteList, error) {
+func loadRoutesChecked(m *medium) ([]*eskip.Route, error) {
 	lr, err := loadRoutes(m)
 	if err != nil {
 		return nil, err
@@ -79,19 +79,19 @@ func loadRoutesChecked(m *medium) (eskip.RouteList, error) {
 }
 
 // load and parse routes, ignore parse errors.
-func loadRoutesUnchecked(m *medium) eskip.RouteList {
+func loadRoutesUnchecked(m *medium) []*eskip.Route {
 	lr, _ := loadRoutes(m)
 	return lr.routes
 }
 
 // command executed for check.
-func checkCmd(in, _ *medium, _ *WriteClient) error {
+func checkCmd(in, _ *medium, _ writeClient) error {
 	_, err := loadRoutesChecked(in)
 	return err
 }
 
 // command executed for print.
-func printCmd(in, _ *medium, _ *WriteClient) error {
+func printCmd(in, _ *medium, _ writeClient) error {
 	lr, err := loadRoutes(in)
 	if err != nil {
 		return err

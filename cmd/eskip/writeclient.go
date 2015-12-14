@@ -1,24 +1,22 @@
 package main
 
-import "github.com/zalando/skipper/eskip"
 import (
 	"errors"
+	"github.com/zalando/skipper/eskip"
 	etcdclient "github.com/zalando/skipper/etcd"
 	innkeeperclient "github.com/zalando/skipper/innkeeper"
 )
 
-type WriteClient interface {
-	UpsertAll(routes eskip.RouteList) error
+type writeClient interface {
+	UpsertAll(routes []*eskip.Route) error
 	// delete all items in 'routes' that fulfil 'cond'.
-	DeleteAllIf(routes eskip.RouteList, cond eskip.RoutePredicate) error
+	DeleteAllIf(routes []*eskip.Route, cond eskip.RoutePredicate) error
 }
 
-var (
-	invalidOutput = errors.New("invalid output")
-)
+var invalidOutput = errors.New("invalid output")
 
-func createWriteClient(out *medium) (WriteClient, error) {
-	// no out put, no client
+func createWriteClient(out *medium) (writeClient, error) {
+	// no output, no client
 	if out == nil {
 		return nil, nil
 	}
