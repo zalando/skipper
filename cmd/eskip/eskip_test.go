@@ -19,7 +19,7 @@ func TestGetCommandFail(t *testing.T) {
 }
 
 func TestGetCommandEmpty(t *testing.T) {
-	_, err := getCommand([]string{})
+	_, err := getCommand([]string{"some"})
 	if err != missingCommand {
 		t.Error("empty should fail ")
 	}

@@ -38,7 +38,7 @@ func TestUpsertLoadFail(t *testing.T) {
 	in := &medium{typ: inline, eskip: "invalid doc"}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	writeClient, _ := createWriteClient(out)
-	err := upsertCmd(in, out, &writeClient)
+	err := upsertCmd(in, out, writeClient)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -51,7 +51,7 @@ func TestUpsertGeneratesId(t *testing.T) {
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	writeClient, _ := createWriteClient(out)
 
-	err := upsertCmd(in, out, &writeClient)
+	err := upsertCmd(in, out, writeClient)
 	if err != nil {
 		t.Error(err)
 	}
@@ -73,7 +73,7 @@ func TestUpsertUsesId(t *testing.T) {
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	writeClient, _ := createWriteClient(out)
 
-	err := upsertCmd(in, out, &writeClient)
+	err := upsertCmd(in, out, writeClient)
 	if err != nil {
 		t.Error(err)
 	}
@@ -93,7 +93,7 @@ func TestResetLoadFail(t *testing.T) {
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	writeClient, _ := createWriteClient(out)
 
-	err := resetCmd(in, out, &writeClient)
+	err := resetCmd(in, out, writeClient)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -112,7 +112,7 @@ func TestResetLoadExistingFails(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = resetCmd(in, out, &writeClient)
+	err = resetCmd(in, out, writeClient)
 	if err != nil {
 		t.Error(err)
 	}
@@ -147,7 +147,7 @@ func TestReset(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = resetCmd(in, out, &writeClient)
+	err = resetCmd(in, out, writeClient)
 	if err != nil {
 		t.Error(err)
 	}
@@ -191,7 +191,7 @@ func TestDeleteLoadFails(t *testing.T) {
 	in := &medium{typ: inline, eskip: "invalid doc"}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	writeClient, _ := createWriteClient(out)
-	err := deleteCmd(in, out, &writeClient)
+	err := deleteCmd(in, out, writeClient)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -204,13 +204,13 @@ func TestDeleteFromIds(t *testing.T) {
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	writeClient, _ := createWriteClient(out)
 
-	err := upsertCmd(in, out, &writeClient)
+	err := upsertCmd(in, out, writeClient)
 	if err != nil {
 		t.Error(err)
 	}
 
 	in = &medium{typ: inlineIds, ids: []string{"route1", "route2"}}
-	err = deleteCmd(in, out, &writeClient)
+	err = deleteCmd(in, out, writeClient)
 	if err != nil {
 		t.Error(err)
 	}
@@ -232,13 +232,13 @@ func TestDeleteFromRoutes(t *testing.T) {
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
 	writeClient, _ := createWriteClient(out)
 
-	err := upsertCmd(in, out, &writeClient)
+	err := upsertCmd(in, out, writeClient)
 	if err != nil {
 		t.Error(err)
 	}
 
 	in = &medium{typ: inline, eskip: `route1: Method("HEAD") -> <shunt>;route2: Method("PUT") -> <shunt>`}
-	err = deleteCmd(in, out, &writeClient)
+	err = deleteCmd(in, out, writeClient)
 	if err != nil {
 		t.Error(err)
 	}

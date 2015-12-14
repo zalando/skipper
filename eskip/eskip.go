@@ -98,8 +98,6 @@ type Route struct {
 
 type RoutePredicate func(*Route) bool
 
-type RouteList []*Route
-
 // RouteInfo contains a route id, plus the loaded and parsed route or
 // the parse error in case of failure.
 type RouteInfo struct {

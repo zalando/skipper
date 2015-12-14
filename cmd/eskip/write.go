@@ -28,7 +28,7 @@ func routesDiffer(left, right *eskip.Route) bool {
 	return left.String() != right.String()
 }
 
-func mapRoutes(routes eskip.RouteList) routeMap {
+func mapRoutes(routes []*eskip.Route) routeMap {
 	m := make(routeMap)
 	for _, r := range routes {
 		m[r.Id] = r
@@ -38,9 +38,9 @@ func mapRoutes(routes eskip.RouteList) routeMap {
 }
 
 // take items from 'routes' that don't exist in 'ref' or are different.
-func takeDiff(ref eskip.RouteList, routes eskip.RouteList) eskip.RouteList {
+func takeDiff(ref []*eskip.Route, routes []*eskip.Route) []*eskip.Route {
 	mref := mapRoutes(ref)
-	var diff eskip.RouteList
+	var diff []*eskip.Route
 	for _, r := range routes {
 		if rr, exists := mref[r.Id]; !exists || routesDiffer(rr, r) {
 			diff = append(diff, r)
@@ -52,24 +52,24 @@ func takeDiff(ref eskip.RouteList, routes eskip.RouteList) eskip.RouteList {
 
 // insert/update routes from 'update' that don't exist in 'existing' or
 // are different from the one with the same id in 'existing'.
-func upsertDifferent(existing eskip.RouteList, update eskip.RouteList, writeClient *WriteClient) error {
+func upsertDifferent(existing []*eskip.Route, update []*eskip.Route, writeClient writeClient) error {
 	diff := takeDiff(existing, update)
-	return (*writeClient).UpsertAll(diff)
+	return writeClient.UpsertAll(diff)
 }
 
 // command executed for upsert.
-func upsertCmd(in, out *medium, writeClient *WriteClient) error {
+func upsertCmd(in, out *medium, writeClient writeClient) error {
 	// take input routes:
 	routes, err := loadRoutesChecked(in)
 	if err != nil {
 		return err
 	}
 
-	return (*writeClient).UpsertAll(routes)
+	return writeClient.UpsertAll(routes)
 }
 
 // command executed for reset.
-func resetCmd(in, out *medium, writeClient *WriteClient) error {
+func resetCmd(in, out *medium, writeClient writeClient) error {
 	// take input routes:
 	routes, err := loadRoutesChecked(in)
 	if err != nil {
@@ -92,11 +92,11 @@ func resetCmd(in, out *medium, writeClient *WriteClient) error {
 		return !set
 	}
 
-	return (*writeClient).DeleteAllIf(existing, notSet)
+	return writeClient.DeleteAllIf(existing, notSet)
 }
 
 // command executed for delete.
-func deleteCmd(in, out *medium, writeClient *WriteClient) error {
+func deleteCmd(in, out *medium, writeClient writeClient) error {
 	// take input routes:
 	routes, err := loadRoutesChecked(in)
 	if err != nil {
@@ -104,5 +104,5 @@ func deleteCmd(in, out *medium, writeClient *WriteClient) error {
 	}
 
 	// delete them:
-	return (*writeClient).DeleteAllIf(routes, any)
+	return writeClient.DeleteAllIf(routes, any)
 }

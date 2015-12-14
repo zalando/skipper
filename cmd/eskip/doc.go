@@ -53,8 +53,6 @@ Copy all routes in etcd under a different prefix:
 (Where -etcd-urls is not set for write operations like upsert, reset and
 delete, the default etcd cluster urls are used:
 http://127.0.0.1:2379,http://127.0.0.1:4001)
-
-On the roadmap: Innkeeper support.
 */
 package main
 

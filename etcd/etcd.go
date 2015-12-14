@@ -171,7 +171,7 @@ func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 }
 
 // Returns all the route definitions currently stored in etcd.
-func (c *Client) LoadAll() (eskip.RouteList, error) {
+func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	routeInfo, err := c.LoadAndParseAll()
 	if err != nil {
 		return nil, err
@@ -185,7 +185,7 @@ func (c *Client) LoadAll() (eskip.RouteList, error) {
 //
 // It uses etcd's watch functionality that results in blocking this call
 // until the next change is detected in etcd.
-func (c *Client) LoadUpdate() (eskip.RouteList, []string, error) {
+func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	response, err := c.etcd.Watch(c.routesRoot, c.etcdIndex+1, true, nil, nil)
 	if err != nil {
 		return nil, nil, err
@@ -237,7 +237,7 @@ func (c *Client) Delete(id string) error {
 	return err
 }
 
-func (c *Client) UpsertAll(routes eskip.RouteList) error {
+func (c *Client) UpsertAll(routes []*eskip.Route) error {
 	for _, r := range routes {
 		r.Id = routeid.GenerateIfNeeded(r.Id)
 		err := c.Upsert(r)
@@ -248,7 +248,7 @@ func (c *Client) UpsertAll(routes eskip.RouteList) error {
 	return nil
 }
 
-func (c *Client) DeleteAllIf(routes eskip.RouteList, cond eskip.RoutePredicate) error {
+func (c *Client) DeleteAllIf(routes []*eskip.Route, cond eskip.RoutePredicate) error {
 	for _, r := range routes {
 		if !cond(r) {
 			continue
