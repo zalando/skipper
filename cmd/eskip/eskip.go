@@ -22,7 +22,7 @@ import (
 
 type (
 	command     string
-	commandFunc func(in, out *medium, writeClient *WriteClient) error
+	commandFunc func(in, out *medium, writeClient writeClient) error
 )
 
 const (
@@ -126,5 +126,5 @@ func main() {
 	}
 
 	// execute command:
-	exit(commands[cmd](in, out, &writeClient))
+	exit(commands[cmd](in, out, writeClient))
 }

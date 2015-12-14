@@ -53,8 +53,8 @@ func (c Client) LoadAndParseAll() (routeInfos []*eskip.RouteInfo, err error) {
 }
 
 // Returns the parsed route definitions found in the file.
-func (c Client) LoadAll() (eskip.RouteList, error) { return c.routes, nil }
+func (c Client) LoadAll() ([]*eskip.Route, error) { return c.routes, nil }
 
 // Noop. The current implementation doesn't support watching the eskip
 // file for changes.
-func (c Client) LoadUpdate() (eskip.RouteList, []string, error) { return nil, nil, nil }
+func (c Client) LoadUpdate() ([]*eskip.Route, []string, error) { return nil, nil, nil }

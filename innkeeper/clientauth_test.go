@@ -1,7 +1,7 @@
 package innkeeper
 
 import (
-	"reflect"
+	"github.com/zalando/skipper/oauth"
 	"testing"
 )
 
@@ -21,7 +21,7 @@ func TestCreateInnkeeperAuthenticationClient(t *testing.T) {
 		OAuthScope:          "scope"}
 	auth := CreateInnkeeperAuthentication(options)
 
-	if reflect.TypeOf(auth).String() != "*oauth.OAuthClient" {
-		t.Error("wrong fixed token")
+	if _, ok := auth.(*oauth.OAuthClient); !ok {
+		t.Error("wrong authentication client type")
 	}
 }
