@@ -27,7 +27,7 @@ func createWriteClient(out *medium) (writeClient, error) {
 
 		ic, err := innkeeperclient.New(innkeeperclient.Options{
 			Address:        out.urls[0].String(),
-			Insecure:       true,
+			Insecure:       false,
 			Authentication: auth})
 
 		if err != nil {
