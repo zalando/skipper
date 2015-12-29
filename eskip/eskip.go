@@ -19,9 +19,9 @@ package eskip
 import (
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/filters/flowid"
+	"regexp"
 	"strings"
-"regexp"
-"github.com/zalando/skipper/filters/flowid"
 )
 
 // Represents a matcher condition for incoming requests.
