@@ -33,7 +33,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/routeid"
 	"net/http"
 	"path"
 )
@@ -239,7 +238,7 @@ func (c *Client) Delete(id string) error {
 
 func (c *Client) UpsertAll(routes []*eskip.Route) error {
 	for _, r := range routes {
-		r.Id = routeid.GenerateIfNeeded(r.Id)
+		r.Id = eskip.GenerateIfNeeded(r.Id)
 		err := c.Upsert(r)
 		if err != nil {
 			return err
