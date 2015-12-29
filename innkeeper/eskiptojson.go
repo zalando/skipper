@@ -2,6 +2,7 @@ package innkeeper
 
 import (
 	"github.com/zalando/skipper/eskip"
+	"log"
 )
 
 func convertPathMatcher(r *eskip.Route) *pathMatcher {
@@ -15,6 +16,9 @@ func convertPathMatcher(r *eskip.Route) *pathMatcher {
 		pathMatchType = matchStrict
 	} else if len(r.PathRegexps) > 0 {
 		// TODO we should only have one path regexp
+		if len(r.PathRegexps > 1) {
+			log.Println("Warn: We should only have one path regexp")
+		}
 		pathMatch = r.PathRegexps[0]
 		pathMatchType = matchRegex
 	} else {
@@ -34,6 +38,9 @@ func convertHost(r *eskip.Route) (host string) {
 	if len(r.HostRegexps) > 0 {
 		// we take the first one
 		// TODO HostRegexps should not be an array
+		if len(r.HostRegexps > 1) {
+			log.Println("Warn: We should only have one host regexp")
+		}
 		host = r.HostRegexps[0]
 	}
 	return
