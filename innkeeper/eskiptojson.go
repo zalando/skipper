@@ -2,7 +2,6 @@ package innkeeper
 
 import (
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/routeid"
 )
 
 func convertPathMatcher(r *eskip.Route) *pathMatcher {
@@ -95,7 +94,7 @@ func convertEskipToInnkeeper(routes []*eskip.Route) (data []*routeData) {
 
 	for _, r := range routes {
 
-		id := routeid.GenerateIfNeeded(r.Id)
+		id := eskip.GenerateIfNeeded(r.Id)
 		host := convertHost(r)
 		method := convertMethod(r)
 		pathMatch := convertPathMatcher(r)
