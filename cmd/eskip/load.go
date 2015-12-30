@@ -42,12 +42,7 @@ func mapRouteInfo(allInfo []*eskip.RouteInfo) loadResult {
 }
 
 // load routes from input medium.
-func loadRoutes(in *medium) (loadResult, error) {
-	readClient, err := createReadClient(in)
-
-	if err != nil {
-		return loadResult{}, err
-	}
+func loadRoutes(readClient readClient) (loadResult, error) {
 
 	routeInfos, err := readClient.LoadAndParseAll()
 
@@ -69,8 +64,8 @@ func checkParseErrors(lr loadResult) error {
 }
 
 // load, parse routes and print parse errors if any.
-func loadRoutesChecked(m *medium) ([]*eskip.Route, error) {
-	lr, err := loadRoutes(m)
+func loadRoutesChecked(readClient readClient) ([]*eskip.Route, error) {
+	lr, err := loadRoutes(readClient)
 	if err != nil {
 		return nil, err
 	}
@@ -79,20 +74,20 @@ func loadRoutesChecked(m *medium) ([]*eskip.Route, error) {
 }
 
 // load and parse routes, ignore parse errors.
-func loadRoutesUnchecked(m *medium) []*eskip.Route {
-	lr, _ := loadRoutes(m)
+func loadRoutesUnchecked(readClient readClient) []*eskip.Route {
+	lr, _ := loadRoutes(readClient)
 	return lr.routes
 }
 
 // command executed for check.
-func checkCmd(in, _ *medium, _ writeClient) error {
-	_, err := loadRoutesChecked(in)
+func checkCmd(readClient readClient, _ readClient, _ writeClient) error {
+	_, err := loadRoutesChecked(readClient)
 	return err
 }
 
 // command executed for print.
-func printCmd(in, _ *medium, _ writeClient) error {
-	lr, err := loadRoutes(in)
+func printCmd(readClient readClient, _ readClient, _ writeClient) error {
+	lr, err := loadRoutes(readClient)
 	if err != nil {
 		return err
 	}
