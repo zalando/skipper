@@ -16,7 +16,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	etcdclient "github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
@@ -92,8 +91,11 @@ func withStdin(content string, action func()) error {
 }
 
 func TestCheckStdinInvalid(t *testing.T) {
+
 	err := withStdin("invalid doc", func() {
-		err := checkCmd(&medium{typ: stdin}, nil, nil)
+		readClient, _ := createReadClient(&medium{typ: stdin})
+
+		err := checkCmd(readClient, nil, nil)
 		if err == nil {
 			t.Error("failed to fail")
 		}
@@ -106,7 +108,8 @@ func TestCheckStdinInvalid(t *testing.T) {
 
 func TestCheckStdin(t *testing.T) {
 	err := withStdin(`Method("POST") -> "https://www.example.org"`, func() {
-		err := checkCmd(&medium{typ: stdin}, nil, nil)
+		readClient, _ := createReadClient(&medium{typ: stdin})
+		err := checkCmd(readClient, nil, nil)
 		if err != nil {
 			t.Error(err)
 		}
@@ -120,7 +123,8 @@ func TestCheckStdin(t *testing.T) {
 func TestCheckFileInvalid(t *testing.T) {
 	const name = "testFile"
 	err := withFile(name, "invalid doc", func(_ *os.File) {
-		err := checkCmd(&medium{typ: file, path: name}, nil, nil)
+		_, err := createReadClient(&medium{typ: file, path: name})
+
 		if err == nil {
 			t.Error("failed to fail")
 		}
@@ -134,7 +138,8 @@ func TestCheckFileInvalid(t *testing.T) {
 func TestCheckFile(t *testing.T) {
 	const name = "testFile"
 	err := withFile(name, `Method("POST") -> "https://www.example.org"`, func(_ *os.File) {
-		err := checkCmd(&medium{typ: file, path: name}, nil, nil)
+		readClient, _ := createReadClient(&medium{typ: file, path: name})
+		err := checkCmd(readClient, nil, nil)
 		if err != nil {
 			t.Error(err)
 		}
@@ -158,8 +163,9 @@ func TestCheckEtcdInvalid(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = checkCmd(&medium{typ: etcd, urls: urls, path: "/skippertest"}, nil, nil)
-	fmt.Errorf("XXXXX %s", err)
+	readClient, _ := createReadClient(&medium{typ: etcd, urls: urls, path: "/skippertest"})
+
+	err = checkCmd(readClient, nil, nil)
 	if err != invalidRouteExpression {
 		t.Error("failed to fail properly")
 	}
@@ -178,21 +184,27 @@ func TestCheckEtcd(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = checkCmd(&medium{typ: etcd, urls: urls, path: "/skippertest"}, nil, nil)
+	readClient, _ := createReadClient(&medium{typ: etcd, urls: urls, path: "/skippertest"})
+
+	err = checkCmd(readClient, nil, nil)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestCheckDocInvalid(t *testing.T) {
-	err := checkCmd(&medium{typ: inline, eskip: "invalid doc"}, nil, nil)
+	readClient, _ := createReadClient(&medium{typ: inline, eskip: "invalid doc"})
+
+	err := checkCmd(readClient, nil, nil)
 	if err == nil {
 		t.Error("failed to fail")
 	}
 }
 
 func TestCheckDoc(t *testing.T) {
-	err := checkCmd(&medium{typ: inline, eskip: `Method("POST") -> <shunt>`}, nil, nil)
+	readClient, _ := createReadClient(&medium{typ: inline, eskip: `Method("POST") -> <shunt>`})
+
+	err := checkCmd(readClient, nil, nil)
 	if err != nil {
 		t.Error(err)
 	}
