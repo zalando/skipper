@@ -16,19 +16,11 @@ package main
 
 import (
 	"github.com/zalando/skipper/eskip"
-	etcdclient "github.com/zalando/skipper/etcd"
-	"github.com/zalando/skipper/filters/flowid"
-	"regexp"
 )
-
-const randomIdLength = 16
 
 type (
-	routePredicate func(*eskip.Route) bool
-	routeMap       map[string]*eskip.Route
+	routeMap map[string]*eskip.Route
 )
-
-var routeIdRx = regexp.MustCompile("\\W")
 
 func any(_ *eskip.Route) bool { return true }
 
@@ -36,7 +28,7 @@ func routesDiffer(left, right *eskip.Route) bool {
 	return left.String() != right.String()
 }
 
-func mapRoutes(routes routeList) routeMap {
+func mapRoutes(routes []*eskip.Route) routeMap {
 	m := make(routeMap)
 	for _, r := range routes {
 		m[r.Id] = r
@@ -45,44 +37,10 @@ func mapRoutes(routes routeList) routeMap {
 	return m
 }
 
-// generate weak random id for a route if
-// it doesn't have one.
-func ensureId(r *eskip.Route) error {
-	if r.Id != "" {
-		return nil
-	}
-
-	// using this to avoid adding a new dependency.
-	id, err := flowid.NewFlowId(randomIdLength)
-	if err != nil {
-		return err
-	}
-
-	// replace characters that are not allowed
-	// for eskip route ids.
-	id = routeIdRx.ReplaceAllString(id, "x")
-	r.Id = "route" + id
-	return nil
-}
-
-// insert/update all routes to a medium (currently only etcd).
-func upsertAll(routes routeList, m *medium) error {
-	client := etcdclient.New(urlsToStrings(m.urls), m.path)
-	for _, r := range routes {
-		ensureId(r)
-		err := client.Upsert(r)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // take items from 'routes' that don't exist in 'ref' or are different.
-func takeDiff(ref routeList, routes routeList) routeList {
+func takeDiff(ref []*eskip.Route, routes []*eskip.Route) []*eskip.Route {
 	mref := mapRoutes(ref)
-	var diff routeList
+	var diff []*eskip.Route
 	for _, r := range routes {
 		if rr, exists := mref[r.Id]; !exists || routesDiffer(rr, r) {
 			diff = append(diff, r)
@@ -94,53 +52,35 @@ func takeDiff(ref routeList, routes routeList) routeList {
 
 // insert/update routes from 'update' that don't exist in 'existing' or
 // are different from the one with the same id in 'existing'.
-func upsertDifferent(existing routeList, update routeList, m *medium) error {
+func upsertDifferent(existing []*eskip.Route, update []*eskip.Route, writeClient writeClient) error {
 	diff := takeDiff(existing, update)
-	return upsertAll(diff, m)
-}
-
-// delete all items in 'routes' that fulfil 'cond'.
-func deleteAllIf(routes routeList, m *medium, cond routePredicate) error {
-	client := etcdclient.New(urlsToStrings(m.urls), m.path)
-	for _, r := range routes {
-		if !cond(r) {
-			continue
-		}
-
-		err := client.Delete(r.Id)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return writeClient.UpsertAll(diff)
 }
 
 // command executed for upsert.
-func upsertCmd(in, out *medium) error {
+func upsertCmd(readClient readClient, _ readClient, writeClient writeClient) error {
 	// take input routes:
-	routes, err := loadRoutesChecked(in)
+	routes, err := loadRoutesChecked(readClient)
 	if err != nil {
 		return err
 	}
 
-	// upsert routes:
-	return upsertAll(routes, out)
+	return writeClient.UpsertAll(routes)
 }
 
 // command executed for reset.
-func resetCmd(in, out *medium) error {
+func resetCmd(readClient readClient, readOutClient readClient, writeClient writeClient) error {
 	// take input routes:
-	routes, err := loadRoutesChecked(in)
+	routes, err := loadRoutesChecked(readClient)
 	if err != nil {
 		return err
 	}
 
 	// take existing routes from output:
-	existing := loadRoutesUnchecked(out)
+	existing := loadRoutesUnchecked(readOutClient)
 
 	// upsert routes that don't exist or are different:
-	err = upsertDifferent(existing, routes, out)
+	err = upsertDifferent(existing, routes, writeClient)
 	if err != nil {
 		return err
 	}
@@ -152,17 +92,17 @@ func resetCmd(in, out *medium) error {
 		return !set
 	}
 
-	return deleteAllIf(existing, out, notSet)
+	return writeClient.DeleteAllIf(existing, notSet)
 }
 
 // command executed for delete.
-func deleteCmd(in, out *medium) error {
+func deleteCmd(readClient readClient, _ readClient, writeClient writeClient) error {
 	// take input routes:
-	routes, err := loadRoutesChecked(in)
+	routes, err := loadRoutesChecked(readClient)
 	if err != nil {
 		return err
 	}
 
 	// delete them:
-	return deleteAllIf(routes, out, any)
+	return writeClient.DeleteAllIf(routes, any)
 }

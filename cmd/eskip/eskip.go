@@ -22,7 +22,7 @@ import (
 
 type (
 	command     string
-	commandFunc func(in, out *medium) error
+	commandFunc func(readClient readClient, readOutClient readClient, writeClient writeClient) error
 )
 
 const (
@@ -71,12 +71,12 @@ func exitHint(err error) { exitErrHint(err, true) }
 func exit(err error)     { exitErrHint(err, false) }
 
 // second argument must be the ('sub') command.
-func getCommand() (command, error) {
-	if len(os.Args) < 2 {
+func getCommand(args []string) (command, error) {
+	if len(args) < 2 {
 		return "", missingCommand
 	}
 
-	cmd := command(os.Args[1])
+	cmd := command(args[1])
 	if cmd[0] == '-' {
 		return "", missingCommand
 	}
@@ -95,7 +95,7 @@ func main() {
 		exit(nil)
 	}
 
-	cmd, err := getCommand()
+	cmd, err := getCommand(os.Args)
 	if err != nil {
 		exitHint(err)
 	}
@@ -113,6 +113,30 @@ func main() {
 		exitHint(err)
 	}
 
+	in, out, err = addDefaultMedia(cmd, in, out)
+
+	if err != nil {
+		exitHint(err)
+	}
+
+	writeClient, err := createWriteClient(out)
+
+	if err != nil {
+		exitHint(err)
+	}
+
+	readClient, err := createReadClient(in)
+
+	if err != nil {
+		exitHint(err)
+	}
+
+	readOutClient, err := createReadClient(out)
+
+	if err != nil {
+		exitHint(err)
+	}
+
 	// execute command:
-	exit(commands[cmd](in, out))
+	exit(commands[cmd](readClient, readOutClient, writeClient))
 }
