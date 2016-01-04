@@ -18,18 +18,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/eskipfile"
-	etcdclient "github.com/zalando/skipper/etcd"
-	"io"
-	"io/ioutil"
-	"net/url"
-	"os"
 )
 
-type routeList []*eskip.Route
-
 type loadResult struct {
-	routes      routeList
+	routes      []*eskip.Route
 	parseErrors map[string]error
 }
 
@@ -37,8 +29,8 @@ var invalidRouteExpression = errors.New("one or more invalid route expressions")
 
 // store all loaded routes, even if invalid, and store the
 // parse errors if any.
-func mapRouteInfo(allInfo []*etcdclient.RouteInfo) loadResult {
-	lr := loadResult{make(routeList, len(allInfo)), make(map[string]error)}
+func mapRouteInfo(allInfo []*eskip.RouteInfo) loadResult {
+	lr := loadResult{make([]*eskip.Route, len(allInfo)), make(map[string]error)}
 	for i, info := range allInfo {
 		lr.routes[i] = &info.Route
 		if info.ParseError != nil {
@@ -49,73 +41,12 @@ func mapRouteInfo(allInfo []*etcdclient.RouteInfo) loadResult {
 	return lr
 }
 
-// load and parse routes from a reader (used for stdin).
-func loadReader(r io.Reader) (loadResult, error) {
-
-	// this pretty much disables continuous piping,
-	// but since the reset command first upserts all
-	// and deletes the diff only after, it may not
-	// even be consistent to do continous piping.
-	// May change in the future.
-	doc, err := ioutil.ReadAll(r)
-	if err != nil {
-		return loadResult{}, err
-	}
-
-	routes, err := eskip.Parse(string(doc))
-	return loadResult{routes: routes}, err
-}
-
-// load and parse routes from a file using the eskipfile client.
-func loadFile(path string) (loadResult, error) {
-	client, err := eskipfile.Open(path)
-	if err != nil {
-		return loadResult{}, err
-	}
-
-	routes, err := client.LoadAll()
-	return loadResult{routes: routes}, err
-}
-
-// load and parse routes from etcd.
-func loadEtcd(urls []*url.URL, prefix string) (loadResult, error) {
-	client := etcdclient.New(urlsToStrings(urls), prefix)
-	info, err := client.LoadAndParseAll()
-	return mapRouteInfo(info), err
-}
-
-// parse routes from a string.
-func loadString(doc string) (loadResult, error) {
-	routes, err := eskip.Parse(doc)
-	return loadResult{routes: routes}, err
-}
-
-// generate empty route objects from ids.
-func loadIds(ids []string) (loadResult, error) {
-	routes := make(routeList, len(ids))
-	for i, id := range ids {
-		routes[i] = &eskip.Route{Id: id}
-	}
-
-	return loadResult{routes: routes}, nil
-}
-
 // load routes from input medium.
-func loadRoutes(in *medium) (loadResult, error) {
-	switch in.typ {
-	case stdin:
-		return loadReader(os.Stdin)
-	case file:
-		return loadFile(in.path)
-	case etcd:
-		return loadEtcd(in.urls, in.path)
-	case inline:
-		return loadString(in.eskip)
-	case inlineIds:
-		return loadIds(in.ids)
-	default:
-		return loadResult{}, invalidInputType
-	}
+func loadRoutes(readClient readClient) (loadResult, error) {
+
+	routeInfos, err := readClient.LoadAndParseAll()
+
+	return mapRouteInfo(routeInfos), err
 }
 
 // print parse errors and return a generic error
@@ -133,8 +64,8 @@ func checkParseErrors(lr loadResult) error {
 }
 
 // load, parse routes and print parse errors if any.
-func loadRoutesChecked(m *medium) (routeList, error) {
-	lr, err := loadRoutes(m)
+func loadRoutesChecked(readClient readClient) ([]*eskip.Route, error) {
+	lr, err := loadRoutes(readClient)
 	if err != nil {
 		return nil, err
 	}
@@ -143,20 +74,20 @@ func loadRoutesChecked(m *medium) (routeList, error) {
 }
 
 // load and parse routes, ignore parse errors.
-func loadRoutesUnchecked(m *medium) routeList {
-	lr, _ := loadRoutes(m)
+func loadRoutesUnchecked(readClient readClient) []*eskip.Route {
+	lr, _ := loadRoutes(readClient)
 	return lr.routes
 }
 
 // command executed for check.
-func checkCmd(in, _ *medium) error {
-	_, err := loadRoutesChecked(in)
+func checkCmd(readClient readClient, _ readClient, _ writeClient) error {
+	_, err := loadRoutesChecked(readClient)
 	return err
 }
 
 // command executed for print.
-func printCmd(in, _ *medium) error {
-	lr, err := loadRoutes(in)
+func printCmd(readClient readClient, _ readClient, _ writeClient) error {
+	lr, err := loadRoutes(readClient)
 	if err != nil {
 		return err
 	}
