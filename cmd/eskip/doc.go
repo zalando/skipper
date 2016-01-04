@@ -53,8 +53,6 @@ Copy all routes in etcd under a different prefix:
 (Where -etcd-urls is not set for write operations like upsert, reset and
 delete, the default etcd cluster urls are used:
 http://127.0.0.1:2379,http://127.0.0.1:4001)
-
-On the roadmap: Innkeeper support.
 */
 package main
 
@@ -70,6 +68,8 @@ const (
 	// flag usage strings:
 	etcdUrlsUsage     = "urls of nodes in an etcd cluster"
 	etcdPrefixUsage   = "path prefix for routes in etcd"
+	innkeeperUrlUsage = "url for the innkeeper service"
+	oauthTokenUsage   = "oauth token used to authenticate to innkeeper"
 	inlineRoutesUsage = "inline: routes in eskip format"
 	inlineIdsUsage    = "inline ids: comma separated route ids"
 
@@ -81,6 +81,8 @@ See more: https://github.com/zalando/skipper
 
 Media types:
 
+innkeeper     endpoint of an innkeeper server. See more about innkeeper:
+              https://github.com/zalando/innkeeper
 etcd          endpoint(s) of an etcd cluster. See more about etcd:
               https://github.com/coreos/etcd
 stdin         standard input when not tty, expecting routes
