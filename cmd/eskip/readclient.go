@@ -26,7 +26,6 @@ type idsReader struct {
 	ids []string
 }
 
-// TODO eliminate duplicate code in write and read clients
 func createReadClient(m *medium) (readClient, error) {
 	// no output, no client
 	if m == nil {
@@ -35,17 +34,7 @@ func createReadClient(m *medium) (readClient, error) {
 
 	switch m.typ {
 	case innkeeper:
-		auth := innkeeperclient.CreateInnkeeperAuthentication(innkeeperclient.AuthOptions{InnkeeperAuthToken: m.oauthToken})
-
-		ic, err := innkeeperclient.New(innkeeperclient.Options{
-			Address:        m.urls[0].String(),
-			Insecure:       true,
-			Authentication: auth})
-
-		if err != nil {
-			return nil, err
-		}
-		return ic, nil
+		return createInnkeeperClient(m)
 
 	case etcd:
 		return etcdclient.New(urlsToStrings(m.urls), m.path), nil
@@ -65,6 +54,20 @@ func createReadClient(m *medium) (readClient, error) {
 	default:
 		return nil, invalidInputType
 	}
+}
+
+func createInnkeeperClient(m *medium) (*innkeeperclient.Client, error) {
+	auth := innkeeperclient.CreateInnkeeperAuthentication(innkeeperclient.AuthOptions{InnkeeperAuthToken: m.oauthToken})
+
+	ic, err := innkeeperclient.New(innkeeperclient.Options{
+		Address:        m.urls[0].String(),
+		Insecure:       false,
+		Authentication: auth})
+
+	if err != nil {
+		return nil, err
+	}
+	return ic, nil
 }
 
 func (r *stdinReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
