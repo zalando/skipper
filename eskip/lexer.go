@@ -99,27 +99,21 @@ func scanEscaped(delimiter byte, code string) ([]byte, string) {
 		isEscapeChar := c == escapeChar
 
 		if escaped {
-			if isDelimiter {
-				b = append(b, delimiter)
-				escaped = false
-			} else {
-				if isEscapeChar {
-					b = append(b, escapeChar)
-					escaped = false
-				} else {
-					b = append(b, escapeChar, c)
-					escaped = false
-				}
+			if !isDelimiter && !isEscapeChar {
+				b = append(b, escapeChar)
 			}
+
+			b = append(b, c)
+			escaped = false
 		} else {
 			if isDelimiter {
 				return b, code
+			}
+
+			if isEscapeChar {
+				escaped = true
 			} else {
-				if isEscapeChar {
-					escaped = true
-				} else {
-					b = append(b, c)
-				}
+				b = append(b, c)
 			}
 		}
 
