@@ -196,8 +196,8 @@ func scanWhitespace(code string) string { return scanVoid(code, isWhitespace) }
 func scanComment(code string) string {
 	return scanVoid(code, func(c byte) bool { return !isNewline(c) })
 }
-func scanStringLiteral1(code string) (token, string, error) { return scanStringLiteral('"', code) }
-func scanStringLiteral2(code string) (token, string, error) { return scanStringLiteral('`', code) }
+func scanDoubleQuote(code string) (token, string, error) { return scanStringLiteral('"', code) }
+func scanBacktick(code string) (token, string, error)    { return scanStringLiteral('`', code) }
 
 func scanNumber(code string) (t token, rest string, err error) {
 	decimal := false
@@ -247,9 +247,9 @@ func selectVaryingScanner(code string) scanner {
 	case '/':
 		sf = scanRegexpOrComment
 	case '"':
-		sf = scanStringLiteral1
+		sf = scanDoubleQuote
 	case '`':
-		sf = scanStringLiteral2
+		sf = scanBacktick
 	}
 
 	if isNumberChar(code[0]) {
