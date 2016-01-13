@@ -15,6 +15,7 @@
 package routing_test
 
 import (
+	"errors"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -25,7 +26,34 @@ import (
 	"time"
 )
 
-const pollTimeout = 15 * time.Millisecond
+const (
+	pollTimeout           = 15 * time.Millisecond
+	customPredicateHeader = "X-Custom-Predicate"
+)
+
+type customPredicate struct {
+	matchVal string
+}
+
+func (cp *customPredicate) Name() string { return "CustomPredicate" }
+
+func (cp *customPredicate) Create(args []interface{}) (routing.Predicate, error) {
+	if len(args) != 1 {
+		return nil, errors.New("invalid number of args")
+	}
+
+	if matchVal, ok := args[0].(string); ok {
+		cp.matchVal = matchVal
+		return &customPredicate{matchVal}, nil
+	} else {
+		return nil, errors.New("invalid arg")
+	}
+}
+
+func (cp *customPredicate) Match(r *http.Request) bool {
+	println("matching", r.Header.Get(customPredicateHeader), cp.matchVal)
+	return r.Header.Get(customPredicateHeader) == cp.matchVal
+}
 
 func waitRoute(rt *routing.Routing, req *http.Request) <-chan *routing.Route {
 	done := make(chan *routing.Route)
@@ -368,6 +396,62 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 			f.FilterName != fs.Name() || len(f.Args) != 2 ||
 			f.Args[0] != float64(3.14) || f.Args[1] != "Hello, world!" {
 			t.Error("failed to process filters")
+		}
+	case <-time.After(3 * pollTimeout):
+		t.Error("test timeout")
+	}
+}
+
+func TestProcessesCustomPredicates(t *testing.T) {
+	dc, err := testdataclient.NewDoc(`
+        route1: CustomPredicate("custom1") -> "https://route1.example.org";
+        route2: CustomPredicate("custom2") -> "https://route2.example.org";
+        catchAll: * -> "https://route.example.org"`)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	cps := []routing.PredicateSpec{&customPredicate{}, &customPredicate{}}
+	rt := routing.New(routing.Options{
+		DataClients:      []routing.DataClient{dc},
+		PollTimeout:      pollTimeout,
+		CustomPredicates: cps})
+
+	req, err := http.NewRequest("GET", "https://www.example.com", nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	req.Header.Set(customPredicateHeader, "custom1")
+	select {
+	case r := <-waitRoute(rt, req):
+		if r.Backend != "https://route1.example.org" {
+			t.Error("custom predicate matching failed, route1")
+			return
+		}
+	case <-time.After(3 * pollTimeout):
+		t.Error("test timeout")
+	}
+
+	req.Header.Set(customPredicateHeader, "custom2")
+	select {
+	case r := <-waitRoute(rt, req):
+		if r.Backend != "https://route2.example.org" {
+			t.Error("custom predicate matching failed, route2")
+			return
+		}
+	case <-time.After(3 * pollTimeout):
+		t.Error("test timeout")
+	}
+
+	req.Header.Del(customPredicateHeader)
+	select {
+	case r := <-waitRoute(rt, req):
+		if r.Backend != "https://route.example.org" {
+			t.Error("custom predicate matching failed, catch-all")
+			return
 		}
 	case <-time.After(3 * pollTimeout):
 		t.Error("test timeout")
