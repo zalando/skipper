@@ -64,6 +64,7 @@ var (
 
 var fixedTokens = map[fixedScanner]int{
 	"&&":      and,
+	"*":       any,
 	"->":      arrow,
 	")":       closeparen,
 	":":       colon,

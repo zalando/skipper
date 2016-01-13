@@ -102,6 +102,20 @@ func TestParseRouteExpression(t *testing.T) {
 		"route: Any() -> <shunt>; // some comment",
 		&Route{Id: "route", Shunt: true},
 		false,
+	}, {
+		"catch all",
+		`* -> "https://www.example.org"`,
+		&Route{Backend: "https://www.example.org"},
+		false,
+	}, {
+		"custom predicate",
+		`Custom1(3.14, "test value") && Custom2() -> "https://www.example.org"`,
+		&Route{
+			CustomPredicates: []*CustomPredicate{
+				&CustomPredicate{"Custom1", []interface{}{float64(3.14), "test value"}},
+				&CustomPredicate{"Custom2", nil}},
+			Backend: "https://www.example.org"},
+		false,
 	}} {
 		stringMapKeys := func(m map[string]string) []string {
 			keys := make([]string, 0, len(m))

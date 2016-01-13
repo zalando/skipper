@@ -32,23 +32,25 @@ type eskipSymType struct {
 }
 
 const and = 57346
-const arrow = 57347
-const closeparen = 57348
-const colon = 57349
-const comma = 57350
-const number = 57351
-const openparen = 57352
-const regexpliteral = 57353
-const semicolon = 57354
-const shunt = 57355
-const stringliteral = 57356
-const symbol = 57357
+const any = 57347
+const arrow = 57348
+const closeparen = 57349
+const colon = 57350
+const comma = 57351
+const number = 57352
+const openparen = 57353
+const regexpliteral = 57354
+const semicolon = 57355
+const shunt = 57356
+const stringliteral = 57357
+const symbol = 57358
 
 var eskipToknames = [...]string{
 	"$end",
 	"error",
 	"$unk",
 	"and",
+	"any",
 	"arrow",
 	"closeparen",
 	"colon",
@@ -67,7 +69,7 @@ const eskipEofCode = 1
 const eskipErrCode = 2
 const eskipMaxDepth = 200
 
-//line parser.y:198
+//line parser.y:203
 
 //line yacctab:1
 var eskipExca = [...]int{
@@ -76,62 +78,62 @@ var eskipExca = [...]int{
 	-2, 0,
 }
 
-const eskipNprod = 28
+const eskipNprod = 29
 const eskipPrivate = 57344
 
 var eskipTokenNames []string
 var eskipStates []string
 
-const eskipLast = 44
+const eskipLast = 46
 
 var eskipAct = [...]int{
 
-	27, 29, 20, 26, 24, 16, 19, 21, 22, 31,
-	15, 32, 18, 8, 21, 3, 9, 7, 13, 34,
-	4, 41, 35, 36, 36, 12, 11, 10, 25, 23,
-	14, 33, 30, 28, 17, 18, 38, 40, 39, 37,
-	5, 6, 2, 1,
+	28, 30, 21, 27, 16, 17, 20, 22, 23, 32,
+	9, 33, 9, 19, 22, 3, 10, 7, 13, 14,
+	35, 25, 4, 8, 42, 36, 37, 37, 34, 26,
+	24, 31, 12, 15, 11, 29, 19, 39, 41, 40,
+	38, 18, 5, 6, 2, 1,
 }
 var eskipPact = [...]int{
 
-	-2, -1000, 4, -1000, -1000, 22, 18, -1000, 8, -5,
-	-7, -11, -11, 0, -1000, -1000, -1000, 26, -1000, -1000,
-	-1000, -1000, 9, -1000, 8, -1000, 16, -1000, -1000, -1000,
-	-1000, -1000, -1000, -7, 0, -1000, 0, -1000, -1000, 15,
-	-1000, -1000,
+	7, -1000, 3, -1000, -1000, 28, 10, -1000, 8, -1000,
+	-12, -8, 5, 5, -1, -1000, -1000, -1000, 22, -1000,
+	-1000, -1000, -1000, 9, -1000, 8, -1000, 18, -1000, -1000,
+	-1000, -1000, -1000, -1000, -8, -1, -1000, -1, -1000, -1000,
+	17, -1000, -1000,
 }
 var eskipPgo = [...]int{
 
-	0, 43, 42, 15, 20, 41, 40, 5, 34, 17,
-	3, 2, 0, 33, 1, 32,
+	0, 45, 44, 15, 22, 43, 42, 5, 41, 17,
+	3, 2, 0, 35, 1, 31,
 }
 var eskipR1 = [...]int{
 
 	0, 1, 1, 2, 2, 2, 2, 4, 5, 3,
-	3, 6, 6, 9, 8, 8, 11, 10, 10, 10,
-	12, 12, 12, 7, 7, 13, 14, 15,
+	3, 6, 6, 9, 9, 8, 8, 11, 10, 10,
+	10, 12, 12, 12, 7, 7, 13, 14, 15,
 }
 var eskipR2 = [...]int{
 
 	0, 1, 1, 0, 1, 3, 2, 3, 1, 3,
-	5, 1, 3, 4, 1, 3, 4, 0, 1, 3,
-	1, 1, 1, 1, 1, 1, 1, 1,
+	5, 1, 3, 1, 4, 1, 3, 4, 0, 1,
+	3, 1, 1, 1, 1, 1, 1, 1, 1,
 }
 var eskipChk = [...]int{
 
-	-1000, -1, -2, -3, -4, -6, -5, -9, 15, 12,
-	5, 4, 7, 10, -4, 15, -7, -8, -14, 13,
-	-11, 14, 15, -9, 15, -3, -10, -12, -13, -14,
-	-15, 9, 11, 5, 10, 6, 8, -7, -11, -10,
-	-12, 6,
+	-1000, -1, -2, -3, -4, -6, -5, -9, 16, 5,
+	13, 6, 4, 8, 11, -4, 16, -7, -8, -14,
+	14, -11, 15, 16, -9, 16, -3, -10, -12, -13,
+	-14, -15, 10, 12, 6, 11, 7, 9, -7, -11,
+	-10, -12, 7,
 }
 var eskipDef = [...]int{
 
-	3, -2, 1, 2, 4, 0, 0, 11, 8, 6,
-	0, 0, 0, 17, 5, 8, 9, 0, 23, 24,
-	14, 26, 0, 12, 0, 7, 0, 18, 20, 21,
-	22, 25, 27, 0, 17, 13, 0, 10, 15, 0,
-	19, 16,
+	3, -2, 1, 2, 4, 0, 0, 11, 8, 13,
+	6, 0, 0, 0, 18, 5, 8, 9, 0, 24,
+	25, 15, 27, 0, 12, 0, 7, 0, 19, 21,
+	22, 23, 26, 28, 0, 18, 14, 0, 10, 16,
+	0, 20, 17,
 }
 var eskipTok1 = [...]int{
 
@@ -140,7 +142,7 @@ var eskipTok1 = [...]int{
 var eskipTok2 = [...]int{
 
 	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-	12, 13, 14, 15,
+	12, 13, 14, 15, 16,
 }
 var eskipTok3 = [...]int{
 	0,
@@ -488,53 +490,53 @@ eskipdefault:
 
 	case 1:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:61
+		//line parser.y:62
 		{
 			eskipVAL.routes = eskipDollar[1].routes
 			eskiplex.(*eskipLex).routes = eskipVAL.routes
 		}
 	case 2:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:66
+		//line parser.y:67
 		{
 			eskipVAL.routes = []*parsedRoute{eskipDollar[1].route}
 			eskiplex.(*eskipLex).routes = eskipVAL.routes
 		}
 	case 4:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:73
+		//line parser.y:74
 		{
 			eskipVAL.routes = []*parsedRoute{eskipDollar[1].route}
 		}
 	case 5:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:77
+		//line parser.y:78
 		{
 			eskipVAL.routes = eskipDollar[1].routes
 			eskipVAL.routes = append(eskipVAL.routes, eskipDollar[3].route)
 		}
 	case 6:
 		eskipDollar = eskipS[eskippt-2 : eskippt+1]
-		//line parser.y:82
+		//line parser.y:83
 		{
 			eskipVAL.routes = eskipDollar[1].routes
 		}
 	case 7:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:87
+		//line parser.y:88
 		{
 			eskipVAL.route = eskipDollar[3].route
 			eskipVAL.route.id = eskipDollar[1].token
 		}
 	case 8:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:93
+		//line parser.y:94
 		{
 			eskipVAL.token = eskipDollar[1].token
 		}
 	case 9:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:98
+		//line parser.y:99
 		{
 			eskipVAL.route = &parsedRoute{
 				matchers: eskipDollar[1].matchers,
@@ -543,7 +545,7 @@ eskipdefault:
 		}
 	case 10:
 		eskipDollar = eskipS[eskippt-5 : eskippt+1]
-		//line parser.y:105
+		//line parser.y:106
 		{
 			eskipVAL.route = &parsedRoute{
 				matchers: eskipDollar[1].matchers,
@@ -555,105 +557,111 @@ eskipdefault:
 		}
 	case 11:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:116
+		//line parser.y:117
 		{
 			eskipVAL.matchers = []*matcher{eskipDollar[1].matcher}
 		}
 	case 12:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:120
+		//line parser.y:121
 		{
 			eskipVAL.matchers = eskipDollar[1].matchers
 			eskipVAL.matchers = append(eskipVAL.matchers, eskipDollar[3].matcher)
 		}
 	case 13:
+		eskipDollar = eskipS[eskippt-1 : eskippt+1]
+		//line parser.y:127
+		{
+			eskipVAL.matcher = &matcher{"*", nil}
+		}
+	case 14:
 		eskipDollar = eskipS[eskippt-4 : eskippt+1]
-		//line parser.y:126
+		//line parser.y:131
 		{
 			eskipVAL.matcher = &matcher{eskipDollar[1].token, eskipDollar[3].args}
 			eskipDollar[3].args = nil
 		}
-	case 14:
+	case 15:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:132
+		//line parser.y:137
 		{
 			eskipVAL.filters = []*Filter{eskipDollar[1].filter}
 		}
-	case 15:
+	case 16:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:136
+		//line parser.y:141
 		{
 			eskipVAL.filters = eskipDollar[1].filters
 			eskipVAL.filters = append(eskipVAL.filters, eskipDollar[3].filter)
 		}
-	case 16:
+	case 17:
 		eskipDollar = eskipS[eskippt-4 : eskippt+1]
-		//line parser.y:142
+		//line parser.y:147
 		{
 			eskipVAL.filter = &Filter{
 				Name: eskipDollar[1].token,
 				Args: eskipDollar[3].args}
 			eskipDollar[3].args = nil
 		}
-	case 18:
+	case 19:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:151
+		//line parser.y:156
 		{
 			eskipVAL.args = []interface{}{eskipDollar[1].arg}
 		}
-	case 19:
+	case 20:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:155
+		//line parser.y:160
 		{
 			eskipVAL.args = eskipDollar[1].args
 			eskipVAL.args = append(eskipVAL.args, eskipDollar[3].arg)
 		}
-	case 20:
+	case 21:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:161
+		//line parser.y:166
 		{
 			eskipVAL.arg = eskipDollar[1].numval
 		}
-	case 21:
-		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:165
-		{
-			eskipVAL.arg = eskipDollar[1].stringval
-		}
 	case 22:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:169
+		//line parser.y:170
 		{
-			eskipVAL.arg = eskipDollar[1].regexpval
+			eskipVAL.arg = eskipDollar[1].stringval
 		}
 	case 23:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		//line parser.y:174
 		{
-			eskipVAL.backend = eskipDollar[1].stringval
-			eskipVAL.shunt = false
+			eskipVAL.arg = eskipDollar[1].regexpval
 		}
 	case 24:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		//line parser.y:179
 		{
-			eskipVAL.shunt = true
+			eskipVAL.backend = eskipDollar[1].stringval
+			eskipVAL.shunt = false
 		}
 	case 25:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		//line parser.y:184
 		{
-			eskipVAL.numval = convertNumber(eskipDollar[1].token)
+			eskipVAL.shunt = true
 		}
 	case 26:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		//line parser.y:189
 		{
-			eskipVAL.stringval = eskipDollar[1].token
+			eskipVAL.numval = convertNumber(eskipDollar[1].token)
 		}
 	case 27:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		//line parser.y:194
+		{
+			eskipVAL.stringval = eskipDollar[1].token
+		}
+	case 28:
+		eskipDollar = eskipS[eskippt-1 : eskippt+1]
+		//line parser.y:199
 		{
 			eskipVAL.regexpval = eskipDollar[1].token
 		}
