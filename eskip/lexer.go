@@ -214,6 +214,11 @@ func scanNumber(code string) (t token, rest string, err error) {
 		return isDigit(c)
 	})
 
+	if isDecimalChar(b[len(b)-1]) {
+		err = incompleteToken
+		return
+	}
+
 	t.id = number
 	t.val = string(b)
 	return
