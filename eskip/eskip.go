@@ -127,64 +127,6 @@ type RouteInfo struct {
 	ParseError error
 }
 
-// Returns the first arg of a matcher with the given name.
-// (Used for Path and Method.)
-func getFirstMatcherString(r *parsedRoute, name string) (string, error) {
-	for _, m := range r.matchers {
-		if (m.name == name) && len(m.args) > 0 {
-			p, ok := m.args[0].(string)
-			if !ok {
-				return "", invalidPredicateArgError
-			}
-
-			return p, nil
-		}
-	}
-
-	return "", nil
-}
-
-// Returns all args of a matcher with the given name.
-// (Used for PathRegexp and Host.)
-func getMatcherStrings(r *parsedRoute, name string) ([]string, error) {
-	var ss []string
-	for _, m := range r.matchers {
-		if m.name == name && len(m.args) > 0 {
-			s, ok := m.args[0].(string)
-			if !ok {
-				return nil, invalidPredicateArgError
-			}
-
-			ss = append(ss, s)
-		}
-	}
-
-	return ss, nil
-}
-
-// returns a map of the first args and all second args for a matcher
-// with the given name. (Used for HeaderRegexps and Header.)
-func getMatcherArgMap(r *parsedRoute, name string) (map[string][]string, error) {
-	argMap := make(map[string][]string)
-	for _, m := range r.matchers {
-		if m.name == name && len(m.args) >= 2 {
-			k, ok := m.args[0].(string)
-			if !ok {
-				return nil, invalidPredicateArgError
-			}
-
-			v, ok := m.args[1].(string)
-			if !ok {
-				return nil, invalidPredicateArgError
-			}
-
-			argMap[k] = append(argMap[k], v)
-		}
-	}
-
-	return argMap, nil
-}
-
 func getStringArgs(n int, args []interface{}) ([]string, error) {
 	if len(args) != n {
 		return nil, invalidPredicateArgCountError
@@ -262,8 +204,8 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 				route.Headers[args[0]] = args[1]
 			}
 		case "*", "Any":
-			// TODO: mark Any() as deprecated
 			// void
+			// TODO: mark Any() as deprecated
 		default:
 			route.CustomPredicates = append(
 				route.CustomPredicates,
