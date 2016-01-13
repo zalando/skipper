@@ -16,117 +16,233 @@ package eskip
 
 import "testing"
 
-func TestParsePathMatcher(t *testing.T) {
-	r, err := Parse(`Path("/some/path") -> "https://www.example.org"`)
-	if err != nil {
-		t.Error(err)
+func checkItems(t *testing.T, message string, l, lenExpected int, checkItem func(int) bool) bool {
+	if l != lenExpected {
+		t.Error(message, "length", l, lenExpected)
+		return false
 	}
 
-	if len(r) != 1 || r[0].Path != "/some/path" {
-		t.Error("failed to parse path matcher")
+	for i := 0; i < l; i++ {
+		if !checkItem(i) {
+			t.Error(message, "item", i)
+			return false
+		}
 	}
+
+	return true
 }
 
-func TestParseMethodMatcher(t *testing.T) {
-	r, err := Parse(`Method("HEAD") -> "https://www.example.org"`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(r) != 1 || r[0].Method != "HEAD" {
-		t.Error("failed to parse method matcher")
-	}
+func checkFilters(t *testing.T, message string, fs, fsExp []*Filter) bool {
+	return checkItems(t, "filters "+message,
+		len(fs),
+		len(fsExp),
+		func(i int) bool {
+			return fs[i].Name == fsExp[i].Name &&
+				checkItems(t, "filter args",
+					len(fs[i].Args),
+					len(fsExp[i].Args),
+					func(j int) bool {
+						return fs[i].Args[j] == fsExp[i].Args[j]
+					})
+		})
 }
 
-func TestParseHostRegexpsMatcher(t *testing.T) {
-	r, err := Parse(`Host(/^www[.]/) && Host(/[.]org$/) -> "https://www.example.org"`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(r) != 1 || len(r[0].HostRegexps) != 2 ||
-		r[0].HostRegexps[0] != "^www[.]" || r[0].HostRegexps[1] != "[.]org$" {
-		t.Error("failed to parse host regexp matchers")
-	}
-}
-
-func TestParsePathRegexpsMatcher(t *testing.T) {
-	r, err := Parse(`PathRegexp("^/some") && PathRegexp(/\/\w+Id$/) -> "https://www.example.org"`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(r) != 1 || len(r[0].PathRegexps) != 2 ||
-		r[0].PathRegexps[0] != "^/some" || r[0].PathRegexps[1] != "/\\w+Id$" {
-		t.Error("failed to parse path regexp matchers")
-	}
-}
-
-func TestParseHeaderRegexps(t *testing.T) {
-	r, err := Parse(`
-		HeaderRegexp("Header-0", "value-0") &&
+func TestParseRouteExpression(t *testing.T) {
+	for _, ti := range []struct {
+		msg        string
+		expression string
+		check      *Route
+		err        bool
+	}{{
+		"path predicate",
+		`Path("/some/path") -> "https://www.example.org"`,
+		&Route{Path: "/some/path", Backend: "https://www.example.org"},
+		false,
+	}, {
+		"path regexp",
+		`PathRegexp("^/some") && PathRegexp(/\/\w+Id$/) -> "https://www.example.org"`,
+		&Route{
+			PathRegexps: []string{"^/some", "/\\w+Id$"},
+			Backend:     "https://www.example.org"},
+		false,
+	}, {
+		"method predicate",
+		`Method("HEAD") -> "https://www.example.org"`,
+		&Route{Method: "HEAD", Backend: "https://www.example.org"},
+		false,
+	}, {
+		"host regexps",
+		`Host(/^www[.]/) && Host(/[.]org$/) -> "https://www.example.org"`,
+		&Route{HostRegexps: []string{"^www[.]", "[.]org$"}, Backend: "https://www.example.org"},
+		false,
+	}, {
+		"headers",
+		`Header("Header-0", "value-0") &&
+		Header("Header-1", "value-1") ->
+		"https://www.example.org"`,
+		&Route{
+			Headers: map[string]string{"Header-0": "value-0", "Header-1": "value-1"},
+			Backend: "https://www.example.org"},
+		false,
+	}, {
+		"header regexps",
+		`HeaderRegexp("Header-0", "value-0") &&
 		HeaderRegexp("Header-0", "value-1") &&
 		HeaderRegexp("Header-1", "value-2") &&
 		HeaderRegexp("Header-1", "value-3") ->
-		"https://www.example.org"`)
-	if err != nil {
-		t.Error(err)
-	}
+		"https://www.example.org"`,
+		&Route{
+			HeaderRegexps: map[string][]string{
+				"Header-0": {"value-0", "value-1"},
+				"Header-1": {"value-2", "value-3"}},
+			Backend: "https://www.example.org"},
+		false,
+	}, {
+		"comment as last token",
+		"route: Any() -> <shunt>; // some comment",
+		&Route{Id: "route", Shunt: true},
+		false,
+	}} {
+		stringMapKeys := func(m map[string]string) []string {
+			keys := make([]string, 0, len(m))
+			for k, _ := range m {
+				keys = append(keys, k)
+			}
 
-	if len(r) != 1 || len(r[0].HeaderRegexps) != 2 ||
-		len(r[0].HeaderRegexps["Header-0"]) != 2 ||
-		r[0].HeaderRegexps["Header-0"][0] != "value-0" ||
-		r[0].HeaderRegexps["Header-0"][1] != "value-1" ||
-		r[0].HeaderRegexps["Header-1"][0] != "value-2" ||
-		r[0].HeaderRegexps["Header-1"][1] != "value-3" {
-		t.Error("failed to parse header regexps")
-	}
-}
+			return keys
+		}
 
-func TestParseHeaders(t *testing.T) {
-	r, err := Parse(`
-		Header("Header-0", "value-0") &&
-		Header("Header-1", "value-1") ->
-		"https://www.example.org"`)
-	if err != nil {
-		t.Error(err)
-	}
+		stringsMapKeys := func(m map[string][]string) []string {
+			keys := make([]string, 0, len(m))
+			for k, _ := range m {
+				keys = append(keys, k)
+			}
 
-	if len(r) != 1 || len(r[0].Headers) != 2 ||
-		r[0].Headers["Header-0"] != "value-0" ||
-		r[0].Headers["Header-1"] != "value-1" {
-		t.Error("failed to parse headers")
-	}
-}
+			return keys
+		}
 
-func TestParseFiltersEmpty(t *testing.T) {
-	fs, err := ParseFilters(" \t")
-	if err != nil || len(fs) != 0 {
-		t.Error("failed to parse empty filter expression")
-	}
-}
+		checkItemsT := func(submessage string, l, lExp int, checkItem func(i int) bool) bool {
+			return checkItems(t, ti.msg+" "+submessage, l, lExp, checkItem)
+		}
 
-func TestParseFiltersError(t *testing.T) {
-	_, err := ParseFilters("trallala")
-	if err == nil {
-		t.Error("failed to fail")
+		checkStrings := func(submessage string, s, sExp []string) bool {
+			return checkItemsT(submessage, len(s), len(sExp), func(i int) bool {
+				return s[i] == sExp[i]
+			})
+		}
+
+		checkStringMap := func(submessage string, m, mExp map[string]string) bool {
+			keys := stringMapKeys(m)
+			return checkItemsT(submessage, len(m), len(mExp), func(i int) bool {
+				return m[keys[i]] == mExp[keys[i]]
+			})
+		}
+
+		checkStringsMap := func(submessage string, m, mExp map[string][]string) bool {
+			keys := stringsMapKeys(m)
+			return checkItemsT(submessage, len(m), len(mExp), func(i int) bool {
+				return checkItemsT(submessage, len(m[keys[i]]), len(mExp[keys[i]]), func(j int) bool {
+					return m[keys[i]][j] == mExp[keys[i]][j]
+				})
+			})
+		}
+
+		routes, err := Parse(ti.expression)
+		if err == nil && ti.err || err != nil && !ti.err {
+			t.Error(ti.msg, "failure case", err, ti.err)
+			return
+		}
+
+		r := routes[0]
+
+		if r.Id != ti.check.Id {
+			t.Error(ti.msg, "id", r.Id, ti.check.Id)
+			return
+		}
+
+		if r.Path != ti.check.Path {
+			t.Error(ti.msg, "path", r.Path, ti.check.Path)
+			return
+		}
+
+		if !checkStrings("host", r.HostRegexps, ti.check.HostRegexps) {
+			return
+		}
+
+		if !checkStrings("path regexp", r.PathRegexps, ti.check.PathRegexps) {
+			return
+		}
+
+		if r.Method != ti.check.Method {
+			t.Error(ti.msg, "method", r.Method, ti.check.Method)
+			return
+		}
+
+		if !checkStringMap("headers", r.Headers, ti.check.Headers) {
+			return
+		}
+
+		if !checkStringsMap("header regexps", r.HeaderRegexps, ti.check.HeaderRegexps) {
+			return
+		}
+
+		if !checkItemsT("custom predicates",
+			len(r.CustomPredicates),
+			len(ti.check.CustomPredicates),
+			func(i int) bool {
+				return r.CustomPredicates[i].Name == ti.check.CustomPredicates[i].Name &&
+					checkItemsT("custom predicate args",
+						len(r.CustomPredicates[i].Args),
+						len(ti.check.CustomPredicates[i].Args),
+						func(j int) bool {
+							return r.CustomPredicates[i].Args[j] == ti.check.CustomPredicates[i].Args[j]
+						})
+			}) {
+			return
+		}
+
+		if !checkFilters(t, ti.msg, r.Filters, ti.check.Filters) {
+			return
+		}
+
+		if r.Shunt != ti.check.Shunt {
+			t.Error(ti.msg, "shunt", r.Shunt, ti.check.Shunt)
+		}
+
+		if r.Backend != ti.check.Backend {
+			t.Error(ti.msg, "backend", r.Backend, ti.check.Backend)
+		}
 	}
 }
 
 func TestParseFilters(t *testing.T) {
-	fs, err := ParseFilters(`filter1(3.14) -> filter2("key", 42)`)
-	if err != nil || len(fs) != 2 ||
-		fs[0].Name != "filter1" || len(fs[0].Args) != 1 ||
-		fs[0].Args[0] != float64(3.14) ||
-		fs[1].Name != "filter2" || len(fs[1].Args) != 2 ||
-		fs[1].Args[0] != "key" || fs[1].Args[1] != float64(42) {
-		t.Error("failed to parse filters")
-	}
-}
+	for _, ti := range []struct {
+		msg        string
+		expression string
+		check      []*Filter
+		err        bool
+	}{{
+		"empty",
+		" \t",
+		nil,
+		false,
+	}, {
+		"error",
+		"trallala",
+		nil,
+		true,
+	}, {
+		"success",
+		`filter1(3.14) -> filter2("key", 42)`,
+		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", float64(42)}}},
+		false,
+	}} {
+		fs, err := ParseFilters(ti.expression)
+		if err == nil && ti.err || err != nil && !ti.err {
+			t.Error(ti.msg, "failure case", err, ti.err)
+			return
+		}
 
-func TestParseCommentAsLastToken(t *testing.T) {
-	r, err := Parse("route: Any() -> <shunt>; // some comment")
-	if err != nil || len(r) != 1 {
-		t.Error("failed to parse comment as last token", err, len(r))
+		checkFilters(t, ti.msg, fs, ti.check)
 	}
 }
