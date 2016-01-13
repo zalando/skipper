@@ -34,6 +34,8 @@ type scanner interface {
 
 type scannerFunc func(string) (token, string, error)
 
+func (sf scannerFunc) scan(code string) (token, string, error) { return sf(code) }
+
 type eskipLex struct {
 	code          string
 	lastToken     *token
@@ -83,8 +85,6 @@ func (fs fixedScanner) scan(code string) (t token, rest string, err error) {
 	rest = code[len(fs):]
 	return
 }
-
-func (sf scannerFunc) scan(code string) (token, string, error) { return sf(code) }
 
 func newLexer(code string) *eskipLex {
 	return &eskipLex{
@@ -236,22 +236,27 @@ func selectFixed(code string) scanner {
 	return nil
 }
 
-func selectScannerFunc(code string) scannerFunc {
+func selectVaryingScanner(code string) scanner {
+	var sf scannerFunc
 	switch code[0] {
 	case '/':
-		return scanRegexpOrComment
+		sf = scanRegexpOrComment
 	case '"':
-		return scanStringLiteral1
+		sf = scanStringLiteral1
 	case '`':
-		return scanStringLiteral2
+		sf = scanStringLiteral2
 	}
 
 	if isNumberChar(code[0]) {
-		return scanNumber
+		sf = scanNumber
 	}
 
 	if isAlpha(code[0]) || isUnderscore(code[0]) {
-		return scanSymbol
+		sf = scanSymbol
+	}
+
+	if sf != nil {
+		return scanner(sf)
 	}
 
 	return nil
@@ -262,7 +267,7 @@ func selectScanner(code string) scanner {
 		return s
 	}
 
-	return selectScannerFunc(code)
+	return selectVaryingScanner(code)
 }
 
 func (l *eskipLex) next() (t token, err error) {
@@ -283,7 +288,7 @@ func (l *eskipLex) next() (t token, err error) {
 		return l.next()
 	}
 
-	if err != nil {
+	if err == nil {
 		l.lastToken = &t
 	}
 
