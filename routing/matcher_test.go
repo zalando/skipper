@@ -26,6 +26,12 @@ import (
 	"testing"
 )
 
+type testPredicate struct{}
+
+func (tp *testPredicate) Name() string                                 { return "Test" }
+func (tp *testPredicate) Create(args []interface{}) (Predicate, error) { return tp, nil }
+func (tp *testPredicate) Match(r *http.Request) bool                   { return true }
+
 const (
 	benchmarkingCountPhase1 = 1
 	benchmarkingCountPhase2 = 100
@@ -69,14 +75,14 @@ const testRouteDoc = `
     catalogslsHerren: Path("/sls/herren/*_") -> "https://herren-sls.streaming-layout-service.my-department.example.org";
     catalogslsDamen: Path("/sls/damen/*_") -> "https://damen-sls.streaming-layout-service.my-department.example.org";
 
-    catalogHerrenEn: Path("/men/*_") -> "https://herren-en.layout-service.my-department.example.org";
-    catalogDamenEn: Path("/women/*_") -> "https://damen-en.layout-service.my-department.example.org";
-    catalogAsyncHerrenEn: Path("/sls-async/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
-    catalogAsyncDamenEn: Path("/sls-async/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
-    catalogscHerrenEn: Path("/sc/men/*_") -> "https://herren-en.compositor-layout-service.my-department.example.org";
-    catalogscDamenEn: Path("/sc/women/*_") -> "https://damen-en.compositor-layout-service.my-department.example.org";
-    catalogslsHerrenEn: Path("/sls/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
-    catalogslsDamenEn: Path("/sls/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
+    catalogHerrenEn: Test() && Path("/men/*_") -> "https://herren-en.layout-service.my-department.example.org";
+    catalogDamenEn: Test() && Path("/women/*_") -> "https://damen-en.layout-service.my-department.example.org";
+    catalogAsyncHerrenEn: Test() && Path("/sls-async/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
+    catalogAsyncDamenEn: Test() && Path("/sls-async/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
+    catalogscHerrenEn: Test() && Path("/sc/men/*_") -> "https://herren-en.compositor-layout-service.my-department.example.org";
+    catalogscDamenEn: Test() && Path("/sc/women/*_") -> "https://damen-en.compositor-layout-service.my-department.example.org";
+    catalogslsHerrenEn: Test() && Path("/sls/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
+    catalogslsDamenEn: Test() && Path("/sls/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
 `
 
 var (
@@ -108,7 +114,7 @@ func docToRoutes(doc string) ([]*Route, error) {
 		return nil, err
 	}
 
-	return processRouteDefs(nil, defs), nil
+	return processRouteDefs([]PredicateSpec{&testPredicate{}}, nil, defs), nil
 }
 
 // parse a routing document with a single route
@@ -195,7 +201,7 @@ func generateRoutes(paths []string) []*Route {
 		defs[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Path: p, Backend: p}
 	}
 
-	return processRouteDefs(nil, defs)
+	return processRouteDefs(nil, nil, defs)
 }
 
 // generate requests based on a set of paths

@@ -189,8 +189,26 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]*RouteFilter, e
 	return fs, nil
 }
 
+func processCustomPredicates(cpm map[string]PredicateSpec, defs []*eskip.CustomPredicate) ([]Predicate, error) {
+	cps := make([]Predicate, len(defs))
+	for i, def := range defs {
+		if spec, ok := cpm[def.Name]; ok {
+			cp, err := spec.Create(def.Args)
+			if err != nil {
+				return nil, err
+			}
+
+			cps[i] = cp
+		} else {
+			return nil, fmt.Errorf("custom predicate not found: '%s'", def.Name)
+		}
+	}
+
+	return cps, nil
+}
+
 // processes a route definition for the routing table
-func processRouteDef(fr filters.Registry, def *eskip.Route) (*Route, error) {
+func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *eskip.Route) (*Route, error) {
 	scheme, host, err := splitBackend(def)
 	if err != nil {
 		return nil, err
@@ -201,14 +219,30 @@ func processRouteDef(fr filters.Registry, def *eskip.Route) (*Route, error) {
 		return nil, err
 	}
 
-	return &Route{*def, scheme, host, fs}, nil
+	cps, err := processCustomPredicates(cpm, def.CustomPredicates)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Route{*def, scheme, host, cps, fs}, nil
+}
+
+func mapCustomPredicates(cps []PredicateSpec) map[string]PredicateSpec {
+	cpm := make(map[string]PredicateSpec)
+	for _, cp := range cps {
+		cpm[cp.Name()] = cp
+	}
+
+	return cpm
 }
 
 // processes a set of route definitions for the routing table
-func processRouteDefs(fr filters.Registry, defs []*eskip.Route) []*Route {
+func processRouteDefs(cps []PredicateSpec, fr filters.Registry, defs []*eskip.Route) []*Route {
+	cpm := mapCustomPredicates(cps)
+
 	var routes []*Route
 	for _, def := range defs {
-		route, err := processRouteDef(fr, def)
+		route, err := processRouteDef(cpm, fr, def)
 		if err == nil {
 			routes = append(routes, route)
 		} else {
@@ -225,7 +259,7 @@ func receiveRouteMatcher(o Options, out chan<- *matcher) {
 	updates := receiveRouteDefs(o)
 	for {
 		defs := <-updates
-		routes := processRouteDefs(o.FilterRegistry, defs)
+		routes := processRouteDefs(o.CustomPredicates, o.FilterRegistry, defs)
 		m, errs := newMatcher(routes, o.MatchingOptions)
 		for _, err := range errs {
 			log.Error(err)
