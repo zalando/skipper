@@ -17,6 +17,7 @@ package eskip
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"unicode"
 )
 
@@ -24,6 +25,14 @@ type token struct {
 	id  int
 	val string
 }
+
+type charPredicate func(byte) bool
+
+type scanner interface {
+	scan(string) (token, string, error)
+}
+
+type scannerFunc func(string) (token, string, error)
 
 type eskipLex struct {
 	code          string
@@ -34,9 +43,7 @@ type eskipLex struct {
 	filters       []*Filter
 }
 
-type scanFunc func(string) (token, string, error)
-
-type charPredicate func(byte) bool
+type fixedScanner string
 
 const (
 	escapeChar  = '\\'
@@ -48,11 +55,42 @@ const (
 var (
 	invalidCharacter = errors.New("invalid character")
 	incompleteToken  = errors.New("incomplete token")
+	unexpectedToken  = errors.New("unexpected token")
 	void             = errors.New("void")
 	eof              = errors.New("eof")
 )
 
+var fixedTokens = map[fixedScanner]int{
+	"&&":      and,
+	"->":      arrow,
+	")":       closeparen,
+	":":       colon,
+	",":       comma,
+	"(":       openparen,
+	";":       semicolon,
+	"<shunt>": shunt}
+
 func (t token) String() string { return t.val }
+
+func (fs fixedScanner) scan(code string) (t token, rest string, err error) {
+	if len(code) < len(fs) {
+		err = unexpectedToken
+		return
+	}
+
+	t.id = fixedTokens[fs]
+	t.val = string(fs)
+	rest = code[len(fs):]
+	return
+}
+
+func (sf scannerFunc) scan(code string) (token, string, error) { return sf(code) }
+
+func newLexer(code string) *eskipLex {
+	return &eskipLex{
+		code:          code,
+		initialLength: len(code)}
+}
 
 func isWhitespace(c byte) bool  { return unicode.IsSpace(rune(c)) }
 func isNewline(c byte) bool     { return c == newlineChar }
@@ -76,18 +114,6 @@ func scanWhile(code string, p charPredicate) ([]byte, string) {
 func scanVoid(code string, p charPredicate) string {
 	_, rest := scanWhile(code, p)
 	return rest
-}
-
-func scanFixed(id int, fixed, code string) (t token, rest string, err error) {
-	if len(code) < len(fixed) || code[0:len(fixed)] != fixed {
-		rest = code
-		err = invalidCharacter
-		return
-	}
-
-	t = token{id, fixed}
-	rest = code[len(fixed):]
-	return
 }
 
 func scanEscaped(delimiter byte, code string) ([]byte, string) {
@@ -121,20 +147,6 @@ func scanEscaped(delimiter byte, code string) ([]byte, string) {
 	}
 
 	return b, code
-}
-
-func scanWhitespace(code string) string                     { return scanVoid(code, isWhitespace) }
-func scanAnd(code string) (t token, rest string, err error) { return scanFixed(and, "&&", code) }
-func scanArrow(code string) (token, string, error)          { return scanFixed(arrow, "->", code) }
-func scanCloseParen(code string) (token, string, error)     { return scanFixed(closeparen, ")", code) }
-func scanColon(code string) (token, string, error)          { return scanFixed(colon, ":", code) }
-func scanComma(code string) (token, string, error)          { return scanFixed(comma, ",", code) }
-func scanOpenParen(code string) (token, string, error)      { return scanFixed(openparen, "(", code) }
-func scanSemicolon(code string) (token, string, error)      { return scanFixed(semicolon, ";", code) }
-func scanShunt(code string) (token, string, error)          { return scanFixed(shunt, "<shunt>", code) }
-
-func scanComment(code string) string {
-	return scanVoid(code, func(c byte) bool { return !isNewline(c) })
 }
 
 func scanRegexpLiteral(code string) (t token, rest string, err error) {
@@ -180,6 +192,10 @@ func scanStringLiteral(delimiter byte, code string) (t token, rest string, err e
 	return
 }
 
+func scanWhitespace(code string) string { return scanVoid(code, isWhitespace) }
+func scanComment(code string) string {
+	return scanVoid(code, func(c byte) bool { return !isNewline(c) })
+}
 func scanStringLiteral1(code string) (token, string, error) { return scanStringLiteral('"', code) }
 func scanStringLiteral2(code string) (token, string, error) { return scanStringLiteral('`', code) }
 
@@ -210,39 +226,24 @@ func scanSymbol(code string) (t token, rest string, err error) {
 	return
 }
 
-func explicitCharScanner(c byte) scanFunc {
-	switch c {
-	case '&':
-		return scanAnd
-	case '-':
-		return scanArrow
-	case ')':
-		return scanCloseParen
-	case ':':
-		return scanColon
-	case ',':
-		return scanComma
-	case '(':
-		return scanOpenParen
-	case ';':
-		return scanSemicolon
-	case '<':
-		return scanShunt
+func selectFixed(code string) scanner {
+	for fixed, _ := range fixedTokens {
+		if len(code) >= len(fixed) && strings.HasPrefix(code, string(fixed)) {
+			return fixed
+		}
+	}
+
+	return nil
+}
+
+func selectScannerFunc(code string) scannerFunc {
+	switch code[0] {
 	case '/':
 		return scanRegexpOrComment
 	case '"':
 		return scanStringLiteral1
 	case '`':
 		return scanStringLiteral2
-	default:
-		return nil
-	}
-}
-
-func selectScan(code string) scanFunc {
-	f := explicitCharScanner(code[0])
-	if f != nil {
-		return f
 	}
 
 	if isNumberChar(code[0]) {
@@ -256,33 +257,28 @@ func selectScan(code string) scanFunc {
 	return nil
 }
 
-func findScan(code string) (scan scanFunc, rest string, err error) {
-	rest = scanWhitespace(code)
-	if len(rest) == 0 {
+func selectScanner(code string) scanner {
+	if s := selectFixed(code); s != nil {
+		return s
+	}
+
+	return selectScannerFunc(code)
+}
+
+func (l *eskipLex) next() (t token, err error) {
+	l.code = scanWhitespace(l.code)
+	if len(l.code) == 0 {
 		err = eof
 		return
 	}
 
-	scan = selectScan(rest)
-	if scan == nil {
-		err = invalidCharacter
-	}
-
-	return
-}
-
-func newLexer(code string) *eskipLex {
-	return &eskipLex{code: code, initialLength: len(code)}
-}
-
-func (l *eskipLex) next() (t token, err error) {
-	var scan scanFunc
-	scan, l.code, err = findScan(l.code)
-	if err != nil {
+	s := selectScanner(l.code)
+	if s == nil {
+		err = unexpectedToken
 		return
 	}
 
-	t, l.code, err = scan(l.code)
+	t, l.code, err = s.scan(l.code)
 	if err == void {
 		return l.next()
 	}
