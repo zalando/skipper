@@ -43,6 +43,7 @@ func convertNumber(s string) float64 {
 }
 
 %token and
+%token any
 %token arrow
 %token closeparen
 %token colon
@@ -123,6 +124,10 @@ frontend:
 	}
 
 matcher:
+    any {
+        $$.matcher = &matcher{"*", nil}
+    }
+    |
 	symbol openparen args closeparen {
         $$.matcher = &matcher{$1.token, $3.args}
 		$3.args = nil

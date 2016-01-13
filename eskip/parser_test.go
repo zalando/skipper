@@ -36,7 +36,10 @@ const (
         route3:
             Method("POST") && Path("/api") ->
             requestHeader("X-Type", "ajax-post") ->
-            "https://api.example.com"`
+            "https://api.example.com";
+        
+        catchAll: * -> "https://www.example.org";
+        catchAllWithCustom: * && Custom() -> "https://www.example.org"`
 )
 
 func checkSingleRouteExample(r *parsedRoute, t *testing.T) {
@@ -133,7 +136,7 @@ func TestParseDocument(t *testing.T) {
 		t.Error("failed to parse document", err)
 	}
 
-	if len(r) != 4 {
+	if len(r) != 6 {
 		t.Error("failed to parse document", len(r))
 	}
 
@@ -156,7 +159,9 @@ func TestParseDocument(t *testing.T) {
 	if !some(r, mkidcheck("route0")) ||
 		!some(r, mkidcheck("route1")) ||
 		!some(r, mkidcheck("route2")) ||
-		!some(r, mkidcheck("route3")) {
+		!some(r, mkidcheck("route3")) ||
+		!some(r, mkidcheck("catchAll")) ||
+		!some(r, mkidcheck("catchAllWithCustom")) {
 		t.Error("failed to parse route definition ids")
 	}
 }
