@@ -45,6 +45,15 @@ type DataClient interface {
 	LoadUpdate() ([]*eskip.Route, []string, error)
 }
 
+type Predicate interface {
+	Match(*http.Request) bool
+}
+
+type PredicateSpec interface {
+	Name() string
+	Create([]interface{}) (Predicate, error)
+}
+
 // Initialization options for routing.
 type Options struct {
 
@@ -64,6 +73,8 @@ type Options struct {
 	// The set of different data clients where the
 	// route definitions are read from.
 	DataClients []DataClient
+
+	CustomPredicates []PredicateSpec
 
 	// Performance tuning option.
 	//
@@ -98,6 +109,8 @@ type Route struct {
 
 	// The backend scheme and host.
 	Scheme, Host string
+
+	Predicates []Predicate
 
 	// The preprocessed filter instances.
 	Filters []*RouteFilter

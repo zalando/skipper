@@ -92,6 +92,8 @@ type Options struct {
 	// the standard routes from the data clients.
 	PriorityRoutes []proxy.PriorityRoute
 
+	CustomPredicates []routing.PredicateSpec
+
 	// Dev mode. Currently this flag disables prioritization of the
 	// consumer side over the feeding side during the routing updates to
 	// populate the updated routes faster.
@@ -279,6 +281,7 @@ func Run(o Options) error {
 		mo,
 		o.SourcePollTimeout,
 		dataClients,
+		o.CustomPredicates,
 		updateBuffer})
 
 	// create the proxy
