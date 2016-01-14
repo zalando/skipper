@@ -300,6 +300,7 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 	return true
 }
 
+// check if all defined custom predicates are matched
 func matchCustomPredicates(cps []Predicate, req *http.Request) bool {
 	for _, cp := range cps {
 		if !cp.Match(req) {

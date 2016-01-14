@@ -47,7 +47,7 @@ A route expression example:
         "https://api.example.org"
 
 
-Match Expressions
+Match Expressions (Predicates)
 
 A match expression contains one or more conditions. An incoming
 request must fulfil each of them to match the route. The conditions are
@@ -61,22 +61,22 @@ The following condition expressions are recognized:
 
     Path("/some/path")
 
-The path condition accepts a single parameter, that can be a fixed path
+The path condition accepts a single argument, that can be a fixed path
 like "/some/path", or it can contain wildcards in place of one or more
 names in the path, e.g. "/some/:dir/:name", or it can end with a free
 wildcard like "/some/path/*param", where the free wildcard can contain a
-sub-path with multiple names. The parameters are available to the
+sub-path with multiple names. The arguments are available to the
 filters while processing the matched requests.
 
     PathRegexp(/regular-expression/)
 
 The regexp path condition accepts a regular expression as a single
-parameter that needs to be matched by the request path. The regular
+argument that needs to be matched by the request path. The regular
 expression can be surrounded by '/' or '"'.
 
     Host(/host-regular-expression/)
 
-The host condition accepts a regular expression as a single parameter
+The host condition accepts a regular expression as a single argument
 that needs to be matched by the host header in the request.
 
     Method("HEAD")
@@ -86,7 +86,7 @@ The method condition is used to match the http request method.
     Header("Accept", "application/json")
 
 The header condition is used to match the http headers in the request.
-It accepts two parameters, the name of the header field and the exact
+It accepts two arguments, the name of the header field and the exact
 header value to match.
 
     HeaderRegexp("Accept", /\Wapplication\/json\W/)
@@ -94,17 +94,35 @@ header value to match.
 The header regexp condition works similar to the header expression, but
 the value to be matched is a regular expression.
 
-    Any()
+    *
 
 Catch all condition.
+
+    Any()
+
+Former, deprecated form of the catch all condition.
+
+
+Custom Predicates
+
+Eskip supports custom route matching predicates, whose functionality
+should be provided by Skipper extensions. (See the documentation of the
+routing package.) The notation of custom predicates is the same as of
+the built-in route matching expressions:
+
+    Foo(3.14, "bar")
+
+During parsing, custom predicates may define any arbitrary list of
+arguments of types number, string or regular expression, and it is the
+responsibility of the implementation to validate them.
 
 
 Filters
 
 Filters are used to augment the incoming requests and the outgoing
 responses, or do other useful or fun stuff. Filters can have different
-numbers of parameters depending on the implementation of the particular
-filter. The parameters can be of type string ("a string"), number
+numbers of arguments depending on the implementation of the particular
+filter. The arguments can be of type string ("a string"), number
 (3.1415) or regular expression (/[.]html$/ or "[.]html$").
 
 A filter example:
@@ -193,10 +211,9 @@ eskip.Parse function. In case of grammar error, it returns an error with
 the approximate position of the invalid syntax element, otherwise it
 returns a list of structured, in-memory route definitions.
 
-The eskip parser does not validate the routes against semantic rules,
-e.g., whether a match expression is valid, or a filter implementation
-is available. This validation happens during processing the parsed
-definitions.
+The eskip parser does not validate the routes against all semantic rules,
+e.g., whether a filter or a custom predicate implementation is available.
+This validation happens during processing the parsed definitions.
 
 
 Serializing
