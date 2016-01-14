@@ -533,7 +533,7 @@ func TestFlusherImplementation(t *testing.T) {
 	ts := httptest.NewServer(h)
 	defer ts.Close()
 
-	doc := fmt.Sprintf(`Any() -> "%s"`, ts.URL)
+	doc := fmt.Sprintf(`* -> "%s"`, ts.URL)
 	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)

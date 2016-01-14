@@ -99,7 +99,7 @@ func (p *priorityRoute) Match(request *http.Request) (*routing.Route, map[string
 func ExamplePriorityRoute() {
 	// create a routing doc forwarding all requests,
 	// and load it in a data client:
-	routeDoc := `Any() -> "https://www.example.org"`
+	routeDoc := `* -> "https://www.example.org"`
 	dataClient, err := testdataclient.NewDoc(routeDoc)
 	if err != nil {
 		log.Fatal(err)

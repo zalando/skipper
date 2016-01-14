@@ -58,7 +58,7 @@ func (r *Route) condString() string {
 	}
 
 	if len(conds) == 0 {
-		conds = append(conds, "Any()")
+		conds = append(conds, "*")
 	}
 
 	return strings.Join(conds, " && ")
