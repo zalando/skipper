@@ -87,7 +87,7 @@ attributes against the conditions in the route definitions. Route
 definitions may have the following conditions: method, path (optionally
 with wildcards), path regular expressions, host regular expressions,
 headers and header regular expressions. Besides, it is possible to
-define custom predicates, implemented in user extensions.
+define custom predicates, implemented as extensions.
 
 The relation between the conditions in a route definition is 'and',
 meaning that a request must fulfil each condition to match a route.
@@ -185,9 +185,9 @@ library and extended with custom filters, predicates and data sources.
 Custom Predicates
 
 To create a custom predicate, the PredicateSpec of the routing package
-needs to be implemented. It is the specification of a predicate, and it
-is used to create the actual predicate with concrete arguments, during
-the route definitions are processed by the routing package.
+needs to be implemented. The PredicateSpec is used to create the actual
+predicate with concrete arguments, during the route definitions are
+processed by the routing package.
 
 Example, randompredicate.go:
 
