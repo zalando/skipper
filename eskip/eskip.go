@@ -259,7 +259,7 @@ func filtersToRoute(f string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("Any() -> %s -> <shunt>", f)
+	return fmt.Sprintf("* -> %s -> <shunt>", f)
 }
 
 // Parses a route expression or a routing document to a set of route definitions.

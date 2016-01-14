@@ -38,7 +38,7 @@ func TestRouteString(t *testing.T) {
 		string string
 	}{{
 		&Route{},
-		`Any() -> ""`,
+		`* -> ""`,
 	}, {
 		&Route{Method: "GET", Backend: "https://www.example.org"},
 		`Method("GET") -> "https://www.example.org"`,

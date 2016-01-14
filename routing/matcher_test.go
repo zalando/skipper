@@ -47,7 +47,7 @@ const testRouteDoc = `
     pdpAsync: Path("/sls-async/*_") && PathRegexp(/.*\.html$/) -> "https://async.pdp.streaming-layout-service.my-department.example.org";
     pdpsc: Path("/sc/*_") && PathRegexp(/.*\.html$/) -> "https://pdpsc.compositor-layout-service.my-department.example.org";
     pdpsls: Path("/sls/*_") && PathRegexp(/.*\.html$/) -> "https://pdpsls.streaming-layout-service.my-department.example.org";
-    catalog: Any() -> "https://catalog.layout-service.my-department.example.org";
+    catalog: * -> "https://catalog.layout-service.my-department.example.org";
     catalogAsync: Path("/sls-async/*_") -> "https://catalog-async.layout-service.my-department.example.org";
     catalogsc: Path("/sc/*_") -> "https://catalogsc.compositor-layout-service.my-department.example.org";
     catalogsls: Path("/sls/*_") -> "https://catalogsls.streaming-layout-service.my-department.example.org";

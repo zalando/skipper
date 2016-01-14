@@ -31,7 +31,7 @@ A routing table example:
     userAccount: Path("/user/:id/*userpage") -> "https://users.example.org";
 
     // 404
-    notfound: Any() ->
+    notfound: * ->
         modPath(/.+/, "/notfound.html") -> static("/", "/var/www") ->
         <shunt>
 
@@ -188,7 +188,7 @@ Example with comments:
 
     // forwards to the API endpoint
     route1: Path("/api") -> "https://api.example.org";
-    route2: Any() -> <shunt> // everything else 404
+    route2: * -> <shunt> // everything else 404
 
 
 Regular expressions
