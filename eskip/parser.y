@@ -15,6 +15,14 @@
 %{
 package eskip
 
+import "strconv"
+
+// conversion error ignored, tokenizer expression already checked format
+func convertNumber(s string) float64 {
+	n, _ := strconv.ParseFloat(s, 64)
+	return n
+}
+
 %}
 
 %union {
@@ -179,12 +187,12 @@ numval:
 
 stringval:
 	stringliteral {
-		$$.stringval = convertString($1.token)
+		$$.stringval = $1.token
 	}
 
 regexpval:
 	regexpliteral {
-		$$.regexpval = convertRegexp($1.token)
+		$$.regexpval = $1.token
 	}
 
 %%
