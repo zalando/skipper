@@ -92,6 +92,7 @@ type Options struct {
 	// the standard routes from the data clients.
 	PriorityRoutes []proxy.PriorityRoute
 
+	// Specifications of custom, user defined predicates.
 	CustomPredicates []routing.PredicateSpec
 
 	// Dev mode. Currently this flag disables prioritization of the

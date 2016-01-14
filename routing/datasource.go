@@ -189,6 +189,7 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]*RouteFilter, e
 	return fs, nil
 }
 
+// initialize predicate instances from their spec with the concrete arguments
 func processCustomPredicates(cpm map[string]PredicateSpec, defs []*eskip.CustomPredicate) ([]Predicate, error) {
 	cps := make([]Predicate, len(defs))
 	for i, def := range defs {
@@ -227,6 +228,7 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 	return &Route{*def, scheme, host, cps, fs}, nil
 }
 
+// convert a slice of predicate specs to a map keyed by their names
 func mapCustomPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 	cpm := make(map[string]PredicateSpec)
 	for _, cp := range cps {
