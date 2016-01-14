@@ -53,6 +53,8 @@ type parsedRoute struct {
 	backend  string
 }
 
+// A CustomPredicate object represents a parsed, in-memory, route matching predicate
+// that is defined by extensions.
 type CustomPredicate struct {
 	Name string
 	Args []interface{}
@@ -99,6 +101,8 @@ type Route struct {
 	// E.g. HeaderRegexp("Accept", /\Wapplication\/json\W/)
 	HeaderRegexps map[string][]string
 
+	// Custom predicates to match.
+	// E.g. Traffic(.3)
 	CustomPredicates []*CustomPredicate
 
 	// Set of filters in a particular route.
@@ -127,6 +131,7 @@ type RouteInfo struct {
 	ParseError error
 }
 
+// Expects exactly n arguments of type string, or fails.
 func getStringArgs(n int, args []interface{}) ([]string, error) {
 	if len(args) != n {
 		return nil, invalidPredicateArgCountError
@@ -144,6 +149,9 @@ func getStringArgs(n int, args []interface{}) ([]string, error) {
 	return sargs, nil
 }
 
+// Checks and sets the different predicates taken from the yacc result.
+// As the syntax is getting stabilized, this logic soon should be defined as
+// yacc rules. (https://github.com/zalando/skipper/issues/89)
 func applyPredicates(route *Route, proute *parsedRoute) error {
 	var (
 		err       error
@@ -183,7 +191,6 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 				route.Method = args[0]
 			}
 		case "HeaderRegexp":
-			// TODO: use only regexps for the headers, and mark either Header or HeaderRegexp as deprecated
 			if args, err = getStringArgs(2, m.args); err == nil {
 				if route.HeaderRegexps == nil {
 					route.HeaderRegexps = make(map[string][]string)
@@ -205,7 +212,6 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 			}
 		case "*", "Any":
 			// void
-			// TODO: mark Any() as deprecated
 		default:
 			route.CustomPredicates = append(
 				route.CustomPredicates,

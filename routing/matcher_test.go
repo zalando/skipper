@@ -26,11 +26,11 @@ import (
 	"testing"
 )
 
-type testPredicate struct{}
+type truePredicate struct{}
 
-func (tp *testPredicate) Name() string                                 { return "Test" }
-func (tp *testPredicate) Create(args []interface{}) (Predicate, error) { return tp, nil }
-func (tp *testPredicate) Match(r *http.Request) bool                   { return true }
+func (tp *truePredicate) Name() string                                 { return "True" }
+func (tp *truePredicate) Create(args []interface{}) (Predicate, error) { return tp, nil }
+func (tp *truePredicate) Match(r *http.Request) bool                   { return true }
 
 const (
 	benchmarkingCountPhase1 = 1
@@ -75,14 +75,14 @@ const testRouteDoc = `
     catalogslsHerren: Path("/sls/herren/*_") -> "https://herren-sls.streaming-layout-service.my-department.example.org";
     catalogslsDamen: Path("/sls/damen/*_") -> "https://damen-sls.streaming-layout-service.my-department.example.org";
 
-    catalogHerrenEn: Test() && Path("/men/*_") -> "https://herren-en.layout-service.my-department.example.org";
-    catalogDamenEn: Test() && Path("/women/*_") -> "https://damen-en.layout-service.my-department.example.org";
-    catalogAsyncHerrenEn: Test() && Path("/sls-async/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
-    catalogAsyncDamenEn: Test() && Path("/sls-async/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
-    catalogscHerrenEn: Test() && Path("/sc/men/*_") -> "https://herren-en.compositor-layout-service.my-department.example.org";
-    catalogscDamenEn: Test() && Path("/sc/women/*_") -> "https://damen-en.compositor-layout-service.my-department.example.org";
-    catalogslsHerrenEn: Test() && Path("/sls/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
-    catalogslsDamenEn: Test() && Path("/sls/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
+    catalogHerrenEn: True() && Path("/men/*_") -> "https://herren-en.layout-service.my-department.example.org";
+    catalogDamenEn: True() && Path("/women/*_") -> "https://damen-en.layout-service.my-department.example.org";
+    catalogAsyncHerrenEn: True() && Path("/sls-async/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
+    catalogAsyncDamenEn: True() && Path("/sls-async/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
+    catalogscHerrenEn: True() && Path("/sc/men/*_") -> "https://herren-en.compositor-layout-service.my-department.example.org";
+    catalogscDamenEn: True() && Path("/sc/women/*_") -> "https://damen-en.compositor-layout-service.my-department.example.org";
+    catalogslsHerrenEn: True() && Path("/sls/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
+    catalogslsDamenEn: True() && Path("/sls/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
 `
 
 var (
@@ -114,7 +114,7 @@ func docToRoutes(doc string) ([]*Route, error) {
 		return nil, err
 	}
 
-	return processRouteDefs([]PredicateSpec{&testPredicate{}}, nil, defs), nil
+	return processRouteDefs([]PredicateSpec{&truePredicate{}}, nil, defs), nil
 }
 
 // parse a routing document with a single route
