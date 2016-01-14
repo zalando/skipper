@@ -165,3 +165,24 @@ func TestParseDocument(t *testing.T) {
 		t.Error("failed to parse route definition ids")
 	}
 }
+
+func TestNumberNotClosedWithDecimalSign(t *testing.T) {
+	_, err := parse(`Any() -> number(3.) -> <shunt>`)
+	if err == nil {
+		t.Error("failed to fail")
+	}
+}
+
+func TestNumberStartingWithDecimal(t *testing.T) {
+	_, err := parse(`Any() -> number(.3) -> <shunt>`)
+	if err != nil {
+		t.Error("failed to parse number", err)
+	}
+}
+
+func TestNumber(t *testing.T) {
+	_, err := parse(`Any() -> number(3.14) -> <shunt>`)
+	if err != nil {
+		t.Error("failed to parse number", err)
+	}
+}
