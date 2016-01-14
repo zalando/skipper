@@ -122,7 +122,8 @@ type Route struct {
 	// The backend scheme and host.
 	Scheme, Host string
 
-	Predicates []Predicate
+	// The preprocessed custom predicate instances.
+	CustomPredicates []Predicate
 
 	// The preprocessed filter instances.
 	Filters []*RouteFilter
