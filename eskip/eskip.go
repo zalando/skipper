@@ -56,7 +56,15 @@ type parsedRoute struct {
 // A CustomPredicate object represents a parsed, in-memory, route matching predicate
 // that is defined by extensions.
 type CustomPredicate struct {
+
+	// The name of the custom predicate as referenced
+	// in the route definition. E.g. 'Foo'.
 	Name string
+
+	// The arguments of the predicate as defined in the
+	// route definition. The arguments can be of type
+	// float64 or string (string for both strings and
+	// regular expressions).
 	Args []interface{}
 }
 

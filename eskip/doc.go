@@ -105,16 +105,17 @@ Former, deprecated form of the catch all condition.
 
 Custom Predicates
 
-Eskip supports custom route matching predicates, whose functionality
-should be provided by Skipper extensions. (See the documentation of the
-routing package.) The notation of custom predicates is the same as of
-the built-in route matching expressions:
+Eskip supports custom route matching predicates, that can be implemented
+in extensions. The notation of custom predicates is the same as of the
+built-in route matching expressions:
 
     Foo(3.14, "bar")
 
 During parsing, custom predicates may define any arbitrary list of
 arguments of types number, string or regular expression, and it is the
 responsibility of the implementation to validate them.
+
+(See the documentation of the routing package.)
 
 
 Filters
