@@ -38,9 +38,12 @@ type FilterContext interface {
 	// route.
 	Served() bool
 
-	// Marks a request served. Used by filters that handle the requests
-	// themselves.
+	// This method is deprecated. You should call Serve providing the desired response
 	MarkServed()
+
+	// Serve a request with the provided response. It can be used by filters that handle the requests
+	// themselves. This prevents the filter chain from continuing by marking the request as served.
+	Serve(*http.Response)
 
 	// Provides the wildcard parameter values from the request path by their
 	// name as the key.
