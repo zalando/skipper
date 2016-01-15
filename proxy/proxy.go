@@ -334,7 +334,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
 		sendError(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		log.Warnf("Could not find a route for %v", r.URL)
+		log.Debugf("Could not find a route for %v", r.URL)
 		return
 	}
 	metrics.MeasureRouteLookup(start)
