@@ -376,7 +376,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start = time.Now()
-	if p.preserveOriginal {
+	if !c.served && p.preserveOriginal {
 		c.originalResponse = cloneResponseMetadata(c.Response())
 	}
 	p.applyFiltersToResponse(processedFilters, c)
