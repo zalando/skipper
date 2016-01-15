@@ -268,7 +268,7 @@ func shunt(r *http.Request) *http.Response {
 }
 
 // applies all filters to a request
-func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.FilterContext) []*routing.RouteFilter {
+func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext) []*routing.RouteFilter {
 	var start time.Time
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
@@ -276,7 +276,7 @@ func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.Filt
 		callSafe(func() { fi.Request(ctx) })
 		metrics.MeasureFilterRequest(fi.Name, start)
 		filters = append(filters, fi)
-		if ctx.Served() {
+		if ctx.served {
 			break
 		}
 	}
@@ -305,9 +305,10 @@ func (p *proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filte
 	}
 }
 
-func addBranding(rs *http.Response) {
-	rs.Header.Set("X-Powered-By", "Skipper")
-	rs.Header.Set("Server", "Skipper")
+// addBranding overwrites any existing `X-Powered-By` or `Server` header from headerMap
+func addBranding(headerMap http.Header) {
+	headerMap.Set("X-Powered-By", "Skipper")
+	headerMap.Set("Server", "Skipper")
 }
 
 func (p *proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
@@ -321,12 +322,18 @@ func (p *proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[stri
 	return p.routing.Route(r)
 }
 
+// send a premature error response
+func sendError(w http.ResponseWriter, error string, code int) {
+	http.Error(w, error, code)
+	addBranding(w.Header())
+}
+
 // http.Handler implementation
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		sendError(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		log.Warnf("Could not find a route for %v", r.URL)
 		return
 	}
@@ -338,7 +345,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	processedFilters := p.applyFiltersToRequest(routeFilters, c)
 	metrics.MeasureAllFiltersRequest(rt.Id, start)
 
-	if !c.Served() {
+	if !c.served {
 		var (
 			rs  *http.Response
 			err error
@@ -349,7 +356,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			rs, err = p.roundtrip(r, rt)
 			if err != nil {
-				http.Error(w,
+				sendError(w,
 					http.StatusText(http.StatusInternalServerError),
 					http.StatusInternalServerError)
 				log.Error(err)
@@ -376,7 +383,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	metrics.MeasureAllFiltersResponse(rt.Id, start)
 
 	start = time.Now()
-	addBranding(response)
+	addBranding(response.Header)
 	copyHeader(w.Header(), response.Header)
 	w.WriteHeader(response.StatusCode)
 	err := copyStream(w.(flusherWriter), response.Body)
