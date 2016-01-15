@@ -90,15 +90,16 @@ type proxy struct {
 }
 
 type filterContext struct {
-	w                http.ResponseWriter
-	req              *http.Request
-	res              *http.Response
-	served           bool
-	pathParams       map[string]string
-	stateBag         map[string]interface{}
-	originalRequest  *http.Request
-	originalResponse *http.Response
-	backendUrl       string
+	w                  http.ResponseWriter
+	req                *http.Request
+	res                *http.Response
+	served             bool
+	servedWithResponse bool
+	pathParams         map[string]string
+	stateBag           map[string]interface{}
+	originalRequest    *http.Request
+	originalResponse   *http.Response
+	backendUrl         string
 }
 
 func (sb bodyBuffer) Close() error {
@@ -254,7 +255,7 @@ func (c *filterContext) BackendUrl() string                  { return c.backendU
 func (c *filterContext) OriginalRequest() *http.Request      { return c.originalRequest }
 func (c *filterContext) OriginalResponse() *http.Response    { return c.originalResponse }
 func (c *filterContext) Serve(res *http.Response) {
-	c.served = true
+	c.servedWithResponse = true
 	c.res = res
 }
 
@@ -276,7 +277,7 @@ func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterConte
 		callSafe(func() { fi.Request(ctx) })
 		metrics.MeasureFilterRequest(fi.Name, start)
 		filters = append(filters, fi)
-		if ctx.served {
+		if ctx.served || ctx.servedWithResponse {
 			break
 		}
 	}
@@ -345,7 +346,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	processedFilters := p.applyFiltersToRequest(routeFilters, c)
 	metrics.MeasureAllFiltersRequest(rt.Id, start)
 
-	if !c.served {
+	if !c.served && !c.servedWithResponse {
 		var (
 			rs  *http.Response
 			err error
@@ -375,21 +376,23 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start = time.Now()
-	response := c.Response()
 	if p.preserveOriginal {
-		c.originalResponse = cloneResponseMetadata(response)
+		c.originalResponse = cloneResponseMetadata(c.Response())
 	}
 	p.applyFiltersToResponse(processedFilters, c)
 	metrics.MeasureAllFiltersResponse(rt.Id, start)
 
-	start = time.Now()
-	addBranding(response.Header)
-	copyHeader(w.Header(), response.Header)
-	w.WriteHeader(response.StatusCode)
-	err := copyStream(w.(flusherWriter), response.Body)
-	if err != nil {
-		log.Error(err)
-	} else {
-		metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
+	if !c.served {
+		response := c.Response()
+		start = time.Now()
+		addBranding(response.Header)
+		copyHeader(w.Header(), response.Header)
+		w.WriteHeader(response.StatusCode)
+		err := copyStream(w.(flusherWriter), response.Body)
+		if err != nil {
+			log.Error(err)
+		} else {
+			metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
+		}
 	}
 }
