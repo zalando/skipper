@@ -55,6 +55,10 @@ func (fc *Context) StateBag() map[string]interface{}    { return fc.FStateBag }
 func (fc *Context) OriginalRequest() *http.Request      { return nil }
 func (fc *Context) OriginalResponse() *http.Response    { return nil }
 func (fc *Context) BackendUrl() string                  { return fc.FBackendUrl }
+func (fc *Context) Serve(resp *http.Response) {
+	fc.FServed = true
+	fc.FResponse = resp
+}
 
 func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
 	return &Filter{spec.FilterName, config}, nil

@@ -43,11 +43,18 @@ derived from the actual request path (see skipper/routing) and a
 free-form state bag. The filters may modify the request or pass data to
 each other using the state bag.
 
+Filters can break the filter chain, serving their own response object. This
+will prevent the request from reaching the route endpoint. The filters
+that are defined in the route after the one that broke the chain
+will never handle the request.
+
 
 3.a upstream request:
 
 The incoming and augmented request is mapped to an outgoing request and
 executed, addressing the endpoint defined by the current route.
+
+If a filter chain was broken by some filter this step is skipped.
 
 
 3.b shunt:
@@ -58,14 +65,15 @@ default 404 status.
 
 4. downstream response augmentation:
 
-The response handling method of all filters in the current route
-definition will be executed, but this time in reverse order. The filter
-context is the same instance as the one in step 2, but this time it
-includes the response object from step 3. If the route is a shunt route,
-one of the filters needs to handle the request latest in this phase by
-setting the right status and response headers, and writing the response
-body, if any, to the writer in the filter context, and mark the request
-as 'served'.
+The response handling method of all the filters processed in step 2
+will be executed in reverse order. The filter context is the same
+instance as the one in step 2.  It will include the response object
+from step 3, or the one provided by the filter that broke the chain.
+
+If the route is a shunt route, one of the filters needs to handle the
+request latest in this phase. It should set the status and response
+headers and write the response body, if any, to the writer in the
+filter context.
 
 
 5. response:
