@@ -94,7 +94,7 @@ type filterContext struct {
 	req                *http.Request
 	res                *http.Response
 	served             bool
-	servedWithResponse bool
+	servedWithResponse bool // to support the deprecated way independently
 	pathParams         map[string]string
 	stateBag           map[string]interface{}
 	originalRequest    *http.Request
