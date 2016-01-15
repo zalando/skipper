@@ -116,6 +116,16 @@ func TestParseRouteExpression(t *testing.T) {
 				&CustomPredicate{"Custom2", nil}},
 			Backend: "https://www.example.org"},
 		false,
+	}, {
+		"double path predicates",
+		`Path("/one") && Path("/two") -> "https://www.example.org"`,
+		nil,
+		true,
+	}, {
+		"double method predicates",
+		`Method("HEAD") && Method("GET") -> "https://www.example.org"`,
+		nil,
+		true,
 	}} {
 		stringMapKeys := func(m map[string]string) []string {
 			keys := make([]string, 0, len(m))
@@ -164,6 +174,10 @@ func TestParseRouteExpression(t *testing.T) {
 		routes, err := Parse(ti.expression)
 		if err == nil && ti.err || err != nil && !ti.err {
 			t.Error(ti.msg, "failure case", err, ti.err)
+			return
+		}
+
+		if ti.err {
 			return
 		}
 
