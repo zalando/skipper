@@ -181,6 +181,7 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 
 			if args, err = getStringArgs(1, m.args); err == nil {
 				route.Path = args[0]
+				pathSet = true
 			}
 		case "Host":
 			if args, err = getStringArgs(1, m.args); err == nil {
@@ -197,6 +198,7 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 
 			if args, err = getStringArgs(1, m.args); err == nil {
 				route.Method = args[0]
+				methodSet = true
 			}
 		case "HeaderRegexp":
 			if args, err = getStringArgs(2, m.args); err == nil {
