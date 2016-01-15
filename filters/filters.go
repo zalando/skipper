@@ -34,15 +34,16 @@ type FilterContext interface {
 	// payload related properties have zero value.
 	OriginalResponse() *http.Response
 
-	// Returns true if the request was served by any of the filters in a
-	// route.
+	// This method is deprecated. A FilterContext implementation should flag this state
+	// internally
 	Served() bool
 
 	// This method is deprecated. You should call Serve providing the desired response
 	MarkServed()
 
 	// Serve a request with the provided response. It can be used by filters that handle the requests
-	// themselves. This prevents the filter chain from continuing by marking the request as served.
+	// themselves. FilterContext implementations should flag this state and prevent the filter chain
+	// from continuing
 	Serve(*http.Response)
 
 	// Provides the wildcard parameter values from the request path by their
