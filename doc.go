@@ -184,10 +184,10 @@ library and extended with custom filters, predicates and data sources.
 
 Custom Predicates
 
-To create a custom predicate, the PredicateSpec of the routing package
-needs to be implemented. The PredicateSpec is used to create the actual
-predicate with concrete arguments, during the route definitions are
-processed by the routing package.
+To create a custom predicate, one needs to implement the PredicateSpec
+interface in the routing package.  Instances of the PredicateSpec are
+used internally by the routing package to create the actual Predicate
+objects as referenced in eskip routes, with concrete arguments.
 
 Example, randompredicate.go:
 
