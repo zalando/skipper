@@ -86,7 +86,7 @@ type Options struct {
 	DataClients []DataClient
 
 	// Specifications of custom, user defined predicates.
-	CustomPredicates []PredicateSpec
+	Predicates []PredicateSpec
 
 	// Performance tuning option.
 	//
@@ -123,7 +123,7 @@ type Route struct {
 	Scheme, Host string
 
 	// The preprocessed custom predicate instances.
-	CustomPredicates []Predicate
+	Predicates []Predicate
 
 	// The preprocessed filter instances.
 	Filters []*RouteFilter

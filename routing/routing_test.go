@@ -27,32 +27,32 @@ import (
 )
 
 const (
-	pollTimeout           = 15 * time.Millisecond
-	customPredicateHeader = "X-Custom-Predicate"
+	pollTimeout     = 15 * time.Millisecond
+	predicateHeader = "X-Custom-Predicate"
 )
 
-type customPredicate struct {
+type predicate struct {
 	matchVal string
 }
 
-func (cp *customPredicate) Name() string { return "CustomPredicate" }
+func (cp *predicate) Name() string { return "CustomPredicate" }
 
-func (cp *customPredicate) Create(args []interface{}) (routing.Predicate, error) {
+func (cp *predicate) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 1 {
 		return nil, errors.New("invalid number of args")
 	}
 
 	if matchVal, ok := args[0].(string); ok {
 		cp.matchVal = matchVal
-		return &customPredicate{matchVal}, nil
+		return &predicate{matchVal}, nil
 	} else {
 		return nil, errors.New("invalid arg")
 	}
 }
 
-func (cp *customPredicate) Match(r *http.Request) bool {
-	println("matching", r.Header.Get(customPredicateHeader), cp.matchVal)
-	return r.Header.Get(customPredicateHeader) == cp.matchVal
+func (cp *predicate) Match(r *http.Request) bool {
+	println("matching", r.Header.Get(predicateHeader), cp.matchVal)
+	return r.Header.Get(predicateHeader) == cp.matchVal
 }
 
 func waitRoute(rt *routing.Routing, req *http.Request) <-chan *routing.Route {
@@ -402,7 +402,7 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 	}
 }
 
-func TestProcessesCustomPredicates(t *testing.T) {
+func TestProcessesPredicates(t *testing.T) {
 	dc, err := testdataclient.NewDoc(`
         route1: CustomPredicate("custom1") -> "https://route1.example.org";
         route2: CustomPredicate("custom2") -> "https://route2.example.org";
@@ -412,11 +412,11 @@ func TestProcessesCustomPredicates(t *testing.T) {
 		return
 	}
 
-	cps := []routing.PredicateSpec{&customPredicate{}, &customPredicate{}}
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
 	rt := routing.New(routing.Options{
-		DataClients:      []routing.DataClient{dc},
-		PollTimeout:      pollTimeout,
-		CustomPredicates: cps})
+		DataClients: []routing.DataClient{dc},
+		PollTimeout: pollTimeout,
+		Predicates:  cps})
 
 	req, err := http.NewRequest("GET", "https://www.example.com", nil)
 	if err != nil {
@@ -424,7 +424,7 @@ func TestProcessesCustomPredicates(t *testing.T) {
 		return
 	}
 
-	req.Header.Set(customPredicateHeader, "custom1")
+	req.Header.Set(predicateHeader, "custom1")
 	select {
 	case r := <-waitRoute(rt, req):
 		if r.Backend != "https://route1.example.org" {
@@ -435,7 +435,7 @@ func TestProcessesCustomPredicates(t *testing.T) {
 		t.Error("test timeout")
 	}
 
-	req.Header.Set(customPredicateHeader, "custom2")
+	req.Header.Set(predicateHeader, "custom2")
 	select {
 	case r := <-waitRoute(rt, req):
 		if r.Backend != "https://route2.example.org" {
@@ -446,7 +446,7 @@ func TestProcessesCustomPredicates(t *testing.T) {
 		t.Error("test timeout")
 	}
 
-	req.Header.Del(customPredicateHeader)
+	req.Header.Del(predicateHeader)
 	select {
 	case r := <-waitRoute(rt, req):
 		if r.Backend != "https://route.example.org" {

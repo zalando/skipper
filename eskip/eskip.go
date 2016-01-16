@@ -53,9 +53,9 @@ type parsedRoute struct {
 	backend  string
 }
 
-// A CustomPredicate object represents a parsed, in-memory, route matching predicate
+// A Predicate object represents a parsed, in-memory, route matching predicate
 // that is defined by extensions.
-type CustomPredicate struct {
+type Predicate struct {
 
 	// The name of the custom predicate as referenced
 	// in the route definition. E.g. 'Foo'.
@@ -111,7 +111,7 @@ type Route struct {
 
 	// Custom predicates to match.
 	// E.g. Traffic(.3)
-	CustomPredicates []*CustomPredicate
+	Predicates []*Predicate
 
 	// Set of filters in a particular route.
 	// E.g. redirect(302, "https://www.example.org/hello")
@@ -223,9 +223,9 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 		case "*", "Any":
 			// void
 		default:
-			route.CustomPredicates = append(
-				route.CustomPredicates,
-				&CustomPredicate{m.name, m.args})
+			route.Predicates = append(
+				route.Predicates,
+				&Predicate{m.name, m.args})
 		}
 	}
 

@@ -111,9 +111,9 @@ func TestParseRouteExpression(t *testing.T) {
 		"custom predicate",
 		`Custom1(3.14, "test value") && Custom2() -> "https://www.example.org"`,
 		&Route{
-			CustomPredicates: []*CustomPredicate{
-				&CustomPredicate{"Custom1", []interface{}{float64(3.14), "test value"}},
-				&CustomPredicate{"Custom2", nil}},
+			Predicates: []*Predicate{
+				&Predicate{"Custom1", []interface{}{float64(3.14), "test value"}},
+				&Predicate{"Custom2", nil}},
 			Backend: "https://www.example.org"},
 		false,
 	}, {
@@ -215,15 +215,15 @@ func TestParseRouteExpression(t *testing.T) {
 		}
 
 		if !checkItemsT("custom predicates",
-			len(r.CustomPredicates),
-			len(ti.check.CustomPredicates),
+			len(r.Predicates),
+			len(ti.check.Predicates),
 			func(i int) bool {
-				return r.CustomPredicates[i].Name == ti.check.CustomPredicates[i].Name &&
+				return r.Predicates[i].Name == ti.check.Predicates[i].Name &&
 					checkItemsT("custom predicate args",
-						len(r.CustomPredicates[i].Args),
-						len(ti.check.CustomPredicates[i].Args),
+						len(r.Predicates[i].Args),
+						len(ti.check.Predicates[i].Args),
 						func(j int) bool {
-							return r.CustomPredicates[i].Args[j] == ti.check.CustomPredicates[i].Args[j]
+							return r.Predicates[i].Args[j] == ti.check.Predicates[i].Args[j]
 						})
 			}) {
 			return
