@@ -24,13 +24,13 @@ import (
 )
 
 type leafMatcher struct {
-	method           string
-	hostRxs          []*regexp.Regexp
-	pathRxs          []*regexp.Regexp
-	headersExact     map[string]string
-	headersRegexp    map[string][]*regexp.Regexp
-	customPredicates []Predicate
-	route            *Route
+	method        string
+	hostRxs       []*regexp.Regexp
+	pathRxs       []*regexp.Regexp
+	headersExact  map[string]string
+	headersRegexp map[string][]*regexp.Regexp
+	predicates    []Predicate
+	route         *Route
 }
 
 type leafMatchers []*leafMatcher
@@ -46,7 +46,7 @@ func leafWeight(l *leafMatcher) int {
 	w += len(l.pathRxs)
 	w += len(l.headersExact)
 	w += len(l.headersRegexp)
-	w += len(l.customPredicates)
+	w += len(l.predicates)
 
 	return w
 }
@@ -147,13 +147,13 @@ func newLeaf(r *Route) (*leafMatcher, error) {
 	}
 
 	return &leafMatcher{
-		method:           r.Method,
-		hostRxs:          hostRxs,
-		pathRxs:          pathRxs,
-		headersExact:     canonicalizeHeaders(r.Headers),
-		headersRegexp:    canonicalizeHeaderRegexps(allHeaderRxs),
-		customPredicates: r.CustomPredicates,
-		route:            r}, nil
+		method:        r.Method,
+		hostRxs:       hostRxs,
+		pathRxs:       pathRxs,
+		headersExact:  canonicalizeHeaders(r.Headers),
+		headersRegexp: canonicalizeHeaderRegexps(allHeaderRxs),
+		predicates:    r.Predicates,
+		route:         r}, nil
 }
 
 // returns the free form wildcard parameter of a path
@@ -301,7 +301,7 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 }
 
 // check if all defined custom predicates are matched
-func matchCustomPredicates(cps []Predicate, req *http.Request) bool {
+func matchPredicates(cps []Predicate, req *http.Request) bool {
 	for _, cp := range cps {
 		if !cp.Match(req) {
 			return false
@@ -329,7 +329,7 @@ func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 		return false
 	}
 
-	if !matchCustomPredicates(l.customPredicates, req) {
+	if !matchPredicates(l.predicates, req) {
 		return false
 	}
 
