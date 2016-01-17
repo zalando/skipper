@@ -248,7 +248,9 @@ func (c *Client) etcdGet() (*response, error) {
 	return c.etcdRequest("GET", c.routesRoot, "")
 }
 
-func (c *Client) etcdWatch() (*response, error) {
+// Calls etcd 'watch' but with a timeout configured for
+// the http client.
+func (c *Client) etcdGetUpdates() (*response, error) {
 	return c.etcdRequest("GET",
 		fmt.Sprintf("%s?wait=true&waitIndex=%d&recursive=true",
 			c.routesRoot, c.etcdIndex+1), "")
@@ -379,7 +381,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	deletes := make(map[string]bool)
 
 	for {
-		response, err := c.etcdWatch()
+		response, err := c.etcdGetUpdates()
 		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
 			break
 		} else if err != nil {
