@@ -14,10 +14,7 @@
 
 package builtin
 
-import (
-	"github.com/zalando/skipper/filters"
-	"strings"
-)
+import "github.com/zalando/skipper/filters"
 
 type headerType int
 
@@ -75,17 +72,12 @@ func (spec *headerFilter) CreateFilter(config []interface{}) (filters.Filter, er
 
 func (f *headerFilter) Request(ctx filters.FilterContext) {
 	if f.typ == requestHeader {
-		req := ctx.Request()
-		if strings.ToLower(f.key) == "host" {
-			req.Host = f.value
-		}
-
-		req.Header.Set(f.key, f.value)
+		ctx.Request().Header.Add(f.key, f.value)
 	}
 }
 
 func (f *headerFilter) Response(ctx filters.FilterContext) {
 	if f.typ == responseHeader {
-		ctx.Response().Header.Set(f.key, f.value)
+		ctx.Response().Header.Add(f.key, f.value)
 	}
 }

@@ -48,7 +48,7 @@ type priorityRoute struct {
 type (
 	preserveOriginalSpec   struct{}
 	preserveOriginalFilter struct{}
-	hostHeaderSpecFilter   string
+	hostHeaderFilter       string
 )
 
 func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
@@ -71,17 +71,17 @@ func (corf *preserveOriginalFilter) Response(ctx filters.FilterContext) {
 	preserveHeader(ctx.OriginalResponse().Header, ctx.Response().Header)
 }
 
-func (hh hostHeaderSpecFilter) Name() string { return "host" }
+func (hh hostHeaderFilter) Name() string { return "host" }
 
-func (hh hostHeaderSpecFilter) CreateFilter(args []interface{}) (filters.Filter, error) {
-	return hostHeaderSpecFilter(args[0].(string)), nil
+func (hh hostHeaderFilter) CreateFilter(args []interface{}) (filters.Filter, error) {
+	return hostHeaderFilter(args[0].(string)), nil
 }
 
-func (hh hostHeaderSpecFilter) Request(ctx filters.FilterContext) {
+func (hh hostHeaderFilter) Request(ctx filters.FilterContext) {
 	ctx.Request().Header.Set("Host", string(hh))
 }
 
-func (hh hostHeaderSpecFilter) Response(ctx filters.FilterContext) {}
+func (hh hostHeaderFilter) Response(ctx filters.FilterContext) {}
 
 func (prt *priorityRoute) Match(r *http.Request) (*routing.Route, map[string]string) {
 	if prt.match(r) {
@@ -689,75 +689,82 @@ func TestOriginalRequestResponse(t *testing.T) {
 	}
 }
 
-func TestEndpointHostInRequestAsDefault(t *testing.T) {
-	var s *httptest.Server
-	s = startTestServer(nil, 0, func(r *http.Request) {
-		u, err := url.Parse(s.URL)
+func TestHostHeader(t *testing.T) {
+	for _, ti := range []struct {
+		msg         string
+		routeDocFmt string
+		requestHost string
+
+		// set to "" for taking the backend host
+		checkHost string
+	}{{
+		"no preserve, use the host from the backend url",
+		`route1: Any() -> "%s"`,
+		"www.example.org",
+		"",
+	}, {
+		"preserve host",
+		`route1: Any() -> preserveHost() -> "%s"`,
+		"www.example.org",
+		"www.example.org",
+	}, {
+		"custom host from header",
+		`route1: Any() -> requestHeader("Host", "custom.example.org") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
+	}} {
+		var backendHost string
+		backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			if ti.checkHost == "" {
+				if r.Host != backendHost {
+					t.Error(ti.msg, "backend host", r.Host, backendHost)
+				}
+
+				return
+			}
+
+			if r.Host != ti.checkHost {
+				t.Error(ti.msg, "modified host", r.Host, ti.checkHost)
+			}
+		}))
+
+		u, err := url.Parse(backend.URL)
 		if err != nil {
-			t.Error(err)
-			return
+			t.Error(ti.msg, err)
+			continue
 		}
 
-		if r.Host != u.Host {
-			t.Error("failed to make request with the default host")
+		backendHost = u.Host
+		doc := fmt.Sprintf(ti.routeDocFmt, backend.URL)
+		dc, err := testdataclient.NewDoc(doc)
+		if err != nil {
+			t.Error(ti.msg, err)
+			continue
 		}
-	})
 
-	defer s.Close()
+		proxy := New(routing.New(routing.Options{
+			builtin.MakeRegistry(),
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			0}), OptionsNone)
 
-	r, err := http.NewRequest("GET", "https://www.example.org/hello", nil)
-	r.Header.Set("X-Test-Header", "test value")
-	w := httptest.NewRecorder()
+		delay()
 
-	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	dc, err := testdataclient.NewDoc(doc)
-	if err != nil {
-		t.Error(err)
+		proxyServer := httptest.NewServer(proxy)
+
+		req, err := http.NewRequest("GET", proxyServer.URL, nil)
+		if err != nil {
+			t.Error(ti.msg, err)
+			continue
+		}
+
+		req.Host = ti.requestHost
+		rsp, err := (&http.Client{}).Do(req)
+		if err != nil {
+			t.Error(ti.msg, err)
+		}
+
+		defer rsp.Body.Close()
 	}
-
-	fr := builtin.MakeRegistry()
-	p := New(routing.New(routing.Options{
-		fr,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		0}), OptionsNone)
-
-	delay()
-
-	p.ServeHTTP(w, r)
-}
-
-func TestCustomHostInRequestFromHeaderSetByFilter(t *testing.T) {
-	var s *httptest.Server
-	s = startTestServer(nil, 0, func(r *http.Request) {
-		if r.Host != "www.example.org" {
-			t.Error("failed to make request with custom host")
-		}
-	})
-
-	defer s.Close()
-
-	r, err := http.NewRequest("GET", "https://www.example.org/hello", nil)
-	r.Header.Set("X-Test-Header", "test value")
-	w := httptest.NewRecorder()
-
-	doc := fmt.Sprintf(`hello: Path("/hello") -> host("www.example.org") -> "%s"`, s.URL)
-	dc, err := testdataclient.NewDoc(doc)
-	if err != nil {
-		t.Error(err)
-	}
-
-	fr := builtin.MakeRegistry()
-	fr.Register(hostHeaderSpecFilter("spec"))
-	p := New(routing.New(routing.Options{
-		fr,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		0}), OptionsNone)
-
-	delay()
-
-	p.ServeHTTP(w, r)
 }
