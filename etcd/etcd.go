@@ -41,6 +41,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -59,6 +60,20 @@ type response struct {
 	etcdIndex uint64
 	Action    string `json:"action"`
 	Node      *node  `json:"node"`
+}
+
+type endpointErrors struct {
+	errors []error
+}
+
+func (ee *endpointErrors) Error() string {
+	es := make([]string, len(ee.errors)+1)
+	es[0] = "request to one or more endpoints failed"
+	for i, e := range ee.errors {
+		es[i+1] = e.Error()
+	}
+
+	return strings.Join(es, ";")
 }
 
 // A Client is used to load the whole set of routes and the updates from an
@@ -98,10 +113,11 @@ type makeRequest func(string) (*http.Request, error)
 
 func (c *Client) tryEndpoints(mreq makeRequest) (*http.Response, error) {
 	var (
-		addresses []string
-		req       *http.Request
-		rsp       *http.Response
-		err       error
+		addresses    []string
+		req          *http.Request
+		rsp          *http.Response
+		err          error
+		endpointErrs []error
 	)
 
 	addresses = c.addresses
@@ -116,11 +132,16 @@ func (c *Client) tryEndpoints(mreq makeRequest) (*http.Response, error) {
 			break
 		}
 
+		endpointErrs = append(endpointErrs, err)
 		addresses = addresses[1:]
 	}
 
 	rotate := len(c.addresses) - len(addresses)
 	c.addresses = append(c.addresses[rotate:], c.addresses[:rotate]...)
+
+	if len(addresses) == 0 {
+		err = &endpointErrors{endpointErrs}
+	}
 
 	return rsp, err
 }
@@ -343,10 +364,6 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 	// this is going to be the tricky part
 	data, etcdIndex := c.iterateDefs(response.Node, c.etcdIndex)
-	if response.etcdIndex > etcdIndex {
-		etcdIndex = response.etcdIndex
-	}
-
 	c.etcdIndex = etcdIndex
 
 	var (
