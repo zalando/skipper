@@ -116,12 +116,13 @@ type Client struct {
 }
 
 var (
-	missingEtcdEndpoint    = errors.New("missing etcd endpoint")
-	missingRouteId         = errors.New("missing route id")
-	invalidNode            = errors.New("invalid node")
-	unexpectedHttpResponse = errors.New("unexpected http response")
-	notFound               = errors.New("not found")
-	missingEtcdIndex       = errors.New("missing etcd index")
+	missingEtcdEndpoint     = errors.New("missing etcd endpoint")
+	missingRouteId          = errors.New("missing route id")
+	invalidNode             = errors.New("invalid node")
+	unexpectedHttpResponse  = errors.New("unexpected http response")
+	notFound                = errors.New("not found")
+	missingEtcdIndex        = errors.New("missing etcd index")
+	invalidResponseDocument = errors.New("invalid response document")
 )
 
 // Creates a new Client with the provided options.
@@ -191,6 +192,10 @@ func parseResponse(rsp *http.Response) (*response, error) {
 	err = json.Unmarshal(d, &r)
 	if err != nil {
 		return nil, err
+	}
+
+	if r.Node == nil || r.Node.Key == "" {
+		return nil, invalidResponseDocument
 	}
 
 	r.etcdIndex, err = strconv.ParseUint(rsp.Header.Get(etcdIndexHeader), 10, 64)
