@@ -55,6 +55,7 @@ const (
 type node struct {
 	Key           string  `json:"key"`
 	Value         string  `json:"value"`
+	Dir           bool    `json:"Dir"`
 	ModifiedIndex uint64  `json:"modifiedIndex"`
 	Nodes         []*node `json:"nodes"`
 }
@@ -102,6 +103,7 @@ type Client struct {
 var (
 	missingEtcdEndpoint    = errors.New("missing etcd endpoint")
 	missingRouteId         = errors.New("missing route id")
+	invalidNode            = errors.New("invalid node")
 	unexpectedHttpResponse = errors.New("unexpected http response")
 	notFound               = errors.New("not found")
 	missingEtcdIndex       = errors.New("missing etcd index")
@@ -248,30 +250,20 @@ func (c *Client) etcdDelete(id string) error {
 // Prepends the expressions with the etcd key as the route id.
 // Returns a map where the keys are the etcd keys and the values are the
 // eskip route definitions.
-func (c *Client) iterateDefs(n *node, highestIndex uint64) (map[string]string, uint64) {
-	if n.ModifiedIndex > highestIndex {
-		highestIndex = n.ModifiedIndex
-	}
-
+func (c *Client) iterateNodes(dir *node, highestIndex uint64) (map[string]string, uint64) {
 	routes := make(map[string]string)
-	if n.Key == c.routesRoot {
-		for _, ni := range n.Nodes {
-			routesi, hi := c.iterateDefs(ni, highestIndex)
-			for id, r := range routesi {
-				routes[id] = r
-			}
+	for _, n := range dir.Nodes {
+		if n.Dir {
+			continue
+		}
 
-			highestIndex = hi
+		routes[path.Base(n.Key)] = n.Value
+		if n.ModifiedIndex > highestIndex {
+			highestIndex = n.ModifiedIndex
 		}
 	}
 
-	if path.Dir(n.Key) != c.routesRoot {
-		return routes, highestIndex
-	}
-
-	id := path.Base(n.Key)
-	r := id + ": " + n.Value
-	return map[string]string{id: r}, highestIndex
+	return routes, highestIndex
 }
 
 // Parses a single route expression, fails if more than one
@@ -291,8 +283,7 @@ func parseOne(data string) (*eskip.Route, error) {
 
 // Parses a set of eskip routes.
 func parseRoutes(data map[string]string) []*eskip.RouteInfo {
-	allInfo := make([]*eskip.RouteInfo, len(data))
-	index := 0
+	allInfo := make([]*eskip.RouteInfo, 0, len(data))
 	for id, d := range data {
 		info := &eskip.RouteInfo{}
 
@@ -304,9 +295,7 @@ func parseRoutes(data map[string]string) []*eskip.RouteInfo {
 		}
 
 		info.Id = id
-
-		allInfo[index] = info
-		index++
+		allInfo = append(allInfo, info)
 	}
 
 	return allInfo
@@ -339,7 +328,11 @@ func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 		return nil, err
 	}
 
-	data, etcdIndex := c.iterateDefs(response.Node, 0)
+	if !response.Node.Dir {
+		return nil, invalidNode
+	}
+
+	data, etcdIndex := c.iterateNodes(response.Node, 0)
 	if response.etcdIndex > etcdIndex {
 		etcdIndex = response.etcdIndex
 	}
@@ -378,20 +371,22 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 			return nil, nil, err
 		}
 
-		data, etcdIndex := c.iterateDefs(response.Node, c.etcdIndex)
-		if response.Action == "delete" {
-			for id, _ := range data {
-				dm[id] = true
-				delete(um, id)
-			}
-		} else {
-			for id, rs := range data {
-				um[id] = rs
-				dm[id] = false
-			}
+		if response.Node.Dir {
+			continue
 		}
 
-		c.etcdIndex = etcdIndex
+		id := path.Base(response.Node.Key)
+		if response.Action == "delete" {
+			dm[id] = true
+			delete(um, id)
+		} else {
+			um[id] = response.Node.Value
+			dm[id] = false
+		}
+
+		if response.Node.ModifiedIndex > c.etcdIndex {
+			c.etcdIndex = response.Node.ModifiedIndex
+		}
 	}
 
 	routeInfo := parseRoutes(um)
