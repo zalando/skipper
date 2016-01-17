@@ -26,6 +26,7 @@ See: https://github.com/zalando/innkeeper
 package innkeeper
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -50,7 +51,7 @@ const (
 	authHeaderName = "Authorization"
 
 	matchStrict = matchType("STRICT")
-	matchRegexp = matchType("REGEXP")
+	matchRegex  = matchType("REGEX")
 
 	authErrorPermission     = authErrorType("AUTH1")
 	authErrorAuthentication = authErrorType("AUTH2")
@@ -64,40 +65,40 @@ const (
 // json serialization object for innkeeper route definitions
 type (
 	pathMatcher struct {
-		Typ   matchType `json:"type"`
-		Match string    `json:"match"`
+		Typ   matchType `json:"type,omitempty"`
+		Match string    `json:"match,omitempty"`
 	}
 
 	headerMatcher struct {
-		Typ   matchType `json:"type"`
-		Name  string    `json:"name"`
-		Value string    `json:"value"`
+		Typ   matchType `json:"type,omitempty"`
+		Name  string    `json:"name,omitempty"`
+		Value string    `json:"value,omitempty"`
 	}
 
 	matcher struct {
-		HostMatcher    string          `json:"host_matcher"`
-		PathMatcher    pathMatcher     `json:"path_matcher"`
-		MethodMatcher  string          `json:"method_matcher"`
+		HostMatcher    string          `json:"host_matcher,omitempty"`
+		PathMatcher    *pathMatcher    `json:"path_matcher,omitempty"`
+		MethodMatcher  string          `json:"method_matcher,omitempty"`
 		HeaderMatchers []headerMatcher `json:"header_matchers"`
 	}
 
 	filter struct {
-		Name string        `json:"name"`
+		Name string        `json:"name,omitempty"`
 		Args []interface{} `json:"args"`
 	}
 
 	routeDef struct {
-		Matcher  matcher  `json:"matcher"`
+		Matcher  matcher  `json:"matcher,omitempty"`
 		Filters  []filter `json:"filters"`
-		Endpoint string   `json:"endpoint"`
+		Endpoint string   `json:"endpoint,omitempty"`
 	}
 
 	routeData struct {
-		Id         int64    `json:"id"`
-		Name       string   `json:"name"`
-		ActivateAt string   `json:"activate_at"`
-		CreatedAt  string   `json:"created_at"`
-		DeletedAt  string   `json:"deleted_at"`
+		Id         int64    `json:"id,omitempty"`
+		Name       string   `json:"name,omitempty"`
+		ActivateAt string   `json:"activate_at,omitempty"`
+		CreatedAt  string   `json:"created_at,omitempty"`
+		DeletedAt  string   `json:"deleted_at,omitempty"`
 		Route      routeDef `json:"route"`
 	}
 )
@@ -109,18 +110,6 @@ type apiError struct {
 	Title     string `json:"title"`
 	Detail    string `json:"detail"`
 }
-
-// An Authentication object provides authentication to Innkeeper.
-type Authentication interface {
-	GetToken() (string, error)
-}
-
-// A FixedToken provides Innkeeper authentication by an unchanged token
-// string.
-type FixedToken string
-
-// Returns the fixed token.
-func (ft FixedToken) GetToken() (string, error) { return string(ft), nil }
 
 // Initialization options for the Innkeeper client.
 type Options struct {
@@ -206,13 +195,21 @@ func convertFilters(d *routeData) []*eskip.Filter {
 // Converts an Innkeeper route definition to its eskip representation.
 func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*eskip.Filter) *eskip.Route {
 	var p string
-	if d.Route.Matcher.PathMatcher.Typ == matchStrict {
-		p = d.Route.Matcher.PathMatcher.Match
+	var prx []string
+
+	if d.Route.Matcher.PathMatcher != nil {
+		if d.Route.Matcher.PathMatcher.Typ == matchStrict {
+			p = d.Route.Matcher.PathMatcher.Match
+		}
+
+		if d.Route.Matcher.PathMatcher.Typ == matchRegex {
+			prx = []string{d.Route.Matcher.PathMatcher.Match}
+		}
 	}
 
-	var prx []string
-	if d.Route.Matcher.PathMatcher.Typ == matchRegexp {
-		prx = []string{d.Route.Matcher.PathMatcher.Match}
+	var hst []string
+	if d.Route.Matcher.HostMatcher != "" {
+		hst = []string{d.Route.Matcher.HostMatcher}
 	}
 
 	m := d.Route.Matcher.MethodMatcher
@@ -224,6 +221,7 @@ func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*
 
 	return &eskip.Route{
 		Id:            id,
+		HostRegexps:   hst,
 		Path:          p,
 		PathRegexps:   prx,
 		Method:        m,
@@ -235,7 +233,7 @@ func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*
 }
 
 // Converts a set of Innkeeper route definitions to their eskip representation.
-func convertData(data []*routeData, preRouteFilters, postRouteFilters []*eskip.Filter) ([]*eskip.Route, []string, string) {
+func convertJsonToEskip(data []*routeData, preRouteFilters, postRouteFilters []*eskip.Filter) ([]*eskip.Route, []string, string) {
 	var (
 		routes      []*eskip.Route
 		deleted     []string
@@ -320,6 +318,43 @@ func getHttpError(r *http.Response) (error, bool) {
 	}
 }
 
+func (c *Client) writeRoute(url string, route *routeData) error {
+
+	res, err := json.Marshal(route)
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(res))
+
+	if err != nil {
+		return err
+	}
+
+	authToken, err := c.opts.Authentication.GetToken()
+
+	if err != nil {
+		return err
+	}
+
+	req.Header.Add(authHeaderName, authToken)
+	req.Header.Set("Content-Type", "application/json")
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusBadRequest {
+		apiError, err := parseApiError(response.Body)
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("unknown error: %s", apiError)
+	}
+
+	return nil
+}
+
 // Calls an http request to an Innkeeper URL for route definitions.
 // If authRetry is true, and the request fails due to an
 // authentication/authorization related problem, it retries the request with
@@ -374,6 +409,23 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 	return result, err
 }
 
+func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
+	routeList, err := c.LoadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	routeInfos := []*eskip.RouteInfo{}
+
+	for _, route := range routeList {
+		routeInfo := &eskip.RouteInfo{
+			*route, nil}
+		routeInfos = append(routeInfos, routeInfo)
+	}
+
+	return routeInfos, nil
+}
+
 // Returns all active routes from Innkeeper.
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	d, err := c.requestData(true, c.opts.Address+allRoutesPath)
@@ -381,7 +433,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
-	routes, _, lastChanged := convertData(d, c.preRouteFilters, c.postRouteFilters)
+	routes, _, lastChanged := convertJsonToEskip(d, c.preRouteFilters, c.postRouteFilters)
 	if lastChanged > c.lastChanged {
 		c.lastChanged = lastChanged
 	}
@@ -396,10 +448,28 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		return nil, nil, err
 	}
 
-	routes, deleted, lastChanged := convertData(d, c.preRouteFilters, c.postRouteFilters)
+	routes, deleted, lastChanged := convertJsonToEskip(d, c.preRouteFilters, c.postRouteFilters)
 	if lastChanged > c.lastChanged {
 		c.lastChanged = lastChanged
 	}
 
 	return routes, deleted, nil
+}
+
+func (c *Client) UpsertAll(routes []*eskip.Route) error {
+	// convert the routes to the innkeeper json structs
+	data := convertEskipToInnkeeper(routes)
+
+	for _, route := range data {
+		err := c.writeRoute(c.opts.Address+allRoutesPath, route)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) DeleteAllIf(routes []*eskip.Route, cond eskip.RoutePredicate) error {
+	return nil
 }
