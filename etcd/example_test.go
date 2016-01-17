@@ -24,7 +24,7 @@ import (
 
 func Example() {
 	// create etcd data client:
-	dataClient, err := etcd.New([]string{"https://etcd.example.org"}, "/skipper")
+	dataClient, err := etcd.New(etcd.Options{[]string{"https://etcd.example.org"}, "/skipper", 0})
 	if err != nil {
 		log.Fatal(err)
 	}
