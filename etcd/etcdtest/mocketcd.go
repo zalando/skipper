@@ -103,10 +103,12 @@ func Start() error {
 	}
 }
 
+// Deletes the 'routes' directory from etcd with the prefix '/skippertest'.
 func DeleteAll() error {
 	return DeleteAllFrom("/skippertest")
 }
 
+// Deletes the 'routes' directory with the specified prefix.
 func DeleteAllFrom(prefix string) error {
 	req, err := http.NewRequest("DELETE", Urls[0]+"/v2/keys"+prefix+"/routes?recursive=true", nil)
 	if err != nil {
@@ -118,10 +120,12 @@ func DeleteAllFrom(prefix string) error {
 	return err
 }
 
+// Deletes a route from etcd with the prefix '/skippertest'.
 func DeleteData(key string) error {
 	return DeleteDataFrom("/skippertest", key)
 }
 
+// Deletes a route from etcd with the specified prefix.
 func DeleteDataFrom(prefix, key string) error {
 	req, err := http.NewRequest("DELETE",
 		Urls[0]+"/v2/keys"+prefix+"/routes/"+key,
@@ -138,10 +142,12 @@ func DeleteDataFrom(prefix, key string) error {
 	return nil
 }
 
+// Saves a route in etcd with the prefix '/skippertest'.
 func PutData(key, data string) error {
 	return PutDataTo("/skippertest", key, data)
 }
 
+// Saves a route in etcd with the specified prefix.
 func PutDataTo(prefix, key, data string) error {
 	v := make(url.Values)
 	v.Add("value", data)
@@ -161,10 +167,14 @@ func PutDataTo(prefix, key, data string) error {
 	return nil
 }
 
+// Deletes all routes in etcd and creates a test route under
+// the prefix '/skippertest'.
 func ResetData() error {
 	return ResetDataIn("/skippertest")
 }
 
+// Deletes all routes in etcd and creates a test route under
+// the specified prefix.
 func ResetDataIn(prefix string) error {
 	const testRoute = `
 		PathRegexp(".*\\.html") ->
@@ -180,10 +190,12 @@ func ResetDataIn(prefix string) error {
 	return PutDataTo(prefix, "pdp", testRoute)
 }
 
+// Loads an etcd route node from the prefix '/skippertest'.
 func GetNode(key string) (string, error) {
 	return GetNodeFrom("/skippertest", key)
 }
 
+// Loads an etcd route node from the specified prefix.
 func GetNodeFrom(prefix, key string) (string, error) {
 	rsp, err := http.Get(Urls[0] + "/v2/keys" + prefix + "/routes/" + key)
 	if err != nil {
