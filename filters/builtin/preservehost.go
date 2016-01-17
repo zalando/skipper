@@ -16,17 +16,17 @@ package builtin
 
 import "github.com/zalando/skipper/filters"
 
-type preserveHost string
+type impl string
 
 // Returns a filter specification that is used to set the 'Host' header
 // of the proxy request to the one specified by the incoming request.
-func PreserveHost() filters.Spec { return preserveHost("preserveHost") }
+func PreserveHost() filters.Spec { return impl("preserveHost") }
 
-func (s preserveHost) Name() string                                         { return string(s) }
-func (s preserveHost) CreateFilter(_ []interface{}) (filters.Filter, error) { return s, nil }
-func (s preserveHost) Response(_ filters.FilterContext)                     {}
+func (s impl) Name() string                                         { return string(s) }
+func (s impl) CreateFilter(_ []interface{}) (filters.Filter, error) { return s, nil }
+func (s impl) Response(_ filters.FilterContext)                     {}
 
-func (s preserveHost) Request(ctx filters.FilterContext) {
+func (s impl) Request(ctx filters.FilterContext) {
 	rhost := ctx.Request().Host
 	if rhost != "" {
 		ctx.Request().Header.Set("Host", rhost)
