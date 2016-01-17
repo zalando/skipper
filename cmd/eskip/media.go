@@ -19,23 +19,35 @@ import (
 	"net/url"
 )
 
-type mediaType int
+type (
+	mediaType          int
+	validateSelectFunc func(media []*medium) (in, out *medium, err error)
+)
 
 const (
 	none mediaType = iota
 	stdin
 	file
 	etcd
+	innkeeper
 	inline
 	inlineIds
 )
 
+var commandToValidations = map[command]validateSelectFunc{
+	check:  validateSelectRead,
+	print:  validateSelectRead,
+	upsert: validateSelectWrite,
+	reset:  validateSelectWrite,
+	delete: validateSelectDelete}
+
 type medium struct {
-	typ   mediaType
-	urls  []*url.URL
-	path  string
-	eskip string
-	ids   []string
+	typ        mediaType
+	urls       []*url.URL
+	path       string
+	eskip      string
+	ids        []string
+	oauthToken string
 }
 
 var (
@@ -45,7 +57,7 @@ var (
 )
 
 // validate medium from args, and check if it can be used
-// as input. Select default etcd, if no medium specified.
+// as input.
 // (check and print)
 func validateSelectRead(media []*medium) (input, _ *medium, err error) {
 	if len(media) > 1 {
@@ -65,9 +77,7 @@ func validateSelectRead(media []*medium) (input, _ *medium, err error) {
 }
 
 // validate media from args, and check if input was specified.
-// Select default etcd if no output etcd was specified.
-// (upsert, reset, delete)
-func validateSelectWrite(cmd command, media []*medium) (input, output *medium, err error) {
+func validateSelectWrite(media []*medium) (input, output *medium, err error) {
 	if len(media) == 0 {
 		return nil, nil, missingInput
 	}
@@ -78,11 +88,11 @@ func validateSelectWrite(cmd command, media []*medium) (input, output *medium, e
 
 	var in, out *medium
 	for _, m := range media {
-		if m.typ == inlineIds && cmd != delete {
+		if m.typ == inlineIds {
 			return nil, nil, invalidInputType
 		}
 
-		if m.typ == etcd {
+		if m.typ == etcd || m.typ == innkeeper {
 			out = m
 		} else {
 			in = m
@@ -93,25 +103,36 @@ func validateSelectWrite(cmd command, media []*medium) (input, output *medium, e
 		return nil, nil, missingInput
 	}
 
-	if out == nil {
-		var err error
-		out, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
-		if err != nil {
-			return nil, nil, err
+	return in, out, nil
+}
+
+func validateSelectDelete(media []*medium) (in, out *medium, err error) {
+	if len(media) == 0 {
+		return nil, nil, nil
+	}
+
+	if len(media) > 2 {
+		return nil, nil, tooManyInputs
+	}
+
+	for _, m := range media {
+
+		if m.typ == etcd || m.typ == innkeeper {
+			out = m
+		} else {
+			in = m
 		}
+	}
+
+	if in == nil {
+		return nil, nil, missingInput
 	}
 
 	return in, out, nil
 }
 
-// Validate media from args for the current command, and select input and/or output.
+// Validates media from args for the current command, and selects input and/or output.
 func validateSelectMedia(cmd command, media []*medium) (input, output *medium, err error) {
-	switch cmd {
-	case check, print:
-		return validateSelectRead(media)
-	case upsert, reset, delete:
-		return validateSelectWrite(cmd, media)
-	default:
-		return nil, nil, invalidCommand
-	}
+	// cmd should be present and valid
+	return commandToValidations[cmd](media)
 }

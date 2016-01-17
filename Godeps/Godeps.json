@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/zalando/skipper",
-	"GoVersion": "go1.5.1",
+	"GoVersion": "go1.5",
 	"Deps": [
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",

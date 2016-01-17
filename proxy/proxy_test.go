@@ -403,6 +403,79 @@ func TestAppliesFilters(t *testing.T) {
 	}
 }
 
+type breaker struct {
+	resp *http.Response
+}
+
+func (b *breaker) Request(c filters.FilterContext)                       { c.Serve(b.resp) }
+func (_ *breaker) Response(filters.FilterContext)                        {}
+func (b *breaker) CreateFilter(fc []interface{}) (filters.Filter, error) { return b, nil }
+func (_ *breaker) Name() string                                          { return "breaker" }
+
+func TestBreakFilterChain(t *testing.T) {
+	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {
+		t.Error("This should never be called")
+	})
+	defer s.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewRequestHeader())
+	resp1 := &http.Response{
+		Header:     make(http.Header),
+		Body:       ioutil.NopCloser(new(bytes.Buffer)),
+		StatusCode: http.StatusUnauthorized,
+		Status:     "Impossible body",
+	}
+	fr.Register(&breaker{resp1})
+	fr.Register(builtin.NewResponseHeader())
+
+	doc := fmt.Sprintf(`breakerDemo:
+		Path("/breaker") ->
+		requestHeader("X-Expected", "request header") ->
+		responseHeader("X-Expected", "response header") ->
+		breaker() ->
+		requestHeader("X-Unexpected", "foo") ->
+		responseHeader("X-Unexpected", "bar") ->
+		"%s"`, s.URL)
+	dc, err := testdataclient.NewDoc(doc)
+	if err != nil {
+		t.Error(err)
+	}
+
+	p := New(routing.New(routing.Options{
+		fr,
+		routing.MatchingOptionsNone,
+		sourcePollTimeout,
+		[]routing.DataClient{dc},
+		0}), OptionsNone)
+
+	delay()
+
+	r, _ := http.NewRequest("GET", "https://www.example.org/breaker", nil)
+	w := httptest.NewRecorder()
+	p.ServeHTTP(w, r)
+
+	if _, has := r.Header["X-Expected"]; !has {
+		t.Error("Request is missing the expected header (added during filter chain winding)")
+	}
+
+	if _, has := w.Header()["X-Expected"]; !has {
+		t.Error("Response is missing the expected header (added during filter chain unwinding)")
+	}
+
+	if _, has := r.Header["X-Unexpected"]; has {
+		t.Error("Request has an unexpected header from a filter after the breaker in the chain")
+	}
+
+	if _, has := w.Header()["X-Unexpected"]; has {
+		t.Error("Response has an unexpected header from a filter after the breaker in the chain")
+	}
+
+	if w.Code != http.StatusUnauthorized && w.Body.String() != "Impossible body" {
+		t.Errorf("Wrong status code/body. Expected 401 - Impossible body but got %d - %s", w.Code, w.Body.String())
+	}
+}
+
 func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{

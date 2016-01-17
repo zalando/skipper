@@ -19,6 +19,8 @@ package eskip
 import (
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/filters/flowid"
+	"regexp"
 	"strings"
 )
 
@@ -94,6 +96,19 @@ type Route struct {
 	// The address of a backend for a parsed route.
 	// E.g. "https://www.example.org"
 	Backend string
+}
+
+type RoutePredicate func(*Route) bool
+
+// RouteInfo contains a route id, plus the loaded and parsed route or
+// the parse error in case of failure.
+type RouteInfo struct {
+
+	// The route id plus the route data or if parsing was successful.
+	Route
+
+	// The parsing error if the parsing failed.
+	ParseError error
 }
 
 // Returns the first parameter of a matcher with the given name.
@@ -242,4 +257,27 @@ func ParseFilters(f string) ([]*Filter, error) {
 	}
 
 	return rs[0].filters, nil
+}
+
+const randomIdLength = 16
+
+var routeIdRx = regexp.MustCompile("\\W")
+
+// generate weak random id for a route if
+// it doesn't have one.
+func GenerateIfNeeded(existingId string) string {
+	if existingId != "" {
+		return existingId
+	}
+
+	// using this to avoid adding a new dependency.
+	id, err := flowid.NewFlowId(randomIdLength)
+	if err != nil {
+		return existingId
+	}
+
+	// replace characters that are not allowed
+	// for eskip route ids.
+	id = routeIdRx.ReplaceAllString(id, "x")
+	return "route" + id
 }
