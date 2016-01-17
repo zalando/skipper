@@ -165,7 +165,12 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	}
 
 	if len(o.EtcdUrls) > 0 {
-		clients = append(clients, etcd.New(o.EtcdUrls, o.EtcdPrefix))
+		etcdClient, err := etcd.New(o.EtcdUrls, o.EtcdPrefix)
+		if err != nil {
+			return nil, err
+		}
+
+		clients = append(clients, etcdClient)
 	}
 
 	return clients, nil

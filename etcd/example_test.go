@@ -19,11 +19,15 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
+	"log"
 )
 
 func Example() {
 	// create etcd data client:
-	dataClient := etcd.New([]string{"https://etcd.example.org"}, "/skipper")
+	dataClient, err := etcd.New([]string{"https://etcd.example.org"}, "/skipper")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// create http.Handler:
 	proxy.New(

@@ -24,8 +24,7 @@ func createWriteClient(out *medium) (writeClient, error) {
 	case innkeeper:
 		return createInnkeeperClient(out)
 	case etcd:
-		client := etcdclient.New(urlsToStrings(out.urls), out.path)
-		return client, nil
+		return etcdclient.New(urlsToStrings(out.urls), out.path)
 	}
 	return nil, invalidOutput
 }
