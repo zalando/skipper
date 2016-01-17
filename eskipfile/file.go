@@ -45,6 +45,13 @@ func Open(path string) (*Client, error) {
 	return &Client{routes}, nil
 }
 
+func (c Client) LoadAndParseAll() (routeInfos []*eskip.RouteInfo, err error) {
+	for _, route := range c.routes {
+		routeInfos = append(routeInfos, &eskip.RouteInfo{*route, nil})
+	}
+	return
+}
+
 // Returns the parsed route definitions found in the file.
 func (c Client) LoadAll() ([]*eskip.Route, error) { return c.routes, nil }
 

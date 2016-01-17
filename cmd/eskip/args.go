@@ -26,11 +26,14 @@ import (
 const (
 	etcdUrlsFlag     = "etcd-urls"
 	etcdPrefixFlag   = "etcd-prefix"
+	innkeeperUrlFlag = "innkeeper-url"
+	oauthTokenFlag   = "oauth-token"
 	inlineRoutesFlag = "routes"
 	inlineIdsFlag    = "ids"
 
-	defaultEtcdUrls   = "http://127.0.0.1:2379,http://127.0.0.1:4001"
-	defaultEtcdPrefix = "/skipper"
+	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
+	defaultEtcdPrefix   = "/skipper"
+	defaultInnkeeperUrl = "http://127.0.0.1:8080"
 )
 
 // used to prevent flag.FlagSet of printing errors in the wrong place
@@ -40,12 +43,17 @@ func (w *noopWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-var invalidNumberOfArgs = errors.New("invalid number of args")
+var (
+	invalidNumberOfArgs = errors.New("invalid number of args")
+	missingOAuthToken   = errors.New("missing OAuth token")
+)
 
 // parsing vars for flags:
 var (
 	etcdUrls       string
 	etcdPrefix     string
+	innkeeperUrl   string
+	oauthToken     string
 	inlineRoutes   string
 	inlineRouteIds string
 )
@@ -66,6 +74,9 @@ func initFlags() {
 	flags.StringVar(&etcdUrls, etcdUrlsFlag, "", etcdUrlsUsage)
 	flags.StringVar(&etcdPrefix, etcdPrefixFlag, "", etcdPrefixUsage)
 
+	flags.StringVar(&innkeeperUrl, innkeeperUrlFlag, "", etcdPrefixUsage)
+	flags.StringVar(&oauthToken, oauthTokenFlag, "", oauthTokenUsage)
+
 	flags.StringVar(&inlineRoutes, inlineRoutesFlag, "", inlineRoutesUsage)
 	flags.StringVar(&inlineRouteIds, inlineIdsFlag, "", inlineIdsUsage)
 }
@@ -83,7 +94,7 @@ func urlsToStrings(urls []*url.URL) []string {
 	return surls
 }
 
-func stringsToUrls(strs []string) ([]*url.URL, error) {
+func stringsToUrls(strs ...string) ([]*url.URL, error) {
 	urls := make([]*url.URL, len(strs))
 	for i, su := range strs {
 		u, err := url.Parse(su)
@@ -113,7 +124,7 @@ func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
 	}
 
 	surls := strings.Split(etcdUrls, ",")
-	urls, err := stringsToUrls(surls)
+	urls, err := stringsToUrls(surls...)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +133,30 @@ func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
 		typ:  etcd,
 		urls: urls,
 		path: etcdPrefix}, nil
+}
+
+func processInnkeeperArgs(innkeeperUrl, oauthToken string) (*medium, error) {
+	if innkeeperUrl == "" && oauthToken == "" {
+		return nil, nil
+	}
+
+	if oauthToken == "" {
+		return nil, missingOAuthToken
+	}
+
+	if innkeeperUrl == "" {
+		innkeeperUrl = defaultInnkeeperUrl
+	}
+
+	urls, err := stringsToUrls(innkeeperUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	return &medium{
+		typ:        innkeeper,
+		urls:       urls,
+		oauthToken: oauthToken}, nil
 }
 
 // returns file type medium if a positional parameter is defined.
@@ -161,6 +196,16 @@ func processArgs() ([]*medium, error) {
 	}
 
 	var media []*medium
+
+	innkeeperArg, err := processInnkeeperArgs(innkeeperUrl, oauthToken)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if innkeeperArg != nil {
+		media = append(media, innkeeperArg)
+	}
 
 	etcdArg, err := processEtcdArgs(etcdUrls, etcdPrefix)
 	if err != nil {
