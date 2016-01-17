@@ -95,6 +95,20 @@ from the external data sources, and are tested against the requests
 before the general routing tree.
 
 
+Handling the 'Host' header
+
+The default behavior regarding the 'Host' header of the proxy requests
+is that the proxy ignores the value set in the incoming request. This
+can be changed individually for each route in one of the following ways:
+
+1. using the `preserveHost` filter, that sets the proxy request's 'Host'
+header to the value found in the incoming request object.
+
+2. using the `requestHeader` or a custom filter to set the 'Host' header
+to any arbitrary value. In this case, the header needs to be set in the
+http.Request.Header field and not in the http.Request.Host field.
+
+
 Example
 
 The below example demonstrates creating a routing proxy as a standard
