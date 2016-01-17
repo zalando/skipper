@@ -20,7 +20,7 @@ type impl string
 
 // Returns a filter specification that is used to set the 'Host' header
 // of the proxy request to the one specified by the incoming request.
-func PreserveHost() filters.Spec { return impl("preserveHost") }
+func PreserveHost() filters.Spec { return impl(PreserveHostName) }
 
 func (s impl) Name() string                                         { return string(s) }
 func (s impl) CreateFilter(_ []interface{}) (filters.Filter, error) { return s, nil }
