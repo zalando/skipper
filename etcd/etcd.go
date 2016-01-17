@@ -37,16 +37,19 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
 	routesPath      = "/routes"
 	etcdIndexHeader = "X-Etcd-Index"
+	defaultTimeout  = time.Second
 )
 
 type node struct {
@@ -76,17 +79,28 @@ func (ee *endpointErrors) Error() string {
 	return strings.Join(es, ";")
 }
 
+func (ee *endpointErrors) String() string {
+	return ee.Error()
+}
+
+type Options struct {
+	Endpoints []string
+	Prefix    string
+	Timeout   time.Duration
+}
+
 // A Client is used to load the whole set of routes and the updates from an
 // etcd store.
 type Client struct {
+	endpoints  []string
 	routesRoot string
-	addresses  []string
+	timeout    time.Duration
 	client     *http.Client
 	etcdIndex  uint64
 }
 
 var (
-	missingEtcdAddress     = errors.New("missing etcd address")
+	missingEtcdEndpoint    = errors.New("missing etcd endpoint")
 	missingRouteId         = errors.New("missing route id")
 	unexpectedHttpResponse = errors.New("unexpected http response")
 	notFound               = errors.New("not found")
@@ -97,15 +111,20 @@ var (
 // The prefix argument specifies the etcd node under which the skipper
 // routes are stored. E.g. if prefix is '/skipper-dev', the route
 // definitions should be stored under /v2/keys/skipper-dev/routes/...
-func New(addresses []string, prefix string) (*Client, error) {
-	if len(addresses) == 0 {
-		return nil, missingEtcdAddress
+func New(o Options) (*Client, error) {
+	if len(o.Endpoints) == 0 {
+		return nil, missingEtcdEndpoint
+	}
+
+	if o.Timeout == 0 {
+		o.Timeout = defaultTimeout
 	}
 
 	return &Client{
-		routesRoot: prefix + routesPath,
-		addresses:  addresses,
-		client:     &http.Client{},
+		endpoints:  o.Endpoints,
+		routesRoot: o.Prefix + routesPath,
+		timeout:    o.Timeout,
+		client:     &http.Client{Timeout: o.Timeout},
 		etcdIndex:  0}, nil
 }
 
@@ -113,16 +132,16 @@ type makeRequest func(string) (*http.Request, error)
 
 func (c *Client) tryEndpoints(mreq makeRequest) (*http.Response, error) {
 	var (
-		addresses    []string
+		endpoints    []string
 		req          *http.Request
 		rsp          *http.Response
 		err          error
 		endpointErrs []error
 	)
 
-	addresses = c.addresses
-	for len(addresses) > 0 {
-		req, err = mreq(addresses[0] + "/v2/keys")
+	endpoints = c.endpoints
+	for len(endpoints) > 0 {
+		req, err = mreq(endpoints[0] + "/v2/keys")
 		if err != nil {
 			return nil, err
 		}
@@ -133,13 +152,13 @@ func (c *Client) tryEndpoints(mreq makeRequest) (*http.Response, error) {
 		}
 
 		endpointErrs = append(endpointErrs, err)
-		addresses = addresses[1:]
+		endpoints = endpoints[1:]
 	}
 
-	rotate := len(c.addresses) - len(addresses)
-	c.addresses = append(c.addresses[rotate:], c.addresses[:rotate]...)
+	rotate := len(c.endpoints) - len(endpoints)
+	c.endpoints = append(c.endpoints[rotate:], c.endpoints[:rotate]...)
 
-	if len(addresses) == 0 {
+	if len(endpoints) == 0 {
 		err = &endpointErrors{endpointErrs}
 	}
 
@@ -293,18 +312,6 @@ func parseRoutes(data map[string]string) []*eskip.RouteInfo {
 	return allInfo
 }
 
-// Collects all the ids from a set of routes.
-func getRouteIds(data map[string]string) []string {
-	ids := make([]string, len(data))
-	index := 0
-	for id, _ := range data {
-		ids[index] = id
-		index++
-	}
-
-	return ids
-}
-
 // Converts route info to route objects logging those whose
 // parsing failed.
 func infoToRoutesLogged(info []*eskip.RouteInfo) []*eskip.Route {
@@ -357,25 +364,44 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 // It uses etcd's watch functionality that results in blocking this call
 // until the next change is detected in etcd.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
-	response, err := c.etcdWatch()
-	if err != nil {
-		return nil, nil, err
+	um := make(map[string]string)
+	dm := make(map[string]bool)
+
+	for {
+		response, err := c.etcdWatch()
+
+		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+			break
+		}
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		data, etcdIndex := c.iterateDefs(response.Node, c.etcdIndex)
+		if response.Action == "delete" {
+			for id, _ := range data {
+				dm[id] = true
+				delete(um, id)
+			}
+		} else {
+			for id, rs := range data {
+				um[id] = rs
+				dm[id] = false
+			}
+		}
+
+		c.etcdIndex = etcdIndex
 	}
 
-	// this is going to be the tricky part
-	data, etcdIndex := c.iterateDefs(response.Node, c.etcdIndex)
-	c.etcdIndex = etcdIndex
+	routeInfo := parseRoutes(um)
+	routes := infoToRoutesLogged(routeInfo)
 
-	var (
-		routes     []*eskip.Route
-		deletedIds []string
-	)
-
-	if response.Action == "delete" {
-		deletedIds = getRouteIds(data)
-	} else {
-		routeInfo := parseRoutes(data)
-		routes = infoToRoutesLogged(routeInfo)
+	deletedIds := make([]string, 0, len(dm))
+	for id, deleted := range dm {
+		if deleted {
+			deletedIds = append(deletedIds, id)
+		}
 	}
 
 	return routes, deletedIds, nil

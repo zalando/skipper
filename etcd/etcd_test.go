@@ -131,7 +131,7 @@ func resetData(t *testing.T) {
 func TestReceivesInitial(t *testing.T) {
 	resetData(t)
 
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -151,7 +151,7 @@ func TestReceivesInitial(t *testing.T) {
 func TestReceivesUpdates(t *testing.T) {
 	resetData(t)
 
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -182,7 +182,7 @@ func TestReceivesUpdates(t *testing.T) {
 func TestReceiveInsert(t *testing.T) {
 	resetData(t)
 
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -216,7 +216,7 @@ func TestReceiveInsert(t *testing.T) {
 func TestReceiveDelete(t *testing.T) {
 	resetData(t)
 
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -242,7 +242,7 @@ func TestReceiveDelete(t *testing.T) {
 }
 
 func TestUpsertNoId(t *testing.T) {
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -256,7 +256,7 @@ func TestUpsertNoId(t *testing.T) {
 
 func TestUpsertNew(t *testing.T) {
 	deleteData()
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -278,7 +278,7 @@ func TestUpsertNew(t *testing.T) {
 
 func TestUpsertExisting(t *testing.T) {
 	deleteData()
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -307,7 +307,7 @@ func TestUpsertExisting(t *testing.T) {
 }
 
 func TestDeleteNoId(t *testing.T) {
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -321,7 +321,7 @@ func TestDeleteNoId(t *testing.T) {
 
 func TestDeleteNotExists(t *testing.T) {
 	deleteData()
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -348,7 +348,7 @@ func TestDeleteNotExists(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	deleteData()
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
@@ -387,7 +387,7 @@ func TestLoadWithParseFailures(t *testing.T) {
 		t.Error(err)
 	}
 
-	c, err := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
 		return
