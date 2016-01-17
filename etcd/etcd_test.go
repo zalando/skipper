@@ -18,6 +18,8 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -100,6 +102,36 @@ func checkDeleted(ids []string, routeId string) bool {
 	}
 
 	return false
+}
+
+func TestReceivesError(t *testing.T) {
+	c, err := New(Options{Endpoints: []string{"invalid url"}, Prefix: "/skippertest-invalid"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = c.LoadAll()
+	if err == nil {
+		t.Error("failed to fail")
+	}
+}
+
+func TestValidatesDocument(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"value": "different json"}`))
+	}))
+
+	c, err := New(Options{Endpoints: []string{s.URL}, Prefix: "/skippertest-invalid"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = c.LoadAll()
+	if err != invalidResponseDocument {
+		t.Error("failed to fail")
+	}
 }
 
 func TestReceivesInitial(t *testing.T) {
