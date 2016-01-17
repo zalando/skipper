@@ -29,39 +29,186 @@ methods to Upsert and Delete routes.
 package etcd
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/eskip"
+	"io"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 	"path"
+	"strconv"
 )
 
-const routesPath = "/routes"
+const (
+	routesPath      = "/routes"
+	etcdIndexHeader = "X-Etcd-Index"
+)
+
+type node struct {
+	Key           string  `json:"key"`
+	Value         string  `json:"value"`
+	ModifiedIndex uint64  `json:"modifiedIndex"`
+	Nodes         []*node `json:"nodes"`
+}
+
+type response struct {
+	etcdIndex uint64
+	Action    string `json:"action"`
+	Node      *node  `json:"node"`
+}
 
 // A Client is used to load the whole set of routes and the updates from an
 // etcd store.
 type Client struct {
 	routesRoot string
-	etcd       *etcd.Client
+	addresses  []string
+	client     *http.Client
 	etcdIndex  uint64
 }
 
-var missingRouteId = errors.New("missing route id")
+var (
+	missingEtcdAddress     = errors.New("missing etcd address")
+	missingRouteId         = errors.New("missing route id")
+	unexpectedHttpResponse = errors.New("unexpected http response")
+	notFound               = errors.New("not found")
+	missingEtcdIndex       = errors.New("missing etcd index")
+)
 
 // Creates a new Client, connecting to an etcd cluster reachable at 'urls'.
 // The prefix argument specifies the etcd node under which the skipper
 // routes are stored. E.g. if prefix is '/skipper-dev', the route
 // definitions should be stored under /v2/keys/skipper-dev/routes/...
-func New(urls []string, prefix string) *Client {
-	return &Client{prefix + routesPath, etcd.NewClient(urls), 0}
+func New(addresses []string, prefix string) (*Client, error) {
+	if len(addresses) == 0 {
+		return nil, missingEtcdAddress
+	}
+
+	return &Client{
+		routesRoot: prefix + routesPath,
+		addresses:  addresses,
+		client:     &http.Client{},
+		etcdIndex:  0}, nil
+}
+
+type makeRequest func(string) (*http.Request, error)
+
+func (c *Client) tryEndpoints(mreq makeRequest) (*http.Response, error) {
+	var (
+		addresses []string
+		req       *http.Request
+		rsp       *http.Response
+		err       error
+	)
+
+	addresses = c.addresses
+	for len(addresses) > 0 {
+		req, err = mreq(addresses[0] + "/v2/keys")
+		if err != nil {
+			return nil, err
+		}
+
+		rsp, err = c.client.Do(req)
+		if err == nil {
+			break
+		}
+
+		addresses = addresses[1:]
+	}
+
+	rotate := len(c.addresses) - len(addresses)
+	c.addresses = append(c.addresses[rotate:], c.addresses[:rotate]...)
+
+	return rsp, err
+}
+
+func parseResponse(rsp *http.Response) (*response, error) {
+	d, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &response{}
+	err = json.Unmarshal(d, &r)
+	if err != nil {
+		return nil, err
+	}
+
+	r.etcdIndex, err = strconv.ParseUint(rsp.Header.Get(etcdIndexHeader), 10, 64)
+	return r, err
+}
+
+func httpError(code int) (error, bool) {
+	if code == http.StatusNotFound {
+		return notFound, true
+	}
+
+	if code < http.StatusOK || code >= http.StatusMultipleChoices {
+		return unexpectedHttpResponse, true
+	}
+
+	return nil, false
+}
+
+func (c *Client) etcdRequest(method, path, data string) (*response, error) {
+	rsp, err := c.tryEndpoints(func(a string) (*http.Request, error) {
+		var body io.Reader
+		if data != "" {
+			v := make(url.Values)
+			v.Add("value", data)
+			body = bytes.NewBufferString(v.Encode())
+		}
+
+		r, err := http.NewRequest(method, a+path, body)
+		if err != nil {
+			return nil, err
+		}
+
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return r, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rsp.Body.Close()
+
+	if err, hasErr := httpError(rsp.StatusCode); hasErr {
+		return nil, err
+	}
+
+	return parseResponse(rsp)
+}
+
+func (c *Client) etcdGet() (*response, error) {
+	return c.etcdRequest("GET", c.routesRoot, "")
+}
+
+func (c *Client) etcdWatch() (*response, error) {
+	return c.etcdRequest("GET",
+		fmt.Sprintf("%s?wait=true&waitIndex=%d&recursive=true",
+			c.routesRoot, c.etcdIndex+1), "")
+}
+
+func (c *Client) etcdSet(r *eskip.Route) error {
+	_, err := c.etcdRequest("PUT", c.routesRoot+"/"+r.Id, r.String())
+	return err
+}
+
+func (c *Client) etcdDelete(id string) error {
+	_, err := c.etcdRequest("DELETE", c.routesRoot+"/"+id, "")
+	return err
 }
 
 // Finds all route expressions in the containing directory node.
 // Prepends the expressions with the etcd key as the route id.
 // Returns a map where the keys are the etcd keys and the values are the
 // eskip route definitions.
-func (c *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]string, uint64) {
+func (c *Client) iterateDefs(n *node, highestIndex uint64) (map[string]string, uint64) {
 	if n.ModifiedIndex > highestIndex {
 		highestIndex = n.ModifiedIndex
 	}
@@ -155,14 +302,18 @@ func infoToRoutesLogged(info []*eskip.RouteInfo) []*eskip.Route {
 // Returns all the route definitions currently stored in etcd,
 // or the parsing error in case of failure.
 func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
-	response, err := c.etcd.Get(c.routesRoot, false, true)
+	response, err := c.etcdGet()
+	if err == notFound {
+		return nil, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	data, etcdIndex := c.iterateDefs(response.Node, 0)
-	if response.EtcdIndex > etcdIndex {
-		etcdIndex = response.EtcdIndex
+	if response.etcdIndex > etcdIndex {
+		etcdIndex = response.etcdIndex
 	}
 
 	c.etcdIndex = etcdIndex
@@ -185,14 +336,15 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 // It uses etcd's watch functionality that results in blocking this call
 // until the next change is detected in etcd.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
-	response, err := c.etcd.Watch(c.routesRoot, c.etcdIndex+1, true, nil, nil)
+	response, err := c.etcdWatch()
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// this is going to be the tricky part
 	data, etcdIndex := c.iterateDefs(response.Node, c.etcdIndex)
-	if response.EtcdIndex > etcdIndex {
-		etcdIndex = response.EtcdIndex
+	if response.etcdIndex > etcdIndex {
+		etcdIndex = response.etcdIndex
 	}
 
 	c.etcdIndex = etcdIndex
@@ -218,8 +370,7 @@ func (c *Client) Upsert(r *eskip.Route) error {
 		return missingRouteId
 	}
 
-	_, err := c.etcd.Set(c.routesRoot+"/"+r.Id, r.String(), 0)
-	return err
+	return c.etcdSet(r)
 }
 
 // Deletes a route from etcd.
@@ -228,9 +379,9 @@ func (c *Client) Delete(id string) error {
 		return missingRouteId
 	}
 
-	response, err := c.etcd.RawDelete(c.routesRoot+"/"+id, false, false)
-	if response.StatusCode == http.StatusNotFound {
-		return nil
+	err := c.etcdDelete(id)
+	if err == notFound {
+		err = nil
 	}
 
 	return err
@@ -244,6 +395,7 @@ func (c *Client) UpsertAll(routes []*eskip.Route) error {
 			return err
 		}
 	}
+
 	return nil
 }
 

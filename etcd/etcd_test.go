@@ -85,6 +85,7 @@ func checkInitial(d []*eskip.Route) bool {
 func checkBackend(d []*eskip.Route, routeId, backend string) bool {
 	for _, r := range d {
 		if r.Id == routeId {
+			println(r.Backend, backend)
 			return r.Backend == backend
 		}
 	}
@@ -127,18 +128,15 @@ func resetData(t *testing.T) {
 	}
 }
 
-func TestReceivesError(t *testing.T) {
-	c := New(etcdtest.Urls, "/skippertest-invalid")
-	_, err := c.LoadAll()
-	if err == nil {
-		t.Error("failed to fail")
-	}
-}
-
 func TestReceivesInitial(t *testing.T) {
 	resetData(t)
 
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	rs, err := c.LoadAll()
 
 	if err != nil {
@@ -153,11 +151,16 @@ func TestReceivesInitial(t *testing.T) {
 func TestReceivesUpdates(t *testing.T) {
 	resetData(t)
 
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	c.LoadAll()
 
 	e := etcd.NewClient(etcdtest.Urls)
-	_, err := e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
+	_, err = e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -168,7 +171,7 @@ func TestReceivesUpdates(t *testing.T) {
 	}
 
 	if !checkBackend(rs, "pdp", "https://updated.example.org") {
-		t.Error("failed to receive the right backend")
+		t.Error("failed to receive the right backend", len(rs))
 	}
 
 	if len(ds) != 0 {
@@ -179,8 +182,13 @@ func TestReceivesUpdates(t *testing.T) {
 func TestReceiveInsert(t *testing.T) {
 	resetData(t)
 
-	c := New(etcdtest.Urls, "/skippertest")
-	_, err := c.LoadAll()
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = c.LoadAll()
 	if err != nil {
 		t.Error(err)
 	}
@@ -208,7 +216,12 @@ func TestReceiveInsert(t *testing.T) {
 func TestReceiveDelete(t *testing.T) {
 	resetData(t)
 
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	c.LoadAll()
 
 	e := etcd.NewClient(etcdtest.Urls)
@@ -229,8 +242,13 @@ func TestReceiveDelete(t *testing.T) {
 }
 
 func TestUpsertNoId(t *testing.T) {
-	c := New(etcdtest.Urls, "/skippertest")
-	err := c.Upsert(&eskip.Route{})
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = c.Upsert(&eskip.Route{})
 	if err != missingRouteId {
 		t.Error("failed to fail")
 	}
@@ -238,9 +256,13 @@ func TestUpsertNoId(t *testing.T) {
 
 func TestUpsertNew(t *testing.T) {
 	deleteData()
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	err := c.Upsert(&eskip.Route{
+	err = c.Upsert(&eskip.Route{
 		Id:     "route1",
 		Method: "POST",
 		Shunt:  true})
@@ -250,15 +272,19 @@ func TestUpsertNew(t *testing.T) {
 
 	routes, err := c.LoadAll()
 	if len(routes) != 1 || routes[0].Id != "route1" {
-		t.Error("failed to upsert route")
+		t.Error("failed to upsert route", len(routes))
 	}
 }
 
 func TestUpsertExisting(t *testing.T) {
 	deleteData()
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	err := c.Upsert(&eskip.Route{
+	err = c.Upsert(&eskip.Route{
 		Id:     "route1",
 		Method: "POST",
 		Shunt:  true})
@@ -281,8 +307,13 @@ func TestUpsertExisting(t *testing.T) {
 }
 
 func TestDeleteNoId(t *testing.T) {
-	c := New(etcdtest.Urls, "/skippertest")
-	err := c.Delete("")
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = c.Delete("")
 	if err != missingRouteId {
 		t.Error("failed to fail")
 	}
@@ -290,9 +321,13 @@ func TestDeleteNoId(t *testing.T) {
 
 func TestDeleteNotExists(t *testing.T) {
 	deleteData()
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	err := c.Upsert(&eskip.Route{
+	err = c.Upsert(&eskip.Route{
 		Id:     "route1",
 		Method: "POST",
 		Shunt:  true})
@@ -313,9 +348,13 @@ func TestDeleteNotExists(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	deleteData()
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	err := c.Upsert(&eskip.Route{
+	err = c.Upsert(&eskip.Route{
 		Id:     "route1",
 		Method: "POST",
 		Shunt:  true})
@@ -348,7 +387,12 @@ func TestLoadWithParseFailures(t *testing.T) {
 		t.Error(err)
 	}
 
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(etcdtest.Urls, "/skippertest")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	routeInfo, err := c.LoadAndParseAll()
 	if err != nil {
 		t.Error(err)
