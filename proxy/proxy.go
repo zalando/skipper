@@ -161,8 +161,8 @@ func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 	// Reference:
 	// http://httpd.apache.org/docs/2.2/mod/mod_proxy.html#proxypreservehost
 	//
-	// Either below solutoin, or just setting `rr.Host = r.Host`, both are
-	// rational. The choice here is the same default as the referenced landmark
+	// Either the below solution, or just setting `rr.Host = r.Host`, both make
+	// sense. The choice here is the same default as the referenced landmark
 	// project, while allowing the preserveHost option by using the `preserveHost`
 	// filter, independently for each route.
 	//
