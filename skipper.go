@@ -52,6 +52,8 @@ type Options struct {
 	// Path prefix for skipper related data in the etcd storage.
 	EtcdPrefix string
 
+	EtcdTimeout time.Duration
+
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -165,7 +167,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	}
 
 	if len(o.EtcdUrls) > 0 {
-		etcdClient, err := etcd.New(o.EtcdUrls, o.EtcdPrefix)
+		etcdClient, err := etcd.New(etcd.Options{o.EtcdUrls, o.EtcdPrefix, o.EtcdTimeout})
 		if err != nil {
 			return nil, err
 		}
