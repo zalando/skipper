@@ -19,11 +19,14 @@ instance for testing purpose.
 package etcdtest
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/coreos/etcd/etcdmain"
-	"github.com/coreos/go-etcd/etcd"
+	"io/ioutil"
 	"math/rand"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -77,9 +80,7 @@ func Start() error {
 	wait := make(chan int)
 	go func() {
 		for {
-			c := etcd.NewClient(Urls)
-			_, err := c.Get("/", false, false)
-
+			_, err := http.Get(Urls[0] + "/v2/keys")
 			if err == nil {
 
 				// revert the args for the rest of the tests:
@@ -100,4 +101,101 @@ func Start() error {
 	case <-time.After(6 * time.Second):
 		return errors.New("etcd timeout")
 	}
+}
+
+func DeleteAll() error {
+	return DeleteAllFrom("/skippertest")
+}
+
+func DeleteAllFrom(prefix string) error {
+	req, err := http.NewRequest("DELETE", Urls[0]+"/v2/keys"+prefix+"/routes?recursive=true", nil)
+	if err != nil {
+		return err
+	}
+
+	rsp, err := (&http.Client{}).Do(req)
+	defer rsp.Body.Close()
+	return err
+}
+
+func DeleteData(key string) error {
+	return DeleteDataFrom("/skippertest", key)
+}
+
+func DeleteDataFrom(prefix, key string) error {
+	req, err := http.NewRequest("DELETE",
+		Urls[0]+"/v2/keys"+prefix+"/routes/"+key,
+		nil)
+	if err != nil {
+		return err
+	}
+	rsp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer rsp.Body.Close()
+	return nil
+}
+
+func PutData(key, data string) error {
+	return PutDataTo("/skippertest", key, data)
+}
+
+func PutDataTo(prefix, key, data string) error {
+	v := make(url.Values)
+	v.Add("value", data)
+	req, err := http.NewRequest("PUT",
+		Urls[0]+"/v2/keys/skippertest/routes/"+key,
+		bytes.NewBufferString(v.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rsp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer rsp.Body.Close()
+	return nil
+}
+
+func ResetData() error {
+	return ResetDataIn("/skippertest")
+}
+
+func ResetDataIn(prefix string) error {
+	const testRoute = `
+		PathRegexp(".*\\.html") ->
+		customHeader(3.14) ->
+		xSessionId("s4") ->
+		"https://www.example.org"
+	`
+
+	if err := DeleteAllFrom(prefix); err != nil {
+		return err
+	}
+
+	return PutDataTo(prefix, "pdp", testRoute)
+}
+
+func GetNode(key string) (string, error) {
+	return GetNodeFrom("/skippertest", key)
+}
+
+func GetNodeFrom(prefix, key string) (string, error) {
+	rsp, err := http.Get(Urls[0] + "/v2/keys" + prefix + "/routes/" + key)
+	if err != nil {
+		return "", err
+	}
+
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode < http.StatusOK || rsp.StatusCode >= http.StatusMultipleChoices {
+		return "", errors.New("unexpected response status")
+	}
+
+	b, err := ioutil.ReadAll(rsp.Body)
+	return string(b), err
 }

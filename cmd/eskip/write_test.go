@@ -15,7 +15,6 @@
 package main
 
 import (
-	etcdclient "github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
 	"net/url"
@@ -47,7 +46,7 @@ func TestUpsertLoadFail(t *testing.T) {
 }
 
 func TestUpsertGeneratesId(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdPrefix)
+	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
@@ -71,7 +70,7 @@ func TestUpsertGeneratesId(t *testing.T) {
 }
 
 func TestUpsertUsesId(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdPrefix)
+	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
@@ -108,7 +107,7 @@ func TestResetLoadFail(t *testing.T) {
 }
 
 func TestResetLoadExistingFails(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdPrefix)
+	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route2: Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
@@ -116,8 +115,7 @@ func TestResetLoadExistingFails(t *testing.T) {
 	readOutClient, _ := createReadClient(out)
 	readClient, _ := createReadClient(in)
 
-	c := etcdclient.NewClient(etcdtest.Urls)
-	_, err := c.Set(defaultEtcdPrefix+"/routes/route1", "invalid doc", 0)
+	err := etcdtest.PutDataTo(defaultEtcdPrefix, "route1", "invalid doc")
 	if err != nil {
 		t.Error(err)
 	}
@@ -127,19 +125,19 @@ func TestResetLoadExistingFails(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = c.Get(defaultEtcdPrefix+"/routes/route1", false, false)
+	_, err = etcdtest.GetNodeFrom(defaultEtcdPrefix, "route1")
 	if err == nil {
 		t.Error(err)
 	}
 
-	_, err = c.Get(defaultEtcdPrefix+"/routes/route2", false, false)
+	_, err = etcdtest.GetNodeFrom(defaultEtcdPrefix, "route2")
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestReset(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdPrefix)
+	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route2: Method("PUT") -> <shunt>; route3: Method("HEAD") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
@@ -147,14 +145,12 @@ func TestReset(t *testing.T) {
 	readOutClient, _ := createReadClient(out)
 	readClient, _ := createReadClient(in)
 
-	c := etcdclient.NewClient(etcdtest.Urls)
-
-	_, err := c.Set(defaultEtcdPrefix+"/routes/route1", `Method("GET") -> <shunt>`, 0)
+	err := etcdtest.PutDataTo(defaultEtcdPrefix, "route1", `Method("GET") -> <shunt>`)
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = c.Set(defaultEtcdPrefix+"/routes/route2", `Method("POST") -> <shunt>`, 0)
+	err = etcdtest.PutDataTo(defaultEtcdPrefix, "route2", `Method("POST") -> <shunt>`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -212,7 +208,7 @@ func TestDeleteLoadFails(t *testing.T) {
 }
 
 func TestDeleteFromIds(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdPrefix)
+	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
@@ -242,7 +238,7 @@ func TestDeleteFromIds(t *testing.T) {
 }
 
 func TestDeleteFromRoutes(t *testing.T) {
-	deleteRoutesFrom(defaultEtcdPrefix)
+	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
