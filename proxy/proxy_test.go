@@ -439,6 +439,7 @@ func TestBreakFilterChain(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone)
 
 	delay()
