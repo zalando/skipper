@@ -48,7 +48,6 @@ type priorityRoute struct {
 type (
 	preserveOriginalSpec   struct{}
 	preserveOriginalFilter struct{}
-	hostHeaderFilter       string
 )
 
 func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
@@ -70,18 +69,6 @@ func (corf *preserveOriginalFilter) Request(ctx filters.FilterContext) {
 func (corf *preserveOriginalFilter) Response(ctx filters.FilterContext) {
 	preserveHeader(ctx.OriginalResponse().Header, ctx.Response().Header)
 }
-
-func (hh hostHeaderFilter) Name() string { return "host" }
-
-func (hh hostHeaderFilter) CreateFilter(args []interface{}) (filters.Filter, error) {
-	return hostHeaderFilter(args[0].(string)), nil
-}
-
-func (hh hostHeaderFilter) Request(ctx filters.FilterContext) {
-	ctx.Request().Header.Set("Host", string(hh))
-}
-
-func (hh hostHeaderFilter) Response(ctx filters.FilterContext) {}
 
 func (prt *priorityRoute) Match(r *http.Request) (*routing.Route, map[string]string) {
 	if prt.match(r) {
