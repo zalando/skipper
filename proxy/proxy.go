@@ -90,15 +90,16 @@ type proxy struct {
 }
 
 type filterContext struct {
-	w                http.ResponseWriter
-	req              *http.Request
-	res              *http.Response
-	served           bool
-	pathParams       map[string]string
-	stateBag         map[string]interface{}
-	originalRequest  *http.Request
-	originalResponse *http.Response
-	backendUrl       string
+	w                  http.ResponseWriter
+	req                *http.Request
+	res                *http.Response
+	served             bool
+	servedWithResponse bool // to support the deprecated way independently
+	pathParams         map[string]string
+	stateBag           map[string]interface{}
+	originalRequest    *http.Request
+	originalResponse   *http.Response
+	backendUrl         string
 }
 
 func (sb bodyBuffer) Close() error {
@@ -251,13 +252,11 @@ func (c *filterContext) Served() bool                        { return c.served }
 func (c *filterContext) PathParam(key string) string         { return c.pathParams[key] }
 func (c *filterContext) StateBag() map[string]interface{}    { return c.stateBag }
 func (c *filterContext) BackendUrl() string                  { return c.backendUrl }
-
-func (c *filterContext) OriginalRequest() *http.Request {
-	return c.originalRequest
-}
-
-func (c *filterContext) OriginalResponse() *http.Response {
-	return c.originalResponse
+func (c *filterContext) OriginalRequest() *http.Request      { return c.originalRequest }
+func (c *filterContext) OriginalResponse() *http.Response    { return c.originalResponse }
+func (c *filterContext) Serve(res *http.Response) {
+	c.servedWithResponse = true
+	c.res = res
 }
 
 // creates an empty shunt response with the initial status code of 404
@@ -270,13 +269,19 @@ func shunt(r *http.Request) *http.Response {
 }
 
 // applies all filters to a request
-func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx filters.FilterContext) {
+func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext) []*routing.RouteFilter {
 	var start time.Time
+	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start = time.Now()
 		callSafe(func() { fi.Request(ctx) })
 		metrics.MeasureFilterRequest(fi.Name, start)
+		filters = append(filters, fi)
+		if ctx.served || ctx.servedWithResponse {
+			break
+		}
 	}
+	return filters
 }
 
 // executes an http roundtrip to a route backend
@@ -289,21 +294,22 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, e
 	return p.roundTripper.RoundTrip(rr)
 }
 
-// applies all filters to a response in reverse order
-func (p *proxy) applyFiltersToResponse(f []*routing.RouteFilter, ctx filters.FilterContext) {
-	count := len(f)
+// applies filters to a response in reverse order
+func (p *proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext) {
+	count := len(filters)
 	var start time.Time
-	for i, _ := range f {
-		fi := f[count-1-i]
+	for i, _ := range filters {
+		fi := filters[count-1-i]
 		start = time.Now()
 		callSafe(func() { fi.Response(ctx) })
 		metrics.MeasureFilterResponse(fi.Name, start)
 	}
 }
 
-func addBranding(rs *http.Response) {
-	rs.Header.Set("X-Powered-By", "Skipper")
-	rs.Header.Set("Server", "Skipper")
+// addBranding overwrites any existing `X-Powered-By` or `Server` header from headerMap
+func addBranding(headerMap http.Header) {
+	headerMap.Set("X-Powered-By", "Skipper")
+	headerMap.Set("Server", "Skipper")
 }
 
 func (p *proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
@@ -317,67 +323,76 @@ func (p *proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[stri
 	return p.routing.Route(r)
 }
 
+// send a premature error response
+func sendError(w http.ResponseWriter, error string, code int) {
+	http.Error(w, error, code)
+	addBranding(w.Header())
+}
+
 // http.Handler implementation
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		sendError(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		log.Debugf("Could not find a route for %v", r.URL)
 		return
 	}
 	metrics.MeasureRouteLookup(start)
 
 	start = time.Now()
-	f := rt.Filters
+	routeFilters := rt.Filters
 	c := newFilterContext(w, r, params, p.preserveOriginal, rt)
-	p.applyFiltersToRequest(f, c)
+	processedFilters := p.applyFiltersToRequest(routeFilters, c)
 	metrics.MeasureAllFiltersRequest(rt.Id, start)
 
-	start = time.Now()
-	var (
-		rs  *http.Response
-		err error
-	)
-	if rt.Shunt {
-		rs = shunt(r)
-	} else {
-		rs, err = p.roundtrip(r, rt)
-		if err != nil {
-			http.Error(w,
-				http.StatusText(http.StatusInternalServerError),
-				http.StatusInternalServerError)
-			log.Error(err)
-			return
-		}
-
-		defer func() {
-			err = rs.Body.Close()
+	if !c.served && !c.servedWithResponse {
+		var (
+			rs  *http.Response
+			err error
+		)
+		start = time.Now()
+		if rt.Shunt {
+			rs = shunt(r)
+		} else {
+			rs, err = p.roundtrip(r, rt)
 			if err != nil {
+				sendError(w,
+					http.StatusText(http.StatusInternalServerError),
+					http.StatusInternalServerError)
 				log.Error(err)
+				return
 			}
-		}()
+
+			defer func() {
+				err = rs.Body.Close()
+				if err != nil {
+					log.Error(err)
+				}
+			}()
+		}
+		metrics.MeasureBackend(rt.Id, start)
+		c.res = rs
 	}
-	addBranding(rs)
-	metrics.MeasureBackend(rt.Id, start)
 
 	start = time.Now()
-	c.res = rs
-	if p.preserveOriginal {
-		c.originalResponse = cloneResponseMetadata(rs)
+	if !c.served && p.preserveOriginal {
+		c.originalResponse = cloneResponseMetadata(c.Response())
 	}
-
-	p.applyFiltersToResponse(f, c)
+	p.applyFiltersToResponse(processedFilters, c)
 	metrics.MeasureAllFiltersResponse(rt.Id, start)
 
-	if !c.Served() {
+	if !c.served {
+		response := c.Response()
 		start = time.Now()
-		copyHeader(w.Header(), rs.Header)
-		w.WriteHeader(rs.StatusCode)
-		err := copyStream(w.(flusherWriter), rs.Body)
+		addBranding(response.Header)
+		copyHeader(w.Header(), response.Header)
+		w.WriteHeader(response.StatusCode)
+		err := copyStream(w.(flusherWriter), response.Body)
 		if err != nil {
 			log.Error(err)
 		} else {
-			metrics.MeasureResponse(rs.StatusCode, r.Method, rt.Id, start)
+			metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
 		}
 	}
 }
