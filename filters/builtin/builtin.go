@@ -16,6 +16,7 @@ const (
 	RedirectName       = "redirect"
 	StaticName         = "static"
 	StripQueryName     = "stripQuery"
+	PreserveHostName   = "preserveHost"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -32,6 +33,7 @@ func MakeRegistry() filters.Registry {
 		NewRedirect(),
 		NewStripQuery(),
 		flowid.New(),
+		PreserveHost(),
 	} {
 		r.Register(s)
 	}

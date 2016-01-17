@@ -157,6 +157,19 @@ func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 	}
 
 	rr.Header = cloneHeader(r.Header)
+
+	// Reference:
+	// http://httpd.apache.org/docs/2.2/mod/mod_proxy.html#proxypreservehost
+	//
+	// Either below solutoin, or just setting `rr.Host = r.Host`, both are
+	// rational. The choice here is the same default as the referenced landmark
+	// project, while allowing the preserveHost option by using the `preserveHost`
+	// filter, independently for each route.
+	//
+	// The current solution relies on the duality in the Go stdlib handling of the
+	// Host header in server and client requests, and expects the filters to
+	// modify the Request.Header["Host"] value if they want to override the
+	// endpoint host. (http://localhost:8989/pkg/net/http/#Request)
 	headerHost := rr.Header.Get("Host")
 	if headerHost != "" {
 		rr.Host = headerHost
