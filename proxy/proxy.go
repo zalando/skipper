@@ -53,13 +53,14 @@ const (
 	// metadata of the request and the response.
 	OptionsPreserveOriginal
 
+	// Flag indicating whether the outgoing request to the backend
+	// should use by default the 'Host' header of the incoming request,
+	// or the host part of the backend address, in case filters don't
+	// set the 'Host' header.
 	OptionsProxyPreserveHost
 )
 
-func (o Options) Insecure() bool {
-	return o&OptionsInsecure != 0
-}
-
+func (o Options) Insecure() bool          { return o&OptionsInsecure != 0 }
 func (o Options) PreserveOriginal() bool  { return o&OptionsPreserveOriginal != 0 }
 func (o Options) ProxyPreserveHost() bool { return o&OptionsProxyPreserveHost != 0 }
 
@@ -84,11 +85,10 @@ type bodyBuffer struct {
 }
 
 type proxy struct {
-	routing           *routing.Routing
-	roundTripper      http.RoundTripper
-	priorityRoutes    []PriorityRoute
-	preserveOriginal  bool
-	proxyPreserveHost bool
+	routing        *routing.Routing
+	roundTripper   http.RoundTripper
+	priorityRoutes []PriorityRoute
+	options        Options
 }
 
 type filterContext struct {
@@ -160,19 +160,6 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	}
 
 	rr.Header = cloneHeader(r.Header)
-
-	// Reference:
-	// http://httpd.apache.org/docs/2.2/mod/mod_proxy.html#proxypreservehost
-	//
-	// Either the below solution, or just setting `rr.Host = r.Host`, both make
-	// sense. The choice here is the same default as the referenced landmark
-	// project, while allowing the preserveHost option by using the `preserveHost`
-	// filter, independently for each route.
-	//
-	// The current solution relies on the duality in the Go stdlib handling of the
-	// Host header in server and client requests, and expects the filters to
-	// modify the Request.Header["Host"] value if they want to override the
-	// endpoint host. (http://localhost:8989/pkg/net/http/#Request)
 	rr.Host = host
 
 	return rr, nil
@@ -189,7 +176,7 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler 
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{r, tr, pr, options.PreserveOriginal(), options.ProxyPreserveHost()}
+	return &proxy{r, tr, pr, options}
 }
 
 // calls a function with recovering from panics and logging them
@@ -216,25 +203,17 @@ func (p *proxy) newFilterContext(
 		stateBag:   make(map[string]interface{}),
 		backendUrl: route.Backend}
 
-	if p.preserveOriginal {
+	if p.options.PreserveOriginal() {
 		c.originalRequest = cloneRequestMetadata(r)
 	}
 
-	if p.proxyPreserveHost {
+	if p.options.ProxyPreserveHost() {
 		c.outgoingHost = r.Host
 	} else {
 		c.outgoingHost = route.Host
 	}
 
 	return c
-}
-
-func (c *filterContext) OutgoingHost() string {
-	return c.outgoingHost
-}
-
-func (c *filterContext) SetOutgoingHost(h string) {
-	c.outgoingHost = h
 }
 
 func cloneUrl(u *url.URL) *url.URL {
@@ -286,14 +265,11 @@ func (c *filterContext) StateBag() map[string]interface{}    { return c.stateBag
 func (c *filterContext) BackendUrl() string                  { return c.backendUrl }
 func (c *filterContext) OriginalRequest() *http.Request      { return c.originalRequest }
 func (c *filterContext) OriginalResponse() *http.Response    { return c.originalResponse }
-
+func (c *filterContext) OutgoingHost() string                { return c.outgoingHost }
+func (c *filterContext) SetOutgoingHost(h string)            { c.outgoingHost = h }
 func (c *filterContext) Serve(res *http.Response) {
 	c.servedWithResponse = true
 	c.res = res
-}
-
-func (c *filterContext) SetHost(h string) {
-	c.outgoingHost = h
 }
 
 // creates an empty shunt response with the initial status code of 404
@@ -392,7 +368,6 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if rt.Shunt {
 			rs = shunt(r)
 		} else {
-			println("roundtripping", c.outgoingHost)
 			rs, err = p.roundtrip(r, rt, c.outgoingHost)
 			if err != nil {
 				sendError(w,
@@ -414,7 +389,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start = time.Now()
-	if !c.served && p.preserveOriginal {
+	if !c.served && p.options.PreserveOriginal() {
 		c.originalResponse = cloneResponseMetadata(c.Response())
 	}
 	p.applyFiltersToResponse(processedFilters, c)

@@ -781,7 +781,6 @@ func TestHostHeader(t *testing.T) {
 		"www.example.org",
 		"custom.example.org",
 	}} {
-		println("starting test", ti.msg)
 		// replace the host in the route format
 		f := ti.routeFmt + `;healthcheck: Path("/healthcheck") -> "%s"`
 		route := fmt.Sprintf(f, backend.URL, backend.URL)
