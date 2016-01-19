@@ -56,7 +56,7 @@ const (
 	// Flag indicating whether the outgoing request to the backend
 	// should use by default the 'Host' header of the incoming request,
 	// or the host part of the backend address, in case filters don't
-	// set the 'Host' header.
+	// change it.
 	OptionsProxyPreserveHost
 )
 
