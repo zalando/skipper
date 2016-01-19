@@ -55,6 +55,10 @@ func headerFilterConfig(config []interface{}) (string, string, error) {
 // Returns a filter specification that is used to set headers for requests.
 // Instances expect two parameters: the header name and the header value.
 // Name: "requestHeader".
+//
+// If the header name is 'Host', the filter uses the `SetOutgoingHost()`
+// method to set the header in addition to the standard `Request.Header`
+// map.
 func NewRequestHeader() filters.Spec {
 	return &headerFilter{typ: requestHeader, name: RequestHeaderName}
 }
