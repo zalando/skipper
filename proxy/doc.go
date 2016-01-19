@@ -99,17 +99,23 @@ Handling the 'Host' header
 
 The default behavior regarding the 'Host' header of the proxy requests
 is that the proxy ignores the value set in the incoming request. This
-can be changed individually for each route in one of the following ways:
+can be changed setting the `OptionsProxyPreserveHost` init flag.
 
-1. using the `preserveHost` filter, that sets the proxy request's 'Host'
-header to the value found in the incoming request object.
+In either case, it is possible to override this behavior individually
+for each route with the `preserveHost` filter. If the filter argument
+is "true", the request host is used, if it is "false", the backend host
+is used, regardless of the global setting.
 
-2. using the `requestHeader` or a custom filter to set the 'Host' header
-to any arbitrary value. In this case, the header needs to be set in the
-http.Request.Header field and not in the http.Request.Host field.
+If a filter sets the 'Host' header to a value other than the value in
+the incoming request or the backend host, this custom value will be
+used instead of the global setting or the route specific override.
+
+To control the value of the outgoing 'Host' header, the `OutgoingHost()`
+and `SetOutgoingHost()` methods of the `FilterContext` need to be used
+instead of the `Request.Header` map.
 
 
-Example
+Proxy Example
 
 The below example demonstrates creating a routing proxy as a standard
 http.Handler interface:

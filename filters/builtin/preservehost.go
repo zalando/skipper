@@ -24,8 +24,16 @@ type spec struct{}
 
 type filter bool
 
-// Returns a filter specification that is used to set the 'Host' header
-// of the proxy request to the one specified by the incoming request.
+// Returns a filter specification whose filter instances are used to override
+// the `proxyPreserveHost` behavior for individual routes.
+//
+// Instances expect one argument, with the possible values: "true" or "false",
+// where "true" means to use the Host header from the incoming request, and
+// "false" means to use the host from the backend address.
+//
+// The filter takes no effect in either case if another filter modifies the
+// outgoing host header to a value other than the one in the incoming request
+// or in the backend address.
 func PreserveHost() filters.Spec { return &spec{} }
 
 func (s *spec) Name() string { return PreserveHostName }

@@ -58,12 +58,18 @@ type FilterContext interface {
 	// value in case it's a shunt
 	BackendUrl() string
 
-	// Returns what will be the value of the Host header of the outgoing request.
+	// Returns the host that will be set for the outgoing proxy request as the
+	// 'Host' header.
 	OutgoingHost() string
 
 	// Allows explicitly setting the Host header to be sent to the backend, overriding the
 	// strategy used by the implementation, which can be either the Host header from the
 	// incoming request or the host fragment of the backend url.
+	//
+	// Filters that need to modify the outgoing 'Host' header, need to use
+	// this method instead of setting the Request().Headers["Host"] value.
+	// (The requestHeader filter automatically detects if the header name
+	// is 'Host' and calls this method.)
 	SetOutgoingHost(string)
 }
 
