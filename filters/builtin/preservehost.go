@@ -14,21 +14,46 @@
 
 package builtin
 
-import "github.com/zalando/skipper/filters"
+import (
+	log "github.com/Sirupsen/logrus"
+	"github.com/zalando/skipper/filters"
+	"net/url"
+)
 
-type impl string
+type spec struct{}
+
+type filter bool
 
 // Returns a filter specification that is used to set the 'Host' header
 // of the proxy request to the one specified by the incoming request.
-func PreserveHost() filters.Spec { return impl(PreserveHostName) }
+func PreserveHost() filters.Spec { return &spec{} }
 
-func (s impl) Name() string                                         { return string(s) }
-func (s impl) CreateFilter(_ []interface{}) (filters.Filter, error) { return s, nil }
-func (s impl) Response(_ filters.FilterContext)                     {}
+func (s *spec) Name() string { return PreserveHostName }
 
-func (s impl) Request(ctx filters.FilterContext) {
-	rhost := ctx.Request().Host
-	if rhost != "" {
-		ctx.Request().Header.Set("Host", rhost)
+func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 1 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	if a, ok := args[0].(string); ok && a == "true" || a == "false" {
+		return filter(a == "true"), nil
+	} else {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+}
+
+func (preserve filter) Response(_ filters.FilterContext) {}
+
+func (preserve filter) Request(ctx filters.FilterContext) {
+	u, err := url.Parse(ctx.BackendUrl())
+	if err != nil {
+		log.Error("failed to parse backend host in preserveHost filter", err)
+		return
+	}
+
+	if preserve && ctx.OutgoingHost() == u.Host {
+		ctx.SetOutgoingHost(ctx.Request().Host)
+	} else if !preserve && ctx.OutgoingHost() == ctx.Request().Host {
+		ctx.SetOutgoingHost(u.Host)
 	}
 }

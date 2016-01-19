@@ -57,6 +57,14 @@ type FilterContext interface {
 	// Gives filters access to the backend url specified in the route or an empty
 	// value in case it's a shunt
 	BackendUrl() string
+
+	// Returns what will be the value of the Host header of the outgoing request.
+	OutgoingHost() string
+
+	// Allows explicitly setting the Host header to be sent to the backend, overriding the
+	// strategy used by the implementation, which can be either the Host header from the
+	// incoming request or the host fragment of the backend url.
+	SetOutgoingHost(string)
 }
 
 // Filters are created by the Spec components, optionally using filter
