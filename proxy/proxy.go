@@ -52,15 +52,16 @@ const (
 	// Flag indicating whether filters require the preserved original
 	// metadata of the request and the response.
 	OptionsPreserveOriginal
+
+	OptionsProxyPreserveHost
 )
 
 func (o Options) Insecure() bool {
 	return o&OptionsInsecure != 0
 }
 
-func (o Options) PreserveOriginal() bool {
-	return o&OptionsPreserveOriginal != 0
-}
+func (o Options) PreserveOriginal() bool  { return o&OptionsPreserveOriginal != 0 }
+func (o Options) ProxyPreserveHost() bool { return o&OptionsProxyPreserveHost != 0 }
 
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
@@ -83,10 +84,11 @@ type bodyBuffer struct {
 }
 
 type proxy struct {
-	routing          *routing.Routing
-	roundTripper     http.RoundTripper
-	priorityRoutes   []PriorityRoute
-	preserveOriginal bool
+	routing           *routing.Routing
+	roundTripper      http.RoundTripper
+	priorityRoutes    []PriorityRoute
+	preserveOriginal  bool
+	proxyPreserveHost bool
 }
 
 type filterContext struct {
@@ -100,6 +102,7 @@ type filterContext struct {
 	originalRequest    *http.Request
 	originalResponse   *http.Response
 	backendUrl         string
+	outgoingHost       string
 }
 
 func (sb bodyBuffer) Close() error {
@@ -146,7 +149,7 @@ func copyStream(to flusherWriter, from io.Reader) error {
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
+func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request, error) {
 	u := r.URL
 	u.Scheme = rt.Scheme
 	u.Host = rt.Host
@@ -170,10 +173,7 @@ func mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
 	// Host header in server and client requests, and expects the filters to
 	// modify the Request.Header["Host"] value if they want to override the
 	// endpoint host. (http://localhost:8989/pkg/net/http/#Request)
-	headerHost := rr.Header.Get("Host")
-	if headerHost != "" {
-		rr.Host = headerHost
-	}
+	rr.Host = host
 
 	return rr, nil
 }
@@ -189,7 +189,7 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler 
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{r, tr, pr, options.PreserveOriginal()}
+	return &proxy{r, tr, pr, options.PreserveOriginal(), options.ProxyPreserveHost()}
 }
 
 // calls a function with recovering from panics and logging them
@@ -203,11 +203,10 @@ func callSafe(p func()) {
 	p()
 }
 
-func newFilterContext(
+func (p *proxy) newFilterContext(
 	w http.ResponseWriter,
 	r *http.Request,
 	params map[string]string,
-	preserveOriginal bool,
 	route *routing.Route) *filterContext {
 
 	c := &filterContext{
@@ -216,11 +215,26 @@ func newFilterContext(
 		pathParams: params,
 		stateBag:   make(map[string]interface{}),
 		backendUrl: route.Backend}
-	if preserveOriginal {
+
+	if p.preserveOriginal {
 		c.originalRequest = cloneRequestMetadata(r)
 	}
 
+	if p.proxyPreserveHost {
+		c.outgoingHost = r.Host
+	} else {
+		c.outgoingHost = route.Host
+	}
+
 	return c
+}
+
+func (c *filterContext) OutgoingHost() string {
+	return c.outgoingHost
+}
+
+func (c *filterContext) SetOutgoingHost(h string) {
+	c.outgoingHost = h
 }
 
 func cloneUrl(u *url.URL) *url.URL {
@@ -272,9 +286,14 @@ func (c *filterContext) StateBag() map[string]interface{}    { return c.stateBag
 func (c *filterContext) BackendUrl() string                  { return c.backendUrl }
 func (c *filterContext) OriginalRequest() *http.Request      { return c.originalRequest }
 func (c *filterContext) OriginalResponse() *http.Response    { return c.originalResponse }
+
 func (c *filterContext) Serve(res *http.Response) {
 	c.servedWithResponse = true
 	c.res = res
+}
+
+func (c *filterContext) SetHost(h string) {
+	c.outgoingHost = h
 }
 
 // creates an empty shunt response with the initial status code of 404
@@ -303,8 +322,8 @@ func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterConte
 }
 
 // executes an http roundtrip to a route backend
-func (p *proxy) roundtrip(r *http.Request, rt *routing.Route) (*http.Response, error) {
-	rr, err := mapRequest(r, rt)
+func (p *proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*http.Response, error) {
+	rr, err := mapRequest(r, rt, host)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +379,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	start = time.Now()
 	routeFilters := rt.Filters
-	c := newFilterContext(w, r, params, p.preserveOriginal, rt)
+	c := p.newFilterContext(w, r, params, rt)
 	processedFilters := p.applyFiltersToRequest(routeFilters, c)
 	metrics.MeasureAllFiltersRequest(rt.Id, start)
 
@@ -373,7 +392,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if rt.Shunt {
 			rs = shunt(r)
 		} else {
-			rs, err = p.roundtrip(r, rt)
+			println("roundtripping", c.outgoingHost)
+			rs, err = p.roundtrip(r, rt, c.outgoingHost)
 			if err != nil {
 				sendError(w,
 					http.StatusText(http.StatusInternalServerError),

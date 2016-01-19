@@ -20,22 +20,122 @@ import (
 	"testing"
 )
 
-func TestPreserveHost(t *testing.T) {
-	for _, ti := range []struct{ msg, host string }{{
-		"preserve host",
+func TestCreate(t *testing.T) {
+	for _, ti := range []struct {
+		msg    string
+		args   []interface{}
+		filter filter
+		err    bool
+	}{{
+		"0 arguments",
+		[]interface{}{},
+		false,
+		true,
+	}, {
+		"too many arguments",
+		[]interface{}{"true", "false"},
+		false,
+		true,
+	}, {
+		"wrong argument",
+		[]interface{}{"foo"},
+		false,
+		true,
+	}, {
+		"false",
+		[]interface{}{"false"},
+		false,
+		false,
+	}, {
+		"true",
+		[]interface{}{"true"},
+		true,
+		false,
+	}} {
+		f, err := PreserveHost().CreateFilter(ti.args)
+		if err == nil && ti.err || err != nil && !ti.err {
+			t.Error(ti.msg, "failure case", err, ti.err)
+		} else if err == nil {
+			if f != ti.filter {
+				t.Error(ti.msg, "invalid filter created", f, ti.filter)
+			}
+		}
+	}
+}
+
+func TestRequest(t *testing.T) {
+	for _, ti := range []struct {
+		msg             string
+		arg             string
+		backendUrl      string
+		incomingHost    string
+		currentOutgoing string
+		checkHost       string
+	}{{
+		"preserve, currently backend",
+		"true",
+		"https://backend.example.org",
+		"www.example.org",
+		"backend.example.org",
 		"www.example.org",
 	}, {
-		"http 1.0", // without officially supporting
+		"preserve, currently incoming",
+		"true",
+		"https://backend.example.org",
+		"www.example.org",
+		"www.example.org",
+		"www.example.org",
+	}, {
+		"preserve, currently custom",
+		"true",
+		"https://backend.example.org",
+		"www.example.org",
+		"custom.example.org",
+		"custom.example.org",
+	}, {
+		"preserve, currently http1.0 empty",
+		"true",
+		"https://backend.example.org",
+		"www.example.org",
+		"",
+		"",
+	}, {
+		"preserve not, currently backend",
+		"false",
+		"https://backend.example.org",
+		"www.example.org",
+		"backend.example.org",
+		"backend.example.org",
+	}, {
+		"preserve not, currently incoming",
+		"false",
+		"https://backend.example.org",
+		"www.example.org",
+		"www.example.org",
+		"backend.example.org",
+	}, {
+		"preserve not, currently custom",
+		"false",
+		"https://backend.example.org",
+		"www.example.org",
+		"custom.example.org",
+		"custom.example.org",
+	}, {
+		"preserve, currently http1.0 empty",
+		"false",
+		"https://backend.example.org",
+		"www.example.org",
+		"",
 		"",
 	}} {
 		ctx := &filtertest.Context{
-			FRequest: &http.Request{
-				Host:   ti.host,
-				Header: make(http.Header)}}
-		f, _ := PreserveHost().CreateFilter(nil)
+			FRequest:      &http.Request{Host: ti.incomingHost},
+			FBackendUrl:   ti.backendUrl,
+			FOutgoingHost: ti.currentOutgoing}
+		f, _ := PreserveHost().CreateFilter([]interface{}{ti.arg})
 		f.Request(ctx)
-		if ctx.Request().Header.Get("Host") != ti.host {
-			t.Error("host preserve failed", ctx.Request().Header.Get("Host"), ti.host)
+		if ctx.OutgoingHost() != ti.checkHost {
+			t.Error(ti.msg, ctx.OutgoingHost(), ti.checkHost)
 		}
 	}
 }

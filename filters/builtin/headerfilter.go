@@ -71,8 +71,13 @@ func (spec *headerFilter) CreateFilter(config []interface{}) (filters.Filter, er
 }
 
 func (f *headerFilter) Request(ctx filters.FilterContext) {
-	if f.typ == requestHeader {
-		ctx.Request().Header.Add(f.key, f.value)
+	if f.typ != requestHeader {
+		return
+	}
+
+	ctx.Request().Header.Add(f.key, f.value)
+	if f.key == "Host" {
+		ctx.SetOutgoingHost(f.value)
 	}
 }
 
