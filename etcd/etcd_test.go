@@ -15,10 +15,11 @@
 package etcd
 
 import (
-	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -85,6 +86,7 @@ func checkInitial(d []*eskip.Route) bool {
 func checkBackend(d []*eskip.Route, routeId, backend string) bool {
 	for _, r := range d {
 		if r.Id == routeId {
+			println(r.Backend, backend)
 			return r.Backend == backend
 		}
 	}
@@ -102,43 +104,48 @@ func checkDeleted(ids []string, routeId string) bool {
 	return false
 }
 
-func deleteData() {
-	c := etcd.NewClient(etcdtest.Urls)
-
-	// for the tests, considering errors on delete as not-found
-	c.Delete("/skippertest", true)
-}
-
-func resetData(t *testing.T) {
-	const testRoute = `
-		PathRegexp(".*\\.html") ->
-		customHeader(3.14) ->
-		xSessionId("s4") ->
-		"https://www.example.org"
-	`
-
-	deleteData()
-
-	c := etcd.NewClient(etcdtest.Urls)
-	_, err := c.Set("/skippertest/routes/pdp", testRoute, 0)
+func TestReceivesError(t *testing.T) {
+	c, err := New(Options{Endpoints: []string{"invalid url"}, Prefix: "/skippertest-invalid"})
 	if err != nil {
 		t.Error(err)
 		return
 	}
-}
 
-func TestReceivesError(t *testing.T) {
-	c := New(etcdtest.Urls, "/skippertest-invalid")
-	_, err := c.LoadAll()
+	_, err = c.LoadAll()
 	if err == nil {
 		t.Error("failed to fail")
 	}
 }
 
-func TestReceivesInitial(t *testing.T) {
-	resetData(t)
+func TestValidatesDocument(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"value": "different json"}`))
+	}))
 
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{Endpoints: []string{s.URL}, Prefix: "/skippertest-invalid"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = c.LoadAll()
+	if err != invalidResponseDocument {
+		t.Error("failed to fail")
+	}
+}
+
+func TestReceivesInitial(t *testing.T) {
+	if err := etcdtest.ResetData(); err != nil {
+		t.Error(t)
+		return
+	}
+
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	rs, err := c.LoadAll()
 
 	if err != nil {
@@ -151,16 +158,20 @@ func TestReceivesInitial(t *testing.T) {
 }
 
 func TestReceivesUpdates(t *testing.T) {
-	resetData(t)
+	if err := etcdtest.ResetData(); err != nil {
+		t.Error(err)
+		return
+	}
 
-	c := New(etcdtest.Urls, "/skippertest")
-	c.LoadAll()
-
-	e := etcd.NewClient(etcdtest.Urls)
-	_, err := e.Set("/skippertest/routes/pdp", `Path("/pdp") -> "https://updated.example.org"`, 0)
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
+		return
 	}
+
+	c.LoadAll()
+
+	etcdtest.PutData("pdp", `Path("/pdp") -> "https://updated.example.org"`)
 
 	rs, ds, err := c.LoadUpdate()
 	if err != nil {
@@ -168,7 +179,7 @@ func TestReceivesUpdates(t *testing.T) {
 	}
 
 	if !checkBackend(rs, "pdp", "https://updated.example.org") {
-		t.Error("failed to receive the right backend")
+		t.Error("failed to receive the right backend", len(rs))
 	}
 
 	if len(ds) != 0 {
@@ -177,19 +188,23 @@ func TestReceivesUpdates(t *testing.T) {
 }
 
 func TestReceiveInsert(t *testing.T) {
-	resetData(t)
+	if err := etcdtest.ResetData(); err != nil {
+		t.Error(err)
+		return
+	}
 
-	c := New(etcdtest.Urls, "/skippertest")
-	_, err := c.LoadAll()
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = c.LoadAll()
 	if err != nil {
 		t.Error(err)
 	}
 
-	e := etcd.NewClient(etcdtest.Urls)
-	_, err = e.Set("/skippertest/routes/catalog", `Path("/pdp") -> "https://catalog.example.org"`, 0)
-	if err != nil {
-		t.Error(err)
-	}
+	etcdtest.PutData("catalog", `Path("/pdp") -> "https://catalog.example.org"`)
 
 	rs, ds, err := c.LoadUpdate()
 	if err != nil {
@@ -206,13 +221,20 @@ func TestReceiveInsert(t *testing.T) {
 }
 
 func TestReceiveDelete(t *testing.T) {
-	resetData(t)
+	if err := etcdtest.ResetData(); err != nil {
+		t.Error(err)
+		return
+	}
 
-	c := New(etcdtest.Urls, "/skippertest")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	c.LoadAll()
 
-	e := etcd.NewClient(etcdtest.Urls)
-	e.Delete("/skippertest/routes/pdp", false)
+	etcdtest.DeleteData("pdp")
 
 	rs, ds, err := c.LoadUpdate()
 	if err != nil {
@@ -229,18 +251,31 @@ func TestReceiveDelete(t *testing.T) {
 }
 
 func TestUpsertNoId(t *testing.T) {
-	c := New(etcdtest.Urls, "/skippertest")
-	err := c.Upsert(&eskip.Route{})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = c.Upsert(&eskip.Route{})
 	if err != missingRouteId {
 		t.Error("failed to fail")
 	}
 }
 
 func TestUpsertNew(t *testing.T) {
-	deleteData()
-	c := New(etcdtest.Urls, "/skippertest")
+	if err := etcdtest.DeleteAll(); err != nil {
+		t.Error(err)
+		return
+	}
 
-	err := c.Upsert(&eskip.Route{
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = c.Upsert(&eskip.Route{
 		Id:     "route1",
 		Method: "POST",
 		Shunt:  true})
@@ -250,15 +285,23 @@ func TestUpsertNew(t *testing.T) {
 
 	routes, err := c.LoadAll()
 	if len(routes) != 1 || routes[0].Id != "route1" {
-		t.Error("failed to upsert route")
+		t.Error("failed to upsert route", len(routes))
 	}
 }
 
 func TestUpsertExisting(t *testing.T) {
-	deleteData()
-	c := New(etcdtest.Urls, "/skippertest")
+	if err := etcdtest.DeleteAll(); err != nil {
+		t.Error(err)
+		return
+	}
 
-	err := c.Upsert(&eskip.Route{
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = c.Upsert(&eskip.Route{
 		Id:     "route1",
 		Method: "POST",
 		Shunt:  true})
@@ -281,18 +324,30 @@ func TestUpsertExisting(t *testing.T) {
 }
 
 func TestDeleteNoId(t *testing.T) {
-	c := New(etcdtest.Urls, "/skippertest")
-	err := c.Delete("")
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = c.Delete("")
 	if err != missingRouteId {
 		t.Error("failed to fail")
 	}
 }
 
 func TestDeleteNotExists(t *testing.T) {
-	deleteData()
-	c := New(etcdtest.Urls, "/skippertest")
+	if err := etcdtest.DeleteAll(); err != nil {
+		t.Error(err)
+		return
+	}
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	err := c.Upsert(&eskip.Route{
+	err = c.Upsert(&eskip.Route{
 		Id:     "route1",
 		Method: "POST",
 		Shunt:  true})
@@ -312,10 +367,17 @@ func TestDeleteNotExists(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	deleteData()
-	c := New(etcdtest.Urls, "/skippertest")
+	if err := etcdtest.DeleteAll(); err != nil {
+		t.Error(err)
+		return
+	}
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	err := c.Upsert(&eskip.Route{
+	err = c.Upsert(&eskip.Route{
 		Id:     "route1",
 		Method: "POST",
 		Shunt:  true})
@@ -335,20 +397,20 @@ func TestDelete(t *testing.T) {
 }
 
 func TestLoadWithParseFailures(t *testing.T) {
-	deleteData()
-	e := etcd.NewClient(etcdtest.Urls)
-
-	_, err := e.Set("/skippertest/routes/catalog", `Path("/pdp") -> "https://catalog.example.org"`, 0)
-	if err != nil {
+	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
+		return
 	}
 
-	_, err = e.Set("/skippertest/routes/cms", "invalid expression", 0)
+	etcdtest.PutData("catalog", `Path("/pdp") -> "https://catalog.example.org"`)
+	etcdtest.PutData("cms", "invalid expression")
+
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
 	if err != nil {
 		t.Error(err)
+		return
 	}
 
-	c := New(etcdtest.Urls, "/skippertest")
 	routeInfo, err := c.LoadAndParseAll()
 	if err != nil {
 		t.Error(err)
