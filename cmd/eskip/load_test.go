@@ -16,7 +16,6 @@ package main
 
 import (
 	"errors"
-	etcdclient "github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
 	"os"
@@ -26,15 +25,6 @@ import (
 const testStdinName = "testStdin"
 
 var ioError = errors.New("io error")
-
-func deleteRoutesFrom(prefix string) {
-	c := etcdclient.NewClient(etcdtest.Urls)
-	c.Delete(prefix, true)
-}
-
-func deleteRoutes() {
-	deleteRoutesFrom("/skippertest")
-}
 
 func init() {
 	// start an etcd server
@@ -156,9 +146,8 @@ func TestCheckEtcdInvalid(t *testing.T) {
 		t.Error(err)
 	}
 
-	deleteRoutes()
-	c := etcdclient.NewClient(etcdtest.Urls)
-	_, err = c.Set("/skippertest/routes/route1", "invalid doc", 0)
+	etcdtest.DeleteAll()
+	etcdtest.PutData("route1", "invalid doc")
 	if err != nil {
 		t.Error(err)
 	}
@@ -177,9 +166,8 @@ func TestCheckEtcd(t *testing.T) {
 		t.Error(err)
 	}
 
-	deleteRoutes()
-	c := etcdclient.NewClient(etcdtest.Urls)
-	_, err = c.Set("/skippertest/routes/route1", `Method("POST") -> <shunt>`, 0)
+	etcdtest.DeleteAll()
+	etcdtest.PutData("route1", `Method("POST") -> <shunt>`)
 	if err != nil {
 		t.Error(err)
 	}
