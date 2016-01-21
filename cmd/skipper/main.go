@@ -59,6 +59,7 @@ const (
 	routesFileUsage                = "file containing static route definitions"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
+	proxyPreserveHostUsage         = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
 	devModeUsage                   = "enables developer time behavior, like ubuffered routing updates"
 	metricsListenerUsage           = "network address used for exposing the /metrics endpoint. An empty value disables metrics."
 	metricsPrefixUsage             = "allows setting a custom path prefix for metrics export"
@@ -75,6 +76,7 @@ var (
 	etcdUrls                  string
 	etcdPrefix                string
 	insecure                  bool
+	proxyPreserveHost         bool
 	innkeeperUrl              string
 	sourcePollTimeout         int64
 	routesFile                string
@@ -99,6 +101,7 @@ func init() {
 	flag.StringVar(&address, "address", defaultAddress, addressUsage)
 	flag.StringVar(&etcdUrls, "etcd-urls", "", etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
+	flag.BoolVar(&proxyPreserveHost, "proxy-preserve-host", false, proxyPreserveHostUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
@@ -150,8 +153,13 @@ func main() {
 		ApplicationLogPrefix:      applicationLogPrefix,
 		AccessLogOutput:           accessLog,
 		AccessLogDisabled:         accessLogDisabled}
+
 	if insecure {
 		options.ProxyOptions |= proxy.OptionsInsecure
+	}
+
+	if proxyPreserveHost {
+		options.ProxyOptions |= proxy.OptionsProxyPreserveHost
 	}
 
 	log.Fatal(skipper.Run(options))

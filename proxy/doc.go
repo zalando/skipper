@@ -95,7 +95,27 @@ from the external data sources, and are tested against the requests
 before the general routing tree.
 
 
-Example
+Handling the 'Host' header
+
+The default behavior regarding the 'Host' header of the proxy requests
+is that the proxy ignores the value set in the incoming request. This
+can be changed setting the `OptionsProxyPreserveHost` init flag.
+
+In either case, it is possible to override this behavior individually
+for each route with the `preserveHost` filter. If the filter argument
+is "true", the request host is used, if it is "false", the backend host
+is used, regardless of the global setting.
+
+If a filter sets the 'Host' header to a value other than the value in
+the incoming request or the backend host, this custom value will be
+used instead of the global setting or the route specific override.
+
+To control the value of the outgoing 'Host' header, the `OutgoingHost()`
+and `SetOutgoingHost()` methods of the `FilterContext` need to be used
+instead of the `Request.Header` map.
+
+
+Proxy Example
 
 The below example demonstrates creating a routing proxy as a standard
 http.Handler interface:
