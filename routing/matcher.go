@@ -29,6 +29,7 @@ type leafMatcher struct {
 	pathRxs       []*regexp.Regexp
 	headersExact  map[string]string
 	headersRegexp map[string][]*regexp.Regexp
+	predicates    []Predicate
 	route         *Route
 }
 
@@ -45,6 +46,7 @@ func leafWeight(l *leafMatcher) int {
 	w += len(l.pathRxs)
 	w += len(l.headersExact)
 	w += len(l.headersRegexp)
+	w += len(l.predicates)
 
 	return w
 }
@@ -150,6 +152,7 @@ func newLeaf(r *Route) (*leafMatcher, error) {
 		pathRxs:       pathRxs,
 		headersExact:  canonicalizeHeaders(r.Headers),
 		headersRegexp: canonicalizeHeaderRegexps(allHeaderRxs),
+		predicates:    r.Predicates,
 		route:         r}, nil
 }
 
@@ -297,6 +300,17 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 	return true
 }
 
+// check if all defined custom predicates are matched
+func matchPredicates(cps []Predicate, req *http.Request) bool {
+	for _, cp := range cps {
+		if !cp.Match(req) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // matches a request to the conditions in a leaf matcher
 func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 	if l.method != "" && l.method != req.Method {
@@ -312,6 +326,10 @@ func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 	}
 
 	if !matchHeaders(l.headersExact, l.headersRegexp, req.Header) {
+		return false
+	}
+
+	if !matchPredicates(l.predicates, req) {
 		return false
 	}
 

@@ -70,6 +70,17 @@ matching a single name in the request path.
 matching any number of names at the end of the request path.
 
 
+Custom Predicates
+
+It is possible to define custom route matching rules in the form of
+custom predicates. Custom predicates need to implement the PredicateSpec
+interface, that serves as a 'factory' and is used in the routing package
+during constructing the routing tree. When a route containing a custom
+predicate is matched based on the path tree, the predicate receives the
+request object, and it returns true or false meaning that the request is
+a match or not.
+
+
 Data Clients
 
 Routing definitions are not directly passed to the routing instance, but

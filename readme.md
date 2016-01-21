@@ -11,7 +11,7 @@ requests, and responses with filters. It:
 - optionally acts as a final endpoint (shunt)
 - updates the routing rules without restarting, while supporting multiple types of data sources — including
   [Innkeeper](https://github.com/zalando/innkeeper), [etcd](https://github.com/coreos/etcd) and static files
-- is extensible by custom filters
+- is extensible by custom filters and predicates
 
 Skipper's design is largely inspired by [Vulcand](https://github.com/mailgun/vulcand).
 
