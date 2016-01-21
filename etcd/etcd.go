@@ -29,62 +29,265 @@ methods to Upsert and Delete routes.
 package etcd
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/coreos/go-etcd/etcd"
 	"github.com/zalando/skipper/eskip"
+	"io"
+	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"path"
+	"strconv"
+	"strings"
+	"time"
 )
 
-const routesPath = "/routes"
+const (
+	routesPath      = "/routes"
+	etcdIndexHeader = "X-Etcd-Index"
+	defaultTimeout  = time.Second
+)
+
+// etcd serialization objects
+type (
+	node struct {
+		Key           string  `json:"key"`
+		Value         string  `json:"value"`
+		Dir           bool    `json:"Dir"`
+		ModifiedIndex uint64  `json:"modifiedIndex"`
+		Nodes         []*node `json:"nodes"`
+	}
+
+	response struct {
+		etcdIndex uint64
+		Action    string `json:"action"`
+		Node      *node  `json:"node"`
+	}
+)
+
+// common error object for errors coming from multiple
+// etcd instances
+type endpointErrors struct {
+	errors []error
+}
+
+func (ee *endpointErrors) Error() string {
+	es := make([]string, len(ee.errors)+1)
+	es[0] = "request to one or more endpoints failed"
+	for i, e := range ee.errors {
+		es[i+1] = e.Error()
+	}
+
+	return strings.Join(es, ";")
+}
+
+func (ee *endpointErrors) String() string {
+	return ee.Error()
+}
+
+// Initialization options.
+type Options struct {
+
+	// A slice of etcd endpoint addresses.
+	// (Schema and host.)
+	Endpoints []string
+
+	// Etcd path to a directory where the
+	// Skipper related settings are stored.
+	Prefix string
+
+	// A timeout value for etcd long-polling.
+	// The default timeout is 1 second.
+	Timeout time.Duration
+}
 
 // A Client is used to load the whole set of routes and the updates from an
 // etcd store.
 type Client struct {
+	endpoints  []string
 	routesRoot string
-	etcd       *etcd.Client
+	timeout    time.Duration
+	client     *http.Client
 	etcdIndex  uint64
 }
 
-var missingRouteId = errors.New("missing route id")
+var (
+	missingEtcdEndpoint     = errors.New("missing etcd endpoint")
+	missingRouteId          = errors.New("missing route id")
+	invalidNode             = errors.New("invalid node")
+	unexpectedHttpResponse  = errors.New("unexpected http response")
+	notFound                = errors.New("not found")
+	missingEtcdIndex        = errors.New("missing etcd index")
+	invalidResponseDocument = errors.New("invalid response document")
+)
 
-// Creates a new Client, connecting to an etcd cluster reachable at 'urls'.
-// The prefix argument specifies the etcd node under which the skipper
-// routes are stored. E.g. if prefix is '/skipper-dev', the route
-// definitions should be stored under /v2/keys/skipper-dev/routes/...
-func New(urls []string, prefix string) *Client {
-	return &Client{prefix + routesPath, etcd.NewClient(urls), 0}
+// Creates a new Client with the provided options.
+func New(o Options) (*Client, error) {
+	if len(o.Endpoints) == 0 {
+		return nil, missingEtcdEndpoint
+	}
+
+	if o.Timeout == 0 {
+		o.Timeout = defaultTimeout
+	}
+
+	return &Client{
+		endpoints:  o.Endpoints,
+		routesRoot: o.Prefix + routesPath,
+		timeout:    o.Timeout,
+		client:     &http.Client{Timeout: o.Timeout},
+		etcdIndex:  0}, nil
+}
+
+// Makes a request to an etcd endpoint. If it fails due to connection problems,
+// it makes a new request to the next available endpoint, until all endpoints
+// are tried. It returns the response to the first successful request.
+func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.Response, error) {
+	var (
+		endpoints    []string
+		req          *http.Request
+		rsp          *http.Response
+		err          error
+		endpointErrs []error
+	)
+
+	endpoints = c.endpoints
+	for len(endpoints) > 0 {
+		req, err = mreq(endpoints[0] + "/v2/keys")
+		if err != nil {
+			return nil, err
+		}
+
+		rsp, err = c.client.Do(req)
+		if err == nil {
+			break
+		}
+
+		endpointErrs = append(endpointErrs, err)
+		endpoints = endpoints[1:]
+	}
+
+	rotate := len(c.endpoints) - len(endpoints)
+	c.endpoints = append(c.endpoints[rotate:], c.endpoints[:rotate]...)
+
+	if len(endpoints) == 0 {
+		err = &endpointErrors{endpointErrs}
+	}
+
+	return rsp, err
+}
+
+// Converts an http response to a parsed etcd response object.
+func parseResponse(rsp *http.Response) (*response, error) {
+	d, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &response{}
+	err = json.Unmarshal(d, &r)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Node == nil || r.Node.Key == "" {
+		return nil, invalidResponseDocument
+	}
+
+	r.etcdIndex, err = strconv.ParseUint(rsp.Header.Get(etcdIndexHeader), 10, 64)
+	return r, err
+}
+
+// Converts a non-success http status code into an in-memory error object.
+// As the second argument, returns true in case of error.
+func httpError(code int) (error, bool) {
+	if code == http.StatusNotFound {
+		return notFound, true
+	}
+
+	if code < http.StatusOK || code >= http.StatusMultipleChoices {
+		return unexpectedHttpResponse, true
+	}
+
+	return nil, false
+}
+
+// Makes a request to an available etcd endpoint, with retries in case of
+// failure, and converts the http response to a parsed etcd response object.
+func (c *Client) etcdRequest(method, path, data string) (*response, error) {
+	rsp, err := c.tryEndpoints(func(a string) (*http.Request, error) {
+		var body io.Reader
+		if data != "" {
+			v := make(url.Values)
+			v.Add("value", data)
+			body = bytes.NewBufferString(v.Encode())
+		}
+
+		r, err := http.NewRequest(method, a+path, body)
+		if err != nil {
+			return nil, err
+		}
+
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return r, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rsp.Body.Close()
+
+	if err, hasErr := httpError(rsp.StatusCode); hasErr {
+		return nil, err
+	}
+
+	return parseResponse(rsp)
+}
+
+func (c *Client) etcdGet() (*response, error) {
+	return c.etcdRequest("GET", c.routesRoot, "")
+}
+
+// Calls etcd 'watch' but with a timeout configured for
+// the http client.
+func (c *Client) etcdGetUpdates() (*response, error) {
+	return c.etcdRequest("GET",
+		fmt.Sprintf("%s?wait=true&waitIndex=%d&recursive=true",
+			c.routesRoot, c.etcdIndex+1), "")
+}
+
+func (c *Client) etcdSet(r *eskip.Route) error {
+	_, err := c.etcdRequest("PUT", c.routesRoot+"/"+r.Id, r.String())
+	return err
+}
+
+func (c *Client) etcdDelete(id string) error {
+	_, err := c.etcdRequest("DELETE", c.routesRoot+"/"+id, "")
+	return err
 }
 
 // Finds all route expressions in the containing directory node.
-// Prepends the expressions with the etcd key as the route id.
 // Returns a map where the keys are the etcd keys and the values are the
-// eskip route definitions.
-func (c *Client) iterateDefs(n *etcd.Node, highestIndex uint64) (map[string]string, uint64) {
-	if n.ModifiedIndex > highestIndex {
-		highestIndex = n.ModifiedIndex
-	}
-
+// eskip route expressions.
+func (c *Client) iterateNodes(dir *node, highestIndex uint64) (map[string]string, uint64) {
 	routes := make(map[string]string)
-	if n.Key == c.routesRoot {
-		for _, ni := range n.Nodes {
-			routesi, hi := c.iterateDefs(ni, highestIndex)
-			for id, r := range routesi {
-				routes[id] = r
-			}
+	for _, n := range dir.Nodes {
+		if n.Dir {
+			continue
+		}
 
-			highestIndex = hi
+		routes[path.Base(n.Key)] = n.Value
+		if n.ModifiedIndex > highestIndex {
+			highestIndex = n.ModifiedIndex
 		}
 	}
 
-	if path.Dir(n.Key) != c.routesRoot {
-		return routes, highestIndex
-	}
-
-	id := path.Base(n.Key)
-	r := id + ": " + n.Value
-	return map[string]string{id: r}, highestIndex
+	return routes, highestIndex
 }
 
 // Parses a single route expression, fails if more than one
@@ -104,8 +307,7 @@ func parseOne(data string) (*eskip.Route, error) {
 
 // Parses a set of eskip routes.
 func parseRoutes(data map[string]string) []*eskip.RouteInfo {
-	allInfo := make([]*eskip.RouteInfo, len(data))
-	index := 0
+	allInfo := make([]*eskip.RouteInfo, 0, len(data))
 	for id, d := range data {
 		info := &eskip.RouteInfo{}
 
@@ -117,24 +319,10 @@ func parseRoutes(data map[string]string) []*eskip.RouteInfo {
 		}
 
 		info.Id = id
-
-		allInfo[index] = info
-		index++
+		allInfo = append(allInfo, info)
 	}
 
 	return allInfo
-}
-
-// Collects all the ids from a set of routes.
-func getRouteIds(data map[string]string) []string {
-	ids := make([]string, len(data))
-	index := 0
-	for id, _ := range data {
-		ids[index] = id
-		index++
-	}
-
-	return ids
 }
 
 // Converts route info to route objects logging those whose
@@ -155,14 +343,22 @@ func infoToRoutesLogged(info []*eskip.RouteInfo) []*eskip.Route {
 // Returns all the route definitions currently stored in etcd,
 // or the parsing error in case of failure.
 func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
-	response, err := c.etcd.Get(c.routesRoot, false, true)
+	response, err := c.etcdGet()
+	if err == notFound {
+		return nil, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	data, etcdIndex := c.iterateDefs(response.Node, 0)
-	if response.EtcdIndex > etcdIndex {
-		etcdIndex = response.EtcdIndex
+	if !response.Node.Dir {
+		return nil, invalidNode
+	}
+
+	data, etcdIndex := c.iterateNodes(response.Node, 0)
+	if response.etcdIndex > etcdIndex {
+		etcdIndex = response.etcdIndex
 	}
 
 	c.etcdIndex = etcdIndex
@@ -183,43 +379,56 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 // or update.
 //
 // It uses etcd's watch functionality that results in blocking this call
-// until the next change is detected in etcd.
+// until the next change is detected in etcd or reaches the configured hard
+// timeout.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
-	response, err := c.etcd.Watch(c.routesRoot, c.etcdIndex+1, true, nil, nil)
-	if err != nil {
-		return nil, nil, err
+	updates := make(map[string]string)
+	deletes := make(map[string]bool)
+
+	for {
+		response, err := c.etcdGetUpdates()
+		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+			break
+		} else if err != nil {
+			return nil, nil, err
+		} else if response.Node.Dir {
+			continue
+		}
+
+		id := path.Base(response.Node.Key)
+		if response.Action == "delete" {
+			deletes[id] = true
+			delete(updates, id)
+		} else {
+			updates[id] = response.Node.Value
+			deletes[id] = false
+		}
+
+		if response.Node.ModifiedIndex > c.etcdIndex {
+			c.etcdIndex = response.Node.ModifiedIndex
+		}
 	}
 
-	data, etcdIndex := c.iterateDefs(response.Node, c.etcdIndex)
-	if response.EtcdIndex > etcdIndex {
-		etcdIndex = response.EtcdIndex
-	}
+	routeInfo := parseRoutes(updates)
+	routes := infoToRoutesLogged(routeInfo)
 
-	c.etcdIndex = etcdIndex
-
-	var (
-		routes     []*eskip.Route
-		deletedIds []string
-	)
-
-	if response.Action == "delete" {
-		deletedIds = getRouteIds(data)
-	} else {
-		routeInfo := parseRoutes(data)
-		routes = infoToRoutesLogged(routeInfo)
+	deletedIds := make([]string, 0, len(deletes))
+	for id, deleted := range deletes {
+		if deleted {
+			deletedIds = append(deletedIds, id)
+		}
 	}
 
 	return routes, deletedIds, nil
 }
 
-// Inserts or updates a routes in etcd.
+// Inserts or updates a route in etcd.
 func (c *Client) Upsert(r *eskip.Route) error {
 	if r.Id == "" {
 		return missingRouteId
 	}
 
-	_, err := c.etcd.Set(c.routesRoot+"/"+r.Id, r.String(), 0)
-	return err
+	return c.etcdSet(r)
 }
 
 // Deletes a route from etcd.
@@ -228,9 +437,9 @@ func (c *Client) Delete(id string) error {
 		return missingRouteId
 	}
 
-	response, err := c.etcd.RawDelete(c.routesRoot+"/"+id, false, false)
-	if response.StatusCode == http.StatusNotFound {
-		return nil
+	err := c.etcdDelete(id)
+	if err == notFound {
+		err = nil
 	}
 
 	return err
@@ -244,6 +453,7 @@ func (c *Client) UpsertAll(routes []*eskip.Route) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
