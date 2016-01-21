@@ -26,6 +26,12 @@ import (
 	"testing"
 )
 
+type truePredicate struct{}
+
+func (tp *truePredicate) Name() string                                 { return "True" }
+func (tp *truePredicate) Create(args []interface{}) (Predicate, error) { return tp, nil }
+func (tp *truePredicate) Match(r *http.Request) bool                   { return true }
+
 const (
 	benchmarkingCountPhase1 = 1
 	benchmarkingCountPhase2 = 100
@@ -41,7 +47,7 @@ const testRouteDoc = `
     pdpAsync: Path("/sls-async/*_") && PathRegexp(/.*\.html$/) -> "https://async.pdp.streaming-layout-service.my-department.example.org";
     pdpsc: Path("/sc/*_") && PathRegexp(/.*\.html$/) -> "https://pdpsc.compositor-layout-service.my-department.example.org";
     pdpsls: Path("/sls/*_") && PathRegexp(/.*\.html$/) -> "https://pdpsls.streaming-layout-service.my-department.example.org";
-    catalog: Any() -> "https://catalog.layout-service.my-department.example.org";
+    catalog: * -> "https://catalog.layout-service.my-department.example.org";
     catalogAsync: Path("/sls-async/*_") -> "https://catalog-async.layout-service.my-department.example.org";
     catalogsc: Path("/sc/*_") -> "https://catalogsc.compositor-layout-service.my-department.example.org";
     catalogsls: Path("/sls/*_") -> "https://catalogsls.streaming-layout-service.my-department.example.org";
@@ -69,14 +75,14 @@ const testRouteDoc = `
     catalogslsHerren: Path("/sls/herren/*_") -> "https://herren-sls.streaming-layout-service.my-department.example.org";
     catalogslsDamen: Path("/sls/damen/*_") -> "https://damen-sls.streaming-layout-service.my-department.example.org";
 
-    catalogHerrenEn: Path("/men/*_") -> "https://herren-en.layout-service.my-department.example.org";
-    catalogDamenEn: Path("/women/*_") -> "https://damen-en.layout-service.my-department.example.org";
-    catalogAsyncHerrenEn: Path("/sls-async/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
-    catalogAsyncDamenEn: Path("/sls-async/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
-    catalogscHerrenEn: Path("/sc/men/*_") -> "https://herren-en.compositor-layout-service.my-department.example.org";
-    catalogscDamenEn: Path("/sc/women/*_") -> "https://damen-en.compositor-layout-service.my-department.example.org";
-    catalogslsHerrenEn: Path("/sls/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
-    catalogslsDamenEn: Path("/sls/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
+    catalogHerrenEn: True() && Path("/men/*_") -> "https://herren-en.layout-service.my-department.example.org";
+    catalogDamenEn: True() && Path("/women/*_") -> "https://damen-en.layout-service.my-department.example.org";
+    catalogAsyncHerrenEn: True() && Path("/sls-async/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
+    catalogAsyncDamenEn: True() && Path("/sls-async/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
+    catalogscHerrenEn: True() && Path("/sc/men/*_") -> "https://herren-en.compositor-layout-service.my-department.example.org";
+    catalogscDamenEn: True() && Path("/sc/women/*_") -> "https://damen-en.compositor-layout-service.my-department.example.org";
+    catalogslsHerrenEn: True() && Path("/sls/men/*_") -> "https://herren-en.streaming-layout-service.my-department.example.org";
+    catalogslsDamenEn: True() && Path("/sls/women/*_") -> "https://damen-en.streaming-layout-service.my-department.example.org";
 `
 
 var (
@@ -108,7 +114,7 @@ func docToRoutes(doc string) ([]*Route, error) {
 		return nil, err
 	}
 
-	return processRouteDefs(nil, defs), nil
+	return processRouteDefs([]PredicateSpec{&truePredicate{}}, nil, defs), nil
 }
 
 // parse a routing document with a single route
@@ -195,7 +201,7 @@ func generateRoutes(paths []string) []*Route {
 		defs[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Path: p, Backend: p}
 	}
 
-	return processRouteDefs(nil, defs)
+	return processRouteDefs(nil, nil, defs)
 }
 
 // generate requests based on a set of paths

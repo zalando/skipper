@@ -45,6 +45,26 @@ type DataClient interface {
 	LoadUpdate() ([]*eskip.Route, []string, error)
 }
 
+// Predicate instances are used as custom user defined route
+// matching predicates.
+type Predicate interface {
+
+	// Returns true if the request matches the predicate.
+	Match(*http.Request) bool
+}
+
+// PredicateSpec instances are used to create custom predicates
+// (of type Predicate) with concrete arguments during the
+// construction of the routing tree.
+type PredicateSpec interface {
+
+	// Name of the predicate as used in the route definitions.
+	Name() string
+
+	// Creates a predicate instance with concrete arguments.
+	Create([]interface{}) (Predicate, error)
+}
+
 // Initialization options for routing.
 type Options struct {
 
@@ -64,6 +84,9 @@ type Options struct {
 	// The set of different data clients where the
 	// route definitions are read from.
 	DataClients []DataClient
+
+	// Specifications of custom, user defined predicates.
+	Predicates []PredicateSpec
 
 	// Performance tuning option.
 	//
@@ -98,6 +121,9 @@ type Route struct {
 
 	// The backend scheme and host.
 	Scheme, Host string
+
+	// The preprocessed custom predicate instances.
+	Predicates []Predicate
 
 	// The preprocessed filter instances.
 	Filters []*RouteFilter
