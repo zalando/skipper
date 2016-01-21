@@ -52,6 +52,12 @@ type Options struct {
 	// Path prefix for skipper related data in the etcd storage.
 	EtcdPrefix string
 
+	// Timeout used for a single request when querying for updates
+	// in etcd. This is independent of, and an addition to,
+	// SourcePollTimeout. When not set, the internally defined 1s
+	// is used.
+	EtcdWaitTimeout time.Duration
+
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -91,6 +97,9 @@ type Options struct {
 	// Priority routes that are matched against the requests before
 	// the standard routes from the data clients.
 	PriorityRoutes []proxy.PriorityRoute
+
+	// Specifications of custom, user defined predicates.
+	CustomPredicates []routing.PredicateSpec
 
 	// Dev mode. Currently this flag disables prioritization of the
 	// consumer side over the feeding side during the routing updates to
@@ -165,7 +174,12 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	}
 
 	if len(o.EtcdUrls) > 0 {
-		clients = append(clients, etcd.New(o.EtcdUrls, o.EtcdPrefix))
+		etcdClient, err := etcd.New(etcd.Options{o.EtcdUrls, o.EtcdPrefix, o.EtcdWaitTimeout})
+		if err != nil {
+			return nil, err
+		}
+
+		clients = append(clients, etcdClient)
 	}
 
 	return clients, nil
@@ -279,6 +293,7 @@ func Run(o Options) error {
 		mo,
 		o.SourcePollTimeout,
 		dataClients,
+		o.CustomPredicates,
 		updateBuffer})
 
 	// create the proxy

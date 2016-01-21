@@ -28,42 +28,6 @@ func appendFmtEscape(s []string, format string, escapeChars string, args ...inte
 	return appendFmt(s, format, eargs...)
 }
 
-func (r *Route) condString() string {
-	var conds []string
-
-	if r.Path != "" {
-		conds = appendFmtEscape(conds, `Path("%s")`, `"`, r.Path)
-	}
-
-	for _, h := range r.HostRegexps {
-		conds = appendFmtEscape(conds, "Host(/%s/)", "/", h)
-	}
-
-	for _, p := range r.PathRegexps {
-		conds = appendFmtEscape(conds, "PathRegexp(/%s/)", "/", p)
-	}
-
-	if r.Method != "" {
-		conds = appendFmtEscape(conds, `Method("%s")`, `"`, r.Method)
-	}
-
-	for k, v := range r.Headers {
-		conds = appendFmtEscape(conds, `Header("%s", "%s")`, `"`, k, v)
-	}
-
-	for k, rxs := range r.HeaderRegexps {
-		for _, rx := range rxs {
-			conds = appendFmt(conds, `HeaderRegexp("%s", /%s/)`, escape(k, `"`), escape(rx, "/"))
-		}
-	}
-
-	if len(conds) == 0 {
-		conds = append(conds, "Any()")
-	}
-
-	return strings.Join(conds, " && ")
-}
-
 func argsString(args []interface{}) string {
 	var sargs []string
 	for _, a := range args {
@@ -76,6 +40,48 @@ func argsString(args []interface{}) string {
 	}
 
 	return strings.Join(sargs, ", ")
+}
+
+func (r *Route) predicateString() string {
+	var predicates []string
+
+	if r.Path != "" {
+		predicates = appendFmtEscape(predicates, `Path("%s")`, `"`, r.Path)
+	}
+
+	for _, h := range r.HostRegexps {
+		predicates = appendFmtEscape(predicates, "Host(/%s/)", "/", h)
+	}
+
+	for _, p := range r.PathRegexps {
+		predicates = appendFmtEscape(predicates, "PathRegexp(/%s/)", "/", p)
+	}
+
+	if r.Method != "" {
+		predicates = appendFmtEscape(predicates, `Method("%s")`, `"`, r.Method)
+	}
+
+	for k, v := range r.Headers {
+		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, k, v)
+	}
+
+	for k, rxs := range r.HeaderRegexps {
+		for _, rx := range rxs {
+			predicates = appendFmt(predicates, `HeaderRegexp("%s", /%s/)`, escape(k, `"`), escape(rx, "/"))
+		}
+	}
+
+	for _, p := range r.Predicates {
+		if p.Name != "Any" {
+			predicates = appendFmt(predicates, "%s(%s)", p.Name, argsString(p.Args))
+		}
+	}
+
+	if len(predicates) == 0 {
+		predicates = append(predicates, "*")
+	}
+
+	return strings.Join(predicates, " && ")
 }
 
 func (r *Route) filterString() string {
@@ -97,7 +103,7 @@ func (r *Route) backendString() string {
 
 // Serializes a route expression. Omits the route id if any.
 func (r *Route) String() string {
-	s := []string{r.condString()}
+	s := []string{r.predicateString()}
 
 	fs := r.filterString()
 	if fs != "" {

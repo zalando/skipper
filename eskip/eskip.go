@@ -24,13 +24,22 @@ import (
 	"strings"
 )
 
+const duplicateHeaderPredicateErrorFmt = "duplicate header predicate: %s"
+
+var (
+	invalidPredicateArgError        = errors.New("invalid predicate arg")
+	invalidPredicateArgCountError   = errors.New("invalid predicate count arg")
+	duplicatePathTreePredicateError = errors.New("duplicate path tree predicate")
+	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
+)
+
 // Represents a matcher condition for incoming requests.
 type matcher struct {
 
 	// The name of the matcher, e.g. Path or Header
 	name string
 
-	// The parameters of the matcher, e.g. the path to be matched.
+	// The args of the matcher, e.g. the path to be matched.
 	args []interface{}
 }
 
@@ -44,13 +53,28 @@ type parsedRoute struct {
 	backend  string
 }
 
+// A Predicate object represents a parsed, in-memory, route matching predicate
+// that is defined by extensions.
+type Predicate struct {
+
+	// The name of the custom predicate as referenced
+	// in the route definition. E.g. 'Foo'.
+	Name string
+
+	// The arguments of the predicate as defined in the
+	// route definition. The arguments can be of type
+	// float64 or string (string for both strings and
+	// regular expressions).
+	Args []interface{}
+}
+
 // A Filter object represents a parsed, in-memory filter expression.
 type Filter struct {
 
 	// name of the filter specification
 	Name string
 
-	// filter parameters applied withing a particular route
+	// filter args applied withing a particular route
 	Args []interface{}
 }
 
@@ -85,6 +109,10 @@ type Route struct {
 	// E.g. HeaderRegexp("Accept", /\Wapplication\/json\W/)
 	HeaderRegexps map[string][]string
 
+	// Custom predicates to match.
+	// E.g. Traffic(.3)
+	Predicates []*Predicate
+
 	// Set of filters in a particular route.
 	// E.g. redirect(302, "https://www.example.org/hello")
 	Filters []*Filter
@@ -111,76 +139,102 @@ type RouteInfo struct {
 	ParseError error
 }
 
-// Returns the first parameter of a matcher with the given name.
-// (Used for Path and Method.)
-func getFirstMatcherString(r *parsedRoute, name string) (string, error) {
-	for _, m := range r.matchers {
-		if (m.name == name) && len(m.args) > 0 {
-			p, ok := m.args[0].(string)
-			if !ok {
-				return "", errors.New("invalid matcher parameter")
-			}
+// Expects exactly n arguments of type string, or fails.
+func getStringArgs(n int, args []interface{}) ([]string, error) {
+	if len(args) != n {
+		return nil, invalidPredicateArgCountError
+	}
 
-			return p, nil
+	sargs := make([]string, n)
+	for i, a := range args {
+		if sa, ok := a.(string); ok {
+			sargs[i] = sa
+		} else {
+			return nil, invalidPredicateArgError
 		}
 	}
 
-	return "", nil
+	return sargs, nil
 }
 
-// Returns all parameters of a matcher with the given name.
-// (Used for PathRegexp and Host.)
-func getMatcherStrings(r *parsedRoute, name string) ([]string, error) {
-	var ss []string
-	for _, m := range r.matchers {
-		if m.name == name && len(m.args) > 0 {
-			s, ok := m.args[0].(string)
-			if !ok {
-				return nil, errors.New("invalid matcher parameter")
+// Checks and sets the different predicates taken from the yacc result.
+// As the syntax is getting stabilized, this logic soon should be defined as
+// yacc rules. (https://github.com/zalando/skipper/issues/89)
+func applyPredicates(route *Route, proute *parsedRoute) error {
+	var (
+		err       error
+		args      []string
+		pathSet   bool
+		methodSet bool
+	)
+
+	for _, m := range proute.matchers {
+		if err != nil {
+			return err
+		}
+
+		switch m.name {
+		case "Path":
+			if pathSet {
+				return duplicatePathTreePredicateError
 			}
 
-			ss = append(ss, s)
+			if args, err = getStringArgs(1, m.args); err == nil {
+				route.Path = args[0]
+				pathSet = true
+			}
+		case "Host":
+			if args, err = getStringArgs(1, m.args); err == nil {
+				route.HostRegexps = append(route.HostRegexps, args[0])
+			}
+		case "PathRegexp":
+			if args, err = getStringArgs(1, m.args); err == nil {
+				route.PathRegexps = append(route.PathRegexps, args[0])
+			}
+		case "Method":
+			if methodSet {
+				return duplicateMethodPredicateError
+			}
+
+			if args, err = getStringArgs(1, m.args); err == nil {
+				route.Method = args[0]
+				methodSet = true
+			}
+		case "HeaderRegexp":
+			if args, err = getStringArgs(2, m.args); err == nil {
+				if route.HeaderRegexps == nil {
+					route.HeaderRegexps = make(map[string][]string)
+				}
+
+				route.HeaderRegexps[args[0]] = append(route.HeaderRegexps[args[0]], args[1])
+			}
+		case "Header":
+			if args, err = getStringArgs(2, m.args); err == nil {
+				if route.Headers == nil {
+					route.Headers = make(map[string]string)
+				}
+
+				if _, ok := route.Headers[args[0]]; ok {
+					return fmt.Errorf(duplicateHeaderPredicateErrorFmt, args[0])
+				}
+
+				route.Headers[args[0]] = args[1]
+			}
+		case "*", "Any":
+			// void
+		default:
+			route.Predicates = append(
+				route.Predicates,
+				&Predicate{m.name, m.args})
 		}
 	}
 
-	return ss, nil
-}
-
-// returns a map of the first parameters and all second parameters for a matcher
-// with the given name. (Used for HeaderRegexps and Header.)
-func getMatcherArgMap(r *parsedRoute, name string) (map[string][]string, error) {
-	argMap := make(map[string][]string)
-	for _, m := range r.matchers {
-		if m.name == name && len(m.args) >= 2 {
-			k, ok := m.args[0].(string)
-			if !ok {
-				return nil, errors.New("invalid matcher key parameter")
-			}
-
-			v, ok := m.args[1].(string)
-			if !ok {
-				return nil, errors.New("invalid matcher value parameter")
-			}
-
-			argMap[k] = append(argMap[k], v)
-		}
-	}
-
-	return argMap, nil
+	return nil
 }
 
 // Converts a parsing route objects to the exported route definition with
 // pre-processed but not validated matchers.
 func newRouteDefinition(r *parsedRoute) (*Route, error) {
-	var err error
-	withError := func(f func()) {
-		if err != nil {
-			return
-		}
-
-		f()
-	}
-
 	rd := &Route{}
 
 	rd.Id = r.id
@@ -188,22 +242,7 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	rd.Shunt = r.shunt
 	rd.Backend = r.backend
 
-	withError(func() { rd.Path, err = getFirstMatcherString(r, "Path") })
-	withError(func() { rd.HostRegexps, err = getMatcherStrings(r, "Host") })
-	withError(func() { rd.PathRegexps, err = getMatcherStrings(r, "PathRegexp") })
-	withError(func() { rd.Method, err = getFirstMatcherString(r, "Method") })
-	withError(func() { rd.HeaderRegexps, err = getMatcherArgMap(r, "HeaderRegexp") })
-
-	withError(func() {
-		var h map[string][]string
-		h, err = getMatcherArgMap(r, "Header")
-		if err == nil {
-			rd.Headers = make(map[string]string)
-			for k, v := range h {
-				rd.Headers[k] = v[0]
-			}
-		}
-	})
+	err := applyPredicates(rd, r)
 
 	return rd, err
 }
@@ -222,7 +261,7 @@ func filtersToRoute(f string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("Any() -> %s -> <shunt>", f)
+	return fmt.Sprintf("* -> %s -> <shunt>", f)
 }
 
 // Parses a route expression or a routing document to a set of route definitions.

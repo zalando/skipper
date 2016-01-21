@@ -151,6 +151,7 @@ func TestGetRoundtrip(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone)
 
 	delay()
@@ -212,6 +213,7 @@ func TestPostRoundtrip(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone)
 
 	delay()
@@ -250,6 +252,7 @@ func TestRoute(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone)
 
 	delay()
@@ -299,6 +302,7 @@ func TestStreaming(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone)
 
 	delay()
@@ -379,6 +383,7 @@ func TestAppliesFilters(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone)
 
 	delay()
@@ -434,6 +439,7 @@ func TestBreakFilterChain(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone)
 
 	delay()
@@ -485,6 +491,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone)
 
 	delay()
@@ -529,6 +536,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone, prt)
 
 	delay()
@@ -577,6 +585,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone, prt)
 
 	delay()
@@ -598,7 +607,7 @@ func TestFlusherImplementation(t *testing.T) {
 	ts := httptest.NewServer(h)
 	defer ts.Close()
 
-	doc := fmt.Sprintf(`Any() -> "%s"`, ts.URL)
+	doc := fmt.Sprintf(`* -> "%s"`, ts.URL)
 	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		t.Error(err)
@@ -609,6 +618,7 @@ func TestFlusherImplementation(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsNone)
 
 	delay()
@@ -665,6 +675,7 @@ func TestOriginalRequestResponse(t *testing.T) {
 		routing.MatchingOptionsNone,
 		sourcePollTimeout,
 		[]routing.DataClient{dc},
+		nil,
 		0}), OptionsPreserveOriginal)
 
 	delay()
