@@ -32,13 +32,15 @@ type Filter struct {
 
 // Simple FilterContext implementation.
 type Context struct {
-	FResponseWriter http.ResponseWriter
-	FRequest        *http.Request
-	FResponse       *http.Response
-	FServed         bool
-	FParams         map[string]string
-	FStateBag       map[string]interface{}
-	FBackendUrl     string
+	FResponseWriter     http.ResponseWriter
+	FRequest            *http.Request
+	FResponse           *http.Response
+	FServed             bool
+	FServedWithResponse bool
+	FParams             map[string]string
+	FStateBag           map[string]interface{}
+	FBackendUrl         string
+	FOutgoingHost       string
 }
 
 func (spec *Filter) Name() string                    { return spec.FilterName }
@@ -55,8 +57,10 @@ func (fc *Context) StateBag() map[string]interface{}    { return fc.FStateBag }
 func (fc *Context) OriginalRequest() *http.Request      { return nil }
 func (fc *Context) OriginalResponse() *http.Response    { return nil }
 func (fc *Context) BackendUrl() string                  { return fc.FBackendUrl }
+func (fc *Context) OutgoingHost() string                { return fc.FOutgoingHost }
+func (fc *Context) SetOutgoingHost(h string)            { fc.FOutgoingHost = h }
 func (fc *Context) Serve(resp *http.Response) {
-	fc.FServed = true
+	fc.FServedWithResponse = true
 	fc.FResponse = resp
 }
 

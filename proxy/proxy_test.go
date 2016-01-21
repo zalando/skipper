@@ -686,3 +686,175 @@ func TestOriginalRequestResponse(t *testing.T) {
 		t.Error("wrong response header", ok)
 	}
 }
+
+func TestHostHeader(t *testing.T) {
+	// start a test backend that returns the received host header
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Received-Host", r.Host)
+	}))
+
+	// take the generated host part of the backend
+	bu, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Error("failed to parse test backend url")
+		return
+	}
+	backendHost := bu.Host
+
+	for _, ti := range []struct {
+		msg          string
+		options      Options
+		routeFmt     string
+		incomingHost string
+		expectedHost string
+	}{{
+		"no proxy preserve",
+		OptionsNone,
+		`route: Any() -> "%s"`,
+		"www.example.org",
+		backendHost,
+	}, {
+		"no proxy preserve, route preserve not",
+		OptionsNone,
+		`route: Any() -> preserveHost("false") -> "%s"`,
+		"www.example.org",
+		backendHost,
+	}, {
+		"no proxy preserve, route preserve",
+		OptionsNone,
+		`route: Any() -> preserveHost("true") -> "%s"`,
+		"www.example.org",
+		"www.example.org",
+	}, {
+		"no proxy preserve, route preserve not, explicit host last",
+		OptionsNone,
+		`route: Any() -> preserveHost("false") -> requestHeader("Host", "custom.example.org") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
+	}, {
+		"no proxy preserve, route preserve, explicit host last",
+		OptionsNone,
+		`route: Any() -> preserveHost("true") -> requestHeader("Host", "custom.example.org") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
+	}, {
+		"no proxy preserve, route preserve not, explicit host first",
+		OptionsNone,
+		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
+	}, {
+		"no proxy preserve, route preserve, explicit host last",
+		OptionsNone,
+		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
+	}, {
+		"proxy preserve",
+		OptionsProxyPreserveHost,
+		`route: Any() -> "%s"`,
+		"www.example.org",
+		"www.example.org",
+	}, {
+		"proxy preserve, route preserve not",
+		OptionsProxyPreserveHost,
+		`route: Any() -> preserveHost("false") -> "%s"`,
+		"www.example.org",
+		backendHost,
+	}, {
+		"proxy preserve, route preserve",
+		OptionsProxyPreserveHost,
+		`route: Any() -> preserveHost("true") -> "%s"`,
+		"www.example.org",
+		"www.example.org",
+	}, {
+		"proxy preserve, route preserve not, explicit host last",
+		OptionsProxyPreserveHost,
+		`route: Any() -> preserveHost("false") -> requestHeader("Host", "custom.example.org") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
+	}, {
+		"proxy preserve, route preserve, explicit host last",
+		OptionsProxyPreserveHost,
+		`route: Any() -> preserveHost("true") -> requestHeader("Host", "custom.example.org") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
+	}, {
+		"proxy preserve, route preserve not, explicit host first",
+		OptionsProxyPreserveHost,
+		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
+	}, {
+		"proxy preserve, route preserve, explicit host last",
+		OptionsProxyPreserveHost,
+		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
+	}} {
+		// replace the host in the route format
+		f := ti.routeFmt + `;healthcheck: Path("/healthcheck") -> "%s"`
+		route := fmt.Sprintf(f, backend.URL, backend.URL)
+
+		// create a dataclient with the route
+		dc, err := testdataclient.NewDoc(route)
+		if err != nil {
+			t.Error(ti.msg, "failed to parse route")
+			continue
+		}
+
+		// start a proxy server
+		r := routing.New(routing.Options{
+			FilterRegistry:  builtin.MakeRegistry(),
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     42 * time.Microsecond,
+			DataClients:     []routing.DataClient{dc}})
+		ps := httptest.NewServer(New(r, ti.options))
+
+		// wait for the routing table was activated
+		healthcheckDone := make(chan struct{})
+		go func() {
+			for {
+				rs, _ := http.Get(ps.URL + "/healthcheck")
+				if rs != nil &&
+					rs.StatusCode >= http.StatusOK &&
+					rs.StatusCode < http.StatusMultipleChoices {
+					healthcheckDone <- struct{}{}
+					return
+				}
+			}
+		}()
+		timeouted := false
+		select {
+		case <-time.After(999 * time.Millisecond):
+			timeouted = true
+		case <-healthcheckDone:
+		}
+		if timeouted {
+			t.Error(ti.msg, "startup timeout")
+			ps.Close()
+			continue
+		}
+
+		req, err := http.NewRequest("GET", ps.URL, nil)
+		if err != nil {
+			t.Error(ti.msg, err)
+			ps.Close()
+			continue
+		}
+
+		req.Host = ti.incomingHost
+		rsp, err := (&http.Client{}).Do(req)
+		if err != nil {
+			t.Error(ti.msg, "failed to make request")
+			ps.Close()
+			continue
+		}
+
+		if rsp.Header.Get("X-Received-Host") != ti.expectedHost {
+			t.Error(ti.msg, "wrong host", rsp.Header.Get("X-Received-Host"), ti.expectedHost)
+		}
+
+		ps.Close()
+	}
+}
