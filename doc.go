@@ -26,7 +26,8 @@ sources without being restarted.
 
 Skipper provides a default executable command with a few built-in
 filters, but its primary use case is to extend it with custom filters
-and compiling one's own variant. See section 'Extending Skipper'.
+and predicates, and compiling one's own variant. See section
+'Extending Skipper'.
 
 Skipper took the core design and inspiration from Vulcand:
 https://github.com/mailgun/vulcand.
@@ -85,7 +86,8 @@ Finding the route for a request happens by matching the request
 attributes against the conditions in the route definitions. Route
 definitions may have the following conditions: method, path (optionally
 with wildcards), path regular expressions, host regular expressions,
-headers and header regular expressions.
+headers and header regular expressions. Besides, it is possible to
+define custom predicates, implemented as extensions.
 
 The relation between the conditions in a route definition is 'and',
 meaning that a request must fulfil each condition to match a route.
@@ -177,7 +179,54 @@ cmd/eskip command package, and/or enter in the command line:
 Extending Skipper
 
 Skipper doesn't use dynamically loaded plugins, but it can be used as a
-library and extended with custom filters and/or custom data sources.
+library and extended with custom filters, predicates and data sources.
+
+
+Custom Predicates
+
+To create a custom predicate, one needs to implement the PredicateSpec
+interface in the routing package.  Instances of the PredicateSpec are
+used internally by the routing package to create the actual Predicate
+objects as referenced in eskip routes, with concrete arguments.
+
+Example, randompredicate.go:
+
+    package main
+
+    import (
+        "github.com/zalando/skipper/routing"
+        "math/rand"
+        "net/http"
+    )
+
+    type randomSpec struct {}
+
+    type randomPredicate struct {
+        chance float64
+    }
+
+    func (s *randomSpec) Name() string { return "Random" }
+
+    func (s *randomSpec) Create(args []interface{}) routing.Predicate {
+        p := &randomPredicate{.5}
+        if len(args) > 0 {
+            if c, ok := args[0].(float64); ok {
+                p.chance = c
+            }
+        }
+
+        return p
+    }
+
+    func (p *randomPredicate) Match(_ *http.Request) bool {
+        return rand.Float64() < p.chance
+    }
+
+In the above example, a custom predicate is created, that can be
+referenced in eskip definitions with the name 'Random':
+
+    Random(.33) -> "https://test.example.org";
+    * -> "https://www.example.org"
 
 
 Custom Filters
@@ -227,7 +276,7 @@ will set the X-Hello header for every response in the routes they are
 included in. The name of the filter is 'hello', and can be referenced in
 a route definition as:
 
-    Any() -> hello("world") -> "https://www.example.org"
+    * -> hello("world") -> "https://www.example.org"
 
 
 Custom Build
@@ -250,12 +299,14 @@ Example, hello.go:
         log.Fatal(skipper.Run(skipper.Options{
             Address: ":9090",
             RoutesFile: "routes.eskip",
+            CustomPredicates: []routing.PredicateSpec{&randomSpec{}},
             CustomFilters: []filters.Spec{&helloSpec{}}}))
     }
 
 A file containing the routes, routes.eskip:
 
-    Any() -> hello("world") -> "https://www.example.org"
+    Random(.05) -> hello("fish?") -> "https://fish.example.org";
+    * -> hello("world") -> "https://www.example.org"
 
 Start the custom router:
 
