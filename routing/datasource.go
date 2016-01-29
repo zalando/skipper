@@ -49,11 +49,11 @@ func (d *incomingData) Log() {
 	}
 
 	for _, r := range d.upsertedRoutes {
-		log.Infof("route settings, route, %v: %v: %v", typeString, r.Id, r)
+		log.Infof("route settings, %v, route: %v: %v", typeString, r.Id, r)
 	}
 
 	for _, id := range d.deletedIds {
-		log.Infof("route settings, deleted id, %v: %v", typeString, id)
+		log.Infof("route settings, %v, deleted id: %v", typeString, id)
 	}
 }
 
