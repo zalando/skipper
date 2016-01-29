@@ -39,6 +39,24 @@ type incomingData struct {
 	deletedIds     []string
 }
 
+func (d *incomingData) Log() {
+	typeString := "unknown"
+	switch d.typ {
+	case incomingReset:
+		typeString = "reset"
+	case incomingUpdate:
+		typeString = "update"
+	}
+
+	for _, r := range d.upsertedRoutes {
+		log.Infof("route settings, route, %v: %v: %v", typeString, r.Id, r)
+	}
+
+	for _, id := range d.deletedIds {
+		log.Infof("route settings, deleted id, %v: %v", typeString, id)
+	}
+}
+
 // continously receives route definitions from a data client on the the output channel.
 // The function does not return. When started, it request for the whole current set of
 // routes, and continues polling for the subsequent updates. When a communication error
@@ -138,6 +156,7 @@ func receiveRouteDefs(o Options) <-chan []*eskip.Route {
 	go func() {
 		for {
 			incoming := <-in
+			incoming.Log()
 			c := incoming.client
 			defsByClient[c] = applyIncoming(defsByClient[c], incoming)
 			out <- mergeDefs(defsByClient)
