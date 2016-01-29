@@ -86,7 +86,6 @@ func checkInitial(d []*eskip.Route) bool {
 func checkBackend(d []*eskip.Route, routeId, backend string) bool {
 	for _, r := range d {
 		if r.Id == routeId {
-			println(r.Backend, backend)
 			return r.Backend == backend
 		}
 	}

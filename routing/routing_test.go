@@ -51,7 +51,6 @@ func (cp *predicate) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (cp *predicate) Match(r *http.Request) bool {
-	println("matching", r.Header.Get(predicateHeader), cp.matchVal)
 	return r.Header.Get(predicateHeader) == cp.matchVal
 }
 
