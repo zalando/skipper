@@ -30,6 +30,17 @@ const (
 	incomingUpdate
 )
 
+func (it incomingType) String() string {
+	switch it {
+	case incomingReset:
+		return "reset"
+	case incomingUpdate:
+		return "update"
+	default:
+		return "unknown"
+	}
+}
+
 type routeDefs map[string]*eskip.Route
 
 type incomingData struct {
@@ -40,20 +51,12 @@ type incomingData struct {
 }
 
 func (d *incomingData) Log() {
-	typeString := "unknown"
-	switch d.typ {
-	case incomingReset:
-		typeString = "reset"
-	case incomingUpdate:
-		typeString = "update"
-	}
-
 	for _, r := range d.upsertedRoutes {
-		log.Infof("route settings, %v, route: %v: %v", typeString, r.Id, r)
+		log.Infof("route settings, %v, route: %v: %v", d.typ, r.Id, r)
 	}
 
 	for _, id := range d.deletedIds {
-		log.Infof("route settings, %v, deleted id: %v", typeString, id)
+		log.Infof("route settings, %v, deleted id: %v", d.typ, id)
 	}
 }
 
