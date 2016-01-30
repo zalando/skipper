@@ -86,7 +86,6 @@ func checkInitial(d []*eskip.Route) bool {
 func checkBackend(d []*eskip.Route, routeId, backend string) bool {
 	for _, r := range d {
 		if r.Id == routeId {
-			println(r.Backend, backend)
 			return r.Backend == backend
 		}
 	}
@@ -140,7 +139,7 @@ func TestReceivesInitial(t *testing.T) {
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -163,7 +162,7 @@ func TestReceivesUpdates(t *testing.T) {
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -193,7 +192,7 @@ func TestReceiveInsert(t *testing.T) {
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -226,7 +225,7 @@ func TestReceiveDelete(t *testing.T) {
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -251,7 +250,7 @@ func TestReceiveDelete(t *testing.T) {
 }
 
 func TestUpsertNoId(t *testing.T) {
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -269,7 +268,7 @@ func TestUpsertNew(t *testing.T) {
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -295,7 +294,7 @@ func TestUpsertExisting(t *testing.T) {
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -324,7 +323,7 @@ func TestUpsertExisting(t *testing.T) {
 }
 
 func TestDeleteNoId(t *testing.T) {
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -341,7 +340,7 @@ func TestDeleteNotExists(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -371,7 +370,7 @@ func TestDelete(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
@@ -405,7 +404,7 @@ func TestLoadWithParseFailures(t *testing.T) {
 	etcdtest.PutData("catalog", `Path("/pdp") -> "https://catalog.example.org"`)
 	etcdtest.PutData("cms", "invalid expression")
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
 		return
