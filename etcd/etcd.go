@@ -110,7 +110,6 @@ type Options struct {
 type Client struct {
 	endpoints  []string
 	routesRoot string
-	timeout    time.Duration
 	client     *http.Client
 	etcdIndex  uint64
 }
@@ -138,7 +137,6 @@ func New(o Options) (*Client, error) {
 	return &Client{
 		endpoints:  o.Endpoints,
 		routesRoot: o.Prefix + routesPath,
-		timeout:    o.Timeout,
 		client:     &http.Client{Timeout: o.Timeout},
 		etcdIndex:  0}, nil
 }
