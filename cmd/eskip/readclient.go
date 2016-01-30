@@ -37,7 +37,10 @@ func createReadClient(m *medium) (readClient, error) {
 		return createInnkeeperClient(m)
 
 	case etcd:
-		return etcdclient.New(etcdclient.Options{Endpoints: urlsToStrings(m.urls), Prefix: m.path})
+		return etcdclient.New(etcdclient.Options{
+			Endpoints: urlsToStrings(m.urls),
+			Prefix:    m.path,
+			Insecure:  insecure})
 
 	case stdin:
 		return &stdinReader{reader: os.Stdin}, nil
