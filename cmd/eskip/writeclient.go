@@ -24,7 +24,10 @@ func createWriteClient(out *medium) (writeClient, error) {
 	case innkeeper:
 		return createInnkeeperClient(out)
 	case etcd:
-		return etcdclient.New(etcdclient.Options{Endpoints: urlsToStrings(out.urls), Prefix: out.path})
+		return etcdclient.New(etcdclient.Options{
+			Endpoints: urlsToStrings(out.urls),
+			Prefix:    out.path,
+			Insecure:  insecure})
 	}
 	return nil, invalidOutput
 }

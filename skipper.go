@@ -58,6 +58,9 @@ type Options struct {
 	// is used.
 	EtcdWaitTimeout time.Duration
 
+	// Skip TLS certificate check for etcd connections.
+	EtcdInsecure bool
+
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -174,7 +177,11 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	}
 
 	if len(o.EtcdUrls) > 0 {
-		etcdClient, err := etcd.New(etcd.Options{o.EtcdUrls, o.EtcdPrefix, o.EtcdWaitTimeout})
+		etcdClient, err := etcd.New(etcd.Options{
+			o.EtcdUrls,
+			o.EtcdPrefix,
+			o.EtcdWaitTimeout,
+			o.EtcdInsecure})
 		if err != nil {
 			return nil, err
 		}
