@@ -3,14 +3,22 @@
 # Skipper
 
 Skipper is an HTTP router that acts as a reverse proxy (with support for flexible route definitions), alters
+<<<<<<< HEAD
 requests, and responses with filters. You can use it out of the box and add your own custom filters and predicates. Here's what it does:
+=======
+requests, and responds with filters. It:
+>>>>>>> 59a470aee63d0d983a27a0fa87b1ee38abbcd48e
 
-- identifies routes based on the properties of the requests, such as path, method, host and headers
+- identifies routes based on the requests' properties, such as path, method, host and headers
 - routes each request to the configured server endpoint
-- allows alteration of requests and responses with filters independently configured for each route
+- allows alteration of requests and responds with filters that are independently configured for each route
 - optionally acts as a final endpoint (shunt)
 - updates the routing rules without restarting, while supporting multiple types of data sources — including
   [Innkeeper](https://github.com/zalando/innkeeper), [etcd](https://github.com/coreos/etcd) and static files
+<<<<<<< HEAD
+=======
+- is extensible via custom filters
+>>>>>>> 59a470aee63d0d983a27a0fa87b1ee38abbcd48e
 
 Skipper's design is largely inspired by [Vulcand](https://github.com/vulcand/vulcand).
 
@@ -32,7 +40,7 @@ Create a file with a route:
 
     echo 'hello: Path("/hello") -> "https://www.example.org"' > example.eskip
 
-Optionally, verify the syntax of the file:
+Optionally, verify the file's syntax:
 
     eskip check example.eskip
 
@@ -67,8 +75,8 @@ Test:
 
     go test ./...
 
-### How to contribute
-(Suggest creating a list of bug fixes, feature adds, etc.)
+### Contributing
+We welcome contributions to this project.
 
 ### License
 
