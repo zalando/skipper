@@ -74,6 +74,9 @@ type Options struct {
 	// Filters to be appended to each route loaded from Innkeeper.
 	InnkeeperPostRouteFilters string
 
+	// Skip TLS certificate check for Innkeeper connections.
+	InnkeeperInsecure bool
+
 	// OAuth2 URL for Innkeeper authentication.
 	OAuthUrl string
 
@@ -166,7 +169,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.InnkeeperUrl != "" {
 		ic, err := innkeeper.New(innkeeper.Options{
-			o.InnkeeperUrl, o.ProxyOptions.Insecure(), auth,
+			o.InnkeeperUrl, o.InnkeeperInsecure, auth,
 			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
 		if err != nil {
 			log.Error(err)
