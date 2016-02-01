@@ -334,7 +334,7 @@ func (c *Client) writeRoute(url string, route *routeData) error {
 		return err
 	}
 
-	req.Header.Add(authHeaderName, authToken)
+	req.Header.Add(authHeaderName, "Bearer " + authToken)
 	req.Header.Set("Content-Type", "application/json")
 	response, err := c.httpClient.Do(req)
 	if err != nil {
@@ -365,7 +365,7 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 		return nil, err
 	}
 
-	req.Header.Add(authHeaderName, c.authToken)
+	req.Header.Add(authHeaderName, "Bearer " + c.authToken)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
