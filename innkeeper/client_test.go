@@ -41,7 +41,7 @@ func (aa autoAuth) GetToken() (string, error) {
 type innkeeperHandler struct{ data []*routeData }
 
 func (h *innkeeperHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get(authHeaderName) != "Bearer " + testAuthenticationToken {
+	if r.Header.Get(authHeaderName) != "Bearer "+testAuthenticationToken {
 		w.WriteHeader(http.StatusUnauthorized)
 		enc := json.NewEncoder(w)
 
