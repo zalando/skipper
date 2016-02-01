@@ -64,7 +64,7 @@ func createInnkeeperClient(m *medium) (*innkeeperclient.Client, error) {
 
 	ic, err := innkeeperclient.New(innkeeperclient.Options{
 		Address:        m.urls[0].String(),
-		Insecure:       false,
+		Insecure:       insecure,
 		Authentication: auth})
 
 	if err != nil {
