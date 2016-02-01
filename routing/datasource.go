@@ -30,6 +30,17 @@ const (
 	incomingUpdate
 )
 
+func (it incomingType) String() string {
+	switch it {
+	case incomingReset:
+		return "reset"
+	case incomingUpdate:
+		return "update"
+	default:
+		return "unknown"
+	}
+}
+
 type routeDefs map[string]*eskip.Route
 
 type incomingData struct {
@@ -37,6 +48,16 @@ type incomingData struct {
 	client         DataClient
 	upsertedRoutes []*eskip.Route
 	deletedIds     []string
+}
+
+func (d *incomingData) Log() {
+	for _, r := range d.upsertedRoutes {
+		log.Infof("route settings, %v, route: %v: %v", d.typ, r.Id, r)
+	}
+
+	for _, id := range d.deletedIds {
+		log.Infof("route settings, %v, deleted id: %v", d.typ, id)
+	}
 }
 
 // continously receives route definitions from a data client on the the output channel.
@@ -138,6 +159,7 @@ func receiveRouteDefs(o Options) <-chan []*eskip.Route {
 	go func() {
 		for {
 			incoming := <-in
+			incoming.Log()
 			c := incoming.client
 			defsByClient[c] = applyIncoming(defsByClient[c], incoming)
 			out <- mergeDefs(defsByClient)
