@@ -3,7 +3,7 @@
 # Skipper
 
 Skipper is an HTTP router that acts as a reverse proxy (with support for flexible route definitions), alters
-requests, and responses with filters. It:
+requests, and responses with filters. You can use it out of the box and add your own custom filters and predicates. Here's what it does:
 
 - identifies routes based on the properties of the requests, such as path, method, host and headers
 - routes each request to the configured server endpoint
@@ -11,7 +11,6 @@ requests, and responses with filters. It:
 - optionally acts as a final endpoint (shunt)
 - updates the routing rules without restarting, while supporting multiple types of data sources — including
   [Innkeeper](https://github.com/zalando/innkeeper), [etcd](https://github.com/coreos/etcd) and static files
-- is extensible by custom filters and predicates
 
 Skipper's design is largely inspired by [Vulcand](https://github.com/mailgun/vulcand).
 
