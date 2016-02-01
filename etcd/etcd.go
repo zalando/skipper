@@ -114,7 +114,6 @@ type Options struct {
 type Client struct {
 	endpoints  []string
 	routesRoot string
-	timeout    time.Duration
 	client     *http.Client
 	etcdIndex  uint64
 }
@@ -166,6 +165,11 @@ func New(o Options) (*Client, error) {
 		etcdIndex:  0}, nil
 }
 
+func isTimeout(err error) bool {
+	nerr, ok := err.(net.Error)
+	return ok && nerr.Timeout()
+}
+
 // Makes a request to an etcd endpoint. If it fails due to connection problems,
 // it makes a new request to the next available endpoint, until all endpoints
 // are tried. It returns the response to the first successful request.
@@ -188,6 +192,15 @@ func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.R
 		rsp, err = c.client.Do(req)
 		if err == nil {
 			break
+		}
+
+		if isTimeout(err) {
+			break
+		} else if uerr, ok := err.(*url.Error); ok {
+			if isTimeout(uerr.Err) {
+				err = uerr.Err
+				break
+			}
 		}
 
 		endpointErrs = append(endpointErrs, err)
@@ -410,7 +423,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 	for {
 		response, err := c.etcdGetUpdates()
-		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+		if isTimeout(err) {
 			break
 		} else if err != nil {
 			return nil, nil, err
