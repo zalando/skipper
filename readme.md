@@ -13,7 +13,7 @@ requests, and responses with filters. It:
   [Innkeeper](https://github.com/zalando/innkeeper), [etcd](https://github.com/coreos/etcd) and static files
 - is extensible by custom filters and predicates
 
-Skipper's design is largely inspired by [Vulcand](https://github.com/mailgun/vulcand).
+Skipper's design is largely inspired by [Vulcand](https://github.com/vulcand/vulcand).
 
 
 ### Quickstart
