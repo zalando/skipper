@@ -30,6 +30,7 @@ const (
 	oauthTokenFlag   = "oauth-token"
 	inlineRoutesFlag = "routes"
 	inlineIdsFlag    = "ids"
+	insecureFlag     = "insecure"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
@@ -56,6 +57,7 @@ var (
 	oauthToken     string
 	inlineRoutes   string
 	inlineRouteIds string
+	insecure       bool
 )
 
 var (
@@ -79,6 +81,8 @@ func initFlags() {
 
 	flags.StringVar(&inlineRoutes, inlineRoutesFlag, "", inlineRoutesUsage)
 	flags.StringVar(&inlineRouteIds, inlineIdsFlag, "", inlineIdsUsage)
+
+	flags.BoolVar(&insecure, insecureFlag, false, insecureUsage)
 }
 
 func init() {

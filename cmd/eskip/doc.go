@@ -72,6 +72,7 @@ const (
 	oauthTokenUsage   = "oauth token used to authenticate to innkeeper"
 	inlineRoutesUsage = "inline: routes in eskip format"
 	inlineIdsUsage    = "inline ids: comma separated route ids"
+	insecureUsage     = "skip TLS certificate verification"
 
 	// command line help (1):
 	help1 = `Usage: eskip <command> [media flags] [--] [file]

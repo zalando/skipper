@@ -30,6 +30,7 @@ package etcd
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,6 +104,9 @@ type Options struct {
 	// A timeout value for etcd long-polling.
 	// The default timeout is 1 second.
 	Timeout time.Duration
+
+	// Skip TLS certificate check.
+	Insecure bool
 }
 
 // A Client is used to load the whole set of routes and the updates from an
@@ -134,10 +138,30 @@ func New(o Options) (*Client, error) {
 		o.Timeout = defaultTimeout
 	}
 
+	httpClient := &http.Client{Timeout: o.Timeout}
+
+	if o.Insecure {
+		var transport *http.Transport
+		if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+			dtc := *dt
+			transport = &dtc
+		} else {
+			transport = &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				Dial: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second}).Dial,
+				TLSHandshakeTimeout: 10 * time.Second}
+		}
+
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		httpClient.Transport = transport
+	}
+
 	return &Client{
 		endpoints:  o.Endpoints,
 		routesRoot: o.Prefix + routesPath,
-		client:     &http.Client{Timeout: o.Timeout},
+		client:     httpClient,
 		etcdIndex:  0}, nil
 }
 
