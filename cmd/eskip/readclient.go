@@ -37,7 +37,10 @@ func createReadClient(m *medium) (readClient, error) {
 		return createInnkeeperClient(m)
 
 	case etcd:
-		return etcdclient.New(etcdclient.Options{Endpoints: urlsToStrings(m.urls), Prefix: m.path})
+		return etcdclient.New(etcdclient.Options{
+			Endpoints: urlsToStrings(m.urls),
+			Prefix:    m.path,
+			Insecure:  insecure})
 
 	case stdin:
 		return &stdinReader{reader: os.Stdin}, nil
@@ -61,7 +64,7 @@ func createInnkeeperClient(m *medium) (*innkeeperclient.Client, error) {
 
 	ic, err := innkeeperclient.New(innkeeperclient.Options{
 		Address:        m.urls[0].String(),
-		Insecure:       false,
+		Insecure:       insecure,
 		Authentication: auth})
 
 	if err != nil {
