@@ -347,6 +347,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
+		metrics.IncErrorsRouting()
 		sendError(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		log.Debugf("Could not find a route for %v", r.URL)
 		return
@@ -370,10 +371,11 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			rs, err = p.roundtrip(r, rt, c.outgoingHost)
 			if err != nil {
+				metrics.IncErrorsBackend()
 				sendError(w,
 					http.StatusText(http.StatusInternalServerError),
 					http.StatusInternalServerError)
-				log.Error(err)
+				log.Errorf(err)
 				return
 			}
 
@@ -403,6 +405,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(response.StatusCode)
 		err := copyStream(w.(flusherWriter), response.Body)
 		if err != nil {
+			metrics.IncErrorsStreaming()
 			log.Error(err)
 		} else {
 			metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
