@@ -33,16 +33,16 @@ type Options struct {
 
 const (
 	KeyRouteLookup     = "routelookup"
+	KeyRouteFailure    = "routefailure"
 	KeyFilterRequest   = "filter.%s.request"
 	KeyFiltersRequest  = "allfilters.request.%s"
 	KeyProxyBackend    = "backend.%s"
 	KeyFilterResponse  = "filter.%s.response"
 	KeyFiltersResponse = "allfilters.response.%s"
 	KeyResponse        = "response.%d.%s.skipper.%s"
-	KeyProxyGlobal     = "requests"
-	KeyErrorsRouting   = "errors.routing"
-	KeyErrorsBackend   = "errors.backend"
-	KeyErrorsStreaming = "errors.streaming"
+
+	KeyErrorsBackend   = "errors.backend.%s"
+	KeyErrorsStreaming = "errors.streaming.%s"
 
 	statsRefreshDuration = time.Duration(5 * time.Second)
 
@@ -122,11 +122,7 @@ func MeasureAllFiltersResponse(routeId string, start time.Time) {
 }
 
 func MeasureResponse(code int, method string, routeId string, start time.Time) {
-	d := time.Since(start)
-	go func() {
-		updateTimer(fmt.Sprintf(KeyResponse, code, method, routeId), d)
-		updateTimer(KeyProxyGlobal, d)
-	}()
+	measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
 }
 
 func getCounter(key string) metrics.Counter {
@@ -136,7 +132,7 @@ func getCounter(key string) metrics.Counter {
 	return reg.GetOrRegister(key, metrics.NewCounter).(metrics.Counter)
 }
 
-func incError(key string) {
+func incCounter(key string) {
 	go func() {
 		if c := getCounter(key); c != nil {
 			c.Inc(1)
@@ -144,16 +140,16 @@ func incError(key string) {
 	}()
 }
 
-func IncErrorsRouting() {
-	incError(KeyErrorsRouting)
+func IncRoutingFailures() {
+	incCounter(KeyRouteFailure)
 }
 
-func IncErrorsBackend() {
-	incError(KeyErrorsBackend)
+func IncErrorsBackend(routeId string) {
+	incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
 }
 
-func IncErrorsStreaming() {
-	incError(KeyErrorsStreaming)
+func IncErrorsStreaming(routeId string) {
+	incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
 }
 
 // This listener is used to expose the collected metrics.

@@ -24,6 +24,11 @@ func TestDefaultOptions(t *testing.T) {
 	if timer != nil {
 		t.Errorf("Able to get metric timer for key '%s' while it shouldn't be possible", KeyRouteLookup)
 	}
+
+	counter := getCounter(KeyRouteFailure)
+	if counter != nil {
+		t.Errorf("Able to get metric counter for key '%s' while it shouldn't be possible")
+	}
 }
 
 func TestDefaultOptionsWithListener(t *testing.T) {
@@ -89,6 +94,16 @@ func TestMeasurement(t *testing.T) {
 	if t2.Count() == 0 || t2.Max() == 0 {
 		t.Error("'TestMeasurement2' metric should have some numbers")
 	}
+
+	c1 := getCounter("TestCounter1")
+	if c1.Count() != 0 {
+		t.Error("'TestCounter1' metric should be zero")
+	}
+	incCounter("TestCounter1")
+	time.Sleep(20 * time.Millisecond)
+	if c1.Count() != 1 {
+		t.Errorf("'TestCounter1' metric should be 1. Got %d", c1.Count())
+	}
 }
 
 type proxyMetricTest struct {
@@ -112,6 +127,12 @@ var proxyMetricsTests = []proxyMetricTest{
 	// T7 - Measure response
 	{fmt.Sprintf(KeyResponse, http.StatusOK, "GET", "norf"),
 		func() { MeasureResponse(http.StatusOK, "GET", "norf", time.Now()) }},
+	// T8 - Inc routing failure
+	{KeyRouteFailure, func() { IncRoutingFailures() }},
+	// T9 - Inc backend errors
+	{fmt.Sprintf(KeyErrorsBackend, "r1"), func() { IncErrorsBackend("r1") }},
+	// T10 - Inc streaming errors
+	{fmt.Sprintf(KeyErrorsStreaming, "r1"), func() { IncErrorsStreaming("r1") }},
 }
 
 func TestProxyMetrics(t *testing.T) {
@@ -135,6 +156,7 @@ type serializationTest struct {
 
 var serializationTests = []serializationTest{
 	{metrics.NewGauge, serializationResult{"gauges": {"test": {"value": 0.0}}}},
+	{metrics.NewCounter, serializationResult{"counters": {"test": {"count": 0.0}}}},
 	{metrics.NewTimer, serializationResult{"timers": {"test": {"15m.rate": 0.0, "1m.rate": 0.0, "5m.rate": 0.0,
 		"75%": 0.0, "95%": 0.0, "99%": 0.0, "99.9%": 0.0, "count": 0.0, "max": 0.0, "mean": 0.0, "mean.rate": 0.0,
 		"median": 0.0, "min": 0.0, "stddev": 0.0}}}},
