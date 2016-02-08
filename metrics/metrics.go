@@ -33,12 +33,16 @@ type Options struct {
 
 const (
 	KeyRouteLookup     = "routelookup"
+	KeyRouteFailure    = "routefailure"
 	KeyFilterRequest   = "filter.%s.request"
 	KeyFiltersRequest  = "allfilters.request.%s"
 	KeyProxyBackend    = "backend.%s"
 	KeyFilterResponse  = "filter.%s.response"
 	KeyFiltersResponse = "allfilters.response.%s"
 	KeyResponse        = "response.%d.%s.skipper.%s"
+
+	KeyErrorsBackend   = "errors.backend.%s"
+	KeyErrorsStreaming = "errors.streaming.%s"
 
 	statsRefreshDuration = time.Duration(5 * time.Second)
 
@@ -121,6 +125,33 @@ func MeasureResponse(code int, method string, routeId string, start time.Time) {
 	measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
 }
 
+func getCounter(key string) metrics.Counter {
+	if reg == nil {
+		return nil
+	}
+	return reg.GetOrRegister(key, metrics.NewCounter).(metrics.Counter)
+}
+
+func incCounter(key string) {
+	go func() {
+		if c := getCounter(key); c != nil {
+			c.Inc(1)
+		}
+	}()
+}
+
+func IncRoutingFailures() {
+	incCounter(KeyRouteFailure)
+}
+
+func IncErrorsBackend(routeId string) {
+	incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
+}
+
+func IncErrorsStreaming(routeId string) {
+	incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
+}
+
 // This listener is used to expose the collected metrics.
 func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 	data := make(map[string]map[string]interface{})
@@ -163,6 +194,10 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 			values["5m.rate"] = t.Rate5()
 			values["15m.rate"] = t.Rate15()
 			values["mean.rate"] = t.RateMean()
+		case metrics.Counter:
+			metricsFamily = "counters"
+			t := m.Snapshot()
+			values["count"] = t.Count()
 		default:
 			metricsFamily = "unknown"
 			values["error"] = fmt.Sprintf("unknown metrics type %T", m)
