@@ -22,6 +22,7 @@ import (
 
 // Filter to return
 type redirect struct {
+    deprecated bool
 	code     int
 	location *url.URL
 }
@@ -30,10 +31,18 @@ type redirect struct {
 // response. Marks the request as served. Instances expect two
 // parameters: the redirect status code and the redirect location.
 // Name: "redirect".
-func NewRedirect() filters.Spec { return &redirect{} }
+func NewRedirect() filters.Spec { return &redirect{deprecated: true} }
+
+func NewRedirectTo() filters.Spec { return &redirect{deprecated: false} }
 
 // "redirect"
-func (spec *redirect) Name() string { return RedirectName }
+func (spec *redirect) Name() string {
+    if spec.deprecated {
+        return RedirectName
+    } else {
+        return RedirectNameTo
+    }
+}
 
 // Creates an instance of the redirect filter.
 func (spec *redirect) CreateFilter(config []interface{}) (filters.Filter, error) {
@@ -60,11 +69,8 @@ func (spec *redirect) CreateFilter(config []interface{}) (filters.Filter, error)
 		return invalidArgs()
 	}
 
-	return &redirect{int(code), u}, nil
+	return &redirect{spec.deprecated, int(code), u}, nil
 }
-
-// Noop.
-func (f *redirect) Request(ctx filters.FilterContext) {}
 
 func (f *redirect) copyOfLocation() *url.URL {
 	v := *f.location
@@ -85,11 +91,8 @@ func getRequestHost(r *http.Request) string {
 	return h
 }
 
-// Sets the status code and the location header of the response. Marks the
-// request served.
-func (f *redirect) Response(ctx filters.FilterContext) {
+func (f *redirect) getLocation(ctx filters.FilterContext) string {
 	r := ctx.Request()
-	w := ctx.ResponseWriter()
 	u := f.copyOfLocation()
 
 	if u.Scheme == "" {
@@ -114,7 +117,30 @@ func (f *redirect) Response(ctx filters.FilterContext) {
 		u.RawQuery = r.URL.RawQuery
 	}
 
-	w.Header().Set("Location", u.String())
+    return u.String()
+}
+
+func (f *redirect) Request(ctx filters.FilterContext) {
+    if f.deprecated {
+        return
+    }
+
+    u := f.getLocation(ctx)
+    ctx.Serve(&http.Response{
+        StatusCode: f.code,
+        Header: http.Header{"Location": []string{u}}})
+}
+
+// Sets the status code and the location header of the response. Marks the
+// request served.
+func (f *redirect) Response(ctx filters.FilterContext) {
+    if !f.deprecated {
+        return
+    }
+
+    u := f.getLocation(ctx)
+	w := ctx.ResponseWriter()
+	w.Header().Set("Location", u)
 	w.WriteHeader(f.code)
 	ctx.MarkServed()
 }

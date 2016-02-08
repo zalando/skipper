@@ -64,104 +64,83 @@ func TestRedirectRelative(t *testing.T) {
 	}
 }
 
-func testLocation(t *testing.T, filterLocation, checkLocation string) {
-	spec := NewRedirect()
-	f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), filterLocation})
-	if err != nil {
-		t.Error(err)
-	}
-
-	ctx := &filtertest.Context{
-		FResponseWriter: httptest.NewRecorder(),
-		FRequest: &http.Request{
-			URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
-			Host: "incoming.example.org"}}
-	f.Response(ctx)
-
-	if ctx.ResponseWriter().(*httptest.ResponseRecorder).Code != http.StatusFound {
-		t.Error("invalid status code")
-	}
-
-	if ctx.FResponseWriter.Header().Get("Location") != checkLocation {
-		t.Error("invalid location", ctx.FResponseWriter.Header().Get("Location"))
-	}
-}
-
-func TestSchemeOnly(t *testing.T) {
-	testLocation(t,
+func TestLocation(t *testing.T) {
+    for _, ti := range []struct{
+        msg string
+        filterLocation string
+        checkLocation string
+    } {{
+        "schema only",
 		"http:",
-		"http://incoming.example.org/some/path?foo=1&bar=2")
-
-}
-
-func TestSchemeAndHost(t *testing.T) {
-	testLocation(t,
+		"http://incoming.example.org/some/path?foo=1&bar=2",
+    }, {
+        "schema and host",
 		"http://redirect.example.org",
-		"http://redirect.example.org/some/path?foo=1&bar=2")
-}
-
-func TestSchemeAndHostAndPath(t *testing.T) {
-	testLocation(t,
+		"http://redirect.example.org/some/path?foo=1&bar=2",
+    }, {
+        "schema, host and path",
 		"http://redirect.example.org/some/other/path",
-		"http://redirect.example.org/some/other/path?foo=1&bar=2")
-}
-
-func TestSchemeAndHostAndPathAndQuery(t *testing.T) {
-	testLocation(t,
+		"http://redirect.example.org/some/other/path?foo=1&bar=2",
+    }, {
+        "schema, host, path and query",
 		"http://redirect.example.org/some/other/path?newquery=3",
-		"http://redirect.example.org/some/other/path?newquery=3")
-}
-
-func TestHostOnly(t *testing.T) {
-	testLocation(t,
+		"http://redirect.example.org/some/other/path?newquery=3",
+    }, {
+        "host only",
 		"//redirect.example.org",
-		"https://redirect.example.org/some/path?foo=1&bar=2")
-}
-
-func TestHostAndPath(t *testing.T) {
-	testLocation(t,
+		"https://redirect.example.org/some/path?foo=1&bar=2",
+    }, {
+        "host and path",
 		"//redirect.example.org/some/other/path",
-		"https://redirect.example.org/some/other/path?foo=1&bar=2")
-}
-
-func TestHostAndPathAndQuery(t *testing.T) {
-	testLocation(t,
+		"https://redirect.example.org/some/other/path?foo=1&bar=2",
+    }, {
+        "host, path and query",
 		"//redirect.example.org/some/other/path?newquery=3",
-		"https://redirect.example.org/some/other/path?newquery=3")
-}
-
-func TestPathOnly(t *testing.T) {
-	testLocation(t,
+		"https://redirect.example.org/some/other/path?newquery=3",
+    }, {
+        "path only",
 		"/some/other/path",
-		"https://incoming.example.org/some/other/path?foo=1&bar=2")
-}
-
-func TestPathAndQuery(t *testing.T) {
-	testLocation(t,
+		"https://incoming.example.org/some/other/path?foo=1&bar=2",
+    }, {
+        "path and query",
 		"/some/other/path?newquery=3",
-		"https://incoming.example.org/some/other/path?newquery=3")
-}
-
-func TestQueryOnly(t *testing.T) {
-	testLocation(t,
+		"https://incoming.example.org/some/other/path?newquery=3",
+    }, {
+        "query only",
 		"?newquery=3",
-		"https://incoming.example.org/some/path?newquery=3")
-}
-
-func TestSchemeAndPath(t *testing.T) {
-	testLocation(t,
+		"https://incoming.example.org/some/path?newquery=3",
+    }, {
+        "schema and path",
 		"http:///some/other/path",
-		"http://incoming.example.org/some/other/path?foo=1&bar=2")
-}
-
-func TestSchemeAndPathAndQuery(t *testing.T) {
-	testLocation(t,
+		"http://incoming.example.org/some/other/path?foo=1&bar=2",
+    }, {
+        "schema, path and query",
 		"http:///some/other/path?newquery=3",
-		"http://incoming.example.org/some/other/path?newquery=3")
-}
-
-func TestSchemeAndQuery(t *testing.T) {
-	testLocation(t,
+		"http://incoming.example.org/some/other/path?newquery=3",
+    }, {
+        "schema and query",
 		"http://?newquery=3",
-		"http://incoming.example.org/some/path?newquery=3")
+		"http://incoming.example.org/some/path?newquery=3",
+    }} {
+        spec := NewRedirect()
+        f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), ti.filterLocation})
+        if err != nil {
+            t.Error(err)
+        }
+
+        ctx := &filtertest.Context{
+            FResponseWriter: httptest.NewRecorder(),
+            FRequest: &http.Request{
+                URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
+                Host: "incoming.example.org"}}
+        f.Response(ctx)
+
+        if ctx.ResponseWriter().(*httptest.ResponseRecorder).Code != http.StatusFound {
+            t.Error("invalid status code")
+        }
+
+        if ctx.FResponseWriter.Header().Get("Location") != ti.checkLocation {
+            t.Error("invalid location", ctx.FResponseWriter.Header().Get("Location"))
+        }
+    }
 }

@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"io"
 	"io/ioutil"
@@ -146,16 +147,20 @@ type Client struct {
 
 // Returns a new Client.
 func New(o Options) (*Client, error) {
+	log.Info("innkeeper creating")
 	preFilters, err := eskip.ParseFilters(o.PreRouteFilters)
 	if err != nil {
+		log.Info("innkeeper create error", err)
 		return nil, err
 	}
 
 	postFilters, err := eskip.ParseFilters(o.PostRouteFilters)
 	if err != nil {
+		log.Info("innkeeper create error", err)
 		return nil, err
 	}
 
+	log.Info("innkeeper created")
 	return &Client{
 		opts:             o,
 		preRouteFilters:  preFilters,
@@ -435,6 +440,7 @@ func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	d, err := c.requestData(true, c.opts.Address+allRoutesPath)
 	if err != nil {
+		log.Info("innkeeper, loadall, request error", err)
 		return nil, err
 	}
 
@@ -443,6 +449,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 		c.lastChanged = lastChanged
 	}
 
+	log.Info("innkeeper, loadall, success", len(routes))
 	return routes, nil
 }
 
@@ -450,6 +457,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	d, err := c.requestData(true, c.opts.Address+fmt.Sprintf(updatePathFmt, c.lastChanged))
 	if err != nil {
+		log.Info("innkeeper, load update, error", err)
 		return nil, nil, err
 	}
 
@@ -458,6 +466,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		c.lastChanged = lastChanged
 	}
 
+	log.Info("innkeeper, load update, success", len(routes))
 	return routes, deleted, nil
 }
 
