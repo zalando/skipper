@@ -79,6 +79,8 @@ type flusherWriter interface {
 	io.Writer
 }
 
+type emptyBody struct {}
+
 // a byte buffer implementing the Closer interface
 type bodyBuffer struct {
 	*bytes.Buffer
@@ -104,6 +106,9 @@ type filterContext struct {
 	backendUrl         string
 	outgoingHost       string
 }
+
+func (sb *emptyBody) Read(_ []byte) (int, error) { return 0, io.EOF }
+func (sb *emptyBody) Close() error { return nil }
 
 func (sb bodyBuffer) Close() error {
 	return nil
@@ -267,7 +272,22 @@ func (c *filterContext) OriginalRequest() *http.Request      { return c.original
 func (c *filterContext) OriginalResponse() *http.Response    { return c.originalResponse }
 func (c *filterContext) OutgoingHost() string                { return c.outgoingHost }
 func (c *filterContext) SetOutgoingHost(h string)            { c.outgoingHost = h }
+
 func (c *filterContext) Serve(res *http.Response) {
+    if res.StatusCode == 0 {
+        res.StatusCode = http.StatusNotFound // ?
+    }
+
+    if res.Header == nil {
+        res.Header = make(http.Header)
+    }
+
+    if res.Body == nil {
+        res.Body = &emptyBody{}
+    }
+
+    res.Request = c.Request()
+
 	c.servedWithResponse = true
 	c.res = res
 }
