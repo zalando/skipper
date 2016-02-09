@@ -15,132 +15,130 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 )
 
 func TestRedirect(t *testing.T) {
-	spec := NewRedirect()
-	f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), "https://example.org"})
-	if err != nil {
-		t.Error(err)
-	}
-
-	ctx := &filtertest.Context{FResponseWriter: httptest.NewRecorder(), FRequest: &http.Request{URL: &url.URL{}}}
-	f.Response(ctx)
-
-	if ctx.FResponseWriter.(*httptest.ResponseRecorder).Code != http.StatusFound {
-		t.Error("invalid status code")
-	}
-
-	if ctx.FResponseWriter.Header().Get("Location") != "https://example.org" {
-		t.Error("invalid location")
-	}
-}
-
-func TestRedirectRelative(t *testing.T) {
-	spec := NewRedirect()
-	f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), "/relative/url"})
-	if err != nil {
-		t.Error(err)
-	}
-
-	request, _ := http.NewRequest("GET", "https://example.org/some/url", nil)
-
-	ctx := &filtertest.Context{
-		FResponseWriter: httptest.NewRecorder(),
-		FRequest:        request}
-	f.Response(ctx)
-
-	if ctx.FResponseWriter.(*httptest.ResponseRecorder).Code != http.StatusFound {
-		t.Error("invalid status code")
-	}
-
-	if ctx.FResponseWriter.Header().Get("Location") != "https://example.org/relative/url" {
-		t.Error("invalid location")
-	}
-}
-
-func TestLocation(t *testing.T) {
-    for _, ti := range []struct{
-        msg string
-        filterLocation string
-        checkLocation string
-    } {{
-        "schema only",
+	for _, ti := range []struct {
+		msg            string
+		code           int
+		filterLocation string
+		checkLocation  string
+	}{{
+		"schema only",
+		http.StatusFound,
 		"http:",
 		"http://incoming.example.org/some/path?foo=1&bar=2",
-    }, {
-        "schema and host",
+	}, {
+		"schema and host",
+		http.StatusFound,
 		"http://redirect.example.org",
 		"http://redirect.example.org/some/path?foo=1&bar=2",
-    }, {
-        "schema, host and path",
+	}, {
+		"schema, host and path",
+		http.StatusFound,
 		"http://redirect.example.org/some/other/path",
 		"http://redirect.example.org/some/other/path?foo=1&bar=2",
-    }, {
-        "schema, host, path and query",
+	}, {
+		"schema, host, path and query",
+		http.StatusFound,
 		"http://redirect.example.org/some/other/path?newquery=3",
 		"http://redirect.example.org/some/other/path?newquery=3",
-    }, {
-        "host only",
+	}, {
+		"host only",
+		http.StatusFound,
 		"//redirect.example.org",
 		"https://redirect.example.org/some/path?foo=1&bar=2",
-    }, {
-        "host and path",
+	}, {
+		"host and path",
+		http.StatusFound,
 		"//redirect.example.org/some/other/path",
 		"https://redirect.example.org/some/other/path?foo=1&bar=2",
-    }, {
-        "host, path and query",
+	}, {
+		"host, path and query",
+		http.StatusFound,
 		"//redirect.example.org/some/other/path?newquery=3",
 		"https://redirect.example.org/some/other/path?newquery=3",
-    }, {
-        "path only",
+	}, {
+		"path only",
+		http.StatusFound,
 		"/some/other/path",
 		"https://incoming.example.org/some/other/path?foo=1&bar=2",
-    }, {
-        "path and query",
+	}, {
+		"path and query",
+		http.StatusFound,
 		"/some/other/path?newquery=3",
 		"https://incoming.example.org/some/other/path?newquery=3",
-    }, {
-        "query only",
+	}, {
+		"query only",
+		http.StatusFound,
 		"?newquery=3",
 		"https://incoming.example.org/some/path?newquery=3",
-    }, {
-        "schema and path",
+	}, {
+		"schema and path",
+		http.StatusFound,
 		"http:///some/other/path",
 		"http://incoming.example.org/some/other/path?foo=1&bar=2",
-    }, {
-        "schema, path and query",
+	}, {
+		"schema, path and query",
+		http.StatusFound,
 		"http:///some/other/path?newquery=3",
 		"http://incoming.example.org/some/other/path?newquery=3",
-    }, {
-        "schema and query",
+	}, {
+		"schema and query",
+		http.StatusFound,
 		"http://?newquery=3",
 		"http://incoming.example.org/some/path?newquery=3",
-    }} {
-        spec := NewRedirect()
-        f, err := spec.CreateFilter([]interface{}{float64(http.StatusFound), ti.filterLocation})
-        if err != nil {
-            t.Error(err)
-        }
+	}, {
+		"different code",
+		http.StatusMovedPermanently,
+		"/some/path",
+		"https://incoming.example.org/some/path?foo=1&bar=2",
+	}} {
+		for _, tii := range []struct {
+			msg  string
+			name string
+		}{{
+			"deprecated",
+			RedirectName,
+		}, {
+			"not deprecated",
+			RedirectToName,
+		}} {
+			dc := testdataclient.New([]*eskip.Route{{
+				Shunt: true,
+				Filters: []*eskip.Filter{{
+					Name: tii.name,
+					Args: []interface{}{float64(ti.code), ti.filterLocation}}}}})
+			rt := routing.New(routing.Options{
+				FilterRegistry: MakeRegistry(),
+				DataClients:    []routing.DataClient{dc}})
 
-        ctx := &filtertest.Context{
-            FResponseWriter: httptest.NewRecorder(),
-            FRequest: &http.Request{
-                URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
-                Host: "incoming.example.org"}}
-        f.Response(ctx)
+			// pick up routing
+			time.Sleep(30 * time.Millisecond)
 
-        if ctx.ResponseWriter().(*httptest.ResponseRecorder).Code != http.StatusFound {
-            t.Error("invalid status code")
-        }
+			p := proxy.New(rt, proxy.OptionsNone)
+			req := &http.Request{
+				URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
+				Host: "incoming.example.org"}
+			w := httptest.NewRecorder()
+			p.ServeHTTP(w, req)
 
-        if ctx.FResponseWriter.Header().Get("Location") != ti.checkLocation {
-            t.Error("invalid location", ctx.FResponseWriter.Header().Get("Location"))
-        }
-    }
+			if w.Code != ti.code {
+				t.Error(ti.msg, tii.msg, "invalid status code", w.Code)
+			}
+
+			if w.Header().Get("Location") != ti.checkLocation {
+				t.Error(ti.msg, tii.msg, "invalid location", w.Header().Get("Location"))
+			}
+		}
+	}
 }
