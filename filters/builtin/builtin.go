@@ -14,7 +14,7 @@ const (
 	HealthCheckName    = "healthcheck"
 	ModPathName        = "modPath"
 	RedirectName       = "redirect"
-	RedirectNameTo     = "redirectTo"
+	RedirectToName     = "redirectTo"
 	StaticName         = "static"
 	StripQueryName     = "stripQuery"
 	PreserveHostName   = "preserveHost"
