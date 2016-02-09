@@ -79,8 +79,6 @@ type flusherWriter interface {
 	io.Writer
 }
 
-type emptyBody struct {}
-
 // a byte buffer implementing the Closer interface
 type bodyBuffer struct {
 	*bytes.Buffer
@@ -106,9 +104,6 @@ type filterContext struct {
 	backendUrl         string
 	outgoingHost       string
 }
-
-func (sb *emptyBody) Read(_ []byte) (int, error) { return 0, io.EOF }
-func (sb *emptyBody) Close() error { return nil }
 
 func (sb bodyBuffer) Close() error {
 	return nil
@@ -274,19 +269,15 @@ func (c *filterContext) OutgoingHost() string                { return c.outgoing
 func (c *filterContext) SetOutgoingHost(h string)            { c.outgoingHost = h }
 
 func (c *filterContext) Serve(res *http.Response) {
-    if res.StatusCode == 0 {
-        res.StatusCode = http.StatusNotFound // ?
-    }
+	res.Request = c.Request()
 
-    if res.Header == nil {
-        res.Header = make(http.Header)
-    }
+	if res.Header == nil {
+		res.Header = make(http.Header)
+	}
 
-    if res.Body == nil {
-        res.Body = &emptyBody{}
-    }
-
-    res.Request = c.Request()
+	if res.Body == nil {
+		res.Body = &bodyBuffer{&bytes.Buffer{}}
+	}
 
 	c.servedWithResponse = true
 	c.res = res
@@ -367,6 +358,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
+		println("well, the route has not been found")
 		sendError(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		log.Debugf("Could not find a route for %v", r.URL)
 		return
