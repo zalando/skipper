@@ -22,20 +22,20 @@ The source predicate supports one or more IP addresses with or without a netmask
 Examples:
 
     // only match requests from 1.2.3.4
-    example1: Source("1.2.3.4") -> "http://example.org"
+    example1: Source("1.2.3.4") -> "http://example.org";
 
     // only match requests from 1.2.3.0 - 1.2.3.255
-    example2: Source("1.2.3.0/24") -> "http://example.org"
+    example2: Source("1.2.3.0/24") -> "http://example.org";
 
     // only match requests from 1.2.3.4 and the 2.2.2.0/24 network
-    example3: Source("1.2.3.4", "2.2.2.0/24") -> "http://example.org"
+    example3: Source("1.2.3.4", "2.2.2.0/24") -> "http://example.org";
 */
 package source
 
 import (
 	"errors"
+	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/util"
 	"net"
 	"net/http"
 	"strings"
@@ -84,7 +84,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *predicate) Match(r *http.Request) bool {
-	src := netutils.RemoteHost(r)
+	src := snet.RemoteHost(r)
 	for _, acceptedNet := range p.acceptedSourceNets {
 		if acceptedNet.Contains(src) {
 			return true
