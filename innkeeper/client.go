@@ -54,8 +54,9 @@ const (
 	matchStrict = matchType("STRICT")
 	matchRegex  = matchType("REGEX")
 
-	authErrorPermission     = authErrorType("AUTH1")
-	authErrorAuthentication = authErrorType("AUTH2")
+	authErrorAuthorization      = authErrorType("AUTH1")
+	authErrorMissingCredentials = authErrorType("AUTH2")
+	authErrorAuthentication     = authErrorType("AUTH3")
 
 	allRoutesPathRoot = "routes"
 	updatePathRoot    = "updated-routes"
@@ -285,7 +286,7 @@ func parseApiError(r io.Reader) (string, error) {
 // Checks whether an API error is authentication/authorization related.
 func isApiAuthError(error string) bool {
 	aerr := authErrorType(error)
-	return aerr == authErrorPermission || aerr == authErrorAuthentication
+	return aerr == authErrorAuthorization || aerr == authErrorMissingCredentials || aerr == authErrorAuthentication
 }
 
 // Authenticates a client and stores the authentication token.
@@ -348,7 +349,9 @@ func (c *Client) writeRoute(url string, route *routeData) error {
 
 	defer response.Body.Close()
 
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusBadRequest {
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden ||
+		response.StatusCode == http.StatusBadRequest {
+
 		apiError, err := parseApiError(response.Body)
 		if err != nil {
 			return err
@@ -378,7 +381,8 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 
 	defer response.Body.Close()
 
-	if response.StatusCode == http.StatusUnauthorized {
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+
 		apiError, err := parseApiError(response.Body)
 		if err != nil {
 			return nil, err
