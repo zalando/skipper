@@ -23,6 +23,7 @@ import (
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"io"
@@ -296,6 +297,9 @@ func Run(o Options) error {
 	if o.DevMode {
 		updateBuffer = 0
 	}
+
+	// include bundeled custom predicates
+	o.CustomPredicates = append(o.CustomPredicates, source.New())
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
