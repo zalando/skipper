@@ -35,7 +35,7 @@ func (aa autoAuth) GetToken() (string, error) {
 		return testAuthenticationToken, nil
 	}
 
-	return "", errors.New(string(authErrorAuthentication))
+	return "", errors.New(string(authErrorMissingCredentials))
 }
 
 type innkeeperHandler struct{ data []*routeData }
@@ -46,7 +46,7 @@ func (h *innkeeperHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		enc := json.NewEncoder(w)
 
 		// ignoring error
-		enc.Encode(&apiError{ErrorType: string(authErrorPermission)})
+		enc.Encode(&apiError{ErrorType: string(authErrorAuthorization)})
 
 		return
 	}
