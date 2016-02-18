@@ -51,7 +51,7 @@ Create a file with a route:
 
     echo 'hello: Path("/hello") -> "https://www.example.org"' > example.eskip
 
-Alternatively, verify the syntax of the file:
+Optionally, verify the syntax of the file:
 
     eskip check example.eskip
 
@@ -77,8 +77,8 @@ mapped as the response of the original incoming request.
 Besides the default proxying mechanism, it is possible to define routes
 without a real network backend endpoint. This is called a 'shunt'
 backend, in which case one of the filters needs to handle the request
-(e.g. the 'static' filter). As a matter of fact, filters themselves can
-instruct the request flow to shunt.
+(e.g. the 'static' filter). Actually, filters themselves can instruct
+the request flow to shunt.
 
 For further details, see the 'proxy' and 'filters' package
 documentation.
@@ -91,7 +91,7 @@ the conditions in the route's definitions. Such definitions may have the
 following conditions: method, path (optionally with wildcards), path
 regular expressions, host regular expressions, headers and header
 regular expressions. There is also a way to use custom predicates as
-conditions to be matched as extensions.
+conditions to be matched.
 
 The relation between the conditions in a route definition is 'and',
 meaning, that a request must fulfill each condition to match a route.
@@ -148,8 +148,8 @@ while running, it receives incremental updates from them. It provides
 three different data clients:
 
 - Innkeeper: the Innkeeper service implements a storage for large sets
-of skipper routes, with an HTTP+JSON API, OAuth2 authentication and a
-role management. See the 'innkeeper' package and
+of skipper routes, with an HTTP+JSON API, OAuth2 authentication and role
+management. See the 'innkeeper' package and
 https://github.com/zalando/innkeeper.
 
 - etcd: skipper can load routes and receive updates from etcd clusters
@@ -157,7 +157,7 @@ https://github.com/zalando/innkeeper.
 
 - static file: package eskipfile implements a simple data client, which
 can load route definitions from a static file in eskip format.
-Currently, it supports only loading on startup but no updates.
+Currently, it supports only loading the routes on startup but no updates.
 
 Skipper can use additional data sources, provided by extensions. Sources
 must implement the DataClient interface in the routing package.
@@ -168,7 +168,9 @@ Running Skipper
 Skipper can be started with the default executable command 'skipper', or
 as a library built into a program. The easiest way to start skipper as
 a library is by executing the 'Run' function of the current, root
-package. Each option accepted by the 'Run' function is wired in the
+package.
+
+Each option accepted by the 'Run' function is wired in the
 default executable as well, as a command line flag. E.g. EtcdUrls
 becomes -etcd-urls as a comma separated list. For command line help,
 enter:
@@ -185,8 +187,8 @@ cmd/eskip command package, and/or enter in the command line:
 Extending Skipper
 
 Skipper doesn't use dynamically loaded plugins, however, it can be used
-as a library and with custom predicates, filters and/or custom data
-sources it can be extended.
+as a library, and it can be extended with custom predicates, filters
+and/or custom data sources.
 
 
 Custom Predicates
@@ -240,8 +242,8 @@ Custom Filters
 
 To create a custom filter we need to implement the Spec interface of the
 filters package. 'Spec' is the specification of a filter, and it is used
-to create concrete filter instances for each route that has a reference
-to it while the route definitions are processed.
+to create concrete filter instances while the raw route definitions are
+processed.
 
 Example, hellofilter.go:
 
@@ -278,12 +280,12 @@ Example, hellofilter.go:
         ctx.Response().Header.Set("X-Hello", fmt.Sprintf("Hello, %s!", f.who))
     }
 
-The above example creates a filter specification and in the routes where
+The above example creates a filter specification, and in the routes where
 they are included, the filter instances will set the 'X-Hello' header
 for each and every response. The name of the filter is 'hello', and in a
 route definition it is addressed as:
 
-    Any() -> hello("world") -> "https://www.example.org"
+    * -> hello("world") -> "https://www.example.org"
 
 
 Custom Build
@@ -312,7 +314,8 @@ Example, hello.go:
 
 A file containing the routes, routes.eskip:
 
-    Any() -> hello("world") -> "https://www.example.org"
+    Random(.05) -> hello("fish?") -> "https://fish.example.org";
+    * -> hello("world") -> "https://www.example.org"
 
 Start the custom router:
 
@@ -324,18 +327,15 @@ Proxy Package Used Individually
 The 'Run' function in the root skipper package starts its own listener
 but it doesn't provide the best composability. The proxy package,
 however, provides a standard http.Handler, so it is possible to use it
-in a more complex solution such as a building block for routing.
+in a more complex solution as a building block for routing.
 
 
 Logging and Metrics
 
-Skipper provides detailed logging in case of unexpected failures, as
-well as detailed access logs in Apache combined log format.
-
-When it comes to unexpected failures, or access logs in the Apache
-combined log format, Skipper provides detailed logging. When set up,
-Skipper also collects detailed performance metrics, and exposes them on
-a separate listener endpoint for pulling snapshots.
+Skipper provides detailed logging of failures, and access logs in Apache
+log format. When set up, Skipper also collects detailed performance
+metrics, and exposes them on a separate listener endpoint for pulling
+snapshots.
 
 For details, see the 'logging' and 'metrics' packages documentation.
 
@@ -346,8 +346,8 @@ The router's real life performance depends on the environment and on the
 used filters. Under ideal circumstances and without filters the biggest
 time factor is the route lookup. Skipper is able to scale to thousands
 of routes with logarithmic performance degradation. However, this comes
-at the cost of linearly growing memory consumption, due to storing the
-whole lookup tree in a single structure.
+at the cost of increased memory consumption, due to storing the whole
+lookup tree in a single structure.
 
 Benchmarks for the tree lookup can be run by:
 
