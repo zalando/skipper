@@ -13,8 +13,8 @@
 // limitations under the License.
 
 /*
-This utility can be used to verify, print, update or delete skipper
-routes in eskip format, from/to different media.
+This utility can be used to verify, print, update or delete eskip
+formatted routes in different sources.
 
 For command line help, enter:
 
