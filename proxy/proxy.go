@@ -267,7 +267,18 @@ func (c *filterContext) OriginalRequest() *http.Request      { return c.original
 func (c *filterContext) OriginalResponse() *http.Response    { return c.originalResponse }
 func (c *filterContext) OutgoingHost() string                { return c.outgoingHost }
 func (c *filterContext) SetOutgoingHost(h string)            { c.outgoingHost = h }
+
 func (c *filterContext) Serve(res *http.Response) {
+	res.Request = c.Request()
+
+	if res.Header == nil {
+		res.Header = make(http.Header)
+	}
+
+	if res.Body == nil {
+		res.Body = &bodyBuffer{&bytes.Buffer{}}
+	}
+
 	c.servedWithResponse = true
 	c.res = res
 }

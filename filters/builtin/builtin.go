@@ -14,6 +14,7 @@ const (
 	HealthCheckName    = "healthcheck"
 	ModPathName        = "modPath"
 	RedirectName       = "redirect"
+	RedirectToName     = "redirectTo"
 	StaticName         = "static"
 	StripQueryName     = "stripQuery"
 	PreserveHostName   = "preserveHost"
@@ -31,6 +32,7 @@ func MakeRegistry() filters.Registry {
 		NewHealthCheck(),
 		NewStatic(),
 		NewRedirect(),
+		NewRedirectTo(),
 		NewStripQuery(),
 		flowid.New(),
 		PreserveHost(),
