@@ -14,7 +14,7 @@
 
 /*
 This utility can be used to verify, print, update or delete eskip
-formatted routes in different sources.
+formatted routes from and to different data sources.
 
 For command line help, enter:
 
