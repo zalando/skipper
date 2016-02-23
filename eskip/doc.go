@@ -13,9 +13,9 @@
 // limitations under the License.
 
 /*
-Package eskip implements in-memory representation of skipper route
-expressions and a DSL for describing skipper route expressions, route
-definitions and complete routing tables.
+Package eskip implements an in-memory representation of Skipper routes
+and a DSL for describing Skipper route expressions, route definitions
+and complete routing tables.
 
 
 Grammar Summary
@@ -130,7 +130,7 @@ A filter example:
 
     responseHeader("max-age", "86400") -> static("/", "/var/www/public")
 
-The default skipper implementation provides the following built-in
+The default Skipper implementation provides the following built-in
 filters:
 
     requestHeader("header-name", "header-value")
