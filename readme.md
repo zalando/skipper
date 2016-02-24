@@ -3,23 +3,33 @@
 
 # Skipper
 
-Skipper is an HTTP router that acts as a reverse proxy (with support for flexible route definitions), alters
-requests and responses with filters. You can use it out of the box and add your own custom filters and predicates.
-Here's what it does:
+Skipper is an HTTP router built on top of a reverse proxy with the ability to modifying requests and
+responses with filters. You can use it out of the box or add your own custom filters and predicates.
 
+### What Skipper Does
 - identifies routes based on the requests' properties, such as path, method, host and headers
 - routes each request to the configured server endpoint
-- allows alteration of requests and responds with filters that are independently configured for each route
+- allows modification of requests and responds with filters that are independently configured for each route
 - optionally acts as a final endpoint (shunt)
-- updates the routing rules without restarting, while supporting multiple types of data sources — including
-  [Innkeeper](https://github.com/zalando/innkeeper), [etcd](https://github.com/coreos/etcd) and static files
+- updates the routing rules without restarting, while supporting multiple types of data sources — including [etcd](https://github.com/coreos/etcd), [Innkeeper](https://github.com/zalando/innkeeper) and static files
 
-Skipper's design is largely inspired by [Vulcand](https://github.com/vulcand/vulcand).
+Skipper provides a default executable command with a few built-in filters,
+however, its primary use case is to be extended with custom filters,
+predicates or data sources. See more in the
+[Documentation](https://godoc.org/github.com/zalando/skipper)
 
+#### Inspiration
+Skipper's design is largely inspired by [Vulcand](https://github.com/vulcand/vulcand). 
 
-### Quickstart
+### Getting Started
+#### Prerequisites/Requirements
+In order to build and run Skipper, only the latest version of Go needs to be installed.
 
-Skipper is 'go get' compatible. If needed, create a go workspace first:
+Skipper can use Innkeeper or Etcd as data sources for routes. See more
+details in the [Documentation](https://godoc.org/github.com/zalando/skipper).
+
+#### Installation
+Skipper is 'go get' compatible. If needed, create a Go workspace first:
 
     mkdir ws
     cd ws
@@ -30,6 +40,7 @@ Get the Skipper packages:
 
     go get github.com/zalando/skipper/...
 
+#### Running
 Create a file with a route:
 
     echo 'hello: Path("/hello") -> "https://www.example.org"' > example.eskip
@@ -38,52 +49,34 @@ Optionally, verify the file's syntax:
 
     eskip check example.eskip
 
-Start Skipper and make an HTTP request through skipper:
+Start Skipper and make an HTTP request:
 
     skipper -routes-file example.eskip &
     curl localhost:9090/hello
 
+#### Working with the code
 
-### Documentation
+Getting the code with the test dependencies (`-t` switch):
 
-Skipper is documented in detail in godoc:
-[https://godoc.org/github.com/zalando/skipper](https://godoc.org/github.com/zalando/skipper)
+    go get -t github.com/zalando/skipper/...
 
+Build all packages:
 
-### Compiling
+    go install ./...
 
-Getting the code (optionally, you can create a workspace):
-
-    mkdir ws
-    cd ws
-    export GOPATH=$(pwd)
-    export PATH=$PATH:$GOPATH/bin
-    go get -t github.com/zalando/skipper
-
-Build:
-
-    cd src/github.com/zalando/skipper
-    go install ./cmd/skipper
-
-Test:
+Test all packages:
 
     go test ./...
 
-### Contributing
-We welcome contributions to this project.
-
-### License
-
-Copyright 2015 Zalando SE
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+### Documentation
+Skipper's [godoc](https://godoc.org/github.com/zalando/skipper) page includes detailed information on these topics:
+- The Routing Mechanism
+- Matching Requests
+- Filters - Augmenting Requests
+- Service Backends
+- Route Definitions
+- Data Sources
+- Extending It with Customized Predicates, Filters, and Builds
+- Proxy Packages
+- Logging and Metrics
+- Performance Considerations
