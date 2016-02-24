@@ -26,8 +26,9 @@ Skipper can load and update the route definitions from multiple data
 sources without being restarted.
 
 It provides a default executable command with a few built-in filters,
-however, its primary use case is to be extended with custom filters and
-predicate. For futher information read 'Extending Skipper'.
+however, its primary use case is to be extended with custom filters,
+predicates or data sources. For futher information read
+'Extending Skipper'.
 
 Skipper took the core design and inspiration from Vulcand:
 https://github.com/mailgun/vulcand.
