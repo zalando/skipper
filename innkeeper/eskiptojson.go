@@ -74,6 +74,17 @@ func convertHeaderMatchers(r *eskip.Route) (headerMatchers []headerMatcher) {
 	return
 }
 
+func convertEskipPredicates(r *eskip.Route) []customPredicate {
+	var ps []customPredicate
+	for _, p := range r.Predicates {
+		ps = append(ps, customPredicate{
+			Name: p.Name,
+			Args: p.Args})
+	}
+
+	return ps
+}
+
 func convertFil(r *eskip.Route) (filters []filter) {
 	filters = []filter{}
 	for _, f := range r.Filters {
@@ -106,6 +117,7 @@ func convertEskipToInnkeeper(routes []*eskip.Route) (data []*routeData) {
 		method := convertMethod(r)
 		pathMatch := convertPathMatcher(r)
 		headerMatchers := convertHeaderMatchers(r)
+		predicates := convertEskipPredicates(r)
 		filters := convertFil(r)
 		endpoint := convertEndpoint(r)
 
@@ -116,9 +128,10 @@ func convertEskipToInnkeeper(routes []*eskip.Route) (data []*routeData) {
 			HeaderMatchers: headerMatchers}
 
 		ro := &routeDef{
-			Matcher:  *match,
-			Filters:  filters,
-			Endpoint: endpoint}
+			Matcher:    *match,
+			Predicates: predicates,
+			Filters:    filters,
+			Endpoint:   endpoint}
 
 		d := &routeData{
 			Name:  id,
