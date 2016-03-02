@@ -296,6 +296,15 @@ func TestParsingInnkeeperComplexRoute(t *testing.T) {
 						"type": "STRICT"
 					}]
 				},
+                "predicates": [{
+                    "name": "customPredicate1"
+                }, {
+                    "name": "customPredicate2",
+                    "args": []
+                }, {
+                    "name": "customPredicate3",
+                    "args": ["string1", 3.14]
+                }],
 				"filters": [{
 					"name": "someFilter",
 					"args": ["Hello", 123]
@@ -338,6 +347,19 @@ func TestParsingInnkeeperComplexRoute(t *testing.T) {
 		r.Route.Matcher.HeaderMatchers[0].Typ != "REGEX" ||
 		r.Route.Matcher.HeaderMatchers[0].Value != "www.*" {
 		t.Error("failed to parse header matchers")
+	}
+
+	if len(r.Route.Predicates) != 3 ||
+		r.Route.Predicates[0].Name != "customPredicate1" ||
+		len(r.Route.Predicates[0].Args) != 0 ||
+		r.Route.Predicates[1].Name != "customPredicate2" ||
+		len(r.Route.Predicates[1].Args) != 0 ||
+		r.Route.Predicates[2].Name != "customPredicate3" ||
+		len(r.Route.Predicates[2].Args) != 2 ||
+		r.Route.Predicates[2].Args[0] != "string1" ||
+		r.Route.Predicates[2].Args[1].(float64) < 3.13 ||
+		r.Route.Predicates[2].Args[1].(float64) > 3.15 {
+		t.Error("failed to unmarshal custom predicates")
 	}
 
 	if len(r.Route.Filters) != 2 {
@@ -476,6 +498,33 @@ func TestConvertRouteHeaders(t *testing.T) {
 	if len(rs.Headers) != 2 || rs.Headers["header0"] != "value0" ||
 		rs.Headers["header1"] != "value1" {
 		t.Error("failed to convert headers")
+	}
+}
+
+func TestConvertRoutePredicates(t *testing.T) {
+	d := &routeData{Route: routeDef{Predicates: []customPredicate{{
+		Name: "customPredicate1",
+	}, {
+		Name: "customPredicate2",
+		Args: []interface{}{},
+	}, {
+		Name: "customPredicate3",
+		Args: []interface{}{"string1", 3.14},
+	}}}}
+	rs := convertRoute("", d, nil, nil)
+
+	if len(rs.Predicates) != 3 ||
+		rs.Predicates[0].Name != "customPredicate1" ||
+		len(rs.Predicates[0].Args) != 0 ||
+		rs.Predicates[1].Name != "customPredicate2" ||
+		len(rs.Predicates[1].Args) != 0 ||
+		rs.Predicates[2].Name != "customPredicate3" ||
+		len(rs.Predicates[2].Args) != 2 ||
+		rs.Predicates[2].Args[0] != "string1" ||
+		rs.Predicates[2].Args[1].(float64) < 3.13 ||
+		rs.Predicates[2].Args[1].(float64) > 3.15 {
+
+		t.Error("failed to convert custom predicates")
 	}
 }
 
