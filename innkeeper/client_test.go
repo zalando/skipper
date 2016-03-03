@@ -358,7 +358,7 @@ func TestParsingInnkeeperComplexRoute(t *testing.T) {
 		len(r.Route.Predicates[2].Args) != 2 ||
 		r.Route.Predicates[2].Args[0] != "string1" ||
 		r.Route.Predicates[2].Args[1].(float64) < 3.13 ||
-        r.Route.Predicates[2].Args[1].(float64) > 3.15 {
+		r.Route.Predicates[2].Args[1].(float64) > 3.15 {
 		t.Error("failed to unmarshal custom predicates")
 	}
 
@@ -522,7 +522,7 @@ func TestConvertRoutePredicates(t *testing.T) {
 		len(rs.Predicates[2].Args) != 2 ||
 		rs.Predicates[2].Args[0] != "string1" ||
 		rs.Predicates[2].Args[1].(float64) < 3.13 ||
-        rs.Predicates[2].Args[1].(float64) > 3.15 {
+		rs.Predicates[2].Args[1].(float64) > 3.15 {
 
 		t.Error("failed to convert custom predicates")
 	}
