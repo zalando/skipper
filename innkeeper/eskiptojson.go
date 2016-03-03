@@ -78,8 +78,8 @@ func convertHeaderMatchers(r *eskip.Route) (headerMatchers []headerMatcher) {
 
 func checkArgs(args ...interface{}) error {
 	for _, a := range args {
-		if f, ok := a.(float64); ok && (f != math.Trunc(f) || f != float64(int64(f))) {
-			return errors.New("only 64 bit integers are supported by innkeeper")
+		if f, ok := a.(float64); ok && (f != math.Trunc(f) || f != float64(int32(f))) {
+			return errors.New("only 32 bit integers are supported by innkeeper")
 		}
 	}
 
