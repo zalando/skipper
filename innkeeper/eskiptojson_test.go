@@ -98,7 +98,11 @@ func TestConvertFilWithArgs(t *testing.T) {
 		&eskip.Filter{Name: "filter2", Args: []interface{}{2, "Hello1", "World"}},
 	}}
 
-	filters := convertFil(route)
+	filters, err := convertFil(route)
+	if err != nil {
+		t.Error(err)
+	}
+
 	assert.Equal(t, 2, len(filters))
 	assert.Equal(t, "filter1", filters[0].Name)
 	assert.Equal(t, 2, len(filters[0].Args))
@@ -117,7 +121,11 @@ func TestConvertFilWithoutArgs(t *testing.T) {
 		&eskip.Filter{Name: "filter2"},
 	}}
 
-	filters := convertFil(route)
+	filters, err := convertFil(route)
+	if err != nil {
+		t.Error(err)
+	}
+
 	assert.Equal(t, 2, len(filters))
 	assert.Equal(t, "filter1", filters[0].Name)
 	assert.Equal(t, 0, len(filters[0].Args))
@@ -128,7 +136,10 @@ func TestConvertFilWithoutArgs(t *testing.T) {
 func TestConvertFilEmpty(t *testing.T) {
 	route := &eskip.Route{}
 
-	filters := convertFil(route)
+	filters, err := convertFil(route)
+	if err != nil {
+		t.Error(err)
+	}
 
 	assert.Equal(t, []filter{}, filters)
 }
@@ -163,7 +174,10 @@ func TestConvertEskipToInnkeeper(t *testing.T) {
 			&eskip.Filter{Name: "filter2", Args: []interface{}{2, "Hello1", "World"}}},
 		Backend: "www.backend.com"}}
 
-	routes := convertEskipToInnkeeper(route)
+	routes, err := convertEskipToInnkeeper(route)
+	if err != nil {
+		t.Error(err)
+	}
 
 	assert.Equal(t, 1, len(routes))
 	assert.Equal(t, "theid", routes[0].Name)
@@ -177,7 +191,10 @@ func TestEskipToInnkeeperMinimal(t *testing.T) {
 		Id:     "theid",
 		Method: "GET"}}
 
-	routes := convertEskipToInnkeeper(route)
+	routes, err := convertEskipToInnkeeper(route)
+	if err != nil {
+		t.Error(err)
+	}
 
 	assert.Equal(t, 1, len(routes))
 	assert.Equal(t, "theid", routes[0].Name)

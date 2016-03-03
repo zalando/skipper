@@ -77,6 +77,11 @@ type (
 		Value string    `json:"value,omitempty"`
 	}
 
+	customPredicate struct {
+		Name string        `json:"name,omitempty"`
+		Args []interface{} `json:"args"`
+	}
+
 	matcher struct {
 		HostMatcher    string          `json:"host_matcher,omitempty"`
 		PathMatcher    *pathMatcher    `json:"path_matcher,omitempty"`
@@ -90,9 +95,10 @@ type (
 	}
 
 	routeDef struct {
-		Matcher  matcher  `json:"matcher,omitempty"`
-		Filters  []filter `json:"filters"`
-		Endpoint string   `json:"endpoint,omitempty"`
+		Matcher    matcher           `json:"matcher,omitempty"`
+		Predicates []customPredicate `json:"predicates"`
+		Filters    []filter          `json:"filters"`
+		Endpoint   string            `json:"endpoint,omitempty"`
 	}
 
 	routeData struct {
@@ -180,6 +186,20 @@ func convertHeaders(d *routeData) (map[string]string, map[string][]string) {
 	return hs, hrs
 }
 
+// Converts the Innkeeper predicate objects in a route definition to their eskip
+// representation.
+func convertPredicates(d *routeData) []*eskip.Predicate {
+	var ps []*eskip.Predicate
+
+	for _, h := range d.Route.Predicates {
+		ps = append(ps, &eskip.Predicate{
+			Name: h.Name,
+			Args: h.Args})
+	}
+
+	return ps
+}
+
 // Converts the Innkeeper filter objects in a route definition to their eskip
 // representation.
 func convertFilters(d *routeData) []*eskip.Filter {
@@ -217,6 +237,8 @@ func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*
 	m := d.Route.Matcher.MethodMatcher
 	hs, hrs := convertHeaders(d)
 
+	ps := convertPredicates(d)
+
 	fs := preRouteFilters
 	fs = append(fs, convertFilters(d)...)
 	fs = append(fs, postRouteFilters...)
@@ -229,6 +251,7 @@ func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*
 		Method:        m,
 		Headers:       hs,
 		HeaderRegexps: hrs,
+		Predicates:    ps,
 		Filters:       fs,
 		Shunt:         d.Route.Endpoint == "",
 		Backend:       d.Route.Endpoint}
@@ -467,7 +490,10 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 func (c *Client) UpsertAll(routes []*eskip.Route) error {
 	// convert the routes to the innkeeper json structs
-	data := convertEskipToInnkeeper(routes)
+	data, err := convertEskipToInnkeeper(routes)
+	if err != nil {
+		return err
+	}
 
 	for _, route := range data {
 		err := c.writeRoute(c.opts.Address+allRoutesPath, route)
