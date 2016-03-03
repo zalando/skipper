@@ -134,9 +134,10 @@ func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
 	}
 
 	return &medium{
-		typ:  etcd,
-		urls: urls,
-		path: etcdPrefix}, nil
+		typ:        etcd,
+		urls:       urls,
+		path:       etcdPrefix,
+		oauthToken: oauthToken}, nil
 }
 
 func processInnkeeperArgs(innkeeperUrl, oauthToken string) (*medium, error) {
