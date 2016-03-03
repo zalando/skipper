@@ -490,10 +490,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 func (c *Client) UpsertAll(routes []*eskip.Route) error {
 	// convert the routes to the innkeeper json structs
-	data, err := convertEskipToInnkeeper(routes)
-	if err != nil {
-		return err
-	}
+	data := convertEskipToInnkeeper(routes)
 
 	for _, route := range data {
 		err := c.writeRoute(c.opts.Address+allRoutesPath, route)
