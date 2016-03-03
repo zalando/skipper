@@ -1,8 +1,10 @@
 package innkeeper
 
 import (
+	"errors"
 	"github.com/zalando/skipper/eskip"
 	"log"
+	"math"
 )
 
 func convertPathMatcher(r *eskip.Route) *pathMatcher {
@@ -74,13 +76,57 @@ func convertHeaderMatchers(r *eskip.Route) (headerMatchers []headerMatcher) {
 	return
 }
 
-func convertFil(r *eskip.Route) (filters []filter) {
+func checkArgs(args ...interface{}) error {
+	for _, a := range args {
+		if f, ok := a.(float64); ok && (f != math.Trunc(f) || f != float64(int32(f))) {
+			return errors.New("only 32 bit integers are supported by innkeeper")
+		}
+	}
+
+	return nil
+}
+
+func convertArgs(args []interface{}) ([]interface{}, error) {
+	cargs := make([]interface{}, len(args))
+	for i, a := range args {
+		if err := checkArgs(a); err == nil {
+			cargs[i] = a
+		} else {
+			return nil, err
+		}
+	}
+
+	return cargs, nil
+}
+
+func convertEskipPredicates(r *eskip.Route) ([]customPredicate, error) {
+	var ps []customPredicate
+	for _, p := range r.Predicates {
+		args, err := convertArgs(p.Args)
+		if err != nil {
+			return nil, err
+		}
+
+		ps = append(ps, customPredicate{
+			Name: p.Name,
+			Args: args})
+	}
+
+	return ps, nil
+}
+
+func convertFil(r *eskip.Route) (filters []filter, err error) {
 	filters = []filter{}
 	for _, f := range r.Filters {
 
 		var args = []interface{}{}
 		if f.Args != nil {
 			args = f.Args
+		}
+
+		args, err = convertArgs(args)
+		if err != nil {
+			return
 		}
 
 		filters = append(filters, filter{
@@ -97,7 +143,8 @@ func convertEndpoint(r *eskip.Route) (endpoint string) {
 	return
 }
 
-func convertEskipToInnkeeper(routes []*eskip.Route) (data []*routeData) {
+func convertEskipToInnkeeper(routes []*eskip.Route) ([]*routeData, error) {
+	var data []*routeData
 
 	for _, r := range routes {
 
@@ -106,7 +153,17 @@ func convertEskipToInnkeeper(routes []*eskip.Route) (data []*routeData) {
 		method := convertMethod(r)
 		pathMatch := convertPathMatcher(r)
 		headerMatchers := convertHeaderMatchers(r)
-		filters := convertFil(r)
+
+		predicates, err := convertEskipPredicates(r)
+		if err != nil {
+			return nil, err
+		}
+
+		filters, err := convertFil(r)
+		if err != nil {
+			return nil, err
+		}
+
 		endpoint := convertEndpoint(r)
 
 		match := &matcher{
@@ -116,9 +173,10 @@ func convertEskipToInnkeeper(routes []*eskip.Route) (data []*routeData) {
 			HeaderMatchers: headerMatchers}
 
 		ro := &routeDef{
-			Matcher:  *match,
-			Filters:  filters,
-			Endpoint: endpoint}
+			Matcher:    *match,
+			Predicates: predicates,
+			Filters:    filters,
+			Endpoint:   endpoint}
 
 		d := &routeData{
 			Name:  id,
@@ -127,5 +185,5 @@ func convertEskipToInnkeeper(routes []*eskip.Route) (data []*routeData) {
 		data = append(data, d)
 	}
 
-	return
+	return data, nil
 }
