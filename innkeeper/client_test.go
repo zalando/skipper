@@ -303,7 +303,7 @@ func TestParsingInnkeeperComplexRoute(t *testing.T) {
                     "args": []
                 }, {
                     "name": "customPredicate3",
-                    "args": ["string1", 3]
+                    "args": ["string1", 3.14]
                 }],
 				"filters": [{
 					"name": "someFilter",
@@ -357,7 +357,8 @@ func TestParsingInnkeeperComplexRoute(t *testing.T) {
 		r.Route.Predicates[2].Name != "customPredicate3" ||
 		len(r.Route.Predicates[2].Args) != 2 ||
 		r.Route.Predicates[2].Args[0] != "string1" ||
-		r.Route.Predicates[2].Args[1].(float64) != 3 {
+		r.Route.Predicates[2].Args[1].(float64) < 3.13 ||
+        r.Route.Predicates[2].Args[1].(float64) > 3.15 {
 		t.Error("failed to unmarshal custom predicates")
 	}
 
@@ -508,7 +509,7 @@ func TestConvertRoutePredicates(t *testing.T) {
 		Args: []interface{}{},
 	}, {
 		Name: "customPredicate3",
-		Args: []interface{}{"string1", 3},
+		Args: []interface{}{"string1", 3.14},
 	}}}}
 	rs := convertRoute("", d, nil, nil)
 
@@ -520,7 +521,8 @@ func TestConvertRoutePredicates(t *testing.T) {
 		rs.Predicates[2].Name != "customPredicate3" ||
 		len(rs.Predicates[2].Args) != 2 ||
 		rs.Predicates[2].Args[0] != "string1" ||
-		rs.Predicates[2].Args[1] != 3 {
+		rs.Predicates[2].Args[1].(float64) < 3.13 ||
+        rs.Predicates[2].Args[1].(float64) > 3.15 {
 
 		t.Error("failed to convert custom predicates")
 	}
