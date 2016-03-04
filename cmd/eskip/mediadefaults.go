@@ -13,7 +13,7 @@ var commandToDefaultMediums = map[command]defaultFunc{
 func defaultRead(in, out *medium) (input, output *medium, err error) {
 	input = in
 	if input == nil {
-		input, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
+		input, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix, "")
 	}
 	return
 }
@@ -22,7 +22,7 @@ func defaultWrite(in, out *medium) (input, output *medium, err error) {
 	input = in
 	output = out
 	if out == nil {
-		output, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
+		output, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix, "")
 	}
 
 	return

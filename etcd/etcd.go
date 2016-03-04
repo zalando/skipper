@@ -130,6 +130,7 @@ var (
 	invalidNode             = errors.New("invalid node")
 	unexpectedHttpResponse  = errors.New("unexpected http response")
 	notFound                = errors.New("not found")
+	unauthorized            = errors.New("unauthorized")
 	missingEtcdIndex        = errors.New("missing etcd index")
 	invalidResponseDocument = errors.New("invalid response document")
 )
@@ -250,6 +251,10 @@ func parseResponse(rsp *http.Response) (*response, error) {
 func httpError(code int) (error, bool) {
 	if code == http.StatusNotFound {
 		return notFound, true
+	}
+
+	if code == http.StatusUnauthorized {
+		return unauthorized, true
 	}
 
 	if code < http.StatusOK || code >= http.StatusMultipleChoices {
