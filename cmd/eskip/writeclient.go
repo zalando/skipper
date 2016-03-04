@@ -27,7 +27,8 @@ func createWriteClient(out *medium) (writeClient, error) {
 		return etcdclient.New(etcdclient.Options{
 			Endpoints: urlsToStrings(out.urls),
 			Prefix:    out.path,
-			Insecure:  insecure})
+			Insecure:  insecure,
+			AuthToken: out.oauthToken})
 	}
 	return nil, invalidOutput
 }

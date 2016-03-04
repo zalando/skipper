@@ -182,10 +182,10 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if len(o.EtcdUrls) > 0 {
 		etcdClient, err := etcd.New(etcd.Options{
-			o.EtcdUrls,
-			o.EtcdPrefix,
-			o.EtcdWaitTimeout,
-			o.EtcdInsecure})
+			Endpoints: o.EtcdUrls,
+			Prefix:    o.EtcdPrefix,
+			Timeout:   o.EtcdWaitTimeout,
+			Insecure:  o.EtcdInsecure})
 		if err != nil {
 			return nil, err
 		}

@@ -40,7 +40,8 @@ func createReadClient(m *medium) (readClient, error) {
 		return etcdclient.New(etcdclient.Options{
 			Endpoints: urlsToStrings(m.urls),
 			Prefix:    m.path,
-			Insecure:  insecure})
+			Insecure:  insecure,
+			AuthToken: m.oauthToken})
 
 	case stdin:
 		return &stdinReader{reader: os.Stdin}, nil

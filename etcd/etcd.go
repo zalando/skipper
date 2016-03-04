@@ -107,6 +107,11 @@ type Options struct {
 
 	// Skip TLS certificate check.
 	Insecure bool
+
+	// Authorization token to be used. When
+	// empty, the 'Authorization' header is
+	// not set.
+	AuthToken string
 }
 
 // A Client is used to load the whole set of routes and the updates from an
@@ -116,6 +121,7 @@ type Client struct {
 	routesRoot string
 	client     *http.Client
 	etcdIndex  uint64
+	authToken  string
 }
 
 var (
@@ -124,6 +130,7 @@ var (
 	invalidNode             = errors.New("invalid node")
 	unexpectedHttpResponse  = errors.New("unexpected http response")
 	notFound                = errors.New("not found")
+	unauthorized            = errors.New("unauthorized")
 	missingEtcdIndex        = errors.New("missing etcd index")
 	invalidResponseDocument = errors.New("invalid response document")
 )
@@ -162,7 +169,8 @@ func New(o Options) (*Client, error) {
 		endpoints:  o.Endpoints,
 		routesRoot: o.Prefix + routesPath,
 		client:     httpClient,
-		etcdIndex:  0}, nil
+		etcdIndex:  0,
+		authToken:  o.AuthToken}, nil
 }
 
 func isTimeout(err error) bool {
@@ -245,6 +253,10 @@ func httpError(code int) (error, bool) {
 		return notFound, true
 	}
 
+	if code == http.StatusUnauthorized {
+		return unauthorized, true
+	}
+
 	if code < http.StatusOK || code >= http.StatusMultipleChoices {
 		return unexpectedHttpResponse, true
 	}
@@ -266,6 +278,10 @@ func (c *Client) etcdRequest(method, path, data string) (*response, error) {
 		r, err := http.NewRequest(method, a+path, body)
 		if err != nil {
 			return nil, err
+		}
+
+		if c.authToken != "" {
+			r.Header.Set("Authorization", "Bearer "+c.authToken)
 		}
 
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")

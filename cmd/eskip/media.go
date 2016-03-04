@@ -65,7 +65,7 @@ func validateSelectRead(media []*medium) (input, _ *medium, err error) {
 	}
 
 	if len(media) == 0 {
-		m, err := processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
+		m, err := processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix, "")
 		return m, nil, err
 	}
 

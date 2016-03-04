@@ -114,7 +114,7 @@ func stringsToUrls(strs ...string) ([]*url.URL, error) {
 
 // returns etcd type medium if any of '-etcd-urls' or '-etcd-prefix'
 // are defined.
-func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
+func processEtcdArgs(etcdUrls, etcdPrefix, oauthToken string) (*medium, error) {
 	if etcdUrls == "" && etcdPrefix == "" {
 		return nil, nil
 	}
@@ -134,22 +134,19 @@ func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
 	}
 
 	return &medium{
-		typ:  etcd,
-		urls: urls,
-		path: etcdPrefix}, nil
+		typ:        etcd,
+		urls:       urls,
+		path:       etcdPrefix,
+		oauthToken: oauthToken}, nil
 }
 
 func processInnkeeperArgs(innkeeperUrl, oauthToken string) (*medium, error) {
-	if innkeeperUrl == "" && oauthToken == "" {
+	if innkeeperUrl == "" {
 		return nil, nil
 	}
 
 	if oauthToken == "" {
 		return nil, missingOAuthToken
-	}
-
-	if innkeeperUrl == "" {
-		innkeeperUrl = defaultInnkeeperUrl
 	}
 
 	urls, err := stringsToUrls(innkeeperUrl)
@@ -211,7 +208,7 @@ func processArgs() ([]*medium, error) {
 		media = append(media, innkeeperArg)
 	}
 
-	etcdArg, err := processEtcdArgs(etcdUrls, etcdPrefix)
+	etcdArg, err := processEtcdArgs(etcdUrls, etcdPrefix, oauthToken)
 	if err != nil {
 		return nil, err
 	}
