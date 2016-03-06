@@ -92,6 +92,14 @@ func NewResponseHeader() filters.Spec {
 // If the header name is 'Host', the filter uses the `SetOutgoingHost()`
 // method to set the header in addition to the standard `Request.Header`
 // map.
+//
+// This filter accepts path parameter references in the replacement
+// argument. The syntax for the reference is the same as the map
+// key syntax in Go text templates. E.g. if the path predicate
+// looks like Path("/some/:name"), then the parameter 'name' can
+// be used in the header value, referenced as '{{.name}}'. E.g:
+//
+//  setRequestHeader("X-Name", "{{.name}}")
 func NewSetRequestHeader() filters.Spec {
 	return &headerFilter{typ: setRequestHeader}
 }
@@ -103,6 +111,14 @@ func NewSetRequestHeader() filters.Spec {
 // If the header name is 'Host', the filter uses the `SetOutgoingHost()`
 // method to set the header in addition to the standard `Request.Header`
 // map.
+//
+// This filter accepts path parameter references in the replacement
+// argument. The syntax for the reference is the same as the map
+// key syntax in Go text templates. E.g. if the path predicate
+// looks like Path("/some/:name"), then the parameter 'name' can
+// be used in the header value, referenced as '{{.name}}'. E.g:
+//
+//  appendRequestHeader("X-Name", "{{.name}}")
 func NewAppendRequestHeader() filters.Spec {
 	return &headerFilter{typ: appendRequestHeader}
 }
@@ -117,6 +133,14 @@ func NewDropRequestHeader() filters.Spec {
 // Returns a filter specification that is used to set headers for responses.
 // Instances expect two parameters: the header name and the header value.
 // Name: "setResponseHeader".
+//
+// This filter accepts path parameter references in the replacement
+// argument. The syntax for the reference is the same as the map
+// key syntax in Go text templates. E.g. if the path predicate
+// looks like Path("/some/:name"), then the parameter 'name' can
+// be used in the header value, referenced as '{{.name}}'. E.g:
+//
+//  setResponseHeader("X-Name", "{{.name}}")
 func NewSetResponseHeader() filters.Spec {
 	return &headerFilter{typ: setResponseHeader}
 }
@@ -124,6 +148,14 @@ func NewSetResponseHeader() filters.Spec {
 // Returns a filter specification that is used to append headers for responses.
 // Instances expect two parameters: the header name and the header value.
 // Name: "appendResponseHeader".
+//
+// This filter accepts path parameter references in the replacement
+// argument. The syntax for the reference is the same as the map
+// key syntax in Go text templates. E.g. if the path predicate
+// looks like Path("/some/:name"), then the parameter 'name' can
+// be used in the header value, referenced as '{{.name}}'. E.g:
+//
+//  appendResponseHeader("X-Name", "{{.name}}")
 func NewAppendResponseHeader() filters.Spec {
 	return &headerFilter{typ: appendResponseHeader}
 }

@@ -17,6 +17,7 @@ package builtin
 import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"net/http"
 	"net/http/httptest"
@@ -227,5 +228,35 @@ func TestHeader(t *testing.T) {
 		if ti.valid {
 			compareHeaders(t, ti.msg, rsp.Header, ti.expectedHeader)
 		}
+	}
+}
+
+func TestHeaderInvalidParamTemplate(t *testing.T) {
+	spec := NewSetRequestHeader()
+	_, err := spec.CreateFilter([]interface{}{"X-Name", "{{.name"})
+	if err == nil {
+		t.Error("failed to fail")
+	}
+}
+
+func TestHeaderAcceptPathParams(t *testing.T) {
+	spec := NewSetRequestHeader()
+	f, err := spec.CreateFilter([]interface{}{"X-Name", "{{.name}}"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	req, err := http.NewRequest("GET", "https://www.example.org", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx := &filtertest.Context{
+		FRequest: req,
+		FParams:  map[string]string{"name": "value"}}
+	f.Request(ctx)
+	if req.Header.Get("X-Name") != "value" {
+		t.Error("failed to set header")
 	}
 }

@@ -159,6 +159,13 @@ filters:
 
     preserveHost()
 
+From the builtin filters, modPath and the <set/append><Request/Response>Header
+filters accept placeholders that will be replaced with the parameters
+taken from the Path predicate. The placeholders use the map key placeholder
+syntax of Go text templates. Example:
+
+	Path("/static/:fn") -> modPath(".*", "/{{.fn}}") -> "https://www.example.org"
+
 For details about the built-in filters, please, refer to the
 documentation of the skipper/filters package. Skipper is designed to be
 extendable primarily by implementing custom filters, for details about

@@ -54,3 +54,33 @@ func TestModifyPath(t *testing.T) {
 		t.Error("failed to replace path")
 	}
 }
+
+func TestModPathInvalidParamTemplate(t *testing.T) {
+	spec := NewModPath()
+	_, err := spec.CreateFilter([]interface{}{".*", "{{.name"})
+	if err == nil {
+		t.Error("failed to fail")
+	}
+}
+
+func TestModPathAcceptPathParams(t *testing.T) {
+	spec := NewModPath()
+	f, err := spec.CreateFilter([]interface{}{"/replace-this/", "{{.name}}"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	req, err := http.NewRequest("GET", "https://www.example.org/path/replace-this/yo", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx := &filtertest.Context{
+		FRequest: req,
+		FParams:  map[string]string{"name": "/with-this/"}}
+	f.Request(ctx)
+	if req.URL.Path != "/path/with-this/yo" {
+		t.Error("failed to replace path")
+	}
+}
