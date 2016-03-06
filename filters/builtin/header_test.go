@@ -183,7 +183,6 @@ func TestHeader(t *testing.T) {
 				w.Header()[n] = vs
 			}
 
-			println(r.Host)
 			w.Header().Set("X-Request-Host", r.Host)
 		}))
 
