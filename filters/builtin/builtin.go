@@ -9,15 +9,19 @@ import (
 )
 
 const (
-	RequestHeaderName  = "requestHeader"
-	ResponseHeaderName = "responseHeader"
-	HealthCheckName    = "healthcheck"
-	ModPathName        = "modPath"
-	RedirectName       = "redirect"
-	RedirectToName     = "redirectTo"
-	StaticName         = "static"
-	StripQueryName     = "stripQuery"
-	PreserveHostName   = "preserveHost"
+	RequestHeaderName        = "requestHeader"
+	ResponseHeaderName       = "responseHeader"
+	SetRequestHeaderName     = "setRequestHeader"
+	SetResponseHeaderName    = "setResponseHeader"
+	AppendRequestHeaderName  = "appendRequestHeader"
+	AppendResponseHeaderName = "appendResponseHeader"
+	HealthCheckName          = "healthcheck"
+	ModPathName              = "modPath"
+	RedirectName             = "redirect"
+	RedirectToName           = "redirectTo"
+	StaticName               = "static"
+	StripQueryName           = "stripQuery"
+	PreserveHostName         = "preserveHost"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -27,7 +31,11 @@ func MakeRegistry() filters.Registry {
 	r := make(filters.Registry)
 	for _, s := range []filters.Spec{
 		NewRequestHeader(),
+		NewSetRequestHeader(),
+		NewAppendRequestHeader(),
 		NewResponseHeader(),
+		NewSetResponseHeader(),
+		NewAppendResponseHeader(),
 		NewModPath(),
 		NewHealthCheck(),
 		NewStatic(),

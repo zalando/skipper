@@ -30,6 +30,7 @@ const (
 // filters
 type headerFilter struct {
 	typ              headerType
+	append           bool
 	name, key, value string
 }
 
@@ -52,6 +53,20 @@ func headerFilterConfig(config []interface{}) (string, string, error) {
 	return key, value, nil
 }
 
+// deprecated:
+func NewRequestHeader() filters.Spec {
+	s := NewAppendRequestHeader()
+	s.(*headerFilter).name = RequestHeaderName
+	return s
+}
+
+// deprecated:
+func NewResponseHeader() filters.Spec {
+	s := NewAppendResponseHeader()
+	s.(*headerFilter).name = ResponseHeaderName
+	return s
+}
+
 // Returns a filter specification that is used to set headers for requests.
 // Instances expect two parameters: the header name and the header value.
 // Name: "requestHeader".
@@ -59,15 +74,45 @@ func headerFilterConfig(config []interface{}) (string, string, error) {
 // If the header name is 'Host', the filter uses the `SetOutgoingHost()`
 // method to set the header in addition to the standard `Request.Header`
 // map.
-func NewRequestHeader() filters.Spec {
-	return &headerFilter{typ: requestHeader, name: RequestHeaderName}
+func NewSetRequestHeader() filters.Spec {
+	return &headerFilter{
+		typ:    requestHeader,
+		append: false,
+		name:   SetRequestHeaderName}
+}
+
+// Returns a filter specification that is used to append headers for requests.
+// Instances expect two parameters: the header name and the header value.
+// Name: "requestHeader".
+//
+// If the header name is 'Host', the filter uses the `SetOutgoingHost()`
+// method to set the header in addition to the standard `Request.Header`
+// map.
+func NewAppendRequestHeader() filters.Spec {
+	return &headerFilter{
+		typ:    requestHeader,
+		append: true,
+		name:   AppendRequestHeaderName}
 }
 
 // Returns a filter specification that is used to set headers for responses.
 // Instances expect two parameters: the header name and the header value.
 // Name: "responseHeader".
-func NewResponseHeader() filters.Spec {
-	return &headerFilter{typ: responseHeader, name: ResponseHeaderName}
+func NewSetResponseHeader() filters.Spec {
+	return &headerFilter{
+		typ:    responseHeader,
+		append: false,
+		name:   SetResponseHeaderName}
+}
+
+// Returns a filter specification that is used to append headers for responses.
+// Instances expect two parameters: the header name and the header value.
+// Name: "responseHeader".
+func NewAppendResponseHeader() filters.Spec {
+	return &headerFilter{
+		typ:    responseHeader,
+		append: true,
+		name:   AppendResponseHeaderName}
 }
 
 func (spec *headerFilter) Name() string { return spec.name }
@@ -82,7 +127,12 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	ctx.Request().Header.Add(f.key, f.value)
+	if f.append {
+		ctx.Request().Header.Add(f.key, f.value)
+	} else {
+		ctx.Request().Header.Set(f.key, f.value)
+	}
+
 	if strings.ToLower(f.key) == "host" {
 		ctx.SetOutgoingHost(f.value)
 	}
@@ -90,6 +140,10 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 
 func (f *headerFilter) Response(ctx filters.FilterContext) {
 	if f.typ == responseHeader {
-		ctx.Response().Header.Add(f.key, f.value)
+		if f.append {
+			ctx.Response().Header.Add(f.key, f.value)
+		} else {
+			ctx.Response().Header.Set(f.key, f.value)
+		}
 	}
 }
