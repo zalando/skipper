@@ -39,20 +39,19 @@ type static struct {
 	webRoot, root string
 }
 
-// creates a delayed body/response writer pipe object, that
-// waits until WriteHeader of the response writer completes
-// and delayes Write, until the body read is started
+// Creates a delayed Body/ResponseWriter pipe object, that
+// waits until WriteHeader of the ResponseWriter completes
+// but delays Write until the body read is started.
 func newDelayed(req *http.Request, p string) *http.Response {
 	pr, pw := io.Pipe()
 	rsp := &http.Response{Header: make(http.Header)}
 	db := &delayedBody{
 		request:    req,
-		path:       p,
 		response:   rsp,
 		reader:     pr,
 		writer:     pw,
 		headerDone: make(chan struct{})}
-	go http.ServeFile(db, db.request, db.path)
+	go http.ServeFile(db, db.request, p)
 	<-db.headerDone
 	rsp.Body = db
 	return rsp
@@ -61,8 +60,8 @@ func newDelayed(req *http.Request, p string) *http.Response {
 func (b *delayedBody) Read(data []byte) (int, error) { return b.reader.Read(data) }
 func (b *delayedBody) Header() http.Header           { return b.response.Header }
 
-// implements http.ResponseWriter.Write, with the assumption that
-// Content-Length is always set in advance.
+// Implements http.ResponseWriter.Write. When Content-Length is set,
+// it signals EOF for the Body reader.
 func (b *delayedBody) Write(data []byte) (int, error) {
 	if b.request.Method == "HEAD" || b.response.StatusCode >= http.StatusMultipleChoices {
 		return 0, nil
@@ -73,9 +72,11 @@ func (b *delayedBody) Write(data []byte) (int, error) {
 		return n, err
 	}
 
-	// pipe won't forward EOF, unless explicityly signaled
-	// not signaled when Content-Encoding is set
-	if b.response.Header.Get("Content-Encoding") == "" {
+	// The pipe won't forward EOF, unless explicityly signaled.
+	// When Content-Length is unknown, no way to know when
+	// to signal, and the request flow needs to be ended on
+	// other terms.
+	if b.contentLength >= 0 {
 		b.written += n
 		if b.written >= b.contentLength {
 			b.writer.CloseWithError(io.EOF)
@@ -85,13 +86,13 @@ func (b *delayedBody) Write(data []byte) (int, error) {
 	return n, err
 }
 
-// implements http.ResponseWriter.WriteHeader.
-// makes sure that the pipe is closed when Content-Length is
-// not set, with the exception of Content-Encoding is set.
+// Implements http.ResponseWriter.WriteHeader.
+// It makes sure that the pipe is closed when Content-Length is
+// set.
 func (b *delayedBody) WriteHeader(status int) {
 	b.response.StatusCode = status
 
-	// no content on HEAD or redirect (304, not modified)
+	// No content on HEAD or redirect (e.g. 304, not modified).
 	if b.request.Method == "HEAD" ||
 		status >= http.StatusMultipleChoices && status < http.StatusBadRequest {
 
@@ -100,7 +101,7 @@ func (b *delayedBody) WriteHeader(status int) {
 		return
 	}
 
-	// write body and close the pipe in case of an error
+	// Write the error text and close the pipe in case of an error response.
 	if status >= http.StatusBadRequest {
 		close(b.headerDone)
 
@@ -113,15 +114,15 @@ func (b *delayedBody) WriteHeader(status int) {
 		return
 	}
 
-	// pipe close not handled when Content-Encoding is set
+	// When Content-Encoding is set, no way to know when to close the
+	// pipe.
 	if b.response.Header.Get("Content-Encoding") != "" {
-		// currently no good option for this, but it shouldn't happen
-		// based on the http.ServeFile
+		b.contentLength = -1
 		close(b.headerDone)
 		return
 	}
 
-	// take the expected Content-Length. If fails, close the pipe.
+	// Take the expected Content-Length. If it fails, close the pipe.
 	cl, err := strconv.Atoi(b.response.Header.Get("Content-Length"))
 	if cl == 0 || err != nil {
 		if err != nil && b.response.Header.Get("Content-Length") != "" {
@@ -144,7 +145,7 @@ func (b *delayedBody) Close() error {
 }
 
 // Returns a filter Spec to serve static content from a file system
-// location. Marks the request as served.
+// location. It shunts the route.
 //
 // Filter instances of this specification expect two parameters: a
 // request path prefix and a local directory path. When processing a
