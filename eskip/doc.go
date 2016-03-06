@@ -151,6 +151,8 @@ filters:
 
     preserveHost()
 
+	status(418)
+
 For details about the built-in filters, please, refer to the
 documentation of the skipper/filters package. Skipper is designed to be
 extendable primarily by implementing custom filters, for details about
