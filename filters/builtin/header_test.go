@@ -15,97 +15,217 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/proxy/proxytest"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
-func TestRequestHeader(t *testing.T) {
-	spec := NewRequestHeader()
-	if spec.Name() != "requestHeader" {
-		t.Error("invalid name")
+func compareHeaders(t *testing.T, msg string, got, expected http.Header) {
+	for n, _ := range got {
+		if !strings.HasPrefix(n, "X-Test-") {
+			delete(got, n)
+		}
 	}
 
-	f, err := spec.CreateFilter([]interface{}{"Some-Header", "some-value"})
-	if err != nil {
-		t.Error(err)
+	if len(got) != len(expected) {
+		t.Error(msg, "invalid number of headers")
+		return
 	}
 
-	r, err := http.NewRequest("GET", "test:", nil)
-	if err != nil {
-		t.Error(err)
-	}
+	for n, vs := range got {
+		evs := expected[n]
+		if len(vs) != len(evs) {
+			t.Error(msg, "invalid number of header values", n)
+			return
+		}
 
-	c := &filtertest.Context{FRequest: r}
-	f.Request(c)
-	if r.Header.Get("Some-Header") != "some-value" {
-		t.Error("failed to set request header")
-	}
-}
+		for _, v := range vs {
+			found := false
+			for _, ev := range evs {
+				if v == ev {
+					found = true
+					break
+				}
+			}
 
-func TestRequestHeaderInvalidConfigLength(t *testing.T) {
-	spec := NewRequestHeader()
-	_, err := spec.CreateFilter([]interface{}{"Some-Header"})
-	if err == nil {
-		t.Error("failed to fail")
-	}
-}
-
-func TestRequestHeaderInvalidConfigKey(t *testing.T) {
-	spec := NewRequestHeader()
-	_, err := spec.CreateFilter([]interface{}{1, "some-value"})
-	if err == nil {
-		t.Error("failed to fail")
+			if !found {
+				t.Error(msg, "invalid header value", n, v)
+				return
+			}
+		}
 	}
 }
 
-func TestRequestHeaderInvalidConfigValue(t *testing.T) {
-	spec := NewRequestHeader()
-	_, err := spec.CreateFilter([]interface{}{"Some-Header", 2})
-	if err == nil {
-		t.Error("failed to fail")
-	}
-}
+func TestHeader(t *testing.T) {
+	for _, ti := range []struct {
+		msg            string
+		filterName     string
+		args           []interface{}
+		host           string
+		valid          bool
+		requestHeader  http.Header
+		responseHeader http.Header
+		expectedHeader http.Header
+	}{{
+		msg:        "invalid number of args",
+		filterName: "setRequestHeader",
+		args:       []interface{}{"name", "value", "other value"},
+		valid:      false,
+	}, {
+		msg:        "name not string",
+		filterName: "setRequestHeader",
+		args:       []interface{}{3, "value"},
+		valid:      false,
+	}, {
+		msg:        "value not string",
+		filterName: "setRequestHeader",
+		args:       []interface{}{"name", 3},
+		valid:      false,
+	}, {
+		msg:            "set request header when none",
+		filterName:     "setRequestHeader",
+		args:           []interface{}{"X-Test-Name", "value"},
+		valid:          true,
+		expectedHeader: http.Header{"X-Test-Request-Name": []string{"value"}},
+	}, {
+		msg:            "set request header when exists",
+		filterName:     "setRequestHeader",
+		args:           []interface{}{"X-Test-Name", "value"},
+		valid:          true,
+		requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		expectedHeader: http.Header{"X-Test-Request-Name": []string{"value"}},
+	}, {
+		msg:            "append request header when none",
+		filterName:     "appendRequestHeader",
+		args:           []interface{}{"X-Test-Name", "value"},
+		valid:          true,
+		expectedHeader: http.Header{"X-Test-Request-Name": []string{"value"}},
+	}, {
+		msg:            "append request header when exists",
+		filterName:     "appendRequestHeader",
+		args:           []interface{}{"X-Test-Name", "value"},
+		valid:          true,
+		requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0", "value1", "value"}},
+	}, {
+		msg:        "drop request header when none",
+		filterName: "dropRequestHeader",
+		args:       []interface{}{"X-Test-Name"},
+		valid:      true,
+	}, {
+		msg:           "drop request header when exists",
+		filterName:    "dropRequestHeader",
+		args:          []interface{}{"X-Test-Name"},
+		valid:         true,
+		requestHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+	}, {
+		msg:            "set response header when none",
+		filterName:     "setResponseHeader",
+		args:           []interface{}{"X-Test-Name", "value"},
+		valid:          true,
+		expectedHeader: http.Header{"X-Test-Name": []string{"value"}},
+	}, {
+		msg:            "set response header when exists",
+		filterName:     "setResponseHeader",
+		args:           []interface{}{"X-Test-Name", "value"},
+		valid:          true,
+		responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		expectedHeader: http.Header{"X-Test-Name": []string{"value"}},
+	}, {
+		msg:            "append response header when none",
+		filterName:     "appendResponseHeader",
+		args:           []interface{}{"X-Test-Name", "value"},
+		valid:          true,
+		expectedHeader: http.Header{"X-Test-Name": []string{"value"}},
+	}, {
+		msg:            "append response header when exists",
+		filterName:     "appendResponseHeader",
+		args:           []interface{}{"X-Test-Name", "value"},
+		valid:          true,
+		responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		expectedHeader: http.Header{"X-Test-Name": []string{"value0", "value1", "value"}},
+	}, {
+		msg:        "drop response header when none",
+		filterName: "dropResponseHeader",
+		args:       []interface{}{"X-Test-Name"},
+		valid:      true,
+	}, {
+		msg:            "drop response header when exists",
+		filterName:     "dropResponseHeader",
+		args:           []interface{}{"X-Test-Name"},
+		valid:          true,
+		responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+	}, {
+		msg:        "set outgoing host on set",
+		filterName: "setRequestHeader",
+		args:       []interface{}{"Host", "www.example.org"},
+		valid:      true,
+		host:       "www.example.org",
+	}, {
+		msg:        "append outgoing host on set",
+		filterName: "appendRequestHeader",
+		args:       []interface{}{"Host", "www.example.org"},
+		valid:      true,
+		host:       "www.example.org",
+	}} {
+		bs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for n, vs := range r.Header {
+				if strings.HasPrefix(n, "X-Test-") {
+					w.Header()["X-Test-Request-"+n[7:]] = vs
+				}
+			}
 
-func TestResponseHeader(t *testing.T) {
-	spec := NewResponseHeader()
-	if spec.Name() != "responseHeader" {
-		t.Error("invalid name")
-	}
+			for n, vs := range ti.responseHeader {
+				w.Header()[n] = vs
+			}
 
-	f, err := spec.CreateFilter([]interface{}{"Some-Header", "some-value"})
-	if err != nil {
-		t.Error(err)
-	}
+			println(r.Host)
+			w.Header().Set("X-Request-Host", r.Host)
+		}))
 
-	r := &http.Response{Header: make(http.Header)}
-	c := &filtertest.Context{FResponse: r}
-	f.Response(c)
-	if r.Header.Get("Some-Header") != "some-value" {
-		t.Error("failed to set request header")
-	}
-}
+		fr := make(filters.Registry)
+		fr.Register(NewSetRequestHeader())
+		fr.Register(NewAppendRequestHeader())
+		fr.Register(NewDropRequestHeader())
+		fr.Register(NewSetResponseHeader())
+		fr.Register(NewAppendResponseHeader())
+		fr.Register(NewDropResponseHeader())
+		pr := proxytest.New(fr, &eskip.Route{
+			Filters: []*eskip.Filter{{Name: ti.filterName, Args: ti.args}},
+			Backend: bs.URL})
 
-func TestResponseHeaderInvalidConfigLength(t *testing.T) {
-	spec := NewResponseHeader()
-	_, err := spec.CreateFilter([]interface{}{"Some-Header"})
-	if err == nil {
-		t.Error("failed to fail")
-	}
-}
+		req, err := http.NewRequest("GET", pr.URL, nil)
+		if err != nil {
+			t.Error(ti.msg, err)
+			continue
+		}
 
-func TestResponseHeaderInvalidConfigKey(t *testing.T) {
-	spec := NewResponseHeader()
-	_, err := spec.CreateFilter([]interface{}{1, "some-value"})
-	if err == nil {
-		t.Error("failed to fail")
-	}
-}
+		for n, vs := range ti.requestHeader {
+			req.Header[n] = vs
+		}
 
-func TestResponseHeaderInvalidConfigValue(t *testing.T) {
-	spec := NewResponseHeader()
-	_, err := spec.CreateFilter([]interface{}{"Some-Header", 2})
-	if err == nil {
-		t.Error("failed to fail")
+		rsp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Error(ti.msg, err)
+			continue
+		}
+
+		if ti.valid && rsp.StatusCode != http.StatusOK ||
+			!ti.valid && rsp.StatusCode != http.StatusNotFound {
+			t.Error(ti.msg, "failed to validate arguments")
+			continue
+		}
+
+		if ti.host != "" && ti.host != rsp.Header.Get("X-Request-Host") {
+			t.Error(ti.msg, "failed to set outgoing request host")
+		}
+
+		if ti.valid {
+			compareHeaders(t, ti.msg, rsp.Header, ti.expectedHeader)
+		}
 	}
 }

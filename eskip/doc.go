@@ -47,7 +47,7 @@ A route expression example:
         "https://api.example.org"
 
 
-Match Expressions (Predicates)
+Match Expressions - Predicates
 
 A match expression contains one or more conditions. An incoming
 request must fulfil each of them to match the route. The conditions are
@@ -128,18 +128,26 @@ filter. The arguments can be of type string ("a string"), number
 
 A filter example:
 
-    responseHeader("max-age", "86400") -> static("/", "/var/www/public")
+    setResponseHeader("max-age", "86400") -> static("/", "/var/www/public")
 
 The default Skipper implementation provides the following built-in
 filters:
 
-    requestHeader("header-name", "header-value")
+    setRequestHeader("header-name", "header-value")
 
-    responseHeader("header-name", "header-value")
+    setResponseHeader("header-name", "header-value")
+
+    appendRequestHeader("header-name", "header-value")
+
+    appendResponseHeader("header-name", "header-value")
+
+    dropRequestHeader("header-name")
+
+    dropResponseHeader("header-name")
 
     modPath(/regular-expression/, "replacement")
 
-    redirect(302, "https://ui.example.org")
+    redirectTo(302, "https://ui.example.org")
 
     flowId("reuse", 64)
 
