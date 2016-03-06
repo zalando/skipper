@@ -50,6 +50,8 @@ type FilterContext interface {
 	// name as the key.
 	PathParam(string) string
 
+	PathParams() map[string]string
+
 	// Provides a read-write state bag, unique to a request and shared by all
 	// the filters in the route.
 	StateBag() map[string]interface{}

@@ -22,7 +22,7 @@ import (
 
 type modPath struct {
 	rx          *regexp.Regexp
-	replacement []byte
+	replacement *filters.ParamTemplate
 }
 
 // Returns a new modpath filter Spec, whose instances execute
@@ -54,19 +54,29 @@ func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) 
 		return nil, invalidConfig(config)
 	}
 
+	t, err := filters.NewParamTemplate(replacement)
+	if err != nil {
+		return nil, err
+	}
+
 	rx, err := regexp.Compile(expr)
 	if err != nil {
 		return nil, err
 	}
 
-	f := &modPath{rx, []byte(replacement)}
+	f := &modPath{rx, t}
 	return f, nil
 }
 
 // Modifies the path with regexp.ReplaceAll.
 func (f *modPath) Request(ctx filters.FilterContext) {
+	replacement, ok := f.replacement.ExecuteLogged(ctx.PathParams())
+	if !ok {
+		return
+	}
+
 	req := ctx.Request()
-	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), f.replacement))
+	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), replacement))
 }
 
 // Noop.

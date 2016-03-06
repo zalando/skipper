@@ -29,28 +29,30 @@ const (
 // common structure for requestHeader, responseHeader specifications and
 // filters
 type headerFilter struct {
-	typ              headerType
-	append           bool
-	name, key, value string
+	typ       headerType
+	append    bool
+	name, key string
+	value     *filters.ParamTemplate
 }
 
 // verifies that the filter config has two string parameters
-func headerFilterConfig(config []interface{}) (string, string, error) {
+func headerFilterConfig(config []interface{}) (string, *filters.ParamTemplate, error) {
 	if len(config) != 2 {
-		return "", "", filters.ErrInvalidFilterParameters
+		return "", nil, filters.ErrInvalidFilterParameters
 	}
 
 	key, ok := config[0].(string)
 	if !ok {
-		return "", "", filters.ErrInvalidFilterParameters
+		return "", nil, filters.ErrInvalidFilterParameters
 	}
 
 	value, ok := config[1].(string)
 	if !ok {
-		return "", "", filters.ErrInvalidFilterParameters
+		return "", nil, filters.ErrInvalidFilterParameters
 	}
 
-	return key, value, nil
+	t, err := filters.NewParamTemplate(value)
+	return key, t, err
 }
 
 // deprecated:
@@ -127,23 +129,37 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
+	v, ok := f.value.ExecuteLogged(ctx.PathParams())
+	if !ok {
+		return
+	}
+
+	sv := string(v)
+
 	if f.append {
-		ctx.Request().Header.Add(f.key, f.value)
+		ctx.Request().Header.Add(f.key, sv)
 	} else {
-		ctx.Request().Header.Set(f.key, f.value)
+		ctx.Request().Header.Set(f.key, sv)
 	}
 
 	if strings.ToLower(f.key) == "host" {
-		ctx.SetOutgoingHost(f.value)
+		ctx.SetOutgoingHost(sv)
 	}
 }
 
 func (f *headerFilter) Response(ctx filters.FilterContext) {
-	if f.typ == responseHeader {
-		if f.append {
-			ctx.Response().Header.Add(f.key, f.value)
-		} else {
-			ctx.Response().Header.Set(f.key, f.value)
-		}
+	if f.typ != responseHeader {
+		return
+	}
+
+	v, ok := f.value.ExecuteLogged(ctx.PathParams())
+	if !ok {
+		return
+	}
+
+	if f.append {
+		ctx.Response().Header.Add(f.key, string(v))
+	} else {
+		ctx.Response().Header.Set(f.key, string(v))
 	}
 }
