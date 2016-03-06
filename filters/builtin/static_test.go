@@ -15,40 +15,101 @@
 package builtin
 
 import (
-	"bytes"
-	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/proxy/proxytest"
 	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"testing"
 )
 
 func TestStatic(t *testing.T) {
-	d := []byte("some data")
-	err := ioutil.WriteFile("/tmp/static-test", d, os.ModePerm)
-	if err != nil {
-		t.Error("failed to create test file")
-	}
+	const testData = "Hello, world!"
 
-	s := NewStatic()
-	f, err := s.CreateFilter([]interface{}{"/static", "/tmp"})
-	if err != nil {
-		t.Error("failed to create filter")
-	}
+	for _, ti := range []struct {
+		msg             string
+		args            []interface{}
+		removeFile      bool
+		path            string
+		expectedStatus  int
+		expectedContent string
+	}{{
+		msg:            "invalid number of args",
+		args:           nil,
+		path:           "/static/static-test",
+		expectedStatus: http.StatusNotFound,
+	}, {
+		msg:            "not string web root",
+		args:           []interface{}{3.14, "/tmp"},
+		path:           "/static/static-test",
+		expectedStatus: http.StatusNotFound,
+	}, {
+		msg:            "not string fs root",
+		args:           []interface{}{"/static", 3.14},
+		path:           "/static/static-test",
+		expectedStatus: http.StatusNotFound,
+	}, {
+		msg:            "web root cannot be clipped",
+		args:           []interface{}{"/static", "/tmp"},
+		path:           "/a",
+		expectedStatus: http.StatusNotFound,
+	}, {
+		msg:            "not found",
+		args:           []interface{}{"/static", "/tmp"},
+		removeFile:     true,
+		path:           "/static/static-test",
+		expectedStatus: http.StatusNotFound,
+	}, {
+		msg:             "found",
+		args:            []interface{}{"/static", "/tmp"},
+		path:            "/static/static-test",
+		expectedStatus:  http.StatusOK,
+		expectedContent: testData,
+	}} {
+		if ti.removeFile {
+			if err := os.Remove("/tmp/static-test"); err != nil && !os.IsNotExist(err) {
+				t.Error(ti.msg, err)
+				continue
+			}
+		} else {
+			if err := ioutil.WriteFile("/tmp/static-test", []byte(testData), os.ModePerm); err != nil {
+				t.Error(ti.msg, err)
+				continue
+			}
+		}
 
-	fc := &filtertest.Context{
-		FResponseWriter: httptest.NewRecorder(),
-		FRequest:        &http.Request{URL: &url.URL{Path: "/static/static-test"}}}
-	f.Response(fc)
+		fr := make(filters.Registry)
+		fr.Register(NewStatic())
+		pr := proxytest.New(fr, &eskip.Route{
+			Filters: []*eskip.Filter{{Name: StaticName, Args: ti.args}},
+			Shunt:   true})
 
-	b, err := ioutil.ReadAll(fc.FResponseWriter.(*httptest.ResponseRecorder).Body)
-	if err != nil {
-		t.Error("failed to verify response")
-	}
+		rsp, err := http.Get(pr.URL + ti.path)
+		if err != nil {
+			t.Error(ti.msg, err)
+			continue
+		}
 
-	if !bytes.Equal(b, d) {
-		t.Error("failed to write response", string(b))
+		defer rsp.Body.Close()
+
+		if rsp.StatusCode != ti.expectedStatus {
+			t.Error(ti.msg, "status code doesn't match", rsp.StatusCode, ti.expectedStatus)
+			continue
+		}
+
+		if rsp.StatusCode != http.StatusOK {
+			continue
+		}
+
+		content, err := ioutil.ReadAll(rsp.Body)
+		if err != nil {
+			t.Error(ti.msg, err)
+			continue
+		}
+
+		if string(content) != ti.expectedContent {
+			t.Error(ti.msg, "content doesn't match", string(content), ti.expectedContent)
+		}
 	}
 }

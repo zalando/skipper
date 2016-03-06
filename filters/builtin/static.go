@@ -17,12 +17,57 @@ package builtin
 import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
+	"io"
 	"net/http"
 	"path"
 )
 
+type delayedBody struct {
+	request    *http.Request
+	path       string
+	response   *http.Response
+	reader     io.ReadCloser
+	writer     io.WriteCloser
+	headerDone chan struct{}
+}
+
 type static struct {
 	webRoot, root string
+}
+
+// creates a delayed body/response writer pipe object, that
+// waits until WriteHeader of the response writer completes
+// and delayes Write, until the body read is started
+func newDelayed(req *http.Request, p string) *http.Response {
+	println(p)
+	pr, pw := io.Pipe()
+	rsp := &http.Response{Header: make(http.Header)}
+	db := &delayedBody{
+		request:    req,
+		path:       p,
+		response:   rsp,
+		reader:     pr,
+		writer:     pw,
+		headerDone: make(chan struct{})}
+	go http.ServeFile(db, db.request, db.path)
+	<-db.headerDone
+	rsp.Body = db
+	return rsp
+}
+
+func (b *delayedBody) Read(data []byte) (int, error)  { return b.reader.Read(data) }
+func (b *delayedBody) Header() http.Header            { return b.response.Header }
+func (b *delayedBody) Write(data []byte) (int, error) { return b.writer.Write(data) }
+
+func (b *delayedBody) WriteHeader(status int) {
+	b.response.StatusCode = status
+	close(b.headerDone)
+}
+
+func (b *delayedBody) Close() error {
+	b.reader.Close()
+	b.writer.Close()
+	return nil
 }
 
 // Returns a filter Spec to serve static content from a file system
@@ -60,18 +105,18 @@ func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 	return &static{webRoot, root}, nil
 }
 
-// Noop.
-func (f *static) Request(filters.FilterContext) {}
-
 // Serves content from the file system and marks the request served.
-func (f *static) Response(ctx filters.FilterContext) {
-	r := ctx.Request()
-	p := r.URL.Path
+func (f *static) Request(ctx filters.FilterContext) {
+	req := ctx.Request()
+	p := req.URL.Path
 
 	if len(p) < len(f.webRoot) {
+		ctx.Serve(&http.Response{StatusCode: http.StatusNotFound})
 		return
 	}
 
-	ctx.MarkServed()
-	http.ServeFile(ctx.ResponseWriter(), ctx.Request(), path.Join(f.root, p[len(f.webRoot):]))
+	ctx.Serve(newDelayed(req, path.Join(f.root, p[len(f.webRoot):])))
 }
+
+// Noop.
+func (f *static) Response(filters.FilterContext) {}
