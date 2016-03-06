@@ -83,8 +83,6 @@ func (f *modPath) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	println(string(replacement))
-
 	req := ctx.Request()
 	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), replacement))
 }
