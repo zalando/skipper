@@ -39,7 +39,6 @@ type static struct {
 // waits until WriteHeader of the response writer completes
 // and delayes Write, until the body read is started
 func newDelayed(req *http.Request, p string) *http.Response {
-	println(p)
 	pr, pw := io.Pipe()
 	rsp := &http.Response{Header: make(http.Header)}
 	db := &delayedBody{
