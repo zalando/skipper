@@ -22,23 +22,35 @@ import (
 type headerType int
 
 const (
-	requestHeader headerType = iota
-	responseHeader
+	setRequestHeader headerType = iota
+	appendRequestHeader
+	dropRequestHeader
+	setResponseHeader
+	appendResponseHeader
+	dropResponseHeader
+
+	depRequestHeader
+	depResponseHeader
 )
 
 // common structure for requestHeader, responseHeader specifications and
 // filters
 type headerFilter struct {
 	typ       headerType
-	append    bool
 	name, key string
 	value     *filters.ParamTemplate
-}
 
 // verifies that the filter config has two string parameters
 func headerFilterConfig(config []interface{}) (string, *filters.ParamTemplate, error) {
-	if len(config) != 2 {
-		return "", nil, filters.ErrInvalidFilterParameters
+	switch typ {
+	case dropRequestHeader, dropResponseHeader:
+		if len(config) != 1 {
+			return "", nil, filters.ErrInvalidFilterParameters
+		}
+	default:
+		if len(config) != 2 {
+			return "", nil, filters.ErrInvalidFilterParameters
+		}
 	}
 
 	key, ok := config[0].(string)
@@ -46,86 +58,113 @@ func headerFilterConfig(config []interface{}) (string, *filters.ParamTemplate, e
 		return "", nil, filters.ErrInvalidFilterParameters
 	}
 
-	value, ok := config[1].(string)
-	if !ok {
-		return "", nil, filters.ErrInvalidFilterParameters
+	var t *filters.ParamTemplate
+	if len(config) == 2 {
+		value, ok := config[1].(string)
+		if !ok {
+			return "", nil, filters.ErrInvalidFilterParameters
+		}
+
+		t, err := filters.NewParamTemplate(value)
+		if err != nil {
+			return "", nil, err
+		}
 	}
 
-	t, err := filters.NewParamTemplate(value)
 	return key, t, err
 }
 
-// deprecated:
+// Deprecated: use setRequestHeader or appendRequestHeader
 func NewRequestHeader() filters.Spec {
-	s := NewAppendRequestHeader()
-	s.(*headerFilter).name = RequestHeaderName
-	return s
+	return &headerFilter{typ: depRequestHeader}
 }
 
-// deprecated:
+// Deprecated: use setRequestHeader or appendRequestHeader
 func NewResponseHeader() filters.Spec {
-	s := NewAppendResponseHeader()
-	s.(*headerFilter).name = ResponseHeaderName
-	return s
+	return &headerFilter{typ: depResponseHeader}
 }
 
 // Returns a filter specification that is used to set headers for requests.
 // Instances expect two parameters: the header name and the header value.
-// Name: "requestHeader".
+// Name: "setRequestHeader".
 //
 // If the header name is 'Host', the filter uses the `SetOutgoingHost()`
 // method to set the header in addition to the standard `Request.Header`
 // map.
 func NewSetRequestHeader() filters.Spec {
-	return &headerFilter{
-		typ:    requestHeader,
-		append: false,
-		name:   SetRequestHeaderName}
+	return &headerFilter{typ: setRequestHeader}
 }
 
 // Returns a filter specification that is used to append headers for requests.
 // Instances expect two parameters: the header name and the header value.
-// Name: "requestHeader".
+// Name: "appendRequestHeader".
 //
 // If the header name is 'Host', the filter uses the `SetOutgoingHost()`
 // method to set the header in addition to the standard `Request.Header`
 // map.
 func NewAppendRequestHeader() filters.Spec {
-	return &headerFilter{
-		typ:    requestHeader,
-		append: true,
-		name:   AppendRequestHeaderName}
+	return &headerFilter{typ: appendRequestHeader}
+}
+
+// Returns a filter specification that is used to delete headers for requests.
+// Instances expect one parameter: the header name.
+// Name: "dropResponseHeader".
+func NewDropRequestHeader() filters.Spec {
+	return &headerFilter{typ: dropRequestHeader}
 }
 
 // Returns a filter specification that is used to set headers for responses.
 // Instances expect two parameters: the header name and the header value.
-// Name: "responseHeader".
+// Name: "setResponseHeader".
 func NewSetResponseHeader() filters.Spec {
-	return &headerFilter{
-		typ:    responseHeader,
-		append: false,
-		name:   SetResponseHeaderName}
+	return &headerFilter{typ: setResponseHeader}
 }
 
 // Returns a filter specification that is used to append headers for responses.
 // Instances expect two parameters: the header name and the header value.
-// Name: "responseHeader".
+// Name: "appendResponseHeader".
 func NewAppendResponseHeader() filters.Spec {
-	return &headerFilter{
-		typ:    responseHeader,
-		append: true,
-		name:   AppendResponseHeaderName}
+	return &headerFilter{typ: appendResponseHeader}
 }
 
-func (spec *headerFilter) Name() string { return spec.name }
+// Returns a filter specification that is used to delete headers for responses.
+// Instances expect one parameter: the header name.
+// Name: "dropResponseHeader".
+func NewDropResponseHeader() filters.Spec {
+	return &headerFilter{typ: dropResponseHeader}
+}
+
+func (spec *headerFilter) Name() string {
+	switch spec.typ {
+	case setRequestHeader:
+		return SetRequestHeaderName
+	case appendRequestHeader:
+		return AppendRequestHeaderName
+	case dropRequestHeader:
+		return DropRequestHeaderName
+	case setResponseHeader:
+		return SetResponseHeaderName
+	case appendResponseHeader:
+		return AppendResponseHeaderName
+	case dropResponseHeader:
+		return DropResponseHeaderName
+	case depRequestHeader:
+		return RequestHeaderName
+	case depResponseHeader:
+		return ResponseHeaderName
+	default:
+		panic("invalid header type")
+	}
+}
 
 func (spec *headerFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
-	key, value, err := headerFilterConfig(config)
+	key, value, err := headerFilterConfig(spec.typ, config)
 	return &headerFilter{typ: spec.typ, key: key, value: value}, err
 }
 
 func (f *headerFilter) Request(ctx filters.FilterContext) {
-	if f.typ != requestHeader {
+	if f.typ == dropRequestHeader {
+		ctx.Request().Header.Del(f.key)
 		return
 	}
 
@@ -136,10 +175,11 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 
 	sv := string(v)
 
-	if f.append {
-		ctx.Request().Header.Add(f.key, sv)
-	} else {
+	switch f.typ {
+	case setRequestHeader:
 		ctx.Request().Header.Set(f.key, sv)
+	case appendRequestHeader, depRequestHeader:
+		ctx.Request().Header.Add(f.key, sv)
 	}
 
 	if strings.ToLower(f.key) == "host" {
@@ -148,7 +188,8 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 }
 
 func (f *headerFilter) Response(ctx filters.FilterContext) {
-	if f.typ != responseHeader {
+	if f.typ == dropResponseHeader {
+		ctx.Response().Header.Del(f.key)
 		return
 	}
 
@@ -157,9 +198,10 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	if f.append {
-		ctx.Response().Header.Add(f.key, string(v))
-	} else {
-		ctx.Response().Header.Set(f.key, string(v))
+	switch f.typ {
+	case setResponseHeader:
+		ctx.Response().Header.Set(f.key, sv)
+	case appendResponseHeader, depResponseHeader:
+		ctx.Response().Header.Add(f.key, sv)
 	}
 }
