@@ -16,19 +16,23 @@ package builtin
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"io"
 	"net/http"
 	"path"
+	"strconv"
 )
 
 type delayedBody struct {
-	request    *http.Request
-	path       string
-	response   *http.Response
-	reader     io.ReadCloser
-	writer     io.WriteCloser
-	headerDone chan struct{}
+	request       *http.Request
+	path          string
+	response      *http.Response
+	reader        io.ReadCloser
+	writer        *io.PipeWriter
+	contentLength int
+	written       int
+	headerDone    chan struct{}
 }
 
 type static struct {
@@ -54,12 +58,82 @@ func newDelayed(req *http.Request, p string) *http.Response {
 	return rsp
 }
 
-func (b *delayedBody) Read(data []byte) (int, error)  { return b.reader.Read(data) }
-func (b *delayedBody) Header() http.Header            { return b.response.Header }
-func (b *delayedBody) Write(data []byte) (int, error) { return b.writer.Write(data) }
+func (b *delayedBody) Read(data []byte) (int, error) { return b.reader.Read(data) }
+func (b *delayedBody) Header() http.Header           { return b.response.Header }
 
+// implements http.ResponseWriter.Write, with the assumption that
+// Content-Length is always set in advance.
+func (b *delayedBody) Write(data []byte) (int, error) {
+	if b.request.Method == "HEAD" || b.response.StatusCode >= http.StatusMultipleChoices {
+		return 0, nil
+	}
+
+	n, err := b.writer.Write(data)
+	if err != nil {
+		return n, err
+	}
+
+	// pipe won't forward EOF, unless explicityly signaled
+	// not signaled when Content-Encoding is set
+	if b.response.Header.Get("Content-Encoding") == "" {
+		b.written += n
+		if b.written >= b.contentLength {
+			b.writer.CloseWithError(io.EOF)
+		}
+	}
+
+	return n, err
+}
+
+// implements http.ResponseWriter.WriteHeader.
+// makes sure that the pipe is closed when Content-Length is
+// not set, with the exception of Content-Encoding is set.
 func (b *delayedBody) WriteHeader(status int) {
 	b.response.StatusCode = status
+
+	// no content on HEAD or redirect (304, not modified)
+	if b.request.Method == "HEAD" ||
+		status >= http.StatusMultipleChoices && status < http.StatusBadRequest {
+
+		b.writer.CloseWithError(io.EOF)
+		close(b.headerDone)
+		return
+	}
+
+	// write body and close the pipe in case of an error
+	if status >= http.StatusBadRequest {
+		close(b.headerDone)
+
+		_, err := b.writer.Write([]byte(http.StatusText(status)))
+		if err != nil {
+			log.Error(err)
+		}
+
+		b.writer.CloseWithError(io.EOF)
+		return
+	}
+
+	// pipe close not handled when Content-Encoding is set
+	if b.response.Header.Get("Content-Encoding") != "" {
+		// currently no good option for this, but it shouldn't happen
+		// based on the http.ServeFile
+		close(b.headerDone)
+		return
+	}
+
+	// take the expected Content-Length. If fails, close the pipe.
+	cl, err := strconv.Atoi(b.response.Header.Get("Content-Length"))
+	if cl == 0 || err != nil {
+		if err != nil && b.response.Header.Get("Content-Length") != "" {
+			log.Error(err)
+		}
+
+		b.writer.CloseWithError(io.EOF)
+		close(b.headerDone)
+		return
+	}
+
+	b.contentLength = cl
 	close(b.headerDone)
 }
 
