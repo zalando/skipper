@@ -39,9 +39,10 @@ type headerFilter struct {
 	typ       headerType
 	name, key string
 	value     *filters.ParamTemplate
+}
 
 // verifies that the filter config has two string parameters
-func headerFilterConfig(config []interface{}) (string, *filters.ParamTemplate, error) {
+func headerFilterConfig(typ headerType, config []interface{}) (string, *filters.ParamTemplate, error) {
 	switch typ {
 	case dropRequestHeader, dropResponseHeader:
 		if len(config) != 1 {
@@ -58,17 +59,17 @@ func headerFilterConfig(config []interface{}) (string, *filters.ParamTemplate, e
 		return "", nil, filters.ErrInvalidFilterParameters
 	}
 
-	var t *filters.ParamTemplate
+	var (
+		t   *filters.ParamTemplate
+		err error
+	)
 	if len(config) == 2 {
 		value, ok := config[1].(string)
 		if !ok {
 			return "", nil, filters.ErrInvalidFilterParameters
 		}
 
-		t, err := filters.NewParamTemplate(value)
-		if err != nil {
-			return "", nil, err
-		}
+		t, err = filters.NewParamTemplate(value)
 	}
 
 	return key, t, err
@@ -197,6 +198,8 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 	if !ok {
 		return
 	}
+
+	sv := string(v)
 
 	switch f.typ {
 	case setResponseHeader:
