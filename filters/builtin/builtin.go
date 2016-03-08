@@ -18,6 +18,7 @@ const (
 	StaticName         = "static"
 	StripQueryName     = "stripQuery"
 	PreserveHostName   = "preserveHost"
+	StatusName         = "status"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -36,6 +37,7 @@ func MakeRegistry() filters.Registry {
 		NewStripQuery(),
 		flowid.New(),
 		PreserveHost(),
+		NewStatus(),
 	} {
 		r.Register(s)
 	}
