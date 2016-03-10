@@ -208,7 +208,7 @@ func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.R
 				index++
 			}
 
-			if index != 0 && index != len(c.endcheckpoints) {
+			if index != 0 && index != len(c.endpoints) {
 				c.endpoints = append(c.endpoints[index:], c.endpoints[:index]...)
 			}
 
