@@ -187,21 +187,28 @@ func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.R
 		}
 
 		rsp, err = c.client.Do(req)
-		if err == nil {
+
+		isTimeoutError := false
+
+		if err != nil {
+			isTimeoutError = isTimeout(err)
+
+			if !isTimeoutError {
+				uerr, ok := err.(*url.Error)
+
+				if ok && isTimeout(uerr.Err) {
+					isTimeoutError = true
+					err = uerr.Err
+				}
+			}
+		}
+
+		if err == nil || isTimeoutError {
 			if index != 0 {
 				c.endpoints = append(c.endpoints[index:], c.endpoints[:index]...)
 			}
 
-			return rsp, nil
-		}
-
-		if isTimeout(err) {
-			break
-		} else if uerr, ok := err.(*url.Error); ok {
-			if isTimeout(uerr.Err) {
-				err = uerr.Err
-				break
-			}
+			return rsp, err
 		}
 
 		endpointErrs = append(endpointErrs, err)
