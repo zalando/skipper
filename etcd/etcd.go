@@ -204,11 +204,11 @@ func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.R
 		endpointErrs = append(endpointErrs, err)
 	}
 
-	if lastEndpoint > 0 {
-		if lastEndpoint > 1 {
-			c.endpoints = append(c.endpoints[lastEndpoint:], c.endpoints[:lastEndpoint]...)
-		}
+	if lastEndpoint > 1 {
+		c.endpoints = append(c.endpoints[lastEndpoint:], c.endpoints[:lastEndpoint]...)
+	}
 
+	if lastEndpoint == len(c.endpoints) {
 		err = &endpointErrors{endpointErrs}
 	}
 
