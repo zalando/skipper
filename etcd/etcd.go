@@ -174,16 +174,15 @@ func isTimeout(err error) bool {
 // are tried. It returns the response to the first successful request.
 func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.Response, error) {
 	var (
-		endpoints    []string
 		req          *http.Request
 		rsp          *http.Response
 		err          error
 		endpointErrs []error
+		lastEndpoint int
 	)
 
-	endpoints = c.endpoints
-	for len(endpoints) > 0 {
-		req, err = mreq(endpoints[0] + "/v2/keys")
+	for lastEndpoint = 0; lastEndpoint < len(c.endpoints); lastEndpoint++ {
+		req, err = mreq(c.endpoints[lastEndpoint] + "/v2/keys")
 		if err != nil {
 			return nil, err
 		}
@@ -203,13 +202,13 @@ func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.R
 		}
 
 		endpointErrs = append(endpointErrs, err)
-		endpoints = endpoints[1:]
 	}
 
-	rotate := len(c.endpoints) - len(endpoints)
-	c.endpoints = append(c.endpoints[rotate:], c.endpoints[:rotate]...)
+	if lastEndpoint > 0 {
+		if lastEndpoint > 1 {
+			c.endpoints = append(c.endpoints[lastEndpoint:], c.endpoints[:lastEndpoint]...)
+		}
 
-	if len(endpoints) == 0 {
 		err = &endpointErrors{endpointErrs}
 	}
 
