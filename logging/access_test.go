@@ -7,10 +7,10 @@ import (
 	"time"
 )
 
-const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`
+const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`
 
 func testRequest() *http.Request {
-	r, _ := http.NewRequest("GET", "http://frank@127.0.0.1", nil)
+	r, _ := http.NewRequest("GET", "http://frank@example.com", nil)
 	r.RequestURI = "/apache_pb.gif"
 	r.RemoteAddr = "127.0.0.1"
 	return r
@@ -57,29 +57,29 @@ func TestAccessLogIgnoresEmptyEntry(t *testing.T) {
 func TestNoPanicOnMissingRequest(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request = nil
-	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "  " 418 2326 "" "" 42`)
+	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "  " 418 2326 "" "" 42 `)
 }
 
 func TestUseXForwarded(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3")
-	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
+	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`)
 }
 
 func TestStripPortFwd4(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
-	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
+	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`)
 }
 
 func TestStripPortNoFwd4(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.RemoteAddr = "192.168.3.3:6969"
-	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
+	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`)
 }
 
 func TestMissingHostFallback(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.RemoteAddr = ""
-	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42`)
+	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`)
 }
