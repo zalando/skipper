@@ -178,18 +178,21 @@ func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.R
 		rsp          *http.Response
 		err          error
 		endpointErrs []error
-		lastEndpoint int
 	)
 
-	for lastEndpoint = 0; lastEndpoint < len(c.endpoints); lastEndpoint++ {
-		req, err = mreq(c.endpoints[lastEndpoint] + "/v2/keys")
+	for index, endpoint := range c.endpoints {
+		req, err = mreq(endpoint + "/v2/keys")
 		if err != nil {
 			return nil, err
 		}
 
 		rsp, err = c.client.Do(req)
 		if err == nil {
-			break
+			if index != 0 {
+				c.endpoints = append(c.endpoints[index:], c.endpoints[:index]...)
+			}
+
+			return rsp, nil
 		}
 
 		if isTimeout(err) {
@@ -204,15 +207,7 @@ func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.R
 		endpointErrs = append(endpointErrs, err)
 	}
 
-	if lastEndpoint > 1 {
-		c.endpoints = append(c.endpoints[lastEndpoint - 1:], c.endpoints[:lastEndpoint - 1]...)
-	}
-
-	if lastEndpoint == len(c.endpoints) {
-		err = &endpointErrors{endpointErrs}
-	}
-
-	return rsp, err
+	return nil, &endpointErrors{endpointErrs}
 }
 
 // Converts an http response to a parsed etcd response object.
