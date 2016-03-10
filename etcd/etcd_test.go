@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -101,6 +102,17 @@ func checkDeleted(ids []string, routeId string) bool {
 	}
 
 	return false
+}
+
+func TestEndpointErrorsString(t *testing.T) {
+	ee := &endpointErrors{errors: []error{errors.New("foo error")}}
+
+	expected := "request to one or more endpoints failed;foo error"
+
+	if ee.Error() != expected {
+		t.Error("unexpected error message")
+		return
+	}
 }
 
 func TestReceivesError(t *testing.T) {

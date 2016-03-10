@@ -43,7 +43,6 @@ import (
 	"net/url"
 	"path"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -77,13 +76,13 @@ type endpointErrors struct {
 }
 
 func (ee *endpointErrors) Error() string {
-	es := make([]string, len(ee.errors)+1)
-	es[0] = "request to one or more endpoints failed"
-	for i, e := range ee.errors {
-		es[i+1] = e.Error()
+	err := "request to one or more endpoints failed"
+
+	for _, e := range ee.errors {
+		err = err + ";" + e.Error()
 	}
 
-	return strings.Join(es, ";")
+	return err
 }
 
 func (ee *endpointErrors) String() string {
