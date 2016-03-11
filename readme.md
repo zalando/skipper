@@ -1,5 +1,7 @@
 [![Build Status](https://travis-ci.org/zalando/skipper.svg)](https://travis-ci.org/zalando/skipper)
 [![GoDoc](https://godoc.org/github.com/zalando/skipper/proxy?status.svg)](https://godoc.org/github.com/zalando/skipper/proxy)
+[![License](https://img.shields.io/badge/license-APACHE-red.svg?style=flat)](https://raw.githubusercontent.com/zalando/skipper/master/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/zalando/skipper)](https://goreportcard.com/report/zalando/skipper)
 
 # Skipper
 
