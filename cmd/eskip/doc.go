@@ -135,7 +135,8 @@ delete   deletes routes from the output that are specified in the input.
 
 patch    takes a list of routes as input from any media except of inline
          ids, and prepends or appends a common filter chain to each
-		 route.`
+		 route. Example:
+		 eskip patch -append 'filter1() -> filter2()'`
 )
 
 // simplified check for help request:
