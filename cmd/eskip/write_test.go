@@ -39,7 +39,7 @@ func TestUpsertLoadFail(t *testing.T) {
 	writeClient, _ := createWriteClient(out)
 	readClient, _ := createReadClient(in)
 
-	err := upsertCmd(readClient, nil, writeClient)
+	err := upsertCmd(readClient, nil, writeClient, nil)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -54,7 +54,7 @@ func TestUpsertGeneratesId(t *testing.T) {
 	readOutClient, _ := createReadClient(out)
 	readClient, _ := createReadClient(in)
 
-	err := upsertCmd(readClient, nil, writeClient)
+	err := upsertCmd(readClient, nil, writeClient, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -78,7 +78,7 @@ func TestUpsertUsesId(t *testing.T) {
 	readOutClient, _ := createReadClient(out)
 	readClient, _ := createReadClient(in)
 
-	err := upsertCmd(readClient, readOutClient, writeClient)
+	err := upsertCmd(readClient, readOutClient, writeClient, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -100,7 +100,7 @@ func TestResetLoadFail(t *testing.T) {
 	readOutClient, _ := createReadClient(out)
 	readClient, _ := createReadClient(in)
 
-	err := resetCmd(readClient, readOutClient, writeClient)
+	err := resetCmd(readClient, readOutClient, writeClient, nil)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -120,7 +120,7 @@ func TestResetLoadExistingFails(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = resetCmd(readClient, readOutClient, writeClient)
+	err = resetCmd(readClient, readOutClient, writeClient, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -155,7 +155,7 @@ func TestReset(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = resetCmd(readClient, readOutClient, writeClient)
+	err = resetCmd(readClient, readOutClient, writeClient, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -201,7 +201,7 @@ func TestDeleteLoadFails(t *testing.T) {
 	writeClient, _ := createWriteClient(out)
 	readOutClient, _ := createReadClient(out)
 	readClient, _ := createReadClient(in)
-	err := deleteCmd(readClient, readOutClient, writeClient)
+	err := deleteCmd(readClient, readOutClient, writeClient, nil)
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -216,13 +216,13 @@ func TestDeleteFromIds(t *testing.T) {
 	readOutClient, _ := createReadClient(out)
 	readClient, _ := createReadClient(in)
 
-	err := upsertCmd(readClient, readOutClient, writeClient)
+	err := upsertCmd(readClient, readOutClient, writeClient, nil)
 	if err != nil {
 		t.Error(err)
 	}
 
 	in = &medium{typ: inlineIds, ids: []string{"route1", "route2"}}
-	err = deleteCmd(readClient, readOutClient, writeClient)
+	err = deleteCmd(readClient, readOutClient, writeClient, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -246,13 +246,13 @@ func TestDeleteFromRoutes(t *testing.T) {
 	readOutClient, _ := createReadClient(out)
 	readClient, _ := createReadClient(in)
 
-	err := upsertCmd(readClient, readOutClient, writeClient)
+	err := upsertCmd(readClient, readOutClient, writeClient, nil)
 	if err != nil {
 		t.Error(err)
 	}
 
 	in = &medium{typ: inline, eskip: `route1: Method("HEAD") -> <shunt>;route2: Method("PUT") -> <shunt>`}
-	err = deleteCmd(readClient, readOutClient, writeClient)
+	err = deleteCmd(readClient, readOutClient, writeClient, nil)
 	if err != nil {
 		t.Error(err)
 	}

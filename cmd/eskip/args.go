@@ -24,13 +24,17 @@ import (
 )
 
 const (
-	etcdUrlsFlag     = "etcd-urls"
-	etcdPrefixFlag   = "etcd-prefix"
-	innkeeperUrlFlag = "innkeeper-url"
-	oauthTokenFlag   = "oauth-token"
-	inlineRoutesFlag = "routes"
-	inlineIdsFlag    = "ids"
-	insecureFlag     = "insecure"
+	etcdUrlsFlag       = "etcd-urls"
+	etcdPrefixFlag     = "etcd-prefix"
+	innkeeperUrlFlag   = "innkeeper-url"
+	oauthTokenFlag     = "oauth-token"
+	inlineRoutesFlag   = "routes"
+	inlineIdsFlag      = "ids"
+	insecureFlag       = "insecure"
+	prependFiltersFlag = "prepend"
+	prependFileFlag    = "prepend-file"
+	appendFiltersFlag  = "append"
+	appendFileFlag     = "append-file"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
@@ -51,13 +55,17 @@ var (
 
 // parsing vars for flags:
 var (
-	etcdUrls       string
-	etcdPrefix     string
-	innkeeperUrl   string
-	oauthToken     string
-	inlineRoutes   string
-	inlineRouteIds string
-	insecure       bool
+	etcdUrls          string
+	etcdPrefix        string
+	innkeeperUrl      string
+	oauthToken        string
+	inlineRoutes      string
+	inlineRouteIds    string
+	insecure          bool
+	prependFiltersArg string
+	prependFileArg    string
+	appendFiltersArg  string
+	appendFileArg     string
 )
 
 var (
@@ -83,6 +91,11 @@ func initFlags() {
 	flags.StringVar(&inlineRouteIds, inlineIdsFlag, "", inlineIdsUsage)
 
 	flags.BoolVar(&insecure, insecureFlag, false, insecureUsage)
+
+	flags.StringVar(&prependFiltersArg, prependFiltersFlag, "", prependFiltersUsage)
+	flags.StringVar(&prependFileArg, prependFileFlag, "", prependFileUsage)
+	flags.StringVar(&appendFiltersArg, appendFiltersFlag, "", appendFiltersUsage)
+	flags.StringVar(&appendFileArg, appendFileFlag, "", appendFileUsage)
 }
 
 func init() {
@@ -192,6 +205,28 @@ func processStdin() (*medium, error) {
 	return &medium{typ: stdin}, nil
 }
 
+func processPatchArgs(pfilters, pfile, afilters, afile string) ([]*medium, error) {
+	var media []*medium
+
+	if pfilters != "" {
+		media = append(media, &medium{typ: patchPrepend, patchFilters: pfilters})
+	}
+
+	if afilters != "" {
+		media = append(media, &medium{typ: patchAppend, patchFilters: pfilters})
+	}
+
+	if pfile != "" {
+		media = append(media, &medium{typ: patchPrependFile, patchFile: pfile})
+	}
+
+	if afile != "" {
+		media = append(media, &medium{typ: patchAppendFile, patchFile: afile})
+	}
+
+	return media, nil
+}
+
 // returns media detected from the executing command.
 func processArgs() ([]*medium, error) {
 	err := flags.Parse(os.Args[2:])
@@ -249,6 +284,13 @@ func processArgs() ([]*medium, error) {
 	if stdinArg != nil {
 		media = append(media, stdinArg)
 	}
+
+	patchMedia, err := processPatchArgs(
+		prependFiltersArg, prependFileArg, appendFiltersArg, appendFileArg)
+	if err != nil {
+		return nil, err
+	}
+	media = append(media, patchMedia...)
 
 	return media, nil
 }

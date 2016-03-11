@@ -17,12 +17,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 )
 
 type (
 	command     string
-	commandFunc func(readClient readClient, readOutClient readClient, writeClient writeClient) error
+	commandFunc func(rc readClient, readOut readClient, wc writeClient, all []*medium) error
 )
 
 const (
@@ -31,6 +32,7 @@ const (
 	upsert command = "upsert"
 	reset  command = "reset"
 	delete command = "delete"
+	patch  command = "patch"
 )
 
 // map command string to command function
@@ -39,12 +41,15 @@ var commands = map[command]commandFunc{
 	print:  printCmd,
 	upsert: upsertCmd,
 	reset:  resetCmd,
-	delete: deleteCmd}
+	delete: deleteCmd,
+	patch:  patchCmd}
 
 var (
 	missingCommand = errors.New("missing command")
 	invalidCommand = errors.New("invalid command")
 )
+
+var stdout io.Writer = os.Stdout
 
 func printStderr(args ...interface{}) {
 	fmt.Fprintln(os.Stderr, args...)
@@ -138,5 +143,5 @@ func main() {
 	}
 
 	// execute command:
-	exit(commands[cmd](readClient, readOutClient, writeClient))
+	exit(commands[cmd](readClient, readOutClient, writeClient, media))
 }

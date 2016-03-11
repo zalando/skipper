@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zalando/skipper/eskip"
+	"io/ioutil"
 )
 
 type loadResult struct {
@@ -80,13 +81,13 @@ func loadRoutesUnchecked(readClient readClient) []*eskip.Route {
 }
 
 // command executed for check.
-func checkCmd(readClient readClient, _ readClient, _ writeClient) error {
+func checkCmd(readClient readClient, _ readClient, _ writeClient, _ []*medium) error {
 	_, err := loadRoutesChecked(readClient)
 	return err
 }
 
 // command executed for print.
-func printCmd(readClient readClient, _ readClient, _ writeClient) error {
+func printCmd(readClient readClient, _ readClient, _ writeClient, _ []*medium) error {
 	lr, err := loadRoutes(readClient)
 	if err != nil {
 		return err
@@ -97,15 +98,63 @@ func printCmd(readClient readClient, _ readClient, _ writeClient) error {
 			printStderr(r.Id, perr)
 		} else {
 			if r.Id == "" {
-				fmt.Println(r.String())
+				fmt.Fprintln(stdout, r.String())
 			} else {
-				fmt.Printf("%s: %s;\n", r.Id, r.String())
+				fmt.Fprintf(stdout, "%s: %s;\n", r.Id, r.String())
 			}
 		}
 	}
 
 	if len(lr.parseErrors) > 0 {
 		return invalidRouteExpression
+	}
+
+	return nil
+}
+
+func patchCmd(rc readClient, _ readClient, _ writeClient, all []*medium) error {
+	var pf, af []*eskip.Filter
+	for _, m := range all {
+		var fstr string
+		switch m.typ {
+		case patchPrepend, patchAppend:
+			fstr = m.patchFilters
+		case patchPrependFile, patchAppendFile:
+			b, err := ioutil.ReadFile(m.patchFile)
+			if err != nil {
+				return err
+			}
+
+			fstr = string(b)
+		default:
+			continue
+		}
+
+		fs, err := eskip.ParseFilters(fstr)
+		if err != nil {
+			return err
+		}
+
+		switch m.typ {
+		case patchPrepend, patchPrependFile:
+			pf = append(pf, fs...)
+		case patchAppend, patchAppendFile:
+			af = append(af, fs...)
+		}
+	}
+
+	lr, err := loadRoutesChecked(rc)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range lr {
+		r.Filters = append(pf, append(r.Filters, af...)...)
+		if r.Id == "" {
+			fmt.Fprintln(stdout, r.String())
+		} else {
+			fmt.Fprintf(stdout, "%s: %s;\n", r.Id, r.String())
+		}
 	}
 
 	return nil

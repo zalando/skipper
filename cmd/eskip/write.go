@@ -58,7 +58,7 @@ func upsertDifferent(existing []*eskip.Route, update []*eskip.Route, writeClient
 }
 
 // command executed for upsert.
-func upsertCmd(readClient readClient, _ readClient, writeClient writeClient) error {
+func upsertCmd(readClient readClient, _ readClient, writeClient writeClient, _ []*medium) error {
 	// take input routes:
 	routes, err := loadRoutesChecked(readClient)
 	if err != nil {
@@ -69,7 +69,7 @@ func upsertCmd(readClient readClient, _ readClient, writeClient writeClient) err
 }
 
 // command executed for reset.
-func resetCmd(readClient readClient, readOutClient readClient, writeClient writeClient) error {
+func resetCmd(readClient readClient, readOutClient readClient, writeClient writeClient, _ []*medium) error {
 	// take input routes:
 	routes, err := loadRoutesChecked(readClient)
 	if err != nil {
@@ -96,7 +96,7 @@ func resetCmd(readClient readClient, readOutClient readClient, writeClient write
 }
 
 // command executed for delete.
-func deleteCmd(readClient readClient, _ readClient, writeClient writeClient) error {
+func deleteCmd(readClient readClient, _ readClient, writeClient writeClient, _ []*medium) error {
 	// take input routes:
 	routes, err := loadRoutesChecked(readClient)
 	if err != nil {

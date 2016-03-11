@@ -32,6 +32,10 @@ const (
 	innkeeper
 	inline
 	inlineIds
+	patchPrepend
+	patchPrependFile
+	patchAppend
+	patchAppendFile
 )
 
 var commandToValidations = map[command]validateSelectFunc{
@@ -39,15 +43,18 @@ var commandToValidations = map[command]validateSelectFunc{
 	print:  validateSelectRead,
 	upsert: validateSelectWrite,
 	reset:  validateSelectWrite,
-	delete: validateSelectDelete}
+	delete: validateSelectDelete,
+	patch:  validateSelectPatch}
 
 type medium struct {
-	typ        mediaType
-	urls       []*url.URL
-	path       string
-	eskip      string
-	ids        []string
-	oauthToken string
+	typ          mediaType
+	urls         []*url.URL
+	path         string
+	eskip        string
+	ids          []string
+	oauthToken   string
+	patchFilters string
+	patchFile    string
 }
 
 var (
@@ -129,6 +136,26 @@ func validateSelectDelete(media []*medium) (in, out *medium, err error) {
 	}
 
 	return in, out, nil
+}
+
+func validateSelectPatch(media []*medium) (in, out *medium, err error) {
+	for _, m := range media {
+		switch m.typ {
+		case patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
+		case inlineIds:
+			err = invalidInputType
+			return
+		default:
+			if in != nil {
+				err = tooManyInputs
+				return
+			}
+
+			in = m
+		}
+	}
+
+	return
 }
 
 // Validates media from args for the current command, and selects input and/or output.

@@ -8,7 +8,8 @@ var commandToDefaultMediums = map[command]defaultFunc{
 	print:  defaultRead,
 	upsert: defaultWrite,
 	reset:  defaultWrite,
-	delete: defaultWrite}
+	delete: defaultWrite,
+	patch:  defaultRead}
 
 func defaultRead(in, out *medium) (input, output *medium, err error) {
 	input = in
