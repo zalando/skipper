@@ -86,22 +86,22 @@ See more: https://github.com/zalando/skipper
 
 Media types:
 
-innkeeper    endpoint of an innkeeper server. See more about innkeeper:
-             https://github.com/zalando/innkeeper
-etcd         endpoint(s) of an etcd cluster. See more about etcd:
-             https://github.com/coreos/etcd
-stdin        standard input when not tty, expecting routes
-file         a file containing routes
-inline       routes as command line parameter
-inline ids   a list of route ids (only for delete)
-prepend      a chain of filters to be prepended to the filter chain in
-             each route
-prepend file a file containing a chain of filters to be prepended to the
-             filter chain in each route
-append       a chain of filters to be prepended to the filter chain in
-             each route
-append file  a file containing a chain of filters to be prepended to the
-             filter chain in each route
+innkeeper     endpoint of an innkeeper server. See more about innkeeper:
+              https://github.com/zalando/innkeeper
+etcd          endpoint(s) of an etcd cluster. See more about etcd:
+              https://github.com/coreos/etcd
+stdin         standard input when not tty, expecting routes
+file          a file containing routes
+inline        routes as command line parameter
+inline ids    a list of route ids (only for delete)
+prepend       a chain of filters to be prepended to the filter chain in
+              each route
+prepend file  a file containing a chain of filters to be prepended to the
+              filter chain in each route
+append        a chain of filters to be prepended to the filter chain in
+              each route
+append file   a file containing a chain of filters to be prepended to the
+              filter chain in each route
 
 Media flags:
 `

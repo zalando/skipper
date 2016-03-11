@@ -17,7 +17,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
 	"os"
@@ -26,22 +25,6 @@ import (
 )
 
 const testStdinName = "testStdin"
-
-type testClient string
-
-func (tc testClient) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
-	routes, err := eskip.Parse(string(tc))
-	if err != nil {
-		return nil, err
-	}
-
-	routesInfo := make([]*eskip.RouteInfo, len(routes))
-	for i, r := range routes {
-		routesInfo[i] = &eskip.RouteInfo{Route: *r}
-	}
-
-	return routesInfo, err
-}
 
 var ioError = errors.New("io error")
 
@@ -204,8 +187,6 @@ func TestCheckDoc(t *testing.T) {
 }
 
 func TestPatch(t *testing.T) {
-	preserveOut := stdout
-
 	for _, ti := range []struct {
 		msg      string
 		media    []*medium
@@ -268,8 +249,9 @@ func TestPatch(t *testing.T) {
 			t.Error(ti.msg, "invalid test case, no input")
 		}
 
-		buf := &bytes.Buffer{}
 		var err error
+		preserveOut := stdout
+		buf := &bytes.Buffer{}
 		func() {
 			defer func() { stdout = preserveOut }()
 			stdout = buf

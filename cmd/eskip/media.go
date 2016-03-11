@@ -77,7 +77,8 @@ func validateSelectRead(media []*medium) (a cmdArgs, err error) {
 		return
 	}
 
-	if media[0].typ == inlineIds {
+	switch media[0].typ {
+	case inlineIds, patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
 		err = invalidInputType
 		return
 	}
@@ -99,7 +100,8 @@ func validateSelectWrite(media []*medium) (a cmdArgs, err error) {
 	}
 
 	for _, m := range media {
-		if m.typ == inlineIds {
+		switch media[0].typ {
+		case inlineIds, patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
 			err = invalidInputType
 			return
 		}
@@ -130,6 +132,12 @@ func validateSelectDelete(media []*medium) (a cmdArgs, err error) {
 	}
 
 	for _, m := range media {
+		switch media[0].typ {
+		case patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
+			err = invalidInputType
+			return
+		}
+
 		if m.typ == etcd || m.typ == innkeeper {
 			a.out = m
 		} else {

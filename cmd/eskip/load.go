@@ -115,7 +115,7 @@ func printCmd(a cmdArgs) error {
 	return nil
 }
 
-func patchFilters(media []*medium) (prep, app []*eskip.Filter, err error) {
+func takePatchFilters(media []*medium) (prep, app []*eskip.Filter, err error) {
 	for _, m := range media {
 		var fstr string
 		switch m.typ {
@@ -151,7 +151,7 @@ func patchFilters(media []*medium) (prep, app []*eskip.Filter, err error) {
 }
 
 func patchCmd(a cmdArgs) error {
-	pf, af, err := patchFilters(a.allMedia)
+	pf, af, err := takePatchFilters(a.allMedia)
 	if err != nil {
 		return err
 	}
