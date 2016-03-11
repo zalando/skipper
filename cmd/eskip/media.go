@@ -174,7 +174,6 @@ func validateSelectPatch(media []*medium) (a cmdArgs, err error) {
 
 // Validates media from args for the current command, and selects input and/or output.
 func validateSelectMedia(cmd command, media []*medium) (cmdArgs cmdArgs, err error) {
-	// cmd should be present and valid
 	a, err := commandToValidations[cmd](media)
 	a.allMedia = media
 	return a, err
