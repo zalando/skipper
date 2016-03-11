@@ -43,10 +43,13 @@ func mapRouteInfo(allInfo []*eskip.RouteInfo) loadResult {
 }
 
 // load routes from input medium.
-func loadRoutes(readClient readClient) (loadResult, error) {
+func loadRoutes(in *medium) (loadResult, error) {
+	rc, err := createReadClient(in)
+	if err != nil {
+		return loadResult{}, err
+	}
 
-	routeInfos, err := readClient.LoadAndParseAll()
-
+	routeInfos, err := rc.LoadAndParseAll()
 	return mapRouteInfo(routeInfos), err
 }
 
@@ -65,8 +68,8 @@ func checkParseErrors(lr loadResult) error {
 }
 
 // load, parse routes and print parse errors if any.
-func loadRoutesChecked(readClient readClient) ([]*eskip.Route, error) {
-	lr, err := loadRoutes(readClient)
+func loadRoutesChecked(in *medium) ([]*eskip.Route, error) {
+	lr, err := loadRoutes(in)
 	if err != nil {
 		return nil, err
 	}
@@ -75,20 +78,20 @@ func loadRoutesChecked(readClient readClient) ([]*eskip.Route, error) {
 }
 
 // load and parse routes, ignore parse errors.
-func loadRoutesUnchecked(readClient readClient) []*eskip.Route {
-	lr, _ := loadRoutes(readClient)
+func loadRoutesUnchecked(in *medium) []*eskip.Route {
+	lr, _ := loadRoutes(in)
 	return lr.routes
 }
 
 // command executed for check.
-func checkCmd(readClient readClient, _ readClient, _ writeClient, _ []*medium) error {
-	_, err := loadRoutesChecked(readClient)
+func checkCmd(a cmdArgs) error {
+	_, err := loadRoutesChecked(a.in)
 	return err
 }
 
 // command executed for print.
-func printCmd(readClient readClient, _ readClient, _ writeClient, _ []*medium) error {
-	lr, err := loadRoutes(readClient)
+func printCmd(a cmdArgs) error {
+	lr, err := loadRoutes(a.in)
 	if err != nil {
 		return err
 	}
@@ -112,17 +115,17 @@ func printCmd(readClient readClient, _ readClient, _ writeClient, _ []*medium) e
 	return nil
 }
 
-func patchCmd(rc readClient, _ readClient, _ writeClient, all []*medium) error {
-	var pf, af []*eskip.Filter
-	for _, m := range all {
+func patchFilters(media []*medium) (prep, app []*eskip.Filter, err error) {
+	for _, m := range media {
 		var fstr string
 		switch m.typ {
 		case patchPrepend, patchAppend:
 			fstr = m.patchFilters
 		case patchPrependFile, patchAppendFile:
-			b, err := ioutil.ReadFile(m.patchFile)
+			var b []byte
+			b, err = ioutil.ReadFile(m.patchFile)
 			if err != nil {
-				return err
+				return
 			}
 
 			fstr = string(b)
@@ -130,20 +133,30 @@ func patchCmd(rc readClient, _ readClient, _ writeClient, all []*medium) error {
 			continue
 		}
 
-		fs, err := eskip.ParseFilters(fstr)
+		var fs []*eskip.Filter
+		fs, err = eskip.ParseFilters(fstr)
 		if err != nil {
-			return err
+			return
 		}
 
 		switch m.typ {
 		case patchPrepend, patchPrependFile:
-			pf = append(pf, fs...)
+			prep = append(prep, fs...)
 		case patchAppend, patchAppendFile:
-			af = append(af, fs...)
+			app = append(app, fs...)
 		}
 	}
 
-	lr, err := loadRoutesChecked(rc)
+	return
+}
+
+func patchCmd(a cmdArgs) error {
+	pf, af, err := patchFilters(a.allMedia)
+	if err != nil {
+		return err
+	}
+
+	lr, err := loadRoutesChecked(a.in)
 	if err != nil {
 		return err
 	}

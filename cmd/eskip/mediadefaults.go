@@ -1,6 +1,6 @@
 package main
 
-type defaultFunc func(in, out *medium) (input, output *medium, err error)
+type defaultFunc func(cmdArgs) (cmdArgs, error)
 
 // map command string to defaults
 var commandToDefaultMediums = map[command]defaultFunc{
@@ -11,26 +11,24 @@ var commandToDefaultMediums = map[command]defaultFunc{
 	delete: defaultWrite,
 	patch:  defaultRead}
 
-func defaultRead(in, out *medium) (input, output *medium, err error) {
-	input = in
-	if input == nil {
-		input, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
+func defaultRead(a cmdArgs) (aa cmdArgs, err error) {
+	aa = a
+	if aa.in == nil {
+		aa.in, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
 	}
 	return
 }
 
-func defaultWrite(in, out *medium) (input, output *medium, err error) {
-	input = in
-	output = out
-	if out == nil {
-		output, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
+func defaultWrite(a cmdArgs) (aa cmdArgs, err error) {
+	aa = a
+	if aa.out == nil {
+		aa.out, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
 	}
 
 	return
 }
 
 // selects a default medium for in or out, in case it's needed and not specified
-func addDefaultMedia(cmd command, in, out *medium) (input, output *medium, err error) {
-	// cmd should be present and valid
-	return commandToDefaultMediums[cmd](in, out)
+func addDefaultMedia(cmd command, a cmdArgs) (cmdArgs, error) {
+	return commandToDefaultMediums[cmd](a)
 }

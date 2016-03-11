@@ -21,7 +21,7 @@ import (
 
 type (
 	mediaType          int
-	validateSelectFunc func(media []*medium) (in, out *medium, err error)
+	validateSelectFunc func([]*medium) (cmdArgs, error)
 )
 
 const (
@@ -66,79 +66,85 @@ var (
 // validate medium from args, and check if it can be used
 // as input.
 // (check and print)
-func validateSelectRead(media []*medium) (input, _ *medium, err error) {
+func validateSelectRead(media []*medium) (a cmdArgs, err error) {
 	if len(media) > 1 {
-		return nil, nil, tooManyInputs
+		err = tooManyInputs
+		return
 	}
 
 	if len(media) == 0 {
-		m, err := processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
-		return m, nil, err
+		a.in, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
+		return
 	}
 
 	if media[0].typ == inlineIds {
-		return nil, nil, invalidInputType
+		err = invalidInputType
+		return
 	}
 
-	return media[0], nil, nil
+	a.in = media[0]
+	return
 }
 
 // validate media from args, and check if input was specified.
-func validateSelectWrite(media []*medium) (input, output *medium, err error) {
+func validateSelectWrite(media []*medium) (a cmdArgs, err error) {
 	if len(media) == 0 {
-		return nil, nil, missingInput
+		err = missingInput
+		return
 	}
 
 	if len(media) > 2 {
-		return nil, nil, tooManyInputs
-	}
-
-	var in, out *medium
-	for _, m := range media {
-		if m.typ == inlineIds {
-			return nil, nil, invalidInputType
-		}
-
-		if m.typ == etcd || m.typ == innkeeper {
-			out = m
-		} else {
-			in = m
-		}
-	}
-
-	if in == nil {
-		return nil, nil, missingInput
-	}
-
-	return in, out, nil
-}
-
-func validateSelectDelete(media []*medium) (in, out *medium, err error) {
-	if len(media) == 0 {
-		return nil, nil, nil
-	}
-
-	if len(media) > 2 {
-		return nil, nil, tooManyInputs
+		err = tooManyInputs
+		return
 	}
 
 	for _, m := range media {
+		if m.typ == inlineIds {
+			err = invalidInputType
+			return
+		}
 
 		if m.typ == etcd || m.typ == innkeeper {
-			out = m
+			a.out = m
 		} else {
-			in = m
+			a.in = m
 		}
 	}
 
-	if in == nil {
-		return nil, nil, missingInput
+	if a.in == nil {
+		err = missingInput
 	}
 
-	return in, out, nil
+	return
 }
 
-func validateSelectPatch(media []*medium) (in, out *medium, err error) {
+func validateSelectDelete(media []*medium) (a cmdArgs, err error) {
+	if len(media) == 0 {
+		err = missingInput
+		return
+	}
+
+	if len(media) > 2 {
+		err = tooManyInputs
+		return
+	}
+
+	for _, m := range media {
+		if m.typ == etcd || m.typ == innkeeper {
+			a.out = m
+		} else {
+			a.in = m
+		}
+	}
+
+	if a.in == nil {
+		err = missingInput
+	}
+
+	return
+}
+
+func validateSelectPatch(media []*medium) (a cmdArgs, err error) {
 	for _, m := range media {
 		switch m.typ {
 		case patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
@@ -146,12 +152,12 @@ func validateSelectPatch(media []*medium) (in, out *medium, err error) {
 			err = invalidInputType
 			return
 		default:
-			if in != nil {
+			if a.in != nil {
 				err = tooManyInputs
 				return
 			}
 
-			in = m
+			a.in = m
 		}
 	}
 
@@ -159,7 +165,7 @@ func validateSelectPatch(media []*medium) (in, out *medium, err error) {
 }
 
 // Validates media from args for the current command, and selects input and/or output.
-func validateSelectMedia(cmd command, media []*medium) (input, output *medium, err error) {
+func validateSelectMedia(cmd command, media []*medium) (cmdArgs cmdArgs, err error) {
 	// cmd should be present and valid
 	return commandToValidations[cmd](media)
 }

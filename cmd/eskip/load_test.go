@@ -100,11 +100,8 @@ func withStdin(content string, action func()) error {
 }
 
 func TestCheckStdinInvalid(t *testing.T) {
-
 	err := withStdin("invalid doc", func() {
-		readClient, _ := createReadClient(&medium{typ: stdin})
-
-		err := checkCmd(readClient, nil, nil, nil)
+		err := checkCmd(cmdArgs{in: &medium{typ: stdin}})
 		if err == nil {
 			t.Error("failed to fail")
 		}
@@ -117,8 +114,7 @@ func TestCheckStdinInvalid(t *testing.T) {
 
 func TestCheckStdin(t *testing.T) {
 	err := withStdin(`Method("POST") -> "https://www.example.org"`, func() {
-		readClient, _ := createReadClient(&medium{typ: stdin})
-		err := checkCmd(readClient, nil, nil, nil)
+		err := checkCmd(cmdArgs{in: &medium{typ: stdin}})
 		if err != nil {
 			t.Error(err)
 		}
@@ -133,7 +129,6 @@ func TestCheckFileInvalid(t *testing.T) {
 	const name = "testFile"
 	err := withFile(name, "invalid doc", func(_ *os.File) {
 		_, err := createReadClient(&medium{typ: file, path: name})
-
 		if err == nil {
 			t.Error("failed to fail")
 		}
@@ -147,8 +142,7 @@ func TestCheckFileInvalid(t *testing.T) {
 func TestCheckFile(t *testing.T) {
 	const name = "testFile"
 	err := withFile(name, `Method("POST") -> "https://www.example.org"`, func(_ *os.File) {
-		readClient, _ := createReadClient(&medium{typ: file, path: name})
-		err := checkCmd(readClient, nil, nil, nil)
+		err := checkCmd(cmdArgs{in: &medium{typ: file, path: name}})
 		if err != nil {
 			t.Error(err)
 		}
@@ -171,9 +165,7 @@ func TestCheckEtcdInvalid(t *testing.T) {
 		t.Error(err)
 	}
 
-	readClient, _ := createReadClient(&medium{typ: etcd, urls: urls, path: "/skippertest"})
-
-	err = checkCmd(readClient, nil, nil, nil)
+	err = checkCmd(cmdArgs{in: &medium{typ: etcd, urls: urls, path: "/skippertest"}})
 	if err != invalidRouteExpression {
 		t.Error("failed to fail properly")
 	}
@@ -191,27 +183,21 @@ func TestCheckEtcd(t *testing.T) {
 		t.Error(err)
 	}
 
-	readClient, _ := createReadClient(&medium{typ: etcd, urls: urls, path: "/skippertest"})
-
-	err = checkCmd(readClient, nil, nil, nil)
+	err = checkCmd(cmdArgs{in: &medium{typ: etcd, urls: urls, path: "/skippertest"}})
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestCheckDocInvalid(t *testing.T) {
-	readClient, _ := createReadClient(&medium{typ: inline, eskip: "invalid doc"})
-
-	err := checkCmd(readClient, nil, nil, nil)
+	err := checkCmd(cmdArgs{in: &medium{typ: inline, eskip: "invalid doc"}})
 	if err == nil {
 		t.Error("failed to fail")
 	}
 }
 
 func TestCheckDoc(t *testing.T) {
-	readClient, _ := createReadClient(&medium{typ: inline, eskip: `Method("POST") -> <shunt>`})
-
-	err := checkCmd(readClient, nil, nil, nil)
+	err := checkCmd(cmdArgs{in: &medium{typ: inline, eskip: `Method("POST") -> <shunt>`}})
 	if err != nil {
 		t.Error(err)
 	}
@@ -222,56 +208,72 @@ func TestPatch(t *testing.T) {
 
 	for _, ti := range []struct {
 		msg      string
-		client   readClient
 		media    []*medium
 		err      bool
 		expected []string
 	}{{
-		msg:    "no routes, no patch",
-		client: testClient(""),
+		msg:   "no routes, no patch",
+		media: []*medium{{typ: inline}},
 	}, {
-		msg:      "with routes, no patch",
-		client:   testClient(`r0: * -> <shunt>; r1: Method("GET") -> filter() -> "http://::1"`),
+		msg: "with routes, no patch",
+		media: []*medium{{
+			typ:   inline,
+			eskip: `r0: * -> <shunt>; r1: Method("GET") -> filter() -> "http://::1"`}},
 		expected: []string{`r0: * -> <shunt>;`, `r1: Method("GET") -> filter() -> "http://::1";`},
 	}, {
-		msg:    "invalid routes",
-		client: testClient("not an eskip document"),
-		err:    true,
+		msg: "invalid routes",
+		media: []*medium{{
+			typ:   inline,
+			eskip: "not an eskip document"}},
+		err: true,
 	}, {
-		msg:    "invalid patch",
-		client: testClient("* -> <shunt>"),
-		media:  []*medium{{typ: patchPrepend, patchFilters: "not an eskip expression"}},
-		err:    true,
+		msg: "invalid patch",
+		media: []*medium{
+			{typ: inline, eskip: "* -> <shunt>"},
+			{typ: patchPrepend, patchFilters: "not an eskip expression"}},
+		err: true,
 	}, {
-		msg:    "prepend only",
-		client: testClient(`r0: * -> <shunt>; r1: Method("GET") -> filter() -> "http://::1"`),
-		media:  []*medium{{typ: patchPrepend, patchFilters: "filter0() -> filter1()"}},
+		msg: "prepend only",
+		media: []*medium{
+			{typ: inline, eskip: `r0: * -> <shunt>; r1: Method("GET") -> filter() -> "http://::1"`},
+			{typ: patchPrepend, patchFilters: "filter0() -> filter1()"}},
 		expected: []string{
 			`r0: * -> filter0() -> filter1() -> <shunt>;`,
 			`r1: Method("GET") -> filter0() -> filter1() -> filter() -> "http://::1";`},
 	}, {
-		msg:    "append only",
-		client: testClient(`r0: * -> <shunt>; r1: Method("GET") -> filter() -> "http://::1"`),
-		media:  []*medium{{typ: patchAppend, patchFilters: "filter0() -> filter1()"}},
+		msg: "append only",
+		media: []*medium{
+			{typ: inline, eskip: `r0: * -> <shunt>; r1: Method("GET") -> filter() -> "http://::1"`},
+			{typ: patchAppend, patchFilters: "filter0() -> filter1()"}},
 		expected: []string{
 			`r0: * -> filter0() -> filter1() -> <shunt>;`,
 			`r1: Method("GET") -> filter() -> filter0() -> filter1() -> "http://::1";`},
 	}, {
-		msg:    "prepend and append",
-		client: testClient(`r0: * -> <shunt>; r1: Method("GET") -> filter() -> "http://::1"`),
+		msg: "prepend and append",
 		media: []*medium{
+			{typ: inline, eskip: `r0: * -> <shunt>; r1: Method("GET") -> filter() -> "http://::1"`},
 			{typ: patchPrepend, patchFilters: "filter0p() -> filter1p()"},
 			{typ: patchAppend, patchFilters: "filter0a() -> filter1a()"}},
 		expected: []string{
 			`r0: * -> filter0p() -> filter1p() -> filter0a() -> filter1a() -> <shunt>;`,
 			`r1: Method("GET") -> filter0p() -> filter1p() -> filter() -> filter0a() -> filter1a() -> "http://::1";`},
 	}} {
+		var in *medium
+		for _, m := range ti.media {
+			if m.typ == inline {
+				in = m
+			}
+		}
+		if in == nil {
+			t.Error(ti.msg, "invalid test case, no input")
+		}
+
 		buf := &bytes.Buffer{}
 		var err error
 		func() {
 			defer func() { stdout = preserveOut }()
 			stdout = buf
-			err = patchCmd(ti.client, nil, nil, ti.media)
+			err = patchCmd(cmdArgs{in: in, allMedia: ti.media})
 		}()
 
 		if ti.err && err == nil {

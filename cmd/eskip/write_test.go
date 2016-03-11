@@ -36,10 +36,8 @@ func init() {
 func TestUpsertLoadFail(t *testing.T) {
 	in := &medium{typ: inline, eskip: "invalid doc"}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
-	writeClient, _ := createWriteClient(out)
-	readClient, _ := createReadClient(in)
 
-	err := upsertCmd(readClient, nil, writeClient, nil)
+	err := upsertCmd(cmdArgs{in: in, out: out})
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -50,16 +48,12 @@ func TestUpsertGeneratesId(t *testing.T) {
 
 	in := &medium{typ: inline, eskip: `Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
-	writeClient, _ := createWriteClient(out)
-	readOutClient, _ := createReadClient(out)
-	readClient, _ := createReadClient(in)
-
-	err := upsertCmd(readClient, nil, writeClient, nil)
+	err := upsertCmd(cmdArgs{in: in, out: out})
 	if err != nil {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutesChecked(readOutClient)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -74,16 +68,12 @@ func TestUpsertUsesId(t *testing.T) {
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
-	writeClient, _ := createWriteClient(out)
-	readOutClient, _ := createReadClient(out)
-	readClient, _ := createReadClient(in)
-
-	err := upsertCmd(readClient, readOutClient, writeClient, nil)
+	err := upsertCmd(cmdArgs{in: in, out: out})
 	if err != nil {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutesChecked(readOutClient)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -96,11 +86,7 @@ func TestUpsertUsesId(t *testing.T) {
 func TestResetLoadFail(t *testing.T) {
 	in := &medium{typ: inline, eskip: "invalid doc"}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
-	writeClient, _ := createWriteClient(out)
-	readOutClient, _ := createReadClient(out)
-	readClient, _ := createReadClient(in)
-
-	err := resetCmd(readClient, readOutClient, writeClient, nil)
+	err := resetCmd(cmdArgs{in: in, out: out})
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -111,16 +97,12 @@ func TestResetLoadExistingFails(t *testing.T) {
 
 	in := &medium{typ: inline, eskip: `route2: Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
-	writeClient, _ := createWriteClient(out)
-	readOutClient, _ := createReadClient(out)
-	readClient, _ := createReadClient(in)
-
 	err := etcdtest.PutDataTo(defaultEtcdPrefix, "route1", "invalid doc")
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = resetCmd(readClient, readOutClient, writeClient, nil)
+	err = resetCmd(cmdArgs{in: in, out: out})
 	if err != nil {
 		t.Error(err)
 	}
@@ -141,10 +123,6 @@ func TestReset(t *testing.T) {
 
 	in := &medium{typ: inline, eskip: `route2: Method("PUT") -> <shunt>; route3: Method("HEAD") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
-	writeClient, _ := createWriteClient(out)
-	readOutClient, _ := createReadClient(out)
-	readClient, _ := createReadClient(in)
-
 	err := etcdtest.PutDataTo(defaultEtcdPrefix, "route1", `Method("GET") -> <shunt>`)
 	if err != nil {
 		t.Error(err)
@@ -155,12 +133,12 @@ func TestReset(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = resetCmd(readClient, readOutClient, writeClient, nil)
+	err = resetCmd(cmdArgs{in: in, out: out})
 	if err != nil {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutesChecked(readOutClient)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -198,10 +176,7 @@ func TestReset(t *testing.T) {
 func TestDeleteLoadFails(t *testing.T) {
 	in := &medium{typ: inline, eskip: "invalid doc"}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
-	writeClient, _ := createWriteClient(out)
-	readOutClient, _ := createReadClient(out)
-	readClient, _ := createReadClient(in)
-	err := deleteCmd(readClient, readOutClient, writeClient, nil)
+	err := deleteCmd(cmdArgs{in: in, out: out})
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -212,22 +187,18 @@ func TestDeleteFromIds(t *testing.T) {
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
-	writeClient, _ := createWriteClient(out)
-	readOutClient, _ := createReadClient(out)
-	readClient, _ := createReadClient(in)
-
-	err := upsertCmd(readClient, readOutClient, writeClient, nil)
+	err := upsertCmd(cmdArgs{in: in, out: out})
 	if err != nil {
 		t.Error(err)
 	}
 
 	in = &medium{typ: inlineIds, ids: []string{"route1", "route2"}}
-	err = deleteCmd(readClient, readOutClient, writeClient, nil)
+	err = deleteCmd(cmdArgs{in: in, out: out})
 	if err != nil {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutesChecked(readOutClient)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -242,22 +213,18 @@ func TestDeleteFromRoutes(t *testing.T) {
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
 	out := &medium{typ: etcd, urls: testEtcdUrls, path: defaultEtcdPrefix}
-	writeClient, _ := createWriteClient(out)
-	readOutClient, _ := createReadClient(out)
-	readClient, _ := createReadClient(in)
-
-	err := upsertCmd(readClient, readOutClient, writeClient, nil)
+	err := upsertCmd(cmdArgs{in: in, out: out})
 	if err != nil {
 		t.Error(err)
 	}
 
 	in = &medium{typ: inline, eskip: `route1: Method("HEAD") -> <shunt>;route2: Method("PUT") -> <shunt>`}
-	err = deleteCmd(readClient, readOutClient, writeClient, nil)
+	err = deleteCmd(cmdArgs{in: in, out: out})
 	if err != nil {
 		t.Error(err)
 	}
 
-	routes, err := loadRoutesChecked(readOutClient)
+	routes, err := loadRoutesChecked(out)
 	if err != nil {
 		t.Error(err)
 	}

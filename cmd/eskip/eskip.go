@@ -23,7 +23,7 @@ import (
 
 type (
 	command     string
-	commandFunc func(rc readClient, readOut readClient, wc writeClient, all []*medium) error
+	commandFunc func(cmdArgs) error
 )
 
 const (
@@ -50,6 +50,11 @@ var (
 )
 
 var stdout io.Writer = os.Stdout
+
+type cmdArgs struct {
+	in, out  *medium
+	allMedia []*medium
+}
 
 func printStderr(args ...interface{}) {
 	fmt.Fprintln(os.Stderr, args...)
@@ -113,35 +118,16 @@ func main() {
 
 	// check if the arguments make sense, and select input/output
 	// based on the rules of the current command.
-	in, out, err := validateSelectMedia(cmd, media)
+	cmdArgs, err := validateSelectMedia(cmd, media)
 	if err != nil {
 		exitHint(err)
 	}
 
-	in, out, err = addDefaultMedia(cmd, in, out)
-
-	if err != nil {
-		exitHint(err)
-	}
-
-	writeClient, err := createWriteClient(out)
-
-	if err != nil {
-		exitHint(err)
-	}
-
-	readClient, err := createReadClient(in)
-
-	if err != nil {
-		exitHint(err)
-	}
-
-	readOutClient, err := createReadClient(out)
-
+	cmdArgs, err = addDefaultMedia(cmd, cmdArgs)
 	if err != nil {
 		exitHint(err)
 	}
 
 	// execute command:
-	exit(commands[cmd](readClient, readOutClient, writeClient, media))
+	exit(commands[cmd](cmdArgs))
 }
