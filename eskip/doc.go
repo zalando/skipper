@@ -159,6 +159,8 @@ filters:
 
     preserveHost()
 
+	status(418)
+
 From the builtin filters, modPath and the <set/append><Request/Response>Header
 filters accept placeholders that will be replaced with the parameters
 taken from the Path predicate. The placeholders use the map key placeholder
