@@ -22,6 +22,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+	"strings"
+	"net"
 )
 
 func init() {
@@ -128,6 +131,98 @@ func TestReceivesError(t *testing.T) {
 	}
 }
 
+func TestAllEndpointsFailed(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}))
+
+	s.Close()
+
+	c, err := New(Options{Endpoints: []string{s.URL, s.URL}, Prefix: "/skippertest-invalid"})
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = c.LoadAll()
+
+	if err == nil {
+		t.Error("failed to fail")
+	}
+
+	_, ok := err.(*endpointErrors)
+
+	if !ok {
+		t.Error("when all endpoints fail - endpointErrors must be returned")
+	}
+}
+
+func TestFailedEndpointsRotation(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}))
+
+	s.Close()
+
+	s2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}))
+
+	c, err := New(Options{Endpoints: []string{s.URL, s2.URL, "neverreached"}, Prefix: "/skippertest-invalid"})
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = c.LoadAll()
+
+	if err == nil {
+		t.Error("failed to fail")
+	}
+
+	expectedEndpoints := []string{s2.URL, "neverreached", s.URL}
+
+	if strings.Join(c.endpoints, ";") != strings.Join(expectedEndpoints, ";") {
+		t.Error("wrong endpoints rotation")
+	}
+}
+
+func TestTimedoutEndpointsRotation(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}))
+
+	s.Close()
+
+	s2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(time.Duration(5 * time.Millisecond))
+	}))
+
+	c, err := New(Options{Endpoints: []string{s.URL, s2.URL, "neverreached"}, Prefix: "/skippertest-invalid"})
+	c.client.Timeout = time.Duration(1 * time.Millisecond)
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = c.LoadAll()
+
+	if err == nil {
+		t.Error("failed to fail")
+	}
+
+	nerr, ok := err.(net.Error)
+
+	if !ok || !nerr.Timeout() {
+		t.Error("timeout error expected")
+	}
+
+	expectedEndpoints := []string{s2.URL, "neverreached", s.URL}
+
+	if strings.Join(c.endpoints, ";") != strings.Join(expectedEndpoints, ";") {
+		t.Error("wrong endpoints rotation")
+	}
+}
+
 func TestValidatesDocument(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"value": "different json"}`))
@@ -151,6 +246,8 @@ func TestReceivesInitial(t *testing.T) {
 		return
 	}
 
+	expectedEndpoints := strings.Join(etcdtest.Urls, ";")
+
 	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
 	if err != nil {
 		t.Error(err)
@@ -165,6 +262,10 @@ func TestReceivesInitial(t *testing.T) {
 
 	if !checkInitial(rs) {
 		t.Error("failed to receive the right docs")
+	}
+
+	if strings.Join(c.endpoints, ";") != expectedEndpoints {
+		t.Error("wrong endpoints rotation")
 	}
 }
 
