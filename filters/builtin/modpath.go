@@ -22,13 +22,21 @@ import (
 
 type modPath struct {
 	rx          *regexp.Regexp
-	replacement []byte
+	replacement *filters.ParamTemplate
 }
 
 // Returns a new modpath filter Spec, whose instances execute
 // regexp.ReplaceAll on the request path. Instances expect two
 // parameters: the expression to match and the replacement string.
 // Name: "modpath".
+//
+// This filter accepts path parameter references in the replacement
+// argument. The syntax for the reference is the same as the map
+// key syntax in Go text templates. E.g. if the path predicate
+// looks like Path("/some/:name"), then the parameter 'name' can
+// be used in modPath, referenced as '{{.name}}'. E.g:
+//
+//  modPath(".*", "/{{.name}}")
 func NewModPath() filters.Spec { return &modPath{} }
 
 // "modPath"
@@ -54,19 +62,29 @@ func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) 
 		return nil, invalidConfig(config)
 	}
 
+	t, err := filters.NewParamTemplate(replacement)
+	if err != nil {
+		return nil, err
+	}
+
 	rx, err := regexp.Compile(expr)
 	if err != nil {
 		return nil, err
 	}
 
-	f := &modPath{rx, []byte(replacement)}
+	f := &modPath{rx, t}
 	return f, nil
 }
 
 // Modifies the path with regexp.ReplaceAll.
 func (f *modPath) Request(ctx filters.FilterContext) {
+	replacement, ok := f.replacement.ExecuteLogged(ctx.PathParams())
+	if !ok {
+		return
+	}
+
 	req := ctx.Request()
-	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), f.replacement))
+	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), replacement))
 }
 
 // Noop.

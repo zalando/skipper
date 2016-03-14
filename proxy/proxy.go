@@ -261,6 +261,7 @@ func (c *filterContext) Response() *http.Response            { return c.res }
 func (c *filterContext) MarkServed()                         { c.served = true }
 func (c *filterContext) Served() bool                        { return c.served }
 func (c *filterContext) PathParam(key string) string         { return c.pathParams[key] }
+func (c *filterContext) PathParams() map[string]string       { return c.pathParams }
 func (c *filterContext) StateBag() map[string]interface{}    { return c.stateBag }
 func (c *filterContext) BackendUrl() string                  { return c.backendUrl }
 func (c *filterContext) OriginalRequest() *http.Request      { return c.originalRequest }

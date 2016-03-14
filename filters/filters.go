@@ -47,8 +47,11 @@ type FilterContext interface {
 	Serve(*http.Response)
 
 	// Provides the wildcard parameter values from the request path by their
-	// name as the key.
+	// name as the key. (Deprecated.)
 	PathParam(string) string
+
+	// Provides all the wildcard parameters from the request path by.
+	PathParams() map[string]string
 
 	// Provides a read-write state bag, unique to a request and shared by all
 	// the filters in the route.
