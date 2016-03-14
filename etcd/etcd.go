@@ -174,46 +174,47 @@ func isTimeout(err error) bool {
 // are tried. It returns the response to the first successful request.
 func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.Response, error) {
 	var (
-		endpoints    []string
 		req          *http.Request
 		rsp          *http.Response
 		err          error
 		endpointErrs []error
 	)
 
-	endpoints = c.endpoints
-	for len(endpoints) > 0 {
-		req, err = mreq(endpoints[0] + "/v2/keys")
+	for index, endpoint := range c.endpoints {
+		req, err = mreq(endpoint + "/v2/keys")
 		if err != nil {
 			return nil, err
 		}
 
 		rsp, err = c.client.Do(req)
-		if err == nil {
-			break
-		}
 
-		if isTimeout(err) {
-			break
-		} else if uerr, ok := err.(*url.Error); ok {
-			if isTimeout(uerr.Err) {
-				err = uerr.Err
-				break
+		isTimeoutError := false
+
+		if err != nil {
+			isTimeoutError = isTimeout(err)
+
+			if !isTimeoutError {
+				uerr, ok := err.(*url.Error)
+
+				if ok && isTimeout(uerr.Err) {
+					isTimeoutError = true
+					err = uerr.Err
+				}
 			}
 		}
 
+		if err == nil || isTimeoutError {
+			if index != 0 {
+				c.endpoints = append(c.endpoints[index:], c.endpoints[:index]...)
+			}
+
+			return rsp, err
+		}
+
 		endpointErrs = append(endpointErrs, err)
-		endpoints = endpoints[1:]
 	}
 
-	rotate := len(c.endpoints) - len(endpoints)
-	c.endpoints = append(c.endpoints[rotate:], c.endpoints[:rotate]...)
-
-	if len(endpoints) == 0 {
-		err = &endpointErrors{endpointErrs}
-	}
-
-	return rsp, err
+	return nil, &endpointErrors{endpointErrs}
 }
 
 // Converts an http response to a parsed etcd response object.
