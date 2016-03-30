@@ -153,6 +153,8 @@ type Options struct {
 
 	// Disables the access log.
 	AccessLogDisabled bool
+
+	DebugListener string
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -309,6 +311,12 @@ func Run(o Options) error {
 		dataClients,
 		o.CustomPredicates,
 		updateBuffer})
+
+	if o.DebugListener != "" {
+		dbg := proxy.New(routing, o.ProxyOptions | proxy.OptionsDebug, o.PriorityRoutes...)
+		log.Infof("debug listener on %v", o.DebugListener)
+		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
+	}
 
 	// create the proxy
 	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
