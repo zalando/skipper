@@ -23,6 +23,18 @@ import (
 	"sort"
 )
 
+type leafRequestMatcher struct {
+	r *http.Request
+	path string
+}
+
+func (m *leafRequestMatcher) IsMatch(value interface{}) bool {
+	v := value.(*pathMatcher)
+	l := matchLeaves(v.leaves, m.r, m.path)
+
+	return l != nil
+}
+
 type leafMatcher struct {
 	method        string
 	hostRxs       []*regexp.Regexp
@@ -235,8 +247,14 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 }
 
 // matches a path in the path trie structure.
-func matchPathTree(tree *pathmux.Tree, path string) (leafMatchers, map[string]string) {
-	v, params := tree.Lookup(path)
+func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (leafMatchers, map[string]string) {
+	var matcher pathmux.Matcher = nil
+
+	if (lrm != nil) {
+		matcher = lrm
+	}
+
+	v, params := tree.Lookup(path, matcher)
 	if v == nil {
 		return nil, nil
 	}
@@ -358,8 +376,10 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 		path = path[:len(path)-1]
 	}
 
+	lrm := &leafRequestMatcher{r, path}
+
 	// first match fixed and wildcard paths
-	leaves, params := matchPathTree(m.paths, path)
+	leaves, params := matchPathTree(m.paths, path, lrm)
 	l := matchLeaves(leaves, r, path)
 	if l != nil {
 		return l.route, params

@@ -653,7 +653,7 @@ func TestMatchPathTreeNoMatch(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m, p := matchPathTree(tree, "/some/wrong/path")
+	m, p := matchPathTree(tree, "/some/wrong/path", nil)
 	if len(m) != 0 || len(p) != 0 {
 		t.Error("failed not to match path")
 	}
@@ -671,7 +671,7 @@ func TestMatchPathTree(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m, p := matchPathTree(tree, "/some/path")
+	m, p := matchPathTree(tree, "/some/path", nil)
 	if len(m) != 1 || len(p) != 0 || m[0] != pm0.leaves[0] {
 		t.Error("failed to match path", len(m), len(p))
 	}
@@ -689,7 +689,7 @@ func TestMatchPathTreeWithWildcards(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m, p := matchPathTree(tree, "/some/path/and/params")
+	m, p := matchPathTree(tree, "/some/path/and/params", nil)
 	if len(m) != 1 || len(p) != 2 || m[0] != pm0.leaves[0] ||
 		p["param0"] != "and" || p["param1"] != "params" {
 		t.Error("failed to match path", len(m), len(p))
