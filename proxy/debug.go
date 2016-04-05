@@ -68,6 +68,7 @@ func convertBody(body io.Reader) (string, string) {
 
 	b, err := ioutil.ReadAll(body)
 	out := string(b)
+
 	var errstr string
 	if err == nil {
 		errstr = ""
@@ -105,13 +106,11 @@ func dbgResponse(w http.ResponseWriter, d *debugInfo) {
 
 	if d.err != nil {
 		doc.ProxyError = d.err.Error()
-		if d.errStatusCode != 0 {
-			if response == nil {
-				response = &http.Response{}
-			}
-
-			response.StatusCode = d.errStatusCode
+		if response == nil {
+			response = &http.Response{}
 		}
+
+		response.StatusCode = d.errStatusCode
 	}
 
 	if hasResponse(response) {
