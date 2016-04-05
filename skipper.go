@@ -313,7 +313,7 @@ func Run(o Options) error {
 		updateBuffer})
 
 	if o.DebugListener != "" {
-		dbg := proxy.New(routing, o.ProxyOptions | proxy.OptionsDebug, o.PriorityRoutes...)
+		dbg := proxy.New(routing, o.ProxyOptions|proxy.OptionsDebug, o.PriorityRoutes...)
 		log.Infof("debug listener on %v", o.DebugListener)
 		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
 	}

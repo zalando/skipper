@@ -96,7 +96,7 @@ var (
 	applicationLogPrefix      string
 	accessLog                 string
 	accessLogDisabled         bool
-	debugListener string
+	debugListener             string
 )
 
 func init() {
@@ -156,7 +156,7 @@ func main() {
 		ApplicationLogPrefix:      applicationLogPrefix,
 		AccessLogOutput:           accessLog,
 		AccessLogDisabled:         accessLogDisabled,
-		DebugListener: debugListener}
+		DebugListener:             debugListener}
 
 	if insecure {
 		options.ProxyOptions |= proxy.OptionsInsecure

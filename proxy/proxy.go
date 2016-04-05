@@ -62,7 +62,7 @@ const (
 )
 
 func (o Options) Insecure() bool          { return o&OptionsInsecure != 0 }
-func (o Options) PreserveOriginal() bool  { return o&(OptionsPreserveOriginal | OptionsDebug) != 0 }
+func (o Options) PreserveOriginal() bool  { return o&(OptionsPreserveOriginal|OptionsDebug) != 0 }
 func (o Options) ProxyPreserveHost() bool { return o&OptionsProxyPreserveHost != 0 }
 func (o Options) Debug() bool             { return o&OptionsDebug != 0 }
 
@@ -183,10 +183,10 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler 
 }
 
 // calls a function with recovering from panics and logging them
-func callSafe(p func()) {
+func callSafe(p func(), onErr func(err interface{})) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Error("filter", err)
+			onErr(err)
 		}
 	}()
 
@@ -296,12 +296,12 @@ func shunt(r *http.Request) *http.Response {
 }
 
 // applies all filters to a request
-func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext) []*routing.RouteFilter {
+func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext, onErr func(err interface{})) []*routing.RouteFilter {
 	var start time.Time
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start = time.Now()
-		callSafe(func() { fi.Request(ctx) })
+		callSafe(func() { fi.Request(ctx) }, onErr)
 		p.metrics.measureFilterRequest(fi.Name, start)
 		filters = append(filters, fi)
 		if ctx.served || ctx.servedWithResponse {
@@ -322,13 +322,13 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*htt
 }
 
 // applies filters to a response in reverse order
-func (p *proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext) {
+func (p *proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext, onErr func(err interface{})) {
 	count := len(filters)
 	var start time.Time
 	for i, _ := range filters {
 		fi := filters[count-1-i]
 		start = time.Now()
-		callSafe(func() { fi.Response(ctx) })
+		callSafe(func() { fi.Response(ctx) }, onErr)
 		p.metrics.measureFilterResponse(fi.Name, start)
 	}
 }
@@ -361,8 +361,12 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
+		if p.options.Debug() {
+			dbgResponse(w, &debugInfo{incoming: r})
+			return
+		}
+
 		p.metrics.incRoutingFailures()
-		// debug
 		sendError(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		log.Debugf("Could not find a route for %v", r.URL)
 		return
@@ -372,7 +376,22 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start = time.Now()
 	routeFilters := rt.Filters
 	c := p.newFilterContext(w, r, params, rt)
-	processedFilters := p.applyFiltersToRequest(routeFilters, c)
+
+	var (
+		onErr        func(err interface{})
+		filterPanics []interface{}
+	)
+	if p.options.Debug() {
+		onErr = func(err interface{}) {
+			filterPanics = append(filterPanics, err)
+		}
+	} else {
+		onErr = func(err interface{}) {
+			log.Error("filter", err)
+		}
+	}
+
+	processedFilters := p.applyFiltersToRequest(routeFilters, c, onErr)
 	p.metrics.measureAllFiltersRequest(rt.Id, start)
 
 	var debugReq *http.Request
@@ -388,8 +407,13 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if p.options.Debug() {
 			debugReq, err = mapRequest(r, rt, c.outgoingHost)
 			if err != nil {
-				// debug
-				return nil, err
+				dbgResponse(w, &debugInfo{
+					route:         &rt.Route,
+					incoming:      c.OriginalRequest(),
+					err:           err,
+					errStatusCode: http.StatusInternalServerError,
+					filterPanics:  filterPanics})
+				return
 			}
 
 			rs = new(http.Response)
@@ -420,11 +444,17 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !c.served && p.options.PreserveOriginal() {
 		c.originalResponse = cloneResponseMetadata(c.Response())
 	}
-	p.applyFiltersToResponse(processedFilters, c)
+	p.applyFiltersToResponse(processedFilters, c, onErr)
 	p.metrics.measureAllFiltersResponse(rt.Id, start)
 
 	if !c.served {
 		if p.options.Debug() {
+			dbgResponse(w, &debugInfo{
+				route:        &rt.Route,
+				incoming:     c.OriginalRequest(),
+				outgoing:     debugReq,
+				response:     c.Response(),
+				filterPanics: filterPanics})
 			return
 		}
 
