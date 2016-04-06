@@ -22,15 +22,17 @@ type (
 	}
 
 	debugResponse struct {
+		// todo: make this a pointer and omit empty
 		Status int         `json:"status"`
 		Header http.Header `json:"header,omitempty"`
 	}
 
 	debugDocument struct {
-		RouteId      string         `json:"route_id,omitempty"`
-		Route        string         `json:"route,omitempty"`
-		Incoming     debugRequest   `json:"incoming"`
-		Outgoing     *debugRequest  `json:"outgoing,omitempty"`
+		RouteId  string        `json:"route_id,omitempty"`
+		Route    string        `json:"route,omitempty"`
+		Incoming debugRequest  `json:"incoming"`
+		Outgoing *debugRequest `json:"outgoing,omitempty"`
+		// todo: give the response a better name
 		Response     *debugResponse `json:"response,omitempty"`
 		RequestBody  string         `json:"request_body,omitempty"`
 		RequestErr   string         `json:"request_error,omitempty"`

@@ -416,7 +416,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			rs = new(http.Response)
+			rs = &http.Response{Header: make(http.Header)}
 		} else {
 			rs, err = p.roundtrip(r, rt, c.outgoingHost)
 			if err != nil {
