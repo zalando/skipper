@@ -15,16 +15,16 @@
 package etcd
 
 import (
+	"errors"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
-	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
-	"strings"
-	"net"
 )
 
 func init() {
