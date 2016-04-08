@@ -21,7 +21,7 @@ type (
 		RemoteAddress string      `json:"remote_address,omitempty"`
 	}
 
-	debugResponse struct {
+	debugResponseDiff struct {
 		// todo: make this a pointer and omit empty
 		Status int         `json:"status"`
 		Header http.Header `json:"header,omitempty"`
@@ -33,13 +33,13 @@ type (
 		Incoming debugRequest  `json:"incoming"`
 		Outgoing *debugRequest `json:"outgoing,omitempty"`
 		// todo: give the response a better name
-		Response     *debugResponse `json:"response,omitempty"`
-		RequestBody  string         `json:"request_body,omitempty"`
-		RequestErr   string         `json:"request_error,omitempty"`
-		ResponseBody string         `json:"response_body,omitempty"`
-		ResponseErr  string         `json:"response_error,omitempty"`
-		ProxyError   string         `json:"proxy_error,omitempty"`
-		FilterPanics []string       `json:"filter_panics,omitempty"`
+		ResponseDiff     *debugResponseDiff `json:"response_diff,omitempty"`
+		RequestBody      string             `json:"request_body,omitempty"`
+		RequestErr       string             `json:"request_error,omitempty"`
+		ResponseDiffBody string             `json:"response_diff_body,omitempty"`
+		ResponseDiffErr  string             `json:"response_diff_error,omitempty"`
+		ProxyError       string             `json:"proxy_error,omitempty"`
+		FilterPanics     []string           `json:"filter_panics,omitempty"`
 	}
 )
 
@@ -82,7 +82,7 @@ func convertBody(body io.Reader) (string, string) {
 }
 
 func hasResponse(r *http.Response) bool {
-	return r != nil && (r.StatusCode != 0 || r.Header != nil || r.Body != nil)
+	return r != nil && (r.StatusCode != 0 || r.Body != nil)
 }
 
 func dbgResponse(w http.ResponseWriter, d *debugInfo) {
@@ -116,10 +116,10 @@ func dbgResponse(w http.ResponseWriter, d *debugInfo) {
 	}
 
 	if hasResponse(response) {
-		doc.Response = &debugResponse{
+		doc.ResponseDiff = &debugResponseDiff{
 			Status: response.StatusCode,
 			Header: response.Header}
-		doc.ResponseBody, doc.ResponseErr = convertBody(response.Body)
+		doc.ResponseDiffBody, doc.ResponseDiffErr = convertBody(response.Body)
 	}
 
 	for _, fp := range d.filterPanics {
