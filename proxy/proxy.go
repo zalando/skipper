@@ -189,7 +189,7 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler 
 }
 
 // calls a function with recovering from panics and logging them
-func callSafe(p func(), onErr func(err interface{})) {
+func tryCatch(p func(), onErr func(err interface{})) {
 	defer func() {
 		if err := recover(); err != nil {
 			onErr(err)
@@ -307,7 +307,7 @@ func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterConte
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start = time.Now()
-		callSafe(func() { fi.Request(ctx) }, onErr)
+		tryCatch(func() { fi.Request(ctx) }, onErr)
 		p.metrics.MeasureFilterRequest(fi.Name, start)
 		filters = append(filters, fi)
 		if ctx.served || ctx.servedWithResponse {
@@ -334,7 +334,7 @@ func (p *proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filte
 	for i, _ := range filters {
 		fi := filters[count-1-i]
 		start = time.Now()
-		callSafe(func() { fi.Response(ctx) }, onErr)
+		tryCatch(func() { fi.Response(ctx) }, onErr)
 		p.metrics.MeasureFilterResponse(fi.Name, start)
 	}
 }
