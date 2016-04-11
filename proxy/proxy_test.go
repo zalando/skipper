@@ -791,6 +791,24 @@ func TestHostHeader(t *testing.T) {
 		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
+	}, {
+		"debug proxy, route not found",
+		OptionsProxyPreserveHost | OptionsDebug,
+		`route: Path("/hello") -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		"www.example.org",
+		"",
+	}, {
+		"debug proxy, shunt route",
+		OptionsProxyPreserveHost | OptionsDebug,
+		`route: Any() -> <shunt>`,
+		"www.example.org",
+		"",
+	}, {
+		"debug proxy, full circle",
+		OptionsProxyPreserveHost | OptionsDebug,
+		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		"www.example.org",
+		"custom.example.org",
 	}} {
 		// replace the host in the route format
 		f := ti.routeFmt + `;healthcheck: Path("/healthcheck") -> "%s"`
@@ -849,6 +867,11 @@ func TestHostHeader(t *testing.T) {
 			t.Error(ti.msg, "failed to make request")
 			ps.Close()
 			continue
+		}
+
+		if ti.options.Debug() {
+			ps.Close()
+			return
 		}
 
 		if rsp.Header.Get("X-Received-Host") != ti.expectedHost {

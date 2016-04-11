@@ -69,6 +69,7 @@ const (
 	applicationLogPrefixUsage      = "prefix for each log entry"
 	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
+	debugEndpointUsage             = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
 )
 
 var (
@@ -95,6 +96,7 @@ var (
 	applicationLogPrefix      string
 	accessLog                 string
 	accessLogDisabled         bool
+	debugListener             string
 )
 
 func init() {
@@ -121,6 +123,7 @@ func init() {
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
+	flag.StringVar(&debugListener, "debug-listener", "", debugEndpointUsage)
 	flag.Parse()
 }
 
@@ -152,7 +155,8 @@ func main() {
 		ApplicationLogOutput:      applicationLog,
 		ApplicationLogPrefix:      applicationLogPrefix,
 		AccessLogOutput:           accessLog,
-		AccessLogDisabled:         accessLogDisabled}
+		AccessLogDisabled:         accessLogDisabled,
+		DebugListener:             debugListener}
 
 	if insecure {
 		options.ProxyOptions |= proxy.OptionsInsecure
