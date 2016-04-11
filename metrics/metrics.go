@@ -49,7 +49,47 @@ const (
 	defaultReservoirSize = 1024
 )
 
-var reg metrics.Registry
+type Metrics struct {
+	reg           metrics.Registry
+	createTimer   func() metrics.Timer
+	createCounter func() metrics.Counter
+}
+
+var (
+	Default *Metrics
+	Void    *Metrics
+)
+
+func New(o Options) *Metrics {
+	m := &Metrics{}
+	m.reg = metrics.NewRegistry()
+	m.createTimer = createTimer
+	m.createCounter = metrics.NewCounter
+	if o.EnableDebugGcMetrics {
+		metrics.RegisterDebugGCStats(m.reg)
+		go metrics.CaptureDebugGCStats(m.reg, statsRefreshDuration)
+	}
+
+	if o.EnableRuntimeMetrics {
+		metrics.RegisterRuntimeMemStats(m.reg)
+		go metrics.CaptureRuntimeMemStats(m.reg, statsRefreshDuration)
+	}
+
+	return m
+}
+
+func NewVoid() *Metrics {
+	m := &Metrics{}
+	m.reg = metrics.NewRegistry()
+	m.createTimer = func() metrics.Timer { return metrics.NilTimer{} }
+	m.createCounter = func() metrics.Counter { return metrics.NilCounter{} }
+	return m
+}
+
+func init() {
+	Void = NewVoid()
+	Default = Void
+}
 
 // Initializes the collection of metrics.
 func Init(o Options) {
@@ -58,98 +98,82 @@ func Init(o Options) {
 		return
 	}
 
-	r := metrics.NewRegistry()
-	if o.EnableDebugGcMetrics {
-		metrics.RegisterDebugGCStats(r)
-		go metrics.CaptureDebugGCStats(r, statsRefreshDuration)
-	}
+	Default = New(o)
 
-	if o.EnableRuntimeMetrics {
-		metrics.RegisterRuntimeMemStats(r)
-		go metrics.CaptureRuntimeMemStats(r, statsRefreshDuration)
-	}
-
-	handler := &metricsHandler{registry: r, options: o}
+	handler := &metricsHandler{registry: Default.reg, options: o}
 	log.Infof("metrics listener on %s/metrics", o.Listener)
 	go http.ListenAndServe(o.Listener, handler)
-	reg = r
 }
 
 func createTimer() metrics.Timer {
 	return metrics.NewCustomTimer(metrics.NewHistogram(metrics.NewUniformSample(defaultReservoirSize)), metrics.NewMeter())
 }
 
-func getTimer(key string) metrics.Timer {
-	if reg == nil {
-		return nil
-	}
-	return reg.GetOrRegister(key, createTimer).(metrics.Timer)
+func (m *Metrics) getTimer(key string) metrics.Timer {
+	return m.reg.GetOrRegister(key, m.createTimer).(metrics.Timer)
 }
 
-func updateTimer(key string, d time.Duration) {
-	if t := getTimer(key); t != nil {
+func (m *Metrics) updateTimer(key string, d time.Duration) {
+	if t := m.getTimer(key); t != nil {
 		t.Update(d)
 	}
 }
 
-func measureSince(key string, start time.Time) {
+func (m *Metrics) measureSince(key string, start time.Time) {
 	d := time.Since(start)
-	go updateTimer(key, d)
+	go m.updateTimer(key, d)
 }
 
-func MeasureRouteLookup(start time.Time) {
-	measureSince(KeyRouteLookup, start)
+func (m *Metrics) MeasureRouteLookup(start time.Time) {
+	m.measureSince(KeyRouteLookup, start)
 }
 
-func MeasureFilterRequest(filterName string, start time.Time) {
-	measureSince(fmt.Sprintf(KeyFilterRequest, filterName), start)
+func (m *Metrics) MeasureFilterRequest(filterName string, start time.Time) {
+	m.measureSince(fmt.Sprintf(KeyFilterRequest, filterName), start)
 }
 
-func MeasureAllFiltersRequest(routeId string, start time.Time) {
-	measureSince(fmt.Sprintf(KeyFiltersRequest, routeId), start)
+func (m *Metrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
+	m.measureSince(fmt.Sprintf(KeyFiltersRequest, routeId), start)
 }
 
-func MeasureBackend(routeId string, start time.Time) {
-	measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
+func (m *Metrics) MeasureBackend(routeId string, start time.Time) {
+	m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
 }
 
-func MeasureFilterResponse(filterName string, start time.Time) {
-	measureSince(fmt.Sprintf(KeyFilterResponse, filterName), start)
+func (m *Metrics) MeasureFilterResponse(filterName string, start time.Time) {
+	m.measureSince(fmt.Sprintf(KeyFilterResponse, filterName), start)
 }
 
-func MeasureAllFiltersResponse(routeId string, start time.Time) {
-	measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
+func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
+	m.measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
 }
 
-func MeasureResponse(code int, method string, routeId string, start time.Time) {
-	measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
+func (m *Metrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
+	m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
 }
 
-func getCounter(key string) metrics.Counter {
-	if reg == nil {
-		return nil
-	}
-	return reg.GetOrRegister(key, metrics.NewCounter).(metrics.Counter)
+func (m *Metrics) getCounter(key string) metrics.Counter {
+	return m.reg.GetOrRegister(key, m.createCounter).(metrics.Counter)
 }
 
-func incCounter(key string) {
+func (m *Metrics) incCounter(key string) {
 	go func() {
-		if c := getCounter(key); c != nil {
+		if c := m.getCounter(key); c != nil {
 			c.Inc(1)
 		}
 	}()
 }
 
-func IncRoutingFailures() {
-	incCounter(KeyRouteFailure)
+func (m *Metrics) IncRoutingFailures() {
+	m.incCounter(KeyRouteFailure)
 }
 
-func IncErrorsBackend(routeId string) {
-	incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
+func (m *Metrics) IncErrorsBackend(routeId string) {
+	m.incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
 }
 
-func IncErrorsStreaming(routeId string) {
-	incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
+func (m *Metrics) IncErrorsStreaming(routeId string) {
+	m.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
 }
 
 // This listener is used to expose the collected metrics.
