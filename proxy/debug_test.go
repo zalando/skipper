@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
+func takePt(n int) *int { return &n }
+
 func TestDebug(t *testing.T) {
-	// all
-	// none
 	for _, ti := range []struct {
 		msg    string
 		in     debugInfo
@@ -62,7 +62,7 @@ func TestDebug(t *testing.T) {
 				Header: http.Header{"X-Test-Header-2": []string{"test-header-value-2"}},
 				Host:   "www.example.org"},
 			ResponseMod: &debugResponseMod{
-				Status: http.StatusTeapot,
+				Status: takePt(http.StatusTeapot),
 				Header: http.Header{"X-Test-Response-Header": []string{"test-response-header-value"}}},
 			RequestBody:     "outgoing body content",
 			ResponseModBody: "response body"},
@@ -87,7 +87,7 @@ func TestDebug(t *testing.T) {
 				Host:          "test.example.org",
 				RemoteAddress: "::1"},
 			ResponseMod: &debugResponseMod{
-				Status: http.StatusNotFound},
+				Status: takePt(http.StatusNotFound)},
 			RequestBody: "incoming body content"},
 	}, {
 		"incoming body when no outgoing",
@@ -137,7 +137,7 @@ func TestDebug(t *testing.T) {
 			response: &http.Response{
 				StatusCode: http.StatusTeapot,
 				Header:     http.Header{}}},
-		debugDocument{ResponseMod: &debugResponseMod{Status: http.StatusTeapot}},
+		debugDocument{ResponseMod: &debugResponseMod{Status: takePt(http.StatusTeapot)}},
 	}, {
 		"response when header",
 		debugInfo{
@@ -153,7 +153,7 @@ func TestDebug(t *testing.T) {
 				StatusCode: http.StatusTeapot}},
 		debugDocument{
 			ResponseMod: &debugResponseMod{
-				Status: http.StatusTeapot}},
+				Status: takePt(http.StatusTeapot)}},
 	}, {
 		"error",
 		debugInfo{
@@ -242,7 +242,9 @@ func TestDebug(t *testing.T) {
 		}
 
 		if got.ResponseMod != nil {
-			if got.ResponseMod.Status != ti.expect.ResponseMod.Status {
+			if got.ResponseMod.Status == nil && ti.expect.ResponseMod.Status != nil ||
+				got.ResponseMod.Status != nil && ti.expect.ResponseMod.Status == nil ||
+				got.ResponseMod.Status != nil && *got.ResponseMod.Status != *ti.expect.ResponseMod.Status {
 				t.Error(ti.msg, "failed to convert response modification")
 			}
 

@@ -21,8 +21,7 @@ type (
 	}
 
 	debugResponseMod struct {
-		// todo: make this a pointer and omit empty
-		Status int         `json:"status"`
+		Status *int        `json:"status,omitempty"`
 		Header http.Header `json:"header,omitempty"`
 	}
 
@@ -102,9 +101,11 @@ func convertDebugInfo(d *debugInfo) debugDocument {
 
 	if d.response != nil {
 		if d.response.StatusCode != 0 || len(d.response.Header) != 0 {
-			doc.ResponseMod = &debugResponseMod{
-				Status: d.response.StatusCode,
-				Header: d.response.Header}
+			doc.ResponseMod = &debugResponseMod{Header: d.response.Header}
+			if d.response.StatusCode != 0 {
+				s := d.response.StatusCode
+				doc.ResponseMod.Status = &s
+			}
 		}
 
 		if d.response.Body != nil {
