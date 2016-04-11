@@ -1,31 +1,266 @@
 package proxy
 
-import "testing"
-
-func TestJson(t *testing.T) {
-	// all
-	// none
-}
-
-func TestBody(t *testing.T) {
-	// nil
-	// error reader
-}
-
-func TestResponseDiff(t *testing.T) {
-	// nil
-	// status not 0
-	// body not nil
-}
+import (
+	"bytes"
+	"errors"
+	"github.com/zalando/skipper/eskip"
+	"net/http"
+	"testing"
+)
 
 func TestDebug(t *testing.T) {
-	// route not found
-	// route id
-	// route expression
-	// incoming body
-	// outgoing body
-	// proxy error
-	// has response
-	// has no response
-	// filter panic
+	// all
+	// none
+	for _, ti := range []struct {
+		msg    string
+		in     debugInfo
+		expect debugDocument
+	}{{
+		"empty debug info",
+		debugInfo{},
+		debugDocument{},
+	}, {
+		"full doc",
+		debugInfo{
+			route: &eskip.Route{
+				Id:      "testRoute",
+				Path:    "/hello",
+				Backend: "https://www.example.org"},
+			incoming: &http.Request{
+				Method:     "OPTIONS",
+				RequestURI: "/testuri",
+				Proto:      "HTTP/1.1",
+				Header:     http.Header{"X-Test-Header": []string{"test-header-value"}},
+				Host:       "test.example.org",
+				RemoteAddr: "::1",
+				Body:       &bodyBuffer{bytes.NewBufferString("incoming body content")}},
+			outgoing: &http.Request{
+				Method:     "HEAD",
+				RequestURI: "/testuri2",
+				Proto:      "HTTP/1.1",
+				Header:     http.Header{"X-Test-Header-2": []string{"test-header-value-2"}},
+				Host:       "www.example.org",
+				Body:       &bodyBuffer{bytes.NewBufferString("outgoing body content")}},
+			response: &http.Response{
+				StatusCode: http.StatusTeapot,
+				Header:     http.Header{"X-Test-Response-Header": []string{"test-response-header-value"}},
+				Body:       &bodyBuffer{bytes.NewBufferString("response body")}}},
+		debugDocument{
+			RouteId: "testRoute",
+			Route:   (&eskip.Route{Path: "/hello", Backend: "https://www.example.org"}).String(),
+			Incoming: &debugRequest{
+				Method:        "OPTIONS",
+				Uri:           "/testuri",
+				Proto:         "HTTP/1.1",
+				Header:        http.Header{"X-Test-Header": []string{"test-header-value"}},
+				Host:          "test.example.org",
+				RemoteAddress: "::1"},
+			Outgoing: &debugRequest{
+				Method: "HEAD",
+				Uri:    "/testuri2",
+				Proto:  "HTTP/1.1",
+				Header: http.Header{"X-Test-Header-2": []string{"test-header-value-2"}},
+				Host:   "www.example.org"},
+			ResponseMod: &debugResponseMod{
+				Status: http.StatusTeapot,
+				Header: http.Header{"X-Test-Response-Header": []string{"test-response-header-value"}}},
+			RequestBody:     "outgoing body content",
+			ResponseModBody: "response body"},
+	}, {
+		"route not found",
+		debugInfo{
+			incoming: &http.Request{
+				Method:     "OPTIONS",
+				RequestURI: "/testuri",
+				Proto:      "HTTP/1.1",
+				Header:     http.Header{"X-Test-Header": []string{"test-header-value"}},
+				Host:       "test.example.org",
+				RemoteAddr: "::1",
+				Body:       &bodyBuffer{bytes.NewBufferString("incoming body content")}},
+			response: &http.Response{StatusCode: http.StatusNotFound}},
+		debugDocument{
+			Incoming: &debugRequest{
+				Method:        "OPTIONS",
+				Uri:           "/testuri",
+				Proto:         "HTTP/1.1",
+				Header:        http.Header{"X-Test-Header": []string{"test-header-value"}},
+				Host:          "test.example.org",
+				RemoteAddress: "::1"},
+			ResponseMod: &debugResponseMod{
+				Status: http.StatusNotFound},
+			RequestBody: "incoming body content"},
+	}, {
+		"incoming body when no outgoing",
+		debugInfo{
+			incoming: &http.Request{
+				Method:     "OPTIONS",
+				RequestURI: "/testuri",
+				Proto:      "HTTP/1.1",
+				Header:     http.Header{"X-Test-Header": []string{"test-header-value"}},
+				Host:       "test.example.org",
+				RemoteAddr: "::1",
+				Body:       &bodyBuffer{bytes.NewBufferString("incoming body content")}}},
+		debugDocument{
+			Incoming: &debugRequest{
+				Method:        "OPTIONS",
+				Uri:           "/testuri",
+				Proto:         "HTTP/1.1",
+				Header:        http.Header{"X-Test-Header": []string{"test-header-value"}},
+				Host:          "test.example.org",
+				RemoteAddress: "::1"},
+			RequestBody: "incoming body content"},
+	}, {
+		"no request body",
+		debugInfo{
+			incoming: &http.Request{
+				Method:     "OPTIONS",
+				RequestURI: "/testuri",
+				Proto:      "HTTP/1.1",
+				Header:     http.Header{"X-Test-Header": []string{"test-header-value"}},
+				Host:       "test.example.org",
+				RemoteAddr: "::1"}},
+		debugDocument{
+			Incoming: &debugRequest{
+				Method:        "OPTIONS",
+				Uri:           "/testuri",
+				Proto:         "HTTP/1.1",
+				Header:        http.Header{"X-Test-Header": []string{"test-header-value"}},
+				Host:          "test.example.org",
+				RemoteAddress: "::1"}},
+	}, {
+		"no response",
+		debugInfo{response: &http.Response{Header: http.Header{}}},
+		debugDocument{},
+	}, {
+		"response when status",
+		debugInfo{
+			response: &http.Response{
+				StatusCode: http.StatusTeapot,
+				Header:     http.Header{}}},
+		debugDocument{ResponseMod: &debugResponseMod{Status: http.StatusTeapot}},
+	}, {
+		"response when header",
+		debugInfo{
+			response: &http.Response{
+				Header: http.Header{"X-Test-Header": []string{"header-value"}}}},
+		debugDocument{
+			ResponseMod: &debugResponseMod{
+				Header: http.Header{"X-Test-Header": []string{"header-value"}}}},
+	}, {
+		"no response body",
+		debugInfo{
+			response: &http.Response{
+				StatusCode: http.StatusTeapot}},
+		debugDocument{
+			ResponseMod: &debugResponseMod{
+				Status: http.StatusTeapot}},
+	}, {
+		"error",
+		debugInfo{
+			err: errors.New("test error"),
+			filterPanics: []interface{}{
+				errors.New("panic one"),
+				errors.New("panic two")}},
+		debugDocument{
+			ProxyError:   "test error",
+			FilterPanics: []string{"panic one", "panic two"}},
+	}} {
+		compareStrings := func(smsg string, got, expect []string) {
+			if len(got) != len(expect) {
+				t.Error(ti.msg, smsg, "conversion failed")
+				return
+			}
+
+			for i, v := range got {
+				if v != expect[i] {
+					t.Error(ti.msg, "failed to convert filter panics")
+				}
+			}
+		}
+
+		compareHeader := func(got, expect http.Header) {
+			if len(got) != len(expect) {
+				t.Error(ti.msg, "failed to convert header")
+				return
+			}
+
+			for k, v := range got {
+				compareStrings("header", v, expect[k])
+			}
+		}
+
+		compareRequest := func(got, expect *debugRequest) {
+			if got == nil && expect != nil || got != nil && expect == nil {
+				t.Error(ti.msg, "failed to convert incoming request")
+				return
+			}
+
+			if got == nil {
+				return
+			}
+
+			if got.Method != expect.Method {
+				t.Error(ti.msg, "failed to convert method")
+			}
+
+			if got.Uri != expect.Uri {
+				t.Error(ti.msg, "failed to convert request uri")
+			}
+
+			if got.Proto != expect.Proto {
+				t.Error(ti.msg, "failed to convert request proto")
+			}
+
+			compareHeader(got.Header, expect.Header)
+
+			if got.Host != expect.Host {
+				t.Error(ti.msg, "failed to convert request host")
+			}
+
+			if got.RemoteAddress != expect.RemoteAddress {
+				t.Error(ti.msg, "failed to convert remote address")
+			}
+		}
+
+		got := convertDebugInfo(&ti.in)
+
+		if got.RouteId != ti.expect.RouteId {
+			t.Error(ti.msg, "failed to convert route id")
+		}
+
+		if got.Route != ti.expect.Route {
+			t.Error(ti.msg, "failed to convert route")
+		}
+
+		compareRequest(got.Incoming, ti.expect.Incoming)
+		compareRequest(got.Outgoing, ti.expect.Outgoing)
+
+		if got.ResponseMod == nil && ti.expect.ResponseMod != nil ||
+			got.ResponseMod != nil && ti.expect.ResponseMod == nil {
+			t.Error(ti.msg, "failed to convert response diff")
+			continue
+		}
+
+		if got.ResponseMod != nil {
+			if got.ResponseMod.Status != ti.expect.ResponseMod.Status {
+				t.Error(ti.msg, "failed to convert response modification")
+			}
+
+			compareHeader(got.ResponseMod.Header, ti.expect.ResponseMod.Header)
+		}
+
+		if got.RequestBody != ti.expect.RequestBody {
+			t.Error(ti.msg, "failed to convert request body")
+		}
+
+		if got.ResponseModBody != ti.expect.ResponseModBody {
+			t.Error(ti.msg, "failed to convert response mod body")
+		}
+
+		if got.ProxyError != ti.expect.ProxyError {
+			t.Error(ti.msg, "failed to convert proxy error")
+		}
+
+		compareStrings("filter panics", got.FilterPanics, ti.expect.FilterPanics)
+	}
 }

@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
@@ -21,36 +20,34 @@ type (
 		RemoteAddress string      `json:"remote_address,omitempty"`
 	}
 
-	debugResponseDiff struct {
+	debugResponseMod struct {
 		// todo: make this a pointer and omit empty
 		Status int         `json:"status"`
 		Header http.Header `json:"header,omitempty"`
 	}
 
 	debugDocument struct {
-		RouteId  string        `json:"route_id,omitempty"`
-		Route    string        `json:"route,omitempty"`
-		Incoming debugRequest  `json:"incoming"`
-		Outgoing *debugRequest `json:"outgoing,omitempty"`
-		// todo: give the response a better name
-		ResponseDiff     *debugResponseDiff `json:"response_diff,omitempty"`
-		RequestBody      string             `json:"request_body,omitempty"`
-		RequestErr       string             `json:"request_error,omitempty"`
-		ResponseDiffBody string             `json:"response_diff_body,omitempty"`
-		ResponseDiffErr  string             `json:"response_diff_error,omitempty"`
-		ProxyError       string             `json:"proxy_error,omitempty"`
-		FilterPanics     []string           `json:"filter_panics,omitempty"`
+		RouteId         string            `json:"route_id,omitempty"`
+		Route           string            `json:"route,omitempty"`
+		Incoming        *debugRequest     `json:"incoming,omitempty"`
+		Outgoing        *debugRequest     `json:"outgoing,omitempty"`
+		ResponseMod     *debugResponseMod `json:"response_diff,omitempty"`
+		RequestBody     string            `json:"request_body,omitempty"`
+		RequestErr      string            `json:"request_error,omitempty"`
+		ResponseModBody string            `json:"response_diff_body,omitempty"`
+		ResponseModErr  string            `json:"response_diff_error,omitempty"`
+		ProxyError      string            `json:"proxy_error,omitempty"`
+		FilterPanics    []string          `json:"filter_panics,omitempty"`
 	}
 )
 
 type debugInfo struct {
-	route         *eskip.Route
-	incoming      *http.Request
-	outgoing      *http.Request
-	response      *http.Response
-	err           error
-	errStatusCode int
-	filterPanics  []interface{}
+	route        *eskip.Route
+	incoming     *http.Request
+	outgoing     *http.Request
+	response     *http.Response
+	err          error
+	filterPanics []interface{}
 }
 
 func convertRequest(r *http.Request) *debugRequest {
@@ -64,10 +61,6 @@ func convertRequest(r *http.Request) *debugRequest {
 }
 
 func convertBody(body io.Reader) (string, string) {
-	if body == nil {
-		return "", ""
-	}
-
 	b, err := ioutil.ReadAll(body)
 	out := string(b)
 
@@ -81,54 +74,59 @@ func convertBody(body io.Reader) (string, string) {
 	return out, errstr
 }
 
-func hasResponse(r *http.Response) bool {
-	return r != nil && (r.StatusCode != 0 || r.Body != nil)
-}
-
-func dbgResponse(w http.ResponseWriter, d *debugInfo) {
-	doc := debugDocument{Incoming: *convertRequest(d.incoming)}
-	response := d.response
-	if d.route == nil {
-		response = &http.Response{
-			StatusCode: http.StatusNotFound,
-			Status:     http.StatusText(http.StatusNotFound),
-			Body:       bodyBuffer{bytes.NewBuffer(nil)}}
-	} else {
+func convertDebugInfo(d *debugInfo) debugDocument {
+	doc := debugDocument{}
+	if d.route != nil {
 		doc.RouteId = d.route.Id
 		doc.Route = d.route.String()
 	}
 
-	requestBody := d.incoming.Body
+	var requestBody io.Reader
+	if d.incoming == nil {
+		log.Error("[debug response] missing incoming request")
+	} else {
+		doc.Incoming = convertRequest(d.incoming)
+		requestBody = d.incoming.Body
+	}
+
 	if d.outgoing != nil {
 		doc.Outgoing = convertRequest(d.outgoing)
+
+		// if there is an outgoing request, use the body from there
 		requestBody = d.outgoing.Body
 	}
 
-	doc.RequestBody, doc.RequestErr = convertBody(requestBody)
+	if requestBody != nil {
+		doc.RequestBody, doc.RequestErr = convertBody(requestBody)
+	}
+
+	if d.response != nil {
+		if d.response.StatusCode != 0 || len(d.response.Header) != 0 {
+			doc.ResponseMod = &debugResponseMod{
+				Status: d.response.StatusCode,
+				Header: d.response.Header}
+		}
+
+		if d.response.Body != nil {
+			doc.ResponseModBody, doc.ResponseModErr = convertBody(d.response.Body)
+		}
+	}
 
 	if d.err != nil {
 		doc.ProxyError = d.err.Error()
-		if response == nil {
-			response = &http.Response{}
-		}
-
-		response.StatusCode = d.errStatusCode
-	}
-
-	if hasResponse(response) {
-		doc.ResponseDiff = &debugResponseDiff{
-			Status: response.StatusCode,
-			Header: response.Header}
-		doc.ResponseDiffBody, doc.ResponseDiffErr = convertBody(response.Body)
 	}
 
 	for _, fp := range d.filterPanics {
 		doc.FilterPanics = append(doc.FilterPanics, fmt.Sprint(fp))
 	}
 
+	return doc
+}
+
+func dbgResponse(w http.ResponseWriter, d *debugInfo) {
+	doc := convertDebugInfo(d)
 	enc := json.NewEncoder(w)
-	err := enc.Encode(&doc)
-	if err != nil {
+	if err := enc.Encode(&doc); err != nil {
 		log.Error("[debug response]", err)
 	}
 }

@@ -362,7 +362,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
 		if p.options.Debug() {
-			dbgResponse(w, &debugInfo{incoming: r})
+			dbgResponse(w, &debugInfo{
+				incoming: r,
+				response: &http.Response{StatusCode: http.StatusNotFound}})
 			return
 		}
 
@@ -408,11 +410,11 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			debugReq, err = mapRequest(r, rt, c.outgoingHost)
 			if err != nil {
 				dbgResponse(w, &debugInfo{
-					route:         &rt.Route,
-					incoming:      c.OriginalRequest(),
-					err:           err,
-					errStatusCode: http.StatusInternalServerError,
-					filterPanics:  filterPanics})
+					route:        &rt.Route,
+					incoming:     c.OriginalRequest(),
+					response:     &http.Response{StatusCode: http.StatusInternalServerError},
+					err:          err,
+					filterPanics: filterPanics})
 				return
 			}
 
