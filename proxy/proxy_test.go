@@ -647,11 +647,6 @@ func TestFlusherImplementation(t *testing.T) {
 }
 
 func TestOriginalRequestResponse(t *testing.T) {
-	// none
-	// preserve
-	// debug
-	// preserve & debug
-
 	s := startTestServer(nil, 0, func(r *http.Request) {
 		if th, ok := r.Header["X-Test-Header-Preserved"]; !ok || th[0] != "test value" {
 			t.Error("wrong request header")
@@ -874,7 +869,7 @@ func TestHostHeader(t *testing.T) {
 			continue
 		}
 
-		if ti.options|OptionsDebug != 0 {
+		if ti.options.Debug() {
 			ps.Close()
 			return
 		}

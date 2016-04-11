@@ -65,6 +65,7 @@ func New(o Options) *Metrics {
 	m.reg = metrics.NewRegistry()
 	m.createTimer = createTimer
 	m.createCounter = metrics.NewCounter
+
 	if o.EnableDebugGcMetrics {
 		metrics.RegisterDebugGCStats(m.reg)
 		go metrics.CaptureDebugGCStats(m.reg, statsRefreshDuration)
