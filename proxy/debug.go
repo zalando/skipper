@@ -33,8 +33,8 @@ type (
 		ResponseMod     *debugResponseMod `json:"response_mod,omitempty"`
 		RequestBody     string            `json:"request_body,omitempty"`
 		RequestErr      string            `json:"request_error,omitempty"`
-		ResponseModBody string            `json:"response_mod,omitempty"`
-		ResponseModErr  string            `json:"response_mod,omitempty"`
+		ResponseModBody string            `json:"response_mod_body,omitempty"`
+		ResponseModErr  string            `json:"response_mod_error,omitempty"`
 		ProxyError      string            `json:"proxy_error,omitempty"`
 		FilterPanics    []string          `json:"filter_panics,omitempty"`
 	}
