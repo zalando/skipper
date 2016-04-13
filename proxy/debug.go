@@ -30,11 +30,11 @@ type (
 		Route           string            `json:"route,omitempty"`
 		Incoming        *debugRequest     `json:"incoming,omitempty"`
 		Outgoing        *debugRequest     `json:"outgoing,omitempty"`
-		ResponseMod     *debugResponseMod `json:"response_diff,omitempty"`
+		ResponseMod     *debugResponseMod `json:"response_mod,omitempty"`
 		RequestBody     string            `json:"request_body,omitempty"`
 		RequestErr      string            `json:"request_error,omitempty"`
-		ResponseModBody string            `json:"response_diff_body,omitempty"`
-		ResponseModErr  string            `json:"response_diff_error,omitempty"`
+		ResponseModBody string            `json:"response_mod_body,omitempty"`
+		ResponseModErr  string            `json:"response_mod_error,omitempty"`
 		ProxyError      string            `json:"proxy_error,omitempty"`
 		FilterPanics    []string          `json:"filter_panics,omitempty"`
 	}
