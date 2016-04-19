@@ -456,3 +456,38 @@ func TestProcessesPredicates(t *testing.T) {
 		t.Error("test timeout")
 	}
 }
+
+// TestNonMatchedStaticRoute for bug #116: non-matched static route supress wild-carded route
+func TestNonMatchedStaticRoute(t *testing.T) {
+	dc, err := testdataclient.NewDoc(`
+		a: Path("/foo/*_") -> "https://foo.org";
+		b: Path("/foo/bar") && CustomPredicate("custom1") -> "https://bar.org";
+		z: * -> "https://catch.all"`)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	cps := []routing.PredicateSpec{&predicate{}}
+	rt := routing.New(routing.Options{
+		DataClients: []routing.DataClient{dc},
+		PollTimeout: pollTimeout,
+		Predicates:  cps})
+
+	req, err := http.NewRequest("GET", "https://www.example.com/foo/bar", nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	select {
+	case r := <-waitRoute(rt, req):
+		if r.Backend != "https://foo.org" {
+			t.Error("non-matched static route supress wild-carded route")
+			return
+		}
+	case <-time.After(3 * pollTimeout):
+		t.Error("test timeout")
+	}
+
+}
