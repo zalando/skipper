@@ -463,6 +463,10 @@ func TestProcessesPredicates(t *testing.T) {
 
 // TestNonMatchedStaticRoute for bug #116: non-matched static route supress wild-carded route
 func TestNonMatchedStaticRoute(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	dc, err := testdataclient.NewDoc(`
 		a: Path("/foo/*_") -> "https://foo.org";
 		b: Path("/foo/bar") && CustomPredicate("custom1") -> "https://bar.org";
