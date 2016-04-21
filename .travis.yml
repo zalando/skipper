@@ -5,8 +5,10 @@ language: go
 go:
   - 1.6.2
 
-script:
+install:
   - go get golang.org/x/sys/unix/...
+
+script:
   - go test github.com/zalando/skipper/... -test.short
 
 notifications:
