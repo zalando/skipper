@@ -8,7 +8,11 @@ go:
 install:
   - go get golang.org/x/sys/unix
   - go get golang.org/x/crypto/ssh/terminal
-  - go get github.com/coreos/etcd/...
+  - cd ../..
+  - mkdir coreos
+  - cd coreos
+  - git clone https://github.com/coreos/etcd.git
+  - cd ../zalando/skipper
   - go get -t github.com/zalando/skipper/...
   - go get github.com/tools/godep
   - godep restore ./...
