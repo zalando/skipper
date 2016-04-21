@@ -1,11 +1,12 @@
 {
 	"ImportPath": "github.com/zalando/skipper",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.6.2",
+	"GodepVersion": "v62",
 	"Deps": [
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.8.6-1-g8bca266",
-			"Rev": "8bca2664072173a3c71db4c28ca8d304079b1787"
+			"Comment": "v0.10.0-14-g081307d",
+			"Rev": "081307d9bc1364753142d5962fc1d795c742baaf"
 		},
 		{
 			"ImportPath": "github.com/dimfeld/httppath",
@@ -13,7 +14,7 @@
 		},
 		{
 			"ImportPath": "github.com/rcrowley/go-metrics",
-			"Rev": "3e5e593311103d49927c8d2b0fd93ccdfe4a525c"
+			"Rev": "eeba7bd0dd01ace6e690fa833b3f22aaec29af43"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
