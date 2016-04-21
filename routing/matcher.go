@@ -247,10 +247,10 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 }
 
 // matches a path in the path trie structure.
-func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (leafMatchers, map[string]string, *leafMatcher) {
+func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (map[string]string, *leafMatcher) {
 	v, params, value := tree.LookupMatcher(path, lrm)
 	if v == nil {
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	// prepend slash in case of free form wildcards path segments (`/*name`),
@@ -261,7 +261,7 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (le
 		params[pm.freeWildcardParam] = freeParam
 	}
 
-	return pm.leaves, params, value.(*leafMatcher)
+	return params, value.(*leafMatcher)
 }
 
 // matches the path regexp conditions in a leaf matcher.
@@ -373,7 +373,7 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	lrm := &leafRequestMatcher{r, path}
 
 	// first match fixed and wildcard paths
-	_, params, l := matchPathTree(m.paths, path, lrm)
+	params, l := matchPathTree(m.paths, path, lrm)
 
 	if l != nil {
 		return l.route, params
