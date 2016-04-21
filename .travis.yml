@@ -14,7 +14,7 @@ install:
   - git clone https://github.com/coreos/etcd.git
   - cd etcd
   - ./build
-  - cd ../zalando/skipper
+  - cd ../../zalando/skipper
   - go get -t github.com/zalando/skipper/...
   - go get github.com/tools/godep
   - godep restore ./...
