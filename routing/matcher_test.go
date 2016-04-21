@@ -654,9 +654,9 @@ func TestMatchPathTreeNoMatch(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, p, v := matchPathTree(tree, "/some/wrong/path", &leafRequestMatcher{})
-	if len(m) != 0 || len(p) != 0 || v != nil {
-		t.Error("failed not to match path")
+	p, v := matchPathTree(tree, "/some/wrong/path", &leafRequestMatcher{})
+	if len(p) != 0 || v != nil {
+		t.Error("failed not to match path", len(p))
 	}
 }
 
@@ -673,10 +673,10 @@ func TestMatchPathTree(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, p, v := matchPathTree(tree, "/some/path", &leafRequestMatcher{&http.Request{}, ""})
+	p, v := matchPathTree(tree, "/some/path", &leafRequestMatcher{&http.Request{}, ""})
 
-	if len(m) != 1 || len(p) != 0 || m[0] != pm0.leaves[0] || v.route.Route.Id != "1" {
-		t.Error("failed to match path", len(m), len(p))
+	if len(p) != 0 || v.route.Route.Id != "1" {
+		t.Error("failed to match path", len(p))
 	}
 }
 
@@ -692,10 +692,9 @@ func TestMatchPathTreeWithWildcards(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m, p, v := matchPathTree(tree, "/some/path/and/params", &leafRequestMatcher{&http.Request{}, ""})
-	if len(m) != 1 || len(p) != 2 || m[0] != pm0.leaves[0] ||
-		p["param0"] != "and" || p["param1"] != "params" || v.route.Route.Id != "1" {
-		t.Error("failed to match path", len(m), len(p))
+	p, v := matchPathTree(tree, "/some/path/and/params", &leafRequestMatcher{&http.Request{}, ""})
+	if len(p) != 2 || p["param0"] != "and" || p["param1"] != "params" || v.route.Route.Id != "1" {
+		t.Error("failed to match path", len(p))
 	}
 }
 
