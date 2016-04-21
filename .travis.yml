@@ -14,11 +14,11 @@ install:
   - git clone https://github.com/coreos/etcd.git
   - cd etcd
   - ./build
+  - mv bin/etcd $GOPATH/bin
   - cd ../../zalando/skipper
   - go get -t github.com/zalando/skipper/...
   - go get github.com/tools/godep
   - godep restore ./...
-  - export PATH=$PATH:$GOPATH/bin
 
 script:
   - go test github.com/zalando/skipper/... -test.short
