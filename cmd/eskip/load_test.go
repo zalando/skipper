@@ -17,7 +17,6 @@ package main
 import (
 	"errors"
 	"github.com/zalando/skipper/etcd/etcdtest"
-	"log"
 	"os"
 	"testing"
 )
@@ -25,14 +24,6 @@ import (
 const testStdinName = "testStdin"
 
 var ioError = errors.New("io error")
-
-func init() {
-	// start an etcd server
-	err := etcdtest.Start()
-	if err != nil {
-		log.Fatal(err)
-	}
-}
 
 func preserveStdin(f *os.File, action func()) {
 	f, os.Stdin = os.Stdin, f
