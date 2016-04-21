@@ -18,6 +18,7 @@ install:
   - go get -t github.com/zalando/skipper/...
   - go get github.com/tools/godep
   - godep restore ./...
+  - export PATH=$PATH:$GOPATH/bin
 
 script:
   - go test github.com/zalando/skipper/... -test.short
