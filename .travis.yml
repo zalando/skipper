@@ -6,7 +6,9 @@ go:
   - 1.6.2
 
 install:
-  - go get golang.org/x/sys/unix/...
+  - go get golang.org/x/sys/unix
+  - go get golang.org/x/crypto/ssh/terminal
+  - go get -t github.com/zalando/skipper/...
   - go get github.com/tools/godep
   - godep restore ./...
 
