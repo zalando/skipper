@@ -6,6 +6,7 @@ go:
   - 1.6.2
 
 script:
+  - go get golang.org/x/sys/unix/...
   - go test github.com/zalando/skipper/... -test.short
 
 notifications:
