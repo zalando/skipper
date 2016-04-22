@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,10 +30,22 @@ import (
 
 func init() {
 	// start an etcd server
+}
+
+func TestMain(m *testing.M) {
 	err := etcdtest.Start()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	defer func() {
+		err := etcdtest.Stop()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	os.Exit(m.Run())
 }
 
 func checkInitial(d []*eskip.Route) bool {

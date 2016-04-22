@@ -3,11 +3,27 @@ sudo: false
 language: go
 
 go:
-  - 1.5.1
+  - 1.6.2
+
+install:
+  - go get golang.org/x/sys/unix
+  - go get golang.org/x/crypto/ssh/terminal
+  - cd ../..
+  - mkdir coreos
+  - cd coreos
+  - git clone https://github.com/coreos/etcd.git
+  - cd etcd
+  - ./build
+  - mkdir -p $GOPATH/bin
+  - mv bin/etcd $GOPATH/bin
+  - cd ../../zalando/skipper
+  - go get -t github.com/zalando/skipper/...
+  - go get github.com/tools/godep
+  - godep restore ./...
 
 script:
   - go test github.com/zalando/skipper/... -test.short
 
 notifications:
   email:
-    - team-spearheads@zalando.de
+    - team-pathfinder@zalando.de
