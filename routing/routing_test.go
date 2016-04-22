@@ -406,6 +406,10 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 }
 
 func TestProcessesPredicates(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	dc, err := testdataclient.NewDoc(`
         route1: CustomPredicate("custom1") -> "https://route1.example.org";
         route2: CustomPredicate("custom2") -> "https://route2.example.org";
