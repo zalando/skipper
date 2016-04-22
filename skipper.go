@@ -109,6 +109,9 @@ type Options struct {
 	// Specifications of custom, user defined predicates.
 	CustomPredicates []routing.PredicateSpec
 
+	// Custom data clients to be used together with the default etcd and Innkeeper.
+	CustomDataClients []routing.DataClient
+
 	// Dev mode. Currently this flag disables prioritization of the
 	// consumer side over the feeding side during the routing updates to
 	// populate the updated routes faster.
@@ -266,11 +269,14 @@ func Run(o Options) error {
 		OAuthUrl:            o.OAuthUrl,
 		OAuthScope:          o.OAuthScope})
 
-	// create data client
+	// create data clients
 	dataClients, err := createDataClients(o, auth)
 	if err != nil {
 		return err
 	}
+
+	// append custom data clients
+	dataClients = append(dataClients, o.CustomDataClients...)
 
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
