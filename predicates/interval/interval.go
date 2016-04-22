@@ -23,7 +23,7 @@ number.
 Between predicate matches only if current date is inside the specified
 range of dates. Range is a closed range, so boundaries are included in
 the range. Between predicate requires two dates to be constructed.
-Upper boundary mast be after lower boundary.
+Upper boundary must be after lower boundary.
 
 Before predicate matches only if current date is before the specified
 date. Only one date is required to construct the predicate. Boundary
