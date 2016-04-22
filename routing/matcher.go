@@ -24,7 +24,7 @@ import (
 )
 
 type leafRequestMatcher struct {
-	r *http.Request
+	r    *http.Request
 	path string
 }
 
