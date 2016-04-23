@@ -62,6 +62,7 @@ func (fc *Context) SetOutgoingHost(h string)            { fc.FOutgoingHost = h }
 func (fc *Context) Serve(resp *http.Response) {
 	fc.FServedWithResponse = true
 	fc.FResponse = resp
+	fc.FServed = true
 }
 
 func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
