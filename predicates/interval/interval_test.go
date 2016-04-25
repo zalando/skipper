@@ -65,7 +65,7 @@ func TestCreateBetween(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		_, err := NewBetweenPredicate().Create(c.args)
+		_, err := NewBetween().Create(c.args)
 
 		if err == nil && c.err || err != nil && !c.err {
 			t.Errorf("%q: Is error case - %t; Error - %v", c.msg, c.err, err)
@@ -107,7 +107,7 @@ func TestCreateBefore(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		_, err := NewBeforePredicate().Create(c.args)
+		_, err := NewBefore().Create(c.args)
 
 		if err == nil && c.err || err != nil && !c.err {
 			t.Errorf("%q: Is error case - %t; Error - %v", c.msg, c.err, err)
@@ -149,7 +149,7 @@ func TestCreateAfter(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		_, err := NewAfterPredicate().Create(c.args)
+		_, err := NewAfter().Create(c.args)
 
 		if err == nil && c.err || err != nil && !c.err {
 			t.Errorf("%q: Is error case - %t; Error - %v", c.msg, c.err, err)
@@ -163,7 +163,7 @@ func TestMatchBetween(t *testing.T) {
 	cases := []struct {
 		msg     string
 		args    []interface{}
-		time    func() time.Time
+		getTime func() time.Time
 		matches bool
 	}{
 		{
@@ -209,13 +209,13 @@ func TestMatchBetween(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		p, err := NewBetweenPredicate().Create(c.args)
+		p, err := NewBetween().Create(c.args)
 		if err != nil {
 			t.Errorf("Failed to create predicate: %q", err)
 		} else {
 			betweenPredicate := p.(*predicate)
-			if c.time != nil {
-				betweenPredicate.time = c.time
+			if c.getTime != nil {
+				betweenPredicate.getTime = c.getTime
 			}
 
 			matches := betweenPredicate.Match(reqeust)
@@ -233,7 +233,7 @@ func TestMatchBefore(t *testing.T) {
 	cases := []struct {
 		msg     string
 		args    []interface{}
-		time    func() time.Time
+		getTime func() time.Time
 		matches bool
 	}{
 		{
@@ -254,7 +254,7 @@ func TestMatchBefore(t *testing.T) {
 			func() time.Time {
 				return time.Date(2016, 1, 1, 12, 0, 0, 0, time.UTC)
 			},
-			false,
+			true,
 		},
 		{
 			"time after boundary value",
@@ -265,13 +265,13 @@ func TestMatchBefore(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		p, err := NewBeforePredicate().Create(c.args)
+		p, err := NewBefore().Create(c.args)
 		if err != nil {
 			t.Errorf("Failed to create predicate: %q", err)
 		} else {
 			beforePredicate := p.(*predicate)
-			if c.time != nil {
-				beforePredicate.time = c.time
+			if c.getTime != nil {
+				beforePredicate.getTime = c.getTime
 			}
 
 			matches := beforePredicate.Match(reqeust)
@@ -289,7 +289,7 @@ func TestMatchAfter(t *testing.T) {
 	cases := []struct {
 		msg     string
 		args    []interface{}
-		time    func() time.Time
+		getTime func() time.Time
 		matches bool
 	}{
 		{
@@ -304,7 +304,7 @@ func TestMatchAfter(t *testing.T) {
 			func() time.Time {
 				return time.Date(2016, 1, 1, 12, 0, 0, 0, time.UTC)
 			},
-			false,
+			true,
 		},
 		{
 			"time after boundary value defined as string",
@@ -321,13 +321,13 @@ func TestMatchAfter(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		p, err := NewAfterPredicate().Create(c.args)
+		p, err := NewAfter().Create(c.args)
 		if err != nil {
 			t.Errorf("Failed to create predicate: %q", err)
 		} else {
 			afterPredicate := p.(*predicate)
-			if c.time != nil {
-				afterPredicate.time = c.time
+			if c.getTime != nil {
+				afterPredicate.getTime = c.getTime
 			}
 
 			matches := afterPredicate.Match(reqeust)

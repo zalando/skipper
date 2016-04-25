@@ -1,6 +1,8 @@
 /*
 Package interval implements custom predicates to match routes
-only during some period of time. Package includes three predicates:
+only during some period of time.
+
+Package includes three predicates:
 Between, Before and After. All predicates can be created using the date
 represented as a string in RFC3339 format (see https://golang.org/pkg/time/#pkg-constants),
 int64 or float64 number. float64 number will be converted into int64
@@ -11,13 +13,11 @@ range of dates. Range is a closed range, so boundaries are included in
 the range. Between predicate requires two dates to be constructed.
 Upper boundary must be after lower boundary.
 
-Before predicate matches only if current date is before the specified
-date. Only one date is required to construct the predicate. Boundary
-is not included in the range.
+Before predicate matches only if current date is before or equal to
+the specified date. Only one date is required to construct the predicate.
 
-After predicate matches only if current date is after the specified
-date. Only one date is required to construct the predicate. Boundary
-is not included in the range.
+After predicate matches only if current date is after or equal to
+the specified date. Only one date is required to construct the predicate.
 
 Examples:
 
@@ -34,10 +34,10 @@ Examples:
 package interval
 
 import (
-	"errors"
 	"net/http"
 	"time"
 
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -49,27 +49,25 @@ const (
 	after
 )
 
-var InvalidArgsError = errors.New("invalid arguments")
-
 type spec struct {
 	typ intervalType
 }
 
 type predicate struct {
-	typ   intervalType
-	begin time.Time
-	end   time.Time
-	time  func() time.Time
+	typ     intervalType
+	begin   time.Time
+	end     time.Time
+	getTime func() time.Time
 }
 
 // Creates Between predicate.
-func NewBetweenPredicate() routing.PredicateSpec { return &spec{between} }
+func NewBetween() routing.PredicateSpec { return &spec{between} }
 
 // Creates Before predicate.
-func NewBeforePredicate() routing.PredicateSpec { return &spec{before} }
+func NewBefore() routing.PredicateSpec { return &spec{before} }
 
 // Creates After predicate.
-func NewAfterPredicate() routing.PredicateSpec { return &spec{after} }
+func NewAfter() routing.PredicateSpec { return &spec{after} }
 
 func (s *spec) Name() string {
 	switch s.typ {
@@ -88,15 +86,15 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	switch s.typ {
 	case between:
 		if len(args) != 2 {
-			return nil, InvalidArgsError
+			return nil, predicates.ErrInvalidPredicateParameters
 		}
 	default:
 		if len(args) != 1 {
-			return nil, InvalidArgsError
+			return nil, predicates.ErrInvalidPredicateParameters
 		}
 	}
 
-	time := func() time.Time {
+	defaultGetTime := func() time.Time {
 		return time.Now()
 	}
 
@@ -104,20 +102,20 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	case between:
 		if begin, end, ok := parseArgs(args[0], args[1]); ok {
 			if begin.Before(end) {
-				return &predicate{s.typ, begin, end, time}, nil
+				return &predicate{s.typ, begin, end, defaultGetTime}, nil
 			}
 		}
 	case before:
 		if end, ok := parseArg(args[0]); ok {
-			return &predicate{typ: s.typ, end: end, time: time}, nil
+			return &predicate{typ: s.typ, end: end, getTime: defaultGetTime}, nil
 		}
 	case after:
 		if begin, ok := parseArg(args[0]); ok {
-			return &predicate{typ: s.typ, begin: begin, time: time}, nil
+			return &predicate{typ: s.typ, begin: begin, getTime: defaultGetTime}, nil
 		}
 	}
 
-	return nil, InvalidArgsError
+	return nil, predicates.ErrInvalidPredicateParameters
 }
 
 func parseArgs(arg1, arg2 interface{}) (time.Time, time.Time, bool) {
@@ -147,22 +145,16 @@ func parseArg(arg interface{}) (time.Time, bool) {
 }
 
 func (p *predicate) Match(r *http.Request) bool {
-	now := p.time()
+	now := p.getTime()
 
 	switch p.typ {
-	case between: // Between is inclusive and Before and After are exclusive
-		if (p.begin.Before(now) || p.begin.Equal(now)) && (p.end.After(now) || p.end.Equal(now)) {
-			return true
-		}
+	case between:
+		return (p.begin.Before(now) || p.begin.Equal(now)) && (p.end.After(now) || p.end.Equal(now))
 	case before:
-		if p.end.After(now) {
-			return true
-		}
+		return p.end.After(now) || p.end.Equal(now)
 	case after:
-		if p.begin.Before(now) {
-			return true
-		}
+		return p.begin.Before(now) || p.begin.Equal(now)
+	default:
+		return false
 	}
-
-	return false
 }

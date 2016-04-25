@@ -308,7 +308,8 @@ func Run(o Options) error {
 	}
 
 	// include bundeled custom predicates
-	o.CustomPredicates = append(o.CustomPredicates, source.New(), interval.NewBetweenPredicate(), interval.NewBeforePredicate(), interval.NewAfterPredicate())
+	o.CustomPredicates = append(o.CustomPredicates,
+		source.New(), interval.NewBetween(), interval.NewBefore(), interval.NewAfter())
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
