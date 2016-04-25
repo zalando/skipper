@@ -66,6 +66,7 @@ Getting the code with the test dependencies (`-t` switch):
 
 Build all packages:
 
+    cd src/github.com/zalando/skipper
     go install ./...
 
 Test all packages:
