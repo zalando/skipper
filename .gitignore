@@ -6,5 +6,6 @@ default.etcd
 oauth/client.json
 oauth/user.json
 .idea
+*.iml
 example.eskip
 Godeps/_workspace
