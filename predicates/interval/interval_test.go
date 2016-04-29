@@ -192,7 +192,7 @@ func TestMatchBetween(t *testing.T) {
 			func() time.Time {
 				return time.Date(2016, 2, 1, 12, 0, 0, 0, time.UTC)
 			},
-			true,
+			false,
 		},
 		{
 			"time before begin value",
@@ -254,7 +254,7 @@ func TestMatchBefore(t *testing.T) {
 			func() time.Time {
 				return time.Date(2016, 1, 1, 12, 0, 0, 0, time.UTC)
 			},
-			true,
+			false,
 		},
 		{
 			"time after boundary value",

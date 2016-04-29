@@ -9,12 +9,12 @@ int64 or float64 number. float64 number will be converted into int64
 number.
 
 Between predicate matches only if current date is inside the specified
-range of dates. Range is a closed range, so boundaries are included in
-the range. Between predicate requires two dates to be constructed.
-Upper boundary must be after lower boundary.
+range of dates. Between predicate requires two dates to be constructed.
+Upper boundary must be after lower boundary. Range includes the lower
+boundary, but excludes the upper boundary.
 
-Before predicate matches only if current date is before or equal to
-the specified date. Only one date is required to construct the predicate.
+Before predicate matches only if current date is before the specified
+date. Only one date is required to construct the predicate.
 
 After predicate matches only if current date is after or equal to
 the specified date. Only one date is required to construct the predicate.
@@ -149,9 +149,9 @@ func (p *predicate) Match(r *http.Request) bool {
 
 	switch p.typ {
 	case between:
-		return (p.begin.Before(now) || p.begin.Equal(now)) && (p.end.After(now) || p.end.Equal(now))
+		return (p.begin.Before(now) || p.begin.Equal(now)) && p.end.After(now)
 	case before:
-		return p.end.After(now) || p.end.Equal(now)
+		return p.end.After(now)
 	case after:
 		return p.begin.Before(now) || p.begin.Equal(now)
 	default:
