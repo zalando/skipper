@@ -212,7 +212,7 @@ func getLogOutput(name string) (io.Writer, error) {
 		return os.Stderr, nil
 	}
 
-	return os.OpenFile(name, os.O_APPEND, os.ModeAppend)
+	return os.OpenFile(name, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 }
 
 func initLog(o Options) error {
