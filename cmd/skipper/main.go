@@ -30,11 +30,12 @@ package main
 
 import (
 	"flag"
+	"strings"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/proxy"
-	"strings"
-	"time"
 )
 
 const (
@@ -70,6 +71,8 @@ const (
 	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
 	debugEndpointUsage             = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
+	certPathTLSUsage               = "path of the certificate file"
+	keyPathTLSUsage                = "path of the key"
 )
 
 var (
@@ -97,6 +100,8 @@ var (
 	accessLog                 string
 	accessLogDisabled         bool
 	debugListener             string
+	certPathTLS               string
+	keyPathTLS                string
 )
 
 func init() {
@@ -124,6 +129,8 @@ func init() {
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
 	flag.StringVar(&debugListener, "debug-listener", "", debugEndpointUsage)
+	flag.StringVar(&certPathTLS, "tls-cert", "", certPathTLSUsage)
+	flag.StringVar(&keyPathTLS, "tls-key", "", keyPathTLSUsage)
 	flag.Parse()
 }
 
@@ -156,7 +163,10 @@ func main() {
 		ApplicationLogPrefix:      applicationLogPrefix,
 		AccessLogOutput:           accessLog,
 		AccessLogDisabled:         accessLogDisabled,
-		DebugListener:             debugListener}
+		DebugListener:             debugListener,
+		CertPathTLS:               certPathTLS,
+		KeyPathTLS:                keyPathTLS,
+	}
 
 	if insecure {
 		options.ProxyOptions |= proxy.OptionsInsecure
