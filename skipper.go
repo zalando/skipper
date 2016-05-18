@@ -15,6 +15,12 @@
 package skipper
 
 import (
+	"io"
+	"net/http"
+	"os"
+	"path"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
@@ -27,11 +33,6 @@ import (
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
-	"io"
-	"net/http"
-	"os"
-	"path"
-	"time"
 )
 
 const (
@@ -159,6 +160,11 @@ type Options struct {
 	AccessLogDisabled bool
 
 	DebugListener string
+
+	//Path of certificate when using TLS
+	CertPathTLS string
+	//Path of key when using TLS
+	KeyPathTLS string
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -246,6 +252,21 @@ func initLog(o Options) error {
 	return nil
 }
 
+func (o *Options) isHTTPS() bool {
+	return o.CertPathTLS != "" && o.KeyPathTLS != ""
+}
+
+func listenAndServe(proxy *http.Handler, o *Options) error {
+	// create the access log handler
+	loggingHandler := logging.NewHandler(*proxy)
+	log.Infof("proxy listener on %v", o.Address)
+	if o.isHTTPS() {
+		return http.ListenAndServeTLS(o.Address, o.CertPathTLS, o.KeyPathTLS, loggingHandler)
+	}
+	log.Infof("certPathTLS or keyPathTLS not found, defaulting to HTTP")
+	return http.ListenAndServe(o.Address, loggingHandler)
+}
+
 // Run skipper.
 func Run(o Options) error {
 	// init log
@@ -329,10 +350,6 @@ func Run(o Options) error {
 	// create the proxy
 	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
 
-	// create the access log handler
-	loggingHandler := logging.NewHandler(proxy)
+	return listenAndServe(&proxy, &o)
 
-	// start the http server
-	log.Infof("proxy listener on %v", o.Address)
-	return http.ListenAndServe(o.Address, loggingHandler)
 }
