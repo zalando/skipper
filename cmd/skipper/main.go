@@ -71,8 +71,8 @@ const (
 	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
 	debugEndpointUsage             = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
-	certPathTLSUsage               = "path of the certificate file"
-	keyPathTLSUsage                = "path of the key"
+	certPathTLSUsage               = "the path on the local filesystem to the certificate file (including any intermediates)"
+	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file"
 )
 
 var (

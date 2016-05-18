@@ -163,7 +163,7 @@ type Options struct {
 
 	//Path of certificate when using TLS
 	CertPathTLS string
-	//Path of
+	//Path of key when using TLS
 	KeyPathTLS string
 }
 

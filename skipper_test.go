@@ -19,21 +19,21 @@ func initializeProxy() *http.Handler {
 	return &proxy
 }
 
-func TestMissingOptionHTTP(t *testing.T) {
+func TestOptionsDefaultsToHTTP(t *testing.T) {
 	o := Options{}
 	if o.isHTTPS() {
 		t.FailNow()
 	}
 }
 
-func TestWithOptionHTTPS(t *testing.T) {
+func TestOptionsWithCertUsesHTTPS(t *testing.T) {
 	o := Options{CertPathTLS: "foo", KeyPathTLS: "bar"}
 	if !o.isHTTPS() {
 		t.FailNow()
 	}
 }
 
-func TestWrongCert(t *testing.T) {
+func TestWithWrongCertPathFails(t *testing.T) {
 	o := Options{Address: ":9091",
 		CertPathTLS: "fixtures/notFound.crt",
 		KeyPathTLS:  "fixtures/test.key",
@@ -46,7 +46,7 @@ func TestWrongCert(t *testing.T) {
 	}
 }
 
-func TestWrongKey(t *testing.T) {
+func TestWithWrongKeyPathFails(t *testing.T) {
 	o := Options{Address: ":9091",
 		CertPathTLS: "fixtures/test.crt",
 		KeyPathTLS:  "fixtures/notFound.key",
@@ -72,13 +72,18 @@ func TestHTTPSServer(t *testing.T) {
 	}
 	client := &http.Client{Transport: tr}
 	r, err := client.Get("https://localhost:9091")
-	if err == nil {
+	if r != nil {
 		defer r.Body.Close()
-		_, _ = ioutil.ReadAll(r.Body)
-		if r.StatusCode != 404 {
-			t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
-		}
 	}
+	if err != nil {
+		t.Fatalf("Cannot connect to the local server for testing: %s ", err.Error())
+	}
+	defer r.Body.Close()
+	_, _ = ioutil.ReadAll(r.Body)
+	if r.StatusCode != 404 {
+		t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
+	}
+
 }
 
 func TestHTTPServer(t *testing.T) {
@@ -88,11 +93,15 @@ func TestHTTPServer(t *testing.T) {
 	proxy := initializeProxy()
 	go listenAndServe(proxy, &o)
 	r, err := http.Get("http://localhost:9090")
-	if err == nil {
+	if r != nil {
 		defer r.Body.Close()
-		_, _ = ioutil.ReadAll(r.Body)
-		if r.StatusCode != 404 {
-			t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
-		}
+	}
+	if err != nil {
+		t.Fatalf("Cannot connect to the local server for testing: %s ", err.Error())
+	}
+	defer r.Body.Close()
+	_, _ = ioutil.ReadAll(r.Body)
+	if r.StatusCode != 404 {
+		t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
 	}
 }
