@@ -97,7 +97,7 @@ func TestWithWrongCertPathFails(t *testing.T) {
 func TestWithWrongKeyPathFails(t *testing.T) {
 	a, err := findAddress()
 	if err != nil {
-
+		t.Fatal(err)
 	}
 
 	o := Options{Address: a,
