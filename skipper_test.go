@@ -3,12 +3,19 @@ package skipper
 import (
 	"crypto/tls"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
+)
+
+const (
+	listenDelay   = 15 * time.Millisecond
+	listenTimeout = 9 * listenDelay
 )
 
 func initializeProxy() *http.Handler {
@@ -17,6 +24,42 @@ func initializeProxy() *http.Handler {
 		FilterRegistry: filterRegistry,
 		DataClients:    []routing.DataClient{}}), proxy.OptionsNone)
 	return &proxy
+}
+
+func waitConn(req func() (*http.Response, error)) (*http.Response, error) {
+	to := time.After(listenTimeout)
+	for {
+		rsp, err := req()
+		if err == nil {
+			return rsp, nil
+		}
+
+		select {
+		case <-to:
+			return nil, err
+		default:
+			time.Sleep(listenDelay)
+		}
+	}
+}
+
+func waitConnGet(url string) (*http.Response, error) {
+	return waitConn(func() (*http.Response, error) {
+		return (&http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true}}}).Get(url)
+	})
+}
+
+func findAddress() (string, error) {
+	l, err := net.ListenTCP("tcp6", &net.TCPAddr{})
+	if err != nil {
+		return "", err
+	}
+
+	defer l.Close()
+	return l.Addr().String(), nil
 }
 
 func TestOptionsDefaultsToHTTP(t *testing.T) {
@@ -34,74 +77,91 @@ func TestOptionsWithCertUsesHTTPS(t *testing.T) {
 }
 
 func TestWithWrongCertPathFails(t *testing.T) {
-	o := Options{Address: ":9091",
+	a, err := findAddress()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	o := Options{Address: a,
 		CertPathTLS: "fixtures/notFound.crt",
 		KeyPathTLS:  "fixtures/test.key",
 	}
 	proxy := initializeProxy()
 
-	err := listenAndServe(proxy, &o)
+	err = listenAndServe(proxy, &o)
 	if err == nil {
 		t.Fatal(err)
 	}
 }
 
 func TestWithWrongKeyPathFails(t *testing.T) {
-	o := Options{Address: ":9091",
+	a, err := findAddress()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	o := Options{Address: a,
 		CertPathTLS: "fixtures/test.crt",
 		KeyPathTLS:  "fixtures/notFound.key",
 	}
 	proxy := initializeProxy()
-	err := listenAndServe(proxy, &o)
+	err = listenAndServe(proxy, &o)
 	if err == nil {
 		t.Fatal(err)
 	}
 }
 
 func TestHTTPSServer(t *testing.T) {
+	a, err := findAddress()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	o := Options{
-		Address:     ":9091",
+		Address:     a,
 		CertPathTLS: "fixtures/test.crt",
 		KeyPathTLS:  "fixtures/test.key",
 	}
 	proxy := initializeProxy()
 	go listenAndServe(proxy, &o)
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
-	r, err := client.Get("https://localhost:9091")
+	r, err := waitConnGet("https://" + o.Address)
 	if r != nil {
 		defer r.Body.Close()
 	}
 	if err != nil {
 		t.Fatalf("Cannot connect to the local server for testing: %s ", err.Error())
 	}
-	defer r.Body.Close()
-	_, _ = ioutil.ReadAll(r.Body)
 	if r.StatusCode != 404 {
 		t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
 	}
-
+	_, err = ioutil.ReadAll(r.Body)
+	if err != nil {
+		t.Fatalf("Failed to stream response body: %v", err)
+	}
 }
 
 func TestHTTPServer(t *testing.T) {
-	o := Options{
-		Address: ":9090",
+	a, err := findAddress()
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	o := Options{Address: a}
 	proxy := initializeProxy()
 	go listenAndServe(proxy, &o)
-	r, err := http.Get("http://localhost:9090")
+	r, err := waitConnGet("http://" + o.Address)
 	if r != nil {
 		defer r.Body.Close()
 	}
 	if err != nil {
 		t.Fatalf("Cannot connect to the local server for testing: %s ", err.Error())
 	}
-	defer r.Body.Close()
-	_, _ = ioutil.ReadAll(r.Body)
 	if r.StatusCode != 404 {
 		t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
+	}
+	_, err = ioutil.ReadAll(r.Body)
+	if err != nil {
+		t.Fatalf("Failed to stream response body: %v", err)
 	}
 }
