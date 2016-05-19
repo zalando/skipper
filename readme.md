@@ -71,6 +71,7 @@ Build all packages:
 
 Test all packages:
 
+    etcd/install.sh
     go test ./...
 
 ### Documentation

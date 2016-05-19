@@ -66,7 +66,6 @@ func Start() error {
 	e := exec.Command("etcd",
 		"-listen-client-urls", clientUrlsString,
 		"-advertise-client-urls", clientUrlsString)
-	println("starting")
 	err := e.Start()
 	if err != nil {
 		return err

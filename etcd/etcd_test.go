@@ -28,10 +28,6 @@ import (
 	"time"
 )
 
-func init() {
-	// start an etcd server
-}
-
 func TestMain(m *testing.M) {
 	err := etcdtest.Start()
 	if err != nil {
