@@ -2,6 +2,7 @@
 [![GoDoc](https://godoc.org/github.com/zalando/skipper/proxy?status.svg)](https://godoc.org/github.com/zalando/skipper/proxy)
 [![License](https://img.shields.io/badge/license-APACHE-red.svg?style=flat)](https://raw.githubusercontent.com/zalando/skipper/master/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/zalando/skipper)](https://goreportcard.com/report/zalando/skipper)
+[![Coverage](http://gocover.io/_badge/github.com/zalando/skipper)](http://gocover.io/github.com/zalando/skipper)
 
 <p align="center"><img height="360" alt="Skipper" src="https://raw.githubusercontent.com/zalando/skipper/gh-pages/img/skipper.h360.png"></p>
 
