@@ -14,8 +14,8 @@ const (
 	// format:
 	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
-	// We add the duration in ms
-	accessLogFormat = combinedLogFormat + " %d\n"
+	// We add the duration in ms and a requested host
+	accessLogFormat = combinedLogFormat + " %d %s\n"
 )
 
 type accessLogFormatter struct {
@@ -76,7 +76,8 @@ func remoteHost(r *http.Request) string {
 func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	keys := []string{
 		"host", "timestamp", "method", "uri", "proto",
-		"status", "response-size", "referer", "user-agent", "duration"}
+		"status", "response-size", "referer", "user-agent",
+		"duration", "requested-host"}
 
 	values := make([]interface{}, len(keys))
 	for i, key := range keys {
@@ -100,6 +101,7 @@ func LogAccess(entry *AccessEntry) {
 	proto := ""
 	referer := ""
 	userAgent := ""
+	requestedHost := ""
 
 	status := entry.StatusCode
 	responseSize := entry.ResponseSize
@@ -112,17 +114,20 @@ func LogAccess(entry *AccessEntry) {
 		proto = entry.Request.Proto
 		referer = entry.Request.Referer()
 		userAgent = entry.Request.UserAgent()
+		requestedHost = entry.Request.Host
 	}
 
 	accessLog.WithFields(logrus.Fields{
-		"timestamp":     ts,
-		"host":          host,
-		"method":        method,
-		"uri":           uri,
-		"proto":         proto,
-		"referer":       referer,
-		"user-agent":    userAgent,
-		"status":        status,
-		"response-size": responseSize,
-		"duration":      duration}).Infoln()
+		"timestamp":      ts,
+		"host":           host,
+		"method":         method,
+		"uri":            uri,
+		"proto":          proto,
+		"referer":        referer,
+		"user-agent":     userAgent,
+		"status":         status,
+		"response-size":  responseSize,
+		"requested-host": requestedHost,
+		"duration":       duration,
+	}).Infoln()
 }

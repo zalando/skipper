@@ -30,11 +30,12 @@ package main
 
 import (
 	"flag"
+	"strings"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/proxy"
-	"strings"
-	"time"
 )
 
 const (
@@ -69,6 +70,9 @@ const (
 	applicationLogPrefixUsage      = "prefix for each log entry"
 	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
+	debugEndpointUsage             = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
+	certPathTLSUsage               = "the path on the local filesystem to the certificate file (including any intermediates)"
+	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file"
 )
 
 var (
@@ -95,6 +99,9 @@ var (
 	applicationLogPrefix      string
 	accessLog                 string
 	accessLogDisabled         bool
+	debugListener             string
+	certPathTLS               string
+	keyPathTLS                string
 )
 
 func init() {
@@ -121,6 +128,9 @@ func init() {
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
+	flag.StringVar(&debugListener, "debug-listener", "", debugEndpointUsage)
+	flag.StringVar(&certPathTLS, "tls-cert", "", certPathTLSUsage)
+	flag.StringVar(&keyPathTLS, "tls-key", "", keyPathTLSUsage)
 	flag.Parse()
 }
 
@@ -152,7 +162,11 @@ func main() {
 		ApplicationLogOutput:      applicationLog,
 		ApplicationLogPrefix:      applicationLogPrefix,
 		AccessLogOutput:           accessLog,
-		AccessLogDisabled:         accessLogDisabled}
+		AccessLogDisabled:         accessLogDisabled,
+		DebugListener:             debugListener,
+		CertPathTLS:               certPathTLS,
+		KeyPathTLS:                keyPathTLS,
+	}
 
 	if insecure {
 		options.ProxyOptions |= proxy.OptionsInsecure

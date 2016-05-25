@@ -22,19 +22,18 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/coreos/etcd/etcdmain"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
 
 var Urls []string
 
-var started bool = false
+var etcd *exec.Cmd
 
 func makeLocalUrls(ports ...int) []string {
 	urls := make([]string, len(ports))
@@ -57,24 +56,20 @@ func randPort() int {
 func Start() error {
 	// assuming that the tests won't try to start it concurrently,
 	// fix this only when it turns out to be a wrong assumption
-	if started {
+	if etcd != nil {
 		return nil
 	}
 
 	Urls = makeLocalUrls(randPort(), randPort())
 	clientUrlsString := strings.Join(Urls, ",")
 
-	var args []string
-	args, os.Args = os.Args, []string{
-		"etcd",
-		formatFlag("-listen-client-urls", clientUrlsString),
-		formatFlag("-advertise-client-urls", clientUrlsString),
-		formatFlag("-listen-peer-urls", strings.Join(makeLocalUrls(randPort(), randPort()), ","))}
-
-	go func() {
-		// best mock is the real thing
-		etcdmain.Main()
-	}()
+	e := exec.Command("etcd",
+		"-listen-client-urls", clientUrlsString,
+		"-advertise-client-urls", clientUrlsString)
+	err := e.Start()
+	if err != nil {
+		return err
+	}
 
 	// wait for started:
 	wait := make(chan int)
@@ -82,10 +77,6 @@ func Start() error {
 		for {
 			_, err := http.Get(Urls[0] + "/v2/keys")
 			if err == nil {
-
-				// revert the args for the rest of the tests:
-				os.Args = args
-
 				close(wait)
 				return
 			}
@@ -96,11 +87,19 @@ func Start() error {
 
 	select {
 	case <-wait:
-		started = true
+		etcd = e
 		return nil
 	case <-time.After(6 * time.Second):
 		return errors.New("etcd timeout")
 	}
+}
+
+func Stop() error {
+	if etcd == nil {
+		return nil
+	}
+
+	return etcd.Process.Kill()
 }
 
 // Deletes the 'routes' directory from etcd with the prefix '/skippertest'.

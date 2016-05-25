@@ -1,6 +1,7 @@
 {
 	"ImportPath": "github.com/zalando/skipper",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.6.2",
+	"GodepVersion": "v62",
 	"Deps": [
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
@@ -21,7 +22,7 @@
 		},
 		{
 			"ImportPath": "github.com/zalando/pathmux",
-			"Rev": "9da5d66a7685723a10a6820d7721ca9fff9e0033"
+			"Rev": "c378598e4ba271ecaeb51fbacbcfb1ac6d107205"
 		}
 	]
 }

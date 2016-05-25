@@ -15,6 +15,12 @@
 package skipper
 
 import (
+	"io"
+	"net/http"
+	"os"
+	"path"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
@@ -23,14 +29,10 @@ import (
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
-	"io"
-	"net/http"
-	"os"
-	"path"
-	"time"
 )
 
 const (
@@ -108,6 +110,9 @@ type Options struct {
 	// Specifications of custom, user defined predicates.
 	CustomPredicates []routing.PredicateSpec
 
+	// Custom data clients to be used together with the default etcd and Innkeeper.
+	CustomDataClients []routing.DataClient
+
 	// Dev mode. Currently this flag disables prioritization of the
 	// consumer side over the feeding side during the routing updates to
 	// populate the updated routes faster.
@@ -153,6 +158,13 @@ type Options struct {
 
 	// Disables the access log.
 	AccessLogDisabled bool
+
+	DebugListener string
+
+	//Path of certificate when using TLS
+	CertPathTLS string
+	//Path of key when using TLS
+	KeyPathTLS string
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -207,7 +219,7 @@ func getLogOutput(name string) (io.Writer, error) {
 		return os.Stderr, nil
 	}
 
-	return os.OpenFile(name, os.O_APPEND, os.ModeAppend)
+	return os.OpenFile(name, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 }
 
 func initLog(o Options) error {
@@ -240,6 +252,21 @@ func initLog(o Options) error {
 	return nil
 }
 
+func (o *Options) isHTTPS() bool {
+	return o.CertPathTLS != "" && o.KeyPathTLS != ""
+}
+
+func listenAndServe(proxy *http.Handler, o *Options) error {
+	// create the access log handler
+	loggingHandler := logging.NewHandler(*proxy)
+	log.Infof("proxy listener on %v", o.Address)
+	if o.isHTTPS() {
+		return http.ListenAndServeTLS(o.Address, o.CertPathTLS, o.KeyPathTLS, loggingHandler)
+	}
+	log.Infof("certPathTLS or keyPathTLS not found, defaulting to HTTP")
+	return http.ListenAndServe(o.Address, loggingHandler)
+}
+
 // Run skipper.
 func Run(o Options) error {
 	// init log
@@ -263,11 +290,14 @@ func Run(o Options) error {
 		OAuthUrl:            o.OAuthUrl,
 		OAuthScope:          o.OAuthScope})
 
-	// create data client
+	// create data clients
 	dataClients, err := createDataClients(o, auth)
 	if err != nil {
 		return err
 	}
+
+	// append custom data clients
+	dataClients = append(dataClients, o.CustomDataClients...)
 
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
@@ -299,7 +329,8 @@ func Run(o Options) error {
 	}
 
 	// include bundeled custom predicates
-	o.CustomPredicates = append(o.CustomPredicates, source.New())
+	o.CustomPredicates = append(o.CustomPredicates,
+		source.New(), interval.NewBetween(), interval.NewBefore(), interval.NewAfter())
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
@@ -310,13 +341,15 @@ func Run(o Options) error {
 		o.CustomPredicates,
 		updateBuffer})
 
+	if o.DebugListener != "" {
+		dbg := proxy.New(routing, o.ProxyOptions|proxy.OptionsDebug, o.PriorityRoutes...)
+		log.Infof("debug listener on %v", o.DebugListener)
+		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
+	}
+
 	// create the proxy
 	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
 
-	// create the access log handler
-	loggingHandler := logging.NewHandler(proxy)
+	return listenAndServe(&proxy, &o)
 
-	// start the http server
-	log.Infof("proxy listener on %v", o.Address)
-	return http.ListenAndServe(o.Address, loggingHandler)
 }

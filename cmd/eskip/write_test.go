@@ -18,19 +18,33 @@ import (
 	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
 	"net/url"
+	"os"
 	"testing"
 )
 
 var testEtcdUrls []*url.URL
 
-func init() {
-	etcdtest.Start()
+func TestMain(m *testing.M) {
+	err := etcdtest.Start()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer func() {
+		err := etcdtest.Stop()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
 	urls, err := stringsToUrls(etcdtest.Urls...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	testEtcdUrls = urls
+
+	os.Exit(m.Run())
 }
 
 func TestUpsertLoadFail(t *testing.T) {

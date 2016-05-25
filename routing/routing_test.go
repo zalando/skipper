@@ -283,6 +283,10 @@ func TestMergesMultipleSources(t *testing.T) {
 }
 
 func TestMergesUpdatesFromMultipleSources(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
 	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
 	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
@@ -402,6 +406,10 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 }
 
 func TestProcessesPredicates(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	dc, err := testdataclient.NewDoc(`
         route1: CustomPredicate("custom1") -> "https://route1.example.org";
         route2: CustomPredicate("custom2") -> "https://route2.example.org";
@@ -455,4 +463,43 @@ func TestProcessesPredicates(t *testing.T) {
 	case <-time.After(3 * pollTimeout):
 		t.Error("test timeout")
 	}
+}
+
+// TestNonMatchedStaticRoute for bug #116: non-matched static route supress wild-carded route
+func TestNonMatchedStaticRoute(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	dc, err := testdataclient.NewDoc(`
+		a: Path("/foo/*_") -> "https://foo.org";
+		b: Path("/foo/bar") && CustomPredicate("custom1") -> "https://bar.org";
+		z: * -> "https://catch.all"`)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	cps := []routing.PredicateSpec{&predicate{}}
+	rt := routing.New(routing.Options{
+		DataClients: []routing.DataClient{dc},
+		PollTimeout: pollTimeout,
+		Predicates:  cps})
+
+	req, err := http.NewRequest("GET", "https://www.example.com/foo/bar", nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	select {
+	case r := <-waitRoute(rt, req):
+		if r.Backend != "https://foo.org" {
+			t.Error("non-matched static route supress wild-carded route")
+			return
+		}
+	case <-time.After(3 * pollTimeout):
+		t.Error("test timeout")
+	}
+
 }

@@ -653,15 +653,16 @@ func TestMatchPathTreeNoMatch(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m, p := matchPathTree(tree, "/some/wrong/path")
-	if len(m) != 0 || len(p) != 0 {
-		t.Error("failed not to match path")
+
+	p, v := matchPathTree(tree, "/some/wrong/path", &leafRequestMatcher{})
+	if len(p) != 0 || v != nil {
+		t.Error("failed not to match path", len(p))
 	}
 }
 
 func TestMatchPathTree(t *testing.T) {
 	tree := &pathmux.Tree{}
-	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{route: &Route{Route: eskip.Route{Id: "1"}}}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	err := tree.Add("/some/path", pm0)
 	if err != nil {
@@ -671,15 +672,17 @@ func TestMatchPathTree(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m, p := matchPathTree(tree, "/some/path")
-	if len(m) != 1 || len(p) != 0 || m[0] != pm0.leaves[0] {
-		t.Error("failed to match path", len(m), len(p))
+
+	p, v := matchPathTree(tree, "/some/path", &leafRequestMatcher{&http.Request{}, ""})
+
+	if len(p) != 0 || v.route.Route.Id != "1" {
+		t.Error("failed to match path", len(p))
 	}
 }
 
 func TestMatchPathTreeWithWildcards(t *testing.T) {
 	tree := &pathmux.Tree{}
-	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{route: &Route{Route: eskip.Route{Id: "1"}}}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
 	err := tree.Add("/some/path/:param0/:param1", pm0)
 	if err != nil {
@@ -689,10 +692,9 @@ func TestMatchPathTreeWithWildcards(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m, p := matchPathTree(tree, "/some/path/and/params")
-	if len(m) != 1 || len(p) != 2 || m[0] != pm0.leaves[0] ||
-		p["param0"] != "and" || p["param1"] != "params" {
-		t.Error("failed to match path", len(m), len(p))
+	p, v := matchPathTree(tree, "/some/path/and/params", &leafRequestMatcher{&http.Request{}, ""})
+	if len(p) != 2 || p["param0"] != "and" || p["param1"] != "params" || v.route.Route.Id != "1" {
+		t.Error("failed to match path", len(p))
 	}
 }
 

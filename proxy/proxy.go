@@ -58,11 +58,14 @@ const (
 	// or the host part of the backend address, in case filters don't
 	// change it.
 	OptionsProxyPreserveHost
+
+	OptionsDebug
 )
 
 func (o Options) Insecure() bool          { return o&OptionsInsecure != 0 }
-func (o Options) PreserveOriginal() bool  { return o&OptionsPreserveOriginal != 0 }
+func (o Options) PreserveOriginal() bool  { return o&(OptionsPreserveOriginal|OptionsDebug) != 0 }
 func (o Options) ProxyPreserveHost() bool { return o&OptionsProxyPreserveHost != 0 }
+func (o Options) Debug() bool             { return o&OptionsDebug != 0 }
 
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
@@ -89,6 +92,7 @@ type proxy struct {
 	roundTripper   http.RoundTripper
 	priorityRoutes []PriorityRoute
 	options        Options
+	metrics        *metrics.Metrics
 }
 
 type filterContext struct {
@@ -176,14 +180,19 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler 
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	return &proxy{r, tr, pr, options}
+	m := metrics.Default
+	if options.Debug() {
+		m = metrics.Void
+	}
+
+	return &proxy{r, tr, pr, options, m}
 }
 
 // calls a function with recovering from panics and logging them
-func callSafe(p func()) {
+func tryCatch(p func(), onErr func(err interface{})) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Error("filter", err)
+			onErr(err)
 		}
 	}()
 
@@ -259,7 +268,7 @@ func (c *filterContext) ResponseWriter() http.ResponseWriter { return c.w }
 func (c *filterContext) Request() *http.Request              { return c.req }
 func (c *filterContext) Response() *http.Response            { return c.res }
 func (c *filterContext) MarkServed()                         { c.served = true }
-func (c *filterContext) Served() bool                        { return c.served }
+func (c *filterContext) Served() bool                        { return c.served || c.servedWithResponse }
 func (c *filterContext) PathParam(key string) string         { return c.pathParams[key] }
 func (c *filterContext) StateBag() map[string]interface{}    { return c.stateBag }
 func (c *filterContext) BackendUrl() string                  { return c.backendUrl }
@@ -293,13 +302,13 @@ func shunt(r *http.Request) *http.Response {
 }
 
 // applies all filters to a request
-func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext) []*routing.RouteFilter {
+func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext, onErr func(err interface{})) []*routing.RouteFilter {
 	var start time.Time
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start = time.Now()
-		callSafe(func() { fi.Request(ctx) })
-		metrics.MeasureFilterRequest(fi.Name, start)
+		tryCatch(func() { fi.Request(ctx) }, onErr)
+		p.metrics.MeasureFilterRequest(fi.Name, start)
 		filters = append(filters, fi)
 		if ctx.served || ctx.servedWithResponse {
 			break
@@ -319,14 +328,14 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*htt
 }
 
 // applies filters to a response in reverse order
-func (p *proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext) {
+func (p *proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext, onErr func(err interface{})) {
 	count := len(filters)
 	var start time.Time
 	for i, _ := range filters {
 		fi := filters[count-1-i]
 		start = time.Now()
-		callSafe(func() { fi.Response(ctx) })
-		metrics.MeasureFilterResponse(fi.Name, start)
+		tryCatch(func() { fi.Response(ctx) }, onErr)
+		p.metrics.MeasureFilterResponse(fi.Name, start)
 	}
 }
 
@@ -358,31 +367,68 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
-		metrics.IncRoutingFailures()
+		if p.options.Debug() {
+			dbgResponse(w, &debugInfo{
+				incoming: r,
+				response: &http.Response{StatusCode: http.StatusNotFound}})
+			return
+		}
+
+		p.metrics.IncRoutingFailures()
 		sendError(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		log.Debugf("Could not find a route for %v", r.URL)
 		return
 	}
-	metrics.MeasureRouteLookup(start)
+	p.metrics.MeasureRouteLookup(start)
 
 	start = time.Now()
 	routeFilters := rt.Filters
 	c := p.newFilterContext(w, r, params, rt)
-	processedFilters := p.applyFiltersToRequest(routeFilters, c)
-	metrics.MeasureAllFiltersRequest(rt.Id, start)
 
+	var (
+		onErr        func(err interface{})
+		filterPanics []interface{}
+	)
+	if p.options.Debug() {
+		onErr = func(err interface{}) {
+			filterPanics = append(filterPanics, err)
+		}
+	} else {
+		onErr = func(err interface{}) {
+			log.Error("filter", err)
+		}
+	}
+
+	processedFilters := p.applyFiltersToRequest(routeFilters, c, onErr)
+	p.metrics.MeasureAllFiltersRequest(rt.Id, start)
+
+	var debugReq *http.Request
 	if !c.served && !c.servedWithResponse {
 		var (
 			rs  *http.Response
 			err error
 		)
+
 		start = time.Now()
 		if rt.Shunt {
 			rs = shunt(r)
+		} else if p.options.Debug() {
+			debugReq, err = mapRequest(r, rt, c.outgoingHost)
+			if err != nil {
+				dbgResponse(w, &debugInfo{
+					route:        &rt.Route,
+					incoming:     c.OriginalRequest(),
+					response:     &http.Response{StatusCode: http.StatusInternalServerError},
+					err:          err,
+					filterPanics: filterPanics})
+				return
+			}
+
+			rs = &http.Response{Header: make(http.Header)}
 		} else {
 			rs, err = p.roundtrip(r, rt, c.outgoingHost)
 			if err != nil {
-				metrics.IncErrorsBackend(rt.Id)
+				p.metrics.IncErrorsBackend(rt.Id)
 				sendError(w,
 					http.StatusText(http.StatusInternalServerError),
 					http.StatusInternalServerError)
@@ -397,7 +443,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}()
 		}
-		metrics.MeasureBackend(rt.Id, start)
+
+		p.metrics.MeasureBackend(rt.Id, start)
 		c.res = rs
 	}
 
@@ -405,10 +452,20 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !c.served && p.options.PreserveOriginal() {
 		c.originalResponse = cloneResponseMetadata(c.Response())
 	}
-	p.applyFiltersToResponse(processedFilters, c)
-	metrics.MeasureAllFiltersResponse(rt.Id, start)
+	p.applyFiltersToResponse(processedFilters, c, onErr)
+	p.metrics.MeasureAllFiltersResponse(rt.Id, start)
 
 	if !c.served {
+		if p.options.Debug() {
+			dbgResponse(w, &debugInfo{
+				route:        &rt.Route,
+				incoming:     c.OriginalRequest(),
+				outgoing:     debugReq,
+				response:     c.Response(),
+				filterPanics: filterPanics})
+			return
+		}
+
 		response := c.Response()
 		start = time.Now()
 		addBranding(response.Header)
@@ -416,10 +473,10 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(response.StatusCode)
 		err := copyStream(w.(flusherWriter), response.Body)
 		if err != nil {
-			metrics.IncErrorsStreaming(rt.Id)
+			p.metrics.IncErrorsStreaming(rt.Id)
 			log.Error(err)
 		} else {
-			metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
+			p.metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
 		}
 	}
 }
