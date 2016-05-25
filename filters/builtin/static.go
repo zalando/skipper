@@ -16,23 +16,19 @@ package builtin
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"io"
 	"net/http"
 	"path"
-	"strconv"
 )
 
-type delayedBody struct {
-	request       *http.Request
-	path          string
-	response      *http.Response
-	reader        io.ReadCloser
-	writer        *io.PipeWriter
-	contentLength int
-	written       int
-	headerDone    chan struct{}
+type delayed struct {
+	request    *http.Request
+	path       string
+	response   *http.Response
+	reader     io.ReadCloser
+	writer     *io.PipeWriter
+	headerDone chan struct{}
 }
 
 type static struct {
@@ -45,102 +41,55 @@ type static struct {
 func newDelayed(req *http.Request, p string) *http.Response {
 	pr, pw := io.Pipe()
 	rsp := &http.Response{Header: make(http.Header)}
-	db := &delayedBody{
+	d := &delayed{
 		request:    req,
 		response:   rsp,
 		reader:     pr,
 		writer:     pw,
 		headerDone: make(chan struct{})}
-	go http.ServeFile(db, db.request, p)
-	<-db.headerDone
-	rsp.Body = db
+
+	go func() {
+		http.ServeFile(d, req, p)
+		select {
+		case <-d.headerDone:
+		default:
+			d.WriteHeader(http.StatusOK)
+		}
+
+		pw.CloseWithError(io.EOF)
+	}()
+
+	<-d.headerDone
+	rsp.Body = d
 	return rsp
 }
 
-func (b *delayedBody) Read(data []byte) (int, error) { return b.reader.Read(data) }
-func (b *delayedBody) Header() http.Header           { return b.response.Header }
+func (d *delayed) Read(data []byte) (int, error) { return d.reader.Read(data) }
+func (d *delayed) Header() http.Header           { return d.response.Header }
 
-// Implements http.ResponseWriter.Write. When Content-Length is set,
-// it signals EOF for the Body reader.
-func (b *delayedBody) Write(data []byte) (int, error) {
-	if b.request.Method == "HEAD" || b.response.StatusCode >= http.StatusMultipleChoices {
-		return 0, nil
+// Implements http.ResponseWriter.Write. When WriteHeader was
+// not called before Write, it calls it with the default 200
+// status code.
+func (d *delayed) Write(data []byte) (int, error) {
+	select {
+	case <-d.headerDone:
+	default:
+		d.WriteHeader(http.StatusOK)
 	}
 
-	n, err := b.writer.Write(data)
-	if err != nil {
-		return n, err
-	}
-
-	// The pipe won't forward EOF, unless explicityly signaled.
-	// When Content-Length is unknown, no way to know when
-	// to signal, and the request flow needs to be ended on
-	// other terms.
-	if b.contentLength >= 0 {
-		b.written += n
-		if b.written >= b.contentLength {
-			b.writer.CloseWithError(io.EOF)
-		}
-	}
-
-	return n, err
+	return d.writer.Write(data)
 }
 
-// Implements http.ResponseWriter.WriteHeader.
-// It makes sure that the pipe is closed when Content-Length is
-// set.
-func (b *delayedBody) WriteHeader(status int) {
-	b.response.StatusCode = status
-
-	// No content on HEAD or redirect (e.g. 304, not modified).
-	if b.request.Method == "HEAD" ||
-		status >= http.StatusMultipleChoices && status < http.StatusBadRequest {
-
-		b.writer.CloseWithError(io.EOF)
-		close(b.headerDone)
-		return
-	}
-
-	// Write the error text and close the pipe in case of an error response.
-	if status >= http.StatusBadRequest {
-		close(b.headerDone)
-
-		_, err := b.writer.Write([]byte(http.StatusText(status)))
-		if err != nil {
-			log.Error(err)
-		}
-
-		b.writer.CloseWithError(io.EOF)
-		return
-	}
-
-	// When Content-Encoding is set, no way to know when to close the
-	// pipe.
-	if b.response.Header.Get("Content-Encoding") != "" {
-		b.contentLength = -1
-		close(b.headerDone)
-		return
-	}
-
-	// Take the expected Content-Length. If it fails, close the pipe.
-	cl, err := strconv.Atoi(b.response.Header.Get("Content-Length"))
-	if cl == 0 || err != nil {
-		if err != nil && b.response.Header.Get("Content-Length") != "" {
-			log.Error(err)
-		}
-
-		b.writer.CloseWithError(io.EOF)
-		close(b.headerDone)
-		return
-	}
-
-	b.contentLength = cl
-	close(b.headerDone)
+// It sets the status code for the outgoing response, and
+// signals that the filter is done with the header.
+func (d *delayed) WriteHeader(status int) {
+	d.response.StatusCode = status
+	close(d.headerDone)
 }
 
-func (b *delayedBody) Close() error {
-	b.reader.Close()
-	b.writer.Close()
+func (d *delayed) Close() error {
+	d.reader.Close()
+	d.writer.Close()
 	return nil
 }
 
