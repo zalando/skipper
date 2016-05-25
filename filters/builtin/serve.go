@@ -18,8 +18,8 @@ type delayed struct {
 // writer that shares the status code, headers and the response body
 // with the returned response.
 //
-// It blocks the handler calls the response writer's WriteHeader, or
-// starts writing the body or returns.
+// It blocks until the handler calls the response writer's WriteHeader,
+// or starts writing the body, or returns.
 //
 // The written body is not buffered, but piped to the returned
 // response's body.
