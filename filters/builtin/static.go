@@ -22,7 +22,7 @@ import (
 	"path"
 )
 
-type delayedBody struct {
+type delayed struct {
 	request    *http.Request
 	path       string
 	response   *http.Response
@@ -41,7 +41,7 @@ type static struct {
 func newDelayed(req *http.Request, p string) *http.Response {
 	pr, pw := io.Pipe()
 	rsp := &http.Response{Header: make(http.Header)}
-	db := &delayedBody{
+	d := &delayed{
 		request:    req,
 		response:   rsp,
 		reader:     pr,
@@ -49,47 +49,47 @@ func newDelayed(req *http.Request, p string) *http.Response {
 		headerDone: make(chan struct{})}
 
 	go func() {
-		http.ServeFile(db, req, p)
+		http.ServeFile(d, req, p)
 		select {
-		case <-db.headerDone:
+		case <-d.headerDone:
 		default:
-			db.WriteHeader(http.StatusOK)
+			d.WriteHeader(http.StatusOK)
 		}
 
 		pw.CloseWithError(io.EOF)
 	}()
 
-	<-db.headerDone
-	rsp.Body = db
+	<-d.headerDone
+	rsp.Body = d
 	return rsp
 }
 
-func (b *delayedBody) Read(data []byte) (int, error) { return b.reader.Read(data) }
-func (b *delayedBody) Header() http.Header           { return b.response.Header }
+func (d *delayed) Read(data []byte) (int, error) { return d.reader.Read(data) }
+func (d *delayed) Header() http.Header           { return d.response.Header }
 
-// Implements http.ResponseWriter.Write. When Content-Length is set,
-// it signals EOF for the Body reader.
-func (b *delayedBody) Write(data []byte) (int, error) {
+// Implements http.ResponseWriter.Write. When WriteHeader was
+// not called before Write, it calls it with the default 200
+// status code.
+func (d *delayed) Write(data []byte) (int, error) {
 	select {
-	case <-b.headerDone:
+	case <-d.headerDone:
 	default:
-		b.WriteHeader(http.StatusOK)
+		d.WriteHeader(http.StatusOK)
 	}
 
-	return b.writer.Write(data)
+	return d.writer.Write(data)
 }
 
-// Implements http.ResponseWriter.WriteHeader.
-// It makes sure that the pipe is closed when Content-Length is
-// set.
-func (b *delayedBody) WriteHeader(status int) {
-	b.response.StatusCode = status
-	close(b.headerDone)
+// It sets the status code for the outgoing response, and
+// signals that the filter is done with the header.
+func (d *delayed) WriteHeader(status int) {
+	d.response.StatusCode = status
+	close(d.headerDone)
 }
 
-func (b *delayedBody) Close() error {
-	b.reader.Close()
-	b.writer.Close()
+func (d *delayed) Close() error {
+	d.reader.Close()
+	d.writer.Close()
 	return nil
 }
 
