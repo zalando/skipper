@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -10,6 +11,39 @@ import (
 )
 
 const testDelay = 12 * time.Millisecond
+
+func TestPipe(t *testing.T) {
+	testError := errors.New("test error")
+	d := []string{"foo", "bar", "baz"}
+	b := NewPipedBody()
+
+	go func() {
+		for _, di := range d {
+			b.Write([]byte(di))
+		}
+
+		b.CloseWithError(testError)
+	}()
+
+	p := make([]byte, 6)
+	var db []string
+	for {
+		n, err := b.Read(p)
+		if err != nil {
+			if err != testError {
+				t.Error("invalid error")
+			}
+
+			break
+		}
+
+		db = append(db, string(p[:n]))
+	}
+
+	if strings.Join(db, "-") != strings.Join(d, "-") {
+		t.Error("piping failed")
+	}
+}
 
 func TestBlock(t *testing.T) {
 	for _, ti := range []struct {
