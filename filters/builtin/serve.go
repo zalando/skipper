@@ -5,6 +5,8 @@ import (
 	"net/http"
 )
 
+// A PipeBody can be used to stream data from filters. To get
+// an initialized instance, use NewPipedBody().
 type PipedBody struct {
 	reader       io.ReadCloser
 	writer       *io.PipeWriter
@@ -18,6 +20,12 @@ type pipedResponse struct {
 	headerDone chan struct{}
 }
 
+// NewPipedBody creates a body object, that can be
+// used to stream content from filters. This object is
+// based on io.Pipe. It is synchronized and does not
+// use an internal buffer. The CloseWithError method
+// calls the underlying PipeWriter's CloseWithError
+// method.
 func NewPipedBody() *PipedBody {
 	pr, pw := io.Pipe()
 	return &PipedBody{
@@ -27,10 +35,13 @@ func NewPipedBody() *PipedBody {
 		writerClosed: make(chan struct{})}
 }
 
+// io.Reader implementation.
 func (b *PipedBody) Read(p []byte) (int, error) {
 	return b.reader.Read(p)
 }
 
+// io.Writer implementation. If the writer side was
+// closed then NOOP.
 func (b *PipedBody) Write(p []byte) (int, error) {
 	select {
 	case <-b.writerClosed:
@@ -41,7 +52,10 @@ func (b *PipedBody) Write(p []byte) (int, error) {
 	return b.writer.Write(p)
 }
 
-func (b *PipedBody) WriteError(err error) {
+// CloseWithError closes the writer side of the pipe.
+// It can be used to signal an io.EOF on the reader
+// side.
+func (b *PipedBody) CloseWithError(err error) {
 	select {
 	case <-b.writerClosed:
 		return
@@ -52,6 +66,8 @@ func (b *PipedBody) WriteError(err error) {
 	close(b.writerClosed)
 }
 
+// Close closes the pipe. If the writer was not closed
+// before, it signals an io.EOF.
 func (b *PipedBody) Close() error {
 	select {
 	case <-b.closed:
@@ -59,7 +75,7 @@ func (b *PipedBody) Close() error {
 	default:
 	}
 
-	b.WriteError(io.EOF)
+	b.CloseWithError(io.EOF)
 	b.reader.Close()
 	close(b.closed)
 	return nil
@@ -92,7 +108,7 @@ func ServeResponse(req *http.Request, h http.Handler) *http.Response {
 			d.WriteHeader(http.StatusOK)
 		}
 
-		body.WriteError(io.EOF)
+		body.CloseWithError(io.EOF)
 	}()
 
 	<-d.headerDone
