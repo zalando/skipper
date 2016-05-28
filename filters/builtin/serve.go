@@ -5,11 +5,64 @@ import (
 	"net/http"
 )
 
-type delayed struct {
+type PipedBody struct {
+	reader       io.ReadCloser
+	writer       *io.PipeWriter
+	closed       chan struct{}
+	writerClosed chan struct{}
+}
+
+type pipedResponse struct {
 	response   *http.Response
-	reader     io.ReadCloser
-	writer     *io.PipeWriter
+	body       *PipedBody
 	headerDone chan struct{}
+}
+
+func NewPipedBody() *PipedBody {
+	pr, pw := io.Pipe()
+	return &PipedBody{
+		reader:       pr,
+		writer:       pw,
+		closed:       make(chan struct{}),
+		writerClosed: make(chan struct{})}
+}
+
+func (b *PipedBody) Read(p []byte) (int, error) {
+	return b.reader.Read(p)
+}
+
+func (b *PipedBody) Write(p []byte) (int, error) {
+	select {
+	case <-b.writerClosed:
+		return 0, nil
+	default:
+	}
+
+	return b.writer.Write(p)
+}
+
+func (b *PipedBody) WriteError(err error) {
+	select {
+	case <-b.writerClosed:
+		return
+	default:
+	}
+
+	b.writer.CloseWithError(err)
+	close(b.writerClosed)
+}
+
+func (b *PipedBody) Close() error {
+	select {
+	case <-b.closed:
+		return nil
+	default:
+	}
+
+	b.WriteError(io.EOF)
+	b.reader.Close()
+	close(b.closed)
+	return nil
 }
 
 // Creates a response from a handler and a request.
@@ -24,12 +77,11 @@ type delayed struct {
 // The written body is not buffered, but piped to the returned
 // response's body.
 func ServeResponse(req *http.Request, h http.Handler) *http.Response {
-	pr, pw := io.Pipe()
 	rsp := &http.Response{Header: make(http.Header)}
-	d := &delayed{
+	body := NewPipedBody()
+	d := &pipedResponse{
 		response:   rsp,
-		reader:     pr,
-		writer:     pw,
+		body:       body,
 		headerDone: make(chan struct{})}
 
 	go func() {
@@ -40,7 +92,7 @@ func ServeResponse(req *http.Request, h http.Handler) *http.Response {
 			d.WriteHeader(http.StatusOK)
 		}
 
-		pw.CloseWithError(io.EOF)
+		body.WriteError(io.EOF)
 	}()
 
 	<-d.headerDone
@@ -48,31 +100,30 @@ func ServeResponse(req *http.Request, h http.Handler) *http.Response {
 	return rsp
 }
 
-func (d *delayed) Read(data []byte) (int, error) { return d.reader.Read(data) }
-func (d *delayed) Header() http.Header           { return d.response.Header }
+func (d *pipedResponse) Read(data []byte) (int, error) { return d.body.Read(data) }
+func (d *pipedResponse) Header() http.Header           { return d.response.Header }
 
 // Implements http.ResponseWriter.Write. When WriteHeader was
 // not called before Write, it calls it with the default 200
 // status code.
-func (d *delayed) Write(data []byte) (int, error) {
+func (d *pipedResponse) Write(data []byte) (int, error) {
 	select {
 	case <-d.headerDone:
 	default:
 		d.WriteHeader(http.StatusOK)
 	}
 
-	return d.writer.Write(data)
+	return d.body.Write(data)
 }
 
 // It sets the status code for the outgoing response, and
 // signals that the header is done.
-func (d *delayed) WriteHeader(status int) {
+func (d *pipedResponse) WriteHeader(status int) {
 	d.response.StatusCode = status
 	close(d.headerDone)
 }
 
-func (d *delayed) Close() error {
-	d.reader.Close()
-	d.writer.Close()
+func (d *pipedResponse) Close() error {
+	d.body.Close()
 	return nil
 }
