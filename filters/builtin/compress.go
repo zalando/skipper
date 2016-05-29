@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -32,12 +31,63 @@ var (
 	unsupportedEncoding = errors.New("unsupported encoding")
 )
 
-var defaultCompressMIME = []string{"text/plain", "text/html", "application/json"}
+var defaultCompressMIME = []string{
+	"text/plain",
+	"text/html",
+	"application/json",
+	"application/javascript",
+	"application/x-javascript",
+	"text/javascript",
+	"text/css",
+	"image/svg+xml",
+	"application/octet-stream",
+}
 
 func (e encodings) Len() int           { return len(e) }
 func (e encodings) Less(i, j int) bool { return e[i].q > e[j].q } // higher first
 func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 
+// Returns a filter specification that is used to compress the response content.
+//
+// Example:
+//
+// 	* -> compress() -> "https://www.example.org"
+//
+// The filter, when executed on the response path, checks if the response
+// entity can be compressed. To decide, it checks the Content-Encoding, the
+// Cache-Control and the Content-Type headers. It doesn't compress the content
+// if the Content-Encoding is set to other than identity, or the Cache-Control
+// applies the no-transform pragma, or the Content-Type is set to an unsupported
+// value.
+//
+// The default supported content types are: text/plain, text/html,
+// application/json, application/javascript, application/x-javascript,
+// text/javascript, text/css, image/svg+xml, application/octet-stream.
+//
+// The default set of MIME types can be reset or extended by passing in the desired
+// types as filter arguments. When extending the defaults, the first argument needs
+// to be "...". E.g. to compress tiff in addition to the defaults:
+//
+// 	* -> compress("...", "image/tiff") -> "https://www.example.org"
+//
+// To reset the supported types, e.g. to compress only HTML, the "..." argument
+// needs to be omitted:
+//
+// 	* -> compress("text/html") -> "https://www.example.org"
+//
+// The filter also checks the incoming request, if it accepts the supported
+// encodings, explicitly stated in the Accept-Encoding header. The filter currently
+// supports gzip and deflate. It does not assume that the client accepts any
+// encoding if the Accept-Encoding header is not set. It ignores * in the
+// Accept-Encoding header.
+//
+// When compressing the response, it updates the response header. It deletes the
+// the Content-Length value triggering the proxy to always return the response
+// with chunked transfer encoding, sets the Content-Encoding to the selected
+// encoding and sets the Vary: Accept-Encoding header, if missing.
+//
+// The compression happens in a streaming way, using only a small internal buffer.
+//
 func NewCompress() filters.Spec { return &compress{} }
 
 func (c *compress) Name() string {
@@ -108,9 +158,7 @@ func canEncodeEntity(r *http.Response, mime []string) bool {
 
 func acceptedEncoding(r *http.Request) string {
 	var encs encodings
-	log.Info("header", r.Header.Get("Accept-Encoding"))
 	for _, s := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
-		log.Info("checking", s)
 		sp := strings.Split(s, ";")
 		if len(sp) == 0 {
 			continue
@@ -164,15 +212,16 @@ func encoder(enc string, w io.Writer) io.WriteCloser {
 	case "deflate":
 		w, err := flate.NewWriter(w, flate.DefaultCompression)
 		if err != nil {
-			// too late to return error, the compress/flate doc states, that it returns an error
-			// only if the compression level is invalid. Considered as an implemenation error.
+			// This is considered as an implementation error, since the compress/flate doc
+			// states that it returns an error only if the compression level is invalid.
 			panic(err)
 		}
 
 		return w
 	default:
-		// caller code in the package cannot call this with unsupported
-		// encoding name. Considered as an implemenation error.
+		// This is considered as an implementation error, since this function
+		// is only called from inside the package, and the encoding should be
+		// selected from a predefined set.
 		panic(unsupportedEncoding)
 	}
 }
@@ -180,13 +229,14 @@ func encoder(enc string, w io.Writer) io.WriteCloser {
 func encode(out *PipedBody, in io.ReadCloser, enc string) {
 	e := encoder(enc, out)
 	b := make([]byte, bufferSize)
+
 	_, err := io.CopyBuffer(e, in, b)
-	if err != nil {
-		log.Error(err)
+	if err == nil {
+		err = io.EOF
 	}
 
 	e.Close()
-	out.WriteError(io.EOF)
+	out.CloseWithError(err)
 	in.Close()
 }
 
@@ -203,10 +253,8 @@ func (c *compress) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	req := ctx.Request()
-	enc := acceptedEncoding(req)
+	enc := acceptedEncoding(ctx.Request())
 	if enc == "" {
-		log.Info("does not accept encoding")
 		return
 	}
 
