@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/filters/filtertest"
 )
 
 const testDelay = 12 * time.Millisecond
@@ -76,8 +78,9 @@ func TestBlock(t *testing.T) {
 	}} {
 		done := make(chan struct{})
 		quit := make(chan struct{})
+		ctx := &filtertest.Context{}
 		go func() {
-			ServeResponse(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			ServeHTTP(ctx, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				if ti.sleep > 0 {
 					time.Sleep(ti.sleep)
 				}
@@ -124,9 +127,9 @@ func TestBlock(t *testing.T) {
 
 func TestServe(t *testing.T) {
 	parts := []string{"foo", "bar", "baz"}
-	req := &http.Request{}
-	rsp := ServeResponse(req, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r != req {
+	ctx := &filtertest.Context{FRequest: &http.Request{}}
+	ServeHTTP(ctx, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r != ctx.Request() {
 			t.Error("invalid request object")
 		}
 
@@ -137,15 +140,15 @@ func TestServe(t *testing.T) {
 		}
 	}))
 
-	if rsp.StatusCode != http.StatusTeapot {
+	if ctx.Response().StatusCode != http.StatusTeapot {
 		t.Error("failed to serve status")
 	}
 
-	if rsp.Header.Get("X-Test-Header") != "test-value" {
+	if ctx.Response().Header.Get("X-Test-Header") != "test-value" {
 		t.Error("failed to serve header")
 	}
 
-	b, err := ioutil.ReadAll(rsp.Body)
+	b, err := ioutil.ReadAll(ctx.Response().Body)
 	if err != nil || string(b) != strings.Join(parts, "") {
 		t.Error("failed to serve body")
 	}
@@ -154,7 +157,8 @@ func TestServe(t *testing.T) {
 func TestStreamBody(t *testing.T) {
 	parts := []string{"foo", "bar", "baz"}
 	signal := make(chan int)
-	rsp := ServeResponse(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	ctx := &filtertest.Context{}
+	ServeHTTP(ctx, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		for i := range signal {
 			if i < len(parts) {
@@ -167,7 +171,7 @@ func TestStreamBody(t *testing.T) {
 	for i, p := range parts {
 		signal <- i
 		b := make([]byte, len(p))
-		n, err := rsp.Body.Read(b)
+		n, err := ctx.Response().Body.Read(b)
 		if n != len(p) || err != nil && err != io.EOF {
 			t.Error("failed to stream body, read error", n, err)
 			close(signal)
