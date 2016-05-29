@@ -3,6 +3,7 @@ package builtin
 import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/serve"
 	"net/http"
 )
 
@@ -47,7 +48,7 @@ func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 // Serves content from the file system and marks the request served.
 func (f *static) Request(ctx filters.FilterContext) {
-	ctx.Serve(ServeResponse(ctx.Request(), f.handler))
+	ctx.Serve(serve.ServeResponse(ctx.Request(), f.handler))
 }
 
 // Noop.

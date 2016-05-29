@@ -31,11 +31,19 @@ type redirect struct {
 // response. Marks the request as served. Instances expect two
 // parameters: the redirect status code and the redirect location.
 // Name: "redirect".
+//
+// This filter is deprecated, use RedirectTo instead.
 func NewRedirect() filters.Spec { return &redirect{deprecated: true} }
 
+// Returns a new filter Spec, whose instances create an HTTP redirect
+// response. It shunts the request flow, meaning that the filter chain on
+// the request path is not continued, and the backend is not the request
+// is not forwarded to the backend. Instances expect two parameters: the
+// redirect status code and the redirect location.
+// Name: "redirect".
 func NewRedirectTo() filters.Spec { return &redirect{deprecated: false} }
 
-// "redirect"
+// "redirect" or "redirectTo"
 func (spec *redirect) Name() string {
 	if spec.deprecated {
 		return RedirectName

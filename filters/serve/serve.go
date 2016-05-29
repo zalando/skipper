@@ -1,4 +1,7 @@
-package builtin
+/*
+Package serve provides utilities for filters that need to modify the response body.
+*/
+package serve
 
 import (
 	"io"
@@ -26,6 +29,27 @@ type pipedResponse struct {
 // use an internal buffer. The CloseWithError method
 // calls the underlying PipeWriter's CloseWithError
 // method.
+//
+// Example, gzip response:
+//
+// 	func (f *myFilter) Response(ctx filters.FilterContext) {
+// 		in := ctx.Response().Body
+// 		out := serve.NewPipedBody()
+// 		ctx.Response().Body = out
+//
+// 		go func() {
+// 			defer in.Close()
+//
+// 			gz := gzip.NewWriter(out)
+// 			_, err := io.Copy(gz, in) // timeout handled through the original body
+// 			if err == nil {
+// 				err = io.EOF
+// 			}
+//
+// 			out.CloseWithError(err)
+// 		}()
+// 	}
+//
 func NewPipedBody() *PipedBody {
 	pr, pw := io.Pipe()
 	return &PipedBody{
@@ -85,13 +109,19 @@ func (b *PipedBody) Close() error {
 //
 // It calls the handler's ServeHTTP method with an internal response
 // writer that shares the status code, headers and the response body
-// with the returned response.
-//
-// It blocks until the handler calls the response writer's WriteHeader,
-// or starts writing the body, or returns.
-//
-// The written body is not buffered, but piped to the returned
+// with the returned response. It blocks until the handler calls the
+// response writer's WriteHeader, or starts writing the body, or
+// returns. The written body is not buffered, but piped to the returned
 // response's body.
+//
+// Example, a simple file server:
+//
+// 	var handler = http.StripPrefix(webRoot, http.FileServer(http.Dir(root)))
+//
+// 	func (f *myFilter) Request(ctx filters.FilterContext) {
+// 		serve.ServeResponse(ctx.Request(), handler)
+// 	}
+//
 func ServeResponse(req *http.Request, h http.Handler) *http.Response {
 	rsp := &http.Response{Header: make(http.Header)}
 	body := NewPipedBody()
