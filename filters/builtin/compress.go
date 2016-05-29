@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/serve"
 )
 
 const bufferSize = 8192
@@ -226,7 +227,7 @@ func encoder(enc string, w io.Writer) io.WriteCloser {
 	}
 }
 
-func encode(out *PipedBody, in io.ReadCloser, enc string) {
+func encode(out *serve.PipedBody, in io.ReadCloser, enc string) {
 	e := encoder(enc, out)
 	b := make([]byte, bufferSize)
 
@@ -242,7 +243,7 @@ func encode(out *PipedBody, in io.ReadCloser, enc string) {
 
 func responseBody(r *http.Response, enc string) {
 	in := r.Body
-	out := NewPipedBody()
+	out := serve.NewPipedBody()
 	r.Body = out
 	go encode(out, in, enc)
 }
