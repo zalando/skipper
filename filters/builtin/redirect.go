@@ -40,7 +40,7 @@ func NewRedirect() filters.Spec { return &redirect{deprecated: true} }
 // the request path is not continued, and the backend is not the request
 // is not forwarded to the backend. Instances expect two parameters: the
 // redirect status code and the redirect location.
-// Name: "redirect".
+// Name: "redirectTo".
 func NewRedirectTo() filters.Spec { return &redirect{deprecated: false} }
 
 // "redirect" or "redirectTo"
