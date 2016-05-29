@@ -6,6 +6,8 @@ package serve
 import (
 	"io"
 	"net/http"
+
+	"github.com/zalando/skipper/filters"
 )
 
 // A PipeBody can be used to stream data from filters. To get
@@ -36,6 +38,10 @@ type pipedResponse struct {
 // 		in := ctx.Response().Body
 // 		out := serve.NewPipedBody()
 // 		ctx.Response().Body = out
+//
+// 		ctx.Response().Header.Del("Content-Lenght")
+// 		ctx.Response().Header.Set("Content-Encoding", "gzip")
+// 		ctx.Response().Header.Add("Vary", "Accept-Encoding")
 //
 // 		go func() {
 // 			defer in.Close()
@@ -121,10 +127,10 @@ func (b *PipedBody) Close() error {
 // 	var handler = http.StripPrefix(webRoot, http.FileServer(http.Dir(root)))
 //
 // 	func (f *myFilter) Request(ctx filters.FilterContext) {
-// 		serve.ServeResponse(ctx.Request(), handler)
+// 		serve.ServeHTTP(ctx, handler)
 // 	}
 //
-func ServeResponse(req *http.Request, h http.Handler) *http.Response {
+func ServeHTTP(ctx filters.FilterContext, h http.Handler) {
 	rsp := &http.Response{Header: make(http.Header)}
 	body := NewPipedBody()
 	d := &pipedResponse{
@@ -132,6 +138,7 @@ func ServeResponse(req *http.Request, h http.Handler) *http.Response {
 		body:       body,
 		headerDone: make(chan struct{})}
 
+	req := ctx.Request()
 	go func() {
 		h.ServeHTTP(d, req)
 		select {
@@ -145,7 +152,7 @@ func ServeResponse(req *http.Request, h http.Handler) *http.Response {
 
 	<-d.headerDone
 	rsp.Body = d
-	return rsp
+	ctx.Serve(rsp)
 }
 
 func (d *pipedResponse) Read(data []byte) (int, error) { return d.body.Read(data) }
