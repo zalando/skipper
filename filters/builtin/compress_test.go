@@ -16,6 +16,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -83,6 +84,28 @@ func compareBody(r *http.Response, contentLength int) (bool, error) {
 	}
 
 	return bytes.Equal(b, testContent[:contentLength]), nil
+}
+
+func benchmarkCompress(b *testing.B, n int64) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			body := ioutil.NopCloser(&io.LimitedReader{rand.New(rand.NewSource(0)), n})
+			req := &http.Request{Header: http.Header{"Accept-Encoding": []string{"gzip,deflate"}}}
+			rsp := &http.Response{
+				Header: http.Header{"Content-Type": []string{"application/octet-stream"}},
+				Body:   body}
+			ctx := &filtertest.Context{
+				FRequest:  req,
+				FResponse: rsp}
+			s := NewCompress()
+			f, _ := s.CreateFilter(nil)
+			f.Response(ctx)
+			_, err := ioutil.ReadAll(rsp.Body)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 }
 
 func TestCompressArgs(t *testing.T) {
@@ -312,3 +335,9 @@ func TestCompress(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkCompress0(b *testing.B) { benchmarkCompress(b, 0) }
+func BenchmarkCompress2(b *testing.B) { benchmarkCompress(b, 100) }
+func BenchmarkCompress4(b *testing.B) { benchmarkCompress(b, 10000) }
+func BenchmarkCompress6(b *testing.B) { benchmarkCompress(b, 1000000) }
+func BenchmarkCompress8(b *testing.B) { benchmarkCompress(b, 100000000) }
