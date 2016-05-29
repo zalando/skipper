@@ -41,6 +41,8 @@ type pipedResponse struct {
 // 			defer in.Close()
 //
 // 			gz := gzip.NewWriter(out)
+// 			defer gz.Close()
+//
 // 			_, err := io.Copy(gz, in) // timeout handled through the original body
 // 			if err == nil {
 // 				err = io.EOF
