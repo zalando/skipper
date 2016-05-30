@@ -24,39 +24,54 @@ import (
 	"testing"
 )
 
-func compareHeaders(t *testing.T, msg string, got, expected http.Header) {
-	for n, _ := range got {
-		if !strings.HasPrefix(n, "X-Test-") {
-			delete(got, n)
+func printHeader(t *testing.T, h http.Header, msg ...interface{}) {
+	for k, v := range h {
+		for _, vi := range v {
+			t.Log(append(msg, k, vi)...)
 		}
 	}
+}
 
-	if len(got) != len(expected) {
-		t.Error(msg, "invalid number of headers")
-		return
+func compareHeaders(left, right http.Header) bool {
+	if len(left) != len(right) {
+		return false
 	}
 
-	for n, vs := range got {
-		evs := expected[n]
-		if len(vs) != len(evs) {
-			t.Error(msg, "invalid number of header values", n)
-			return
+	for k, v := range left {
+		vright := right[k]
+		if len(v) != len(vright) {
+			return false
 		}
 
-		for _, v := range vs {
+		for _, vi := range v {
 			found := false
-			for _, ev := range evs {
-				if v == ev {
+			for _, vri := range vright {
+				if vri == vi {
 					found = true
 					break
 				}
 			}
 
 			if !found {
-				t.Error(msg, "invalid header value", n, v)
-				return
+				return false
 			}
 		}
+	}
+
+	return true
+}
+
+func testHeaders(t *testing.T, msg string, got, expected http.Header) {
+	for n, _ := range got {
+		if !strings.HasPrefix(n, "X-Test-") {
+			delete(got, n)
+		}
+	}
+
+	if !compareHeaders(got, expected) {
+		printHeader(t, expected, msg, "invalid header", "expected")
+		printHeader(t, got, msg, "invalid header", "got")
+		t.Error(msg, "invalid header")
 	}
 }
 
@@ -224,7 +239,7 @@ func TestHeader(t *testing.T) {
 		}
 
 		if ti.valid {
-			compareHeaders(t, ti.msg, rsp.Header, ti.expectedHeader)
+			testHeaders(t, ti.msg, rsp.Header, ti.expectedHeader)
 		}
 	}
 }
