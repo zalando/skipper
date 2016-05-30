@@ -37,10 +37,10 @@ func NewRedirect() filters.Spec { return &redirect{deprecated: true} }
 
 // Returns a new filter Spec, whose instances create an HTTP redirect
 // response. It shunts the request flow, meaning that the filter chain on
-// the request path is not continued, and the backend is not the request
-// is not forwarded to the backend. Instances expect two parameters: the
-// redirect status code and the redirect location.
-// Name: "redirect".
+// the request path is not continued. The request is not forwarded to the
+// backend. Instances expect two parameters: the redirect status code and
+// the redirect location.
+// Name: "redirectTo".
 func NewRedirectTo() filters.Spec { return &redirect{deprecated: false} }
 
 // "redirect" or "redirectTo"
