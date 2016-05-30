@@ -87,6 +87,8 @@ func compareBody(r *http.Response, contentLength int) (bool, error) {
 }
 
 func benchmarkCompress(b *testing.B, n int64) {
+	s := NewCompress()
+	f, _ := s.CreateFilter(nil)
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			body := ioutil.NopCloser(&io.LimitedReader{rand.New(rand.NewSource(0)), n})
@@ -97,8 +99,6 @@ func benchmarkCompress(b *testing.B, n int64) {
 			ctx := &filtertest.Context{
 				FRequest:  req,
 				FResponse: rsp}
-			s := NewCompress()
-			f, _ := s.CreateFilter(nil)
 			f.Response(ctx)
 			_, err := ioutil.ReadAll(rsp.Body)
 			if err != nil {
