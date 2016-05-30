@@ -1,5 +1,5 @@
 /*
-Package serve provides utilities for filters that need to modify the response body.
+Package serve provides a wrapper of net/http.Handler to be used as a filter.
 */
 package serve
 
@@ -10,107 +10,11 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-// A PipeBody can be used to stream data from filters. To get
-// an initialized instance, use NewPipedBody().
-type PipedBody struct {
-	reader       io.ReadCloser
-	writer       *io.PipeWriter
-	closed       chan struct{}
-	writerClosed chan struct{}
-}
-
 type pipedResponse struct {
 	response   *http.Response
-	body       *PipedBody
+	reader     *io.PipeReader
+	writer     *io.PipeWriter
 	headerDone chan struct{}
-}
-
-// NewPipedBody creates a body object, that can be
-// used to stream content from filters. This object is
-// based on io.Pipe. It is synchronized and does not
-// use an internal buffer. The CloseWithError method
-// calls the underlying PipeWriter's CloseWithError
-// method.
-//
-// Example, gzip response:
-//
-// 	func (f *myFilter) Response(ctx filters.FilterContext) {
-// 		in := ctx.Response().Body
-// 		out := serve.NewPipedBody()
-// 		ctx.Response().Body = out
-//
-// 		ctx.Response().Header.Del("Content-Lenght")
-// 		ctx.Response().Header.Set("Content-Encoding", "gzip")
-// 		ctx.Response().Header.Add("Vary", "Accept-Encoding")
-//
-// 		go func() {
-// 			defer in.Close()
-//
-// 			gz := gzip.NewWriter(out)
-// 			defer gz.Close()
-//
-// 			_, err := io.Copy(gz, in) // timeout handled through the original body
-// 			if err == nil {
-// 				err = io.EOF
-// 			}
-//
-// 			out.CloseWithError(err)
-// 		}()
-// 	}
-//
-func NewPipedBody() *PipedBody {
-	pr, pw := io.Pipe()
-	return &PipedBody{
-		reader:       pr,
-		writer:       pw,
-		closed:       make(chan struct{}),
-		writerClosed: make(chan struct{})}
-}
-
-// io.Reader implementation.
-func (b *PipedBody) Read(p []byte) (int, error) {
-	return b.reader.Read(p)
-}
-
-// io.Writer implementation. If the writer side was
-// closed then NOOP.
-func (b *PipedBody) Write(p []byte) (int, error) {
-	select {
-	case <-b.writerClosed:
-		return 0, nil
-	default:
-	}
-
-	return b.writer.Write(p)
-}
-
-// CloseWithError closes the writer side of the pipe.
-// It can be used to signal an io.EOF on the reader
-// side.
-func (b *PipedBody) CloseWithError(err error) {
-	select {
-	case <-b.writerClosed:
-		return
-	default:
-	}
-
-	b.writer.CloseWithError(err)
-	close(b.writerClosed)
-}
-
-// Close closes the pipe. If the writer was not closed
-// before, it signals an io.EOF.
-func (b *PipedBody) Close() error {
-	select {
-	case <-b.closed:
-		return nil
-	default:
-	}
-
-	b.CloseWithError(io.EOF)
-	b.reader.Close()
-	close(b.closed)
-	return nil
 }
 
 // Creates a response from a handler and a request.
@@ -132,10 +36,11 @@ func (b *PipedBody) Close() error {
 //
 func ServeHTTP(ctx filters.FilterContext, h http.Handler) {
 	rsp := &http.Response{Header: make(http.Header)}
-	body := NewPipedBody()
+	r, w := io.Pipe()
 	d := &pipedResponse{
 		response:   rsp,
-		body:       body,
+		reader:     r,
+		writer:     w,
 		headerDone: make(chan struct{})}
 
 	req := ctx.Request()
@@ -147,7 +52,7 @@ func ServeHTTP(ctx filters.FilterContext, h http.Handler) {
 			d.WriteHeader(http.StatusOK)
 		}
 
-		body.CloseWithError(io.EOF)
+		w.CloseWithError(io.EOF)
 	}()
 
 	<-d.headerDone
@@ -155,7 +60,7 @@ func ServeHTTP(ctx filters.FilterContext, h http.Handler) {
 	ctx.Serve(rsp)
 }
 
-func (d *pipedResponse) Read(data []byte) (int, error) { return d.body.Read(data) }
+func (d *pipedResponse) Read(data []byte) (int, error) { return d.reader.Read(data) }
 func (d *pipedResponse) Header() http.Header           { return d.response.Header }
 
 // Implements http.ResponseWriter.Write. When WriteHeader was
@@ -168,7 +73,7 @@ func (d *pipedResponse) Write(data []byte) (int, error) {
 		d.WriteHeader(http.StatusOK)
 	}
 
-	return d.body.Write(data)
+	return d.writer.Write(data)
 }
 
 // It sets the status code for the outgoing response, and
@@ -179,6 +84,5 @@ func (d *pipedResponse) WriteHeader(status int) {
 }
 
 func (d *pipedResponse) Close() error {
-	d.body.Close()
-	return nil
+	return d.reader.Close()
 }
