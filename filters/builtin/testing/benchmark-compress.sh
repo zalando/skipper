@@ -62,7 +62,7 @@ ngx() {
 }
 
 warmup() {
-	wrk -H Accept-Encoding:\ gzip,deflate -c 100 -d "$wd" http://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
+	wrk -H Accept-Encoding:\ gzip,deflate -c 100 -d "$wd" http://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]
 }
 
 bench() {
@@ -82,19 +82,19 @@ skp :9090 proxy.eskip
 echo [servers started, wait 1 sec]
 sleep 1
 
-echo; echo '[warmup]'
+echo; echo [warmup]
 warmup :9990
 warmup :9080
 warmup :9090
-echo '[warmup done]'
+echo [warmup done]
 
-echo; echo '[benchmarking nginx]'
+echo; echo [benchmarking nginx]
 bench :9080
-echo '[benchmarking nginx done]'
+echo [benchmarking nginx done]
 
-echo; echo '[benchmarking skipper]'
+echo; echo [benchmarking skipper]
 bench :9090
-echo '[benchmarking skipper done]'
+echo [benchmarking skipper done]
 
 cleanup
-echo; echo '[all done]'
+echo; echo [all done]
