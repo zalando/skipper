@@ -10,6 +10,8 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const maxPipeBuffer = 16384
+
 type pipedResponse struct {
 	response   *http.Response
 	reader     *io.PipeReader

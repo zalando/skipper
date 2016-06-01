@@ -6,10 +6,13 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -24,6 +27,11 @@ type encodings []*encoding
 
 type compress struct {
 	mime []string
+}
+
+type encoder interface {
+	io.WriteCloser
+	Reset(io.Writer)
 }
 
 var (
@@ -41,6 +49,20 @@ var defaultCompressMIME = []string{
 	"text/css",
 	"image/svg+xml",
 	"application/octet-stream",
+}
+
+var (
+	gzipPool    = &sync.Pool{}
+	deflatePool = &sync.Pool{}
+)
+
+func init() {
+	for i := 0; i < runtime.NumCPU()*4; i++ {
+		ge := newEncoder("gzip")
+		gzipPool.Put(ge)
+		fe := newEncoder("deflate")
+		deflatePool.Put(fe)
+	}
 }
 
 func (e encodings) Len() int           { return len(e) }
@@ -205,32 +227,70 @@ func responseHeader(r *http.Response, enc string) {
 	}
 }
 
-func encoder(enc string, w io.Writer) io.WriteCloser {
+// Not handled encoding is considered as an implementation error, since
+// these functions are only called from inside the package, and the
+// encoding should be selected from a predefined set.
+func unsupported() {
+	panic(unsupportedEncoding)
+}
+
+func newEncoder(enc string) encoder {
 	switch enc {
 	case "gzip":
-		return gzip.NewWriter(w)
+		gw, err := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+		if err != nil {
+			// This is considered as an implementation error, since the compress/gzip doc
+			// states that it returns an error only if the compression level is invalid.
+			panic(err)
+		}
+
+		return gw
 	case "deflate":
-		w, err := flate.NewWriter(w, flate.DefaultCompression)
+		fw, err := flate.NewWriter(nil, flate.BestSpeed)
 		if err != nil {
 			// This is considered as an implementation error, since the compress/flate doc
 			// states that it returns an error only if the compression level is invalid.
 			panic(err)
 		}
 
-		return w
+		return fw
 	default:
-		// This is considered as an implementation error, since this function
-		// is only called from inside the package, and the encoding should be
-		// selected from a predefined set.
-		panic(unsupportedEncoding)
+		unsupported()
+		return nil
+	}
+}
+
+func encoderPool(enc string) *sync.Pool {
+	switch enc {
+	case "gzip":
+		return gzipPool
+	case "deflate":
+		return deflatePool
+	default:
+		unsupported()
+		return nil
 	}
 }
 
 func encode(out *io.PipeWriter, in io.ReadCloser, enc string) {
-	e := encoder(enc, out)
-	b := make([]byte, bufferSize)
+	pool := encoderPool(enc)
+	pe := pool.Get()
+	var e encoder
+	if pe == nil {
+		e = newEncoder(enc)
+	} else {
+		e = pe.(encoder)
+		defer pool.Put(pe)
+	}
 
+	e.Reset(out)
+
+	b := make([]byte, bufferSize)
 	_, err := io.CopyBuffer(e, in, b)
+	if err != nil {
+		log.Error(err)
+	}
+
 	if err == nil {
 		err = io.EOF
 	}

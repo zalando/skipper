@@ -1,40 +1,71 @@
 #! /bin/bash
 
+if [ "$1" == -help ]; then
+	echo benchmark-compress.sh [duration] [warmup-duration]
+	exit 0
+fi
+
+# duration
+d=$1
+if [ -z "$d" ]; then d=12; fi
+
+# warmup duration
+wd=$2
+if [ -z "$wd" ]; then wd=3; fi
+
 cwd=$GOPATH/src/github.com/zalando/skipper/filters/builtin/testing
 cd $cwd
 go install github.com/zalando/skipper/...
+if [ $? -ne 0 ]; then exit -1; fi
 
 pids=
+
 cleanup() {
 	kill $pids
 }
 
+skp() {
+	skipper -access-log-disabled -address $1 -routes-file $2 2> \
+		>(grep -v 'write: broken pipe' | \
+		grep -v 'write: connection reset by peer' | \
+		grep -v 'INFO') &
+	pids="$pids $!"
+}
+
+ngx() {
+	nginx -c $cwd/nginx.conf &
+	pids="$pids $!"
+}
+
+warmup() {
+	wrk -H Accept-Encoding:\ gzip,deflate -c 100 -d "$wd" http://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
+}
+
+bench() {
+	wrk -H Accept-Encoding:\ gzip,deflate -c 100 -d "$d" http://127.0.0.1"$1"/lorem.html
+}
+
 trap cleanup SIGINT
 
-echo; echo [starting servers]
-skipper -access-log-disabled -application-log /dev/null -address :9990 -routes-file static.eskip &
-pids=$pids" "$(echo $!)
-
-nginx -c $cwd/nginx.conf &
-pids=$pids" "$(echo $!)
-
-skipper -access-log-disabled -application-log /dev/null -routes-file proxy.eskip &
-pids=$pids" "$(echo $!)
-echo; echo [servers started, wait 1 sec]
+echo [starting servers]
+skp :9990 static.eskip
+ngx
+skp :9090 proxy.eskip
+echo [servers started, wait 1 sec]
 sleep 1
 
-echo; echo '[warmup]'
-ab -H Accept-Encoding:\ gzip,deflate -c 100 -n 10000 http://127.0.0.1:9990/lorem.html 2>&1 > /dev/null | grep -v ^Completed
-ab -H Accept-Encoding:\ gzip,deflate -c 100 -n 10000 http://127.0.0.1:9080/lorem.html 2>&1 > /dev/null | grep -v ^Completed
-ab -H Accept-Encoding:\ gzip,deflate -c 100 -n 10000 http://127.0.0.1:9090/lorem.html 2>&1 > /dev/null | grep -v ^Completed
-echo '[warmup done]'
+# echo; echo '[warmup]'
+warmup :9990
+warmup :9080
+warmup :9090
+# echo '[warmup done]'
 
 echo; echo '[benchmarking nginx]'
-ab -H Accept-Encoding:\ gzip,deflate -c 100 -n 10000 http://127.0.0.1:9080/lorem.html 2>&1 | grep -v ^Completed
+bench :9080
 echo '[benchmarking nginx done]'
 
 echo; echo '[benchmarking skipper]'
-ab -H Accept-Encoding:\ gzip,deflate -c 100 -n 10000 http://127.0.0.1:9090/lorem.html 2>&1 | grep -v ^Completed
+bench :9090
 echo '[benchmarking skipper done]'
 
 cleanup
