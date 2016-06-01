@@ -62,7 +62,7 @@ ngx() {
 }
 
 warmup() {
-	wrk -H Accept-Encoding:\ gzip,deflate -c 100 -d "$wd" http://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]
+	wrk -H Accept-Encoding:\ gzip,deflate -c 100 -d "$wd" http://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
 }
 
 bench() {
