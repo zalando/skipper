@@ -26,6 +26,11 @@ const (
 	writeDelay     = 3 * time.Millisecond
 )
 
+type errorReader struct {
+	content string
+	err     error
+}
+
 var testContent []byte
 
 func init() {
@@ -39,6 +44,16 @@ func init() {
 	if n != len(testContent) {
 		panic(errors.New("failed to generate random content"))
 	}
+}
+
+func (er *errorReader) Read(b []byte) (int, error) {
+	if er.content == "" {
+		return 0, er.err
+	}
+
+	n := copy(b, er.content)
+	er.content = er.content[n:]
+	return n, nil
 }
 
 func setHeaders(to, from http.Header) {
@@ -110,53 +125,98 @@ func benchmarkCompress(b *testing.B, n int64) {
 
 func TestCompressArgs(t *testing.T) {
 	for _, ti := range []struct {
-		msg      string
-		args     []interface{}
-		err      error
-		expected []string
+		msg           string
+		args          []interface{}
+		err           error
+		expectedMime  []string
+		expectedLevel int
 	}{{
 		"default set of mime types",
 		nil,
 		nil,
 		defaultCompressMIME,
+		flate.BestSpeed,
 	}, {
 		"extended set of mime types",
 		[]interface{}{"...", "x/custom-0", "x/custom-1"},
 		nil,
 		append(defaultCompressMIME, "x/custom-0", "x/custom-1"),
+		flate.BestSpeed,
 	}, {
 		"reset set of mime types",
 		[]interface{}{"x/custom-0", "x/custom-1"},
 		nil,
 		[]string{"x/custom-0", "x/custom-1"},
+		flate.BestSpeed,
 	}, {
 		"invalid parameter",
 		[]interface{}{"x/custom-0", "x/custom-1", 3.14},
 		filters.ErrInvalidFilterParameters,
 		nil,
+		flate.BestSpeed,
+	}, {
+		"non integer level",
+		[]interface{}{3.14, "...", "x/custom"},
+		filters.ErrInvalidFilterParameters,
+		nil,
+		0,
+	}, {
+		"level too small",
+		[]interface{}{-1, "...", "x/custom"},
+		filters.ErrInvalidFilterParameters,
+		nil,
+		0,
+	}, {
+		"level too big",
+		[]interface{}{10, "...", "x/custom"},
+		filters.ErrInvalidFilterParameters,
+		nil,
+		0,
+	}, {
+		"set level only",
+		[]interface{}{float64(6)},
+		nil,
+		defaultCompressMIME,
+		6,
+	}, {
+		"set level and reset mime",
+		[]interface{}{float64(6), "x/custom-0", "x/custom-1"},
+		nil,
+		[]string{"x/custom-0", "x/custom-1"},
+		6,
+	}, {
+		"set level and extend mime",
+		[]interface{}{float64(6), "...", "x/custom-0", "x/custom-1"},
+		nil,
+		append(defaultCompressMIME, "x/custom-0", "x/custom-1"),
+		6,
 	}} {
 		s := &compress{}
 		f, err := s.CreateFilter(ti.args)
 
 		if ti.err != err {
-			t.Error(ti.msg, "failed to fail", ti.err, err)
+			t.Error(ti.msg, "unexpected error value", ti.err, err)
 		}
 
-		if ti.err != nil {
+		if err != nil {
 			continue
 		}
 
 		c := f.(*compress)
 
-		if len(ti.expected) != len(c.mime) {
+		if len(ti.expectedMime) != len(c.mime) {
 			t.Error(ti.msg, "invalid length of mime types")
 			continue
 		}
 
-		for i, m := range ti.expected {
+		for i, m := range ti.expectedMime {
 			if c.mime[i] != m {
 				t.Error(ti.msg, "invalid mime type", m, c.mime[i])
 			}
+		}
+
+		if c.level != ti.expectedLevel {
+			t.Error(ti.msg, "invalid level", ti.expectedLevel, c.level)
 		}
 	}
 }
@@ -233,10 +293,82 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
+		"gzip, no compression",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(gzip.NoCompression)},
+		"x-custom,gzip",
+		http.Header{
+			"Content-Encoding": []string{"gzip"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"gzip, best speed",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(gzip.BestSpeed)},
+		"x-custom,gzip",
+		http.Header{
+			"Content-Encoding": []string{"gzip"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"gzip, stdlib default",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(gzip.DefaultCompression)},
+		"x-custom,gzip",
+		http.Header{
+			"Content-Encoding": []string{"gzip"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"gzip, best compression",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(gzip.BestCompression)},
+		"x-custom,gzip",
+		http.Header{
+			"Content-Encoding": []string{"gzip"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
 		"deflate",
 		http.Header{},
 		3 * 8192,
 		nil,
+		"x-custom,deflate",
+		http.Header{
+			"Content-Encoding": []string{"deflate"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"deflate, no compression",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(flate.NoCompression)},
+		"x-custom,deflate",
+		http.Header{
+			"Content-Encoding": []string{"deflate"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"deflate, best speed",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(flate.BestSpeed)},
+		"x-custom,deflate",
+		http.Header{
+			"Content-Encoding": []string{"deflate"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"deflate",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(flate.DefaultCompression)},
+		"x-custom,deflate",
+		http.Header{
+			"Content-Encoding": []string{"deflate"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"deflate",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(flate.BestCompression)},
 		"x-custom,deflate",
 		http.Header{
 			"Content-Encoding": []string{"deflate"},
@@ -333,6 +465,28 @@ func TestCompress(t *testing.T) {
 		} else if !ok {
 			t.Error(ti.msg, "invalid content")
 		}
+	}
+}
+
+func TestForwardError(t *testing.T) {
+	spec := &compress{}
+	f, err := spec.CreateFilter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testError := errors.New("test error")
+	req := &http.Request{Header: http.Header{"Accept-Encoding": []string{"gzip,deflate"}}}
+	rsp := &http.Response{
+		Header: http.Header{"Content-Type": []string{"text/plain"}},
+		Body:   ioutil.NopCloser(&errorReader{"test-content", testError})}
+	ctx := &filtertest.Context{FRequest: req, FResponse: rsp}
+	f.Response(ctx)
+	enc := rsp.Header.Get("Content-Encoding")
+	dec := decoder(enc, rsp.Body)
+	b, err := ioutil.ReadAll(dec)
+	if string(b) != "test-content" || err != testError {
+		t.Error("failed to forward error", string(b), err)
 	}
 }
 

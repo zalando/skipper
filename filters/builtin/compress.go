@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"runtime"
 	"sort"
@@ -12,7 +13,6 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -26,7 +26,8 @@ type encoding struct {
 type encodings []*encoding
 
 type compress struct {
-	mime []string
+	mime  []string
+	level int
 }
 
 type encoder interface {
@@ -61,9 +62,18 @@ func init() {
 	// simple tests, checking performance by binary
 	// steps
 	for i := 0; i < runtime.NumCPU()*4; i++ {
-		ge := newEncoder("gzip")
+		ge, err := newEncoder("gzip", flate.BestSpeed)
+		if err != nil {
+			panic(err)
+		}
+
 		gzipPool.Put(ge)
-		fe := newEncoder("deflate")
+
+		fe, err := newEncoder("deflate", flate.BestSpeed)
+		if err != nil {
+			panic(err)
+		}
+
 		deflatePool.Put(fe)
 	}
 }
@@ -100,6 +110,14 @@ func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 //
 // 	* -> compress("text/html") -> "https://www.example.org"
 //
+// It is possible to control the compression level, by setting it as the first
+// filter argument, in front of the MIME types. The default compression level is
+// best-speed. The possible values are integers between 0 and 9 (inclusive), where
+// 0 means no-compression, 1 means best-speed and 9 means best-compression.
+// Example:
+//
+// 	* -> compress(9, "image/tiff") -> "https://www.example.org"
+//
 // The filter also checks the incoming request, if it accepts the supported
 // encodings, explicitly stated in the Accept-Encoding header. The filter currently
 // supports gzip and deflate. It does not assume that the client accepts any
@@ -120,16 +138,37 @@ func (c *compress) Name() string {
 }
 
 func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
-	f := &compress{}
+	f := &compress{
+		mime:  defaultCompressMIME,
+		level: flate.BestSpeed}
 
 	if len(args) == 0 {
-		f.mime = defaultCompressMIME
+		return f, nil
+	}
+
+	if lf, ok := args[0].(float64); ok && math.Trunc(lf) == lf {
+		f.level = int(lf)
+		_, err := gzip.NewWriterLevel(nil, f.level)
+		if err != nil {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+
+		_, err = flate.NewWriter(nil, f.level)
+		if err != nil {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+
+		args = args[1:]
+	}
+
+	if len(args) == 0 {
 		return f, nil
 	}
 
 	if args[0] == "..." {
-		f.mime = defaultCompressMIME
 		args = args[1:]
+	} else {
+		f.mime = nil
 	}
 
 	for _, a := range args {
@@ -237,29 +276,15 @@ func unsupported() {
 	panic(unsupportedEncoding)
 }
 
-func newEncoder(enc string) encoder {
+func newEncoder(enc string, level int) (encoder, error) {
 	switch enc {
 	case "gzip":
-		gw, err := gzip.NewWriterLevel(nil, gzip.BestSpeed)
-		if err != nil {
-			// This is considered as an implementation error, since the compress/gzip doc
-			// states that it returns an error only if the compression level is invalid.
-			panic(err)
-		}
-
-		return gw
+		return gzip.NewWriterLevel(nil, level)
 	case "deflate":
-		fw, err := flate.NewWriter(nil, flate.BestSpeed)
-		if err != nil {
-			// This is considered as an implementation error, since the compress/flate doc
-			// states that it returns an error only if the compression level is invalid.
-			panic(err)
-		}
-
-		return fw
+		return flate.NewWriter(nil, level)
 	default:
 		unsupported()
-		return nil
+		return nil, nil
 	}
 }
 
@@ -275,43 +300,57 @@ func encoderPool(enc string) *sync.Pool {
 	}
 }
 
-func encode(out *io.PipeWriter, in io.ReadCloser, enc string) {
-	pool := encoderPool(enc)
-	pe := pool.Get()
-	var e encoder
-	if pe == nil {
-		e = newEncoder(enc)
-	} else {
-		e = pe.(encoder)
-		defer pool.Put(pe)
+func encode(out *io.PipeWriter, in io.ReadCloser, enc string, level int) {
+	var (
+		e   encoder
+		err error
+	)
+
+	defer func() {
+		if e != nil {
+			e.Close()
+		}
+
+		if err == nil {
+			err = io.EOF
+		}
+
+		out.CloseWithError(err)
+		in.Close()
+	}()
+
+	if level == flate.BestSpeed {
+		pool := encoderPool(enc)
+		pe := pool.Get()
+		if pe != nil {
+			e = pe.(encoder)
+			defer pool.Put(pe)
+		}
+	}
+
+	if e == nil {
+		e, err = newEncoder(enc, level)
+		if err != nil {
+			return
+		}
 	}
 
 	e.Reset(out)
 
 	b := make([]byte, bufferSize)
-	_, err := io.CopyBuffer(e, in, b)
-	if err != nil {
-		log.Error(err)
-	}
-
-	if err == nil {
-		err = io.EOF
-	}
-
-	e.Close()
-	out.CloseWithError(err)
-	in.Close()
+	_, err = io.CopyBuffer(e, in, b)
 }
 
-func responseBody(rsp *http.Response, enc string) {
+func responseBody(rsp *http.Response, enc string, level int) {
 	in := rsp.Body
 	r, w := io.Pipe()
 	rsp.Body = r
-	go encode(w, in, enc)
+	go encode(w, in, enc, level)
 }
 
 func (c *compress) Response(ctx filters.FilterContext) {
 	rsp := ctx.Response()
+
 	if !canEncodeEntity(rsp, c.mime) {
 		return
 	}
@@ -322,5 +361,5 @@ func (c *compress) Response(ctx filters.FilterContext) {
 	}
 
 	responseHeader(rsp, enc)
-	responseBody(rsp, enc)
+	responseBody(rsp, enc, c.level)
 }
