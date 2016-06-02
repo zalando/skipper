@@ -57,6 +57,9 @@ var (
 )
 
 func init() {
+	// #cpu * 4: pool size decided based on some
+	// simple tests, checking performance by binary
+	// steps
 	for i := 0; i < runtime.NumCPU()*4; i++ {
 		ge := newEncoder("gzip")
 		gzipPool.Put(ge)
