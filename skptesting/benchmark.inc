@@ -6,7 +6,7 @@ if [ -z "$d" ]; then d=12; fi
 wd=$2
 if [ -z "$wd" ]; then wd=3; fi
 
-cwd=$GOPATH/src/github.com/zalando/skipper/testing
+cwd=$GOPATH/src/github.com/zalando/skipper/skptesting
 cd $cwd
 go install github.com/zalando/skipper/...
 if [ $? -ne 0 ]; then exit -1; fi
@@ -54,6 +54,15 @@ skp() {
 	pids="$pids $!"
 }
 
+skp-pprof() {
+	skptesting "$cwd"/profile.prof "$1" "$2" 2> \
+		>(grep -v 'write: broken pipe' | \
+		grep -v 'write: connection reset by peer' | \
+		grep -v 'getsockopt: connection refused' | \
+		grep -v 'INFO') &
+	pids="$pids $!"
+}
+
 ngx() {
 	nginx -c "$cwd"/"$1" 2> \
 		>(grep -v '[(]111: Connection refused[)]') &
@@ -66,4 +75,12 @@ warmup() {
 
 bench() {
 	wrk -H "$2" -c 100 -d "$d" http://127.0.0.1"$1"/lorem.html
+}
+
+print-profile() {
+	go tool pprof -text $GOPATH/bin/skptesting "$cwd"/profile.prof 
+}
+
+log() {
+	echo $@ >&2
 }
