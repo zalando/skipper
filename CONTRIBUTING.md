@@ -9,5 +9,4 @@ Pull requests should only be merged after all discussions have been concluded an
 ## Guidelines
 
 - **every change** needs a test
-- 100% code coverage
 - keep the current code style
