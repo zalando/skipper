@@ -11,30 +11,40 @@ import (
 )
 
 func main() {
-	profile := "profile.prof"
+	cpuProfile := "cpu-profile.prof"
 	if len(os.Args) > 1 {
-		profile = os.Args[1]
+		cpuProfile = os.Args[1]
+	}
+
+	memProfile := "mem-profile.prof"
+	if len(os.Args) > 2 {
+		memProfile = os.Args[2]
 	}
 
 	address := ":9090"
-	if len(os.Args) > 2 {
-		address = os.Args[2]
+	if len(os.Args) > 3 {
+		address = os.Args[3]
 	}
 
 	routesFile := "routes.eskip"
-	if len(os.Args) > 3 {
-		routesFile = os.Args[3]
+	if len(os.Args) > 4 {
+		routesFile = os.Args[4]
 	}
 
-	p, err := os.Create(profile)
+	cpuOut, err := os.Create(cpuProfile)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	pprof.StartCPUProfile(p)
+	memOut, err := os.Create(memProfile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pprof.StartCPUProfile(cpuOut)
 	defer func() {
 		pprof.StopCPUProfile()
-		println("profile flushed")
+		pprof.Lookup("heap").WriteTo(memOut, 0)
 	}()
 
 	sigint := make(chan os.Signal, 1)

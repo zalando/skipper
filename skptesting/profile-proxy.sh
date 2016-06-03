@@ -25,8 +25,3 @@ log [profiling skipper done]
 
 cleanup
 log; log [all done]
-
-log; log [printing profile]
-sleep 0.1
-print-profile
-log [printing profile done]

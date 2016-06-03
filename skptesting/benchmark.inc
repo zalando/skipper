@@ -2,8 +2,12 @@
 d=$1
 if [ -z "$d" ]; then d=12; fi
 
+# concurrency
+c=$2
+if [ -z "$c" ]; then c=100; fi
+
 # warmup duration
-wd=$2
+wd=$3
 if [ -z "$wd" ]; then wd=3; fi
 
 cwd=$GOPATH/src/github.com/zalando/skipper/skptesting
@@ -55,7 +59,7 @@ skp() {
 }
 
 skp-pprof() {
-	skptesting "$cwd"/profile.prof "$1" "$2" 2> \
+	skptesting "$cwd"/cpu-profile.prof "$cwd"/mem-profile.prof "$1" "$2" 2> \
 		>(grep -v 'write: broken pipe' | \
 		grep -v 'write: connection reset by peer' | \
 		grep -v 'getsockopt: connection refused' | \
@@ -70,15 +74,11 @@ ngx() {
 }
 
 warmup() {
-	wrk -H "$2" -c 100 -d "$wd" http://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
+	wrk -H "$2" -c "$c" -d "$wd" http://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
 }
 
 bench() {
-	wrk -H "$2" -c 100 -d "$d" http://127.0.0.1"$1"/lorem.html
-}
-
-print-profile() {
-	go tool pprof -text $GOPATH/bin/skptesting "$cwd"/profile.prof 
+	wrk -H "$2" -c "$c" -d "$d" http://127.0.0.1"$1"/lorem.html
 }
 
 log() {
