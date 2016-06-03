@@ -1,6 +1,9 @@
 package logging
 
 import (
+	"bufio"
+	"fmt"
+	"net"
 	"net/http"
 	"time"
 )
@@ -32,4 +35,13 @@ func (lh *loggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Duration:     dur,
 	}
 	LogAccess(entry)
+}
+
+func (lh *loggingHandler) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hij, ok := lh.proxy.(http.Hijacker)
+	if ok {
+		return hij.Hijack()
+	}
+	fmt.Printf("Could not Hijack logging handler")
+	panic("foo")
 }

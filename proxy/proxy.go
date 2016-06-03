@@ -17,14 +17,16 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
+	"io"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
-	"io"
-	"net/http"
-	"net/url"
-	"time"
 )
 
 const (
@@ -364,6 +366,7 @@ func sendError(w http.ResponseWriter, error string, code int) {
 
 // http.Handler implementation
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
@@ -379,6 +382,23 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("Could not find a route for %v", r.URL)
 		return
 	}
+
+	if isUpgradeRequest(r) {
+		log.Println("request belongs to us")
+		backendURL, err := url.Parse(rt.Backend)
+		if err != nil {
+			log.Fatalf("Can not parse backend %s, caused by: %s", rt.Backend, err)
+		}
+		reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
+		reverseProxy.FlushInterval = 200 * time.Millisecond
+		log.Println("created reverseProxy")
+		spyp := SpdyProxy{backendAddr: backendURL, reverseProxy: reverseProxy}
+		log.Println("created SpdyProxy")
+		spyp.ServeHTTP(w, r)
+		log.Println("served spdy request")
+		return
+	}
+
 	p.metrics.MeasureRouteLookup(start)
 
 	start = time.Now()
