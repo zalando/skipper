@@ -4,13 +4,13 @@ set -e
 
 if [ "$1" = "-help" ]; then
 	echo 'cpu <number of CPUs> <scaling mode>
+Example:
+cpu 8 performance
+# do something...
+cpu 8 powersave'
 	exit
 fi
 
-Example:
-cpu 8 performance
-cpu 8 powersave'
-fi
 
 count="$1"
 if [ -z "$count" ]; then
