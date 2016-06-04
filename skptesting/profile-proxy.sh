@@ -14,7 +14,8 @@ lorem
 log [content generated]
 
 log; log [starting servers]
-ngx nginx-static.conf
+# ngx nginx-static.conf
+skp :9980 static.eskip
 skp-pprof :9090 proxy.eskip
 log [servers started, wait 1 sec]
 sleep 1

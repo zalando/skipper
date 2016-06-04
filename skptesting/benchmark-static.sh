@@ -14,19 +14,19 @@ lorem
 log [content generated]
 
 log; log [starting servers]
-ngx nginx-static.conf
+# ngx nginx-static.conf
 skp :9990 static.eskip
 log [servers started, wait 1 sec]
 sleep 1
 
 log; log [warmup]
-warmup :9980
+# warmup :9980
 warmup :9990
 log [warmup done]
 
-log; log [benchmarking nginx]
-bench :9980
-log [benchmarking nginx done]
+# log; log [benchmarking nginx]
+# bench :9980
+# log [benchmarking nginx done]
 
 log; log [benchmarking skipper]
 bench :9990
