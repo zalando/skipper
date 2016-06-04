@@ -4,7 +4,7 @@ if [ -z "$d" ]; then d=12; fi
 
 # concurrency
 c=$2
-if [ -z "$c" ]; then c=100; fi
+if [ -z "$c" ]; then c=128; fi
 
 # warmup duration
 wd=$3
@@ -22,7 +22,6 @@ loremHead='<!doctype html>
 		<title>Lorem</title>
 	</head>
 	<body>'
-
 loremP='
 		<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore
 		et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut

@@ -1,7 +1,7 @@
 #! /bin/bash
 
 if [ "$1" == -help ]; then
-	log benchmark-compress.sh [duration] [warmup-duration]
+	log benchmark-compress.sh [duration] [connections] [warmup-duration]
 	exit 0
 fi
 

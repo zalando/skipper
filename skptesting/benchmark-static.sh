@@ -1,7 +1,7 @@
 #! /bin/bash
 
 if [ "$1" == -help ]; then
-	log profile-proxy.sh [duration] [connections]
+	log benchmark-proxy.sh [duration] [connections] [warmup-duration]
 	exit 0
 fi
 
@@ -15,13 +15,22 @@ log [content generated]
 
 log; log [starting servers]
 ngx nginx-static.conf
-skp-pprof :9090 proxy.eskip
+skp :9990 static.eskip
 log [servers started, wait 1 sec]
 sleep 1
 
-log; log [profiling skipper]
-bench :9090
-log [profiling skipper done]
+log; log [warmup]
+warmup :9980
+warmup :9990
+log [warmup done]
+
+log; log [benchmarking nginx]
+bench :9980
+log [benchmarking nginx done]
+
+log; log [benchmarking skipper]
+bench :9990
+log [benchmarking skipper done]
 
 cleanup
 log; log [all done]
