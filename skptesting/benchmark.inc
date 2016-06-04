@@ -49,7 +49,15 @@ cleanup() {
 }
 
 skp() {
-	skipper -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" 2> \
+	tlskey=
+	tlscert=
+	if [ "$3" = tls ]; then
+		tlskey=key.pem
+		tlscert=cert.pem
+	fi
+
+	skipper -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" -insecure \
+		-tls-key "$tlskey" -tls-cert "$tlscert" 2> \
 		>(grep -v 'write: broken pipe' | \
 		grep -v 'connection reset by peer' | \
 		grep -v 'getsockopt: connection refused' | \
@@ -76,11 +84,15 @@ ngx() {
 }
 
 warmup() {
-	wrk -H "$2" -c "$c" -d "$wd" http://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
+	protocol=http
+	[ "$3" = tls ] && protocol=https
+	wrk -H "$2" -c "$c" -d "$wd" "$protocol"://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
 }
 
 bench() {
-	wrk -H "$2" -c "$c" -d "$d" http://127.0.0.1"$1"/lorem.html
+	protocol=http
+	[ "$3" = tls ] && protocol=https
+	wrk -H "$2" -c "$c" -d "$d" "$protocol"://127.0.0.1"$1"/lorem.html
 }
 
 log() {
