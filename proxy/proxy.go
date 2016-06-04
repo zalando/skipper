@@ -175,7 +175,7 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 // route backends. It accepts an optional list of priority routes to
 // be used for matching before the general lookup tree.
 func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler {
-	tr := &http.Transport{MaxIdleConnsPerHost: 64}
+	tr := &http.Transport{}
 	if options.Insecure() {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
