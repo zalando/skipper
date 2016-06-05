@@ -16,20 +16,20 @@ log [content generated]
 log; log [starting servers]
 # ngx nginx-static.conf
 skp :9980 static.eskip
-ngx nginx-proxy.conf
+# ngx nginx-proxy.conf
 skp :9090 proxy.eskip
 log [servers started, wait 1 sec]
 sleep 1
 
 log; log [warmup]
 warmup :9980
-warmup :9080
+# warmup :9080
 warmup :9090
 log [warmup done]
 
-log; log [benchmarking nginx]
-bench :9080
-log [benchmarking nginx done]
+# log; log [benchmarking nginx]
+# bench :9080
+# log [benchmarking nginx done]
 
 log; log [benchmarking skipper]
 bench :9090

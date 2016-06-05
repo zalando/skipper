@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -24,6 +25,16 @@ func initializeProxy() *proxy.Proxy {
 		FilterRegistry: filterRegistry,
 		DataClients:    []routing.DataClient{}}), proxy.OptionsNone)
 	return proxy
+}
+
+func testListener() bool {
+	for _, a := range os.Args {
+		if a == "listener" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func waitConn(req func() (*http.Response, error)) (*http.Response, error) {
@@ -113,9 +124,12 @@ func TestWithWrongKeyPathFails(t *testing.T) {
 	}
 }
 
+// to run this test, set `-args listener` for the test command
 func TestHTTPSServer(t *testing.T) {
 	// TODO: figure why sometimes cannot connect
-	t.Skip()
+	if !testListener() {
+		t.Skip()
+	}
 
 	a, err := findAddress()
 	if err != nil {
@@ -147,9 +161,12 @@ func TestHTTPSServer(t *testing.T) {
 	}
 }
 
+// to run this test, set `-args listener` for the test command
 func TestHTTPServer(t *testing.T) {
 	// TODO: figure why sometimes cannot connect
-	t.Skip()
+	if !testListener() {
+		t.Skip()
+	}
 
 	a, err := findAddress()
 	if err != nil {
