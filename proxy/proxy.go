@@ -92,8 +92,8 @@ type ProxyOptions struct {
 	IdleConnectionsPerHost int
 
 	// Defines the time period of how often the idle connections are
-	// closed. The default is 12 seconds. When set to less than 0,
-	// the proxy doesn't close the idle connections.
+	// forcibly closed. The default is 12 seconds. When set to less than
+	// 0, the proxy doesn't force closing the idle connections.
 	CloseIdleConnsPeriod time.Duration
 
 	// And optional list of priority routes to be used for matching
@@ -135,12 +135,13 @@ type bodyBuffer struct {
 	*bytes.Buffer
 }
 
-type proxy struct {
+type Proxy struct {
 	routing        *routing.Routing
 	roundTripper   http.RoundTripper
 	priorityRoutes []PriorityRoute
 	flags          ProxyFlags
 	metrics        *metrics.Metrics
+	quit           chan struct{}
 }
 
 type filterContext struct {
@@ -218,12 +219,16 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 }
 
 // Deprecated, see NewProxy and ProxyOptions instead.
-func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler {
-	return NewProxy(ProxyOptions{Routing: r, Flags: ProxyFlags(options), PriorityRoutes: pr})
+func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
+	return NewProxy(ProxyOptions{
+		Routing:              r,
+		Flags:                ProxyFlags(options),
+		PriorityRoutes:       pr,
+		CloseIdleConnsPeriod: -time.Second})
 }
 
 // Creates a proxy.
-func NewProxy(o ProxyOptions) http.Handler {
+func NewProxy(o ProxyOptions) *Proxy {
 	if o.IdleConnectionsPerHost <= 0 {
 		o.IdleConnectionsPerHost = DefaultIdleConnsPerHost
 	}
@@ -233,12 +238,16 @@ func NewProxy(o ProxyOptions) http.Handler {
 	}
 
 	tr := &http.Transport{MaxIdleConnsPerHost: o.IdleConnectionsPerHost}
+	quit := make(chan struct{})
 	if o.CloseIdleConnsPeriod > 0 {
 		go func() {
-			// a single close process per proxy, never disposed
 			for {
-				<-time.After(o.CloseIdleConnsPeriod)
-				tr.CloseIdleConnections()
+				select {
+				case <-time.After(o.CloseIdleConnsPeriod):
+					tr.CloseIdleConnections()
+				case <-quit:
+					return
+				}
 			}
 		}()
 	}
@@ -252,7 +261,13 @@ func NewProxy(o ProxyOptions) http.Handler {
 		m = metrics.Void
 	}
 
-	return &proxy{o.Routing, tr, o.PriorityRoutes, o.Flags, m}
+	return &Proxy{
+		routing:        o.Routing,
+		roundTripper:   tr,
+		priorityRoutes: o.PriorityRoutes,
+		flags:          o.Flags,
+		metrics:        m,
+		quit:           quit}
 }
 
 // calls a function with recovering from panics and logging them
@@ -266,7 +281,7 @@ func tryCatch(p func(), onErr func(err interface{})) {
 	p()
 }
 
-func (p *proxy) newFilterContext(
+func (p *Proxy) newFilterContext(
 	w http.ResponseWriter,
 	r *http.Request,
 	params map[string]string,
@@ -369,7 +384,7 @@ func shunt(r *http.Request) *http.Response {
 }
 
 // applies all filters to a request
-func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext, onErr func(err interface{})) []*routing.RouteFilter {
+func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext, onErr func(err interface{})) []*routing.RouteFilter {
 	var start time.Time
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
@@ -385,7 +400,7 @@ func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterConte
 }
 
 // executes an http roundtrip to a route backend
-func (p *proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*http.Response, error) {
+func (p *Proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*http.Response, error) {
 	rr, err := mapRequest(r, rt, host)
 	if err != nil {
 		return nil, err
@@ -395,7 +410,7 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*htt
 }
 
 // applies filters to a response in reverse order
-func (p *proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext, onErr func(err interface{})) {
+func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext, onErr func(err interface{})) {
 	count := len(filters)
 	var start time.Time
 	for i, _ := range filters {
@@ -412,7 +427,7 @@ func addBranding(headerMap http.Header) {
 	headerMap.Set("Server", "Skipper")
 }
 
-func (p *proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
+func (p *Proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
 	for _, prt := range p.priorityRoutes {
 		rt, params = prt.Match(r)
 		if rt != nil {
@@ -430,7 +445,7 @@ func sendError(w http.ResponseWriter, error string, code int) {
 }
 
 // http.Handler implementation
-func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
@@ -546,4 +561,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			p.metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
 		}
 	}
+}
+
+func (p *Proxy) Close() error {
+	close(p.quit)
+	return nil
 }

@@ -35,6 +35,7 @@ func TestStatus(t *testing.T) {
 		pr := proxytest.New(fr, &eskip.Route{
 			Filters: []*eskip.Filter{{Name: StatusName, Args: ti.args}},
 			Shunt:   true})
+		defer pr.Close()
 
 		rsp, err := http.Get(pr.URL)
 		if err != nil {

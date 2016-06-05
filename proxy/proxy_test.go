@@ -521,6 +521,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test-Header", "test-value")
 	}))
+	defer s.Close()
 
 	req, err := http.NewRequest(
 		"GET",
@@ -569,10 +570,12 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	s0 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test-Header", "priority-value")
 	}))
+	defer s0.Close()
 
 	s1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test-Header", "normal-value")
 	}))
+	defer s0.Close()
 
 	req, err := http.NewRequest(
 		"GET",
@@ -716,6 +719,7 @@ func TestHostHeader(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Received-Host", r.Host)
 	}))
+	defer backend.Close()
 
 	// take the generated host part of the backend
 	bu, err := url.Parse(backend.URL)

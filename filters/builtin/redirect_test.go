@@ -126,6 +126,7 @@ func TestRedirect(t *testing.T) {
 			time.Sleep(30 * time.Millisecond)
 
 			p := proxy.New(rt, proxy.OptionsNone)
+			defer p.Close()
 			req := &http.Request{
 				URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
 				Host: "incoming.example.org"}

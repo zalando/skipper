@@ -268,9 +268,9 @@ func (o *Options) isHTTPS() bool {
 	return o.CertPathTLS != "" && o.KeyPathTLS != ""
 }
 
-func listenAndServe(proxy *http.Handler, o *Options) error {
+func listenAndServe(proxy http.Handler, o *Options) error {
 	// create the access log handler
-	loggingHandler := logging.NewHandler(*proxy)
+	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
 	if o.isHTTPS() {
 		return http.ListenAndServeTLS(o.Address, o.CertPathTLS, o.KeyPathTLS, loggingHandler)
@@ -372,6 +372,5 @@ func Run(o Options) error {
 	// create the proxy
 	proxy := proxy.NewProxy(proxyOptions)
 
-	return listenAndServe(&proxy, &o)
-
+	return listenAndServe(proxy, &o)
 }
