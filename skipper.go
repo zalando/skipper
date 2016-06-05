@@ -96,8 +96,20 @@ type Options struct {
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
 
-	// Flags controlling the proxy behavior.
+	// Deprecated. See ProxyFlags. When used together with ProxyFlags,
+	// the values will be combined with |.
 	ProxyOptions proxy.Options
+
+	// Flags controlling the proxy behavior.
+	ProxyFlags proxy.ProxyFlags
+
+	// Tells the proxy maximum how many idle connections can it keep
+	// alive.
+	IdleConnectionsPerHost int
+
+	// Defines the time period of how often the idle connections maintained
+	// by the proxy are closed.
+	CloseIdleConnsPeriod time.Duration
 
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
@@ -341,14 +353,24 @@ func Run(o Options) error {
 		o.CustomPredicates,
 		updateBuffer})
 
+	proxyFlags := proxy.ProxyFlags(o.ProxyOptions) | o.ProxyFlags
+	proxyOptions := proxy.ProxyOptions{
+		Routing:                routing,
+		Flags:                  proxyFlags,
+		PriorityRoutes:         o.PriorityRoutes,
+		IdleConnectionsPerHost: o.IdleConnectionsPerHost,
+		CloseIdleConnsPeriod:   o.CloseIdleConnsPeriod}
+
 	if o.DebugListener != "" {
-		dbg := proxy.New(routing, o.ProxyOptions|proxy.OptionsDebug, o.PriorityRoutes...)
+		do := proxyOptions
+		do.Flags |= proxy.ProxyDebug
+		dbg := proxy.NewProxy(do)
 		log.Infof("debug listener on %v", o.DebugListener)
 		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
 	}
 
 	// create the proxy
-	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
+	proxy := proxy.NewProxy(proxyOptions)
 
 	return listenAndServe(&proxy, &o)
 

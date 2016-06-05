@@ -10,11 +10,16 @@ import (
 	"time"
 )
 
-func New(fr filters.Registry, routes ...*eskip.Route) *httptest.Server {
+func NewOptions(fr filters.Registry, o proxy.ProxyOptions, routes ...*eskip.Route) *httptest.Server {
 	dc := testdataclient.New(routes)
 	rt := routing.New(routing.Options{FilterRegistry: fr, DataClients: []routing.DataClient{dc}})
-	pr := proxy.New(rt, proxy.OptionsNone)
+	o.Routing = rt
+	pr := proxy.NewProxy(o)
 	tsp := httptest.NewServer(pr)
 	time.Sleep(12 * time.Millisecond) // propagate data client routes
 	return tsp
+}
+
+func New(fr filters.Registry, routes ...*eskip.Route) *httptest.Server {
+	return NewOptions(fr, proxy.ProxyOptions{}, routes...)
 }
