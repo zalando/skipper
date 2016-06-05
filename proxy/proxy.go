@@ -31,31 +31,35 @@ const (
 	proxyBufferSize = 8192
 	proxyErrorFmt   = "proxy: %s"
 
-	DefaultIdleConnsPerHost     = 64
+	// The default value set for http.Transport.MaxIdleConnsPerHost.
+	DefaultIdleConnsPerHost = 64
+
+	// The default period at which the idle connections are forcibly
+	// closed.
 	DefaultCloseIdleConnsPeriod = 12 * time.Second
 )
 
-// Flags controlling the behavior of the proxy.
+// ProxyFlags control the behavior of the proxy.
 type ProxyFlags uint
 
 const (
 	ProxyFlagsNone ProxyFlags = 0
 
-	// Flag indicating to ignore the verification of the TLS
-	// certificates of the backend services.
+	// ProxyInsecure causes the proxy to ignore the verification of
+	// the TLS certificates of the backend services.
 	ProxyInsecure ProxyFlags = 1 << iota
 
-	// Flag indicating whether filters require the preserved original
-	// metadata of the request and the response.
+	// ProxyPreserveOriginal indicates that filters require the
+	// preserved original metadata of the request and the response.
 	ProxyPreserveOriginal
 
-	// Flag indicating whether the outgoing request to the backend
-	// should use by default the 'Host' header of the incoming request,
-	// or the host part of the backend address, in case filters don't
-	// change it.
+	// ProxyPreserveHost indicates whether the outgoing request to the
+	// backend should use by default the 'Host' header of the incoming
+	// request, or the host part of the backend address, in case filters
+	// don't change it.
 	ProxyPreserveHost
 
-	// Indicates that the current proxy instance will be used as a
+	// ProxyDebug indicates that the current proxy instance will be used as a
 	// debug proxy. Debug proxies don't forward the request to the
 	// route backends, but they execute all filters, and return a
 	// JSON document with the changes the filters make to the request
@@ -64,7 +68,7 @@ const (
 	ProxyDebug
 )
 
-// deprecated alias
+// Options are deprecated alias for ProxyFlags.
 type Options ProxyFlags
 
 const (
@@ -135,6 +139,8 @@ type bodyBuffer struct {
 	*bytes.Buffer
 }
 
+// Proxy instances implement Skipper proxying functionality. For
+// initializing, see NewProxy and ProyxOptions.
 type Proxy struct {
 	routing        *routing.Routing
 	roundTripper   http.RoundTripper
@@ -563,6 +569,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Close causes the proxy to stop closing idle
+// connections and, currently, has no other effect.
+// It's primary purpose is to support testing.
 func (p *Proxy) Close() error {
 	close(p.quit)
 	return nil
