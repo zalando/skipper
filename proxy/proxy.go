@@ -487,7 +487,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		upgradeProxy := UpgradeProxy{
 			backendAddr:  backendURL,
 			reverseProxy: reverseProxy,
-			insecure:     p.options.Insecure(),
+			insecure:     p.flags.Insecure(),
 		}
 		upgradeProxy.ServeHTTP(w, r)
 		log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(r))
