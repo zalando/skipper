@@ -366,7 +366,6 @@ func sendError(w http.ResponseWriter, error string, code int) {
 
 // http.Handler implementation
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
@@ -386,8 +385,8 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if isUpgradeRequest(r) {
 		backendURL, err := url.Parse(rt.Backend)
 		if err != nil {
+			log.Errorf("Can not parse backend %s, caused by: %s", rt.Backend, err)
 			sendError(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
-			log.Warnf("Can not parse backend %s, caused by: %s", rt.Backend, err)
 			return
 		}
 		reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
