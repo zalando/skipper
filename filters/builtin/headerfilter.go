@@ -103,7 +103,7 @@ func NewAppendRequestHeader() filters.Spec {
 
 // Returns a filter specification that is used to delete headers for requests.
 // Instances expect one parameter: the header name.
-// Name: "dropResponseHeader".
+// Name: "dropRequestHeader".
 func NewDropRequestHeader() filters.Spec {
 	return &headerFilter{typ: dropRequestHeader}
 }
