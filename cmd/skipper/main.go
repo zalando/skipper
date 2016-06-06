@@ -39,13 +39,14 @@ import (
 )
 
 const (
-	defaultAddress              = ":9090"
-	defaultEtcdPrefix           = "/skipper"
-	defaultSourcePollTimeout    = int64(3000)
-	defaultMetricsListener      = ":9911"
-	defaultMetricsPrefix        = "skipper."
-	defaultRuntimeMetrics       = true
-	defaultApplicationLogPrefix = "[APP]"
+	defaultAddress               = ":9090"
+	defaultEtcdPrefix            = "/skipper"
+	defaultSourcePollTimeout     = int64(3000)
+	defaultMetricsListener       = ":9911"
+	defaultMetricsPrefix         = "skipper."
+	defaultRuntimeMetrics        = true
+	defaultApplicationLogPrefix  = "[APP]"
+	defaultBackendFlushIntervall = 200 * time.Millisecond
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -75,6 +76,7 @@ const (
 	debugEndpointUsage             = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
 	certPathTLSUsage               = "the path on the local filesystem to the certificate file (including any intermediates)"
 	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file"
+	backendFlushIntervallUsage     = "flush intervall for upgraded proxy connections"
 )
 
 var (
@@ -106,6 +108,7 @@ var (
 	debugListener             string
 	certPathTLS               string
 	keyPathTLS                string
+	backendFlushIntervall     time.Duration
 )
 
 func init() {
@@ -137,6 +140,7 @@ func init() {
 	flag.StringVar(&debugListener, "debug-listener", "", debugEndpointUsage)
 	flag.StringVar(&certPathTLS, "tls-cert", "", certPathTLSUsage)
 	flag.StringVar(&keyPathTLS, "tls-key", "", keyPathTLSUsage)
+	flag.DurationVar(&backendFlushIntervall, "backend-flush-intervall", defaultBackendFlushIntervall, backendFlushIntervallUsage)
 	flag.Parse()
 }
 
@@ -174,6 +178,7 @@ func main() {
 		DebugListener:             debugListener,
 		CertPathTLS:               certPathTLS,
 		KeyPathTLS:                keyPathTLS,
+		BackendFlushIntervall:     backendFlushIntervall,
 	}
 
 	if insecure {

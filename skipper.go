@@ -177,6 +177,9 @@ type Options struct {
 	CertPathTLS string
 	//Path of key when using TLS
 	KeyPathTLS string
+
+	// Flush intervall for upgraded Proxy connections
+	BackendFlushIntervall time.Duration
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -359,7 +362,8 @@ func Run(o Options) error {
 		Flags:                  proxyFlags,
 		PriorityRoutes:         o.PriorityRoutes,
 		IdleConnectionsPerHost: o.IdleConnectionsPerHost,
-		CloseIdleConnsPeriod:   o.CloseIdleConnsPeriod}
+		CloseIdleConnsPeriod:   o.CloseIdleConnsPeriod,
+		FlushIntervall:         o.BackendFlushIntervall}
 
 	if o.DebugListener != "" {
 		do := proxyOptions

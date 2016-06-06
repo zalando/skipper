@@ -105,6 +105,9 @@ type ProxyOptions struct {
 	// And optional list of priority routes to be used for matching
 	// before the general lookup tree.
 	PriorityRoutes []PriorityRoute
+
+	// The Flush intervall for copying upgraded connections
+	FlushIntervall time.Duration
 }
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
@@ -150,6 +153,7 @@ type Proxy struct {
 	flags          ProxyFlags
 	metrics        *metrics.Metrics
 	quit           chan struct{}
+	flushIntervall time.Duration
 }
 
 type filterContext struct {
@@ -275,7 +279,8 @@ func NewProxy(o ProxyOptions) *Proxy {
 		priorityRoutes: o.PriorityRoutes,
 		flags:          o.Flags,
 		metrics:        m,
-		quit:           quit}
+		quit:           quit,
+		flushIntervall: o.FlushIntervall}
 }
 
 // calls a function with recovering from panics and logging them
@@ -478,7 +483,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
-		reverseProxy.FlushInterval = 200 * time.Millisecond // TODO: make it configurable
+		reverseProxy.FlushInterval = p.flushIntervall
 		upgradeProxy := UpgradeProxy{
 			backendAddr:  backendURL,
 			reverseProxy: reverseProxy,
