@@ -98,9 +98,9 @@ prepend       a chain of filters to be prepended to the filter chain in
               each route
 prepend file  a file containing a chain of filters to be prepended to the
               filter chain in each route
-append        a chain of filters to be prepended to the filter chain in
+append        a chain of filters to be appended to the filter chain in
               each route
-append file   a file containing a chain of filters to be prepended to the
+append file   a file containing a chain of filters to be appended to the
               filter chain in each route
 
 Media flags:

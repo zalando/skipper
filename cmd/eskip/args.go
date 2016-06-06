@@ -193,19 +193,19 @@ func processFileArg() (*medium, error) {
 }
 
 // returns stdin type medium if stdin is not TTY.
-func processStdin() (*medium, error) {
+func processStdin() *medium {
 
 	// what can go wrong
 	fdint := int(os.Stdin.Fd())
 
 	if isTest || terminal.IsTerminal(fdint) {
-		return nil, nil
+		return nil
 	}
 
-	return &medium{typ: stdin}, nil
+	return &medium{typ: stdin}
 }
 
-func processPatchArgs(pfilters, pfile, afilters, afile string) ([]*medium, error) {
+func processPatchArgs(pfilters, pfile, afilters, afile string) []*medium {
 	var media []*medium
 
 	if pfilters != "" {
@@ -224,7 +224,7 @@ func processPatchArgs(pfilters, pfile, afilters, afile string) ([]*medium, error
 		media = append(media, &medium{typ: patchAppendFile, patchFile: afile})
 	}
 
-	return media, nil
+	return media
 }
 
 // returns media detected from the executing command.
@@ -276,20 +276,14 @@ func processArgs() ([]*medium, error) {
 		media = append(media, fileArg)
 	}
 
-	stdinArg, err := processStdin()
-	if err != nil {
-		return nil, err
-	}
+	stdinArg := processStdin()
 
 	if stdinArg != nil {
 		media = append(media, stdinArg)
 	}
 
-	patchMedia, err := processPatchArgs(
+	patchMedia := processPatchArgs(
 		prependFiltersArg, prependFileArg, appendFiltersArg, appendFileArg)
-	if err != nil {
-		return nil, err
-	}
 	media = append(media, patchMedia...)
 
 	return media, nil
