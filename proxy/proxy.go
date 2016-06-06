@@ -391,7 +391,11 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
 		reverseProxy.FlushInterval = 200 * time.Millisecond // TODO: make it configurable
-		upgradeProxy := UpgradeProxy{backendAddr: backendURL, reverseProxy: reverseProxy}
+		upgradeProxy := UpgradeProxy{
+			backendAddr:  backendURL,
+			reverseProxy: reverseProxy,
+			insecure:     p.options.Insecure(),
+		}
 		upgradeProxy.ServeHTTP(w, r)
 		log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(r))
 		return

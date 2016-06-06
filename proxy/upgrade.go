@@ -53,6 +53,7 @@ func getUpgradeRequest(req *http.Request) string {
 type UpgradeProxy struct {
 	backendAddr  *url.URL
 	reverseProxy *httputil.ReverseProxy
+	insecure     bool
 }
 
 // ServeHTTP inspects the request and either proxies an upgraded connection directly,
@@ -98,16 +99,19 @@ func (p *UpgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 		return net.Dial("tcp", dialAddr)
 	case "https":
 		// TODO(sszuecs): make TLS verification configurable and implement to verify it as default.
-		tlsConn, err := tls.Dial("tcp", dialAddr, &tls.Config{InsecureSkipVerify: true})
-		if err != nil {
-			return nil, err
+		if p.insecure {
+			tlsConn, err := tls.Dial("tcp", dialAddr, &tls.Config{InsecureSkipVerify: true})
+			if err != nil {
+				return nil, err
+			}
+			return tlsConn, err
 		}
+		return nil, fmt.Errorf("TLS verification is not implemented, yet")
 		// 	hostToVerify, _, err := net.SplitHostPort(dialAddr)
 		// 	if err != nil {
 		// 		return nil, err
 		// 	}
 		//err = tlsConn.VerifyHostname(hostToVerify)
-		return tlsConn, err
 	default:
 		return nil, fmt.Errorf("unknown scheme: %s", p.backendAddr.Scheme)
 	}
