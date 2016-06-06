@@ -7,8 +7,8 @@ environment that they are running in.
 Some of the scripts contain commented instructions to be able to compare the results with other similar
 utilities, e.g. nginx. Feel free to mod these scripts.
 
-WARNING: in the following benchmarks, some of the error messages are muted, which means that when done, the
-transfer rate needs to be verified in the output.
+WARNING: in the following benchmarks, some of the error messages are muted, which means that, when done,
+the transfer rate needs to be verified in the output.
 
 Dependencies: bash, wrk. For generating TLS keys, openssl.
 
@@ -42,7 +42,7 @@ time of 3s.
 ## Benchmark Compress
 
 ```
-skptesting/benchmark-static.sh 12 128 3
+skptesting/benchmark-compress.sh 12 128 3
 ```
 
 Benchmarks skipper as an HTTP compression proxy with a static file server behind it, running for 12s, over 128
@@ -92,7 +92,7 @@ skptestint/print-mem-profile.sh
 
 Prints the CPU profile saved from the last run of skptesting/profile-proxy.sh.
 
-## Self Certificate
+## Self-signed Certificate
 
 ```
 skptesting/self-cert.sh
