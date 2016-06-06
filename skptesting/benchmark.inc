@@ -58,22 +58,14 @@ skp() {
 
 	skipper -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" -insecure \
 		-tls-key "$tlskey" -tls-cert "$tlscert" 2> \
-		>(grep -v 'write: broken pipe' | \
-		grep -v 'connection reset by peer' | \
-		grep -v 'getsockopt: connection refused' | \
-		grep -v 'INFO') &
+		>(grep -Ev 'write: broken pipe|connection reset by peer|getsockopt: connection refused|INFO') &
 	pids="$pids $!"
 }
 
 skp-pprof() {
 	skptesting "$cwd"/cpu-profile.prof "$cwd"/mem-profile.prof "$1" "$2" 2> \
-		>(grep -v 'write: broken pipe' | \
-		grep -v 'EOF' | \
-		grep -v 'write: connection reset by peer' | \
-		grep -v 'getsockopt: connection refused' | \
-		grep -v 'connect: cannot assign requested address' | \
-		grep -v 'read: connection reset by peer' | \
-		grep -v 'INFO') &
+		>(grep -Ev 'write: broken pipe|EOF|write: connection reset by peer|getsockopt: connection refused' | \
+		grep -Ev 'connect: cannot assign requested address|read: connection reset by peer|INFO') &
 	pids="$pids $!"
 }
 
