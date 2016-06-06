@@ -49,15 +49,15 @@ func getUpgradeRequest(req *http.Request) string {
 	return ""
 }
 
-// SpdyProxy stores everything needed to make the connection upgrade.
-type SpdyProxy struct {
+// UpgradeProxy stores everything needed to make the connection upgrade.
+type UpgradeProxy struct {
 	backendAddr  *url.URL
 	reverseProxy *httputil.ReverseProxy
 }
 
 // ServeHTTP inspects the request and either proxies an upgraded connection directly,
 // or uses httputil.ReverseProxy to proxy the normal request.
-func (p *SpdyProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (p *UpgradeProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	newReq, err := p.newProxyRequest(req)
 	if err != nil {
 		log.Errorf("Error creating backend request: %s", err)
@@ -69,7 +69,7 @@ func (p *SpdyProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	p.serveUpgrade(w, newReq)
 }
 
-func (p *SpdyProxy) newProxyRequest(req *http.Request) (*http.Request, error) {
+func (p *UpgradeProxy) newProxyRequest(req *http.Request) (*http.Request, error) {
 	// TODO is this the best way to clone the original request and create
 	// the new request for the backend? Do we need to copy anything else?
 
@@ -90,7 +90,7 @@ func (p *SpdyProxy) newProxyRequest(req *http.Request) (*http.Request, error) {
 	return newReq, nil
 }
 
-func (p *SpdyProxy) dialBackend(req *http.Request) (net.Conn, error) {
+func (p *UpgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 	dialAddr := CanonicalAddr(req.URL)
 
 	switch p.backendAddr.Scheme {
@@ -113,7 +113,7 @@ func (p *SpdyProxy) dialBackend(req *http.Request) (net.Conn, error) {
 	}
 }
 
-func (p *SpdyProxy) serveUpgrade(w http.ResponseWriter, req *http.Request) {
+func (p *UpgradeProxy) serveUpgrade(w http.ResponseWriter, req *http.Request) {
 	backendConn, err := p.dialBackend(req)
 	if err != nil {
 		log.Errorf("Error connecting to backend: %s", err)
