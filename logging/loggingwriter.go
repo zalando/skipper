@@ -2,7 +2,6 @@ package logging
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"net/http"
 )
@@ -35,11 +34,10 @@ func (lw *loggingWriter) Flush() {
 	lw.writer.(http.Flusher).Flush()
 }
 
-func (lh *loggingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	hij, ok := lh.writer.(http.Hijacker)
+func (lw *loggingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hij, ok := lw.writer.(http.Hijacker)
 	if ok {
 		return hij.Hijack()
 	}
-	fmt.Printf("Could not Hijack logging handler")
-	panic("foo")
+	panic("Could not Hijack logging handler")
 }
