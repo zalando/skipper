@@ -146,7 +146,7 @@ func (p *UpgradeProxy) serveUpgrade(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		log.Printf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
+		log.Errorf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
 		// TODO(sszuecs): should we use http.StatusUnauthorized intead?
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Internal Server Error"))
