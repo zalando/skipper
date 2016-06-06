@@ -384,18 +384,17 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isUpgradeRequest(r) {
-		log.Println("request belongs to us")
 		backendURL, err := url.Parse(rt.Backend)
 		if err != nil {
-			log.Fatalf("Can not parse backend %s, caused by: %s", rt.Backend, err)
+			sendError(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
+			log.Warnf("Can not parse backend %s, caused by: %s", rt.Backend, err)
+			return
 		}
 		reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
-		reverseProxy.FlushInterval = 200 * time.Millisecond
-		log.Println("created reverseProxy")
+		reverseProxy.FlushInterval = 200 * time.Millisecond // TODO: make it configurable
 		spyp := SpdyProxy{backendAddr: backendURL, reverseProxy: reverseProxy}
-		log.Println("created SpdyProxy")
 		spyp.ServeHTTP(w, r)
-		log.Println("served spdy request")
+		log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(r))
 		return
 	}
 
