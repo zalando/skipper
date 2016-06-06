@@ -61,6 +61,8 @@ const (
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	proxyPreserveHostUsage         = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
+	idleConnsPerHostUsage          = "maximum idle connections per backend host"
+	closeIdleConnsPeriodUsage      = "period of closing all idle connections in seconds. Not closing when less than 0"
 	devModeUsage                   = "enables developer time behavior, like ubuffered routing updates"
 	metricsListenerUsage           = "network address used for exposing the /metrics endpoint. An empty value disables metrics."
 	metricsPrefixUsage             = "allows setting a custom path prefix for metrics export"
@@ -81,6 +83,8 @@ var (
 	etcdPrefix                string
 	insecure                  bool
 	proxyPreserveHost         bool
+	idleConnsPerHost          int
+	closeIdleConnsPeriod      int
 	innkeeperUrl              string
 	sourcePollTimeout         int64
 	routesFile                string
@@ -109,6 +113,8 @@ func init() {
 	flag.StringVar(&etcdUrls, "etcd-urls", "", etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.BoolVar(&proxyPreserveHost, "proxy-preserve-host", false, proxyPreserveHostUsage)
+	flag.IntVar(&idleConnsPerHost, "idle-conns", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
+	flag.IntVar(&closeIdleConnsPeriod, "close-idle-conns", int(proxy.DefaultCloseIdleConnsPeriod/time.Second), closeIdleConnsPeriodUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
@@ -147,6 +153,8 @@ func main() {
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 		RoutesFile:                routesFile,
+		IdleConnectionsPerHost:    idleConnsPerHost,
+		CloseIdleConnsPeriod:      time.Duration(closeIdleConnsPeriod) * time.Second,
 		IgnoreTrailingSlash:       false,
 		OAuthUrl:                  oauthUrl,
 		OAuthScope:                oauthScope,
@@ -169,11 +177,11 @@ func main() {
 	}
 
 	if insecure {
-		options.ProxyOptions |= proxy.OptionsInsecure
+		options.ProxyFlags |= proxy.ProxyInsecure
 	}
 
 	if proxyPreserveHost {
-		options.ProxyOptions |= proxy.OptionsProxyPreserveHost
+		options.ProxyFlags |= proxy.ProxyPreserveHost
 	}
 
 	log.Fatal(skipper.Run(options))

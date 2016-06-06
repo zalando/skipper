@@ -1,0 +1,29 @@
+#! /bin/bash
+
+set -e
+
+if [ "$1" = "-help" ]; then
+	echo 'cpu <number of CPUs> <scaling mode>
+Example:
+cpu 8 performance
+# do something...
+cpu 8 powersave'
+	exit
+fi
+
+
+count="$1"
+if [ -z "$count" ]; then
+	echo number of CPUs required >&2
+	exit -1
+fi
+
+mode="$2"
+if [ -z "$mode" ]; then
+	echo scaling mode required >&2
+	exit -1
+fi
+
+for cpu in /sys/devices/system/cpu/cpu[0-$(expr $count - 1)]; do
+    echo $mode > $cpu/cpufreq/scaling_governor
+done

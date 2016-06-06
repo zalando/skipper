@@ -146,13 +146,15 @@ func TestGetRoundtrip(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		nil,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			nil,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags: ProxyFlagsNone})
 
 	delay()
 
@@ -208,13 +210,15 @@ func TestPostRoundtrip(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		nil,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			nil,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags: ProxyFlagsNone})
 
 	delay()
 
@@ -247,13 +251,15 @@ func TestRoute(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		nil,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			nil,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags: ProxyFlagsNone})
 
 	delay()
 
@@ -297,13 +303,15 @@ func TestStreaming(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		nil,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			nil,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags: ProxyFlagsNone})
 
 	delay()
 
@@ -378,13 +386,15 @@ func TestAppliesFilters(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		fr,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			fr,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags: ProxyFlagsNone})
 
 	delay()
 
@@ -434,13 +444,15 @@ func TestBreakFilterChain(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		fr,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			fr,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags: ProxyFlagsNone})
 
 	delay()
 
@@ -486,13 +498,15 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		fr,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			fr,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags: ProxyFlagsNone})
 
 	delay()
 
@@ -507,6 +521,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test-Header", "test-value")
 	}))
+	defer s.Close()
 
 	req, err := http.NewRequest(
 		"GET",
@@ -531,13 +546,16 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		nil,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone, prt)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			nil,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags:          ProxyFlagsNone,
+		PriorityRoutes: []PriorityRoute{prt}})
 
 	delay()
 
@@ -552,10 +570,12 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	s0 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test-Header", "priority-value")
 	}))
+	defer s0.Close()
 
 	s1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test-Header", "normal-value")
 	}))
+	defer s0.Close()
 
 	req, err := http.NewRequest(
 		"GET",
@@ -580,13 +600,16 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		nil,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone, prt)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			nil,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags:          ProxyFlagsNone,
+		PriorityRoutes: []PriorityRoute{prt}})
 
 	delay()
 
@@ -613,13 +636,15 @@ func TestFlusherImplementation(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := New(routing.New(routing.Options{
-		nil,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsNone)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			nil,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags: ProxyFlagsNone})
 
 	delay()
 
@@ -670,13 +695,15 @@ func TestOriginalRequestResponse(t *testing.T) {
 
 	fr := builtin.MakeRegistry()
 	fr.Register(&preserveOriginalSpec{})
-	p := New(routing.New(routing.Options{
-		fr,
-		routing.MatchingOptionsNone,
-		sourcePollTimeout,
-		[]routing.DataClient{dc},
-		nil,
-		0}), OptionsPreserveOriginal)
+	p := NewProxy(ProxyOptions{
+		Routing: routing.New(routing.Options{
+			fr,
+			routing.MatchingOptionsNone,
+			sourcePollTimeout,
+			[]routing.DataClient{dc},
+			nil,
+			0}),
+		Flags: ProxyPreserveOriginal})
 
 	delay()
 
@@ -692,6 +719,7 @@ func TestHostHeader(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Received-Host", r.Host)
 	}))
+	defer backend.Close()
 
 	// take the generated host part of the backend
 	bu, err := url.Parse(backend.URL)
@@ -703,109 +731,109 @@ func TestHostHeader(t *testing.T) {
 
 	for _, ti := range []struct {
 		msg          string
-		options      Options
+		flags        ProxyFlags
 		routeFmt     string
 		incomingHost string
 		expectedHost string
 	}{{
 		"no proxy preserve",
-		OptionsNone,
+		ProxyFlagsNone,
 		`route: Any() -> "%s"`,
 		"www.example.org",
 		backendHost,
 	}, {
 		"no proxy preserve, route preserve not",
-		OptionsNone,
+		ProxyFlagsNone,
 		`route: Any() -> preserveHost("false") -> "%s"`,
 		"www.example.org",
 		backendHost,
 	}, {
 		"no proxy preserve, route preserve",
-		OptionsNone,
+		ProxyFlagsNone,
 		`route: Any() -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"www.example.org",
 	}, {
 		"no proxy preserve, route preserve not, explicit host last",
-		OptionsNone,
+		ProxyFlagsNone,
 		`route: Any() -> preserveHost("false") -> requestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"no proxy preserve, route preserve, explicit host last",
-		OptionsNone,
+		ProxyFlagsNone,
 		`route: Any() -> preserveHost("true") -> requestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"no proxy preserve, route preserve not, explicit host first",
-		OptionsNone,
+		ProxyFlagsNone,
 		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"no proxy preserve, route preserve, explicit host last",
-		OptionsNone,
+		ProxyFlagsNone,
 		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve",
-		OptionsProxyPreserveHost,
+		ProxyPreserveHost,
 		`route: Any() -> "%s"`,
 		"www.example.org",
 		"www.example.org",
 	}, {
 		"proxy preserve, route preserve not",
-		OptionsProxyPreserveHost,
+		ProxyPreserveHost,
 		`route: Any() -> preserveHost("false") -> "%s"`,
 		"www.example.org",
 		backendHost,
 	}, {
 		"proxy preserve, route preserve",
-		OptionsProxyPreserveHost,
+		ProxyPreserveHost,
 		`route: Any() -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"www.example.org",
 	}, {
 		"proxy preserve, route preserve not, explicit host last",
-		OptionsProxyPreserveHost,
+		ProxyPreserveHost,
 		`route: Any() -> preserveHost("false") -> requestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve, route preserve, explicit host last",
-		OptionsProxyPreserveHost,
+		ProxyPreserveHost,
 		`route: Any() -> preserveHost("true") -> requestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve, route preserve not, explicit host first",
-		OptionsProxyPreserveHost,
+		ProxyPreserveHost,
 		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve, route preserve, explicit host last",
-		OptionsProxyPreserveHost,
+		ProxyPreserveHost,
 		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"debug proxy, route not found",
-		OptionsProxyPreserveHost | OptionsDebug,
+		ProxyPreserveHost | ProxyDebug,
 		`route: Path("/hello") -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"",
 	}, {
 		"debug proxy, shunt route",
-		OptionsProxyPreserveHost | OptionsDebug,
+		ProxyPreserveHost | ProxyDebug,
 		`route: Any() -> <shunt>`,
 		"www.example.org",
 		"",
 	}, {
 		"debug proxy, full circle",
-		OptionsProxyPreserveHost | OptionsDebug,
+		ProxyPreserveHost | ProxyDebug,
 		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
@@ -827,7 +855,7 @@ func TestHostHeader(t *testing.T) {
 			MatchingOptions: routing.MatchingOptionsNone,
 			PollTimeout:     42 * time.Microsecond,
 			DataClients:     []routing.DataClient{dc}})
-		ps := httptest.NewServer(New(r, ti.options))
+		ps := httptest.NewServer(NewProxy(ProxyOptions{Routing: r, Flags: ti.flags}))
 
 		// wait for the routing table was activated
 		healthcheckDone := make(chan struct{})
@@ -869,7 +897,7 @@ func TestHostHeader(t *testing.T) {
 			continue
 		}
 
-		if ti.options.Debug() {
+		if ti.flags.Debug() {
 			ps.Close()
 			return
 		}

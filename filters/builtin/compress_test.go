@@ -424,10 +424,12 @@ func TestCompress(t *testing.T) {
 				time.Sleep(writeDelay)
 			}
 		}))
+		defer s.Close()
 
 		p := proxytest.New(MakeRegistry(), &eskip.Route{
 			Filters: []*eskip.Filter{{Name: CompressName, Args: ti.compressArgs}},
 			Backend: s.URL})
+		defer p.Close()
 
 		req, err := http.NewRequest("GET", p.URL, nil)
 		if err != nil {

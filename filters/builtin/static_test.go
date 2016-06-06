@@ -101,6 +101,7 @@ func TestStatic(t *testing.T) {
 		pr := proxytest.New(fr, &eskip.Route{
 			Filters: []*eskip.Filter{{Name: StaticName, Args: ti.args}},
 			Shunt:   true})
+		defer pr.Close()
 
 		rsp, err := http.Get(pr.URL + ti.path)
 		if err != nil {
