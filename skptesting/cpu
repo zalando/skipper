@@ -20,7 +20,7 @@ fi
 
 mode="$2"
 if [ -z "$mode" ]; then
-	echo scaling mode required
+	echo scaling mode required >&2
 	exit -1
 fi
 

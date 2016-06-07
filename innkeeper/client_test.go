@@ -573,6 +573,7 @@ func TestConvertDeletedChangeLatest(t *testing.T) {
 
 func TestReceivesEmpty(t *testing.T) {
 	s := innkeeperServer(nil)
+	defer s.Close()
 
 	c, err := New(Options{Address: s.URL, Authentication: autoAuth(true)})
 	if err != nil {
@@ -589,6 +590,7 @@ func TestReceivesEmpty(t *testing.T) {
 func TestReceivesInitial(t *testing.T) {
 	d := testData()
 	s := innkeeperServer(d)
+	defer s.Close()
 
 	c, err := New(Options{Address: s.URL, Authentication: autoAuth(true)})
 	if err != nil {
@@ -607,6 +609,7 @@ func TestReceivesInitial(t *testing.T) {
 func TestFailingAuthOnReceive(t *testing.T) {
 	d := testData()
 	s := innkeeperServer(d)
+	defer s.Close()
 	a := autoAuth(false)
 
 	c, err := New(Options{Address: s.URL, Authentication: a})
@@ -717,6 +720,7 @@ func TestUsesPreAndPostRouteFilters(t *testing.T) {
 	}
 
 	s := innkeeperServer(d)
+	defer s.Close()
 
 	c, err := New(Options{
 		Address:          s.URL,

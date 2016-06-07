@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 /*
 This command provides an executable version of skipper with the default
 set of filters.
@@ -30,6 +16,8 @@ package main
 
 import (
 	"flag"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -61,6 +49,8 @@ const (
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	proxyPreserveHostUsage         = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
+	idleConnsPerHostUsage          = "maximum idle connections per backend host"
+	closeIdleConnsPeriodUsage      = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
 	devModeUsage                   = "enables developer time behavior, like ubuffered routing updates"
 	metricsListenerUsage           = "network address used for exposing the /metrics endpoint. An empty value disables metrics."
 	metricsPrefixUsage             = "allows setting a custom path prefix for metrics export"
@@ -81,6 +71,8 @@ var (
 	etcdPrefix                string
 	insecure                  bool
 	proxyPreserveHost         bool
+	idleConnsPerHost          int
+	closeIdleConnsPeriod      string
 	innkeeperUrl              string
 	sourcePollTimeout         int64
 	routesFile                string
@@ -109,6 +101,8 @@ func init() {
 	flag.StringVar(&etcdUrls, "etcd-urls", "", etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.BoolVar(&proxyPreserveHost, "proxy-preserve-host", false, proxyPreserveHostUsage)
+	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
+	flag.StringVar(&closeIdleConnsPeriod, "close-idle-conns-period", strconv.Itoa(int(proxy.DefaultCloseIdleConnsPeriod/time.Second)), closeIdleConnsPeriodUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
@@ -134,10 +128,30 @@ func init() {
 	flag.Parse()
 }
 
+func parseDurationFlag(ds string) (time.Duration, error) {
+	d, perr := time.ParseDuration(ds)
+	if perr == nil {
+		return d, nil
+	}
+
+	if i, serr := strconv.Atoi(ds); serr == nil {
+		return time.Duration(i) * time.Second, nil
+	} else {
+		// returning the first parse error as more informative
+		return 0, perr
+	}
+}
+
 func main() {
 	var eus []string
 	if len(etcdUrls) > 0 {
 		eus = strings.Split(etcdUrls, ",")
+	}
+
+	clsic, err := parseDurationFlag(closeIdleConnsPeriod)
+	if err != nil {
+		flag.PrintDefaults()
+		os.Exit(2)
 	}
 
 	options := skipper.Options{
@@ -147,6 +161,8 @@ func main() {
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 		RoutesFile:                routesFile,
+		IdleConnectionsPerHost:    idleConnsPerHost,
+		CloseIdleConnsPeriod:      time.Duration(clsic) * time.Second,
 		IgnoreTrailingSlash:       false,
 		OAuthUrl:                  oauthUrl,
 		OAuthScope:                oauthScope,
@@ -169,11 +185,11 @@ func main() {
 	}
 
 	if insecure {
-		options.ProxyOptions |= proxy.OptionsInsecure
+		options.ProxyFlags |= proxy.Insecure
 	}
 
 	if proxyPreserveHost {
-		options.ProxyOptions |= proxy.OptionsProxyPreserveHost
+		options.ProxyFlags |= proxy.PreserveHost
 	}
 
 	log.Fatal(skipper.Run(options))

@@ -132,6 +132,7 @@ func TestGetUser(t *testing.T) {
 
 func TestAuthenticate(t *testing.T) {
 	oas := httptest.NewServer(successHandler)
+	defer oas.Close()
 	oauthClient := New("", oas.URL, "scope0 scope1")
 	authToken, err := oauthClient.GetToken()
 
@@ -146,6 +147,7 @@ func TestAuthenticate(t *testing.T) {
 
 func TestAuthenticateFail(t *testing.T) {
 	oas := httptest.NewServer(failureHandler)
+	defer oas.Close()
 	oauthClient := New("", oas.URL, "scope0 scope1")
 	authToken, err := oauthClient.GetToken()
 

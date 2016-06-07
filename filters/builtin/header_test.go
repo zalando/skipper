@@ -200,6 +200,7 @@ func TestHeader(t *testing.T) {
 
 			w.Header().Set("X-Request-Host", r.Host)
 		}))
+		defer bs.Close()
 
 		fr := make(filters.Registry)
 		fr.Register(NewSetRequestHeader())
@@ -211,6 +212,7 @@ func TestHeader(t *testing.T) {
 		pr := proxytest.New(fr, &eskip.Route{
 			Filters: []*eskip.Filter{{Name: ti.filterName, Args: ti.args}},
 			Backend: bs.URL})
+		defer pr.Close()
 
 		req, err := http.NewRequest("GET", pr.URL, nil)
 		if err != nil {

@@ -31,41 +31,93 @@ const (
 	proxyBufferSize = 8192
 	proxyErrorFmt   = "proxy: %s"
 
-	// TODO: this should be fine tuned, yet, with benchmarks.
-	// In case it doesn't make a big difference, then a lower value
-	// can be safer, but the default 2 turned out to be too low during
-	// previous benchmarks.
-	//
-	// Also: it should be a parameter.
-	idleConnsPerHost = 64
+	// The default value set for http.Transport.MaxIdleConnsPerHost.
+	DefaultIdleConnsPerHost = 64
+
+	// The default period at which the idle connections are forcibly
+	// closed.
+	DefaultCloseIdleConnsPeriod = 20 * time.Second
 )
 
-type Options uint
+// Flags control the behavior of the proxy.
+type Flags uint
 
 const (
-	OptionsNone Options = 0
+	FlagsNone Flags = 0
 
-	// Flag indicating to ignore the verification of the TLS
-	// certificates of the backend services.
-	OptionsInsecure Options = 1 << iota
+	// Insecure causes the proxy to ignore the verification of
+	// the TLS certificates of the backend services.
+	Insecure Flags = 1 << iota
 
-	// Flag indicating whether filters require the preserved original
-	// metadata of the request and the response.
-	OptionsPreserveOriginal
+	// PreserveOriginal indicates that filters require the
+	// preserved original metadata of the request and the response.
+	PreserveOriginal
 
-	// Flag indicating whether the outgoing request to the backend
-	// should use by default the 'Host' header of the incoming request,
-	// or the host part of the backend address, in case filters don't
-	// change it.
-	OptionsProxyPreserveHost
+	// PreserveHost indicates whether the outgoing request to the
+	// backend should use by default the 'Host' header of the incoming
+	// request, or the host part of the backend address, in case filters
+	// don't change it.
+	PreserveHost
 
-	OptionsDebug
+	// Debug indicates that the current proxy instance will be used as a
+	// debug proxy. Debug proxies don't forward the request to the
+	// route backends, but they execute all filters, and return a
+	// JSON document with the changes the filters make to the request
+	// and with the approximate changes they would make to the
+	// response.
+	Debug
 )
 
-func (o Options) Insecure() bool          { return o&OptionsInsecure != 0 }
-func (o Options) PreserveOriginal() bool  { return o&(OptionsPreserveOriginal|OptionsDebug) != 0 }
-func (o Options) ProxyPreserveHost() bool { return o&OptionsProxyPreserveHost != 0 }
-func (o Options) Debug() bool             { return o&OptionsDebug != 0 }
+// Options are deprecated alias for Flags.
+type Options Flags
+
+const (
+	OptionsNone             = Options(FlagsNone)
+	OptionsInsecure         = Options(Insecure)
+	OptionsPreserveOriginal = Options(PreserveOriginal)
+	OptionsPreserveHost     = Options(PreserveHost)
+	OptionsDebug            = Options(Debug)
+)
+
+// Proxy initialization options.
+type Params struct {
+	// The proxy expects a routing instance that is used to match
+	// the incoming requests to routes.
+	Routing *routing.Routing
+
+	// Control flags. See the Flags values.
+	Flags Flags
+
+	// Same as net/http.Transport.MaxIdleConnsPerHost, but the default
+	// is 64. This value supports scenarios with relatively few remote
+	// hosts. When the routing table contains different hosts in the
+	// range of hundreds, it is recommended to set this options to a
+	// lower value.
+	IdleConnectionsPerHost int
+
+	// Defines the time period of how often the idle connections are
+	// forcibly closed. The default is 12 seconds. When set to less than
+	// 0, the proxy doesn't force closing the idle connections.
+	CloseIdleConnsPeriod time.Duration
+
+	// And optional list of priority routes to be used for matching
+	// before the general lookup tree.
+	PriorityRoutes []PriorityRoute
+}
+
+// When set, the proxy will skip the TLS verification on outgoing requests.
+func (f Flags) Insecure() bool { return f&Insecure != 0 }
+
+// When set, the filters will recieve an unmodified clone of the original
+// incoming request and response.
+func (f Flags) PreserveOriginal() bool { return f&(PreserveOriginal|Debug) != 0 }
+
+// When set, the proxy will set the, by default, the Host header value
+// of the outgoing requests to the one of the incoming request.
+func (f Flags) PreserveHost() bool { return f&PreserveHost != 0 }
+
+// When set, the proxy runs in debug mode.
+func (f Flags) Debug() bool { return f&Debug != 0 }
 
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
@@ -87,12 +139,15 @@ type bodyBuffer struct {
 	*bytes.Buffer
 }
 
-type proxy struct {
+// Proxy instances implement Skipper proxying functionality. For
+// initializing, see the WithParams the constructor and Params.
+type Proxy struct {
 	routing        *routing.Routing
 	roundTripper   http.RoundTripper
 	priorityRoutes []PriorityRoute
-	options        Options
+	flags          Flags
 	metrics        *metrics.Metrics
+	quit           chan struct{}
 }
 
 type filterContext struct {
@@ -169,23 +224,56 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	return rr, nil
 }
 
-// Creates a proxy. It expects a routing instance that is used to match
-// the incoming requests to routes. If the 'insecure' parameter is true, the
-// proxy skips the TLS verification for the requests made to the
-// route backends. It accepts an optional list of priority routes to
-// be used for matching before the general lookup tree.
-func New(r *routing.Routing, options Options, pr ...PriorityRoute) http.Handler {
-	tr := &http.Transport{}
-	if options.Insecure() {
+// Deprecated, see WithParams and Params instead.
+func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
+	return WithParams(Params{
+		Routing:              r,
+		Flags:                Flags(options),
+		PriorityRoutes:       pr,
+		CloseIdleConnsPeriod: -time.Second})
+}
+
+// Creates a proxy with the provided parameters.
+func WithParams(o Params) *Proxy {
+	if o.IdleConnectionsPerHost <= 0 {
+		o.IdleConnectionsPerHost = DefaultIdleConnsPerHost
+	}
+
+	if o.CloseIdleConnsPeriod == 0 {
+		o.CloseIdleConnsPeriod = DefaultCloseIdleConnsPeriod
+	}
+
+	tr := &http.Transport{MaxIdleConnsPerHost: o.IdleConnectionsPerHost}
+	quit := make(chan struct{})
+	if o.CloseIdleConnsPeriod > 0 {
+		go func() {
+			for {
+				select {
+				case <-time.After(o.CloseIdleConnsPeriod):
+					tr.CloseIdleConnections()
+				case <-quit:
+					return
+				}
+			}
+		}()
+	}
+
+	if o.Flags.Insecure() {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
 	m := metrics.Default
-	if options.Debug() {
+	if o.Flags.Debug() {
 		m = metrics.Void
 	}
 
-	return &proxy{r, tr, pr, options, m}
+	return &Proxy{
+		routing:        o.Routing,
+		roundTripper:   tr,
+		priorityRoutes: o.PriorityRoutes,
+		flags:          o.Flags,
+		metrics:        m,
+		quit:           quit}
 }
 
 // calls a function with recovering from panics and logging them
@@ -199,7 +287,7 @@ func tryCatch(p func(), onErr func(err interface{})) {
 	p()
 }
 
-func (p *proxy) newFilterContext(
+func (p *Proxy) newFilterContext(
 	w http.ResponseWriter,
 	r *http.Request,
 	params map[string]string,
@@ -212,11 +300,11 @@ func (p *proxy) newFilterContext(
 		stateBag:   make(map[string]interface{}),
 		backendUrl: route.Backend}
 
-	if p.options.PreserveOriginal() {
+	if p.flags.PreserveOriginal() {
 		c.originalRequest = cloneRequestMetadata(r)
 	}
 
-	if p.options.ProxyPreserveHost() {
+	if p.flags.PreserveHost() {
 		c.outgoingHost = r.Host
 	} else {
 		c.outgoingHost = route.Host
@@ -302,7 +390,7 @@ func shunt(r *http.Request) *http.Response {
 }
 
 // applies all filters to a request
-func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext, onErr func(err interface{})) []*routing.RouteFilter {
+func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterContext, onErr func(err interface{})) []*routing.RouteFilter {
 	var start time.Time
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
@@ -318,7 +406,7 @@ func (p *proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterConte
 }
 
 // executes an http roundtrip to a route backend
-func (p *proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*http.Response, error) {
+func (p *Proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*http.Response, error) {
 	rr, err := mapRequest(r, rt, host)
 	if err != nil {
 		return nil, err
@@ -328,7 +416,7 @@ func (p *proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*htt
 }
 
 // applies filters to a response in reverse order
-func (p *proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext, onErr func(err interface{})) {
+func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext, onErr func(err interface{})) {
 	count := len(filters)
 	var start time.Time
 	for i, _ := range filters {
@@ -345,7 +433,7 @@ func addBranding(headerMap http.Header) {
 	headerMap.Set("Server", "Skipper")
 }
 
-func (p *proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
+func (p *Proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
 	for _, prt := range p.priorityRoutes {
 		rt, params = prt.Match(r)
 		if rt != nil {
@@ -363,11 +451,11 @@ func sendError(w http.ResponseWriter, error string, code int) {
 }
 
 // http.Handler implementation
-func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
-		if p.options.Debug() {
+		if p.flags.Debug() {
 			dbgResponse(w, &debugInfo{
 				incoming: r,
 				response: &http.Response{StatusCode: http.StatusNotFound}})
@@ -389,7 +477,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		onErr        func(err interface{})
 		filterPanics []interface{}
 	)
-	if p.options.Debug() {
+	if p.flags.Debug() {
 		onErr = func(err interface{}) {
 			filterPanics = append(filterPanics, err)
 		}
@@ -412,7 +500,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		start = time.Now()
 		if rt.Shunt {
 			rs = shunt(r)
-		} else if p.options.Debug() {
+		} else if p.flags.Debug() {
 			debugReq, err = mapRequest(r, rt, c.outgoingHost)
 			if err != nil {
 				dbgResponse(w, &debugInfo{
@@ -449,14 +537,14 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start = time.Now()
-	if !c.served && p.options.PreserveOriginal() {
+	if !c.served && p.flags.PreserveOriginal() {
 		c.originalResponse = cloneResponseMetadata(c.Response())
 	}
 	p.applyFiltersToResponse(processedFilters, c, onErr)
 	p.metrics.MeasureAllFiltersResponse(rt.Id, start)
 
 	if !c.served {
-		if p.options.Debug() {
+		if p.flags.Debug() {
 			dbgResponse(w, &debugInfo{
 				route:        &rt.Route,
 				incoming:     c.OriginalRequest(),
@@ -479,4 +567,12 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			p.metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
 		}
 	}
+}
+
+// Close causes the proxy to stop closing idle
+// connections and, currently, has no other effect.
+// It's primary purpose is to support testing.
+func (p *Proxy) Close() error {
+	close(p.quit)
+	return nil
 }

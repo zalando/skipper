@@ -96,8 +96,20 @@ type Options struct {
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
 
-	// Flags controlling the proxy behavior.
+	// Deprecated. See ProxyFlags. When used together with ProxyFlags,
+	// the values will be combined with |.
 	ProxyOptions proxy.Options
+
+	// Flags controlling the proxy behavior.
+	ProxyFlags proxy.Flags
+
+	// Tells the proxy maximum how many idle connections can it keep
+	// alive.
+	IdleConnectionsPerHost int
+
+	// Defines the time period of how often the idle connections maintained
+	// by the proxy are closed.
+	CloseIdleConnsPeriod time.Duration
 
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
@@ -256,9 +268,9 @@ func (o *Options) isHTTPS() bool {
 	return o.CertPathTLS != "" && o.KeyPathTLS != ""
 }
 
-func listenAndServe(proxy *http.Handler, o *Options) error {
+func listenAndServe(proxy http.Handler, o *Options) error {
 	// create the access log handler
-	loggingHandler := logging.NewHandler(*proxy)
+	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
 	if o.isHTTPS() {
 		return http.ListenAndServeTLS(o.Address, o.CertPathTLS, o.KeyPathTLS, loggingHandler)
@@ -341,15 +353,24 @@ func Run(o Options) error {
 		o.CustomPredicates,
 		updateBuffer})
 
+	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
+	proxyParams := proxy.Params{
+		Routing:                routing,
+		Flags:                  proxyFlags,
+		PriorityRoutes:         o.PriorityRoutes,
+		IdleConnectionsPerHost: o.IdleConnectionsPerHost,
+		CloseIdleConnsPeriod:   o.CloseIdleConnsPeriod}
+
 	if o.DebugListener != "" {
-		dbg := proxy.New(routing, o.ProxyOptions|proxy.OptionsDebug, o.PriorityRoutes...)
+		do := proxyParams
+		do.Flags |= proxy.Debug
+		dbg := proxy.WithParams(do)
 		log.Infof("debug listener on %v", o.DebugListener)
 		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
 	}
 
 	// create the proxy
-	proxy := proxy.New(routing, o.ProxyOptions, o.PriorityRoutes...)
+	proxy := proxy.WithParams(proxyParams)
 
-	return listenAndServe(&proxy, &o)
-
+	return listenAndServe(proxy, &o)
 }

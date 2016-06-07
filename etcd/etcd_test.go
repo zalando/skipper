@@ -174,6 +174,7 @@ func TestFailedEndpointsRotation(t *testing.T) {
 
 	s2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	}))
+	defer s2.Close()
 
 	c, err := New(Options{Endpoints: []string{s.URL, s2.URL, "neverreached"}, Prefix: "/skippertest-invalid"})
 
@@ -204,6 +205,7 @@ func TestTimedoutEndpointsRotation(t *testing.T) {
 	s2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(time.Duration(5 * time.Millisecond))
 	}))
+	defer s2.Close()
 
 	c, err := New(Options{Endpoints: []string{s.URL, s2.URL, "neverreached"}, Prefix: "/skippertest-invalid"})
 	c.client.Timeout = time.Duration(1 * time.Millisecond)
@@ -236,6 +238,7 @@ func TestValidatesDocument(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"value": "different json"}`))
 	}))
+	defer s.Close()
 
 	c, err := New(Options{Endpoints: []string{s.URL}, Prefix: "/skippertest-invalid"})
 	if err != nil {
