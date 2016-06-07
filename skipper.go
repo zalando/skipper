@@ -101,7 +101,7 @@ type Options struct {
 	ProxyOptions proxy.Options
 
 	// Flags controlling the proxy behavior.
-	ProxyFlags proxy.ProxyFlags
+	ProxyFlags proxy.Flags
 
 	// Tells the proxy maximum how many idle connections can it keep
 	// alive.
@@ -353,8 +353,8 @@ func Run(o Options) error {
 		o.CustomPredicates,
 		updateBuffer})
 
-	proxyFlags := proxy.ProxyFlags(o.ProxyOptions) | o.ProxyFlags
-	proxyOptions := proxy.ProxyOptions{
+	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
+	proxyParams := proxy.Params{
 		Routing:                routing,
 		Flags:                  proxyFlags,
 		PriorityRoutes:         o.PriorityRoutes,
@@ -362,15 +362,15 @@ func Run(o Options) error {
 		CloseIdleConnsPeriod:   o.CloseIdleConnsPeriod}
 
 	if o.DebugListener != "" {
-		do := proxyOptions
-		do.Flags |= proxy.ProxyDebug
-		dbg := proxy.NewProxy(do)
+		do := proxyParams
+		do.Flags |= proxy.Debug
+		dbg := proxy.WithParams(do)
 		log.Infof("debug listener on %v", o.DebugListener)
 		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
 	}
 
 	// create the proxy
-	proxy := proxy.NewProxy(proxyOptions)
+	proxy := proxy.WithParams(proxyParams)
 
 	return listenAndServe(proxy, &o)
 }

@@ -100,8 +100,8 @@ func TestIdleConns(t *testing.T) {
 		256,
 		closePeriod,
 	}} {
-		p := proxytest.NewOptions(nil,
-			proxy.ProxyOptions{
+		p := proxytest.WithParams(nil,
+			proxy.Params{
 				IdleConnectionsPerHost: ti.idleConns,
 				CloseIdleConnsPeriod:   ti.closeIdleConns},
 			&eskip.Route{Id: "s0", Path: "/s0", Backend: s0.URL},

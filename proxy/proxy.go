@@ -36,57 +36,57 @@ const (
 
 	// The default period at which the idle connections are forcibly
 	// closed.
-	DefaultCloseIdleConnsPeriod = 12 * time.Second
+	DefaultCloseIdleConnsPeriod = 20 * time.Second
 )
 
-// ProxyFlags control the behavior of the proxy.
-type ProxyFlags uint
+// Flags control the behavior of the proxy.
+type Flags uint
 
 const (
-	ProxyFlagsNone ProxyFlags = 0
+	FlagsNone Flags = 0
 
-	// ProxyInsecure causes the proxy to ignore the verification of
+	// Insecure causes the proxy to ignore the verification of
 	// the TLS certificates of the backend services.
-	ProxyInsecure ProxyFlags = 1 << iota
+	Insecure Flags = 1 << iota
 
-	// ProxyPreserveOriginal indicates that filters require the
+	// PreserveOriginal indicates that filters require the
 	// preserved original metadata of the request and the response.
-	ProxyPreserveOriginal
+	PreserveOriginal
 
-	// ProxyPreserveHost indicates whether the outgoing request to the
+	// PreserveHost indicates whether the outgoing request to the
 	// backend should use by default the 'Host' header of the incoming
 	// request, or the host part of the backend address, in case filters
 	// don't change it.
-	ProxyPreserveHost
+	PreserveHost
 
-	// ProxyDebug indicates that the current proxy instance will be used as a
+	// Debug indicates that the current proxy instance will be used as a
 	// debug proxy. Debug proxies don't forward the request to the
 	// route backends, but they execute all filters, and return a
 	// JSON document with the changes the filters make to the request
 	// and with the approximate changes they would make to the
 	// response.
-	ProxyDebug
+	Debug
 )
 
-// Options are deprecated alias for ProxyFlags.
-type Options ProxyFlags
+// Options are deprecated alias for Flags.
+type Options Flags
 
 const (
-	OptionsNone              = Options(ProxyFlagsNone)
-	OptionsInsecure          = Options(ProxyInsecure)
-	OptionsPreserveOriginal  = Options(ProxyPreserveOriginal)
-	OptionsProxyPreserveHost = Options(ProxyPreserveHost)
-	OptionsDebug             = Options(ProxyDebug)
+	OptionsNone             = Options(FlagsNone)
+	OptionsInsecure         = Options(Insecure)
+	OptionsPreserveOriginal = Options(PreserveOriginal)
+	OptionsPreserveHost     = Options(PreserveHost)
+	OptionsDebug            = Options(Debug)
 )
 
 // Proxy initialization options.
-type ProxyOptions struct {
+type Params struct {
 	// The proxy expects a routing instance that is used to match
 	// the incoming requests to routes.
 	Routing *routing.Routing
 
-	// Control flags. See the ProxyFlags values.
-	Flags ProxyFlags
+	// Control flags. See the Flags values.
+	Flags Flags
 
 	// Same as net/http.Transport.MaxIdleConnsPerHost, but the default
 	// is 64. This value supports scenarios with relatively few remote
@@ -106,18 +106,18 @@ type ProxyOptions struct {
 }
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
-func (f ProxyFlags) Insecure() bool { return f&ProxyInsecure != 0 }
+func (f Flags) Insecure() bool { return f&Insecure != 0 }
 
 // When set, the filters will recieve an unmodified clone of the original
 // incoming request and response.
-func (f ProxyFlags) PreserveOriginal() bool { return f&(ProxyPreserveOriginal|ProxyDebug) != 0 }
+func (f Flags) PreserveOriginal() bool { return f&(PreserveOriginal|Debug) != 0 }
 
 // When set, the proxy will set the, by default, the Host header value
 // of the outgoing requests to the one of the incoming request.
-func (f ProxyFlags) ProxyPreserveHost() bool { return f&ProxyPreserveHost != 0 }
+func (f Flags) PreserveHost() bool { return f&PreserveHost != 0 }
 
 // When set, the proxy runs in debug mode.
-func (f ProxyFlags) Debug() bool { return f&ProxyDebug != 0 }
+func (f Flags) Debug() bool { return f&Debug != 0 }
 
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
@@ -140,12 +140,12 @@ type bodyBuffer struct {
 }
 
 // Proxy instances implement Skipper proxying functionality. For
-// initializing, see NewProxy and ProyxOptions.
+// initializing, see the WithParams the constructor and Params.
 type Proxy struct {
 	routing        *routing.Routing
 	roundTripper   http.RoundTripper
 	priorityRoutes []PriorityRoute
-	flags          ProxyFlags
+	flags          Flags
 	metrics        *metrics.Metrics
 	quit           chan struct{}
 }
@@ -224,17 +224,17 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	return rr, nil
 }
 
-// Deprecated, see NewProxy and ProxyOptions instead.
+// Deprecated, see WithParams and Params instead.
 func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
-	return NewProxy(ProxyOptions{
+	return WithParams(Params{
 		Routing:              r,
-		Flags:                ProxyFlags(options),
+		Flags:                Flags(options),
 		PriorityRoutes:       pr,
 		CloseIdleConnsPeriod: -time.Second})
 }
 
-// Creates a proxy.
-func NewProxy(o ProxyOptions) *Proxy {
+// Creates a proxy with the provided parameters.
+func WithParams(o Params) *Proxy {
 	if o.IdleConnectionsPerHost <= 0 {
 		o.IdleConnectionsPerHost = DefaultIdleConnsPerHost
 	}
@@ -304,7 +304,7 @@ func (p *Proxy) newFilterContext(
 		c.originalRequest = cloneRequestMetadata(r)
 	}
 
-	if p.flags.ProxyPreserveHost() {
+	if p.flags.PreserveHost() {
 		c.outgoingHost = r.Host
 	} else {
 		c.outgoingHost = route.Host
