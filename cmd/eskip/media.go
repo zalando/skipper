@@ -21,7 +21,7 @@ import (
 
 type (
 	mediaType          int
-	validateSelectFunc func(media []*medium) (in, out *medium, err error)
+	validateSelectFunc func([]*medium) (cmdArgs, error)
 )
 
 const (
@@ -32,6 +32,10 @@ const (
 	innkeeper
 	inline
 	inlineIds
+	patchPrepend
+	patchPrependFile
+	patchAppend
+	patchAppendFile
 )
 
 var commandToValidations = map[command]validateSelectFunc{
@@ -39,15 +43,18 @@ var commandToValidations = map[command]validateSelectFunc{
 	print:  validateSelectRead,
 	upsert: validateSelectWrite,
 	reset:  validateSelectWrite,
-	delete: validateSelectDelete}
+	delete: validateSelectDelete,
+	patch:  validateSelectPatch}
 
 type medium struct {
-	typ        mediaType
-	urls       []*url.URL
-	path       string
-	eskip      string
-	ids        []string
-	oauthToken string
+	typ          mediaType
+	urls         []*url.URL
+	path         string
+	eskip        string
+	ids          []string
+	oauthToken   string
+	patchFilters string
+	patchFile    string
 }
 
 var (
@@ -59,80 +66,115 @@ var (
 // validate medium from args, and check if it can be used
 // as input.
 // (check and print)
-func validateSelectRead(media []*medium) (input, _ *medium, err error) {
+func validateSelectRead(media []*medium) (a cmdArgs, err error) {
 	if len(media) > 1 {
-		return nil, nil, tooManyInputs
+		err = tooManyInputs
+		return
 	}
 
 	if len(media) == 0 {
-		m, err := processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
-		return m, nil, err
+		a.in, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix)
+		return
 	}
 
-	if media[0].typ == inlineIds {
-		return nil, nil, invalidInputType
+	switch media[0].typ {
+	case inlineIds, patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
+		err = invalidInputType
+		return
 	}
 
-	return media[0], nil, nil
+	a.in = media[0]
+	return
 }
 
 // validate media from args, and check if input was specified.
-func validateSelectWrite(media []*medium) (input, output *medium, err error) {
+func validateSelectWrite(media []*medium) (a cmdArgs, err error) {
 	if len(media) == 0 {
-		return nil, nil, missingInput
+		err = missingInput
+		return
 	}
 
 	if len(media) > 2 {
-		return nil, nil, tooManyInputs
+		err = tooManyInputs
+		return
 	}
 
-	var in, out *medium
 	for _, m := range media {
-		if m.typ == inlineIds {
-			return nil, nil, invalidInputType
+		switch media[0].typ {
+		case inlineIds, patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
+			err = invalidInputType
+			return
 		}
 
 		if m.typ == etcd || m.typ == innkeeper {
-			out = m
+			a.out = m
 		} else {
-			in = m
+			a.in = m
 		}
 	}
 
-	if in == nil {
-		return nil, nil, missingInput
+	if a.in == nil {
+		err = missingInput
 	}
 
-	return in, out, nil
+	return
 }
 
-func validateSelectDelete(media []*medium) (in, out *medium, err error) {
+func validateSelectDelete(media []*medium) (a cmdArgs, err error) {
 	if len(media) == 0 {
-		return nil, nil, nil
+		err = missingInput
+		return
 	}
 
 	if len(media) > 2 {
-		return nil, nil, tooManyInputs
+		err = tooManyInputs
+		return
 	}
 
 	for _, m := range media {
+		switch media[0].typ {
+		case patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
+			err = invalidInputType
+			return
+		}
 
 		if m.typ == etcd || m.typ == innkeeper {
-			out = m
+			a.out = m
 		} else {
-			in = m
+			a.in = m
 		}
 	}
 
-	if in == nil {
-		return nil, nil, missingInput
+	if a.in == nil {
+		err = missingInput
 	}
 
-	return in, out, nil
+	return
+}
+
+func validateSelectPatch(media []*medium) (a cmdArgs, err error) {
+	for _, m := range media {
+		switch m.typ {
+		case patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
+		case inlineIds:
+			err = invalidInputType
+			return
+		default:
+			if a.in != nil {
+				err = tooManyInputs
+				return
+			}
+
+			a.in = m
+		}
+	}
+
+	return
 }
 
 // Validates media from args for the current command, and selects input and/or output.
-func validateSelectMedia(cmd command, media []*medium) (input, output *medium, err error) {
-	// cmd should be present and valid
-	return commandToValidations[cmd](media)
+func validateSelectMedia(cmd command, media []*medium) (cmdArgs cmdArgs, err error) {
+	a, err := commandToValidations[cmd](media)
+	a.allMedia = media
+	return a, err
 }

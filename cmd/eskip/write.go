@@ -58,29 +58,38 @@ func upsertDifferent(existing []*eskip.Route, update []*eskip.Route, writeClient
 }
 
 // command executed for upsert.
-func upsertCmd(readClient readClient, _ readClient, writeClient writeClient) error {
+func upsertCmd(a cmdArgs) error {
 	// take input routes:
-	routes, err := loadRoutesChecked(readClient)
+	routes, err := loadRoutesChecked(a.in)
 	if err != nil {
 		return err
 	}
 
-	return writeClient.UpsertAll(routes)
+	wc, err := createWriteClient(a.out)
+	if err != nil {
+		return err
+	}
+
+	return wc.UpsertAll(routes)
 }
 
 // command executed for reset.
-func resetCmd(readClient readClient, readOutClient readClient, writeClient writeClient) error {
+func resetCmd(a cmdArgs) error {
 	// take input routes:
-	routes, err := loadRoutesChecked(readClient)
+	routes, err := loadRoutesChecked(a.in)
 	if err != nil {
 		return err
 	}
 
 	// take existing routes from output:
-	existing := loadRoutesUnchecked(readOutClient)
+	existing := loadRoutesUnchecked(a.out)
 
 	// upsert routes that don't exist or are different:
-	err = upsertDifferent(existing, routes, writeClient)
+	wc, err := createWriteClient(a.out)
+	if err != nil {
+		return err
+	}
+	err = upsertDifferent(existing, routes, wc)
 	if err != nil {
 		return err
 	}
@@ -92,17 +101,21 @@ func resetCmd(readClient readClient, readOutClient readClient, writeClient write
 		return !set
 	}
 
-	return writeClient.DeleteAllIf(existing, notSet)
+	return wc.DeleteAllIf(existing, notSet)
 }
 
 // command executed for delete.
-func deleteCmd(readClient readClient, _ readClient, writeClient writeClient) error {
+func deleteCmd(a cmdArgs) error {
 	// take input routes:
-	routes, err := loadRoutesChecked(readClient)
+	routes, err := loadRoutesChecked(a.in)
 	if err != nil {
 		return err
 	}
 
 	// delete them:
-	return writeClient.DeleteAllIf(routes, any)
+	wc, err := createWriteClient(a.out)
+	if err != nil {
+		return err
+	}
+	return wc.DeleteAllIf(routes, any)
 }

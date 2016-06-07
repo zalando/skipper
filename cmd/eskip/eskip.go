@@ -17,12 +17,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 )
 
 type (
 	command     string
-	commandFunc func(readClient readClient, readOutClient readClient, writeClient writeClient) error
+	commandFunc func(cmdArgs) error
 )
 
 const (
@@ -31,6 +32,7 @@ const (
 	upsert command = "upsert"
 	reset  command = "reset"
 	delete command = "delete"
+	patch  command = "patch"
 )
 
 // map command string to command function
@@ -39,12 +41,20 @@ var commands = map[command]commandFunc{
 	print:  printCmd,
 	upsert: upsertCmd,
 	reset:  resetCmd,
-	delete: deleteCmd}
+	delete: deleteCmd,
+	patch:  patchCmd}
 
 var (
 	missingCommand = errors.New("missing command")
 	invalidCommand = errors.New("invalid command")
 )
+
+var stdout io.Writer = os.Stdout
+
+type cmdArgs struct {
+	in, out  *medium
+	allMedia []*medium
+}
 
 func printStderr(args ...interface{}) {
 	fmt.Fprintln(os.Stderr, args...)
@@ -108,35 +118,16 @@ func main() {
 
 	// check if the arguments make sense, and select input/output
 	// based on the rules of the current command.
-	in, out, err := validateSelectMedia(cmd, media)
+	cmdArgs, err := validateSelectMedia(cmd, media)
 	if err != nil {
 		exitHint(err)
 	}
 
-	in, out, err = addDefaultMedia(cmd, in, out)
-
-	if err != nil {
-		exitHint(err)
-	}
-
-	writeClient, err := createWriteClient(out)
-
-	if err != nil {
-		exitHint(err)
-	}
-
-	readClient, err := createReadClient(in)
-
-	if err != nil {
-		exitHint(err)
-	}
-
-	readOutClient, err := createReadClient(out)
-
+	cmdArgs, err = addDefaultMedia(cmd, cmdArgs)
 	if err != nil {
 		exitHint(err)
 	}
 
 	// execute command:
-	exit(commands[cmd](readClient, readOutClient, writeClient))
+	exit(commands[cmd](cmdArgs))
 }

@@ -98,12 +98,12 @@ func TestAddDefaultMedia(t *testing.T) {
 				{Scheme: "https", Host: "etcd2.example.org:4001"}},
 			path: "/skipper"},
 	}} {
-		input, output, error := addDefaultMedia(item.cmd, item.in, item.out)
+		cmdArgs, error := addDefaultMedia(item.cmd, cmdArgs{in: item.in, out: item.out})
 		if error != item.err {
 			t.Error("wrong error for index: ", i)
 		}
 		//t.Error("XXX: ", input.urls[0], input.urls[1])
-		checkMedium(t, input, item.inResult, 0, i)
-		checkMedium(t, output, item.outResult, 1, i)
+		checkMedium(t, cmdArgs.in, item.inResult, 0, i)
+		checkMedium(t, cmdArgs.out, item.outResult, 1, i)
 	}
 }
