@@ -208,7 +208,7 @@ func TestValidateSelectMedia(t *testing.T) {
 			path: "/skipper",
 		},
 	}} {
-		in, out, err := validateSelectMedia(item.command, item.media)
+		cmdArgs, err := validateSelectMedia(item.command, item.media)
 		if item.fail {
 			if err == nil {
 				t.Error("failed to fail")
@@ -222,8 +222,8 @@ func TestValidateSelectMedia(t *testing.T) {
 				t.Error(err)
 			}
 
-			checkMedium(t, item.in, in, i, 0)
-			checkMedium(t, item.out, out, i, 1)
+			checkMedium(t, item.in, cmdArgs.in, i, 0)
+			checkMedium(t, item.out, cmdArgs.out, i, 1)
 		}
 	}
 }
