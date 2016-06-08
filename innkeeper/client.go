@@ -94,20 +94,22 @@ type (
 		Args []interface{} `json:"args"`
 	}
 
-	routeDef struct {
-		Matcher    matcher           `json:"matcher,omitempty"`
-		Predicates []customPredicate `json:"predicates"`
-		Filters    []filter          `json:"filters"`
-		Endpoint   string            `json:"endpoint,omitempty"`
-	}
+	// routeDef struct {
+	// 	Matcher    matcher           `json:"matcher,omitempty"`
+	// 	Predicates []customPredicate `json:"predicates"`
+	// 	Filters    []filter          `json:"filters"`
+	// 	Endpoint   string            `json:"endpoint,omitempty"`
+	// }
 
 	routeData struct {
-		Id         int64    `json:"id,omitempty"`
+		// Id         int64    `json:"id,omitempty"`
+
+		// can be ignored
 		Name       string   `json:"name,omitempty"`
-		ActivateAt string   `json:"activate_at,omitempty"`
+
 		CreatedAt  string   `json:"created_at,omitempty"`
 		DeletedAt  string   `json:"deleted_at,omitempty"`
-		Route      routeDef `json:"route"`
+		Route      string `json:"route"`
 	}
 )
 
@@ -460,11 +462,13 @@ func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 
 // Returns all active routes from Innkeeper.
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
+	// new path
 	d, err := c.requestData(true, c.opts.Address+allRoutesPath)
 	if err != nil {
 		return nil, err
 	}
 
+	// new format
 	routes, _, lastChanged := convertJsonToEskip(d, c.preRouteFilters, c.postRouteFilters)
 	if lastChanged > c.lastChanged {
 		c.lastChanged = lastChanged
