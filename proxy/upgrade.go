@@ -28,9 +28,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-var username string = ""
-var password string = ""
-
 func isUpgradeRequest(req *http.Request) bool {
 	for _, h := range req.Header[http.CanonicalHeaderKey("Connection")] {
 		if strings.Contains(strings.ToLower(h), "upgrade") {
@@ -89,6 +86,17 @@ func (p *UpgradeProxy) newProxyRequest(req *http.Request) (*http.Request, error)
 	removeAuthHeaders(newReq)
 
 	return newReq, nil
+}
+
+// addAuthHeaders adds basic auth from the given config (if specified)
+// This should be run on any requests not handled by the transport returned from TransportFor(config)
+// TODO: Get rid of the assumption, that we want to proxy from incoming 'Authorization' header to 'Basic Auth'.
+func (p *UpgradeProxy) addBasicAuthHeaders(req *http.Request) {
+	password, ok := p.backendAddr.User.Password()
+	if !ok {
+		log.Errorf("Can not get Password from given URL: %v", *p.backendAddr)
+	}
+	req.SetBasicAuth(p.backendAddr.User.Username(), password)
 }
 
 func (p *UpgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
@@ -209,13 +217,6 @@ func removeCORSHeaders(resp *http.Response) {
 	resp.Header.Del("Access-Control-Allow-Headers")
 	resp.Header.Del("Access-Control-Allow-Methods")
 	resp.Header.Del("Access-Control-Allow-Origin")
-}
-
-// addAuthHeaders adds basic auth from the given config (if specified)
-// This should be run on any requests not handled by the transport returned from TransportFor(config)
-// TODO: Get rid of the assumption, that we want to proxy from incoming 'Authorization' header to 'Basic Auth'.
-func addAuthHeaders(req *http.Request) {
-	req.SetBasicAuth(username, password)
 }
 
 // FROM: http://golang.org/src/net/http/httputil/reverseproxy.go
