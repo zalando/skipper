@@ -17,6 +17,8 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -219,6 +221,12 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	u.Scheme = rt.Scheme
 	u.Host = rt.Host
 
+	backendURL, err := url.Parse(rt.Backend)
+	if err != nil {
+		log.Fatalf("backendURL %s could not be parsed, caused by: %v", rt.Backend, err)
+	}
+	u.User = backendURL.User
+
 	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
 	if err != nil {
 		return nil, err
@@ -226,6 +234,13 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 
 	rr.Header = cloneHeader(r.Header)
 	rr.Host = host
+
+	// If there is basic auth configured int the URL we add them as headers
+	if u.User != nil {
+		up := u.User.String()
+		upBase64 := base64.StdEncoding.EncodeToString([]byte(up))
+		rr.Header.Add("Authorization", fmt.Sprintf("Basic %s", upBase64))
+	}
 
 	return rr, nil
 }
@@ -412,16 +427,6 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *filterConte
 	return filters
 }
 
-// executes an http roundtrip to a route backend
-func (p *Proxy) roundtrip(r *http.Request, rt *routing.Route, host string) (*http.Response, error) {
-	rr, err := mapRequest(r, rt, host)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.roundTripper.RoundTrip(rr)
-}
-
 // applies filters to a response in reverse order
 func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx filters.FilterContext, onErr func(err interface{})) {
 	count := len(filters)
@@ -475,25 +480,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isUpgradeRequest(r) {
-		backendURL, err := url.Parse(rt.Backend)
-		if err != nil {
-			log.Errorf("Can not parse backend %s, caused by: %s", rt.Backend, err)
-			sendError(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
-			return
-		}
-		reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
-		reverseProxy.FlushInterval = p.flushIntervall
-		upgradeProxy := UpgradeProxy{
-			backendAddr:  backendURL,
-			reverseProxy: reverseProxy,
-			insecure:     p.flags.Insecure(),
-		}
-		upgradeProxy.ServeHTTP(w, r)
-		log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(r))
-		return
-	}
-
 	p.metrics.MeasureRouteLookup(start)
 
 	start = time.Now()
@@ -541,7 +527,37 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			rs = &http.Response{Header: make(http.Header)}
 		} else {
-			rs, err = p.roundtrip(r, rt, c.outgoingHost)
+
+			rr, err := mapRequest(r, rt, c.outgoingHost)
+			if err != nil {
+				log.Errorf("Could not mapRequest, caused by: %v", err)
+				return
+			}
+
+			if IsUpgradeRequest(rr) {
+				// have to parse url again, because path is not be copied by mapRequest
+				backendURL, err := url.Parse(rt.Backend)
+				if err != nil {
+					log.Errorf("Can not parse backend %s, caused by: %s", rt.Backend, err)
+					sendError(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
+					return
+				}
+
+				reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
+				reverseProxy.FlushInterval = p.flushIntervall
+				upgradeProxy := UpgradeProxy{
+					backendAddr:  backendURL,
+					reverseProxy: reverseProxy,
+					insecure:     p.flags.Insecure(),
+				}
+				upgradeProxy.ServeHTTP(w, rr)
+				log.Debugf("Finished upgraded protocol %s session", GetUpgradeRequest(r))
+				// We are not owner of the connection anymore.
+				return
+			}
+
+			rs, err = p.roundTripper.RoundTrip(rr)
+
 			if err != nil {
 				p.metrics.IncErrorsBackend(rt.Id)
 				sendError(w,

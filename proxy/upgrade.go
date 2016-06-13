@@ -23,12 +23,15 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
 )
 
-func isUpgradeRequest(req *http.Request) bool {
+// IsUpgradeRequest returns true if and only if there is a "Connection"
+// key with the value "Upgrade" in Headers of the given request.
+func IsUpgradeRequest(req *http.Request) bool {
 	for _, h := range req.Header[http.CanonicalHeaderKey("Connection")] {
 		if strings.Contains(strings.ToLower(h), "upgrade") {
 			return true
@@ -37,10 +40,11 @@ func isUpgradeRequest(req *http.Request) bool {
 	return false
 }
 
-func getUpgradeRequest(req *http.Request) string {
+// GetUpgradeRequest returns the protocol name from the upgrade header
+func GetUpgradeRequest(req *http.Request) string {
 	for _, h := range req.Header[http.CanonicalHeaderKey("Connection")] {
 		if strings.Contains(strings.ToLower(h), "upgrade") {
-			return h
+			return strings.Join(req.Header[h], " ")
 		}
 	}
 	return ""
@@ -56,76 +60,6 @@ type UpgradeProxy struct {
 // ServeHTTP inspects the request and either proxies an upgraded connection directly,
 // or uses httputil.ReverseProxy to proxy the normal request.
 func (p *UpgradeProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	newReq, err := p.newProxyRequest(req)
-	if err != nil {
-		log.Errorf("Error creating backend request: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
-		return
-	}
-
-	p.serveUpgrade(w, newReq)
-}
-
-func (p *UpgradeProxy) newProxyRequest(req *http.Request) (*http.Request, error) {
-	// TODO is this the best way to clone the original request and create
-	// the new request for the backend? Do we need to copy anything else?
-
-	backendURL := *p.backendAddr
-	backendURL.Path = singleJoiningSlash(backendURL.Path, req.URL.Path)
-	backendURL.RawQuery = req.URL.RawQuery
-
-	newReq, err := http.NewRequest(req.Method, backendURL.String(), req.Body)
-	if err != nil {
-		return nil, err
-	}
-	// TODO is this the right way to copy headers?
-	newReq.Header = req.Header
-
-	// TODO do we need to exclude any other headers?
-	removeAuthHeaders(newReq)
-
-	return newReq, nil
-}
-
-// addAuthHeaders adds basic auth from the given config (if specified)
-// This should be run on any requests not handled by the transport returned from TransportFor(config)
-// TODO: Get rid of the assumption, that we want to proxy from incoming 'Authorization' header to 'Basic Auth'.
-func (p *UpgradeProxy) addBasicAuthHeaders(req *http.Request) {
-	password, ok := p.backendAddr.User.Password()
-	if !ok {
-		log.Errorf("Can not get Password from given URL: %v", *p.backendAddr)
-	}
-	req.SetBasicAuth(p.backendAddr.User.Username(), password)
-}
-
-func (p *UpgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
-	dialAddr := CanonicalAddr(req.URL)
-
-	switch p.backendAddr.Scheme {
-	case "http":
-		return net.Dial("tcp", dialAddr)
-	case "https":
-		// TODO(sszuecs): make TLS verification configurable and implement to verify it as default.
-		if p.insecure {
-			tlsConn, err := tls.Dial("tcp", dialAddr, &tls.Config{InsecureSkipVerify: true})
-			if err != nil {
-				return nil, err
-			}
-			return tlsConn, err
-		}
-		return nil, fmt.Errorf("TLS verification is not implemented, yet")
-		// 	hostToVerify, _, err := net.SplitHostPort(dialAddr)
-		// 	if err != nil {
-		// 		return nil, err
-		// 	}
-		//err = tlsConn.VerifyHostname(hostToVerify)
-	default:
-		return nil, fmt.Errorf("unknown scheme: %s", p.backendAddr.Scheme)
-	}
-}
-
-func (p *UpgradeProxy) serveUpgrade(w http.ResponseWriter, req *http.Request) {
 	backendConn, err := p.dialBackend(req)
 	if err != nil {
 		log.Errorf("Error connecting to backend: %s", err)
@@ -135,11 +69,18 @@ func (p *UpgradeProxy) serveUpgrade(w http.ResponseWriter, req *http.Request) {
 	}
 	defer backendConn.Close()
 
-	addAuthHeaders(req)
-
 	err = req.Write(backendConn)
 	if err != nil {
 		log.Errorf("Error writing request to backend: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal Server Error"))
+		return
+	}
+
+	// Audit-Log
+	_, err = os.Stderr.Write([]byte(fmt.Sprintf("{\"method\": \"%s\", \"path\": \"%s\", \"query\": \"%s\", \"fragment\": \"%s\"}\n", req.Method, req.URL.Path, req.URL.RawQuery, req.URL.Fragment)))
+	if err != nil {
+		log.Errorf("Could not write audit-log, caused by: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Internal Server Error"))
 		return
@@ -171,9 +112,6 @@ func (p *UpgradeProxy) serveUpgrade(w http.ResponseWriter, req *http.Request) {
 	// NOTE: from this point forward, we own the connection and we can't use
 	// w.Header(), w.Write(), or w.WriteHeader any more
 
-	removeCORSHeaders(resp)
-	removeChallengeHeaders(resp)
-
 	err = resp.Write(requestHijackedConn)
 	if err != nil {
 		log.Errorf("Error writing backend response to client: %s", err)
@@ -181,55 +119,54 @@ func (p *UpgradeProxy) serveUpgrade(w http.ResponseWriter, req *http.Request) {
 	}
 
 	done := make(chan struct{}, 2)
-	copyAsync(&backendConn, &requestHijackedConn, &done)
-	copyAsync(&requestHijackedConn, &backendConn, &done)
+	// K8s: */attach request is similar to tail -f, which would spam our logs
+	if strings.HasSuffix(req.URL.Path, "/attach") {
+		copyAsync(&done, backendConn, requestHijackedConn)
+	} else {
+		copyAsync(&done, backendConn, requestHijackedConn, os.Stdout)
+	}
+	copyAsync(&done, requestHijackedConn, backendConn)
+	log.Debugf("Successfully upgraded to protocol %s by user request", GetUpgradeRequest(req))
 	// Wait for goroutine to finish, such that the established connection does not break.
 	<-done
 }
 
-func copyAsync(src, dst *net.Conn, c *chan struct{}) {
-	go func() {
-		_, err := io.Copy(*src, *dst)
-		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-			log.Errorf("error proxying data from src(%s) to dst(%s): %v", (*src).RemoteAddr(), (*dst).RemoteAddr(), err)
+func (p *UpgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
+	dialAddr := CanonicalAddr(req.URL)
+
+	switch p.backendAddr.Scheme {
+	case "http":
+		return net.Dial("tcp", dialAddr)
+	case "https":
+		// TODO(sszuecs): make TLS verification configurable and implement to verify it as default.
+		if p.insecure {
+			tlsConn, err := tls.Dial("tcp", dialAddr, &tls.Config{InsecureSkipVerify: true})
+			if err != nil {
+				return nil, err
+			}
+			return tlsConn, err
 		}
+		return nil, fmt.Errorf("TLS verification is not implemented, yet")
+		// 	hostToVerify, _, err := net.SplitHostPort(dialAddr)
+		// 	if err != nil {
+		// 		return nil, err
+		// 	}
+		//err = tlsConn.VerifyHostname(hostToVerify)
+	default:
+		return nil, fmt.Errorf("unknown scheme: %s", p.backendAddr.Scheme)
+	}
+}
+
+func copyAsync(c *chan struct{}, src io.Reader, dst ...io.Writer) {
+	go func() {
+		w := io.MultiWriter(dst...)
+		_, err := io.Copy(w, src)
+		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+			log.Errorf("error proxying data from src to dst: %v", err)
+		}
+
 		*c <- struct{}{}
 	}()
-}
-
-// removeAuthHeaders strips authorization headers from an incoming client
-// This should be called on all requests before proxying
-// TODO: Get rid of the assumption, that we want to proxy from incoming 'Authorization' header to 'Basic Auth'
-func removeAuthHeaders(req *http.Request) {
-	req.Header.Del("Authorization")
-}
-
-// removeChallengeHeaders strips WWW-Authenticate headers from backend responses
-// This should be called on all responses before returning
-func removeChallengeHeaders(resp *http.Response) {
-	resp.Header.Del("WWW-Authenticate")
-}
-
-// removeCORSHeaders strip CORS headers sent from the backend
-// This should be called on all responses before returning
-func removeCORSHeaders(resp *http.Response) {
-	resp.Header.Del("Access-Control-Allow-Credentials")
-	resp.Header.Del("Access-Control-Allow-Headers")
-	resp.Header.Del("Access-Control-Allow-Methods")
-	resp.Header.Del("Access-Control-Allow-Origin")
-}
-
-// FROM: http://golang.org/src/net/http/httputil/reverseproxy.go
-func singleJoiningSlash(a, b string) string {
-	aslash := strings.HasSuffix(a, "/")
-	bslash := strings.HasPrefix(b, "/")
-	switch {
-	case aslash && bslash:
-		return a + b[1:]
-	case !aslash && !bslash:
-		return a + "/" + b
-	}
-	return a + b
 }
 
 // FROM: http://golang.org/src/net/http/client.go
