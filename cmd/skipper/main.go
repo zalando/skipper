@@ -46,7 +46,7 @@ const (
 	defaultMetricsPrefix         = "skipper."
 	defaultRuntimeMetrics        = true
 	defaultApplicationLogPrefix  = "[APP]"
-	defaultBackendFlushIntervall = 200 * time.Millisecond
+	defaultBackendFlushIntervall = 20 * time.Millisecond
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
