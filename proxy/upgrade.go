@@ -50,7 +50,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Errorf("Error connecting to backend: %s", err)
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte("Service Unavailable"))
+		w.Write([]byte(http.StatusText(http.StatusServiceUnavailable)))
 		return
 	}
 	defer backendConn.Close()
@@ -59,7 +59,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Errorf("Error writing request to backend: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
 
@@ -68,7 +68,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Errorf("Could not write audit-log, caused by: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
 
@@ -76,14 +76,14 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Errorf("Error reading response from backend: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		log.Errorf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Internal Server Error, we are not authorized to call the backend."))
+		w.Write([]byte(http.StatusText(http.StatusUnauthorized)))
 		return
 	}
 
@@ -91,7 +91,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Errorf("Error hijacking request connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
 	defer requestHijackedConn.Close()
