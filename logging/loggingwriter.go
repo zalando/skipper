@@ -40,5 +40,5 @@ func (lw *loggingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if ok {
 		return hij.Hijack()
 	}
-	return nil, nil, fmt.Errorf("Could not Hijack connection")
+	return nil, nil, fmt.Errorf("could not hijack connection")
 }
