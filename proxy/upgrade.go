@@ -138,7 +138,6 @@ func (p *UpgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 	case "http":
 		return net.Dial("tcp", dialAddr)
 	case "https":
-		// TODO(sszuecs): make TLS verification configurable and implement to verify it as default.
 		if p.insecure {
 			tlsConn, err := tls.Dial("tcp", dialAddr, &tls.Config{InsecureSkipVerify: true})
 			if err != nil {
@@ -146,12 +145,24 @@ func (p *UpgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 			}
 			return tlsConn, err
 		}
-		return nil, fmt.Errorf("TLS verification is not implemented, yet")
-		// 	hostToVerify, _, err := net.SplitHostPort(dialAddr)
-		// 	if err != nil {
-		// 		return nil, err
-		// 	}
-		//err = tlsConn.VerifyHostname(hostToVerify)
+		// TODO: If skipper supports using a different CA, we should support it here, too
+		hostToVerify, _, err := net.SplitHostPort(dialAddr)
+		if err != nil {
+			return nil, err
+		}
+		// system Roots are used
+		tlsConn, err := tls.Dial("tcp", dialAddr, &tls.Config{})
+		if err != nil {
+			return nil, err
+		}
+		err = tlsConn.VerifyHostname(hostToVerify)
+		if err != nil {
+			if tlsConn != nil {
+				_ = tlsConn.Close()
+			}
+			return nil, err
+		}
+		return tlsConn, nil
 	default:
 		return nil, fmt.Errorf("unknown scheme: %s", p.backendAddr.Scheme)
 	}
