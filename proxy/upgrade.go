@@ -107,11 +107,11 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	done := make(chan struct{}, 2)
 	// K8s: */attach request is similar to tail -f, which would spam our logs
 	if strings.HasSuffix(req.URL.Path, "/attach") {
-		copyAsync(&done, backendConn, requestHijackedConn)
+		copyAsync(done, backendConn, requestHijackedConn)
 	} else {
-		copyAsync(&done, backendConn, requestHijackedConn, os.Stdout)
+		copyAsync(done, backendConn, requestHijackedConn, os.Stdout)
 	}
-	copyAsync(&done, requestHijackedConn, backendConn)
+	copyAsync(done, requestHijackedConn, backendConn)
 	log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(req))
 	// Wait for goroutine to finish, such that the established connection does not break.
 	<-done
@@ -154,7 +154,7 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 	}
 }
 
-func copyAsync(c *chan struct{}, src io.Reader, dst ...io.Writer) {
+func copyAsync(c chan struct{}, src io.Reader, dst ...io.Writer) {
 	go func() {
 		w := io.MultiWriter(dst...)
 		_, err := io.Copy(w, src)
@@ -162,7 +162,7 @@ func copyAsync(c *chan struct{}, src io.Reader, dst ...io.Writer) {
 			log.Errorf("error proxying data from src to dst: %v", err)
 		}
 
-		*c <- struct{}{}
+		c <- struct{}{}
 	}()
 }
 
