@@ -15,9 +15,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-// IsUpgradeRequest returns true if and only if there is a "Connection"
+// isUpgradeRequest returns true if and only if there is a "Connection"
 // key with the value "Upgrade" in Headers of the given request.
-func IsUpgradeRequest(req *http.Request) bool {
+func isUpgradeRequest(req *http.Request) bool {
 	for _, h := range req.Header[http.CanonicalHeaderKey("Connection")] {
 		if strings.Contains(strings.ToLower(h), "upgrade") {
 			return true
@@ -26,8 +26,8 @@ func IsUpgradeRequest(req *http.Request) bool {
 	return false
 }
 
-// GetUpgradeRequest returns the protocol name from the upgrade header
-func GetUpgradeRequest(req *http.Request) string {
+// getUpgradeRequest returns the protocol name from the upgrade header
+func getUpgradeRequest(req *http.Request) string {
 	for _, h := range req.Header[http.CanonicalHeaderKey("Connection")] {
 		if strings.Contains(strings.ToLower(h), "upgrade") {
 			return strings.Join(req.Header[h], " ")
@@ -37,15 +37,15 @@ func GetUpgradeRequest(req *http.Request) string {
 }
 
 // UpgradeProxy stores everything needed to make the connection upgrade.
-type UpgradeProxy struct {
+type upgradeProxy struct {
 	backendAddr  *url.URL
 	reverseProxy *httputil.ReverseProxy
 	insecure     bool
 }
 
-// ServeHTTP inspects the request and either proxies an upgraded connection directly,
+// serveHTTP inspects the request and either proxies an upgraded connection directly,
 // or uses httputil.ReverseProxy to proxy the normal request.
-func (p *UpgradeProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	backendConn, err := p.dialBackend(req)
 	if err != nil {
 		log.Errorf("Error connecting to backend: %s", err)
@@ -112,13 +112,13 @@ func (p *UpgradeProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		copyAsync(&done, backendConn, requestHijackedConn, os.Stdout)
 	}
 	copyAsync(&done, requestHijackedConn, backendConn)
-	log.Debugf("Successfully upgraded to protocol %s by user request", GetUpgradeRequest(req))
+	log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(req))
 	// Wait for goroutine to finish, such that the established connection does not break.
 	<-done
 }
 
-func (p *UpgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
-	dialAddr := CanonicalAddr(req.URL)
+func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
+	dialAddr := canonicalAddr(req.URL)
 
 	switch p.backendAddr.Scheme {
 	case "http":
@@ -179,7 +179,7 @@ var portMap = map[string]string{
 
 // FROM: http://golang.org/src/net/http/transport.go
 // canonicalAddr returns url.Host but always with a ":port" suffix
-func CanonicalAddr(url *url.URL) string {
+func canonicalAddr(url *url.URL) string {
 	addr := url.Host
 	if !hasPort(addr) {
 		return addr + ":" + portMap[url.Scheme]

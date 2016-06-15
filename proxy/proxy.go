@@ -534,7 +534,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if IsUpgradeRequest(rr) {
+			if isUpgradeRequest(rr) {
 				// have to parse url again, because path is not be copied by mapRequest
 				backendURL, err := url.Parse(rt.Backend)
 				if err != nil {
@@ -545,13 +545,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
 				reverseProxy.FlushInterval = p.flushIntervall
-				upgradeProxy := UpgradeProxy{
+				upgradeProxy := upgradeProxy{
 					backendAddr:  backendURL,
 					reverseProxy: reverseProxy,
 					insecure:     p.flags.Insecure(),
 				}
-				upgradeProxy.ServeHTTP(w, rr)
-				log.Debugf("Finished upgraded protocol %s session", GetUpgradeRequest(r))
+				upgradeProxy.serveHTTP(w, rr)
+				log.Debugf("Finished upgraded protocol %s session", getUpgradeRequest(r))
 				// We are not owner of the connection anymore.
 				return
 			}
