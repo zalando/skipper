@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"net/http"
 )
@@ -39,5 +40,5 @@ func (lw *loggingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if ok {
 		return hij.Hijack()
 	}
-	panic("Could not Hijack logging handler")
+	return nil, nil, fmt.Errorf("Could not Hijack connection")
 }
