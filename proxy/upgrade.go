@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -44,6 +45,14 @@ type upgradeProxy struct {
 	insecure     bool
 }
 
+// TODO: add user here
+type auditLog struct {
+	Method   string `json:"method"`
+	Path     string `json:"path"`
+	Query    string `json:"query"`
+	Fragment string `json:"fragment"`
+}
+
 // serveHTTP inspects the request and either proxies an upgraded connection directly,
 // or uses httputil.ReverseProxy to proxy the normal request.
 func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
@@ -65,8 +74,9 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Audit-Log
-	_, err = os.Stderr.Write([]byte(fmt.Sprintf("{\"method\": \"%s\", \"path\": \"%s\", \"query\": \"%s\", \"fragment\": \"%s\"}\n", req.Method, req.URL.Path, req.URL.RawQuery, req.URL.Fragment)))
-
+	auditlog := &auditLog{req.Method, req.URL.Path, req.URL.RawQuery, req.URL.Fragment}
+	auditJSON, err := json.Marshal(auditlog)
+	_, err = os.Stderr.Write(auditJSON)
 	if err != nil {
 		log.Errorf("Could not write audit-log, caused by: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
