@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -65,6 +66,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Audit-Log
 	_, err = os.Stderr.Write([]byte(fmt.Sprintf("{\"method\": \"%s\", \"path\": \"%s\", \"query\": \"%s\", \"fragment\": \"%s\"}\n", req.Method, req.URL.Path, req.URL.RawQuery, req.URL.Fragment)))
+
 	if err != nil {
 		log.Errorf("Could not write audit-log, caused by: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -104,13 +106,13 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	done := make(chan struct{}, 2)
-
-	copyAsync(done, backendConn, requestHijackedConn, os.Stdout)
-	copyAsync(done, requestHijackedConn, backendConn)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	copyAsync(&wg, backendConn, requestHijackedConn, os.Stdout)
+	copyAsync(&wg, requestHijackedConn, backendConn)
 	log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(req))
 	// Wait for goroutine to finish, such that the established connection does not break.
-	<-done
+	wg.Wait()
 }
 
 func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
@@ -150,15 +152,14 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 	}
 }
 
-func copyAsync(c chan struct{}, src io.Reader, dst ...io.Writer) {
+func copyAsync(wg *sync.WaitGroup, src io.Reader, dst ...io.Writer) {
 	go func() {
 		w := io.MultiWriter(dst...)
 		_, err := io.Copy(w, src)
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			log.Errorf("error proxying data from src to dst: %v", err)
 		}
-
-		c <- struct{}{}
+		wg.Done()
 	}()
 }
 
