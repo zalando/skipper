@@ -105,12 +105,8 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	done := make(chan struct{}, 2)
-	// K8s: */attach request is similar to tail -f, which would spam our logs
-	if strings.HasSuffix(req.URL.Path, "/attach") {
-		copyAsync(done, backendConn, requestHijackedConn)
-	} else {
-		copyAsync(done, backendConn, requestHijackedConn, os.Stdout)
-	}
+
+	copyAsync(done, backendConn, requestHijackedConn, os.Stdout)
 	copyAsync(done, requestHijackedConn, backendConn)
 	log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(req))
 	// Wait for goroutine to finish, such that the established connection does not break.
