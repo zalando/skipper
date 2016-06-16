@@ -5,7 +5,7 @@ package managers.
 
 ## Docker
 
-Use the provided Dockerfile to build a docker image with Arch Linux and skipper installed from git.
+Use the provided Dockerfile to build a docker image with Arch Linux and the latest version of skipper.
 
 ```
 docker build -t my/skipper packaging
