@@ -57,7 +57,7 @@ skp() {
 	fi
 
 	skipper -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" -insecure \
-		-idle-conns "$c" -close-idle-conns 3 \
+		-idle-conns-num "$c" -close-idle-conns-period 3 \
 		-tls-key "$tlskey" -tls-cert "$tlscert" 2> \
 		>(grep -Ev 'write: broken pipe|connection reset by peer|getsockopt: connection refused|INFO') &
 	pids="$pids $!"
@@ -65,7 +65,7 @@ skp() {
 
 skp-pprof() {
 	skptesting "$cwd"/cpu-profile.prof "$cwd"/mem-profile.prof "$1" "$2" 2> \
-		-idle-conns "$c" -close-idle-conns 3 \
+		-idle-conns-num "$c" -close-idle-conns-period 3 \
 		>(grep -Ev 'write: broken pipe|EOF|write: connection reset by peer|getsockopt: connection refused' | \
 		grep -Ev 'connect: cannot assign requested address|read: connection reset by peer|INFO') &
 	pids="$pids $!"
