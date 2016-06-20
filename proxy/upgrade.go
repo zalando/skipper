@@ -53,8 +53,10 @@ type auditLog struct {
 	Fragment string `json:"fragment"`
 }
 
-// serveHTTP inspects the request and either proxies an upgraded connection directly,
-// or uses httputil.ReverseProxy to proxy the normal request.
+// serveHTTP establishes a bidirectional connection, creates an
+// auditlog for the request target, copies the data back and force and
+// write data to an auditlog. It will not return until the connection
+// is closed.
 func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	backendConn, err := p.dialBackend(req)
 	if err != nil {
