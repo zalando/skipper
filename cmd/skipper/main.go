@@ -34,6 +34,8 @@ const (
 	defaultMetricsPrefix        = "skipper."
 	defaultRuntimeMetrics       = true
 	defaultApplicationLogPrefix = "[APP]"
+	defaultBackendFlushInterval = 20 * time.Millisecond
+	defaultExperimentalUpgrade  = false
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -63,6 +65,8 @@ const (
 	debugEndpointUsage             = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
 	certPathTLSUsage               = "the path on the local filesystem to the certificate file (including any intermediates)"
 	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file"
+	backendFlushIntervalUsage      = "flush interval for upgraded proxy connections"
+	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
 )
 
 var (
@@ -94,6 +98,8 @@ var (
 	debugListener             string
 	certPathTLS               string
 	keyPathTLS                string
+	backendFlushInterval      time.Duration
+	experimentalUpgrade       bool
 )
 
 func init() {
@@ -125,6 +131,8 @@ func init() {
 	flag.StringVar(&debugListener, "debug-listener", "", debugEndpointUsage)
 	flag.StringVar(&certPathTLS, "tls-cert", "", certPathTLSUsage)
 	flag.StringVar(&keyPathTLS, "tls-key", "", keyPathTLSUsage)
+	flag.DurationVar(&backendFlushInterval, "backend-flush-interval", defaultBackendFlushInterval, backendFlushIntervalUsage)
+	flag.BoolVar(&experimentalUpgrade, "experimental-upgrade", defaultExperimentalUpgrade, experimentalUpgradeUsage)
 	flag.Parse()
 }
 
@@ -182,6 +190,8 @@ func main() {
 		DebugListener:             debugListener,
 		CertPathTLS:               certPathTLS,
 		KeyPathTLS:                keyPathTLS,
+		BackendFlushInterval:      backendFlushInterval,
+		ExperimentalUpgrade:       experimentalUpgrade,
 	}
 
 	if insecure {

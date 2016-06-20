@@ -1,6 +1,11 @@
 package logging
 
-import "net/http"
+import (
+	"bufio"
+	"fmt"
+	"net"
+	"net/http"
+)
 
 type loggingWriter struct {
 	writer http.ResponseWriter
@@ -28,4 +33,12 @@ func (lw *loggingWriter) Header() http.Header {
 
 func (lw *loggingWriter) Flush() {
 	lw.writer.(http.Flusher).Flush()
+}
+
+func (lw *loggingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hij, ok := lw.writer.(http.Hijacker)
+	if ok {
+		return hij.Hijack()
+	}
+	return nil, nil, fmt.Errorf("could not hijack connection")
 }
