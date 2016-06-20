@@ -225,12 +225,6 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	u.Scheme = rt.Scheme
 	u.Host = rt.Host
 
-	backendURL, err := url.Parse(rt.Backend)
-	if err != nil {
-		log.Fatalf("backendURL %s could not be parsed, caused by: %v", rt.Backend, err)
-	}
-	u.User = backendURL.User
-
 	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
 	if err != nil {
 		return nil, err
