@@ -67,6 +67,7 @@ func DisabledExample() {
 		FilterRegistry: filterRegistry,
 		DataClients:    []routing.DataClient{dataClient}}), proxy.OptionsNone)
 	router := httptest.NewServer(proxy)
+	defer proxy.Close()
 	defer router.Close()
 
 	// make a request to the proxy:
