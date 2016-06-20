@@ -180,6 +180,9 @@ type Options struct {
 
 	// Flush interval for upgraded Proxy connections
 	BackendFlushInterval time.Duration
+
+	// Experimental feature to handle protocol Upgrades for Websockets, SPDY, etc.
+	ExperimentalUpgrade bool
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -363,7 +366,8 @@ func Run(o Options) error {
 		PriorityRoutes:         o.PriorityRoutes,
 		IdleConnectionsPerHost: o.IdleConnectionsPerHost,
 		CloseIdleConnsPeriod:   o.CloseIdleConnsPeriod,
-		FlushInterval:         o.BackendFlushInterval}
+		FlushInterval:          o.BackendFlushInterval,
+		ExperimentalUpgrade:    o.ExperimentalUpgrade}
 
 	if o.DebugListener != "" {
 		do := proxyOptions

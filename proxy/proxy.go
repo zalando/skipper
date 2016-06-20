@@ -110,6 +110,9 @@ type ProxyOptions struct {
 
 	// The Flush interval for copying upgraded connections
 	FlushInterval time.Duration
+
+	// Enable the expiremental upgrade protocol feature
+	ExperimentalUpgrade bool
 }
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
@@ -149,13 +152,14 @@ type bodyBuffer struct {
 // Proxy instances implement Skipper proxying functionality. For
 // initializing, see NewProxy and ProyxOptions.
 type Proxy struct {
-	routing        *routing.Routing
-	roundTripper   http.RoundTripper
-	priorityRoutes []PriorityRoute
-	flags          ProxyFlags
-	metrics        *metrics.Metrics
-	quit           chan struct{}
-	flushInterval time.Duration
+	routing             *routing.Routing
+	roundTripper        http.RoundTripper
+	priorityRoutes      []PriorityRoute
+	flags               ProxyFlags
+	metrics             *metrics.Metrics
+	quit                chan struct{}
+	flushInterval       time.Duration
+	experimentalUpgrade bool
 }
 
 type filterContext struct {
@@ -289,13 +293,14 @@ func NewProxy(o ProxyOptions) *Proxy {
 	}
 
 	return &Proxy{
-		routing:        o.Routing,
-		roundTripper:   tr,
-		priorityRoutes: o.PriorityRoutes,
-		flags:          o.Flags,
-		metrics:        m,
-		quit:           quit,
-		flushInterval: o.FlushInterval}
+		routing:             o.Routing,
+		roundTripper:        tr,
+		priorityRoutes:      o.PriorityRoutes,
+		flags:               o.Flags,
+		metrics:             m,
+		quit:                quit,
+		flushInterval:       o.FlushInterval,
+		experimentalUpgrade: o.ExperimentalUpgrade}
 }
 
 // calls a function with recovering from panics and logging them
@@ -534,7 +539,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if isUpgradeRequest(rr) {
+			if p.experimentalUpgrade && isUpgradeRequest(rr) {
 				// have to parse url again, because path is not be copied by mapRequest
 				backendURL, err := url.Parse(rt.Backend)
 				if err != nil {
