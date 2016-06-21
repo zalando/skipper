@@ -71,6 +71,11 @@ func TestParseRouteExpression(t *testing.T) {
 		&Route{Method: "HEAD", Backend: "https://www.example.org"},
 		false,
 	}, {
+		"invalid method predicate",
+		`Path("/endpoint") && Method("GET", "POST") -> "https://www.example.org"`,
+		nil,
+		true,
+	}, {
 		"host regexps",
 		`Host(/^www[.]/) && Host(/[.]org$/) -> "https://www.example.org"`,
 		&Route{HostRegexps: []string{"^www[.]", "[.]org$"}, Backend: "https://www.example.org"},
