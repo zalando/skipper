@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 /*
 Package innkeeper implements a DataClient for reading skipper route
 definitions from an Innkeeper service.
@@ -35,10 +21,12 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 const (
-	allRoutesPath = "/routes"
+	allRoutesPath = "/current-routes"
 	updatePathFmt = "/updated-routes/%s"
 	bearerPrefix  = "Bearer "
 )
@@ -46,6 +34,7 @@ const (
 type (
 	matchType     string
 	authErrorType string
+	actionType    string
 )
 
 const (
@@ -62,56 +51,18 @@ const (
 	updatePathRoot    = "updated-routes"
 
 	fixedRedirectStatus = http.StatusFound
+
+	createAction = actionType("create")
+	deleteAction = actionType("delete")
 )
 
 // json serialization object for innkeeper route definitions
-type (
-	pathMatcher struct {
-		Typ   matchType `json:"type,omitempty"`
-		Match string    `json:"match,omitempty"`
-	}
-
-	headerMatcher struct {
-		Typ   matchType `json:"type,omitempty"`
-		Name  string    `json:"name,omitempty"`
-		Value string    `json:"value,omitempty"`
-	}
-
-	customPredicate struct {
-		Name string        `json:"name,omitempty"`
-		Args []interface{} `json:"args"`
-	}
-
-	matcher struct {
-		HostMatcher    string          `json:"host_matcher,omitempty"`
-		PathMatcher    *pathMatcher    `json:"path_matcher,omitempty"`
-		MethodMatcher  string          `json:"method_matcher,omitempty"`
-		HeaderMatchers []headerMatcher `json:"header_matchers"`
-	}
-
-	filter struct {
-		Name string        `json:"name,omitempty"`
-		Args []interface{} `json:"args"`
-	}
-
-	// routeDef struct {
-	// 	Matcher    matcher           `json:"matcher,omitempty"`
-	// 	Predicates []customPredicate `json:"predicates"`
-	// 	Filters    []filter          `json:"filters"`
-	// 	Endpoint   string            `json:"endpoint,omitempty"`
-	// }
-
-	routeData struct {
-		// Id         int64    `json:"id,omitempty"`
-
-		// can be ignored
-		Name       string   `json:"name,omitempty"`
-
-		CreatedAt  string   `json:"created_at,omitempty"`
-		DeletedAt  string   `json:"deleted_at,omitempty"`
-		Route      string `json:"route"`
-	}
-)
+type routeData struct {
+	Action    actionType `json:"type"`
+	Timestamp string     `json:"timestamp"`
+	Name      string     `json:"name"`
+	Eskip     string     `json:"eskip"`
+}
 
 // json serialization object for innkeeper error messages
 type apiError struct {
@@ -145,12 +96,12 @@ type Options struct {
 // A Client is used to load the whole set of routes and the updates from an
 // Innkeeper service.
 type Client struct {
-	opts             Options
-	preRouteFilters  []*eskip.Filter
-	postRouteFilters []*eskip.Filter
-	authToken        string
-	httpClient       *http.Client
-	lastChanged      string
+	opts           Options
+	prependFilters []*eskip.Filter
+	appendFilters  []*eskip.Filter
+	authToken      string
+	httpClient     *http.Client
+	lastChanged    string
 }
 
 // Returns a new Client.
@@ -166,101 +117,15 @@ func New(o Options) (*Client, error) {
 	}
 
 	return &Client{
-		opts:             o,
-		preRouteFilters:  preFilters,
-		postRouteFilters: postFilters,
+		opts:           o,
+		prependFilters: preFilters,
+		appendFilters:  postFilters,
 		httpClient: &http.Client{Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}}}, nil
 }
 
-// Converts Innkeeper header conditions to a header map.
-func convertHeaders(d *routeData) (map[string]string, map[string][]string) {
-	hs := make(map[string]string)
-	hrs := make(map[string][]string)
-	for _, h := range d.Route.Matcher.HeaderMatchers {
-		if h.Typ == matchStrict {
-			hs[h.Name] = h.Value
-		} else {
-			hrs[h.Name] = []string{h.Value}
-		}
-	}
-
-	return hs, hrs
-}
-
-// Converts the Innkeeper predicate objects in a route definition to their eskip
-// representation.
-func convertPredicates(d *routeData) []*eskip.Predicate {
-	var ps []*eskip.Predicate
-
-	for _, h := range d.Route.Predicates {
-		ps = append(ps, &eskip.Predicate{
-			Name: h.Name,
-			Args: h.Args})
-	}
-
-	return ps
-}
-
-// Converts the Innkeeper filter objects in a route definition to their eskip
-// representation.
-func convertFilters(d *routeData) []*eskip.Filter {
-	var fs []*eskip.Filter
-
-	for _, h := range d.Route.Filters {
-		fs = append(fs, &eskip.Filter{
-			Name: h.Name,
-			Args: h.Args})
-	}
-
-	return fs
-}
-
-// Converts an Innkeeper route definition to its eskip representation.
-func convertRoute(id string, d *routeData, preRouteFilters, postRouteFilters []*eskip.Filter) *eskip.Route {
-	var p string
-	var prx []string
-
-	if d.Route.Matcher.PathMatcher != nil {
-		if d.Route.Matcher.PathMatcher.Typ == matchStrict {
-			p = d.Route.Matcher.PathMatcher.Match
-		}
-
-		if d.Route.Matcher.PathMatcher.Typ == matchRegex {
-			prx = []string{d.Route.Matcher.PathMatcher.Match}
-		}
-	}
-
-	var hst []string
-	if d.Route.Matcher.HostMatcher != "" {
-		hst = []string{d.Route.Matcher.HostMatcher}
-	}
-
-	m := d.Route.Matcher.MethodMatcher
-	hs, hrs := convertHeaders(d)
-
-	ps := convertPredicates(d)
-
-	fs := preRouteFilters
-	fs = append(fs, convertFilters(d)...)
-	fs = append(fs, postRouteFilters...)
-
-	return &eskip.Route{
-		Id:            id,
-		HostRegexps:   hst,
-		Path:          p,
-		PathRegexps:   prx,
-		Method:        m,
-		Headers:       hs,
-		HeaderRegexps: hrs,
-		Predicates:    ps,
-		Filters:       fs,
-		Shunt:         d.Route.Endpoint == "",
-		Backend:       d.Route.Endpoint}
-}
-
 // Converts a set of Innkeeper route definitions to their eskip representation.
-func convertJsonToEskip(data []*routeData, preRouteFilters, postRouteFilters []*eskip.Filter) ([]*eskip.Route, []string, string) {
+func convertJsonToEskip(data []*routeData, prependFilters, appendFilters []*eskip.Filter) ([]*eskip.Route, []string, string) {
 	var (
 		routes      []*eskip.Route
 		deleted     []string
@@ -268,25 +133,25 @@ func convertJsonToEskip(data []*routeData, preRouteFilters, postRouteFilters []*
 	)
 
 	for _, d := range data {
-		id := d.Name
-		if id == "" {
-			id = fmt.Sprintf("route%d", d.Id)
+		if d.Timestamp > lastChanged {
+			lastChanged = d.Timestamp
 		}
 
-		if d.DeletedAt != "" {
-			if d.DeletedAt > lastChanged {
-				lastChanged = d.DeletedAt
+		switch d.Action {
+		case createAction:
+			r, err := eskip.Parse(d.Eskip)
+			if err == nil {
+				for _, ri := range r {
+					ri.Filters = append(prependFilters, append(ri.Filters, appendFilters...)...)
+				}
+
+				routes = append(routes, r...)
+			} else {
+				log.Error("error while parsing routes, innkeeper ", d.Name, err)
 			}
-
-			deleted = append(deleted, id)
-			continue
+		case deleteAction:
+			deleted = append(deleted, d.Name)
 		}
-
-		if d.CreatedAt > lastChanged {
-			lastChanged = d.CreatedAt
-		}
-
-		routes = append(routes, convertRoute(id, d, preRouteFilters, postRouteFilters))
 	}
 
 	return routes, deleted, lastChanged
@@ -349,7 +214,7 @@ func setAuthToken(h http.Header, value string) {
 	h.Set(authHeaderName, bearerPrefix+value)
 }
 
-func (c *Client) writeRoute(url string, route *routeData) error {
+func (c *Client) writeRoute(url string, route *jsonRoute) error {
 
 	res, err := json.Marshal(route)
 
@@ -462,14 +327,12 @@ func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 
 // Returns all active routes from Innkeeper.
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
-	// new path
 	d, err := c.requestData(true, c.opts.Address+allRoutesPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// new format
-	routes, _, lastChanged := convertJsonToEskip(d, c.preRouteFilters, c.postRouteFilters)
+	routes, _, lastChanged := convertJsonToEskip(d, c.prependFilters, c.appendFilters)
 	if lastChanged > c.lastChanged {
 		c.lastChanged = lastChanged
 	}
@@ -484,7 +347,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		return nil, nil, err
 	}
 
-	routes, deleted, lastChanged := convertJsonToEskip(d, c.preRouteFilters, c.postRouteFilters)
+	routes, deleted, lastChanged := convertJsonToEskip(d, c.prependFilters, c.appendFilters)
 	if lastChanged > c.lastChanged {
 		c.lastChanged = lastChanged
 	}
