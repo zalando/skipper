@@ -14,7 +14,7 @@ while getopts "h:s:n:p:" arg; do
 	flagCount=$(expr $flagCount + 2)
 done
 if [ $flagCount -gt 0 ]; then
-	for i in {1..$flagCount}; do shift; done
+	for (( i=0; i<$flagCount; i++ )); do shift; done
 fi
 host=${h:-http://localhost:9080}
 select=${s:-.}
@@ -67,18 +67,20 @@ mkroute() {
 		exit 1
 	fi
 
-	predicates="$1"
+	echo "$1"
+	echo "$@"
+	predicates="$@"
 	if [ -z "$predicates" ]; then
 		predicates='[]'
 	fi
 
-	put routes '{
-		"name": "'$name'",
-		"activate_at": "'$(now)'",
-		"path_id": '$path',
-		"uses_common_filters": true,
-		"route": {}
-	}'
+	# put routes '{
+	# 	"name": "'$name'",
+	# 	"activate_at": "'$(now)'",
+	# 	"path_id": '$path',
+	# 	"uses_common_filters": true,
+	# 	"route": {}
+	# }'
 }
 
 $cmd $@ | jq --monochrome-output $select
