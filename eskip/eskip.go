@@ -229,7 +229,7 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 		}
 	}
 
-	return nil
+	return err
 }
 
 // Converts a parsing route objects to the exported route definition with
