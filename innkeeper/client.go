@@ -32,7 +32,6 @@ const (
 )
 
 type (
-	matchType     string
 	authErrorType string
 	actionType    string
 )
@@ -40,17 +39,9 @@ type (
 const (
 	authHeaderName = "Authorization"
 
-	matchStrict = matchType("STRICT")
-	matchRegex  = matchType("REGEX")
-
 	authErrorAuthorization      = authErrorType("AUTH1")
 	authErrorMissingCredentials = authErrorType("AUTH2")
 	authErrorAuthentication     = authErrorType("AUTH3")
-
-	allRoutesPathRoot = "routes"
-	updatePathRoot    = "updated-routes"
-
-	fixedRedirectStatus = http.StatusFound
 
 	createAction = actionType("create")
 	deleteAction = actionType("delete")

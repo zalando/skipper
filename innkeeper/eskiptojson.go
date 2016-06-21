@@ -5,6 +5,13 @@ import (
 	"log"
 )
 
+type matchType string
+
+const (
+	matchStrict = matchType("STRICT")
+	matchRegex  = matchType("REGEX")
+)
+
 type (
 	pathMatcher struct {
 		Typ   matchType `json:"type,omitempty"`

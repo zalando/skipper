@@ -120,4 +120,4 @@ delete-route() {
 }
 
 # call subcommand and print json
-$cmd $@ | jq --monochrome-output $select
+$cmd $@ | jq --monochrome-output "$select"
