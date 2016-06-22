@@ -105,8 +105,8 @@ mkroute() {
 		"activate_at": '$(now)',
 		"path_id": '$path',
 		"uses_common_filters": true,
-		"predicates": '$predicates',
-		"filters": '$filters'
+		"predicates": '"$predicates"',
+		"filters": '"$filters"'
 	}'
 }
 
