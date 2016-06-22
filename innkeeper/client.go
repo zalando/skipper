@@ -17,12 +17,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/eskip"
 	"io"
 	"io/ioutil"
 	"net/http"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/zalando/skipper/eskip"
 )
 
 const (
