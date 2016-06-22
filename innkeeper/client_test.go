@@ -1,32 +1,22 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package innkeeper
 
 import (
 	"encoding/json"
 	"errors"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/builtin"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"path"
+	"strings"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/builtin"
 )
 
 const testAuthenticationToken = "test token"
+
+const updatePathRoot = "updated-routes"
 
 type autoAuth bool
 
@@ -52,9 +42,9 @@ func (h *innkeeperHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var responseData []*routeData
-	if r.URL.Path == "/routes" {
+	if r.URL.Path == "/current-routes" {
 		for _, di := range h.data {
-			if di.DeletedAt == "" {
+			if di.Action == createAction {
 				responseData = append(responseData, di)
 			}
 		}
@@ -65,7 +55,7 @@ func (h *innkeeperHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, di := range h.data {
-			if di.CreatedAt > lastMod || di.DeletedAt > lastMod {
+			if di.Timestamp > lastMod {
 				responseData = append(responseData, di)
 			}
 		}
@@ -86,69 +76,34 @@ func innkeeperServer(data []*routeData) *httptest.Server {
 func testData() []*routeData {
 	return []*routeData{
 		&routeData{
-			Id:         1,
-			Name:       "",
-			ActivateAt: "2015-09-28T16:58:56.955",
-			CreatedAt:  "2015-09-28T16:58:56.955",
-			DeletedAt:  "",
-			Route: routeDef{
-				Matcher: matcher{
-					HostMatcher:    "",
-					PathMatcher:    &pathMatcher{matchStrict, "/"},
-					MethodMatcher:  "GET",
-					HeaderMatchers: nil},
-				Filters:  nil,
-				Endpoint: "https://example.org:443"},
+			Name:      "route1",
+			Action:    createAction,
+			Timestamp: "2015-09-28T16:58:56.955",
+			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
 		}, &routeData{
-			Id:         2,
-			Name:       "",
-			ActivateAt: "2015-09-28T16:58:56.955",
-			CreatedAt:  "2015-09-28T16:58:56.955",
-			DeletedAt:  "2015-09-28T16:58:56.956",
-			Route: routeDef{
-				Matcher: matcher{
-					HostMatcher:    "",
-					PathMatcher:    &pathMatcher{matchStrict, "/"},
-					MethodMatcher:  "GET",
-					HeaderMatchers: nil},
-				Filters:  nil,
-				Endpoint: "https://example.org:443"},
+			Name:      "route2",
+			Action:    deleteAction,
+			Timestamp: "2015-09-28T16:58:56.956",
+			Eskip:     `route2: Path("/") && Method("GET") -> "https://example.org:443"`,
 		}, &routeData{
-			Id:         3,
-			Name:       "",
-			ActivateAt: "2015-09-28T16:58:56.955",
-			CreatedAt:  "2015-09-28T16:58:56.955",
-			DeletedAt:  "2015-09-28T16:58:56.956",
-			Route: routeDef{
-				Matcher: matcher{
-					HostMatcher:    "",
-					PathMatcher:    &pathMatcher{matchStrict, "/"},
-					MethodMatcher:  "GET",
-					HeaderMatchers: nil},
-				Filters: []filter{
-					filter{Name: "pathRewrite", Args: []interface{}{"", "/catalog"}}},
-				Endpoint: "https://example.org:443/"},
+			Name:      "route3",
+			Action:    deleteAction,
+			Timestamp: "2015-09-28T16:58:56.956",
+			Eskip:     `route3: Path("/") && Method("GET") -> "https://example.org:443"`,
 		}, &routeData{
-			Id:         4,
-			Name:       "",
-			ActivateAt: "2015-09-28T16:58:56.957",
-			CreatedAt:  "2015-09-28T16:58:56.957",
-			DeletedAt:  "",
-			Route: routeDef{
-				Matcher: matcher{
-					HostMatcher:    "",
-					PathMatcher:    &pathMatcher{matchStrict, "/catalog"},
-					MethodMatcher:  "GET",
-					HeaderMatchers: nil},
-				Filters: []filter{
-					filter{Name: "pathRewrite", Args: []interface{}{"", "/new-catalog"}}},
-				Endpoint: "https://catalog.example.org:443"}}}
+			Name:      "route4",
+			Action:    createAction,
+			Timestamp: "2015-09-28T16:58:56.957",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`,
+		}}
 }
 
 func checkDoc(t *testing.T, rs []*eskip.Route, d []*routeData) {
 	check, _, _ := convertJsonToEskip(d, nil, nil)
 	if len(rs) != len(check) {
-		t.Error("doc lengths do not match")
+		t.Error("doc lengths do not match", len(rs), len(check))
 		return
 	}
 
@@ -230,21 +185,11 @@ func checkDoc(t *testing.T, rs []*eskip.Route, d []*routeData) {
 
 func TestParsingInnkeeperSimpleRoute(t *testing.T) {
 	const testInnkeeperRoute = `{
-			"name": "THE_ROUTE",
-			"description": "this is a route",
-			"activate_at": "2015-09-28T16:58:56.957",
-			"id": 1,
-			"created_at": "2015-09-28T16:58:56.955",
-			"deleted_at": "2015-09-28T16:58:56.956",
-			"route": {
-				"matcher": {
-					"path_matcher": {
-						"match": "/hello-*",
-						"type": "REGEX"
-					}
-				}
-			}
-		}`
+		"name": "THE_ROUTE",
+		"timestamp": "2015-09-28T16:58:56.957",
+		"type": "delete",
+		"eskip": "THE_ROUTE: PathRegexp(\"/hello-.*\") -> <shunt>"
+	}`
 
 	r := routeData{}
 	err := json.Unmarshal([]byte(testInnkeeperRoute), &r)
@@ -256,65 +201,22 @@ func TestParsingInnkeeperSimpleRoute(t *testing.T) {
 		t.Error("failed to parse the name")
 	}
 
-	if r.Id != 1 || r.CreatedAt != "2015-09-28T16:58:56.955" || r.DeletedAt != "2015-09-28T16:58:56.956" ||
-		r.ActivateAt != "2015-09-28T16:58:56.957" {
+	if r.Timestamp != "2015-09-28T16:58:56.957" || r.Action != deleteAction {
 		t.Error("failed to parse route data")
 	}
 
-	if r.Route.Matcher.PathMatcher.Match != "/hello-*" || r.Route.Matcher.PathMatcher.Typ != "REGEX" {
-		t.Error("failed to parse path matcher")
-	}
-
-	if r.Route.Endpoint != "" {
-		t.Error("failed to parse the endpoint")
+	if r.Eskip != "THE_ROUTE: PathRegexp(\"/hello-.*\") -> <shunt>" {
+		t.Error("route eskip")
 	}
 }
 
 func TestParsingInnkeeperComplexRoute(t *testing.T) {
 	const testInnkeeperRoute = `{
-			"name": "THE_ROUTE",
-			"description": "this is a route",
-			"activate_at": "2015-09-28T16:58:56.957",
-			"id": 1,
-			"created_at": "2015-09-28T16:58:56.955",
-			"deleted_at": "2015-09-28T16:58:56.956",
-			"route": {
-				"matcher": {
-					"host_matcher": "example.com",
-					"path_matcher": {
-						"match": "/hello-*",
-						"type": "REGEX"
-					},
-					"method_matcher": "POST",
-					"header_matchers": [{
-						"name": "X-Host",
-						"value": "www.*",
-						"type": "REGEX"
-					}, {
-						"name": "X-Port",
-						"value": "8080",
-						"type": "STRICT"
-					}]
-				},
-                "predicates": [{
-                    "name": "customPredicate1"
-                }, {
-                    "name": "customPredicate2",
-                    "args": []
-                }, {
-                    "name": "customPredicate3",
-                    "args": ["string1", 3.14]
-                }],
-				"filters": [{
-					"name": "someFilter",
-					"args": ["Hello", 123]
-				}, {
-					"name": "someOtherFilter",
-					"args": ["Hello", 123, "World"]
-				}],
-				"endpoint": "https://www.endpoint.com:8080/endpoint"
-			}
-		}`
+		"name": "THE_ROUTE",
+		"timestamp": "2015-09-28T16:58:56.956",
+		"type": "delete",
+		"eskip": "PathRegexp(\"/hello-.*\") -> someFilter(\"Hello\", 123) -> \"https://www.example.org\""
+	}`
 
 	r := routeData{}
 	err := json.Unmarshal([]byte(testInnkeeperRoute), &r)
@@ -326,93 +228,27 @@ func TestParsingInnkeeperComplexRoute(t *testing.T) {
 		t.Error("failed to parse the name")
 	}
 
-	if r.Id != 1 || r.CreatedAt != "2015-09-28T16:58:56.955" || r.DeletedAt != "2015-09-28T16:58:56.956" ||
-		r.ActivateAt != "2015-09-28T16:58:56.957" {
+	if r.Timestamp != "2015-09-28T16:58:56.956" || r.Action != deleteAction {
 		t.Error("failed to parse route data")
 	}
 
-	if r.Route.Matcher.HostMatcher != "example.com" {
-		t.Error("failed to parse the host matcher")
-	}
-
-	if r.Route.Matcher.MethodMatcher != "POST" {
-		t.Error("failed to parse the method matcher")
-	}
-
-	if r.Route.Matcher.PathMatcher.Match != "/hello-*" || r.Route.Matcher.PathMatcher.Typ != "REGEX" {
-		t.Error("failed to parse path matcher")
-	}
-
-	if len(r.Route.Matcher.HeaderMatchers) != 2 || r.Route.Matcher.HeaderMatchers[0].Name != "X-Host" ||
-		r.Route.Matcher.HeaderMatchers[0].Typ != "REGEX" ||
-		r.Route.Matcher.HeaderMatchers[0].Value != "www.*" {
-		t.Error("failed to parse header matchers")
-	}
-
-	if len(r.Route.Predicates) != 3 ||
-		r.Route.Predicates[0].Name != "customPredicate1" ||
-		len(r.Route.Predicates[0].Args) != 0 ||
-		r.Route.Predicates[1].Name != "customPredicate2" ||
-		len(r.Route.Predicates[1].Args) != 0 ||
-		r.Route.Predicates[2].Name != "customPredicate3" ||
-		len(r.Route.Predicates[2].Args) != 2 ||
-		r.Route.Predicates[2].Args[0] != "string1" ||
-		r.Route.Predicates[2].Args[1].(float64) < 3.13 ||
-		r.Route.Predicates[2].Args[1].(float64) > 3.15 {
-		t.Error("failed to unmarshal custom predicates")
-	}
-
-	if len(r.Route.Filters) != 2 {
-		t.Error("failed to parse the filters")
-	}
-
-	if r.Route.Filters[0].Name != "someFilter" {
-		t.Error("failed to parse the filter name")
-	}
-
-	args := r.Route.Filters[0].Args
-
-	if len(args) != 2 && args[0] != "Hello" && args[1] != 123 {
-		t.Error("failed to parse the filter args")
-	}
-
-	if r.Route.Endpoint != "https://www.endpoint.com:8080/endpoint" {
-		t.Error("failed to parse the endpoint")
+	if r.Eskip != "PathRegexp(\"/hello-.*\") -> someFilter(\"Hello\", 123) -> \"https://www.example.org\"" {
+		t.Error("failed to parse route eskip")
 	}
 }
 
 func TestParsingMultipleInnkeeperRoutes(t *testing.T) {
 	const testInnkeeperRoutes = `[{
-			"name": "THE_ROUTE",
-			"description": "this is a route",
-			"activate_at": "2015-09-28T16:58:56.957",
-			"id": 1,
-			"created_at": "2015-09-28T16:58:56.955",
-			"deleted_at": "2015-09-28T16:58:56.956",
-			"route": {
-				"matcher": {
-					"path_matcher": {
-						"match": "/hello-*",
-						"type": "REGEX"
-					}
-				}
-			}
-		}, {
-			"name": "THE_ROUTE",
-			"description": "this is a route",
-			"activate_at": "2015-09-28T16:58:56.957",
-			"id": 2,
-			"created_at": "2015-09-28T16:58:56.955",
-			"deleted_at": "2015-09-28T16:58:56.956",
-			"route": {
-				"matcher": {
-					"path_matcher": {
-						"match": "/hello-*",
-						"type": "REGEX"
-					}
-				}
-			}
-		}]`
+		"name": "THE_ROUTE",
+		"timestamp": "2015-09-28T16:58:56.957",
+		"type": "create",
+		"eskip": "PathRegexp(\"/hello-.*\") -> \"https://www.example.org\""
+	}, {
+		"name": "ANOTHER_ROUTE",
+		"timestamp": "2015-09-28T16:58:56.957",
+		"type": "delete",
+		"eskip": "PathRegexp(\"/hello-.*\") -> \"https://www.example.org\""
+	}]`
 
 	rs := []*routeData{}
 	err := json.Unmarshal([]byte(testInnkeeperRoutes), &rs)
@@ -420,21 +256,7 @@ func TestParsingMultipleInnkeeperRoutes(t *testing.T) {
 		t.Error(err)
 	}
 
-	if len(rs) != 2 || rs[0].Id != 1 || rs[1].Id != 2 {
-		t.Error("failed to parse routes")
-	}
-}
-
-func TestParsingMultipleInnkeeperRoutesWithDelete(t *testing.T) {
-	const testInnkeeperRoutes = `[{"id": 1}, {"id": 2, "deleted_at": "2015-09-28T16:58:56.956"}]`
-
-	rs := []*routeData{}
-	err := json.Unmarshal([]byte(testInnkeeperRoutes), &rs)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(rs) != 2 || rs[0].Id != 1 || rs[1].Id != 2 || rs[0].DeletedAt != "" || rs[1].DeletedAt != "2015-09-28T16:58:56.956" {
+	if len(rs) != 2 || rs[0].Name != "THE_ROUTE" || rs[1].Name != "ANOTHER_ROUTE" {
 		t.Error("failed to parse routes")
 	}
 }
@@ -470,105 +292,6 @@ func TestConvertDoc(t *testing.T) {
 
 	test(len(deleted), 2)
 	test(lastChange, "2015-09-28T16:58:56.957")
-}
-
-func TestConvertRoutePathRegexp(t *testing.T) {
-	d := &routeData{Route: routeDef{Matcher: matcher{PathMatcher: &pathMatcher{Typ: matchRegex, Match: "test-rx"}}}}
-	r := convertRoute("testRoute", d, nil, nil)
-	if len(r.PathRegexps) != 1 || r.PathRegexps[0] != "test-rx" {
-		t.Error("failed to convert path regexp")
-	}
-}
-
-func TestConvertRouteMethods(t *testing.T) {
-	d := &routeData{Id: 42, Route: routeDef{Matcher: matcher{MethodMatcher: "GET"}}}
-	rs, _, _ := convertJsonToEskip([]*routeData{d}, nil, nil)
-	if len(rs) != 1 ||
-		rs[0].Id != "route42" || rs[0].Method != "GET" {
-		t.Error("failed to convert methods")
-	}
-}
-
-func TestConvertRouteHeaders(t *testing.T) {
-	d := &routeData{Route: routeDef{Matcher: matcher{HeaderMatchers: []headerMatcher{
-		{Name: "header0", Value: "value0", Typ: matchStrict},
-		{Name: "header1", Value: "value1", Typ: matchStrict}}}}}
-	rs := convertRoute("", d, nil, nil)
-
-	if len(rs.Headers) != 2 || rs.Headers["header0"] != "value0" ||
-		rs.Headers["header1"] != "value1" {
-		t.Error("failed to convert headers")
-	}
-}
-
-func TestConvertRoutePredicates(t *testing.T) {
-	d := &routeData{Route: routeDef{Predicates: []customPredicate{{
-		Name: "customPredicate1",
-	}, {
-		Name: "customPredicate2",
-		Args: []interface{}{},
-	}, {
-		Name: "customPredicate3",
-		Args: []interface{}{"string1", 3.14},
-	}}}}
-	rs := convertRoute("", d, nil, nil)
-
-	if len(rs.Predicates) != 3 ||
-		rs.Predicates[0].Name != "customPredicate1" ||
-		len(rs.Predicates[0].Args) != 0 ||
-		rs.Predicates[1].Name != "customPredicate2" ||
-		len(rs.Predicates[1].Args) != 0 ||
-		rs.Predicates[2].Name != "customPredicate3" ||
-		len(rs.Predicates[2].Args) != 2 ||
-		rs.Predicates[2].Args[0] != "string1" ||
-		rs.Predicates[2].Args[1].(float64) < 3.13 ||
-		rs.Predicates[2].Args[1].(float64) > 3.15 {
-
-		t.Error("failed to convert custom predicates")
-	}
-}
-
-func TestConvertFilters(t *testing.T) {
-	d := &routeData{Route: routeDef{
-		Filters: []filter{
-			filter{Name: builtin.ModPathName, Args: []interface{}{"test-rx", "replacement"}},
-			filter{Name: builtin.RequestHeaderName, Args: []interface{}{"header0", "value0"}},
-			filter{Name: builtin.ResponseHeaderName, Args: []interface{}{"header1", "value1"}},
-		}}}
-
-	rs := convertRoute("", d, nil, nil)
-	if len(rs.Filters) != 3 ||
-		rs.Filters[0].Name != builtin.ModPathName || len(rs.Filters[0].Args) != 2 ||
-		rs.Filters[0].Args[0] != "test-rx" || rs.Filters[0].Args[1] != "replacement" ||
-		rs.Filters[1].Name != builtin.RequestHeaderName || len(rs.Filters[1].Args) != 2 ||
-		rs.Filters[1].Args[0] != "header0" || rs.Filters[1].Args[1] != "value0" ||
-		rs.Filters[2].Name != builtin.ResponseHeaderName || len(rs.Filters[2].Args) != 2 ||
-		rs.Filters[2].Args[0] != "header1" || rs.Filters[2].Args[1] != "value1" {
-		t.Error("failed to convert filters")
-	}
-}
-
-func TestConvertShunt(t *testing.T) {
-	d := &routeData{Route: routeDef{Filters: []filter{filter{Name: builtin.RedirectName,
-		Args: []interface{}{fixedRedirectStatus, "https://www.example.org:443/some/path"}}}}}
-	rs := convertRoute("", d, nil, nil)
-
-	if !rs.Shunt || len(rs.Filters) != 1 ||
-		rs.Filters[0].Name != builtin.RedirectName ||
-		len(rs.Filters[0].Args) != 2 ||
-		rs.Filters[0].Args[0] != fixedRedirectStatus ||
-		rs.Filters[0].Args[1] != "https://www.example.org:443/some/path" {
-		t.Error("failed to convert shunt backend")
-	}
-}
-
-func TestConvertDeletedChangeLatest(t *testing.T) {
-	d := testData()
-	d[1].DeletedAt = "2015-09-28T16:58:56.958"
-	_, _, lastChange := convertJsonToEskip(d, nil, nil)
-	if lastChange != "2015-09-28T16:58:56.958" {
-		t.Error("failed to detect deleted last change")
-	}
 }
 
 func TestReceivesEmpty(t *testing.T) {
@@ -638,22 +361,14 @@ func TestReceivesUpdates(t *testing.T) {
 	c.LoadAll()
 
 	d = testData()
-	d[2].DeletedAt = "2015-09-28T16:58:56.958"
+	d[2].Timestamp = "2015-09-28T16:58:56.958"
+	d[2].Action = deleteAction
 
 	newRoute := &routeData{
-		Id:         4,
-		Name:       "",
-		ActivateAt: "2015-09-28T16:58:56.959",
-		CreatedAt:  "2015-09-28T16:58:56.959",
-		DeletedAt:  "",
-		Route: routeDef{
-			Matcher: matcher{
-				HostMatcher:    "",
-				PathMatcher:    &pathMatcher{matchStrict, "/"},
-				MethodMatcher:  "GET",
-				HeaderMatchers: nil},
-			Filters:  nil,
-			Endpoint: "https://example.org:443/even-newer-catalog"},
+		Name:      "route4",
+		Timestamp: "2015-09-28T16:58:56.959",
+		Action:    createAction,
+		Eskip:     `Path("/") && Method("GET") -> "https://example.org"`,
 	}
 
 	d = append(d, newRoute)
@@ -686,22 +401,14 @@ func TestFailingAuthOnUpdate(t *testing.T) {
 	c.authToken = ""
 	c.opts.Authentication = autoAuth(false)
 	d = testData()
-	d[2].DeletedAt = "2015-09-28T16:58:56.958"
+	d[2].Timestamp = "2015-09-28T16:58:56.958"
+	d[2].Action = deleteAction
 
 	newRoute := &routeData{
-		Id:         4,
-		Name:       "",
-		ActivateAt: "2015-09-28T16:58:56.959",
-		CreatedAt:  "2015-09-28T16:58:56.959",
-		DeletedAt:  "",
-		Route: routeDef{
-			Matcher: matcher{
-				HostMatcher:    "",
-				PathMatcher:    &pathMatcher{matchStrict, "/"},
-				MethodMatcher:  "GET",
-				HeaderMatchers: nil},
-			Filters:  nil,
-			Endpoint: "https://example.org:443/even-newer-catalog"},
+		Name:      "route4",
+		Timestamp: "2015-09-28T16:58:56.959",
+		Action:    createAction,
+		Eskip:     `Path("/") && Method("GET") -> "https://example.org"`,
 	}
 
 	d = append(d, newRoute)
@@ -714,9 +421,9 @@ func TestFailingAuthOnUpdate(t *testing.T) {
 }
 
 func TestUsesPreAndPostRouteFilters(t *testing.T) {
-	d := testData()
+	d := testData()[:3]
 	for _, di := range d {
-		di.Route.Filters = []filter{filter{Name: builtin.ModPathName, Args: []interface{}{".*", "replacement"}}}
+		di.Eskip = strings.Replace(di.Eskip, "->", "-> "+builtin.ModPathName+"(\".*\", \"replacement\") ->", 1)
 	}
 
 	s := innkeeperServer(d)

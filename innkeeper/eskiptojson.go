@@ -5,6 +5,59 @@ import (
 	"log"
 )
 
+type matchType string
+
+const (
+	matchStrict = matchType("STRICT")
+	matchRegex  = matchType("REGEX")
+)
+
+type (
+	pathMatcher struct {
+		Typ   matchType `json:"type,omitempty"`
+		Match string    `json:"match,omitempty"`
+	}
+
+	headerMatcher struct {
+		Typ   matchType `json:"type,omitempty"`
+		Name  string    `json:"name,omitempty"`
+		Value string    `json:"value,omitempty"`
+	}
+
+	customPredicate struct {
+		Name string        `json:"name,omitempty"`
+		Args []interface{} `json:"args"`
+	}
+
+	filter struct {
+		Name string        `json:"name,omitempty"`
+		Args []interface{} `json:"args"`
+	}
+
+	matcher struct {
+		HostMatcher    string          `json:"host_matcher,omitempty"`
+		PathMatcher    *pathMatcher    `json:"path_matcher,omitempty"`
+		MethodMatcher  string          `json:"method_matcher,omitempty"`
+		HeaderMatchers []headerMatcher `json:"header_matchers"`
+	}
+
+	routeDef struct {
+		Matcher    matcher           `json:"matcher,omitempty"`
+		Predicates []customPredicate `json:"predicates"`
+		Filters    []filter          `json:"filters"`
+		Endpoint   string            `json:"endpoint,omitempty"`
+	}
+
+	jsonRoute struct {
+		Id         int64    `json:"id,omitempty"`
+		Name       string   `json:"name,omitempty"`
+		ActivateAt string   `json:"activate_at,omitempty"`
+		CreatedAt  string   `json:"created_at,omitempty"`
+		DeletedAt  string   `json:"deleted_at,omitempty"`
+		Route      routeDef `json:"route"`
+	}
+)
+
 func convertPathMatcher(r *eskip.Route) *pathMatcher {
 	var (
 		pathMatch     string
@@ -108,7 +161,7 @@ func convertEndpoint(r *eskip.Route) (endpoint string) {
 	return
 }
 
-func convertEskipToInnkeeper(routes []*eskip.Route) (data []*routeData) {
+func convertEskipToInnkeeper(routes []*eskip.Route) (data []*jsonRoute) {
 	for _, r := range routes {
 
 		id := eskip.GenerateIfNeeded(r.Id)
@@ -132,7 +185,7 @@ func convertEskipToInnkeeper(routes []*eskip.Route) (data []*routeData) {
 			Filters:    filters,
 			Endpoint:   endpoint}
 
-		d := &routeData{
+		d := &jsonRoute{
 			Name:  id,
 			Route: *ro}
 
