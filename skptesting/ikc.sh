@@ -11,7 +11,7 @@ shift
 
 # take flags, countdown for positional
 flagCount=0
-while getopts "h:s:n:p:P:F:" arg; do
+while getopts "h:s:n:p:P:F:E:" arg; do
 	eval $arg=\'"$OPTARG"\'
 	flagCount=$(expr $flagCount + 2)
 done
@@ -83,7 +83,8 @@ mkpath() {
 	put paths '{"uri": "'$1'", "host_ids": '"$(hostids)"'}'
 }
 
-# expecting name(n), path(p) flags, optionally predicates(P) and filters(F) flags
+# expecting name(n), path(p) and endpoint(E) flags
+# optionally predicates(P) and filters(F) flags
 mkroute() {
 	name="$n"
 	if [ -z "$name" ]; then
@@ -97,19 +98,27 @@ mkroute() {
 		exit 1
 	fi
 
+	endpoint="$E"
+	if [ -z "$endpoint" ]; then
+		log missing endpoint
+		exit 1
+	fi
+
 	predicates=${P:-"[]"}
 	filters=${F:-"[]"}
 
 	put routes '{
-		"name": "'$name'",
+		"name": "'"$name"'",
 		"activate_at": '$(now)',
-		"path_id": '$path',
+		"path_id": '"$path"',
 		"uses_common_filters": true,
+		"endpoint": "'"$endpoint"'",
 		"predicates": '"$predicates"',
 		"filters": '"$filters"'
 	}'
 }
 
+# expecting route id
 delete-route() {
 	id="$1"
 	if [ -z "$id" ]; then

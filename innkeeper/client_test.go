@@ -44,7 +44,7 @@ func (h *innkeeperHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var responseData []*routeData
 	if r.URL.Path == "/current-routes" {
 		for _, di := range h.data {
-			if di.Action == createAction {
+			if di.Action == createAction || di.Action == updateAction {
 				responseData = append(responseData, di)
 			}
 		}
@@ -92,7 +92,7 @@ func testData() []*routeData {
 			Eskip:     `route3: Path("/") && Method("GET") -> "https://example.org:443"`,
 		}, &routeData{
 			Name:      "route4",
-			Action:    createAction,
+			Action:    updateAction,
 			Timestamp: "2015-09-28T16:58:56.957",
 			Eskip: `route4: Path("/catalog") && Method("GET")
 				-> modPath(".*", "/new-catalog")
