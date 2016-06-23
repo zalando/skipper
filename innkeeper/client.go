@@ -44,6 +44,7 @@ const (
 	authErrorAuthentication     = authErrorType("AUTH3")
 
 	createAction = actionType("create")
+	updateAction = actionType("update")
 	deleteAction = actionType("delete")
 )
 
@@ -129,7 +130,7 @@ func convertJsonToEskip(data []*routeData, prependFilters, appendFilters []*eski
 		}
 
 		switch d.Action {
-		case createAction:
+		case createAction, updateAction:
 			r, err := eskip.Parse(d.Eskip)
 			if err == nil {
 				for _, ri := range r {
@@ -263,7 +264,6 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-
 		apiError, err := parseApiError(response.Body)
 		if err != nil {
 			return nil, err
