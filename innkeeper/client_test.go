@@ -7,11 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path"
-	"strings"
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/builtin"
 )
 
 const testAuthenticationToken = "test token"
@@ -44,7 +42,7 @@ func (h *innkeeperHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var responseData []*routeData
 	if r.URL.Path == "/current-routes" {
 		for _, di := range h.data {
-			if di.Action == createAction || di.Action == updateAction {
+			if !di.Action.Delete() {
 				responseData = append(responseData, di)
 			}
 		}
@@ -73,114 +71,109 @@ func innkeeperServer(data []*routeData) *httptest.Server {
 	return httptest.NewServer(&innkeeperHandler{data})
 }
 
-func testData() []*routeData {
-	return []*routeData{
-		&routeData{
-			Name:      "route1",
-			Action:    createAction,
-			Timestamp: "2015-09-28T16:58:56.955",
-			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
-		}, &routeData{
-			Name:      "route2",
-			Action:    deleteAction,
-			Timestamp: "2015-09-28T16:58:56.956",
-			Eskip:     `route2: Path("/") && Method("GET") -> "https://example.org:443"`,
-		}, &routeData{
-			Name:      "route3",
-			Action:    deleteAction,
-			Timestamp: "2015-09-28T16:58:56.956",
-			Eskip:     `route3: Path("/") && Method("GET") -> "https://example.org:443"`,
-		}, &routeData{
-			Name:      "route4",
-			Action:    updateAction,
-			Timestamp: "2015-09-28T16:58:56.957",
-			Eskip: `route4: Path("/catalog") && Method("GET")
-				-> modPath(".*", "/new-catalog")
-				-> "https://catalog.example.org:443"`,
-		}}
-}
+func checkDoc(t *testing.T, rs []*eskip.Route, ds []string, d []*routeData) bool {
+	check, eds, _ := convertJsonToEskip(d, nil, nil)
 
-func checkDoc(t *testing.T, rs []*eskip.Route, d []*routeData) {
-	check, _, _ := convertJsonToEskip(d, nil, nil)
 	if len(rs) != len(check) {
 		t.Error("doc lengths do not match", len(rs), len(check))
-		return
+		return false
 	}
 
 	for i, r := range rs {
 		if r.Id != check[i].Id {
 			t.Error("doc id does not match")
-			return
+			return false
 		}
 
 		if r.Path != check[i].Path {
 			t.Error("doc path does not match")
-			return
+			return false
 		}
 
 		if len(r.PathRegexps) != len(check[i].PathRegexps) {
 			t.Error("doc path regexp lengths do not match")
-			return
+			return false
 		}
 
 		for j, rx := range r.PathRegexps {
 			if rx != check[i].PathRegexps[j] {
 				t.Error("doc path regexp does not match")
-				return
+				return false
 			}
 		}
 
 		if r.Method != check[i].Method {
 			t.Error("doc method does not match")
-			return
+			return false
 		}
 
 		if len(r.Headers) != len(check[i].Headers) {
 			t.Error("doc header lengths do not match")
-			return
+			return false
 		}
 
 		for k, h := range r.Headers {
 			if h != check[i].Headers[k] {
 				t.Error("doc header does not match")
-				return
+				return false
 			}
 		}
 
 		if len(r.Filters) != len(check[i].Filters) {
 			t.Error("doc filter lengths do not match")
-			return
+			return false
 		}
 
 		for j, f := range r.Filters {
 			if f.Name != check[i].Filters[j].Name {
 				t.Error("doc filter does not match")
-				return
+				return false
 			}
 
 			if len(f.Args) != len(check[i].Filters[j].Args) {
 				t.Error("doc filter arg lengths do not match")
-				return
+				return false
 			}
 
 			for k, a := range f.Args {
 				if a != check[i].Filters[j].Args[k] {
 					t.Error("doc filter arg does not match")
-					return
+					return false
 				}
 			}
 		}
 
 		if r.Shunt != check[i].Shunt {
 			t.Error("doc shunt does not match")
-			return
+			return false
 		}
 
 		if r.Backend != check[i].Backend {
 			t.Error("doc backend does not match")
-			return
+			return false
 		}
 	}
+
+	if len(ds) != len(eds) {
+		t.Error("number of deleted ids doesn't match")
+		return false
+	}
+
+	for _, edsi := range eds {
+		found := false
+		for _, dsi := range ds {
+			if dsi == edsi {
+				found = true
+			}
+		}
+
+		if !found {
+			t.Error("deleted ids don't match")
+			return false
+		}
+	}
+
+	return true
 }
 
 func TestParsingInnkeeperSimpleRoute(t *testing.T) {
@@ -201,7 +194,7 @@ func TestParsingInnkeeperSimpleRoute(t *testing.T) {
 		t.Error("failed to parse the name")
 	}
 
-	if r.Timestamp != "2015-09-28T16:58:56.957" || r.Action != deleteAction {
+	if r.Timestamp != "2015-09-28T16:58:56.957" || !r.Action.Delete() {
 		t.Error("failed to parse route data")
 	}
 
@@ -228,7 +221,7 @@ func TestParsingInnkeeperComplexRoute(t *testing.T) {
 		t.Error("failed to parse the name")
 	}
 
-	if r.Timestamp != "2015-09-28T16:58:56.956" || r.Action != deleteAction {
+	if r.Timestamp != "2015-09-28T16:58:56.956" || !r.Action.Delete() {
 		t.Error("failed to parse route data")
 	}
 
@@ -262,6 +255,30 @@ func TestParsingMultipleInnkeeperRoutes(t *testing.T) {
 }
 
 func TestConvertDoc(t *testing.T) {
+	testData := []*routeData{
+		&routeData{
+			Name:      "route1",
+			Action:    createAction,
+			Timestamp: "2015-09-28T16:58:56.955",
+			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, &routeData{
+			Name:      "route2",
+			Action:    deleteAction,
+			Timestamp: "2015-09-28T16:58:56.956",
+			Eskip:     `route2: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, &routeData{
+			Name:      "route3",
+			Action:    deleteAction,
+			Timestamp: "2015-09-28T16:58:56.956",
+			Eskip:     `route3: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, &routeData{
+			Name:      "route4",
+			Action:    updateAction,
+			Timestamp: "2015-09-28T16:58:56.957",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}}
+
 	failed := false
 
 	test := func(left, right interface{}, msg ...interface{}) {
@@ -273,7 +290,7 @@ func TestConvertDoc(t *testing.T) {
 		t.Error(append([]interface{}{"failed to convert data", left, right}, msg...)...)
 	}
 
-	rs, deleted, lastChange := convertJsonToEskip(testData(), nil, nil)
+	rs, deleted, lastChange := convertJsonToEskip(testData, nil, nil)
 
 	test(len(rs), 2)
 	if failed {
@@ -310,121 +327,215 @@ func TestReceivesEmpty(t *testing.T) {
 	}
 }
 
-func TestReceivesInitial(t *testing.T) {
-	d := testData()
-	s := innkeeperServer(d)
+func TestReceive(t *testing.T) {
+	h := &innkeeperHandler{}
+	s := httptest.NewServer(h)
 	defer s.Close()
 
-	c, err := New(Options{Address: s.URL, Authentication: autoAuth(true)})
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	for _, ti := range []struct {
+		msg                      string
+		data, update             []*routeData
+		auth, updateAuth         bool
+		expected, expectedUpdate []*routeData
+		err, updateErr           bool
+	}{{
+		msg:  "receives empty",
+		auth: true,
+	}, {
+		msg: "receives expected",
+		data: []*routeData{{
+			Name:      "route1",
+			Action:    createAction,
+			Timestamp: "2015-09-28T16:58:56.955",
+			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name:      "route4",
+			Action:    updateAction,
+			Timestamp: "2015-09-28T16:58:56.957",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+		auth: true,
+		expected: []*routeData{{
+			Name:  "route1",
+			Eskip: `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name: "route4",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+	}, {
+		msg: "fails on auth when receiving",
+		data: []*routeData{{
+			Name:      "route1",
+			Action:    createAction,
+			Timestamp: "2015-09-28T16:58:56.955",
+			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name:      "route4",
+			Action:    updateAction,
+			Timestamp: "2015-09-28T16:58:56.957",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+		auth: false,
+		err:  true,
+	}, {
+		msg: "receives updates",
+		data: []*routeData{{
+			Name:      "route1",
+			Action:    createAction,
+			Timestamp: "2015-09-28T16:58:56.955",
+			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name:      "route4",
+			Action:    updateAction,
+			Timestamp: "2015-09-28T16:58:56.957",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+		update: []*routeData{{
+			Name:      "route1",
+			Action:    updateAction,
+			Timestamp: "2015-09-28T16:58:56.958",
+			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name:      "route3",
+			Action:    createAction,
+			Timestamp: "2015-09-28T16:58:56.959",
+			Eskip:     `route1: Path("/put-something") && Method("PUT") -> "https://example.org:443"`,
+		}, {
+			Name:      "route4",
+			Action:    deleteAction,
+			Timestamp: "2015-09-28T16:58:56.960",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+		auth:       true,
+		updateAuth: true,
+		expected: []*routeData{{
+			Name:  "route1",
+			Eskip: `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name: "route4",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+		expectedUpdate: []*routeData{{
+			Name:  "route1",
+			Eskip: `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name:  "route3",
+			Eskip: `route1: Path("/put-something") && Method("PUT") -> "https://example.org:443"`,
+		}, {
+			Name:   "route4",
+			Action: deleteAction,
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+	}, {
+		msg: "failing auth on update",
+		data: []*routeData{{
+			Name:      "route1",
+			Action:    createAction,
+			Timestamp: "2015-09-28T16:58:56.955",
+			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name:      "route4",
+			Action:    updateAction,
+			Timestamp: "2015-09-28T16:58:56.957",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+		update: []*routeData{{
+			Name:      "route1",
+			Action:    updateAction,
+			Timestamp: "2015-09-28T16:58:56.958",
+			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name:      "route3",
+			Action:    createAction,
+			Timestamp: "2015-09-28T16:58:56.959",
+			Eskip:     `route1: Path("/put-something") && Method("PUT") -> "https://example.org:443"`,
+		}, {
+			Name:      "route4",
+			Action:    deleteAction,
+			Timestamp: "2015-09-28T16:58:56.960",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+		auth:       true,
+		updateAuth: false,
+		expected: []*routeData{{
+			Name:  "route1",
+			Eskip: `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
+		}, {
+			Name: "route4",
+			Eskip: `route4: Path("/catalog") && Method("GET")
+				-> modPath(".*", "/new-catalog")
+				-> "https://catalog.example.org:443"`}},
+		updateErr: true,
+	}} {
+		h.data = ti.data
 
-	rs, err := c.LoadAll()
-	if err != nil {
-		t.Error(err)
-	}
+		c, err := New(Options{Address: s.URL, Authentication: autoAuth(ti.auth)})
+		if err != nil {
+			t.Error(ti.msg, err)
+			continue
+		}
 
-	checkDoc(t, rs, d)
-}
+		rs, err := c.LoadAll()
+		if err == nil && ti.err {
+			t.Error(ti.msg, "failed to fail")
+			continue
+		} else if err != nil && !ti.err {
+			t.Error(ti.msg, err)
+			continue
+		}
 
-func TestFailingAuthOnReceive(t *testing.T) {
-	d := testData()
-	s := innkeeperServer(d)
-	defer s.Close()
-	a := autoAuth(false)
+		if ti.err {
+			continue
+		}
 
-	c, err := New(Options{Address: s.URL, Authentication: a})
-	if err != nil {
-		t.Error(err)
-		return
-	}
+		if !checkDoc(t, rs, nil, ti.expected) {
+			continue
+		}
 
-	_, err = c.LoadAll()
-	if err == nil {
-		t.Error("failed to fail")
-	}
-}
+		if len(ti.update) == 0 {
+			continue
+		}
 
-func TestReceivesUpdates(t *testing.T) {
-	d := testData()
-	h := &innkeeperHandler{d}
-	s := httptest.NewServer(h)
+		h.data = ti.update
+		c.authToken = ""
+		c.opts.Authentication = autoAuth(ti.updateAuth)
+		rs, ds, err := c.LoadUpdate()
+		if err == nil && ti.updateErr {
+			t.Error(ti.msg, "failed to fail on update")
+			continue
+		} else if err != nil && !ti.updateErr {
+			t.Error(ti.msg, err)
+			continue
+		}
 
-	c, err := New(Options{Address: s.URL, Authentication: autoAuth(true)})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	c.LoadAll()
-
-	d = testData()
-	d[2].Timestamp = "2015-09-28T16:58:56.958"
-	d[2].Action = deleteAction
-
-	newRoute := &routeData{
-		Name:      "route4",
-		Timestamp: "2015-09-28T16:58:56.959",
-		Action:    createAction,
-		Eskip:     `Path("/") && Method("GET") -> "https://example.org"`,
-	}
-
-	d = append(d, newRoute)
-	h.data = d
-
-	rs, ds, err := c.LoadUpdate()
-	if err != nil {
-		t.Error(err)
-	}
-
-	checkDoc(t, rs, []*routeData{newRoute})
-	if len(ds) != 1 || ds[0] != "route3" {
-		t.Error("unexpected delete")
-	}
-}
-
-func TestFailingAuthOnUpdate(t *testing.T) {
-	d := testData()
-	h := &innkeeperHandler{d}
-	s := httptest.NewServer(h)
-
-	c, err := New(Options{Address: s.URL, Authentication: autoAuth(true)})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	c.LoadAll()
-
-	c.authToken = ""
-	c.opts.Authentication = autoAuth(false)
-	d = testData()
-	d[2].Timestamp = "2015-09-28T16:58:56.958"
-	d[2].Action = deleteAction
-
-	newRoute := &routeData{
-		Name:      "route4",
-		Timestamp: "2015-09-28T16:58:56.959",
-		Action:    createAction,
-		Eskip:     `Path("/") && Method("GET") -> "https://example.org"`,
-	}
-
-	d = append(d, newRoute)
-	h.data = d
-
-	_, _, err = c.LoadUpdate()
-	if err == nil {
-		t.Error("failed to fail")
+		checkDoc(t, rs, ds, ti.expectedUpdate)
 	}
 }
 
 func TestUsesPreAndPostRouteFilters(t *testing.T) {
-	d := testData()[:3]
-	for _, di := range d {
-		di.Eskip = strings.Replace(di.Eskip, "->", "-> "+builtin.ModPathName+"(\".*\", \"replacement\") ->", 1)
-	}
+	d := []*routeData{{
+		Name:      "route1",
+		Action:    createAction,
+		Timestamp: "2015-09-28T16:58:56.955",
+		Eskip: `route1: Path("/") && Method("GET")
+			-> modPath(".*", "/replacement")
+			-> "https://example.org:443"`,
+	}, {
+		Name:      "route4",
+		Action:    updateAction,
+		Timestamp: "2015-09-28T16:58:56.957",
+		Eskip: `route4: Path("/catalog") && Method("GET")
+			-> modPath(".*", "/replacement")
+			-> "https://catalog.example.org:443"`}}
 
 	s := innkeeperServer(d)
 	defer s.Close()
@@ -462,10 +573,10 @@ func TestUsesPreAndPostRouteFilters(t *testing.T) {
 			t.Error("failed to parse filters 3")
 		}
 
-		if r.Filters[2].Name != builtin.ModPathName ||
+		if r.Filters[2].Name != "modPath" ||
 			len(r.Filters[2].Args) != 2 ||
 			r.Filters[2].Args[0] != ".*" ||
-			r.Filters[2].Args[1] != "replacement" {
+			r.Filters[2].Args[1] != "/replacement" {
 			t.Error("failed to parse filters 4")
 		}
 
