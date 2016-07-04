@@ -45,6 +45,7 @@ const (
 
 	createAction = actionType("create")
 	updateAction = actionType("update")
+	activateAction = actionType("activate")
 	deleteAction = actionType("delete")
 )
 
@@ -130,7 +131,7 @@ func convertJsonToEskip(data []*routeData, prependFilters, appendFilters []*eski
 		}
 
 		switch d.Action {
-		case createAction, updateAction:
+		case createAction, updateAction, activateAction:
 			r, err := eskip.Parse(d.Eskip)
 			if err == nil {
 				for _, ri := range r {
