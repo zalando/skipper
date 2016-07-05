@@ -43,9 +43,10 @@ const (
 	authErrorMissingCredentials = authErrorType("AUTH2")
 	authErrorAuthentication     = authErrorType("AUTH3")
 
-	createAction = actionType("create")
-	updateAction = actionType("update")
-	deleteAction = actionType("delete")
+	createAction   = actionType("create")
+	updateAction   = actionType("update")
+	activateAction = actionType("activate")
+	deleteAction   = actionType("delete")
 )
 
 // json serialization object for innkeeper route definitions
@@ -96,6 +97,10 @@ type Client struct {
 	lastChanged    string
 }
 
+func (a actionType) Delete() bool {
+	return a == deleteAction
+}
+
 // Returns a new Client.
 func New(o Options) (*Client, error) {
 	preFilters, err := eskip.ParseFilters(o.PreRouteFilters)
@@ -129,8 +134,9 @@ func convertJsonToEskip(data []*routeData, prependFilters, appendFilters []*eski
 			lastChanged = d.Timestamp
 		}
 
-		switch d.Action {
-		case createAction, updateAction:
+		if d.Action.Delete() {
+			deleted = append(deleted, d.Name)
+		} else {
 			r, err := eskip.Parse(d.Eskip)
 			if err == nil {
 				for _, ri := range r {
@@ -141,8 +147,6 @@ func convertJsonToEskip(data []*routeData, prependFilters, appendFilters []*eski
 			} else {
 				log.Error("error while parsing routes, innkeeper ", d.Name, err)
 			}
-		case deleteAction:
-			deleted = append(deleted, d.Name)
 		}
 	}
 
