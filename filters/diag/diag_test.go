@@ -16,7 +16,7 @@ import (
 
 const (
 	testDataChunks   = 16
-	testDataLen      = testDataChunks * minChunkSize
+	testDataLen      = testDataChunks * defaultChunkSize
 	requestCheckName = "requestCheck"
 	smallDelay       = 120
 	highDelay        = 3 * smallDelay
@@ -151,10 +151,10 @@ func TestRandom(t *testing.T) {
 		0,
 	}, {
 		"small",
-		minChunkSize / 2,
+		defaultChunkSize / 2,
 	}, {
 		"large",
-		minChunkSize*2 + minChunkSize/2,
+		defaultChunkSize*2 + defaultChunkSize/2,
 	}} {
 		func() {
 			p := proxytest.New(filters.Registry{RandomName: &random{}}, &eskip.Route{
@@ -513,25 +513,21 @@ func TestThrottle(t *testing.T) {
 		clientExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(highDelay) * time.Millisecond}}},
 	}, {
 		msg:     "multiple chunks",
-		filters: []*eskip.Filter{{Name: ChunksName, Args: []interface{}{float64(testDataLen / 4), float64(smallDelay)}}},
+		filters: []*eskip.Filter{{Name: ChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{
-			testDataLen / 4, time.Duration(smallDelay) * time.Millisecond,
+			testDataLen/4 + testDataLen/8, time.Duration(smallDelay) * time.Millisecond,
 		}, {
-			testDataLen / 4, time.Duration(smallDelay) * time.Millisecond,
-		}, {
-			testDataLen / 4, time.Duration(smallDelay) * time.Millisecond,
+			testDataLen/4 + testDataLen/8, time.Duration(smallDelay) * time.Millisecond,
 		}, {
 			testDataLen / 4, time.Duration(smallDelay) * time.Millisecond,
 		}}},
 	}, {
 		msg:     "multiple chunks, long delay",
-		filters: []*eskip.Filter{{Name: ChunksName, Args: []interface{}{float64(testDataLen / 4), float64(highDelay)}}},
+		filters: []*eskip.Filter{{Name: ChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{
-			testDataLen / 4, time.Duration(highDelay) * time.Millisecond,
+			testDataLen/4 + testDataLen/8, time.Duration(highDelay) * time.Millisecond,
 		}, {
-			testDataLen / 4, time.Duration(highDelay) * time.Millisecond,
-		}, {
-			testDataLen / 4, time.Duration(highDelay) * time.Millisecond,
+			testDataLen/4 + testDataLen/8, time.Duration(highDelay) * time.Millisecond,
 		}, {
 			testDataLen / 4, time.Duration(highDelay) * time.Millisecond,
 		}}},
@@ -545,25 +541,21 @@ func TestThrottle(t *testing.T) {
 		backendExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(highDelay) * time.Millisecond}}},
 	}, {
 		msg:     "multiple chunks, backend",
-		filters: []*eskip.Filter{{Name: BackendChunksName, Args: []interface{}{float64(testDataLen / 4), float64(smallDelay)}}},
+		filters: []*eskip.Filter{{Name: BackendChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{
-			testDataLen / 4, time.Duration(smallDelay) * time.Millisecond,
+			testDataLen/4 + testDataLen/8, time.Duration(smallDelay) * time.Millisecond,
 		}, {
-			testDataLen / 4, time.Duration(smallDelay) * time.Millisecond,
-		}, {
-			testDataLen / 4, time.Duration(smallDelay) * time.Millisecond,
+			testDataLen/4 + testDataLen/8, time.Duration(smallDelay) * time.Millisecond,
 		}, {
 			testDataLen / 4, time.Duration(smallDelay) * time.Millisecond,
 		}}},
 	}, {
 		msg:     "multiple chunks, long delay, backend",
-		filters: []*eskip.Filter{{Name: BackendChunksName, Args: []interface{}{float64(testDataLen / 4), float64(highDelay)}}},
+		filters: []*eskip.Filter{{Name: BackendChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{
-			testDataLen / 4, time.Duration(highDelay) * time.Millisecond,
+			testDataLen/4 + testDataLen/8, time.Duration(highDelay) * time.Millisecond,
 		}, {
-			testDataLen / 4, time.Duration(highDelay) * time.Millisecond,
-		}, {
-			testDataLen / 4, time.Duration(highDelay) * time.Millisecond,
+			testDataLen/4 + testDataLen/8, time.Duration(highDelay) * time.Millisecond,
 		}, {
 			testDataLen / 4, time.Duration(highDelay) * time.Millisecond,
 		}}},

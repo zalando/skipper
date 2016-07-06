@@ -11,7 +11,7 @@ import (
 	"github.com/zalando/skipper/filters/serve"
 )
 
-const minChunkSize = 512
+const defaultChunkSize = 512
 
 const (
 	RandomName           = "randomContent"
@@ -74,7 +74,7 @@ func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 func (r *random) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	for n := 0; n < r.len; {
-		l := minChunkSize
+		l := defaultChunkSize
 		if n+l > r.len {
 			l = r.len - n
 		}
@@ -142,7 +142,7 @@ func parseBandwidthArgs(args []interface{}) (int, time.Duration, error) {
 	}
 
 	bpms := kbps2bpms(kbps)
-	return minChunkSize, time.Duration(float64(minChunkSize)/bpms) * time.Millisecond, nil
+	return defaultChunkSize, time.Duration(float64(defaultChunkSize)/bpms) * time.Millisecond, nil
 }
 
 func parseChunksArgs(args []interface{}) (int, time.Duration, error) {
@@ -209,7 +209,7 @@ func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 			}
 		}()
 
-		b := make([]byte, minChunkSize)
+		b := make([]byte, defaultChunkSize)
 		for err == nil {
 			n := 0
 
@@ -223,7 +223,12 @@ func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 				ni := 0
 				eof := false
 
-				ni, err = in.Read(b)
+				bi := b
+				if t.chunkSize-n < len(bi) {
+					bi = bi[:t.chunkSize-n]
+				}
+
+				ni, err = in.Read(bi)
 				if err == io.EOF {
 					eof = true
 					err = nil
@@ -233,7 +238,7 @@ func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 					break
 				}
 
-				ni, err = w.Write(b[:ni])
+				ni, err = w.Write(bi[:ni])
 				if err != nil {
 					break
 				}
