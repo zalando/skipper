@@ -5,6 +5,7 @@ package builtin
 
 import (
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
 )
 
@@ -59,6 +60,13 @@ func MakeRegistry() filters.Registry {
 		PreserveHost(),
 		NewStatus(),
 		NewCompress(),
+		diag.NewRandom(),
+		diag.NewLatency(),
+		diag.NewBandwidth(),
+		diag.NewChunks(),
+		diag.NewBackendLatency(),
+		diag.NewBackendBandwidth(),
+		diag.NewBackendChunks(),
 	} {
 		r.Register(s)
 	}
