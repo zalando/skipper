@@ -199,7 +199,6 @@ func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 
 	r, w := io.Pipe()
 
-	println("sleeping", t.delay)
 	time.Sleep(t.delay)
 	go func() {
 		var err error
