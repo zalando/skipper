@@ -1,3 +1,10 @@
+/*
+Package diag provides a set of network throttling filters for diagnostic purpose.
+
+The filters enable adding artificial latency, limiting bandwidth or chunking responses with custom chunk size
+and delay. This throttling can be applied to the proxy responses or to the outgoing backend requests. An
+additional filter, randomContent, can be used to generate response with random text of specified length.
+*/
 package diag
 
 import (
@@ -50,13 +57,60 @@ func kbps2bpms(kbps float64) float64 {
 	return kbps * 1024 / 1000
 }
 
-func NewRandom() filters.Spec           { return &random{} }
-func NewLatency() filters.Spec          { return &throttle{typ: latency} }
-func NewBandwidth() filters.Spec        { return &throttle{typ: bandwidth} }
-func NewChunks() filters.Spec           { return &throttle{typ: chunks} }
-func NewBackendLatency() filters.Spec   { return &throttle{typ: backendLatency} }
+// NewRandom creates a filter specification whose filter instances can be used
+// to respond to requests with random text of specified length. It expects the
+// the byte length of the random response to be generated as an argument.
+// Eskip example:
+//
+// 	* -> randomContent(2048) -> <shunt>;
+//
+func NewRandom() filters.Spec { return &random{} }
+
+// NewLatency creates a filter specification whose filter instances can be used
+// to add additional latency to responses. It expects the latency in milliseconds
+// as an argument. It always adds this value in addition to the natural latency,
+// and does not do any adjustments. Eskip example:
+//
+// 	* -> latency(120) -> "https://www.example.org";
+//
+func NewLatency() filters.Spec { return &throttle{typ: latency} }
+
+// NewBandwidth creates a filter specification whose filter instances can be used
+// to maximize the bandwidth of the responses. It expects the bandwidth in
+// kbyte/sec as an argument.
+//
+// 	* -> bandwidth(30) -> "https://www.example.org";
+//
+func NewBandwidth() filters.Spec { return &throttle{typ: bandwidth} }
+
+// NewChunks creates a filter specification whose filter instances can be used
+// set artificial delays in between response chunks. It expects the byte length
+// of the chunks and the delay milliseconds.
+//
+// 	* -> chunks(1024, 120) -> "https://www.example.org";
+//
+func NewChunks() filters.Spec { return &throttle{typ: chunks} }
+
+// NewBackendLatency is the equivalent of NewLatency but for outgoing backend
+// responses. Eskip example:
+//
+// 	* -> backendLatency(120) -> "https://www.example.org";
+//
+func NewBackendLatency() filters.Spec { return &throttle{typ: backendLatency} }
+
+// NewBackendBandwidth is the equivalent of NewBandwidth but for outgoing backend
+// responses. Eskip example:
+//
+// 	* -> backendBandwidth(30) -> "https://www.example.org";
+//
 func NewBackendBandwidth() filters.Spec { return &throttle{typ: backendBandwidth} }
-func NewBackendChunks() filters.Spec    { return &throttle{typ: backendChunks} }
+
+// NewBackendChunks is the equivalent of NewChunks but for outgoing backend
+// responses. Eskip example:
+//
+// 	* -> backendChunks(1024, 120) -> "https://www.example.org";
+//
+func NewBackendChunks() filters.Spec { return &throttle{typ: backendChunks} }
 
 func (r *random) Name() string { return RandomName }
 
