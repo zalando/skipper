@@ -492,6 +492,91 @@ func TestForwardError(t *testing.T) {
 	}
 }
 
+func TestStreaming(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	readBody := func(body io.Reader, n int, to time.Duration) error {
+		b := make([]byte, n)
+		c := make(chan error)
+		go func() {
+			for n > 0 {
+				ni, err := body.Read(b)
+				if err != nil {
+					c <- err
+					return
+				}
+
+				n -= ni
+				b = b[ni:]
+			}
+
+			c <- nil
+		}()
+
+		select {
+		case err := <-c:
+			return err
+		case <-time.After(to):
+			return errors.New("timeout")
+		}
+	}
+
+	b := make([]byte, 2048)
+	n, err := rand.Read(b)
+	if n != len(b) {
+		t.Error("failed to create random data")
+		return
+	}
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	chunkDelay := 120 * time.Millisecond
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Connection", "close")
+
+		w.Write(b)
+		time.Sleep(chunkDelay)
+		w.Write(b)
+	}))
+	defer s.Close()
+
+	p := proxytest.New(MakeRegistry(), &eskip.Route{
+		Filters: []*eskip.Filter{{Name: CompressName}},
+		Backend: s.URL})
+	defer p.Close()
+
+	rsp, err := http.Get(p.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusOK {
+		t.Error("failed to make request")
+		return
+	}
+
+	err = readBody(rsp.Body, len(b), chunkDelay/2)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = readBody(rsp.Body, len(b), chunkDelay*3/2)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+}
+
 func BenchmarkCompress0(b *testing.B) { benchmarkCompress(b, 0) }
 func BenchmarkCompress2(b *testing.B) { benchmarkCompress(b, 100) }
 func BenchmarkCompress4(b *testing.B) { benchmarkCompress(b, 10000) }
