@@ -33,6 +33,7 @@ type compress struct {
 type encoder interface {
 	io.WriteCloser
 	Reset(io.Writer)
+	Flush() error
 }
 
 var (
@@ -338,7 +339,25 @@ func encode(out *io.PipeWriter, in io.ReadCloser, enc string, level int) {
 	e.Reset(out)
 
 	b := make([]byte, bufferSize)
-	_, err = io.CopyBuffer(e, in, b)
+	for {
+		n, rerr := in.Read(b)
+		if n > 0 {
+			_, err = e.Write(b[:n])
+			if err != nil {
+				break
+			}
+
+			err = e.Flush()
+			if err != nil {
+				break
+			}
+		}
+
+		if rerr != nil {
+			err = rerr
+			break
+		}
+	}
 }
 
 func responseBody(rsp *http.Response, enc string, level int) {
