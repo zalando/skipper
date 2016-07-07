@@ -497,23 +497,19 @@ func TestStreaming(t *testing.T) {
 		t.Skip()
 	}
 
-	readBody := func(body io.Reader, n int, to time.Duration) error {
-		b := make([]byte, n)
+	randReader := rand.New(rand.NewSource(0))
+	writeRandomN := func(w io.Writer, n int64) error {
+		nw, err := io.CopyN(w, randReader, n)
+		if nw != n {
+			return errors.New("failed to write random bytes")
+		}
+
+		return err
+	}
+
+	timeoutCall := func(to time.Duration, call func(c chan<- error)) error {
 		c := make(chan error)
-		go func() {
-			for n > 0 {
-				ni, err := body.Read(b)
-				if err != nil {
-					c <- err
-					return
-				}
-
-				n -= ni
-				b = b[ni:]
-			}
-
-			c <- nil
-		}()
+		go call(c)
 
 		select {
 		case err := <-c:
@@ -523,26 +519,25 @@ func TestStreaming(t *testing.T) {
 		}
 	}
 
-	b := make([]byte, 2048)
-	n, err := rand.Read(b)
-	if n != len(b) {
-		t.Error("failed to create random data")
-		return
-	}
-
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
 	chunkDelay := 120 * time.Millisecond
 
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Connection", "close")
 
-		w.Write(b)
+		err := writeRandomN(w, 1<<14)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+
 		time.Sleep(chunkDelay)
-		w.Write(b)
+		err = writeRandomN(w, 1<<14)
+		if err != nil {
+			t.Error(err)
+		}
 	}))
 	defer s.Close()
 
@@ -551,29 +546,46 @@ func TestStreaming(t *testing.T) {
 		Backend: s.URL})
 	defer p.Close()
 
-	rsp, err := http.Get(p.URL)
-	if err != nil {
+	var body io.ReadCloser
+	if err := timeoutCall(chunkDelay/2, func(c chan<- error) {
+		rsp, err := http.Get(p.URL)
+		if err != nil {
+			c <- err
+			return
+		}
+
+		body = rsp.Body
+
+		if rsp.StatusCode != http.StatusOK {
+			c <- errors.New("failed to make request")
+			return
+		}
+
+		const preread = 1 << 6
+		n, err := body.Read(make([]byte, preread))
+		if err != nil {
+			c <- err
+			return
+		}
+
+		if n != preread {
+			c <- errors.New("failed to preread from the body")
+			return
+		}
+
+		c <- nil
+	}); err != nil {
 		t.Error(err)
 		return
 	}
 
-	defer rsp.Body.Close()
+	defer body.Close()
 
-	if rsp.StatusCode != http.StatusOK {
-		t.Error("failed to make request")
-		return
-	}
-
-	err = readBody(rsp.Body, len(b), chunkDelay/2)
-	if err != nil {
+	if err := timeoutCall(chunkDelay*3/2, func(c chan<- error) {
+		_, err := ioutil.ReadAll(body)
+		c <- err
+	}); err != nil {
 		t.Error(err)
-		return
-	}
-
-	err = readBody(rsp.Body, len(b), chunkDelay*3/2)
-	if err != nil {
-		t.Error(err)
-		return
 	}
 }
 
