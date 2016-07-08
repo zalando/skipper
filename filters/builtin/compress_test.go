@@ -492,6 +492,103 @@ func TestForwardError(t *testing.T) {
 	}
 }
 
+func TestStreaming(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	randReader := rand.New(rand.NewSource(0))
+	writeRandomN := func(w io.Writer, n int64) error {
+		nw, err := io.CopyN(w, randReader, n)
+		if nw != n {
+			return errors.New("failed to write random bytes")
+		}
+
+		return err
+	}
+
+	timeoutCall := func(to time.Duration, call func(c chan<- error)) error {
+		c := make(chan error)
+		go call(c)
+
+		select {
+		case err := <-c:
+			return err
+		case <-time.After(to):
+			return errors.New("timeout")
+		}
+	}
+
+	chunkDelay := 120 * time.Millisecond
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Connection", "close")
+
+		err := writeRandomN(w, 1<<14)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+
+		time.Sleep(chunkDelay)
+		err = writeRandomN(w, 1<<14)
+		if err != nil {
+			t.Error(err)
+		}
+	}))
+	defer s.Close()
+
+	p := proxytest.New(MakeRegistry(), &eskip.Route{
+		Filters: []*eskip.Filter{{Name: CompressName}},
+		Backend: s.URL})
+	defer p.Close()
+
+	var body io.ReadCloser
+	if err := timeoutCall(chunkDelay/2, func(c chan<- error) {
+		rsp, err := http.Get(p.URL)
+		if err != nil {
+			c <- err
+			return
+		}
+
+		body = rsp.Body
+
+		if rsp.StatusCode != http.StatusOK {
+			c <- errors.New("failed to make request")
+			return
+		}
+
+		const preread = 1 << 6
+		n, err := body.Read(make([]byte, preread))
+		if err != nil {
+			c <- err
+			return
+		}
+
+		if n != preread {
+			c <- errors.New("failed to preread from the body")
+			return
+		}
+
+		c <- nil
+	}); err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer body.Close()
+
+	if err := timeoutCall(chunkDelay*3/2, func(c chan<- error) {
+		_, err := ioutil.ReadAll(body)
+		c <- err
+	}); err != nil {
+		t.Error(err)
+	}
+}
+
 func BenchmarkCompress0(b *testing.B) { benchmarkCompress(b, 0) }
 func BenchmarkCompress2(b *testing.B) { benchmarkCompress(b, 100) }
 func BenchmarkCompress4(b *testing.B) { benchmarkCompress(b, 10000) }
