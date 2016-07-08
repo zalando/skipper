@@ -118,7 +118,8 @@ func New(o Options) (*Client, error) {
 		prependFilters: preFilters,
 		appendFilters:  postFilters,
 		httpClient: &http.Client{Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure}}}}, nil
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: o.Insecure},
+			DisableKeepAlives: true}}}, nil
 }
 
 // Converts a set of Innkeeper route definitions to their eskip representation.
