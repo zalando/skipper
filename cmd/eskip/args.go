@@ -35,6 +35,7 @@ const (
 	prependFileFlag    = "prepend-file"
 	appendFiltersFlag  = "append"
 	appendFileFlag     = "append-file"
+	prettyFlag			   = "pretty"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
@@ -66,6 +67,7 @@ var (
 	prependFileArg    string
 	appendFiltersArg  string
 	appendFileArg     string
+	pretty            bool
 )
 
 var (
@@ -96,6 +98,8 @@ func initFlags() {
 	flags.StringVar(&prependFileArg, prependFileFlag, "", prependFileUsage)
 	flags.StringVar(&appendFiltersArg, appendFiltersFlag, "", appendFiltersUsage)
 	flags.StringVar(&appendFileArg, appendFileFlag, "", appendFileUsage)
+
+	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
 }
 
 func init() {
