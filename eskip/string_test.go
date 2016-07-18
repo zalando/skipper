@@ -94,6 +94,35 @@ func TestDocString(t *testing.T) {
 		`route2: Path("/some/path") -> "https://www.example.org"`)
 }
 
+func TestPrintNonPretty(t *testing.T) {
+	for i, item := range []struct {
+		route    string
+		expected string
+	} {
+		{
+			"route1: Method(\"GET\") -> filter(\"expression\") -> <shunt>",
+			"Method(\"GET\") -> filter(\"expression\") -> <shunt>",
+		},
+		{
+			"route2: Path(\"/some/path\") -> \"https://www.example.org\"",
+			"Path(\"/some/path\") -> \"https://www.example.org\"",
+		},
+	} {
+		route, err := Parse(item.route)
+		if err != nil {
+			t.Error(err)
+		}
+
+		printedRoute := route[0].Print(false)
+
+		if printedRoute != item.expected {
+			pos := findDiffPos(printedRoute, item.expected)
+			t.Error(printedRoute, item.expected, i, pos, printedRoute[pos:pos+1], item.expected[pos:pos+1])
+		}
+	}
+}
+
+
 func TestParseAndStringAndParse(t *testing.T) {
 	doc := `route1: Method("GET") -> filter("expression") -> <shunt>;` + "\n" +
 		`route2: Path("/some/path") -> "https://www.example.org"`

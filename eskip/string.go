@@ -90,7 +90,7 @@ func (r *Route) filterString(pretty bool) string {
 		sfilters = appendFmt(sfilters, "%s(%s)", f.Name, argsString(f.Args))
 	}
   if pretty {
-		return strings.Join(sfilters, "\n\t-> ")
+		return strings.Join(sfilters, "\n  -> ")
 	}
 	return strings.Join(sfilters, " -> ")
 }
@@ -119,7 +119,7 @@ func (r *Route) Print(pretty bool) string {
 	s = append(s, r.backendString())
 	separator := " -> "
 	if pretty {
-		separator = "\n\t-> "
+		separator = "\n  -> "
 	}
 	return strings.Join(s, separator)
 }
