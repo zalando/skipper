@@ -108,20 +108,41 @@ func TestPrintNonPretty(t *testing.T) {
 			"Path(\"/some/path\") -> \"https://www.example.org\"",
 		},
 	} {
-		route, err := Parse(item.route)
-		if err != nil {
-			t.Error(err)
-		}
-
-		printedRoute := route[0].Print(false)
-
-		if printedRoute != item.expected {
-			pos := findDiffPos(printedRoute, item.expected)
-			t.Error(printedRoute, item.expected, i, pos, printedRoute[pos:pos+1], item.expected[pos:pos+1])
-		}
+		testPrinting(item.route, item.expected, t, i, false)
 	}
 }
 
+func TestPrintPretty(t *testing.T) {
+	for i, item := range []struct {
+		route    string
+		expected string
+	} {
+		{
+			"route1: Method(\"GET\") -> filter(\"expression\") -> <shunt>",
+			"Method(\"GET\")\n  -> filter(\"expression\")\n  -> <shunt>",
+		},
+		{
+			"route2: Path(\"/some/path\") -> \"https://www.example.org\"",
+			"Path(\"/some/path\")\n  -> \"https://www.example.org\"",
+		},
+	} {
+		testPrinting(item.route, item.expected, t, i, true)
+	}
+}
+
+func testPrinting(routestr string, expected string, t *testing.T, i int, pretty bool) {
+	route, err := Parse(routestr)
+	if err != nil {
+		t.Error(err)
+	}
+
+	printedRoute := route[0].Print(pretty)
+
+	if printedRoute != expected {
+		pos := findDiffPos(printedRoute, expected)
+		t.Error(printedRoute, expected, i, pos, printedRoute[pos:pos+1], expected[pos:pos+1])
+	}
+}
 
 func TestParseAndStringAndParse(t *testing.T) {
 	doc := `route1: Method("GET") -> filter("expression") -> <shunt>;` + "\n" +
