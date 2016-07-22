@@ -259,10 +259,7 @@ func (t *throttle) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 	if t.chunkSize <= 0 {
-		if t.delay > 0 {
-			time.Sleep(t.delay)
-		}
-
+		time.Sleep(t.delay)
 		return in
 	}
 
@@ -328,9 +325,7 @@ func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 					delay -= time.Now().Sub(start)
 				}
 
-				if delay >= 0 {
-					time.Sleep(t.delay)
-				}
+				time.Sleep(t.delay)
 			}
 		}
 	}()
