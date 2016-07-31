@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -15,9 +16,30 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
+func testIdle() bool {
+	for _, a := range os.Args {
+		if a == "idle" {
+			return true
+		}
+	}
+
+	return false
+}
+
 // simple crash test only, use utilities in skptesting
 // for benchmarking.
+//
+// This test unpredicable fails on certain OSes. To run this test,
+// set `-args idle` for the test command
 func TestIdleConns(t *testing.T) {
+	if !testIdle() {
+		t.Skip()
+	}
+
+	if testing.Short() {
+		t.Skip()
+	}
+
 	doc := func(l int) []byte {
 		b := make([]byte, l)
 		n, err := rand.Read(b)
@@ -109,7 +131,15 @@ func TestIdleConns(t *testing.T) {
 		defer p.Close()
 
 		request := func(path string, doc []byte) {
-			rsp, err := http.Get(p.URL + path)
+			req, err := http.NewRequest("GET", p.URL+path, nil)
+			if err != nil {
+				t.Fatal(ti.msg, "failed to create request", err)
+				return
+			}
+
+			req.Close = true
+
+			rsp, err := (&http.Client{}).Do(req)
 			if err != nil {
 				t.Fatal(ti.msg, "failed to make request", err)
 				return
