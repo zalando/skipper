@@ -1,22 +1,7 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package routing
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"net/url"
@@ -50,13 +35,13 @@ type incomingData struct {
 	deletedIds     []string
 }
 
-func (d *incomingData) Log() {
+func (d *incomingData) log(l Logger) {
 	for _, r := range d.upsertedRoutes {
-		log.Infof("route settings, %v, route: %v: %v", d.typ, r.Id, r)
+		l.Infof("route settings, %v, route: %v: %v", d.typ, r.Id, r)
 	}
 
 	for _, id := range d.deletedIds {
-		log.Infof("route settings, %v, deleted id: %v", d.typ, id)
+		l.Infof("route settings, %v, deleted id: %v", d.typ, id)
 	}
 }
 
@@ -66,27 +51,31 @@ func (d *incomingData) Log() {
 // occurs, it re-requests the whole valid set, and continues polling. Currently, the
 // routes with the same id coming from different sources are merged in an
 // undeterministic way, but this may change in the future.
-func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *incomingData) {
+func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <-chan struct{}) {
 	receiveInitial := func() {
 		for {
 			routes, err := c.LoadAll()
 			if err != nil {
-				log.Error("error while receiveing initial data;", err)
-				time.Sleep(pollTimeout)
+				o.Log.Error("error while receiveing initial data;", err)
+				time.Sleep(o.PollTimeout)
 				continue
 			}
 
-			out <- &incomingData{incomingReset, c, routes, nil}
+			select {
+			case out <- &incomingData{incomingReset, c, routes, nil}:
+			case <-quit:
+			}
+
 			return
 		}
 	}
 
 	receiveUpdates := func() {
 		for {
-			time.Sleep(pollTimeout)
+			time.Sleep(o.PollTimeout)
 			routes, deletedIds, err := c.LoadUpdate()
 			if err != nil {
-				log.Error("error while receiving update;", err)
+				o.Log.Error("error while receiving update;", err)
 				return
 			}
 
@@ -97,8 +86,13 @@ func receiveFromClient(c DataClient, pollTimeout time.Duration, out chan<- *inco
 	}
 
 	for {
-		receiveInitial()
-		receiveUpdates()
+		select {
+		case <-quit:
+			return
+		default:
+			receiveInitial()
+			receiveUpdates()
+		}
 	}
 }
 
@@ -147,22 +141,26 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
 //
 // The active set of routes from last successful update are used until the
 // next successful update.
-func receiveRouteDefs(o Options) <-chan []*eskip.Route {
+func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan []*eskip.Route {
 	in := make(chan *incomingData)
 	out := make(chan []*eskip.Route)
 	defsByClient := make(map[DataClient]routeDefs)
 
 	for _, c := range o.DataClients {
-		go receiveFromClient(c, o.PollTimeout, in)
+		go receiveFromClient(c, o, in, quit)
 	}
 
 	go func() {
 		for {
-			incoming := <-in
-			incoming.Log()
-			c := incoming.client
-			defsByClient[c] = applyIncoming(defsByClient[c], incoming)
-			out <- mergeDefs(defsByClient)
+			select {
+			case incoming := <-in:
+				incoming.log(o.Log)
+				c := incoming.client
+				defsByClient[c] = applyIncoming(defsByClient[c], incoming)
+				out <- mergeDefs(defsByClient)
+			case <-quit:
+				return
+			}
 		}
 	}()
 
@@ -261,8 +259,8 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 }
 
 // processes a set of route definitions for the routing table
-func processRouteDefs(cps []PredicateSpec, fr filters.Registry, defs []*eskip.Route) []*Route {
-	cpm := mapPredicates(cps)
+func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) []*Route {
+	cpm := mapPredicates(o.Predicates)
 
 	var routes []*Route
 	for _, def := range defs {
@@ -270,7 +268,7 @@ func processRouteDefs(cps []PredicateSpec, fr filters.Registry, defs []*eskip.Ro
 		if err == nil {
 			routes = append(routes, route)
 		} else {
-			log.Error(err)
+			o.Log.Error(err)
 		}
 	}
 
@@ -279,17 +277,37 @@ func processRouteDefs(cps []PredicateSpec, fr filters.Registry, defs []*eskip.Ro
 
 // receives the next version of the routing table on the output channel,
 // when an update is received on one of the data clients.
-func receiveRouteMatcher(o Options, out chan<- *matcher) {
-	updates := receiveRouteDefs(o)
-	for {
-		defs := <-updates
-		routes := processRouteDefs(o.Predicates, o.FilterRegistry, defs)
-		m, errs := newMatcher(routes, o.MatchingOptions)
-		for _, err := range errs {
-			log.Error(err)
-		}
+func receiveRouteMatcher(o Options, out chan<- *matcher, quit <-chan struct{}) {
+	updates := receiveRouteDefs(o, quit)
+	var (
+		mout         *matcher
+		outRelay     chan<- *matcher
+		updatesRelay <-chan []*eskip.Route
+		// TODO:
+		// we can remove relaying of updates, but better in a dedicated PR.
+		// now left if to keep the same behavior as before.
+	)
 
-		log.Println("route settings received")
-		out <- m
+	updatesRelay = updates
+	for {
+		select {
+		case defs := <-updatesRelay:
+			o.Log.Info("route settings received")
+			routes := processRouteDefs(o, o.FilterRegistry, defs)
+			m, errs := newMatcher(routes, o.MatchingOptions)
+			for _, err := range errs {
+				o.Log.Error(err)
+			}
+
+			mout = m
+			updatesRelay = nil
+			outRelay = out
+		case outRelay <- mout:
+			mout = nil
+			updatesRelay = updates
+			outRelay = nil
+		case <-quit:
+			return
+		}
 	}
 }

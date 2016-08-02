@@ -148,12 +148,9 @@ func TestGetRoundtrip(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			nil,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -212,12 +209,9 @@ func TestPostRoundtrip(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			nil,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -253,12 +247,9 @@ func TestRoute(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			nil,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -305,12 +296,9 @@ func TestStreaming(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			nil,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -388,12 +376,10 @@ func TestAppliesFilters(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			fr,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			FilterRegistry:  fr,
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -446,12 +432,10 @@ func TestBreakFilterChain(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			fr,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			FilterRegistry:  fr,
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -500,12 +484,10 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			fr,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			FilterRegistry:  fr,
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -548,12 +530,9 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			nil,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags:          FlagsNone,
 		PriorityRoutes: []PriorityRoute{prt}})
 
@@ -602,12 +581,9 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			nil,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags:          FlagsNone,
 		PriorityRoutes: []PriorityRoute{prt}})
 
@@ -638,12 +614,9 @@ func TestFlusherImplementation(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			nil,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -697,12 +670,10 @@ func TestOriginalRequestResponse(t *testing.T) {
 	fr.Register(&preserveOriginalSpec{})
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			fr,
-			routing.MatchingOptionsNone,
-			sourcePollTimeout,
-			[]routing.DataClient{dc},
-			nil,
-			0}),
+			FilterRegistry:  fr,
+			MatchingOptions: routing.MatchingOptionsNone,
+			PollTimeout:     sourcePollTimeout,
+			DataClients:     []routing.DataClient{dc}}),
 		Flags: PreserveOriginal})
 
 	delay()

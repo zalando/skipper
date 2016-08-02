@@ -352,12 +352,12 @@ func Run(o Options) error {
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
-		registry,
-		mo,
-		o.SourcePollTimeout,
-		dataClients,
-		o.CustomPredicates,
-		updateBuffer})
+		FilterRegistry:  registry,
+		MatchingOptions: mo,
+		PollTimeout:     o.SourcePollTimeout,
+		DataClients:     dataClients,
+		Predicates:      o.CustomPredicates,
+		UpdateBuffer:    updateBuffer})
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
