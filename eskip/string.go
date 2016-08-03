@@ -89,7 +89,7 @@ func (r *Route) filterString(pretty bool) string {
 	for _, f := range r.Filters {
 		sfilters = appendFmt(sfilters, "%s(%s)", f.Name, argsString(f.Args))
 	}
-  if pretty {
+	if pretty {
 		return strings.Join(sfilters, "\n  -> ")
 	}
 	return strings.Join(sfilters, " -> ")

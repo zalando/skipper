@@ -98,7 +98,7 @@ func TestPrintNonPretty(t *testing.T) {
 	for i, item := range []struct {
 		route    string
 		expected string
-	} {
+	}{
 		{
 			"route1: Method(\"GET\") -> filter(\"expression\") -> <shunt>",
 			"Method(\"GET\") -> filter(\"expression\") -> <shunt>",
@@ -116,7 +116,7 @@ func TestPrintPretty(t *testing.T) {
 	for i, item := range []struct {
 		route    string
 		expected string
-	} {
+	}{
 		{
 			"route1: Method(\"GET\") -> filter(\"expression\") -> <shunt>",
 			"Method(\"GET\")\n  -> filter(\"expression\")\n  -> <shunt>",

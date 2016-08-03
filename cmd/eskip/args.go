@@ -35,7 +35,7 @@ const (
 	prependFileFlag    = "prepend-file"
 	appendFiltersFlag  = "append"
 	appendFileFlag     = "append-file"
-	prettyFlag			   = "pretty"
+	prettyFlag         = "pretty"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
