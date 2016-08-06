@@ -1,4 +1,4 @@
-package routing_test
+package loggingtest
 
 import (
 	"errors"
@@ -19,14 +19,14 @@ type logWatch struct {
 	reqs    []*logSubscription
 }
 
-type testLogger struct {
+type TestLogger struct {
 	save   chan string
 	notify chan<- logSubscription
 	clear  chan struct{}
 	quit   chan<- struct{}
 }
 
-var errWaitTimeout = errors.New("timeout")
+var ErrWaitTimeout = errors.New("timeout")
 
 func (lw *logWatch) save(e string) {
 	lw.entries = append(lw.entries, e)
@@ -64,7 +64,7 @@ func (lw *logWatch) clear() {
 	lw.reqs = nil
 }
 
-func newTestLogger() *testLogger {
+func New() *TestLogger {
 	lw := &logWatch{}
 	save := make(chan string)
 	notify := make(chan logSubscription)
@@ -86,20 +86,20 @@ func newTestLogger() *testLogger {
 		}
 	}()
 
-	return &testLogger{save, notify, clear, quit}
+	return &TestLogger{save, notify, clear, quit}
 }
 
-func (tl *testLogger) logf(f string, a ...interface{}) {
+func (tl *TestLogger) logf(f string, a ...interface{}) {
 	log.Printf(f, a...)
 	tl.save <- fmt.Sprintf(f, a...)
 }
 
-func (tl *testLogger) log(a ...interface{}) {
+func (tl *TestLogger) log(a ...interface{}) {
 	log.Println(a...)
 	tl.save <- fmt.Sprint(a...)
 }
 
-func (tl *testLogger) waitForN(exp string, n int, to time.Duration) error {
+func (tl *TestLogger) WaitForN(exp string, n int, to time.Duration) error {
 	found := make(chan struct{}, 1)
 	tl.notify <- logSubscription{exp, n, found}
 
@@ -107,27 +107,27 @@ func (tl *testLogger) waitForN(exp string, n int, to time.Duration) error {
 	case <-found:
 		return nil
 	case <-time.After(to):
-		return errWaitTimeout
+		return ErrWaitTimeout
 	}
 }
 
-func (tl *testLogger) waitFor(exp string, to time.Duration) error {
-	return tl.waitForN(exp, 1, to)
+func (tl *TestLogger) WaitFor(exp string, to time.Duration) error {
+	return tl.WaitForN(exp, 1, to)
 }
 
-func (tl *testLogger) reset() {
+func (tl *TestLogger) Reset() {
 	tl.clear <- struct{}{}
 }
 
-func (tl *testLogger) Close() {
+func (tl *TestLogger) Close() {
 	close(tl.quit)
 }
 
-func (tl *testLogger) Error(a ...interface{})            { tl.log(a...) }
-func (tl *testLogger) Errorf(f string, a ...interface{}) { tl.logf(f, a...) }
-func (tl *testLogger) Warn(a ...interface{})             { tl.log(a...) }
-func (tl *testLogger) Warnf(f string, a ...interface{})  { tl.logf(f, a...) }
-func (tl *testLogger) Info(a ...interface{})             { tl.log(a...) }
-func (tl *testLogger) Infof(f string, a ...interface{})  { tl.logf(f, a...) }
-func (tl *testLogger) Debug(a ...interface{})            { tl.log(a...) }
-func (tl *testLogger) Debugf(f string, a ...interface{}) { tl.logf(f, a...) }
+func (tl *TestLogger) Error(a ...interface{})            { tl.log(a...) }
+func (tl *TestLogger) Errorf(f string, a ...interface{}) { tl.logf(f, a...) }
+func (tl *TestLogger) Warn(a ...interface{})             { tl.log(a...) }
+func (tl *TestLogger) Warnf(f string, a ...interface{})  { tl.logf(f, a...) }
+func (tl *TestLogger) Info(a ...interface{})             { tl.log(a...) }
+func (tl *TestLogger) Infof(f string, a ...interface{})  { tl.logf(f, a...) }
+func (tl *TestLogger) Debug(a ...interface{})            { tl.log(a...) }
+func (tl *TestLogger) Debugf(f string, a ...interface{}) { tl.logf(f, a...) }

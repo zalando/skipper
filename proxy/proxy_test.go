@@ -3,10 +3,6 @@ package proxy
 import (
 	"bytes"
 	"fmt"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/routing/testdataclient"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -16,6 +12,12 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 const (
@@ -101,9 +103,6 @@ func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Se
 	}))
 }
 
-// used to let the data client updates be propagated
-func delay() { time.Sleep(24 * time.Millisecond) }
-
 func TestGetRoundtrip(t *testing.T) {
 	payload := []byte("Hello World!")
 
@@ -132,15 +131,19 @@ func TestGetRoundtrip(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc}})
+		DataClients: []routing.DataClient{dc},
+		Log:         tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	p.ServeHTTP(w, r)
 
@@ -194,15 +197,19 @@ func TestPostRoundtrip(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc}})
+		DataClients: []routing.DataClient{dc},
+		Log:         tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	p.ServeHTTP(w, r)
 
@@ -233,15 +240,19 @@ func TestRoute(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc}})
+		DataClients: []routing.DataClient{dc},
+		Log:         tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	var (
 		r *http.Request
@@ -283,15 +294,19 @@ func TestStreaming(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc}})
+		DataClients: []routing.DataClient{dc},
+		Log:         tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
@@ -364,16 +379,20 @@ func TestAppliesFilters(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
-		DataClients:    []routing.DataClient{dc}})
+		DataClients:    []routing.DataClient{dc},
+		Log:            tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	p.ServeHTTP(w, r)
 
@@ -421,16 +440,20 @@ func TestBreakFilterChain(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
-		DataClients:    []routing.DataClient{dc}})
+		DataClients:    []routing.DataClient{dc},
+		Log:            tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	r, _ := http.NewRequest("GET", "https://www.example.org/breaker", nil)
 	w := httptest.NewRecorder()
@@ -474,16 +497,20 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
-		DataClients:    []routing.DataClient{dc}})
+		DataClients:    []routing.DataClient{dc},
+		Log:            tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	p.ServeHTTP(w, r)
 
@@ -521,15 +548,19 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc}})
+		DataClients: []routing.DataClient{dc},
+		Log:         tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone, PriorityRoutes: []PriorityRoute{prt}})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
@@ -572,15 +603,19 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc}})
+		DataClients: []routing.DataClient{dc},
+		Log:         tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone, PriorityRoutes: []PriorityRoute{prt}})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
@@ -605,15 +640,19 @@ func TestFlusherImplementation(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	rt := routing.New(routing.Options{
 		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc}})
+		DataClients: []routing.DataClient{dc},
+		Log:         tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	a := fmt.Sprintf(":%d", 1<<16-rand.Intn(1<<15))
 	ps := &http.Server{Addr: a, Handler: p}
@@ -660,18 +699,22 @@ func TestOriginalRequestResponse(t *testing.T) {
 		t.Error(err)
 	}
 
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	fr := builtin.MakeRegistry()
 	fr.Register(&preserveOriginalSpec{})
 	rt := routing.New(routing.Options{
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
-		DataClients:    []routing.DataClient{dc}})
+		DataClients:    []routing.DataClient{dc},
+		Log:            tl})
 	defer rt.Close()
 
 	p := WithParams(Params{Routing: rt, Flags: PreserveOriginal})
 	defer p.Close()
 
-	delay()
+	tl.WaitFor("route settings applied", time.Second)
 
 	p.ServeHTTP(w, r)
 
