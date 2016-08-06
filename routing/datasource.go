@@ -148,12 +148,19 @@ func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan []*eskip.Route {
 
 	go func() {
 		for {
+			var incoming *incomingData
 			select {
-			case incoming := <-in:
-				incoming.log(o.Log)
-				c := incoming.client
-				defsByClient[c] = applyIncoming(defsByClient[c], incoming)
-				out <- mergeDefs(defsByClient)
+			case incoming = <-in:
+			case <-quit:
+				return
+			}
+
+			incoming.log(o.Log)
+			c := incoming.client
+			defsByClient[c] = applyIncoming(defsByClient[c], incoming)
+
+			select {
+			case out <- mergeDefs(defsByClient):
 			case <-quit:
 				return
 			}
@@ -279,9 +286,6 @@ func receiveRouteMatcher(o Options, out chan<- *matcher, quit <-chan struct{}) {
 		mout         *matcher
 		outRelay     chan<- *matcher
 		updatesRelay <-chan []*eskip.Route
-		// TODO:
-		// we can remove relaying of updates, but better in a dedicated PR.
-		// now left if to keep the same behavior as before.
 	)
 
 	updatesRelay = updates
