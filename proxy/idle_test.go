@@ -32,11 +32,7 @@ func testIdle() bool {
 // This test unpredicable fails on certain OSes. To run this test,
 // set `-args idle` for the test command
 func TestIdleConns(t *testing.T) {
-	if !testIdle() {
-		t.Skip()
-	}
-
-	if testing.Short() {
+	if testing.Short() || !testIdle() {
 		t.Skip()
 	}
 

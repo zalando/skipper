@@ -46,52 +46,48 @@ func (d *incomingData) log(l Logger) {
 }
 
 // continously receives route definitions from a data client on the the output channel.
-// The function does not return. When started, it request for the whole current set of
-// routes, and continues polling for the subsequent updates. When a communication error
-// occurs, it re-requests the whole valid set, and continues polling. Currently, the
-// routes with the same id coming from different sources are merged in an
+// The function does not return unless quit is closed. When started, it request for the
+// whole current set of routes, and continues polling for the subsequent updates. When a
+// communication error occurs, it re-requests the whole valid set, and continues polling.
+// Currently, the routes with the same id coming from different sources are merged in an
 // undeterministic way, but this may change in the future.
 func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <-chan struct{}) {
-	receiveInitial := func() {
-		for {
-			routes, err := c.LoadAll()
-			if err != nil {
-				o.Log.Error("error while receiveing initial data;", err)
-				time.Sleep(o.PollTimeout)
-				continue
-			}
+	initial := true
+	for {
+		var (
+			routes     []*eskip.Route
+			deletedIDs []string
+			err        error
+		)
 
-			select {
-			case out <- &incomingData{incomingReset, c, routes, nil}:
-			case <-quit:
-			}
+		to := o.PollTimeout
 
-			return
+		if initial {
+			routes, err = c.LoadAll()
+		} else {
+			routes, deletedIDs, err = c.LoadUpdate()
 		}
-	}
 
-	receiveUpdates := func() {
-		for {
-			time.Sleep(o.PollTimeout)
-			routes, deletedIds, err := c.LoadUpdate()
-			if err != nil {
-				o.Log.Error("error while receiving update;", err)
+		switch {
+		case err != nil && initial:
+			o.Log.Error("error while receiveing initial data;", err)
+			to = 0
+		case err != nil:
+			o.Log.Error("error while receiving update;", err)
+			initial = true
+		case initial || len(routes) > 0 || len(deletedIDs) > 0:
+			initial = false
+			select {
+			case out <- &incomingData{incomingReset, c, routes, deletedIDs}:
+			case <-quit:
 				return
 			}
-
-			if len(routes) > 0 || len(deletedIds) > 0 {
-				out <- &incomingData{incomingUpdate, c, routes, deletedIds}
-			}
 		}
-	}
 
-	for {
 		select {
+		case <-time.After(to):
 		case <-quit:
 			return
-		default:
-			receiveInitial()
-			receiveUpdates()
 		}
 	}
 }

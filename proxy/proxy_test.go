@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package proxy
 
 import (
@@ -148,9 +134,8 @@ func TestGetRoundtrip(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			PollTimeout: sourcePollTimeout,
+			DataClients: []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -209,9 +194,8 @@ func TestPostRoundtrip(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			PollTimeout: sourcePollTimeout,
+			DataClients: []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -247,9 +231,8 @@ func TestRoute(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			PollTimeout: sourcePollTimeout,
+			DataClients: []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -296,9 +279,8 @@ func TestStreaming(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			PollTimeout: sourcePollTimeout,
+			DataClients: []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -376,10 +358,9 @@ func TestAppliesFilters(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			FilterRegistry:  fr,
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			FilterRegistry: fr,
+			PollTimeout:    sourcePollTimeout,
+			DataClients:    []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -432,10 +413,9 @@ func TestBreakFilterChain(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			FilterRegistry:  fr,
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			FilterRegistry: fr,
+			PollTimeout:    sourcePollTimeout,
+			DataClients:    []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -484,10 +464,9 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			FilterRegistry:  fr,
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			FilterRegistry: fr,
+			PollTimeout:    sourcePollTimeout,
+			DataClients:    []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -530,9 +509,8 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			PollTimeout: sourcePollTimeout,
+			DataClients: []routing.DataClient{dc}}),
 		Flags:          FlagsNone,
 		PriorityRoutes: []PriorityRoute{prt}})
 
@@ -581,9 +559,8 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			PollTimeout: sourcePollTimeout,
+			DataClients: []routing.DataClient{dc}}),
 		Flags:          FlagsNone,
 		PriorityRoutes: []PriorityRoute{prt}})
 
@@ -614,9 +591,8 @@ func TestFlusherImplementation(t *testing.T) {
 
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			PollTimeout: sourcePollTimeout,
+			DataClients: []routing.DataClient{dc}}),
 		Flags: FlagsNone})
 
 	delay()
@@ -670,10 +646,9 @@ func TestOriginalRequestResponse(t *testing.T) {
 	fr.Register(&preserveOriginalSpec{})
 	p := WithParams(Params{
 		Routing: routing.New(routing.Options{
-			FilterRegistry:  fr,
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     sourcePollTimeout,
-			DataClients:     []routing.DataClient{dc}}),
+			FilterRegistry: fr,
+			PollTimeout:    sourcePollTimeout,
+			DataClients:    []routing.DataClient{dc}}),
 		Flags: PreserveOriginal})
 
 	delay()
@@ -822,10 +797,9 @@ func TestHostHeader(t *testing.T) {
 
 		// start a proxy server
 		r := routing.New(routing.Options{
-			FilterRegistry:  builtin.MakeRegistry(),
-			MatchingOptions: routing.MatchingOptionsNone,
-			PollTimeout:     42 * time.Microsecond,
-			DataClients:     []routing.DataClient{dc}})
+			FilterRegistry: builtin.MakeRegistry(),
+			PollTimeout:    42 * time.Microsecond,
+			DataClients:    []routing.DataClient{dc}})
 		ps := httptest.NewServer(WithParams(Params{Routing: r, Flags: ti.flags}))
 
 		// wait for the routing table was activated
