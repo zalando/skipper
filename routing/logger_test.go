@@ -8,71 +8,78 @@ import (
 	"time"
 )
 
+type logSubscription struct {
+	exp      string
+	n        int
+	response chan<- struct{}
+}
+
+type logWatch struct {
+	entries []string
+	reqs    []*logSubscription
+}
+
 type testLogger struct {
 	save   chan string
-	notify chan<- struct {
-		exp      string
-		n        int
-		response chan<- struct{}
-	}
-	clear chan struct{}
-	quit  chan<- struct{}
+	notify chan<- logSubscription
+	clear  chan struct{}
+	quit   chan<- struct{}
 }
 
 var errWaitTimeout = errors.New("timeout")
 
+func (lw *logWatch) save(e string) {
+	lw.entries = append(lw.entries, e)
+	for i := len(lw.reqs) - 1; i >= 0; i-- {
+		req := lw.reqs[i]
+		if strings.Contains(e, req.exp) {
+			req.n--
+			if req.n <= 0 {
+				close(req.response)
+				lw.reqs = append(lw.reqs[:i], lw.reqs[i+1:]...)
+			}
+		}
+	}
+}
+
+func (lw *logWatch) notify(req logSubscription) {
+	for i := len(lw.entries) - 1; i >= 0; i-- {
+		if strings.Contains(lw.entries[i], req.exp) {
+			req.n--
+			if req.n == 0 {
+				break
+			}
+		}
+	}
+
+	if req.n <= 0 {
+		close(req.response)
+	} else {
+		lw.reqs = append(lw.reqs, &req)
+	}
+}
+
+func (lw *logWatch) clear() {
+	lw.entries = nil
+	lw.reqs = nil
+}
+
 func newTestLogger() *testLogger {
+	lw := &logWatch{}
 	save := make(chan string)
-	notify := make(chan struct {
-		exp      string
-		n        int
-		response chan<- struct{}
-	})
+	notify := make(chan logSubscription)
 	clear := make(chan struct{})
 	quit := make(chan struct{})
-
-	var (
-		entries []string
-		reqs    []*struct {
-			exp      string
-			n        int
-			response chan<- struct{}
-		}
-	)
 
 	go func() {
 		for {
 			select {
 			case e := <-save:
-				entries = append(entries, e)
-				for i := len(reqs) - 1; i >= 0; i-- {
-					req := reqs[i]
-					if strings.Contains(e, req.exp) {
-						req.n--
-						if req.n <= 0 {
-							close(req.response)
-							reqs = append(reqs[:i], reqs[i+1:]...)
-						}
-					}
-				}
+				lw.save(e)
 			case req := <-notify:
-				for i := len(entries) - 1; i >= 0; i-- {
-					if strings.Contains(entries[i], req.exp) {
-						req.n--
-						if req.n == 0 {
-							break
-						}
-					}
-				}
-
-				if req.n <= 0 {
-					close(req.response)
-				} else {
-					reqs = append(reqs, &req)
-				}
+				lw.notify(req)
 			case <-clear:
-				entries = nil
-				reqs = nil
+				lw.clear()
 			case <-quit:
 				return
 			}
@@ -94,11 +101,7 @@ func (tl *testLogger) log(a ...interface{}) {
 
 func (tl *testLogger) waitForN(exp string, n int, to time.Duration) error {
 	found := make(chan struct{}, 1)
-	tl.notify <- struct {
-		exp      string
-		n        int
-		response chan<- struct{}
-	}{exp, n, found}
+	tl.notify <- logSubscription{exp, n, found}
 
 	select {
 	case <-found:
