@@ -29,7 +29,7 @@ func testIdle() bool {
 // simple crash test only, use utilities in skptesting
 // for benchmarking.
 //
-// This test unpredicable fails on certain OSes. To run this test,
+// This test is unpredicable fails on certain OSes. To run this test,
 // set `-args idle` for the test command
 func TestIdleConns(t *testing.T) {
 	if testing.Short() || !testIdle() {

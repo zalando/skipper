@@ -59,15 +59,15 @@ func checkGetRequest(rt *routing.Routing, url string) (*routing.Route, error) {
 	return checkRequest(rt, req)
 }
 
-func waitForNRouteSettingsTO(tl *loggingtest.TestLogger, n int, to time.Duration) error {
+func waitForNRouteSettingsTO(tl *loggingtest.Logger, n int, to time.Duration) error {
 	return tl.WaitForN("route settings applied", n, to)
 }
 
-func waitForNRouteSettings(tl *loggingtest.TestLogger, n int) error {
+func waitForNRouteSettings(tl *loggingtest.Logger, n int) error {
 	return waitForNRouteSettingsTO(tl, n, 12*pollTimeout)
 }
 
-func waitForRouteSetting(tl *loggingtest.TestLogger) error {
+func waitForRouteSetting(tl *loggingtest.Logger) error {
 	return waitForNRouteSettings(tl, 1)
 }
 

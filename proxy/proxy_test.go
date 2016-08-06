@@ -859,42 +859,23 @@ func TestHostHeader(t *testing.T) {
 		}
 
 		// start a proxy server
+		tl := loggingtest.New()
 		r := routing.New(routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
 			PollTimeout:    42 * time.Microsecond,
-			DataClients:    []routing.DataClient{dc}})
+			DataClients:    []routing.DataClient{dc},
+			Log:            tl})
 		p := WithParams(Params{Routing: r, Flags: ti.flags})
 		ps := httptest.NewServer(p)
 		closeAll := func() {
 			ps.Close()
 			p.Close()
 			r.Close()
+			tl.Close()
 		}
 
 		// wait for the routing table was activated
-		healthcheckDone := make(chan struct{})
-		go func() {
-			for {
-				rs, _ := http.Get(ps.URL + "/healthcheck")
-				if rs != nil &&
-					rs.StatusCode >= http.StatusOK &&
-					rs.StatusCode < http.StatusMultipleChoices {
-					healthcheckDone <- struct{}{}
-					return
-				}
-			}
-		}()
-		timeouted := false
-		select {
-		case <-time.After(999 * time.Millisecond):
-			timeouted = true
-		case <-healthcheckDone:
-		}
-		if timeouted {
-			t.Error(ti.msg, "startup timeout")
-			closeAll()
-			continue
-		}
+		tl.WaitFor("route settings applied", time.Second)
 
 		req, err := http.NewRequest("GET", ps.URL, nil)
 		if err != nil {
