@@ -358,6 +358,7 @@ func Run(o Options) error {
 		DataClients:     dataClients,
 		Predicates:      o.CustomPredicates,
 		UpdateBuffer:    updateBuffer})
+	defer routing.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
@@ -379,6 +380,7 @@ func Run(o Options) error {
 
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)
+	defer proxy.Close()
 
 	return listenAndServe(proxy, &o)
 }

@@ -19,14 +19,6 @@ const (
 	listenTimeout = 9 * listenDelay
 )
 
-func initializeProxy() *proxy.Proxy {
-	filterRegistry := builtin.MakeRegistry()
-	proxy := proxy.New(routing.New(routing.Options{
-		FilterRegistry: filterRegistry,
-		DataClients:    []routing.DataClient{}}), proxy.OptionsNone)
-	return proxy
-}
-
 func testListener() bool {
 	for _, a := range os.Args {
 		if a == "listener" {
@@ -97,7 +89,13 @@ func TestWithWrongCertPathFails(t *testing.T) {
 		CertPathTLS: "fixtures/notFound.crt",
 		KeyPathTLS:  "fixtures/test.key",
 	}
-	proxy := initializeProxy()
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients:    []routing.DataClient{}})
+	defer rt.Close()
+
+	proxy := proxy.New(rt, proxy.OptionsNone)
 	defer proxy.Close()
 
 	err = listenAndServe(proxy, &o)
@@ -116,7 +114,13 @@ func TestWithWrongKeyPathFails(t *testing.T) {
 		CertPathTLS: "fixtures/test.crt",
 		KeyPathTLS:  "fixtures/notFound.key",
 	}
-	proxy := initializeProxy()
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients:    []routing.DataClient{}})
+	defer rt.Close()
+
+	proxy := proxy.New(rt, proxy.OptionsNone)
 	defer proxy.Close()
 	err = listenAndServe(proxy, &o)
 	if err == nil {
@@ -141,7 +145,13 @@ func TestHTTPSServer(t *testing.T) {
 		CertPathTLS: "fixtures/test.crt",
 		KeyPathTLS:  "fixtures/test.key",
 	}
-	proxy := initializeProxy()
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients:    []routing.DataClient{}})
+	defer rt.Close()
+
+	proxy := proxy.New(rt, proxy.OptionsNone)
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 
@@ -174,7 +184,13 @@ func TestHTTPServer(t *testing.T) {
 	}
 
 	o := Options{Address: a}
-	proxy := initializeProxy()
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients:    []routing.DataClient{}})
+	defer rt.Close()
+
+	proxy := proxy.New(rt, proxy.OptionsNone)
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 	r, err := waitConnGet("http://" + o.Address)

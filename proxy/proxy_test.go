@@ -132,11 +132,13 @@ func TestGetRoundtrip(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			PollTimeout: sourcePollTimeout,
-			DataClients: []routing.DataClient{dc}}),
-		Flags: FlagsNone})
+	rt := routing.New(routing.Options{
+		PollTimeout: sourcePollTimeout,
+		DataClients: []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
+	defer p.Close()
 
 	delay()
 
@@ -192,11 +194,13 @@ func TestPostRoundtrip(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			PollTimeout: sourcePollTimeout,
-			DataClients: []routing.DataClient{dc}}),
-		Flags: FlagsNone})
+	rt := routing.New(routing.Options{
+		PollTimeout: sourcePollTimeout,
+		DataClients: []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
+	defer p.Close()
 
 	delay()
 
@@ -229,11 +233,13 @@ func TestRoute(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			PollTimeout: sourcePollTimeout,
-			DataClients: []routing.DataClient{dc}}),
-		Flags: FlagsNone})
+	rt := routing.New(routing.Options{
+		PollTimeout: sourcePollTimeout,
+		DataClients: []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
+	defer p.Close()
 
 	delay()
 
@@ -277,11 +283,13 @@ func TestStreaming(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			PollTimeout: sourcePollTimeout,
-			DataClients: []routing.DataClient{dc}}),
-		Flags: FlagsNone})
+	rt := routing.New(routing.Options{
+		PollTimeout: sourcePollTimeout,
+		DataClients: []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
+	defer p.Close()
 
 	delay()
 
@@ -356,12 +364,14 @@ func TestAppliesFilters(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			FilterRegistry: fr,
-			PollTimeout:    sourcePollTimeout,
-			DataClients:    []routing.DataClient{dc}}),
-		Flags: FlagsNone})
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		PollTimeout:    sourcePollTimeout,
+		DataClients:    []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
+	defer p.Close()
 
 	delay()
 
@@ -411,12 +421,14 @@ func TestBreakFilterChain(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			FilterRegistry: fr,
-			PollTimeout:    sourcePollTimeout,
-			DataClients:    []routing.DataClient{dc}}),
-		Flags: FlagsNone})
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		PollTimeout:    sourcePollTimeout,
+		DataClients:    []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
+	defer p.Close()
 
 	delay()
 
@@ -462,12 +474,14 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			FilterRegistry: fr,
-			PollTimeout:    sourcePollTimeout,
-			DataClients:    []routing.DataClient{dc}}),
-		Flags: FlagsNone})
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		PollTimeout:    sourcePollTimeout,
+		DataClients:    []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
+	defer p.Close()
 
 	delay()
 
@@ -507,12 +521,13 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			PollTimeout: sourcePollTimeout,
-			DataClients: []routing.DataClient{dc}}),
-		Flags:          FlagsNone,
-		PriorityRoutes: []PriorityRoute{prt}})
+	rt := routing.New(routing.Options{
+		PollTimeout: sourcePollTimeout,
+		DataClients: []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone, PriorityRoutes: []PriorityRoute{prt}})
+	defer p.Close()
 
 	delay()
 
@@ -557,12 +572,13 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			PollTimeout: sourcePollTimeout,
-			DataClients: []routing.DataClient{dc}}),
-		Flags:          FlagsNone,
-		PriorityRoutes: []PriorityRoute{prt}})
+	rt := routing.New(routing.Options{
+		PollTimeout: sourcePollTimeout,
+		DataClients: []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone, PriorityRoutes: []PriorityRoute{prt}})
+	defer p.Close()
 
 	delay()
 
@@ -589,11 +605,13 @@ func TestFlusherImplementation(t *testing.T) {
 		t.Error(err)
 	}
 
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			PollTimeout: sourcePollTimeout,
-			DataClients: []routing.DataClient{dc}}),
-		Flags: FlagsNone})
+	rt := routing.New(routing.Options{
+		PollTimeout: sourcePollTimeout,
+		DataClients: []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
+	defer p.Close()
 
 	delay()
 
@@ -644,12 +662,14 @@ func TestOriginalRequestResponse(t *testing.T) {
 
 	fr := builtin.MakeRegistry()
 	fr.Register(&preserveOriginalSpec{})
-	p := WithParams(Params{
-		Routing: routing.New(routing.Options{
-			FilterRegistry: fr,
-			PollTimeout:    sourcePollTimeout,
-			DataClients:    []routing.DataClient{dc}}),
-		Flags: PreserveOriginal})
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		PollTimeout:    sourcePollTimeout,
+		DataClients:    []routing.DataClient{dc}})
+	defer rt.Close()
+
+	p := WithParams(Params{Routing: rt, Flags: PreserveOriginal})
+	defer p.Close()
 
 	delay()
 
@@ -800,7 +820,13 @@ func TestHostHeader(t *testing.T) {
 			FilterRegistry: builtin.MakeRegistry(),
 			PollTimeout:    42 * time.Microsecond,
 			DataClients:    []routing.DataClient{dc}})
-		ps := httptest.NewServer(WithParams(Params{Routing: r, Flags: ti.flags}))
+		p := WithParams(Params{Routing: r, Flags: ti.flags})
+		ps := httptest.NewServer(p)
+		closeAll := func() {
+			ps.Close()
+			p.Close()
+			r.Close()
+		}
 
 		// wait for the routing table was activated
 		healthcheckDone := make(chan struct{})
@@ -823,14 +849,14 @@ func TestHostHeader(t *testing.T) {
 		}
 		if timeouted {
 			t.Error(ti.msg, "startup timeout")
-			ps.Close()
+			closeAll()
 			continue
 		}
 
 		req, err := http.NewRequest("GET", ps.URL, nil)
 		if err != nil {
 			t.Error(ti.msg, err)
-			ps.Close()
+			closeAll()
 			continue
 		}
 
@@ -838,12 +864,12 @@ func TestHostHeader(t *testing.T) {
 		rsp, err := (&http.Client{}).Do(req)
 		if err != nil {
 			t.Error(ti.msg, "failed to make request")
-			ps.Close()
+			closeAll()
 			continue
 		}
 
 		if ti.flags.Debug() {
-			ps.Close()
+			closeAll()
 			return
 		}
 
@@ -851,6 +877,6 @@ func TestHostHeader(t *testing.T) {
 			t.Error(ti.msg, "wrong host", rsp.Header.Get("X-Received-Host"), ti.expectedHost)
 		}
 
-		ps.Close()
+		closeAll()
 	}
 }

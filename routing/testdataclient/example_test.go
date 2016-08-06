@@ -33,6 +33,7 @@ func Example() {
 	// create a router:
 	r := routing.New(routing.Options{
 		DataClients: []routing.DataClient{dataClient}})
+	defer r.Close()
 
 	// let the route data be propagated:
 	time.Sleep(36 * time.Millisecond)

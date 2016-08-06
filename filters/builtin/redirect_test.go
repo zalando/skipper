@@ -126,7 +126,6 @@ func TestRedirect(t *testing.T) {
 			time.Sleep(30 * time.Millisecond)
 
 			p := proxy.New(rt, proxy.OptionsNone)
-			defer p.Close()
 			req := &http.Request{
 				URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
 				Host: "incoming.example.org"}
@@ -140,6 +139,9 @@ func TestRedirect(t *testing.T) {
 			if w.Header().Get("Location") != ti.checkLocation {
 				t.Error(ti.msg, tii.msg, "invalid location", w.Header().Get("Location"))
 			}
+
+			p.Close()
+			rt.Close()
 		}
 	}
 }

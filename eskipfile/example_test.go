@@ -28,9 +28,12 @@ func Example() {
 		return
 	}
 
+	// create routing object:
+	rt := routing.New(routing.Options{
+		DataClients: []routing.DataClient{dataClient}})
+	defer rt.Close()
+
 	// create http.Handler:
-	proxy.New(
-		routing.New(routing.Options{
-			DataClients: []routing.DataClient{dataClient}}),
-		proxy.OptionsNone)
+	p := proxy.New(rt, proxy.OptionsNone)
+	defer p.Close()
 }

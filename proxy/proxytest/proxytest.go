@@ -11,9 +11,10 @@ import (
 )
 
 type TestProxy struct {
-	URL    string
-	proxy  *proxy.Proxy
-	server *httptest.Server
+	URL     string
+	routing *routing.Routing
+	proxy   *proxy.Proxy
+	server  *httptest.Server
 }
 
 func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *TestProxy {
@@ -23,7 +24,7 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 	pr := proxy.WithParams(o)
 	tsp := httptest.NewServer(pr)
 	time.Sleep(12 * time.Millisecond) // propagate data client routes
-	return &TestProxy{tsp.URL, pr, tsp}
+	return &TestProxy{tsp.URL, rt, pr, tsp}
 }
 
 func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
@@ -31,6 +32,8 @@ func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
 }
 
 func (p *TestProxy) Close() error {
+	p.routing.Close()
+
 	err := p.proxy.Close()
 	if err != nil {
 		return err
