@@ -15,7 +15,3 @@ install:
 
 script:
   - go test github.com/zalando/skipper/... -test.short
-
-notifications:
-  email:
-    - team-pathfinder@zalando.de
