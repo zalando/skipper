@@ -50,5 +50,8 @@ Filters can handle the requests themselves, meaning that they can set the
 response status, headers and send any particular response body. In this case,
 it is the filter's responsibility to mark the request as served to avoid
 generating the default response.
+
+If a filter replaces the response body, it is the filter's responsibility to
+close the original body.
 */
 package filters
