@@ -16,9 +16,9 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-func testIdle() bool {
+func hasArg(arg string) bool {
 	for _, a := range os.Args {
-		if a == "idle" {
+		if a == arg {
 			return true
 		}
 	}
@@ -29,10 +29,10 @@ func testIdle() bool {
 // simple crash test only, use utilities in skptesting
 // for benchmarking.
 //
-// This test is unpredicable fails on certain OSes. To run this test,
-// set `-args idle` for the test command
+// This test is unpredicable, and occasionally fails on certain OSes.
+// To run this test, set `-args idle` for the test command.
 func TestIdleConns(t *testing.T) {
-	if testing.Short() || !testIdle() {
+	if !hasArg("idle") {
 		t.Skip()
 	}
 
