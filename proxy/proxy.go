@@ -200,13 +200,11 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	for {
 		l, rerr := from.Read(b)
 		if rerr != nil && rerr != io.EOF {
-			println("read error", rerr.Error())
 			return rerr
 		}
 
 		if l > 0 {
 			_, werr := to.Write(b[:l])
-			println("proxy written", string(b[:l]))
 			if werr != nil {
 				return werr
 			}

@@ -391,7 +391,6 @@ func TestStreaming(t *testing.T) {
 				continue
 			}
 
-			println("taken", string(readPayload[:n]), n)
 			readPayload = readPayload[n:]
 			parts++
 			total += n
