@@ -15,12 +15,13 @@
 package routing
 
 import (
-	"github.com/Sirupsen/logrus"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/logging"
 )
 
 // Control flags for route matching.
@@ -65,20 +66,6 @@ type PredicateSpec interface {
 	Create([]interface{}) (Predicate, error)
 }
 
-type defaultLog struct{}
-
-// Logger instances provide custom logging.
-type Logger interface {
-	Error(...interface{})
-	Errorf(string, ...interface{})
-	Warn(...interface{})
-	Warnf(string, ...interface{})
-	Info(...interface{})
-	Infof(string, ...interface{})
-	Debug(...interface{})
-	Debugf(string, ...interface{})
-}
-
 // Initialization options for routing.
 type Options struct {
 
@@ -118,7 +105,7 @@ type Options struct {
 	UpdateBuffer int
 
 	// Set a custom logger if necessary.
-	Log Logger
+	Log logging.Logger
 }
 
 // Filter contains extensions to generic filter
@@ -150,24 +137,15 @@ type Route struct {
 // updatable request matching.
 type Routing struct {
 	matcher atomic.Value
-	log     Logger
+	log     logging.Logger
 	quit    chan struct{}
 }
-
-func (dl *defaultLog) Error(a ...interface{})            { logrus.Error(a...) }
-func (dl *defaultLog) Errorf(f string, a ...interface{}) { logrus.Errorf(f, a...) }
-func (dl *defaultLog) Warn(a ...interface{})             { logrus.Warn(a...) }
-func (dl *defaultLog) Warnf(f string, a ...interface{})  { logrus.Warnf(f, a...) }
-func (dl *defaultLog) Info(a ...interface{})             { logrus.Info(a...) }
-func (dl *defaultLog) Infof(f string, a ...interface{})  { logrus.Infof(f, a...) }
-func (dl *defaultLog) Debug(a ...interface{})            { logrus.Debug(a...) }
-func (dl *defaultLog) Debugf(f string, a ...interface{}) { logrus.Debugf(f, a...) }
 
 // Initializes a new routing instance, and starts listening for route
 // definition updates.
 func New(o Options) *Routing {
 	if o.Log == nil {
-		o.Log = &defaultLog{}
+		o.Log = &logging.DefaultLog{}
 	}
 
 	r := &Routing{log: o.Log, quit: make(chan struct{})}

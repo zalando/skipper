@@ -2,10 +2,12 @@ package routing
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
 	"net/url"
 	"time"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/logging"
 )
 
 type incomingType uint
@@ -35,7 +37,7 @@ type incomingData struct {
 	deletedIds     []string
 }
 
-func (d *incomingData) log(l Logger) {
+func (d *incomingData) log(l logging.Logger) {
 	for _, r := range d.upsertedRoutes {
 		l.Infof("route settings, %v, route: %v: %v", d.typ, r.Id, r)
 	}

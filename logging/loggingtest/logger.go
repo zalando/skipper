@@ -19,6 +19,8 @@ type logWatch struct {
 	reqs    []*logSubscription
 }
 
+// Logger provides an implementation of the logging.Logger interface
+// that can be used to receive notifications about log events.
 type Logger struct {
 	save   chan string
 	notify chan<- logSubscription
@@ -26,6 +28,8 @@ type Logger struct {
 	quit   chan<- struct{}
 }
 
+// ErrWaitTimeout is returned when a logging event doesn't happen
+// within a timeout.
 var ErrWaitTimeout = errors.New("timeout")
 
 func (lw *logWatch) save(e string) {
@@ -64,6 +68,7 @@ func (lw *logWatch) clear() {
 	lw.reqs = nil
 }
 
+// Returns a new, initialized instance of Logger.
 func New() *Logger {
 	lw := &logWatch{}
 	save := make(chan string)
@@ -99,6 +104,8 @@ func (tl *Logger) log(a ...interface{}) {
 	tl.save <- fmt.Sprint(a...)
 }
 
+// Returns nil when n logging events matching exp were received or returns
+// ErrWaitTimeout when to timeout expired.
 func (tl *Logger) WaitForN(exp string, n int, to time.Duration) error {
 	found := make(chan struct{}, 1)
 	tl.notify <- logSubscription{exp, n, found}
@@ -111,14 +118,18 @@ func (tl *Logger) WaitForN(exp string, n int, to time.Duration) error {
 	}
 }
 
+// Returns nil when a logging event matching exp was received or returns
+// ErrWaitTimeout when to timeout expired.
 func (tl *Logger) WaitFor(exp string, to time.Duration) error {
 	return tl.WaitForN(exp, 1, to)
 }
 
+// Clears the stored logging events.
 func (tl *Logger) Reset() {
 	tl.clear <- struct{}{}
 }
 
+// Closes the logger.
 func (tl *Logger) Close() {
 	close(tl.quit)
 }
