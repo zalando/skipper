@@ -181,6 +181,7 @@ func TestMultipleRanges(t *testing.T) {
 		return
 	}
 
+	req.Close = true
 	req.Header.Set("Range", "bytes=1-3,5-8")
 
 	rsp, err := http.DefaultClient.Do(req)
