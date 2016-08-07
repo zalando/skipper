@@ -53,7 +53,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 
 	valueExp, err := regexp.Compile(value)
 	if err != nil {
-		return nil, predicates.ErrInvalidPredicateParameters
+		return nil, err
 	}
 
 	return &predicate{name, valueExp}, nil
