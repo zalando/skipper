@@ -196,7 +196,10 @@ func TestGetRoundtrip(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	p.ServeHTTP(w, r)
 
@@ -262,7 +265,10 @@ func TestPostRoundtrip(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	p.ServeHTTP(w, r)
 
@@ -305,7 +311,10 @@ func TestRoute(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	var (
 		r *http.Request
@@ -365,7 +374,10 @@ func TestStreaming(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
@@ -457,7 +469,10 @@ func TestAppliesFilters(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	p.ServeHTTP(w, r)
 
@@ -518,7 +533,10 @@ func TestBreakFilterChain(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	r, _ := http.NewRequest("GET", "https://www.example.org/breaker", nil)
 	w := httptest.NewRecorder()
@@ -575,7 +593,10 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	p.ServeHTTP(w, r)
 
@@ -625,7 +646,10 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone, PriorityRoutes: []PriorityRoute{prt}})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
@@ -680,7 +704,10 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone, PriorityRoutes: []PriorityRoute{prt}})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
@@ -717,7 +744,10 @@ func TestFlusherImplementation(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	a := fmt.Sprintf(":%d", 1<<16-rand.Intn(1<<15))
 	ps := &http.Server{Addr: a, Handler: p}
@@ -779,7 +809,10 @@ func TestOriginalRequestResponse(t *testing.T) {
 	p := WithParams(Params{Routing: rt, Flags: PreserveOriginal})
 	defer p.Close()
 
-	tl.WaitFor("route settings applied", time.Second)
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		t.Error(err)
+		return
+	}
 
 	p.ServeHTTP(w, r)
 
@@ -940,7 +973,10 @@ func TestHostHeader(t *testing.T) {
 		}
 
 		// wait for the routing table was activated
-		tl.WaitFor("route settings applied", time.Second)
+		if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+			t.Error(err)
+			return
+		}
 
 		req, err := http.NewRequest("GET", ps.URL, nil)
 		if err != nil {

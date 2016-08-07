@@ -27,7 +27,11 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 	o.Routing = rt
 	pr := proxy.WithParams(o)
 	tsp := httptest.NewServer(pr)
-	tl.WaitFor("route settings applied", time.Second)
+
+	if err := tl.WaitFor("route settings applied", 3*time.Second); err != nil {
+		panic(err)
+	}
+
 	return &TestProxy{
 		URL:     tsp.URL,
 		log:     tl,
