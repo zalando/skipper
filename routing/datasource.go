@@ -73,10 +73,10 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		switch {
 		case err != nil && initial:
 			o.Log.Error("error while receiveing initial data;", err)
-			to = 0
 		case err != nil:
 			o.Log.Error("error while receiving update;", err)
 			initial = true
+			to = 0
 		case initial || len(routes) > 0 || len(deletedIDs) > 0:
 			initial = false
 			select {
