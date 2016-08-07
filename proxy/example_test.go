@@ -73,7 +73,6 @@ func DisabledExample() {
 	defer proxy.Close()
 
 	router := httptest.NewServer(proxy)
-	defer proxy.Close()
 	defer router.Close()
 
 	// make a request to the proxy:

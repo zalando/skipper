@@ -145,6 +145,7 @@ func TestSameFileMultipleTimes(t *testing.T) {
 	pr := proxytest.New(fr, &eskip.Route{
 		Filters: []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
 		Shunt:   true})
+	defer pr.Close()
 
 	for i := 0; i < n; i++ {
 		rsp, err := http.Get(pr.URL + "/static/static-test")
@@ -174,6 +175,7 @@ func TestMultipleRanges(t *testing.T) {
 	pr := proxytest.New(fr, &eskip.Route{
 		Filters: []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
 		Shunt:   true})
+	defer pr.Close()
 
 	req, err := http.NewRequest("GET", pr.URL+"/static/static-test", nil)
 	if err != nil {
