@@ -100,15 +100,15 @@ func TestPrintNonPretty(t *testing.T) {
 		expected string
 	}{
 		{
-			"route1: Method(\"GET\") -> filter(\"expression\") -> <shunt>",
-			"Method(\"GET\") -> filter(\"expression\") -> <shunt>",
+			`route1: Method("GET") -> filter("expression") -> <shunt>`,
+			`Method("GET") -> filter("expression") -> <shunt>`,
 		},
 		{
-			"route2: Path(\"/some/path\") -> \"https://www.example.org\"",
-			"Path(\"/some/path\") -> \"https://www.example.org\"",
+			`route2: Path("/some/path") -> "https://www.example.org"`,
+			`Path("/some/path") -> "https://www.example.org"`,
 		},
 	} {
-		testPrinting(item.route, item.expected, t, i, false)
+		testPrinting(item.route, item.expected, t, i, false, false)
 	}
 }
 
@@ -126,17 +126,41 @@ func TestPrintPretty(t *testing.T) {
 			"Path(\"/some/path\")\n  -> \"https://www.example.org\"",
 		},
 	} {
-		testPrinting(item.route, item.expected, t, i, true)
+		testPrinting(item.route, item.expected, t, i, true, false)
 	}
 }
 
-func testPrinting(routestr string, expected string, t *testing.T, i int, pretty bool) {
-	route, err := Parse(routestr)
+func TestPrintMultiRoutePretty(t *testing.T) {
+	testPrinting(`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
+		`route2: Path("/some/path") -> "https://www.example.org"`,
+		`route1: Method("GET")`+"\n"+
+			`  -> filter("expression")`+"\n"+
+			`  -> <shunt>;`+"\n"+
+			`route2: Path("/some/path")`+"\n"+
+			`  -> "https://www.example.org"`,
+		t, 0, true, true)
+}
+
+func TestPrintMultiRouteNonPretty(t *testing.T) {
+	testPrinting(`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
+		`route2: Path("/some/path") -> "https://www.example.org"`,
+		`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
+			`route2: Path("/some/path") -> "https://www.example.org"`,
+		t, 0, false, true)
+}
+
+func testPrinting(routestr string, expected string, t *testing.T, i int, pretty bool, multi bool) {
+	routes, err := Parse(routestr)
 	if err != nil {
 		t.Error(err)
 	}
+	var printedRoute string
 
-	printedRoute := route[0].Print(pretty)
+	if multi {
+		printedRoute = Print(pretty, routes...)
+	} else {
+		printedRoute = routes[0].Print(pretty)
+	}
 
 	if printedRoute != expected {
 		pos := findDiffPos(printedRoute, expected)

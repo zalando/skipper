@@ -126,13 +126,17 @@ func (r *Route) Print(pretty bool) string {
 
 // Serializes a set of routes.
 func String(routes ...*Route) string {
+	return Print(false, routes...)
+}
+
+func Print(pretty bool, routes ...*Route) string {
 	if len(routes) == 1 && routes[0].Id == "" {
-		return routes[0].String()
+		return routes[0].Print(pretty)
 	}
 
 	rs := make([]string, len(routes))
 	for i, r := range routes {
-		rs[i] = fmt.Sprintf("%s: %s", r.Id, r.String())
+		rs[i] = fmt.Sprintf("%s: %s", r.Id, r.Print(pretty))
 	}
 
 	return strings.Join(rs, ";\n")
