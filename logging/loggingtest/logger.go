@@ -9,9 +9,9 @@ import (
 )
 
 type logSubscription struct {
-	exp      string
-	n        int
-	response chan<- struct{}
+	exp    string
+	n      int
+	notify chan<- struct{}
 }
 
 type logWatch struct {
@@ -39,7 +39,7 @@ func (lw *logWatch) save(e string) {
 		if strings.Contains(e, req.exp) {
 			req.n--
 			if req.n <= 0 {
-				close(req.response)
+				close(req.notify)
 				lw.reqs = append(lw.reqs[:i], lw.reqs[i+1:]...)
 			}
 		}
@@ -57,7 +57,7 @@ func (lw *logWatch) notify(req logSubscription) {
 	}
 
 	if req.n <= 0 {
-		close(req.response)
+		close(req.notify)
 	} else {
 		lw.reqs = append(lw.reqs, &req)
 	}
