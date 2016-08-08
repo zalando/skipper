@@ -8,6 +8,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
@@ -21,6 +22,11 @@ const (
 
 type predicate struct {
 	matchVal string
+}
+
+type testRouting struct {
+	log     *loggingtest.Logger
+	routing *routing.Routing
 }
 
 func (cp *predicate) Name() string { return "CustomPredicate" }
@@ -42,33 +48,62 @@ func (cp *predicate) Match(r *http.Request) bool {
 	return r.Header.Get(predicateHeader) == cp.matchVal
 }
 
-func checkRequest(rt *routing.Routing, req *http.Request) (*routing.Route, error) {
-	if r, _ := rt.Route(req); r != nil {
+func newTestRoutingWithFiltersPredicates(fr filters.Registry, cps []routing.PredicateSpec, dc ...routing.DataClient) (*testRouting, error) {
+	tl := loggingtest.New()
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		Predicates:     cps,
+		DataClients:    dc,
+		PollTimeout:    pollTimeout,
+		Log:            tl})
+	tr := &testRouting{tl, rt}
+	return tr, tr.waitForNRouteSettings(len(dc))
+}
+
+func newTestRoutingWithFilters(fr filters.Registry, dc ...routing.DataClient) (*testRouting, error) {
+	return newTestRoutingWithFiltersPredicates(fr, nil, dc...)
+}
+
+func newTestRoutingWithPredicates(cps []routing.PredicateSpec, dc ...routing.DataClient) (*testRouting, error) {
+	return newTestRoutingWithFiltersPredicates(builtin.MakeRegistry(), cps, dc...)
+}
+
+func newTestRouting(dc ...routing.DataClient) (*testRouting, error) {
+	return newTestRoutingWithFiltersPredicates(builtin.MakeRegistry(), nil, dc...)
+}
+
+func (tr *testRouting) waitForNRouteSettingsTO(n int, to time.Duration) error {
+	return tr.log.WaitForN("route settings applied", n, to)
+}
+
+func (tr *testRouting) waitForNRouteSettings(n int) error {
+	return tr.waitForNRouteSettingsTO(n, 12*pollTimeout)
+}
+
+func (tr *testRouting) waitForRouteSetting() error {
+	return tr.waitForNRouteSettings(1)
+}
+
+func (tr *testRouting) checkRequest(req *http.Request) (*routing.Route, error) {
+	if r, _ := tr.routing.Route(req); r != nil {
 		return r, nil
 	}
 
 	return nil, errors.New("requested route not found")
 }
 
-func checkGetRequest(rt *routing.Routing, url string) (*routing.Route, error) {
+func (tr *testRouting) checkGetRequest(url string) (*routing.Route, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return checkRequest(rt, req)
+	return tr.checkRequest(req)
 }
 
-func waitForNRouteSettingsTO(tl *loggingtest.Logger, n int, to time.Duration) error {
-	return tl.WaitForN("route settings applied", n, to)
-}
-
-func waitForNRouteSettings(tl *loggingtest.Logger, n int) error {
-	return waitForNRouteSettingsTO(tl, n, 12*pollTimeout)
-}
-
-func waitForRouteSetting(tl *loggingtest.Logger) error {
-	return waitForNRouteSettings(tl, 1)
+func (tr *testRouting) close() {
+	tr.log.Close()
+	tr.routing.Close()
 }
 
 func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
@@ -77,109 +112,76 @@ func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
 	dc.FailNext()
 	dc.FailNext()
 
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer: 0,
-		DataClients:  []routing.DataClient{dc},
-		PollTimeout:  pollTimeout,
-		Log:          tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
-
-	if err := waitForRouteSetting(tl); err != nil {
+	tr, err := newTestRouting(dc)
+	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-path"); err != nil {
+	defer tr.close()
+
+	if _, err := tr.checkGetRequest("https://www.example.com/some-path"); err != nil {
 		t.Error(err)
 	}
 }
 
 func TestReceivesInitial(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer: 0,
-		DataClients:  []routing.DataClient{dc},
-		PollTimeout:  pollTimeout,
-		Log:          tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
-
-	if err := waitForRouteSetting(tl); err != nil {
+	tr, err := newTestRouting(dc)
+	if err != nil {
 		t.Error(err)
-		return
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-path"); err != nil {
+	defer tr.close()
+
+	if _, err := tr.checkGetRequest("https://www.example.com/some-path"); err != nil {
 		t.Error(err)
 	}
 }
 
 func TestReceivesFullOnFailedUpdate(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer: 0,
-		DataClients:  []routing.DataClient{dc},
-		PollTimeout:  pollTimeout,
-		Log:          tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
-
-	if err := waitForRouteSetting(tl); err != nil {
+	tr, err := newTestRouting(dc)
+	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	tl.Reset()
+	defer tr.close()
+
+	tr.log.Reset()
 	dc.FailNext()
 	dc.Update([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}}, nil)
 
-	if err := waitForRouteSetting(tl); err != nil {
+	if err := tr.waitForRouteSetting(); err != nil {
 		t.Error(err)
 		return
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-other"); err != nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/some-other"); err != nil {
 		t.Error(err)
 	}
 }
 
 func TestReceivesUpdate(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer: 0,
-		DataClients:  []routing.DataClient{dc},
-		PollTimeout:  pollTimeout,
-		Log:          tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
-
-	if err := waitForRouteSetting(tl); err != nil {
+	tr, err := newTestRouting(dc)
+	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	tl.Reset()
+	defer tr.close()
+
+	tr.log.Reset()
 	dc.Update([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}}, nil)
 
-	if err := waitForRouteSetting(tl); err != nil {
+	if err := tr.waitForRouteSetting(); err != nil {
 		t.Error(err)
 		return
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-other"); err != nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/some-other"); err != nil {
 		t.Error(err)
 	}
 }
@@ -188,62 +190,46 @@ func TestReceivesDelete(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{
 		{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"},
 		{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer: 0,
-		DataClients:  []routing.DataClient{dc},
-		PollTimeout:  pollTimeout,
-		Log:          tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
-
-	if err := waitForRouteSetting(tl); err != nil {
+	tr, err := newTestRouting(dc)
+	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	tl.Reset()
+	defer tr.close()
+
+	tr.log.Reset()
 	dc.Update(nil, []string{"route1"})
 
-	if err := waitForRouteSetting(tl); err != nil {
+	if err := tr.waitForRouteSetting(); err != nil {
 		t.Error(err)
 		return
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-path"); err == nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/some-path"); err == nil {
 		t.Error("failed to delete")
 	}
 }
 
 func TestUpdateDoesNotChangeRouting(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer: 0,
-		DataClients:  []routing.DataClient{dc},
-		PollTimeout:  pollTimeout,
-		Log:          tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
-
-	if err := waitForRouteSetting(tl); err != nil {
+	tr, err := newTestRouting(dc)
+	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	tl.Reset()
+	defer tr.close()
+
+	tr.log.Reset()
 	dc.Update(nil, nil)
 
-	if err := waitForNRouteSettingsTO(tl, 1, 3*pollTimeout); err != nil && err != loggingtest.ErrWaitTimeout {
+	if err := tr.waitForNRouteSettingsTO(1, 3*pollTimeout); err != nil && err != loggingtest.ErrWaitTimeout {
 		t.Error(err)
 		return
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-path"); err != nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/some-path"); err != nil {
 		t.Error(err)
 	}
 }
@@ -252,31 +238,23 @@ func TestMergesMultipleSources(t *testing.T) {
 	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
 	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
 	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer: 0,
-		DataClients:  []routing.DataClient{dc1, dc2, dc3},
-		PollTimeout:  pollTimeout,
-		Log:          tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
-
-	if err := waitForNRouteSettings(tl, 3); err != nil {
+	tr, err := newTestRouting(dc1, dc2, dc3)
+	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-path"); err != nil {
+	defer tr.close()
+
+	if _, err := tr.checkGetRequest("https://www.example.com/some-path"); err != nil {
 		t.Error(err)
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-other"); err != nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/some-other"); err != nil {
 		t.Error(err)
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/another"); err != nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/another"); err != nil {
 		t.Error(err)
 	}
 }
@@ -285,71 +263,60 @@ func TestMergesUpdatesFromMultipleSources(t *testing.T) {
 	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
 	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
 	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer: 0,
-		DataClients:  []routing.DataClient{dc1, dc2, dc3},
-		PollTimeout:  pollTimeout,
-		Log:          tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
-
-	if err := waitForNRouteSettings(tl, 3); err != nil {
+	tr, err := newTestRouting(dc1, dc2, dc3)
+	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-path"); err != nil {
+	defer tr.close()
+
+	if _, err := tr.checkGetRequest("https://www.example.com/some-path"); err != nil {
 		t.Error(err)
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-other"); err != nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/some-other"); err != nil {
 		t.Error(err)
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/another"); err != nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/another"); err != nil {
 		t.Error(err)
 	}
 
-	tl.Reset()
+	tr.log.Reset()
 
 	dc1.Update([]*eskip.Route{{Id: "route1", Path: "/some-changed-path", Backend: "https://www.example.org"}}, nil)
 	dc2.Update([]*eskip.Route{{Id: "route2", Path: "/some-other-changed", Backend: "https://www.example.org"}}, nil)
 	dc3.Update(nil, []string{"route3"})
 
-	if err := waitForNRouteSettings(tl, 3); err != nil {
+	if err := tr.waitForNRouteSettings(3); err != nil {
 		t.Error(err)
 		return
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-changed-path"); err != nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/some-changed-path"); err != nil {
 		t.Error(err)
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/some-other-changed"); err != nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/some-other-changed"); err != nil {
 		t.Error(err)
 	}
 
-	if _, err := checkGetRequest(rt, "https://www.example.com/another"); err == nil {
+	if _, err := tr.checkGetRequest("https://www.example.com/another"); err == nil {
 		t.Error(err)
 	}
 }
 
 func TestIgnoresInvalidBackend(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "invalid backend"}})
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer: 0,
-		DataClients:  []routing.DataClient{dc},
-		PollTimeout:  pollTimeout})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
+	tr, err := newTestRouting(dc)
+	if err != nil {
+		t.Error(err)
+	}
 
-	if err := waitForNRouteSettings(tl, 3); err != loggingtest.ErrWaitTimeout {
+	defer tr.close()
+
+	if err = tr.log.WaitFor("invalid backend", time.Second); err != nil {
 		t.Error(err)
 	}
 }
@@ -364,24 +331,16 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 		Path:    "/some-path",
 		Filters: []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "Hello, world!"}}},
 		Backend: "https://www.example.org"}})
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		UpdateBuffer:   0,
-		DataClients:    []routing.DataClient{dc},
-		PollTimeout:    pollTimeout,
-		FilterRegistry: fr,
-		Log:            tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
 
-	if err := waitForRouteSetting(tl); err != nil {
+	tr, err := newTestRoutingWithFilters(fr, dc)
+	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	if r, err := checkGetRequest(rt, "https://www.example.com/some-path"); r == nil || err != nil {
+	defer tr.close()
+
+	if r, err := tr.checkGetRequest("https://www.example.com/some-path"); r == nil || err != nil {
 		t.Error(err)
 	} else {
 		if len(r.Filters) != 1 {
@@ -408,21 +367,14 @@ func TestProcessesPredicates(t *testing.T) {
 	}
 
 	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc},
-		PollTimeout: pollTimeout,
-		Predicates:  cps,
-		Log:         tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
 
-	if err := waitForRouteSetting(tl); err != nil {
+	tr, err := newTestRoutingWithPredicates(cps, dc)
+	if err != nil {
 		t.Error(err)
 		return
 	}
+
+	defer tr.close()
 
 	req, err := http.NewRequest("GET", "https://www.example.com", nil)
 	if err != nil {
@@ -431,7 +383,7 @@ func TestProcessesPredicates(t *testing.T) {
 	}
 
 	req.Header.Set(predicateHeader, "custom1")
-	if r, err := checkRequest(rt, req); r == nil || err != nil {
+	if r, err := tr.checkRequest(req); r == nil || err != nil {
 		t.Error(err)
 	} else {
 		if r.Backend != "https://route1.example.org" {
@@ -441,7 +393,7 @@ func TestProcessesPredicates(t *testing.T) {
 	}
 
 	req.Header.Del(predicateHeader)
-	if r, err := checkRequest(rt, req); r == nil || err != nil {
+	if r, err := tr.checkRequest(req); r == nil || err != nil {
 		t.Error(err)
 	} else {
 		if r.Backend != "https://route.example.org" {
@@ -463,21 +415,14 @@ func TestNonMatchedStaticRoute(t *testing.T) {
 	}
 
 	cps := []routing.PredicateSpec{&predicate{}}
-	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dc},
-		PollTimeout: pollTimeout,
-		Predicates:  cps,
-		Log:         tl})
-	defer func() {
-		rt.Close()
-		tl.Close()
-	}()
 
-	if err := waitForRouteSetting(tl); err != nil {
+	tr, err := newTestRoutingWithPredicates(cps, dc)
+	if err != nil {
 		t.Error(err)
 		return
 	}
+
+	defer tr.close()
 
 	req, err := http.NewRequest("GET", "https://www.example.com/foo/bar", nil)
 	if err != nil {
@@ -485,7 +430,7 @@ func TestNonMatchedStaticRoute(t *testing.T) {
 		return
 	}
 
-	if r, err := checkRequest(rt, req); r == nil || err != nil {
+	if r, err := tr.checkRequest(req); r == nil || err != nil {
 		t.Error(err)
 	} else {
 		if r.Backend != "https://foo.org" {

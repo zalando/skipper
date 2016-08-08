@@ -47,14 +47,10 @@ type syncResponseWriter struct {
 	body       *bytes.Buffer
 }
 
-func hasArg(arg string) bool {
-	for _, a := range os.Args {
-		if a == arg {
-			return true
-		}
-	}
-
-	return false
+type testProxy struct {
+	log     *loggingtest.Logger
+	routing *routing.Routing
+	proxy   *Proxy
 }
 
 func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
@@ -115,6 +111,47 @@ func (srw *syncResponseWriter) Len() int {
 	srw.mx.Lock()
 	defer srw.mx.Unlock()
 	return srw.body.Len()
+}
+
+func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
+	dc, err := testdataclient.NewDoc(doc)
+	if err != nil {
+		return nil, err
+	}
+
+	tl := loggingtest.New()
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		PollTimeout:    sourcePollTimeout,
+		DataClients:    []routing.DataClient{dc},
+		Log:            tl})
+	p := WithParams(Params{Routing: rt, Flags: flags, PriorityRoutes: pr})
+
+	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+		return nil, err
+	}
+
+	return &testProxy{tl, rt, p}, nil
+}
+
+func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
+	return newTestProxyWithFilters(builtin.MakeRegistry(), doc, flags, pr...)
+}
+
+func (tp *testProxy) close() {
+	tp.log.Close()
+	tp.routing.Close()
+	tp.proxy.Close()
+}
+
+func hasArg(arg string) bool {
+	for _, a := range os.Args {
+		if a == arg {
+			return true
+		}
+	}
+
+	return false
 }
 
 func voidCheck(*http.Request) {}
@@ -179,29 +216,15 @@ func TestGetRoundtrip(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc},
-		Log:         tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
-		t.Error(err)
+		t.Error()
 		return
 	}
 
-	p.ServeHTTP(w, r)
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Error("wrong status", w.Code)
@@ -248,29 +271,15 @@ func TestPostRoundtrip(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc},
-		Log:         tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		t.Error(err)
 		return
 	}
 
-	p.ServeHTTP(w, r)
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Error("wrong status", w.Code)
@@ -294,27 +303,13 @@ func TestRoute(t *testing.T) {
 		route1: Path("/host-one/*any") -> "%s";
 		route2: Path("/host-two/*any") -> "%s"
 	`, s1.URL, s2.URL)
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc},
-		Log:         tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		t.Error(err)
 		return
 	}
+
+	defer tp.close()
 
 	var (
 		r *http.Request
@@ -327,7 +322,7 @@ func TestRoute(t *testing.T) {
 		URL:    u,
 		Method: "GET"}
 	w = httptest.NewRecorder()
-	p.ServeHTTP(w, r)
+	tp.proxy.ServeHTTP(w, r)
 	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload1) {
 		t.Error("wrong routing 1")
 	}
@@ -337,7 +332,7 @@ func TestRoute(t *testing.T) {
 		URL:    u,
 		Method: "GET"}
 	w = httptest.NewRecorder()
-	p.ServeHTTP(w, r)
+	tp.proxy.ServeHTTP(w, r)
 	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload2) {
 		t.Error("wrong routing 2")
 	}
@@ -357,27 +352,13 @@ func TestStreaming(t *testing.T) {
 	defer s.Close()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc},
-		Log:         tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		t.Error(err)
 		return
 	}
+
+	defer tp.close()
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
@@ -388,7 +369,7 @@ func TestStreaming(t *testing.T) {
 	parts := 0
 	total := 0
 	done := make(chan int)
-	go p.ServeHTTP(w, r)
+	go tp.proxy.ServeHTTP(w, r)
 	go func() {
 		readPayload := make([]byte, len(payload))
 		for {
@@ -451,30 +432,15 @@ func TestAppliesFilters(t *testing.T) {
 		requestHeader("X-Test-Request-Header", "request header value") ->
 		responseHeader("X-Test-Response-Header", "response header value") ->
 		"%s"`, s.URL)
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		FilterRegistry: fr,
-		PollTimeout:    sourcePollTimeout,
-		DataClients:    []routing.DataClient{dc},
-		Log:            tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		t.Error(err)
 		return
 	}
 
-	p.ServeHTTP(w, r)
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
 
 	if h, ok := w.Header()["X-Test-Response-Header"]; !ok || h[0] != "response header value" {
 		t.Error("missing response header")
@@ -515,32 +481,17 @@ func TestBreakFilterChain(t *testing.T) {
 		requestHeader("X-Unexpected", "foo") ->
 		responseHeader("X-Unexpected", "bar") ->
 		"%s"`, s.URL)
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		FilterRegistry: fr,
-		PollTimeout:    sourcePollTimeout,
-		DataClients:    []routing.DataClient{dc},
-		Log:            tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		t.Error(err)
 		return
 	}
 
+	defer tp.close()
+
 	r, _ := http.NewRequest("GET", "https://www.example.org/breaker", nil)
 	w := httptest.NewRecorder()
-	p.ServeHTTP(w, r)
+	tp.proxy.ServeHTTP(w, r)
 
 	if _, has := r.Header["X-Expected"]; !has {
 		t.Error("Request is missing the expected header (added during filter chain winding)")
@@ -575,30 +526,15 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	fr.Register(builtin.NewResponseHeader())
 
 	doc := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		FilterRegistry: fr,
-		PollTimeout:    sourcePollTimeout,
-		DataClients:    []routing.DataClient{dc},
-		Log:            tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		t.Error(err)
 		return
 	}
 
-	p.ServeHTTP(w, r)
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
 
 	if h, ok := w.Header()["X-Test-Response-Header"]; !ok || h[0] != "response header value" {
 		t.Error("wrong response header")
@@ -629,30 +565,16 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	}}
 
 	doc := `hello: Path("/hello") -> <shunt>`
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxy(doc, FlagsNone, prt)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc},
-		Log:         tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone, PriorityRoutes: []PriorityRoute{prt}})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		t.Error(err)
 		return
 	}
 
+	defer tp.close()
+
 	w := httptest.NewRecorder()
-	p.ServeHTTP(w, req)
+	tp.proxy.ServeHTTP(w, req)
 	if w.Header().Get("X-Test-Header") != "test-value" {
 		t.Error("failed match priority route")
 	}
@@ -687,30 +609,16 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	}}
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s1.URL)
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxy(doc, FlagsNone, prt)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc},
-		Log:         tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone, PriorityRoutes: []PriorityRoute{prt}})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		t.Error(err)
 		return
 	}
 
+	defer tp.close()
+
 	w := httptest.NewRecorder()
-	p.ServeHTTP(w, req)
+	tp.proxy.ServeHTTP(w, req)
 	if w.Header().Get("X-Test-Header") != "priority-value" {
 		t.Error("failed match priority route")
 	}
@@ -727,30 +635,16 @@ func TestFlusherImplementation(t *testing.T) {
 	defer ts.Close()
 
 	doc := fmt.Sprintf(`* -> "%s"`, ts.URL)
-	dc, err := testdataclient.NewDoc(doc)
+	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
-	rt := routing.New(routing.Options{
-		PollTimeout: sourcePollTimeout,
-		DataClients: []routing.DataClient{dc},
-		Log:         tl})
-	defer rt.Close()
-
-	p := WithParams(Params{Routing: rt, Flags: FlagsNone})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		t.Error(err)
 		return
 	}
 
+	defer tp.close()
+
 	a := fmt.Sprintf(":%d", 1<<16-rand.Intn(1<<15))
-	ps := &http.Server{Addr: a, Handler: p}
+	ps := &http.Server{Addr: a, Handler: tp.proxy}
 	go ps.ListenAndServe()
 
 	// let the server start listening
@@ -788,33 +682,19 @@ func TestOriginalRequestResponse(t *testing.T) {
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
 
-	doc := fmt.Sprintf(`hello: Path("/hello") -> preserveOriginal() -> "%s"`, s.URL)
-	dc, err := testdataclient.NewDoc(doc)
-	if err != nil {
-		t.Error(err)
-	}
-
-	tl := loggingtest.New()
-	defer tl.Close()
-
 	fr := builtin.MakeRegistry()
 	fr.Register(&preserveOriginalSpec{})
-	rt := routing.New(routing.Options{
-		FilterRegistry: fr,
-		PollTimeout:    sourcePollTimeout,
-		DataClients:    []routing.DataClient{dc},
-		Log:            tl})
-	defer rt.Close()
 
-	p := WithParams(Params{Routing: rt, Flags: PreserveOriginal})
-	defer p.Close()
-
-	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+	doc := fmt.Sprintf(`hello: Path("/hello") -> preserveOriginal() -> "%s"`, s.URL)
+	tp, err := newTestProxyWithFilters(fr, doc, PreserveOriginal)
+	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	p.ServeHTTP(w, r)
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
 
 	if th, ok := w.Header()["X-Test-Response-Header-Preserved"]; !ok || th[0] != "response header value" {
 		t.Error("wrong response header", ok)
@@ -949,33 +829,16 @@ func TestHostHeader(t *testing.T) {
 		f := ti.routeFmt + `;healthcheck: Path("/healthcheck") -> "%s"`
 		route := fmt.Sprintf(f, backend.URL, backend.URL)
 
-		// create a dataclient with the route
-		dc, err := testdataclient.NewDoc(route)
+		tp, err := newTestProxy(route, ti.flags)
 		if err != nil {
-			t.Error(ti.msg, "failed to parse route")
-			continue
-		}
-
-		// start a proxy server
-		tl := loggingtest.New()
-		r := routing.New(routing.Options{
-			FilterRegistry: builtin.MakeRegistry(),
-			PollTimeout:    42 * time.Microsecond,
-			DataClients:    []routing.DataClient{dc},
-			Log:            tl})
-		p := WithParams(Params{Routing: r, Flags: ti.flags})
-		ps := httptest.NewServer(p)
-		closeAll := func() {
-			ps.Close()
-			p.Close()
-			r.Close()
-			tl.Close()
-		}
-
-		// wait for the routing table was activated
-		if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 			t.Error(err)
 			return
+		}
+
+		ps := httptest.NewServer(tp.proxy)
+		closeAll := func() {
+			ps.Close()
+			tp.close()
 		}
 
 		req, err := http.NewRequest("GET", ps.URL, nil)
