@@ -84,12 +84,14 @@ func (r *Route) predicateString() string {
 	return strings.Join(predicates, " && ")
 }
 
-func (r *Route) filterString() string {
+func (r *Route) filterString(pretty bool) string {
 	var sfilters []string
 	for _, f := range r.Filters {
 		sfilters = appendFmt(sfilters, "%s(%s)", f.Name, argsString(f.Args))
 	}
-
+	if pretty {
+		return strings.Join(sfilters, "\n  -> ")
+	}
 	return strings.Join(sfilters, " -> ")
 }
 
@@ -103,26 +105,38 @@ func (r *Route) backendString() string {
 
 // Serializes a route expression. Omits the route id if any.
 func (r *Route) String() string {
+	return r.Print(false)
+}
+
+func (r *Route) Print(pretty bool) string {
 	s := []string{r.predicateString()}
 
-	fs := r.filterString()
+	fs := r.filterString(pretty)
 	if fs != "" {
 		s = append(s, fs)
 	}
 
 	s = append(s, r.backendString())
-	return strings.Join(s, " -> ")
+	separator := " -> "
+	if pretty {
+		separator = "\n  -> "
+	}
+	return strings.Join(s, separator)
 }
 
 // Serializes a set of routes.
 func String(routes ...*Route) string {
+	return Print(false, routes...)
+}
+
+func Print(pretty bool, routes ...*Route) string {
 	if len(routes) == 1 && routes[0].Id == "" {
-		return routes[0].String()
+		return routes[0].Print(pretty)
 	}
 
 	rs := make([]string, len(routes))
 	for i, r := range routes {
-		rs[i] = fmt.Sprintf("%s: %s", r.Id, r.String())
+		rs[i] = fmt.Sprintf("%s: %s", r.Id, r.Print(pretty))
 	}
 
 	return strings.Join(rs, ";\n")
