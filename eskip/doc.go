@@ -52,7 +52,7 @@ like "/some/path", or it can contain wildcards in place of one or more
 names in the path, e.g. "/some/:dir/:name", or it can end with a free
 wildcard like "/some/path/*param", where the free wildcard can contain a
 sub-path with multiple names. Note, that this solution implicitly
-supports the glob standard, e.g. "/some/path/**" will work as expected
+supports the glob standard, e.g. "/some/path/**" will work as expected.
 The arguments are available to the filters while processing the matched
 requests.
 
