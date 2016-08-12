@@ -103,7 +103,7 @@ func printCmd(a cmdArgs) error {
 			if r.Id == "" {
 				fmt.Fprintln(stdout, r.String())
 			} else {
-				fmt.Fprintf(stdout, "%s: %s;\n", r.Id, r.String())
+				fmt.Fprintf(stdout, "%s: %s;\n", r.Id, r.Print(pretty))
 			}
 		}
 	}
