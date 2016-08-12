@@ -176,13 +176,12 @@ func (t *throttle) Name() string {
 func parseDuration(v interface{}) (time.Duration, error) {
 	var d time.Duration
 
-	if msec, ok := v.(float64); ok {
-		d = time.Duration(msec) * time.Millisecond
-	}
-
-	if durstr, ok := v.(string); ok {
+	switch vt := v.(type) {
+	case float64:
+		d = time.Duration(vt) * time.Millisecond
+	case string:
 		var err error
-		d, err = time.ParseDuration(durstr)
+		d, err = time.ParseDuration(vt)
 		if err != nil {
 			return 0, filters.ErrInvalidFilterParameters
 		}
