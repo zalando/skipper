@@ -9,7 +9,7 @@ func TestQueryArgs(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
 		args []interface{}
-		typ  MatchType
+		typ  matchType
 		err  bool
 	}{{
 		"too few args",
@@ -24,17 +24,17 @@ func TestQueryArgs(t *testing.T) {
 	}, {
 		"exists case",
 		[]interface{}{"query"},
-		Exists,
+		exists,
 		false,
 	}, {
 		"match case simple",
 		[]interface{}{"key", "value"},
-		Matches,
+		matches,
 		false,
 	}, {
 		"match case regexp",
 		[]interface{}{"key", "value"},
-		Matches,
+		matches,
 		false,
 	}, {
 		"invalid regexp",

@@ -34,15 +34,15 @@ import (
 	"regexp"
 )
 
-type MatchType int
+type matchType int
 
 const (
-	Exists  MatchType = 1
-	Matches MatchType = 2
+	exists matchType = iota + 1
+	matches
 )
 
 type predicate struct {
-	typ       MatchType
+	typ       matchType
 	paramName string
 	valueExp  *regexp.Regexp
 }
@@ -57,8 +57,7 @@ func (s *spec) Name() string {
 }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
-	lengs := len(args)
-	if lengs == 0 || lengs > 2 {
+	if len(args) == 0 || len(args) > 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
@@ -67,9 +66,9 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	switch {
 	case !ok1:
 		return nil, predicates.ErrInvalidPredicateParameters
-	case lengs == 1:
-		return &predicate{Exists, name, nil}, nil
-	case lengs == 2:
+	case len(args) == 1:
+		return &predicate{exists, name, nil}, nil
+	case len(args) == 2:
 		value, ok2 := args[1].(string)
 		if !ok2 {
 			return nil, predicates.ErrInvalidPredicateParameters
@@ -78,7 +77,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &predicate{Matches, name, valueExp}, nil
+		return &predicate{matches, name, valueExp}, nil
 	default:
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
@@ -90,9 +89,9 @@ func (p *predicate) Match(r *http.Request) bool {
 	vals, ok := queryMap[p.paramName]
 
 	switch p.typ {
-	case Exists:
+	case exists:
 		return ok
-	case Matches:
+	case matches:
 		if !ok {
 			return false
 		} else {
