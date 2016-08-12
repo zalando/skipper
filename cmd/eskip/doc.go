@@ -77,10 +77,11 @@ const (
 	prependFileUsage    = "prepend filters from a file to each patched route"
 	appendFiltersUsage  = "append filters to each patched route"
 	appendFileUsage     = "append filters from a file to each patched route"
+	prettyUsage         = "prints routes in a more readable format"
 
 	// command line help (1):
 	help1 = `Usage: eskip <command> [media flags] [--] [file]
-Commands: check|print|upsert|reset|delete
+Commands: check|print|upsert|reset|delete|patch
 Verify, print, update or delete Skipper routes.
 See more: https://github.com/zalando/skipper
 
