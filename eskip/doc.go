@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 /*
 Package eskip implements an in-memory representation of Skipper routes
 and a DSL for describing Skipper route expressions, route definitions
@@ -65,8 +51,10 @@ The path condition accepts a single argument, that can be a fixed path
 like "/some/path", or it can contain wildcards in place of one or more
 names in the path, e.g. "/some/:dir/:name", or it can end with a free
 wildcard like "/some/path/*param", where the free wildcard can contain a
-sub-path with multiple names. The arguments are available to the
-filters while processing the matched requests.
+sub-path with multiple names. Note, that this solution implicitly
+supports the glob standard, e.g. "/some/path/**" will work as expected.
+The arguments are available to the filters while processing the matched
+requests.
 
     PathRegexp(/regular-expression/)
 
