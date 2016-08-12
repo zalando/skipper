@@ -30,6 +30,7 @@ import (
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates/interval"
+	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -348,7 +349,7 @@ func Run(o Options) error {
 
 	// include bundeled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
-		source.New(), interval.NewBetween(), interval.NewBefore(), interval.NewAfter())
+		source.New(), interval.NewBetween(), interval.NewBefore(), interval.NewAfter(), query.New())
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
