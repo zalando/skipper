@@ -173,16 +173,34 @@ func (t *throttle) Name() string {
 	}
 }
 
+func parseDuration(v interface{}) (time.Duration, error) {
+	var d time.Duration
+
+	switch vt := v.(type) {
+	case float64:
+		d = time.Duration(vt) * time.Millisecond
+	case string:
+		var err error
+		d, err = time.ParseDuration(vt)
+		if err != nil {
+			return 0, filters.ErrInvalidFilterParameters
+		}
+	}
+
+	if d < 0 {
+		return 0, filters.ErrInvalidFilterParameters
+	}
+
+	return d, nil
+}
+
 func parseLatencyArgs(args []interface{}) (int, time.Duration, error) {
 	if len(args) != 1 {
 		return 0, 0, filters.ErrInvalidFilterParameters
 	}
 
-	if msec, ok := args[0].(float64); ok && msec >= 0 {
-		return 0, time.Duration(msec) * time.Millisecond, nil
-	} else {
-		return 0, 0, filters.ErrInvalidFilterParameters
-	}
+	d, err := parseDuration(args[0])
+	return 0, d, err
 }
 
 func parseBandwidthArgs(args []interface{}) (int, time.Duration, error) {
@@ -209,12 +227,8 @@ func parseChunksArgs(args []interface{}) (int, time.Duration, error) {
 		return 0, 0, filters.ErrInvalidFilterParameters
 	}
 
-	msec, ok := args[1].(float64)
-	if !ok || msec < 0 {
-		return 0, 0, filters.ErrInvalidFilterParameters
-	}
-
-	return int(size), time.Duration(msec) * time.Millisecond, nil
+	d, err := parseDuration(args[1])
+	return int(size), d, err
 }
 
 func (t *throttle) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -244,10 +258,7 @@ func (t *throttle) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 	if t.chunkSize <= 0 {
-		if t.delay > 0 {
-			time.Sleep(t.delay)
-		}
-
+		time.Sleep(t.delay)
 		return in
 	}
 
@@ -313,9 +324,7 @@ func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 					delay -= time.Now().Sub(start)
 				}
 
-				if delay >= 0 {
-					time.Sleep(t.delay)
-				}
+				time.Sleep(t.delay)
 			}
 		}
 	}()

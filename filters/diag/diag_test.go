@@ -222,7 +222,7 @@ func TestThrottleArgs(t *testing.T) {
 		[]interface{}{float64(1), float64(2)},
 		true,
 	}, {
-		"latency, not a number",
+		"latency, not a number/duration string",
 		NewLatency,
 		[]interface{}{"foo"},
 		true,
@@ -232,9 +232,19 @@ func TestThrottleArgs(t *testing.T) {
 		[]interface{}{float64(-1)},
 		true,
 	}, {
-		"latency, ok",
+		"latency, negative duration string",
+		NewLatency,
+		[]interface{}{"-42us"},
+		true,
+	}, {
+		"latency, ok number",
 		NewLatency,
 		[]interface{}{float64(1)},
+		false,
+	}, {
+		"latency, ok duration string",
+		NewLatency,
+		[]interface{}{"42us"},
 		false,
 	}, {
 		"backend latency, zero args",
@@ -247,7 +257,7 @@ func TestThrottleArgs(t *testing.T) {
 		[]interface{}{float64(1), float64(2)},
 		true,
 	}, {
-		"backend latency, not a number",
+		"backend latency, not a number/duration string",
 		NewBackendLatency,
 		[]interface{}{"foo"},
 		true,
@@ -255,6 +265,11 @@ func TestThrottleArgs(t *testing.T) {
 		"backend latency, negative number",
 		NewBackendLatency,
 		[]interface{}{float64(-1)},
+		true,
+	}, {
+		"backend latency, negative duration string",
+		NewBackendLatency,
+		[]interface{}{"-42us"},
 		true,
 	}, {
 		"backend latency, ok",
@@ -337,7 +352,7 @@ func TestThrottleArgs(t *testing.T) {
 		[]interface{}{"foo", float64(2)},
 		true,
 	}, {
-		"chunks, delay not a number",
+		"chunks, delay not a number/duration string",
 		NewChunks,
 		[]interface{}{float64(1), "foo"},
 		true,
@@ -357,9 +372,19 @@ func TestThrottleArgs(t *testing.T) {
 		[]interface{}{float64(1), float64(-2)},
 		true,
 	}, {
+		"chunks, delay negative duration string",
+		NewChunks,
+		[]interface{}{float64(1), "-42us"},
+		true,
+	}, {
 		"chunks, ok",
 		NewChunks,
 		[]interface{}{float64(1), float64(2)},
+		false,
+	}, {
+		"chunks, ok duration string",
+		NewChunks,
+		[]interface{}{float64(1), "42us"},
 		false,
 	}, {
 		"backend chunks, too few args",
@@ -377,7 +402,7 @@ func TestThrottleArgs(t *testing.T) {
 		[]interface{}{"foo", float64(2)},
 		true,
 	}, {
-		"backend chunks, delay not a number",
+		"backend chunks, delay not a number/duration string",
 		NewBackendChunks,
 		[]interface{}{float64(1), "foo"},
 		true,
@@ -397,9 +422,19 @@ func TestThrottleArgs(t *testing.T) {
 		[]interface{}{float64(1), float64(-2)},
 		true,
 	}, {
+		"backend chunks, delay negative duration string",
+		NewBackendChunks,
+		[]interface{}{float64(1), "-42us"},
+		true,
+	}, {
 		"backend chunks, ok",
 		NewBackendChunks,
 		[]interface{}{float64(1), float64(2)},
+		false,
+	}, {
+		"backend chunks, ok duration string",
+		NewBackendChunks,
+		[]interface{}{float64(1), "42us"},
 		false,
 	}} {
 		s := ti.spec()
