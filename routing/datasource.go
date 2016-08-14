@@ -79,8 +79,16 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 			to = 0
 		case initial || len(routes) > 0 || len(deletedIDs) > 0:
 			initial = false
+
+			var incoming *incomingData
+			if initial {
+				incoming = &incomingData{incomingReset, c, routes, nil}
+			} else {
+				incoming = &incomingData{incomingUpdate, c, routes, deletedIDs}
+			}
+
 			select {
-			case out <- &incomingData{incomingReset, c, routes, deletedIDs}:
+			case out <- incoming:
 			case <-quit:
 				return
 			}
