@@ -94,6 +94,80 @@ func TestDocString(t *testing.T) {
 		`route2: Path("/some/path") -> "https://www.example.org"`)
 }
 
+func TestPrintNonPretty(t *testing.T) {
+	for i, item := range []struct {
+		route    string
+		expected string
+	}{
+		{
+			`route1: Method("GET") -> filter("expression") -> <shunt>`,
+			`Method("GET") -> filter("expression") -> <shunt>`,
+		},
+		{
+			`route2: Path("/some/path") -> "https://www.example.org"`,
+			`Path("/some/path") -> "https://www.example.org"`,
+		},
+	} {
+		testPrinting(item.route, item.expected, t, i, false, false)
+	}
+}
+
+func TestPrintPretty(t *testing.T) {
+	for i, item := range []struct {
+		route    string
+		expected string
+	}{
+		{
+			"route1: Method(\"GET\") -> filter(\"expression\") -> <shunt>",
+			"Method(\"GET\")\n  -> filter(\"expression\")\n  -> <shunt>",
+		},
+		{
+			"route2: Path(\"/some/path\") -> \"https://www.example.org\"",
+			"Path(\"/some/path\")\n  -> \"https://www.example.org\"",
+		},
+	} {
+		testPrinting(item.route, item.expected, t, i, true, false)
+	}
+}
+
+func TestPrintMultiRoutePretty(t *testing.T) {
+	testPrinting(`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
+		`route2: Path("/some/path") -> "https://www.example.org"`,
+		`route1: Method("GET")`+"\n"+
+			`  -> filter("expression")`+"\n"+
+			`  -> <shunt>;`+"\n"+
+			`route2: Path("/some/path")`+"\n"+
+			`  -> "https://www.example.org"`,
+		t, 0, true, true)
+}
+
+func TestPrintMultiRouteNonPretty(t *testing.T) {
+	testPrinting(`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
+		`route2: Path("/some/path") -> "https://www.example.org"`,
+		`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
+			`route2: Path("/some/path") -> "https://www.example.org"`,
+		t, 0, false, true)
+}
+
+func testPrinting(routestr string, expected string, t *testing.T, i int, pretty bool, multi bool) {
+	routes, err := Parse(routestr)
+	if err != nil {
+		t.Error(err)
+	}
+	var printedRoute string
+
+	if multi {
+		printedRoute = Print(pretty, routes...)
+	} else {
+		printedRoute = routes[0].Print(pretty)
+	}
+
+	if printedRoute != expected {
+		pos := findDiffPos(printedRoute, expected)
+		t.Error(printedRoute, expected, i, pos, printedRoute[pos:pos+1], expected[pos:pos+1])
+	}
+}
+
 func TestParseAndStringAndParse(t *testing.T) {
 	doc := `route1: Method("GET") -> filter("expression") -> <shunt>;` + "\n" +
 		`route2: Path("/some/path") -> "https://www.example.org"`

@@ -29,3 +29,7 @@ Test the image:
 ```
 curl localhost:9090/hello.html
 ```
+
+WARNING: the primary use case for this docker image is to have a quick'n'dirty skipper available quick. We don't
+necessarily update this image or the Dockerfile, so it may miss some important security updates. Use it at your
+own risk.
