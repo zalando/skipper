@@ -359,12 +359,13 @@ func Run(o Options) error {
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
-		registry,
-		mo,
-		o.SourcePollTimeout,
-		dataClients,
-		o.CustomPredicates,
-		updateBuffer})
+		FilterRegistry:  registry,
+		MatchingOptions: mo,
+		PollTimeout:     o.SourcePollTimeout,
+		DataClients:     dataClients,
+		Predicates:      o.CustomPredicates,
+		UpdateBuffer:    updateBuffer})
+	defer routing.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
@@ -386,6 +387,7 @@ func Run(o Options) error {
 
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)
+	defer proxy.Close()
 
 	return listenAndServe(proxy, &o)
 }

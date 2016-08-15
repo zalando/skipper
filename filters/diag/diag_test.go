@@ -162,7 +162,15 @@ func TestRandom(t *testing.T) {
 				Shunt:   true})
 			defer p.Close()
 
-			rsp, err := http.Get(p.URL)
+			req, err := http.NewRequest("GET", p.URL, nil)
+			if err != nil {
+				t.Error(ti.msg, err)
+				return
+			}
+
+			req.Close = true
+
+			rsp, err := (&http.Client{}).Do(req)
 			if err != nil {
 				t.Error(ti.msg, err)
 				return
@@ -618,6 +626,8 @@ func TestThrottle(t *testing.T) {
 				t.Error(ti.msg, err)
 				return
 			}
+
+			req.Close = true
 
 			requestStart = time.Now()
 			rsp, err := (&http.Client{}).Do(req)

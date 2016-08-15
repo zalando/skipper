@@ -220,6 +220,8 @@ func TestHeader(t *testing.T) {
 			continue
 		}
 
+		req.Close = true
+
 		for n, vs := range ti.requestHeader {
 			req.Header[n] = vs
 		}

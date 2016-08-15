@@ -62,12 +62,17 @@ func DisabledExample() {
 		log.Fatal(err)
 	}
 
-	// create a proxy instance, and start an http server:
-	proxy := proxy.New(routing.New(routing.Options{
+	// create routing object:
+	rt := routing.New(routing.Options{
 		FilterRegistry: filterRegistry,
-		DataClients:    []routing.DataClient{dataClient}}), proxy.OptionsNone)
-	router := httptest.NewServer(proxy)
+		DataClients:    []routing.DataClient{dataClient}})
+	defer rt.Close()
+
+	// create a proxy instance, and start an http server:
+	proxy := proxy.New(rt, proxy.OptionsNone)
 	defer proxy.Close()
+
+	router := httptest.NewServer(proxy)
 	defer router.Close()
 
 	// make a request to the proxy:

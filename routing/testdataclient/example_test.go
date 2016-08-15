@@ -1,28 +1,16 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package testdataclient_test
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/routing/testdataclient"
 	"log"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 func Example() {
@@ -30,12 +18,18 @@ func Example() {
 	dataClient := testdataclient.New([]*eskip.Route{
 		{Path: "/some/path", Backend: "https://www.example.org"}})
 
+	// (only in tests)
+	tl := loggingtest.New()
+	defer tl.Close()
+
 	// create a router:
 	r := routing.New(routing.Options{
-		DataClients: []routing.DataClient{dataClient}})
+		DataClients: []routing.DataClient{dataClient},
+		Log:         tl})
+	defer r.Close()
 
-	// let the route data be propagated:
-	time.Sleep(36 * time.Millisecond)
+	// wait for the route data being propagated:
+	tl.WaitFor("route settigns applied", time.Second)
 
 	// test the router:
 	route, _ := r.Route(&http.Request{URL: &url.URL{Path: "/some/path"}})

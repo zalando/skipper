@@ -1,29 +1,17 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package builtin
 
 import (
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/proxy"
-	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/routing/testdataclient"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 func TestRedirect(t *testing.T) {
@@ -118,15 +106,26 @@ func TestRedirect(t *testing.T) {
 				Filters: []*eskip.Filter{{
 					Name: tii.name,
 					Args: []interface{}{float64(ti.code), ti.filterLocation}}}}})
+			tl := loggingtest.New()
 			rt := routing.New(routing.Options{
 				FilterRegistry: MakeRegistry(),
-				DataClients:    []routing.DataClient{dc}})
+				DataClients:    []routing.DataClient{dc},
+				Log:            tl})
+			p := proxy.New(rt, proxy.OptionsNone)
+
+			closeAll := func() {
+				p.Close()
+				rt.Close()
+				tl.Close()
+			}
 
 			// pick up routing
-			time.Sleep(30 * time.Millisecond)
+			if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+				t.Error(err)
+				closeAll()
+				continue
+			}
 
-			p := proxy.New(rt, proxy.OptionsNone)
-			defer p.Close()
 			req := &http.Request{
 				URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
 				Host: "incoming.example.org"}
@@ -140,6 +139,8 @@ func TestRedirect(t *testing.T) {
 			if w.Header().Get("Location") != ti.checkLocation {
 				t.Error(ti.msg, tii.msg, "invalid location", w.Header().Get("Location"))
 			}
+
+			closeAll()
 		}
 	}
 }

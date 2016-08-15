@@ -37,7 +37,15 @@ func TestStatus(t *testing.T) {
 			Shunt:   true})
 		defer pr.Close()
 
-		rsp, err := http.Get(pr.URL)
+		req, err := http.NewRequest("GET", pr.URL, nil)
+		if err != nil {
+			t.Error(ti.msg, err)
+			continue
+		}
+
+		req.Close = true
+
+		rsp, err := (&http.Client{}).Do(req)
 		if err != nil {
 			t.Error(ti.msg, err)
 			continue

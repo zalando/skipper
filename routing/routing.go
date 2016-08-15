@@ -15,12 +15,13 @@
 package routing
 
 import (
-	log "github.com/Sirupsen/logrus"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/logging"
 )
 
 // Control flags for route matching.
@@ -102,6 +103,9 @@ type Options struct {
 	// 0, until the performance benefit is verified
 	// by benchmarks.)
 	UpdateBuffer int
+
+	// Set a custom logger if necessary.
+	Log logging.Logger
 }
 
 // Filter contains extensions to generic filter
@@ -133,12 +137,18 @@ type Route struct {
 // updatable request matching.
 type Routing struct {
 	matcher atomic.Value
+	log     logging.Logger
+	quit    chan struct{}
 }
 
 // Initializes a new routing instance, and starts listening for route
 // definition updates.
 func New(o Options) *Routing {
-	r := &Routing{}
+	if o.Log == nil {
+		o.Log = &logging.DefaultLog{}
+	}
+
+	r := &Routing{log: o.Log, quit: make(chan struct{})}
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
 	r.matcher.Store(initialMatcher)
 	r.startReceivingUpdates(o)
@@ -147,12 +157,16 @@ func New(o Options) *Routing {
 
 func (r *Routing) startReceivingUpdates(o Options) {
 	c := make(chan *matcher)
-	go receiveRouteMatcher(o, c)
+	go receiveRouteMatcher(o, c, r.quit)
 	go func() {
 		for {
-			m := <-c
-			r.matcher.Store(m)
-			log.Println("route settings applied")
+			select {
+			case m := <-c:
+				r.matcher.Store(m)
+				r.log.Info("route settings applied")
+			case <-r.quit:
+				return
+			}
 		}
 	}()
 }
@@ -165,4 +179,9 @@ func (r *Routing) startReceivingUpdates(o Options) {
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	m := r.matcher.Load().(*matcher)
 	return m.match(req)
+}
+
+// Closes routing, stops receiving routes.
+func (r *Routing) Close() {
+	close(r.quit)
 }

@@ -44,12 +44,15 @@ func ExampleFilter() {
 		log.Fatal(err)
 	}
 
+	// create routing object:
+	rt := routing.New(routing.Options{
+		DataClients:    []routing.DataClient{dc},
+		FilterRegistry: fr})
+	defer rt.Close()
+
 	// create an http.Handler:
-	proxy.New(
-		routing.New(routing.Options{
-			DataClients:    []routing.DataClient{dc},
-			FilterRegistry: fr}),
-		proxy.OptionsNone)
+	p := proxy.New(rt, proxy.OptionsNone)
+	defer p.Close()
 }
 
 func ExampleContext() {
