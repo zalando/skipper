@@ -92,3 +92,7 @@ func (p *predicate) Match(r *http.Request) bool {
 	}
 	return false
 }
+
+func (p *predicate) Weight() int {
+	return 0
+}
