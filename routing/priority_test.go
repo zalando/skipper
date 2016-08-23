@@ -10,8 +10,6 @@ import (
 )
 
 func TestPriority(t *testing.T) {
-	t.Skip()
-
 	doc := `
 		route1: Priority(1) && PathRegexp(/.html$/)
 			-> status(200)
@@ -20,9 +18,15 @@ func TestPriority(t *testing.T) {
 
 		// normally shadows route1 because it has more predicates on the same path
 		// tree leaf
-		route2: Method("GET") && Host("www.example.org") && Header("X-Test", "true")
+		route2: Priority(0.5) && Method("GET") && Host("www.example.org") && Header("X-Test", "true")
 			-> status(200)
 			-> setResponseHeader("X-Route", "route2")
+			-> <shunt>;
+
+		// normally shadows route2 because it has a path predicate
+		route3: Path("/directory/document") && Host("www.example.org") && Header("X-Test", "true")
+			-> status(200)
+			-> setResponseHeader("X-Route", "route3")
 			-> <shunt>;
 	`
 
@@ -36,8 +40,8 @@ func TestPriority(t *testing.T) {
 	p := proxytest.New(fr, r...)
 	defer p.Close()
 
-	req := func(path string) (string, error) {
-		req, err := http.NewRequest("GET", p.URL+path, nil)
+	req := func(method, path string) (string, error) {
+		req, err := http.NewRequest(method, p.URL+path, nil)
 		if err != nil {
 			return "", err
 		}
@@ -56,11 +60,15 @@ func TestPriority(t *testing.T) {
 		return rsp.Header.Get("X-Route"), nil
 	}
 
-	if hit, err := req("/directory/document.html"); err != nil || hit != "route1" {
+	if hit, err := req("GET", "/directory/document.html"); err != nil || hit != "route1" {
 		t.Error("failed to route", hit, err)
 	}
 
-	if hit, err := req("/directory/document"); err != nil || hit != "route2" {
+	if hit, err := req("GET", "/directory/document"); err != nil || hit != "route2" {
+		t.Error("failed to route", hit, err)
+	}
+
+	if hit, err := req("POST", "/directory/document"); err != nil || hit != "route3" {
 		t.Error("failed to route", hit, err)
 	}
 }

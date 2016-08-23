@@ -7,6 +7,11 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/predicates/cookie"
+	"github.com/zalando/skipper/predicates/interval"
+	"github.com/zalando/skipper/predicates/priority"
+	"github.com/zalando/skipper/predicates/query"
+	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -23,8 +28,22 @@ type TestProxy struct {
 func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *TestProxy {
 	dc := testdataclient.New(routes)
 	tl := loggingtest.New()
-	rt := routing.New(routing.Options{FilterRegistry: fr, DataClients: []routing.DataClient{dc}, Log: tl})
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		DataClients:    []routing.DataClient{dc},
+		Predicates: []routing.PredicateSpec{
+			source.New(),
+			interval.NewBetween(),
+			interval.NewBefore(),
+			interval.NewAfter(),
+			cookie.New(),
+			query.New(),
+			priority.New(),
+		},
+		Log: tl,
+	})
 	o.Routing = rt
+
 	pr := proxy.WithParams(o)
 	tsp := httptest.NewServer(pr)
 
