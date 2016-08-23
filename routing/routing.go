@@ -66,6 +66,8 @@ type PredicateSpec interface {
 	Create([]interface{}) (Predicate, error)
 }
 
+type Priority float64
+
 // Initialization options for routing.
 type Options struct {
 
@@ -140,6 +142,8 @@ type Routing struct {
 	log     logging.Logger
 	quit    chan struct{}
 }
+
+func (p Priority) Match(*http.Request) bool { return true }
 
 // Initializes a new routing instance, and starts listening for route
 // definition updates.
