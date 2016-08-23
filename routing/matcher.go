@@ -59,7 +59,7 @@ type pathMatcher struct {
 	freeWildcardParam string
 }
 
-// root structure representing a routing tree.
+// main structure representing a routing tree.
 type treeMatcher struct {
 	prio            Priority
 	paths           *pathmux.Tree
@@ -73,8 +73,10 @@ func (tms treeMatchers) Len() int           { return len(tms) }
 func (tms treeMatchers) Less(i, j int) bool { return tms[i].prio > tms[j].prio } // higher prio first
 func (tms treeMatchers) Swap(i, j int)      { tms[i], tms[j] = tms[j], tms[i] }
 
+// root structure representing one or more routing trees
+// with default or arbitrary priorities.
 type matcher struct {
-	trees []*treeMatcher
+	trees treeMatchers
 }
 
 // An error created if a route definition cannot be processed.
@@ -176,6 +178,9 @@ func freeWildcardParam(path string) string {
 	return param[2:]
 }
 
+// return the priority of a route. If not defined, returns
+// 0. If multiple priorities defined, returns the highest
+// value.
 func routePriority(r *Route) Priority {
 	var prio *Priority
 
@@ -197,12 +202,16 @@ func routePriority(r *Route) Priority {
 // If `ignoreTrailingSlash` is true, the matcher handles
 // paths with or without a trailing slash equally.
 //
-// It constructs the route definition into a trie structure
+// It constructs the route definitions into a trie structure
 // based on their path condition, if any, and puts the routes
 // with the same path condition into a leaf matcher structure
 // where they get evaluated after the leaf was matched based
-// on the rest of the conditions so that most strict route
+// on the rest of the conditions so that the most strict route
 // definition matches first.
+//
+// If there are routes defined with different priorities, it
+// puts them into separate trie structures for each priority
+// level.
 func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	var errors []*definitionError
 	allPathMatchers := make(map[Priority]map[string]*pathMatcher)
@@ -391,6 +400,7 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatch
 	return nil
 }
 
+// tries to match a request against the available definitions in a single path tree
 func (m *treeMatcher) match(r *http.Request) (*Route, map[string]string) {
 	// normalize path before matching
 	// in case ignoring trailing slashes, match without the trailing slash

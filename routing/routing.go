@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package routing
 
 import (
@@ -66,6 +52,9 @@ type PredicateSpec interface {
 	Create([]interface{}) (Predicate, error)
 }
 
+// Priority is a predicate with a special role, used only to
+// mark a route with higher or lower priority than others,
+// for cases when a request could match more than one of them.
 type Priority float64
 
 // Initialization options for routing.
@@ -143,6 +132,7 @@ type Routing struct {
 	quit    chan struct{}
 }
 
+// Noop.
 func (p Priority) Match(*http.Request) bool { return true }
 
 // Initializes a new routing instance, and starts listening for route
