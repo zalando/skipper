@@ -61,9 +61,10 @@ type pathMatcher struct {
 
 // root structure representing a routing tree.
 type treeMatcher struct {
-	prio       Priority
-	paths      *pathmux.Tree
-	rootLeaves leafMatchers
+	prio            Priority
+	paths           *pathmux.Tree
+	rootLeaves      leafMatchers
+	matchingOptions MatchingOptions
 }
 
 type treeMatchers []*treeMatcher
@@ -73,8 +74,7 @@ func (tms treeMatchers) Less(i, j int) bool { return tms[i].prio > tms[j].prio }
 func (tms treeMatchers) Swap(i, j int)      { tms[i], tms[j] = tms[j], tms[i] }
 
 type matcher struct {
-	trees           []*treeMatcher
-	matchingOptions MatchingOptions
+	trees []*treeMatcher
 }
 
 // An error created if a route definition cannot be processed.
@@ -210,10 +210,10 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 
 	for i, r := range rs {
 		prio := routePriority(r)
-		tree := allPathMatchers[prio]
-		if tree == nil {
-			tree = make(map[string]*pathMatcher)
-			allPathMatchers[prio] = tree
+		pathMatchers := allPathMatchers[prio]
+		if pathMatchers == nil {
+			pathMatchers = make(map[string]*pathMatcher)
+			allPathMatchers[prio] = pathMatchers
 		}
 
 		l, err := newLeaf(r)
@@ -236,19 +236,19 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			p = p[:len(p)-1]
 		}
 
-		pm := tree[p]
+		pm := pathMatchers[p]
 		if pm == nil {
 			pm = &pathMatcher{freeWildcardParam: freeWildcardParam(p)}
-			tree[p] = pm
+			pathMatchers[p] = pm
 		}
 
 		pm.leaves = append(pm.leaves, l)
 	}
 
 	var trees treeMatchers
-	for prio, tree := range allPathMatchers {
+	for prio, pathMatchers := range allPathMatchers {
 		pathTree := &pathmux.Tree{}
-		for p, m := range tree {
+		for p, m := range pathMatchers {
 
 			// sort leaves during construction time, based on their priority
 			sort.Sort(m.leaves)
@@ -264,13 +264,18 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 		// sort root leaves during construction time, based on their priority
 		sort.Sort(rootLeaves)
 
-		trees = append(trees, &treeMatcher{prio, pathTree, rootLeaves})
+		trees = append(trees, &treeMatcher{
+			prio:            prio,
+			paths:           pathTree,
+			rootLeaves:      rootLeaves,
+			matchingOptions: o,
+		})
 	}
 
 	// sort trees during construction time, based on their priority
 	sort.Sort(trees)
 
-	return &matcher{trees, o}, errors
+	return &matcher{trees}, errors
 }
 
 // matches a path in the path trie structure.
@@ -386,25 +391,25 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatch
 	return nil
 }
 
-func (t *treeMatcher) match(r *http.Request, o MatchingOptions) (*Route, map[string]string) {
+func (m *treeMatcher) match(r *http.Request) (*Route, map[string]string) {
 	// normalize path before matching
 	// in case ignoring trailing slashes, match without the trailing slash
 	path := httppath.Clean(r.URL.Path)
-	if o.ignoreTrailingSlash() && path[len(path)-1] == '/' {
+	if m.matchingOptions.ignoreTrailingSlash() && path[len(path)-1] == '/' {
 		path = path[:len(path)-1]
 	}
 
 	lrm := &leafRequestMatcher{r, path}
 
 	// first match fixed and wildcard paths
-	params, l := matchPathTree(t.paths, path, lrm)
+	params, l := matchPathTree(m.paths, path, lrm)
 
 	if l != nil {
 		return l.route, params
 	}
 
 	// if no path match, match root leaves for other conditions
-	l = matchLeaves(t.rootLeaves, r, path)
+	l = matchLeaves(m.rootLeaves, r, path)
 	if l != nil {
 		return l.route, nil
 	}
@@ -417,7 +422,7 @@ func (t *treeMatcher) match(r *http.Request, o MatchingOptions) (*Route, map[str
 // if any.
 func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	for _, t := range m.trees {
-		if r, p := t.match(r, m.matchingOptions); r != nil {
+		if r, p := t.match(r); r != nil {
 			return r, p
 		}
 	}
