@@ -73,10 +73,14 @@ type pathMatcher struct {
 	freeWildcardParam string
 }
 
-// root structure representing the routing tree.
+// root structure representing a routing tree.
+type treeMatcher struct {
+	paths      *pathmux.Tree
+	rootLeaves leafMatchers
+}
+
 type matcher struct {
-	paths           *pathmux.Tree
-	rootLeaves      leafMatchers
+	tree            *treeMatcher
 	matchingOptions MatchingOptions
 }
 
@@ -243,7 +247,7 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	// sort root leaves during construction time, based on their priority
 	sort.Sort(rootLeaves)
 
-	return &matcher{pathTree, rootLeaves, o}, errors
+	return &matcher{&treeMatcher{pathTree, rootLeaves}, o}, errors
 }
 
 // matches a path in the path trie structure.
@@ -359,31 +363,35 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatch
 	return nil
 }
 
-// tries to match a request against the available definitions. If a match is found,
-// returns the associated value, and the wildcard parameters from the path definition,
-// if any.
-func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
+func (t *treeMatcher) match(r *http.Request, o MatchingOptions) (*Route, map[string]string) {
 	// normalize path before matching
 	// in case ignoring trailing slashes, match without the trailing slash
 	path := httppath.Clean(r.URL.Path)
-	if m.matchingOptions.ignoreTrailingSlash() && path[len(path)-1] == '/' {
+	if o.ignoreTrailingSlash() && path[len(path)-1] == '/' {
 		path = path[:len(path)-1]
 	}
 
 	lrm := &leafRequestMatcher{r, path}
 
 	// first match fixed and wildcard paths
-	params, l := matchPathTree(m.paths, path, lrm)
+	params, l := matchPathTree(t.paths, path, lrm)
 
 	if l != nil {
 		return l.route, params
 	}
 
 	// if no path match, match root leaves for other conditions
-	l = matchLeaves(m.rootLeaves, r, path)
+	l = matchLeaves(t.rootLeaves, r, path)
 	if l != nil {
 		return l.route, nil
 	}
 
 	return nil, nil
+}
+
+// tries to match a request against the available definitions. If a match is found,
+// returns the associated value, and the wildcard parameters from the path definition,
+// if any.
+func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
+	return m.tree.match(r, m.matchingOptions)
 }
