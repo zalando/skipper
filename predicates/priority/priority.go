@@ -10,7 +10,7 @@
 // Example:
 //
 // 	route1: Priority(2.72) && PathRegexp(/[.]html$/) -> "https://cache.example.org";
-// 	route2: Path("/directory/*") -> "https://app.example.org";
+// 	route2: Path("/directory/**") -> "https://app.example.org";
 //
 package priority
 
