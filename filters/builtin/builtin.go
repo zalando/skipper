@@ -7,6 +7,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
+	"github.com/zalando/skipper/filters/tee"
 )
 
 const (
@@ -67,6 +68,7 @@ func MakeRegistry() filters.Registry {
 		diag.NewBackendLatency(),
 		diag.NewBackendBandwidth(),
 		diag.NewBackendChunks(),
+		tee.NewTee(),
 	} {
 		r.Register(s)
 	}
