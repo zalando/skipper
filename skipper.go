@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package skipper
 
 import (
@@ -31,6 +17,7 @@ import (
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/interval"
+	"github.com/zalando/skipper/predicates/priority"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/proxy"
@@ -355,7 +342,8 @@ func Run(o Options) error {
 		interval.NewBefore(),
 		interval.NewAfter(),
 		cookie.New(),
-		query.New())
+		query.New(),
+		priority.New())
 
 	// create a routing engine
 	routing := routing.New(routing.Options{

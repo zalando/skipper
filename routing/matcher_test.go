@@ -691,7 +691,7 @@ func TestMatchPath(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m := &matcher{paths: tree}
+	m := &treeMatcher{paths: tree}
 	req := &http.Request{URL: &url.URL{Path: "/some/path"}}
 	r, p := m.match(req)
 	if r != pm0.leaves[0].route || len(p) != 0 {
@@ -706,7 +706,7 @@ func TestMatchPathResolved(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m := &matcher{paths: tree}
+	m := &treeMatcher{paths: tree}
 	req := &http.Request{URL: &url.URL{Path: "/some/some-other/../path"}}
 	r, p := m.match(req)
 	if r != pm0.leaves[0].route || len(p) != 0 {
@@ -721,7 +721,7 @@ func TestMatchWrongMethod(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m := &matcher{paths: tree}
+	m := &treeMatcher{paths: tree}
 	req := &http.Request{Method: "GET", URL: &url.URL{Path: "/some/some-other/../path"}}
 	r, p := m.match(req)
 	if r != nil || len(p) != 0 {
@@ -737,7 +737,7 @@ func TestMatchTopLeaves(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	m := &matcher{paths: tree}
+	m := &treeMatcher{paths: tree}
 	req := &http.Request{Method: "PUT", URL: &url.URL{Path: "/some/some-other/../path"}}
 	r, _ := m.match(req)
 	if r != l.route {
@@ -757,7 +757,7 @@ func TestMatchWildcardPaths(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	rm := &matcher{paths: tree}
+	rm := &treeMatcher{paths: tree}
 	req := &http.Request{URL: &url.URL{Path: "/some/path/and/params"}}
 	r, p := rm.match(req)
 	if r != pm0.leaves[0].route || len(p) != 2 ||
