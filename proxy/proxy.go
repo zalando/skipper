@@ -565,13 +565,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				log.Error(err)
 				return
 			}
-
-			defer func() {
-				err = rs.Body.Close()
-				if err != nil {
-					log.Error(err)
-				}
-			}()
 		}
 
 		p.metrics.MeasureBackend(rt.Id, start)
@@ -584,6 +577,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	p.applyFiltersToResponse(processedFilters, c, onErr)
 	p.metrics.MeasureAllFiltersResponse(rt.Id, start)
+
+	if c.res.Body != nil {
+		defer func(body io.Closer) {
+			err := body.Close()
+			if err != nil {
+				log.Error(err)
+			}
+		}(c.res.Body)
+	}
 
 	if !c.served {
 		if p.flags.Debug() {
