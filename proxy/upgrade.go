@@ -147,9 +147,7 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 			}
 			err = tlsConn.VerifyHostname(hostToVerify)
 			if err != nil {
-				if tlsConn != nil {
-					_ = tlsConn.Close()
-				}
+				tlsConn.Close()
 				return nil, err
 			}
 		}
