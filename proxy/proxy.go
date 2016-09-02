@@ -153,7 +153,7 @@ type bodyBuffer struct {
 // initializing, see the WithParams the constructor and Params.
 type Proxy struct {
 	routing             *routing.Routing
-	roundTripper        http.RoundTripper
+	roundTripper        *http.Transport
 	priorityRoutes      []PriorityRoute
 	flags               Flags
 	metrics             *metrics.Metrics
@@ -545,9 +545,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
 				reverseProxy.FlushInterval = p.flushInterval
 				upgradeProxy := upgradeProxy{
-					backendAddr:  backendURL,
-					reverseProxy: reverseProxy,
-					insecure:     p.flags.Insecure(),
+					backendAddr:     backendURL,
+					reverseProxy:    reverseProxy,
+					insecure:        p.flags.Insecure(),
+					tlsClientConfig: p.roundTripper.TLSClientConfig,
 				}
 				upgradeProxy.serveHTTP(w, rr)
 				log.Debugf("Finished upgraded protocol %s session", getUpgradeRequest(r))

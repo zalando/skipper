@@ -40,9 +40,10 @@ func getUpgradeRequest(req *http.Request) string {
 
 // UpgradeProxy stores everything needed to make the connection upgrade.
 type upgradeProxy struct {
-	backendAddr  *url.URL
-	reverseProxy *httputil.ReverseProxy
-	insecure     bool
+	backendAddr     *url.URL
+	reverseProxy    *httputil.ReverseProxy
+	insecure        bool
+	tlsClientConfig *tls.Config
 }
 
 // TODO: add user here
@@ -134,30 +135,23 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 	case "http":
 		return net.Dial("tcp", dialAddr)
 	case "https":
-		if p.insecure {
-			tlsConn, err := tls.Dial("tcp", dialAddr, &tls.Config{InsecureSkipVerify: true})
+		tlsConn, err := tls.Dial("tcp", dialAddr, p.tlsClientConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		if !p.insecure {
+			hostToVerify, _, err := net.SplitHostPort(dialAddr)
 			if err != nil {
 				return nil, err
 			}
-			return tlsConn, err
-		}
-		// TODO: If skipper supports using a different CA, we should support it here, too
-		hostToVerify, _, err := net.SplitHostPort(dialAddr)
-		if err != nil {
-			return nil, err
-		}
-		// system Roots are used
-		tlsConn, err := tls.Dial("tcp", dialAddr, &tls.Config{})
-		if err != nil {
-			return nil, err
-		}
-		err = tlsConn.VerifyHostname(hostToVerify)
-		if err != nil {
-			if tlsConn != nil {
-				_ = tlsConn.Close()
+			err = tlsConn.VerifyHostname(hostToVerify)
+			if err != nil {
+				tlsConn.Close()
+				return nil, err
 			}
-			return nil, err
 		}
+
 		return tlsConn, nil
 	default:
 		return nil, fmt.Errorf("unknown scheme: %s", p.backendAddr.Scheme)
