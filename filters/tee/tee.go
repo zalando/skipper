@@ -5,7 +5,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"io"
-	"io/ioutil"
+	// "io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -33,6 +33,11 @@ type tee struct {
 	replacement string
 }
 
+type teeTie struct {
+	r io.Reader
+	w *io.PipeWriter
+}
+
 // Returns a new tee filter Spec, whose instances execute
 // the exact same Request against a shadow backend.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
@@ -50,19 +55,42 @@ func NewTee() *teeSpec {
 	return &teeSpec{}
 }
 
+func (tt *teeTie) Read(b []byte) (int, error) {
+	n, err := tt.r.Read(b)
+
+	if err != nil && err != io.EOF {
+		tt.w.CloseWithError(err)
+		return n, err
+	}
+
+	if n > 0 {
+		if _, werr := tt.w.Write(b[:n]); werr != nil {
+			log.Error("error while tee request", werr)
+		}
+	}
+
+	if err == io.EOF {
+		tt.w.Close()
+	}
+
+	return n, err
+}
+
+func (tt *teeTie) Close() error { return nil }
+
 //We do not touch response at all
 func (r *tee) Response(filters.FilterContext) {}
 
 // Request is copied and then modified to adopt changes in new backend
 func (r *tee) Request(fc filters.FilterContext) {
-	pw, copyOfRequest := cloneRequest(r, fc.Request())
+	_, copyOfRequest := cloneRequest(r, fc.Request())
 	go func() {
 		rsp, err := r.client.Do(&copyOfRequest)
 		if err != nil {
 			log.Warn("error while tee request", err)
 		}
 		defer rsp.Body.Close()
-		defer pw.Close()
+		// defer pw.Close()
 	}()
 }
 
@@ -79,9 +107,11 @@ func cloneRequest(rep *tee, req *http.Request) (io.PipeWriter, http.Request) {
 	copyOfRequest.Host = rep.host
 
 	pr, pw := io.Pipe()
-	tr := io.TeeReader(req.Body, pw)
-	copyOfRequest.Body = ioutil.NopCloser(tr)
-	req.Body = pr
+	// tr := io.TeeReader(req.Body, pw)
+	// copyOfRequest.Body = ioutil.NopCloser(tr)
+	tr := &teeTie{req.Body, pw}
+	copyOfRequest.Body = pr
+	req.Body = tr
 	copyOfRequest.RequestURI = ""
 	if rep.typ == pathModified {
 		copyOfRequest.URL.Path = string(rep.rx.ReplaceAllString(copyOfRequest.URL.Path, rep.replacement))
