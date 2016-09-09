@@ -122,7 +122,7 @@ func TestTeeEndToEndBody(t *testing.T) {
 	req.Close = true
 	rsp, _ := (&http.Client{}).Do(req)
 	rsp.Body.Close()
-	if shadowHandler.body != testingStr &&  originalHandler.body != testingStr {
+	if shadowHandler.body != testingStr && originalHandler.body != testingStr {
 		t.Error("Bodies are not equal")
 	}
 }
@@ -130,4 +130,73 @@ func TestTeeEndToEndBody(t *testing.T) {
 func buildfilterContext() filters.FilterContext {
 	r, _ := http.NewRequest("GET", "http://example.org/api/v3", nil)
 	return &filtertest.Context{FRequest: r}
+}
+
+func TestTeeArgsForFailure(t *testing.T) {
+	for _, ti := range []struct {
+		msg  string
+		args []interface{}
+		err  bool
+	}{
+		{
+			"error on zero args",
+			[]interface{}{},
+			true,
+		},
+		{
+			"error on non string args",
+			[]interface{}{1},
+			true,
+		},
+
+		{
+			"error on non parsable urls",
+			[]interface{}{"%"},
+			true,
+		},
+
+		{
+			"error with 2 arguments",
+			[]interface{}{"http://example.com", "test"},
+			true,
+		},
+
+		{
+			"error on non regexp",
+			[]interface{}{"http://example.com", 1, "replacement"},
+			true,
+		},
+		{
+			"error on non replacement string",
+			[]interface{}{"http://example.com", ".*", 1},
+			true,
+		},
+
+		{
+			"error on too many arguments",
+			[]interface{}{"http://example.com", ".*", "/api", 5, 6},
+			true,
+		},
+
+		{
+			"error on non valid regexp(trailing slash)",
+			[]interface{}{"http://example.com", `\`, "/api"},
+			true,
+		},
+	} {
+		_, err := NewTee().CreateFilter(ti.args)
+
+		if ti.err && err == nil {
+			t.Error(ti.msg, "was expecting error")
+		}
+
+		if !ti.err && err != nil {
+			t.Error(ti.msg, "get unexpected error")
+		}
+
+		if err != nil {
+			continue
+		}
+
+	}
 }
