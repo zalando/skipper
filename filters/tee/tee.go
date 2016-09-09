@@ -50,7 +50,6 @@ type teeTie struct {
 // Path("/api/v3") -> tee("https://api.example.com", ".*", "/v1/" ) -> "http://example.org/"
 // This route wil send incoming request to http://example.org/api/v3 but will also send
 // a copy of the request to https://api.example.com/v1/ . Note that scheme and path are changed
-
 func NewTee() *teeSpec {
 	return &teeSpec{}
 }
