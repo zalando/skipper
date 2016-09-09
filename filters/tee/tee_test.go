@@ -1,15 +1,16 @@
 package tee
 
 import (
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/filtertest"
-	"github.com/zalando/skipper/proxy/proxytest"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 var (

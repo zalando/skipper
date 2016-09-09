@@ -2,12 +2,13 @@ package tee
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/zalando/skipper/filters"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/zalando/skipper/filters"
 )
 
 const (
