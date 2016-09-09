@@ -115,13 +115,14 @@ func TestTeeEndToEndBody(t *testing.T) {
 	p := proxytest.New(registry, route...)
 	defer p.Close()
 
-	req, _ := http.NewRequest("GET", p.URL, strings.NewReader("TESTEST"))
+	testingStr := "TESTEST"
+	req, _ := http.NewRequest("GET", p.URL, strings.NewReader(testingStr))
 	req.Host = "www.example.org"
 	req.Header.Set("X-Test", "true")
 	req.Close = true
 	rsp, _ := (&http.Client{}).Do(req)
 	rsp.Body.Close()
-	if shadowHandler.body != originalHandler.body {
+	if shadowHandler.body != testingStr &&  originalHandler.body != testingStr {
 		t.Error("Bodies are not equal")
 	}
 }
