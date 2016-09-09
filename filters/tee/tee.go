@@ -111,7 +111,7 @@ func cloneRequest(t *tee, req *http.Request) http.Request {
 	//Setting to empty string otherwise go-http doesn't allow having it in client request
 	clone.RequestURI = ""
 	if t.typ == pathModified {
-		clone.URL.Path = string(t.rx.ReplaceAllString(clone.URL.Path, t.replacement))
+		clone.URL.Path = t.rx.ReplaceAllString(clone.URL.Path, t.replacement)
 	}
 	return *clone
 }
@@ -120,7 +120,7 @@ func cloneRequest(t *tee, req *http.Request) http.Request {
 // If only one parameter is given shadow backend is used as it is specified
 // If second and third parameters are also set, then path is modified
 func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
-	var teeInit tee = tee{client: &http.Client{}}
+	tee := tee{client: &http.Client{}}
 
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -131,22 +131,22 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 	}
 
 	if url, err := url.Parse(backend); err == nil {
-		teeInit.host = url.Host
-		teeInit.scheme = url.Scheme
+		tee.host = url.Host
+		tee.scheme = url.Scheme
 	} else {
 		return nil, err
 	}
 
 	if len(config) == 1 {
-		teeInit.typ = asBackend
-		return &teeInit, nil
+		tee.typ = asBackend
+		return &tee, nil
 	}
 
 	//modpath
 	if len(config) == 3 {
 		expr, ok := config[1].(string)
 		if !ok {
-			return nil, fmt.Errorf("Invalid filter config in %s, expecting regexp and string, got: %v", Name, config)
+			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", Name, config)
 		}
 
 		replacement, ok := config[2].(string)
@@ -159,11 +159,11 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		if err != nil {
 			return nil, err
 		}
-		teeInit.typ = pathModified
-		teeInit.rx = rx
-		teeInit.replacement = replacement
+		tee.typ = pathModified
+		tee.rx = rx
+		tee.replacement = replacement
 
-		return &teeInit, nil
+		return &tee, nil
 	}
 
 	return nil, filters.ErrInvalidFilterParameters

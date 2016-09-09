@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"fmt"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -18,6 +20,11 @@ var (
 	teeArgsAsBackend   = []interface{}{"https://api.example.com"}
 	teeArgsWithModPath = []interface{}{"https://api.example.com", ".*", "/v1/"}
 )
+
+type MyHandler struct {
+	name string
+	body string
+}
 
 func TestTeeHostHeaderChanges(t *testing.T) {
 	f, _ := testTeeSpec.CreateFilter(teeArgsAsBackend)
@@ -83,11 +90,6 @@ func TestTeeWithPathChanges(t *testing.T) {
 	}
 }
 
-type MyHandler struct {
-	name string
-	body string
-}
-
 func (h *MyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	b, _ := ioutil.ReadAll(r.Body)
 	str := string(b)
@@ -105,12 +107,12 @@ func TestTeeEndToEndBody(t *testing.T) {
 	originalUrl := originalServer.URL
 	defer originalServer.Close()
 
-	routeStr := "route1: * -> Tee(\"" + shadowUrl + "\")" + " -> " + "\"" + originalUrl + "\";"
+	routeStr := fmt.Sprintf(`route1: * -> Tee("%v") -> "%v";`, shadowUrl, originalUrl)
 
 	route, _ := eskip.Parse(routeStr)
-	registery := make(filters.Registry)
-	registery.Register(NewTee())
-	p := proxytest.New(registery, route...)
+	registry := make(filters.Registry)
+	registry.Register(NewTee())
+	p := proxytest.New(registry, route...)
 	defer p.Close()
 
 	req, _ := http.NewRequest("GET", p.URL, strings.NewReader("TESTEST"))
