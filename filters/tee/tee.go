@@ -88,7 +88,9 @@ func (r *tee) Request(fc filters.FilterContext) {
 		if err != nil {
 			log.Warn("error while tee request", err)
 		}
-		defer rsp.Body.Close()
+		if err == nil {
+			defer rsp.Body.Close()
+		}
 	}()
 }
 
