@@ -207,7 +207,44 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, s
 		if err != nil {
 			errors = append(errors, &definitionError{"", -1, err})
 		} else if subtree {
-			if p[len(p)-1] == '/' {
+			if m.freeWildcardParam != "" {
+				p = p[:len(p)-len(m.freeWildcardParam)-1]
+				err := pathTree.Add(p, m)
+				if err != nil {
+					errors = append(errors, &definitionError{"", -1, err})
+				}
+
+				if p[len(p)-1] == '/' {
+					if p != "/" {
+						err := pathTree.Add(p[:len(p)-1], m)
+						if err != nil {
+							errors = append(errors, &definitionError{"", -1, err})
+						}
+					}
+				} else {
+					err := pathTree.Add(p+"/", m)
+					if err != nil {
+						errors = append(errors, &definitionError{"", -1, err})
+					}
+				}
+
+				// if p == "" {
+				// 	err := pathTree.Add("/", m)
+				// 	if err != nil {
+				// 		errors = append(errors, &definitionError{"", -1, err})
+				// 	}
+				// } else {
+				// 	println("adding", p)
+				// }
+
+				// p += "*" + m.freeWildcardParam
+
+				// println("adding", p)
+				// err = pathTree.Add(p, m)
+				// if err != nil {
+				// 	errors = append(errors, &definitionError{"", -1, err})
+				// }
+			} else if p[len(p)-1] == '/' {
 				p = p[:len(p)-1]
 				if p != "" {
 					err := pathTree.Add(p, m)
@@ -217,6 +254,12 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, s
 				}
 
 				p += "/**"
+				m.freeWildcardParam = "*"
+
+				err := pathTree.Add(p, m)
+				if err != nil {
+					errors = append(errors, &definitionError{"", -1, err})
+				}
 			} else {
 				p += "/"
 				err := pathTree.Add(p, m)
@@ -225,13 +268,12 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, s
 				}
 
 				p += "**"
-			}
+				m.freeWildcardParam = "*"
 
-			m.freeWildcardParam = "*"
-
-			err := pathTree.Add(p, m)
-			if err != nil {
-				errors = append(errors, &definitionError{"", -1, err})
+				err = pathTree.Add(p, m)
+				if err != nil {
+					errors = append(errors, &definitionError{"", -1, err})
+				}
 			}
 		}
 	}
