@@ -123,6 +123,9 @@ type Route struct {
 	// Fields from the static route definition.
 	eskip.Route
 
+	// path predicate matching a subtree
+	pathSubtree string
+
 	// The backend scheme and host.
 	Scheme, Host string
 
