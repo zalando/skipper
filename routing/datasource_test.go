@@ -42,6 +42,8 @@ func TestNoMultipleTreePredicates(t *testing.T) {
 				if !ti.err {
 					t.Error(ti.routes, err)
 				}
+
+				return
 			}
 
 			erred := false

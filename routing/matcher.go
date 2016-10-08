@@ -1,26 +1,13 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package routing
 
 import (
 	"fmt"
-	"github.com/dimfeld/httppath"
-	"github.com/zalando/pathmux"
 	"net/http"
 	"regexp"
 	"sort"
+
+	"github.com/dimfeld/httppath"
+	"github.com/zalando/pathmux"
 )
 
 type leafRequestMatcher struct {
@@ -192,6 +179,47 @@ func cleanPath(path string, o MatchingOptions) string {
 	return path
 }
 
+// add all required tree entries for a subtree with patching the path and
+// the wildcard name if required
+func addSubtreeMatcher(pathTree *pathmux.Tree, path string, m *pathMatcher) error {
+	// if has named free wildcard, use its name and take the path only
+	// otherwise set the free wildcard name by convention to "*", as in "/foo/**"
+	fwp := m.freeWildcardParam
+	if fwp == "" {
+		fwp = "*"
+		m.freeWildcardParam = "*"
+	} else {
+		path = path[:len(path)-len(fwp)-1]
+	}
+
+	// if ends with '/' then set one without
+	// otherwise set one with '/'
+	//
+	// the subtree will be represented as "/foo/**" or "/foo/*wildcard"
+	var pathAlt, pathSubtree string
+	if path[len(path)-1] == '/' {
+		pathAlt = path[:len(path)-1]
+		pathSubtree = path + "*" + fwp
+	} else {
+		pathAlt = path + "/"
+		pathSubtree = pathAlt + "*" + fwp
+	}
+
+	if err := pathTree.Add(path, m); err != nil {
+		return err
+	}
+
+	if pathAlt != "" {
+		if err := pathTree.Add(pathAlt, m); err != nil {
+			return err
+		}
+	}
+
+	return pathTree.Add(pathSubtree, m)
+}
+
+// add each path matcher to the path tree. If a matcher is a subtree, add it with the
+// additional paths.
 func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, subtree bool) []*definitionError {
 	var errors []*definitionError
 	for p, m := range matchers {
@@ -199,77 +227,18 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, s
 		// sort leaves during construction time, based on their priority
 		sort.Sort(m.leaves)
 
-		err := pathTree.Add(p, m)
-		if err != nil {
-			errors = append(errors, &definitionError{"", -1, err})
-		} else if subtree {
-			if m.freeWildcardParam != "" {
-				p = p[:len(p)-len(m.freeWildcardParam)-1]
-				err := pathTree.Add(p, m)
-				if err != nil {
-					errors = append(errors, &definitionError{"", -1, err})
-				}
+		if p == "" {
+			p = "/"
+		}
 
-				if p[len(p)-1] == '/' {
-					if p != "/" {
-						err := pathTree.Add(p[:len(p)-1], m)
-						if err != nil {
-							errors = append(errors, &definitionError{"", -1, err})
-						}
-					}
-				} else {
-					err := pathTree.Add(p+"/", m)
-					if err != nil {
-						errors = append(errors, &definitionError{"", -1, err})
-					}
-				}
-
-				// if p == "" {
-				// 	err := pathTree.Add("/", m)
-				// 	if err != nil {
-				// 		errors = append(errors, &definitionError{"", -1, err})
-				// 	}
-				// } else {
-				// 	println("adding", p)
-				// }
-
-				// p += "*" + m.freeWildcardParam
-
-				// println("adding", p)
-				// err = pathTree.Add(p, m)
-				// if err != nil {
-				// 	errors = append(errors, &definitionError{"", -1, err})
-				// }
-			} else if p[len(p)-1] == '/' {
-				p = p[:len(p)-1]
-				if p != "" {
-					err := pathTree.Add(p, m)
-					if err != nil {
-						errors = append(errors, &definitionError{"", -1, err})
-					}
-				}
-
-				p += "/**"
-				m.freeWildcardParam = "*"
-
-				err := pathTree.Add(p, m)
-				if err != nil {
-					errors = append(errors, &definitionError{"", -1, err})
-				}
-			} else {
-				p += "/"
-				err := pathTree.Add(p, m)
-				if err != nil {
-					errors = append(errors, &definitionError{"", -1, err})
-				}
-
-				p += "**"
-				m.freeWildcardParam = "*"
-
-				err = pathTree.Add(p, m)
-				if err != nil {
-					errors = append(errors, &definitionError{"", -1, err})
-				}
+		if subtree {
+			if err := addSubtreeMatcher(pathTree, p, m); err != nil {
+				errors = append(errors, &definitionError{Index: -1, Original: err})
+			}
+		} else {
+			if err := pathTree.Add(p, m); err != nil {
+				errors = append(errors, &definitionError{Index: -1, Original: err})
+				continue
 			}
 		}
 	}
