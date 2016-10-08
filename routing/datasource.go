@@ -16,8 +16,6 @@ type incomingType uint
 const (
 	incomingReset incomingType = iota
 	incomingUpdate
-
-	PathSubtreeName = "PathSubtree"
 )
 
 func (it incomingType) String() string {
@@ -225,27 +223,6 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]*RouteFilter, e
 	return fs, nil
 }
 
-// initialize predicate instances from their spec with the concrete arguments
-func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, error) {
-	cps := make([]Predicate, 0, len(defs))
-	for _, def := range defs {
-		if isTreePredicate(def.Name) {
-			continue
-		} else if spec, ok := cpm[def.Name]; ok {
-			cp, err := spec.Create(def.Args)
-			if err != nil {
-				return nil, err
-			}
-
-			cps = append(cps, cp)
-		} else {
-			return nil, fmt.Errorf("predicate not found: '%s'", def.Name)
-		}
-	}
-
-	return cps, nil
-}
-
 // check if a predicate is a distinguished, path tree predicate
 // TODO: handle Path() here
 func isTreePredicate(name string) bool {
@@ -257,16 +234,41 @@ func isTreePredicate(name string) bool {
 	}
 }
 
+// initialize predicate instances from their spec with the concrete arguments
+func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, error) {
+	cps := make([]Predicate, 0, len(defs))
+	for _, def := range defs {
+		if isTreePredicate(def.Name) {
+			continue
+		}
+
+		spec, ok := cpm[def.Name]
+		if !ok {
+			return nil, fmt.Errorf("predicate not found: '%s'", def.Name)
+		}
+
+		cp, err := spec.Create(def.Args)
+		if err != nil {
+			return nil, err
+		}
+
+		cps = append(cps, cp)
+	}
+
+	return cps, nil
+}
+
+// returns the subtree path if it is a valid definition
 func processPathSubtree(p *eskip.Predicate) (string, error) {
 	if len(p.Args) != 1 {
 		return "", predicates.ErrInvalidPredicateParameters
 	}
 
-	if s, ok := p.Args[0].(string); !ok {
-		return "", predicates.ErrInvalidPredicateParameters
-	} else {
+	if s, ok := p.Args[0].(string); ok {
 		return s, nil
 	}
+
+	return "", predicates.ErrInvalidPredicateParameters
 }
 
 // processes path tree relevant predicates
@@ -275,11 +277,16 @@ func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
 	for _, p := range predicates {
 		switch p.Name {
 		case PathSubtreeName:
-			if pst, err := processPathSubtree(p); err != nil {
-				return err
-			} else {
-				r.pathSubtree = pst
+			if r.Path != "" || r.pathSubtree != "" {
+				return fmt.Errorf("multiple tree predicates (Path, PathSubtree) in the route: %s", r.Id)
 			}
+
+			pst, err := processPathSubtree(p)
+			if err != nil {
+				return err
+			}
+
+			r.pathSubtree = pst
 		}
 	}
 

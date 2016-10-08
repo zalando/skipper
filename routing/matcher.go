@@ -185,12 +185,8 @@ func freeWildcardParam(path string) string {
 
 func cleanPath(path string, o MatchingOptions) string {
 	path = httppath.Clean(path)
-	if o.ignoreTrailingSlash() && path[len(path)-1] == '/' {
+	if o.ignoreTrailingSlash() && len(path) > 1 && path[len(path)-1] == '/' {
 		path = path[:len(path)-1]
-	}
-
-	if path == "" {
-		path = "/"
 	}
 
 	return path
