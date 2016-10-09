@@ -43,6 +43,9 @@ The following types of conditions are supported in the route definitions.
 - Path: the route definitions may contain a single path condition,
 optionally with wildcards, used for looking up routes in the lookup tree.
 
+- PathSubtree: similar to Path, but used to match full subtrees including
+the path of the definition.
+
 - PathRegexp: regular expressions to match the path.
 
 - Host: regular expressions that the host header in the request must
@@ -68,6 +71,13 @@ matching a single name in the request path.
 
 - freeform wildcard: e.g. /some/path/*wildcard. Freeform wildcards are
 matching any number of names at the end of the request path.
+
+In case of PathSubtree, simple wildcards behave similar to Path, while
+freeform wildcards only set the name of the path parameter containing
+the path in the subtree. If no free wildcard is used in the PathSubtree
+predicate, the name of this parameter will be "*". This makes the
+PathSubtree("/foo") predicate equivalent to having routes with
+Path("/foo"), Path("/foo/") and Path("/foo/**") predicates.
 
 
 Custom Predicates
