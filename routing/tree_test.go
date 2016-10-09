@@ -141,24 +141,13 @@ func testPathMatch(t *testing.T, s []pathSpec) {
 
 func TestSinglePathMatch(t *testing.T) {
 	testPathMatch(t, []pathSpec{{
-		/* considering as unspecified */
 		`route1: Path("") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"route1", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"route1", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"route1", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", nil},
-			},
+			"":     {crashTest: true},
+			"/":    {crashTest: true},
+			"/foo": {crashTest: true},
 		},
 	}, {
-
 		`route1: Path("/") -> <shunt>;`,
 		map[string]pathSpecTest{
 			"": {
@@ -307,120 +296,46 @@ func TestSinglePathMatch(t *testing.T) {
 
 func TestSimpleWildcardMatch(t *testing.T) {
 	testPathMatch(t, []pathSpec{{
-		/* considering as unspecified */
 		`route1: Path(":name1") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo"}},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo"}},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path(":name1/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo"}},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo"}},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/foo:name1") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/foo:name1/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
-
 		`route1: Path("/:name1") -> <shunt>;`,
 		map[string]pathSpecTest{
 			"": {
@@ -1019,296 +934,108 @@ func TestSimpleWildcardMatch(t *testing.T) {
 
 func TestCatchallWildcardMatch(t *testing.T) {
 	testPathMatch(t, []pathSpec{{
-		/* considering as unspecified */
 		`route1: Path("*") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "foo"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "foo"}},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "foo/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "foo"}},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "foo/bar"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "foo/bar"}},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "foo/bar/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "foo/bar"}},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("*name1") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "/foo"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/foo"}},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "/foo/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/foo"}},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "/foo/bar"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/foo/bar"}},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "/foo/bar/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/foo/bar"}},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/*") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "foo"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "foo"}},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "foo/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "foo"}},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "foo/bar"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "foo/bar"}},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "foo/bar/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "foo/bar"}},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/foo*") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/foo/*") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "bar"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "bar"}},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"": "bar/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"": "bar"}},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/foo*name") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/*name1/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/foo"}},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/foo"}},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/foo/bar"}},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/foo/bar"}},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/*name1/bar") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/*name1/bar/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: Path("/foo/*name1/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/bar"}},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/bar"}},
-			},
-			"/foo/bar/baz": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/bar/baz"}},
-			},
-			"/foo/bar/baz/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "/bar/baz"}},
-			},
+			"":              {crashTest: true},
+			"/":             {crashTest: true},
+			"/foo":          {crashTest: true},
+			"/foo/":         {crashTest: true},
+			"/foo/bar":      {crashTest: true},
+			"/foo/bar/":     {crashTest: true},
+			"/foo/bar/baz":  {crashTest: true},
+			"/foo/bar/baz/": {crashTest: true},
 		},
 	}, {
-
 		`route1: Path("/*name1") -> <shunt>;`,
 		map[string]pathSpecTest{
 			"": {
@@ -1385,31 +1112,16 @@ func TestCatchallWildcardMatch(t *testing.T) {
 
 func TestSubtreeMatch(t *testing.T) {
 	testPathMatch(t, []pathSpec{{
-		/* considering as unspecified */
 		`route1: PathSubtree("") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"route1", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"route1", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"route1", nil},
-				ignoreTrailing:   pathSpecVariant{"route1", nil},
-			},
+			"":     {crashTest: true},
+			"/":    {crashTest: true},
+			"/foo": {crashTest: true},
 		},
 	}, {
 		`route1: PathSubtree("/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"*": "/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"*": "/"}},
-			},
-
+			"": {crashTest: true},
 			"/": {
 				considerTrailing: pathSpecVariant{"route1", map[string]string{"*": "/"}},
 				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"*": "/"}},
@@ -1422,12 +1134,7 @@ func TestSubtreeMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-
+			"": {crashTest: true},
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
 				ignoreTrailing:   pathSpecVariant{"", nil},
@@ -1452,12 +1159,7 @@ func TestSubtreeMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-
+			"": {crashTest: true},
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
 				ignoreTrailing:   pathSpecVariant{"", nil},
@@ -1482,12 +1184,7 @@ func TestSubtreeMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo/bar") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-
+			"": {crashTest: true},
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
 				ignoreTrailing:   pathSpecVariant{"", nil},
@@ -1520,12 +1217,7 @@ func TestSubtreeMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo/bar/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-
+			"": {crashTest: true},
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
 				ignoreTrailing:   pathSpecVariant{"", nil},
@@ -1560,146 +1252,54 @@ func TestSubtreeMatch(t *testing.T) {
 
 func TestSubtreeWildcardMatch(t *testing.T) {
 	testPathMatch(t, []pathSpec{{
-		/* considering as unspecified */
 		`route1: PathSubtree(":name1") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/bar"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/bar"}},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/bar/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/bar"}},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"foo":       {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: PathSubtree(":name1/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/bar"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/bar"}},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/bar/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/bar"}},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"foo":       {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: PathSubtree("/foo:name1") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"foo":       {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: PathSubtree("/foo:name1/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"/foo/bar/": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":          {crashTest: true},
+			"/":         {crashTest: true},
+			"foo":       {crashTest: true},
+			"/foo":      {crashTest: true},
+			"/foo/":     {crashTest: true},
+			"/foo/bar":  {crashTest: true},
+			"/foo/bar/": {crashTest: true},
 		},
 	}, {
 		`route1: PathSubtree("/:name1") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -1725,15 +1325,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/:name1/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-				ignoreTrailing:   pathSpecVariant{"route1", map[string]string{"name1": "foo", "*": "/"}},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -1759,15 +1352,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/:name1/bar") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -1801,15 +1387,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/:name1/bar/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -1843,15 +1422,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo/:name1") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -1885,15 +1457,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo/:name1/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -1927,15 +1492,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo/:name1/baz") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -1977,15 +1535,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo/:name1/baz/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -2027,15 +1578,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/:name1/:name2") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -2069,15 +1613,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/:name1/:name2/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -2111,15 +1648,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo/:name1/:name2") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -2161,15 +1691,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/foo/:name1/:name2/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -2211,15 +1734,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/:name1/bar/:name2") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -2261,15 +1777,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/:name1/bar/:name2/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -2311,15 +1820,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/:name1/:name2/baz") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -2361,15 +1863,8 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 	}, {
 		`route1: PathSubtree("/:name1/:name2/baz/") -> <shunt>;`,
 		map[string]pathSpecTest{
-			/* considering as unspecified */
-			"": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
-			"foo": {
-				considerTrailing: pathSpecVariant{"", nil},
-				ignoreTrailing:   pathSpecVariant{"", nil},
-			},
+			"":    {crashTest: true},
+			"foo": {crashTest: true},
 
 			"/": {
 				considerTrailing: pathSpecVariant{"", nil},
@@ -2413,7 +1908,6 @@ func TestSubtreeWildcardMatch(t *testing.T) {
 
 func TestSubtreeCatchallWildcardMatch(t *testing.T) {
 	testPathMatch(t, []pathSpec{{
-		/* considering as unspecified */
 		`route1: PathSubtree("*") -> <shunt>;`,
 		map[string]pathSpecTest{
 			"":          {crashTest: true},
