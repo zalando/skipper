@@ -135,6 +135,8 @@ filters:
 
     modPath(/regular-expression/, "replacement")
 
+    setPath("/replacement")
+
     redirectTo(302, "https://ui.example.org")
 
     flowId("reuse", 64)
@@ -147,7 +149,7 @@ filters:
 
     preserveHost()
 
-	status(418)
+    status(418)
 
 For details about the built-in filters, please, refer to the
 documentation of the skipper/filters package. Skipper is designed to be
