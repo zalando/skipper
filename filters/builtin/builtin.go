@@ -29,6 +29,7 @@ const (
 
 	HealthCheckName  = "healthcheck"
 	ModPathName      = "modPath"
+	SetPathName      = "setPath"
 	RedirectToName   = "redirectTo"
 	StaticName       = "static"
 	StripQueryName   = "stripQuery"
@@ -52,6 +53,7 @@ func MakeRegistry() filters.Registry {
 		NewAppendResponseHeader(),
 		NewDropResponseHeader(),
 		NewModPath(),
+		NewSetPath(),
 		NewHealthCheck(),
 		NewStatic(),
 		NewRedirect(),

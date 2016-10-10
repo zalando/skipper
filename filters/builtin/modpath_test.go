@@ -1,39 +1,17 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
 	"testing"
+
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 )
 
-func TestNoConfig(t *testing.T) {
-	spec := NewModPath()
-	_, err := spec.CreateFilter(nil)
-	if err == nil {
-		t.Error("failed to fail")
-	}
-}
-
-func TestInvalidConfig(t *testing.T) {
-	spec := NewModPath()
-	_, err := spec.CreateFilter([]interface{}{"invalid regexp: }*", 42})
-	if err == nil {
-		t.Error("failed to fail")
-	}
+type createTestItem struct {
+	msg  string
+	args []interface{}
+	err  bool
 }
 
 func TestModifyPath(t *testing.T) {
@@ -53,4 +31,87 @@ func TestModifyPath(t *testing.T) {
 	if req.URL.Path != "/path/with-this/yo" {
 		t.Error("failed to replace path")
 	}
+}
+
+func TestSetPath(t *testing.T) {
+	spec := NewSetPath()
+	f, err := spec.CreateFilter([]interface{}{"/baz/qux"})
+	if err != nil {
+		t.Error(err)
+	}
+
+	req, err := http.NewRequest("GET", "https://www.example.org/foo/bar", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx := &filtertest.Context{FRequest: req}
+	f.Request(ctx)
+	if req.URL.Path != "/baz/qux" {
+		t.Error("failed to replace path")
+	}
+}
+
+func testCreate(t *testing.T, spec func() filters.Spec, items []createTestItem) {
+	for _, ti := range items {
+		func() {
+			f, err := spec().CreateFilter(ti.args)
+			switch {
+			case ti.err && err == nil:
+				t.Error(ti.msg, "failed to fail")
+			case !ti.err && err != nil:
+				t.Error(ti.msg, err)
+			case err == nil && f == nil:
+				t.Error(ti.msg, "failed to create filter")
+			}
+		}()
+	}
+}
+
+func TestCreateModPath(t *testing.T) {
+	testCreate(t, NewModPath, []createTestItem{{
+		"no args",
+		nil,
+		true,
+	}, {
+		"single arg",
+		[]interface{}{".*"},
+		true,
+	}, {
+		"non-string arg, pos 1",
+		[]interface{}{3.14, "/foo"},
+		true,
+	}, {
+		"non-string arg, pos 2",
+		[]interface{}{".*", 2.72},
+		true,
+	}, {
+		"more than two args",
+		[]interface{}{".*", "/foo", "/bar"},
+		true,
+	}, {
+		"create",
+		[]interface{}{".*", "/foo"},
+		false,
+	}})
+}
+
+func TestCreateSetPath(t *testing.T) {
+	testCreate(t, NewSetPath, []createTestItem{{
+		"no args",
+		nil,
+		true,
+	}, {
+		"non-string arg",
+		[]interface{}{3.14},
+		true,
+	}, {
+		"more than one args",
+		[]interface{}{"/foo", "/bar"},
+		true,
+	}, {
+		"create",
+		[]interface{}{"/foo"},
+		false,
+	}})
 }

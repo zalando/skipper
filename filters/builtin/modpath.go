@@ -1,57 +1,61 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package builtin
 
 import (
-	"fmt"
-	"github.com/zalando/skipper/filters"
 	"regexp"
+
+	"github.com/zalando/skipper/filters"
+)
+
+type modPathBehavior int
+
+const (
+	regexpReplace modPathBehavior = 1 + iota
+	fullReplace
 )
 
 type modPath struct {
+	behavior    modPathBehavior
 	rx          *regexp.Regexp
-	replacement []byte
+	replacement string
 }
 
 // Returns a new modpath filter Spec, whose instances execute
 // regexp.ReplaceAll on the request path. Instances expect two
 // parameters: the expression to match and the replacement string.
 // Name: "modpath".
-func NewModPath() filters.Spec { return &modPath{} }
+func NewModPath() filters.Spec { return &modPath{behavior: regexpReplace} }
 
-// "modPath"
-func (spec *modPath) Name() string { return ModPathName }
+// Returns a new setPath filter Spec, whose instances replace
+// the request path. Instances expect one parameter: the new path
+// to be set.
+// Name: "setPath".
+func NewSetPath() filters.Spec { return &modPath{behavior: fullReplace} }
 
-func invalidConfig(config []interface{}) error {
-	return fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", ModPathName, config)
+// "modPath" or "setPath"
+func (spec *modPath) Name() string {
+	switch spec.behavior {
+	case regexpReplace:
+		return ModPathName
+	case fullReplace:
+		return SetPathName
+	default:
+		panic("unspecified behavior")
+	}
 }
 
-// Creates instances of the modPath filter.
-func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) {
+func createModPath(config []interface{}) (filters.Filter, error) {
 	if len(config) != 2 {
-		return nil, invalidConfig(config)
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	expr, ok := config[0].(string)
 	if !ok {
-		return nil, invalidConfig(config)
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	replacement, ok := config[1].(string)
 	if !ok {
-		return nil, invalidConfig(config)
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	rx, err := regexp.Compile(expr)
@@ -59,14 +63,45 @@ func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) 
 		return nil, err
 	}
 
-	f := &modPath{rx, []byte(replacement)}
-	return f, nil
+	return &modPath{behavior: regexpReplace, rx: rx, replacement: replacement}, nil
+}
+
+func createSetPath(config []interface{}) (filters.Filter, error) {
+	if len(config) != 1 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	replacement, ok := config[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return &modPath{behavior: fullReplace, replacement: replacement}, nil
+}
+
+// Creates instances of the modPath filter.
+func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) {
+	switch spec.behavior {
+	case regexpReplace:
+		return createModPath(config)
+	case fullReplace:
+		return createSetPath(config)
+	default:
+		panic("unspecified behavior")
+	}
 }
 
 // Modifies the path with regexp.ReplaceAll.
 func (f *modPath) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
-	req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), f.replacement))
+	switch f.behavior {
+	case regexpReplace:
+		req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), []byte(f.replacement)))
+	case fullReplace:
+		req.URL.Path = f.replacement
+	default:
+		panic("unspecified behavior")
+	}
 }
 
 // Noop.
