@@ -20,7 +20,7 @@ type modPath struct {
 }
 
 // Returns a new modpath filter Spec, whose instances execute
-// regexp.ReplaceAll on the request path. Instances expect two
+// regexp.ReplaceAllString on the request path. Instances expect two
 // parameters: the expression to match and the replacement string.
 // Name: "modpath".
 func NewModPath() filters.Spec { return &modPath{behavior: regexpReplace} }
@@ -91,12 +91,12 @@ func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) 
 	}
 }
 
-// Modifies the path with regexp.ReplaceAll.
+// Modifies the path with regexp.ReplaceAllString.
 func (f *modPath) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	switch f.behavior {
 	case regexpReplace:
-		req.URL.Path = string(f.rx.ReplaceAll([]byte(req.URL.Path), []byte(f.replacement)))
+		req.URL.Path = f.rx.ReplaceAllString(req.URL.Path, f.replacement)
 	case fullReplace:
 		req.URL.Path = f.replacement
 	default:
@@ -105,4 +105,4 @@ func (f *modPath) Request(ctx filters.FilterContext) {
 }
 
 // Noop.
-func (f *modPath) Response(ctx filters.FilterContext) {}
+func (_ *modPath) Response(_ filters.FilterContext) {}
