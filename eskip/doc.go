@@ -35,19 +35,19 @@ A route expression example:
 
 Match Expressions - Predicates
 
-A match expression contains one or more conditions. An incoming
-request must fulfil each of them to match the route. The conditions are
+A match expression contains one or more predicates. An incoming
+request must fulfil each of them to match the route. The predicates are
 separated by '&&'.
 
 A match expression example:
 
     Path("/api/*resource") && Header("Accept", "application/json")
 
-The following condition expressions are recognized:
+The following predicate expressions are recognized:
 
     Path("/some/path")
 
-The path condition accepts a single argument, that can be a fixed path
+The path predicate accepts a single argument, that can be a fixed path
 like "/some/path", or it can contain wildcards in place of one or more
 names in the path, e.g. "/some/:dir/:name", or it can end with a free
 wildcard like "/some/path/*param", where the free wildcard can contain a
@@ -56,39 +56,48 @@ supports the glob standard, e.g. "/some/path/**" will work as expected.
 The arguments are available to the filters while processing the matched
 requests.
 
+	PathSubtree("/some/path")
+
+The path subtree predicate behaves similar to the path predicate, but
+it matches the exact path in the definition and any sub path below it.
+The subpath is automatically provided in the path parameter with the
+name "*". If a free wildcard is appended to the definition, e.g.
+PathSubtree("/some/path/*rest"), the free wildcard name is used instead
+of "*". The simple wildcards behave similar to the Path predicate.
+
     PathRegexp(/regular-expression/)
 
-The regexp path condition accepts a regular expression as a single
+The regexp path predicate accepts a regular expression as a single
 argument that needs to be matched by the request path. The regular
 expression can be surrounded by '/' or '"'.
 
     Host(/host-regular-expression/)
 
-The host condition accepts a regular expression as a single argument
+The host predicate accepts a regular expression as a single argument
 that needs to be matched by the host header in the request.
 
     Method("HEAD")
 
-The method condition is used to match the http request method.
+The method predicate is used to match the http request method.
 
     Header("Accept", "application/json")
 
-The header condition is used to match the http headers in the request.
+The header predicate is used to match the http headers in the request.
 It accepts two arguments, the name of the header field and the exact
 header value to match.
 
     HeaderRegexp("Accept", /\Wapplication\/json\W/)
 
-The header regexp condition works similar to the header expression, but
+The header regexp predicate works similar to the header expression, but
 the value to be matched is a regular expression.
 
     *
 
-Catch all condition.
+Catch all predicate.
 
     Any()
 
-Former, deprecated form of the catch all condition.
+Former, deprecated form of the catch all predicate.
 
 
 Custom Predicates
@@ -195,7 +204,7 @@ Example with comments:
 
 Regular expressions
 
-The matching conditions and the built-in filters that use regular
+The matching predicates and the built-in filters that use regular
 expressions, use the go stdlib regexp, which uses re2:
 
 https://github.com/google/re2/wiki/Syntax

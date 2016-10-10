@@ -1,26 +1,13 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package routing
 
 import (
 	"fmt"
-	"github.com/dimfeld/httppath"
-	"github.com/zalando/pathmux"
 	"net/http"
 	"regexp"
 	"sort"
+
+	"github.com/dimfeld/httppath"
+	"github.com/zalando/pathmux"
 )
 
 type leafRequestMatcher struct {
@@ -29,7 +16,11 @@ type leafRequestMatcher struct {
 }
 
 func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
-	v := value.(*pathMatcher)
+	v, ok := value.(*pathMatcher)
+	if !ok {
+		return false, nil
+	}
+
 	l := matchLeaves(v.leaves, m.r, m.path)
 
 	return l != nil, l
@@ -179,6 +170,82 @@ func freeWildcardParam(path string) string {
 	return param[2:]
 }
 
+func cleanPath(path string, o MatchingOptions) string {
+	path = httppath.Clean(path)
+	if o.ignoreTrailingSlash() && len(path) > 1 && path[len(path)-1] == '/' {
+		path = path[:len(path)-1]
+	}
+
+	return path
+}
+
+// add all required tree entries for a subtree with patching the path and
+// the wildcard name if required
+func addSubtreeMatcher(pathTree *pathmux.Tree, path string, m *pathMatcher) error {
+	// if has named free wildcard, use its name and take the path only
+	// otherwise set the free wildcard name by convention to "*", as in "/foo/**"
+	fwp := m.freeWildcardParam
+	if fwp == "" {
+		fwp = "*"
+		m.freeWildcardParam = "*"
+	} else {
+		path = path[:len(path)-len(fwp)-1]
+	}
+
+	// if ends with '/' then set one without
+	// otherwise set one with '/'
+	//
+	// the subtree will be represented as "/foo/**" or "/foo/*wildcard"
+	var pathAlt, pathSubtree string
+	if path[len(path)-1] == '/' {
+		pathAlt = path[:len(path)-1]
+		pathSubtree = path + "*" + fwp
+	} else {
+		pathAlt = path + "/"
+		pathSubtree = pathAlt + "*" + fwp
+	}
+
+	if err := pathTree.Add(path, m); err != nil {
+		return err
+	}
+
+	if pathAlt != "" {
+		if err := pathTree.Add(pathAlt, m); err != nil {
+			return err
+		}
+	}
+
+	return pathTree.Add(pathSubtree, m)
+}
+
+// add each path matcher to the path tree. If a matcher is a subtree, add it with the
+// additional paths.
+func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, subtree bool) []*definitionError {
+	var errors []*definitionError
+	for p, m := range matchers {
+
+		// sort leaves during construction time, based on their priority
+		sort.Sort(m.leaves)
+
+		if p == "" {
+			p = "/"
+		}
+
+		if subtree {
+			if err := addSubtreeMatcher(pathTree, p, m); err != nil {
+				errors = append(errors, &definitionError{Index: -1, Original: err})
+			}
+		} else {
+			if err := pathTree.Add(p, m); err != nil {
+				errors = append(errors, &definitionError{Index: -1, Original: err})
+				continue
+			}
+		}
+	}
+
+	return errors
+}
+
 // constructs a matcher based on the provided definitions.
 //
 // If `ignoreTrailingSlash` is true, the matcher handles
@@ -197,6 +264,7 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	)
 
 	pathMatchers := make(map[string]*pathMatcher)
+	subtreeMatchers := make(map[string]*pathMatcher)
 
 	for i, r := range rs {
 		l, err := newLeaf(r)
@@ -206,6 +274,13 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 		}
 
 		p := r.Path
+		m := pathMatchers
+
+		if r.pathSubtree != "" {
+			p = r.pathSubtree
+			m = subtreeMatchers
+		}
+
 		if p == "" {
 			rootLeaves = append(rootLeaves, l)
 			continue
@@ -214,31 +289,20 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 		// normalize path
 		// in case ignoring trailing slashes, store and match all paths
 		// without the trailing slash
-		p = httppath.Clean(p)
-		if o.ignoreTrailingSlash() && p[len(p)-1] == '/' {
-			p = p[:len(p)-1]
-		}
+		p = cleanPath(p, o)
 
-		pm := pathMatchers[p]
+		pm := m[p]
 		if pm == nil {
 			pm = &pathMatcher{freeWildcardParam: freeWildcardParam(p)}
-			pathMatchers[p] = pm
+			m[p] = pm
 		}
 
 		pm.leaves = append(pm.leaves, l)
 	}
 
 	pathTree := &pathmux.Tree{}
-	for p, m := range pathMatchers {
-
-		// sort leaves during construction time, based on their priority
-		sort.Sort(m.leaves)
-
-		err := pathTree.Add(p, m)
-		if err != nil {
-			errors = append(errors, &definitionError{"", -1, err})
-		}
-	}
+	errors = append(errors, addTreeMatchers(pathTree, pathMatchers, false)...)
+	errors = append(errors, addTreeMatchers(pathTree, subtreeMatchers, true)...)
 
 	// sort root leaves during construction time, based on their priority
 	sort.Sort(rootLeaves)
@@ -365,11 +429,7 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatch
 func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	// normalize path before matching
 	// in case ignoring trailing slashes, match without the trailing slash
-	path := httppath.Clean(r.URL.Path)
-	if m.matchingOptions.ignoreTrailingSlash() && path[len(path)-1] == '/' {
-		path = path[:len(path)-1]
-	}
-
+	path := cleanPath(r.URL.Path, m.matchingOptions)
 	lrm := &leafRequestMatcher{r, path}
 
 	// first match fixed and wildcard paths
