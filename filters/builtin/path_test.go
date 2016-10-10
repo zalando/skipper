@@ -33,6 +33,13 @@ func TestModifyPath(t *testing.T) {
 	}
 }
 
+func TestModifyPathWithInvalidExpression(t *testing.T) {
+	spec := NewModPath()
+	if f, err := spec.CreateFilter([]interface{}{"(?=;)", "foo"}); err == nil || f != nil {
+		t.Error("Expected error for invalid regular expression parameter")
+	}
+}
+
 func TestSetPath(t *testing.T) {
 	spec := NewSetPath()
 	f, err := spec.CreateFilter([]interface{}{"/baz/qux"})
