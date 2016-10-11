@@ -1,18 +1,25 @@
 /*
-Package tee provides a unix-like tee feature for routing. One can send same request to a shadow backend
-by using Tee filter.
+Package tee provides a unix-like tee feature for routing.
 
-An example can be as follow
- * -> Tee("http://audit-logging.example.com") -> "http://payment.example.com"
+Using this filter, the request will be sent to a "shadow" backend in addition to the main
+backend of the route.
 
- This will snd same request for payment.example.com to audit-logging.example.com.
- Another use case could be using it for benchmarking a new backend with some real traffic
+Example:
 
- It is also possible using it with a regexp like in modpath filter
+	* -> Tee("https://audit-logging.example.org") -> "https://foo.example.org"
 
- Path("/api/v1") -> Tee("https://api.example.com", ".*", "/v2/" ) -> "http://example.org/"
+This will send an identical request for foo.example.org to audit-logging.example.org.
+Another use case could be using it for benchmarking a new backend with some real traffic
 
- In this example. once can tests a new version of the backend with Tee.
+The above route will forward the request to https://foo.example.org as it normally would do,
+but in addition to that, it will send an identical request to https://audit-logging.example.org.
+The request sent to https://audit-logging.example.org will receive the same method and headers,
+and a copy of the body stream. The tee response is ignored.
 
+It is possible to change the path of the tee request, in a similar way to the modPath filter:
+
+	Path("/api/v1") -> tee("https://api.example.org", "^/v1", "/v2" ) -> "http://api.example.org"
+
+In the above example, one can test how a new version of an API would behave on incoming requests.
 */
 package tee
