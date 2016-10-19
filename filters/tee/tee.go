@@ -11,9 +11,7 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const (
-	Name = "Tee"
-)
+const Name = "tee"
 
 type teeSpec struct{}
 
@@ -38,18 +36,10 @@ type teeTie struct {
 	w *io.PipeWriter
 }
 
-// Returns a new tee filter Spec, whose instances execute
-// the exact same Request against a shadow backend.
+// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
+//
 // Name: "tee".
-// Example
-// Path("/api/v3") -> tee("https://api.example.com") -> "http://example.org/"
-// This route wil send incoming  request to http://example.org/api/v3 but will also send
-// a copy of the query to https://api.example.com/api/v3.
-// Example
-// Path("/api/v3") -> tee("https://api.example.com", ".*", "/v1/" ) -> "http://example.org/"
-// This route wil send incoming request to http://example.org/api/v3 but will also send
-// a copy of the request to https://api.example.com/v1/ . Note that scheme and path are changed
 func NewTee() *teeSpec {
 	return &teeSpec{}
 }
