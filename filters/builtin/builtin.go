@@ -27,15 +27,16 @@ const (
 	DropRequestHeaderName    = "dropRequestHeader"
 	DropResponseHeaderName   = "dropResponseHeader"
 
-	HealthCheckName  = "healthcheck"
-	ModPathName      = "modPath"
-	SetPathName      = "setPath"
-	RedirectToName   = "redirectTo"
-	StaticName       = "static"
-	StripQueryName   = "stripQuery"
-	PreserveHostName = "preserveHost"
-	StatusName       = "status"
-	CompressName     = "compress"
+	HealthCheckName   = "healthcheck"
+	ModPathName       = "modPath"
+	SetPathName       = "setPath"
+	TransformPathName = "transformPath"
+	RedirectToName    = "redirectTo"
+	StaticName        = "static"
+	StripQueryName    = "stripQuery"
+	PreserveHostName  = "preserveHost"
+	StatusName        = "status"
+	CompressName      = "compress"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -54,6 +55,7 @@ func MakeRegistry() filters.Registry {
 		NewDropResponseHeader(),
 		NewModPath(),
 		NewSetPath(),
+		NewTransformPath(),
 		NewHealthCheck(),
 		NewStatic(),
 		NewRedirect(),

@@ -1,9 +1,9 @@
 package builtin
 
 import (
-	"regexp"
-
 	"github.com/zalando/skipper/filters"
+	"regexp"
+	"strings"
 )
 
 type modPathBehavior int
@@ -11,12 +11,14 @@ type modPathBehavior int
 const (
 	regexpReplace modPathBehavior = 1 + iota
 	fullReplace
+	transformReplace
 )
 
 type modPath struct {
-	behavior    modPathBehavior
-	rx          *regexp.Regexp
-	replacement string
+	behavior     modPathBehavior
+	rx           *regexp.Regexp
+	replacement  string
+	placeholders []string
 }
 
 // Returns a new modpath filter Spec, whose instances execute
@@ -31,6 +33,12 @@ func NewModPath() filters.Spec { return &modPath{behavior: regexpReplace} }
 // Name: "setPath".
 func NewSetPath() filters.Spec { return &modPath{behavior: fullReplace} }
 
+// Returns a new transformPath filter Spec, whose instances builds
+// the request path replacing the params.
+// Instances expect one parameter: the new path to be transformed to.
+// Name: "transformPath".
+func NewTransformPath() filters.Spec { return &modPath{behavior: transformReplace} }
+
 // "modPath" or "setPath"
 func (spec *modPath) Name() string {
 	switch spec.behavior {
@@ -38,6 +46,8 @@ func (spec *modPath) Name() string {
 		return ModPathName
 	case fullReplace:
 		return SetPathName
+	case transformReplace:
+		return TransformPathName
 	default:
 		panic("unspecified behavior")
 	}
@@ -79,6 +89,27 @@ func createSetPath(config []interface{}) (filters.Filter, error) {
 	return &modPath{behavior: fullReplace, replacement: replacement}, nil
 }
 
+func createTransformPath(config []interface{}) (filters.Filter, error) {
+	if len(config) != 1 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	replacement, ok := config[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	rx := regexp.MustCompile("\\$\\{(\\w+)\\}")
+	matches := rx.FindAllStringSubmatch(replacement, -1)
+	placeholders := make([]string, len(matches))
+
+	for index, placeholder := range matches {
+		placeholders[index] = placeholder[1]
+	}
+
+	return &modPath{behavior: transformReplace, replacement: replacement, placeholders: placeholders}, nil
+}
+
 // Creates instances of the modPath filter.
 func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) {
 	switch spec.behavior {
@@ -86,6 +117,8 @@ func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) 
 		return createModPath(config)
 	case fullReplace:
 		return createSetPath(config)
+	case transformReplace:
+		return createTransformPath(config)
 	default:
 		panic("unspecified behavior")
 	}
@@ -99,6 +132,12 @@ func (f *modPath) Request(ctx filters.FilterContext) {
 		req.URL.Path = f.rx.ReplaceAllString(req.URL.Path, f.replacement)
 	case fullReplace:
 		req.URL.Path = f.replacement
+	case transformReplace:
+		req.URL.Path = f.replacement
+		for _, placeholder := range f.placeholders {
+			req.URL.Path = strings.Replace(req.URL.Path, "${"+placeholder+"}", ctx.PathParam(placeholder), -1)
+		}
+		fmt.Println(req.URL.Path)
 	default:
 		panic("unspecified behavior")
 	}
