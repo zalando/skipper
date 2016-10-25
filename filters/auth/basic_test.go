@@ -24,16 +24,18 @@ func TestWithMissingAuth(t *testing.T) {
 		t.Error(err)
 	}
 
+	expectedBasicAuthHeaderValue := ForceBasicAuthHeaderValue + "\"Basic Realm\""
+
 	ctx := &filtertest.Context{FRequest: req}
 	f.Request(ctx)
-	if ctx.Response().Header.Get(ForceBasicAuthHeaderName) != ForceBasicAuthHeaderValue && ctx.Response().StatusCode == 401 && ctx.Served() {
+	if ctx.Response().Header.Get(ForceBasicAuthHeaderName) != expectedBasicAuthHeaderValue && ctx.Response().StatusCode == 401 && ctx.Served() {
 		t.Error("Authentication header wrong/missing")
 	}
 }
 
 func TestWithWrongAuth(t *testing.T) {
 	spec := NewBasicAuth()
-	f, err := spec.CreateFilter([]interface{}{"htpasswd.test"})
+	f, err := spec.CreateFilter([]interface{}{"htpasswd.test", "My Website"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -44,9 +46,11 @@ func TestWithWrongAuth(t *testing.T) {
 		t.Error(err)
 	}
 
+	expectedBasicAuthHeaderValue := ForceBasicAuthHeaderValue + "\"My Website\""
+
 	ctx := &filtertest.Context{FRequest: req}
 	f.Request(ctx)
-	if ctx.Response().Header.Get(ForceBasicAuthHeaderName) != ForceBasicAuthHeaderValue && ctx.Response().StatusCode == 401 && ctx.Served() {
+	if ctx.Response().Header.Get(ForceBasicAuthHeaderName) != expectedBasicAuthHeaderValue && ctx.Response().StatusCode == 401 && ctx.Served() {
 		t.Error("Authentication header wrong/missing")
 	}
 }
@@ -66,7 +70,7 @@ func TestWithSuccessfulAuth(t *testing.T) {
 
 	ctx := &filtertest.Context{FRequest: req}
 	f.Request(ctx)
-	if ctx.Served()  && ctx.Response().StatusCode != 401 {
+	if ctx.Served() && ctx.Response().StatusCode != 401 {
 		t.Error("Authentication not successful")
 	}
 }

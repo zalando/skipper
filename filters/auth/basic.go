@@ -9,13 +9,15 @@ import (
 const (
 	Name                      = "basicAuth"
 	ForceBasicAuthHeaderName  = "WWW-Authenticate"
-	ForceBasicAuthHeaderValue = "Basic realm=\"User Visible Realm\""
+	ForceBasicAuthHeaderValue = "Basic realm="
+	DefaultRealmName          = "Basic Realm"
 )
 
 type basicSpec struct{}
 
 type basic struct {
 	authenticator *auth.BasicAuth
+	realmName     string
 }
 
 func NewBasicAuth() *basicSpec {
@@ -31,7 +33,7 @@ func (a *basic) Request(ctx filters.FilterContext) {
 
 	if username == "" {
 		header := http.Header{}
-		header.Set(ForceBasicAuthHeaderName, ForceBasicAuthHeaderValue)
+		header.Set(ForceBasicAuthHeaderName, ForceBasicAuthHeaderValue+"\""+a.realmName+"\"")
 
 		ctx.Serve(&http.Response{
 			StatusCode: http.StatusUnauthorized,
@@ -52,10 +54,19 @@ func (spec *basicSpec) CreateFilter(config []interface{}) (filters.Filter, error
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	htpasswd := auth.HtpasswdFileProvider(configFile)
-	authenticator := auth.NewBasicAuthenticator("Basic Realm", htpasswd)
+	realmName := DefaultRealmName
 
-	return &basic{authenticator: authenticator}, nil
+	if len(config) == 2 {
+		definedName, ok := config[1].(string)
+		if ok {
+			realmName = definedName
+		}
+	}
+
+	htpasswd := auth.HtpasswdFileProvider(configFile)
+	authenticator := auth.NewBasicAuthenticator(realmName, htpasswd)
+
+	return &basic{authenticator: authenticator, realmName: realmName}, nil
 }
 
 func (spec *basicSpec) Name() string { return Name }
