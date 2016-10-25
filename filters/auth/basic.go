@@ -15,7 +15,6 @@ const (
 type basicSpec struct{}
 
 type basic struct {
-	configFile    string
 	authenticator *auth.BasicAuth
 }
 
@@ -56,7 +55,7 @@ func (spec *basicSpec) CreateFilter(config []interface{}) (filters.Filter, error
 	htpasswd := auth.HtpasswdFileProvider(configFile)
 	authenticator := auth.NewBasicAuthenticator("Basic Realm", htpasswd)
 
-	return &basic{configFile: configFile, authenticator: authenticator}, nil
+	return &basic{authenticator: authenticator}, nil
 }
 
 func (spec *basicSpec) Name() string { return Name }
