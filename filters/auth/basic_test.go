@@ -14,7 +14,7 @@ type createTestItem struct {
 
 func TestWithMissingAuth(t *testing.T) {
 	spec := NewBasicAuth()
-	f, err := spec.CreateFilter([]interface{}{"htpasswd.test"})
+	f, err := spec.CreateFilter([]interface{}{"testdata/htpasswd"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -24,7 +24,7 @@ func TestWithMissingAuth(t *testing.T) {
 		t.Error(err)
 	}
 
-	expectedBasicAuthHeaderValue := ForceBasicAuthHeaderValue + "\"Basic Realm\""
+	expectedBasicAuthHeaderValue := ForceBasicAuthHeaderValue + `"Basic Realm"`
 
 	ctx := &filtertest.Context{FRequest: req}
 	f.Request(ctx)
@@ -35,7 +35,7 @@ func TestWithMissingAuth(t *testing.T) {
 
 func TestWithWrongAuth(t *testing.T) {
 	spec := NewBasicAuth()
-	f, err := spec.CreateFilter([]interface{}{"htpasswd.test", "My Website"})
+	f, err := spec.CreateFilter([]interface{}{"testdata/htpasswd", "My Website"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -46,7 +46,7 @@ func TestWithWrongAuth(t *testing.T) {
 		t.Error(err)
 	}
 
-	expectedBasicAuthHeaderValue := ForceBasicAuthHeaderValue + "\"My Website\""
+	expectedBasicAuthHeaderValue := ForceBasicAuthHeaderValue + `"My Website"`
 
 	ctx := &filtertest.Context{FRequest: req}
 	f.Request(ctx)
@@ -57,7 +57,7 @@ func TestWithWrongAuth(t *testing.T) {
 
 func TestWithSuccessfulAuth(t *testing.T) {
 	spec := NewBasicAuth()
-	f, err := spec.CreateFilter([]interface{}{"htpasswd.test"})
+	f, err := spec.CreateFilter([]interface{}{"testdata/htpasswd"})
 	if err != nil {
 		t.Error(err)
 	}
