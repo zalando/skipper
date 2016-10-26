@@ -58,8 +58,8 @@ func TestSetPath(t *testing.T) {
 	}
 }
 
-func TestTransformPath(t *testing.T) {
-	spec := NewTransformPath()
+func TestSetPathWithTemplate(t *testing.T) {
+	spec := NewSetPath()
 	f, err := spec.CreateFilter([]interface{}{"/path/${param2}/${param1}"})
 	if err != nil {
 		t.Error(err)

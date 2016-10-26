@@ -28,16 +28,10 @@ type modPath struct {
 func NewModPath() filters.Spec { return &modPath{behavior: regexpReplace} }
 
 // Returns a new setPath filter Spec, whose instances replace
-// the request path. Instances expect one parameter: the new path
-// to be set.
+// the request path, with possibily to apply template operations.
+// Instances expect one parameter: the new path template to be set.
 // Name: "setPath".
 func NewSetPath() filters.Spec { return &modPath{behavior: fullReplace} }
-
-// Returns a new transformPath filter Spec, whose instances builds
-// the request path replacing the params.
-// Instances expect one parameter: the new path to be transformed to.
-// Name: "transformPath".
-func NewTransformPath() filters.Spec { return &modPath{behavior: transformReplace} }
 
 // "modPath" or "setPath"
 func (spec *modPath) Name() string {
@@ -46,8 +40,6 @@ func (spec *modPath) Name() string {
 		return ModPathName
 	case fullReplace:
 		return SetPathName
-	case transformReplace:
-		return TransformPathName
 	default:
 		panic("unspecified behavior")
 	}
@@ -81,25 +73,12 @@ func createSetPath(config []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	replacement, ok := config[0].(string)
-	if !ok {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-
-	return &modPath{behavior: fullReplace, replacement: replacement}, nil
-}
-
-func createTransformPath(config []interface{}) (filters.Filter, error) {
-	if len(config) != 1 {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-
 	template, ok := config[0].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &modPath{behavior: transformReplace, template: helpers.NewTemplateString(template)}, nil
+	return &modPath{behavior: fullReplace, template: helpers.NewTemplateString(template)}, nil
 }
 
 // Creates instances of the modPath filter.
@@ -109,8 +88,6 @@ func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) 
 		return createModPath(config)
 	case fullReplace:
 		return createSetPath(config)
-	case transformReplace:
-		return createTransformPath(config)
 	default:
 		panic("unspecified behavior")
 	}
@@ -123,8 +100,6 @@ func (f *modPath) Request(ctx filters.FilterContext) {
 	case regexpReplace:
 		req.URL.Path = f.rx.ReplaceAllString(req.URL.Path, f.replacement)
 	case fullReplace:
-		req.URL.Path = f.replacement
-	case transformReplace:
 		req.URL.Path = f.template.ApplyWithGetter(ctx.PathParam)
 	default:
 		panic("unspecified behavior")

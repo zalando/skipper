@@ -55,7 +55,6 @@ func MakeRegistry() filters.Registry {
 		NewDropResponseHeader(),
 		NewModPath(),
 		NewSetPath(),
-		NewTransformPath(),
 		NewHealthCheck(),
 		NewStatic(),
 		NewRedirect(),
