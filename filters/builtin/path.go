@@ -2,8 +2,8 @@ package builtin
 
 import (
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/helpers"
 	"regexp"
-	"strings"
 )
 
 type modPathBehavior int
@@ -15,10 +15,10 @@ const (
 )
 
 type modPath struct {
-	behavior     modPathBehavior
-	rx           *regexp.Regexp
-	replacement  string
-	placeholders []string
+	behavior    modPathBehavior
+	rx          *regexp.Regexp
+	replacement string
+	template    *helpers.TemplateString
 }
 
 // Returns a new modpath filter Spec, whose instances execute
@@ -94,20 +94,12 @@ func createTransformPath(config []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	replacement, ok := config[0].(string)
+	template, ok := config[0].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	rx := regexp.MustCompile("\\$\\{(\\w+)\\}")
-	matches := rx.FindAllStringSubmatch(replacement, -1)
-	placeholders := make([]string, len(matches))
-
-	for index, placeholder := range matches {
-		placeholders[index] = placeholder[1]
-	}
-
-	return &modPath{behavior: transformReplace, replacement: replacement, placeholders: placeholders}, nil
+	return &modPath{behavior: transformReplace, template: helpers.NewTemplateString(template)}, nil
 }
 
 // Creates instances of the modPath filter.
@@ -133,11 +125,7 @@ func (f *modPath) Request(ctx filters.FilterContext) {
 	case fullReplace:
 		req.URL.Path = f.replacement
 	case transformReplace:
-		req.URL.Path = f.replacement
-		for _, placeholder := range f.placeholders {
-			req.URL.Path = strings.Replace(req.URL.Path, "${"+placeholder+"}", ctx.PathParam(placeholder), -1)
-		}
-		fmt.Println(req.URL.Path)
+		req.URL.Path = f.template.ApplyWithGetter(ctx.PathParam)
 	default:
 		panic("unspecified behavior")
 	}
