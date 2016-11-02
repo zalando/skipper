@@ -11,9 +11,14 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const Name = "tee"
+const (
+	Name           = "tee"
+	DeprecatedName = "Tee"
+)
 
-type teeSpec struct{}
+type teeSpec struct {
+	deprecated bool
+}
 
 type teeType int
 
@@ -42,6 +47,17 @@ type teeTie struct {
 // Name: "tee".
 func NewTee() *teeSpec {
 	return &teeSpec{}
+}
+
+// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
+// parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
+//
+// This version uses the capitalized version of the filter name and to follow conventions, it is deprecated
+// and NewTee() (providing the name "tee") should be used instead.
+//
+// Name: "Tee".
+func NewTeeDeprecated() *teeSpec {
+	return &teeSpec{deprecated: true}
 }
 
 func (tt *teeTie) Read(b []byte) (int, error) {
@@ -161,4 +177,10 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 	return nil, filters.ErrInvalidFilterParameters
 }
 
-func (spec *teeSpec) Name() string { return Name }
+func (spec *teeSpec) Name() string {
+	if spec.deprecated {
+		return DeprecatedName
+	}
+
+	return Name
+}

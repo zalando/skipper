@@ -71,6 +71,7 @@ func MakeRegistry() filters.Registry {
 		diag.NewBackendBandwidth(),
 		diag.NewBackendChunks(),
 		tee.NewTee(),
+		tee.NewTeeDeprecated(),
 	} {
 		r.Register(s)
 	}

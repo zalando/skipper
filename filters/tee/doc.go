@@ -6,7 +6,7 @@ backend of the route.
 
 Example:
 
-	* -> Tee("https://audit-logging.example.org") -> "https://foo.example.org"
+	* -> tee("https://audit-logging.example.org") -> "https://foo.example.org"
 
 This will send an identical request for foo.example.org to audit-logging.example.org.
 Another use case could be using it for benchmarking a new backend with some real traffic
