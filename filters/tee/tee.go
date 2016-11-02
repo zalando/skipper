@@ -45,7 +45,7 @@ type teeTie struct {
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 //
 // Name: "tee".
-func NewTee() *teeSpec {
+func NewTee() filters.Spec {
 	return &teeSpec{}
 }
 
@@ -56,7 +56,7 @@ func NewTee() *teeSpec {
 // and NewTee() (providing the name "tee") should be used instead.
 //
 // Name: "Tee".
-func NewTeeDeprecated() *teeSpec {
+func NewTeeDeprecated() filters.Spec {
 	return &teeSpec{deprecated: true}
 }
 
