@@ -145,6 +145,14 @@ type Options struct {
 	// Flag that enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats
 	EnableRuntimeMetrics bool
 
+	// If set, detailed response time metrics will be collected
+	// for each route, additionally grouped by status and method.
+	EnableServeRouteMetrics bool
+
+	// If set, detailed response time metrics will be collected
+	// for each host, additionally grouped by status and method.
+	EnableServeHostMetrics bool
+
 	// Output file for the application log. Default value: /dev/stderr.
 	//
 	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
@@ -297,10 +305,12 @@ func Run(o Options) error {
 
 	// init metrics
 	metrics.Init(metrics.Options{
-		Listener:             o.MetricsListener,
-		Prefix:               o.MetricsPrefix,
-		EnableDebugGcMetrics: o.EnableDebugGcMetrics,
-		EnableRuntimeMetrics: o.EnableRuntimeMetrics,
+		Listener:                o.MetricsListener,
+		Prefix:                  o.MetricsPrefix,
+		EnableDebugGcMetrics:    o.EnableDebugGcMetrics,
+		EnableRuntimeMetrics:    o.EnableRuntimeMetrics,
+		EnableServeRouteMetrics: o.EnableServeRouteMetrics,
+		EnableServeHostMetrics:  o.EnableServeHostMetrics,
 	})
 
 	// create authentication for Innkeeper

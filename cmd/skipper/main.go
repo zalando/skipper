@@ -58,6 +58,8 @@ const (
 	metricsPrefixUsage             = "allows setting a custom path prefix for metrics export"
 	debugGcMetricsUsage            = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
 	runtimeMetricsUsage            = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
+	serveRouteMetricsUsage         = "enables reporting total serve time metrics for each route"
+	serveHostMetricsUsage          = "enables reporting total serve time metrics for each host"
 	applicationLogUsage            = "output file for the application log. When not set, /dev/stderr is used"
 	applicationLogPrefixUsage      = "prefix for each log entry"
 	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
@@ -91,6 +93,8 @@ var (
 	metricsPrefix             string
 	debugGcMetrics            bool
 	runtimeMetrics            bool
+	serveRouteMetrics         bool
+	serveHostMetrics          bool
 	applicationLog            string
 	applicationLogPrefix      string
 	accessLog                 string
@@ -124,6 +128,8 @@ func init() {
 	flag.StringVar(&metricsPrefix, "metrics-prefix", defaultMetricsPrefix, metricsPrefixUsage)
 	flag.BoolVar(&debugGcMetrics, "debug-gc-metrics", false, debugGcMetricsUsage)
 	flag.BoolVar(&runtimeMetrics, "runtime-metrics", defaultRuntimeMetrics, runtimeMetricsUsage)
+	flag.BoolVar(&serveRouteMetrics, "serve-route-metrics", false, serveRouteMetricsUsage)
+	flag.BoolVar(&serveHostMetrics, "serve-host-metrics", false, serveHostMetricsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
@@ -183,6 +189,8 @@ func main() {
 		MetricsPrefix:             metricsPrefix,
 		EnableDebugGcMetrics:      debugGcMetrics,
 		EnableRuntimeMetrics:      runtimeMetrics,
+		EnableServeRouteMetrics:   serveRouteMetrics,
+		EnableServeHostMetrics:    serveHostMetrics,
 		ApplicationLogOutput:      applicationLog,
 		ApplicationLogPrefix:      applicationLogPrefix,
 		AccessLogOutput:           accessLog,
