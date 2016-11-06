@@ -1,20 +1,18 @@
-package helpers
+package template
 
-import (
-	"testing"
-)
+import "testing"
 
 type createTestItem struct {
 	template string
 	expected string
-	getter   TemplateGetter
+	getter   Getter
 }
 
 func testCreate(t *testing.T, items []createTestItem) {
 	for _, ti := range items {
 		func() {
-			template := NewTemplateString(ti.template)
-			result := template.ApplyWithGetter(ti.getter)
+			template := New(ti.template)
+			result := template.Apply(ti.getter)
 			if result != ti.expected {
 				t.Error(`Error: "` + result + `" != "` + ti.expected + `"`)
 			}
