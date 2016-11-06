@@ -477,8 +477,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		p.metrics.IncRoutingFailures()
-		p.metrics.MeasureServe(unknownRouteId, r.Host, r.Method, http.StatusNotFound, startServe)
 		sendError(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		p.metrics.MeasureServe(unknownRouteId, r.Host, r.Method, http.StatusNotFound, startServe)
 		log.Debugf("Could not find a route for %v", r.URL)
 		return
 	}
