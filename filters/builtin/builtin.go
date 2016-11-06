@@ -5,6 +5,7 @@ package builtin
 
 import (
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
 	"github.com/zalando/skipper/filters/tee"
@@ -72,6 +73,7 @@ func MakeRegistry() filters.Registry {
 		diag.NewBackendChunks(),
 		tee.NewTee(),
 		tee.NewTeeDeprecated(),
+		auth.NewBasicAuth(),
 	} {
 		r.Register(s)
 	}

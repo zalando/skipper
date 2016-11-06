@@ -80,11 +80,6 @@ func (spec *redirect) CreateFilter(config []interface{}) (filters.Filter, error)
 	return &redirect{spec.deprecated, int(code), u}, nil
 }
 
-func (f *redirect) copyOfLocation() *url.URL {
-	v := *f.location
-	return &v
-}
-
 func getRequestHost(r *http.Request) string {
 	h := r.Header.Get("Host")
 
@@ -99,9 +94,11 @@ func getRequestHost(r *http.Request) string {
 	return h
 }
 
-func (f *redirect) getLocation(ctx filters.FilterContext) string {
+func getLocation(ctx filters.FilterContext, location *url.URL) string {
 	r := ctx.Request()
-	u := f.copyOfLocation()
+
+	uc := *location
+	u := &uc
 
 	if u.Scheme == "" {
 		if r.URL.Scheme != "" {
@@ -128,15 +125,20 @@ func (f *redirect) getLocation(ctx filters.FilterContext) string {
 	return u.String()
 }
 
+// Redirect implements the redirect logic as a standalone function.
+func Redirect(ctx filters.FilterContext, code int, location *url.URL) {
+	u := getLocation(ctx, location)
+	ctx.Serve(&http.Response{
+		StatusCode: code,
+		Header:     http.Header{"Location": []string{u}}})
+}
+
 func (f *redirect) Request(ctx filters.FilterContext) {
 	if f.deprecated {
 		return
 	}
 
-	u := f.getLocation(ctx)
-	ctx.Serve(&http.Response{
-		StatusCode: f.code,
-		Header:     http.Header{"Location": []string{u}}})
+	Redirect(ctx, f.code, f.location)
 }
 
 // Sets the status code and the location header of the response. Marks the
@@ -146,7 +148,7 @@ func (f *redirect) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	u := f.getLocation(ctx)
+	u := getLocation(ctx, f.location)
 	w := ctx.ResponseWriter()
 	w.Header().Set("Location", u)
 	w.WriteHeader(f.code)
