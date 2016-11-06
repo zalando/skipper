@@ -107,7 +107,7 @@ func TestTeeEndToEndBody(t *testing.T) {
 	originalUrl := originalServer.URL
 	defer originalServer.Close()
 
-	routeStr := fmt.Sprintf(`route1: * -> Tee("%v") -> "%v";`, shadowUrl, originalUrl)
+	routeStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";`, shadowUrl, originalUrl)
 
 	route, _ := eskip.Parse(routeStr)
 	registry := make(filters.Registry)

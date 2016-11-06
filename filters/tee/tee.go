@@ -12,10 +12,13 @@ import (
 )
 
 const (
-	Name = "Tee"
+	Name           = "tee"
+	DeprecatedName = "Tee"
 )
 
-type teeSpec struct{}
+type teeSpec struct {
+	deprecated bool
+}
 
 type teeType int
 
@@ -38,20 +41,23 @@ type teeTie struct {
 	w *io.PipeWriter
 }
 
-// Returns a new tee filter Spec, whose instances execute
-// the exact same Request against a shadow backend.
+// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
+//
 // Name: "tee".
-// Example
-// Path("/api/v3") -> tee("https://api.example.com") -> "http://example.org/"
-// This route wil send incoming  request to http://example.org/api/v3 but will also send
-// a copy of the query to https://api.example.com/api/v3.
-// Example
-// Path("/api/v3") -> tee("https://api.example.com", ".*", "/v1/" ) -> "http://example.org/"
-// This route wil send incoming request to http://example.org/api/v3 but will also send
-// a copy of the request to https://api.example.com/v1/ . Note that scheme and path are changed
-func NewTee() *teeSpec {
+func NewTee() filters.Spec {
 	return &teeSpec{}
+}
+
+// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
+// parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
+//
+// This version uses the capitalized version of the filter name and to follow conventions, it is deprecated
+// and NewTee() (providing the name "tee") should be used instead.
+//
+// Name: "Tee".
+func NewTeeDeprecated() filters.Spec {
+	return &teeSpec{deprecated: true}
 }
 
 func (tt *teeTie) Read(b []byte) (int, error) {
@@ -171,4 +177,10 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 	return nil, filters.ErrInvalidFilterParameters
 }
 
-func (spec *teeSpec) Name() string { return Name }
+func (spec *teeSpec) Name() string {
+	if spec.deprecated {
+		return DeprecatedName
+	}
+
+	return Name
+}

@@ -56,7 +56,7 @@ supports the glob standard, e.g. "/some/path/**" will work as expected.
 The arguments are available to the filters while processing the matched
 requests.
 
-	PathSubtree("/some/path")
+    PathSubtree("/some/path")
 
 The path subtree predicate behaves similar to the path predicate, but
 it matches the exact path in the definition and any sub path below it.
@@ -160,11 +160,20 @@ filters:
 
     status(418)
 
+    tee("https://audit-logging.example.org")
+
 For details about the built-in filters, please, refer to the
 documentation of the skipper/filters package. Skipper is designed to be
 extendable primarily by implementing custom filters, for details about
 how to create custom filters, please, refer to the documentation of the
 root skipper package.
+
+
+Naming conventions
+
+Note, that the naming of predicates and filters follows the following
+convention: both predicates and filters are written in camel case, and
+predicates start with upper case, while filters start with lower case.
 
 
 Backend
