@@ -127,6 +127,20 @@ func TestCheckFile(t *testing.T) {
 	}
 }
 
+func TestCheckRepeatingRouteIds(t *testing.T) {
+	const name = "testFile"
+	err := withFile(name, `foo: Method("POST") -> "https://www.example1.org";foo: Method("POST") -> "https://www.example1.org";`, func(_ *os.File) {
+		err := checkCmd(cmdArgs{in: &medium{typ: file, path: name}})
+		if err == nil {
+			t.Error("Expected an error for repeating route names")
+		}
+	})
+
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestCheckEtcdInvalid(t *testing.T) {
 	urls, err := stringsToUrls(etcdtest.Urls...)
 	if err != nil {
