@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/rcrowley/go-metrics"
 	"net/http"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/rcrowley/go-metrics"
 )
 
 func TestDefaultOptions(t *testing.T) {
@@ -172,6 +173,8 @@ var serializationTests = []serializationTest{
 
 func TestMetricSerialization(t *testing.T) {
 	metrics.UseNilMetrics = true
+	defer func() { metrics.UseNilMetrics = false }()
+
 	for _, st := range serializationTests {
 		m := reflect.ValueOf(st.i).Call(nil)[0].Interface()
 		metrics := skipperMetrics{"test": m}
@@ -184,5 +187,231 @@ func TestMetricSerialization(t *testing.T) {
 			t.Errorf("Got wrong serialization result. Expected '%v' but got '%v'", st.expected, got)
 		}
 
+	}
+}
+
+type serveMetricsMeasure struct {
+	route, host, method string
+	status              int
+	duration            time.Duration
+}
+
+type serveMetricsCheck struct {
+	key         string
+	enabled     bool
+	count       int64
+	minDuration time.Duration
+}
+
+type serveMetricsTestItem struct {
+	msg      string
+	options  Options
+	measures []serveMetricsMeasure
+	checks   []serveMetricsCheck
+}
+
+func TestServeMetrics(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	for _, ti := range []serveMetricsTestItem{{
+		"route and host disabled",
+		Options{},
+		[]serveMetricsMeasure{{
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}},
+		[]serveMetricsCheck{{
+			key:     "serveroute.route1.GET.200",
+			enabled: false,
+		}, {
+			key:     "servehost.www_example_org__4443.GET.200",
+			enabled: false,
+		}},
+	}, {
+		"route enabled, host disabled",
+		Options{EnableServeRouteMetrics: true},
+		[]serveMetricsMeasure{{
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}},
+		[]serveMetricsCheck{{
+			key:         "serveroute.route1.GET.200",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}, {
+			key:     "servehost.www_example_org__4443.GET.200",
+			enabled: false,
+		}},
+	}, {
+		"route disabled, host enabled",
+		Options{EnableServeHostMetrics: true},
+		[]serveMetricsMeasure{{
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}},
+		[]serveMetricsCheck{{
+			key:     "serveroute.route1.GET.200",
+			enabled: false,
+		}, {
+			key:         "servehost.www_example_org__4443.GET.200",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}},
+	}, {
+		"route and host enabled",
+		Options{
+			EnableServeRouteMetrics: true,
+			EnableServeHostMetrics:  true,
+		},
+		[]serveMetricsMeasure{{
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}},
+		[]serveMetricsCheck{{
+			key:         "serveroute.route1.GET.200",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}, {
+			key:         "servehost.www_example_org__4443.GET.200",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}},
+	}, {
+		"collect different metrics",
+		Options{
+			EnableServeRouteMetrics: true,
+			EnableServeHostMetrics:  true,
+		},
+		[]serveMetricsMeasure{{
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}, {
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			15 * time.Millisecond,
+		}, {
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}, {
+			"route2",
+			"www.example.org",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}, {
+			"route1",
+			"www.example.org:4443",
+			"POST",
+			302,
+			30 * time.Millisecond,
+		}},
+		[]serveMetricsCheck{{
+			key:         "serveroute.route1.GET.200",
+			enabled:     true,
+			count:       3,
+			minDuration: 15 * time.Millisecond,
+		}, {
+			key:         "servehost.www_example_org__4443.GET.200",
+			enabled:     true,
+			count:       3,
+			minDuration: 15 * time.Millisecond,
+		}, {
+			key:         "serveroute.route2.GET.200",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}, {
+			key:         "servehost.www_example_org.GET.200",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}, {
+			key:         "serveroute.route1.POST.302",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}, {
+			key:         "servehost.www_example_org__4443.POST.302",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}},
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			checkMetrics := func(m *Metrics, key string, enabled bool, count int64, minDuration time.Duration) (bool, string) {
+				v := m.reg.Get(key)
+
+				switch {
+				case enabled && v == nil:
+					return false, "failed to return metrics"
+				case !enabled && v != nil:
+					return false, "unexpected metrics"
+				case !enabled && v == nil:
+					return true, ""
+				}
+
+				tr, ok := v.(metrics.Timer)
+				if !ok {
+					return false, "invalid metric type"
+				}
+
+				trs := tr.Snapshot()
+
+				if trs.Count() != count {
+					return false, fmt.Sprintf("failed to get the right count: %d instead of %d", trs.Count(), count)
+				}
+
+				if trs.Min() <= int64(minDuration) {
+					return false, "failed to get the right duration"
+				}
+
+				return true, ""
+			}
+
+			m := New(ti.options)
+			for _, mi := range ti.measures {
+				m.MeasureServe(mi.route, mi.host, mi.method, mi.status, time.Now().Add(-mi.duration))
+			}
+
+			time.Sleep(12 * time.Millisecond)
+			for _, ci := range ti.checks {
+				if ok, reason := checkMetrics(
+					m,
+					ci.key,
+					ci.enabled,
+					ci.count,
+					ci.minDuration,
+				); !ok {
+					t.Error(reason)
+					return
+				}
+			}
+		})
 	}
 }

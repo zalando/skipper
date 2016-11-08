@@ -3,10 +3,12 @@ package metrics
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/rcrowley/go-metrics"
-	"net/http"
-	"time"
 )
 
 type skipperMetrics map[string]interface{}
@@ -29,6 +31,14 @@ type Options struct {
 	// If set, Go runtime metrics are collected in
 	// addition to the http traffic metrics.
 	EnableRuntimeMetrics bool
+
+	// If set, detailed total response time metrics will be collected
+	// for each route, additionally grouped by status and method.
+	EnableServeRouteMetrics bool
+
+	// If set, detailed total response time metrics will be collected
+	// for each host, additionally grouped by status and method.
+	EnableServeHostMetrics bool
 }
 
 const (
@@ -40,6 +50,8 @@ const (
 	KeyFilterResponse  = "filter.%s.response"
 	KeyFiltersResponse = "allfilters.response.%s"
 	KeyResponse        = "response.%d.%s.skipper.%s"
+	KeyServeRoute      = "serveroute.%s.%s.%d"
+	KeyServeHost       = "servehost.%s.%s.%d"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
@@ -53,6 +65,7 @@ type Metrics struct {
 	reg           metrics.Registry
 	createTimer   func() metrics.Timer
 	createCounter func() metrics.Counter
+	options       Options
 }
 
 var (
@@ -65,6 +78,7 @@ func New(o Options) *Metrics {
 	m.reg = metrics.NewRegistry()
 	m.createTimer = createTimer
 	m.createCounter = metrics.NewCounter
+	m.options = o
 
 	if o.EnableDebugGcMetrics {
 		metrics.RegisterDebugGCStats(m.reg)
@@ -151,6 +165,22 @@ func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
 
 func (m *Metrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
 	m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
+}
+
+func hostForKey(h string) string {
+	h = strings.Replace(h, ".", "_", -1)
+	h = strings.Replace(h, ":", "__", -1)
+	return h
+}
+
+func (m *Metrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
+	if m.options.EnableServeRouteMetrics {
+		m.measureSince(fmt.Sprintf(KeyServeRoute, routeId, method, code), start)
+	}
+
+	if m.options.EnableServeHostMetrics {
+		m.measureSince(fmt.Sprintf(KeyServeHost, hostForKey(host), method, code), start)
+	}
 }
 
 func (m *Metrics) getCounter(key string) metrics.Counter {

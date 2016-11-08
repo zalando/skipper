@@ -34,6 +34,7 @@ import (
 const (
 	proxyBufferSize = 8192
 	proxyErrorFmt   = "proxy: %s"
+	unknownRouteId  = "_unknownroute_"
 
 	// The default value set for http.Transport.MaxIdleConnsPerHost.
 	DefaultIdleConnsPerHost = 64
@@ -463,7 +464,9 @@ func sendError(w http.ResponseWriter, error string, code int) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
+	startServe := time.Now()
+
+	start := startServe
 	rt, params := p.lookupRoute(r)
 	if rt == nil {
 		if p.flags.Debug() {
@@ -475,6 +478,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		p.metrics.IncRoutingFailures()
 		sendError(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		p.metrics.MeasureServe(unknownRouteId, r.Host, r.Method, http.StatusNotFound, startServe)
 		log.Debugf("Could not find a route for %v", r.URL)
 		return
 	}
@@ -530,6 +534,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rr, err := mapRequest(r, rt, c.outgoingHost)
 			if err != nil {
 				log.Errorf("Could not mapRequest, caused by: %v", err)
+				sendError(w,
+					http.StatusText(http.StatusInternalServerError),
+					http.StatusInternalServerError)
+				p.metrics.MeasureServe(rt.Id, r.Host, r.Method, http.StatusInternalServerError, startServe)
 				return
 			}
 
@@ -563,6 +571,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				sendError(w,
 					http.StatusText(http.StatusInternalServerError),
 					http.StatusInternalServerError)
+				p.metrics.MeasureServe(rt.Id, r.Host, r.Method, http.StatusInternalServerError, startServe)
 				log.Error(err)
 				return
 			}
@@ -612,6 +621,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			p.metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
 		}
 	}
+
+	p.metrics.MeasureServe(rt.Id, r.Host, r.Method, c.Response().StatusCode, startServe)
 }
 
 // Close causes the proxy to stop closing idle
