@@ -77,6 +77,17 @@ func loadRoutesChecked(in *medium) ([]*eskip.Route, error) {
 	return lr.routes, checkParseErrors(lr)
 }
 
+func checkRepeatedRouteIds(routes []*eskip.Route) error {
+	ids := map[string]bool{}
+	for _, route := range routes {
+		if ids[route.Id] {
+			return errors.New("Repeating route with id " + route.Id)
+		}
+		ids[route.Id] = true
+	}
+	return nil
+}
+
 // load and parse routes, ignore parse errors.
 func loadRoutesUnchecked(in *medium) []*eskip.Route {
 	lr, _ := loadRoutes(in)
@@ -85,8 +96,12 @@ func loadRoutesUnchecked(in *medium) []*eskip.Route {
 
 // command executed for check.
 func checkCmd(a cmdArgs) error {
-	_, err := loadRoutesChecked(a.in)
-	return err
+	routes, err := loadRoutesChecked(a.in)
+	if err != nil {
+		return err
+	}
+
+	return checkRepeatedRouteIds(routes)
 }
 
 // command executed for print.
