@@ -78,12 +78,12 @@ func loadRoutesChecked(in *medium) ([]*eskip.Route, error) {
 }
 
 func checkRepeatedRouteIds(routes []*eskip.Route) error {
-	ids := map[string]struct{}{}
+	ids := map[string]bool{}
 	for _, route := range routes {
-		if _, ok := ids[route.Id]; ok {
+		if ids[route.Id] {
 			return errors.New("Repeating route with id " + route.Id)
 		}
-		ids[route.Id] = struct{}{}
+		ids[route.Id] = true
 	}
 	return nil
 }
