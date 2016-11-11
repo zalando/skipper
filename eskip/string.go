@@ -2,6 +2,7 @@ package eskip
 
 import (
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -31,9 +32,17 @@ func appendFmtEscape(s []string, format string, escapeChars string, args ...inte
 func argsString(args []interface{}) string {
 	var sargs []string
 	for _, a := range args {
-		switch a.(type) {
+		switch v := a.(type) {
 		case float64:
-			sargs = appendFmt(sargs, "%g", a)
+			f := "%f"
+
+			// imprecise elimination of 0 decimals
+			// TODO: better fix this issue on parsing side
+			if math.Floor(v) == v {
+				f = "%.0f"
+			}
+
+			sargs = appendFmt(sargs, f, a)
 		case string:
 			sargs = appendFmtEscape(sargs, `"%s"`, `"`, a)
 		}
