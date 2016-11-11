@@ -34,7 +34,7 @@ func argsString(args []interface{}) string {
 	for _, a := range args {
 		switch v := a.(type) {
 		case float64:
-			f := "%f"
+			f := "%g"
 
 			// imprecise elimination of 0 decimals
 			// TODO: better fix this issue on parsing side
