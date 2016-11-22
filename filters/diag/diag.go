@@ -92,21 +92,21 @@ func NewBandwidth() filters.Spec { return &throttle{typ: bandwidth} }
 func NewChunks() filters.Spec { return &throttle{typ: chunks} }
 
 // NewBackendLatency is the equivalent of NewLatency but for outgoing backend
-// responses. Eskip example:
+// requests. Eskip example:
 //
 // 	* -> backendLatency(120) -> "https://www.example.org";
 //
 func NewBackendLatency() filters.Spec { return &throttle{typ: backendLatency} }
 
 // NewBackendBandwidth is the equivalent of NewBandwidth but for outgoing backend
-// responses. Eskip example:
+// requests. Eskip example:
 //
 // 	* -> backendBandwidth(30) -> "https://www.example.org";
 //
 func NewBackendBandwidth() filters.Spec { return &throttle{typ: backendBandwidth} }
 
 // NewBackendChunks is the equivalent of NewChunks but for outgoing backend
-// responses. Eskip example:
+// requests. Eskip example:
 //
 // 	* -> backendChunks(1024, 120) -> "https://www.example.org";
 //
