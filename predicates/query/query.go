@@ -11,20 +11,19 @@ Examples:
     // matches http://example.org?bb=a&query=withvalue
     example1: QueryParam("query") -> "http://example.org";
 
-    //Even a query param without a value
+    // Even a query param without a value
     // matches http://example.org?bb=a&query=
     example1: QueryParam("query") -> "http://example.org";
 
-    //matches with regexp
+    // matches with regexp
     // matches http://example.org?bb=a&query=example
     example1: QueryParam("query", "^example$") -> "http://example.org";
 
-    //matches with regexp and multiple values of query param
+    // matches with regexp and multiple values of query param
     // matches http://example.org?bb=a&query=testing&query=example
     example1: QueryParam("query", "^example$") -> "http://example.org";
 
 */
-
 package query
 
 import (
@@ -50,6 +49,7 @@ type spec struct{}
 
 const name = "QueryParam"
 
+// New creates a new QueryParam predicate specification.
 func New() routing.PredicateSpec { return &spec{} }
 
 func (s *spec) Name() string {
