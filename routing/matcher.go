@@ -273,7 +273,7 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
-		p := r.Path
+		p := r.path
 		m := pathMatchers
 
 		if r.pathSubtree != "" {
