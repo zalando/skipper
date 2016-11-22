@@ -17,12 +17,13 @@ package eskip
 //go:generate go tool yacc -o parser.go -p eskip parser.y
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/zalando/skipper/filters/flowid"
 	"regexp"
 	"strings"
-	"encoding/json"
 )
 
 const duplicateHeaderPredicateErrorFmt = "duplicate header predicate: %s"
@@ -324,7 +325,7 @@ func GenerateIfNeeded(existingId string) string {
 	return "route" + id
 }
 
-func  marshalJsonPredicates(r *Route) ([]*Predicate) {
+func marshalJsonPredicates(r *Route) []*Predicate {
 	rjf := make([]*Predicate, 0)
 
 	if r.Method != "" {
@@ -378,6 +379,36 @@ func  marshalJsonPredicates(r *Route) ([]*Predicate) {
 	return rjf
 }
 
+func (f *Filter) MarshalJSON() ([]byte, error) {
+	args := f.Args
+	if args == nil {
+		args = []interface{}{}
+	}
+
+	return json.Marshal(&struct {
+		Name string        `json:"name"`
+		Args []interface{} `json:"args"`
+	}{
+		Name: f.Name,
+		Args: args,
+	})
+}
+
+func (f *Predicate) MarshalJSON() ([]byte, error) {
+	args := f.Args
+	if args == nil {
+		args = []interface{}{}
+	}
+
+	return json.Marshal(&struct {
+		Name string        `json:"name"`
+		Args []interface{} `json:"args"`
+	}{
+		Name: f.Name,
+		Args: args,
+	})
+}
+
 func (r *Route) MarshalJSON() ([]byte, error) {
 	backend := r.Backend
 	if r.Shunt {
@@ -386,18 +417,26 @@ func (r *Route) MarshalJSON() ([]byte, error) {
 
 	filters := r.Filters
 	if filters == nil {
-		filters = make([]*Filter, 0)
+		filters = []*Filter{}
 	}
 
-	return json.Marshal(&struct {
-		Id      string `json:"id"`
-		Backend string `json:"backend"`
+	var buf bytes.Buffer
+	e := json.NewEncoder(&buf)
+	e.SetEscapeHTML(false)
+
+	if err := e.Encode(&struct {
+		Id         string       `json:"id"`
+		Backend    string       `json:"backend"`
 		Predicates []*Predicate `json:"predicates"`
-		Filters []*Filter `json:"filters"`
+		Filters    []*Filter    `json:"filters"`
 	}{
-		Id:     r.Id,
-		Backend: backend,
+		Id:         r.Id,
+		Backend:    backend,
 		Predicates: marshalJsonPredicates(r),
-		Filters: filters,
-	})
+		Filters:    filters,
+	}); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }

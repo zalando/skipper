@@ -286,13 +286,19 @@ func TestRouteJSON(t *testing.T) {
 		string string
 	}{{
 		&Route{},
-		`{"id":"","backend":"","predicates":[],"filters":[]}`,
+		`{"id":"","backend":"","predicates":[],"filters":[]}` + "\n",
+	}, {
+		&Route{
+			Filters:[]*Filter{{"xsrf", nil}},
+			Predicates:[]*Predicate{{"Test", nil}},
+		},
+		`{"id":"","backend":"","predicates":[{"name":"Test","args":[]}],"filters":[{"name":"xsrf","args":[]}]}` + "\n",
 	}, {
 		&Route{Method: "GET", Backend: "https://www.example.org"},
-		`{"id":"","backend":"https://www.example.org","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}`,
+		`{"id":"","backend":"https://www.example.org","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
 	}, {
 		&Route{Method: "GET", Shunt: true},
-		`{"id":"","backend":"\u003cshunt\u003e","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}`,
+		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
 	}, {
 		&Route{
 			Method:      "PUT",
@@ -328,7 +334,7 @@ func TestRouteJSON(t *testing.T) {
 			`{"name":"filter0","args":[3.1415,"argvalue"]}` +
 			`,{"name":"filter1","args":[-42,"ap\"argvalue"]}` +
 			`]` +
-			`}`,
+			`}` + "\n",
 	}} {
 		bytes, err := item.route.MarshalJSON()
 		if err != nil {

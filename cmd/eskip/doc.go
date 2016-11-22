@@ -30,6 +30,10 @@ Print routes stored in etcd:
 
     eskip print -etcd-urls https://etcd.example.org
 
+Print routes as JSON:
+
+    eskip print -json
+
 Insert/update routes in etcd from an eskip file:
 
     eskip upsert routes.eskip
@@ -78,6 +82,7 @@ const (
 	appendFiltersUsage  = "append filters to each patched route"
 	appendFileUsage     = "append filters from a file to each patched route"
 	prettyUsage         = "prints routes in a more readable format"
+	jsonUsage           = "prints routes as JSON"
 
 	// command line help (1):
 	help1 = `Usage: eskip <command> [media flags] [--] [file]
