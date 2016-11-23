@@ -326,7 +326,7 @@ func GenerateIfNeeded(existingId string) string {
 }
 
 func marshalJsonPredicates(r *Route) []*Predicate {
-	rjf := make([]*Predicate, 0)
+	rjf := make([]*Predicate, 0, len(r.Predicates))
 
 	if r.Method != "" {
 		rjf = append(rjf, &Predicate{
@@ -372,15 +372,12 @@ func marshalJsonPredicates(r *Route) []*Predicate {
 		}
 	}
 
-	for _, p := range r.Predicates {
-		rjf = append(rjf, p)
-	}
+	rjf = append(rjf, r.Predicates...)
 
 	return rjf
 }
 
-func (f *Filter) MarshalJSON() ([]byte, error) {
-	args := f.Args
+func marshalNameArgs(name string, args []interface{}) ([]byte, error) {
 	if args == nil {
 		args = []interface{}{}
 	}
@@ -389,24 +386,17 @@ func (f *Filter) MarshalJSON() ([]byte, error) {
 		Name string        `json:"name"`
 		Args []interface{} `json:"args"`
 	}{
-		Name: f.Name,
+		Name: name,
 		Args: args,
 	})
 }
 
-func (f *Predicate) MarshalJSON() ([]byte, error) {
-	args := f.Args
-	if args == nil {
-		args = []interface{}{}
-	}
+func (f *Filter) MarshalJSON() ([]byte, error) {
+	return marshalNameArgs(f.Name, f.Args)
+}
 
-	return json.Marshal(&struct {
-		Name string        `json:"name"`
-		Args []interface{} `json:"args"`
-	}{
-		Name: f.Name,
-		Args: args,
-	})
+func (p *Predicate) MarshalJSON() ([]byte, error) {
+	return marshalNameArgs(p.Name, p.Args)
 }
 
 func (r *Route) MarshalJSON() ([]byte, error) {

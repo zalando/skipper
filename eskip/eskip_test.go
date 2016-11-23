@@ -289,8 +289,8 @@ func TestRouteJSON(t *testing.T) {
 		`{"id":"","backend":"","predicates":[],"filters":[]}` + "\n",
 	}, {
 		&Route{
-			Filters:[]*Filter{{"xsrf", nil}},
-			Predicates:[]*Predicate{{"Test", nil}},
+			Filters:    []*Filter{{"xsrf", nil}},
+			Predicates: []*Predicate{{"Test", nil}},
 		},
 		`{"id":"","backend":"","predicates":[{"name":"Test","args":[]}],"filters":[{"name":"xsrf","args":[]}]}` + "\n",
 	}, {

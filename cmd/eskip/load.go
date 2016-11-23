@@ -15,11 +15,11 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/zalando/skipper/eskip"
 	"io/ioutil"
-	"encoding/json"
 )
 
 type loadResult struct {
@@ -116,7 +116,7 @@ func printCmd(a cmdArgs) error {
 		e := json.NewEncoder(stdout)
 		e.SetEscapeHTML(false)
 		if err := e.Encode(lr.routes); err != nil {
-			println(err.Error())
+			return err
 		}
 	} else {
 		for _, r := range lr.routes {
