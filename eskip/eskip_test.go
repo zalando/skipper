@@ -279,3 +279,70 @@ func TestParseFilters(t *testing.T) {
 		checkFilters(t, ti.msg, fs, ti.check)
 	}
 }
+
+func TestRouteJSON(t *testing.T) {
+	for _, item := range []struct {
+		route  *Route
+		string string
+	}{{
+		&Route{},
+		`{"id":"","backend":"","predicates":[],"filters":[]}` + "\n",
+	}, {
+		&Route{
+			Filters:    []*Filter{{"xsrf", nil}},
+			Predicates: []*Predicate{{"Test", nil}},
+		},
+		`{"id":"","backend":"","predicates":[{"name":"Test","args":[]}],"filters":[{"name":"xsrf","args":[]}]}` + "\n",
+	}, {
+		&Route{Method: "GET", Backend: "https://www.example.org"},
+		`{"id":"","backend":"https://www.example.org","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
+	}, {
+		&Route{Method: "GET", Shunt: true},
+		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
+	}, {
+		&Route{
+			Method:      "PUT",
+			Path:        `/some/"/path`,
+			HostRegexps: []string{"h-expression", "slash/h-expression"},
+			PathRegexps: []string{"p-expression", "slash/p-expression"},
+			Headers: map[string]string{
+				`ap"key`: `ap"value`},
+			HeaderRegexps: map[string][]string{
+				`ap"key`: []string{"slash/value0", "slash/value1"}},
+			Predicates: []*Predicate{{"Test", []interface{}{3.14, "hello"}}},
+			Filters: []*Filter{
+				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
+				{"filter1", []interface{}{float64(-42), `ap"argvalue`}}},
+			Shunt:   false,
+			Backend: "https://www.example.org"},
+		`{` +
+			`"id":"",` +
+			`"backend":"https://www.example.org",` +
+			`"predicates":[` +
+			`{"name":"Method","args":["PUT"]}` +
+			`,{"name":"Path","args":["/some/\"/path"]}` +
+			`,{"name":"HostRegexp","args":["h-expression"]}` +
+			`,{"name":"HostRegexp","args":["slash/h-expression"]}` +
+			`,{"name":"PathRegexp","args":["p-expression"]}` +
+			`,{"name":"PathRegexp","args":["slash/p-expression"]}` +
+			`,{"name":"Header","args":["ap\"key","ap\"value"]}` +
+			`,{"name":"HeaderRegexp","args":["ap\"key","slash/value0"]}` +
+			`,{"name":"HeaderRegexp","args":["ap\"key","slash/value1"]}` +
+			`,{"name":"Test","args":[3.14,"hello"]}` +
+			`],` +
+			`"filters":[` +
+			`{"name":"filter0","args":[3.1415,"argvalue"]}` +
+			`,{"name":"filter1","args":[-42,"ap\"argvalue"]}` +
+			`]` +
+			`}` + "\n",
+	}} {
+		bytes, err := item.route.MarshalJSON()
+		if err != nil {
+			t.Error(err)
+		}
+		rstring := string(bytes[:])
+		if rstring != item.string {
+			t.Errorf("Wrong output:\n  %s\nexpected:\n  %s", rstring, item.string)
+		}
+	}
+}

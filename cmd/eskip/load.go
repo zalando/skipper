@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/zalando/skipper/eskip"
@@ -111,14 +112,22 @@ func printCmd(a cmdArgs) error {
 		return err
 	}
 
-	for _, r := range lr.routes {
-		if perr, hasError := lr.parseErrors[r.Id]; hasError {
-			printStderr(r.Id, perr)
-		} else {
-			if r.Id == "" {
-				fmt.Fprintln(stdout, r.String())
+	if printJson {
+		e := json.NewEncoder(stdout)
+		e.SetEscapeHTML(false)
+		if err := e.Encode(lr.routes); err != nil {
+			return err
+		}
+	} else {
+		for _, r := range lr.routes {
+			if perr, hasError := lr.parseErrors[r.Id]; hasError {
+				printStderr(r.Id, perr)
 			} else {
-				fmt.Fprintf(stdout, "%s: %s;\n", r.Id, r.Print(pretty))
+				if r.Id == "" {
+					fmt.Fprintln(stdout, r.String())
+				} else {
+					fmt.Fprintf(stdout, "%s: %s;\n", r.Id, r.Print(pretty))
+				}
 			}
 		}
 	}

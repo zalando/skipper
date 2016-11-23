@@ -224,10 +224,11 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]*RouteFilter, e
 }
 
 // check if a predicate is a distinguished, path tree predicate
-// TODO: handle Path() here
 func isTreePredicate(name string) bool {
 	switch name {
 	case PathSubtreeName:
+		return true
+	case PathName:
 		return true
 	default:
 		return false
@@ -259,7 +260,7 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 }
 
 // returns the subtree path if it is a valid definition
-func processPathSubtree(p *eskip.Predicate) (string, error) {
+func processPathOrSubTree(p *eskip.Predicate) (string, error) {
 	if len(p.Args) != 1 {
 		return "", predicates.ErrInvalidPredicateParameters
 	}
@@ -271,21 +272,45 @@ func processPathSubtree(p *eskip.Predicate) (string, error) {
 	return "", predicates.ErrInvalidPredicateParameters
 }
 
-// processes path tree relevant predicates
-// TODO: handle Path() here
-func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
+func validTreePredicates(predicates []*eskip.Predicate) bool {
+	var has bool
 	for _, p := range predicates {
 		switch p.Name {
-		case PathSubtreeName:
-			if r.Path != "" || r.pathSubtree != "" {
-				return fmt.Errorf("multiple tree predicates (Path, PathSubtree) in the route: %s", r.Id)
+		case PathName, PathSubtreeName:
+			if has {
+				return false
 			}
+			has = true
+		}
+	}
+	return true
+}
 
-			pst, err := processPathSubtree(p)
+
+// processes path tree relevant predicates
+func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
+	// backwards compatibility
+	if r.Path != "" {
+		predicates = append(predicates, &eskip.Predicate{Name: PathName, Args:[]interface{}{r.Path}})
+	}
+
+	if !validTreePredicates(predicates) {
+		return fmt.Errorf("multiple tree predicates (Path, PathSubtree) in the route: %s", r.Id)
+	}
+
+	for _, p := range predicates {
+		switch p.Name {
+		case PathName:
+			path, err := processPathOrSubTree(p)
 			if err != nil {
 				return err
 			}
-
+			r.path = path
+		case PathSubtreeName:
+			pst, err := processPathOrSubTree(p)
+			if err != nil {
+				return err
+			}
 			r.pathSubtree = pst
 		}
 	}

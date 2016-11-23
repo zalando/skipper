@@ -122,6 +122,9 @@ type Route struct {
 	eskip.Route
 
 	// path predicate matching a subtree
+	path string
+
+	// path predicate matching a subtree
 	pathSubtree string
 
 	// The backend scheme and host.
