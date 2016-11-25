@@ -11,7 +11,6 @@ type modPathBehavior int
 const (
 	regexpReplace modPathBehavior = 1 + iota
 	fullReplace
-	transformReplace
 )
 
 type modPath struct {
