@@ -1,4 +1,4 @@
-package template
+package eskip
 
 import "testing"
 
@@ -11,7 +11,7 @@ type createTestItem struct {
 func testCreate(t *testing.T, items []createTestItem) {
 	for _, ti := range items {
 		func() {
-			template := New(ti.template)
+			template := NewTemplate(ti.template)
 			result := template.Apply(ti.getter)
 			if result != ti.expected {
 				t.Error(`Error: "` + result + `" != "` + ti.expected + `"`)

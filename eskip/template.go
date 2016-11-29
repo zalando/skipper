@@ -2,7 +2,7 @@
 //
 // (Note that the current template syntax is EXPERIMENTAL, and may change in
 // the near future.)
-package template
+package eskip
 
 import (
 	"regexp"
@@ -25,7 +25,7 @@ type Template struct {
 //
 // 	Hello, ${who}!
 //
-func New(template string) *Template {
+func NewTemplate(template string) *Template {
 	matches := parameterRegexp.FindAllStringSubmatch(template, -1)
 	placeholders := make([]string, len(matches))
 

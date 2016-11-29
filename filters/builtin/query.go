@@ -2,7 +2,7 @@ package builtin
 
 import (
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/template"
+	"github.com/zalando/skipper/eskip"
 )
 
 type modQueryBehavior int
@@ -14,12 +14,12 @@ const (
 
 type modQuery struct {
 	behavior modQueryBehavior
-	name     *template.Template
-	value    *template.Template
+	name     *eskip.Template
+	value    *eskip.Template
 }
 
-// Returns a new dropQuery filter Spec, whose instances execute
-// drops a corresponding query param on the request path.
+// Returns a new dropQuery filter Spec, whose instances drop a corresponding
+// query parameter.
 //
 // As an EXPERIMENTAL feature: the dropQuery filter provides the possiblity
 // to apply template operations. The current solution supports templates
@@ -35,7 +35,7 @@ type modQuery struct {
 func NewDropQuery() filters.Spec { return &modQuery{behavior: drop} }
 
 // Returns a new setQuery filter Spec, whose instances replace
-// the request path.
+// the query parameters.
 //
 // As an EXPERIMENTAL feature: the setPath filter provides the possiblity
 // to apply template operations. The current solution supports templates
@@ -78,7 +78,7 @@ func createDropQuery(config []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &modQuery{behavior: drop, name: template.New(tpl)}, nil
+	return &modQuery{behavior: drop, name: eskip.NewTemplate(tpl)}, nil
 }
 
 func createSetQuery(config []interface{}) (filters.Filter, error) {
@@ -96,7 +96,7 @@ func createSetQuery(config []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &modQuery{behavior: set, name: template.New(name), value: template.New(value)}, nil
+	return &modQuery{behavior: set, name: eskip.NewTemplate(name), value: eskip.NewTemplate(value)}, nil
 }
 
 // Creates instances of the modQuery filter.

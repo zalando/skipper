@@ -2,7 +2,7 @@ package builtin
 
 import (
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/template"
+	"github.com/zalando/skipper/eskip"
 	"regexp"
 )
 
@@ -17,7 +17,7 @@ type modPath struct {
 	behavior    modPathBehavior
 	rx          *regexp.Regexp
 	replacement string
-	template    *template.Template
+	template    *eskip.Template
 }
 
 // Returns a new modpath filter Spec, whose instances execute
@@ -93,7 +93,7 @@ func createSetPath(config []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &modPath{behavior: fullReplace, template: template.New(tpl)}, nil
+	return &modPath{behavior: fullReplace, template: eskip.NewTemplate(tpl)}, nil
 }
 
 // Creates instances of the modPath filter.
