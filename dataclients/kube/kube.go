@@ -13,7 +13,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-const defaultAPIURL = "http://localhost:8080"
+const defaultAPIURL = "http://localhost:8001"
 
 // potential feature:
 // - custom validation rules
@@ -55,17 +55,13 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 // - check if it can be batched
 // - check the existing controllers for cases when hunting for cluster ip
 func (c *Client) getServiceAddress(name string, port int) (string, error) {
-	url := "/api/v1/namespaces/default/services?labelSelector=app%3D" + name
-	var sl serviceList
+	url := "/api/v1/namespaces/default/services/" + name
+	var sl service
 	if err := c.getJSON(url, &sl); err != nil {
 		return "", err
 	}
 
-	if len(sl.Items) == 0 {
-		return "", nil
-	}
-
-	return fmt.Sprintf("http://%s:%d", sl.Items[0].Spec.ClusterIP, port), nil
+	return fmt.Sprintf("http://%s:%d", sl.Spec.ClusterIP, port), nil
 }
 
 // TODO: use charcode based escaping
