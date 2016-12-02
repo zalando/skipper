@@ -1,5 +1,10 @@
 package kube
 
+type metadata struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
 type backend struct {
 	ServiceName string `json:"serviceName"`
 	ServicePort string `json:"servicePort"`
@@ -25,7 +30,8 @@ type ingressSpec struct {
 }
 
 type ingressItem struct {
-	Spec *ingressSpec `json:"spec"`
+	Metadata *metadata    `json:"metadata"`
+	Spec     *ingressSpec `json:"spec"`
 }
 
 type ingressList struct {
