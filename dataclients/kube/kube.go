@@ -20,7 +20,7 @@ const defaultAPIURL = "http://localhost:8080"
 
 type Client struct {
 	apiURL  string
-	current map[string]*eskip.Route // TODO: use a tree for saving space instead of big-oh
+	current map[string]*eskip.Route
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -54,7 +54,7 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 // TODO:
 // - check if it can be batched
 // - check the existing controllers for cases when hunting for cluster ip
-func (c *Client) getServiceAddress(name string) (string, error) {
+func (c *Client) getServiceAddress(name string, port int) (string, error) {
 	url := "/api/v1/namespaces/default/services?labelSelector=app%3D" + name
 	var sl serviceList
 	if err := c.getJSON(url, &sl); err != nil {
@@ -65,7 +65,7 @@ func (c *Client) getServiceAddress(name string) (string, error) {
 		return "", nil
 	}
 
-	return "http://" + sl.Items[0].Spec.ClusterIP, nil
+	return fmt.Sprintf("http://%s:%d", sl.Items[0].Spec.ClusterIP, port), nil
 }
 
 // TODO: use charcode based escaping
@@ -96,7 +96,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 
 			for _, prule := range rule.Http.Paths {
 				// TODO: figure the ingress port
-				address, err := c.getServiceAddress(prule.Backend.ServiceName)
+				address, err := c.getServiceAddress(prule.Backend.ServiceName, prule.Backend.ServicePort)
 				if err != nil {
 
 					// tolerate single rule errors

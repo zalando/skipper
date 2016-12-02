@@ -7,7 +7,7 @@ type metadata struct {
 
 type backend struct {
 	ServiceName string `json:"serviceName"`
-	ServicePort string `json:"servicePort"`
+	ServicePort int    `json:"servicePort"`
 }
 
 type pathRule struct {
