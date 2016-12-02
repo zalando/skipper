@@ -11,8 +11,8 @@ import (
 
 var parameterRegexp = regexp.MustCompile("\\$\\{(\\w+)\\}")
 
-// Getter functions return the value for a template parameter name.
-type Getter func(string) string
+// TemplateGetter functions return the value for a template parameter name.
+type TemplateGetter func(string) string
 
 // Template represents a string template with named placeholders.
 type Template struct {
@@ -36,9 +36,9 @@ func NewTemplate(template string) *Template {
 	return &Template{template: template, placeholders: placeholders}
 }
 
-// Apply evaluates the template using a Getter function to resolve the
+// Apply evaluates the template using a TemplateGetter function to resolve the
 // placeholders.
-func (t *Template) Apply(get Getter) string {
+func (t *Template) Apply(get TemplateGetter) string {
 	result := t.template
 
 	if get == nil {

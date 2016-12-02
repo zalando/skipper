@@ -5,7 +5,7 @@ import "testing"
 type createTestItem struct {
 	template string
 	expected string
-	getter   Getter
+	getter   TemplateGetter
 }
 
 func testCreate(t *testing.T, items []createTestItem) {
