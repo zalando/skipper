@@ -37,6 +37,8 @@ const (
 	PreserveHostName = "preserveHost"
 	StatusName       = "status"
 	CompressName     = "compress"
+	SetQueryName     = "setQuery"
+	DropQueryName    = "dropQuery"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -55,6 +57,8 @@ func MakeRegistry() filters.Registry {
 		NewDropResponseHeader(),
 		NewModPath(),
 		NewSetPath(),
+		NewDropQuery(),
+		NewSetQuery(),
 		NewHealthCheck(),
 		NewStatic(),
 		NewRedirect(),

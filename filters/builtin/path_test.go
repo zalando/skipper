@@ -1,11 +1,10 @@
 package builtin
 
 import (
-	"net/http"
-	"testing"
-
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"net/http"
+	"testing"
 )
 
 type createTestItem struct {
@@ -56,6 +55,29 @@ func TestSetPath(t *testing.T) {
 	f.Request(ctx)
 	if req.URL.Path != "/baz/qux" {
 		t.Error("failed to replace path")
+	}
+}
+
+func TestSetPathWithTemplate(t *testing.T) {
+	spec := NewSetPath()
+	f, err := spec.CreateFilter([]interface{}{"/path/${param2}/${param1}"})
+	if err != nil {
+		t.Error(err)
+	}
+
+	req, err := http.NewRequest("GET", "https://www.example.org/foo/bar", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx := &filtertest.Context{FRequest: req, FParams: map[string]string{
+		"param1": "foo",
+		"param2": "bar",
+	}}
+
+	f.Request(ctx)
+	if req.URL.Path != "/path/bar/foo" {
+		t.Error("failed to transform path")
 	}
 }
 
