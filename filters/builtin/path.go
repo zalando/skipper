@@ -1,9 +1,10 @@
 package builtin
 
 import (
+	"regexp"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"regexp"
 )
 
 type modPathBehavior int
