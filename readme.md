@@ -8,7 +8,7 @@
 
 # Skipper
 
-Skipper is an HTTP router built on top of a reverse proxy with the ability to modifying requests and
+Skipper is an HTTP router built on top of a reverse proxy with the ability to modify requests and
 responses with filters. You can use it out of the box or add your own custom filters and predicates.
 
 ### What Skipper Does
