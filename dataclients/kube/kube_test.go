@@ -324,7 +324,7 @@ func TestIngressData(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			api := newTestAPI(t, ti.services, &ingressList{Items: ti.ingresses})
 			defer api.Close()
-			dc := New(api.server.URL)
+			dc := New(Options{APIAddress: api.server.URL})
 
 			r, err := dc.LoadAll()
 			if err != nil {
@@ -342,7 +342,7 @@ func Test(t *testing.T) {
 	defer api.Close()
 
 	t.Run("no services, no ingresses, load empty initial and update", func(t *testing.T) {
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		if r, err := dc.LoadAll(); err != nil || len(r) != 0 {
 			t.Error("failed to load initial")
@@ -355,7 +355,7 @@ func Test(t *testing.T) {
 
 	t.Run("has ingress but no according services, load empty initial and update", func(t *testing.T) {
 		api.ingresses.Items = testIngresses()
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		if r, err := dc.LoadAll(); err != nil || len(r) != 0 {
 			t.Error("failed to load initial")
@@ -368,7 +368,7 @@ func Test(t *testing.T) {
 
 	t.Run("has ingress but no according services, service gets created", func(t *testing.T) {
 		api.ingresses.Items = testIngresses()
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		if r, err := dc.LoadAll(); err != nil || len(r) != 0 {
 			t.Error("failed to load initial")
@@ -396,7 +396,7 @@ func Test(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = backendPort{"not-existing"}
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		r, err := dc.LoadAll()
 		if err != nil {
@@ -419,7 +419,7 @@ func Test(t *testing.T) {
 	t.Run("has ingresses, receive initial", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		r, err := dc.LoadAll()
 		if err != nil {
@@ -441,7 +441,7 @@ func Test(t *testing.T) {
 	t.Run("has ingresses, update some of them", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		_, err := dc.LoadAll()
 		if err != nil {
@@ -466,7 +466,7 @@ func Test(t *testing.T) {
 	t.Run("has ingresses, loose a service", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		_, err := dc.LoadAll()
 		if err != nil {
@@ -492,7 +492,7 @@ func Test(t *testing.T) {
 	t.Run("has ingresses, delete some ingresses", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		_, err := dc.LoadAll()
 		if err != nil {
@@ -522,7 +522,7 @@ func Test(t *testing.T) {
 	t.Run("has ingresses, delete some ingress rules", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		_, err := dc.LoadAll()
 		if err != nil {
@@ -548,7 +548,7 @@ func Test(t *testing.T) {
 	t.Run("has ingresses, add new ones", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		_, err := dc.LoadAll()
 		if err != nil {
@@ -595,7 +595,7 @@ func Test(t *testing.T) {
 	t.Run("has ingresses, mixed insert, update, delete", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
-		dc := New(api.server.URL)
+		dc := New(Options{APIAddress: api.server.URL})
 
 		_, err := dc.LoadAll()
 		if err != nil {

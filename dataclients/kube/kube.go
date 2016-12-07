@@ -9,17 +9,25 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 )
 
-// TODO: support both integer and string port
+// FEATURE:
+// - provide option to limit the used namespaces?
 
 const (
 	defaultAPIAddress = "http://localhost:8001"
 	ingressesURI      = "/apis/extensions/v1beta1/ingresses"
+	serviceURIFmt     = "/api/v1/namespaces/%s/services/%s"
 )
+
+type Options struct {
+	APIAddress            string
+	ForceFullUpdatePeriod time.Duration
+}
 
 type Client struct {
 	apiAddress string
@@ -33,13 +41,13 @@ var (
 	errServicePortNotFound = errors.New("service port not found")
 )
 
-func New(apiAddress string) *Client {
-	if apiAddress == "" {
-		apiAddress = defaultAPIAddress
+func New(o Options) *Client {
+	if o.APIAddress == "" {
+		o.APIAddress = defaultAPIAddress
 	}
 
-	log.Debugf("kube client initialized with api address: %s", apiAddress)
-	return &Client{apiAddress: apiAddress}
+	log.Debugf("kube client initialized with api address: %s", o.APIAddress)
+	return &Client{apiAddress: o.APIAddress}
 }
 
 func (c *Client) getJSON(uri string, a interface{}) error {
@@ -54,43 +62,59 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	log.Debugf("request to %s succeeded", url)
 	defer rsp.Body.Close()
 
+	if rsp.StatusCode != 200 {
+		log.Debugf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
+		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
+	}
+
 	b := bytes.NewBuffer(nil)
 	if _, err := io.Copy(b, rsp.Body); err != nil {
+		log.Debugf("reading response body failed: %v", err)
 		return err
 	}
 
-	return json.Unmarshal(b.Bytes(), a)
+	err = json.Unmarshal(b.Bytes(), a)
+	if err != nil {
+		log.Debugf("invalid response format: %v", err)
+	}
+
+	return err
 }
 
 // TODO:
 // - check if it can be batched
 // - check the existing controllers for cases when hunting for cluster ip
 func (c *Client) getServiceAddress(namespace, name string, port backendPort) (string, error) {
-	url := fmt.Sprintf("/api/v1/namespaces/%s/services/%s", namespace, name)
+	log.Debugf("requesting service: %s/%s", namespace, name)
+	url := fmt.Sprintf(serviceURIFmt, namespace, name)
 	var s service
 	if err := c.getJSON(url, &s); err != nil {
 		return "", err
 	}
 
 	if s.Spec == nil {
+		log.Debug("invalid service datagram, missing spec")
 		return "", errServiceNotFound
 	}
 
 	if p, ok := port.number(); ok {
+		log.Debugf("service port as number: %d", p)
 		return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, p), nil
 	}
 
 	pn, _ := port.name()
 	for _, pi := range s.Spec.Ports {
 		if pi.Name == pn {
+			log.Debugf("service port found by name: %s -> %d", pn, pi.Port)
 			return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, pi.Port), nil
 		}
 	}
 
+	log.Debugf("service port not found by name: %s", pn)
 	return "", errServicePortNotFound
 }
 
-// TODO: use charcode based escaping
+// TODO: find a nicer way to autogenerate route IDs
 func routeID(namespace, name, host, path string) string {
 	namespace = nonWord.ReplaceAllString(namespace, "_")
 	name = nonWord.ReplaceAllString(name, "_")
@@ -99,51 +123,95 @@ func routeID(namespace, name, host, path string) string {
 	return fmt.Sprintf("kube_%s__%s__%s__%s", namespace, name, host, path)
 }
 
+// converts the default backend if any
+func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, error) {
+	// the usage of the default backend depends on what we want
+	// we can generate a hostname out of it based on shared rules
+	// and instructions in annotations, if there are no rules defined
+
+	// this is a flaw in the ingress API design, because it is not on the hosts' level, but the spec
+	// tells to match if no rule matches. This means that there is no matching rule on this ingress
+	// and if there are multiple ingress items, then there is a race between them.
+	// TODO: don't crash when no Spec
+	if i.Spec.DefaultBackend == nil {
+		return nil, false, nil
+	}
+
+	address, err := c.getServiceAddress(
+		i.Metadata.Namespace,
+		i.Spec.DefaultBackend.ServiceName,
+		i.Spec.DefaultBackend.ServicePort,
+	)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	r := &eskip.Route{
+		Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", ""),
+		Backend: address,
+	}
+
+	return r, true, nil
+}
+
+func (c *Client) convertPathRule(ns, name, host string, prule *pathRule) (*eskip.Route, error) {
+	if prule.Backend == nil {
+		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
+	}
+
+	address, err := c.getServiceAddress(ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathExpressions []string
+	if prule.Path != "" {
+		pathExpressions = []string{prule.Path}
+	}
+
+	r := &eskip.Route{
+		Id:          routeID(ns, name, host, prule.Path),
+		PathRegexps: pathExpressions,
+		Backend:     address,
+	}
+
+	return r, nil
+}
+
 // logs if invalid, but proceeds with the valid ones
 // should report failures in Ingress status
+//
+// TODO:
+// - check how to set failures in ingress status
 func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 	routes := make([]*eskip.Route, 0, len(items))
 	for _, i := range items {
-		// the usage of the default backend depends on what we want
-		// we can generate a hostname out of it based on shared rules
-		// and instructions in annotations, if there are no rules defined
+		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" {
+			log.Errorf("invalid ingress item: missing metadata")
+		}
 
-		// this is flaw in the ingress API design, because it is not on the hosts' level, but the spec
-		// tells to match if no rule matches. This means that there is no matching rule on this ingress
-		// and if there are multiple ingress items, then there is a race between them.
-		// TODO: don't crash when no Spec
-		if i.Spec.DefaultBackend != nil {
-			// TODO:
-			// - check how to set failures in ingress status
-			// - don't crash when no Metadata
-			if address, err := c.getServiceAddress(
-				i.Metadata.Namespace,
-				i.Spec.DefaultBackend.ServiceName,
-				i.Spec.DefaultBackend.ServicePort,
-			); err == nil {
-				routes = append(routes, &eskip.Route{
-					Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", ""),
-					Backend: address,
-				})
-			} else {
-				// tolerate single rule errors
-				log.Errorf("error while getting service for default backend: %v", err)
-			}
+		if r, ok, err := c.convertDefaultBackend(i); ok {
+			routes = append(routes, r)
+		} else if err != nil {
+			log.Errorf("error while converting default backend: %v", err)
 		}
 
 		for _, rule := range i.Spec.Rules {
+			if rule.Http == nil {
+				log.Errorf("invalid ingress item: rule missing http definitions")
+				continue
+			}
 
 			// it is a regexp, would be better to have exact host, needs to be added in skipper
 			// this wrapping is temporary and escaping is not the right thing to do
 			// currently handled as mandatory
-			host := "^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"
+			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
 			// TODO: don't crash when no Http
 			for _, prule := range rule.Http.Paths {
-				// TODO: figure the ingress port
-				address, err := c.getServiceAddress(i.Metadata.Namespace, prule.Backend.ServiceName, prule.Backend.ServicePort)
+				r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule)
 				if err != nil {
-
 					// tolerate single rule errors
 					// TODO:
 					// - check how to set failures in ingress status
@@ -151,17 +219,8 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 					continue
 				}
 
-				var pathExpressions []string
-				if prule.Path != "" {
-					pathExpressions = []string{prule.Path}
-				}
-
-				routes = append(routes, &eskip.Route{
-					Id:          routeID(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule.Path),
-					HostRegexps: []string{host},
-					PathRegexps: pathExpressions,
-					Backend:     address,
-				})
+				r.HostRegexps = host
+				routes = append(routes, r)
 			}
 		}
 	}
@@ -178,35 +237,45 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 	return m
 }
 
-func (c *Client) LoadAll() ([]*eskip.Route, error) {
-	// TODO:
-	// - how to get all namespaces
-	// - provide option for the used namespace
-
+func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
 	log.Debugf("requesting ingresses")
 	if err := c.getJSON(ingressesURI, &il); err != nil {
+		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err
 	}
 
 	log.Debugf("all ingresses received: %d", len(il.Items))
 	r := c.ingressToRoutes(il.Items)
 	log.Debugf("all routes created: %d", len(r))
+	return r, nil
+}
+
+func (c *Client) LoadAll() ([]*eskip.Route, error) {
+	log.Debug("loading all")
+	r, err := c.loadAndConvert()
+	if err != nil {
+		log.Debugf("failed to load all: %v", err)
+		return nil, err
+	}
+
 	c.current = mapRoutes(r)
-	log.Debugf("all routes mapped: %d", len(c.current))
+	log.Debugf("all routes loaded and mapped")
+
 	return r, nil
 }
 
 // TODO: implement a force reset after some time
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
-	var il ingressList
-	if err := c.getJSON(ingressesURI, &il); err != nil {
+	log.Debugf("polling for updates")
+	r, err := c.loadAndConvert()
+	if err != nil {
+		log.Debugf("polling for updates failed: %v", err)
 		return nil, nil, err
 	}
 
-	log.Debugf("ingress definitions received: %d", len(il.Items))
-	r := c.ingressToRoutes(il.Items)
 	next := mapRoutes(r)
+	log.Debugf("next version of routes loaded and mapped")
 
 	var (
 		updatedRoutes []*eskip.Route
@@ -226,6 +295,8 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 			updatedRoutes = append(updatedRoutes, r)
 		}
 	}
+
+	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
 
 	c.current = next
 	return updatedRoutes, deletedIDs, nil

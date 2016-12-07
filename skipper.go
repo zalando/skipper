@@ -225,7 +225,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	}
 
 	if o.KubeUrl != "" {
-		clients = append(clients, kube.New(o.KubeUrl))
+		clients = append(clients, kube.New(kube.Options{APIAddress: o.KubeUrl}))
 	}
 
 	return clients, nil
