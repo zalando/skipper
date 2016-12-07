@@ -189,6 +189,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" {
 			log.Errorf("invalid ingress item: missing metadata")
+			continue
 		}
 
 		if r, ok, err := c.convertDefaultBackend(i); ok {

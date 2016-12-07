@@ -320,6 +320,46 @@ func TestIngressData(t *testing.T) {
 		map[string]string{
 			"kube_foo__qux__www_example_org___": "http://1.2.3.4:8181",
 		},
+	}, {
+		"ignore ingress entries with missing metadata",
+		services{
+			"foo": map[string]*service{
+				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
+			},
+		},
+		[]*ingressItem{
+			testIngress(
+				"foo",
+				"qux",
+				"",
+				backendPort{},
+				testRule(
+					"www.example.org",
+					testPathRule(
+						"/",
+						"bar",
+						backendPort{"baz"},
+					),
+				),
+			),
+			&ingressItem{
+				Spec: &ingressSpec{
+					Rules: []*rule{
+						testRule(
+							"ignored.example.org",
+							testPathRule(
+								"/ignored",
+								"ignored",
+								backendPort{"baz"},
+							),
+						),
+					},
+				},
+			},
+		},
+		map[string]string{
+			"kube_foo__qux__www_example_org___": "http://1.2.3.4:8181",
+		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			api := newTestAPI(t, ti.services, &ingressList{Items: ti.ingresses})
