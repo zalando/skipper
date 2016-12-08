@@ -159,7 +159,6 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 	// this is a flaw in the ingress API design, because it is not on the hosts' level, but the spec
 	// tells to match if no rule matches. This means that there is no matching rule on this ingress
 	// and if there are multiple ingress items, then there is a race between them.
-	// TODO: don't crash when no Spec
 	if i.Spec.DefaultBackend == nil {
 		return nil, false, nil
 	}
@@ -214,7 +213,8 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule) (*eskip
 func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 	routes := make([]*eskip.Route, 0, len(items))
 	for _, i := range items {
-		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" {
+		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
+			i.Spec == nil {
 			log.Warn("invalid ingress item: missing metadata")
 			continue
 		}
@@ -236,7 +236,6 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 			// currently handled as mandatory
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
-			// TODO: don't crash when no Http
 			for _, prule := range rule.Http.Paths {
 				r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule)
 				if err != nil {
