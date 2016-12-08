@@ -40,7 +40,7 @@ const (
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
 	etcdPrefixUsage                = "path prefix for skipper related data in etcd"
-	kubernetesURLUsage             = "kubernetes API base url for the ingress data client, when set, it enables the kubernetes client"
+	kubernetesURLUsage             = "kubernetes API base url for the ingress data client; when set, it enables ingress"
 	innkeeperUrlUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
