@@ -3,15 +3,16 @@ Package kubernetes implements Kubernetes Ingress support for Skipper.
 
 See: http://kubernetes.io/docs/user-guide/ingress/
 
-The solution provides a Skipper DataClient implementation that can be used to access the Kubernetes API for
-ingress resources. Using it, Skipper polls for the ingress settings, and there is no need for a separate
-controller. On the other hand, it doesn't provide a full Ingress solution alone, because it doesn't do any load
-balancer configuration. For a full Ingress solution, it is possible to use Skipper together with
-Kube-ingress-aws-controller, which targets AWS and takes care of the load balancer setup for Kubernetes Ingress.
+The package provides a Skipper DataClient implementation that can be used to access the Kubernetes API for
+ingress resources and generate routes based on them. The client polls for the ingress settings, and there is no
+need for a separate controller. On the other hand, it doesn't provide a full Ingress solution alone, because it
+doesn't do any load balancer configuration or DNS updates. For a full Ingress solution, it is possible to use
+Skipper together with Kube-ingress-aws-controller, which targets AWS and takes care of the load balancer setup
+for Kubernetes Ingress.
 
 See: https://github.com/zalando-incubator/kube-ingress-aws-controller
 
-Both Kube-ingress-aws-controller and Skipper Kubernetes are part of the larger WIP project, Kubernetes On AWS:
+Both Kube-ingress-aws-controller and Skipper Kubernetes are part of the larger project, Kubernetes On AWS:
 
 https://github.com/zalando-incubator/kubernetes-on-aws/
 */
