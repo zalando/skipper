@@ -45,17 +45,16 @@ const (
 // Options is used to initialize the Kubernetes DataClient.
 type Options struct {
 
-	// Address used as base URL for Kubernetes API requests. Defaults to http://localhost:8001. (TBD:
-	// support in-cluster operation by taking the address and certificate from the standard Kubernetes
-	// environment variables.
+	// APIAddress is used as the base URL for Kubernetes API requests. Defaults to http://localhost:8001.
+	// (TBD: support in-cluster operation by taking the address and certificate from the standard Kubernetes
+	// environment variables.)
 	APIAddress string
 
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
 }
 
-// Client is a Skipper DataClient implementation used to create Skipper routes based on Kubernetes Ingress
-// settings.
+// Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
 	apiAddress string
 	current    map[string]*eskip.Route
