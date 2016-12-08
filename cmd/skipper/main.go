@@ -40,6 +40,7 @@ const (
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
 	etcdPrefixUsage                = "path prefix for skipper related data in etcd"
+	kubernetesURLUsage             = "kubernetes API base url for the ingress data client, when set, it enables the kubernetes client"
 	innkeeperUrlUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
@@ -79,6 +80,7 @@ var (
 	proxyPreserveHost         bool
 	idleConnsPerHost          int
 	closeIdleConnsPeriod      string
+	kubernetesURL             string
 	innkeeperUrl              string
 	sourcePollTimeout         int64
 	routesFile                string
@@ -114,6 +116,7 @@ func init() {
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
 	flag.StringVar(&closeIdleConnsPeriod, "close-idle-conns-period", strconv.Itoa(int(proxy.DefaultCloseIdleConnsPeriod/time.Second)), closeIdleConnsPeriodUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
+	flag.StringVar(&kubernetesURL, "kubernetes-url", "", kubernetesURLUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
@@ -172,6 +175,7 @@ func main() {
 		Address:                   address,
 		EtcdUrls:                  eus,
 		EtcdPrefix:                etcdPrefix,
+		KubernetesURL:             kubernetesURL,
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 		RoutesFile:                routesFile,
