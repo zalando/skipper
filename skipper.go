@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package skipper
 
 import (
@@ -22,6 +8,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
@@ -65,6 +52,10 @@ type Options struct {
 
 	// Skip TLS certificate check for etcd connections.
 	EtcdInsecure bool
+
+	// Kubernetes API base URL for ingress. If not specififed,
+	// Kubernetes ingress is disabled.
+	KubernetesURL string
 
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -231,6 +222,10 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 		}
 
 		clients = append(clients, etcdClient)
+	}
+
+	if o.KubernetesURL != "" {
+		clients = append(clients, kubernetes.New(kubernetes.Options{KubernetesURL: o.KubernetesURL}))
 	}
 
 	return clients, nil
