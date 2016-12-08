@@ -53,9 +53,9 @@ type Options struct {
 	// Skip TLS certificate check for etcd connections.
 	EtcdInsecure bool
 
-	// Kubernetes API base address for ingress. If not specififed,
+	// Kubernetes API base URL for ingress. If not specififed,
 	// Kubernetes ingress is disabled.
-	KubernetesAPIAddress string
+	KubernetesURL string
 
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -224,8 +224,8 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 		clients = append(clients, etcdClient)
 	}
 
-	if o.KubernetesAPIAddress != "" {
-		clients = append(clients, kubernetes.New(kubernetes.Options{APIAddress: o.KubernetesAPIAddress}))
+	if o.KubernetesURL != "" {
+		clients = append(clients, kubernetes.New(kubernetes.Options{KubernetesURL: o.KubernetesURL}))
 	}
 
 	return clients, nil

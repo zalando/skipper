@@ -37,18 +37,18 @@ import (
 // - provide option to limit the used namespaces?
 
 const (
-	defaultAPIAddress = "http://localhost:8001"
-	ingressesURI      = "/apis/extensions/v1beta1/ingresses"
-	serviceURIFmt     = "/api/v1/namespaces/%s/services/%s"
+	defaultKubernetesURL = "http://localhost:8001"
+	ingressesURI         = "/apis/extensions/v1beta1/ingresses"
+	serviceURIFmt        = "/api/v1/namespaces/%s/services/%s"
 )
 
 // Options is used to initialize the Kubernetes DataClient.
 type Options struct {
 
-	// APIAddress is used as the base URL for Kubernetes API requests. Defaults to http://localhost:8001.
+	// KubernetesURL is used as the base URL for Kubernetes API requests. Defaults to http://localhost:8001.
 	// (TBD: support in-cluster operation by taking the address and certificate from the standard Kubernetes
 	// environment variables.)
-	APIAddress string
+	KubernetesURL string
 
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
@@ -56,8 +56,8 @@ type Options struct {
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
-	apiAddress string
-	current    map[string]*eskip.Route
+	apiURL  string
+	current map[string]*eskip.Route
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -69,16 +69,16 @@ var (
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) *Client {
-	if o.APIAddress == "" {
-		o.APIAddress = defaultAPIAddress
+	if o.KubernetesURL == "" {
+		o.KubernetesURL = defaultKubernetesURL
 	}
 
-	log.Debugf("kube client initialized with api address: %s", o.APIAddress)
-	return &Client{apiAddress: o.APIAddress}
+	log.Debugf("kube client initialized with api address: %s", o.KubernetesURL)
+	return &Client{apiURL: o.KubernetesURL}
 }
 
 func (c *Client) getJSON(uri string, a interface{}) error {
-	url := c.apiAddress + uri
+	url := c.apiURL + uri
 	log.Debugf("making request to: %s", url)
 	rsp, err := http.Get(url)
 	if err != nil {
@@ -111,7 +111,7 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 // TODO:
 // - check if it can be batched
 // - check the existing controllers for cases when hunting for cluster ip
-func (c *Client) getServiceAddress(namespace, name string, port backendPort) (string, error) {
+func (c *Client) getServiceURL(namespace, name string, port backendPort) (string, error) {
 	log.Debugf("requesting service: %s/%s", namespace, name)
 	url := fmt.Sprintf(serviceURIFmt, namespace, name)
 	var s service
@@ -164,7 +164,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 		return nil, false, nil
 	}
 
-	address, err := c.getServiceAddress(
+	address, err := c.getServiceURL(
 		i.Metadata.Namespace,
 		i.Spec.DefaultBackend.ServiceName,
 		i.Spec.DefaultBackend.ServicePort,
@@ -187,7 +187,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule) (*eskip
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
 
-	address, err := c.getServiceAddress(ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
+	address, err := c.getServiceURL(ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
 	if err != nil {
 		return nil, err
 	}
