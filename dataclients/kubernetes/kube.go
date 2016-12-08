@@ -1,4 +1,21 @@
-package kube
+/*
+Package kubernetes implements Kubernetes Ingress support for Skipper.
+
+See: http://kubernetes.io/docs/user-guide/ingress/
+
+The solution provides a Skipper DataClient implementation that can be used to access the Kubernetes API for
+ingress resources. Using it, Skipper polls for the ingress settings, and there is no need for a separate
+controller. On the other hand, it doesn't provide a full Ingress solution alone, because it doesn't do any load
+balancer configuration. For a full Ingress solution, it is possible to use Skipper together with
+Kube-ingress-aws-controller, which targets AWS and takes care of the load balancer setup for Kubernetes Ingress.
+
+See: https://github.com/zalando-incubator/kube-ingress-aws-controller
+
+Both Kube-ingress-aws-controller and Skipper Kubernetes are part of the larger WIP project, Kubernetes On AWS:
+
+https://github.com/zalando-incubator/kubernetes-on-aws/
+*/
+package kubernetes
 
 import (
 	"bytes"
@@ -24,11 +41,20 @@ const (
 	serviceURIFmt     = "/api/v1/namespaces/%s/services/%s"
 )
 
+// Options is used to initialize the Kubernetes DataClient.
 type Options struct {
-	APIAddress            string
+
+	// Address used as base URL for Kubernetes API requests. Defaults to http://localhost:8001. (TBD:
+	// support in-cluster operation by taking the address and certificate from the standard Kubernetes
+	// environment variables.
+	APIAddress string
+
+	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
 }
 
+// Client is a Skipper DataClient implementation used to create Skipper routes based on Kubernetes Ingress
+// settings.
 type Client struct {
 	apiAddress string
 	current    map[string]*eskip.Route
@@ -41,6 +67,7 @@ var (
 	errServicePortNotFound = errors.New("service port not found")
 )
 
+// New creates and initializes a Kubernetes DataClient.
 func New(o Options) *Client {
 	if o.APIAddress == "" {
 		o.APIAddress = defaultAPIAddress
@@ -62,7 +89,7 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	log.Debugf("request to %s succeeded", url)
 	defer rsp.Body.Close()
 
-	if rsp.StatusCode != 200 {
+	if rsp.StatusCode != http.StatusOK {
 		log.Debugf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 	}
@@ -188,7 +215,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 	routes := make([]*eskip.Route, 0, len(items))
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" {
-			log.Errorf("invalid ingress item: missing metadata")
+			log.Warn("invalid ingress item: missing metadata")
 			continue
 		}
 
@@ -200,7 +227,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 
 		for _, rule := range i.Spec.Rules {
 			if rule.Http == nil {
-				log.Errorf("invalid ingress item: rule missing http definitions")
+				log.Warn("invalid ingress item: rule missing http definitions")
 				continue
 			}
 
@@ -214,6 +241,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 				r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule)
 				if err != nil {
 					// tolerate single rule errors
+					//
 					// TODO:
 					// - check how to set failures in ingress status
 					log.Errorf("error while getting service: %v", err)

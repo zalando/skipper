@@ -8,7 +8,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/zalando/skipper/dataclients/kube"
+	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
@@ -225,7 +225,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	}
 
 	if o.KubeUrl != "" {
-		clients = append(clients, kube.New(kube.Options{APIAddress: o.KubeUrl}))
+		clients = append(clients, kubernetes.New(kubernetes.Options{APIAddress: o.KubeUrl}))
 	}
 
 	return clients, nil

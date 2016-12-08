@@ -1,4 +1,4 @@
-package kube
+package kubernetes
 
 import (
 	"encoding/json"
