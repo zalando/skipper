@@ -32,6 +32,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/source"
 )
 
 // FEATURE:
@@ -42,7 +43,15 @@ const (
 	ingressesURI         = "/apis/extensions/v1beta1/ingresses"
 	serviceURIFmt        = "/api/v1/namespaces/%s/services/%s"
 	healthcheckRouteID   = "kube__healthz"
+	healthcheckPath      = "/kube-system/healthz"
 )
+
+var internalIPs = []interface{}{
+	"10.0.0.0/8",
+	"192.168.0.0/16",
+	"172.16.0.0/12",
+	"127.0.0.1/32",
+}
 
 // Options is used to initialize the Kubernetes DataClient.
 type Options struct {
@@ -54,9 +63,12 @@ type Options struct {
 
 	// ProvideHealthcheck, when set, tells the data client to append a healthcheck route to the ingress
 	// routes in case of successfully receiving the ingress items from the API (even if individual ingress
-	// items may be invalid), or a failing healthcheck route when the API communication fails. When set,
-	// the current filter registry needs to include the status() filter. The healthcheck endpoint can be
-	// accessed from internal IPs on any hostname, with the path /kube-system/healthz.
+	// items may be invalid), or a failing healthcheck route when the API communication fails. The
+	// healthcheck endpoint can be accessed from internal IPs on any hostname, with the path
+	// /kube-system/healthz.
+	//
+	// When used in a custom configuration, the current filter registry needs to include the status()
+	// filter, and the available predicates need to include the Source() predicate.
 	ProvideHealthcheck bool
 
 	// Noop, WIP.
@@ -83,7 +95,7 @@ func New(o Options) *Client {
 		o.KubernetesURL = defaultKubernetesURL
 	}
 
-	log.Debugf("kube client initialized with api address: %s; with healtcheck: %b",
+	log.Debugf("kube client initialized with api address: %s; with healtcheck: %t",
 		o.KubernetesURL, o.ProvideHealthcheck)
 	return &Client{
 		apiURL:             o.KubernetesURL,
@@ -311,6 +323,11 @@ func healthcheckRoute(healthy bool) *eskip.Route {
 
 	return &eskip.Route{
 		Id: healthcheckRouteID,
+		Predicates: []*eskip.Predicate{{
+			Name: source.Name,
+			Args: internalIPs,
+		}},
+		Path: healthcheckPath,
 		Filters: []*eskip.Filter{{
 			Name: builtin.StatusName,
 			Args: []interface{}{status}},

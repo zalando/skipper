@@ -11,6 +11,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/source"
 )
 
 type services map[string]map[string]*service
@@ -194,6 +195,43 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) 
 		if !r.Shunt {
 			t.Error("healthcheck route must be a shunt")
 			return
+		}
+
+		if r.Path != healthcheckPath {
+			t.Error("invalid healthcheck path")
+			return
+		}
+
+		var found bool
+		for _, p := range r.Predicates {
+			if p.Name != source.Name {
+				continue
+			}
+
+			found = true
+
+			if len(p.Args) != len(internalIPs) {
+				t.Error("invalid source predicate")
+				return
+			}
+
+			for _, s := range internalIPs {
+				var found bool
+				for _, sp := range p.Args {
+					if sp == s {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					t.Error("invalid source ip")
+				}
+			}
+		}
+
+		if !found {
+			t.Error("source predicate not found")
 		}
 
 		for _, f := range r.Filters {
