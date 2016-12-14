@@ -409,7 +409,9 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
 
 	if c.provideHealthcheck {
-		next[healthcheckRouteID] = c.current[healthcheckRouteID]
+		hc := healthcheckRoute(true)
+		next[healthcheckRouteID] = hc
+		updatedRoutes = append(updatedRoutes, hc)
 	}
 
 	c.current = next

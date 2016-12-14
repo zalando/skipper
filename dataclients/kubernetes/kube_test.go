@@ -927,7 +927,32 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, true, true)
+		if len(d) != 0 {
+			t.Error("unexpected delete")
+		}
+	})
+
+	t.Run("use healthcheck, update fails, gets fixed", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+
+		dc := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+
+		dc.LoadAll()
+
+		api.failNext = true
+		dc.LoadUpdate()
+
+		r, d, err := dc.LoadUpdate()
+		if err != nil {
+			t.Error("failed to fail")
+		}
+
+		checkHealthcheck(t, r, true, true)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
