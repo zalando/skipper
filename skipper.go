@@ -232,7 +232,10 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	}
 
 	if o.KubernetesURL != "" {
-		clients = append(clients, kubernetes.New(kubernetes.Options{KubernetesURL: o.KubernetesURL}))
+		clients = append(clients, kubernetes.New(kubernetes.Options{
+			KubernetesURL:      o.KubernetesURL,
+			ProvideHealthcheck: o.KubernetesHealthcheck,
+		}))
 	}
 
 	return clients, nil
