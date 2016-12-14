@@ -131,10 +131,10 @@ func testIngresses() []*ingressItem {
 	}
 }
 
-func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) bool {
+func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	if len(r) != len(expected) {
 		t.Error("number of routes doesn't match expected", len(r), len(expected))
-		return false
+		return
 	}
 
 	for id, backend := range expected {
@@ -143,7 +143,7 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) boo
 			if ri.Id == id {
 				if ri.Backend != backend {
 					t.Error("invalid backend", ri.Backend, backend)
-					return false
+					return
 				}
 
 				found = true
@@ -152,11 +152,9 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) boo
 
 		if !found {
 			t.Error("expected route not found", id, backend)
-			return false
+			return
 		}
 	}
-
-	return true
 }
 
 func checkIDs(t *testing.T, got []string, expected ...string) {
