@@ -10,6 +10,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/builtin"
 )
 
 type services map[string]map[string]*service
@@ -19,6 +20,7 @@ type testAPI struct {
 	services  services
 	ingresses *ingressList
 	server    *httptest.Server
+	failNext  bool
 }
 
 var serviceURIRx = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/services/([^/]+)$")
@@ -128,10 +130,10 @@ func testIngresses() []*ingressItem {
 	}
 }
 
-func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
+func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) bool {
 	if len(r) != len(expected) {
 		t.Error("number of routes doesn't match expected", len(r), len(expected))
-		return
+		return false
 	}
 
 	for id, backend := range expected {
@@ -140,7 +142,7 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 			if ri.Id == id {
 				if ri.Backend != backend {
 					t.Error("invalid backend", ri.Backend, backend)
-					return
+					return false
 				}
 
 				found = true
@@ -149,9 +151,11 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 
 		if !found {
 			t.Error("expected route not found", id, backend)
-			return
+			return false
 		}
 	}
+
+	return true
 }
 
 func checkIDs(t *testing.T, got []string, expected ...string) {
@@ -173,6 +177,47 @@ func checkIDs(t *testing.T, got []string, expected ...string) {
 			t.Error("invalid ID received", id)
 			return
 		}
+	}
+}
+
+func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) {
+	for _, r := range got {
+		if r.Id != healthcheckRouteID {
+			continue
+		}
+
+		if !expected {
+			t.Error("unexpected healthcheck route")
+			return
+		}
+
+		if !r.Shunt {
+			t.Error("healthcheck route must be a shunt")
+			return
+		}
+
+		for _, f := range r.Filters {
+			if f.Name != builtin.StatusName {
+				continue
+			}
+
+			if len(f.Args) != 1 {
+				t.Error("invalid healthcheck args")
+				return
+			}
+
+			if healthy && f.Args[0] != http.StatusOK {
+				t.Error("invalid healthcheck status", f.Args[0], http.StatusOK)
+			} else if !healthy && f.Args[0] != http.StatusNotFound {
+				t.Error("invalid healthcheck status", f.Args[0], http.StatusNotFound)
+			}
+
+			return
+		}
+	}
+
+	if expected {
+		t.Error("healthcheck route not found")
 	}
 }
 
@@ -207,6 +252,12 @@ func (api *testAPI) getTestService(uri string) (*service, bool) {
 }
 
 func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if api.failNext {
+		api.failNext = false
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+
 	if r.URL.Path == ingressesURI {
 		if err := respondJSON(w, api.ingresses); err != nil {
 			api.test.Error(err)
@@ -688,5 +739,240 @@ func Test(t *testing.T) {
 			"kube_namespace1__mega__bar_example_org___test1",
 			"kube_namespace1__mega__bar_example_org___test2",
 		)
+	})
+}
+
+func TestHealthcheckInitial(t *testing.T) {
+	api := newTestAPI(t, nil, &ingressList{})
+	defer api.Close()
+
+	t.Run("no healthcheck, empty", func(t *testing.T) {
+		dc := New(Options{KubernetesURL: api.server.URL})
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error(err)
+		}
+
+		checkHealthcheck(t, r, false, false)
+	})
+
+	t.Run("no healthcheck", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		dc := New(Options{KubernetesURL: api.server.URL})
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error(err)
+		}
+
+		checkHealthcheck(t, r, false, false)
+	})
+
+	t.Run("no healthcheck, fail", func(t *testing.T) {
+		api.failNext = true
+		dc := New(Options{KubernetesURL: api.server.URL})
+		_, err := dc.LoadAll()
+		if err == nil {
+			t.Error("failed to fail")
+		}
+	})
+
+	t.Run("use healthceck, empty", func(t *testing.T) {
+		api.ingresses.Items = nil
+		dc := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error(err)
+		}
+
+		checkHealthcheck(t, r, true, true)
+	})
+
+	t.Run("use healthcheck", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		dc := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error(err)
+		}
+
+		checkHealthcheck(t, r, true, true)
+	})
+
+	t.Run("use healthcheck, fail", func(t *testing.T) {
+		api.failNext = true
+		dc := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error(err)
+		}
+
+		checkHealthcheck(t, r, true, false)
+	})
+}
+
+func TestHealthcheckUpdate(t *testing.T) {
+	api := newTestAPI(t, nil, &ingressList{})
+	defer api.Close()
+
+	t.Run("no healthcheck, update fail", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+
+		dc := New(Options{KubernetesURL: api.server.URL})
+
+		dc.LoadAll()
+		api.failNext = true
+
+		r, d, err := dc.LoadUpdate()
+		if err == nil {
+			t.Error("failed to fail")
+		}
+
+		checkHealthcheck(t, r, false, false)
+		if len(d) != 0 {
+			t.Error("unexpected delete")
+		}
+	})
+
+	t.Run("use healthcheck, update fail", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+
+		dc := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+
+		dc.LoadAll()
+		api.failNext = true
+
+		r, d, err := dc.LoadUpdate()
+		if err != nil {
+			t.Error("failed to fail")
+		}
+
+		checkHealthcheck(t, r, true, false)
+		if len(d) != 0 {
+			t.Error("unexpected delete")
+		}
+	})
+
+	t.Run("use healthcheck, update succeeds", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+
+		dc := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+
+		dc.LoadAll()
+
+		r, d, err := dc.LoadUpdate()
+		if err != nil {
+			t.Error("failed to fail")
+		}
+
+		checkHealthcheck(t, r, false, false)
+		if len(d) != 0 {
+			t.Error("unexpected delete")
+		}
+	})
+}
+
+func TestHealthcheckReload(t *testing.T) {
+	api := newTestAPI(t, nil, &ingressList{})
+	defer api.Close()
+
+	t.Run("no healthcheck, reload fail", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+
+		dc := New(Options{KubernetesURL: api.server.URL})
+
+		dc.LoadAll()
+		api.failNext = true
+
+		r, err := dc.LoadAll()
+		if err == nil {
+			t.Error("failed to fail")
+		}
+
+		checkHealthcheck(t, r, false, false)
+	})
+
+	t.Run("use healthcheck, reload fail", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+
+		dc := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+
+		dc.LoadAll()
+		api.failNext = true
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error("failed to fail")
+		}
+
+		checkHealthcheck(t, r, true, false)
+		checkRoutes(t, r, map[string]string{
+			healthcheckRouteID:                                    "",
+			"kube_namespace1__default_only____":                   "http://1.2.3.4:8080",
+			"kube_namespace2__path_rule_only__www_example_org___": "http://9.0.1.2:7272",
+			"kube_namespace1__mega____":                           "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test2":      "http://5.6.7.8:8181",
+			"kube_namespace1__mega__bar_example_org___test1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__bar_example_org___test2":      "http://5.6.7.8:8181",
+		})
+	})
+
+	t.Run("use healthcheck, reload succeeds", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+
+		dc := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+
+		dc.LoadAll()
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error("failed to fail")
+		}
+
+		checkHealthcheck(t, r, true, true)
+		checkRoutes(t, r, map[string]string{
+			healthcheckRouteID:                                    "",
+			"kube_namespace1__default_only____":                   "http://1.2.3.4:8080",
+			"kube_namespace2__path_rule_only__www_example_org___": "http://9.0.1.2:7272",
+			"kube_namespace1__mega____":                           "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test2":      "http://5.6.7.8:8181",
+			"kube_namespace1__mega__bar_example_org___test1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__bar_example_org___test2":      "http://5.6.7.8:8181",
+		})
 	})
 }
