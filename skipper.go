@@ -57,6 +57,13 @@ type Options struct {
 	// Kubernetes ingress is disabled.
 	KubernetesURL string
 
+	// KubernetesHealthcheck, when Kubernetes ingress is set, indicates
+	// whether an automatic healthcheck route should be generated. The
+	// generated route will report healthyness when the Kubernetes API
+	// calls are successful. The healthcheck endpoint is accessible from
+	// internal IPs, with the path /kube-system/healthz.
+	KubernetesHealthcheck bool
+
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
