@@ -87,3 +87,7 @@ Skipper's [godoc](https://godoc.org/github.com/zalando/skipper) page includes de
 - Proxy Packages
 - Logging and Metrics
 - Performance Considerations
+
+### Packaging support
+
+See https://github.com/zalando/skipper/packaging/readme.md

@@ -34,6 +34,7 @@ const (
 	defaultMetricsPrefix        = "skipper."
 	defaultRuntimeMetrics       = true
 	defaultApplicationLogPrefix = "[APP]"
+	defaultApplicationLogLevel  = "INFO"
 	defaultBackendFlushInterval = 20 * time.Millisecond
 	defaultExperimentalUpgrade  = false
 
@@ -63,6 +64,7 @@ const (
 	serveRouteMetricsUsage         = "enables reporting total serve time metrics for each route"
 	serveHostMetricsUsage          = "enables reporting total serve time metrics for each host"
 	applicationLogUsage            = "output file for the application log. When not set, /dev/stderr is used"
+	applicationLogLevelUsage       = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
 	applicationLogPrefixUsage      = "prefix for each log entry"
 	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
@@ -100,6 +102,7 @@ var (
 	serveRouteMetrics         bool
 	serveHostMetrics          bool
 	applicationLog            string
+	applicationLogLevel       string
 	applicationLogPrefix      string
 	accessLog                 string
 	accessLogDisabled         bool
@@ -137,6 +140,7 @@ func init() {
 	flag.BoolVar(&serveRouteMetrics, "serve-route-metrics", false, serveRouteMetricsUsage)
 	flag.BoolVar(&serveHostMetrics, "serve-host-metrics", false, serveHostMetricsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
+	flag.StringVar(&applicationLogLevel, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
@@ -163,6 +167,12 @@ func parseDurationFlag(ds string) (time.Duration, error) {
 }
 
 func main() {
+	if logLevel, err := log.ParseLevel(applicationLogLevel); err != nil {
+		log.Fatal(err)
+	} else {
+		log.SetLevel(logLevel)
+	}
+
 	var eus []string
 	if len(etcdUrls) > 0 {
 		eus = strings.Split(etcdUrls, ",")

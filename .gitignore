@@ -9,3 +9,5 @@ oauth/user.json
 *.iml
 example.eskip
 Godeps/_workspace
+packaging/skipper
+packaging/eskip
