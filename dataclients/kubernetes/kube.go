@@ -31,6 +31,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/source"
 )
 
 // FEATURE:
@@ -40,7 +42,18 @@ const (
 	defaultKubernetesURL = "http://localhost:8001"
 	ingressesURI         = "/apis/extensions/v1beta1/ingresses"
 	serviceURIFmt        = "/api/v1/namespaces/%s/services/%s"
+	healthcheckRouteID   = "kube__healthz"
+	healthcheckPath      = "/kube-system/healthz"
 )
+
+var internalIPs = []interface{}{
+	"10.0.0.0/8",
+	"192.168.0.0/16",
+	"172.16.0.0/12",
+	"127.0.0.1/32",
+	"fd00::/8",
+	"::1/32",
+}
 
 // Options is used to initialize the Kubernetes DataClient.
 type Options struct {
@@ -50,14 +63,25 @@ type Options struct {
 	// environment variables.)
 	KubernetesURL string
 
+	// ProvideHealthcheck, when set, tells the data client to append a healthcheck route to the ingress
+	// routes in case of successfully receiving the ingress items from the API (even if individual ingress
+	// items may be invalid), or a failing healthcheck route when the API communication fails. The
+	// healthcheck endpoint can be accessed from internal IPs on any hostname, with the path
+	// /kube-system/healthz.
+	//
+	// When used in a custom configuration, the current filter registry needs to include the status()
+	// filter, and the available predicates need to include the Source() predicate.
+	ProvideHealthcheck bool
+
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
-	apiURL  string
-	current map[string]*eskip.Route
+	apiURL             string
+	provideHealthcheck bool
+	current            map[string]*eskip.Route
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -73,8 +97,13 @@ func New(o Options) *Client {
 		o.KubernetesURL = defaultKubernetesURL
 	}
 
-	log.Debugf("kube client initialized with api address: %s", o.KubernetesURL)
-	return &Client{apiURL: o.KubernetesURL}
+	log.Debugf("kube client initialized with api address: %s; with healthcheck: %t",
+		o.KubernetesURL, o.ProvideHealthcheck)
+	return &Client{
+		apiURL:             o.KubernetesURL,
+		provideHealthcheck: o.ProvideHealthcheck,
+		current:            make(map[string]*eskip.Route),
+	}
 }
 
 func (c *Client) getJSON(uri string, a interface{}) error {
@@ -265,6 +294,15 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 	return m
 }
 
+func (c *Client) listRoutes() []*eskip.Route {
+	l := make([]*eskip.Route, 0, len(c.current))
+	for _, r := range c.current {
+		l = append(l, r)
+	}
+
+	return l
+}
+
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
 	log.Debugf("requesting ingresses")
@@ -279,12 +317,47 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	return r, nil
 }
 
+func healthcheckRoute(healthy bool) *eskip.Route {
+	status := http.StatusOK
+	if !healthy {
+		status = http.StatusServiceUnavailable
+	}
+
+	return &eskip.Route{
+		Id: healthcheckRouteID,
+		Predicates: []*eskip.Predicate{{
+			Name: source.Name,
+			Args: internalIPs,
+		}},
+		Path: healthcheckPath,
+		Filters: []*eskip.Filter{{
+			Name: builtin.StatusName,
+			Args: []interface{}{status}},
+		},
+		Shunt: true,
+	}
+}
+
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	r, err := c.loadAndConvert()
 	if err != nil {
 		log.Debugf("failed to load all: %v", err)
+
+		// moving the error handling decision to the data client,
+		// preserving the previous state to the routing, except
+		// for the healthcheck
+		if c.provideHealthcheck {
+			log.Error("error while receiveing all ingress routes;", err)
+			c.current[healthcheckRouteID] = healthcheckRoute(false)
+			return c.listRoutes(), nil
+		}
+
 		return nil, err
+	}
+
+	if c.provideHealthcheck {
+		r = append(r, healthcheckRoute(true))
 	}
 
 	c.current = mapRoutes(r)
@@ -299,6 +372,17 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	r, err := c.loadAndConvert()
 	if err != nil {
 		log.Debugf("polling for updates failed: %v", err)
+
+		// moving the error handling decision to the data client,
+		// preserving the previous state to the routing, except
+		// for the healthcheck
+		if c.provideHealthcheck {
+			log.Error("error while receiveing updated ingress routes;", err)
+			hc := healthcheckRoute(false)
+			c.current[healthcheckRouteID] = hc
+			return []*eskip.Route{hc}, nil, nil
+		}
+
 		return nil, nil, err
 	}
 
@@ -313,7 +397,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	for id := range c.current {
 		if r, ok := next[id]; ok && r.String() != c.current[id].String() {
 			updatedRoutes = append(updatedRoutes, r)
-		} else if !ok {
+		} else if !ok && id != healthcheckRouteID {
 			deletedIDs = append(deletedIDs, id)
 		}
 	}
@@ -325,6 +409,12 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	}
 
 	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
+
+	if c.provideHealthcheck {
+		hc := healthcheckRoute(true)
+		next[healthcheckRouteID] = hc
+		updatedRoutes = append(updatedRoutes, hc)
+	}
 
 	c.current = next
 	return updatedRoutes, deletedIDs, nil

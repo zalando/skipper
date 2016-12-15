@@ -41,6 +41,8 @@ import (
 	"strings"
 )
 
+const Name = "Source"
+
 var InvalidArgsError = errors.New("invalid arguments")
 
 type spec struct{}
@@ -52,7 +54,7 @@ type predicate struct {
 func New() routing.PredicateSpec { return &spec{} }
 
 func (s *spec) Name() string {
-	return "Source"
+	return Name
 }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {

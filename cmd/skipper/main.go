@@ -42,6 +42,7 @@ const (
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
 	etcdPrefixUsage                = "path prefix for skipper related data in etcd"
 	kubernetesURLUsage             = "kubernetes API base url for the ingress data client; when set, it enables ingress"
+	kubernetesHealthcheckUsage     = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes-url"
 	innkeeperUrlUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
@@ -83,6 +84,7 @@ var (
 	idleConnsPerHost          int
 	closeIdleConnsPeriod      string
 	kubernetesURL             string
+	kubernetesHealthcheck     bool
 	innkeeperUrl              string
 	sourcePollTimeout         int64
 	routesFile                string
@@ -120,6 +122,7 @@ func init() {
 	flag.StringVar(&closeIdleConnsPeriod, "close-idle-conns-period", strconv.Itoa(int(proxy.DefaultCloseIdleConnsPeriod/time.Second)), closeIdleConnsPeriodUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
 	flag.StringVar(&kubernetesURL, "kubernetes-url", "", kubernetesURLUsage)
+	flag.BoolVar(&kubernetesHealthcheck, "kubernetes-healthcheck", true, kubernetesHealthcheckUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
@@ -186,6 +189,7 @@ func main() {
 		EtcdUrls:                  eus,
 		EtcdPrefix:                etcdPrefix,
 		KubernetesURL:             kubernetesURL,
+		KubernetesHealthcheck:     kubernetesHealthcheck,
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 		RoutesFile:                routesFile,
