@@ -97,7 +97,7 @@ func New(o Options) *Client {
 		o.KubernetesURL = defaultKubernetesURL
 	}
 
-	log.Debugf("kube client initialized with api address: %s; with healtcheck: %t",
+	log.Debugf("kube client initialized with api address: %s; with healthcheck: %t",
 		o.KubernetesURL, o.ProvideHealthcheck)
 	return &Client{
 		apiURL:             o.KubernetesURL,
@@ -320,7 +320,7 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 func healthcheckRoute(healthy bool) *eskip.Route {
 	status := http.StatusOK
 	if !healthy {
-		status = http.StatusNotFound
+		status = http.StatusServiceUnavailable
 	}
 
 	return &eskip.Route{

@@ -244,8 +244,8 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) 
 
 			if healthy && f.Args[0] != http.StatusOK {
 				t.Error("invalid healthcheck status", f.Args[0], http.StatusOK)
-			} else if !healthy && f.Args[0] != http.StatusNotFound {
-				t.Error("invalid healthcheck status", f.Args[0], http.StatusNotFound)
+			} else if !healthy && f.Args[0] != http.StatusServiceUnavailable {
+				t.Error("invalid healthcheck status", f.Args[0], http.StatusServiceUnavailable)
 			}
 
 			return
