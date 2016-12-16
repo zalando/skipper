@@ -18,9 +18,12 @@ func (s *statusSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	if c, ok := args[0].(float64); ok {
+	switch c := args[0].(type) {
+	case int:
 		return statusFilter(c), nil
-	} else {
+	case float64:
+		return statusFilter(c), nil
+	default:
 		return nil, filters.ErrInvalidFilterParameters
 	}
 }
