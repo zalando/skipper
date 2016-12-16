@@ -125,8 +125,11 @@ func convertDebugInfo(d *debugInfo) debugDocument {
 }
 
 func dbgResponse(w http.ResponseWriter, d *debugInfo) {
+	w.Header().Set("Content-Type", "application/json")
+
 	doc := convertDebugInfo(d)
 	enc := json.NewEncoder(w)
+
 	if err := enc.Encode(&doc); err != nil {
 		log.Error("[debug response]", err)
 	}
