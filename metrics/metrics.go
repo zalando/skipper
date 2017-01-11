@@ -39,19 +39,24 @@ type Options struct {
 	// If set, detailed total response time metrics will be collected
 	// for each host, additionally grouped by status and method.
 	EnableServeHostMetrics bool
+
+	// If set, detailed response time metrics will be collected
+	// for each backend host
+	EnableBackendHostMetrics bool
 }
 
 const (
-	KeyRouteLookup     = "routelookup"
-	KeyRouteFailure    = "routefailure"
-	KeyFilterRequest   = "filter.%s.request"
-	KeyFiltersRequest  = "allfilters.request.%s"
-	KeyProxyBackend    = "backend.%s"
-	KeyFilterResponse  = "filter.%s.response"
-	KeyFiltersResponse = "allfilters.response.%s"
-	KeyResponse        = "response.%d.%s.skipper.%s"
-	KeyServeRoute      = "serveroute.%s.%s.%d"
-	KeyServeHost       = "servehost.%s.%s.%d"
+	KeyRouteLookup      = "routelookup"
+	KeyRouteFailure     = "routefailure"
+	KeyFilterRequest    = "filter.%s.request"
+	KeyFiltersRequest   = "allfilters.request.%s"
+	KeyProxyBackend     = "backend.%s"
+	KeyProxyBackendHost = "backendhost.%s"
+	KeyFilterResponse   = "filter.%s.response"
+	KeyFiltersResponse  = "allfilters.response.%s"
+	KeyResponse         = "response.%d.%s.skipper.%s"
+	KeyServeRoute       = "serveroute.%s.%s.%d"
+	KeyServeHost        = "servehost.%s.%s.%d"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
@@ -153,6 +158,12 @@ func (m *Metrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
 
 func (m *Metrics) MeasureBackend(routeId string, start time.Time) {
 	m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
+}
+
+func (m *Metrics) MeasureBackendHost(routeBackendHost string, start time.Time) {
+	if m.options.EnableBackendHostMetrics {
+		m.measureSince(fmt.Sprintf(KeyProxyBackendHost, hostForKey(routeBackendHost)), start)
+	}
 }
 
 func (m *Metrics) MeasureFilterResponse(filterName string, start time.Time) {
