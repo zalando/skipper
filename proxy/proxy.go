@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -568,10 +569,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			if err != nil {
 				p.metrics.IncErrorsBackend(rt.Id)
-				sendError(w,
-					http.StatusText(http.StatusInternalServerError),
-					http.StatusInternalServerError)
-				p.metrics.MeasureServe(rt.Id, r.Host, r.Method, http.StatusInternalServerError, startServe)
+				code := http.StatusInternalServerError
+				if _, ok := err.(net.Error); ok {
+					code = http.StatusServiceUnavailable
+				}
+
+				sendError(w, http.StatusText(code), code)
+				p.metrics.MeasureServe(rt.Id, r.Host, r.Method, code, startServe)
 				log.Error(err)
 				return
 			}
