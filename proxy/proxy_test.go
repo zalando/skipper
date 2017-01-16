@@ -868,3 +868,31 @@ func TestHostHeader(t *testing.T) {
 		closeAll()
 	}
 }
+
+func TestBackendServiceUnavailable(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	s.Close()
+
+	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, s.URL), 0)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	rsp, err := http.Get(ps.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusServiceUnavailable {
+		t.Error("failed to return 503 Service Unavailable on failing backend connection")
+	}
+}
