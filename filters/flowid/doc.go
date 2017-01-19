@@ -3,7 +3,7 @@ Package flowid implements a filter used for identifying incoming requests throug
 logging and monitoring or else.
 
 Flow Ids let you correlate router logs for a given request against the upstream application logs for that same request.
-If your upstream application makes other requests to other services it can provide the same Flow Id value so that all
+If your upstream application makes other requests to other services it can provide the same Flow ID value so that all
 of those logs can be correlated.
 
 
@@ -14,15 +14,18 @@ upstream application as an HTTP header called X-Flow-Id.
 
 The filter takes 2 optional parameters:
 	1. Accept existing X-Flow-Id header
-	2. Flow Id length
+	2. Flow Id length (for the built-in generator) or the ID of the generator to use
 
 The first parameter is a string parameter that, when set to "reuse", will make the filter skip the generation of
 a new flow id. If the existing header value is not a valid flow id it is ignored and a new flow id is also generated.
 Any other string used for this parameter is ignored and have the same meaning - not to accept existing X-Flow-Id
 headers.
 
-The second parameter is a number that defines the length of the generated flow ids. Valid options are any even number
-between 8 and 64.
+The second parameter can be a number or a string.
+In case it is a number, it defines the length of the generated flow ids and use the built-in generator.
+Valid lengths are any even number between 8 and 64.
+If the parameter is a string it is used to define which generator to use. Valid values are "ulid" and any other string
+that will fallback to the built-in generator, using the default length.
 
 
 Usage
@@ -50,7 +53,16 @@ Generate bigger flow ids
 This example doesn't accept a X-Flow-Id header and will always generate new flow ids with 64 bytes.
 
 
+Generate ULID Flow ID
+
+	flowId("d/c", "ulid")
+
+This example doesn't accept a X-Flow-Id header and will generate a Universally Unique Lexicographically Sortable
+Identifier (ULID). See https://godoc.org/github.com/oklog/ulid
+
 Some Benchmarks
+
+Built-In Flow ID Generator
 
 To decide upon which hashing mechanism to use we tested some versions of UUID v1 - v4 and some other implementations.
 The results are as follow:
@@ -100,6 +112,11 @@ following results:
 	BenchmarkFlowIdLen16-4	10000000	       216 ns/op
 	BenchmarkFlowIdLen32-4	 5000000	       329 ns/op
 	BenchmarkFlowIdLen64-4	 3000000	       532 ns/op
+
+
+ULID Flow ID Generator
+
+BenchmarkFlowId/ULID-Generator-8    	10000000	       198 ns/op
 
 */
 package flowid

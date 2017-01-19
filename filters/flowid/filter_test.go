@@ -1,6 +1,7 @@
 package flowid
 
 import (
+	"fmt"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
@@ -25,7 +26,7 @@ func TestNewFlowIdGeneration(t *testing.T) {
 
 	flowId := fc.Request().Header.Get(HeaderName)
 	if flowId == "" {
-		t.Errorf("flowId not generated")
+		t.Error("flowId not generated")
 	}
 }
 
@@ -87,6 +88,37 @@ func TestFlowIdWithInvalidParameters(t *testing.T) {
 	_, err = testFlowIdSpec.CreateFilter(fc)
 	if err != filters.ErrInvalidFilterParameters {
 		t.Errorf("Expected an invalid parameters error, got %v", err)
+	}
+
+	fc = []interface{}{"", true}
+	_, err = testFlowIdSpec.CreateFilter(fc)
+	if err != filters.ErrInvalidFilterParameters {
+		t.Errorf("expected an invalid parameters error, got %v", err)
+	}
+}
+
+func TestFlowIdWithCustomGenerators(t *testing.T) {
+	for _, test := range []struct {
+		generatorId string
+	}{
+		{""},
+		{"builtin"},
+		{"ulid"},
+	} {
+		t.Run(fmt.Sprintf("%v", test), func(t *testing.T) {
+			fc := []interface{}{ReuseParameterValue, test.generatorId}
+			f, _ := testFlowIdSpec.CreateFilter(fc)
+			fctx := buildfilterContext()
+			f.Request(fctx)
+
+			flowId := fctx.Request().Header.Get(HeaderName)
+
+			l := len(flowId)
+			if l == 0 {
+				t.Errorf("wrong flowId len. expected > 0 got %d / %q", l, flowId)
+			}
+
+		})
 	}
 }
 

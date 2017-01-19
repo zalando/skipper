@@ -1,63 +1,65 @@
 package flowid
 
-import "testing"
+import (
+	"strconv"
+	"testing"
+)
 
 func TestFlowIdInvalidLength(t *testing.T) {
 	_, err := NewFlowId(0)
 	if err == nil {
-		t.Errorf("Request for an invalid flow id length (0) succeeded and it shouldn't")
+		t.Error("Request for an invalid flow id length (0) succeeded and it shouldn't")
 	}
 
 	_, err = NewFlowId(100)
-	if err != ErrInvalidLen {
-		t.Errorf("Request for an invalid flow id length (100) succeeded and it shouldn't")
+	if err == nil {
+		t.Error("Request for an invalid flow id length (100) succeeded and it shouldn't")
 	}
 }
 
 func TestFlowIdLength(t *testing.T) {
 	for expected := MinLength; expected <= MaxLength; expected++ {
-		flowId, err := NewFlowId(expected)
-		if err != nil {
-			t.Errorf("Failed to generate flowId with len %d", expected)
-		}
+		t.Run(strconv.Itoa(expected), func(t *testing.T) {
+			g, err := newBuiltInGenerator(expected)
+			if err != nil {
+				t.Errorf("failed to create built-in generator: %v", err)
+			} else {
+				id := g.MustGenerate()
+				l := len(id)
+				if l != expected {
+					t.Errorf("got wrong flowId len. Requested %d, got %d (%s)", expected, l, id)
+				}
 
-		l := len(flowId)
-		if l != expected {
-			t.Errorf("Got wrong flowId len. Requested %d, got %d (%s)", expected, l, flowId)
-		}
+			}
+		})
 	}
 }
 
-func BenchmarkFlowIdLen8(b *testing.B) {
-	testFlowIdWithLen(b.N, 8)
+func TestDeprecatedNewFlowID(t *testing.T) {
+	for expected := MinLength; expected <= MaxLength; expected++ {
+		t.Run(strconv.Itoa(expected), func(t *testing.T) {
+			id, err := NewFlowId(expected)
+			if err != nil {
+				t.Errorf("failed to generate flowid using the built-in generator: %v", err)
+			} else {
+				l := len(id)
+				if l != expected {
+					t.Errorf("got wrong flowId len. Requested %d, got %d (%s)", expected, l, id)
+				}
+
+			}
+		})
+	}
 }
 
-func BenchmarkFlowIdLen10(b *testing.B) {
-	testFlowIdWithLen(b.N, 10)
-}
-
-func BenchmarkFlowIdLen12(b *testing.B) {
-	testFlowIdWithLen(b.N, 12)
-}
-
-func BenchmarkFlowIdLen14(b *testing.B) {
-	testFlowIdWithLen(b.N, 14)
-}
-
-func BenchmarkFlowIdLen16(b *testing.B) {
-	testFlowIdWithLen(b.N, 16)
-}
-
-func BenchmarkFlowIdLen32(b *testing.B) {
-	testFlowIdWithLen(b.N, 32)
-}
-
-func BenchmarkFlowIdLen64(b *testing.B) {
-	testFlowIdWithLen(b.N, 64)
-}
-
-func testFlowIdWithLen(times int, l int) {
-	for i := 0; i < times; i++ {
-		NewFlowId(l)
+func BenchmarkFlowIdBuiltInGenerator(b *testing.B) {
+	for _, l := range []int{8, 10, 12, 14, 16, 26, 32, 64} {
+		b.Run(strconv.Itoa(l), func(b *testing.B) {
+			b.ResetTimer()
+			gen, _ := newBuiltInGenerator(l)
+			for i := 0; i < b.N; i++ {
+				gen.MustGenerate()
+			}
+		})
 	}
 }

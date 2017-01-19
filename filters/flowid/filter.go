@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-const defaultLen = 16
-
 const (
 	Name                = "flowId"
 	ReuseParameterValue = "reuse"
@@ -18,7 +16,7 @@ type flowIdSpec struct{}
 
 type flowId struct {
 	reuseExisting bool
-	flowIdLength  int
+	generator     flowIDGenerator
 }
 
 func New() *flowIdSpec {
@@ -36,7 +34,7 @@ func (f *flowId) Request(fc filters.FilterContext) {
 		}
 	}
 
-	flowId, err := NewFlowId(f.flowIdLength)
+	flowId, err := f.generator.Generate()
 	if err == nil {
 		r.Header.Set(HeaderName, flowId)
 	} else {
@@ -55,15 +53,34 @@ func (spec *flowIdSpec) CreateFilter(fc []interface{}) (filters.Filter, error) {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 	}
-	var flowIdLength = defaultLen
+	var (
+		gen flowIDGenerator
+		err error
+	)
+	gen, err = newBuiltInGenerator(defaultLen)
 	if len(fc) > 1 {
-		if l, ok := fc[1].(float64); ok && l >= MinLength && l <= MaxLength {
-			flowIdLength = int(l)
-		} else {
-			return nil, filters.ErrInvalidFilterParameters
+		switch val := fc[1].(type) {
+		case float64:
+			gen, err = newBuiltInGenerator(int(val))
+		case string:
+			gen, err = createGenerator(strings.ToLower(val))
+		default:
+			err = filters.ErrInvalidFilterParameters
 		}
 	}
-	return &flowId{reuseExisting, flowIdLength}, nil
+	if err != nil {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+	return &flowId{reuseExisting: reuseExisting, generator: gen}, nil
 }
 
 func (spec *flowIdSpec) Name() string { return Name }
+
+func createGenerator(generatorId string) (flowIDGenerator, error) {
+	switch generatorId {
+	case "ulid":
+		return newULIDGenerator(), nil
+	default:
+		return newBuiltInGenerator(defaultLen)
+	}
+}
