@@ -32,7 +32,7 @@ use.
 ULID Flow IDs
 
 The ULID Generator relies on the great work from https://github.com/alizain/ulid and https://github.com/oklog/ulid. It
-generates 26 char long Universally Unique Lexicographically Sortable IDs. It it very fast and it's also safe for
+generates 26 char long Universally Unique Lexicographically Sortable IDs. It is very fast and it's also safe for
 concurrent use.
 
 Programmatic Usage
@@ -69,8 +69,8 @@ Reuse existing flow id
 
 	flowId("reuse")
 
-With a single parameter with the string "reuse" the filter will accept an existing X-Flow-Id header, if it's present
-in the request. If it's invalid it will still be overwritten.
+With a single string parameter with the value "reuse", the filter will accept an existing X-Flow-Id header, if
+it's present in the request. If it's invalid, a new one is generated and the header is overwritten.
 
 Some Benchmarks
 

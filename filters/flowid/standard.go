@@ -35,6 +35,10 @@ type standardGenerator struct {
 }
 
 // NewStandardGenerator creates a new FlowID generator that generates flow IDs with length l
+// The alphabet is limited to 64 elements and requires a random 6 bit value to index any of them.
+// The cost to rnd.IntXX is not very relevant but the bit shifting operations are faster.
+// For this reason a single call to rnd.Int63 is used and its bits are mapped up to 10 chunks of 6 bits each.
+// The byte data type carries 2 additional bits for the next chunk which are cleared with the alphabet bit mask.
 func NewStandardGenerator(l int) (Generator, error) {
 	if l < MinLength || l > MaxLength {
 		return nil, ErrInvalidLen
@@ -44,10 +48,6 @@ func NewStandardGenerator(l int) (Generator, error) {
 }
 
 // Generate returns a new Flow ID from the built-in generator with the configured length
-// The alphabet is limited to 64 elements and requires a random 6 bit value to index any of them.
-// The cost to rnd.IntXX is not very relevant but the bit shifting operations are faster.
-// For this reason a single call to rnd.Int63 is used and its bits are mapped up to 10 chunks of 6 bits each.
-// The byte data type carries 2 additional bits for the next chunk which are cleared with the alphabet bit mask.
 func (g *standardGenerator) Generate() (string, error) {
 	u := make([]byte, g.length)
 	for i := 0; i < g.length; i += 10 {
