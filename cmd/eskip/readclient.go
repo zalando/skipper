@@ -104,7 +104,7 @@ func (r *inlineReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 func (r *idsReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 	routeInfos := make([]*eskip.RouteInfo, len(r.ids))
 	for i, id := range r.ids {
-		routeInfos[i] = &eskip.RouteInfo{eskip.Route{Id: id}, nil}
+		routeInfos[i] = &eskip.RouteInfo{Route: eskip.Route{Id: id}}
 	}
 
 	return routeInfos, nil
@@ -112,7 +112,7 @@ func (r *idsReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 
 func routesToRouteInfos(routes []*eskip.Route) (routeInfos []*eskip.RouteInfo) {
 	for _, route := range routes {
-		routeInfos = append(routeInfos, &eskip.RouteInfo{*route, nil})
+		routeInfos = append(routeInfos, &eskip.RouteInfo{Route: *route})
 	}
 	return
 }

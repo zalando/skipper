@@ -313,9 +313,10 @@ func (c *Client) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 	routeInfos := []*eskip.RouteInfo{}
 
 	for _, route := range routeList {
-		routeInfo := &eskip.RouteInfo{
-			*route, nil}
-		routeInfos = append(routeInfos, routeInfo)
+		routeInfos = append(routeInfos, &eskip.RouteInfo{
+			Route:      *route,
+			ParseError: nil,
+		})
 	}
 
 	return routeInfos, nil

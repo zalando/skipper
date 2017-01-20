@@ -140,21 +140,14 @@ func New(o Options) (*Client, error) {
 	httpClient := &http.Client{Timeout: o.Timeout}
 
 	if o.Insecure {
-		var transport *http.Transport
-		if dt, ok := http.DefaultTransport.(*http.Transport); ok {
-			dtc := *dt
-			transport = &dtc
-		} else {
-			transport = &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				Dial: (&net.Dialer{
-					Timeout:   30 * time.Second,
-					KeepAlive: 30 * time.Second}).Dial,
-				TLSHandshakeTimeout: 10 * time.Second}
+		httpClient.Transport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			Dial: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second}).Dial,
+			TLSHandshakeTimeout: 10 * time.Second,
+			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
 		}
-
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		httpClient.Transport = transport
 	}
 
 	return &Client{

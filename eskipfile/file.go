@@ -47,7 +47,7 @@ func Open(path string) (*Client, error) {
 
 func (c Client) LoadAndParseAll() (routeInfos []*eskip.RouteInfo, err error) {
 	for _, route := range c.routes {
-		routeInfos = append(routeInfos, &eskip.RouteInfo{*route, nil})
+		routeInfos = append(routeInfos, &eskip.RouteInfo{Route: *route})
 	}
 	return
 }

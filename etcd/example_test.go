@@ -24,7 +24,13 @@ import (
 
 func Example() {
 	// create etcd data client:
-	dataClient, err := etcd.New(etcd.Options{[]string{"https://etcd.example.org"}, "/skipper", 0, false})
+	dataClient, err := etcd.New(etcd.Options{
+		Endpoints: []string{"https://etcd.example.org"},
+		Prefix:    "/skipper",
+		Timeout:   0,
+		Insecure:  false,
+	})
+
 	if err != nil {
 		log.Fatal(err)
 	}

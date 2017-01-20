@@ -106,7 +106,7 @@ func benchmarkCompress(b *testing.B, n int64) {
 	f, _ := s.CreateFilter(nil)
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			body := ioutil.NopCloser(&io.LimitedReader{rand.New(rand.NewSource(0)), n})
+			body := ioutil.NopCloser(&io.LimitedReader{R: rand.New(rand.NewSource(0)), N: n})
 			req := &http.Request{Header: http.Header{"Accept-Encoding": []string{"gzip,deflate"}}}
 			rsp := &http.Response{
 				Header: http.Header{"Content-Type": []string{"application/octet-stream"}},

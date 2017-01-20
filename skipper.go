@@ -208,8 +208,13 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.InnkeeperUrl != "" {
 		ic, err := innkeeper.New(innkeeper.Options{
-			o.InnkeeperUrl, o.InnkeeperInsecure, auth,
-			o.InnkeeperPreRouteFilters, o.InnkeeperPostRouteFilters})
+			Address:          o.InnkeeperUrl,
+			Insecure:         o.InnkeeperInsecure,
+			Authentication:   auth,
+			PreRouteFilters:  o.InnkeeperPreRouteFilters,
+			PostRouteFilters: o.InnkeeperPostRouteFilters,
+		})
+
 		if err != nil {
 			log.Error(err)
 			return nil, err
@@ -220,10 +225,12 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if len(o.EtcdUrls) > 0 {
 		etcdClient, err := etcd.New(etcd.Options{
-			o.EtcdUrls,
-			o.EtcdPrefix,
-			o.EtcdWaitTimeout,
-			o.EtcdInsecure})
+			Endpoints: o.EtcdUrls,
+			Prefix:    o.EtcdPrefix,
+			Timeout:   o.EtcdWaitTimeout,
+			Insecure:  o.EtcdInsecure,
+		})
+
 		if err != nil {
 			return nil, err
 		}
