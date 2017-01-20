@@ -1,6 +1,7 @@
 package flowid
 
 import (
+	"fmt"
 	"github.com/zalando/skipper/filters"
 	"log"
 	"strings"
@@ -31,7 +32,19 @@ type flowId struct {
 	generator     Generator
 }
 
-// New creates a new instance of the flowId filter spec which uses the StandardGenerator
+// NewFlowId creates a new standard generator with the defined length and returns a Flow ID.
+//
+// Deprecated: For backward compatibility this exported function is still available but will removed in upcoming
+// releases. Use the new Generator interface and respective implementations
+func NewFlowId(l int) (string, error) {
+	g, err := NewStandardGenerator(l)
+	if err != nil {
+		return "", fmt.Errorf("deprecated new flowid: %v", err)
+	}
+	return g.Generate()
+}
+
+// New creates a new instance of the flowId filter spec which uses the StandardGenerator.
 // To use another type of Generator use NewWithGenerator()
 func New() *flowIdSpec {
 	g, err := NewStandardGenerator(defaultLen)

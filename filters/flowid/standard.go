@@ -20,16 +20,6 @@ var (
 	standardFlowIDRegex = regexp.MustCompile(`^[0-9a-zA-Z+-]+$`)
 )
 
-// NewFlowId creates a new standard generator with the defined length and returns a flowid
-// This exported function is deprecated and the new Generator interface should be used
-func NewFlowId(l int) (string, error) {
-	g, err := NewStandardGenerator(l)
-	if err != nil {
-		return "", fmt.Errorf("deprecated new flowid: %v", err)
-	}
-	return g.Generate()
-}
-
 type standardGenerator struct {
 	length int
 }
