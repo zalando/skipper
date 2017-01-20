@@ -20,10 +20,8 @@ X-Flow-Id header.
 
 Generators
 
-The Flow ID generation can follow any format. Skipper provides two Generator implementations with different performance
-metrics and properties. You may choose which one you prefer.
-	- Standard Flow IDs (default)
-	- ULID Flow IDs
+The Flow ID generation can follow any format. Skipper provides two Generator implementations - Standard and ULID. They
+offer different performance and options and you can choose which one you prefer.
 
 Standard Flow IDs
 
@@ -48,11 +46,12 @@ Default spec with Standard Generator (16 char FlowIDs)
 
 Custom spec with ULID Generator (26 char FlowIDs)
 
-	NewWithGenerator(NewULIDGenerator())
+	g := NewULIDGenerator()
+	NewWithGenerator(g)
 
 Custom spec with your own Generator implementation
 
-	myCustomGenerator := &newCustomGenerator(arg1, arg2)
+	myCustomGenerator := newCustomGenerator(arg1, arg2)
 	NewWithGenerator(myCustomGenerator)
 
 Routing Usage
