@@ -20,7 +20,7 @@ func TestFlowIdInvalidLength(t *testing.T) {
 func TestFlowIdLength(t *testing.T) {
 	for expected := MinLength; expected <= MaxLength; expected++ {
 		t.Run(strconv.Itoa(expected), func(t *testing.T) {
-			g, err := newBuiltInGenerator(expected)
+			g, err := NewStandardGenerator(expected)
 			if err != nil {
 				t.Errorf("failed to create built-in generator: %v", err)
 			} else {
@@ -56,7 +56,7 @@ func BenchmarkFlowIdBuiltInGenerator(b *testing.B) {
 	for _, l := range []int{8, 10, 12, 14, 16, 26, 32, 64} {
 		b.Run(strconv.Itoa(l), func(b *testing.B) {
 			b.ResetTimer()
-			gen, _ := newBuiltInGenerator(l)
+			gen, _ := NewStandardGenerator(l)
 			for i := 0; i < b.N; i++ {
 				gen.MustGenerate()
 			}

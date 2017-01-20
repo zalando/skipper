@@ -12,15 +12,35 @@ const (
 	HeaderName          = "X-Flow-Id"
 )
 
-type flowIdSpec struct{}
+// The Generator interface can be used to define custom request tracing Flow ID implementations.
+type Generator interface {
+
+	// Generate returns a new Flow ID using the implementation specific format or an error in case of failure.
+	Generate() (string, error)
+
+	// MustGenerate behaves like Generate but panics on failure instead of returning an error.
+	MustGenerate() string
+}
+
+type flowIdSpec struct{
+	name string
+	generator Generator
+}
 
 type flowId struct {
 	reuseExisting bool
-	generator     flowIDGenerator
+	generator     Generator
 }
 
-func New() *flowIdSpec {
+// and here i would still consider if we should have a flowId() and a ulidFlowId() filter with different names
+// what do you think?
+func New() filters.Spec {
 	return &flowIdSpec{}
+}
+
+// question: is it fine that this way the custom filters won't have route specific arguments?
+func WithGenerator(name string, g Generator) filters.Spec {
+	return &flowIdSpec{name: name, generator: g}
 }
 
 func (f *flowId) Request(fc filters.FilterContext) {
@@ -53,15 +73,20 @@ func (spec *flowIdSpec) CreateFilter(fc []interface{}) (filters.Filter, error) {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 	}
+
+	if spec.generator != nil {
+		return &flowId{reuseExisting: reuseExisting, generator: spec.generator}, nil
+	}
+
 	var (
-		gen flowIDGenerator
+		gen Generator
 		err error
 	)
-	gen, err = newBuiltInGenerator(defaultLen)
+	gen, err = NewStandardGenerator(defaultLen)
 	if len(fc) > 1 {
 		switch val := fc[1].(type) {
 		case float64:
-			gen, err = newBuiltInGenerator(int(val))
+			gen, err = NewStandardGenerator(int(val))
 		case string:
 			gen, err = createGenerator(strings.ToLower(val))
 		default:
@@ -74,13 +99,19 @@ func (spec *flowIdSpec) CreateFilter(fc []interface{}) (filters.Filter, error) {
 	return &flowId{reuseExisting: reuseExisting, generator: gen}, nil
 }
 
-func (spec *flowIdSpec) Name() string { return Name }
+func (spec *flowIdSpec) Name() string {
+	if spec.name == "" {
+		return Name
+	}
 
-func createGenerator(generatorId string) (flowIDGenerator, error) {
+	return spec.name
+}
+
+func createGenerator(generatorId string) (Generator, error) {
 	switch generatorId {
 	case "ulid":
-		return newULIDGenerator(), nil
+		return NewULIDGenerator(), nil
 	default:
-		return newBuiltInGenerator(defaultLen)
+		return NewStandardGenerator(defaultLen)
 	}
 }

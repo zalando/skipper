@@ -13,11 +13,11 @@ type ulidGenerator struct {
 	r io.Reader
 }
 
-func newULIDGenerator() flowIDGenerator {
-	return newULIDGeneratorWithEntropyProvider(rand.New(rand.NewSource(time.Now().UTC().UnixNano())))
+func NewULIDGenerator() Generator {
+	return NewULIDGeneratorWithEntropy(rand.New(rand.NewSource(time.Now().UTC().UnixNano())))
 }
 
-func newULIDGeneratorWithEntropyProvider(r io.Reader) flowIDGenerator {
+func NewULIDGeneratorWithEntropy(r io.Reader) Generator {
 	return &ulidGenerator{r: r}
 }
 

@@ -6,7 +6,7 @@ import (
 )
 
 func TestUlidGenerator(t *testing.T) {
-	g := newULIDGenerator()
+	g := NewULIDGenerator()
 	id, err := g.Generate()
 	if err != nil {
 		t.Fatal(err)
@@ -28,7 +28,7 @@ func (r *brokenReader) Read(p []byte) (int, error) {
 }
 
 func TestBuiltInGeneratorBrokenEntropyProvider(t *testing.T) {
-	g := newULIDGeneratorWithEntropyProvider(new(brokenReader))
+	g := NewULIDGeneratorWithEntropy(new(brokenReader))
 	_, err := g.Generate()
 	if err == nil {
 		t.Fatal("expected an error from the entropy provider bur err is nil")
@@ -44,7 +44,7 @@ func TestBuiltInGeneratorBrokenEntropyProvider(t *testing.T) {
 
 func BenchmarkFlowIdULIDGenerator(b *testing.B) {
 	b.Run("Std", func(b *testing.B) {
-		gen := newULIDGenerator()
+		gen := NewULIDGenerator()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			gen.MustGenerate()
