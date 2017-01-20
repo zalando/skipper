@@ -12,24 +12,40 @@ const (
 	HeaderName          = "X-Flow-Id"
 )
 
-type flowIdSpec struct{}
+type flowIdSpec struct {
+	generator Generator
+}
 
 type flowId struct {
 	reuseExisting bool
-	generator     flowIDGenerator
+	generator     Generator
 }
 
+// New creates a new instance of the flowId filter spec which uses the StandardGenerator
+// To use another type of Generator use NewWithGenerator()
 func New() *flowIdSpec {
-	return &flowIdSpec{}
+	g, err := NewStandardGenerator(defaultLen)
+	if err != nil {
+		panic(err)
+	}
+	return NewWithGenerator(g)
 }
 
+// New behaves like New but allows you to specify any other Generator.
+func NewWithGenerator(g Generator) *flowIdSpec {
+	return &flowIdSpec{generator: g}
+}
+
+// Request will inspect the current Request for the presence of an X-Flow-Id header which will be kept in case the
+// "reuse" flag has been set. In any other case it will set the same header with the value returned from the
+// defined Flow ID Generator
 func (f *flowId) Request(fc filters.FilterContext) {
 	r := fc.Request()
 	var flowId string
 
 	if f.reuseExisting {
 		flowId = r.Header.Get(HeaderName)
-		if isValid(flowId) {
+		if f.generator.IsValid(flowId) {
 			return
 		}
 	}
@@ -42,8 +58,12 @@ func (f *flowId) Request(fc filters.FilterContext) {
 	}
 }
 
-func (f *flowId) Response(filters.FilterContext) {}
+// Response is No-Op in this filter
+func (_ *flowId) Response(filters.FilterContext) {}
 
+// CreateFilter will return a new flowId filter from the spec
+// If at least 1 argument is present and it contains the value "reuse", the filter instance is configured to accept
+// keep the value of the X-Flow-Id header, if it's already set
 func (spec *flowIdSpec) CreateFilter(fc []interface{}) (filters.Filter, error) {
 	var reuseExisting bool
 	if len(fc) > 0 {
@@ -52,35 +72,13 @@ func (spec *flowIdSpec) CreateFilter(fc []interface{}) (filters.Filter, error) {
 		} else {
 			return nil, filters.ErrInvalidFilterParameters
 		}
-	}
-	var (
-		gen flowIDGenerator
-		err error
-	)
-	gen, err = newBuiltInGenerator(defaultLen)
-	if len(fc) > 1 {
-		switch val := fc[1].(type) {
-		case float64:
-			gen, err = newBuiltInGenerator(int(val))
-		case string:
-			gen, err = createGenerator(strings.ToLower(val))
-		default:
-			err = filters.ErrInvalidFilterParameters
+		if len(fc) > 1 {
+			log.Println("flow id filter warning: this syntaxt is deprecated and will be removed soon. " +
+				"please check updated docs")
 		}
 	}
-	if err != nil {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-	return &flowId{reuseExisting: reuseExisting, generator: gen}, nil
+	return &flowId{reuseExisting: reuseExisting, generator: spec.generator}, nil
 }
 
-func (spec *flowIdSpec) Name() string { return Name }
-
-func createGenerator(generatorId string) (flowIDGenerator, error) {
-	switch generatorId {
-	case "ulid":
-		return newULIDGenerator(), nil
-	default:
-		return newBuiltInGenerator(defaultLen)
-	}
-}
+// Name returns the canonical filter name
+func (_ *flowIdSpec) Name() string { return Name }
