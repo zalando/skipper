@@ -52,9 +52,6 @@ func TestDeprecatedNewFlowID(t *testing.T) {
 	}
 }
 
-func mustGenerate() {
-}
-
 func BenchmarkFlowIdBuiltInGenerator(b *testing.B) {
 	for _, l := range []int{8, 10, 12, 14, 16, 26, 32, 64} {
 		b.Run(strconv.Itoa(l), func(b *testing.B) {
