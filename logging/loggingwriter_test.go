@@ -62,6 +62,6 @@ func TestSets200OnMissingStatus(t *testing.T) {
 	w.WriteHeader(0)
 
 	if w.code != http.StatusOK {
-		t.Error("failed to overwrite status code. Expected 200 but got %d", w.code)
+		t.Errorf("failed to overwrite status code. Expected 200 but got %d", w.code)
 	}
 }

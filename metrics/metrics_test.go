@@ -32,7 +32,7 @@ func TestDefaultOptions(t *testing.T) {
 	switch counter.(type) {
 	case metrics.NilCounter:
 	default:
-		t.Errorf("Able to get metric counter for key '%s' while it shouldn't be possible")
+		t.Errorf("Able to get metric counter for key '%s' while it shouldn't be possible", KeyRouteFailure)
 	}
 }
 

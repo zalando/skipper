@@ -621,7 +621,7 @@ func TestThrottle(t *testing.T) {
 			defer p.Close()
 
 			req, err := http.NewRequest("GET", p.URL,
-				&io.LimitedReader{rand.New(rand.NewSource(0)), testDataLen})
+				&io.LimitedReader{R: rand.New(rand.NewSource(0)), N: testDataLen})
 			if err != nil {
 				t.Error(ti.msg, err)
 				return
