@@ -582,6 +582,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		p.metrics.MeasureBackend(rt.Id, start)
+		p.metrics.MeasureBackendHost(rt.Host, start)
 		c.res = rs
 	}
 
