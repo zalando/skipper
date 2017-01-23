@@ -202,7 +202,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			log.Error(err)
 			return nil, err
 		}
-
+		// TODO: where to add/defer f.Close() ?
 		clients = append(clients, f)
 	}
 
@@ -340,6 +340,7 @@ func Run(o Options) error {
 
 	// append custom data clients
 	dataClients = append(dataClients, o.CustomDataClients...)
+	// defer for each dataClient.Close(), but it's nor part of the API :/
 
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
