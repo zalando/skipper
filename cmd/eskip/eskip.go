@@ -33,6 +33,12 @@ const (
 	reset  command = "reset"
 	delete command = "delete"
 	patch  command = "patch"
+	ver command = "version"
+)
+
+var (
+	version      string
+	commit       string
 )
 
 // map command string to command function
@@ -42,7 +48,8 @@ var commands = map[command]commandFunc{
 	upsert: upsertCmd,
 	reset:  resetCmd,
 	delete: deleteCmd,
-	patch:  patchCmd}
+	patch:  patchCmd,
+	ver: versionCmd}
 
 var (
 	missingCommand = errors.New("missing command")
@@ -98,6 +105,15 @@ func getCommand(args []string) (command, error) {
 	}
 }
 
+func versionCmd(cmdArgs) error {
+	fmt.Printf(
+		"eskip version %s (commit: %s)\n",
+		version, commit,
+	)
+
+	return nil
+}
+
 func main() {
 	// print detailed usage if requested and exit:
 	if isHelp() {
@@ -108,6 +124,11 @@ func main() {
 	cmd, err := getCommand(os.Args)
 	if err != nil {
 		exitHint(err)
+	}
+
+	if cmd == ver {
+		commands[cmd](cmdArgs{})
+		exit(nil)
 	}
 
 	// process arguments, not checking if they make any sense:

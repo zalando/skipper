@@ -3,15 +3,15 @@ sudo: false
 language: go
 
 go:
-  - 1.7.3
+  - 1.7.4
 
-install:
-  - go get golang.org/x/sys/unix
-  - go get golang.org/x/crypto/ssh/terminal
-  - go get -t github.com/zalando/skipper/...
-  - $GOPATH/src/github.com/zalando/skipper/etcd/install.sh
-  - go get github.com/tools/godep
-  - godep restore ./...
+env:
+  global:
+  - secure: nlYfPenIHCyxeTA0Kgm1h1cxWHQufDmPXBw8pzFBhVeRLNg8oW48UFG/XZbuIQKiMvNfFO9F49x6ef0iUFdLuu18a7aCAMgwojG0y3Tf9+P8Bs7zxeKSVBIyWsA6/EVV6ruh/zVfSc29PpIZLX8kMXQexe1p+Oomo+3XSJKWKp0Uxl9p9lTPPe/Uugi5j8ELBU/ODWtpNVsRzY+GcHbG54ktDmfBEyOOsKnU0FljMk4er6Dz99FckTtSv3QDPr56hu8rEwgbl0UbBqVyfsZCNwXgXJUilt7EDcdwnjLXy4nI9oM7QfPD5crPytghiw1M+QgJVCooT7DVy5y+IeFIZj3H1UhGPBe71zM3d2PmypQI5VmmJ021MnRD8COLc3Eob9TpUZcQihMJQWbekzJh9E9dZbd1TEbINffURApJAFEl46nStMd44yHWczKCBqJRp6hYdb4sknCqrXiBsjKJ3Cv11MQa1CtDmjdie/Vd9yk9n4eCCnM/QP0mcQwRzrgXquTChHQKiGVCQ13H4UeZ5isfzC2aaP+UuVzMSvASGwFA/qgmB4EK5noqpvy+Norv5stxJ2orDApR+xzrQputUyJzFymTbI6c5vFjc2REsHNXTYgxDnfoewUBdJRhxneu4ND2apsu+HHBHYwsAZ2+bTF0g9fynwyLfL7ZSHSsMFE=
+
+branches:
+  except:
+  - "/^v\\d+[.]\\d+[.]\\d+.*/"
 
 script:
-  - go test github.com/zalando/skipper/... -test.short
+- make ci-trigger
