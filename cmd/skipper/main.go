@@ -16,11 +16,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"fmt"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper"
@@ -74,12 +74,12 @@ const (
 	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file"
 	backendFlushIntervalUsage      = "flush interval for upgraded proxy connections"
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
-	versionUsage = "print Skipper version"
+	versionUsage                   = "print Skipper version"
 )
 
 var (
-	version      string
-	commit       string
+	version string
+	commit  string
 )
 
 var (
@@ -118,7 +118,7 @@ var (
 	keyPathTLS                string
 	backendFlushInterval      time.Duration
 	experimentalUpgrade       bool
-	printVersion bool
+	printVersion              bool
 )
 
 func init() {

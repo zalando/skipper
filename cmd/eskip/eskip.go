@@ -33,12 +33,12 @@ const (
 	reset  command = "reset"
 	delete command = "delete"
 	patch  command = "patch"
-	ver command = "version"
+	ver    command = "version"
 )
 
 var (
-	version      string
-	commit       string
+	version string
+	commit  string
 )
 
 // map command string to command function
@@ -49,7 +49,7 @@ var commands = map[command]commandFunc{
 	reset:  resetCmd,
 	delete: deleteCmd,
 	patch:  patchCmd,
-	ver: versionCmd}
+	ver:    versionCmd}
 
 var (
 	missingCommand = errors.New("missing command")
