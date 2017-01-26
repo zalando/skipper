@@ -86,7 +86,7 @@ else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring minor-release,$(
 else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
 	make release-patch
 else ifeq ($(TRAVIS_BRANCH), master)
-	make check-precommit
+	make deps check-precommit
 else
-	make check
+	make deps check
 endif
