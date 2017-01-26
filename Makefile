@@ -88,5 +88,5 @@ else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
 else ifeq ($(TRAVIS_BRANCH), master)
 	make deps check-precommit
 else
-	make deps check
+	make deps shortcheck
 endif
