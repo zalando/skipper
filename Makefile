@@ -53,7 +53,7 @@ fmt: $(SOURCES)
 	gofmt -w $(SOURCES)
 
 check-fmt: $(SOURCES)
-	test "$$(gofmt -d $(SOURCES))" == ""
+	[ "$$(gofmt -d $(SOURCES))" == "" ]
 
 precommit: build shortcheck fmt vet
 
