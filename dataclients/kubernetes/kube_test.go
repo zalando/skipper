@@ -845,21 +845,6 @@ func TestHealthcheckInitial(t *testing.T) {
 
 		checkHealthcheck(t, r, true, true)
 	})
-
-	t.Run("use healthcheck, fail", func(t *testing.T) {
-		api.failNext = true
-		dc := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: true,
-		})
-
-		r, err := dc.LoadAll()
-		if err != nil {
-			t.Log("Got an error, routes will not be changed. This is fine.")
-		}
-
-		checkHealthcheck(t, r, false, false)
-	})
 }
 
 func TestHealthcheckUpdate(t *testing.T) {
@@ -976,36 +961,6 @@ func TestHealthcheckReload(t *testing.T) {
 		}
 
 		checkHealthcheck(t, r, false, false)
-	})
-
-	t.Run("use healthcheck, reload fail", func(t *testing.T) {
-		api.services = testServices()
-		api.ingresses.Items = testIngresses()
-
-		dc := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: true,
-		})
-
-		prevr, _ := dc.LoadAll()
-		api.failNext = true
-
-		r, err := dc.LoadAll()
-		if err != nil {
-			r = prevr
-		}
-
-		checkHealthcheck(t, r, true, true)
-		checkRoutes(t, r, map[string]string{
-			healthcheckRouteID:                                    "",
-			"kube_namespace1__default_only____":                   "http://1.2.3.4:8080",
-			"kube_namespace2__path_rule_only__www_example_org___": "http://9.0.1.2:7272",
-			"kube_namespace1__mega____":                           "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org___test1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test2":      "http://5.6.7.8:8181",
-		})
 	})
 
 	t.Run("use healthcheck, reload succeeds", func(t *testing.T) {
