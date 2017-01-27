@@ -16,6 +16,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -73,6 +74,12 @@ const (
 	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file"
 	backendFlushIntervalUsage      = "flush interval for upgraded proxy connections"
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
+	versionUsage                   = "print Skipper version"
+)
+
+var (
+	version string
+	commit  string
 )
 
 var (
@@ -111,6 +118,7 @@ var (
 	keyPathTLS                string
 	backendFlushInterval      time.Duration
 	experimentalUpgrade       bool
+	printVersion              bool
 )
 
 func init() {
@@ -149,6 +157,7 @@ func init() {
 	flag.StringVar(&keyPathTLS, "tls-key", "", keyPathTLSUsage)
 	flag.DurationVar(&backendFlushInterval, "backend-flush-interval", defaultBackendFlushInterval, backendFlushIntervalUsage)
 	flag.BoolVar(&experimentalUpgrade, "experimental-upgrade", defaultExperimentalUpgrade, experimentalUpgradeUsage)
+	flag.BoolVar(&printVersion, "version", false, versionUsage)
 	flag.Parse()
 }
 
@@ -167,6 +176,15 @@ func parseDurationFlag(ds string) (time.Duration, error) {
 }
 
 func main() {
+	if printVersion {
+		fmt.Printf(
+			"Skipper version %s (commit: %s)\n",
+			version, commit,
+		)
+
+		return
+	}
+
 	if logLevel, err := log.ParseLevel(applicationLogLevel); err != nil {
 		log.Fatal(err)
 	} else {
