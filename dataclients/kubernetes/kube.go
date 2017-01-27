@@ -343,16 +343,6 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	r, err := c.loadAndConvert()
 	if err != nil {
 		log.Debugf("failed to load all: %v", err)
-
-		// moving the error handling decision to the data client,
-		// preserving the previous state to the routing, except
-		// for the healthcheck
-		if c.provideHealthcheck {
-			log.Error("error while receiveing all ingress routes;", err)
-			c.current[healthcheckRouteID] = healthcheckRoute(false)
-			return c.listRoutes(), nil
-		}
-
 		return nil, err
 	}
 
