@@ -51,15 +51,13 @@ func inc(cmd string, major, minor, patch *int) {
 func main() {
 	cmd, current, err := command()
 	if err != nil {
-		log.Println(usage())
-		return
+		log.Fatalln(usage())
 	}
 
 	var major, minor, patch int
 	_, err = fmt.Sscanf(current, format, &major, &minor, &patch)
 	if err != nil {
-		log.Println(err)
-		return
+		log.Fatalln(err)
 	}
 
 	inc(cmd, &major, &minor, &patch)
