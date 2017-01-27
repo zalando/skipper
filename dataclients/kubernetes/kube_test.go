@@ -855,10 +855,10 @@ func TestHealthcheckInitial(t *testing.T) {
 
 		r, err := dc.LoadAll()
 		if err != nil {
-			t.Error(err)
+			t.Log("Got an error, routes will not be changed. This is fine.")
 		}
 
-		checkHealthcheck(t, r, true, false)
+		checkHealthcheck(t, r, false, false)
 	})
 }
 
@@ -987,15 +987,15 @@ func TestHealthcheckReload(t *testing.T) {
 			ProvideHealthcheck: true,
 		})
 
-		dc.LoadAll()
+		prevr, _ := dc.LoadAll()
 		api.failNext = true
 
 		r, err := dc.LoadAll()
 		if err != nil {
-			t.Error("failed to fail")
+			r = prevr
 		}
 
-		checkHealthcheck(t, r, true, false)
+		checkHealthcheck(t, r, true, true)
 		checkRoutes(t, r, map[string]string{
 			healthcheckRouteID:                                    "",
 			"kube_namespace1__default_only____":                   "http://1.2.3.4:8080",
