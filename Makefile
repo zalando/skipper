@@ -1,9 +1,9 @@
 SOURCES =         $(shell find . -name '*.go')
 CURRENT_VERSION = $(shell git tag | sort -V | tail -n1)
 VERSION ?=        $(CURRENT_VERSION)
-NEXT_MAJOR =      $(shell go run packaging/version/version.go major $(currentVersion))
-NEXT_MINOR =      $(shell go run packaging/version/version.go minor $(currentVersion))
-NEXT_PATCH =      $(shell go run packaging/version/version.go patch $(currentVersion))
+NEXT_MAJOR =      $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
+NEXT_MINOR =      $(shell go run packaging/version/version.go minor $(CURRENT_VERSION))
+NEXT_PATCH =      $(shell go run packaging/version/version.go patch $(CURRENT_VERSION))
 COMMIT_HASH =     $(shell git rev-parse --short HEAD)
 
 default: build
