@@ -63,20 +63,20 @@ ci-user:
 	git config --global user.email "builds@travis-ci.com"
 	git config --global user.name "Travis CI"
 
-tag: ci-user
+ci-tag: ci-user
 	git tag $(VERSION)
 
-push-tags:
+ci-push-tags: ci-user
 	git push --tags https://$(GITHUB_AUTH)@github.com/zalando/skipper
 
 release-major:
-	make VERSION=$(NEXT_MAJOR) tag push-tags
+	make VERSION=$(NEXT_MAJOR) ci-tag ci-push-tags
 
 release-minor:
-	make VERSION=$(NEXT_MINOR) tag push-tags
+	make VERSION=$(NEXT_MINOR) ci-tag ci-push-tags
 
 release-patch:
-	make VERSION=$(NEXT_PATCH) tag push-tags
+	make VERSION=$(NEXT_PATCH) ci-tag ci-push-tags
 
 ci-trigger:
 ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)
