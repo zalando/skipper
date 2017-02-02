@@ -26,17 +26,19 @@ type (
 	}
 
 	debugDocument struct {
-		RouteId         string            `json:"route_id,omitempty"`
-		Route           string            `json:"route,omitempty"`
-		Incoming        *debugRequest     `json:"incoming,omitempty"`
-		Outgoing        *debugRequest     `json:"outgoing,omitempty"`
-		ResponseMod     *debugResponseMod `json:"response_mod,omitempty"`
-		RequestBody     string            `json:"request_body,omitempty"`
-		RequestErr      string            `json:"request_error,omitempty"`
-		ResponseModBody string            `json:"response_mod_body,omitempty"`
-		ResponseModErr  string            `json:"response_mod_error,omitempty"`
-		ProxyError      string            `json:"proxy_error,omitempty"`
-		FilterPanics    []string          `json:"filter_panics,omitempty"`
+		RouteId         string             `json:"route_id,omitempty"`
+		Route           string             `json:"route,omitempty"`
+		Incoming        *debugRequest      `json:"incoming,omitempty"`
+		Outgoing        *debugRequest      `json:"outgoing,omitempty"`
+		ResponseMod     *debugResponseMod  `json:"response_mod,omitempty"`
+		RequestBody     string             `json:"request_body,omitempty"`
+		RequestErr      string             `json:"request_error,omitempty"`
+		ResponseModBody string             `json:"response_mod_body,omitempty"`
+		ResponseModErr  string             `json:"response_mod_error,omitempty"`
+		ProxyError      string             `json:"proxy_error,omitempty"`
+		FilterPanics    []string           `json:"filter_panics,omitempty"`
+		Filters         []*eskip.Filter    `json:"filters,omitempty"`
+		Predicates      []*eskip.Predicate `json:"predicates,omitempty"`
 	}
 )
 
@@ -78,6 +80,8 @@ func convertDebugInfo(d *debugInfo) debugDocument {
 	if d.route != nil {
 		doc.RouteId = d.route.Id
 		doc.Route = d.route.String()
+		doc.Filters = d.route.Filters
+		doc.Predicates = d.route.Predicates
 	}
 
 	var requestBody io.Reader
