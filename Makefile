@@ -50,7 +50,7 @@ vet: $(SOURCES)
 	go vet ./...
 
 fmt: $(SOURCES)
-	gofmt -w $(SOURCES)
+	@gofmt -w $(SOURCES)
 
 check-fmt: $(SOURCES)
 	if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi
