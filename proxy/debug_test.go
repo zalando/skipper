@@ -23,9 +23,13 @@ func TestDebug(t *testing.T) {
 		"full doc",
 		debugInfo{
 			route: &eskip.Route{
-				Id:      "testRoute",
-				Path:    "/hello",
-				Backend: "https://www.example.org"},
+				Id:         "testRoute",
+				Path:       "/hello",
+				Backend:    "https://www.example.org",
+				Predicates: []*eskip.Predicate{{"Test", []interface{}{3.14, "hello"}}},
+				Filters: []*eskip.Filter{
+					{"filter0", []interface{}{float64(3.1415), "argvalue"}},
+					{"filter1", []interface{}{float64(-42), `ap"argvalue`}}}},
 			incoming: &http.Request{
 				Method:     "OPTIONS",
 				RequestURI: "/testuri",
@@ -47,7 +51,16 @@ func TestDebug(t *testing.T) {
 				Body:       &bodyBuffer{bytes.NewBufferString("response body")}}},
 		debugDocument{
 			RouteId: "testRoute",
-			Route:   (&eskip.Route{Path: "/hello", Backend: "https://www.example.org"}).String(),
+			Route: (&eskip.Route{
+				Path: "/hello", Backend: "https://www.example.org",
+				Predicates: []*eskip.Predicate{{"Test", []interface{}{3.14, "hello"}}},
+				Filters: []*eskip.Filter{
+					{"filter0", []interface{}{float64(3.1415), "argvalue"}},
+					{"filter1", []interface{}{float64(-42), `ap"argvalue`}}}}).String(),
+			Predicates: []*eskip.Predicate{{"Test", []interface{}{3.14, "hello"}}},
+			Filters: []*eskip.Filter{
+				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
+				{"filter1", []interface{}{float64(-42), `ap"argvalue`}}},
 			Incoming: &debugRequest{
 				Method:        "OPTIONS",
 				Uri:           "/testuri",
