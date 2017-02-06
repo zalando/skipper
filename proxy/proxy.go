@@ -576,7 +576,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				sendError(w, http.StatusText(code), code)
 				p.metrics.MeasureServe(rt.Id, r.Host, r.Method, code, startServe)
-				log.Error(err)
+				log.Error("error during backend roundtrip", err)
 				return
 			}
 		}
@@ -597,7 +597,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer func(body io.Closer) {
 			err := body.Close()
 			if err != nil {
-				log.Error(err)
+				log.Error("error during closing the response body", err)
 			}
 		}(c.res.Body)
 	}
@@ -621,7 +621,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err := copyStream(w.(flusherWriter), response.Body)
 		if err != nil {
 			p.metrics.IncErrorsStreaming(rt.Id)
-			log.Error(err)
+			log.Error("error while copying the response stream", err)
 		} else {
 			p.metrics.MeasureResponse(response.StatusCode, r.Method, rt.Id, start)
 		}

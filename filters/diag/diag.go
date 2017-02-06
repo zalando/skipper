@@ -140,7 +140,7 @@ func (r *random) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 		ni, err := w.Write(b)
 		if err != nil {
-			log.Error(err)
+			log.Error("error while writing random content", err)
 			return
 		}
 
