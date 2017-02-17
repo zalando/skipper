@@ -90,4 +90,4 @@ Skipper's [godoc](https://godoc.org/github.com/zalando/skipper) page includes de
 
 ### Packaging support
 
-See https://github.com/zalando/skipper/packaging/readme.md
+See https://github.com/zalando/skipper/blob/master/packaging/readme.md
