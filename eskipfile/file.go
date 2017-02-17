@@ -317,6 +317,10 @@ func (c *Client) LoadAll() (allRoutes []*eskip.Route, err error) {
 // Noop. The current implementation doesn't support watching the eskip
 // file for changes.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
+	if !c.watchChanges {
+		return nil, nil, nil
+	}
+
 	c.mutex.Lock()
 
 	defer c.cleanupUpdates()
