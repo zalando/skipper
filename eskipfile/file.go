@@ -254,6 +254,23 @@ func (c *Client) handleDelete(path string) {
 		return
 	}
 
+	_, isJustCreated := c.creates[path]
+
+	if isJustCreated {
+		delete(c.creates, path)
+
+		// no need to create it. so just return
+		return
+	}
+
+	_, isJustUpdated := c.updates[path]
+
+	if isJustUpdated {
+		// ignore updates but delete the routes created before
+		// so do not return
+		delete(c.updates, path)
+	}
+
 	value, ok := c.deletes[path]
 	if !value || !ok {
 		c.deletes[path] = true
