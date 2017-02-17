@@ -197,7 +197,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
-		f, err := eskipfile.Open(o.RoutesFile)
+		f, err := eskipfile.Watch(o.RoutesFile)
 		if err != nil {
 			log.Error("error while opening eskip file", err)
 			return nil, err
