@@ -115,8 +115,12 @@ func DeleteAllFrom(prefix string) error {
 	}
 
 	rsp, err := (&http.Client{}).Do(req)
-	defer rsp.Body.Close()
-	return err
+	if err != nil {
+		return err
+	}
+
+	rsp.Body.Close()
+	return nil
 }
 
 // Deletes a route from etcd with the prefix '/skippertest'.
