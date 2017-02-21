@@ -936,7 +936,6 @@ func TestRoundtripperRetry(t *testing.T) {
 			return
 		}
 
-		println("closing now")
 		if err := l.lastConn.Close(); err != nil {
 			t.Error(err)
 			return
