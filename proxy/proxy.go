@@ -227,7 +227,12 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	u.Scheme = rt.Scheme
 	u.Host = rt.Host
 
-	rr, err := http.NewRequest(r.Method, u.String(), r.Body)
+	body := r.Body
+	if r.ContentLength == 0 {
+		body = nil
+	}
+
+	rr, err := http.NewRequest(r.Method, u.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -576,7 +581,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				sendError(w, http.StatusText(code), code)
 				p.metrics.MeasureServe(rt.Id, r.Host, r.Method, code, startServe)
-				log.Error("error during backend roundtrip", err)
+				log.Error("error during backend roundtrip: ", err)
 				return
 			}
 		}

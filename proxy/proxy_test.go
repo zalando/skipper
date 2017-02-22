@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -51,6 +52,11 @@ type testProxy struct {
 	log     *loggingtest.Logger
 	routing *routing.Routing
 	proxy   *Proxy
+}
+
+type listener struct {
+	inner    net.Listener
+	lastConn net.Conn
 }
 
 func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
@@ -191,6 +197,24 @@ func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Se
 
 		w.Write(payload)
 	}))
+}
+
+func (l *listener) Accept() (c net.Conn, err error) {
+	c, err = l.inner.Accept()
+	if err != nil {
+		return
+	}
+
+	l.lastConn = c
+	return
+}
+
+func (l *listener) Close() error {
+	return l.inner.Close()
+}
+
+func (l *listener) Addr() net.Addr {
+	return l.inner.Addr()
 }
 
 func TestGetRoundtrip(t *testing.T) {
@@ -894,5 +918,68 @@ func TestBackendServiceUnavailable(t *testing.T) {
 
 	if rsp.StatusCode != http.StatusServiceUnavailable {
 		t.Error("failed to return 503 Service Unavailable on failing backend connection")
+	}
+}
+
+func TestRoundtripperRetry(t *testing.T) {
+	closeServer := false
+	var l *listener
+	handler := func(http.ResponseWriter, *http.Request) {
+		if !closeServer {
+			return
+		}
+
+		closeServer = false
+
+		if l.lastConn == nil {
+			t.Error("failed to capture connection")
+			return
+		}
+
+		if err := l.lastConn.Close(); err != nil {
+			t.Error(err)
+			return
+		}
+	}
+
+	backend := httptest.NewServer(http.HandlerFunc(handler))
+	defer backend.Close()
+
+	l = &listener{inner: backend.Listener}
+	backend.Listener = l
+
+	tp, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, backend.URL), 0)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	proxy := httptest.NewServer(tp.proxy)
+	defer proxy.Close()
+
+	// create a connection in the pool:
+	rsp, err := http.Get(proxy.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if rsp.StatusCode != http.StatusOK {
+		t.Error("failed to retry failing connection")
+	}
+
+	// repeat with one failing request on the server
+	closeServer = true
+
+	rsp, err = http.Get(proxy.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if rsp.StatusCode != http.StatusOK {
+		t.Error("failed to retry failing connection")
 	}
 }
