@@ -81,9 +81,9 @@ ci-user:
 	git config --global user.email "builds@travis-ci.com"
 	git config --global user.name "Travis CI"
 
-ci-release-major: ci-user release-major
-ci-release-minor: ci-user release-minor
-ci-release-patch: ci-user release-patch
+ci-release-major: ci-user deps release-major
+ci-release-minor: ci-user deps release-minor
+ci-release-patch: ci-user deps release-patch
 
 ci-trigger:
 ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)

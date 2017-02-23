@@ -4,17 +4,18 @@ VERSION  ?= $(shell git rev-parse HEAD)
 REGISTRY ?= registry-write.opensource.zalan.do/pathfinder
 IMAGE    ?= $(REGISTRY)/skipper:$(VERSION)
 
-SOURCES = $(shell find .. -name '*.go')
-
 default: docker-build
 
-skipper: $(SOURCES)
+skipper:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/skipper
 
-eskip: $(SOURCES)
+eskip:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/eskip
 
-docker-build: skipper eskip
+clean:
+	rm skipper eskip
+
+docker-build: clean skipper eskip
 	docker build -t $(IMAGE) .
 
 docker-push:
