@@ -59,32 +59,39 @@ precommit: build shortcheck fmt vet
 
 check-precommit: build shortcheck check-fmt vet
 
+tag:
+	git tag $(VERSION)
+
+push-tags:
+	git push --tags https://$(GITHUB_AUTH)@github.com/zalando/skipper
+
+release-major:
+	make VERSION=$(NEXT_MAJOR) tag push-tags
+	make -C packaging VERSION=$(NEXT_MAJOR) docker-build docker-push
+
+release-minor:
+	make VERSION=$(NEXT_MINOR) tag push-tags
+	make -C packaging VERSION=$(NEXT_MINOR) docker-build docker-push
+
+release-patch:
+	make VERSION=$(NEXT_PATCH) tag push-tags
+	make -C packaging VERSION=$(NEXT_PATCH) docker-build docker-push
+
 ci-user:
 	git config --global user.email "builds@travis-ci.com"
 	git config --global user.name "Travis CI"
 
-ci-tag: ci-user
-	git tag $(VERSION)
-
-ci-push-tags: ci-user
-	git push --tags https://$(GITHUB_AUTH)@github.com/zalando/skipper
-
-release-major:
-	make VERSION=$(NEXT_MAJOR) ci-tag ci-push-tags
-
-release-minor:
-	make VERSION=$(NEXT_MINOR) ci-tag ci-push-tags
-
-release-patch:
-	make VERSION=$(NEXT_PATCH) ci-tag ci-push-tags
+ci-release-major: ci-user release-major
+ci-release-minor: ci-user release-minor
+ci-release-patch: ci-user release-patch
 
 ci-trigger:
 ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)
-	make release-major
+	make ci-release-major
 else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring minor-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_minor-release)
-	make release-minor
+	make ci-release-minor
 else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
-	make release-patch
+	make ci-release-patch
 else ifeq ($(TRAVIS_BRANCH), master)
 	make deps check-precommit
 else
