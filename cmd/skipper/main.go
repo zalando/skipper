@@ -134,7 +134,7 @@ func init() {
 	flag.StringVar(&closeIdleConnsPeriod, "close-idle-conns-period", strconv.Itoa(int(proxy.DefaultCloseIdleConnsPeriod/time.Second)), closeIdleConnsPeriodUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
 	flag.BoolVar(&kubernetes, "kubernetes", false, kubernetesUsage)
-	flag.BoolVar(&kubernetesHealthcheckUsage, "kubernetes-in-cluster", false, kubernetesInCluster)
+	flag.BoolVar(&kubernetesInCluster, "kubernetes-in-cluster", false, kubernetesInClusterUsage)
 	flag.StringVar(&kubernetesURL, "kubernetes-url", "", kubernetesURLUsage)
 	flag.BoolVar(&kubernetesHealthcheck, "kubernetes-healthcheck", true, kubernetesHealthcheckUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
@@ -212,6 +212,8 @@ func main() {
 		Address:                   address,
 		EtcdUrls:                  eus,
 		EtcdPrefix:                etcdPrefix,
+		Kubernetes:                kubernetes,
+		KubernetesInCluster:       kubernetesInCluster,
 		KubernetesURL:             kubernetesURL,
 		KubernetesHealthcheck:     kubernetesHealthcheck,
 		InnkeeperUrl:              innkeeperUrl,

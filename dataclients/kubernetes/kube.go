@@ -20,11 +20,16 @@ package kubernetes
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -39,11 +44,16 @@ import (
 // - provide option to limit the used namespaces?
 
 const (
-	defaultKubernetesURL = "http://localhost:8001"
-	ingressesURI         = "/apis/extensions/v1beta1/ingresses"
-	serviceURIFmt        = "/api/v1/namespaces/%s/services/%s"
-	healthcheckRouteID   = "kube__healthz"
-	healthcheckPath      = "/kube-system/healthz"
+	defaultKubernetesURL    = "http://localhost:8001"
+	ingressesURI            = "/apis/extensions/v1beta1/ingresses"
+	serviceURIFmt           = "/api/v1/namespaces/%s/services/%s"
+	serviceAccountDir       = "/var/run/secrets/kubernetes.io/serviceaccount/"
+	serviceAccountTokenKey  = "token"
+	serviceAccountRootCAKey = "ca.crt"
+	serviceHostEnvVar       = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar       = "KUBERNETES_SERVICE_PORT"
+	healthcheckRouteID      = "kube__healthz"
+	healthcheckPath         = "/kube-system/healthz"
 )
 
 var internalIPs = []interface{}{
@@ -57,7 +67,10 @@ var internalIPs = []interface{}{
 
 // Options is used to initialize the Kubernetes DataClient.
 type Options struct {
-
+	// KubernetesInCluster defines if skipper is deployed and running in the kubernetes cluster
+	// this would make authentication with API server happen through the service account, rather than
+	// running along side kubectl proxy
+	KubernetesInCluster bool
 	// KubernetesURL is used as the base URL for Kubernetes API requests. Defaults to http://localhost:8001.
 	// (TBD: support in-cluster operation by taking the address and certificate from the standard Kubernetes
 	// environment variables.)
@@ -79,6 +92,7 @@ type Options struct {
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
+	httpClient         *http.Client
 	apiURL             string
 	provideHealthcheck bool
 	current            map[string]*eskip.Route
@@ -87,29 +101,82 @@ type Client struct {
 var nonWord = regexp.MustCompile("\\W")
 
 var (
-	errServiceNotFound     = errors.New("service not found")
-	errServicePortNotFound = errors.New("service port not found")
+	errServiceNotFound        = errors.New("service not found")
+	errServicePortNotFound    = errors.New("service port not found")
+	errAPIServerNotDiscovered = errors.New("kubernetes API server URL could not be constructed")
+	errInvalidCertificate     = errors.New("discovered certificate is invalid")
 )
 
 // New creates and initializes a Kubernetes DataClient.
-func New(o Options) *Client {
-	if o.KubernetesURL == "" {
-		o.KubernetesURL = defaultKubernetesURL
+func New(o Options) (*Client, error) {
+	httpClient, err := buildHTTPClient(o.KubernetesInCluster)
+	if err != nil {
+		return nil, err
 	}
 
-	log.Debugf("kube client initialized with api address: %s; with healthcheck: %t",
-		o.KubernetesURL, o.ProvideHealthcheck)
+	apiURL, err := buildAPIURL(o)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck)
+
 	return &Client{
-		apiURL:             o.KubernetesURL,
+		httpClient:         httpClient,
+		apiURL:             apiURL,
 		provideHealthcheck: o.ProvideHealthcheck,
 		current:            make(map[string]*eskip.Route),
+	}, nil
+}
+
+func buildHTTPClient(inCluster bool) (*http.Client, error) {
+	if !inCluster {
+		return http.DefaultClient, nil
 	}
+
+	rootCA, err := ioutil.ReadFile(serviceAccountDir + serviceAccountRootCAKey)
+	if err != nil {
+		return nil, err
+	}
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(rootCA) {
+		return nil, errInvalidCertificate
+	}
+
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    certPool,
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	return &http.Client{
+		Transport: transport,
+	}, nil
+}
+
+func buildAPIURL(o Options) (string, error) {
+	if !o.KubernetesInCluster {
+		if o.KubernetesURL == "" {
+			return defaultKubernetesURL, nil
+		}
+		return o.KubernetesURL, nil
+	}
+
+	host, port := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
+	if len(host) == 0 || len(port) == 0 {
+		return "", errAPIServerNotDiscovered
+	}
+
+	return "https://" + net.JoinHostPort(host, port), nil
 }
 
 func (c *Client) getJSON(uri string, a interface{}) error {
 	url := c.apiURL + uri
 	log.Debugf("making request to: %s", url)
-	rsp, err := http.Get(url)
+	rsp, err := c.httpClient.Get(url)
 	if err != nil {
 		log.Debugf("request to %s failed: %v", url, err)
 		return err
