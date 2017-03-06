@@ -128,11 +128,11 @@ func Init(o Options) {
 	handler := &metricsHandler{registry: Default.reg, options: o}
 	if o.EnableProfile {
 		mux := http.NewServeMux()
-		mux.Handle("/pprof/", http.HandlerFunc(pprof.Index))
-		mux.Handle("/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-		mux.Handle("/pprof/profile", http.HandlerFunc(pprof.Profile))
-		mux.Handle("/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-		mux.Handle("/pprof/trace", http.HandlerFunc(pprof.Trace))
+		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 		handler.profile = mux
 	}
 

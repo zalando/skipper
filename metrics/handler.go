@@ -51,7 +51,7 @@ func (mh *metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := r.URL.Path
 	if r.Method == "GET" && (p == "/metrics" || strings.HasPrefix(p, "/metrics/")) {
 		mh.sendMetrics(w, strings.TrimPrefix(p, "/metrics"))
-	} else if mh.profile != nil && r.Method == "GET" && (p == "/pprof" || strings.HasPrefix(p, "/pprof/")) {
+	} else if mh.profile != nil && r.Method == "GET" && (p == "/debug/pprof" || strings.HasPrefix(p, "/debug/pprof/")) {
 		mh.profile.ServeHTTP(w, r)
 	} else {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
