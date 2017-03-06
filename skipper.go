@@ -137,6 +137,10 @@ type Options struct {
 	// You can customize those key names with your own prefix
 	MetricsPrefix string
 
+	// EnableProfile exposes profiling information on /profile of the
+	// metrics listener.
+	EnableProfile bool
+
 	// Flag that enables reporting of the Go garbage collector statistics exported in debug.GCStats
 	EnableDebugGcMetrics bool
 
@@ -323,6 +327,7 @@ func Run(o Options) error {
 		EnableRuntimeMetrics:    o.EnableRuntimeMetrics,
 		EnableServeRouteMetrics: o.EnableServeRouteMetrics,
 		EnableServeHostMetrics:  o.EnableServeHostMetrics,
+		EnableProfile:           o.EnableProfile,
 	})
 
 	// create authentication for Innkeeper

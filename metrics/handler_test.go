@@ -12,7 +12,7 @@ import (
 func TestBadRequests(t *testing.T) {
 	o := Options{Listener: ":0", EnableRuntimeMetrics: true}
 	r := metrics.NewRegistry()
-	mh := &metricsHandler{r, o}
+	mh := &metricsHandler{registry: r, options: o}
 
 	r1, _ := http.NewRequest("GET", "/", nil)
 	rw1 := httptest.NewRecorder()
@@ -34,7 +34,7 @@ func TestAllMetricsRequest(t *testing.T) {
 	o := Options{}
 	reg := metrics.NewRegistry()
 	metrics.RegisterRuntimeMemStats(reg)
-	mh := &metricsHandler{reg, o}
+	mh := &metricsHandler{registry: reg, options: o}
 
 	r, _ := http.NewRequest("GET", "/metrics", nil)
 	rw := httptest.NewRecorder()
@@ -57,7 +57,7 @@ func TestSingleMetricsRequest(t *testing.T) {
 	o := Options{}
 	reg := metrics.NewRegistry()
 	metrics.RegisterRuntimeMemStats(reg)
-	mh := &metricsHandler{reg, o}
+	mh := &metricsHandler{registry: reg, options: o}
 
 	r, _ := http.NewRequest("GET", "/metrics/runtime.MemStats.NumGC", nil)
 	rw := httptest.NewRecorder()
@@ -84,7 +84,7 @@ func TestSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
 	o := Options{Prefix: "zmon."}
 	reg := metrics.NewRegistry()
 	metrics.RegisterRuntimeMemStats(reg)
-	mh := &metricsHandler{reg, o}
+	mh := &metricsHandler{registry: reg, options: o}
 
 	r, _ := http.NewRequest("GET", "/metrics/zmon.runtime.MemStats.NumGC", nil)
 	rw := httptest.NewRecorder()
@@ -111,7 +111,7 @@ func TestMetricsRequestWithPattern(t *testing.T) {
 	o := Options{}
 	reg := metrics.NewRegistry()
 	metrics.RegisterRuntimeMemStats(reg)
-	mh := &metricsHandler{reg, o}
+	mh := &metricsHandler{registry: reg, options: o}
 
 	r, _ := http.NewRequest("GET", "/metrics/runtime.Num", nil)
 	rw := httptest.NewRecorder()
@@ -146,7 +146,7 @@ func TestUnknownMetricRequest(t *testing.T) {
 	o := Options{}
 	reg := metrics.NewRegistry()
 	metrics.RegisterRuntimeMemStats(reg)
-	mh := &metricsHandler{reg, o}
+	mh := &metricsHandler{registry: reg, options: o}
 
 	r, _ := http.NewRequest("GET", "/metrics/DOES-NOT-EXIST", nil)
 	rw := httptest.NewRecorder()

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"strings"
 	"time"
 
@@ -43,6 +44,10 @@ type Options struct {
 	// If set, detailed response time metrics will be collected
 	// for each backend host
 	EnableBackendHostMetrics bool
+
+	// EnableProfile exposes profiling information on /pprof of the
+	// metrics listener.
+	EnableProfile bool
 }
 
 const (
@@ -121,6 +126,16 @@ func Init(o Options) {
 	Default = New(o)
 
 	handler := &metricsHandler{registry: Default.reg, options: o}
+	if o.EnableProfile {
+		mux := http.NewServeMux()
+		mux.Handle("/pprof/", http.HandlerFunc(pprof.Index))
+		mux.Handle("/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+		mux.Handle("/pprof/profile", http.HandlerFunc(pprof.Profile))
+		mux.Handle("/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+		mux.Handle("/pprof/trace", http.HandlerFunc(pprof.Trace))
+		handler.profile = mux
+	}
+
 	log.Infof("metrics listener on %s/metrics", o.Listener)
 	go http.ListenAndServe(o.Listener, handler)
 }
