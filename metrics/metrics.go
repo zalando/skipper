@@ -127,7 +127,6 @@ func Init(o Options) {
 
 	handler := &metricsHandler{registry: Default.reg, options: o}
 	if o.EnableProfile {
-
 		mux := http.NewServeMux()
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
 		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
