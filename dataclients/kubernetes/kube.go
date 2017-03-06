@@ -144,6 +144,7 @@ func readServiceAccountToken(inCluster bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	log.Debugf("service account token is found")
 
 	return string(bToken), nil
 }
