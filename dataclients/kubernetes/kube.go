@@ -95,6 +95,7 @@ type Client struct {
 	httpClient         *http.Client
 	apiURL             string
 	provideHealthcheck bool
+	token              string
 	current            map[string]*eskip.Route
 }
 
@@ -119,6 +120,11 @@ func New(o Options) (*Client, error) {
 		return nil, err
 	}
 
+	token, err := readServiceAccountToken(o.KubernetesInCluster)
+	if err != nil {
+		return nil, err
+	}
+
 	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck)
 
 	return &Client{
@@ -126,7 +132,20 @@ func New(o Options) (*Client, error) {
 		apiURL:             apiURL,
 		provideHealthcheck: o.ProvideHealthcheck,
 		current:            make(map[string]*eskip.Route),
+		token:              token,
 	}, nil
+}
+
+func readServiceAccountToken(inCluster bool) (string, error) {
+	if !inCluster {
+		return "", nil
+	}
+	bToken, err := ioutil.ReadFile(serviceAccountDir + serviceAccountTokenKey)
+	if err != nil {
+		return "", err
+	}
+
+	return string(bToken), nil
 }
 
 func buildHTTPClient(inCluster bool) (*http.Client, error) {
@@ -173,10 +192,29 @@ func buildAPIURL(o Options) (string, error) {
 	return "https://" + net.JoinHostPort(host, port), nil
 }
 
+func (c *Client) createRequest(method, url string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+
+	return req, nil
+}
+
 func (c *Client) getJSON(uri string, a interface{}) error {
 	url := c.apiURL + uri
 	log.Debugf("making request to: %s", url)
-	rsp, err := c.httpClient.Get(url)
+
+	req, err := c.createRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	rsp, err := c.httpClient.Do(req)
 	if err != nil {
 		log.Debugf("request to %s failed: %v", url, err)
 		return err
