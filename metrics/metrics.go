@@ -128,20 +128,12 @@ func Init(o Options) {
 	handler := &metricsHandler{registry: Default.reg, options: o}
 	if o.EnableProfile {
 
-		// workaround: https://golang.org/src/net/http/pprof/pprof.go?s=6486:6536#L207
-		patchPath := func(h http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				r.URL.Path = "/debug" + r.URL.Path
-				h.ServeHTTP(w, r)
-			})
-		}
-
 		mux := http.NewServeMux()
-		mux.Handle("/pprof/", patchPath(http.HandlerFunc(pprof.Index)))
-		mux.Handle("/pprof/cmdline", patchPath(http.HandlerFunc(pprof.Cmdline)))
-		mux.Handle("/pprof/profile", patchPath(http.HandlerFunc(pprof.Profile)))
-		mux.Handle("/pprof/symbol", patchPath(http.HandlerFunc(pprof.Symbol)))
-		mux.Handle("/pprof/trace", patchPath(http.HandlerFunc(pprof.Trace)))
+		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 		handler.profile = mux
 	}
 
