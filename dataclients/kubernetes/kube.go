@@ -101,10 +101,10 @@ type Client struct {
 var nonWord = regexp.MustCompile("\\W")
 
 var (
-	errServiceNotFound        = errors.New("service not found")
-	errServicePortNotFound    = errors.New("service port not found")
-	errAPIServerNotDiscovered = errors.New("kubernetes API server URL could not be constructed")
-	errInvalidCertificate     = errors.New("discovered certificate is invalid")
+	errServiceNotFound      = errors.New("service not found")
+	errServicePortNotFound  = errors.New("service port not found")
+	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
+	errInvalidCertificate   = errors.New("discovered certificate is invalid")
 )
 
 // New creates and initializes a Kubernetes DataClient.
@@ -167,7 +167,7 @@ func buildAPIURL(o Options) (string, error) {
 
 	host, port := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
 	if len(host) == 0 || len(port) == 0 {
-		return "", errAPIServerNotDiscovered
+		return "", errAPIServerURLNotFound
 	}
 
 	return "https://" + net.JoinHostPort(host, port), nil
