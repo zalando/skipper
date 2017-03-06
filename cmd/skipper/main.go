@@ -60,6 +60,7 @@ const (
 	devModeUsage                   = "enables developer time behavior, like ubuffered routing updates"
 	metricsListenerUsage           = "network address used for exposing the /metrics endpoint. An empty value disables metrics."
 	metricsPrefixUsage             = "allows setting a custom path prefix for metrics export"
+	enableProfileUsage             = "enable profile information on the metrics endpoint with path /pprof"
 	debugGcMetricsUsage            = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
 	runtimeMetricsUsage            = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
 	serveRouteMetricsUsage         = "enables reporting total serve time metrics for each route"
@@ -104,6 +105,7 @@ var (
 	devMode                   bool
 	metricsListener           string
 	metricsPrefix             string
+	enableProfile             bool
 	debugGcMetrics            bool
 	runtimeMetrics            bool
 	serveRouteMetrics         bool
@@ -143,6 +145,7 @@ func init() {
 	flag.BoolVar(&devMode, "dev-mode", false, devModeUsage)
 	flag.StringVar(&metricsListener, "metrics-listener", defaultMetricsListener, metricsListenerUsage)
 	flag.StringVar(&metricsPrefix, "metrics-prefix", defaultMetricsPrefix, metricsPrefixUsage)
+	flag.BoolVar(&enableProfile, "enable-profile", false, enableProfileUsage)
 	flag.BoolVar(&debugGcMetrics, "debug-gc-metrics", false, debugGcMetricsUsage)
 	flag.BoolVar(&runtimeMetrics, "runtime-metrics", defaultRuntimeMetrics, runtimeMetricsUsage)
 	flag.BoolVar(&serveRouteMetrics, "serve-route-metrics", false, serveRouteMetricsUsage)
@@ -223,6 +226,7 @@ func main() {
 		DevMode:                   devMode,
 		MetricsListener:           metricsListener,
 		MetricsPrefix:             metricsPrefix,
+		EnableProfile:             enableProfile,
 		EnableDebugGcMetrics:      debugGcMetrics,
 		EnableRuntimeMetrics:      runtimeMetrics,
 		EnableServeRouteMetrics:   serveRouteMetrics,
