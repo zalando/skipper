@@ -56,11 +56,11 @@ type Options struct {
 	// If set enables skipper to generate based on ingress resources in kubernetes cluster
 	Kubernetes bool
 
-	// If set makes skipper to authenticate with the kubernetes API server with service account assigned to the skipper POD
+	// If set makes skipper authenticate with the kubernetes API server with service account assigned to the skipper POD
 	// If omitted skipper will rely on kubectl proxy to authenticate with API server
 	KubernetesInCluster bool
 
-	// Kubernetes API base URL. Only makes sense if KubernetesInCluster is set to false. If omitted and skipper not deployed to the cluster, the default API URL will be used
+	// Kubernetes API base URL. Only makes sense if KubernetesInCluster is set to false. If omitted and skipper is not running in-cluster, the default API URL will be used
 	KubernetesURL string
 
 	// KubernetesHealthcheck, when Kubernetes ingress is set, indicates

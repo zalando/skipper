@@ -44,7 +44,7 @@ const (
 	etcdPrefixUsage                = "path prefix for skipper related data in etcd"
 	kubernetesUsage                = "enables skipper to generate routes for ingress resources in kubernetes cluster"
 	kubernetesInClusterUsage       = "specify if skipper is running inside kubernetes cluster"
-	kubernetesURLUsage             = "kubernetes API base url for the ingress data client; requires kubectl proxy enabled; omit if kubernetes-in-cluster is set to true"
+	kubernetesURLUsage             = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
 	kubernetesHealthcheckUsage     = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes-url"
 	innkeeperUrlUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"

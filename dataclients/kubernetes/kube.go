@@ -105,12 +105,12 @@ var (
 	errServiceNotFound      = errors.New("service not found")
 	errServicePortNotFound  = errors.New("service port not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
-	errInvalidCertificate   = errors.New("discovered certificate is invalid")
+	errInvalidCertificate   = errors.New("invalid CA")
 )
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) (*Client, error) {
-	httpClient, err := buildHTTPClient(o.KubernetesInCluster)
+	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func New(o Options) (*Client, error) {
 		return nil, err
 	}
 
-	token, err := readServiceAccountToken(o.KubernetesInCluster)
+	token, err := readServiceAccountToken(serviceAccountDir+serviceAccountTokenKey, o.KubernetesInCluster)
 	if err != nil {
 		return nil, err
 	}
@@ -136,25 +136,25 @@ func New(o Options) (*Client, error) {
 	}, nil
 }
 
-func readServiceAccountToken(inCluster bool) (string, error) {
+func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, error) {
 	if !inCluster {
 		return "", nil
 	}
-	bToken, err := ioutil.ReadFile(serviceAccountDir + serviceAccountTokenKey)
+
+	bToken, err := ioutil.ReadFile(tokenFilePath)
 	if err != nil {
 		return "", err
 	}
-	log.Debugf("service account token is found")
 
 	return string(bToken), nil
 }
 
-func buildHTTPClient(inCluster bool) (*http.Client, error) {
+func buildHTTPClient(certFilePath string, inCluster bool) (*http.Client, error) {
 	if !inCluster {
 		return http.DefaultClient, nil
 	}
 
-	rootCA, err := ioutil.ReadFile(serviceAccountDir + serviceAccountRootCAKey)
+	rootCA, err := ioutil.ReadFile(certFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func buildAPIURL(o Options) (string, error) {
 	}
 
 	host, port := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
-	if len(host) == 0 || len(port) == 0 {
+	if host == "" || port == "" {
 		return "", errAPIServerURLNotFound
 	}
 
