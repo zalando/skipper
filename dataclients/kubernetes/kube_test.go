@@ -1,12 +1,24 @@
 package kubernetes
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"io"
+	"io/ioutil"
+	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
 	"regexp"
 	"testing"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
@@ -429,7 +441,7 @@ func TestIngressData(t *testing.T) {
 					),
 				),
 			),
-			&ingressItem{
+			{
 				Spec: &ingressSpec{
 					Rules: []*rule{
 						testRule(
@@ -1058,4 +1070,219 @@ func TestHealthcheckReload(t *testing.T) {
 			"kube_namespace1__mega__bar_example_org___test2":      "http://5.6.7.8:8181",
 		})
 	})
+}
+
+func TestCreateRequest(t *testing.T) {
+	var (
+		buf bytes.Buffer
+		req *http.Request
+		err error
+		url string
+	)
+	rc := ioutil.NopCloser(&buf)
+
+	client := &Client{}
+
+	url = "A%"
+	req, err = client.createRequest("GET", url, rc)
+	if err == nil {
+		t.Error("request creation should fail")
+	}
+
+	url = "https://www.example.org"
+	req, err = client.createRequest("GET", url, rc)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req, err = client.createRequest("//", url, rc)
+	if err == nil {
+		t.Error("request creation should fail")
+	}
+
+	client.token = "1234"
+	req, err = client.createRequest("POST", url, rc)
+	if err != nil {
+		t.Error(err)
+	}
+	if req.URL.String() != url {
+		t.Errorf("request creation incorrect url is set")
+	}
+	if req.Header.Get("Authorization") != "Bearer 1234" {
+		t.Errorf("incorrect authorization header set")
+	}
+	if req.Method != "POST" {
+		t.Errorf("incorrect method is set")
+	}
+}
+
+func TestBuildAPIURL(t *testing.T) {
+	var apiURL string
+	var err error
+	o := Options{}
+
+	apiURL, err = buildAPIURL(o)
+	if err != nil {
+		t.Error(err)
+	}
+	if apiURL != defaultKubernetesURL {
+		t.Errorf("unexpected default API URL")
+	}
+
+	o.KubernetesURL = "http://localhost:4040"
+	apiURL, err = buildAPIURL(o)
+	if err != nil {
+		t.Error(err)
+	}
+	if apiURL != o.KubernetesURL {
+		t.Errorf("unexpected kubernetes API server URL")
+	}
+
+	o.KubernetesInCluster = true
+
+	curEnvHostVar, curEnvPortVar := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
+	defer func(host, port string) {
+		os.Setenv(serviceHostEnvVar, host)
+		os.Setenv(servicePortEnvVar, port)
+	}(curEnvHostVar, curEnvPortVar)
+
+	dummyHost := "10.0.0.2"
+	dummyPort := "8080"
+
+	os.Unsetenv(serviceHostEnvVar)
+	os.Unsetenv(servicePortEnvVar)
+
+	apiURL, err = buildAPIURL(o)
+	if apiURL != "" || err != errAPIServerURLNotFound {
+		t.Error("build API url should fail if env var is missing")
+	}
+
+	os.Setenv(serviceHostEnvVar, dummyHost)
+	apiURL, err = buildAPIURL(o)
+	if apiURL != "" || err != errAPIServerURLNotFound {
+		t.Error("build API url should fail if env var is missing")
+	}
+
+	os.Setenv(servicePortEnvVar, dummyPort)
+	apiURL, err = buildAPIURL(o)
+	if apiURL != "https://10.0.0.2:8080" || err != nil {
+		t.Error("incorrect result of build api url")
+	}
+}
+
+func TestBuildHTTPClient(t *testing.T) {
+	httpClient, err := buildHTTPClient("", false)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(httpClient, http.DefaultClient) {
+		t.Errorf("should return default client if outside the cluster``")
+	}
+
+	httpClient, err = buildHTTPClient("rumplestilzchen", true)
+	if err == nil {
+		t.Errorf("expected to fail for non-existing file")
+	}
+
+	httpClient, err = buildHTTPClient("kube_test.go", true)
+	if err != errInvalidCertificate {
+		t.Errorf("should return invalid certificate")
+	}
+
+	err = ioutil.WriteFile("ca.empty.crt", []byte(""), 0644)
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove("ca.empty.crt")
+
+	_, err = buildHTTPClient("ca.empty.crt", true)
+	if err != errInvalidCertificate {
+		t.Error("empty certificate is invalid certificate")
+	}
+
+	//create CA file
+	err = ioutil.WriteFile("ca.temp.crt", generateSSCert(), 0644)
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove("ca.temp.crt")
+
+	httpClient, err = buildHTTPClient("ca.temp.crt", true)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestReadServiceAccountToken(t *testing.T) {
+	var (
+		token string
+		err   error
+	)
+
+	token, err = readServiceAccountToken("kube_test.go", false)
+	if err != nil {
+		t.Error(err)
+	}
+	if token != "" {
+		t.Errorf("unexpected token: %s", token)
+	}
+
+	token, err = readServiceAccountToken("kube_test.go", true)
+	if err != nil {
+		t.Error(err)
+	}
+	if token == "" {
+		t.Errorf("unexpected token: %s", token)
+	}
+
+	token, err = readServiceAccountToken("rumplestilzchen", true)
+	if err == nil {
+		t.Errorf("expected error for a wrong filename")
+	}
+	if token != "" {
+		t.Errorf("token must be empty")
+	}
+}
+
+// generateSSCert only for testing purposes
+func generateSSCert() []byte {
+	//create root CA
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
+
+	tmpl := &x509.Certificate{
+		SerialNumber:          serialNumber,
+		Subject:               pkix.Name{Organization: []string{"Yhat, Inc."}},
+		SignatureAlgorithm:    x509.SHA256WithRSA,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(time.Hour), // valid for an hour
+		BasicConstraintsValid: true,
+	}
+	rootKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+
+	tmpl.IsCA = true
+	tmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
+	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
+	tmpl.IPAddresses = []net.IP{net.ParseIP("127.0.0.1")}
+
+	_, rootCertPEM, _ := CreateCert(tmpl, tmpl, &rootKey.PublicKey, rootKey)
+	return rootCertPEM
+}
+
+func CreateCert(template, parent *x509.Certificate, pub interface{}, parentPriv interface{}) (
+	cert *x509.Certificate, certPEM []byte, err error) {
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, parentPriv)
+	if err != nil {
+		return
+	}
+	// parse the resulting certificate so we can use it again
+	cert, err = x509.ParseCertificate(certDER)
+	if err != nil {
+		return
+	}
+	// PEM encode the certificate (this is a standard TLS encoding)
+	b := pem.Block{Type: "CERTIFICATE", Bytes: certDER}
+	certPEM = pem.EncodeToMemory(&b)
+	return
 }
