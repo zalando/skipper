@@ -42,7 +42,9 @@ const (
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
 	etcdPrefixUsage                = "path prefix for skipper related data in etcd"
-	kubernetesURLUsage             = "kubernetes API base url for the ingress data client; when set, it enables ingress"
+	kubernetesUsage                = "enables skipper to generate routes for ingress resources in kubernetes cluster"
+	kubernetesInClusterUsage       = "specify if skipper is running inside kubernetes cluster"
+	kubernetesURLUsage             = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
 	kubernetesHealthcheckUsage     = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes-url"
 	innkeeperUrlUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
@@ -91,6 +93,8 @@ var (
 	proxyPreserveHost         bool
 	idleConnsPerHost          int
 	closeIdleConnsPeriod      string
+	kubernetes                bool
+	kubernetesInCluster       bool
 	kubernetesURL             string
 	kubernetesHealthcheck     bool
 	innkeeperUrl              string
@@ -131,6 +135,8 @@ func init() {
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
 	flag.StringVar(&closeIdleConnsPeriod, "close-idle-conns-period", strconv.Itoa(int(proxy.DefaultCloseIdleConnsPeriod/time.Second)), closeIdleConnsPeriodUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
+	flag.BoolVar(&kubernetes, "kubernetes", false, kubernetesUsage)
+	flag.BoolVar(&kubernetesInCluster, "kubernetes-in-cluster", false, kubernetesInClusterUsage)
 	flag.StringVar(&kubernetesURL, "kubernetes-url", "", kubernetesURLUsage)
 	flag.BoolVar(&kubernetesHealthcheck, "kubernetes-healthcheck", true, kubernetesHealthcheckUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
@@ -209,6 +215,8 @@ func main() {
 		Address:                   address,
 		EtcdUrls:                  eus,
 		EtcdPrefix:                etcdPrefix,
+		Kubernetes:                kubernetes,
+		KubernetesInCluster:       kubernetesInCluster,
 		KubernetesURL:             kubernetesURL,
 		KubernetesHealthcheck:     kubernetesHealthcheck,
 		InnkeeperUrl:              innkeeperUrl,

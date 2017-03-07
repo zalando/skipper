@@ -53,8 +53,14 @@ type Options struct {
 	// Skip TLS certificate check for etcd connections.
 	EtcdInsecure bool
 
-	// Kubernetes API base URL for ingress. If not specififed,
-	// Kubernetes ingress is disabled.
+	// If set enables skipper to generate based on ingress resources in kubernetes cluster
+	Kubernetes bool
+
+	// If set makes skipper authenticate with the kubernetes API server with service account assigned to the skipper POD
+	// If omitted skipper will rely on kubectl proxy to authenticate with API server
+	KubernetesInCluster bool
+
+	// Kubernetes API base URL. Only makes sense if KubernetesInCluster is set to false. If omitted and skipper is not running in-cluster, the default API URL will be used
 	KubernetesURL string
 
 	// KubernetesHealthcheck, when Kubernetes ingress is set, indicates
@@ -242,11 +248,16 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 		clients = append(clients, etcdClient)
 	}
 
-	if o.KubernetesURL != "" {
-		clients = append(clients, kubernetes.New(kubernetes.Options{
-			KubernetesURL:      o.KubernetesURL,
-			ProvideHealthcheck: o.KubernetesHealthcheck,
-		}))
+	if o.Kubernetes {
+		kubernetesClient, err := kubernetes.New(kubernetes.Options{
+			KubernetesInCluster: o.KubernetesInCluster,
+			KubernetesURL:       o.KubernetesURL,
+			ProvideHealthcheck:  o.KubernetesHealthcheck,
+		})
+		if err != nil {
+			return nil, err
+		}
+		clients = append(clients, kubernetesClient)
 	}
 
 	return clients, nil
