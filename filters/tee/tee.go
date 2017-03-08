@@ -70,7 +70,7 @@ func (tt *teeTie) Read(b []byte) (int, error) {
 
 	if n > 0 {
 		if _, werr := tt.w.Write(b[:n]); werr != nil {
-			log.Error("error while tee request", werr)
+			log.Error("tee: error while tee request", werr)
 		}
 	}
 
@@ -88,40 +88,55 @@ func (r *tee) Response(filters.FilterContext) {}
 
 // Request is copied and then modified to adopt changes in new backend
 func (r *tee) Request(fc filters.FilterContext) {
-	copyOfRequest := cloneRequest(r, fc.Request())
+	req := fc.Request()
+	copyOfRequest, tr, err := cloneRequest(r, req)
+	if err != nil {
+		log.Warn("tee: error while cloning the tee request", err)
+		return
+	}
+
+	req.Body = tr
+
 	go func() {
-		rsp, err := r.client.Do(&copyOfRequest)
+		rsp, err := r.client.Do(copyOfRequest)
 		if err != nil {
-			log.Warn("error while tee request", err)
+			log.Warn("tee: error while tee request", err)
+			return
 		}
-		if err == nil {
-			defer rsp.Body.Close()
-		}
+
+		defer rsp.Body.Close()
 	}()
 }
 
 // copies requests changes URL and Host in request.
 // If 2nd and 3rd params are given path is also modified by applying regexp
-func cloneRequest(t *tee, req *http.Request) http.Request {
-	clone := new(http.Request)
-	*clone = *req
-	copyUrl := new(url.URL)
-	*copyUrl = *req.URL
-	clone.URL = copyUrl
-	clone.URL.Host = t.host
-	clone.URL.Scheme = t.scheme
-	clone.Host = t.host
+// Returns the cloned request and the tee body to be used on the main request.
+func cloneRequest(t *tee, req *http.Request) (*http.Request, *teeTie, error) {
+	u := new(url.URL)
+	*u = *req.URL
+	u.Host = t.host
+	u.Scheme = t.scheme
+	if t.typ == pathModified {
+		u.Path = t.rx.ReplaceAllString(u.Path, t.replacement)
+	}
+
+	h := make(http.Header)
+	for k, v := range req.Header {
+		h[k] = v
+	}
 
 	pr, pw := io.Pipe()
 	tr := &teeTie{req.Body, pw}
-	clone.Body = pr
-	req.Body = tr
-	//Setting to empty string otherwise go-http doesn't allow having it in client request
-	clone.RequestURI = ""
-	if t.typ == pathModified {
-		clone.URL.Path = t.rx.ReplaceAllString(clone.URL.Path, t.replacement)
+
+	clone, err := http.NewRequest(req.Method, u.String(), pr)
+	if err != nil {
+		return nil, nil, err
 	}
-	return *clone
+
+	clone.Host = t.host
+	clone.ContentLength = req.ContentLength
+
+	return clone, tr, nil
 }
 
 // Creates out tee Filter
