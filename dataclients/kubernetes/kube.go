@@ -447,11 +447,8 @@ func healthcheckRoute(healthy bool) *eskip.Route {
 
 func httpRedirectRoute() *eskip.Route {
 	return &eskip.Route{
-		Id: httpRedirectRouteID,
-		Predicates: []*eskip.Predicate{{
-			Name: "Header",
-			Args: []interface{}{"X-Forwarded-Proto", "http"},
-		}},
+		Id:      httpRedirectRouteID,
+		Headers: map[string]string{"X-Forwarded-Proto": "http", "X-Forwarded-Port": "80"},
 		Filters: []*eskip.Filter{{
 			Name: "redirectTo",
 			Args: []interface{}{float64(301), "https:"},
@@ -511,7 +508,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	for id := range c.current {
 		if r, ok := next[id]; ok && r.String() != c.current[id].String() {
 			updatedRoutes = append(updatedRoutes, r)
-		} else if !ok && id != healthcheckRouteID {
+		} else if !ok && id != healthcheckRouteID && id != httpRedirectRouteID {
 			deletedIDs = append(deletedIDs, id)
 		}
 	}
