@@ -31,7 +31,12 @@ func TestTeeHostHeaderChanges(t *testing.T) {
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
-	modifiedRequest := cloneRequest(rep, fc.Request())
+	modifiedRequest, _, err := cloneRequest(rep, fc.Request())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	if modifiedRequest.Host != "api.example.com" {
 		t.Error("Tee Request Host not modified")
 	}
@@ -47,7 +52,12 @@ func TestTeeSchemeChanges(t *testing.T) {
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
-	modifiedRequest := cloneRequest(rep, fc.Request())
+	modifiedRequest, _, err := cloneRequest(rep, fc.Request())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	if modifiedRequest.URL.Scheme != "https" {
 		t.Error("Tee Request Scheme not modified")
 	}
@@ -63,7 +73,12 @@ func TestTeeUrlHostChanges(t *testing.T) {
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
-	modifiedRequest := cloneRequest(rep, fc.Request())
+	modifiedRequest, _, err := cloneRequest(rep, fc.Request())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	if modifiedRequest.URL.Host != "api.example.com" {
 		t.Error("Tee Request Url Host not modified")
 	}
@@ -79,7 +94,12 @@ func TestTeeWithPathChanges(t *testing.T) {
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
-	modifiedRequest := cloneRequest(rep, fc.Request())
+	modifiedRequest, _, err := cloneRequest(rep, fc.Request())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	if modifiedRequest.URL.Path != "/v1/" {
 		t.Errorf("Tee Request Path not modified, %v", modifiedRequest.URL.Path)
 	}
