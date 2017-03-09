@@ -104,7 +104,7 @@ func (r *tee) Request(fc filters.FilterContext) {
 			return
 		}
 
-		defer rsp.Body.Close()
+		rsp.Body.Close()
 	}()
 }
 
