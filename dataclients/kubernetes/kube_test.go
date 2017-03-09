@@ -1061,6 +1061,7 @@ func TestHealthcheckReload(t *testing.T) {
 		checkHealthcheck(t, r, true, true)
 		checkRoutes(t, r, map[string]string{
 			healthcheckRouteID:                                    "",
+			httpRedirectRouteID:                                   "",
 			"kube_namespace1__default_only____":                   "http://1.2.3.4:8080",
 			"kube_namespace2__path_rule_only__www_example_org___": "http://9.0.1.2:7272",
 			"kube_namespace1__mega____":                           "http://1.2.3.4:8080",

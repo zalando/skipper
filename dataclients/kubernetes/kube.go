@@ -53,6 +53,7 @@ const (
 	serviceHostEnvVar       = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar       = "KUBERNETES_SERVICE_PORT"
 	healthcheckRouteID      = "kube__healthz"
+	httpRedirectRouteID     = "kube__redirect"
 	healthcheckPath         = "/kube-system/healthz"
 )
 
@@ -444,6 +445,21 @@ func healthcheckRoute(healthy bool) *eskip.Route {
 	}
 }
 
+func httpRedirectRoute() *eskip.Route {
+	return &eskip.Route{
+		Id: httpRedirectRouteID,
+		Predicates: []*eskip.Predicate{{
+			Name: "Header",
+			Args: []interface{}{"X-Forwarded-Proto", "http"},
+		}},
+		Filters: []*eskip.Filter{{
+			Name: "redirectTo",
+			Args: []interface{}{float64(301), "https:"},
+		}},
+		Shunt: true,
+	}
+}
+
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	r, err := c.loadAndConvert()
@@ -455,6 +471,8 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	if c.provideHealthcheck {
 		r = append(r, healthcheckRoute(true))
 	}
+
+	r = append(r, httpRedirectRoute())
 
 	c.current = mapRoutes(r)
 	log.Debugf("all routes loaded and mapped")
