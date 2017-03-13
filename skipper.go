@@ -56,11 +56,13 @@ type Options struct {
 	// If set enables skipper to generate based on ingress resources in kubernetes cluster
 	Kubernetes bool
 
-	// If set makes skipper authenticate with the kubernetes API server with service account assigned to the skipper POD
+	// If set makes skipper authenticate with the kubernetes API server with service account assigned to the
+	// skipper POD.
 	// If omitted skipper will rely on kubectl proxy to authenticate with API server
 	KubernetesInCluster bool
 
-	// Kubernetes API base URL. Only makes sense if KubernetesInCluster is set to false. If omitted and skipper is not running in-cluster, the default API URL will be used
+	// Kubernetes API base URL. Only makes sense if KubernetesInCluster is set to false. If omitted and
+	// skipper is not running in-cluster, the default API URL will be used.
 	KubernetesURL string
 
 	// KubernetesHealthcheck, when Kubernetes ingress is set, indicates
@@ -69,6 +71,13 @@ type Options struct {
 	// calls are successful. The healthcheck endpoint is accessible from
 	// internal IPs, with the path /kube-system/healthz.
 	KubernetesHealthcheck bool
+
+	// KubernetesHTTPSRedirect, when Kubernetes ingress is set, indicates
+	// whether an automatic redirect route should be generated to redirect
+	// HTTP requests to their HTTPS equivalent. The generated route will
+	// match requests with the X-Forwarded-Proto and X-Forwarded-Port,
+	// expected to be set by the load-balancer.
+	KubernetesHTTPSRedirect bool
 
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -250,9 +259,10 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			KubernetesInCluster: o.KubernetesInCluster,
-			KubernetesURL:       o.KubernetesURL,
-			ProvideHealthcheck:  o.KubernetesHealthcheck,
+			KubernetesInCluster:  o.KubernetesInCluster,
+			KubernetesURL:        o.KubernetesURL,
+			ProvideHealthcheck:   o.KubernetesHealthcheck,
+			ProvideHTTPSRedirect: o.KubernetesHTTPSRedirect,
 		})
 		if err != nil {
 			return nil, err

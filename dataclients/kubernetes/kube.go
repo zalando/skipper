@@ -53,6 +53,7 @@ const (
 	serviceHostEnvVar       = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar       = "KUBERNETES_SERVICE_PORT"
 	healthcheckRouteID      = "kube__healthz"
+	httpRedirectRouteID     = "kube__redirect"
 	healthcheckPath         = "/kube-system/healthz"
 )
 
@@ -71,6 +72,7 @@ type Options struct {
 	// this would make authentication with API server happen through the service account, rather than
 	// running along side kubectl proxy
 	KubernetesInCluster bool
+
 	// KubernetesURL is used as the base URL for Kubernetes API requests. Defaults to http://localhost:8001.
 	// (TBD: support in-cluster operation by taking the address and certificate from the standard Kubernetes
 	// environment variables.)
@@ -86,17 +88,27 @@ type Options struct {
 	// filter, and the available predicates need to include the Source() predicate.
 	ProvideHealthcheck bool
 
+	// ProvideHTTPSRedirect, when set, tells the data client to append an HTTPS redirect route to the
+	// ingress routes. This route will detect the X-Forwarded-Proto=http and respond with a 301 message
+	// to the HTTPS equivalent of the same request (using the redirectTo(301, "https:") filter). The
+	// X-Forwarded-Proto and X-Forwarded-Port is expected to be set by the load balancer.
+	//
+	// (See also https://github.com/zalando-incubator/kube-ingress-aws-controller as part of the
+	// https://github.com/zalando-incubator/kubernetes-on-aws project.)
+	ProvideHTTPSRedirect bool
+
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
-	httpClient         *http.Client
-	apiURL             string
-	provideHealthcheck bool
-	token              string
-	current            map[string]*eskip.Route
+	httpClient           *http.Client
+	apiURL               string
+	provideHealthcheck   bool
+	provideHTTPSRedirect bool
+	token                string
+	current              map[string]*eskip.Route
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -128,11 +140,12 @@ func New(o Options) (*Client, error) {
 	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck)
 
 	return &Client{
-		httpClient:         httpClient,
-		apiURL:             apiURL,
-		provideHealthcheck: o.ProvideHealthcheck,
-		current:            make(map[string]*eskip.Route),
-		token:              token,
+		httpClient:           httpClient,
+		apiURL:               apiURL,
+		provideHealthcheck:   o.ProvideHealthcheck,
+		provideHTTPSRedirect: o.ProvideHTTPSRedirect,
+		current:              make(map[string]*eskip.Route),
+		token:                token,
 	}, nil
 }
 
@@ -444,6 +457,28 @@ func healthcheckRoute(healthy bool) *eskip.Route {
 	}
 }
 
+func httpRedirectRoute() *eskip.Route {
+	// the forwarded port and any-path (.*) is set to make sure that
+	// the redirect route has a higher priority during matching than
+	// the normal routes that may have max 2 predicates: path regexp
+	// and host.
+	return &eskip.Route{
+		Id: httpRedirectRouteID,
+		Headers: map[string]string{
+			"X-Forwarded-Proto": "http",
+		},
+		HeaderRegexps: map[string][]string{
+			"X-Forwarded-Port": []string{".*"},
+		},
+		PathRegexps: []string{".*"},
+		Filters: []*eskip.Filter{{
+			Name: "redirectTo",
+			Args: []interface{}{float64(301), "https:"},
+		}},
+		Shunt: true,
+	}
+}
+
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	r, err := c.loadAndConvert()
@@ -454,6 +489,10 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 
 	if c.provideHealthcheck {
 		r = append(r, healthcheckRoute(true))
+	}
+
+	if c.provideHTTPSRedirect {
+		r = append(r, httpRedirectRoute())
 	}
 
 	c.current = mapRoutes(r)
@@ -493,7 +532,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	for id := range c.current {
 		if r, ok := next[id]; ok && r.String() != c.current[id].String() {
 			updatedRoutes = append(updatedRoutes, r)
-		} else if !ok && id != healthcheckRouteID {
+		} else if !ok && id != healthcheckRouteID && id != httpRedirectRouteID {
 			deletedIDs = append(deletedIDs, id)
 		}
 	}
