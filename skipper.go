@@ -72,6 +72,13 @@ type Options struct {
 	// internal IPs, with the path /kube-system/healthz.
 	KubernetesHealthcheck bool
 
+	// KubernetesHTTPSRedirect, when Kubernetes ingress is set, indicates
+	// whether an automatic redirect route should be generated to redirect
+	// HTTP requests to their HTTPS equivalent. The generated route will
+	// match requests with the X-Forwarded-Proto and X-Forwarded-Port,
+	// expected to be set by the load-balancer.
+	KubernetesHTTPSRedirect bool
+
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -252,9 +259,10 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			KubernetesInCluster: o.KubernetesInCluster,
-			KubernetesURL:       o.KubernetesURL,
-			ProvideHealthcheck:  o.KubernetesHealthcheck,
+			KubernetesInCluster:  o.KubernetesInCluster,
+			KubernetesURL:        o.KubernetesURL,
+			ProvideHealthcheck:   o.KubernetesHealthcheck,
+			ProvideHTTPSRedirect: o.KubernetesHTTPSRedirect,
 		})
 		if err != nil {
 			return nil, err
