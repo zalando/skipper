@@ -13,7 +13,7 @@ eskip:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/eskip
 
 clean:
-	rm skipper eskip
+	rm -f skipper eskip
 
 docker-build: clean skipper eskip
 	docker build -t $(IMAGE) .
