@@ -39,7 +39,8 @@ type testAPI struct {
 var serviceURIRx = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/services/([^/]+)$")
 
 func init() {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.InfoLevel)
+	// log.SetLevel(log.DebugLevel)
 }
 
 func testService(clusterIP string, ports map[string]int) *service {
@@ -479,7 +480,7 @@ func TestIngressData(t *testing.T) {
 	}
 }
 
-func Test(t *testing.T) {
+func TestIngress(t *testing.T) {
 	api := newTestAPI(t, nil, &ingressList{})
 	defer api.Close()
 
@@ -1061,7 +1062,6 @@ func TestHealthcheckReload(t *testing.T) {
 		checkHealthcheck(t, r, true, true)
 		checkRoutes(t, r, map[string]string{
 			healthcheckRouteID:                                    "",
-			httpRedirectRouteID:                                   "",
 			"kube_namespace1__default_only____":                   "http://1.2.3.4:8080",
 			"kube_namespace2__path_rule_only__www_example_org___": "http://9.0.1.2:7272",
 			"kube_namespace1__mega____":                           "http://1.2.3.4:8080",
@@ -1266,11 +1266,11 @@ func generateSSCert() []byte {
 	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
 	tmpl.IPAddresses = []net.IP{net.ParseIP("127.0.0.1")}
 
-	_, rootCertPEM, _ := CreateCert(tmpl, tmpl, &rootKey.PublicKey, rootKey)
+	_, rootCertPEM, _ := createCert(tmpl, tmpl, &rootKey.PublicKey, rootKey)
 	return rootCertPEM
 }
 
-func CreateCert(template, parent *x509.Certificate, pub interface{}, parentPriv interface{}) (
+func createCert(template, parent *x509.Certificate, pub interface{}, parentPriv interface{}) (
 	cert *x509.Certificate, certPEM []byte, err error) {
 
 	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, parentPriv)
