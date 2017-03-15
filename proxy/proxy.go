@@ -172,7 +172,6 @@ type filterContext struct {
 	servedWithResponse bool // to support the deprecated way independently
 	pathParams         map[string]string
 	stateBag           map[string]interface{}
-	originalBody       io.ReadCloser
 	originalRequest    *http.Request
 	originalResponse   *http.Response
 	backendUrl         string
@@ -223,13 +222,13 @@ func copyStream(to flusherWriter, from io.Reader) error {
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func (ctx *filterContext) mapRequest(r *http.Request, rt *routing.Route) (*http.Request, error) {
+func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request, error) {
 	u := r.URL
 	u.Scheme = rt.Scheme
 	u.Host = rt.Host
 
 	body := r.Body
-	if r.ContentLength == 0 && body == ctx.originalBody {
+	if r.ContentLength == 0 {
 		body = nil
 	}
 
@@ -239,7 +238,7 @@ func (ctx *filterContext) mapRequest(r *http.Request, rt *routing.Route) (*http.
 	}
 
 	rr.Header = cloneHeader(r.Header)
-	rr.Host = ctx.outgoingHost
+	rr.Host = host
 
 	// If there is basic auth configured int the URL we add them as headers
 	if u.User != nil {
@@ -323,13 +322,11 @@ func (p *Proxy) newFilterContext(
 	route *routing.Route) *filterContext {
 
 	c := &filterContext{
-		w:            w,
-		req:          r,
-		pathParams:   params,
-		stateBag:     make(map[string]interface{}),
-		backendUrl:   route.Backend,
-		originalBody: r.Body,
-	}
+		w:          w,
+		req:        r,
+		pathParams: params,
+		stateBag:   make(map[string]interface{}),
+		backendUrl: route.Backend}
 
 	if p.flags.PreserveOriginal() {
 		c.originalRequest = cloneRequestMetadata(r)
@@ -526,7 +523,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if rt.Shunt {
 			rs = shunt(r)
 		} else if p.flags.Debug() {
-			debugReq, err = c.mapRequest(r, rt)
+			debugReq, err = mapRequest(r, rt, c.outgoingHost)
 			if err != nil {
 				dbgResponse(w, &debugInfo{
 					route:        &rt.Route,
@@ -540,7 +537,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rs = &http.Response{Header: make(http.Header)}
 		} else {
 
-			rr, err := c.mapRequest(r, rt)
+			rr, err := mapRequest(r, rt, c.outgoingHost)
 			if err != nil {
 				log.Errorf("Could not mapRequest, caused by: %v", err)
 				sendError(w,

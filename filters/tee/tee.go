@@ -127,7 +127,7 @@ func (r *tee) Request(fc filters.FilterContext) {
 // copies requests changes URL and Host in request.
 // If 2nd and 3rd params are given path is also modified by applying regexp
 // Returns the cloned request and the tee body to be used on the main request.
-func cloneRequest(t *tee, req *http.Request) (*http.Request, *teeTie, error) {
+func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, error) {
 	u := new(url.URL)
 	*u = *req.URL
 	u.Host = t.host
@@ -145,10 +145,17 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, *teeTie, error) {
 		h.Del(k)
 	}
 
-	pr, pw := io.Pipe()
-	tr := &teeTie{req.Body, pw}
+	var teeBody io.ReadCloser
+	mainBody := req.Body
 
-	clone, err := http.NewRequest(req.Method, u.String(), pr)
+	// see proxy.go:231
+	if req.ContentLength != 0 {
+		pr, pw := io.Pipe()
+		teeBody = pr
+		mainBody = &teeTie{mainBody, pw}
+	}
+
+	clone, err := http.NewRequest(req.Method, u.String(), teeBody)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -157,7 +164,7 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, *teeTie, error) {
 	clone.Host = t.host
 	clone.ContentLength = req.ContentLength
 
-	return clone, tr, nil
+	return clone, mainBody, nil
 }
 
 // Creates out tee Filter
