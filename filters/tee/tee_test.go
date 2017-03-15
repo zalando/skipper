@@ -21,9 +21,12 @@ var (
 	teeArgsWithModPath = []interface{}{"https://api.example.com", ".*", "/v1/"}
 )
 
-type MyHandler struct {
-	name string
-	body string
+type myHandler struct {
+	t      *testing.T
+	name   string
+	header http.Header
+	body   string
+	served chan struct{}
 }
 
 func TestTeeHostHeaderChanges(t *testing.T) {
@@ -110,19 +113,32 @@ func TestTeeWithPathChanges(t *testing.T) {
 	}
 }
 
-func (h *MyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	b, _ := ioutil.ReadAll(r.Body)
-	str := string(b)
-	h.body = str
+func newTestHandler(t *testing.T, name string) *myHandler {
+	return &myHandler{
+		t:      t,
+		name:   name,
+		served: make(chan struct{}),
+	}
+}
+
+func (h *myHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		h.t.Error(err)
+	}
+
+	h.header = r.Header
+	h.body = string(b)
+	close(h.served)
 }
 
 func TestTeeEndToEndBody(t *testing.T) {
-	shadowHandler := &MyHandler{name: "shadow"}
+	shadowHandler := newTestHandler(t, "shadow")
 	shadowServer := httptest.NewServer(shadowHandler)
 	shadowUrl := shadowServer.URL
 	defer shadowServer.Close()
 
-	originalHandler := &MyHandler{name: "original"}
+	originalHandler := newTestHandler(t, "original")
 	originalServer := httptest.NewServer(originalHandler)
 	originalUrl := originalServer.URL
 	defer originalServer.Close()
@@ -136,14 +152,73 @@ func TestTeeEndToEndBody(t *testing.T) {
 	defer p.Close()
 
 	testingStr := "TESTEST"
-	req, _ := http.NewRequest("GET", p.URL, strings.NewReader(testingStr))
+	req, err := http.NewRequest("GET", p.URL, strings.NewReader(testingStr))
+	if err != nil {
+		t.Error(err)
+	}
+
 	req.Host = "www.example.org"
-	req.Header.Set("X-Test", "true")
 	req.Close = true
-	rsp, _ := (&http.Client{}).Do(req)
+	rsp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	<-shadowHandler.served
+
 	rsp.Body.Close()
 	if shadowHandler.body != testingStr && originalHandler.body != testingStr {
 		t.Error("Bodies are not equal")
+	}
+}
+
+func TestTeeHeaders(t *testing.T) {
+	shadowHandler := newTestHandler(t, "shadow")
+	shadowServer := httptest.NewServer(shadowHandler)
+	shadowUrl := shadowServer.URL
+	defer shadowServer.Close()
+
+	originalHandler := newTestHandler(t, "original")
+	originalServer := httptest.NewServer(originalHandler)
+	originalUrl := originalServer.URL
+	defer originalServer.Close()
+
+	routeStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";`, shadowUrl, originalUrl)
+
+	route, _ := eskip.Parse(routeStr)
+	registry := make(filters.Registry)
+	registry.Register(NewTee())
+	p := proxytest.New(registry, route...)
+	defer p.Close()
+
+	testHeader := "X-Test"
+	testHeaderValue := "test-value"
+
+	req, err := http.NewRequest("GET", p.URL, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req.Host = "www.example.org"
+	req.Header.Set(testHeader, testHeaderValue)
+	req.Header.Set("Proxy-Authorization", "foo")
+
+	rsp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	rsp.Body.Close()
+
+	<-shadowHandler.served
+
+	if shadowHandler.header.Get(testHeader) != testHeaderValue {
+		t.Error("failed to forward the header to the shadow host",
+			shadowHandler.header.Get(testHeader), testHeaderValue)
+	}
+
+	if shadowHandler.header.Get("Proxy-Authorization") != "" {
+		t.Error("failed to ignore hop-by-hop headers")
 	}
 }
 

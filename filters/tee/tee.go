@@ -41,6 +41,22 @@ type teeTie struct {
 	w *io.PipeWriter
 }
 
+// Hop-by-hop headers. These are removed when sent to the backend.
+// http://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html
+// and
+// https://golang.org/src/net/http/httputil/reverseproxy.go
+var hopHeaders = []string{
+	"Connection",
+	"Proxy-Connection", // non-standard but still sent by libcurl and rejected by e.g. google
+	"Keep-Alive",
+	"Proxy-Authenticate",
+	"Proxy-Authorization",
+	"Te",      // canonicalized version of "TE"
+	"Trailer", // not Trailers per URL above; http://www.rfc-editor.org/errata_search.php?eid=4522
+	"Transfer-Encoding",
+	"Upgrade",
+}
+
 // Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 //
@@ -125,6 +141,10 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, *teeTie, error) {
 		h[k] = v
 	}
 
+	for _, k := range hopHeaders {
+		h.Del(k)
+	}
+
 	pr, pw := io.Pipe()
 	tr := &teeTie{req.Body, pw}
 
@@ -133,6 +153,7 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, *teeTie, error) {
 		return nil, nil, err
 	}
 
+	clone.Header = h
 	clone.Host = t.host
 	clone.ContentLength = req.ContentLength
 
