@@ -68,6 +68,7 @@ const (
 	runtimeMetricsUsage            = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
 	serveRouteMetricsUsage         = "enables reporting total serve time metrics for each route"
 	serveHostMetricsUsage          = "enables reporting total serve time metrics for each host"
+	bakcendHostMetricsUsage        = "enables reporting total serve time metrics for each backend"
 	applicationLogUsage            = "output file for the application log. When not set, /dev/stderr is used"
 	applicationLogLevelUsage       = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
 	applicationLogPrefixUsage      = "prefix for each log entry"
@@ -116,6 +117,7 @@ var (
 	runtimeMetrics            bool
 	serveRouteMetrics         bool
 	serveHostMetrics          bool
+	backendHostMetrics        bool
 	applicationLog            string
 	applicationLogLevel       string
 	applicationLogPrefix      string
@@ -159,6 +161,7 @@ func init() {
 	flag.BoolVar(&runtimeMetrics, "runtime-metrics", defaultRuntimeMetrics, runtimeMetricsUsage)
 	flag.BoolVar(&serveRouteMetrics, "serve-route-metrics", false, serveRouteMetricsUsage)
 	flag.BoolVar(&serveHostMetrics, "serve-host-metrics", false, serveHostMetricsUsage)
+	flag.BoolVar(&backendHostMetrics, "backend-host-metrics", false, bakcendHostMetricsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
 	flag.StringVar(&applicationLogLevel, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
@@ -243,6 +246,7 @@ func main() {
 		EnableRuntimeMetrics:      runtimeMetrics,
 		EnableServeRouteMetrics:   serveRouteMetrics,
 		EnableServeHostMetrics:    serveHostMetrics,
+		EnableBackendHostMetrics:  backendHostMetrics,
 		ApplicationLogOutput:      applicationLog,
 		ApplicationLogPrefix:      applicationLogPrefix,
 		AccessLogOutput:           accessLog,

@@ -170,6 +170,10 @@ type Options struct {
 	// for each host, additionally grouped by status and method.
 	EnableServeHostMetrics bool
 
+	// If set, detailed response time metrics will be collected
+	// for each backend host
+	EnableBackendHostMetrics bool
+
 	// Output file for the application log. Default value: /dev/stderr.
 	//
 	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
