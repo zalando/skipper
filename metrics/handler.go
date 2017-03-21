@@ -48,7 +48,6 @@ func (mh *metricsHandler) sendMetrics(w http.ResponseWriter, p string) {
 
 // This listener is only used to expose the metrics
 func (mh *metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	println("here")
 	p := r.URL.Path
 	if r.Method == "GET" && (p == "/metrics" || strings.HasPrefix(p, "/metrics/")) {
 		mh.sendMetrics(w, strings.TrimPrefix(p, "/metrics"))
