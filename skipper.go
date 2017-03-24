@@ -346,13 +346,14 @@ func Run(o Options) error {
 
 	// init metrics
 	metrics.Init(metrics.Options{
-		Listener:                o.MetricsListener,
-		Prefix:                  o.MetricsPrefix,
-		EnableDebugGcMetrics:    o.EnableDebugGcMetrics,
-		EnableRuntimeMetrics:    o.EnableRuntimeMetrics,
-		EnableServeRouteMetrics: o.EnableServeRouteMetrics,
-		EnableServeHostMetrics:  o.EnableServeHostMetrics,
-		EnableProfile:           o.EnableProfile,
+		Listener:                 o.MetricsListener,
+		Prefix:                   o.MetricsPrefix,
+		EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
+		EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
+		EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
+		EnableServeHostMetrics:   o.EnableServeHostMetrics,
+		EnableBackendHostMetrics: o.EnableBackendHostMetrics,
+		EnableProfile:            o.EnableProfile,
 	})
 
 	// create authentication for Innkeeper
