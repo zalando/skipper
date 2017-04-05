@@ -341,7 +341,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule) (*eskip
 
 	var pathExpressions []string
 	if prule.Path != "" {
-		pathExpressions = []string{prule.Path}
+		pathExpressions = []string{"^" + prule.Path}
 	}
 
 	r := &eskip.Route{
