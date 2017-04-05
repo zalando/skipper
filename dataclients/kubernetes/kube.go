@@ -111,7 +111,8 @@ type Client struct {
 	provideHTTPSRedirect bool
 	token                string
 	current              map[string]*eskip.Route
-	healthy              bool
+	termReceived         bool
+	sigs                 chan os.Signal
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -142,6 +143,10 @@ func New(o Options) (*Client, error) {
 
 	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck)
 
+	log.Info("register sigterm handler")
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM)
+
 	return &Client{
 		httpClient:           httpClient,
 		apiURL:               apiURL,
@@ -149,7 +154,7 @@ func New(o Options) (*Client, error) {
 		provideHTTPSRedirect: o.ProvideHTTPSRedirect,
 		current:              make(map[string]*eskip.Route),
 		token:                token,
-		healthy:              true,
+		sigs:                 sigs,
 	}, nil
 }
 
@@ -483,6 +488,17 @@ func httpRedirectRoute() *eskip.Route {
 	}
 }
 
+func (c *Client) hasReceivedTerm() bool {
+	select {
+	case s := <-c.sigs:
+		log.Infof("shutdown, caused by %s, set healthCheck to be unhealty", s)
+		c.termReceived = true
+	default:
+	}
+
+	return c.termReceived
+}
+
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	r, err := c.loadAndConvert()
@@ -492,7 +508,8 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	}
 
 	if c.provideHealthcheck {
-		r = append(r, healthcheckRoute(c.healthy))
+		healthy := !c.hasReceivedTerm()
+		r = append(r, healthcheckRoute(healthy))
 	}
 
 	if c.provideHTTPSRedirect {
@@ -508,13 +525,6 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 }
 
 func (c *Client) registerSigtermHandler() {
-	log.Info("register sigterm handler")
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM)
-	// Block until a signal is received.
-	s := <-sigs
-	log.Infof("shutdown, caused by %s, set healthCheck to be unhealty", s)
-	c.healthy = false
 }
 
 // TODO: implement a force reset after some time
@@ -562,7 +572,8 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
 
 	if c.provideHealthcheck {
-		hc := healthcheckRoute(c.healthy)
+		healthy := !c.hasReceivedTerm()
+		hc := healthcheckRoute(healthy)
 		next[healthcheckRouteID] = hc
 		updatedRoutes = append(updatedRoutes, hc)
 	}
