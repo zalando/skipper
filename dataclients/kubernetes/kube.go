@@ -491,7 +491,7 @@ func httpRedirectRoute() *eskip.Route {
 func (c *Client) hasReceivedTerm() bool {
 	select {
 	case s := <-c.sigs:
-		log.Infof("shutdown, caused by %s, set healthCheck to be unhealty", s)
+		log.Infof("shutdown, caused by %s, set healthCheck to be unhealthy", s)
 		c.termReceived = true
 	default:
 	}
@@ -519,12 +519,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	c.current = mapRoutes(r)
 	log.Debugf("all routes loaded and mapped")
 
-	go c.registerSigtermHandler()
-
 	return r, nil
-}
-
-func (c *Client) registerSigtermHandler() {
 }
 
 // TODO: implement a force reset after some time
