@@ -30,8 +30,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -109,6 +111,7 @@ type Client struct {
 	provideHTTPSRedirect bool
 	token                string
 	current              map[string]*eskip.Route
+	healthy              bool
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -146,6 +149,7 @@ func New(o Options) (*Client, error) {
 		provideHTTPSRedirect: o.ProvideHTTPSRedirect,
 		current:              make(map[string]*eskip.Route),
 		token:                token,
+		healthy:              true,
 	}, nil
 }
 
@@ -488,7 +492,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	}
 
 	if c.provideHealthcheck {
-		r = append(r, healthcheckRoute(true))
+		r = append(r, healthcheckRoute(c.healthy))
 	}
 
 	if c.provideHTTPSRedirect {
@@ -498,7 +502,19 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	c.current = mapRoutes(r)
 	log.Debugf("all routes loaded and mapped")
 
+	go c.registerSigtermHandler()
+
 	return r, nil
+}
+
+func (c *Client) registerSigtermHandler() {
+	log.Info("register sigterm handler")
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM)
+	// Block until a signal is received.
+	s := <-sigs
+	log.Infof("shutdown, caused by %s, set healthCheck to be unhealty", s)
+	c.healthy = false
 }
 
 // TODO: implement a force reset after some time
@@ -546,7 +562,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
 
 	if c.provideHealthcheck {
-		hc := healthcheckRoute(true)
+		hc := healthcheckRoute(c.healthy)
 		next[healthcheckRouteID] = hc
 		updatedRoutes = append(updatedRoutes, hc)
 	}
