@@ -1303,7 +1303,11 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		c.sigs <- syscall.SIGTERM
+		// send term only when the client is handling it:
+		select {
+		case c.sigs <- syscall.SIGTERM:
+		default:
+		}
 
 		r, err := c.LoadAll()
 		if err != nil {
@@ -1324,7 +1328,11 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		c.sigs <- syscall.SIGTERM
+		// send term only when the client is handling it:
+		select {
+		case c.sigs <- syscall.SIGTERM:
+		default:
+		}
 
 		r, err := c.LoadAll()
 		if err != nil {
@@ -1351,7 +1359,11 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		c.sigs <- syscall.SIGTERM
+		// send term only when the client is handling it:
+		select {
+		case c.sigs <- syscall.SIGTERM:
+		default:
+		}
 
 		r, _, err := c.LoadUpdate()
 		if err != nil {
@@ -1378,7 +1390,11 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		c.sigs <- syscall.SIGTERM
+		// send term only when the client is handling it:
+		select {
+		case c.sigs <- syscall.SIGTERM:
+		default:
+		}
 
 		r, _, err := c.LoadUpdate()
 		if err != nil {

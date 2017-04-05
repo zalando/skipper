@@ -15,6 +15,14 @@ See: https://github.com/zalando-incubator/kube-ingress-aws-controller
 Both Kube-ingress-aws-controller and Skipper Kubernetes are part of the larger project, Kubernetes On AWS:
 
 https://github.com/zalando-incubator/kubernetes-on-aws/
+
+Ingress shutdown by healthcheck
+
+The Kubernetes ingress client catches TERM signals when the ProvideHealthcheck option is enabled, and reports
+failing healthcheck after the signal was received. This means that, when the Ingress client is responsible for
+the healthcheck of the cluster, and the Skipper process receives the TERM signal, it won't exit by itself
+immediately, but will start reporting failurs on healthcheck requests. Until it gets killed by the kubelet,
+Skipper keeps serving the requests in this case.
 */
 package kubernetes
 
@@ -143,9 +151,12 @@ func New(o Options) (*Client, error) {
 
 	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck)
 
-	log.Info("register sigterm handler")
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM)
+	var sigs chan os.Signal
+	if o.ProvideHealthcheck {
+		log.Info("register sigterm handler")
+		sigs = make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGTERM)
+	}
 
 	return &Client{
 		httpClient:           httpClient,
