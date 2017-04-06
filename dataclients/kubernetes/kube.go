@@ -15,6 +15,14 @@ See: https://github.com/zalando-incubator/kube-ingress-aws-controller
 Both Kube-ingress-aws-controller and Skipper Kubernetes are part of the larger project, Kubernetes On AWS:
 
 https://github.com/zalando-incubator/kubernetes-on-aws/
+
+Ingress shutdown by healthcheck
+
+The Kubernetes ingress client catches TERM signals when the ProvideHealthcheck option is enabled, and reports
+failing healthcheck after the signal was received. This means that, when the Ingress client is responsible for
+the healthcheck of the cluster, and the Skipper process receives the TERM signal, it won't exit by itself
+immediately, but will start reporting failures on healthcheck requests. Until it gets killed by the kubelet,
+Skipper keeps serving the requests in this case.
 */
 package kubernetes
 
@@ -30,8 +38,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -109,6 +119,8 @@ type Client struct {
 	provideHTTPSRedirect bool
 	token                string
 	current              map[string]*eskip.Route
+	termReceived         bool
+	sigs                 chan os.Signal
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -139,6 +151,13 @@ func New(o Options) (*Client, error) {
 
 	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck)
 
+	var sigs chan os.Signal
+	if o.ProvideHealthcheck {
+		log.Info("register sigterm handler")
+		sigs = make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGTERM)
+	}
+
 	return &Client{
 		httpClient:           httpClient,
 		apiURL:               apiURL,
@@ -146,6 +165,7 @@ func New(o Options) (*Client, error) {
 		provideHTTPSRedirect: o.ProvideHTTPSRedirect,
 		current:              make(map[string]*eskip.Route),
 		token:                token,
+		sigs:                 sigs,
 	}, nil
 }
 
@@ -479,6 +499,17 @@ func httpRedirectRoute() *eskip.Route {
 	}
 }
 
+func (c *Client) hasReceivedTerm() bool {
+	select {
+	case s := <-c.sigs:
+		log.Infof("shutdown, caused by %s, set healthCheck to be unhealthy", s)
+		c.termReceived = true
+	default:
+	}
+
+	return c.termReceived
+}
+
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	r, err := c.loadAndConvert()
@@ -488,7 +519,8 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	}
 
 	if c.provideHealthcheck {
-		r = append(r, healthcheckRoute(true))
+		healthy := !c.hasReceivedTerm()
+		r = append(r, healthcheckRoute(healthy))
 	}
 
 	if c.provideHTTPSRedirect {
@@ -546,7 +578,8 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
 
 	if c.provideHealthcheck {
-		hc := healthcheckRoute(true)
+		healthy := !c.hasReceivedTerm()
+		hc := healthcheckRoute(healthy)
 		next[healthcheckRouteID] = hc
 		updatedRoutes = append(updatedRoutes, hc)
 	}

@@ -17,6 +17,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1286,4 +1287,121 @@ func createCert(template, parent *x509.Certificate, pub interface{}, parentPriv 
 	b := pem.Block{Type: "CERTIFICATE", Bytes: certDER}
 	certPEM = pem.EncodeToMemory(&b)
 	return
+}
+
+func TestHealthcheckOnTerm(t *testing.T) {
+	api := newTestAPI(t, testServices(), &ingressList{})
+	defer api.Close()
+
+	t.Run("no difference after term when healthcheck disabled", func(t *testing.T) {
+		c, err := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: false,
+		})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		// send term only when the client is handling it:
+		select {
+		case c.sigs <- syscall.SIGTERM:
+		default:
+		}
+
+		r, err := c.LoadAll()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		checkHealthcheck(t, r, false, false)
+	})
+
+	t.Run("healthcheck false after term", func(t *testing.T) {
+		c, err := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		// send term only when the client is handling it:
+		select {
+		case c.sigs <- syscall.SIGTERM:
+		default:
+		}
+
+		r, err := c.LoadAll()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		checkHealthcheck(t, r, true, false)
+	})
+
+	t.Run("no difference after term when disabled, update", func(t *testing.T) {
+		c, err := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: false,
+		})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		_, err = c.LoadAll()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		// send term only when the client is handling it:
+		select {
+		case c.sigs <- syscall.SIGTERM:
+		default:
+		}
+
+		r, _, err := c.LoadUpdate()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		checkHealthcheck(t, r, false, false)
+	})
+
+	t.Run("healthcheck false after term, update", func(t *testing.T) {
+		c, err := New(Options{
+			KubernetesURL:      api.server.URL,
+			ProvideHealthcheck: true,
+		})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		_, err = c.LoadAll()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		// send term only when the client is handling it:
+		select {
+		case c.sigs <- syscall.SIGTERM:
+		default:
+		}
+
+		r, _, err := c.LoadUpdate()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		checkHealthcheck(t, r, true, false)
+	})
 }
