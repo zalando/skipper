@@ -21,7 +21,7 @@ Ingress shutdown by healthcheck
 The Kubernetes ingress client catches TERM signals when the ProvideHealthcheck option is enabled, and reports
 failing healthcheck after the signal was received. This means that, when the Ingress client is responsible for
 the healthcheck of the cluster, and the Skipper process receives the TERM signal, it won't exit by itself
-immediately, but will start reporting failurs on healthcheck requests. Until it gets killed by the kubelet,
+immediately, but will start reporting failures on healthcheck requests. Until it gets killed by the kubelet,
 Skipper keeps serving the requests in this case.
 */
 package kubernetes
