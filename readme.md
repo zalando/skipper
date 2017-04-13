@@ -61,7 +61,7 @@ Start Skipper and make an HTTP request:
 
 ##### Kubernetes Ingress
 
-Skipper can be used to run as Ingress implementation. A [production
+Skipper can be used to run as an Ingress implementation. A [production
 example](https://github.com/zalando-incubator/kubernetes-on-aws/blob/dev/cluster/manifests/skipper/daemonset.yaml)
 can be found in our [Kubernetes
 configuration](https://github.com/zalando-incubator/kubernetes-on-aws).
