@@ -24,7 +24,7 @@ predicates or data sources. See more in the
 [Documentation](https://godoc.org/github.com/zalando/skipper)
 
 #### Inspiration
-Skipper's design is largely inspired by [Vulcand](https://github.com/vulcand/vulcand). 
+Skipper's design is largely inspired by [Vulcand](https://github.com/vulcand/vulcand).
 
 ### Getting Started
 #### Prerequisites/Requirements
@@ -58,6 +58,13 @@ Start Skipper and make an HTTP request:
 
     skipper -routes-file example.eskip &
     curl localhost:9090/hello
+
+##### Kubernetes Ingress
+
+Skipper can be used to run as Ingress implementation. A [production
+example](https://github.com/zalando-incubator/kubernetes-on-aws/blob/dev/cluster/manifests/skipper/daemonset.yaml)
+can be found in our [Kubernetes
+configuration](https://github.com/zalando-incubator/kubernetes-on-aws).
 
 #### Working with the code
 
