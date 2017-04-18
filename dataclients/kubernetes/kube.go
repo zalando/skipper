@@ -349,14 +349,25 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 	return r, true, nil
 }
 
-func (c *Client) convertPathRule(ns, name, host string, prule *pathRule) (*eskip.Route, error) {
+func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, servicesURLs map[string]string) (*eskip.Route, error) {
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
-
-	address, err := c.getServiceURL(ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
-	if err != nil {
-		return nil, err
+	serviceKey := ns + prule.Backend.ServiceName + prule.Backend.ServicePort.String()
+	var (
+		address string
+		err     error
+	)
+	if val, ok := servicesURLs[serviceKey]; !ok {
+		address, err = c.getServiceURL(ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
+		if err != nil {
+			return nil, err
+		}
+		servicesURLs[serviceKey] = address
+		log.Debugf("New route for %s/%s/%s", ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
+	} else {
+		address = val
+		log.Debugf("Route for %s/%s/%s already known", ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
 	}
 
 	var pathExpressions []string
@@ -393,6 +404,12 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 			log.Errorf("error while converting default backend: %v", err)
 		}
 
+		var (
+			r   *eskip.Route
+			err error
+		)
+		// We need this to avoid asking the k8s API for the same services
+		servicesURLs := make(map[string]string)
 		for _, rule := range i.Spec.Rules {
 			if rule.Http == nil {
 				log.Warn("invalid ingress item: rule missing http definitions")
@@ -405,7 +422,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
 			for _, prule := range rule.Http.Paths {
-				r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule)
+				r, err = c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
 				if err != nil {
 					// tolerate single rule errors
 					//
