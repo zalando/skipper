@@ -351,7 +351,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 
 func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, servicesURLs map[string]string) (*eskip.Route, map[string]string, error) {
 	if prule.Backend == nil {
-		return nil, nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
+		return nil, servicesURLs, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
 	serviceKey := ns + prule.Backend.ServiceName + prule.Backend.ServicePort.String()
 	var (
@@ -361,7 +361,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 	if val, ok := servicesURLs[serviceKey]; !ok {
 		address, err = c.getServiceURL(ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
 		if err != nil {
-			return nil, nil, err
+			return nil, servicesURLs, err
 		}
 		servicesURLs[serviceKey] = address
 		log.Debugf("New route for %s/%s/%s", ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
