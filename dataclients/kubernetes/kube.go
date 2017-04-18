@@ -349,9 +349,9 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 	return r, true, nil
 }
 
-func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, servicesURLs map[string]string) (*eskip.Route, map[string]string, error) {
+func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, servicesURLs map[string]string) (*eskip.Route, error) {
 	if prule.Backend == nil {
-		return nil, servicesURLs, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
+		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
 	serviceKey := ns + prule.Backend.ServiceName + prule.Backend.ServicePort.String()
 	var (
@@ -361,7 +361,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 	if val, ok := servicesURLs[serviceKey]; !ok {
 		address, err = c.getServiceURL(ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
 		if err != nil {
-			return nil, servicesURLs, err
+			return nil, err
 		}
 		servicesURLs[serviceKey] = address
 		log.Debugf("New route for %s/%s/%s", ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
@@ -381,7 +381,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 		Backend:     address,
 	}
 
-	return r, servicesURLs, nil
+	return r, nil
 }
 
 // logs if invalid, but proceeds with the valid ones
@@ -422,7 +422,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
 			for _, prule := range rule.Http.Paths {
-				r, servicesURLs, err = c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
+				r, err = c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
 				if err != nil {
 					// tolerate single rule errors
 					//
