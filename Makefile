@@ -1,10 +1,11 @@
-SOURCES =         $(shell find . -name '*.go')
-CURRENT_VERSION = $(shell git tag | sort -V | tail -n1)
-VERSION ?=        $(CURRENT_VERSION)
-NEXT_MAJOR =      $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
-NEXT_MINOR =      $(shell go run packaging/version/version.go minor $(CURRENT_VERSION))
-NEXT_PATCH =      $(shell go run packaging/version/version.go patch $(CURRENT_VERSION))
-COMMIT_HASH =     $(shell git rev-parse --short HEAD)
+SOURCES =            $(shell find . -name '*.go')
+CURRENT_VERSION =    $(shell git tag | sort -V | tail -n1)
+VERSION ?=           $(CURRENT_VERSION)
+NEXT_MAJOR =         $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
+NEXT_MINOR =         $(shell go run packaging/version/version.go minor $(CURRENT_VERSION))
+NEXT_PATCH =         $(shell go run packaging/version/version.go patch $(CURRENT_VERSION))
+COMMIT_HASH =        $(shell git rev-parse --short HEAD)
+TEST_ETCD_VERSION ?= v2.3.8
 
 default: build
 
@@ -42,7 +43,7 @@ deps:
 	go get golang.org/x/sys/unix
 	go get golang.org/x/crypto/ssh/terminal
 	go get -t github.com/zalando/skipper/...
-	./etcd/install.sh
+	./etcd/install.sh $(TEST_ETCD_VERSION)
 	go get github.com/tools/godep
 	godep restore ./...
 
