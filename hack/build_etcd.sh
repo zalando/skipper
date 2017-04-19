@@ -9,8 +9,7 @@ fi
 
 echo "Using ETCD version $ETCD_VERSION"
 
-mkdir /hack
-git clone https://github.com/coreos/etcd.git /hack/etcd
-cd /hack/etcd
+git clone https://github.com/coreos/etcd.git $HOME/gopath/src/etcd
+cd $HOME/gopath/src/etcd
 git checkout $ETCD_VERSION
 ./build

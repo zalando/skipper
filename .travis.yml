@@ -17,4 +17,4 @@ branches:
   - "/^v\\d+[.]\\d+[.]\\d+.*/"
 
 script:
-- PATH=$PATH:/hack/etcd/bin make ci-trigger
+- PATH=$PATH:$HOME/gopath/src/etcd/bin make ci-trigger
