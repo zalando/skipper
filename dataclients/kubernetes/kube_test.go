@@ -828,6 +828,61 @@ func TestIngress(t *testing.T) {
 	})
 }
 
+func TestConvertPathRule(t *testing.T) {
+	api := newTestAPI(t, nil, &ingressList{})
+	defer api.Close()
+
+	t.Run("has ingresses, receive two equal backends", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		dc, err := New(Options{KubernetesURL: api.server.URL})
+		if err != nil {
+			t.Error(err)
+		}
+
+		r, err := dc.LoadAll()
+
+		if err != nil {
+			t.Error("failed to load initial routes", err)
+			return
+		}
+
+		api.ingresses.Items = append(
+			api.ingresses.Items,
+			testIngress(
+				"namespace1",
+				"new1",
+				"",
+				backendPort{""},
+				testRule(
+					"new1.example.org",
+					testPathRule("/test1", "service1", backendPort{"port1"}),
+				),
+			),
+			testIngress(
+				"namespace1",
+				"new1",
+				"",
+				backendPort{""},
+				testRule(
+					"new1.example.org",
+					testPathRule("/test2", "service1", backendPort{"port1"}),
+				),
+			),
+		)
+
+		r, d, err := dc.LoadUpdate()
+		if err != nil || len(d) != 0 {
+			t.Error("update failed")
+		}
+
+		checkRoutes(t, r, map[string]string{
+			"kube_namespace1__new1__new1_example_org___test1": "http://1.2.3.4:8080",
+			"kube_namespace1__new1__new1_example_org___test2": "http://1.2.3.4:8080",
+		})
+	})
+}
+
 func TestHealthcheckInitial(t *testing.T) {
 	api := newTestAPI(t, nil, &ingressList{})
 	defer api.Close()
