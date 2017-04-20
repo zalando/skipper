@@ -373,11 +373,11 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 
 	var pathExpressions []string
 	if prule.Path != "" {
-		res, err := strconv.Unquote(`"` + prule.Path + `"`)
+		unquotedPath, err := strconv.Unquote(`"` + prule.Path + `"`)
 		if err != nil {
 			pathExpressions = []string{"^" + prule.Path}
 		} else {
-			pathExpressions = []string{"^" + res}
+			pathExpressions = []string{"^" + unquotedPath}
 		}
 	}
 
