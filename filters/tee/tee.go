@@ -14,10 +14,12 @@ import (
 const (
 	Name           = "tee"
 	DeprecatedName = "Tee"
+	NoFollowName   = "teenf"
 )
 
 type teeSpec struct {
 	deprecated bool
+	noFollow   bool
 }
 
 type teeType int
@@ -28,12 +30,13 @@ const (
 )
 
 type tee struct {
-	client      *http.Client
-	typ         teeType
-	host        string
-	scheme      string
-	rx          *regexp.Regexp
-	replacement string
+	client            *http.Client
+	typ               teeType
+	host              string
+	scheme            string
+	rx                *regexp.Regexp
+	replacement       string
+	shadowRequestDone func() // test hook
 }
 
 type teeTie struct {
@@ -76,6 +79,15 @@ func NewTeeDeprecated() filters.Spec {
 	return &teeSpec{deprecated: true}
 }
 
+// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
+// It does not follow the redirects from the backend.
+// parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
+//
+// Name: "teenf".
+func NewTeeNoFollow() filters.Spec {
+	return &teeSpec{noFollow: true}
+}
+
 func (tt *teeTie) Read(b []byte) (int, error) {
 	n, err := tt.r.Read(b)
 
@@ -114,6 +126,12 @@ func (r *tee) Request(fc filters.FilterContext) {
 	req.Body = tr
 
 	go func() {
+		defer func() {
+			if r.shadowRequestDone != nil {
+				r.shadowRequestDone()
+			}
+		}()
+
 		rsp, err := r.client.Do(copyOfRequest)
 		if err != nil {
 			log.Warn("tee: error while tee request", err)
@@ -171,7 +189,18 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 // If only one parameter is given shadow backend is used as it is specified
 // If second and third parameters are also set, then path is modified
 func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
-	tee := tee{client: &http.Client{}}
+	var client *http.Client
+	if spec.noFollow {
+		client = &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+	} else {
+		client = &http.Client{}
+	}
+
+	tee := tee{client: client}
 
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -181,9 +210,9 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	if url, err := url.Parse(backend); err == nil {
-		tee.host = url.Host
-		tee.scheme = url.Scheme
+	if u, err := url.Parse(backend); err == nil {
+		tee.host = u.Host
+		tee.scheme = u.Scheme
 	} else {
 		return nil, err
 	}
@@ -224,6 +253,8 @@ func (spec *teeSpec) Name() string {
 	if spec.deprecated {
 		return DeprecatedName
 	}
-
+	if spec.noFollow {
+		return NoFollowName
+	}
 	return Name
 }

@@ -1,13 +1,13 @@
 package tee
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
-
-	"fmt"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -126,7 +126,6 @@ func (h *myHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.t.Error(err)
 	}
-
 	h.header = r.Header
 	h.body = string(b)
 	close(h.served)
@@ -172,18 +171,81 @@ func TestTeeEndToEndBody(t *testing.T) {
 	}
 }
 
+func TestTeeFollowOrNot(t *testing.T) {
+	for _, follow := range []bool{
+		true,
+		false,
+	} {
+		followed := make(chan struct{})
+
+		shadowRedirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			close(followed)
+		}))
+		defer shadowRedirectServer.Close()
+
+		redirectorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, shadowRedirectServer.URL, http.StatusMovedPermanently)
+		}))
+		defer redirectorServer.Close()
+
+		var fspec filters.Spec
+		if follow {
+			fspec = NewTee()
+		} else {
+			fspec = NewTeeNoFollow()
+		}
+
+		f, err := fspec.CreateFilter([]interface{}{redirectorServer.URL})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		done := make(chan struct{})
+
+		f.(*tee).shadowRequestDone = func() {
+			select {
+			case <-followed:
+			default:
+				close(done)
+			}
+		}
+
+		u, err := url.Parse("http://example.org")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ctx := &filtertest.Context{
+			FRequest: &http.Request{
+				URL: u,
+			},
+		}
+
+		f.Request(ctx)
+
+		select {
+		case <-followed:
+			if !follow {
+				t.Error()
+			}
+		case <-done:
+			if follow {
+				t.Error("did not follow the redirect")
+			}
+		}
+	}
+}
+
 func TestTeeHeaders(t *testing.T) {
 	shadowHandler := newTestHandler(t, "shadow")
 	shadowServer := httptest.NewServer(shadowHandler)
-	shadowUrl := shadowServer.URL
 	defer shadowServer.Close()
 
 	originalHandler := newTestHandler(t, "original")
 	originalServer := httptest.NewServer(originalHandler)
-	originalUrl := originalServer.URL
 	defer originalServer.Close()
 
-	routeStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";`, shadowUrl, originalUrl)
+	routeStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";`, shadowServer.URL, originalServer.URL)
 
 	route, _ := eskip.Parse(routeStr)
 	registry := make(filters.Registry)
@@ -293,5 +355,21 @@ func TestTeeArgsForFailure(t *testing.T) {
 			continue
 		}
 
+	}
+}
+
+func TestName(t *testing.T) {
+	for _, ti := range []struct {
+		spec filters.Spec
+		name string
+	}{
+		{NewTee(), "tee"},
+		{NewTeeDeprecated(), "Tee"},
+		{NewTeeNoFollow(), "teenf"},
+	} {
+		n := ti.spec.Name()
+		if n != ti.name {
+			t.Errorf("expected name %v, got %v", ti.name, n)
+		}
 	}
 }
