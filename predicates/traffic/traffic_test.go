@@ -37,29 +37,24 @@ func TestCreate(t *testing.T) {
 		true,
 	}, {
 		"third not string",
-		[]interface{}{.3, .2, "group"},
+		[]interface{}{.3, "testname", .2},
 		predicate{},
 		true,
 	}, {
-		"you have 1 parameter but need to have 3 parameters",
+		"only chance",
 		[]interface{}{.3},
 		predicate{chance: .3},
-		true,
+		false,
 	}, {
-		"you have 2 parameters but need to have 3 parameters",
+		"you have 2 parameters but need to have 1 or 3 parameters",
 		[]interface{}{.3, "foo"},
 		predicate{chance: .3},
 		true,
 	}, {
-		"chance and group",
+		"chance and stickyness",
 		[]interface{}{.3, "testname", "group"},
 		predicate{chance: .3, trafficGroup: "group", trafficGroupCookie: "testname"},
 		false,
-	}, {
-		"chance and group and cookie name",
-		[]interface{}{.3, "test"},
-		predicate{chance: .3, trafficGroupCookie: "test"},
-		true,
 	}} {
 		pi, err := (&spec{}).Create(ti.args)
 		if err == nil && ti.err || err != nil && !ti.err {

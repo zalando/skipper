@@ -5,21 +5,35 @@ traffic by setting rates for certain routes.
 The chance for hitting a route is defined by the mandatory first
 parameter, that must be a number between 0 and 1.
 
-Stickiness of traffic is supported by the optional second parameter,
-indicating whether the request being matched belongs to the traffic
-group of the current route. If yes, the predicate matches ignoring
-the chance argument.
+The optional second argument is used to specify the cookie
+name for the traffic group.
+
+Stickiness of traffic is supported by the optional third
+parameter, indicating whether the request being matched belongs to the
+traffic group of the current route. If yes, the predicate matches
+ignoring the chance argument.
+
+You always have to specify one argument, if you do not need stickiness,
+and three arguments, if your service requires stickiness.
 
 Predicates cannot modify the response, so the responsibility of
 setting the traffic group cookie remains to either a filter or the
 backend service.
 
-The optional third argument is used to specify the cookie name for
-the traffic group. This argument should be used in cases when there
-are multiple, independent sets of routes under traffic control.
+The below example, shows a possible eskip document used for green-blue
+deployments of non sticky APIs:
+
+    // hit by 10% percent chance
+    v2:
+        Traffic(.1) ->
+        "https://api-test-green";
+
+    // hit by remaining chance
+    v1:
+        "https://api-test-blue";
 
 The below example, shows a possible eskip document with two,
-independent traffic controlled route sets:
+independent traffic controlled route sets, which uses session stickiness:
 
     // hit by 5% percent chance
     cartTest:
@@ -81,7 +95,7 @@ func New() routing.PredicateSpec { return &spec{} }
 func (s *spec) Name() string { return PredicateName }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
-	if len(args) == 0 || len(args) > 3 {
+	if !(len(args) == 1 || len(args) == 3) {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
@@ -93,22 +107,17 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	if len(args) > 1 {
+	if len(args) == 3 {
 		if tgc, ok := args[1].(string); ok {
 			p.trafficGroupCookie = tgc
 		} else {
 			return nil, predicates.ErrInvalidPredicateParameters
 		}
-	}
-
-	if len(args) > 2 {
 		if tg, ok := args[2].(string); ok {
 			p.trafficGroup = tg
 		} else {
 			return nil, predicates.ErrInvalidPredicateParameters
 		}
-	} else {
-		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
 	return p, nil
