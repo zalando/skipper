@@ -77,6 +77,7 @@ func MakeRegistry() filters.Registry {
 		diag.NewBackendChunks(),
 		tee.NewTee(),
 		tee.NewTeeDeprecated(),
+		tee.NewTeeNoFollow(),
 		auth.NewBasicAuth(),
 	} {
 		r.Register(s)
