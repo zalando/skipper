@@ -1,14 +1,15 @@
 /*
-Package traffic implements a custom predicate to control
-traffic by setting rates for certain routes.
+Package traffic implements a predicate to control the matching
+probability for a given route by setting its weight.
 
-The chance for hitting a route is defined by the mandatory first
-parameter, that must be a number between 0 and 1.
+The probability for matching a route is defined by the mandatory first
+parameter, that must be a decimal number between 0.0 and 1.0 (both
+exclusive).
 
-The optional second argument is used to specify the cookie
-name for the traffic group.
-
-Stickiness of traffic is supported by the optional third
+The optional second argument is used to specify the cookie name for
+the traffic group, in case you want to use stickiness. Stickiness
+allows all subsequent requests from the same client to match the same
+route. Stickiness of traffic is supported by the optional third
 parameter, indicating whether the request being matched belongs to the
 traffic group of the current route. If yes, the predicate matches
 ignoring the chance argument.
@@ -21,7 +22,7 @@ setting the traffic group cookie remains to either a filter or the
 backend service.
 
 The below example, shows a possible eskip document used for green-blue
-deployments of non sticky APIs:
+deployments of APIS, which usually don't require stickiness:
 
     // hit by 10% percent chance
     v2:
@@ -101,7 +102,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 
 	p := &predicate{}
 
-	if c, ok := args[0].(float64); ok {
+	if c, ok := args[0].(float64); ok && 0.0 <= c && c < 1.0 {
 		p.chance = c
 	} else {
 		return nil, predicates.ErrInvalidPredicateParameters
