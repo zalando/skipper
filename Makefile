@@ -68,15 +68,12 @@ push-tags:
 
 release-major:
 	make VERSION=$(NEXT_MAJOR) tag push-tags
-	make -C packaging VERSION=$(NEXT_MAJOR) docker-build docker-push
 
 release-minor:
 	make VERSION=$(NEXT_MINOR) tag push-tags
-	make -C packaging VERSION=$(NEXT_MINOR) docker-build docker-push
 
 release-patch:
 	make VERSION=$(NEXT_PATCH) tag push-tags
-	make -C packaging VERSION=$(NEXT_PATCH) docker-build docker-push
 
 ci-user:
 	git config --global user.email "builds@travis-ci.com"
