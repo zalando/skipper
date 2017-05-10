@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"regexp"
 
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
@@ -17,9 +19,16 @@ const (
 	NoFollowName   = "teenf"
 )
 
+const defaultTeeTimeout = 1 * time.Second
+
 type teeSpec struct {
 	deprecated bool
-	noFollow   bool
+	options    Options
+}
+
+type Options struct {
+	noFollow bool
+	timeout  time.Duration
 }
 
 type teeType int
@@ -65,7 +74,10 @@ var hopHeaders = []string{
 //
 // Name: "tee".
 func NewTee() filters.Spec {
-	return &teeSpec{}
+	return NewTeeWithOptions(Options{
+		timeout:  defaultTeeTimeout,
+		noFollow: false,
+	})
 }
 
 // Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
@@ -76,7 +88,10 @@ func NewTee() filters.Spec {
 //
 // Name: "Tee".
 func NewTeeDeprecated() filters.Spec {
-	return &teeSpec{deprecated: true}
+	return &teeSpec{deprecated: true, options: Options{
+		noFollow: false,
+		timeout:  defaultTeeTimeout,
+	}}
 }
 
 // Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
@@ -85,7 +100,15 @@ func NewTeeDeprecated() filters.Spec {
 //
 // Name: "teenf".
 func NewTeeNoFollow() filters.Spec {
-	return &teeSpec{noFollow: true}
+	return NewTeeWithOptions(Options{noFollow: true, timeout: defaultTeeTimeout})
+}
+
+// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend with given
+// options. Available options are nofollow and timeout for http client.
+// parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
+//
+func NewTeeWithOptions(o Options) filters.Spec {
+	return &teeSpec{options: o}
 }
 
 func (tt *teeTie) Read(b []byte) (int, error) {
@@ -189,15 +212,12 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 // If only one parameter is given shadow backend is used as it is specified
 // If second and third parameters are also set, then path is modified
 func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
-	var client *http.Client
-	if spec.noFollow {
-		client = &http.Client{
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
+	client := &http.Client{Timeout: spec.options.timeout}
+
+	if spec.options.noFollow {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
 		}
-	} else {
-		client = &http.Client{}
 	}
 
 	tee := tee{client: client}
@@ -253,7 +273,7 @@ func (spec *teeSpec) Name() string {
 	if spec.deprecated {
 		return DeprecatedName
 	}
-	if spec.noFollow {
+	if spec.options.noFollow {
 		return NoFollowName
 	}
 	return Name
