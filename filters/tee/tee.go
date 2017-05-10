@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -19,16 +18,21 @@ const (
 	NoFollowName   = "teenf"
 )
 
-const defaultTeeTimeout = 1 * time.Second
+const defaultTeeTimeout = time.Second
 
 type teeSpec struct {
 	deprecated bool
 	options    Options
 }
 
+// Options for tee filter.
 type Options struct {
-	noFollow bool
-	timeout  time.Duration
+	// NoFollow specifies whether tee should follow redirects or not.
+	// If NoFollow is true, it won't follow, otherwise it will.
+	NoFollow bool
+
+	// Timeout specifies a time limit for requests made by tee filter.
+	Timeout time.Duration
 }
 
 type teeType int
@@ -74,9 +78,9 @@ var hopHeaders = []string{
 //
 // Name: "tee".
 func NewTee() filters.Spec {
-	return NewTeeWithOptions(Options{
-		timeout:  defaultTeeTimeout,
-		noFollow: false,
+	return WithOptions(Options{
+		Timeout:  defaultTeeTimeout,
+		NoFollow: false,
 	})
 }
 
@@ -89,8 +93,8 @@ func NewTee() filters.Spec {
 // Name: "Tee".
 func NewTeeDeprecated() filters.Spec {
 	return &teeSpec{deprecated: true, options: Options{
-		noFollow: false,
-		timeout:  defaultTeeTimeout,
+		NoFollow: false,
+		Timeout:  defaultTeeTimeout,
 	}}
 }
 
@@ -100,14 +104,14 @@ func NewTeeDeprecated() filters.Spec {
 //
 // Name: "teenf".
 func NewTeeNoFollow() filters.Spec {
-	return NewTeeWithOptions(Options{noFollow: true, timeout: defaultTeeTimeout})
+	return WithOptions(Options{NoFollow: true, Timeout: defaultTeeTimeout})
 }
 
 // Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend with given
-// options. Available options are nofollow and timeout for http client.
+// options. Available options are nofollow and Timeout for http client.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 //
-func NewTeeWithOptions(o Options) filters.Spec {
+func WithOptions(o Options) filters.Spec {
 	return &teeSpec{options: o}
 }
 
@@ -212,9 +216,9 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 // If only one parameter is given shadow backend is used as it is specified
 // If second and third parameters are also set, then path is modified
 func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
-	client := &http.Client{Timeout: spec.options.timeout}
+	client := &http.Client{Timeout: spec.options.Timeout}
 
-	if spec.options.noFollow {
+	if spec.options.NoFollow {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
@@ -273,7 +277,7 @@ func (spec *teeSpec) Name() string {
 	if spec.deprecated {
 		return DeprecatedName
 	}
-	if spec.options.noFollow {
+	if spec.options.NoFollow {
 		return NoFollowName
 	}
 	return Name
