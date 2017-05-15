@@ -983,3 +983,35 @@ func TestRoundtripperRetry(t *testing.T) {
 		t.Error("failed to retry failing connection")
 	}
 }
+
+func TestBranding(t *testing.T) {
+	for path, code := range map[string]int{"/path/to/be/found": 200, "/path/not/to/be/found": 404} {
+		t.Run(path, func(t *testing.T) {
+			p, err := newTestProxy(fmt.Sprintf(`Path("/path/to/be/*") -> status(200) -> <shunt>`), FlagsNone)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			defer p.close()
+
+			s := httptest.NewServer(p.proxy)
+			defer s.Close()
+
+			rsp, err := http.Get(s.URL + path)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			if rsp.StatusCode != code {
+				t.Error("wrong status", rsp.StatusCode, code)
+				return
+			}
+
+			if rsp.Header.Get("X-Powered-By") != "Skipper" || rsp.Header.Get("Server") != "Skipper" {
+				t.Error("failed to add branding")
+			}
+		})
+	}
+}
