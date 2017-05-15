@@ -30,7 +30,6 @@ type context struct {
 	debugFilterPanics     []interface{}
 	outgoingDebugRequest  *http.Request
 	incomingDebugResponse *http.Response
-	loopCounter           int
 	startServe            time.Time
 }
 
@@ -43,14 +42,15 @@ func defaultResponse(r *http.Request) *http.Response {
 		StatusCode: http.StatusNotFound,
 		Header:     make(http.Header),
 		Body:       defaultBody(),
-		Request:    r}
+		Request:    r,
+	}
 }
 
 func (sb bodyBuffer) Close() error {
 	return nil
 }
 
-func cloneUrl(u *url.URL) *url.URL {
+func cloneURL(u *url.URL) *url.URL {
 	uc := *u
 	return &uc
 }
@@ -58,7 +58,7 @@ func cloneUrl(u *url.URL) *url.URL {
 func cloneRequestMetadata(r *http.Request) *http.Request {
 	return &http.Request{
 		Method:           r.Method,
-		URL:              cloneUrl(r.URL),
+		URL:              cloneURL(r.URL),
 		Proto:            r.Proto,
 		ProtoMajor:       r.ProtoMajor,
 		ProtoMinor:       r.ProtoMinor,
@@ -70,7 +70,8 @@ func cloneRequestMetadata(r *http.Request) *http.Request {
 		Host:             r.Host,
 		RemoteAddr:       r.RemoteAddr,
 		RequestURI:       r.RequestURI,
-		TLS:              r.TLS}
+		TLS:              r.TLS,
+	}
 }
 
 func cloneResponseMetadata(r *http.Response) *http.Response {
@@ -86,7 +87,8 @@ func cloneResponseMetadata(r *http.Response) *http.Response {
 		TransferEncoding: r.TransferEncoding,
 		Close:            r.Close,
 		Request:          r.Request,
-		TLS:              r.TLS}
+		TLS:              r.TLS,
+	}
 }
 
 func mergeParams(to, from map[string]string) map[string]string {
@@ -114,14 +116,6 @@ func newContext(w http.ResponseWriter, r *http.Request, preserveOriginal bool) *
 	}
 
 	return c
-}
-
-func (c *context) incLoopCounter() {
-	c.loopCounter++
-}
-
-func (c *context) decLoopCounter() {
-	c.loopCounter--
 }
 
 func (c *context) applyRoute(route *routing.Route, params map[string]string, preserveHost bool) {

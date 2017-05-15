@@ -22,8 +22,6 @@ const (
 	proxyErrorFmt   = "proxy: %s"
 	unknownRouteId  = "_unknownroute_"
 
-	DefaultMaxLoopbacks = 9
-
 	// The default value set for http.Transport.MaxIdleConnsPerHost.
 	DefaultIdleConnsPerHost = 64
 
@@ -102,9 +100,21 @@ type Params struct {
 
 	// Enable the expiremental upgrade protocol feature
 	ExperimentalUpgrade bool
-
-	MaxLoopbacks int
 }
+
+// When set, the proxy will skip the TLS verification on outgoing requests.
+func (f Flags) Insecure() bool { return f&Insecure != 0 }
+
+// When set, the filters will recieve an unmodified clone of the original
+// incoming request and response.
+func (f Flags) PreserveOriginal() bool { return f&(PreserveOriginal|Debug) != 0 }
+
+// When set, the proxy will set the, by default, the Host header value
+// of the outgoing requests to the one of the incoming request.
+func (f Flags) PreserveHost() bool { return f&PreserveHost != 0 }
+
+// When set, the proxy runs in debug mode.
+func (f Flags) Debug() bool { return f&Debug != 0 }
 
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
@@ -132,63 +142,9 @@ type Proxy struct {
 	quit                chan struct{}
 	flushInterval       time.Duration
 	experimentalUpgrade bool
-	maxLoops            int
 }
 
 var errProxyCanceled = errors.New("proxy canceled")
-
-// When set, the proxy will skip the TLS verification on outgoing requests.
-func (f Flags) Insecure() bool { return f&Insecure != 0 }
-
-// When set, the filters will recieve an unmodified clone of the original
-// incoming request and response.
-func (f Flags) PreserveOriginal() bool { return f&(PreserveOriginal|Debug) != 0 }
-
-// When set, the proxy will set the, by default, the Host header value
-// of the outgoing requests to the one of the incoming request.
-func (f Flags) PreserveHost() bool { return f&PreserveHost != 0 }
-
-// When set, the proxy runs in debug mode.
-func (f Flags) Debug() bool { return f&Debug != 0 }
-
-// addBranding overwrites any existing `X-Powered-By` or `Server` header from headerMap
-func addBranding(headerMap http.Header) {
-	headerMap.Set("X-Powered-By", "Skipper")
-	headerMap.Set("Server", "Skipper")
-}
-
-func tryCatch(p func(), onErr func(err interface{})) {
-	defer func() {
-		if err := recover(); err != nil {
-			onErr(err)
-		}
-	}()
-
-	p()
-}
-
-func sendHTTPError(w http.ResponseWriter, code int) {
-	addBranding(w.Header())
-	http.Error(w, http.StatusText(code), code)
-}
-
-// send a premature error response
-func (p *Proxy) sendError(c *context, code int) {
-	sendHTTPError(c.responseWriter, code)
-
-	id := unknownRouteId
-	if c.route != nil {
-		id = c.route.Id
-	}
-
-	p.metrics.MeasureServe(
-		id,
-		c.request.Host,
-		c.request.Method,
-		code,
-		c.startServe,
-	)
-}
 
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
@@ -301,12 +257,6 @@ func WithParams(p Params) *Proxy {
 		m = metrics.Void
 	}
 
-	if p.MaxLoopbacks == 0 {
-		p.MaxLoopbacks = DefaultMaxLoopbacks
-	} else if p.MaxLoopbacks < 0 {
-		p.MaxLoopbacks = 0
-	}
-
 	return &Proxy{
 		routing:             p.Routing,
 		roundTripper:        tr,
@@ -316,8 +266,17 @@ func WithParams(p Params) *Proxy {
 		quit:                quit,
 		flushInterval:       p.FlushInterval,
 		experimentalUpgrade: p.ExperimentalUpgrade,
-		maxLoops:            p.MaxLoopbacks,
 	}
+}
+
+func tryCatch(p func(), onErr func(err interface{})) {
+	defer func() {
+		if err := recover(); err != nil {
+			onErr(err)
+		}
+	}()
+
+	p()
 }
 
 // applies all filters to a request
@@ -370,6 +329,12 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 	p.metrics.MeasureAllFiltersResponse(ctx.route.Id, filtersStart)
 }
 
+// addBranding overwrites any existing `X-Powered-By` or `Server` header from headerMap
+func addBranding(headerMap http.Header) {
+	headerMap.Set("X-Powered-By", "Skipper")
+	headerMap.Set("Server", "Skipper")
+}
+
 func (p *Proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
 	for _, prt := range p.priorityRoutes {
 		rt, params = prt.Match(r)
@@ -379,6 +344,29 @@ func (p *Proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[stri
 	}
 
 	return p.routing.Route(r)
+}
+
+func sendHTTPError(w http.ResponseWriter, code int) {
+	addBranding(w.Header())
+	http.Error(w, http.StatusText(code), code)
+}
+
+// send a premature error response
+func (p *Proxy) sendError(c *context, code int) {
+	sendHTTPError(c.responseWriter, code)
+
+	id := unknownRouteId
+	if c.route != nil {
+		id = c.route.Id
+	}
+
+	p.metrics.MeasureServe(
+		id,
+		c.request.Host,
+		c.request.Method,
+		code,
+		c.startServe,
+	)
 }
 
 func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http.Request) {
@@ -434,15 +422,6 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 }
 
 func (p *Proxy) do(ctx *context) error {
-	if ctx.loopCounter > p.maxLoops {
-		p.sendError(ctx, http.StatusInternalServerError)
-		log.Error("max loops reached: ", ctx.route.Id)
-		return errProxyCanceled
-	}
-
-	ctx.incLoopCounter()
-	defer ctx.decLoopCounter()
-
 	lookupStart := time.Now()
 	route, params := p.lookupRoute(ctx.request)
 	if route == nil {
