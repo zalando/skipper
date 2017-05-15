@@ -424,6 +424,8 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 func (p *Proxy) do(ctx *context) error {
 	lookupStart := time.Now()
 	route, params := p.lookupRoute(ctx.request)
+	p.metrics.MeasureRouteLookup(lookupStart)
+
 	if route == nil {
 		if p.flags.Debug() {
 			dbgResponse(ctx.responseWriter, &debugInfo{
@@ -441,7 +443,6 @@ func (p *Proxy) do(ctx *context) error {
 	}
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
-	p.metrics.MeasureRouteLookup(lookupStart)
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 
