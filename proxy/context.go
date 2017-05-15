@@ -3,17 +3,13 @@ package proxy
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/zalando/skipper/routing"
 )
-
-// a byte buffer implementing the Closer interface
-type bodyBuffer struct {
-	*bytes.Buffer
-}
 
 type context struct {
 	responseWriter        http.ResponseWriter
@@ -34,7 +30,7 @@ type context struct {
 }
 
 func defaultBody() io.ReadCloser {
-	return &bodyBuffer{&bytes.Buffer{}}
+	return ioutil.NopCloser(&bytes.Buffer{})
 }
 
 func defaultResponse(r *http.Request) *http.Response {
@@ -44,10 +40,6 @@ func defaultResponse(r *http.Request) *http.Response {
 		Body:       defaultBody(),
 		Request:    r,
 	}
-}
-
-func (sb bodyBuffer) Close() error {
-	return nil
 }
 
 func cloneURL(u *url.URL) *url.URL {
@@ -63,7 +55,7 @@ func cloneRequestMetadata(r *http.Request) *http.Request {
 		ProtoMajor:       r.ProtoMajor,
 		ProtoMinor:       r.ProtoMinor,
 		Header:           cloneHeader(r.Header),
-		Body:             &bodyBuffer{&bytes.Buffer{}},
+		Body:             defaultBody(),
 		ContentLength:    r.ContentLength,
 		TransferEncoding: r.TransferEncoding,
 		Close:            r.Close,
@@ -82,25 +74,13 @@ func cloneResponseMetadata(r *http.Response) *http.Response {
 		ProtoMajor:       r.ProtoMajor,
 		ProtoMinor:       r.ProtoMinor,
 		Header:           cloneHeader(r.Header),
-		Body:             &bodyBuffer{&bytes.Buffer{}},
+		Body:             defaultBody(),
 		ContentLength:    r.ContentLength,
 		TransferEncoding: r.TransferEncoding,
 		Close:            r.Close,
 		Request:          r.Request,
 		TLS:              r.TLS,
 	}
-}
-
-func mergeParams(to, from map[string]string) map[string]string {
-	if to == nil {
-		to = make(map[string]string)
-	}
-
-	for k, v := range from {
-		to[k] = v
-	}
-
-	return to
 }
 
 func newContext(w http.ResponseWriter, r *http.Request, preserveOriginal bool) *context {
@@ -126,7 +106,7 @@ func (c *context) applyRoute(route *routing.Route, params map[string]string, pre
 		c.outgoingHost = route.Host
 	}
 
-	c.pathParams = mergeParams(c.pathParams, params)
+	c.pathParams = params
 }
 
 func (c *context) ensureDefaultResponse() {

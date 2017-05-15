@@ -286,16 +286,18 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start := time.Now()
-		tryCatch(func() { fi.Request(ctx) }, func(err interface{}) {
+		tryCatch(func() {
+			fi.Request(ctx)
+			p.metrics.MeasureFilterRequest(fi.Name, start)
+		}, func(err interface{}) {
 			if p.flags.Debug() {
 				ctx.debugFilterPanics = append(ctx.debugFilterPanics, err)
 				return
 			}
 
-			log.Error("error while processing filters during request: ", err)
+			log.Errorf("error while processing filter during request: %s: %v", fi.Name, err)
 		})
 
-		p.metrics.MeasureFilterRequest(fi.Name, start)
 		filters = append(filters, fi)
 		if ctx.deprecatedShunted() || ctx.shunted() {
 			break
@@ -314,16 +316,17 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 	for i, _ := range filters {
 		fi := filters[count-1-i]
 		start := time.Now()
-		tryCatch(func() { fi.Response(ctx) }, func(err interface{}) {
+		tryCatch(func() {
+			fi.Response(ctx)
+			p.metrics.MeasureFilterResponse(fi.Name, start)
+		}, func(err interface{}) {
 			if p.flags.Debug() {
 				ctx.debugFilterPanics = append(ctx.debugFilterPanics, err)
 				return
 			}
 
-			log.Error("error while processing filters during response: ", err)
+			log.Errorf("error while processing filters during response: %s: %v", fi.Name, err)
 		})
-
-		p.metrics.MeasureFilterResponse(fi.Name, start)
 	}
 
 	p.metrics.MeasureAllFiltersResponse(ctx.route.Id, filtersStart)
@@ -370,7 +373,7 @@ func (p *Proxy) sendError(c *context, code int) {
 }
 
 func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http.Request) {
-	// have to parse url again, because path is not be copied by mapRequest
+	// have to parse url again, because path is not copied by mapRequest
 	backendURL, err := url.Parse(route.Backend)
 	if err != nil {
 		log.Errorf("can not parse backend %s, caused by: %s", route.Backend, err)
