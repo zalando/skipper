@@ -55,6 +55,7 @@ func cloneRequestMetadata(r *http.Request) *http.Request {
 		ProtoMajor:       r.ProtoMajor,
 		ProtoMinor:       r.ProtoMinor,
 		Header:           cloneHeader(r.Header),
+		Trailer:          cloneHeader(r.Trailer),
 		Body:             defaultBody(),
 		ContentLength:    r.ContentLength,
 		TransferEncoding: r.TransferEncoding,
@@ -74,6 +75,7 @@ func cloneResponseMetadata(r *http.Response) *http.Response {
 		ProtoMajor:       r.ProtoMajor,
 		ProtoMinor:       r.ProtoMinor,
 		Header:           cloneHeader(r.Header),
+		Trailer:          cloneHeader(r.Trailer),
 		Body:             defaultBody(),
 		ContentLength:    r.ContentLength,
 		TransferEncoding: r.TransferEncoding,
@@ -130,10 +132,6 @@ func (c *context) deprecatedShunted() bool {
 
 func (c *context) shunted() bool {
 	return c.servedWithResponse
-}
-
-func (c *context) isShuntRoute() bool {
-	return c.route.Shunt
 }
 
 func (c *context) setResponse(r *http.Response, preserveOriginal bool) {

@@ -279,7 +279,7 @@ func tryCatch(p func(), onErr func(err interface{})) {
 	p()
 }
 
-// applies all filters to a request
+// applies filters to a request
 func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []*routing.RouteFilter {
 	filtersStart := time.Now()
 
@@ -417,7 +417,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 		}
 
 		p.sendError(ctx, code)
-		log.Error("error during backend roundtrip: ", err)
+		log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
 		return nil, errProxyCanceled
 	}
 
@@ -450,8 +450,9 @@ func (p *Proxy) do(ctx *context) error {
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 
 	if ctx.deprecatedShunted() {
+		log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
 		return errProxyCanceled
-	} else if ctx.shunted() || ctx.isShuntRoute() {
+	} else if ctx.shunted() || ctx.route.Shunt {
 		ctx.ensureDefaultResponse()
 	} else if p.flags.Debug() {
 		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
