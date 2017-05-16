@@ -170,9 +170,3 @@ func (c *context) Serve(r *http.Response) {
 	c.servedWithResponse = true
 	c.response = r
 }
-
-func (c *context) clone() *context {
-	var cc context
-	cc = *c
-	return &cc
-}
