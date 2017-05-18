@@ -88,7 +88,7 @@ func initFlags() {
 	flags.StringVar(&etcdUrls, etcdUrlsFlag, "", etcdUrlsUsage)
 	flags.StringVar(&etcdPrefix, etcdPrefixFlag, "", etcdPrefixUsage)
 
-	flags.StringVar(&innkeeperUrl, innkeeperUrlFlag, "", etcdPrefixUsage)
+	flags.StringVar(&innkeeperUrl, innkeeperUrlFlag, "", innkeeperUrlUsage)
 	flags.StringVar(&oauthToken, oauthTokenFlag, "", oauthTokenUsage)
 
 	flags.StringVar(&inlineRoutes, inlineRoutesFlag, "", inlineRoutesUsage)
