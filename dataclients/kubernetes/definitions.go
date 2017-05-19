@@ -7,8 +7,9 @@ import (
 )
 
 type metadata struct {
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
+	Namespace   string            `json:"namespace"`
+	Name        string            `json:"name"`
+	Annotations map[string]string `json:"annotations"`
 }
 
 type backendPort struct {
@@ -70,6 +71,8 @@ func (p backendPort) String() string {
 type backend struct {
 	ServiceName string      `json:"serviceName"`
 	ServicePort backendPort `json:"servicePort"`
+	// Traffic field used for custom traffic weights, but not part of the ingress spec.
+	Traffic float64
 }
 
 type pathRule struct {

@@ -48,23 +48,25 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/source"
+	"github.com/zalando/skipper/predicates/traffic"
 )
 
 // FEATURE:
 // - provide option to limit the used namespaces?
 
 const (
-	defaultKubernetesURL    = "http://localhost:8001"
-	ingressesURI            = "/apis/extensions/v1beta1/ingresses"
-	serviceURIFmt           = "/api/v1/namespaces/%s/services/%s"
-	serviceAccountDir       = "/var/run/secrets/kubernetes.io/serviceaccount/"
-	serviceAccountTokenKey  = "token"
-	serviceAccountRootCAKey = "ca.crt"
-	serviceHostEnvVar       = "KUBERNETES_SERVICE_HOST"
-	servicePortEnvVar       = "KUBERNETES_SERVICE_PORT"
-	healthcheckRouteID      = "kube__healthz"
-	httpRedirectRouteID     = "kube__redirect"
-	healthcheckPath         = "/kube-system/healthz"
+	defaultKubernetesURL        = "http://localhost:8001"
+	ingressesURI                = "/apis/extensions/v1beta1/ingresses"
+	serviceURIFmt               = "/api/v1/namespaces/%s/services/%s"
+	serviceAccountDir           = "/var/run/secrets/kubernetes.io/serviceaccount/"
+	serviceAccountTokenKey      = "token"
+	serviceAccountRootCAKey     = "ca.crt"
+	serviceHostEnvVar           = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar           = "KUBERNETES_SERVICE_PORT"
+	healthcheckRouteID          = "kube__healthz"
+	httpRedirectRouteID         = "kube__redirect"
+	healthcheckPath             = "/kube-system/healthz"
+	backendWeightsAnnotationKey = "zalando.org/backend-weights"
 )
 
 var internalIPs = []interface{}{
@@ -310,12 +312,13 @@ func (c *Client) getServiceURL(namespace, name string, port backendPort) (string
 }
 
 // TODO: find a nicer way to autogenerate route IDs
-func routeID(namespace, name, host, path string) string {
+func routeID(namespace, name, host, path, backend string) string {
 	namespace = nonWord.ReplaceAllString(namespace, "_")
 	name = nonWord.ReplaceAllString(name, "_")
 	host = nonWord.ReplaceAllString(host, "_")
 	path = nonWord.ReplaceAllString(path, "_")
-	return fmt.Sprintf("kube_%s__%s__%s__%s", namespace, name, host, path)
+	backend = nonWord.ReplaceAllString(backend, "_")
+	return fmt.Sprintf("kube_%s__%s__%s__%s__%s", namespace, name, host, path, backend)
 }
 
 // converts the default backend if any
@@ -342,7 +345,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 	}
 
 	r := &eskip.Route{
-		Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", ""),
+		Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", ""),
 		Backend: address,
 	}
 
@@ -376,9 +379,18 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 	}
 
 	r := &eskip.Route{
-		Id:          routeID(ns, name, host, prule.Path),
+		Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName),
 		PathRegexps: pathExpressions,
 		Backend:     address,
+	}
+
+	// add traffic predicate if traffic weight is between 0.0 and 1.0
+	if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+		r.Predicates = []*eskip.Predicate{{
+			Name: traffic.PredicateName,
+			Args: []interface{}{prule.Backend.Traffic},
+		}}
+		log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, prule.Backend.ServiceName)
 	}
 
 	return r, nil
@@ -404,6 +416,15 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 			log.Errorf("error while converting default backend: %v", err)
 		}
 
+		// parse backend-weihgts annotation if it exists
+		var backendWeights map[string]float64
+		if backends, ok := i.Metadata.Annotations[backendWeightsAnnotationKey]; ok {
+			err := json.Unmarshal([]byte(backends), &backendWeights)
+			if err != nil {
+				log.Errorf("error while parsing backend-weights annotation: %v", err)
+			}
+		}
+
 		// We need this to avoid asking the k8s API for the same services
 		servicesURLs := make(map[string]string)
 		for _, rule := range i.Spec.Rules {
@@ -417,24 +438,93 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 			// currently handled as mandatory
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
-			for _, prule := range rule.Http.Paths {
-				r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
-				if err != nil {
-					// tolerate single rule errors
-					//
-					// TODO:
-					// - check how to set failures in ingress status
-					log.Errorf("error while getting service: %v", err)
-					continue
-				}
+			// update Traffic field for each backend
+			computeBackendWeights(backendWeights, rule)
 
-				r.HostRegexps = host
-				routes = append(routes, r)
+			for _, prule := range rule.Http.Paths {
+				if prule.Backend.Traffic > 0 {
+					r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
+					if err != nil {
+						// tolerate single rule errors
+						//
+						// TODO:
+						// - check how to set failures in ingress status
+						log.Errorf("error while getting service: %v", err)
+						continue
+					}
+
+					r.HostRegexps = host
+					routes = append(routes, r)
+				}
 			}
 		}
 	}
 
 	return routes
+}
+
+// computeBackendWeights computes and sets the backend traffic weights on the
+// rule backends.
+// The traffic is calculated based on the following rules:
+//
+// * if no weight is defined for a backend it will get weight 0.
+// * if no weights are specified for all backends of a path, then traffic will
+//   be distributed equally.
+//
+// Each traffic weight is relative to the number of backends per path. If there
+// are multiple backends per path the weight will be relative to the number of
+// remaining backends for the path e.g. if the weight is specified as
+//
+//      backend-1: 0.2
+//      backend-2: 0.6
+//      backend-3: 0.2
+//
+// then the weight will be calculated to:
+//
+//      backend-1: 0.2
+//      backend-2: 0.75
+//      backend-3: 1.0
+//
+// where for a weight of 1.0 no Traffic predicate will be generated.
+func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
+	type sumCount struct {
+		sum   float64
+		count int
+	}
+
+	// get backend weight sum and count of backends for all paths
+	pathSumCount := make(map[string]*sumCount)
+	for _, path := range rule.Http.Paths {
+		sc, ok := pathSumCount[path.Path]
+		if !ok {
+			sc = &sumCount{}
+			pathSumCount[path.Path] = sc
+		}
+
+		if weight, ok := backendWeights[path.Backend.ServiceName]; ok {
+			sc.sum += weight
+		} else {
+			sc.count++
+		}
+	}
+
+	// calculate traffic weight for each backend
+	for _, path := range rule.Http.Paths {
+		if sc, ok := pathSumCount[path.Path]; ok {
+			if weight, ok := backendWeights[path.Backend.ServiceName]; ok {
+				path.Backend.Traffic = weight / sc.sum
+				// subtract weight from the sum in order to
+				// give subsequent backends a higher relative
+				// weight.
+				sc.sum -= weight
+			} else if sc.sum == 0 && sc.count > 0 {
+				path.Backend.Traffic = 1.0 / float64(sc.count)
+			}
+			// reduce count by one in order to give subsequent
+			// backends for the path a higher relative weight.
+			sc.count--
+		}
+	}
 }
 
 func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {

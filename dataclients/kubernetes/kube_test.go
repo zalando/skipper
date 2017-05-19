@@ -80,12 +80,13 @@ func testRule(host string, paths ...*pathRule) *rule {
 	}
 }
 
-func testIngress(ns, name, defaultService string, defaultPort backendPort, rules ...*rule) *ingressItem {
+func testIngress(ns, name, defaultService string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
 	var defaultBackend *backend
 	if len(defaultService) != 0 {
 		defaultBackend = &backend{
 			ServiceName: defaultService,
 			ServicePort: defaultPort,
+			Traffic:     traffic,
 		}
 	}
 
@@ -115,12 +116,13 @@ func testServices() services {
 
 func testIngresses() []*ingressItem {
 	return []*ingressItem{
-		testIngress("namespace1", "default-only", "service1", backendPort{8080}),
+		testIngress("namespace1", "default-only", "service1", backendPort{8080}, 1.0),
 		testIngress(
 			"namespace2",
 			"path-rule-only",
 			"",
 			backendPort{},
+			1.0,
 			testRule(
 				"www.example.org",
 				testPathRule("/", "service3", backendPort{"port3"}),
@@ -131,6 +133,7 @@ func testIngresses() []*ingressItem {
 			"mega",
 			"service1",
 			backendPort{"port1"},
+			1.0,
 			testRule(
 				"foo.example.org",
 				testPathRule("/test1", "service1", backendPort{"port1"}),
@@ -343,9 +346,9 @@ func TestIngressData(t *testing.T) {
 				"bar": testService("1.2.3.4", nil),
 			},
 		},
-		[]*ingressItem{testIngress("foo", "baz", "bar", backendPort{8080})},
+		[]*ingressItem{testIngress("foo", "baz", "bar", backendPort{8080}, 1.0)},
 		map[string]string{
-			"kube_foo__baz____": "http://1.2.3.4:8080",
+			"kube_foo__baz______": "http://1.2.3.4:8080",
 		},
 	}, {
 		"service backend from ingress and service, path rule",
@@ -359,6 +362,7 @@ func TestIngressData(t *testing.T) {
 			"baz",
 			"",
 			backendPort{},
+			1.0,
 			testRule(
 				"www.example.org",
 				testPathRule(
@@ -369,7 +373,7 @@ func TestIngressData(t *testing.T) {
 			),
 		)},
 		map[string]string{
-			"kube_foo__baz__www_example_org___": "http://1.2.3.4:8181",
+			"kube_foo__baz__www_example_org_____bar": "http://1.2.3.4:8181",
 		},
 	}, {
 		"service backend from ingress and service, default and path rule",
@@ -384,6 +388,7 @@ func TestIngressData(t *testing.T) {
 			"qux",
 			"bar",
 			backendPort{8080},
+			1.0,
 			testRule(
 				"www.example.org",
 				testPathRule(
@@ -394,8 +399,8 @@ func TestIngressData(t *testing.T) {
 			),
 		)},
 		map[string]string{
-			"kube_foo__qux____":                 "http://1.2.3.4:8080",
-			"kube_foo__qux__www_example_org___": "http://5.6.7.8:8181",
+			"kube_foo__qux______":                    "http://1.2.3.4:8080",
+			"kube_foo__qux__www_example_org_____baz": "http://5.6.7.8:8181",
 		},
 	}, {
 		"service backend from ingress and service, with port name",
@@ -409,6 +414,7 @@ func TestIngressData(t *testing.T) {
 			"qux",
 			"",
 			backendPort{},
+			1.0,
 			testRule(
 				"www.example.org",
 				testPathRule(
@@ -419,7 +425,7 @@ func TestIngressData(t *testing.T) {
 			),
 		)},
 		map[string]string{
-			"kube_foo__qux__www_example_org___": "http://1.2.3.4:8181",
+			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
 		},
 	}, {
 		"ignore ingress entries with missing metadata",
@@ -434,6 +440,7 @@ func TestIngressData(t *testing.T) {
 				"qux",
 				"",
 				backendPort{},
+				1.0,
 				testRule(
 					"www.example.org",
 					testPathRule(
@@ -459,7 +466,7 @@ func TestIngressData(t *testing.T) {
 			},
 		},
 		map[string]string{
-			"kube_foo__qux__www_example_org___": "http://1.2.3.4:8181",
+			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -535,13 +542,13 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only____":                   "http://1.2.3.4:8080",
-			"kube_namespace2__path_rule_only__www_example_org___": "http://9.0.1.2:7272",
-			"kube_namespace1__mega____":                           "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org___test1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test2":      "http://5.6.7.8:8181",
+			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
+			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
 		})
 	})
 
@@ -568,7 +575,7 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__mega__foo_example_org___test1": "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1": "http://1.2.3.4:8080",
 		})
 	})
 
@@ -587,13 +594,13 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only____":                   "http://1.2.3.4:8080",
-			"kube_namespace2__path_rule_only__www_example_org___": "http://9.0.1.2:7272",
-			"kube_namespace1__mega____":                           "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org___test1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test2":      "http://5.6.7.8:8181",
+			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
+			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
 		})
 	})
 
@@ -620,8 +627,8 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only____":              "http://1.2.3.4:6363",
-			"kube_namespace1__mega__foo_example_org___test1": "http://1.2.3.4:9999",
+			"kube_namespace1__default_only______":                      "http://1.2.3.4:6363",
+			"kube_namespace1__mega__foo_example_org___test1__service1": "http://1.2.3.4:9999",
 		})
 	})
 
@@ -649,8 +656,8 @@ func TestIngress(t *testing.T) {
 		checkIDs(
 			t,
 			d,
-			"kube_namespace1__mega__foo_example_org___test2",
-			"kube_namespace1__mega__bar_example_org___test2",
+			"kube_namespace1__mega__foo_example_org___test2__service2",
+			"kube_namespace1__mega__bar_example_org___test2__service2",
 		)
 	})
 
@@ -678,12 +685,12 @@ func TestIngress(t *testing.T) {
 		checkIDs(
 			t,
 			d,
-			"kube_namespace2__path_rule_only__www_example_org___",
-			"kube_namespace1__mega____",
-			"kube_namespace1__mega__foo_example_org___test1",
-			"kube_namespace1__mega__foo_example_org___test2",
-			"kube_namespace1__mega__bar_example_org___test1",
-			"kube_namespace1__mega__bar_example_org___test2",
+			"kube_namespace2__path_rule_only__www_example_org_____service3",
+			"kube_namespace1__mega______",
+			"kube_namespace1__mega__foo_example_org___test1__service1",
+			"kube_namespace1__mega__foo_example_org___test2__service2",
+			"kube_namespace1__mega__bar_example_org___test1__service1",
+			"kube_namespace1__mega__bar_example_org___test2__service2",
 		)
 	})
 
@@ -711,8 +718,8 @@ func TestIngress(t *testing.T) {
 		checkIDs(
 			t,
 			d,
-			"kube_namespace1__mega__bar_example_org___test1",
-			"kube_namespace1__mega__bar_example_org___test2",
+			"kube_namespace1__mega__bar_example_org___test1__service1",
+			"kube_namespace1__mega__bar_example_org___test2__service2",
 		)
 	})
 
@@ -737,6 +744,7 @@ func TestIngress(t *testing.T) {
 				"new1",
 				"",
 				backendPort{""},
+				1.0,
 				testRule(
 					"new1.example.org",
 					testPathRule("/", "service1", backendPort{"port1"}),
@@ -747,6 +755,7 @@ func TestIngress(t *testing.T) {
 				"new2",
 				"",
 				backendPort{""},
+				1.0,
 				testRule(
 					"new2.example.org",
 					testPathRule("/", "service2", backendPort{"port2"}),
@@ -761,8 +770,8 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___": "http://1.2.3.4:8080",
-			"kube_namespace1__new2__new2_example_org___": "http://5.6.7.8:8181",
+			"kube_namespace1__new1__new1_example_org_____service1": "http://1.2.3.4:8080",
+			"kube_namespace1__new2__new2_example_org_____service2": "http://5.6.7.8:8181",
 		})
 	})
 
@@ -787,6 +796,7 @@ func TestIngress(t *testing.T) {
 				"new1",
 				"",
 				backendPort{""},
+				1.0,
 				testRule(
 					"new1.example.org",
 					testPathRule("/", "service1", backendPort{"port1"}),
@@ -797,6 +807,7 @@ func TestIngress(t *testing.T) {
 				"new2",
 				"",
 				backendPort{""},
+				1.0,
 				testRule(
 					"new2.example.org",
 					testPathRule("/", "service2", backendPort{"port2"}),
@@ -814,16 +825,16 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___":          "http://1.2.3.4:8080",
-			"kube_namespace1__new2__new2_example_org___":          "http://5.6.7.8:8181",
-			"kube_namespace2__path_rule_only__www_example_org___": "http://9.0.1.2:9999",
+			"kube_namespace1__new1__new1_example_org_____service1":          "http://1.2.3.4:8080",
+			"kube_namespace1__new2__new2_example_org_____service2":          "http://5.6.7.8:8181",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:9999",
 		})
 
 		checkIDs(
 			t,
 			d,
-			"kube_namespace1__mega__bar_example_org___test1",
-			"kube_namespace1__mega__bar_example_org___test2",
+			"kube_namespace1__mega__bar_example_org___test1__service1",
+			"kube_namespace1__mega__bar_example_org___test2__service2",
 		)
 	})
 }
@@ -854,6 +865,7 @@ func TestConvertPathRule(t *testing.T) {
 				"new1",
 				"",
 				backendPort{""},
+				1.0,
 				testRule(
 					"new1.example.org",
 					testPathRule("/test1", "service1", backendPort{"port1"}),
@@ -864,6 +876,7 @@ func TestConvertPathRule(t *testing.T) {
 				"new1",
 				"",
 				backendPort{""},
+				1.0,
 				testRule(
 					"new1.example.org",
 					testPathRule("/test2", "service1", backendPort{"port1"}),
@@ -877,10 +890,94 @@ func TestConvertPathRule(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___test1": "http://1.2.3.4:8080",
-			"kube_namespace1__new1__new1_example_org___test2": "http://1.2.3.4:8080",
+			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
+			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.2.3.4:8080",
 		})
 	})
+}
+
+func TestConvertPathRuleTraffic(t *testing.T) {
+	for _, tc := range []struct {
+		msg   string
+		rule  *pathRule
+		route *eskip.Route
+	}{
+		{
+			msg: "if traffic weihgt is between 0 and 1 predicate should be added to route",
+			rule: &pathRule{
+				Path: "",
+				Backend: &backend{
+					ServiceName: "foo",
+					Traffic:     0.3,
+				},
+			},
+			route: &eskip.Route{
+				Id:          routeID("", "", "", "", "foo"),
+				PathRegexps: nil,
+				Backend:     "backend",
+				Predicates: []*eskip.Predicate{
+					{
+						Name: "Traffic",
+						Args: []interface{}{0.3},
+					},
+				},
+			},
+		},
+		{
+			msg: "if traffic weihgt is 0, don't include traffic predicate",
+			rule: &pathRule{
+				Path: "",
+				Backend: &backend{
+					ServiceName: "foo",
+					Traffic:     0.0,
+				},
+			},
+			route: &eskip.Route{
+				Id:          routeID("", "", "", "", "foo"),
+				PathRegexps: nil,
+				Backend:     "backend",
+			},
+		},
+		{
+			msg: "if traffic weihgt is 1, don't include traffic predicate",
+			rule: &pathRule{
+				Path: "",
+				Backend: &backend{
+					ServiceName: "foo",
+					Traffic:     1.0,
+				},
+			},
+			route: &eskip.Route{
+				Id:          routeID("", "", "", "", "foo"),
+				PathRegexps: nil,
+				Backend:     "backend",
+			},
+		},
+	} {
+		t.Run(tc.msg, func(t *testing.T) {
+			api := newTestAPI(t, nil, &ingressList{})
+			defer api.Close()
+			dc, err := New(Options{KubernetesURL: api.server.URL})
+			if err != nil {
+				t.Error(err)
+			}
+
+			_, err = dc.LoadAll()
+			if err != nil {
+				t.Error("failed to load initial routes", err)
+				return
+			}
+
+			route, err := dc.convertPathRule("", "", "", tc.rule, map[string]string{"foo": "backend"})
+			if err != nil {
+				t.Errorf("should not fail: %v", err)
+			}
+
+			if !reflect.DeepEqual(tc.route, route) {
+				t.Errorf("generated route should match expected route")
+			}
+		})
+	}
 }
 
 func TestHealthcheckInitial(t *testing.T) {
@@ -1117,14 +1214,14 @@ func TestHealthcheckReload(t *testing.T) {
 
 		checkHealthcheck(t, r, true, true)
 		checkRoutes(t, r, map[string]string{
-			healthcheckRouteID:                                    "",
-			"kube_namespace1__default_only____":                   "http://1.2.3.4:8080",
-			"kube_namespace2__path_rule_only__www_example_org___": "http://9.0.1.2:7272",
-			"kube_namespace1__mega____":                           "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org___test1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test2":      "http://5.6.7.8:8181",
+			healthcheckRouteID:                                              "",
+			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
+			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
 		})
 	})
 }
@@ -1459,4 +1556,268 @@ func TestHealthcheckOnTerm(t *testing.T) {
 
 		checkHealthcheck(t, r, true, false)
 	})
+}
+
+func TestComputeBackendWeights(t *testing.T) {
+	for _, tc := range []struct {
+		msg     string
+		weights map[string]float64
+		input   *rule
+		output  *rule
+	}{
+		{
+			msg: `if only one backend has a weight, only one backend should get 100% traffic`,
+			weights: map[string]float64{
+				"foo": 59,
+			},
+			input: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+							},
+						},
+					},
+				},
+			},
+			output: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+								Traffic:     1.0,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+								Traffic:     0.0,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg:     `if two backends doesn't have any weight, they get equal amount of traffic.`,
+			weights: map[string]float64{},
+			input: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+							},
+						},
+					},
+				},
+			},
+			output: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+								Traffic:     0.5,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+								Traffic:     1.0,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: `if all backends has a weight, all should get relative weight.`,
+			weights: map[string]float64{
+				"foo": 20,
+				"bar": 60,
+				"baz": 20,
+			},
+			input: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "baz",
+							},
+						},
+					},
+				},
+			},
+			output: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+								Traffic:     0.2,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+								Traffic:     0.75,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "baz",
+								Traffic:     1.0,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: `weights are relative and should always sum to 1.0.`,
+			weights: map[string]float64{
+				"foo": 60,
+				"bar": 140,
+			},
+			input: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+							},
+						},
+					},
+				},
+			},
+			output: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+								Traffic:     0.3,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+								Traffic:     1.0,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: `if two of three backends has a weight, only two should get traffic.`,
+			weights: map[string]float64{
+				"foo": 30,
+				"bar": 70,
+			},
+			input: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "baz",
+							},
+						},
+					},
+				},
+			},
+			output: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+								Traffic:     0.3,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+								Traffic:     1.0,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "baz",
+							},
+						},
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.msg, func(t *testing.T) {
+			computeBackendWeights(tc.weights, tc.input)
+			if !reflect.DeepEqual(tc.input, tc.output) {
+				t.Errorf("modified input and output should match")
+			}
+		})
+	}
 }
