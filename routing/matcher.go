@@ -225,7 +225,7 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, s
 	for p, m := range matchers {
 
 		// sort leaves during construction time, based on their priority
-		sort.Sort(m.leaves)
+		sort.Stable(m.leaves)
 
 		if p == "" {
 			p = "/"
@@ -305,7 +305,7 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	errors = append(errors, addTreeMatchers(pathTree, subtreeMatchers, true)...)
 
 	// sort root leaves during construction time, based on their priority
-	sort.Sort(rootLeaves)
+	sort.Stable(rootLeaves)
 
 	return &matcher{pathTree, rootLeaves, o}, errors
 }
