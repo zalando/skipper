@@ -23,6 +23,7 @@ const (
 	proxyErrorFmt   = "proxy: %s"
 	unknownRouteID  = "_unknownroute_"
 
+	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
 
 	// The default value set for http.Transport.MaxIdleConnsPerHost.
@@ -104,6 +105,10 @@ type Params struct {
 	// Enable the expiremental upgrade protocol feature
 	ExperimentalUpgrade bool
 
+	// MaxLoopbacks sets the maximum number of allowed loops. If 0
+	// the default (9) is applied. To disable looping, set it to
+	// -1. Note, that disabling looping by this option, may result
+	// wrong routing depending on the current configuration.
 	MaxLoopbacks int
 }
 

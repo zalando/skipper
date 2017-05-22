@@ -30,6 +30,7 @@ type matcher struct {
 	args []interface{}
 }
 
+// BackendType indicates whether a route is a network backend, a shunt or a loopback.
 type BackendType int
 
 const (

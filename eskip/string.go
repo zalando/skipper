@@ -106,7 +106,7 @@ func (r *Route) filterString(pretty bool) string {
 
 func (r *Route) backendString() string {
 	switch {
-	case r.Shunt && r.BackendType == NetworkBackend, r.BackendType == ShuntBackend:
+	case r.Shunt, r.BackendType == ShuntBackend:
 		return "<shunt>"
 	case r.BackendType == LoopBackend:
 		return "<loopback>"
