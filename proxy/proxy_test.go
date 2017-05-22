@@ -476,9 +476,9 @@ type breaker struct {
 }
 
 func (b *breaker) Request(c filters.FilterContext)                       { c.Serve(b.resp) }
-func (_ *breaker) Response(filters.FilterContext)                        {}
+func (*breaker) Response(filters.FilterContext)                          {}
 func (b *breaker) CreateFilter(fc []interface{}) (filters.Filter, error) { return b, nil }
-func (_ *breaker) Name() string                                          { return "breaker" }
+func (*breaker) Name() string                                            { return "breaker" }
 
 func TestBreakFilterChain(t *testing.T) {
 	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {
@@ -981,5 +981,37 @@ func TestRoundtripperRetry(t *testing.T) {
 
 	if rsp.StatusCode != http.StatusOK {
 		t.Error("failed to retry failing connection")
+	}
+}
+
+func TestBranding(t *testing.T) {
+	for path, code := range map[string]int{"/path/to/be/found": 200, "/path/not/to/be/found": 404} {
+		t.Run(path, func(t *testing.T) {
+			p, err := newTestProxy(fmt.Sprintf(`Path("/path/to/be/*") -> status(200) -> <shunt>`), FlagsNone)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			defer p.close()
+
+			s := httptest.NewServer(p.proxy)
+			defer s.Close()
+
+			rsp, err := http.Get(s.URL + path)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			if rsp.StatusCode != code {
+				t.Error("wrong status", rsp.StatusCode, code)
+				return
+			}
+
+			if rsp.Header.Get("X-Powered-By") != "Skipper" || rsp.Header.Get("Server") != "Skipper" {
+				t.Error("failed to add branding")
+			}
+		})
 	}
 }
