@@ -18,7 +18,7 @@ var (
 	invalidPredicateArgCountError   = errors.New("invalid predicate count arg")
 	duplicatePathTreePredicateError = errors.New("duplicate path tree predicate")
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
-	invalidBackendErr               = errors.New("invalid backend")
+	errInvalidBackend               = errors.New("invalid backend")
 )
 
 // Represents a matcher condition for incoming requests.
@@ -270,7 +270,7 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 
 func backendType(shunt, loopback bool) (bt BackendType, err error) {
 	if shunt && loopback {
-		err = invalidBackendErr
+		err = errInvalidBackend
 		return
 	}
 
