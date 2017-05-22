@@ -63,15 +63,16 @@ var (
 )
 
 var fixedTokens = map[fixedScanner]int{
-	"&&":      and,
-	"*":       any,
-	"->":      arrow,
-	")":       closeparen,
-	":":       colon,
-	",":       comma,
-	"(":       openparen,
-	";":       semicolon,
-	"<shunt>": shunt}
+	"&&":         and,
+	"*":          any,
+	"->":         arrow,
+	")":          closeparen,
+	":":          colon,
+	",":          comma,
+	"(":          openparen,
+	";":          semicolon,
+	"<shunt>":    shunt,
+	"<loopback>": loopback}
 
 func (t token) String() string { return t.val }
 

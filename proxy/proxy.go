@@ -3,6 +3,7 @@ package proxy
 import (
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
@@ -20,6 +22,8 @@ const (
 	proxyBufferSize = 8192
 	proxyErrorFmt   = "proxy: %s"
 	unknownRouteID  = "_unknownroute_"
+
+	DefaultMaxLoopbacks = 9
 
 	// The default value set for http.Transport.MaxIdleConnsPerHost.
 	DefaultIdleConnsPerHost = 64
@@ -99,7 +103,11 @@ type Params struct {
 
 	// Enable the expiremental upgrade protocol feature
 	ExperimentalUpgrade bool
+
+	MaxLoopbacks int
 }
+
+var errMaxLoopbacksReached = errors.New("max loopbacks reached")
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
 func (f Flags) Insecure() bool { return f&Insecure != 0 }
@@ -141,6 +149,7 @@ type Proxy struct {
 	quit                chan struct{}
 	flushInterval       time.Duration
 	experimentalUpgrade bool
+	maxLoops            int
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -283,6 +292,12 @@ func WithParams(p Params) *Proxy {
 		m = metrics.Void
 	}
 
+	if p.MaxLoopbacks == 0 {
+		p.MaxLoopbacks = DefaultMaxLoopbacks
+	} else if p.MaxLoopbacks < 0 {
+		p.MaxLoopbacks = 0
+	}
+
 	return &Proxy{
 		routing:             p.Routing,
 		roundTripper:        tr,
@@ -292,6 +307,7 @@ func WithParams(p Params) *Proxy {
 		quit:                quit,
 		flushInterval:       p.FlushInterval,
 		experimentalUpgrade: p.ExperimentalUpgrade,
+		maxLoops:            p.MaxLoopbacks,
 	}
 }
 
@@ -450,6 +466,12 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 }
 
 func (p *Proxy) do(ctx *context) error {
+	if ctx.loopCounter > p.maxLoops {
+		return errMaxLoopbacksReached
+	}
+
+	ctx.loopCounter++
+
 	lookupStart := time.Now()
 	route, params := p.lookupRoute(ctx.request)
 	p.metrics.MeasureRouteLookup(lookupStart)
@@ -470,8 +492,15 @@ func (p *Proxy) do(ctx *context) error {
 	if ctx.deprecatedShunted() {
 		log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}
-	} else if ctx.shunted() || ctx.route.Shunt {
+	} else if ctx.shunted() || ctx.route.Shunt || ctx.route.BackendType == eskip.ShuntBackend {
 		ctx.ensureDefaultResponse()
+	} else if ctx.route.BackendType == eskip.LoopBackend {
+		loopCTX := ctx.clone()
+		if err := p.do(loopCTX); err != nil {
+			return err
+		}
+
+		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 	} else if p.flags.Debug() {
 		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
 		if err != nil {
