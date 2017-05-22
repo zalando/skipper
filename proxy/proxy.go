@@ -316,6 +316,8 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 			p.metrics.MeasureFilterRequest(fi.Name, start)
 		}, func(err interface{}) {
 			if p.flags.Debug() {
+				// these errors are collected for the debug mode to be able
+				// to report in the response which filters failed.
 				ctx.debugFilterPanics = append(ctx.debugFilterPanics, err)
 				return
 			}
@@ -346,6 +348,8 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 			p.metrics.MeasureFilterResponse(fi.Name, start)
 		}, func(err interface{}) {
 			if p.flags.Debug() {
+				// these errors are collected for the debug mode to be able
+				// to report in the response which filters failed.
 				ctx.debugFilterPanics = append(ctx.debugFilterPanics, err)
 				return
 			}
@@ -550,6 +554,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					incoming:     ctx.originalRequest,
 					outgoing:     ctx.outgoingDebugRequest,
 					response:     ctx.response,
+					err:          err,
 					filterPanics: ctx.debugFilterPanics,
 				}
 
