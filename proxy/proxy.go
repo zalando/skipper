@@ -19,7 +19,7 @@ import (
 const (
 	proxyBufferSize = 8192
 	proxyErrorFmt   = "proxy: %s"
-	unknownRouteId  = "_unknownroute_"
+	unknownRouteID  = "_unknownroute_"
 
 	// The default value set for http.Transport.MaxIdleConnsPerHost.
 	DefaultIdleConnsPerHost = 64
@@ -239,6 +239,7 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	return rr, nil
 }
 
+// New returns an initialized Proxy.
 // Deprecated, see WithParams and Params instead.
 func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
 	return WithParams(Params{
@@ -248,7 +249,7 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
 		CloseIdleConnsPeriod: -time.Second})
 }
 
-// Creates a proxy with the provided parameters.
+// WithParams returns an initialized Proxy.
 func WithParams(p Params) *Proxy {
 	if p.IdleConnectionsPerHost <= 0 {
 		p.IdleConnectionsPerHost = DefaultIdleConnsPerHost
@@ -340,7 +341,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 	filtersStart := time.Now()
 
 	count := len(filters)
-	for i, _ := range filters {
+	for i := range filters {
 		fi := filters[count-1-i]
 		start := time.Now()
 		tryCatch(func() {
@@ -539,7 +540,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := p.do(ctx)
 	if err != nil {
 		if perr, ok := err.(*proxyError); !ok || !perr.handled {
-			id := unknownRouteId
+			id := unknownRouteID
 			if ctx.route != nil {
 				id = ctx.route.Id
 			}

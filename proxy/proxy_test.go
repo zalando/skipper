@@ -476,9 +476,9 @@ type breaker struct {
 }
 
 func (b *breaker) Request(c filters.FilterContext)                       { c.Serve(b.resp) }
-func (_ *breaker) Response(filters.FilterContext)                        {}
+func (*breaker) Response(filters.FilterContext)                          {}
 func (b *breaker) CreateFilter(fc []interface{}) (filters.Filter, error) { return b, nil }
-func (_ *breaker) Name() string                                          { return "breaker" }
+func (*breaker) Name() string                                            { return "breaker" }
 
 func TestBreakFilterChain(t *testing.T) {
 	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {
