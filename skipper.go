@@ -215,6 +215,8 @@ type Options struct {
 
 	// Experimental feature to handle protocol Upgrades for Websockets, SPDY, etc.
 	ExperimentalUpgrade bool
+
+	MaxLoopbacks int
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -430,7 +432,9 @@ func Run(o Options) error {
 		IdleConnectionsPerHost: o.IdleConnectionsPerHost,
 		CloseIdleConnsPeriod:   o.CloseIdleConnsPeriod,
 		FlushInterval:          o.BackendFlushInterval,
-		ExperimentalUpgrade:    o.ExperimentalUpgrade}
+		ExperimentalUpgrade:    o.ExperimentalUpgrade,
+		MaxLoopbacks:           o.MaxLoopbacks,
+	}
 
 	if o.DebugListener != "" {
 		do := proxyParams

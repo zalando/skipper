@@ -74,6 +74,18 @@ func TestRouteString(t *testing.T) {
 			Filters: []*Filter{{"static", []interface{}{"/some", "/file"}}},
 			Shunt:   true},
 		`Method("GET") -> static("/some", "/file") -> <shunt>`,
+	}, {
+		&Route{
+			Method:      "GET",
+			Filters:     []*Filter{{"static", []interface{}{"/some", "/file"}}},
+			BackendType: ShuntBackend},
+		`Method("GET") -> static("/some", "/file") -> <shunt>`,
+	}, {
+		&Route{
+			Method:      "GET",
+			Filters:     []*Filter{{"static", []interface{}{"/some", "/file"}}},
+			BackendType: LoopBackend},
+		`Method("GET") -> static("/some", "/file") -> <loopback>`,
 	}} {
 		rstring := item.route.String()
 		if rstring != item.string {

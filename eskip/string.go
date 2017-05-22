@@ -105,11 +105,23 @@ func (r *Route) filterString(pretty bool) string {
 }
 
 func (r *Route) backendString() string {
-	if r.Shunt {
+	switch {
+	case r.Shunt, r.BackendType == ShuntBackend:
 		return "<shunt>"
+	case r.BackendType == LoopBackend:
+		return "<loopback>"
+	default:
+		return r.Backend
+	}
+}
+
+func (r *Route) backendStringQuoted() string {
+	s := r.backendString()
+	if r.BackendType == NetworkBackend && !r.Shunt {
+		s = fmt.Sprintf(`"%s"`, s)
 	}
 
-	return fmt.Sprintf(`"%s"`, r.Backend)
+	return s
 }
 
 // Serializes a route expression. Omits the route id if any.
@@ -125,7 +137,7 @@ func (r *Route) Print(pretty bool) string {
 		s = append(s, fs)
 	}
 
-	s = append(s, r.backendString())
+	s = append(s, r.backendStringQuoted())
 	separator := " -> "
 	if pretty {
 		separator = "\n  -> "

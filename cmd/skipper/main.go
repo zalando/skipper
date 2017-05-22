@@ -80,6 +80,7 @@ const (
 	backendFlushIntervalUsage      = "flush interval for upgraded proxy connections"
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
 	versionUsage                   = "print Skipper version"
+	maxLoopbacksUsage              = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
 )
 
 var (
@@ -129,6 +130,7 @@ var (
 	backendFlushInterval      time.Duration
 	experimentalUpgrade       bool
 	printVersion              bool
+	maxLoopbacks              int
 )
 
 func init() {
@@ -173,6 +175,7 @@ func init() {
 	flag.DurationVar(&backendFlushInterval, "backend-flush-interval", defaultBackendFlushInterval, backendFlushIntervalUsage)
 	flag.BoolVar(&experimentalUpgrade, "experimental-upgrade", defaultExperimentalUpgrade, experimentalUpgradeUsage)
 	flag.BoolVar(&printVersion, "version", false, versionUsage)
+	flag.IntVar(&maxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
 	flag.Parse()
 }
 
@@ -256,6 +259,7 @@ func main() {
 		KeyPathTLS:                keyPathTLS,
 		BackendFlushInterval:      backendFlushInterval,
 		ExperimentalUpgrade:       experimentalUpgrade,
+		MaxLoopbacks:              maxLoopbacks,
 	}
 
 	if insecure {

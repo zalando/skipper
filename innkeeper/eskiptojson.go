@@ -154,11 +154,12 @@ func convertFil(r *eskip.Route) (filters []filter) {
 	return
 }
 
-func convertEndpoint(r *eskip.Route) (endpoint string) {
-	if r.Shunt == false && r.Backend != "" {
-		endpoint = r.Backend
+func convertEndpoint(r *eskip.Route) string {
+	if r.Shunt || r.BackendType == eskip.ShuntBackend || r.BackendType == eskip.LoopBackend {
+		return ""
 	}
-	return
+
+	return r.Backend
 }
 
 func convertEskipToInnkeeper(routes []*eskip.Route) (data []*jsonRoute) {

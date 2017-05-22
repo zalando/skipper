@@ -178,7 +178,7 @@ predicates start with upper case, while filters start with lower case.
 
 Backend
 
-There are two types of backends: a network endpoint address or a shunt.
+There are three types of backends: a network endpoint address or a shunt.
 
 A network endpoint address example:
 
@@ -196,6 +196,18 @@ The shunt backend means that the route will not forward the request to a
 network endpoint, but the router will handle the request itself. By
 default, the response is in this case 404 Not found, unless a filter in
 the route does not change it.
+
+A loop backend:
+
+	<loopback>
+
+The loopback means that the state of the request at the end of the request
+filter chain will be matched against the lookup table instead of being sent
+to a network backend. When the new route returns, the filter chain is on the
+response is executed on the original loop route, and the response is
+returned. The path parameters of the outer, looping, route are preserved for
+the inner route, but the path parameters of the inner route are discarded
+once it returns.
 
 
 Comments

@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 /*
 Package skipper provides an HTTP routing library with flexible
 configuration as well as a runtime update of the routing rules.
@@ -75,10 +61,20 @@ filters in reverse order. Finally, it is mapped as the response of the
 original incoming request.
 
 Besides the default proxying mechanism, it is possible to define routes
-without a real network backend endpoint. This is called a 'shunt'
-backend, in which case one of the filters needs to handle the request
-providing its own response (e.g. the 'static' filter). Actually, filters
-themselves can instruct the request flow to shunt.
+without a real network backend endpoint. One of these cases is called a
+'shunt' backend, in which case one of the filters needs to handle the
+request providing its own response (e.g. the 'static' filter). Actually,
+filters themselves can instruct the request flow to shunt.
+
+Another case of a route without a network backend is the 'loopback'. A
+loopback route can be used to match a request, modified by filters,
+against the lookup tree with different conditions and then execute a
+different route. One example scenario can be to use a single route as
+an entry point to execute some calculation to get an A/B testing
+decision and then matching the updated request metadata for the actual
+destination route. This way the calculation can be executed for only
+those requests that don't contain information about a previously
+calculated decision.
 
 For further details, see the 'proxy' and 'filters' package
 documentation.
@@ -125,7 +121,8 @@ For further details, see the 'filters' package documentation.
 
 Service Backends
 
-Each route has one of the following backends: HTTP endpoint or shunt.
+Each route has one of the following backends: HTTP endpoint, shunt or
+loopback.
 
 Backend endpoints can be any HTTP service. They are specified by their
 network address, including the protocol scheme, the domain name or the
@@ -136,6 +133,10 @@ original request, or set by filters.)
 A shunt route means that Skipper handles the request alone and doesn't
 make requests to a backend service. In this case, it is the
 responsibility of one of the filters to generate the response.
+
+A loopback route executes the routine mechanism on current state of
+the request from the start, including the route lookup. This way it
+serves as a form of an internal redirect.
 
 
 Route Definitions

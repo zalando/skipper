@@ -105,7 +105,7 @@ func TestParseRouteExpression(t *testing.T) {
 	}, {
 		"comment as last token",
 		"route: Any() -> <shunt>; // some comment",
-		&Route{Id: "route", Shunt: true},
+		&Route{Id: "route", BackendType: ShuntBackend, Shunt: true},
 		false,
 	}, {
 		"catch all",
@@ -131,120 +131,155 @@ func TestParseRouteExpression(t *testing.T) {
 		`Method("HEAD") && Method("GET") -> "https://www.example.org"`,
 		nil,
 		true,
+	}, {
+		"shunt",
+		`* -> setRequestHeader("X-Foo", "bar") -> <shunt>`,
+		&Route{
+			Filters: []*Filter{
+				&Filter{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
+			},
+			BackendType: ShuntBackend,
+			Shunt:       true,
+		},
+		false,
+	}, {
+		"loopback",
+		`* -> setRequestHeader("X-Foo", "bar") -> <loopback>`,
+		&Route{
+			Filters: []*Filter{
+				&Filter{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
+			},
+			BackendType: LoopBackend,
+		},
+		false,
 	}} {
-		stringMapKeys := func(m map[string]string) []string {
-			keys := make([]string, 0, len(m))
-			for k, _ := range m {
-				keys = append(keys, k)
+		t.Run(ti.msg, func(t *testing.T) {
+			stringMapKeys := func(m map[string]string) []string {
+				keys := make([]string, 0, len(m))
+				for k, _ := range m {
+					keys = append(keys, k)
+				}
+
+				return keys
 			}
 
-			return keys
-		}
+			stringsMapKeys := func(m map[string][]string) []string {
+				keys := make([]string, 0, len(m))
+				for k, _ := range m {
+					keys = append(keys, k)
+				}
 
-		stringsMapKeys := func(m map[string][]string) []string {
-			keys := make([]string, 0, len(m))
-			for k, _ := range m {
-				keys = append(keys, k)
+				return keys
 			}
 
-			return keys
-		}
+			checkItemsT := func(submessage string, l, lExp int, checkItem func(i int) bool) bool {
+				return checkItems(t, submessage, l, lExp, checkItem)
+			}
 
-		checkItemsT := func(submessage string, l, lExp int, checkItem func(i int) bool) bool {
-			return checkItems(t, ti.msg+" "+submessage, l, lExp, checkItem)
-		}
-
-		checkStrings := func(submessage string, s, sExp []string) bool {
-			return checkItemsT(submessage, len(s), len(sExp), func(i int) bool {
-				return s[i] == sExp[i]
-			})
-		}
-
-		checkStringMap := func(submessage string, m, mExp map[string]string) bool {
-			keys := stringMapKeys(m)
-			return checkItemsT(submessage, len(m), len(mExp), func(i int) bool {
-				return m[keys[i]] == mExp[keys[i]]
-			})
-		}
-
-		checkStringsMap := func(submessage string, m, mExp map[string][]string) bool {
-			keys := stringsMapKeys(m)
-			return checkItemsT(submessage, len(m), len(mExp), func(i int) bool {
-				return checkItemsT(submessage, len(m[keys[i]]), len(mExp[keys[i]]), func(j int) bool {
-					return m[keys[i]][j] == mExp[keys[i]][j]
+			checkStrings := func(submessage string, s, sExp []string) bool {
+				return checkItemsT(submessage, len(s), len(sExp), func(i int) bool {
+					return s[i] == sExp[i]
 				})
-			})
-		}
+			}
 
-		routes, err := Parse(ti.expression)
-		if err == nil && ti.err || err != nil && !ti.err {
-			t.Error(ti.msg, "failure case", err, ti.err)
-			return
-		}
+			checkStringMap := func(submessage string, m, mExp map[string]string) bool {
+				keys := stringMapKeys(m)
+				return checkItemsT(submessage, len(m), len(mExp), func(i int) bool {
+					return m[keys[i]] == mExp[keys[i]]
+				})
+			}
 
-		if ti.err {
-			return
-		}
+			checkStringsMap := func(submessage string, m, mExp map[string][]string) bool {
+				keys := stringsMapKeys(m)
+				return checkItemsT(submessage, len(m), len(mExp), func(i int) bool {
+					return checkItemsT(submessage, len(m[keys[i]]), len(mExp[keys[i]]), func(j int) bool {
+						return m[keys[i]][j] == mExp[keys[i]][j]
+					})
+				})
+			}
 
-		r := routes[0]
+			routes, err := Parse(ti.expression)
+			if err == nil && ti.err || err != nil && !ti.err {
+				t.Error("failure case", err, ti.err)
+				return
+			}
 
-		if r.Id != ti.check.Id {
-			t.Error(ti.msg, "id", r.Id, ti.check.Id)
-			return
-		}
+			if ti.err {
+				return
+			}
 
-		if r.Path != ti.check.Path {
-			t.Error(ti.msg, "path", r.Path, ti.check.Path)
-			return
-		}
+			r := routes[0]
 
-		if !checkStrings("host", r.HostRegexps, ti.check.HostRegexps) {
-			return
-		}
+			if r.Id != ti.check.Id {
+				t.Error("id", r.Id, ti.check.Id)
+				return
+			}
 
-		if !checkStrings("path regexp", r.PathRegexps, ti.check.PathRegexps) {
-			return
-		}
+			if r.Path != ti.check.Path {
+				t.Error("path", r.Path, ti.check.Path)
+				return
+			}
 
-		if r.Method != ti.check.Method {
-			t.Error(ti.msg, "method", r.Method, ti.check.Method)
-			return
-		}
+			if !checkStrings("host", r.HostRegexps, ti.check.HostRegexps) {
+				return
+			}
 
-		if !checkStringMap("headers", r.Headers, ti.check.Headers) {
-			return
-		}
+			if !checkStrings("path regexp", r.PathRegexps, ti.check.PathRegexps) {
+				return
+			}
 
-		if !checkStringsMap("header regexps", r.HeaderRegexps, ti.check.HeaderRegexps) {
-			return
-		}
+			if r.Method != ti.check.Method {
+				t.Error("method", r.Method, ti.check.Method)
+				return
+			}
 
-		if !checkItemsT("custom predicates",
-			len(r.Predicates),
-			len(ti.check.Predicates),
-			func(i int) bool {
-				return r.Predicates[i].Name == ti.check.Predicates[i].Name &&
-					checkItemsT("custom predicate args",
-						len(r.Predicates[i].Args),
-						len(ti.check.Predicates[i].Args),
-						func(j int) bool {
-							return r.Predicates[i].Args[j] == ti.check.Predicates[i].Args[j]
-						})
-			}) {
-			return
-		}
+			if !checkStringMap("headers", r.Headers, ti.check.Headers) {
+				return
+			}
 
-		if !checkFilters(t, ti.msg, r.Filters, ti.check.Filters) {
-			return
-		}
+			if !checkStringsMap("header regexps", r.HeaderRegexps, ti.check.HeaderRegexps) {
+				return
+			}
 
-		if r.Shunt != ti.check.Shunt {
-			t.Error(ti.msg, "shunt", r.Shunt, ti.check.Shunt)
-		}
+			if !checkItemsT("custom predicates",
+				len(r.Predicates),
+				len(ti.check.Predicates),
+				func(i int) bool {
+					return r.Predicates[i].Name == ti.check.Predicates[i].Name &&
+						checkItemsT("custom predicate args",
+							len(r.Predicates[i].Args),
+							len(ti.check.Predicates[i].Args),
+							func(j int) bool {
+								return r.Predicates[i].Args[j] == ti.check.Predicates[i].Args[j]
+							})
+				}) {
+				return
+			}
 
-		if r.Backend != ti.check.Backend {
-			t.Error(ti.msg, "backend", r.Backend, ti.check.Backend)
-		}
+			if !checkFilters(t, "", r.Filters, ti.check.Filters) {
+				return
+			}
+
+			if r.BackendType != ti.check.BackendType {
+				t.Error("invalid backend type", r.BackendType, ti.check.BackendType)
+			}
+
+			if r.Shunt != ti.check.Shunt {
+				t.Error("shunt", r.Shunt, ti.check.Shunt)
+			}
+
+			if r.Shunt && r.BackendType != ShuntBackend || !r.Shunt && r.BackendType == ShuntBackend {
+				t.Error("shunt, deprecated and new form are not sync")
+			}
+
+			if r.BackendType == LoopBackend && r.Shunt {
+				t.Error("shunt set for loopback route")
+			}
+
+			if r.Backend != ti.check.Backend {
+				t.Error("backend", r.Backend, ti.check.Backend)
+			}
+		})
 	}
 }
 
@@ -299,6 +334,15 @@ func TestRouteJSON(t *testing.T) {
 	}, {
 		&Route{Method: "GET", Shunt: true},
 		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
+	}, {
+		&Route{Method: "GET", Shunt: true, BackendType: ShuntBackend},
+		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
+	}, {
+		&Route{Method: "GET", BackendType: ShuntBackend},
+		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
+	}, {
+		&Route{Method: "GET", BackendType: LoopBackend},
+		`{"id":"","backend":"<loopback>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
 	}, {
 		&Route{
 			Method:      "PUT",

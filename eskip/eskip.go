@@ -1,29 +1,14 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package eskip
 
-//go:generate go tool yacc -o parser.go -p eskip parser.y
+//go:generate goyacc -o parser.go -p eskip parser.y
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/filters/flowid"
 	"regexp"
 	"strings"
+
+	"github.com/zalando/skipper/filters/flowid"
 )
 
 const duplicateHeaderPredicateErrorFmt = "duplicate header predicate: %s"
@@ -33,17 +18,26 @@ var (
 	invalidPredicateArgCountError   = errors.New("invalid predicate count arg")
 	duplicatePathTreePredicateError = errors.New("duplicate path tree predicate")
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
+	errInvalidBackend               = errors.New("invalid backend")
 )
 
 // Represents a matcher condition for incoming requests.
 type matcher struct {
-
 	// The name of the matcher, e.g. Path or Header
 	name string
 
 	// The args of the matcher, e.g. the path to be matched.
 	args []interface{}
 }
+
+// BackendType indicates whether a route is a network backend, a shunt or a loopback.
+type BackendType int
+
+const (
+	NetworkBackend = iota
+	ShuntBackend
+	LoopBackend
+)
 
 // Route definition used during the parser processes the raw routing
 // document.
@@ -52,13 +46,13 @@ type parsedRoute struct {
 	matchers []*matcher
 	filters  []*Filter
 	shunt    bool
+	loopback bool
 	backend  string
 }
 
 // A Predicate object represents a parsed, in-memory, route matching predicate
 // that is defined by extensions.
 type Predicate struct {
-
 	// The name of the custom predicate as referenced
 	// in the route definition. E.g. 'Foo'.
 	Name string `json:"name"`
@@ -72,7 +66,6 @@ type Predicate struct {
 
 // A Filter object represents a parsed, in-memory filter expression.
 type Filter struct {
-
 	// name of the filter specification
 	Name string `json:"name"`
 
@@ -82,7 +75,6 @@ type Filter struct {
 
 // A Route object represents a parsed, in-memory route definition.
 type Route struct {
-
 	// Id of the route definition.
 	// E.g. route1: ...
 	Id string
@@ -123,7 +115,13 @@ type Route struct {
 
 	// Indicates that the parsed route has a shunt backend.
 	// (<shunt>, no forwarding to a backend)
+	//
+	// Deprecated, use the BackendType field instead.
 	Shunt bool
+
+	// Indicates that the parsed route is a shunt, loopback or
+	// it is forwarding to a network backend.
+	BackendType BackendType
 
 	// The address of a backend for a parsed route.
 	// E.g. "https://www.example.org"
@@ -135,12 +133,24 @@ type RoutePredicate func(*Route) bool
 // RouteInfo contains a route id, plus the loaded and parsed route or
 // the parse error in case of failure.
 type RouteInfo struct {
-
 	// The route id plus the route data or if parsing was successful.
 	Route
 
 	// The parsing error if the parsing failed.
 	ParseError error
+}
+
+func (t BackendType) String() string {
+	switch t {
+	case NetworkBackend:
+		return "network"
+	case ShuntBackend:
+		return "shunt"
+	case LoopBackend:
+		return "loopback"
+	default:
+		return "unknown"
+	}
 }
 
 // Expects exactly n arguments of type string, or fails.
@@ -246,9 +256,33 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	rd.Shunt = r.shunt
 	rd.Backend = r.backend
 
-	err := applyPredicates(rd, r)
+	bt, err := backendType(r.shunt, r.loopback)
+	if err != nil {
+		return nil, err
+	}
+
+	rd.BackendType = bt
+
+	err = applyPredicates(rd, r)
 
 	return rd, err
+}
+
+func backendType(shunt, loopback bool) (bt BackendType, err error) {
+	if shunt && loopback {
+		err = errInvalidBackend
+		return
+	}
+
+	if shunt {
+		bt = ShuntBackend
+	} else if loopback {
+		bt = LoopBackend
+	} else {
+		bt = NetworkBackend
+	}
+
+	return
 }
 
 // executes the parser.
@@ -323,110 +357,4 @@ func GenerateIfNeeded(existingId string) string {
 	// for eskip route ids.
 	id = routeIdRx.ReplaceAllString(id, "x")
 	return "route" + id
-}
-
-func marshalJsonPredicates(r *Route) []*Predicate {
-	rjf := make([]*Predicate, 0, len(r.Predicates))
-
-	if r.Method != "" {
-		rjf = append(rjf, &Predicate{
-			Name: "Method",
-			Args: []interface{}{r.Method},
-		})
-	}
-
-	if r.Path != "" {
-		rjf = append(rjf, &Predicate{
-			Name: "Path",
-			Args: []interface{}{r.Path},
-		})
-	}
-
-	for _, h := range r.HostRegexps {
-		rjf = append(rjf, &Predicate{
-			Name: "HostRegexp",
-			Args: []interface{}{h},
-		})
-	}
-
-	for _, p := range r.PathRegexps {
-		rjf = append(rjf, &Predicate{
-			Name: "PathRegexp",
-			Args: []interface{}{p},
-		})
-	}
-
-	for k, v := range r.Headers {
-		rjf = append(rjf, &Predicate{
-			Name: "Header",
-			Args: []interface{}{k, v},
-		})
-	}
-
-	for k, list := range r.HeaderRegexps {
-		for _, v := range list {
-			rjf = append(rjf, &Predicate{
-				Name: "HeaderRegexp",
-				Args: []interface{}{k, v},
-			})
-		}
-	}
-
-	rjf = append(rjf, r.Predicates...)
-
-	return rjf
-}
-
-func marshalNameArgs(name string, args []interface{}) ([]byte, error) {
-	if args == nil {
-		args = []interface{}{}
-	}
-
-	return json.Marshal(&struct {
-		Name string        `json:"name"`
-		Args []interface{} `json:"args"`
-	}{
-		Name: name,
-		Args: args,
-	})
-}
-
-func (f *Filter) MarshalJSON() ([]byte, error) {
-	return marshalNameArgs(f.Name, f.Args)
-}
-
-func (p *Predicate) MarshalJSON() ([]byte, error) {
-	return marshalNameArgs(p.Name, p.Args)
-}
-
-func (r *Route) MarshalJSON() ([]byte, error) {
-	backend := r.Backend
-	if r.Shunt {
-		backend = "<shunt>"
-	}
-
-	filters := r.Filters
-	if filters == nil {
-		filters = []*Filter{}
-	}
-
-	var buf bytes.Buffer
-	e := json.NewEncoder(&buf)
-	e.SetEscapeHTML(false)
-
-	if err := e.Encode(&struct {
-		Id         string       `json:"id"`
-		Backend    string       `json:"backend"`
-		Predicates []*Predicate `json:"predicates"`
-		Filters    []*Filter    `json:"filters"`
-	}{
-		Id:         r.Id,
-		Backend:    backend,
-		Predicates: marshalJsonPredicates(r),
-		Filters:    filters,
-	}); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
 }

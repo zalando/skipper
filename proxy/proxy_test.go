@@ -119,10 +119,14 @@ func (srw *syncResponseWriter) Len() int {
 	return srw.body.Len()
 }
 
-func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
+func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Params) (*testProxy, error) {
 	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		return nil, err
+	}
+
+	if fr == nil {
+		fr = builtin.MakeRegistry()
 	}
 
 	tl := loggingtest.New()
@@ -131,7 +135,8 @@ func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ..
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},
 		Log:            tl})
-	p := WithParams(Params{Routing: rt, Flags: flags, PriorityRoutes: pr})
+	params.Routing = rt
+	p := WithParams(params)
 
 	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		return nil, err
@@ -140,8 +145,12 @@ func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ..
 	return &testProxy{tl, rt, p}, nil
 }
 
+func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
+	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags, PriorityRoutes: pr})
+}
+
 func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newTestProxyWithFilters(builtin.MakeRegistry(), doc, flags, pr...)
+	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr})
 }
 
 func (tp *testProxy) close() {
