@@ -3,7 +3,6 @@ package proxy
 import (
 	"crypto/tls"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -144,7 +143,33 @@ type Proxy struct {
 	experimentalUpgrade bool
 }
 
-var errProxyCanceled = errors.New("proxy canceled")
+// proxyError is used to wrap errors during proxying and to indicate
+// the required status code for the response sent from the main
+// ServeHTTP method. Alternatively, it can indicate that the request
+// was already handled, e.g. in case of deprecated shunting or the
+// upgrade request.
+type proxyError struct {
+	err     error
+	code    int
+	handled bool
+}
+
+func (e *proxyError) Error() string {
+	if e.err != nil {
+		return e.err.Error()
+	}
+
+	if e.handled {
+		return "request handled in a non-standard way"
+	}
+
+	code := e.code
+	if code == 0 {
+		code = http.StatusInternalServerError
+	}
+
+	return fmt.Sprintf("proxy error: %d", code)
+}
 
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
@@ -349,20 +374,10 @@ func (p *Proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[stri
 	return p.routing.Route(r)
 }
 
-func sendHTTPError(w http.ResponseWriter, code int) {
-	addBranding(w.Header())
-	http.Error(w, http.StatusText(code), code)
-}
-
 // send a premature error response
-func (p *Proxy) sendError(c *context, code int) {
-	sendHTTPError(c.responseWriter, code)
-
-	id := unknownRouteId
-	if c.route != nil {
-		id = c.route.Id
-	}
-
+func (p *Proxy) sendError(c *context, id string, code int) {
+	addBranding(c.responseWriter.Header())
+	http.Error(c.responseWriter, http.StatusText(code), code)
 	p.metrics.MeasureServe(
 		id,
 		c.request.Host,
@@ -372,13 +387,15 @@ func (p *Proxy) sendError(c *context, code int) {
 	)
 }
 
-func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http.Request) {
+func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http.Request) error {
 	// have to parse url again, because path is not copied by mapRequest
 	backendURL, err := url.Parse(route.Backend)
 	if err != nil {
 		log.Errorf("can not parse backend %s, caused by: %s", route.Backend, err)
-		sendHTTPError(ctx.responseWriter, http.StatusBadGateway)
-		return
+		return &proxyError{
+			err:  err,
+			code: http.StatusBadGateway,
+		}
 	}
 
 	reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
@@ -392,33 +409,36 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 
 	upgradeProxy.serveHTTP(ctx.responseWriter, req)
 	log.Debugf("finished upgraded protocol %s session", getUpgradeRequest(ctx.request))
-
+	return nil
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
 	if err != nil {
 		log.Errorf("could not map backend request, caused by: %v", err)
-		p.sendError(ctx, http.StatusInternalServerError)
-		return nil, errProxyCanceled
+		return nil, err
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
-		p.makeUpgradeRequest(ctx, ctx.route, req)
+		if err := p.makeUpgradeRequest(ctx, ctx.route, req); err != nil {
+			return nil, err
+		}
+
 		// We are not owner of the connection anymore.
-		return nil, errProxyCanceled
+		return nil, &proxyError{handled: true}
 	}
 
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
-		code := http.StatusInternalServerError
+		log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
 		if _, ok := err.(net.Error); ok {
-			code = http.StatusServiceUnavailable
+			err = &proxyError{
+				err:  err,
+				code: http.StatusServiceUnavailable,
+			}
 		}
 
-		p.sendError(ctx, code)
-		log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
-		return nil, errProxyCanceled
+		return nil, err
 	}
 
 	return response, nil
@@ -430,19 +450,12 @@ func (p *Proxy) do(ctx *context) error {
 	p.metrics.MeasureRouteLookup(lookupStart)
 
 	if route == nil {
-		if p.flags.Debug() {
-			dbgResponse(ctx.responseWriter, &debugInfo{
-				incoming: ctx.request,
-				response: &http.Response{StatusCode: http.StatusNotFound},
-			})
-
-			return errProxyCanceled
+		if !p.flags.Debug() {
+			p.metrics.IncRoutingFailures()
 		}
 
-		p.metrics.IncRoutingFailures()
-		p.sendError(ctx, http.StatusNotFound)
 		log.Debugf("could not find a route for %v", ctx.request.URL)
-		return errProxyCanceled
+		return &proxyError{code: http.StatusNotFound}
 	}
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
@@ -451,21 +464,13 @@ func (p *Proxy) do(ctx *context) error {
 
 	if ctx.deprecatedShunted() {
 		log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
-		return errProxyCanceled
+		return &proxyError{handled: true}
 	} else if ctx.shunted() || ctx.route.Shunt {
 		ctx.ensureDefaultResponse()
 	} else if p.flags.Debug() {
 		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
 		if err != nil {
-			dbgResponse(ctx.responseWriter, &debugInfo{
-				route:        &ctx.route.Route,
-				incoming:     ctx.OriginalRequest(),
-				response:     &http.Response{StatusCode: http.StatusInternalServerError},
-				err:          err,
-				filterPanics: ctx.debugFilterPanics,
-			})
-
-			return errProxyCanceled
+			return &proxyError{err: err}
 		}
 
 		ctx.outgoingDebugRequest = debugReq
@@ -491,7 +496,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	if p.flags.Debug() {
 		dbgResponse(ctx.responseWriter, &debugInfo{
 			route:        &ctx.route.Route,
-			incoming:     ctx.OriginalRequest(),
+			incoming:     ctx.originalRequest,
 			outgoing:     ctx.outgoingDebugRequest,
 			response:     ctx.response,
 			filterPanics: ctx.debugFilterPanics,
@@ -517,7 +522,6 @@ func (p *Proxy) serveResponse(ctx *context) {
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := newContext(w, r, p.flags.PreserveOriginal())
 	ctx.startServe = time.Now()
-	err := p.do(ctx)
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -528,23 +532,39 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	err := p.do(ctx)
 	if err != nil {
-		if err == errProxyCanceled {
-			return
+		if perr, ok := err.(*proxyError); !ok || !perr.handled {
+			id := unknownRouteId
+			if ctx.route != nil {
+				id = ctx.route.Id
+			}
+
+			code := http.StatusInternalServerError
+			if ok && perr.code != 0 {
+				code = perr.code
+			}
+
+			if p.flags.Debug() {
+				di := &debugInfo{
+					incoming:     ctx.originalRequest,
+					outgoing:     ctx.outgoingDebugRequest,
+					response:     ctx.response,
+					filterPanics: ctx.debugFilterPanics,
+				}
+
+				if ctx.route != nil {
+					di.route = &ctx.route.Route
+				}
+
+				dbgResponse(w, di)
+				return
+			}
+
+			p.sendError(ctx, id, code)
+			log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
 		}
 
-		id := unknownRouteId
-		if ctx.route != nil {
-			id = ctx.route.Id
-		}
-
-		code := http.StatusInternalServerError
-		if _, ok := err.(net.Error); ok {
-			code = http.StatusServiceUnavailable
-		}
-
-		log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
-		p.metrics.MeasureServe(id, r.Host, r.Method, code, ctx.startServe)
 		return
 	}
 
