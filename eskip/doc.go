@@ -178,7 +178,8 @@ predicates start with upper case, while filters start with lower case.
 
 Backend
 
-There are three types of backends: a network endpoint address or a shunt.
+There are three types of backends: a network endpoint address, a shunt or
+a loopback.
 
 A network endpoint address example:
 
