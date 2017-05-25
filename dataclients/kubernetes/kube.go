@@ -57,6 +57,8 @@ import (
 const (
 	defaultKubernetesURL        = "http://localhost:8001"
 	ingressesURI                = "/apis/extensions/v1beta1/ingresses"
+	ingressClassKey             = "kubernetes.io/ingress.class"
+	defaultIngressClass         = "skipper"
 	serviceURIFmt               = "/api/v1/namespaces/%s/services/%s"
 	serviceAccountDir           = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey      = "token"
@@ -123,6 +125,7 @@ type Client struct {
 	current              map[string]*eskip.Route
 	termReceived         bool
 	sigs                 chan os.Signal
+	ingressClass         string
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -160,6 +163,9 @@ func New(o Options) (*Client, error) {
 		signal.Notify(sigs, syscall.SIGTERM)
 	}
 
+	// TODO ingress class option
+	ingCls := defaultIngressClass
+
 	return &Client{
 		httpClient:           httpClient,
 		apiURL:               apiURL,
@@ -168,6 +174,7 @@ func New(o Options) (*Client, error) {
 		current:              make(map[string]*eskip.Route),
 		token:                token,
 		sigs:                 sigs,
+		ingressClass:         ingCls,
 	}, nil
 }
 
@@ -545,6 +552,28 @@ func (c *Client) listRoutes() []*eskip.Route {
 	return l
 }
 
+// filterIngressesByClass will filter only the ingresses that have the valid class, these are
+// the defined one, empty string class or not class at all
+func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
+	validIngs := []*ingressItem{}
+
+	for _, ing := range items {
+		// no metadata is the same as no annotations for us
+		if ing.Metadata == nil {
+			continue
+		}
+
+		cls, ok := ing.Metadata.Annotations[ingressClassKey]
+		// skip loop iteration if not valid ingress (non defined, empty or non defined one)
+		if ok && cls != "" && cls != c.ingressClass {
+			continue
+		}
+		validIngs = append(validIngs, ing)
+	}
+
+	return validIngs
+}
+
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
 	log.Debugf("requesting ingresses")
@@ -554,7 +583,9 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	}
 
 	log.Debugf("all ingresses received: %d", len(il.Items))
-	r := c.ingressToRoutes(il.Items)
+	fItems := c.filterIngressesByClass(il.Items)
+	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
+	r := c.ingressToRoutes(fItems)
 	log.Debugf("all routes created: %d", len(r))
 	return r, nil
 }
