@@ -111,6 +111,15 @@ type Options struct {
 	// https://github.com/zalando-incubator/kubernetes-on-aws project.)
 	ProvideHTTPSRedirect bool
 
+	// IngressClass, when set, it will make skipper only load the ingresses that match with this class.
+	// if the ingress does not have annotation or the annotation is an empty string, it will load the ingress
+	// independently of this setting, this makes backwards compatible. By default if no setting is set, the
+	// setting will be set to 'skipper'.
+	//
+	// For further information see:
+	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
+	IngressClass string
+
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
 }
@@ -154,7 +163,12 @@ func New(o Options) (*Client, error) {
 		return nil, err
 	}
 
-	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck)
+	ingCls := defaultIngressClass
+	if o.IngressClass != "" {
+		ingCls = o.IngressClass
+	}
+
+	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls)
 
 	var sigs chan os.Signal
 	if o.ProvideHealthcheck {
@@ -162,9 +176,6 @@ func New(o Options) (*Client, error) {
 		sigs = make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGTERM)
 	}
-
-	// TODO ingress class option
-	ingCls := defaultIngressClass
 
 	return &Client{
 		httpClient:           httpClient,
