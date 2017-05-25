@@ -569,15 +569,13 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 	validIngs := []*ingressItem{}
 
 	for _, ing := range items {
-		// no metadata is the same as no annotations for us
-		if ing.Metadata == nil {
-			continue
-		}
-
-		cls, ok := ing.Metadata.Annotations[ingressClassKey]
-		// skip loop iteration if not valid ingress (non defined, empty or non defined one)
-		if ok && cls != "" && cls != c.ingressClass {
-			continue
+		// No metadata is the same as no annotations for us
+		if ing.Metadata != nil {
+			cls, ok := ing.Metadata.Annotations[ingressClassKey]
+			// Skip loop iteration if not valid ingress (non defined, empty or non defined one)
+			if ok && cls != "" && cls != c.ingressClass {
+				continue
+			}
 		}
 		validIngs = append(validIngs, ing)
 	}
