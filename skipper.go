@@ -82,8 +82,8 @@ type Options struct {
 
 	// KubernetesIngressClass, will make skipper only load the ingress
 	// resources that match the kubernetes.io/ingress.class annotation
-	// specified by this setting, for backwards compatibility it will
-	// load the ingresses without annotation, or with this annotation
+	// specified by this setting. For backwards compatibility, it will
+	// load the ingresses without an annotation, or with this annotation
 	// set to an empty value.
 	KubernetesIngressClass string
 
