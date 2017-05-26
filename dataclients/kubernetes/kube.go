@@ -57,6 +57,8 @@ import (
 const (
 	defaultKubernetesURL        = "http://localhost:8001"
 	ingressesURI                = "/apis/extensions/v1beta1/ingresses"
+	ingressClassKey             = "kubernetes.io/ingress.class"
+	defaultIngressClass         = "skipper"
 	serviceURIFmt               = "/api/v1/namespaces/%s/services/%s"
 	serviceAccountDir           = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey      = "token"
@@ -109,6 +111,15 @@ type Options struct {
 	// https://github.com/zalando-incubator/kubernetes-on-aws project.)
 	ProvideHTTPSRedirect bool
 
+	// IngressClass, when set, it will make skipper only load the ingresses that match with this class.
+	// if the ingress does not have annotation or the annotation is an empty string, it will load the ingress
+	// independently of this setting, this makes backwards compatible. By default if no setting is set, the
+	// setting will be set to 'skipper'.
+	//
+	// For further information see:
+	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
+	IngressClass string
+
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
 }
@@ -123,6 +134,7 @@ type Client struct {
 	current              map[string]*eskip.Route
 	termReceived         bool
 	sigs                 chan os.Signal
+	ingressClass         string
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -151,7 +163,12 @@ func New(o Options) (*Client, error) {
 		return nil, err
 	}
 
-	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck)
+	ingCls := defaultIngressClass
+	if o.IngressClass != "" {
+		ingCls = o.IngressClass
+	}
+
+	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls)
 
 	var sigs chan os.Signal
 	if o.ProvideHealthcheck {
@@ -168,6 +185,7 @@ func New(o Options) (*Client, error) {
 		current:              make(map[string]*eskip.Route),
 		token:                token,
 		sigs:                 sigs,
+		ingressClass:         ingCls,
 	}, nil
 }
 
@@ -545,6 +563,26 @@ func (c *Client) listRoutes() []*eskip.Route {
 	return l
 }
 
+// filterIngressesByClass will filter only the ingresses that have the valid class, these are
+// the defined one, empty string class or not class at all
+func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
+	validIngs := []*ingressItem{}
+
+	for _, ing := range items {
+		// No metadata is the same as no annotations for us
+		if ing.Metadata != nil {
+			cls, ok := ing.Metadata.Annotations[ingressClassKey]
+			// Skip loop iteration if not valid ingress (non defined, empty or non defined one)
+			if ok && cls != "" && cls != c.ingressClass {
+				continue
+			}
+		}
+		validIngs = append(validIngs, ing)
+	}
+
+	return validIngs
+}
+
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
 	log.Debugf("requesting ingresses")
@@ -554,7 +592,9 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	}
 
 	log.Debugf("all ingresses received: %d", len(il.Items))
-	r := c.ingressToRoutes(il.Items)
+	fItems := c.filterIngressesByClass(il.Items)
+	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
+	r := c.ingressToRoutes(fItems)
 	log.Debugf("all routes created: %d", len(r))
 	return r, nil
 }

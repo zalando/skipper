@@ -488,6 +488,107 @@ func TestIngressData(t *testing.T) {
 	}
 }
 
+func TestIngressClassFilter(t *testing.T) {
+	tests := []struct {
+		testTitle     string
+		items         []*ingressItem
+		ingressClass  string
+		expectedItems []*ingressItem
+	}{
+		{
+			testTitle: "filter no class ingresses",
+			items: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid2",
+				}},
+			},
+			ingressClass: "test-filter",
+			expectedItems: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid2",
+				}},
+			},
+		},
+		{
+			testTitle: "filter specific key ingress",
+			items: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+					Annotations: map[string]string{
+						ingressClassKey: "test-filter",
+					},
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_not_valid2",
+					Annotations: map[string]string{
+						ingressClassKey: "another-test-filter",
+					},
+				}},
+			},
+			ingressClass: "test-filter",
+			expectedItems: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+				}},
+			},
+		},
+		{
+			testTitle: "filter empty class ingresses",
+			items: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+					Annotations: map[string]string{
+						ingressClassKey: "",
+					},
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_not_valid2",
+					Annotations: map[string]string{
+						ingressClassKey: "another-test-filter",
+					},
+				}},
+			},
+			ingressClass: "test-filter",
+			expectedItems: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+				}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testTitle, func(t *testing.T) {
+			c := &Client{
+				ingressClass: test.ingressClass,
+			}
+
+			result := c.filterIngressesByClass(test.items)
+			lRes := len(result)
+			eRes := len(test.expectedItems)
+			// Check length
+			if lRes != eRes {
+				t.Errorf("filtered ingresses length is wrong, got: %d, want:%d", lRes, eRes)
+			} else {
+				// Check items
+				for i, exIng := range test.expectedItems {
+					exName := exIng.Metadata.Name
+					name := result[i].Metadata.Name
+					if exName != name {
+						t.Errorf("filtered ingress doesn't match, got: %s, want: %s", exName, name)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestIngress(t *testing.T) {
 	api := newTestAPI(t, nil, &ingressList{})
 	defer api.Close()
@@ -836,6 +937,57 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega__bar_example_org___test1__service1",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
 		)
+	})
+	t.Run("has ingresses, add new ones and filter not valid ones using class ingress", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		dc, err := New(Options{KubernetesURL: api.server.URL})
+		if err != nil {
+			t.Error(err)
+		}
+
+		_, err = dc.LoadAll()
+		if err != nil {
+			t.Error("failed to load initial routes", err)
+			return
+		}
+
+		ti1 := testIngress(
+			"namespace1",
+			"new1",
+			"",
+			backendPort{""},
+			1.0,
+			testRule(
+				"new1.example.org",
+				testPathRule("/", "service1", backendPort{"port1"}),
+			),
+		)
+		ti2 := testIngress(
+			"namespace1",
+			"new2",
+			"",
+			backendPort{""},
+			1.0,
+			testRule(
+				"new2.example.org",
+				testPathRule("/", "service2", backendPort{"port2"}),
+			),
+		)
+		// Set class ingress class annotation
+		ti1.Metadata.Annotations = map[string]string{ingressClassKey: defaultIngressClass}
+		ti2.Metadata.Annotations = map[string]string{ingressClassKey: "nginx"}
+
+		api.ingresses.Items = append(api.ingresses.Items, ti1, ti2)
+		r, d, err := dc.LoadUpdate()
+		if err != nil || len(d) != 0 {
+			t.Error("invalid updated received", err, len(d))
+			return
+		}
+
+		checkRoutes(t, r, map[string]string{
+			"kube_namespace1__new1__new1_example_org_____service1": "http://1.2.3.4:8080",
+		})
 	})
 }
 

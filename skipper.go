@@ -80,6 +80,13 @@ type Options struct {
 	// expected to be set by the load-balancer.
 	KubernetesHTTPSRedirect bool
 
+	// KubernetesIngressClass, will make skipper only load the ingress
+	// resources that match the kubernetes.io/ingress.class annotation
+	// specified on this setting, for backwards compatibility it will
+	// loadd the ingresses without annotation, or with this annotation
+	// set to an empty value
+	KubernetesIngressClass string
+
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -270,6 +277,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			KubernetesURL:        o.KubernetesURL,
 			ProvideHealthcheck:   o.KubernetesHealthcheck,
 			ProvideHTTPSRedirect: o.KubernetesHTTPSRedirect,
+			IngressClass:         o.KubernetesIngressClass,
 		})
 		if err != nil {
 			return nil, err
