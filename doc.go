@@ -64,7 +64,8 @@ Besides the default proxying mechanism, it is possible to define routes
 without a real network backend endpoint. One of these cases is called a
 'shunt' backend, in which case one of the filters needs to handle the
 request providing its own response (e.g. the 'static' filter). Actually,
-filters themselves can instruct the request flow to shunt.
+filters themselves can instruct the request flow to shunt by calling the
+Serve(*http.Response) method of the filter context.
 
 Another case of a route without a network backend is the 'loopback'. A
 loopback route can be used to match a request, modified by filters,
@@ -134,7 +135,7 @@ A shunt route means that Skipper handles the request alone and doesn't
 make requests to a backend service. In this case, it is the
 responsibility of one of the filters to generate the response.
 
-A loopback route executes the routine mechanism on current state of
+A loopback route executes the routing mechanism on current state of
 the request from the start, including the route lookup. This way it
 serves as a form of an internal redirect.
 

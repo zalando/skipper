@@ -46,8 +46,8 @@ func Example() {
 			requestHeader("X-Type", "ajax-post") ->
 			"https://api.example.org";
 
-		// route definition with a loopback (no backend address)
-		route4: Path("/some/other/path") -> static("/", "/var/www") -> <loopback>;
+		// route definition with a loopback to route2 (no backend address)
+		route4: Path("/some/alternative/path") -> setPath("/some/other/path") -> <loopback>;
 		`
 
 	routes, err := eskip.Parse(code)
