@@ -82,10 +82,14 @@ type Options struct {
 
 	// KubernetesIngressClass, will make skipper only load the ingress
 	// resources that match the kubernetes.io/ingress.class annotation
-	// specified on this setting, for backwards compatibility it will
-	// loadd the ingresses without annotation, or with this annotation
-	// set to an empty value
+	// specified by this setting, for backwards compatibility it will
+	// load the ingresses without annotation, or with this annotation
+	// set to an empty value.
 	KubernetesIngressClass string
+
+	// IgnoreClass causes skipper to load all ingresses regardless
+	// of the ingress class annotation.
+	KubernetesIgnoreClass bool
 
 	// API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -278,6 +282,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			ProvideHealthcheck:   o.KubernetesHealthcheck,
 			ProvideHTTPSRedirect: o.KubernetesHTTPSRedirect,
 			IngressClass:         o.KubernetesIngressClass,
+			IgnoreClass:          o.KubernetesIgnoreClass,
 		})
 		if err != nil {
 			return nil, err

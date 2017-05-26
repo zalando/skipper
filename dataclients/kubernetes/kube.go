@@ -111,14 +111,16 @@ type Options struct {
 	// https://github.com/zalando-incubator/kubernetes-on-aws project.)
 	ProvideHTTPSRedirect bool
 
-	// IngressClass, when set, it will make skipper only load the ingresses that match with this class.
-	// if the ingress does not have annotation or the annotation is an empty string, it will load the ingress
-	// independently of this setting, this makes backwards compatible. By default if no setting is set, the
-	// setting will be set to 'skipper'.
+	// IngressClass, when set, will make skipper load only the ingresses that match.
+	// If the ingress does not have a class annotation or the annotation is an empty string, skipper will
+	// load it. The default value for the ingress class is 'skipper'.
 	//
 	// For further information see:
 	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
 	IngressClass string
+
+	// IgnoreClass causes skipper to load all ingresses regardless of the ingress class annotation.
+	IgnoreClass bool
 
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
@@ -135,6 +137,7 @@ type Client struct {
 	termReceived         bool
 	sigs                 chan os.Signal
 	ingressClass         string
+	ignoreClass          bool
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -186,6 +189,7 @@ func New(o Options) (*Client, error) {
 		token:                token,
 		sigs:                 sigs,
 		ingressClass:         ingCls,
+		ignoreClass:          o.IgnoreClass,
 	}, nil
 }
 
@@ -566,6 +570,10 @@ func (c *Client) listRoutes() []*eskip.Route {
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
 func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
+	if c.ignoreClass {
+		return items
+	}
+
 	validIngs := []*ingressItem{}
 
 	for _, ing := range items {

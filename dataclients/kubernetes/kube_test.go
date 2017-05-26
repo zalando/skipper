@@ -493,6 +493,7 @@ func TestIngressClassFilter(t *testing.T) {
 		testTitle     string
 		items         []*ingressItem
 		ingressClass  string
+		ignoreClass   bool
 		expectedItems []*ingressItem
 	}{
 		{
@@ -561,12 +562,40 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 		},
+		{
+			testTitle: "ignore ingress class",
+			items: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+					Annotations: map[string]string{
+						ingressClassKey: "test-filter",
+					},
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid2",
+					Annotations: map[string]string{
+						ingressClassKey: "another-test-filter",
+					},
+				}},
+			},
+			ingressClass: "test-filter",
+			ignoreClass:  true,
+			expectedItems: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid2",
+				}},
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.testTitle, func(t *testing.T) {
 			c := &Client{
 				ingressClass: test.ingressClass,
+				ignoreClass:  test.ignoreClass,
 			}
 
 			result := c.filterIngressesByClass(test.items)

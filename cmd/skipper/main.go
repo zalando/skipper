@@ -47,7 +47,8 @@ const (
 	kubernetesURLUsage             = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
 	kubernetesHealthcheckUsage     = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
 	kubernetesHTTPSRedirectUsage   = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
-	kubernetesIngressClassUsage    = "ingress class used to filter ingress resources on kubernetes"
+	kubernetesIngressClassUsage    = "ingress class used to filter ingress resources for kubernetes"
+	kubernetesIgnoreClassUsage     = "ignore the ingress class used to filter ingress resources for kubernetes and apply all ingress rules"
 	innkeeperUrlUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
@@ -103,6 +104,7 @@ var (
 	kubernetesHealthcheck     bool
 	kubernetesHTTPSRedirect   bool
 	kubernetesIngressClass    string
+	kubernetesIgnoreClass     bool
 	innkeeperUrl              string
 	sourcePollTimeout         int64
 	routesFile                string
@@ -149,6 +151,7 @@ func init() {
 	flag.BoolVar(&kubernetesHealthcheck, "kubernetes-healthcheck", true, kubernetesHealthcheckUsage)
 	flag.BoolVar(&kubernetesHTTPSRedirect, "kubernetes-https-redirect", true, kubernetesHTTPSRedirectUsage)
 	flag.StringVar(&kubernetesIngressClass, "kubernetes-ingress-class", "", kubernetesIngressClassUsage)
+	flag.BoolVar(&kubernetesIgnoreClass, "kubernetes-ignore-class", false, kubernetesIgnoreClassUsage)
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
@@ -233,6 +236,7 @@ func main() {
 		KubernetesHealthcheck:     kubernetesHealthcheck,
 		KubernetesHTTPSRedirect:   kubernetesHTTPSRedirect,
 		KubernetesIngressClass:    kubernetesIngressClass,
+		KubernetesIgnoreClass:     kubernetesIgnoreClass,
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 		RoutesFile:                routesFile,
