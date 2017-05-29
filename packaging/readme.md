@@ -1,6 +1,6 @@
 # Packaging
 
-This directory contains additional scripts and artefacts for packaging Skipper for different platforms or
+This directory contains additional scripts and artifacts for packaging Skipper for different platforms or
 package managers. (Currently, only docker.)
 
 ## Docker

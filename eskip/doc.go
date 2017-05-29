@@ -36,7 +36,7 @@ A route expression example:
 Match Expressions - Predicates
 
 A match expression contains one or more predicates. An incoming
-request must fulfil each of them to match the route. The predicates are
+request must fulfill each of them to match the route. The predicates are
 separated by '&&'.
 
 A match expression example:

@@ -65,9 +65,9 @@ default 404 status.
 
 3.c loopback:
 
-In case of the `loopback` route no upsteram request is made.
+In case of the `loopback` route no upstream request is made.
 Routing will happen again with an augmented request.
-This can happen sevearl times in a row until maxLoopbacks
+This can happen several times in a row until maxLoopbacks
 limit is reached.
 
 
