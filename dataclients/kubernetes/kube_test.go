@@ -493,7 +493,6 @@ func TestIngressClassFilter(t *testing.T) {
 		testTitle     string
 		items         []*ingressItem
 		ingressClass  string
-		ignoreClass   bool
 		expectedItems []*ingressItem
 	}{
 		{
@@ -506,7 +505,7 @@ func TestIngressClassFilter(t *testing.T) {
 					Name: "test1_valid2",
 				}},
 			},
-			ingressClass: "test-filter",
+			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
 				&ingressItem{Metadata: &metadata{
 					Name: "test1_valid1",
@@ -532,7 +531,7 @@ func TestIngressClassFilter(t *testing.T) {
 					},
 				}},
 			},
-			ingressClass: "test-filter",
+			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
 				&ingressItem{Metadata: &metadata{
 					Name: "test1_valid1",
@@ -555,7 +554,7 @@ func TestIngressClassFilter(t *testing.T) {
 					},
 				}},
 			},
-			ingressClass: "test-filter",
+			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
 				&ingressItem{Metadata: &metadata{
 					Name: "test1_valid1",
@@ -563,23 +562,22 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 		},
 		{
-			testTitle: "ignore ingress class",
+			testTitle: "explicitly include any ingress class",
 			items: []*ingressItem{
 				&ingressItem{Metadata: &metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
-						ingressClassKey: "test-filter",
+						ingressClassKey: "",
 					},
 				}},
 				&ingressItem{Metadata: &metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
-						ingressClassKey: "another-test-filter",
+						ingressClassKey: "test-filter",
 					},
 				}},
 			},
-			ingressClass: "test-filter",
-			ignoreClass:  true,
+			ingressClass: ".*",
 			expectedItems: []*ingressItem{
 				&ingressItem{Metadata: &metadata{
 					Name: "test1_valid1",
@@ -589,13 +587,41 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 		},
+		{
+			testTitle: "match from a set of ingress classes",
+			items: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+					Annotations: map[string]string{
+						ingressClassKey: "skipper-test, other-test",
+					},
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid2",
+					Annotations: map[string]string{
+						ingressClassKey: "other-test",
+					},
+				}},
+			},
+			ingressClass: "skipper-test",
+			expectedItems: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+				}},
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.testTitle, func(t *testing.T) {
+			clsRx, err := regexp.Compile(test.ingressClass)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
 			c := &Client{
-				ingressClass: test.ingressClass,
-				ignoreClass:  test.ignoreClass,
+				ingressClass: clsRx,
 			}
 
 			result := c.filterIngressesByClass(test.items)

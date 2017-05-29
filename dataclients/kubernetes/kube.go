@@ -111,16 +111,13 @@ type Options struct {
 	// https://github.com/zalando-incubator/kubernetes-on-aws project.)
 	ProvideHTTPSRedirect bool
 
-	// IngressClass, when set, will make skipper load only the ingresses that match.
-	// If the ingress does not have a class annotation or the annotation is an empty string, skipper will
-	// load it. The default value for the ingress class is 'skipper'.
+	// IngressClass is a regular expression to filter only those ingresses that match. If an ingress does
+	// not have a class annotation or the annotation is an empty string, skipper will load it. The default
+	// value for the ingress class is 'skipper'.
 	//
 	// For further information see:
 	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
 	IngressClass string
-
-	// IgnoreClass causes skipper to load all ingresses regardless of the ingress class annotation.
-	IgnoreClass bool
 
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
@@ -136,8 +133,7 @@ type Client struct {
 	current              map[string]*eskip.Route
 	termReceived         bool
 	sigs                 chan os.Signal
-	ingressClass         string
-	ignoreClass          bool
+	ingressClass         *regexp.Regexp
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -171,6 +167,11 @@ func New(o Options) (*Client, error) {
 		ingCls = o.IngressClass
 	}
 
+	ingClsRx, err := regexp.Compile(ingCls)
+	if err != nil {
+		return nil, err
+	}
+
 	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls)
 
 	var sigs chan os.Signal
@@ -188,8 +189,7 @@ func New(o Options) (*Client, error) {
 		current:              make(map[string]*eskip.Route),
 		token:                token,
 		sigs:                 sigs,
-		ingressClass:         ingCls,
-		ignoreClass:          o.IgnoreClass,
+		ingressClass:         ingClsRx,
 	}, nil
 }
 
@@ -570,10 +570,6 @@ func (c *Client) listRoutes() []*eskip.Route {
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
 func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
-	if c.ignoreClass {
-		return items
-	}
-
 	validIngs := []*ingressItem{}
 
 	for _, ing := range items {
@@ -581,7 +577,7 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 		if ing.Metadata != nil {
 			cls, ok := ing.Metadata.Annotations[ingressClassKey]
 			// Skip loop iteration if not valid ingress (non defined, empty or non defined one)
-			if ok && cls != "" && cls != c.ingressClass {
+			if ok && cls != "" && !c.ingressClass.MatchString(cls) {
 				continue
 			}
 		}
