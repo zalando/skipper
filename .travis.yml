@@ -5,6 +5,9 @@ language: go
 go:
   - 1.8.1
 
+before_install:
+  - ./hack/build_etcd.sh v2.3.8
+
 env:
   global:
   - secure: "poPNfqcQzvvOSMFbmW0OxZVg1nd08W/JgkvaBDeMO5pwuemtW0mM5RqBCzC0r+vLklSDZ9lsMOidTTPPz787Maw08ytsfqgG92lEDHPXgruWLSjHK1nYJlT2q1+CN1PvmL8zPXVoCK2z3rcLBGU5bxLB22a9kRWmS92cZHaaOVccmogl/FISsdEWKpSQwhDwHdhSrrL86jRgrlECUhYRWYOyE9ZYrxFKegdSxeGfRq2wdelQxMoUG0qExO6PnJ2W6kPmC3nz82R2z2B4dA7GQ5cn4BZ9SoDmGdKVdVV+0ZZpCt0xdZKavsNQ08QQP6AOkT6mS5PQIXLT/PNRHfjuG7h8u4tG7YupOQGZh8vzVnzL8fGqo2uNYNeFHFuq2OeiZEAJlI7W36ARrTfv1PoNdqq4ZgDss+kXh0uwMLzXMsdlqw6qoUaTul8eTtNlyerByGvH7TpHPA3guSrn7txbz8XfEMzaYsaLXA/LeSDabcE8iE8M7yqLe8EpMKwm2Rza34QS0WLf74/6TnTmsA5v09JcDxKkzBzyxcya7TdvtWOWvsOuVOoTMBYCxlzguawPEAX8CNe0BadtPYcjeXn11jCe6K5s0fSPGKJidAs24YTi7JsA+yGOKQFaGEWoDJV/nHxg47/9IJhGrmUOqUHhiTOoJ+h6u0ZnUmA8pxnhIys="
@@ -14,4 +17,4 @@ branches:
   - "/^v\\d+[.]\\d+[.]\\d+.*/"
 
 script:
-- make ci-trigger
+- PATH=$PATH:$HOME/gopath/src/etcd/bin make ci-trigger
