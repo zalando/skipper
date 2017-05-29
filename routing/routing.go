@@ -47,7 +47,7 @@ type DataClient interface {
 // Predicate instances are used as custom user defined route
 // matching predicates.
 type Predicate interface {
-
+	Weight() int
 	// Returns true if the request matches the predicate.
 	Match(*http.Request) bool
 }

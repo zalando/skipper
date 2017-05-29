@@ -67,3 +67,7 @@ func (p *predicate) Match(r *http.Request) bool {
 
 	return p.valueExp.MatchString(c.Value)
 }
+
+func (p *predicate) Weight() int {
+	return 0
+}

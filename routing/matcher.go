@@ -50,7 +50,16 @@ func leafWeight(l *leafMatcher) int {
 	w += len(l.headersExact)
 	w += len(l.headersRegexp)
 	w += len(l.predicates)
+	w += predicateWeights(l.predicates)
 
+	return w
+}
+
+func predicateWeights(ps []Predicate) int {
+	w := 0
+	for _, p := range ps {
+		w += p.Weight()
+	}
 	return w
 }
 
