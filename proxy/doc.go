@@ -19,8 +19,9 @@ updated skipper routing rules.
 The proxy matches each incoming request to the lookup tree for the first
 matching route, and handles it accordingly to the rules defined in it.
 This typically means augmenting the request with the filters and
-forwarding it to the route endpoint, but it may also mean to handle the
-request internally if it is a 'shunt' route.
+forwarding it to the route endpoint. It may also mean to handle the
+request internally if it is a 'shunt' route or to continue routing
+further in case of 'loopback'.
 
 
 Proxy Mechanism
@@ -61,6 +62,13 @@ If a filter chain was broken by some filter this step is skipped.
 
 In case the route is a 'shunt', an empty response is created with
 default 404 status.
+
+3.c loopback:
+
+In case of the `loopback` route no upsteram request is made.
+Routing will happen again with an augmented request.
+This can happen sevearl times in a row until maxLoopbacks
+limit is reached.
 
 
 4. downstream response augmentation:
