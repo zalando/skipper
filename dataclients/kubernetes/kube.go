@@ -111,10 +111,9 @@ type Options struct {
 	// https://github.com/zalando-incubator/kubernetes-on-aws project.)
 	ProvideHTTPSRedirect bool
 
-	// IngressClass, when set, it will make skipper only load the ingresses that match with this class.
-	// if the ingress does not have annotation or the annotation is an empty string, it will load the ingress
-	// independently of this setting, this makes backwards compatible. By default if no setting is set, the
-	// setting will be set to 'skipper'.
+	// IngressClass is a regular expression to filter only those ingresses that match. If an ingress does
+	// not have a class annotation or the annotation is an empty string, skipper will load it. The default
+	// value for the ingress class is 'skipper'.
 	//
 	// For further information see:
 	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
@@ -134,7 +133,7 @@ type Client struct {
 	current              map[string]*eskip.Route
 	termReceived         bool
 	sigs                 chan os.Signal
-	ingressClass         string
+	ingressClass         *regexp.Regexp
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -168,6 +167,11 @@ func New(o Options) (*Client, error) {
 		ingCls = o.IngressClass
 	}
 
+	ingClsRx, err := regexp.Compile(ingCls)
+	if err != nil {
+		return nil, err
+	}
+
 	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls)
 
 	var sigs chan os.Signal
@@ -185,7 +189,7 @@ func New(o Options) (*Client, error) {
 		current:              make(map[string]*eskip.Route),
 		token:                token,
 		sigs:                 sigs,
-		ingressClass:         ingCls,
+		ingressClass:         ingClsRx,
 	}, nil
 }
 
@@ -573,7 +577,7 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 		if ing.Metadata != nil {
 			cls, ok := ing.Metadata.Annotations[ingressClassKey]
 			// Skip loop iteration if not valid ingress (non defined, empty or non defined one)
-			if ok && cls != "" && cls != c.ingressClass {
+			if ok && cls != "" && !c.ingressClass.MatchString(cls) {
 				continue
 			}
 		}

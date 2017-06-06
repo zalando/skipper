@@ -505,7 +505,7 @@ func TestIngressClassFilter(t *testing.T) {
 					Name: "test1_valid2",
 				}},
 			},
-			ingressClass: "test-filter",
+			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
 				&ingressItem{Metadata: &metadata{
 					Name: "test1_valid1",
@@ -531,7 +531,7 @@ func TestIngressClassFilter(t *testing.T) {
 					},
 				}},
 			},
-			ingressClass: "test-filter",
+			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
 				&ingressItem{Metadata: &metadata{
 					Name: "test1_valid1",
@@ -554,7 +554,56 @@ func TestIngressClassFilter(t *testing.T) {
 					},
 				}},
 			},
-			ingressClass: "test-filter",
+			ingressClass: "^test-filter$",
+			expectedItems: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+				}},
+			},
+		},
+		{
+			testTitle: "explicitly include any ingress class",
+			items: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+					Annotations: map[string]string{
+						ingressClassKey: "",
+					},
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid2",
+					Annotations: map[string]string{
+						ingressClassKey: "test-filter",
+					},
+				}},
+			},
+			ingressClass: ".*",
+			expectedItems: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid2",
+				}},
+			},
+		},
+		{
+			testTitle: "match from a set of ingress classes",
+			items: []*ingressItem{
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid1",
+					Annotations: map[string]string{
+						ingressClassKey: "skipper-test, other-test",
+					},
+				}},
+				&ingressItem{Metadata: &metadata{
+					Name: "test1_valid2",
+					Annotations: map[string]string{
+						ingressClassKey: "other-test",
+					},
+				}},
+			},
+			ingressClass: "skipper-test",
 			expectedItems: []*ingressItem{
 				&ingressItem{Metadata: &metadata{
 					Name: "test1_valid1",
@@ -565,8 +614,14 @@ func TestIngressClassFilter(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testTitle, func(t *testing.T) {
+			clsRx, err := regexp.Compile(test.ingressClass)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
 			c := &Client{
-				ingressClass: test.ingressClass,
+				ingressClass: clsRx,
 			}
 
 			result := c.filterIngressesByClass(test.items)

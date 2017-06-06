@@ -80,11 +80,11 @@ type Options struct {
 	// expected to be set by the load-balancer.
 	KubernetesHTTPSRedirect bool
 
-	// KubernetesIngressClass, will make skipper only load the ingress
-	// resources that match the kubernetes.io/ingress.class annotation
-	// specified on this setting, for backwards compatibility it will
-	// loadd the ingresses without annotation, or with this annotation
-	// set to an empty value
+	// KubernetesIngressClass is a regular expression, that will make
+	// skipper load only the ingress resources that that have a matching
+	// kubernetes.io/ingress.class annotation. For backwards compatibility,
+	// the ingresses without an annotation, or an empty annotation, will
+	// be loaded, too.
 	KubernetesIngressClass string
 
 	// API endpoint of the Innkeeper service, storing route definitions.
