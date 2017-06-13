@@ -11,6 +11,8 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+const unknownHost = "_unknownhost_"
+
 type context struct {
 	responseWriter        http.ResponseWriter
 	request               *http.Request
@@ -182,6 +184,14 @@ func (c *context) Serve(r *http.Response) {
 
 	c.servedWithResponse = true
 	c.response = r
+}
+
+func (c *context) metricsHost() string {
+	if c.route == nil || len(c.route.HostRegexps) == 0 {
+		return unknownHost
+	}
+
+	return c.request.Host
 }
 
 func (c *context) clone() *context {

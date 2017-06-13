@@ -406,7 +406,7 @@ func (p *Proxy) sendError(c *context, id string, code int) {
 	http.Error(c.responseWriter, http.StatusText(code), code)
 	p.metrics.MeasureServe(
 		id,
-		c.request.Host,
+		c.metricsHost(),
 		c.request.Method,
 		code,
 		c.startServe,
@@ -611,7 +611,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.serveResponse(ctx)
 	p.metrics.MeasureServe(
 		ctx.route.Id,
-		r.Host,
+		ctx.metricsHost(),
 		r.Method,
 		ctx.response.StatusCode,
 		ctx.startServe,
