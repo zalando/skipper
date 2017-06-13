@@ -190,6 +190,7 @@ func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
 }
 
 func (m *Metrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
+	method = measuredMethod(method)
 	m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
 }
 
@@ -199,7 +200,25 @@ func hostForKey(h string) string {
 	return h
 }
 
+func measuredMethod(m string) string {
+	switch m {
+	case "OPTIONS",
+		"GET",
+		"HEAD",
+		"POST",
+		"PUT",
+		"DELETE",
+		"TRACE",
+		"CONNECT":
+		return m
+	default:
+		return "_unknown_method_"
+	}
+}
+
 func (m *Metrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
+	method = measuredMethod(method)
+
 	if m.options.EnableServeRouteMetrics {
 		m.measureSince(fmt.Sprintf(KeyServeRoute, routeId, method, code), start)
 	}
