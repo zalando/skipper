@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/proxy"
 )

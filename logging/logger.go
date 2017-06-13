@@ -1,6 +1,6 @@
 package logging
 
-import "github.com/Sirupsen/logrus"
+import "github.com/sirupsen/logrus"
 
 // DefaultLog provides a default implementation of the Logger interface.
 type DefaultLog struct{}

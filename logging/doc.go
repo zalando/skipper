@@ -6,12 +6,12 @@ Application Log
 
 The application log uses the logrus package:
 
-https://github.com/Sirupsen/logrus
+https://github.com/sirupsen/logrus
 
 To send messages to the application log, import this package and use its
 methods. Example:
 
-    import log "github.com/Sirupsen/logrus"
+    import log "github.com/sirupsen/logrus"
 
     func doSomething() {
         log.Errorf("nothing to do")

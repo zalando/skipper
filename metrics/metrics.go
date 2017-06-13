@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/rcrowley/go-metrics"
+	log "github.com/sirupsen/logrus"
 )
 
 type skipperMetrics map[string]interface{}

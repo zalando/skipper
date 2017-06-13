@@ -34,7 +34,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"io"
 	"io/ioutil"

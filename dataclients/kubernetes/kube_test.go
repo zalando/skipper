@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/source"

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // isUpgradeRequest returns true if and only if there is a "Connection"

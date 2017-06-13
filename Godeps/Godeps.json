@@ -1,12 +1,12 @@
 {
 	"ImportPath": "github.com/zalando/skipper",
-	"GoVersion": "go1.6.2",
+	"GoVersion": "go1.8.1",
 	"GodepVersion": "v62",
 	"Deps": [
 		{
-			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.8.6-1-g8bca266",
-			"Rev": "8bca2664072173a3c71db4c28ca8d304079b1787"
+			"ImportPath": "github.com/sirupsen/logrus",
+			"Comment": "v1.0.0",
+			"Rev": "202f25545ea4cf9b191ff7f846df5d87c9382c2b"
 		},
 		{
 			"ImportPath": "github.com/dimfeld/httppath",

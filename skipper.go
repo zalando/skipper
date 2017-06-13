@@ -7,7 +7,7 @@ import (
 	"path"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
