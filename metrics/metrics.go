@@ -212,7 +212,7 @@ func measuredMethod(m string) string {
 		"CONNECT":
 		return m
 	default:
-		return "_unknown_method_"
+		return "_unknownmethod_"
 	}
 }
 
