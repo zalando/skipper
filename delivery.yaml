@@ -38,4 +38,5 @@ build_steps:
           IMAGE=registry-write.opensource.zalan.do/teapot/skipper-test
         fi
         export IMAGE
-        make build
+        make deps shortcheck
+        cd packaging && make docker-push
