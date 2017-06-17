@@ -33,9 +33,9 @@ build_steps:
         IS_PR_BUILD=${CDP_PULL_REQUEST_NUMBER+"true"}
         if [[ ${CDP_TARGET_BRANCH} == "master" && ${IS_PR_BUILD} != "true" ]]
         then
-          IMAGE=registry-write.opensource.zalan.do/teapot/skipper
+          IMAGE=registry-write.opensource.zalan.do/pathfinder/skipper
         else
-          IMAGE=registry-write.opensource.zalan.do/teapot/skipper-test
+          IMAGE=registry-write.opensource.zalan.do/pathfinder/skipper-test
         fi
         export IMAGE
         make deps shortcheck
