@@ -32,7 +32,8 @@ build_steps:
         IS_PR_BUILD=${CDP_PULL_REQUEST_NUMBER+"true"}
         if [[ ${CDP_TARGET_BRANCH} == "master" && ${IS_PR_BUILD} != "true" ]]
         then
-          IMAGE=registry-write.opensource.zalan.do/pathfinder/skipper:${CDP_BUILD_VERSION}
+          RELEASE_VERSION=$(git describe --tags --always --dirty)
+          IMAGE=registry-write.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION}
         else
           IMAGE=registry-write.opensource.zalan.do/pathfinder/skipper-test:${CDP_BUILD_VERSION}
         fi
