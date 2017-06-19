@@ -1,8 +1,9 @@
+# for github.com
 approvals:
-  minimum: 1
-  ignore: pr_opener
-  pattern: "^(:\\+1:|👍|lgtm|shipit)$"
-  veto:
-    pattern: "^(:\\-1:|👎)$"
-  from:
-    collaborators: true
+  groups:
+    zalando:
+      minimum: 2
+      from:
+        orgs:
+          - "zalando"
+X-Zalando-Team: "pathfinder"
