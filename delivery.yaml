@@ -27,15 +27,15 @@ build_steps:
         export PATH=$PATH:$HOME/go/bin
         export TOP_DIR=$GOPATH/src/github.com/zalando
         mkdir -p $TOP_DIR
-        cp -va $(pwd) $TOP_DIR/skipper
+        ln -s $(pwd) $TOP_DIR/skipper
         cd $TOP_DIR/skipper
         IS_PR_BUILD=${CDP_PULL_REQUEST_NUMBER+"true"}
         if [[ ${CDP_TARGET_BRANCH} == "master" && ${IS_PR_BUILD} != "true" ]]
         then
-          IMAGE=registry-write.opensource.zalan.do/pathfinder/skipper
+          IMAGE=registry-write.opensource.zalan.do/pathfinder/skipper:${CDP_BUILD_VERSION}
         else
-          IMAGE=registry-write.opensource.zalan.do/pathfinder/skipper-test
+          IMAGE=registry-write.opensource.zalan.do/pathfinder/skipper-test:${CDP_BUILD_VERSION}
         fi
         export IMAGE
         make deps shortcheck
-        cd packaging && make docker-push
+        cd packaging && make docker-build docker-push
