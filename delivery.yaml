@@ -27,7 +27,7 @@ build_steps:
         export PATH=$PATH:$HOME/go/bin
         export TOP_DIR=$GOPATH/src/github.com/zalando
         mkdir -p $TOP_DIR
-        ln -s $(pwd) $TOP_DIR/skipper
+        cp -va $(pwd) $TOP_DIR/skipper
         cd $TOP_DIR/skipper
         IS_PR_BUILD=${CDP_PULL_REQUEST_NUMBER+"true"}
         if [[ ${CDP_TARGET_BRANCH} == "master" && ${IS_PR_BUILD} != "true" ]]
