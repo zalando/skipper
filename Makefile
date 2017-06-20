@@ -102,11 +102,11 @@ ci-release-patch: ci-user deps release-patch
 
 ci-trigger:
 ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)
-	make publish-coverage ci-release-major
+	make deps publish-coverage ci-release-major
 else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring minor-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_minor-release)
-	make publish-coverage ci-release-minor
+	make deps publish-coverage ci-release-minor
 else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
-	make publish-coverage ci-release-patch
+	make deps publish-coverage ci-release-patch
 else ifeq ($(TRAVIS_BRANCH), master)
 	make deps check-precommit
 else
