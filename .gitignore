@@ -11,3 +11,4 @@ example.eskip
 Godeps/_workspace
 packaging/skipper
 packaging/eskip
+.coverprofile

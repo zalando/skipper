@@ -60,6 +60,23 @@ precommit: build shortcheck fmt vet
 
 check-precommit: build shortcheck check-fmt vet
 
+.coverprofile-all: $(SOURCES)
+	go list -f \
+		'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
+		./... | xargs -i sh -c {}
+	go get github.com/modocache/gover
+	gover . .coverprofile-all
+
+cover: .coverprofile-all
+	go tool cover -func .coverprofile-all
+
+show-cover: .coverprofile-all
+	go tool cover -html .coverprofile-all
+
+publish-coverage: .coverprofile-all
+	curl -s https://codecov.io/bash -o codecov
+	bash codecov -f .coverprofile-all
+
 tag:
 	git tag $(VERSION)
 
@@ -85,11 +102,11 @@ ci-release-patch: ci-user deps release-patch
 
 ci-trigger:
 ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)
-	make ci-release-major
+	make publish-coverage ci-release-major
 else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring minor-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_minor-release)
-	make ci-release-minor
+	make publish-coverage ci-release-minor
 else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
-	make ci-release-patch
+	make publish-coverage ci-release-patch
 else ifeq ($(TRAVIS_BRANCH), master)
 	make deps check-precommit
 else
