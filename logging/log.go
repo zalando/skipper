@@ -57,8 +57,8 @@ func initApplicationLog(prefix string, output io.Writer) {
 func initAccessLog(output io.Writer, accessLogJSONDisabled bool) {
 	l := logrus.New()
 	if !accessLogJSONDisabled {
-		l.Formatter = &logrus.JSONFormatter{TimestampFormat:dateFormat, DisableTimestamp: true}
-	}else{
+		l.Formatter = &logrus.JSONFormatter{TimestampFormat: dateFormat, DisableTimestamp: true}
+	} else {
 		l.Formatter = &accessLogFormatter{accessLogFormat}
 	}
 	l.Out = output
