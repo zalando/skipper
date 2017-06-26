@@ -75,7 +75,7 @@ const (
 	applicationLogPrefixUsage      = "prefix for each log entry"
 	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
-	accessLogJSONDisabledUsage     = "when this flag is set, custom access log format is used"
+	accessLogJSONEnabledUsage      = "when this flag is set, log in JSON format is used"
 	debugEndpointUsage             = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
 	certPathTLSUsage               = "the path on the local filesystem to the certificate file (including any intermediates)"
 	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file"
@@ -127,7 +127,7 @@ var (
 	applicationLogPrefix      string
 	accessLog                 string
 	accessLogDisabled         bool
-	accessLogJSONDisabled     bool
+	accessLogJSONEnabled      bool
 	debugListener             string
 	certPathTLS               string
 	keyPathTLS                string
@@ -174,7 +174,7 @@ func init() {
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
-	flag.BoolVar(&accessLogJSONDisabled, "access-log-json-disabled", true, accessLogJSONDisabledUsage)
+	flag.BoolVar(&accessLogJSONEnabled, "access-log-json-enabled", false, accessLogJSONEnabledUsage)
 	flag.StringVar(&debugListener, "debug-listener", "", debugEndpointUsage)
 	flag.StringVar(&certPathTLS, "tls-cert", "", certPathTLSUsage)
 	flag.StringVar(&keyPathTLS, "tls-key", "", keyPathTLSUsage)
@@ -261,7 +261,7 @@ func main() {
 		ApplicationLogPrefix:      applicationLogPrefix,
 		AccessLogOutput:           accessLog,
 		AccessLogDisabled:         accessLogDisabled,
-		AccessLogJSONDisabled:     accessLogJSONDisabled,
+		AccessLogJSONEnabled:      accessLogJSONEnabled,
 		DebugListener:             debugListener,
 		CertPathTLS:               certPathTLS,
 		KeyPathTLS:                keyPathTLS,

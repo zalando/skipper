@@ -210,8 +210,8 @@ type Options struct {
 	// Disables the access log.
 	AccessLogDisabled bool
 
-	// Disables logs in JSON format
-	AccessLogJSONDisabled bool
+	// Enables logs in JSON format
+	AccessLogJSONEnabled bool
 
 	DebugListener string
 
@@ -327,11 +327,11 @@ func initLog(o Options) error {
 	}
 
 	logging.Init(logging.Options{
-		ApplicationLogPrefix:  o.ApplicationLogPrefix,
-		ApplicationLogOutput:  logOutput,
-		AccessLogOutput:       accessLogOutput,
-		AccessLogDisabled:     o.AccessLogDisabled,
-		AccessLogJSONDisabled: o.AccessLogJSONDisabled})
+		ApplicationLogPrefix: o.ApplicationLogPrefix,
+		ApplicationLogOutput: logOutput,
+		AccessLogOutput:      accessLogOutput,
+		AccessLogDisabled:    o.AccessLogDisabled,
+		AccessLogJSONEnabled: o.AccessLogJSONEnabled})
 
 	return nil
 }

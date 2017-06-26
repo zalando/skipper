@@ -31,9 +31,9 @@ func testAccessEntry() *AccessEntry {
 		Duration:     42 * time.Millisecond}
 }
 
-func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string, accessLogJSONDisabled bool) {
+func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string, accessLogJSONEnabled bool) {
 	var buf bytes.Buffer
-	Init(Options{AccessLogOutput: &buf, AccessLogJSONDisabled: accessLogJSONDisabled})
+	Init(Options{AccessLogOutput: &buf, AccessLogJSONEnabled: accessLogJSONEnabled})
 	LogAccess(entry)
 	got := buf.String()
 	if got != "" {
@@ -48,61 +48,61 @@ func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string, acce
 }
 
 func TestAccessLogFormatFull(t *testing.T) {
-	testAccessLog(t, testAccessEntry(), logOutput, true)
+	testAccessLog(t, testAccessEntry(), logOutput, false)
 }
 
 func TestAccessLogFormatJSON(t *testing.T) {
-	testAccessLog(t, testAccessEntry(), logJSONOutput, false)
+	testAccessLog(t, testAccessEntry(), logJSONOutput, true)
 }
 
 func TestAccessLogIgnoresEmptyEntry(t *testing.T) {
-	testAccessLog(t, nil, "", true)
+	testAccessLog(t, nil, "", false)
 }
 
 func TestNoPanicOnMissingRequest(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request = nil
-	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "  " 418 2326 "" "" 42 `, true)
+	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "  " 418 2326 "" "" 42 `, false)
 }
 
 func TestUseXForwarded(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3")
-	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`, true)
+	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`, false)
 }
 
 func TestUseXForwardedJSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3")
-	testAccessLog(t, entry, `{"duration":42,"host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, false)
+	testAccessLog(t, entry, `{"duration":42,"host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
 }
 
 func TestStripPortFwd4(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
-	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`, true)
+	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`, false)
 }
 
 func TestStripPortFwd4JSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
-	testAccessLog(t, entry, `{"duration":42,"host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, false)
+	testAccessLog(t, entry, `{"duration":42,"host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
 }
 
 func TestStripPortNoFwd4(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.RemoteAddr = "192.168.3.3:6969"
-	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`, true)
+	testAccessLog(t, entry, `192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`, false)
 }
 
 func TestMissingHostFallback(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.RemoteAddr = ""
-	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`, true)
+	testAccessLog(t, entry, `- - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com`, false)
 }
 
 func TestMissingHostFallbackJSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.RemoteAddr = ""
-	testAccessLog(t, entry, `{"duration":42,"host":"-","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, false)
+	testAccessLog(t, entry, `{"duration":42,"host":"-","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
 }

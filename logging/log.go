@@ -30,8 +30,8 @@ type Options struct {
 	// When set, no access log is printed.
 	AccessLogDisabled bool
 
-	// When set, custom access log format is used
-	AccessLogJSONDisabled bool
+	// When set, log in JSON format is used
+	AccessLogJSONEnabled bool
 }
 
 func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
@@ -54,9 +54,9 @@ func initApplicationLog(prefix string, output io.Writer) {
 	}
 }
 
-func initAccessLog(output io.Writer, accessLogJSONDisabled bool) {
+func initAccessLog(output io.Writer, accessLogJSONEnabled bool) {
 	l := logrus.New()
-	if !accessLogJSONDisabled {
+	if accessLogJSONEnabled {
 		l.Formatter = &logrus.JSONFormatter{TimestampFormat: dateFormat, DisableTimestamp: true}
 	} else {
 		l.Formatter = &accessLogFormatter{accessLogFormat}
@@ -77,6 +77,6 @@ func Init(o Options) {
 			o.AccessLogOutput = os.Stderr
 		}
 
-		initAccessLog(o.AccessLogOutput, o.AccessLogJSONDisabled)
+		initAccessLog(o.AccessLogOutput, o.AccessLogJSONEnabled)
 	}
 }
