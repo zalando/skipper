@@ -220,7 +220,7 @@ func processPatchArgs(pfilters, pfile, afilters, afile string) []*medium {
 	}
 
 	if afilters != "" {
-		media = append(media, &medium{typ: patchAppend, patchFilters: pfilters})
+		media = append(media, &medium{typ: patchAppend, patchFilters: afilters})
 	}
 
 	if pfile != "" {
