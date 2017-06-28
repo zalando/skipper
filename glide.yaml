@@ -1,0 +1,19 @@
+package: github.com/zalando/skipper
+import:
+- package: github.com/abbot/go-http-auth
+  version: ~0.3.0
+- package: github.com/dimfeld/httppath
+- package: github.com/oklog/ulid
+  version: ~0.3.0
+- package: github.com/rcrowley/go-metrics
+- package: github.com/sirupsen/logrus
+  version: ~1.0.0
+- package: github.com/zalando/pathmux
+- package: golang.org/x/crypto
+  subpackages:
+  - ssh/terminal
+testImport:
+- package: github.com/stretchr/testify
+  version: ~1.1.4
+  subpackages:
+  - assert

@@ -12,3 +12,5 @@ Godeps/_workspace
 packaging/skipper
 packaging/eskip
 .coverprofile
+.coverprofile-all
+vendor
