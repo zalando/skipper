@@ -13,6 +13,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
@@ -110,9 +111,17 @@ type Params struct {
 	// -1. Note, that disabling looping by this option, may result
 	// wrong routing depending on the current configuration.
 	MaxLoopbacks int
+
+	CircuitBreakers *circuit.Registry
 }
 
-var errMaxLoopbacksReached = errors.New("max loopbacks reached")
+var (
+	errMaxLoopbacksReached = errors.New("max loopbacks reached")
+	errCircuitBreakerOpen  = &proxyError{
+		err:  errors.New("circuit breaker open"),
+		code: http.StatusServiceUnavailable,
+	}
+)
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
 func (f Flags) Insecure() bool { return f&Insecure != 0 }
@@ -155,6 +164,7 @@ type Proxy struct {
 	flushInterval       time.Duration
 	experimentalUpgrade bool
 	maxLoops            int
+	breakers            *circuit.Registry
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -313,6 +323,7 @@ func WithParams(p Params) *Proxy {
 		flushInterval:       p.FlushInterval,
 		experimentalUpgrade: p.ExperimentalUpgrade,
 		maxLoops:            p.MaxLoopbacks,
+		breakers:            p.CircuitBreakers,
 	}
 }
 
@@ -470,6 +481,19 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 	return response, nil
 }
 
+func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
+	if p.breakers == nil {
+		return nil, true
+	}
+
+	b := p.breakers.Get(c.breakerSettings())
+	if b == nil {
+		return nil, true
+	}
+
+	return b.Allow()
+}
+
 func (p *Proxy) do(ctx *context) error {
 	if ctx.loopCounter > p.maxLoops {
 		return errMaxLoopbacksReached
@@ -515,11 +539,24 @@ func (p *Proxy) do(ctx *context) error {
 		ctx.outgoingDebugRequest = debugReq
 		ctx.setResponse(&http.Response{Header: make(http.Header)}, p.flags.PreserveOriginal())
 	} else {
+		done, allow := p.checkBreaker(ctx)
+		if !allow {
+			return errCircuitBreakerOpen
+		}
+
 		backendStart := time.Now()
 		rsp, err := p.makeBackendRequest(ctx)
 		if err != nil {
+			if done != nil {
+				done(false)
+			}
+
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 			return err
+		}
+
+		if done != nil {
+			done(rsp.StatusCode < http.StatusInternalServerError)
 		}
 
 		ctx.setResponse(rsp, p.flags.PreserveOriginal())
@@ -557,6 +594,49 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 }
 
+func (p *Proxy) errorResponse(ctx *context, err error) {
+	perr, ok := err.(*proxyError)
+	if ok && perr.handled {
+		return
+	}
+
+	id := unknownRouteID
+	if ctx.route != nil {
+		id = ctx.route.Id
+	}
+
+	code := http.StatusInternalServerError
+	if ok && perr.code != 0 {
+		code = perr.code
+	}
+
+	if p.flags.Debug() {
+		di := &debugInfo{
+			incoming:     ctx.originalRequest,
+			outgoing:     ctx.outgoingDebugRequest,
+			response:     ctx.response,
+			err:          err,
+			filterPanics: ctx.debugFilterPanics,
+		}
+
+		if ctx.route != nil {
+			di.route = &ctx.route.Route
+		}
+
+		dbgResponse(ctx.responseWriter, di)
+		return
+	}
+
+	switch {
+	case err == errCircuitBreakerOpen:
+		ctx.responseWriter.Header().Set("X-Circuit-Open", "true")
+	default:
+		log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
+	}
+
+	p.sendError(ctx, id, code)
+}
+
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := newContext(w, r, p.flags.PreserveOriginal())
@@ -573,38 +653,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err := p.do(ctx)
 	if err != nil {
-		if perr, ok := err.(*proxyError); !ok || !perr.handled {
-			id := unknownRouteID
-			if ctx.route != nil {
-				id = ctx.route.Id
-			}
-
-			code := http.StatusInternalServerError
-			if ok && perr.code != 0 {
-				code = perr.code
-			}
-
-			if p.flags.Debug() {
-				di := &debugInfo{
-					incoming:     ctx.originalRequest,
-					outgoing:     ctx.outgoingDebugRequest,
-					response:     ctx.response,
-					err:          err,
-					filterPanics: ctx.debugFilterPanics,
-				}
-
-				if ctx.route != nil {
-					di.route = &ctx.route.Route
-				}
-
-				dbgResponse(w, di)
-				return
-			}
-
-			p.sendError(ctx, id, code)
-			log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
-		}
-
+		p.errorResponse(ctx, err)
 		return
 	}
 

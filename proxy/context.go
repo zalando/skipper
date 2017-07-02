@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -155,6 +156,12 @@ func (c *context) setResponse(r *http.Response, preserveOriginal bool) {
 	c.response = r
 	if preserveOriginal {
 		c.originalResponse = cloneResponseMetadata(r)
+	}
+}
+
+func (c *context) breakerSettings() circuit.BreakerSettings {
+	return circuit.BreakerSettings{
+		Host: c.outgoingHost,
 	}
 }
 
