@@ -19,7 +19,7 @@ type BreakerSettings struct {
 	Window, Failures int
 	Timeout          time.Duration
 	HalfOpenRequests int
-	disabled         bool
+	Disabled         bool
 }
 
 type breakerImplementation interface {
@@ -98,7 +98,7 @@ func (b *Breaker) readyToTrip(failures int) bool {
 	}
 }
 
-func (b *Breaker) tick(success bool) {
+func (b *Breaker) countRate(success bool) {
 	b.mx.Lock()
 	defer b.mx.Unlock()
 
@@ -121,7 +121,7 @@ func (b *Breaker) rateAllow() (func(bool), bool) {
 	}
 
 	return func(success bool) {
-		b.tick(success)
+		b.countRate(success)
 		done(success)
 	}, true
 }

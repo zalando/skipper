@@ -486,7 +486,10 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 		return nil, true
 	}
 
-	b := p.breakers.Get(c.breakerSettings())
+	settings, _ := c.stateBag[circuit.RouteSettingsKey].(circuit.BreakerSettings)
+	settings.Host = c.outgoingHost
+
+	b := p.breakers.Get(settings)
 	if b == nil {
 		return nil, true
 	}

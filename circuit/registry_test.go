@@ -21,7 +21,7 @@ func TestRegistry(t *testing.T) {
 	}
 
 	createDisabledSettings := func() BreakerSettings {
-		return BreakerSettings{disabled: true}
+		return BreakerSettings{Disabled: true}
 	}
 
 	checkNil := func(t *testing.T, b *Breaker) {

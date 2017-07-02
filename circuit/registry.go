@@ -2,6 +2,8 @@ package circuit
 
 import "time"
 
+const RouteSettingsKey = "#circuitbreakersettings"
+
 type Options struct {
 	Defaults     BreakerSettings
 	HostSettings []BreakerSettings
@@ -64,7 +66,7 @@ func (r *Registry) dropLookup(b *Breaker) {
 
 func (r *Registry) Get(s BreakerSettings) *Breaker {
 	// we check for host, because we don't want to use shared global breakers
-	if s.disabled || s.Host == "" {
+	if s.Disabled || s.Host == "" {
 		return nil
 	}
 

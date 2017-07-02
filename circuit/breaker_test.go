@@ -127,6 +127,7 @@ func TestRateBreaker(t *testing.T) {
 	})
 }
 
+// no checks, used for race detector
 func TestRateBreakerFuzzy(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
