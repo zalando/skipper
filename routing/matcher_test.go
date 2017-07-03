@@ -3,8 +3,8 @@ package routing
 import (
 	"errors"
 	"fmt"
-	"github.com/zalando/pathmux"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/pathmux"
 	"log"
 	"net/http"
 	"net/url"

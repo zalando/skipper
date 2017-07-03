@@ -1,16 +1,17 @@
-SOURCES =            $(shell find . -name '*.go')
-CURRENT_VERSION =    $(shell git tag | sort -V | tail -n1)
-VERSION ?=           $(CURRENT_VERSION)
-NEXT_MAJOR =         $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
-NEXT_MINOR =         $(shell go run packaging/version/version.go minor $(CURRENT_VERSION))
-NEXT_PATCH =         $(shell go run packaging/version/version.go patch $(CURRENT_VERSION))
-COMMIT_HASH =        $(shell git rev-parse --short HEAD)
+SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*")
+PACKAGES           = $(shell glide novendor || echo -n "./...")
+CURRENT_VERSION    = $(shell git tag | sort -V | tail -n1)
+VERSION           ?= $(CURRENT_VERSION)
+NEXT_MAJOR         = $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
+NEXT_MINOR         = $(shell go run packaging/version/version.go minor $(CURRENT_VERSION))
+NEXT_PATCH         = $(shell go run packaging/version/version.go patch $(CURRENT_VERSION))
+COMMIT_HASH        = $(shell git rev-parse --short HEAD)
 TEST_ETCD_VERSION ?= v2.3.8
 
 default: build
 
 lib: $(SOURCES)
-	go build  ./...
+	go build $(PACKAGES)
 
 bindir:
 	mkdir -p bin
@@ -28,27 +29,40 @@ install: $(SOURCES)
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
 check: build
-	go test ./...
+	# go test $(PACKAGES)
+	#
+	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
+	# probably can be reverted once etcd is fully mocked away for tests
+	#
+	for p in $(PACKAGES); do go test $$p; done
 
 shortcheck: build
-	go test -test.short -run ^Test ./...
+	# go test -test.short -run ^Test $(PACKAGES)
+	#
+	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
+	# probably can be reverted once etcd is fully mocked away for tests
+	#
+	for p in $(PACKAGES); do go test -test.short -run ^Test $$p; done
 
 bench: build
-	go test -bench . ./...
+	# go test -bench . $(PACKAGES)
+	#
+	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
+	# probably can be reverted once etcd is fully mocked away for tests
+	#
+	for p in $(PACKAGES); do go test -bench . $$p; done
 
 clean:
 	go clean -i ./...
 
 deps:
-	go get golang.org/x/sys/unix
-	go get golang.org/x/crypto/ssh/terminal
 	go get -t github.com/zalando/skipper/...
 	./etcd/install.sh $(TEST_ETCD_VERSION)
-	go get github.com/tools/godep
-	godep restore ./...
+	go get github.com/Masterminds/glide
+	glide install --strip-vendor
 
 vet: $(SOURCES)
-	go vet ./...
+	go vet $(PACKAGES)
 
 fmt: $(SOURCES)
 	@gofmt -w $(SOURCES)
@@ -61,9 +75,18 @@ precommit: build shortcheck fmt vet
 check-precommit: build shortcheck check-fmt vet
 
 .coverprofile-all: $(SOURCES)
-	go list -f \
-		'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
-		./... | xargs -i sh -c {}
+	# go list -f \
+	# 	'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
+	# 	$(PACKAGES) | xargs -i sh -c {}
+	#
+	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
+	# probably can be reverted once etcd is fully mocked away for tests
+	#
+	for p in $(PACKAGES); do \
+		go list -f \
+			'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
+			$$p | xargs -i sh -c {}; \
+	done
 	go get github.com/modocache/gover
 	gover . .coverprofile-all
 

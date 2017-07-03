@@ -210,6 +210,9 @@ type Options struct {
 	// Disables the access log.
 	AccessLogDisabled bool
 
+	// Enables logs in JSON format
+	AccessLogJSONEnabled bool
+
 	DebugListener string
 
 	//Path of certificate when using TLS
@@ -327,7 +330,8 @@ func initLog(o Options) error {
 		ApplicationLogPrefix: o.ApplicationLogPrefix,
 		ApplicationLogOutput: logOutput,
 		AccessLogOutput:      accessLogOutput,
-		AccessLogDisabled:    o.AccessLogDisabled})
+		AccessLogDisabled:    o.AccessLogDisabled,
+		AccessLogJSONEnabled: o.AccessLogJSONEnabled})
 
 	return nil
 }

@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/dimfeld/httppath"
-	"github.com/zalando/pathmux"
+	"github.com/zalando/skipper/pathmux"
 )
 
 type leafRequestMatcher struct {
