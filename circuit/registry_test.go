@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// no checks, used for race detector
 func TestRegistry(t *testing.T) {
 	createSettings := func(cf int) BreakerSettings {
 		return BreakerSettings{

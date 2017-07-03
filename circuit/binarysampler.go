@@ -1,8 +1,5 @@
 package circuit
 
-// TODO: apply a TTL for stale windows. Try to calculate it from the existing
-// input arguments
-
 // contains a series of events with 0 or 1 values, e.g. errors or successes,
 // within a limited window.
 // count contains the number of events with the value of 1 in the window.

@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+// TODO:
+// - in case of the rate breaker, there are unnecessary synchronization steps due to the 3rd party gobreaker
+// - introduce a TTL in the rate breaker for the stale samplers
+
 type BreakerType int
 
 const (
@@ -99,14 +103,14 @@ func (b *Breaker) readyToTrip(failures int) bool {
 }
 
 func (b *Breaker) countRate(success bool) {
+	if !b.impl.Closed() {
+		return
+	}
+
 	b.mx.Lock()
 	defer b.mx.Unlock()
 
 	if b.sampler == nil {
-		if !b.impl.Closed() {
-			return
-		}
-
 		b.sampler = newBinarySampler(b.settings.Window)
 	}
 
