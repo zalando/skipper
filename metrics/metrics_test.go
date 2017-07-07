@@ -37,7 +37,7 @@ func TestDefaultOptions(t *testing.T) {
 }
 
 func TestDefaultOptionsWithListener(t *testing.T) {
-	o := Options{Listener: ":0"}
+	o := Options{}
 	Init(o)
 
 	if Default == Void {
@@ -54,7 +54,7 @@ func TestDefaultOptionsWithListener(t *testing.T) {
 }
 
 func TestDebugGcStats(t *testing.T) {
-	o := Options{Listener: ":0", EnableDebugGcMetrics: true}
+	o := Options{EnableDebugGcMetrics: true}
 	Init(o)
 
 	if Default.reg.Get("debug.GCStats.LastGC") == nil {
@@ -63,7 +63,7 @@ func TestDebugGcStats(t *testing.T) {
 }
 
 func TestRuntimeStats(t *testing.T) {
-	o := Options{Listener: ":0", EnableRuntimeMetrics: true}
+	o := Options{EnableRuntimeMetrics: true}
 	Init(o)
 
 	if Default.reg.Get("runtime.MemStats.Alloc") == nil {
@@ -72,7 +72,7 @@ func TestRuntimeStats(t *testing.T) {
 }
 
 func TestMeasurement(t *testing.T) {
-	o := Options{Listener: ":0"}
+	o := Options{}
 	Init(o)
 
 	t1 := Default.getTimer("TestMeasurement1")
@@ -142,7 +142,7 @@ var proxyMetricsTests = []proxyMetricTest{
 
 func TestProxyMetrics(t *testing.T) {
 	for _, pmt := range proxyMetricsTests {
-		Init(Options{Listener: ":0"})
+		Init(Options{})
 		pmt.measureFunc()
 		Default.reg.Each(func(key string, _ interface{}) {
 			if key != pmt.metricsKey {

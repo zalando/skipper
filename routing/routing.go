@@ -1,9 +1,13 @@
 package routing
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"sync/atomic"
 	"time"
+
+	"encoding/json"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -140,12 +144,12 @@ type Route struct {
 // Routing ('router') instance providing live
 // updatable request matching.
 type Routing struct {
-	matcher atomic.Value
-	log     logging.Logger
-	quit    chan struct{}
+	routeTable atomic.Value // of routeTable
+	log        logging.Logger
+	quit       chan struct{}
 }
 
-// Initializes a new routing instance, and starts listening for route
+// New initializes a routing instance, and starts listening for route
 // definition updates.
 func New(o Options) *Routing {
 	if o.Log == nil {
@@ -154,19 +158,88 @@ func New(o Options) *Routing {
 
 	r := &Routing{log: o.Log, quit: make(chan struct{})}
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
-	r.matcher.Store(initialMatcher)
+	rt := &routeTable{initialMatcher, nil, time.Now().UTC()}
+	r.routeTable.Store(rt)
 	r.startReceivingUpdates(o)
 	return r
 }
 
+// ServeHTTP ...
+func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	rt := r.routeTable.Load().(*routeTable)
+	req.ParseForm()
+	createdUnix := strconv.FormatInt(rt.created.Unix(), 10)
+
+	ts := req.Form.Get("timestamp")
+	if ts != "" {
+		if createdUnix != ts {
+			http.Error(w, "invalid timestamp", http.StatusBadRequest)
+			return
+		}
+	}
+
+	offset := 0
+	if off := req.Form.Get("offset"); off != "" {
+		off, err := strconv.Atoi(off)
+		if err != nil {
+			http.Error(w, "invalid offset", http.StatusBadRequest)
+			return
+		}
+		if off < 0 {
+			http.Error(w, "invalid offset", http.StatusBadRequest)
+			return
+		}
+		offset = off
+	}
+
+	limit := 75
+	if lim := req.Form.Get("limit"); lim != "" {
+		lim, err := strconv.Atoi(lim)
+		if err != nil {
+			http.Error(w, "invalid limit", http.StatusBadRequest)
+			return
+		}
+		if lim < 0 {
+			http.Error(w, "invalid limit", http.StatusBadRequest)
+			return
+		}
+		limit = lim
+	}
+
+	accept := req.Header.Get("accept")
+	routes := paginate(rt.routes, offset, limit)
+
+	if accept == "application/json" {
+		w.Header().Set("x-skipper-route-created", createdUnix)
+		w.Header().Set("content-type", "application/json")
+		if err := json.NewEncoder(w).Encode(routes); err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if accept == "application/eskip" {
+		w.Header().Set("x-skipper-route-created", createdUnix)
+		w.Header().Set("content-type", "application/eskip")
+		eskipRoutes := make([]*eskip.Route, len(routes))
+		for i, r := range routes {
+			eskipRoutes[i] = &r.Route
+		}
+		fmt.Fprint(w, eskip.String(eskipRoutes...))
+		return
+	}
+
+	http.Error(w, http.StatusText(http.StatusNotAcceptable), http.StatusNotAcceptable)
+}
+
 func (r *Routing) startReceivingUpdates(o Options) {
-	c := make(chan *matcher)
+	c := make(chan *routeTable)
 	go receiveRouteMatcher(o, c, r.quit)
 	go func() {
 		for {
 			select {
-			case m := <-c:
-				r.matcher.Store(m)
+			case rt := <-c:
+				r.routeTable.Store(rt)
 				r.log.Info("route settings applied")
 			case <-r.quit:
 				return
@@ -181,11 +254,22 @@ func (r *Routing) startReceivingUpdates(o Options) {
 // parameters constructed from the wildcard parameters in the path
 // condition if any. If there is no match, it returns nil.
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
-	m := r.matcher.Load().(*matcher)
-	return m.match(req)
+	rt := r.routeTable.Load().(*routeTable)
+	return rt.m.match(req)
 }
 
 // Closes routing, stops receiving routes.
 func (r *Routing) Close() {
 	close(r.quit)
+}
+
+func paginate(r []*Route, offset int, limit int) []*Route {
+	if offset > len(r) {
+		offset = len(r)
+	}
+	end := offset + limit
+	if end > len(r) {
+		end = len(r)
+	}
+	return r[offset:end]
 }

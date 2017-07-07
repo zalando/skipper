@@ -359,18 +359,6 @@ func Run(o Options) error {
 		return err
 	}
 
-	// init metrics
-	metrics.Init(metrics.Options{
-		Listener:                 o.MetricsListener,
-		Prefix:                   o.MetricsPrefix,
-		EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
-		EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
-		EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
-		EnableServeHostMetrics:   o.EnableServeHostMetrics,
-		EnableBackendHostMetrics: o.EnableBackendHostMetrics,
-		EnableProfile:            o.EnableProfile,
-	})
-
 	// create authentication for Innkeeper
 	auth := innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{
 		InnkeeperAuthToken:  o.InnkeeperAuthToken,
@@ -416,7 +404,7 @@ func Run(o Options) error {
 		updateBuffer = 0
 	}
 
-	// include bundeled custom predicates
+	// include bundled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
 		source.New(),
 		interval.NewBetween(),
@@ -455,6 +443,28 @@ func Run(o Options) error {
 		log.Infof("debug listener on %v", o.DebugListener)
 		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
 	}
+
+	// init diagnostics endpoint
+	mux := http.NewServeMux()
+	mux.Handle("/routes", routing)
+
+	if o.MetricsListener != "" {
+		metricsHandler := metrics.Init(metrics.Options{
+			Prefix:                   o.MetricsPrefix,
+			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
+			EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
+			EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
+			EnableServeHostMetrics:   o.EnableServeHostMetrics,
+			EnableBackendHostMetrics: o.EnableBackendHostMetrics,
+			EnableProfile:            o.EnableProfile,
+		})
+		mux.Handle("/metrics", metricsHandler)
+	} else {
+		log.Infoln("Metrics are disabled")
+	}
+
+	log.Infof("metrics listener on %s/metrics", o.MetricsListener)
+	go http.ListenAndServe(o.MetricsListener, mux)
 
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)

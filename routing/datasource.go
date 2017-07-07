@@ -369,16 +369,21 @@ func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) []*Ro
 	return routes
 }
 
+type routeTable struct {
+	m       *matcher
+	routes  []*Route
+	created time.Time
+}
+
 // receives the next version of the routing table on the output channel,
 // when an update is received on one of the data clients.
-func receiveRouteMatcher(o Options, out chan<- *matcher, quit <-chan struct{}) {
+func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}) {
 	updates := receiveRouteDefs(o, quit)
 	var (
-		mout         *matcher
-		outRelay     chan<- *matcher
+		rt           *routeTable
+		outRelay     chan<- *routeTable
 		updatesRelay <-chan []*eskip.Route
 	)
-
 	updatesRelay = updates
 	for {
 		select {
@@ -389,12 +394,12 @@ func receiveRouteMatcher(o Options, out chan<- *matcher, quit <-chan struct{}) {
 			for _, err := range errs {
 				o.Log.Error(err)
 			}
-
-			mout = m
+			// TODO: What about the errors? Should we exclude the routes which has errors?
+			rt = &routeTable{m, routes, time.Now().UTC()}
 			updatesRelay = nil
 			outRelay = out
-		case outRelay <- mout:
-			mout = nil
+		case outRelay <- rt:
+			rt = nil
 			updatesRelay = updates
 			outRelay = nil
 		case <-quit:
