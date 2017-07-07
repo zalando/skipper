@@ -5,18 +5,19 @@ import (
 	"time"
 )
 
-const RouteSettingsKey = "#circuitbreakersettings"
+const (
+	DefaultIdleTTL   = time.Hour
+	RouteSettingsKey = "#circuitbreakersettings"
+)
 
 type Options struct {
 	Defaults     BreakerSettings
 	HostSettings []BreakerSettings
-	IdleTTL      time.Duration
 }
 
 type Registry struct {
 	defaults     BreakerSettings
 	hostSettings map[string]BreakerSettings
-	idleTTL      time.Duration
 	lookup       map[BreakerSettings]*Breaker
 	access       *list
 	mx           *sync.Mutex
@@ -28,14 +29,13 @@ func NewRegistry(o Options) *Registry {
 		hs[s.Host] = s.mergeSettings(o.Defaults)
 	}
 
-	if o.IdleTTL <= 0 {
-		o.IdleTTL = time.Hour
+	if o.Defaults.IdleTTL <= 0 {
+		o.Defaults.IdleTTL = DefaultIdleTTL
 	}
 
 	return &Registry{
 		defaults:     o.Defaults,
 		hostSettings: hs,
-		idleTTL:      o.IdleTTL,
 		lookup:       make(map[BreakerSettings]*Breaker),
 		access:       &list{},
 		mx:           &sync.Mutex{},
@@ -43,17 +43,17 @@ func NewRegistry(o Options) *Registry {
 }
 
 func (r *Registry) mergeDefaults(s BreakerSettings) BreakerSettings {
-	config, ok := r.hostSettings[s.Host]
+	defaults, ok := r.hostSettings[s.Host]
 	if !ok {
-		config = r.defaults
+		defaults = r.defaults
 	}
 
-	return s.mergeSettings(config)
+	return s.mergeSettings(defaults)
 }
 
 func (r *Registry) dropIdle(now time.Time) {
 	drop, _ := r.access.dropHeadIf(func(b *Breaker) bool {
-		return now.Sub(b.ts) > r.idleTTL
+		return b.idle(now)
 	})
 
 	for drop != nil {
@@ -69,7 +69,9 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 	now := time.Now()
 
 	b, ok := r.lookup[s]
-	if !ok {
+	if !ok || b.idle(now) {
+		// if doesn't exist or idle, cleanup and create a new one
+
 		// check if there is any to evict, evict if yes
 		r.dropIdle(now)
 

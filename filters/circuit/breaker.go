@@ -7,7 +7,11 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const ConsecutiveBreakerName = "consecutiveBreaker"
+const (
+	ConsecutiveBreakerName = "consecutiveBreaker"
+	RateBreakerName        = "rateBreaker"
+	DisableBreakerName     = "disableBreaker"
+)
 
 type spec struct {
 	typ circuit.BreakerType
@@ -50,10 +54,19 @@ func NewDisableBreaker() filters.Spec {
 	return &spec{}
 }
 
-func (s *spec) Name() string { return ConsecutiveBreakerName }
+func (s *spec) Name() string {
+	switch s.typ {
+	case circuit.ConsecutiveFailures:
+		return ConsecutiveBreakerName
+	case circuit.FailureRate:
+		return RateBreakerName
+	default:
+		return DisableBreakerName
+	}
+}
 
 func consecutiveFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) == 0 || len(args) > 3 {
+	if len(args) == 0 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -78,18 +91,27 @@ func consecutiveFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 
+	var idleTTL time.Duration
+	if len(args) > 3 {
+		idleTTL, err = getDurationArg(args[3])
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &filter{
 		settings: circuit.BreakerSettings{
 			Type:             circuit.ConsecutiveFailures,
 			Failures:         failures,
 			Timeout:          timeout,
 			HalfOpenRequests: halfOpenRequests,
+			IdleTTL:          idleTTL,
 		},
 	}, nil
 }
 
 func rateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) < 2 || len(args) > 4 {
+	if len(args) < 2 || len(args) > 5 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -119,6 +141,14 @@ func rateFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 
+	var idleTTL time.Duration
+	if len(args) > 4 {
+		idleTTL, err = getDurationArg(args[4])
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &filter{
 		settings: circuit.BreakerSettings{
 			Type:             circuit.FailureRate,
@@ -126,6 +156,7 @@ func rateFilter(args []interface{}) (filters.Filter, error) {
 			Window:           window,
 			Timeout:          timeout,
 			HalfOpenRequests: halfOpenRequests,
+			IdleTTL:          idleTTL,
 		},
 	}, nil
 }

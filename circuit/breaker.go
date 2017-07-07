@@ -21,6 +21,7 @@ type BreakerSettings struct {
 	Timeout          time.Duration
 	HalfOpenRequests int
 	Disabled         bool
+	IdleTTL          time.Duration
 }
 
 type breakerImplementation interface {
@@ -59,6 +60,10 @@ func (to BreakerSettings) mergeSettings(from BreakerSettings) BreakerSettings {
 		to.HalfOpenRequests = from.HalfOpenRequests
 	}
 
+	if to.IdleTTL == 0 {
+		to.IdleTTL = from.IdleTTL
+	}
+
 	return to
 }
 
@@ -85,4 +90,8 @@ func newBreaker(s BreakerSettings) *Breaker {
 
 func (b *Breaker) Allow() (func(bool), bool) {
 	return b.impl.Allow()
+}
+
+func (b *Breaker) idle(now time.Time) bool {
+	return now.Sub(b.ts) > b.settings.IdleTTL
 }

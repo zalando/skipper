@@ -12,6 +12,7 @@ func TestRegistry(t *testing.T) {
 		return BreakerSettings{
 			Type:     ConsecutiveFailures,
 			Failures: cf,
+			IdleTTL:  DefaultIdleTTL,
 		}
 	}
 
@@ -207,6 +208,9 @@ func TestRegistryEvictIdle(t *testing.T) {
 	}
 
 	options := Options{
+		Defaults: BreakerSettings{
+			IdleTTL: 15 * time.Millisecond,
+		},
 		HostSettings: []BreakerSettings{{
 			Host:     "foo",
 			Type:     ConsecutiveFailures,
@@ -224,7 +228,6 @@ func TestRegistryEvictIdle(t *testing.T) {
 			Type:     ConsecutiveFailures,
 			Failures: 7,
 		}},
-		IdleTTL: 15 * time.Millisecond,
 	}
 	toEvict := options.HostSettings[2]
 	r := NewRegistry(options)
@@ -240,12 +243,12 @@ func TestRegistryEvictIdle(t *testing.T) {
 	get("bar")
 	get("baz")
 
-	time.Sleep(2 * options.IdleTTL / 3)
+	time.Sleep(2 * options.Defaults.IdleTTL / 3)
 
 	get("foo")
 	get("bar")
 
-	time.Sleep(2 * options.IdleTTL / 3)
+	time.Sleep(2 * options.Defaults.IdleTTL / 3)
 
 	get("qux")
 
@@ -263,6 +266,81 @@ func TestRegistryEvictIdle(t *testing.T) {
 
 		current = current.next
 	}
+}
+
+func TestIndividualIdle(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	// create with default and host specific
+	//
+	// check for both:
+	// - fail n - 1
+	// - wait idle
+	// - fail
+	// - stays closed
+
+	const (
+		consecutiveFailures = 5
+		idleTimeout         = 15 * time.Millisecond
+		hostIdleTimeout     = 6 * time.Millisecond
+	)
+
+	r := NewRegistry(Options{
+		Defaults: BreakerSettings{
+			Type:     ConsecutiveFailures,
+			Failures: consecutiveFailures,
+			IdleTTL:  idleTimeout,
+		},
+		HostSettings: []BreakerSettings{{
+			Host:    "foo",
+			IdleTTL: hostIdleTimeout,
+		}},
+	})
+
+	shouldBeClosed := func(t *testing.T, host string) func(bool) {
+		b := r.Get(BreakerSettings{Host: host})
+		if b == nil {
+			t.Error("failed get breaker")
+			return nil
+		}
+
+		done, ok := b.Allow()
+		if !ok {
+			t.Error("breaker unexpectedly open")
+			return nil
+		}
+
+		return done
+	}
+
+	fail := func(t *testing.T, host string) {
+		done := shouldBeClosed(t, host)
+		if done != nil {
+			done(false)
+		}
+	}
+
+	mkfail := func(t *testing.T, host string) func() {
+		return func() {
+			fail(t, host)
+		}
+	}
+
+	t.Run("default", func(t *testing.T) {
+		times(consecutiveFailures-1, mkfail(t, "bar"))
+		time.Sleep(idleTimeout)
+		fail(t, "bar")
+		shouldBeClosed(t, "bar")
+	})
+
+	t.Run("host", func(t *testing.T) {
+		times(consecutiveFailures-1, mkfail(t, "foo"))
+		time.Sleep(hostIdleTimeout)
+		fail(t, "foo")
+		shouldBeClosed(t, "foo")
+	})
 }
 
 func TestRegistryFuzzy(t *testing.T) {
@@ -299,11 +377,16 @@ func TestRegistryFuzzy(t *testing.T) {
 		hosts[i] = genHost()
 	}
 
-	options := Options{IdleTTL: idleTTL}
+	options := Options{Defaults: BreakerSettings{IdleTTL: idleTTL}}
 
 	settings := make(map[string]BreakerSettings)
 	for _, h := range hosts {
-		s := BreakerSettings{Host: h, Type: ConsecutiveFailures, Failures: 5}
+		s := BreakerSettings{
+			Host:     h,
+			Type:     ConsecutiveFailures,
+			Failures: 5,
+			IdleTTL:  idleTTL,
+		}
 		options.HostSettings = append(options.HostSettings, s)
 		settings[h] = s
 	}
@@ -315,6 +398,7 @@ func TestRegistryFuzzy(t *testing.T) {
 	for _, h := range hosts[:customSettingsCount] {
 		s := settings[h]
 		s.Failures = 15
+		s.IdleTTL = idleTTL
 		customSettings[h] = s
 	}
 
@@ -373,6 +457,7 @@ func TestRegistryFuzzy(t *testing.T) {
 		b := r.Get(s)
 		if b.settings != s {
 			t.Error("invalid breaker received")
+			t.Log(b.settings, s)
 			close(stop)
 		}
 
