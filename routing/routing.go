@@ -24,6 +24,9 @@ const (
 	// (See more details about the Path and PathSubtree predicates
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathSubtreeName = "PathSubtree"
+
+	routeTableTimestampHeaderName = "X-Skipper-Route-Table-Timestamp"
+	defaultRouteListingLimit      = 1024
 )
 
 // Control flags for route matching.
@@ -192,7 +195,7 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		offset = off
 	}
 
-	limit := 75
+	limit := defaultRouteListingLimit
 	if lim := req.Form.Get("limit"); lim != "" {
 		lim, err := strconv.Atoi(lim)
 		if err != nil {
@@ -206,11 +209,11 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		limit = lim
 	}
 
-	accept := req.Header.Get("accept")
+	accept := req.Header.Get("Accept")
 	routes := paginate(rt.routes, offset, limit)
 
 	if accept == "application/json" {
-		w.Header().Set("x-skipper-route-created", createdUnix)
+		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
 		w.Header().Set("content-type", "application/json")
 		if err := json.NewEncoder(w).Encode(routes); err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -219,7 +222,7 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if accept == "application/eskip" {
-		w.Header().Set("x-skipper-route-created", createdUnix)
+		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
 		w.Header().Set("content-type", "application/eskip")
 		eskipRoutes := make([]*eskip.Route, len(routes))
 		for i, r := range routes {

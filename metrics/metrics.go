@@ -110,8 +110,8 @@ func init() {
 	Default = Void
 }
 
-// Initializes the collection of metrics.
-func Init(o Options) http.Handler {
+// NewHandler returns a collection of metrics handlers.
+func NewHandler(o Options) http.Handler {
 	Default = New(o)
 
 	handler := &metricsHandler{registry: Default.reg, options: o}

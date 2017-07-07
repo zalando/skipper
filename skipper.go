@@ -449,7 +449,7 @@ func Run(o Options) error {
 	mux.Handle("/routes", routing)
 
 	if o.MetricsListener != "" {
-		metricsHandler := metrics.Init(metrics.Options{
+		metricsHandler := metrics.NewHandler(metrics.Options{
 			Prefix:                   o.MetricsPrefix,
 			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
 			EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
