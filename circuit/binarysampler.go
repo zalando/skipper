@@ -1,9 +1,9 @@
 package circuit
 
-// contains a series of events with 0 or 1 values, e.g. errors or successes,
-// within a limited window.
-// count contains the number of events with the value of 1 in the window.
-// compresses the event storage by 64.
+// binarysampler contains a series of events as 0 or 1 values, e.g. errors or successes,
+// within a limited, sliding window.
+// count contains the actual number of events with the value of 1 within the window.
+// it compresses the event storage by 64.
 type binarySampler struct {
 	size   int
 	filled int

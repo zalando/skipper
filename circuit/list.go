@@ -2,7 +2,7 @@ package circuit
 
 // a simple list to keep breakers sorted by access order.
 // It can return the first consecutive items that match a
-// condition (e.g. the ones that were inactive for a
+// condition (in our case, the ones that were inactive for a
 // while).
 type list struct {
 	first, last *Breaker

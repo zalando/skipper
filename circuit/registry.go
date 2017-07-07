@@ -1,6 +1,9 @@
 package circuit
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 const RouteSettingsKey = "#circuitbreakersettings"
 
@@ -16,52 +19,70 @@ type Registry struct {
 	idleTTL      time.Duration
 	lookup       map[BreakerSettings]*Breaker
 	access       *list
-	sync         chan *Registry
+	mx           *sync.Mutex
 }
 
 func NewRegistry(o Options) *Registry {
 	hs := make(map[string]BreakerSettings)
 	for _, s := range o.HostSettings {
-		hs[s.Host] = applySettings(s, o.Defaults)
+		hs[s.Host] = s.mergeSettings(o.Defaults)
 	}
 
 	if o.IdleTTL <= 0 {
 		o.IdleTTL = time.Hour
 	}
 
-	r := &Registry{
+	return &Registry{
 		defaults:     o.Defaults,
 		hostSettings: hs,
 		idleTTL:      o.IdleTTL,
 		lookup:       make(map[BreakerSettings]*Breaker),
 		access:       &list{},
-		sync:         make(chan *Registry, 1),
+		mx:           &sync.Mutex{},
 	}
-
-	r.sync <- r
-	return r
 }
 
-func (r *Registry) synced(f func()) {
-	r = <-r.sync
-	f()
-	r.sync <- r
-}
-
-func (r *Registry) applySettings(s BreakerSettings) BreakerSettings {
+func (r *Registry) mergeDefaults(s BreakerSettings) BreakerSettings {
 	config, ok := r.hostSettings[s.Host]
 	if !ok {
 		config = r.defaults
 	}
 
-	return applySettings(s, config)
+	return s.mergeSettings(config)
 }
 
-func (r *Registry) dropLookup(b *Breaker) {
-	for b != nil {
-		delete(r.lookup, b.settings)
-		b = b.next
+func (r *Registry) dropIdle(now time.Time) {
+	drop, _ := r.access.dropHeadIf(func(b *Breaker) bool {
+		return now.Sub(b.ts) > r.idleTTL
+	})
+
+	for drop != nil {
+		delete(r.lookup, drop.settings)
+		drop = drop.next
 	}
+}
+
+func (r *Registry) get(s BreakerSettings) *Breaker {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
+	now := time.Now()
+
+	b, ok := r.lookup[s]
+	if !ok {
+		// check if there is any to evict, evict if yes
+		r.dropIdle(now)
+
+		// create a new one
+		b = newBreaker(s)
+		r.lookup[s] = b
+	}
+
+	// append/move the breaker to the last position of the access history
+	b.ts = now
+	r.access.appendLast(b)
+
+	return b
 }
 
 func (r *Registry) Get(s BreakerSettings) *Breaker {
@@ -70,36 +91,10 @@ func (r *Registry) Get(s BreakerSettings) *Breaker {
 		return nil
 	}
 
-	// apply host specific and global defaults when not set in the request
-	s = r.applySettings(s)
+	s = r.mergeDefaults(s)
 	if s.Type == BreakerNone {
 		return nil
 	}
 
-	var b *Breaker
-	r.synced(func() {
-		now := time.Now()
-
-		var ok bool
-		b, ok = r.lookup[s]
-		if !ok {
-			// if the breaker doesn't exist with the requested settings,
-			// check if there is any to evict, evict if yet, and create
-			// a new one
-
-			drop, _ := r.access.dropHeadIf(func(b *Breaker) bool {
-				return now.Sub(b.ts) > r.idleTTL
-			})
-
-			r.dropLookup(drop)
-			b = newBreaker(s)
-			r.lookup[s] = b
-		}
-
-		// append/move the breaker to the last position of the access history
-		b.ts = now
-		r.access.appendLast(b)
-	})
-
-	return b
+	return r.get(s)
 }

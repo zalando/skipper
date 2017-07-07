@@ -1,9 +1,6 @@
 package circuit
 
-import (
-	"sync"
-	"time"
-)
+import "time"
 
 // TODO:
 // - in case of the rate breaker, there are unnecessary synchronization steps due to the 3rd party gobreaker
@@ -28,8 +25,9 @@ type BreakerSettings struct {
 
 type breakerImplementation interface {
 	Allow() (func(bool), bool)
-	Closed() bool
 }
+
+type voidBreaker struct{}
 
 // represents a single circuit breaker
 type Breaker struct {
@@ -37,11 +35,9 @@ type Breaker struct {
 	ts         time.Time
 	prev, next *Breaker
 	impl       breakerImplementation
-	mx         *sync.Mutex
-	sampler    *binarySampler
 }
 
-func applySettings(to, from BreakerSettings) BreakerSettings {
+func (to BreakerSettings) mergeSettings(from BreakerSettings) BreakerSettings {
 	if to.Type == BreakerNone {
 		to.Type = from.Type
 
@@ -66,77 +62,27 @@ func applySettings(to, from BreakerSettings) BreakerSettings {
 	return to
 }
 
+func (b voidBreaker) Allow() (func(bool), bool) {
+	return func(bool) {}, true
+}
+
 func newBreaker(s BreakerSettings) *Breaker {
-	b := &Breaker{
-		settings: s,
-		mx:       &sync.Mutex{},
-	}
-	b.impl = newGobreaker(s, b.readyToTrip)
-	return b
-}
-
-func (b *Breaker) rateReadyToTrip() bool {
-	b.mx.Lock()
-	defer b.mx.Unlock()
-
-	if b.sampler == nil {
-		return false
-	}
-
-	ready := b.sampler.count >= b.settings.Failures
-	if ready {
-		b.sampler = nil
-	}
-
-	return ready
-}
-
-func (b *Breaker) readyToTrip(failures int) bool {
-	switch b.settings.Type {
+	var impl breakerImplementation
+	switch s.Type {
 	case ConsecutiveFailures:
-		return failures >= b.settings.Failures
+		impl = newConsecutive(s)
 	case FailureRate:
-		return b.rateReadyToTrip()
+		impl = newRate(s)
 	default:
-		return false
-	}
-}
-
-func (b *Breaker) countRate(success bool) {
-	if !b.impl.Closed() {
-		return
+		impl = voidBreaker{}
 	}
 
-	b.mx.Lock()
-	defer b.mx.Unlock()
-
-	if b.sampler == nil {
-		b.sampler = newBinarySampler(b.settings.Window)
+	return &Breaker{
+		settings: s,
+		impl:     impl,
 	}
-
-	// count the failures in closed state
-	b.sampler.tick(!success)
-}
-
-func (b *Breaker) rateAllow() (func(bool), bool) {
-	done, ok := b.impl.Allow()
-	if !ok {
-		return nil, false
-	}
-
-	return func(success bool) {
-		b.countRate(success)
-		done(success)
-	}, true
 }
 
 func (b *Breaker) Allow() (func(bool), bool) {
-	switch b.settings.Type {
-	case ConsecutiveFailures:
-		return b.impl.Allow()
-	case FailureRate:
-		return b.rateAllow()
-	default:
-		return nil, false
-	}
+	return b.impl.Allow()
 }
