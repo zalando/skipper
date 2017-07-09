@@ -10,11 +10,6 @@ const (
 	RouteSettingsKey = "#circuitbreakersettings"
 )
 
-type Options struct {
-	Defaults     BreakerSettings
-	HostSettings []BreakerSettings
-}
-
 type Registry struct {
 	defaults     BreakerSettings
 	hostSettings map[string]BreakerSettings
@@ -23,18 +18,32 @@ type Registry struct {
 	mx           *sync.Mutex
 }
 
-func NewRegistry(o Options) *Registry {
-	if o.Defaults.IdleTTL <= 0 {
-		o.Defaults.IdleTTL = DefaultIdleTTL
+func NewRegistry(settings ...BreakerSettings) *Registry {
+	var (
+		defaults     BreakerSettings
+		hostSettings []BreakerSettings
+	)
+
+	for _, s := range settings {
+		if s.Host == "" {
+			defaults = s
+			continue
+		}
+
+		hostSettings = append(hostSettings, s)
+	}
+
+	if defaults.IdleTTL <= 0 {
+		defaults.IdleTTL = DefaultIdleTTL
 	}
 
 	hs := make(map[string]BreakerSettings)
-	for _, s := range o.HostSettings {
-		hs[s.Host] = s.mergeSettings(o.Defaults)
+	for _, s := range settings {
+		hs[s.Host] = s.mergeSettings(defaults)
 	}
 
 	return &Registry{
-		defaults:     o.Defaults,
+		defaults:     defaults,
 		hostSettings: hs,
 		lookup:       make(map[BreakerSettings]*Breaker),
 		access:       &list{},
@@ -71,7 +80,9 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 	b, ok := r.lookup[s]
 	if !ok || b.idle(now) {
 		// if doesn't exist or idle, cleanup and create a new one
-		r.access.remove(b, b)
+		if b != nil {
+			r.access.remove(b, b)
+		}
 
 		// check if there is any other to evict, evict if yes
 		r.dropIdle(now)

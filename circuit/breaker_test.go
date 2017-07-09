@@ -183,3 +183,23 @@ func TestRateBreakerFuzzy(t *testing.T) {
 
 	<-stop
 }
+
+func TestSettingsString(t *testing.T) {
+	s := BreakerSettings{
+		Type:             FailureRate,
+		Host:             "www.example.org",
+		Failures:         30,
+		Window:           300,
+		Timeout:          time.Minute,
+		HalfOpenRequests: 15,
+		IdleTTL:          time.Hour,
+	}
+
+	ss := s.String()
+	expect := "type=rate,host=www.example.org,window=300,failures=30,timeout=1m0s,half-open-requests=15,idle-ttl=1h0m0s"
+	if ss != expect {
+		t.Error("invalid breaker settings string")
+		t.Logf("got     : %s", ss)
+		t.Logf("expected: %s", expect)
+	}
+}

@@ -55,9 +55,8 @@ func newBreakerProxy(
 	// for testing, mapping the configured backend hosts to the random generated host
 	var r []*eskip.Route
 	if len(settings) > 0 {
-		var breakerOptions circuit.Options
-		for _, s := range settings {
-			b := backends[s.Host]
+		for i := range settings {
+			b := backends[settings[i].Host]
 			if b == nil {
 				r = append(r, &eskip.Route{
 					Id:          defaultHost,
@@ -65,21 +64,18 @@ func newBreakerProxy(
 					Filters:     filters[defaultHost],
 					Backend:     backends[defaultHost].url,
 				})
-				s.Host = urlHostNerr(backends[defaultHost].url)
-				breakerOptions.Defaults = s
 			} else {
 				r = append(r, &eskip.Route{
-					Id:          s.Host,
-					HostRegexps: []string{fmt.Sprintf("^%s$", s.Host)},
-					Filters:     filters[s.Host],
-					Backend:     backends[s.Host].url,
+					Id:          settings[i].Host,
+					HostRegexps: []string{fmt.Sprintf("^%s$", settings[i].Host)},
+					Filters:     filters[settings[i].Host],
+					Backend:     backends[settings[i].Host].url,
 				})
-				s.Host = urlHostNerr(backends[s.Host].url)
-				breakerOptions.HostSettings = append(breakerOptions.HostSettings, s)
+				settings[i].Host = urlHostNerr(backends[settings[i].Host].url)
 			}
 		}
 
-		params.CircuitBreakers = circuit.NewRegistry(breakerOptions)
+		params.CircuitBreakers = circuit.NewRegistry(settings...)
 	} else {
 		r = append(r, &eskip.Route{
 			Backend: backends[defaultHost].url,
@@ -519,36 +515,36 @@ func TestBreakerMultipleHosts(t *testing.T) {
 		steps: []scenarioStep{
 			times(
 				testRateWindow,
-				// request(200),
+				request(200),
 				requestHost("foo", 200),
-				// requestHost("bar", 200),
+				requestHost("bar", 200),
 			),
-			// checkBackendCounter(testRateWindow),
+			checkBackendCounter(testRateWindow),
 			checkBackendHostCounter("foo", testRateWindow),
-			// checkBackendHostCounter("bar", testRateWindow),
-			// setBackendFail,
+			checkBackendHostCounter("bar", testRateWindow),
+			setBackendFail,
 			trace("setting fail"),
 			setBackendHostFail("foo"),
-			// setBackendHostFail("bar"),
+			setBackendHostFail("bar"),
 			times(testRateFailures,
-				// request(500),
+				request(500),
 				requestHost("foo", 500),
-				// requestHost("bar", 500),
+				requestHost("bar", 500),
 			),
-			// checkBackendCounter(testRateFailures),
+			checkBackendCounter(testRateFailures),
 			checkBackendHostCounter("foo", testRateFailures),
-			// checkBackendHostCounter("bar", testRateFailures),
-			// request(500),
+			checkBackendHostCounter("bar", testRateFailures),
+			request(500),
 			requestHost("foo", 500),
-			// requestHostOpen("bar"),
-			// checkBackendCounter(1),
+			requestHostOpen("bar"),
+			checkBackendCounter(1),
 			checkBackendHostCounter("foo", 1),
-			// checkBackendHostCounter("bar", 0),
-			// request(500),
+			checkBackendHostCounter("bar", 0),
+			request(500),
 			requestHost("foo", 500),
-			// checkBackendCounter(1),
+			checkBackendCounter(1),
 			checkBackendHostCounter("foo", 1),
-			// requestOpen,
+			requestOpen,
 			requestHost("foo", 500),
 			// checkBackendCounter(0),
 			checkBackendHostCounter("foo", 1),

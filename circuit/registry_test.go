@@ -59,7 +59,7 @@ func TestRegistry(t *testing.T) {
 	}
 
 	t.Run("no settings", func(t *testing.T) {
-		r := NewRegistry(Options{})
+		r := NewRegistry()
 
 		b := r.Get(BreakerSettings{Host: "foo"})
 		checkNil(t, b)
@@ -67,7 +67,7 @@ func TestRegistry(t *testing.T) {
 
 	t.Run("only default settings", func(t *testing.T) {
 		d := createSettings(5)
-		r := NewRegistry(Options{Defaults: d})
+		r := NewRegistry(d)
 
 		b := r.Get(BreakerSettings{Host: "foo"})
 		checkWithoutHost(t, b, r.defaults)
@@ -76,7 +76,7 @@ func TestRegistry(t *testing.T) {
 	t.Run("only host settings", func(t *testing.T) {
 		h0 := createHostSettings("foo", 5)
 		h1 := createHostSettings("bar", 5)
-		r := NewRegistry(Options{HostSettings: []BreakerSettings{h0, h1}})
+		r := NewRegistry(h0, h1)
 
 		b := r.Get(BreakerSettings{Host: "foo"})
 		checkWithHost(t, b, h0)
@@ -92,10 +92,7 @@ func TestRegistry(t *testing.T) {
 		d := createSettings(5)
 		h0 := createHostSettings("foo", 5)
 		h1 := createHostSettings("bar", 5)
-		r := NewRegistry(Options{
-			Defaults:     d,
-			HostSettings: []BreakerSettings{h0, h1},
-		})
+		r := NewRegistry(d, h0, h1)
 
 		b := r.Get(BreakerSettings{Host: "foo"})
 		checkWithHost(t, b, h0)
@@ -108,7 +105,7 @@ func TestRegistry(t *testing.T) {
 	})
 
 	t.Run("only custom settings", func(t *testing.T) {
-		r := NewRegistry(Options{})
+		r := NewRegistry()
 
 		cs := createHostSettings("foo", 15)
 		b := r.Get(cs)
@@ -117,7 +114,7 @@ func TestRegistry(t *testing.T) {
 
 	t.Run("only default settings, with custom", func(t *testing.T) {
 		d := createSettings(5)
-		r := NewRegistry(Options{Defaults: d})
+		r := NewRegistry(d)
 
 		cs := createHostSettings("foo", 15)
 		b := r.Get(cs)
@@ -127,7 +124,7 @@ func TestRegistry(t *testing.T) {
 	t.Run("only host settings, with custom", func(t *testing.T) {
 		h0 := createHostSettings("foo", 5)
 		h1 := createHostSettings("bar", 5)
-		r := NewRegistry(Options{HostSettings: []BreakerSettings{h0, h1}})
+		r := NewRegistry(h0, h1)
 
 		cs := createHostSettings("foo", 15)
 		b := r.Get(cs)
@@ -146,10 +143,7 @@ func TestRegistry(t *testing.T) {
 		d := createSettings(5)
 		h0 := createHostSettings("foo", 5)
 		h1 := createHostSettings("bar", 5)
-		r := NewRegistry(Options{
-			Defaults:     d,
-			HostSettings: []BreakerSettings{h0, h1},
-		})
+		r := NewRegistry(d, h0, h1)
 
 		cs := createHostSettings("foo", 15)
 		b := r.Get(cs)
@@ -165,7 +159,7 @@ func TestRegistry(t *testing.T) {
 	})
 
 	t.Run("no settings and disabled", func(t *testing.T) {
-		r := NewRegistry(Options{})
+		r := NewRegistry()
 
 		b := r.Get(createDisabledSettings())
 		checkNil(t, b)
@@ -173,7 +167,7 @@ func TestRegistry(t *testing.T) {
 
 	t.Run("only default settings, disabled", func(t *testing.T) {
 		d := createSettings(5)
-		r := NewRegistry(Options{Defaults: d})
+		r := NewRegistry(d)
 
 		b := r.Get(createDisabledSettings())
 		checkNil(t, b)
@@ -182,7 +176,7 @@ func TestRegistry(t *testing.T) {
 	t.Run("only host settings, disabled", func(t *testing.T) {
 		h0 := createHostSettings("foo", 5)
 		h1 := createHostSettings("bar", 5)
-		r := NewRegistry(Options{HostSettings: []BreakerSettings{h0, h1}})
+		r := NewRegistry(h0, h1)
 
 		b := r.Get(createDisabledSettings())
 		checkNil(t, b)
@@ -192,10 +186,7 @@ func TestRegistry(t *testing.T) {
 		d := createSettings(5)
 		h0 := createHostSettings("foo", 5)
 		h1 := createHostSettings("bar", 5)
-		r := NewRegistry(Options{
-			Defaults:     d,
-			HostSettings: []BreakerSettings{h0, h1},
-		})
+		r := NewRegistry(d, h0, h1)
 
 		b := r.Get(createDisabledSettings())
 		checkNil(t, b)
@@ -207,30 +198,27 @@ func TestRegistryEvictIdle(t *testing.T) {
 		t.Skip()
 	}
 
-	options := Options{
-		Defaults: BreakerSettings{
-			IdleTTL: 15 * time.Millisecond,
-		},
-		HostSettings: []BreakerSettings{{
-			Host:     "foo",
-			Type:     ConsecutiveFailures,
-			Failures: 4,
-		}, {
-			Host:     "bar",
-			Type:     ConsecutiveFailures,
-			Failures: 5,
-		}, {
-			Host:     "baz",
-			Type:     ConsecutiveFailures,
-			Failures: 6,
-		}, {
-			Host:     "qux",
-			Type:     ConsecutiveFailures,
-			Failures: 7,
-		}},
-	}
-	toEvict := options.HostSettings[2]
-	r := NewRegistry(options)
+	settings := []BreakerSettings{{
+		IdleTTL: 15 * time.Millisecond,
+	}, {
+		Host:     "foo",
+		Type:     ConsecutiveFailures,
+		Failures: 4,
+	}, {
+		Host:     "bar",
+		Type:     ConsecutiveFailures,
+		Failures: 5,
+	}, {
+		Host:     "baz",
+		Type:     ConsecutiveFailures,
+		Failures: 6,
+	}, {
+		Host:     "qux",
+		Type:     ConsecutiveFailures,
+		Failures: 7,
+	}}
+	toEvict := settings[3]
+	r := NewRegistry(settings...)
 
 	get := func(host string) {
 		b := r.Get(BreakerSettings{Host: host})
@@ -243,12 +231,12 @@ func TestRegistryEvictIdle(t *testing.T) {
 	get("bar")
 	get("baz")
 
-	time.Sleep(2 * options.Defaults.IdleTTL / 3)
+	time.Sleep(2 * settings[0].IdleTTL / 3)
 
 	get("foo")
 	get("bar")
 
-	time.Sleep(2 * options.Defaults.IdleTTL / 3)
+	time.Sleep(2 * settings[0].IdleTTL / 3)
 
 	get("qux")
 
@@ -287,17 +275,17 @@ func TestIndividualIdle(t *testing.T) {
 		hostIdleTimeout     = 6 * time.Millisecond
 	)
 
-	r := NewRegistry(Options{
-		Defaults: BreakerSettings{
+	r := NewRegistry(
+		BreakerSettings{
 			Type:     ConsecutiveFailures,
 			Failures: consecutiveFailures,
 			IdleTTL:  idleTimeout,
 		},
-		HostSettings: []BreakerSettings{{
+		BreakerSettings{
 			Host:    "foo",
 			IdleTTL: hostIdleTimeout,
-		}},
-	})
+		},
+	)
 
 	shouldBeClosed := func(t *testing.T, host string) func(bool) {
 		b := r.Get(BreakerSettings{Host: host})
@@ -377,9 +365,9 @@ func TestRegistryFuzzy(t *testing.T) {
 		hosts[i] = genHost()
 	}
 
-	options := Options{Defaults: BreakerSettings{IdleTTL: idleTTL}}
+	settings := []BreakerSettings{{IdleTTL: idleTTL}}
 
-	settings := make(map[string]BreakerSettings)
+	settingsMap := make(map[string]BreakerSettings)
 	for _, h := range hosts {
 		s := BreakerSettings{
 			Host:     h,
@@ -387,16 +375,16 @@ func TestRegistryFuzzy(t *testing.T) {
 			Failures: 5,
 			IdleTTL:  idleTTL,
 		}
-		options.HostSettings = append(options.HostSettings, s)
-		settings[h] = s
+		settings = append(settings, s)
+		settingsMap[h] = s
 	}
 
-	r := NewRegistry(options)
+	r := NewRegistry(settings...)
 
 	// the first customSettingsCount hosts can have corresponding custom settings
 	customSettings := make(map[string]BreakerSettings)
 	for _, h := range hosts[:customSettingsCount] {
-		s := settings[h]
+		s := settingsMap[h]
 		s.Failures = 15
 		s.IdleTTL = idleTTL
 		customSettings[h] = s
@@ -425,7 +413,7 @@ func TestRegistryFuzzy(t *testing.T) {
 			old := hosts[i]
 			nu := genHost()
 			hosts[i] = nu
-			replaceHostSettings(settings, old, nu)
+			replaceHostSettings(settingsMap, old, nu)
 			replaceHostSettings(customSettings, old, nu)
 		})
 	}
@@ -440,7 +428,7 @@ func TestRegistryFuzzy(t *testing.T) {
 				return
 			}
 
-			s = settings[hosts[rand.Intn(hostCount)]]
+			s = settingsMap[hosts[rand.Intn(hostCount)]]
 		})
 
 		return s

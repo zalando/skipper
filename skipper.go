@@ -8,6 +8,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
@@ -227,6 +228,8 @@ type Options struct {
 	ExperimentalUpgrade bool
 
 	MaxLoopbacks int
+
+	BreakerSettings []circuit.BreakerSettings
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -446,6 +449,10 @@ func Run(o Options) error {
 		FlushInterval:          o.BackendFlushInterval,
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
+	}
+
+	if len(o.BreakerSettings) > 0 {
+		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
 	}
 
 	if o.DebugListener != "" {

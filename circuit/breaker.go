@@ -1,6 +1,10 @@
 package circuit
 
-import "time"
+import (
+	"strconv"
+	"strings"
+	"time"
+)
 
 // TODO:
 // - in case of the rate breaker, there are unnecessary synchronization steps due to the 3rd party gobreaker
@@ -65,6 +69,47 @@ func (to BreakerSettings) mergeSettings(from BreakerSettings) BreakerSettings {
 	}
 
 	return to
+}
+
+func (s BreakerSettings) String() string {
+	var ss []string
+
+	switch s.Type {
+	case ConsecutiveFailures:
+		ss = append(ss, "type=consecutive")
+	case FailureRate:
+		ss = append(ss, "type=rate")
+	case BreakerDisabled:
+		return "disabled"
+	default:
+		return "none"
+	}
+
+	if s.Host != "" {
+		ss = append(ss, "host="+s.Host)
+	}
+
+	if s.Type == FailureRate && s.Window > 0 {
+		ss = append(ss, "window="+strconv.Itoa(s.Window))
+	}
+
+	if s.Failures > 0 {
+		ss = append(ss, "failures="+strconv.Itoa(s.Failures))
+	}
+
+	if s.Timeout > 0 {
+		ss = append(ss, "timeout="+s.Timeout.String())
+	}
+
+	if s.HalfOpenRequests > 0 {
+		ss = append(ss, "half-open-requests="+strconv.Itoa(s.HalfOpenRequests))
+	}
+
+	if s.IdleTTL > 0 {
+		ss = append(ss, "idle-ttl="+s.IdleTTL.String())
+	}
+
+	return strings.Join(ss, ",")
 }
 
 func (b voidBreaker) Allow() (func(bool), bool) {
