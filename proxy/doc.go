@@ -103,7 +103,7 @@ from the external data sources, and are tested against the requests
 before the general routing tree.
 
 
-Handling the 'Host' header
+Handling the Host header
 
 The default behavior regarding the 'Host' header of the proxy requests
 is that the proxy ignores the value set in the incoming request. This
@@ -121,6 +121,18 @@ used instead of the global setting or the route specific override.
 To control the value of the outgoing 'Host' header, the `OutgoingHost()`
 and `SetOutgoingHost()` methods of the `FilterContext` need to be used
 instead of the `Request.Header` map.
+
+
+Circuit Breakers
+
+When configured, skipper can use circuit breakers for the backend
+requests. It asks the registry for a matching circuit breaker for
+every request, and if there is any, then checks if it is closed
+before sending out the backend request. On connection errors and
+responses with a status code higher than 499, it reports a failure
+to the current breaker, otherwise a success.
+
+For details, see: https://godoc.org/github.com/zalando/skipper/circuit.
 
 
 Proxy Example
