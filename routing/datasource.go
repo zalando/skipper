@@ -353,26 +353,26 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 }
 
 // processes a set of route definitions for the routing table
-func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) []*Route {
+func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route) {
 	cpm := mapPredicates(o.Predicates)
-
-	var routes []*Route
 	for _, def := range defs {
 		route, err := processRouteDef(cpm, fr, def)
 		if err == nil {
 			routes = append(routes, route)
 		} else {
+			invalidDefs = append(invalidDefs, def)
 			o.Log.Error(err)
 		}
 	}
-
-	return routes
+	return
 }
 
 type routeTable struct {
-	m       *matcher
-	routes  []*Route
-	created time.Time
+	m             *matcher
+	validRoutes   []*Route
+	invalidRoutes []*Route
+	invalidDefs   []*eskip.Route
+	created       time.Time
 }
 
 // receives the next version of the routing table on the output channel,
@@ -389,13 +389,33 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		select {
 		case defs := <-updatesRelay:
 			o.Log.Info("route settings received")
-			routes := processRouteDefs(o, o.FilterRegistry, defs)
+			routes, invalidDefs := processRouteDefs(o, o.FilterRegistry, defs)
 			m, errs := newMatcher(routes, o.MatchingOptions)
+
+			invalidRouteIds := make(map[string]struct{})
+			invalidRoutes := []*Route{}
+			validRoutes := []*Route{}
+
 			for _, err := range errs {
 				o.Log.Error(err)
+				invalidRouteIds[err.Id] = struct{}{}
 			}
-			// TODO: What about the errors? Should we exclude the routes which has errors?
-			rt = &routeTable{m, routes, time.Now().UTC()}
+
+			for _, r := range routes {
+				if _, found := invalidRouteIds[r.Id]; found {
+					invalidRoutes = append(invalidRoutes, r)
+				} else {
+					validRoutes = append(validRoutes, r)
+				}
+			}
+
+			rt = &routeTable{
+				m:             m,
+				invalidDefs:   invalidDefs,
+				validRoutes:   validRoutes,
+				invalidRoutes: invalidRoutes,
+				created:       time.Now().UTC(),
+			}
 			updatesRelay = nil
 			outRelay = out
 		case outRelay <- rt:

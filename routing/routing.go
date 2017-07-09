@@ -147,7 +147,7 @@ type Route struct {
 // Routing ('router') instance providing live
 // updatable request matching.
 type Routing struct {
-	routeTable atomic.Value // of routeTable
+	routeTable atomic.Value // of struct routeTable
 	log        logging.Logger
 	quit       chan struct{}
 }
@@ -161,7 +161,10 @@ func New(o Options) *Routing {
 
 	r := &Routing{log: o.Log, quit: make(chan struct{})}
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
-	rt := &routeTable{initialMatcher, nil, time.Now().UTC()}
+	rt := &routeTable{
+		m:       initialMatcher,
+		created: time.Now().UTC(),
+	}
 	r.routeTable.Store(rt)
 	r.startReceivingUpdates(o)
 	return r
@@ -210,7 +213,7 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	accept := req.Header.Get("Accept")
-	routes := paginate(rt.routes, offset, limit)
+	routes := slice(rt.validRoutes, offset, limit)
 
 	if accept == "application/json" {
 		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
@@ -251,7 +254,7 @@ func (r *Routing) startReceivingUpdates(o Options) {
 	}()
 }
 
-// Matches a request in the current routing tree.
+// Route matches a request in the current routing tree.
 //
 // If the request matches a route, returns the route and a map of
 // parameters constructed from the wildcard parameters in the path
@@ -261,12 +264,12 @@ func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	return rt.m.match(req)
 }
 
-// Closes routing, stops receiving routes.
+// Close closes routing, stops receiving routes.
 func (r *Routing) Close() {
 	close(r.quit)
 }
 
-func paginate(r []*Route, offset int, limit int) []*Route {
+func slice(r []*Route, offset int, limit int) []*Route {
 	if offset > len(r) {
 		offset = len(r)
 	}
@@ -274,5 +277,9 @@ func paginate(r []*Route, offset int, limit int) []*Route {
 	if end > len(r) {
 		end = len(r)
 	}
-	return r[offset:end]
+	result := r[offset:end]
+	if result == nil {
+		return []*Route{}
+	}
+	return result
 }
