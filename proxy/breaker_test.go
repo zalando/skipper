@@ -3,20 +3,22 @@ package proxy_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 type breakerTestContext struct {
-	t       *testing.T
-	proxy   *proxytest.TestProxy
-	backend *failingBackend
+	t        *testing.T
+	proxy    *proxytest.TestProxy
+	backends map[string]*failingBackend
 }
 
 type scenarioStep func(*breakerTestContext)
@@ -24,6 +26,7 @@ type scenarioStep func(*breakerTestContext)
 type breakerScenario struct {
 	title    string
 	settings []circuit.BreakerSettings
+	filters  map[string][]*eskip.Filter
 	steps    []scenarioStep
 }
 
@@ -33,29 +36,54 @@ const (
 	testHalfOpenRequests        = 3
 	testRateWindow              = 10
 	testRateFailures            = 4
+	defaultHost                 = "default"
 )
 
-func newBreakerProxy(backendURL string, settings []circuit.BreakerSettings) *proxytest.TestProxy {
-	r, err := eskip.Parse(fmt.Sprintf(`* -> "%s"`, backendURL))
-	if err != nil {
-		panic(err)
-	}
+func urlHostNerr(u string) string {
+	return strings.Split(u, "//")[1]
+}
 
+func newBreakerProxy(
+	backends map[string]*failingBackend,
+	settings []circuit.BreakerSettings,
+	filters map[string][]*eskip.Filter,
+) *proxytest.TestProxy {
 	params := proxy.Params{
 		CloseIdleConnsPeriod: -1,
 	}
 
+	// for testing, mapping the configured backend hosts to the random generated host
+	var r []*eskip.Route
 	if len(settings) > 0 {
 		var breakerOptions circuit.Options
-		for _, si := range settings {
-			if si.Host == "" {
-				breakerOptions.Defaults = si
+		for _, s := range settings {
+			b := backends[s.Host]
+			if b == nil {
+				r = append(r, &eskip.Route{
+					Id:          defaultHost,
+					HostRegexps: []string{fmt.Sprintf("^%s$", defaultHost)},
+					Filters:     filters[defaultHost],
+					Backend:     backends[defaultHost].url,
+				})
+				s.Host = urlHostNerr(backends[defaultHost].url)
+				breakerOptions.Defaults = s
+			} else {
+				r = append(r, &eskip.Route{
+					Id:          s.Host,
+					HostRegexps: []string{fmt.Sprintf("^%s$", s.Host)},
+					Filters:     filters[s.Host],
+					Backend:     backends[s.Host].url,
+				})
+				s.Host = urlHostNerr(backends[s.Host].url)
+				breakerOptions.HostSettings = append(breakerOptions.HostSettings, s)
 			}
-
-			breakerOptions.HostSettings = append(breakerOptions.HostSettings, si)
 		}
 
 		params.CircuitBreakers = circuit.NewRegistry(breakerOptions)
+	} else {
+		r = append(r, &eskip.Route{
+			Backend: backends[defaultHost].url,
+		})
 	}
 
 	fr := builtin.MakeRegistry()
@@ -63,17 +91,30 @@ func newBreakerProxy(backendURL string, settings []circuit.BreakerSettings) *pro
 }
 
 func testBreaker(t *testing.T, s breakerScenario) {
-	b := newFailingBackend()
-	defer b.close()
+	backends := make(map[string]*failingBackend)
+	for _, si := range s.settings {
+		h := si.Host
+		if h == "" {
+			h = defaultHost
+		}
 
-	p := newBreakerProxy(b.url, s.settings)
+		backends[h] = newFailingBackend()
+		defer backends[h].close()
+	}
+
+	if len(backends) == 0 {
+		backends[defaultHost] = newFailingBackend()
+		defer backends[defaultHost].close()
+	}
+
+	p := newBreakerProxy(backends, s.settings, s.filters)
 	defer p.Close()
 
 	steps := s.steps
 	c := &breakerTestContext{
-		t:       t,
-		proxy:   p,
-		backend: b,
+		t:        t,
+		proxy:    p,
+		backends: backends,
 	}
 
 	for !t.Failed() && len(steps) > 0 {
@@ -82,26 +123,55 @@ func testBreaker(t *testing.T, s breakerScenario) {
 	}
 }
 
+func setBackendHostSucceed(c *breakerTestContext, host string) {
+	c.backends[host].succeed()
+}
+
 func setBackendSucceed(c *breakerTestContext) {
-	c.backend.succeed()
+	setBackendHostSucceed(c, defaultHost)
+}
+
+func setBackendFailForHost(c *breakerTestContext, host string) {
+	c.backends[host].fail()
+}
+
+func setBackendHostFail(host string) scenarioStep {
+	return func(c *breakerTestContext) {
+		setBackendFailForHost(c, host)
+	}
 }
 
 func setBackendFail(c *breakerTestContext) {
-	c.backend.fail()
+	setBackendFailForHost(c, defaultHost)
+}
+
+func setBackendHostDown(c *breakerTestContext, host string) {
+	c.backends[host].down()
 }
 
 func setBackendDown(c *breakerTestContext) {
-	c.backend.down()
+	setBackendHostDown(c, defaultHost)
 }
 
-func proxyRequest(c *breakerTestContext) (*http.Response, error) {
-	rsp, err := http.Get(c.proxy.URL)
+func proxyRequestHost(c *breakerTestContext, host string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", c.proxy.URL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Host = host
+
+	rsp, err := (&http.Client{}).Do(req)
 	if err != nil {
 		return nil, err
 	}
 
 	rsp.Body.Close()
 	return rsp, nil
+}
+
+func proxyRequest(c *breakerTestContext) (*http.Response, error) {
+	return proxyRequestHost(c, defaultHost)
 }
 
 func checkStatus(c *breakerTestContext, rsp *http.Response, expected int) {
@@ -114,46 +184,78 @@ func checkStatus(c *breakerTestContext, rsp *http.Response, expected int) {
 	}
 }
 
-func request(expectedStatus int) scenarioStep {
-	return func(c *breakerTestContext) {
-		rsp, err := proxyRequest(c)
-		if err != nil {
-			c.t.Error(err)
-			return
-		}
+func requestHostForStatus(c *breakerTestContext, host string, expectedStatus int) *http.Response {
+	rsp, err := proxyRequestHost(c, host)
+	if err != nil {
+		c.t.Error(err)
+		return nil
+	}
 
-		checkStatus(c, rsp, expectedStatus)
+	checkStatus(c, rsp, expectedStatus)
+	return rsp
+}
+
+func requestHost(host string, expectedStatus int) scenarioStep {
+	return func(c *breakerTestContext) {
+		requestHostForStatus(c, host, expectedStatus)
 	}
 }
 
-func requestOpen(c *breakerTestContext) {
-	rsp, err := proxyRequest(c)
-	if err != nil {
-		c.t.Error(err)
+func request(expectedStatus int) scenarioStep {
+	return func(c *breakerTestContext) {
+		requestHostForStatus(c, defaultHost, expectedStatus)
+	}
+}
+
+func requestOpenForHost(c *breakerTestContext, host string) {
+	rsp := requestHostForStatus(c, host, 503)
+	if c.t.Failed() {
 		return
 	}
 
-	checkStatus(c, rsp, 503)
 	if rsp.Header.Get("X-Circuit-Open") != "true" {
 		c.t.Error("failed to set circuit open header")
 	}
 }
 
+func requestHostOpen(host string) scenarioStep {
+	return func(c *breakerTestContext) {
+		requestOpenForHost(c, host)
+	}
+}
+
+func requestOpen(c *breakerTestContext) {
+	requestOpenForHost(c, defaultHost)
+}
+
+func checkBackendForCounter(c *breakerTestContext, host string, count int) {
+	if c.backends[host].counter() != count {
+		c.t.Error("invalid number of requests on the backend")
+	}
+
+	c.backends[host].resetCounter()
+}
+
+func checkBackendHostCounter(host string, count int) scenarioStep {
+	return func(c *breakerTestContext) {
+		checkBackendForCounter(c, host, count)
+	}
+}
+
 func checkBackendCounter(count int) scenarioStep {
 	return func(c *breakerTestContext) {
-		if c.backend.counter() != count {
-			c.t.Error("invalid number of requests on the backend")
-		}
-
-		c.backend.resetCounter()
+		checkBackendForCounter(c, defaultHost, count)
 	}
 }
 
 // as in scenario step N times
-func times(n int, s scenarioStep) scenarioStep {
+func times(n int, s ...scenarioStep) scenarioStep {
 	return func(c *breakerTestContext) {
 		for !c.t.Failed() && n > 0 {
-			s(c)
+			for _, si := range s {
+				si(c)
+			}
+
 			n--
 		}
 	}
@@ -196,7 +298,7 @@ func TestBreakerConsecutive(t *testing.T) {
 			times(testConsecutiveFailureCount, request(500)),
 			checkBackendCounter(testConsecutiveFailureCount),
 			requestOpen,
-			checkBackendCounter(0),
+			// checkBackendCounter(0),
 		},
 	}, {
 		title: "open, fail to close",
@@ -291,6 +393,107 @@ func TestBreakerConsecutive(t *testing.T) {
 func TestBreakerRate(t *testing.T) {
 	for _, s := range []breakerScenario{{
 		title: "open",
+		settings: []circuit.BreakerSettings{{
+			Type:     circuit.FailureRate,
+			Failures: testRateFailures,
+			Window:   testRateWindow,
+		}},
+		steps: []scenarioStep{
+			times(testRateWindow, request(200)),
+			checkBackendCounter(testRateWindow),
+			setBackendFail,
+			times(testRateFailures, request(500)),
+			checkBackendCounter(testRateFailures),
+			requestOpen,
+			checkBackendCounter(0),
+		},
+	}, {
+		title: "open, fail to close",
+		settings: []circuit.BreakerSettings{{
+			Type:             circuit.FailureRate,
+			Failures:         testRateFailures,
+			Window:           testRateWindow,
+			Timeout:          testBreakerTimeout,
+			HalfOpenRequests: testHalfOpenRequests,
+		}},
+		steps: []scenarioStep{
+			times(testRateWindow, request(200)),
+			checkBackendCounter(testRateWindow),
+			setBackendFail,
+			times(testRateFailures, request(500)),
+			checkBackendCounter(testRateFailures),
+			requestOpen,
+			checkBackendCounter(0),
+			wait(2 * testBreakerTimeout),
+			request(500),
+			checkBackendCounter(1),
+			requestOpen,
+			checkBackendCounter(0),
+		},
+	}, {
+		title: "open, fixed during timeout",
+		settings: []circuit.BreakerSettings{{
+			Type:             circuit.FailureRate,
+			Failures:         testRateFailures,
+			Window:           testRateWindow,
+			Timeout:          testBreakerTimeout,
+			HalfOpenRequests: testHalfOpenRequests,
+		}},
+		steps: []scenarioStep{
+			times(testRateWindow, request(200)),
+			checkBackendCounter(testRateWindow),
+			setBackendFail,
+			times(testRateFailures, request(500)),
+			checkBackendCounter(testRateFailures),
+			requestOpen,
+			checkBackendCounter(0),
+			wait(2 * testBreakerTimeout),
+			setBackendSucceed,
+			times(testHalfOpenRequests+1, request(200)),
+			checkBackendCounter(testHalfOpenRequests + 1),
+		},
+	}, {
+		title: "open, fail again during half open",
+		settings: []circuit.BreakerSettings{{
+			Type:             circuit.FailureRate,
+			Failures:         testRateFailures,
+			Window:           testRateWindow,
+			Timeout:          testBreakerTimeout,
+			HalfOpenRequests: testHalfOpenRequests,
+		}},
+		steps: []scenarioStep{
+			times(testRateWindow, request(200)),
+			checkBackendCounter(testRateWindow),
+			setBackendFail,
+			times(testRateFailures, request(500)),
+			checkBackendCounter(testRateFailures),
+			requestOpen,
+			checkBackendCounter(0),
+			wait(2 * testBreakerTimeout),
+			setBackendSucceed,
+			times(1, request(200)),
+			checkBackendCounter(1),
+			setBackendFail,
+			times(1, request(500)),
+			checkBackendCounter(1),
+			requestOpen,
+			checkBackendCounter(0),
+		},
+	}, {
+		title: "open due to backend being down",
+		settings: []circuit.BreakerSettings{{
+			Type:     circuit.FailureRate,
+			Failures: testRateFailures,
+			Window:   testRateWindow,
+		}},
+		steps: []scenarioStep{
+			times(testRateWindow, request(200)),
+			checkBackendCounter(testRateWindow),
+			setBackendDown,
+			times(testRateFailures, request(503)),
+			checkBackendCounter(0),
+			requestOpen,
+		},
 	}} {
 		t.Run(s.title, func(t *testing.T) {
 			testBreaker(t, s)
@@ -298,6 +501,125 @@ func TestBreakerRate(t *testing.T) {
 	}
 }
 
-// rate breaker
-// different settings per host
-// route settings
+func TestBreakerMultipleHosts(t *testing.T) {
+	testBreaker(t, breakerScenario{
+		settings: []circuit.BreakerSettings{{
+			Type:     circuit.FailureRate,
+			Failures: testRateFailures + 2,
+			Window:   testRateWindow,
+		}, {
+			Host: "foo",
+			Type: circuit.BreakerDisabled,
+		}, {
+			Host:     "bar",
+			Type:     circuit.FailureRate,
+			Failures: testRateFailures,
+			Window:   testRateWindow,
+		}},
+		steps: []scenarioStep{
+			times(
+				testRateWindow,
+				// request(200),
+				requestHost("foo", 200),
+				// requestHost("bar", 200),
+			),
+			// checkBackendCounter(testRateWindow),
+			checkBackendHostCounter("foo", testRateWindow),
+			// checkBackendHostCounter("bar", testRateWindow),
+			// setBackendFail,
+			trace("setting fail"),
+			setBackendHostFail("foo"),
+			// setBackendHostFail("bar"),
+			times(testRateFailures,
+				// request(500),
+				requestHost("foo", 500),
+				// requestHost("bar", 500),
+			),
+			// checkBackendCounter(testRateFailures),
+			checkBackendHostCounter("foo", testRateFailures),
+			// checkBackendHostCounter("bar", testRateFailures),
+			// request(500),
+			requestHost("foo", 500),
+			// requestHostOpen("bar"),
+			// checkBackendCounter(1),
+			checkBackendHostCounter("foo", 1),
+			// checkBackendHostCounter("bar", 0),
+			// request(500),
+			requestHost("foo", 500),
+			// checkBackendCounter(1),
+			checkBackendHostCounter("foo", 1),
+			// requestOpen,
+			requestHost("foo", 500),
+			// checkBackendCounter(0),
+			checkBackendHostCounter("foo", 1),
+		},
+	})
+}
+
+func TestBreakerMultipleHostsAndRouteBasedSettings(t *testing.T) {
+	testBreaker(t, breakerScenario{
+		settings: []circuit.BreakerSettings{{
+			Type:     circuit.FailureRate,
+			Failures: testRateFailures + 2,
+			Window:   testRateWindow,
+		}, {
+			Host:     "foo",
+			Type:     circuit.FailureRate,
+			Failures: testRateFailures + 1,
+			Window:   testRateWindow,
+		}, {
+			Host:     "bar",
+			Type:     circuit.FailureRate,
+			Failures: testRateFailures + 1,
+			Window:   testRateWindow,
+		}},
+		filters: map[string][]*eskip.Filter{
+			"foo": {{
+				Name: circuitfilters.DisableBreakerName,
+			}},
+			"bar": {{
+				Name: circuitfilters.RateBreakerName,
+				Args: []interface{}{
+					testRateFailures,
+					testRateWindow,
+				},
+			}},
+		},
+		steps: []scenarioStep{
+			times(
+				testRateWindow,
+				request(200),
+				requestHost("foo", 200),
+				requestHost("bar", 200),
+			),
+			checkBackendCounter(testRateWindow),
+			checkBackendHostCounter("foo", testRateWindow),
+			checkBackendHostCounter("bar", testRateWindow),
+			setBackendFail,
+			setBackendHostFail("foo"),
+			setBackendHostFail("bar"),
+			times(testRateFailures,
+				request(500),
+				requestHost("foo", 500),
+				requestHost("bar", 500),
+			),
+			checkBackendCounter(testRateFailures),
+			checkBackendHostCounter("foo", testRateFailures),
+			checkBackendHostCounter("bar", testRateFailures),
+			request(500),
+			requestHost("foo", 500),
+			requestHostOpen("bar"),
+			checkBackendCounter(1),
+			checkBackendHostCounter("foo", 1),
+			checkBackendHostCounter("bar", 0),
+			request(500),
+			requestHost("foo", 500),
+			checkBackendCounter(1),
+			checkBackendHostCounter("foo", 1),
+			requestOpen,
+			requestHost("foo", 500),
+			checkBackendCounter(0),
+			checkBackendHostCounter("foo", 1),
+		},
+	})
+}

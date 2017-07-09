@@ -12,6 +12,7 @@ const (
 	BreakerNone BreakerType = iota
 	ConsecutiveFailures
 	FailureRate
+	BreakerDisabled
 )
 
 type BreakerSettings struct {
@@ -20,7 +21,6 @@ type BreakerSettings struct {
 	Window, Failures int
 	Timeout          time.Duration
 	HalfOpenRequests int
-	Disabled         bool
 	IdleTTL          time.Duration
 }
 

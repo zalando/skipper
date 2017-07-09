@@ -494,7 +494,8 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 		return nil, true
 	}
 
-	return b.Allow()
+	done, ok := b.Allow()
+	return done, ok
 }
 
 func (p *Proxy) do(ctx *context) error {

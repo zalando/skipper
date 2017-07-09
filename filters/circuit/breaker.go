@@ -168,7 +168,7 @@ func disableFilter(args []interface{}) (filters.Filter, error) {
 
 	return &filter{
 		settings: circuit.BreakerSettings{
-			Disabled: true,
+			Type: circuit.BreakerDisabled,
 		},
 	}, nil
 }

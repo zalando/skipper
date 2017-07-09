@@ -24,13 +24,13 @@ type Registry struct {
 }
 
 func NewRegistry(o Options) *Registry {
+	if o.Defaults.IdleTTL <= 0 {
+		o.Defaults.IdleTTL = DefaultIdleTTL
+	}
+
 	hs := make(map[string]BreakerSettings)
 	for _, s := range o.HostSettings {
 		hs[s.Host] = s.mergeSettings(o.Defaults)
-	}
-
-	if o.Defaults.IdleTTL <= 0 {
-		o.Defaults.IdleTTL = DefaultIdleTTL
 	}
 
 	return &Registry{
@@ -71,8 +71,9 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 	b, ok := r.lookup[s]
 	if !ok || b.idle(now) {
 		// if doesn't exist or idle, cleanup and create a new one
+		r.access.remove(b, b)
 
-		// check if there is any to evict, evict if yes
+		// check if there is any other to evict, evict if yes
 		r.dropIdle(now)
 
 		// create a new one
@@ -89,7 +90,7 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 
 func (r *Registry) Get(s BreakerSettings) *Breaker {
 	// we check for host, because we don't want to use shared global breakers
-	if s.Disabled || s.Host == "" {
+	if s.Type == BreakerDisabled || s.Host == "" {
 		return nil
 	}
 

@@ -124,7 +124,7 @@ func TestBreaker(t *testing.T) {
 	t.Run("disable breaker", test(
 		NewDisableBreaker,
 		circuit.BreakerSettings{
-			Disabled: true,
+			Type: circuit.BreakerDisabled,
 		},
 	))
 }
