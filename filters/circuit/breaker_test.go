@@ -80,7 +80,7 @@ func TestBreaker(t *testing.T) {
 
 			f.Request(ctx)
 
-			settings, ok := ctx.StateBag()[circuit.RouteSettingsKey]
+			settings, ok := ctx.StateBag()[RouteSettingsKey]
 			if !ok {
 				t.Error("failed to set the breaker settings")
 			}

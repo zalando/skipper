@@ -227,8 +227,11 @@ type Options struct {
 	// Experimental feature to handle protocol Upgrades for Websockets, SPDY, etc.
 	ExperimentalUpgrade bool
 
+	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
+	// contains loop backends (<loopback>).
 	MaxLoopbacks int
 
+	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
 }
 

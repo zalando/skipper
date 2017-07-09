@@ -15,6 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
+	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
@@ -112,6 +113,9 @@ type Params struct {
 	// wrong routing depending on the current configuration.
 	MaxLoopbacks int
 
+	// CircuitBreakes provides a registry that skipper can use to
+	// find the matching circuit breaker for backend requests. If not
+	// set, no circuit breakers are used.
 	CircuitBreakers *circuit.Registry
 }
 
@@ -486,7 +490,7 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 		return nil, true
 	}
 
-	settings, _ := c.stateBag[circuit.RouteSettingsKey].(circuit.BreakerSettings)
+	settings, _ := c.stateBag[circuitfilters.RouteSettingsKey].(circuit.BreakerSettings)
 	settings.Host = c.outgoingHost
 
 	b := p.breakers.Get(settings)

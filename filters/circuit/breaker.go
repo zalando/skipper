@@ -1,3 +1,8 @@
+/*
+Package circuit provides filters to control the circuit breaker settings on the route level.
+
+For detailed documentation of the circuit breakers, see https://godoc.org/github.com/zalando/skipper/circuit.
+*/
 package circuit
 
 import (
@@ -11,6 +16,7 @@ const (
 	ConsecutiveBreakerName = "consecutiveBreaker"
 	RateBreakerName        = "rateBreaker"
 	DisableBreakerName     = "disableBreaker"
+	RouteSettingsKey       = "#circuitbreakersettings"
 )
 
 type spec struct {
@@ -42,14 +48,33 @@ func getDurationArg(a interface{}) (time.Duration, error) {
 	return time.Duration(i) * time.Millisecond, err
 }
 
+// NewConsecutiveBreaker creates a filter specification to instantiate consecutiveBreaker() filters.
+//
+// These filters set a breaker for the current route that open if the backend failures for the route reach a
+// value of N, where N is a mandatory argument of the filter:
+//
+// 	consecutiveBreaker(15)
+//
+// The filter accepts the following optional arguments: timeout (milliseconds or duration string),
+// half-open-requests (integer), idle-ttl (milliseconds or duration string).
 func NewConsecutiveBreaker() filters.Spec {
 	return &spec{typ: circuit.ConsecutiveFailures}
 }
 
+// NewRateBreaker creates a filter specification to instantiate rateBreaker() filters.
+//
+// These filters set a breaker for the current route that open if the backend failures for the route reach a
+// value of N withing a window of the last M requests, where N and M are mandatory arguments of the filter:
+//
+// 	rateBreaker(30, 300)
+//
+// The filter accepts the following optional arguments: timeout (milliseconds or duration string),
+// half-open-requests (integer), idle-ttl (milliseconds or duration string).
 func NewRateBreaker() filters.Spec {
 	return &spec{typ: circuit.FailureRate}
 }
 
+// NewDisableBreaker disables the circuit breaker for a route. It doesn't accept any arguments.
 func NewDisableBreaker() filters.Spec {
 	return &spec{}
 }
@@ -185,7 +210,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 }
 
 func (f *filter) Request(ctx filters.FilterContext) {
-	ctx.StateBag()[circuit.RouteSettingsKey] = f.settings
+	ctx.StateBag()[RouteSettingsKey] = f.settings
 }
 
 func (f *filter) Response(filters.FilterContext) {}

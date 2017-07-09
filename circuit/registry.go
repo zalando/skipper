@@ -5,11 +5,12 @@ import (
 	"time"
 )
 
-const (
-	DefaultIdleTTL   = time.Hour
-	RouteSettingsKey = "#circuitbreakersettings"
-)
+// DefaultIdleTTL is used to recycle those unused circuit breakers that don't have this value configured and it
+// is not set globally.
+const DefaultIdleTTL = time.Hour
 
+// Registry objects hold the active circuit breakers, ensure synchronized access to them, apply default settings
+// and recycle the idle ones.
 type Registry struct {
 	defaults     BreakerSettings
 	hostSettings map[string]BreakerSettings
@@ -18,6 +19,8 @@ type Registry struct {
 	mx           *sync.Mutex
 }
 
+// NewRegistry initializes a registry with the provided default settings. Settings with the same host value are
+// merged together, and settings with an empty host field are merged into each.
 func NewRegistry(settings ...BreakerSettings) *Registry {
 	var (
 		defaults     BreakerSettings
@@ -26,7 +29,7 @@ func NewRegistry(settings ...BreakerSettings) *Registry {
 
 	for _, s := range settings {
 		if s.Host == "" {
-			defaults = s
+			defaults = defaults.mergeSettings(s)
 			continue
 		}
 
@@ -38,8 +41,12 @@ func NewRegistry(settings ...BreakerSettings) *Registry {
 	}
 
 	hs := make(map[string]BreakerSettings)
-	for _, s := range settings {
-		hs[s.Host] = s.mergeSettings(defaults)
+	for _, s := range hostSettings {
+		if sh, ok := hs[s.Host]; ok {
+			hs[s.Host] = s.mergeSettings(sh)
+		} else {
+			hs[s.Host] = s.mergeSettings(defaults)
+		}
 	}
 
 	return &Registry{
@@ -80,9 +87,7 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 	b, ok := r.lookup[s]
 	if !ok || b.idle(now) {
 		// if doesn't exist or idle, cleanup and create a new one
-		if b != nil {
-			r.access.remove(b, b)
-		}
+		r.access.remove(b, b)
 
 		// check if there is any other to evict, evict if yes
 		r.dropIdle(now)
@@ -99,6 +104,13 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 	return b
 }
 
+// Get returns a circuit breaker for the provided settings. The BreakerSettings object is used here as a key,
+// but typically it is enough to just set its Host field:
+//
+// 	r.Get(BreakerSettings{Host: backendHost})
+//
+// The key will be filled up with the defaults and the matching circuit breaker will be returned if it exists or
+// a new one will be created.
 func (r *Registry) Get(s BreakerSettings) *Breaker {
 	// we check for host, because we don't want to use shared global breakers
 	if s.Type == BreakerDisabled || s.Host == "" {
