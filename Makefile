@@ -22,11 +22,15 @@ skipper: $(SOURCES) bindir
 eskip: $(SOURCES) bindir
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip
 
-build: $(SOURCES) lib skipper eskip
+skoap: $(SOURCES) bindir
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skoap ./cmd/skoap
+
+build: $(SOURCES) lib skipper eskip skoap
 
 install: $(SOURCES)
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
+	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skoap
 
 check: build
 	# go test $(PACKAGES)
@@ -54,6 +58,7 @@ bench: build
 
 clean:
 	go clean -i ./...
+	rm bin/skipper bin/eskip bin/skoap
 
 deps:
 	go get -t github.com/zalando/skipper/...

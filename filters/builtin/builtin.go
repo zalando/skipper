@@ -9,6 +9,7 @@ import (
 	"github.com/zalando/skipper/filters/cookie"
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
+	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/tee"
 )
 
@@ -80,9 +81,12 @@ func MakeRegistry() filters.Registry {
 		tee.NewTeeDeprecated(),
 		tee.NewTeeNoFollow(),
 		auth.NewBasicAuth(),
+		auth.NewAuth(),
+		auth.NewAuthGroup(),
 		cookie.NewRequestCookie(),
 		cookie.NewResponseCookie(),
 		cookie.NewJSCookie(),
+		logfilter.NewAuditLog(),
 	} {
 		r.Register(s)
 	}
