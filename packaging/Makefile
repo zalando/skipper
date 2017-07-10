@@ -12,10 +12,13 @@ skipper:
 eskip:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/eskip
 
-clean:
-	rm -f skipper eskip
+skoap:
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/skoap
 
-docker-build: clean skipper eskip
+clean:
+	rm -f skipper eskip skoap
+
+docker-build: clean skipper eskip skoap
 	docker build -t $(IMAGE) .
 
 docker-push:
