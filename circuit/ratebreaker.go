@@ -6,6 +6,11 @@ import (
 	"github.com/sony/gobreaker"
 )
 
+// TODO:
+// in case of the rate breaker, there are unnecessary synchronization steps due to the 3rd party gobreaker. If
+// the sliding window was part of the implementation of the individual breakers, this additional syncrhonization
+// would not be required.
+
 type rateBreaker struct {
 	settings BreakerSettings
 	mx       *sync.Mutex

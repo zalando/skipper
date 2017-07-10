@@ -64,7 +64,7 @@ func NewConsecutiveBreaker() filters.Spec {
 // NewRateBreaker creates a filter specification to instantiate rateBreaker() filters.
 //
 // These filters set a breaker for the current route that open if the backend failures for the route reach a
-// value of N withing a window of the last M requests, where N and M are mandatory arguments of the filter:
+// value of N within a window of the last M requests, where N and M are mandatory arguments of the filter:
 //
 // 	rateBreaker(30, 300)
 //

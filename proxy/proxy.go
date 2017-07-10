@@ -113,7 +113,7 @@ type Params struct {
 	// wrong routing depending on the current configuration.
 	MaxLoopbacks int
 
-	// CircuitBreakes provides a registry that skipper can use to
+	// CircuitBreakers provides a registry that skipper can use to
 	// find the matching circuit breaker for backend requests. If not
 	// set, no circuit breakers are used.
 	CircuitBreakers *circuit.Registry

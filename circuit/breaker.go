@@ -6,10 +6,6 @@ import (
 	"time"
 )
 
-// TODO:
-// - in case of the rate breaker, there are unnecessary synchronization steps due to the 3rd party gobreaker
-// - introduce a TTL in the rate breaker for the stale samplers
-
 // BreakerType defines the type of the used breaker: consecutive, rate or disabled.
 type BreakerType int
 
@@ -22,7 +18,7 @@ const (
 
 // BreakerSettings contains the settings for individual circuit breakers.
 //
-// See the package docs for the detailed merging/overriding rules of the settings and for the meaning of the
+// See the package overview for the detailed merging/overriding rules of the settings and for the meaning of the
 // individual fields.
 type BreakerSettings struct {
 	Type             BreakerType
@@ -78,7 +74,7 @@ func (to BreakerSettings) mergeSettings(from BreakerSettings) BreakerSettings {
 	return to
 }
 
-// String returns the string representation of a particular set of circuit breaker settings.
+// String returns the string representation of a particular set of settings.
 func (s BreakerSettings) String() string {
 	var ss []string
 
@@ -141,8 +137,9 @@ func newBreaker(s BreakerSettings) *Breaker {
 	}
 }
 
-// Allow returns true if the breaker is in the closed state and a callback function to report the outcome of the
-// operation, where true means success. It may not return a callback function when the state is not closed.
+// Allow returns true if the breaker is in the closed state and a callback function for reporting the outcome of
+// the operation. The callback expects true values if the outcome of the request was successful. Allow may not
+// return a callback function when the state is open.
 func (b *Breaker) Allow() (func(bool), bool) {
 	return b.impl.Allow()
 }

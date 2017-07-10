@@ -187,10 +187,10 @@ must implement the DataClient interface in the routing package.
 
 Circuit Breaker
 
-Skipper provides circuit breakers, configured globally, based on backend
-hosts or based on individual routes. It supports two types of circuit
-breaker behavior: open on N consecutive failures, or open on N failures
-out of M requests. For details, see:
+Skipper provides circuit breakers, configured either globally, based on
+backend hosts or based on individual routes. It supports two types of
+circuit breaker behavior: open on N consecutive failures, or open on N
+failures out of M requests. For details, see:
 https://godoc.org/github.com/zalando/skipper/circuit.
 
 

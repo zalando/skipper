@@ -5,12 +5,10 @@ import (
 	"time"
 )
 
-// DefaultIdleTTL is used to recycle those unused circuit breakers that don't have this value configured and it
-// is not set globally.
 const DefaultIdleTTL = time.Hour
 
 // Registry objects hold the active circuit breakers, ensure synchronized access to them, apply default settings
-// and recycle the idle ones.
+// and recycle the idle breakers.
 type Registry struct {
 	defaults     BreakerSettings
 	hostSettings map[string]BreakerSettings
@@ -19,8 +17,8 @@ type Registry struct {
 	mx           *sync.Mutex
 }
 
-// NewRegistry initializes a registry with the provided default settings. Settings with the same host value are
-// merged together, and settings with an empty host field are merged into each.
+// NewRegistry initializes a registry with the provided default settings. Settings with an empty Host field are
+// considered as defaults. Settings with the same Host field are merged together.
 func NewRegistry(settings ...BreakerSettings) *Registry {
 	var (
 		defaults     BreakerSettings
@@ -109,8 +107,8 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 //
 // 	r.Get(BreakerSettings{Host: backendHost})
 //
-// The key will be filled up with the defaults and the matching circuit breaker will be returned if it exists or
-// a new one will be created.
+// The key will be filled up with the defaults and the matching circuit breaker will be returned if it exists,
+// or a new one will be created if not.
 func (r *Registry) Get(s BreakerSettings) *Breaker {
 	// we check for host, because we don't want to use shared global breakers
 	if s.Type == BreakerDisabled || s.Host == "" {
