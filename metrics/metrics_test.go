@@ -12,11 +12,7 @@ import (
 	"github.com/rcrowley/go-metrics"
 )
 
-func TestDefaultOptions(t *testing.T) {
-	o := Options{}
-
-	NewHandler(o)
-
+func TestUseVoidByDefaultOptions(t *testing.T) {
 	if Default != Void {
 		t.Error("Default Options should not create a registry or enable metrics")
 	}
