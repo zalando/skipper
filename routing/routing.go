@@ -175,7 +175,6 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	rt := r.routeTable.Load().(*routeTable)
 	req.ParseForm()
 	createdUnix := strconv.FormatInt(rt.created.Unix(), 10)
-
 	ts := req.Form.Get("timestamp")
 	if ts != "" {
 		if createdUnix != ts {
@@ -183,35 +182,16 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-
-	offset := 0
-	if off := req.Form.Get("offset"); off != "" {
-		off, err := strconv.Atoi(off)
-		if err != nil {
-			http.Error(w, "invalid offset", http.StatusBadRequest)
-			return
-		}
-		if off < 0 {
-			http.Error(w, "invalid offset", http.StatusBadRequest)
-			return
-		}
-		offset = off
+	offset, err := extractParam(req, "offset", 0)
+	if err != nil {
+		http.Error(w, "invalid offset", http.StatusBadRequest)
+		return
 	}
-
-	limit := defaultRouteListingLimit
-	if lim := req.Form.Get("limit"); lim != "" {
-		lim, err := strconv.Atoi(lim)
-		if err != nil {
-			http.Error(w, "invalid limit", http.StatusBadRequest)
-			return
-		}
-		if lim < 0 {
-			http.Error(w, "invalid limit", http.StatusBadRequest)
-			return
-		}
-		limit = lim
+	limit, err := extractParam(req, "limit", defaultRouteListingLimit)
+	if err != nil {
+		http.Error(w, "invalid limit", http.StatusBadRequest)
+		return
 	}
-
 	accept := req.Header.Get("Accept")
 	routes := slice(rt.validRoutes, offset, limit)
 
@@ -282,4 +262,19 @@ func slice(r []*Route, offset int, limit int) []*Route {
 		return []*Route{}
 	}
 	return result
+}
+
+func extractParam(r *http.Request, key string, defaultValue int) (int, error) {
+	param := r.Form.Get(key)
+	if param == "" {
+		return defaultValue, nil
+	}
+	val, err := strconv.Atoi(param)
+	if err != nil {
+		return 0, err
+	}
+	if val < 0 {
+		return 0, fmt.Errorf("invalid value `%d` for `%s`", val, key)
+	}
+	return val, nil
 }
