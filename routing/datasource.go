@@ -369,9 +369,8 @@ func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (rout
 
 type routeTable struct {
 	m             *matcher
-	validRoutes   []*Route
-	invalidRoutes []*Route
-	invalidDefs   []*eskip.Route
+	validRoutes   []*eskip.Route
+	invalidRoutes []*eskip.Route
 	created       time.Time
 }
 
@@ -389,12 +388,11 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		select {
 		case defs := <-updatesRelay:
 			o.Log.Info("route settings received")
-			routes, invalidDefs := processRouteDefs(o, o.FilterRegistry, defs)
+			routes, invalidRoutes := processRouteDefs(o, o.FilterRegistry, defs)
 			m, errs := newMatcher(routes, o.MatchingOptions)
 
 			invalidRouteIds := make(map[string]struct{})
-			invalidRoutes := []*Route{}
-			validRoutes := []*Route{}
+			validRoutes := []*eskip.Route{}
 
 			for _, err := range errs {
 				o.Log.Error(err)
@@ -403,15 +401,14 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 
 			for _, r := range routes {
 				if _, found := invalidRouteIds[r.Id]; found {
-					invalidRoutes = append(invalidRoutes, r)
+					invalidRoutes = append(invalidRoutes, &r.Route)
 				} else {
-					validRoutes = append(validRoutes, r)
+					validRoutes = append(validRoutes, &r.Route)
 				}
 			}
 
 			rt = &routeTable{
 				m:             m,
-				invalidDefs:   invalidDefs,
 				validRoutes:   validRoutes,
 				invalidRoutes: invalidRoutes,
 				created:       time.Now().UTC(),

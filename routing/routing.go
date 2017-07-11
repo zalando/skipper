@@ -29,7 +29,7 @@ const (
 	defaultRouteListingLimit      = 1024
 )
 
-// Control flags for route matching.
+// MatchingOptions controls route matching.
 type MatchingOptions uint
 
 const (
@@ -71,7 +71,7 @@ type PredicateSpec interface {
 	Create([]interface{}) (Predicate, error)
 }
 
-// Initialization options for routing.
+// Options for initialization for routing.
 type Options struct {
 
 	// Registry containing the available filter
@@ -113,7 +113,7 @@ type Options struct {
 	Log logging.Logger
 }
 
-// Filter contains extensions to generic filter
+// RouteFilter contains extensions to generic filter
 // interface, serving mainly logging/monitoring
 // purpose.
 type RouteFilter struct {
@@ -170,7 +170,7 @@ func New(o Options) *Routing {
 	return r
 }
 
-// ServeHTTP ...
+// ServeHTTP renders the list of current routes.
 func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	rt := r.routeTable.Load().(*routeTable)
 	req.ParseForm()
@@ -195,6 +195,7 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	accept := req.Header.Get("Accept")
 	routes := slice(rt.validRoutes, offset, limit)
 
+	// TODO: Maybe this is too strict?
 	if accept == "application/json" {
 		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
 		w.Header().Set("content-type", "application/json")
@@ -204,12 +205,13 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// TODO: Maybe this is too strict? Also, what is the correct MIME type for eskip?
 	if accept == "application/eskip" {
 		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
 		w.Header().Set("content-type", "application/eskip")
 		eskipRoutes := make([]*eskip.Route, len(routes))
 		for i, r := range routes {
-			eskipRoutes[i] = &r.Route
+			eskipRoutes[i] = r
 		}
 		fmt.Fprint(w, eskip.String(eskipRoutes...))
 		return
@@ -249,7 +251,7 @@ func (r *Routing) Close() {
 	close(r.quit)
 }
 
-func slice(r []*Route, offset int, limit int) []*Route {
+func slice(r []*eskip.Route, offset int, limit int) []*eskip.Route {
 	if offset > len(r) {
 		offset = len(r)
 	}
@@ -259,7 +261,7 @@ func slice(r []*Route, offset int, limit int) []*Route {
 	}
 	result := r[offset:end]
 	if result == nil {
-		return []*Route{}
+		return []*eskip.Route{}
 	}
 	return result
 }

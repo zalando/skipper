@@ -153,7 +153,10 @@ type Options struct {
 	// populate the updated routes faster.
 	DevMode bool
 
-	// Network address for the /metrics endpoint
+	// Network address for the support endpoints
+	SupportListener string
+
+	// Deprecated: Network address for the /metrics endpoint
 	MetricsListener string
 
 	// Skipper provides a set of metrics with different keys which are exposed via HTTP in JSON
@@ -444,11 +447,17 @@ func Run(o Options) error {
 		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
 	}
 
-	// init diagnostics endpoint
-	mux := http.NewServeMux()
-	mux.Handle("/routes", routing)
+	// init support endpoints
+	supportListener := o.SupportListener
 
-	if o.MetricsListener != "" {
+	// Backward compatibility
+	if supportListener == "" {
+		supportListener = o.MetricsListener
+	}
+
+	if supportListener != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/routes", routing)
 		metricsHandler := metrics.NewHandler(metrics.Options{
 			Prefix:                   o.MetricsPrefix,
 			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
@@ -459,12 +468,12 @@ func Run(o Options) error {
 			EnableProfile:            o.EnableProfile,
 		})
 		mux.Handle("/metrics", metricsHandler)
+
+		log.Infof("support listener on %s", supportListener)
+		go http.ListenAndServe(supportListener, mux)
 	} else {
 		log.Infoln("Metrics are disabled")
 	}
-
-	log.Infof("metrics listener on %s/metrics", o.MetricsListener)
-	go http.ListenAndServe(o.MetricsListener, mux)
 
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)
