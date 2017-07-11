@@ -1,6 +1,7 @@
 package circuit
 
 import (
+	log "github.com/sirupsen/logrus"
 	"sync"
 
 	"github.com/sony/gobreaker"
@@ -13,6 +14,7 @@ import (
 
 type rateBreaker struct {
 	settings BreakerSettings
+	open     bool
 	mx       *sync.Mutex
 	sampler  *binarySampler
 	gb       *gobreaker.TwoStepCircuitBreaker
@@ -42,12 +44,13 @@ func (b *rateBreaker) readyToTrip() bool {
 		return false
 	}
 
-	ready := b.sampler.count >= b.settings.Failures
-	if ready {
+	b.open = b.sampler.count >= b.settings.Failures
+	if b.open {
+		log.Infof("circuit breaker open: %v", b.settings)
 		b.sampler = nil
 	}
 
-	return ready
+	return b.open
 }
 
 // count the failures in closed and half-open state
@@ -66,8 +69,15 @@ func (b *rateBreaker) Allow() (func(bool), bool) {
 	done, err := b.gb.Allow()
 
 	// this error can only indicate that the breaker is not closed
-	if err != nil {
+	closed := err == nil
+
+	if !closed {
 		return nil, false
+	}
+
+	if b.open {
+		b.open = false
+		log.Infof("circuit breaker closed: %v", b.settings)
 	}
 
 	return func(success bool) {

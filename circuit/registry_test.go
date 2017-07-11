@@ -258,14 +258,6 @@ func TestIndividualIdle(t *testing.T) {
 		t.Skip()
 	}
 
-	// create with default and host specific
-	//
-	// check for both:
-	// - fail n - 1
-	// - wait idle
-	// - fail
-	// - stays closed
-
 	const (
 		consecutiveFailures = 5
 		idleTimeout         = 15 * time.Millisecond
