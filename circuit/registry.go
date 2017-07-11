@@ -13,7 +13,6 @@ type Registry struct {
 	defaults     BreakerSettings
 	hostSettings map[string]BreakerSettings
 	lookup       map[BreakerSettings]*Breaker
-	access       *list
 	mx           *sync.Mutex
 }
 
@@ -51,7 +50,6 @@ func NewRegistry(settings ...BreakerSettings) *Registry {
 		defaults:     defaults,
 		hostSettings: hs,
 		lookup:       make(map[BreakerSettings]*Breaker),
-		access:       &list{},
 		mx:           &sync.Mutex{},
 	}
 }
@@ -66,13 +64,10 @@ func (r *Registry) mergeDefaults(s BreakerSettings) BreakerSettings {
 }
 
 func (r *Registry) dropIdle(now time.Time) {
-	drop, _ := r.access.dropHeadIf(func(b *Breaker) bool {
-		return b.idle(now)
-	})
-
-	for drop != nil {
-		delete(r.lookup, drop.settings)
-		drop = drop.next
+	for h, b := range r.lookup {
+		if b.idle(now) {
+			delete(r.lookup, h)
+		}
 	}
 }
 
@@ -84,9 +79,6 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 
 	b, ok := r.lookup[s]
 	if !ok || b.idle(now) {
-		// if doesn't exist or idle, cleanup and create a new one
-		r.access.remove(b, b)
-
 		// check if there is any other to evict, evict if yes
 		r.dropIdle(now)
 
@@ -95,9 +87,8 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 		r.lookup[s] = b
 	}
 
-	// append/move the breaker to the last position of the access history
+	// set the access timestamp
 	b.ts = now
-	r.access.appendLast(b)
 
 	return b
 }

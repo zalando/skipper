@@ -245,14 +245,11 @@ func TestRegistryEvictIdle(t *testing.T) {
 		return
 	}
 
-	current := r.access.first
-	for current != nil {
-		if current.settings.Host == "baz" {
+	for s := range r.lookup {
+		if s.Host == "baz" {
 			t.Error("failed to evict idle breaker")
 			return
 		}
-
-		current = current.next
 	}
 }
 
