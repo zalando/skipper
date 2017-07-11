@@ -12,14 +12,14 @@ expression prefixed by its id and a ':'.
 
 A routing table example:
 
-    catalog: Path("/*category") -> "https://catalog.example.org";
-    productPage: Path("/products/:id") -> "https://products.example.org";
-    userAccount: Path("/user/:id/*userpage") -> "https://users.example.org";
+	catalog: Path("/*category") -> "https://catalog.example.org";
+	productPage: Path("/products/:id") -> "https://products.example.org";
+	userAccount: Path("/user/:id/*userpage") -> "https://users.example.org";
 
-    // 404
-    notfound: * ->
-        modPath(/.+/, "/notfound.html") -> static("/", "/var/www") ->
-        <shunt>
+	// 404
+	notfound: * ->
+	  modPath(/.+/, "/notfound.html") -> static("/", "/var/www") ->
+	  <shunt>
 
 A route expression always contains a match expression and a backend
 expression, and it can contain optional filter expressions. The match
@@ -28,9 +28,9 @@ filters take place between the matcher and the backend.
 
 A route expression example:
 
-    Path("/api/*resource") && Header("Accept", "application/json") ->
-        modPath("^/api", "") -> requestHeader("X-Type", "external") ->
-        "https://api.example.org"
+	Path("/api/*resource") && Header("Accept", "application/json") ->
+	  modPath("^/api", "") -> requestHeader("X-Type", "external") ->
+	  "https://api.example.org"
 
 
 Match Expressions - Predicates
@@ -41,11 +41,11 @@ separated by '&&'.
 
 A match expression example:
 
-    Path("/api/*resource") && Header("Accept", "application/json")
+	Path("/api/*resource") && Header("Accept", "application/json")
 
 The following predicate expressions are recognized:
 
-    Path("/some/path")
+	Path("/some/path")
 
 The path predicate accepts a single argument, that can be a fixed path
 like "/some/path", or it can contain wildcards in place of one or more
@@ -56,7 +56,7 @@ supports the glob standard, e.g. "/some/path/**" will work as expected.
 The arguments are available to the filters while processing the matched
 requests.
 
-    PathSubtree("/some/path")
+	PathSubtree("/some/path")
 
 The path subtree predicate behaves similar to the path predicate, but
 it matches the exact path in the definition and any sub path below it.
@@ -65,37 +65,37 @@ name "*". If a free wildcard is appended to the definition, e.g.
 PathSubtree("/some/path/*rest"), the free wildcard name is used instead
 of "*". The simple wildcards behave similar to the Path predicate.
 
-    PathRegexp(/regular-expression/)
+	PathRegexp(/regular-expression/)
 
 The regexp path predicate accepts a regular expression as a single
 argument that needs to be matched by the request path. The regular
 expression can be surrounded by '/' or '"'.
 
-    Host(/host-regular-expression/)
+	Host(/host-regular-expression/)
 
 The host predicate accepts a regular expression as a single argument
 that needs to be matched by the host header in the request.
 
-    Method("HEAD")
+	Method("HEAD")
 
 The method predicate is used to match the http request method.
 
-    Header("Accept", "application/json")
+	Header("Accept", "application/json")
 
 The header predicate is used to match the http headers in the request.
 It accepts two arguments, the name of the header field and the exact
 header value to match.
 
-    HeaderRegexp("Accept", /\Wapplication\/json\W/)
+	HeaderRegexp("Accept", /\Wapplication\/json\W/)
 
 The header regexp predicate works similar to the header expression, but
 the value to be matched is a regular expression.
 
-    *
+	*
 
 Catch all predicate.
 
-    Any()
+	Any()
 
 Former, deprecated form of the catch all predicate.
 
@@ -106,7 +106,7 @@ Eskip supports custom route matching predicates, that can be implemented
 in extensions. The notation of custom predicates is the same as of the
 built-in route matching expressions:
 
-    Foo(3.14, "bar")
+	Foo(3.14, "bar")
 
 During parsing, custom predicates may define any arbitrary list of
 arguments of types number, string or regular expression, and it is the
@@ -125,42 +125,48 @@ filter. The arguments can be of type string ("a string"), number
 
 A filter example:
 
-    setResponseHeader("max-age", "86400") -> static("/", "/var/www/public")
+	setResponseHeader("max-age", "86400") -> static("/", "/var/www/public")
 
 The default Skipper implementation provides the following built-in
 filters:
 
-    setRequestHeader("header-name", "header-value")
+	setRequestHeader("header-name", "header-value")
 
-    setResponseHeader("header-name", "header-value")
+	setResponseHeader("header-name", "header-value")
 
-    appendRequestHeader("header-name", "header-value")
+	appendRequestHeader("header-name", "header-value")
 
-    appendResponseHeader("header-name", "header-value")
+	appendResponseHeader("header-name", "header-value")
 
-    dropRequestHeader("header-name")
+	dropRequestHeader("header-name")
 
-    dropResponseHeader("header-name")
+	dropResponseHeader("header-name")
 
-    modPath(/regular-expression/, "replacement")
+	modPath(/regular-expression/, "replacement")
 
-    setPath("/replacement")
+	setPath("/replacement")
 
-    redirectTo(302, "https://ui.example.org")
+	redirectTo(302, "https://ui.example.org")
 
-    flowId("reuse", 64)
+	flowId("reuse", 64)
 
-    healthcheck()
+	healthcheck()
 
-    static("/images", "/var/www/images")
+	static("/images", "/var/www/images")
 
-    stripQuery("true")
+	stripQuery("true")
 
-    preserveHost()
+	preserveHost()
 
-    status(418)
+	status(418)
 
-    tee("https://audit-logging.example.org")
+	tee("https://audit-logging.example.org")
+
+	consecutiveBreaker()
+
+	rateBreaker()
+
+	disableBreaker()
 
 For details about the built-in filters, please, refer to the
 documentation of the skipper/filters package. Skipper is designed to be
@@ -183,7 +189,7 @@ a loopback.
 
 A network endpoint address example:
 
-    "http://internal.example.org:9090"
+	"http://internal.example.org:9090"
 
 An endpoint address backend is surrounded by '"'. It contains the scheme
 and the hostname of the endpoint, and optionally the port number that is
@@ -191,7 +197,7 @@ inferred from the scheme if not specified.
 
 A shunt backend:
 
-    <shunt>
+	<shunt>
 
 The shunt backend means that the route will not forward the request to a
 network endpoint, but the router will handle the request itself. By
@@ -219,9 +225,9 @@ character.
 
 Example with comments:
 
-    // forwards to the API endpoint
-    route1: Path("/api") -> "https://api.example.org";
-    route2: * -> <shunt> // everything else 404
+	// forwards to the API endpoint
+	route1: Path("/api") -> "https://api.example.org";
+	route2: * -> <shunt> // everything else 404
 
 
 Regular expressions
