@@ -8,6 +8,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
@@ -226,7 +227,12 @@ type Options struct {
 	// Experimental feature to handle protocol Upgrades for Websockets, SPDY, etc.
 	ExperimentalUpgrade bool
 
+	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
+	// contains loop backends (<loopback>).
 	MaxLoopbacks int
+
+	// BreakerSettings contain global and host specific settings for the circuit breakers.
+	BreakerSettings []circuit.BreakerSettings
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -446,6 +452,10 @@ func Run(o Options) error {
 		FlushInterval:          o.BackendFlushInterval,
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
+	}
+
+	if len(o.BreakerSettings) > 0 {
+		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
 	}
 
 	if o.DebugListener != "" {

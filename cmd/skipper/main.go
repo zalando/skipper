@@ -135,6 +135,7 @@ var (
 	experimentalUpgrade       bool
 	printVersion              bool
 	maxLoopbacks              int
+	breakers                  breakerFlags
 )
 
 func init() {
@@ -182,6 +183,7 @@ func init() {
 	flag.BoolVar(&experimentalUpgrade, "experimental-upgrade", defaultExperimentalUpgrade, experimentalUpgradeUsage)
 	flag.BoolVar(&printVersion, "version", false, versionUsage)
 	flag.IntVar(&maxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
+	flag.Var(&breakers, "breaker", breakerUsage)
 	flag.Parse()
 }
 
@@ -268,6 +270,7 @@ func main() {
 		BackendFlushInterval:      backendFlushInterval,
 		ExperimentalUpgrade:       experimentalUpgrade,
 		MaxLoopbacks:              maxLoopbacks,
+		BreakerSettings:           breakers,
 	}
 
 	if insecure {

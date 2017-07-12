@@ -90,6 +90,7 @@ Skipper's [godoc](https://godoc.org/github.com/zalando/skipper) page includes de
 - Service Backends
 - Route Definitions
 - Data Sources
+- Circuit Breakers
 - Extending It with Customized Predicates, Filters, and Builds
 - Proxy Packages
 - Logging and Metrics
