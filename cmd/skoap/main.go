@@ -52,7 +52,7 @@ const (
 skoap - Skipper based reverse proxy with authentication.
 
 Use the skoap proxy to verify authorization tokens before forwarding requests, and optionally check OAuth2 realms
-and scoap or team membership. In addition to check incoming requests, optionally set basic authorzation headers
+and scope or team membership. In addition to check incoming requests, optionally set basic authorization headers
 for outgoing requests.
 
 The command supports two modes:
