@@ -2,9 +2,12 @@ package routing_test
 
 import (
 	"errors"
+	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
+
+	"net/http/httptest"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -437,4 +440,92 @@ func TestNonMatchedStaticRoute(t *testing.T) {
 			t.Error("non-matched static route supress wild-carded route")
 		}
 	}
+}
+
+func TestRoutingHandler(t *testing.T) {
+	dc, err := testdataclient.NewDoc(`
+        route1: CustomPredicate("custom1") -> "https://route1.example.org";
+        route2: CustomPredicate("custom2") -> "https://route2.example.org";
+        catchAll: * -> "https://route.example.org"`)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+
+	tr, err := newTestRoutingWithPredicates(cps, dc)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer resp.Body.Close()
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	body := string(b)
+
+	if got, want := resp.StatusCode, 200; got != want {
+		t.Errorf("status code = %v, want %v", got, want)
+	}
+
+	if got, want := resp.Header.Get("content-type"), "text/plain"; got != want {
+		t.Errorf("content type = %v, want %v", got, want)
+	}
+
+	routes, err := eskip.Parse(body)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if got, want := len(routes), 3; got != want {
+		t.Errorf("number of routes = %v, want %v", got, want)
+	}
+
+	var routeIds []string
+	for _, r := range routes {
+		routeIds = append(routeIds, r.Id)
+	}
+	expectedRouteIds := []string{"route1", "catchAll", "route2"}
+	if !stringsAreSame(routeIds, expectedRouteIds) {
+		t.Errorf("routes = %v, want %v", routeIds, expectedRouteIds)
+	}
+}
+
+func stringsAreSame(xs, ys []string) bool {
+	if len(xs) != len(ys) {
+		return false
+	}
+	diff := make(map[string]int, len(xs))
+	for _, x := range xs {
+		diff[x]++
+	}
+	for _, y := range ys {
+		if _, ok := diff[y]; !ok {
+			return false
+		}
+		diff[y]--
+		if diff[y] == 0 {
+			delete(diff, y)
+		}
+	}
+	if len(diff) == 0 {
+		return true
+	}
+	return false
 }
