@@ -39,10 +39,9 @@ type voidBreaker struct{}
 //
 // Use the Get() method of the Registry to request fully initialized breakers.
 type Breaker struct {
-	settings   BreakerSettings
-	ts         time.Time
-	prev, next *Breaker
-	impl       breakerImplementation
+	settings BreakerSettings
+	ts       time.Time
+	impl     breakerImplementation
 }
 
 func (to BreakerSettings) mergeSettings(from BreakerSettings) BreakerSettings {
