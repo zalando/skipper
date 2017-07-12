@@ -9,6 +9,8 @@ import (
 
 	"encoding/json"
 
+	"strings"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
@@ -192,11 +194,10 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "invalid limit", http.StatusBadRequest)
 		return
 	}
-	accept := req.Header.Get("Accept")
 	routes := slice(rt.validRoutes, offset, limit)
+	accept := req.Header.Get("accept")
 
-	// TODO: Maybe this is too strict?
-	if accept == "application/json" {
+	if strings.Contains(accept, "application/json") {
 		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
 		w.Header().Set("content-type", "application/json")
 		if err := json.NewEncoder(w).Encode(routes); err != nil {
@@ -205,19 +206,9 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO: Maybe this is too strict? Also, what is the correct MIME type for eskip?
-	if accept == "application/eskip" {
-		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
-		w.Header().Set("content-type", "application/eskip")
-		eskipRoutes := make([]*eskip.Route, len(routes))
-		for i, r := range routes {
-			eskipRoutes[i] = r
-		}
-		fmt.Fprint(w, eskip.String(eskipRoutes...))
-		return
-	}
-
-	http.Error(w, http.StatusText(http.StatusNotAcceptable), http.StatusNotAcceptable)
+	w.Header().Set(routeTableTimestampHeaderName, createdUnix)
+	w.Header().Set("content-type", "text/plain")
+	eskip.Fprint(w, extractPretty(req), routes...)
 }
 
 func (r *Routing) startReceivingUpdates(o Options) {
@@ -279,4 +270,16 @@ func extractParam(r *http.Request, key string, defaultValue int) (int, error) {
 		return 0, fmt.Errorf("invalid value `%d` for `%s`", val, key)
 	}
 	return val, nil
+}
+
+func extractPretty(r *http.Request) bool {
+	vals, ok := r.Form["nopretty"]
+	if !ok || len(vals) == 0 {
+		return true
+	}
+	val := vals[0]
+	if val == "0" || val == "false" {
+		return true
+	}
+	return false
 }
