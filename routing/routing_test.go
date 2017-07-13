@@ -2,12 +2,15 @@ package routing_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
 
 	"net/http/httptest"
+
+	"encoding/json"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -469,7 +472,7 @@ func TestRoutingHandlerParameterChecking(t *testing.T) {
 	}
 }
 
-func TestRoutingHandlerEskip(t *testing.T) {
+func TestRoutingHandlerEskipResponse(t *testing.T) {
 	dc, err := testdataclient.NewDoc(`
         route1: CustomPredicate("custom1") -> "https://route1.example.org";
         route2: CustomPredicate("custom2") -> "https://route2.example.org";
@@ -531,6 +534,126 @@ func TestRoutingHandlerEskip(t *testing.T) {
 	expectedRouteIds := []string{"route1", "catchAll", "route2"}
 	if !stringsAreSame(routeIds, expectedRouteIds) {
 		t.Errorf("routes = %v, want %v", routeIds, expectedRouteIds)
+	}
+}
+
+func TestRoutingHandlerJsonResponse(t *testing.T) {
+	dc, _ := testdataclient.NewDoc(`
+        route1: CustomPredicate("custom1") -> "https://route1.example.org";
+        route2: CustomPredicate("custom2") -> "https://route2.example.org";
+        catchAll: * -> "https://route.example.org"`)
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	tr, _ := newTestRoutingWithPredicates(cps, dc)
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	req, _ := http.NewRequest("GET", server.URL, nil)
+	req.Header.Set("accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Errorf("unexpected server error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got, want := resp.StatusCode, 200; got != want {
+		t.Errorf("status code = %v, want %v", got, want)
+	}
+
+	if got, want := resp.Header.Get("content-type"), "application/json"; got != want {
+		t.Errorf("content type = %v, want %v", got, want)
+	}
+
+	var routes []*eskip.Route
+	if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
+		t.Errorf("failed to encode the response body: %v", err)
+	}
+
+	if got, want := len(routes), 3; got != want {
+		t.Errorf("number of routes = %v, want %v", got, want)
+	}
+}
+
+func TestRoutingHandlerFilterInvalidRoutes(t *testing.T) {
+	dc, _ := testdataclient.NewDoc(`
+        route1: CustomPredicate("custom1") -> "https://route1.example.org";
+        route2: FooBar("custom2") -> "https://route2.example.org";
+        catchAll: * -> "https://route.example.org"`)
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	tr, _ := newTestRoutingWithPredicates(cps, dc)
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	req, _ := http.NewRequest("GET", server.URL, nil)
+	req.Header.Set("accept", "application/json")
+	resp, _ := http.DefaultClient.Do(req)
+
+	var routes []*eskip.Route
+	if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
+		t.Errorf("failed to encode the response body: %v", err)
+	}
+
+	if got, want := len(routes), 2; got != want {
+		t.Errorf("number of routes = %v, want %v", got, want)
+	}
+
+	routeIds := []string{}
+	for _, r := range routes {
+		routeIds = append(routeIds, r.Id)
+	}
+	expectedRouteIds := []string{"route1", "catchAll"}
+	if !stringsAreSame(routeIds, expectedRouteIds) {
+		t.Errorf("routes = %v, want %v", routeIds, expectedRouteIds)
+	}
+}
+
+func TestRoutingHandlerPagination(t *testing.T) {
+	dc, _ := testdataclient.NewDoc(`
+        route1: CustomPredicate("custom1") -> "https://route1.example.org";
+        route2: CustomPredicate("custom2") -> "https://route2.example.org";
+        catchAll: * -> "https://route.example.org"`)
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	tr, _ := newTestRoutingWithPredicates(cps, dc)
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	tests := []struct {
+		offset  int
+		limit   int
+		nroutes int
+	}{
+		{0, 0, 0},
+		{0, 1, 1},
+		{10, 10, 0},
+		{0, 10, 3},
+		{0, 3, 3},
+		{1, 3, 2},
+	}
+	for _, ti := range tests {
+		u := fmt.Sprintf("%s?offset=%d&limit=%d", server.URL, ti.offset, ti.limit)
+		req, _ := http.NewRequest("GET", u, nil)
+		req.Header.Set("accept", "application/json")
+		resp, _ := http.DefaultClient.Do(req)
+
+		var routes []*eskip.Route
+		if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
+			t.Errorf("failed to encode the response body: %v", err)
+		}
+
+		if got, want := len(routes), ti.nroutes; got != want {
+			t.Errorf("number of routes = %v, want %v", got, want)
+		}
 	}
 }
 
