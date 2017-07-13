@@ -9,18 +9,12 @@ import (
 	"time"
 
 	"github.com/rcrowley/go-metrics"
-	log "github.com/sirupsen/logrus"
 )
 
 type skipperMetrics map[string]interface{}
 
 // Options for initializing metrics collection.
 type Options struct {
-	// Network address where the current metrics values
-	// can be pulled from. If not set, the collection of
-	// the metrics is disabled.
-	Listener string
-
 	// Common prefix for the keys of the different
 	// collected metrics.
 	Prefix string
@@ -116,13 +110,8 @@ func init() {
 	Default = Void
 }
 
-// Initializes the collection of metrics.
-func Init(o Options) {
-	if o.Listener == "" {
-		log.Infoln("Metrics are disabled")
-		return
-	}
-
+// NewHandler returns a collection of metrics handlers.
+func NewHandler(o Options) http.Handler {
 	Default = New(o)
 
 	handler := &metricsHandler{registry: Default.reg, options: o}
@@ -136,8 +125,7 @@ func Init(o Options) {
 		handler.profile = mux
 	}
 
-	log.Infof("metrics listener on %s/metrics", o.Listener)
-	go http.ListenAndServe(o.Listener, handler)
+	return handler
 }
 
 func createTimer() metrics.Timer {

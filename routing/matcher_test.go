@@ -3,13 +3,14 @@ package routing
 import (
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/pathmux"
 	"log"
 	"net/http"
 	"net/url"
 	"regexp"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/pathmux"
 )
 
 type truePredicate struct{}
@@ -99,8 +100,8 @@ func docToRoutes(doc string) ([]*Route, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return processRouteDefs(Options{Predicates: []PredicateSpec{&truePredicate{}}}, nil, defs), nil
+	routes, _ := processRouteDefs(Options{Predicates: []PredicateSpec{&truePredicate{}}}, nil, defs)
+	return routes, nil
 }
 
 // parse a routing document with a single route
@@ -187,7 +188,8 @@ func generateRoutes(paths []string) []*Route {
 		defs[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Path: p, Backend: p}
 	}
 
-	return processRouteDefs(Options{}, nil, defs)
+	routes, _ := processRouteDefs(Options{}, nil, defs)
+	return routes
 }
 
 // generate requests based on a set of paths

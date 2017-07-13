@@ -2,6 +2,7 @@ package eskip
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"strings"
 )
@@ -161,4 +162,10 @@ func Print(pretty bool, routes ...*Route) string {
 	}
 
 	return strings.Join(rs, ";\n")
+}
+
+func Fprint(w io.Writer, pretty bool, routes ...*Route) {
+	for _, r := range routes {
+		fmt.Fprintf(w, "%s: %s;\n", r.Id, r.Print(pretty))
+	}
 }

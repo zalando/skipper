@@ -12,11 +12,7 @@ import (
 	"github.com/rcrowley/go-metrics"
 )
 
-func TestDefaultOptions(t *testing.T) {
-	o := Options{}
-
-	Init(o)
-
+func TestUseVoidByDefaultOptions(t *testing.T) {
 	if Default != Void {
 		t.Error("Default Options should not create a registry or enable metrics")
 	}
@@ -37,8 +33,8 @@ func TestDefaultOptions(t *testing.T) {
 }
 
 func TestDefaultOptionsWithListener(t *testing.T) {
-	o := Options{Listener: ":0"}
-	Init(o)
+	o := Options{}
+	NewHandler(o)
 
 	if Default == Void {
 		t.Error("Options containing a listener should create a registry")
@@ -54,8 +50,8 @@ func TestDefaultOptionsWithListener(t *testing.T) {
 }
 
 func TestDebugGcStats(t *testing.T) {
-	o := Options{Listener: ":0", EnableDebugGcMetrics: true}
-	Init(o)
+	o := Options{EnableDebugGcMetrics: true}
+	NewHandler(o)
 
 	if Default.reg.Get("debug.GCStats.LastGC") == nil {
 		t.Error("Options enabled debug gc stats but failed to find the key 'debug.GCStats.LastGC'")
@@ -63,8 +59,8 @@ func TestDebugGcStats(t *testing.T) {
 }
 
 func TestRuntimeStats(t *testing.T) {
-	o := Options{Listener: ":0", EnableRuntimeMetrics: true}
-	Init(o)
+	o := Options{EnableRuntimeMetrics: true}
+	NewHandler(o)
 
 	if Default.reg.Get("runtime.MemStats.Alloc") == nil {
 		t.Error("Options enabled runtime stats but failed to find the key 'runtime.MemStats.Alloc'")
@@ -72,8 +68,8 @@ func TestRuntimeStats(t *testing.T) {
 }
 
 func TestMeasurement(t *testing.T) {
-	o := Options{Listener: ":0"}
-	Init(o)
+	o := Options{}
+	NewHandler(o)
 
 	t1 := Default.getTimer("TestMeasurement1")
 	if t1.Count() != 0 && t1.Max() != 0 {
@@ -142,7 +138,7 @@ var proxyMetricsTests = []proxyMetricTest{
 
 func TestProxyMetrics(t *testing.T) {
 	for _, pmt := range proxyMetricsTests {
-		Init(Options{Listener: ":0"})
+		NewHandler(Options{})
 		pmt.measureFunc()
 		Default.reg.Each(func(key string, _ interface{}) {
 			if key != pmt.metricsKey {

@@ -1,7 +1,11 @@
 package routing
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -11,25 +15,28 @@ import (
 )
 
 const (
-	// Name of the builtin path predicate.
+	// PathName represents the name of builtin path predicate.
 	// (See more details about the Path and PathSubtree predicates
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathName = "Path"
 
-	// Name of the builtin path subtree predicate.
+	// PathSubtreeName represents the name of the builtin path subtree predicate.
 	// (See more details about the Path and PathSubtree predicates
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathSubtreeName = "PathSubtree"
+
+	routeTableTimestampHeaderName = "X-Skipper-Route-Table-Timestamp"
+	defaultRouteListingLimit      = 1024
 )
 
-// Control flags for route matching.
+// MatchingOptions controls route matching.
 type MatchingOptions uint
 
 const (
-	// All options are default.
+	// MatchingOptionsNone indicates that all options are default.
 	MatchingOptionsNone MatchingOptions = 0
 
-	// Ignore trailing slash in paths.
+	// IgnoreTrailingSlash indicates that trailing slashes in paths are ignored.
 	IgnoreTrailingSlash MatchingOptions = 1 << iota
 )
 
@@ -64,7 +71,7 @@ type PredicateSpec interface {
 	Create([]interface{}) (Predicate, error)
 }
 
-// Initialization options for routing.
+// Options for initialization for routing.
 type Options struct {
 
 	// Registry containing the available filter
@@ -106,7 +113,7 @@ type Options struct {
 	Log logging.Logger
 }
 
-// Filter contains extensions to generic filter
+// RouteFilter contains extensions to generic filter
 // interface, serving mainly logging/monitoring
 // purpose.
 type RouteFilter struct {
@@ -140,12 +147,12 @@ type Route struct {
 // Routing ('router') instance providing live
 // updatable request matching.
 type Routing struct {
-	matcher atomic.Value
-	log     logging.Logger
-	quit    chan struct{}
+	routeTable atomic.Value // of struct routeTable
+	log        logging.Logger
+	quit       chan struct{}
 }
 
-// Initializes a new routing instance, and starts listening for route
+// New initializes a routing instance, and starts listening for route
 // definition updates.
 func New(o Options) *Routing {
 	if o.Log == nil {
@@ -154,19 +161,62 @@ func New(o Options) *Routing {
 
 	r := &Routing{log: o.Log, quit: make(chan struct{})}
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
-	r.matcher.Store(initialMatcher)
+	rt := &routeTable{
+		m:       initialMatcher,
+		created: time.Now().UTC(),
+	}
+	r.routeTable.Store(rt)
 	r.startReceivingUpdates(o)
 	return r
 }
 
+// ServeHTTP renders the list of current routes.
+func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	rt := r.routeTable.Load().(*routeTable)
+	req.ParseForm()
+	createdUnix := strconv.FormatInt(rt.created.Unix(), 10)
+	ts := req.Form.Get("timestamp")
+	if ts != "" {
+		if createdUnix != ts {
+			http.Error(w, "invalid timestamp", http.StatusBadRequest)
+			return
+		}
+	}
+	offset, err := extractParam(req, "offset", 0)
+	if err != nil {
+		http.Error(w, "invalid offset", http.StatusBadRequest)
+		return
+	}
+	limit, err := extractParam(req, "limit", defaultRouteListingLimit)
+	if err != nil {
+		http.Error(w, "invalid limit", http.StatusBadRequest)
+		return
+	}
+	routes := slice(rt.validRoutes, offset, limit)
+	accept := req.Header.Get("accept")
+
+	if strings.Contains(accept, "application/json") {
+		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
+		w.Header().Set("content-type", "application/json")
+		if err := json.NewEncoder(w).Encode(routes); err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set(routeTableTimestampHeaderName, createdUnix)
+	w.Header().Set("content-type", "text/plain")
+	eskip.Fprint(w, extractPretty(req), routes...)
+}
+
 func (r *Routing) startReceivingUpdates(o Options) {
-	c := make(chan *matcher)
+	c := make(chan *routeTable)
 	go receiveRouteMatcher(o, c, r.quit)
 	go func() {
 		for {
 			select {
-			case m := <-c:
-				r.matcher.Store(m)
+			case rt := <-c:
+				r.routeTable.Store(rt)
 				r.log.Info("route settings applied")
 			case <-r.quit:
 				return
@@ -175,17 +225,59 @@ func (r *Routing) startReceivingUpdates(o Options) {
 	}()
 }
 
-// Matches a request in the current routing tree.
+// Route matches a request in the current routing tree.
 //
 // If the request matches a route, returns the route and a map of
 // parameters constructed from the wildcard parameters in the path
 // condition if any. If there is no match, it returns nil.
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
-	m := r.matcher.Load().(*matcher)
-	return m.match(req)
+	rt := r.routeTable.Load().(*routeTable)
+	return rt.m.match(req)
 }
 
-// Closes routing, stops receiving routes.
+// Close closes routing, stops receiving routes.
 func (r *Routing) Close() {
 	close(r.quit)
+}
+
+func slice(r []*eskip.Route, offset int, limit int) []*eskip.Route {
+	if offset > len(r) {
+		offset = len(r)
+	}
+	end := offset + limit
+	if end > len(r) {
+		end = len(r)
+	}
+	result := r[offset:end]
+	if result == nil {
+		return []*eskip.Route{}
+	}
+	return result
+}
+
+func extractParam(r *http.Request, key string, defaultValue int) (int, error) {
+	param := r.Form.Get(key)
+	if param == "" {
+		return defaultValue, nil
+	}
+	val, err := strconv.Atoi(param)
+	if err != nil {
+		return 0, err
+	}
+	if val < 0 {
+		return 0, fmt.Errorf("invalid value `%d` for `%s`", val, key)
+	}
+	return val, nil
+}
+
+func extractPretty(r *http.Request) bool {
+	vals, ok := r.Form["nopretty"]
+	if !ok || len(vals) == 0 {
+		return true
+	}
+	val := vals[0]
+	if val == "0" || val == "false" {
+		return true
+	}
+	return false
 }

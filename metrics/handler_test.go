@@ -2,15 +2,16 @@ package metrics
 
 import (
 	"encoding/json"
-	"github.com/rcrowley/go-metrics"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/rcrowley/go-metrics"
 )
 
 func TestBadRequests(t *testing.T) {
-	o := Options{Listener: ":0", EnableRuntimeMetrics: true}
+	o := Options{EnableRuntimeMetrics: true}
 	r := metrics.NewRegistry()
 	mh := &metricsHandler{registry: r, options: o}
 

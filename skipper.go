@@ -154,7 +154,10 @@ type Options struct {
 	// populate the updated routes faster.
 	DevMode bool
 
-	// Network address for the /metrics endpoint
+	// Network address for the support endpoints
+	SupportListener string
+
+	// Deprecated: Network address for the /metrics endpoint
 	MetricsListener string
 
 	// Skipper provides a set of metrics with different keys which are exposed via HTTP in JSON
@@ -365,18 +368,6 @@ func Run(o Options) error {
 		return err
 	}
 
-	// init metrics
-	metrics.Init(metrics.Options{
-		Listener:                 o.MetricsListener,
-		Prefix:                   o.MetricsPrefix,
-		EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
-		EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
-		EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
-		EnableServeHostMetrics:   o.EnableServeHostMetrics,
-		EnableBackendHostMetrics: o.EnableBackendHostMetrics,
-		EnableProfile:            o.EnableProfile,
-	})
-
 	// create authentication for Innkeeper
 	auth := innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{
 		InnkeeperAuthToken:  o.InnkeeperAuthToken,
@@ -422,7 +413,7 @@ func Run(o Options) error {
 		updateBuffer = 0
 	}
 
-	// include bundeled custom predicates
+	// include bundled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
 		source.New(),
 		interval.NewBetween(),
@@ -464,6 +455,34 @@ func Run(o Options) error {
 		dbg := proxy.WithParams(do)
 		log.Infof("debug listener on %v", o.DebugListener)
 		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
+	}
+
+	// init support endpoints
+	supportListener := o.SupportListener
+
+	// Backward compatibility
+	if supportListener == "" {
+		supportListener = o.MetricsListener
+	}
+
+	if supportListener != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/routes", routing)
+		metricsHandler := metrics.NewHandler(metrics.Options{
+			Prefix:                   o.MetricsPrefix,
+			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
+			EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
+			EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
+			EnableServeHostMetrics:   o.EnableServeHostMetrics,
+			EnableBackendHostMetrics: o.EnableBackendHostMetrics,
+			EnableProfile:            o.EnableProfile,
+		})
+		mux.Handle("/metrics", metricsHandler)
+
+		log.Infof("support listener on %s", supportListener)
+		go http.ListenAndServe(supportListener, mux)
+	} else {
+		log.Infoln("Metrics are disabled")
 	}
 
 	// create the proxy
