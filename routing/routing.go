@@ -1,15 +1,13 @@
 package routing
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
-
-	"encoding/json"
-
-	"strings"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
