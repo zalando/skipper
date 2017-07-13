@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	// Name of the builtin path predicate.
+	// PathName represents the name of builtin path predicate.
 	// (See more details about the Path and PathSubtree predicates
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathName = "Path"
 
-	// Name of the builtin path subtree predicate.
+	// PathSubtreeName represents the name of the builtin path subtree predicate.
 	// (See more details about the Path and PathSubtree predicates
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathSubtreeName = "PathSubtree"
@@ -35,10 +35,10 @@ const (
 type MatchingOptions uint
 
 const (
-	// All options are default.
+	// MatchingOptionsNone indicates that all options are default.
 	MatchingOptionsNone MatchingOptions = 0
 
-	// Ignore trailing slash in paths.
+	// IgnoreTrailingSlash indicates that trailing slashes in paths are ignored.
 	IgnoreTrailingSlash MatchingOptions = 1 << iota
 )
 

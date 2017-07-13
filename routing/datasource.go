@@ -127,15 +127,15 @@ func applyIncoming(defs routeDefs, d *incomingData) routeDefs {
 
 // merges the route definitions from multiple data clients by route id
 func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
-	mergeById := make(routeDefs)
+	mergeByID := make(routeDefs)
 	for _, defs := range defsByClient {
 		for id, def := range defs {
-			mergeById[id] = def
+			mergeByID[id] = def
 		}
 	}
 
 	var all []*eskip.Route
-	for _, def := range mergeById {
+	for _, def := range mergeByID {
 		all = append(all, def)
 	}
 
@@ -396,7 +396,7 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 
 			for _, err := range errs {
 				o.Log.Error(err)
-				invalidRouteIds[err.Id] = struct{}{}
+				invalidRouteIds[err.ID] = struct{}{}
 			}
 
 			for _, r := range routes {
