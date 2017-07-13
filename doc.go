@@ -6,7 +6,8 @@ Skipper works as an HTTP reverse proxy that is responsible for mapping
 incoming requests to multiple HTTP backend services, based on routes
 that are selected by the request attributes. At the same time, both the
 requests and the responses can be augmented by a filter chain that is
-specifically defined for each route.
+specifically defined for each route. Optionally, it can provide circuit
+breaker mechanism individually for each backend host.
 
 Skipper can load and update the route definitions from multiple data
 sources without being restarted.
@@ -188,6 +189,15 @@ updates.
 
 Skipper can use additional data sources, provided by extensions. Sources
 must implement the DataClient interface in the routing package.
+
+
+Circuit Breaker
+
+Skipper provides circuit breakers, configured either globally, based on
+backend hosts or based on individual routes. It supports two types of
+circuit breaker behavior: open on N consecutive failures, or open on N
+failures out of M requests. For details, see:
+https://godoc.org/github.com/zalando/skipper/circuit.
 
 
 Running Skipper
