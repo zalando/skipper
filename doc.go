@@ -167,6 +167,12 @@ Skipper's route definitions of Skipper are loaded from one or more data
 sources. It can receive incremental updates from those data sources at
 runtime. It provides three different data clients:
 
+- Kubernetes: Skipper can be used as part of a Kubernetes Ingress Controller
+implementation together with https://github.com/zalando-incubator/kube-ingress-aws-controller .
+In this scenario, Skipper uses the Kubernetes API's Ingress extensions as
+a source for routing. For a complete deployment example, see more details
+in: https://github.com/zalando-incubator/kubernetes-on-aws/ .
+
 - Innkeeper: the Innkeeper service implements a storage for large sets
 of Skipper routes, with an HTTP+JSON API, OAuth2 authentication and role
 management. See the 'innkeeper' package and
