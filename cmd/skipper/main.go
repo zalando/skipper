@@ -55,7 +55,8 @@ const (
 	oauthUrlUsage                  = "OAuth2 URL for Innkeeper authentication"
 	oauthCredentialsDirUsage       = "directory where oauth credentials are stored: client.json and user.json"
 	oauthScopeUsage                = "the whitespace separated list of oauth scopes"
-	routesFileUsage                = "file containing static route definitions"
+	routesFileUsage                = "file/directory containing static route definitions"
+	watchRoutesFileUsage           = "watch file/directory given with --routes-file option"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	proxyPreserveHostUsage         = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
@@ -107,6 +108,7 @@ var (
 	innkeeperUrl              string
 	sourcePollTimeout         int64
 	routesFile                string
+	watchRoutesFile           bool
 	oauthUrl                  string
 	oauthScope                string
 	oauthCredentialsDir       string
@@ -155,6 +157,7 @@ func init() {
 	flag.StringVar(&innkeeperUrl, "innkeeper-url", "", innkeeperUrlUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
+	flag.BoolVar(&watchRoutesFile, "watch-routes-file", false, watchRoutesFileUsage)
 	flag.StringVar(&oauthUrl, "oauth-url", "", oauthUrlUsage)
 	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
 	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
@@ -241,6 +244,7 @@ func main() {
 		InnkeeperUrl:              innkeeperUrl,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 		RoutesFile:                routesFile,
+		WatchRoutesFile:           watchRoutesFile,
 		IdleConnectionsPerHost:    idleConnsPerHost,
 		CloseIdleConnsPeriod:      time.Duration(clsic) * time.Second,
 		IgnoreTrailingSlash:       false,

@@ -114,8 +114,11 @@ type Options struct {
 	// The whitespace separated list of OAuth2 scopes.
 	OAuthScope string
 
-	// File containing static route definitions.
+	// File or directory containing static route definitions.
 	RoutesFile string
+
+	// Watch route file or directory to get updates
+	WatchRoutesFile bool
 
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
@@ -239,7 +242,14 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
-		f, err := eskipfile.Open(o.RoutesFile)
+		var f *eskipfile.Client
+		var err error
+
+		if o.WatchRoutesFile {
+			f, err = eskipfile.Watch(o.RoutesFile)
+		} else {
+			f, err = eskipfile.Open(o.RoutesFile)
+		}
 		if err != nil {
 			log.Error("error while opening eskip file", err)
 			return nil, err
