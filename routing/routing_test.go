@@ -442,7 +442,34 @@ func TestNonMatchedStaticRoute(t *testing.T) {
 	}
 }
 
-func TestRoutingHandler(t *testing.T) {
+func TestRoutingHandlerParameterChecking(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.Handle("/", routing.New(routing.Options{}))
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resp, _ := http.Get(server.URL + "?offset=-1")
+	if got, want := resp.StatusCode, 400; got != want {
+		t.Errorf("status code = %v, want %v", got, want)
+	}
+
+	resp, _ = http.Get(server.URL + "?limit=-1")
+	if got, want := resp.StatusCode, 400; got != want {
+		t.Errorf("status code = %v, want %v", got, want)
+	}
+
+	resp, _ = http.Get(server.URL + "?offset=foo")
+	if got, want := resp.StatusCode, 400; got != want {
+		t.Errorf("status code = %v, want %v", got, want)
+	}
+
+	resp, _ = http.Get(server.URL + "?offset=10&limit=100")
+	if got, want := resp.StatusCode, 200; got != want {
+		t.Errorf("status code = %v, want %v", got, want)
+	}
+}
+
+func TestRoutingHandlerEskip(t *testing.T) {
 	dc, err := testdataclient.NewDoc(`
         route1: CustomPredicate("custom1") -> "https://route1.example.org";
         route2: CustomPredicate("custom2") -> "https://route2.example.org";
