@@ -6,7 +6,8 @@ Skipper works as an HTTP reverse proxy that is responsible for mapping
 incoming requests to multiple HTTP backend services, based on routes
 that are selected by the request attributes. At the same time, both the
 requests and the responses can be augmented by a filter chain that is
-specifically defined for each route.
+specifically defined for each route. Optionally, it can provide circuit
+breaker mechanism individually for each backend host.
 
 Skipper can load and update the route definitions from multiple data
 sources without being restarted.
@@ -167,6 +168,12 @@ Skipper's route definitions of Skipper are loaded from one or more data
 sources. It can receive incremental updates from those data sources at
 runtime. It provides three different data clients:
 
+- Kubernetes: Skipper can be used as part of a Kubernetes Ingress Controller
+implementation together with https://github.com/zalando-incubator/kube-ingress-aws-controller .
+In this scenario, Skipper uses the Kubernetes API's Ingress extensions as
+a source for routing. For a complete deployment example, see more details
+in: https://github.com/zalando-incubator/kubernetes-on-aws/ .
+
 - Innkeeper: the Innkeeper service implements a storage for large sets
 of Skipper routes, with an HTTP+JSON API, OAuth2 authentication and role
 management. See the 'innkeeper' package and
@@ -182,6 +189,15 @@ updates.
 
 Skipper can use additional data sources, provided by extensions. Sources
 must implement the DataClient interface in the routing package.
+
+
+Circuit Breaker
+
+Skipper provides circuit breakers, configured either globally, based on
+backend hosts or based on individual routes. It supports two types of
+circuit breaker behavior: open on N consecutive failures, or open on N
+failures out of M requests. For details, see:
+https://godoc.org/github.com/zalando/skipper/circuit.
 
 
 Running Skipper

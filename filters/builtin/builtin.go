@@ -6,6 +6,7 @@ package builtin
 import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/filters/cookie"
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
@@ -87,6 +88,9 @@ func MakeRegistry() filters.Registry {
 		cookie.NewResponseCookie(),
 		cookie.NewJSCookie(),
 		logfilter.NewAuditLog(),
+		circuit.NewConsecutiveBreaker(),
+		circuit.NewRateBreaker(),
+		circuit.NewDisableBreaker(),
 	} {
 		r.Register(s)
 	}

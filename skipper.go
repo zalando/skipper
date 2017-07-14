@@ -8,6 +8,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
@@ -153,7 +154,10 @@ type Options struct {
 	// populate the updated routes faster.
 	DevMode bool
 
-	// Network address for the /metrics endpoint
+	// Network address for the support endpoints
+	SupportListener string
+
+	// Deprecated: Network address for the /metrics endpoint
 	MetricsListener string
 
 	// Skipper provides a set of metrics with different keys which are exposed via HTTP in JSON
@@ -226,7 +230,12 @@ type Options struct {
 	// Experimental feature to handle protocol Upgrades for Websockets, SPDY, etc.
 	ExperimentalUpgrade bool
 
+	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
+	// contains loop backends (<loopback>).
 	MaxLoopbacks int
+
+	// BreakerSettings contain global and host specific settings for the circuit breakers.
+	BreakerSettings []circuit.BreakerSettings
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -359,18 +368,6 @@ func Run(o Options) error {
 		return err
 	}
 
-	// init metrics
-	metrics.Init(metrics.Options{
-		Listener:                 o.MetricsListener,
-		Prefix:                   o.MetricsPrefix,
-		EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
-		EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
-		EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
-		EnableServeHostMetrics:   o.EnableServeHostMetrics,
-		EnableBackendHostMetrics: o.EnableBackendHostMetrics,
-		EnableProfile:            o.EnableProfile,
-	})
-
 	// create authentication for Innkeeper
 	auth := innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{
 		InnkeeperAuthToken:  o.InnkeeperAuthToken,
@@ -416,7 +413,7 @@ func Run(o Options) error {
 		updateBuffer = 0
 	}
 
-	// include bundeled custom predicates
+	// include bundled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
 		source.New(),
 		interval.NewBetween(),
@@ -448,12 +445,44 @@ func Run(o Options) error {
 		MaxLoopbacks:           o.MaxLoopbacks,
 	}
 
+	if len(o.BreakerSettings) > 0 {
+		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
+	}
+
 	if o.DebugListener != "" {
 		do := proxyParams
 		do.Flags |= proxy.Debug
 		dbg := proxy.WithParams(do)
 		log.Infof("debug listener on %v", o.DebugListener)
 		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
+	}
+
+	// init support endpoints
+	supportListener := o.SupportListener
+
+	// Backward compatibility
+	if supportListener == "" {
+		supportListener = o.MetricsListener
+	}
+
+	if supportListener != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/routes", routing)
+		metricsHandler := metrics.NewHandler(metrics.Options{
+			Prefix:                   o.MetricsPrefix,
+			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
+			EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
+			EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
+			EnableServeHostMetrics:   o.EnableServeHostMetrics,
+			EnableBackendHostMetrics: o.EnableBackendHostMetrics,
+			EnableProfile:            o.EnableProfile,
+		})
+		mux.Handle("/metrics", metricsHandler)
+
+		log.Infof("support listener on %s", supportListener)
+		go http.ListenAndServe(supportListener, mux)
+	} else {
+		log.Infoln("Metrics are disabled")
 	}
 
 	// create the proxy

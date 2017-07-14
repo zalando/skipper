@@ -73,7 +73,7 @@ type matcher struct {
 
 // An error created if a route definition cannot be processed.
 type definitionError struct {
-	Id       string
+	ID       string
 	Index    int
 	Original error
 }
@@ -83,7 +83,7 @@ func (err *definitionError) Error() string {
 		return err.Original.Error()
 	}
 
-	return fmt.Sprintf("%s [%d]: %v", err.Id, err.Index, err.Original)
+	return fmt.Sprintf("%s [%d]: %v", err.ID, err.Index, err.Original)
 }
 
 // rx identifying the 'free form' wildcards at the end of the paths

@@ -2,10 +2,13 @@ package logging
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/sirupsen/logrus"
+
+	flowidFilter "github.com/zalando/skipper/filters/flowid"
 )
 
 const (
@@ -14,8 +17,8 @@ const (
 	// format:
 	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
-	// We add the duration in ms and a requested host
-	accessLogFormat = combinedLogFormat + " %d %s\n"
+	// We add the duration in ms, a requested host and a flow id
+	accessLogFormat = combinedLogFormat + " %d %s %s\n"
 )
 
 type accessLogFormatter struct {
@@ -77,7 +80,7 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	keys := []string{
 		"host", "timestamp", "method", "uri", "proto",
 		"status", "response-size", "referer", "user-agent",
-		"duration", "requested-host"}
+		"duration", "requested-host", "flow-id"}
 
 	values := make([]interface{}, len(keys))
 	for i, key := range keys {
@@ -102,6 +105,7 @@ func LogAccess(entry *AccessEntry) {
 	referer := ""
 	userAgent := ""
 	requestedHost := ""
+	flowId := ""
 
 	status := entry.StatusCode
 	responseSize := entry.ResponseSize
@@ -115,6 +119,7 @@ func LogAccess(entry *AccessEntry) {
 		referer = entry.Request.Referer()
 		userAgent = entry.Request.UserAgent()
 		requestedHost = entry.Request.Host
+		flowId = entry.Request.Header.Get(flowidFilter.HeaderName)
 	}
 
 	accessLog.WithFields(logrus.Fields{
@@ -129,5 +134,6 @@ func LogAccess(entry *AccessEntry) {
 		"response-size":  responseSize,
 		"requested-host": requestedHost,
 		"duration":       duration,
+		"flow-id":        flowId,
 	}).Infoln()
 }

@@ -127,15 +127,15 @@ func applyIncoming(defs routeDefs, d *incomingData) routeDefs {
 
 // merges the route definitions from multiple data clients by route id
 func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
-	mergeById := make(routeDefs)
+	mergeByID := make(routeDefs)
 	for _, defs := range defsByClient {
 		for id, def := range defs {
-			mergeById[id] = def
+			mergeByID[id] = def
 		}
 	}
 
 	var all []*eskip.Route
-	for _, def := range mergeById {
+	for _, def := range mergeByID {
 		all = append(all, def)
 	}
 
@@ -353,48 +353,70 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 }
 
 // processes a set of route definitions for the routing table
-func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) []*Route {
+func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route) {
 	cpm := mapPredicates(o.Predicates)
-
-	var routes []*Route
 	for _, def := range defs {
 		route, err := processRouteDef(cpm, fr, def)
 		if err == nil {
 			routes = append(routes, route)
 		} else {
+			invalidDefs = append(invalidDefs, def)
 			o.Log.Error(err)
 		}
 	}
+	return
+}
 
-	return routes
+type routeTable struct {
+	m             *matcher
+	validRoutes   []*eskip.Route
+	invalidRoutes []*eskip.Route
+	created       time.Time
 }
 
 // receives the next version of the routing table on the output channel,
 // when an update is received on one of the data clients.
-func receiveRouteMatcher(o Options, out chan<- *matcher, quit <-chan struct{}) {
+func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}) {
 	updates := receiveRouteDefs(o, quit)
 	var (
-		mout         *matcher
-		outRelay     chan<- *matcher
+		rt           *routeTable
+		outRelay     chan<- *routeTable
 		updatesRelay <-chan []*eskip.Route
 	)
-
 	updatesRelay = updates
 	for {
 		select {
 		case defs := <-updatesRelay:
 			o.Log.Info("route settings received")
-			routes := processRouteDefs(o, o.FilterRegistry, defs)
+			routes, invalidRoutes := processRouteDefs(o, o.FilterRegistry, defs)
 			m, errs := newMatcher(routes, o.MatchingOptions)
+
+			invalidRouteIds := make(map[string]struct{})
+			validRoutes := []*eskip.Route{}
+
 			for _, err := range errs {
 				o.Log.Error(err)
+				invalidRouteIds[err.ID] = struct{}{}
 			}
 
-			mout = m
+			for _, r := range routes {
+				if _, found := invalidRouteIds[r.Id]; found {
+					invalidRoutes = append(invalidRoutes, &r.Route)
+				} else {
+					validRoutes = append(validRoutes, &r.Route)
+				}
+			}
+
+			rt = &routeTable{
+				m:             m,
+				validRoutes:   validRoutes,
+				invalidRoutes: invalidRoutes,
+				created:       time.Now().UTC(),
+			}
 			updatesRelay = nil
 			outRelay = out
-		case outRelay <- mout:
-			mout = nil
+		case outRelay <- rt:
+			rt = nil
 			updatesRelay = updates
 			outRelay = nil
 		case <-quit:

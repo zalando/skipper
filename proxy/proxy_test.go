@@ -480,14 +480,14 @@ func TestAppliesFilters(t *testing.T) {
 	}
 }
 
-type breaker struct {
+type shunter struct {
 	resp *http.Response
 }
 
-func (b *breaker) Request(c filters.FilterContext)                       { c.Serve(b.resp) }
-func (*breaker) Response(filters.FilterContext)                          {}
-func (b *breaker) CreateFilter(fc []interface{}) (filters.Filter, error) { return b, nil }
-func (*breaker) Name() string                                            { return "breaker" }
+func (b *shunter) Request(c filters.FilterContext)                       { c.Serve(b.resp) }
+func (*shunter) Response(filters.FilterContext)                          {}
+func (b *shunter) CreateFilter(fc []interface{}) (filters.Filter, error) { return b, nil }
+func (*shunter) Name() string                                            { return "shunter" }
 
 func TestBreakFilterChain(t *testing.T) {
 	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {
@@ -503,14 +503,14 @@ func TestBreakFilterChain(t *testing.T) {
 		StatusCode: http.StatusUnauthorized,
 		Status:     "Impossible body",
 	}
-	fr.Register(&breaker{resp1})
+	fr.Register(&shunter{resp1})
 	fr.Register(builtin.NewResponseHeader())
 
 	doc := fmt.Sprintf(`breakerDemo:
-		Path("/breaker") ->
+		Path("/shunter") ->
 		requestHeader("X-Expected", "request header") ->
 		responseHeader("X-Expected", "response header") ->
-		breaker() ->
+		shunter() ->
 		requestHeader("X-Unexpected", "foo") ->
 		responseHeader("X-Unexpected", "bar") ->
 		"%s"`, s.URL)
@@ -522,7 +522,7 @@ func TestBreakFilterChain(t *testing.T) {
 
 	defer tp.close()
 
-	r, _ := http.NewRequest("GET", "https://www.example.org/breaker", nil)
+	r, _ := http.NewRequest("GET", "https://www.example.org/shunter", nil)
 	w := httptest.NewRecorder()
 	tp.proxy.ServeHTTP(w, r)
 
@@ -535,11 +535,11 @@ func TestBreakFilterChain(t *testing.T) {
 	}
 
 	if _, has := r.Header["X-Unexpected"]; has {
-		t.Error("Request has an unexpected header from a filter after the breaker in the chain")
+		t.Error("Request has an unexpected header from a filter after the shunter in the chain")
 	}
 
 	if _, has := w.Header()["X-Unexpected"]; has {
-		t.Error("Response has an unexpected header from a filter after the breaker in the chain")
+		t.Error("Response has an unexpected header from a filter after the shunter in the chain")
 	}
 
 	if w.Code != http.StatusUnauthorized && w.Body.String() != "Impossible body" {
