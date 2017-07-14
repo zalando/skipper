@@ -234,6 +234,13 @@ type Options struct {
 	// contains loop backends (<loopback>).
 	MaxLoopbacks int
 
+	// EnableBreakers enables the usage of the breakers in the route definitions without initializing any
+	// by default. It a shortcut for setting the BreakerSettings to:
+	//
+	// 	[]circuit.BreakerSettings{{Type: BreakerDisabled}}
+	//
+	EnableBreakers bool
+
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
 }
@@ -445,7 +452,7 @@ func Run(o Options) error {
 		MaxLoopbacks:           o.MaxLoopbacks,
 	}
 
-	if len(o.BreakerSettings) > 0 {
+	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
 		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
 	}
 
