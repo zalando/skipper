@@ -1,5 +1,5 @@
-hash: c2aeee8afc500ad0e703594c89912297553b82423100ad118a93bb0fae90461b
-updated: 2017-06-27T17:15:18.552017159+02:00
+hash: 4dc4ee74e6bc0eee494447e86eb60799cfa641da99c744a3e8907a4368be7e13
+updated: 2017-07-17T17:41:52.892995639+02:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
@@ -10,7 +10,9 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: 1f30fe9094a513ce4c700b9a54458bbb0c96996c
 - name: github.com/sirupsen/logrus
-  version: 202f25545ea4cf9b191ff7f846df5d87c9382c2b
+  version: a3f95b5c423586578a4e099b11a46c2479628cac
+- name: github.com/sony/gobreaker
+  version: e9556a45379ef1da12e54847edb2fb3d7d566f36
 - name: github.com/zalando/pathmux
   version: 90241ddcbc6161a874026d890f4bed831b5dfbb5
 - name: golang.org/x/crypto
