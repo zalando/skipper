@@ -1,10 +1,14 @@
-hash: 4dc4ee74e6bc0eee494447e86eb60799cfa641da99c744a3e8907a4368be7e13
-updated: 2017-07-17T17:41:52.892995639+02:00
+hash: b32ab68082d8773a25dc4ff8236d060a3680e5d4e7f322b248b8b4a06d52e334
+updated: 2017-07-17T18:21:39.526808142+02:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
 - name: github.com/dimfeld/httppath
   version: c8e499c3ef3c3e272ed8bdcc1ccf39f73c88debc
+- name: github.com/google/go-cmp
+  version: e6ff442c1751c5257df71dd2a42b9bcbbd6f01a6
+  subpackages:
+  - cmp
 - name: github.com/oklog/ulid
   version: d311cb43c92434ec4072dfbbda3400741d0a6337
 - name: github.com/rcrowley/go-metrics
