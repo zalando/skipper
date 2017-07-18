@@ -164,9 +164,7 @@ func (m *Metrics) MeasureBackend(routeId string, start time.Time) {
 }
 
 func (m *Metrics) MeasureBackendHost(routeBackendHost string, start time.Time) {
-	println("measuring backend host")
 	if m.options.EnableBackendHostMetrics {
-		println("backend host measures enabled")
 		m.measureSince(fmt.Sprintf(KeyProxyBackendHost, hostForKey(routeBackendHost)), start)
 	}
 }
