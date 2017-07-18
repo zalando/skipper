@@ -71,7 +71,9 @@ check-fmt: $(SOURCES)
 	@if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi
 
 check-imports:
-	@glide list
+	@glide list && true || \
+	(echo "run make deps and check if any new dependencies were vendored with glide get" && \
+	false)
 
 precommit: check-imports fmt build shortcheck vet
 
