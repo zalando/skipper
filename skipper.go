@@ -235,7 +235,7 @@ type Options struct {
 	MaxLoopbacks int
 
 	// EnableBreakers enables the usage of the breakers in the route definitions without initializing any
-	// by default. It a shortcut for setting the BreakerSettings to:
+	// by default. It is a shortcut for setting the BreakerSettings to:
 	//
 	// 	[]circuit.BreakerSettings{{Type: BreakerDisabled}}
 	//
