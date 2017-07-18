@@ -70,9 +70,14 @@ fmt: $(SOURCES)
 check-fmt: $(SOURCES)
 	@if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi
 
-precommit: build shortcheck fmt vet
+check-imports:
+	@glide list && true || \
+	(echo "run make deps and check if any new dependencies were vendored with glide get" && \
+	false)
 
-check-precommit: build shortcheck check-fmt vet
+precommit: check-imports fmt build shortcheck vet
+
+check-precommit: check-imports check-fmt build shortcheck vet
 
 .coverprofile-all: $(SOURCES)
 	# go list -f \
