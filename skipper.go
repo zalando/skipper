@@ -468,6 +468,7 @@ func Run(o Options) error {
 	if supportListener != "" {
 		mux := http.NewServeMux()
 		mux.Handle("/routes", routing)
+		mux.Handle("/routes/", routing)
 		metricsHandler := metrics.NewHandler(metrics.Options{
 			Prefix:                   o.MetricsPrefix,
 			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
@@ -478,6 +479,9 @@ func Run(o Options) error {
 			EnableProfile:            o.EnableProfile,
 		})
 		mux.Handle("/metrics", metricsHandler)
+		mux.Handle("/metrics/", metricsHandler)
+		mux.Handle("/debug/pprof", metricsHandler)
+		mux.Handle("/debug/pprof/", metricsHandler)
 
 		log.Infof("support listener on %s", supportListener)
 		go http.ListenAndServe(supportListener, mux)
