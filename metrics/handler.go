@@ -48,8 +48,10 @@ func (mh *metricsHandler) sendMetrics(w http.ResponseWriter, p string) {
 
 // This listener is only used to expose the metrics
 func (mh *metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	println("requesting metrics")
 	p := r.URL.Path
 	if r.Method == "GET" && (p == "/metrics" || strings.HasPrefix(p, "/metrics/")) {
+		println("sending metrics")
 		mh.sendMetrics(w, strings.TrimPrefix(p, "/metrics"))
 	} else if mh.profile != nil && r.Method == "GET" && (p == "/debug/pprof" || strings.HasPrefix(p, "/debug/pprof/")) {
 		mh.profile.ServeHTTP(w, r)
