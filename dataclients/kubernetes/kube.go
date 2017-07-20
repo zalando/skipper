@@ -75,9 +75,9 @@ var internalIPs = []interface{}{
 	"10.0.0.0/8",
 	"192.168.0.0/16",
 	"172.16.0.0/12",
-	"127.0.0.1/32",
+	"127.0.0.1/8",
 	"fd00::/8",
-	"::1/32",
+	"::1/128",
 }
 
 // Options is used to initialize the Kubernetes DataClient.
