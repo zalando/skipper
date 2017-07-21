@@ -19,7 +19,7 @@ const breakerUsage = `set global or host specific circuit breakers, e.g. -breake
 	idle-ttl: duration string or milliseconds after the breaker is considered idle and reset
 	(see also: https://godoc.org/github.com/zalando/skipper/circuit)`
 
-const enableBreakersUsage = `enable breakers to be set from filters without providing gobal or host settings (equivalent to: -breaker type=disabled)`
+const enableBreakersUsage = `enable breakers to be set from filters without providing global or host settings (equivalent to: -breaker type=disabled)`
 
 type breakerFlags []circuit.BreakerSettings
 
