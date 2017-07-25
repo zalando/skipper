@@ -12,10 +12,10 @@ import (
 	"net/url"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
+	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
@@ -121,6 +121,7 @@ type Params struct {
 
 var (
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
+	errRouteLookupFailed   = &proxyError{code: http.StatusNotFound}
 	errCircuitBreakerOpen  = &proxyError{
 		err:  errors.New("circuit breaker open"),
 		code: http.StatusServiceUnavailable,
@@ -169,6 +170,7 @@ type Proxy struct {
 	experimentalUpgrade bool
 	maxLoops            int
 	breakers            *circuit.Registry
+	log                 logging.Logger
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -328,6 +330,7 @@ func WithParams(p Params) *Proxy {
 		experimentalUpgrade: p.ExperimentalUpgrade,
 		maxLoops:            p.MaxLoopbacks,
 		breakers:            p.CircuitBreakers,
+		log:                 &logging.DefaultLog{},
 	}
 }
 
@@ -359,7 +362,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 				return
 			}
 
-			log.Errorf("error while processing filter during request: %s: %v", fi.Name, err)
+			p.log.Errorf("error while processing filter during request: %s: %v", fi.Name, err)
 		})
 
 		filters = append(filters, fi)
@@ -391,7 +394,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 				return
 			}
 
-			log.Errorf("error while processing filters during response: %s: %v", fi.Name, err)
+			p.log.Errorf("error while processing filters during response: %s: %v", fi.Name, err)
 		})
 	}
 
@@ -432,7 +435,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 	// have to parse url again, because path is not copied by mapRequest
 	backendURL, err := url.Parse(route.Backend)
 	if err != nil {
-		log.Errorf("can not parse backend %s, caused by: %s", route.Backend, err)
+		p.log.Errorf("can not parse backend %s, caused by: %s", route.Backend, err)
 		return &proxyError{
 			err:  err,
 			code: http.StatusBadGateway,
@@ -449,14 +452,14 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 	}
 
 	upgradeProxy.serveHTTP(ctx.responseWriter, req)
-	log.Debugf("finished upgraded protocol %s session", getUpgradeRequest(ctx.request))
+	p.log.Debugf("finished upgraded protocol %s session", getUpgradeRequest(ctx.request))
 	return nil
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
 	if err != nil {
-		log.Errorf("could not map backend request, caused by: %v", err)
+		p.log.Errorf("could not map backend request, caused by: %v", err)
 		return nil, err
 	}
 
@@ -471,7 +474,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
-		log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
+		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
 		if _, ok := err.(net.Error); ok {
 			err = &proxyError{
 				err:  err,
@@ -518,8 +521,8 @@ func (p *Proxy) do(ctx *context) error {
 			p.metrics.IncRoutingFailures()
 		}
 
-		log.Debugf("could not find a route for %v", ctx.request.URL)
-		return &proxyError{code: http.StatusNotFound}
+		p.log.Debugf("could not find a route for %v", ctx.request.URL)
+		return errRouteLookupFailed
 	}
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
@@ -527,7 +530,7 @@ func (p *Proxy) do(ctx *context) error {
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 
 	if ctx.deprecatedShunted() {
-		log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
+		p.log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}
 	} else if ctx.shunted() || ctx.route.Shunt || ctx.route.BackendType == eskip.ShuntBackend {
 		ctx.ensureDefaultResponse()
@@ -596,7 +599,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
-		log.Error("error while copying the response stream", err)
+		p.log.Error("error while copying the response stream", err)
 	} else {
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
@@ -638,8 +641,9 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	switch {
 	case err == errCircuitBreakerOpen:
 		ctx.responseWriter.Header().Set("X-Circuit-Open", "true")
+	case err == errRouteLookupFailed:
 	default:
-		log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
+		p.log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
 	}
 
 	p.sendError(ctx, id, code)
@@ -654,7 +658,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if ctx.response != nil && ctx.response.Body != nil {
 			err := ctx.response.Body.Close()
 			if err != nil {
-				log.Error("error during closing the response body", err)
+				p.log.Error("error during closing the response body", err)
 			}
 		}
 	}()
