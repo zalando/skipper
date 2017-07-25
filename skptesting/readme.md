@@ -79,7 +79,7 @@ results.
 ## Print CPU Profile
 
 ```
-skptestint/print-cpu-profile.sh
+skptesting/print-cpu-profile.sh
 ```
 
 Prints the CPU profile saved from the last run of skptesting/profile-proxy.sh.
@@ -87,7 +87,7 @@ Prints the CPU profile saved from the last run of skptesting/profile-proxy.sh.
 ## Print Memory Profile
 
 ```
-skptestint/print-mem-profile.sh
+skptesting/print-mem-profile.sh
 ```
 
 Prints the CPU profile saved from the last run of skptesting/profile-proxy.sh.
