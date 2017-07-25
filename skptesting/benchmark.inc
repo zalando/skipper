@@ -48,6 +48,11 @@ cleanup() {
 	kill $pids
 }
 
+cleanup-exit() {
+	cleanup
+	exit 0
+}
+
 skp() {
 	tlskey=
 	tlscert=
