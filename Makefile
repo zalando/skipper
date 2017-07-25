@@ -60,6 +60,8 @@ deps:
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	go get github.com/Masterminds/glide
 	glide install --strip-vendor
+	# fix vendored deps:
+	rm -rf vendor/github.com/sirupsen/logrus/examples # breaks go install ./...
 
 vet: $(SOURCES)
 	go vet $(PACKAGES)
