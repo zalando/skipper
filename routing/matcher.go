@@ -241,14 +241,11 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, s
 		}
 
 		if subtree {
-			println("adding subtree", p, len(m.leaves))
 			if err := addSubtreeMatcher(pathTree, p, m); err != nil {
 				errors = append(errors, &definitionError{Index: -1, Original: err})
 			}
 		} else {
-			println("adding path", p)
 			if err := pathTree.Add(p, m); err != nil {
-				println("has error")
 				errors = append(errors, &definitionError{Index: -1, Original: err})
 				continue
 			}
@@ -311,9 +308,11 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	setPath := func(path string, l *leafMatcher) {
 		path = cleanPath(path, o)
 
-		// if subtree already defined, use it
+		// if a subtree already defined, use it
 		pm, ok := subtreeMatchers[trimTrailingSlash(path)]
-		if !ok {
+		if ok {
+			l.exactPath = path
+		} else {
 			pm, ok = pathMatchers[path]
 			if !ok {
 				pm = &pathMatcher{freeWildcardParam: freeWildcardParam(path)}
@@ -345,8 +344,8 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	}
 
 	pathTree := &pathmux.Tree{}
-	errors = append(errors, addTreeMatchers(pathTree, subtreeMatchers, true)...)
 	errors = append(errors, addTreeMatchers(pathTree, pathMatchers, false)...)
+	errors = append(errors, addTreeMatchers(pathTree, subtreeMatchers, true)...)
 
 	// sort root leaves during construction time, based on their priority
 	sort.Stable(rootLeaves)
@@ -434,7 +433,6 @@ func matchPredicates(cps []Predicate, req *http.Request) bool {
 // matches a request to the conditions in a leaf matcher
 func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 	if l.exactPath != "" && l.exactPath != path {
-		println("failing on exact path", l.exactPath, path)
 		return false
 	}
 
@@ -464,9 +462,7 @@ func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 // matches a request to a set of leaf matchers
 func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatcher {
 	for _, l := range leaves {
-		println("matching leaf")
 		if matchLeaf(l, req, path) {
-			println("a match")
 			return l
 		}
 	}
@@ -478,11 +474,8 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatch
 // returns the associated value, and the wildcard parameters from the path definition,
 // if any.
 func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
-	println("matching")
-
 	// normalize path before matching
 	// in case ignoring trailing slashes, match without the trailing slash
-	println("nil check", r.URL == nil, m == nil)
 	path := cleanPath(r.URL.Path, m.matchingOptions)
 	lrm := &leafRequestMatcher{r, path}
 
@@ -492,8 +485,6 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	if l != nil {
 		return l.route, params
 	}
-
-	println("no path, trying root")
 
 	// if no path match, match root leaves for other conditions
 	l = matchLeaves(m.rootLeaves, r, path)
