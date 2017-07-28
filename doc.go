@@ -162,6 +162,9 @@ parser.)
 For further details, see the 'eskip' package documentation
 
 
+TODO: mention oauth
+
+
 Data Sources
 
 Skipper's route definitions of Skipper are loaded from one or more data
