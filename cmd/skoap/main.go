@@ -99,7 +99,7 @@ https://godoc.org/github.com/zalando/skipper/eskip`
 	insecureUsage = `when this flag set, skipper will skip TLS verification`
 
 	authUrlBaseUsage = `URL base of the authentication service. The authentication token found
-in the incoming requests will be validated agains this service. It will be passed as the Authorization Bearer
+in the incoming requests will be validated against this service. It will be passed as the Authorization Bearer
 header`
 
 	groupUrlBaseUsage = `URL base of the group service. The user id received from the authentication service will
@@ -284,8 +284,8 @@ func main() {
 				filterArgs = append(filterArgs, "")
 			}
 
-			argss := strings.Split(args, ",")
-			for _, a := range argss {
+			argsList := strings.Split(args, ",")
+			for _, a := range argsList {
 				filterArgs = append(filterArgs, a)
 			}
 		}

@@ -79,7 +79,7 @@ func (tb *teeBody) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// Creates an auditLog filter specification. It expects a writer for
+// NewAuditLog creates an auditLog filter specification. It expects a writer for
 // the output of the log entries.
 //
 //     spec := NewAuditLog()
@@ -143,6 +143,6 @@ func (al *auditLog) Response(ctx filters.FilterContext) {
 	enc := json.NewEncoder(al.writer)
 	err := enc.Encode(&doc)
 	if err != nil {
-		log.Println(err)
+		log.Errorf("Failed to json encode auditDoc: %v", err)
 	}
 }

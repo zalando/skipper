@@ -65,8 +65,6 @@ type (
 		realm       string
 		args        []string
 	}
-
-	// basic string
 )
 
 var (
@@ -168,7 +166,7 @@ func newSpec(typ roleCheckType) filters.Spec {
 	return &spec{typ: typ}
 }
 
-// Creates a new auth filter specification to validate authorization
+// NewAuth creates a new auth filter specification to validate authorization
 // tokens, optionally check realms and optionally check scopes.
 //
 // authUrlBase: the url of the token validation service.
@@ -182,7 +180,7 @@ func NewAuth() filters.Spec {
 	return newSpec(checkScope)
 }
 
-// Creates a new auth filter specification to validate authorization
+// NewAuditGroup reates a new auth filter specification to validate authorization
 // tokens, optionally check realms and optionally check groups.
 //
 // authUrlBase: the url of the token validation service. The filter
@@ -269,7 +267,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	a, err := f.authClient.validate(token)
+	authDoc, err := f.authClient.validate(token)
 	if err != nil {
 		reason := authServiceAccess
 		if err == errInvalidToken {
@@ -282,62 +280,29 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if !f.validateRealm(a) {
-		unauthorized(ctx, a.Uid, invalidRealm)
+	if !f.validateRealm(authDoc) {
+		unauthorized(ctx, authDoc.Uid, invalidRealm)
 		return
 	}
 
 	if f.typ == checkScope {
-		if !f.validateScope(a) {
-			unauthorized(ctx, a.Uid, invalidScope)
+		if !f.validateScope(authDoc) {
+			unauthorized(ctx, authDoc.Uid, invalidScope)
 			return
 		}
 
-		authorized(ctx, a.Uid)
+		authorized(ctx, authDoc.Uid)
 		return
 	}
 
-	if valid, err := f.validateGroup(token, a); err != nil {
-		unauthorized(ctx, a.Uid, groupServiceAccess)
+	if valid, err := f.validateGroup(token, authDoc); err != nil {
+		unauthorized(ctx, authDoc.Uid, groupServiceAccess)
 		log.Println(err)
 	} else if !valid {
-		unauthorized(ctx, a.Uid, invalidGroup)
+		unauthorized(ctx, authDoc.Uid, invalidGroup)
 	} else {
-		authorized(ctx, a.Uid)
+		authorized(ctx, authDoc.Uid)
 	}
 }
 
 func (f *filter) Response(_ filters.FilterContext) {}
-
-// // Creates basicAuth filter specification.
-// func NewBasicAuth() filters.Spec { return basic(BasicAuthName) }
-//
-// func (b basic) Name() string { return BasicAuthName }
-//
-// func (b basic) CreateFilter(args []interface{}) (filters.Filter, error) {
-// 	var (
-// 		uname, pwd string
-// 		ok         bool
-// 	)
-//
-// 	if len(args) > 0 {
-// 		if uname, ok = args[0].(string); !ok {
-// 			return nil, filters.ErrInvalidFilterParameters
-// 		}
-// 	}
-//
-// 	if len(args) > 1 {
-// 		if pwd, ok = args[1].(string); !ok {
-// 			return nil, filters.ErrInvalidFilterParameters
-// 		}
-// 	}
-//
-// 	v := base64.StdEncoding.EncodeToString([]byte(uname + ":" + pwd))
-// 	return basic("Basic " + v), nil
-// }
-//
-// func (b basic) Request(ctx filters.FilterContext) {
-// 	ctx.Request().Header.Set(authHeaderName, string(b))
-// }
-//
-// func (b basic) Response(_ filters.FilterContext) {}
