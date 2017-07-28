@@ -255,6 +255,36 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, s
 	return errors
 }
 
+func addLeafToPath(pms map[string]*pathMatcher, path string, l *leafMatcher) {
+	pm, ok := pms[path]
+	if !ok {
+		pm = &pathMatcher{freeWildcardParam: freeWildcardParam(path)}
+		pms[path] = pm
+	}
+
+	pm.leaves = append(pm.leaves, l)
+}
+
+func moveToSubtreeIfExists(subtree *pathMatcher, paths map[string]*pathMatcher, path string) {
+	pm, exists := paths[path]
+	if !exists {
+		return
+	}
+
+	for _, l := range pm.leaves {
+		subtree.leaves = append(subtree.leaves, l)
+	}
+
+	delete(paths, path)
+}
+
+func moveConflictingToSubtree(subtrees, paths map[string]*pathMatcher) {
+	for p, stm := range subtrees {
+		moveToSubtreeIfExists(stm, paths, p)
+		moveToSubtreeIfExists(stm, paths, p+"/")
+	}
+}
+
 // constructs a matcher based on the provided definitions.
 //
 // If `ignoreTrailingSlash` is true, the matcher handles
@@ -275,54 +305,6 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	pathMatchers := make(map[string]*pathMatcher)
 	subtreeMatchers := make(map[string]*pathMatcher)
 
-	moveToSubtree := func(pm *pathMatcher, path string) {
-		move, ok := pathMatchers[path]
-		if !ok {
-			return
-		}
-
-		for _, li := range move.leaves {
-			li.exactPath = path
-			pm.leaves = append(pm.leaves, li)
-		}
-
-		delete(pathMatchers, path)
-	}
-
-	setSubtree := func(path string, l *leafMatcher) {
-		path = cleanPath(path, o|IgnoreTrailingSlash)
-
-		pm, ok := subtreeMatchers[path]
-		if !ok {
-			pm = &pathMatcher{freeWildcardParam: freeWildcardParam(path)}
-			subtreeMatchers[path] = pm
-		}
-
-		pm.leaves = append(pm.leaves, l)
-
-		// move conflicting path matchers to the subtree
-		moveToSubtree(pm, path)
-		moveToSubtree(pm, path+"/")
-	}
-
-	setPath := func(path string, l *leafMatcher) {
-		path = cleanPath(path, o)
-
-		// if a subtree already defined, use it
-		pm, ok := subtreeMatchers[trimTrailingSlash(path)]
-		if ok {
-			l.exactPath = path
-		} else {
-			pm, ok = pathMatchers[path]
-			if !ok {
-				pm = &pathMatcher{freeWildcardParam: freeWildcardParam(path)}
-				pathMatchers[path] = pm
-			}
-		}
-
-		pm.leaves = append(pm.leaves, l)
-	}
-
 	for i, r := range rs {
 		l, err := newLeaf(r)
 		if err != nil {
@@ -331,7 +313,8 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 		}
 
 		if r.pathSubtree != "" {
-			setSubtree(r.pathSubtree, l)
+			path := cleanPath(r.pathSubtree, o|IgnoreTrailingSlash)
+			addLeafToPath(subtreeMatchers, path, l)
 			continue
 		}
 
@@ -340,8 +323,11 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
-		setPath(r.path, l)
+		path := cleanPath(r.path, o)
+		addLeafToPath(pathMatchers, path, l)
 	}
+
+	moveConflictingToSubtree(subtreeMatchers, pathMatchers)
 
 	pathTree := &pathmux.Tree{}
 	errors = append(errors, addTreeMatchers(pathTree, pathMatchers, false)...)
