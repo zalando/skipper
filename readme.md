@@ -59,12 +59,18 @@ Start Skipper and make an HTTP request:
     skipper -routes-file example.eskip &
     curl localhost:9090/hello
 
-##### Kubernetes Ingress
+#### Kubernetes Ingress
 
 Skipper can be used to run as an Ingress implementation. A [production
 example](https://github.com/zalando-incubator/kubernetes-on-aws/blob/dev/cluster/manifests/skipper/daemonset.yaml)
 can be found in our [Kubernetes
 configuration](https://github.com/zalando-incubator/kubernetes-on-aws).
+
+#### Authentication Proxy
+
+Skipper can be used as an authentication proxy, to check incoming requests with a OAuth provider. See the
+documentation at:
+[https://godoc.org/github.com/zalando/skipper/filters/auth](https://godoc.org/github.com/zalando/skipper/filters/auth).
 
 #### Working with the code
 

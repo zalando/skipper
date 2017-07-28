@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"github.com/zalando-incubator/skoap"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 )
@@ -26,7 +27,7 @@ const (
 	preserveHeaderFlag = "preserve-header"
 	realmFlag          = "realm"
 	scopesFlag         = "scopes"
-	teamsFlag          = "teams"
+	groupsFlag         = "groups"
 	auditFlag          = "audit-log"
 	auditBodyFlag      = "audit-log-limit"
 	routesFileFlag     = "routes-file"
@@ -36,8 +37,8 @@ const (
 	authUrlBaseFlag    = "auth-url"
 	defaultAuthUrlBase = "http://[::1]:9081"
 
-	teamUrlBaseFlag    = "team-url"
-	defaultTeamUrlBase = "http://[::1]:9082/?uid="
+	groupUrlBaseFlag    = "group-url"
+	defaultGroupUrlBase = "http://[::1]:9082/?uid="
 
 	tlsCertFlag = "tls-cert"
 	tlsKeyFlag  = "tls-key"
@@ -52,14 +53,14 @@ const (
 skoap - Skipper based reverse proxy with authentication.
 
 Use the skoap proxy to verify authorization tokens before forwarding requests, and optionally check OAuth2 realms
-and scope or team membership. In addition to check incoming requests, optionally set basic authorization headers
+and scope or group membership. In addition to check incoming requests, optionally set basic authorization headers
 for outgoing requests.
 
 The command supports two modes:
 - single route mode: when a target address is specified, only a single route is used and the authorization
-  parameters (realm and scopes or teams) are specified as command line flags.
+  parameters (realm and scopes or groups) are specified as command line flags.
 - routes configuration: supports any number of routes with custom predicate and filter settings. The
-  authorization parameters are set in the routes file with the auth and authTeam filters.
+  authorization parameters are set in the routes file with the auth and authGroup filters.
 
 When used with eskip configuration files, it is possible to apply detailed augmentation of the requests and
 responses using Skipper rules.
@@ -84,7 +85,7 @@ file is used, the realm can be set for each auth filter reference individually`
 	scopesUsage = `a comma separated list of the OAuth2 scopes to be checked in addition to the token validation
 and the realm check`
 
-	teamsUsage = `a comma separated list of the teams to be checked in addition to the token validation and the
+	groupsUsage = `a comma separated list of the groups to be checked in addition to the token validation and the
 realm check`
 
 	auditUsage = `enable audit log in single route mode`
@@ -92,7 +93,7 @@ realm check`
 	auditBodyUsage = `set the limit of the audit log body`
 
 	routesFileUsage = `alternatively to the target address, it is possible to use a full eskip route
-configuration, and specify the auth() and authTeam() filters for the routes individually. See also:
+configuration, and specify the auth() and authGroup() filters for the routes individually. See also:
 https://godoc.org/github.com/zalando/skipper/eskip`
 
 	insecureUsage = `when this flag set, skipper will skip TLS verification`
@@ -101,8 +102,8 @@ https://godoc.org/github.com/zalando/skipper/eskip`
 in the incoming requests will be validated agains this service. It will be passed as the Authorization Bearer
 header`
 
-	teamUrlBaseUsage = `URL base of the team service. The user id received from the authentication service will
-be appended to this url, and the list of teams that the user is a member of will be requested`
+	groupUrlBaseUsage = `URL base of the group service. The user id received from the authentication service will
+be appended to this url, and the list of groups that the user is a member of will be requested`
 
 	// TODO
 	certPathTLSUsage = "path of the certificate file"
@@ -125,13 +126,13 @@ var (
 	preserveHeader      bool
 	realm               string
 	scopes              string
-	teams               string
+	groups              string
 	audit               bool
 	auditBody           int
 	routesFile          string
 	insecure            bool
 	authUrlBase         string
-	teamUrlBase         string
+	groupUrlBase        string
 	certPathTLS         string
 	keyPathTLS          string
 	verbose             bool
@@ -162,13 +163,13 @@ func init() {
 	fs.BoolVar(&preserveHeader, preserveHeaderFlag, false, preserveHeaderUsage)
 	fs.StringVar(&realm, realmFlag, "", realmUsage)
 	fs.StringVar(&scopes, scopesFlag, "", scopesUsage)
-	fs.StringVar(&teams, teamsFlag, "", teamsUsage)
+	fs.StringVar(&groups, groupsFlag, "", groupsUsage)
 	fs.BoolVar(&audit, auditFlag, false, auditUsage)
 	fs.IntVar(&auditBody, auditBodyFlag, 1024, auditBodyUsage)
 	fs.StringVar(&routesFile, routesFileFlag, "", routesFileUsage)
 	fs.BoolVar(&insecure, insecureFlag, false, insecureUsage)
 	fs.StringVar(&authUrlBase, authUrlBaseFlag, "", authUrlBaseUsage)
-	fs.StringVar(&teamUrlBase, teamUrlBaseFlag, "", teamUrlBaseUsage)
+	fs.StringVar(&groupUrlBase, groupUrlBaseFlag, "", groupUrlBaseUsage)
 	fs.StringVar(&certPathTLS, tlsCertFlag, "", certPathTLSUsage)
 	fs.StringVar(&keyPathTLS, tlsKeyFlag, "", keyPathTLSUsage)
 	fs.BoolVar(&verbose, verboseFlag, false, verboseUsage)
@@ -215,36 +216,36 @@ func main() {
 
 	singleRouteMode := targetAddress != ""
 
-	if !singleRouteMode && (preserveHeader || realm != "" || scopes != "" || teams != "" || audit || auditBody != 1024) {
-		logUsage("the preserve-header, realm, scopes, teams, audit-log and audit-log-limit flags can be used only together with the target-address flag (single route mode)")
+	if !singleRouteMode && (preserveHeader || realm != "" || scopes != "" || groups != "" || audit || auditBody != 1024) {
+		logUsage("the preserve-header, realm, scopes, groups, audit-log and audit-log-limit flags can be used only together with the target-address flag (single route mode)")
 	}
 
 	if !audit && auditBody != 1024 {
 		logUsage("the audit-log-limit flag can be set only together with the audit-log flag")
 	}
 
-	if scopes != "" && teams != "" {
-		logUsage("the scopes and teams flags cannot be used together")
+	if scopes != "" && groups != "" {
+		logUsage("the scopes and groups flags cannot be used together")
 	}
 
-	teamCheckMode := teams != ""
+	groupCheckMode := groups != ""
 
 	if authUrlBase == "" {
 		authUrlBase = defaultAuthUrlBase
 	}
 
-	if teamUrlBase == "" {
-		teamUrlBase = defaultTeamUrlBase
+	if groupUrlBase == "" {
+		groupUrlBase = defaultGroupUrlBase
 	}
 
 	o := skipper.Options{
 		Address:    address,
 		EtcdPrefix: etcdPrefix,
 		CustomFilters: []filters.Spec{
-			skoap.NewAuth(authUrlBase),
-			skoap.NewAuthTeam(authUrlBase, teamUrlBase),
-			skoap.NewBasicAuth(),
-			skoap.NewAuditLog(os.Stderr)},
+			auth.NewAuth(),
+			auth.NewAuthGroup(),
+			auth.NewBasicAuth(),
+			logfilter.NewAuditLog()},
 		AccessLogDisabled:   true,
 		ProxyOptions:        proxy.OptionsPreserveOriginal,
 		CertPathTLS:         certPathTLS,
@@ -271,10 +272,10 @@ func main() {
 		}
 
 		args := scopes
-		name := skoap.AuthName
-		if teamCheckMode {
-			args = teams
-			name = skoap.AuthTeamName
+		name := auth.AuthName
+		if groupCheckMode {
+			args = groups
+			name = auth.AuthGroupName
 		}
 
 		if args != "" {
@@ -301,7 +302,7 @@ func main() {
 
 		if audit {
 			f = append([]*eskip.Filter{&eskip.Filter{
-				Name: skoap.AuditLogName,
+				Name: logfilter.AuditLogName,
 				Args: []interface{}{float64(auditBody)}}}, f...)
 		}
 

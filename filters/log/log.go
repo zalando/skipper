@@ -1,3 +1,6 @@
+/*
+Package log provides a request logging filter, usable also for audit logging.
+*/
 package log
 
 import (
