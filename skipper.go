@@ -234,6 +234,13 @@ type Options struct {
 	// contains loop backends (<loopback>).
 	MaxLoopbacks int
 
+	// EnableBreakers enables the usage of the breakers in the route definitions without initializing any
+	// by default. It is a shortcut for setting the BreakerSettings to:
+	//
+	// 	[]circuit.BreakerSettings{{Type: BreakerDisabled}}
+	//
+	EnableBreakers bool
+
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
 }
@@ -445,7 +452,7 @@ func Run(o Options) error {
 		MaxLoopbacks:           o.MaxLoopbacks,
 	}
 
-	if len(o.BreakerSettings) > 0 {
+	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
 		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
 	}
 
@@ -468,6 +475,7 @@ func Run(o Options) error {
 	if supportListener != "" {
 		mux := http.NewServeMux()
 		mux.Handle("/routes", routing)
+		mux.Handle("/routes/", routing)
 		metricsHandler := metrics.NewHandler(metrics.Options{
 			Prefix:                   o.MetricsPrefix,
 			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
@@ -478,6 +486,9 @@ func Run(o Options) error {
 			EnableProfile:            o.EnableProfile,
 		})
 		mux.Handle("/metrics", metricsHandler)
+		mux.Handle("/metrics/", metricsHandler)
+		mux.Handle("/debug/pprof", metricsHandler)
+		mux.Handle("/debug/pprof/", metricsHandler)
 
 		log.Infof("support listener on %s", supportListener)
 		go http.ListenAndServe(supportListener, mux)

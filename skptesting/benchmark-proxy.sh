@@ -7,14 +7,13 @@ fi
 
 source $GOPATH/src/github.com/zalando/skipper/skptesting/benchmark.inc
 
-trap cleanup SIGINT
+trap cleanup-exit SIGINT
 
 log [generating content]
 lorem
 log [content generated]
 
 log; log [starting servers]
-# ngx nginx-static.conf
 skp :9980 static.eskip
 # ngx nginx-proxy.conf
 skp :9090 proxy.eskip

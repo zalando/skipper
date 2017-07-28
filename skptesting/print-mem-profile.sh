@@ -1,3 +1,3 @@
 #! /bin/bash
 
-cat $GOPATH/src/github.com/zalando/skipper/skptesting/mem-profile.prof 
+go tool pprof -text $GOPATH/src/github.com/zalando/skipper/skptesting/mem-profile.prof 
