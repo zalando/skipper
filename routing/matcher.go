@@ -27,6 +27,7 @@ func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
 }
 
 type leafMatcher struct {
+	exactPath     string
 	method        string
 	hostRxs       []*regexp.Regexp
 	pathRxs       []*regexp.Regexp
@@ -170,10 +171,18 @@ func freeWildcardParam(path string) string {
 	return param[2:]
 }
 
+func trimTrailingSlash(path string) string {
+	if len(path) > 1 && path[len(path)-1] == '/' {
+		return path[:len(path)-1]
+	}
+
+	return path
+}
+
 func cleanPath(path string, o MatchingOptions) string {
 	path = httppath.Clean(path)
-	if o.ignoreTrailingSlash() && len(path) > 1 && path[len(path)-1] == '/' {
-		path = path[:len(path)-1]
+	if o.ignoreTrailingSlash() {
+		path = trimTrailingSlash(path)
 	}
 
 	return path
@@ -246,6 +255,36 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, s
 	return errors
 }
 
+func addLeafToPath(pms map[string]*pathMatcher, path string, l *leafMatcher) {
+	pm, ok := pms[path]
+	if !ok {
+		pm = &pathMatcher{freeWildcardParam: freeWildcardParam(path)}
+		pms[path] = pm
+	}
+
+	pm.leaves = append(pm.leaves, l)
+}
+
+func moveToSubtreeIfExists(subtree *pathMatcher, paths map[string]*pathMatcher, path string) {
+	pm, exists := paths[path]
+	if !exists {
+		return
+	}
+
+	for _, l := range pm.leaves {
+		subtree.leaves = append(subtree.leaves, l)
+	}
+
+	delete(paths, path)
+}
+
+func moveConflictingToSubtree(subtrees, paths map[string]*pathMatcher) {
+	for p, stm := range subtrees {
+		moveToSubtreeIfExists(stm, paths, p)
+		moveToSubtreeIfExists(stm, paths, p+"/")
+	}
+}
+
 // constructs a matcher based on the provided definitions.
 //
 // If `ignoreTrailingSlash` is true, the matcher handles
@@ -273,32 +312,22 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
-		p := r.path
-		m := pathMatchers
-
 		if r.pathSubtree != "" {
-			p = r.pathSubtree
-			m = subtreeMatchers
+			path := cleanPath(r.pathSubtree, o|IgnoreTrailingSlash)
+			addLeafToPath(subtreeMatchers, path, l)
+			continue
 		}
 
-		if p == "" {
+		if r.path == "" {
 			rootLeaves = append(rootLeaves, l)
 			continue
 		}
 
-		// normalize path
-		// in case ignoring trailing slashes, store and match all paths
-		// without the trailing slash
-		p = cleanPath(p, o)
-
-		pm := m[p]
-		if pm == nil {
-			pm = &pathMatcher{freeWildcardParam: freeWildcardParam(p)}
-			m[p] = pm
-		}
-
-		pm.leaves = append(pm.leaves, l)
+		path := cleanPath(r.path, o)
+		addLeafToPath(pathMatchers, path, l)
 	}
+
+	moveConflictingToSubtree(subtreeMatchers, pathMatchers)
 
 	pathTree := &pathmux.Tree{}
 	errors = append(errors, addTreeMatchers(pathTree, pathMatchers, false)...)
@@ -389,6 +418,10 @@ func matchPredicates(cps []Predicate, req *http.Request) bool {
 
 // matches a request to the conditions in a leaf matcher
 func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
+	if l.exactPath != "" && l.exactPath != path {
+		return false
+	}
+
 	if l.method != "" && l.method != req.Method {
 		return false
 	}
