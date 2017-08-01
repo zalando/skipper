@@ -130,7 +130,6 @@ func TestMeasurement(t *testing.T) {
 
 }
 
-
 type proxyMetricTest struct {
 	metricsKey  string
 	measureFunc func()

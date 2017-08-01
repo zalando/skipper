@@ -41,7 +41,7 @@ type Context struct {
 	FStateBag           map[string]interface{}
 	FBackendUrl         string
 	FOutgoingHost       string
-	FMetrics	    filters.Metrics
+	FMetrics            filters.Metrics
 }
 
 func (spec *Filter) Name() string                    { return spec.FilterName }
@@ -60,7 +60,7 @@ func (fc *Context) OriginalResponse() *http.Response    { return nil }
 func (fc *Context) BackendUrl() string                  { return fc.FBackendUrl }
 func (fc *Context) OutgoingHost() string                { return fc.FOutgoingHost }
 func (fc *Context) SetOutgoingHost(h string)            { fc.FOutgoingHost = h }
-func (fc *Context) Metrics() filters.Metrics		{ return fc.FMetrics }
+func (fc *Context) Metrics() filters.Metrics            { return fc.FMetrics }
 func (fc *Context) Serve(resp *http.Response) {
 	fc.FServedWithResponse = true
 	fc.FResponse = resp
