@@ -142,6 +142,14 @@ func (m *Metrics) updateTimer(key string, d time.Duration) {
 	}
 }
 
+func (m *Metrics) MeasureSince(key string, start time.Time) {
+	m.measureSince(key, start)
+}
+
+func (m *Metrics) IncCounter(key string) {
+	m.incCounter(key)
+}
+
 func (m *Metrics) measureSince(key string, start time.Time) {
 	d := time.Since(start)
 	go m.updateTimer(key, d)

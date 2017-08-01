@@ -3,6 +3,7 @@ package filters
 import (
 	"errors"
 	"net/http"
+	"time"
 )
 
 // Context object providing state and information that is unique to a request.
@@ -71,6 +72,9 @@ type FilterContext interface {
 	// (The requestHeader filter automatically detects if the header name
 	// is 'Host' and calls this method.)
 	SetOutgoingHost(string)
+
+	//Allow filters to do custom collection of metrics
+	Metrics() Metrics
 }
 
 // Filters are created by the Spec components, optionally using filter
@@ -110,4 +114,10 @@ var ErrInvalidFilterParameters = errors.New("invalid filter parameters")
 // Registers a filter specification.
 func (r Registry) Register(s Spec) {
 	r[s.Name()] = s
+}
+
+// Metrics is used to measure the
+type Metrics interface {
+	IncCounter(key string)
+	MeasureSince(key string, start time.Time)
 }

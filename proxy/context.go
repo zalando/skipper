@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/filters"
 )
 
 const unknownHost = "_unknownhost_"
@@ -30,6 +32,7 @@ type context struct {
 	incomingDebugResponse *http.Response
 	loopCounter           int
 	startServe            time.Time
+	metrics		      *metrics.Metrics
 }
 
 func defaultBody() io.ReadCloser {
@@ -102,12 +105,13 @@ func appendParams(to, from map[string]string) map[string]string {
 	return to
 }
 
-func newContext(w http.ResponseWriter, r *http.Request, preserveOriginal bool) *context {
+func newContext(w http.ResponseWriter, r *http.Request, preserveOriginal bool, metrics *metrics.Metrics) *context {
 	c := &context{
 		responseWriter: w,
 		request:        r,
 		stateBag:       make(map[string]interface{}),
 		outgoingHost:   r.Host,
+		metrics: 	metrics,
 	}
 
 	if preserveOriginal {
@@ -170,6 +174,7 @@ func (c *context) OriginalRequest() *http.Request      { return c.originalReques
 func (c *context) OriginalResponse() *http.Response    { return c.originalResponse }
 func (c *context) OutgoingHost() string                { return c.outgoingHost }
 func (c *context) SetOutgoingHost(h string)            { c.outgoingHost = h }
+func (c *context) Metrics() filters.Metrics 	       { return c.metrics }
 
 func (c *context) Serve(r *http.Response) {
 	r.Request = c.Request()

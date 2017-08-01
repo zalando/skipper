@@ -651,7 +651,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(w, r, p.flags.PreserveOriginal())
+	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics)
 	ctx.startServe = time.Now()
 
 	defer func() {

@@ -105,7 +105,31 @@ func TestMeasurement(t *testing.T) {
 	if c1.Count() != 1 {
 		t.Errorf("'TestCounter1' metric should be 1. Got %d", c1.Count())
 	}
+
+	c2 := Default.getCounter("TestCounter2")
+	if c2.Count() != 0 {
+		t.Error("'TestCounter2' metric should be zero")
+	}
+	Default.IncCounter("TestCounter2")
+	time.Sleep(20 * time.Millisecond)
+	if c2.Count() != 1 {
+		t.Errorf("'TestCounter2' metric should be 1. Got %d", c2.Count())
+	}
+
+	t3 := Default.getTimer("TestMeasurement3")
+	if t3.Count() != 0 && t3.Max() != 0 {
+		t.Error("'TestMeasurement3' metric should only have zeroes")
+	}
+
+	Default.MeasureSince("TestMeasurement3", now)
+	time.Sleep(20 * time.Millisecond)
+
+	if t3.Count() == 0 || t3.Max() == 0 {
+		t.Error("'TestMeasurement2' metric should have some numbers")
+	}
+
 }
+
 
 type proxyMetricTest struct {
 	metricsKey  string
