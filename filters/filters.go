@@ -73,7 +73,7 @@ type FilterContext interface {
 	// is 'Host' and calls this method.)
 	SetOutgoingHost(string)
 
-	//Allow filters to do custom collection of metrics
+	//Allow filters to collect metrics other than the default metrics (Filter Request, Filter Response methods)
 	Metrics() Metrics
 }
 
@@ -116,7 +116,7 @@ func (r Registry) Register(s Spec) {
 	r[s.Name()] = s
 }
 
-// Metrics is used to measure the
+// Metrics provides an option to collect custom metrics
 type Metrics interface {
 	IncCounter(key string)
 	MeasureSince(key string, start time.Time)
