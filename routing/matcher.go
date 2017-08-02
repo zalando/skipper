@@ -91,15 +91,21 @@ func (err *definitionError) Error() string {
 var freeWildcardRx = regexp.MustCompile("/[*][^/]+$")
 
 // compiles all rxs or fails
-func compileRxs(exps []string) ([]*regexp.Regexp, error) {
-	rxs := make([]*regexp.Regexp, len(exps))
-	for i, exp := range exps {
+func getCompiledRxs(compiled map[string]*regexp.Regexp, exps []string) ([]*regexp.Regexp, error) {
+	rxs := make([]*regexp.Regexp, 0, len(exps))
+	for _, exp := range exps {
+		if rx, ok := compiled[exp]; ok {
+			rxs = append(rxs, rx)
+			continue
+		}
+
 		rx, err := regexp.Compile(exp)
 		if err != nil {
 			return nil, err
 		}
 
-		rxs[i] = rx
+		compiled[exp] = rx
+		rxs = append(rxs, rx)
 	}
 
 	return rxs, nil
@@ -128,13 +134,18 @@ func canonicalizeHeaderRegexps(hrx map[string][]*regexp.Regexp) map[string][]*re
 // creates a new leaf matcher. preprocesses the
 // Host, PathRegexp, Header and HeaderRegexp
 // conditions.
-func newLeaf(r *Route) (*leafMatcher, error) {
-	hostRxs, err := compileRxs(r.HostRegexps)
+//
+// Using a set of regular expressions shared in
+// the current generation to preserve the
+// compiled instances.
+//
+func newLeaf(r *Route, rxs map[string]*regexp.Regexp) (*leafMatcher, error) {
+	hostRxs, err := getCompiledRxs(rxs, r.HostRegexps)
 	if err != nil {
 		return nil, err
 	}
 
-	pathRxs, err := compileRxs(r.PathRegexps)
+	pathRxs, err := getCompiledRxs(rxs, r.PathRegexps)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +153,7 @@ func newLeaf(r *Route) (*leafMatcher, error) {
 	headerExps := r.HeaderRegexps
 	allHeaderRxs := make(map[string][]*regexp.Regexp)
 	for k, exps := range headerExps {
-		headerRxs, err := compileRxs(exps)
+		headerRxs, err := getCompiledRxs(rxs, exps)
 		if err != nil {
 			return nil, err
 		}
@@ -304,9 +315,10 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 
 	pathMatchers := make(map[string]*pathMatcher)
 	subtreeMatchers := make(map[string]*pathMatcher)
+	compiledRxs := make(map[string]*regexp.Regexp)
 
 	for i, r := range rs {
-		l, err := newLeaf(r)
+		l, err := newLeaf(r, compiledRxs)
 		if err != nil {
 			errors = append(errors, &definitionError{r.Id, i, err})
 			continue
@@ -360,7 +372,9 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 // matches the path regexp conditions in a leaf matcher.
 func matchRegexps(rxs []*regexp.Regexp, s string) bool {
 	for _, rx := range rxs {
-		if !rx.MatchString(s) {
+		// the current goroutine uses the rx only once,
+		// no need to store the copy
+		if !rx.Copy().MatchString(s) {
 			return false
 		}
 	}
@@ -386,8 +400,6 @@ func matchHeader(h http.Header, key string, check func(string) bool) bool {
 
 // matches a set of request headers to the fix and regexp header conditions
 func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h http.Header) bool {
-	// todo: would be better to allow any that match, even if slower
-
 	for k, v := range exact {
 		if !matchHeader(h, k, func(val string) bool { return val == v }) {
 			return false
@@ -396,7 +408,9 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 
 	for k, rxs := range hrxs {
 		for _, rx := range rxs {
-			if !matchHeader(h, k, rx.MatchString) {
+			// the current goroutine uses the rx only once,
+			// no need to store the copy
+			if !matchHeader(h, k, rx.Copy().MatchString) {
 				return false
 			}
 		}
