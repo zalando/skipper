@@ -79,7 +79,7 @@ type Route struct {
 	// E.g. route1: ...
 	Id string
 
-	// Deprecated, use Path Predicate
+	// Deprecated, use Predicate instances with the name "Path".
 	//
 	// Exact path to be matched.
 	// E.g. Path("/some/path")
