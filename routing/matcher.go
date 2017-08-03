@@ -372,9 +372,7 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 // matches the path regexp conditions in a leaf matcher.
 func matchRegexps(rxs []*regexp.Regexp, s string) bool {
 	for _, rx := range rxs {
-		// the current goroutine uses the rx only once,
-		// no need to store the copy
-		if !rx.Copy().MatchString(s) {
+		if !rx.MatchString(s) {
 			return false
 		}
 	}
@@ -408,9 +406,7 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 
 	for k, rxs := range hrxs {
 		for _, rx := range rxs {
-			// the current goroutine uses the rx only once,
-			// no need to store the copy
-			if !matchHeader(h, k, rx.Copy().MatchString) {
+			if !matchHeader(h, k, rx.MatchString) {
 				return false
 			}
 		}
