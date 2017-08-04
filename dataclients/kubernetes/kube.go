@@ -649,7 +649,7 @@ func httpRedirectRoute() *eskip.Route {
 func (c *Client) hasReceivedTerm() bool {
 	select {
 	case s := <-c.sigs:
-		log.Infof("shutdown, caused by %s, set healthCheck to be unhealthy", s)
+		log.Infof("shutdown, caused by %s, set health check to be unhealthy", s)
 		c.termReceived = true
 	default:
 	}
@@ -691,7 +691,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		// preserving the previous state to the routing, except
 		// for the healthcheck
 		if c.provideHealthcheck {
-			log.Error("error while receiveing updated ingress routes;", err)
+			log.Error("error while receiving updated ingress routes;", err)
 			hc := healthcheckRoute(false)
 			c.current[healthcheckRouteID] = hc
 			return []*eskip.Route{hc}, nil, nil
