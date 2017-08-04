@@ -161,11 +161,20 @@ func Print(pretty bool, routes ...*Route) string {
 		rs[i] = fmt.Sprintf("%s: %s", r.Id, r.Print(pretty))
 	}
 
-	return strings.Join(rs, ";\n")
+	sep := ";\n"
+	if pretty {
+		sep += "\n"
+	}
+
+	return strings.Join(rs, sep)
 }
 
 func Fprint(w io.Writer, pretty bool, routes ...*Route) {
-	for _, r := range routes {
-		fmt.Fprintf(w, "%s: %s;\n", r.Id, r.Print(pretty))
+	f := "%s: %s;\n"
+	for i, r := range routes {
+		fmt.Fprintf(w, f, r.Id, r.Print(pretty))
+		if i == 0 {
+			f = "\n" + f
+		}
 	}
 }

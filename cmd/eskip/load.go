@@ -119,14 +119,18 @@ func printCmd(a cmdArgs) error {
 			return err
 		}
 	} else {
-		for _, r := range lr.routes {
+		f := "%s: %s;\n"
+		for i, r := range lr.routes {
 			if perr, hasError := lr.parseErrors[r.Id]; hasError {
 				printStderr(r.Id, perr)
 			} else {
 				if r.Id == "" {
 					fmt.Fprintln(stdout, r.String())
 				} else {
-					fmt.Fprintf(stdout, "%s: %s;\n", r.Id, r.Print(pretty))
+					fmt.Fprintf(stdout, f, r.Id, r.Print(pretty))
+					if i == 0 {
+						f = "\n" + f
+					}
 				}
 			}
 		}
