@@ -148,7 +148,7 @@ func TestPrintMultiRoutePretty(t *testing.T) {
 		`route2: Path("/some/path") -> "https://www.example.org"`,
 		`route1: Method("GET")`+"\n"+
 			`  -> filter("expression")`+"\n"+
-			`  -> <shunt>;`+"\n"+
+			`  -> <shunt>;`+"\n\n"+
 			`route2: Path("/some/path")`+"\n"+
 			`  -> "https://www.example.org"`,
 		t, 0, true, true)
