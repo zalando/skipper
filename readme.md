@@ -22,7 +22,7 @@ Main features:
 - updates the routing rules without downtime, while supporting multiple types of data sources — including
   etcd https://github.com/coreos/etcd, Innkeeper https://github.com/zalando/innkeeper, static files and
   custom configuration sources
-- can be used as a Kubernetes Ingress listener in combination with a controller, e.g:
+- can be used as a Kubernetes Ingress implementation in combination with a controller, e.g:
   https://github.com/zalando-incubator/kube-ingress-aws-controller
 - it's shipped with a descriptive configuration language, eskip, designed for routing rules
 
@@ -91,7 +91,7 @@ Build and test all packages:
 
 ### Kubernetes Ingress
 
-Skipper can be used to run as an Ingress listener in combination with a controller, e.g.
+Skipper can be used to run as an Ingress implementation in combination with a controller, e.g.
 https://github.com/zalando-incubator/kube-ingress-aws-controller.
 A production example,
 https://github.com/zalando-incubator/kubernetes-on-aws/blob/dev/cluster/manifests/skipper/daemonset.yaml,
