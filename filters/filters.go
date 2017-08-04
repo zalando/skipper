@@ -2,6 +2,8 @@ package filters
 
 import (
 	"errors"
+	"fmt"
+	"github.com/zalando/skipper/metrics"
 	"net/http"
 	"time"
 )
@@ -74,7 +76,7 @@ type FilterContext interface {
 	SetOutgoingHost(string)
 
 	//Allow filters to collect metrics other than the default metrics (Filter Request, Filter Response methods)
-	Metrics() Metrics
+	Metrics() *FilterMetrics
 }
 
 // Filters are created by the Spec components, optionally using filter
@@ -117,7 +119,17 @@ func (r Registry) Register(s Spec) {
 }
 
 // Metrics provides an option to collect custom metrics
-type Metrics interface {
-	IncCounter(key string)
-	MeasureSince(key string, start time.Time)
+const MetricKey = "%s.%s"
+
+type FilterMetrics struct {
+	Metrics    *metrics.Metrics
+	FilterName string
+}
+
+func (fm *FilterMetrics) MeasureSince(key string, start time.Time) {
+	fm.Metrics.MeasureSince(fmt.Sprintf(MetricKey, fm.FilterName, key), start)
+}
+
+func (fm *FilterMetrics) IncCounter(key string) {
+	fm.Metrics.IncCounter(fmt.Sprintf(MetricKey, fm.FilterName, key))
 }
