@@ -75,15 +75,6 @@ Start Skipper and make an HTTP request:
     curl localhost:9090/hello
 
 
-##### Kubernetes Ingress
-
-Skipper can be used to run as an Ingress listener in combination with a controller, e.g.
-https://github.com/zalando-incubator/kube-ingress-aws-controller.
-A production example,
-https://github.com/zalando-incubator/kubernetes-on-aws/blob/dev/cluster/manifests/skipper/daemonset.yaml,
-can be found in our Kubernetes configuration https://github.com/zalando-incubator/kubernetes-on-aws.
-
-
 #### Working with the code
 
 Getting the code with the test dependencies (`-t` switch):
@@ -96,6 +87,15 @@ Build and test all packages:
     make deps
     make install
     make check
+
+
+### Kubernetes Ingress
+
+Skipper can be used to run as an Ingress listener in combination with a controller, e.g.
+https://github.com/zalando-incubator/kube-ingress-aws-controller.
+A production example,
+https://github.com/zalando-incubator/kubernetes-on-aws/blob/dev/cluster/manifests/skipper/daemonset.yaml,
+can be found in our Kubernetes configuration https://github.com/zalando-incubator/kubernetes-on-aws.
 
 
 ### Documentation
