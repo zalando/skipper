@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -44,7 +45,13 @@ type AccessEntry struct {
 	RequestTime time.Time
 }
 
-var accessLog *logrus.Logger
+// TODO: create individual instances from the access log and
+// delegate the ownership from the package level to the user
+// code.
+var (
+	accessLog  *logrus.Logger
+	stripQuery bool
+)
 
 // strip port from addresses with hostname, ipv4 or ipv6
 func stripPort(address string) string {
@@ -90,6 +97,14 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return []byte(fmt.Sprintf(f.format, values...)), nil
 }
 
+func stripQueryString(u string) string {
+	if i := strings.IndexRune(u, '?'); i < 0 {
+		return u
+	} else {
+		return u[:i]
+	}
+}
+
 // Logs an access event in Apache combined log format (with a minor customization with the duration).
 func LogAccess(entry *AccessEntry) {
 	if accessLog == nil || entry == nil {
@@ -114,12 +129,16 @@ func LogAccess(entry *AccessEntry) {
 	if entry.Request != nil {
 		host = remoteHost(entry.Request)
 		method = entry.Request.Method
-		uri = entry.Request.RequestURI
 		proto = entry.Request.Proto
 		referer = entry.Request.Referer()
 		userAgent = entry.Request.UserAgent()
 		requestedHost = entry.Request.Host
 		flowId = entry.Request.Header.Get(flowidFilter.HeaderName)
+
+		uri = entry.Request.RequestURI
+		if stripQuery {
+			uri = stripQueryString(uri)
+		}
 	}
 
 	accessLog.WithFields(logrus.Fields{
