@@ -45,7 +45,7 @@ type AccessEntry struct {
 	RequestTime time.Time
 }
 
-// TODO: create individiual instances from the access log and
+// TODO: create individual instances from the access log and
 // delegate the ownership from the package level to the user
 // code.
 var (
