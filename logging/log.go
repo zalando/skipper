@@ -32,6 +32,10 @@ type Options struct {
 
 	// When set, log in JSON format is used
 	AccessLogJSONEnabled bool
+
+	// AccessLogStripQuery, when set, causes the query strings stripped
+	// from the request URI in the access logs.
+	AccessLogStripQuery bool
 }
 
 func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
@@ -54,16 +58,17 @@ func initApplicationLog(prefix string, output io.Writer) {
 	}
 }
 
-func initAccessLog(output io.Writer, accessLogJSONEnabled bool) {
+func initAccessLog(o Options) {
 	l := logrus.New()
-	if accessLogJSONEnabled {
+	if o.AccessLogJSONEnabled {
 		l.Formatter = &logrus.JSONFormatter{TimestampFormat: dateFormat, DisableTimestamp: true}
 	} else {
 		l.Formatter = &accessLogFormatter{accessLogFormat}
 	}
-	l.Out = output
+	l.Out = o.AccessLogOutput
 	l.Level = logrus.InfoLevel
 	accessLog = l
+	stripQuery = o.AccessLogStripQuery
 }
 
 // Initializes logging.
@@ -77,6 +82,6 @@ func Init(o Options) {
 			o.AccessLogOutput = os.Stderr
 		}
 
-		initAccessLog(o.AccessLogOutput, o.AccessLogJSONEnabled)
+		initAccessLog(o)
 	}
 }

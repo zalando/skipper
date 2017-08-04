@@ -79,6 +79,7 @@ const (
 	accessLogUsage                 = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
 	accessLogJSONEnabledUsage      = "when this flag is set, log in JSON format is used"
+	accessLogStripQueryUsage       = "when this flag is set, the access log strips the query strings from the access log"
 	debugEndpointUsage             = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
 	certPathTLSUsage               = "the path on the local filesystem to the certificate file (including any intermediates)"
 	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file"
@@ -132,6 +133,7 @@ var (
 	accessLog                 string
 	accessLogDisabled         bool
 	accessLogJSONEnabled      bool
+	accessLogStripQuery       bool
 	debugListener             string
 	certPathTLS               string
 	keyPathTLS                string
@@ -182,6 +184,7 @@ func init() {
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
 	flag.BoolVar(&accessLogJSONEnabled, "access-log-json-enabled", false, accessLogJSONEnabledUsage)
+	flag.BoolVar(&accessLogStripQuery, "access-log-strip-query", false, accessLogStripQueryUsage)
 	flag.StringVar(&debugListener, "debug-listener", "", debugEndpointUsage)
 	flag.StringVar(&certPathTLS, "tls-cert", "", certPathTLSUsage)
 	flag.StringVar(&keyPathTLS, "tls-key", "", keyPathTLSUsage)
@@ -272,6 +275,7 @@ func main() {
 		AccessLogOutput:           accessLog,
 		AccessLogDisabled:         accessLogDisabled,
 		AccessLogJSONEnabled:      accessLogJSONEnabled,
+		AccessLogStripQuery:       accessLogStripQuery,
 		DebugListener:             debugListener,
 		CertPathTLS:               certPathTLS,
 		KeyPathTLS:                keyPathTLS,
