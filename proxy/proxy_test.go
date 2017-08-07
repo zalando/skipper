@@ -137,6 +137,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		Log:            tl})
 	params.Routing = rt
 	p := WithParams(params)
+	p.log = tl
 
 	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		return nil, err
@@ -1022,5 +1023,36 @@ func TestBranding(t *testing.T) {
 				t.Error("failed to add branding")
 			}
 		})
+	}
+}
+
+func TestFixNoAppLogFor404(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	p, err := newTestProxy("", FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	rsp, err := http.Get(ps.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer rsp.Body.Close()
+
+	if err := p.log.WaitFor(unknownRouteID, 120*time.Millisecond); err == nil {
+		t.Error("unexpected log on route lookup failed")
+	} else if err != loggingtest.ErrWaitTimeout {
+		t.Error(err)
 	}
 }

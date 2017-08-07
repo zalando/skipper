@@ -14,7 +14,7 @@ import (
 
 type TestProxy struct {
 	URL     string
-	log     *loggingtest.Logger
+	Log     *loggingtest.Logger
 	routing *routing.Routing
 	proxy   *proxy.Proxy
 	server  *httptest.Server
@@ -34,7 +34,7 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 
 	return &TestProxy{
 		URL:     tsp.URL,
-		log:     tl,
+		Log:     tl,
 		routing: rt,
 		proxy:   pr,
 		server:  tsp}
@@ -45,7 +45,7 @@ func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
 }
 
 func (p *TestProxy) Close() error {
-	p.log.Close()
+	p.Log.Close()
 	p.routing.Close()
 
 	err := p.proxy.Close()
