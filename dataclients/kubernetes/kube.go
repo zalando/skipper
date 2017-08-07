@@ -665,6 +665,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
+	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
 		r = append(r, healthcheckRoute(healthy))
@@ -686,17 +687,6 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	r, err := c.loadAndConvert()
 	if err != nil {
 		log.Debugf("polling for updates failed: %v", err)
-
-		// moving the error handling decision to the data client,
-		// preserving the previous state to the routing, except
-		// for the healthcheck
-		if c.provideHealthcheck {
-			log.Error("error while receiving updated ingress routes;", err)
-			hc := healthcheckRoute(false)
-			c.current[healthcheckRouteID] = hc
-			return []*eskip.Route{hc}, nil, nil
-		}
-
 		return nil, nil, err
 	}
 
@@ -724,6 +714,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
 
+	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
 		hc := healthcheckRoute(healthy)
