@@ -13,22 +13,20 @@ Skipper is an HTTP router and reverse proxy for service composition. It's design
 definitions with detailed lookup conditions, and flexible augmentation of the request flow with filters. It can be
 used out of the box or extended with custom lookup, filter logic and configuration sources.
 
-Main features:
+## Main features:
 
 - identifies routes based on the requests' properties, such as path, method, host and headers
 - allows modification of the requests and responses with filters that are independently configured for each route
 - simultaneously streams incoming requests and backend responses
 - optionally acts as a final endpoint (shunt), e.g. as a static file server or a mock backend for diagnostics
-- updates the routing rules without downtime, while supporting multiple types of data sources — including
-  etcd https://github.com/coreos/etcd, Innkeeper https://github.com/zalando/innkeeper, static files and
+- updates routing rules without downtime, while supporting multiple types of data sources — including
+  [etcd](https://github.com/coreos/etcd), [Innkeeper](https://github.com/zalando/innkeeper), static files and
   custom configuration sources
-- can be used as a Kubernetes Ingress implementation in combination with a controller, e.g:
-  https://github.com/zalando-incubator/kube-ingress-aws-controller
-- it's shipped with a descriptive configuration language, eskip, designed for routing rules
+- can serve as a Kubernetes Ingress implementation in combination with a controller; [see example](https://github.com/zalando-incubator/kube-ingress-aws-controller)
+- shipped with eskip: a descriptive configuration language designed for routing rules
 
-Skipper provides a default executable command with a few built-in filters, however, its primary use case is to
-be extended with custom filters, predicates or data sources. See more in the Documentation
-https://godoc.org/github.com/zalando/skipper
+Skipper provides a default executable command with a few built-in filters. However, its primary use case is to
+be extended with custom filters, predicates or data sources. [Go here for additional documentation](https://godoc.org/github.com/zalando/skipper).
 
 A few examples for extending Skipper:
 
