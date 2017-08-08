@@ -173,12 +173,30 @@ func New(o Options) *Routing {
 
 // ServeHTTP renders the list of current routes.
 func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method != "GET" && req.Method != "HEAD" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
 	rt := r.routeTable.Load().(*routeTable)
 	req.ParseForm()
 	createdUnix := strconv.FormatInt(rt.created.Unix(), 10)
 	ts := req.Form.Get("timestamp")
 	if ts != "" && createdUnix != ts {
 		http.Error(w, "invalid timestamp", http.StatusBadRequest)
+		return
+	}
+
+	if req.Method == "HEAD" {
+		w.Header().Set(routesTimestampName, createdUnix)
+		w.Header().Set(routesCountName, strconv.Itoa(len(rt.validRoutes)))
+
+		if strings.Contains(req.Header.Get("Accept"), "application/json") {
+			w.Header().Set("Content-Type", "application/json")
+		} else {
+			w.Header().Set("Content-Type", "text/plain")
+		}
+
 		return
 	}
 
@@ -194,13 +212,11 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	routes := slice(rt.validRoutes, offset, limit)
-	accept := req.Header.Get("Accept")
-
 	w.Header().Set(routesTimestampName, createdUnix)
-	w.Header().Set(routesCountName, strconv.Itoa(len(routes)))
+	w.Header().Set(routesCountName, strconv.Itoa(len(rt.validRoutes)))
 
-	if strings.Contains(accept, "application/json") {
+	routes := slice(rt.validRoutes, offset, limit)
+	if strings.Contains(req.Header.Get("Accept"), "application/json") {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(routes); err != nil {
 			http.Error(
