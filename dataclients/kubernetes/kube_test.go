@@ -1311,14 +1311,8 @@ func TestHealthcheckUpdate(t *testing.T) {
 		dc.LoadAll()
 		api.failNext = true
 
-		r, d, err := dc.LoadUpdate()
-		if err != nil {
+		if _, _, err := dc.LoadUpdate(); err == nil {
 			t.Error("failed to fail")
-		}
-
-		checkHealthcheck(t, r, true, false)
-		if len(d) != 0 {
-			t.Error("unexpected delete")
 		}
 	})
 
