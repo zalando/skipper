@@ -252,6 +252,7 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	}
 
 	rr, err := http.NewRequest(r.Method, u.String(), body)
+	rr.ContentLength = r.ContentLength
 	if err != nil {
 		return nil, err
 	}
