@@ -1056,3 +1056,86 @@ func TestFixNoAppLogFor404(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestRequestContentHeaders(t *testing.T) {
+	const contentLength = 1 << 15
+
+	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if len(b) != contentLength {
+			t.Error("failed to forward content")
+			return
+		}
+
+		if r.URL.Path == "/with-content-length" {
+			if r.ContentLength != contentLength {
+				t.Error("failed to forward content length")
+				return
+			}
+
+			if len(r.TransferEncoding) != 0 {
+				t.Error("unexpected transfer encoding")
+				return
+			}
+
+			return
+		}
+
+		if r.ContentLength > 0 {
+			t.Error("unexpected content length")
+		}
+
+		if len(r.TransferEncoding) != 1 || r.TransferEncoding[0] != "chunked" {
+			t.Error("failed to set chunked encoding")
+			return
+		}
+	}))
+
+	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, backend.URL), FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	req := func(withContentLength bool) {
+		path := "/without-content-length"
+		if withContentLength {
+			path = "/with-content-length"
+		}
+
+		req, err := http.NewRequest(
+			"GET",
+			ps.URL+path,
+			io.LimitReader(rand.New(rand.NewSource(42)), contentLength),
+		)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if withContentLength {
+			req.ContentLength = contentLength
+		}
+
+		rsp, err := (&http.Client{}).Do(req)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		rsp.Body.Close()
+	}
+
+	req(false)
+	req(true)
+}
