@@ -77,7 +77,9 @@ func New() *Logger {
 	clear := make(chan struct{})
 	mute := make(chan bool)
 	quit := make(chan struct{})
-	var muted bool
+
+	// start muted to reduce spam during failing tests
+	muted := true
 
 	tl := &Logger{logc, notify, clear, mute, quit}
 	go func() {
