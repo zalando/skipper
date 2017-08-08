@@ -25,8 +25,9 @@ const (
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathSubtreeName = "PathSubtree"
 
-	routeTableTimestampHeaderName = "X-Skipper-Route-Table-Timestamp"
-	defaultRouteListingLimit      = 1024
+	routesTimestampName      = "X-Timestamp"
+	routesCountName          = "X-Count"
+	defaultRouteListingLimit = 1024
 )
 
 // MatchingOptions controls route matching.
@@ -176,36 +177,42 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	createdUnix := strconv.FormatInt(rt.created.Unix(), 10)
 	ts := req.Form.Get("timestamp")
-	if ts != "" {
-		if createdUnix != ts {
-			http.Error(w, "invalid timestamp", http.StatusBadRequest)
-			return
-		}
+	if ts != "" && createdUnix != ts {
+		http.Error(w, "invalid timestamp", http.StatusBadRequest)
+		return
 	}
+
 	offset, err := extractParam(req, "offset", 0)
 	if err != nil {
 		http.Error(w, "invalid offset", http.StatusBadRequest)
 		return
 	}
+
 	limit, err := extractParam(req, "limit", defaultRouteListingLimit)
 	if err != nil {
 		http.Error(w, "invalid limit", http.StatusBadRequest)
 		return
 	}
+
 	routes := slice(rt.validRoutes, offset, limit)
-	accept := req.Header.Get("accept")
+	accept := req.Header.Get("Accept")
+
+	w.Header().Set(routesTimestampName, createdUnix)
+	w.Header().Set(routesCountName, strconv.Itoa(len(routes)))
 
 	if strings.Contains(accept, "application/json") {
-		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
-		w.Header().Set("content-type", "application/json")
+		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(routes); err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			http.Error(
+				w,
+				http.StatusText(http.StatusInternalServerError),
+				http.StatusInternalServerError,
+			)
 		}
 		return
 	}
 
-	w.Header().Set(routeTableTimestampHeaderName, createdUnix)
-	w.Header().Set("content-type", "text/plain")
+	w.Header().Set("Content-Type", "text/plain")
 	eskip.Fprint(w, extractPretty(req), routes...)
 }
 

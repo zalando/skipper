@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -616,9 +617,11 @@ func TestRoutingHandlerFilterInvalidRoutes(t *testing.T) {
 
 func TestRoutingHandlerPagination(t *testing.T) {
 	dc, _ := testdataclient.NewDoc(`
-        route1: CustomPredicate("custom1") -> "https://route1.example.org";
-        route2: CustomPredicate("custom2") -> "https://route2.example.org";
-        catchAll: * -> "https://route.example.org"`)
+		route1: CustomPredicate("custom1") -> "https://route1.example.org";
+		route2: CustomPredicate("custom2") -> "https://route2.example.org";
+		catchAll: * -> "https://route.example.org"
+	`)
+
 	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
 	tr, _ := newTestRoutingWithPredicates(cps, dc)
 	defer tr.close()
@@ -640,11 +643,18 @@ func TestRoutingHandlerPagination(t *testing.T) {
 		{0, 3, 3},
 		{1, 3, 2},
 	}
+
 	for _, ti := range tests {
 		u := fmt.Sprintf("%s?offset=%d&limit=%d", server.URL, ti.offset, ti.limit)
 		req, _ := http.NewRequest("GET", u, nil)
 		req.Header.Set("accept", "application/json")
 		resp, _ := http.DefaultClient.Do(req)
+
+		if c, err := strconv.Atoi(resp.Header.Get("X-Count")); err != nil {
+			t.Error(err)
+		} else if c != ti.nroutes {
+			t.Error("invalid or missing route count header")
+		}
 
 		var routes []*eskip.Route
 		if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
