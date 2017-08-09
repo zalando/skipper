@@ -404,8 +404,9 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 
 // addBranding overwrites any existing `X-Powered-By` or `Server` header from headerMap
 func addBranding(headerMap http.Header) {
-	headerMap.Set("X-Powered-By", "Skipper")
-	headerMap.Set("Server", "Skipper")
+	if headerMap.Get("Server") == "" {
+		headerMap.Set("Server", "Skipper")
+	}
 }
 
 func (p *Proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
@@ -576,6 +577,7 @@ func (p *Proxy) do(ctx *context) error {
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
 	}
 
+	addBranding(ctx.response.Header)
 	p.applyFiltersToResponse(processedFilters, ctx)
 	return nil
 }
@@ -594,7 +596,6 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 
 	start := time.Now()
-	addBranding(ctx.response.Header)
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body)
