@@ -32,7 +32,12 @@ type context struct {
 	incomingDebugResponse *http.Response
 	loopCounter           int
 	startServe            time.Time
-	metrics               *filters.FilterMetrics
+	metrics               *filterMetrics
+}
+
+type filterMetrics struct {
+	prefix string
+	impl   *metrics.Metrics
 }
 
 func defaultBody() io.ReadCloser {
@@ -111,7 +116,7 @@ func newContext(w http.ResponseWriter, r *http.Request, preserveOriginal bool, m
 		request:        r,
 		stateBag:       make(map[string]interface{}),
 		outgoingHost:   r.Host,
-		metrics:        &filters.FilterMetrics{Metrics: m},
+		metrics:        &filterMetrics{impl: m},
 	}
 
 	if preserveOriginal {
@@ -174,7 +179,7 @@ func (c *context) OriginalRequest() *http.Request      { return c.originalReques
 func (c *context) OriginalResponse() *http.Response    { return c.originalResponse }
 func (c *context) OutgoingHost() string                { return c.outgoingHost }
 func (c *context) SetOutgoingHost(h string)            { c.outgoingHost = h }
-func (c *context) Metrics() *filters.FilterMetrics     { return c.metrics }
+func (c *context) Metrics() filters.Metrics            { return c.metrics }
 
 func (c *context) Serve(r *http.Response) {
 	r.Request = c.Request()
@@ -206,4 +211,16 @@ func (c *context) clone() *context {
 	cc.pathParams = appendParams(nil, c.pathParams)
 
 	return &cc
+}
+
+func (c *context) setMetricsPrefix(prefix string) {
+	c.metrics.prefix = prefix + ".custom."
+}
+
+func (m *filterMetrics) IncCounter(key string) {
+	m.impl.IncCounter(m.prefix + key)
+}
+
+func (m *filterMetrics) MeasureSince(key string, start time.Time) {
+	m.impl.MeasureSince(m.prefix+key, start)
 }
