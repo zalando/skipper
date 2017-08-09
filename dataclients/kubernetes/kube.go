@@ -664,7 +664,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	r, err := c.loadAndConvert()
 	if err != nil {
-		log.Debugf("failed to load all: %v", err)
+		log.Errorf("failed to load all: %v", err)
 		return nil, err
 	}
 
@@ -689,7 +689,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("polling for updates")
 	r, err := c.loadAndConvert()
 	if err != nil {
-		log.Debugf("polling for updates failed: %v", err)
+		log.Errorf("polling for updates failed: %v", err)
 		return nil, nil, err
 	}
 
