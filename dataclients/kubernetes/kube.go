@@ -423,7 +423,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 //
 // TODO:
 // - check how to set failures in ingress status
-func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
+func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(items))
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
@@ -471,8 +471,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 						//
 						// TODO:
 						// - check how to set failures in ingress status
-						log.Errorf("error while getting service: %v", err)
-						continue
+						return nil, fmt.Errorf("error while getting service: %v", err)
 					}
 
 					r.HostRegexps = host
@@ -482,7 +481,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 		}
 	}
 
-	return routes
+	return routes, nil
 }
 
 // computeBackendWeights computes and sets the backend traffic weights on the
@@ -598,7 +597,11 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	log.Debugf("all ingresses received: %d", len(il.Items))
 	fItems := c.filterIngressesByClass(il.Items)
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
-	r := c.ingressToRoutes(fItems)
+	r, err := c.ingressToRoutes(fItems)
+	if err != nil {
+		log.Debugf("converting ingresses to routes failed: %v", err)
+		return nil, err
+	}
 	log.Debugf("all routes created: %d", len(r))
 	return r, nil
 }
@@ -661,7 +664,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	r, err := c.loadAndConvert()
 	if err != nil {
-		log.Debugf("failed to load all: %v", err)
+		log.Errorf("failed to load all: %v", err)
 		return nil, err
 	}
 
@@ -686,7 +689,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("polling for updates")
 	r, err := c.loadAndConvert()
 	if err != nil {
-		log.Debugf("polling for updates failed: %v", err)
+		log.Errorf("polling for updates failed: %v", err)
 		return nil, nil, err
 	}
 
