@@ -467,11 +467,19 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 				if prule.Backend.Traffic > 0 {
 					r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
 					if err != nil {
-						// tolerate single rule errors
+						// fail when there's a temporary network error so that we keep the last known rules
+						// active until the next sync loop.
+						if err, ok := err.(net.Error); ok {
+							log.Errorf("temporary error while getting service, deferring update: %v", err)
+							return nil, err
+						}
+
+						// tolerate permanent errors such as references to non-existing services
 						//
 						// TODO:
 						// - check how to set failures in ingress status
-						return nil, fmt.Errorf("error while getting service: %v", err)
+						log.Debugf("permanent error while getting service, skipping: %v", err)
+						continue
 					}
 
 					r.HostRegexps = host
