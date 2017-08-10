@@ -670,12 +670,12 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
-		if _, err := dc.LoadAll(); err == nil {
-			t.Error("load initial should fail")
+		if r, err := dc.LoadAll(); err != nil || len(r) != 0 {
+			t.Error("failed to load initial")
 		}
 
-		if _, _, err := dc.LoadUpdate(); err == nil {
-			t.Error("load update should fail")
+		if r, d, err := dc.LoadUpdate(); err != nil || len(r) != 0 || len(d) != 0 {
+			t.Error("failed to load update", err)
 		}
 	})
 
@@ -686,8 +686,8 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
-		if _, err := dc.LoadAll(); err == nil {
-			t.Error("load initial should fail")
+		if r, err := dc.LoadAll(); err != nil || len(r) != 0 {
+			t.Error("failed to load initial")
 		}
 
 		api.services = testServices()
@@ -717,9 +717,9 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
-		_, err = dc.LoadAll()
-		if err == nil {
-			t.Error("load initial should fail")
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error("failed to load initial routes", err)
 			return
 		}
 
@@ -731,13 +731,7 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
-			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
-			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube_namespace1__mega__foo_example_org___test1__service1": "http://1.2.3.4:8080",
 		})
 	})
 
@@ -810,10 +804,17 @@ func TestIngress(t *testing.T) {
 
 		delete(api.services["namespace1"], "service2")
 
-		_, _, err = dc.LoadUpdate()
-		if err == nil {
-			t.Error("load update should fail")
+		r, d, err := dc.LoadUpdate()
+		if err != nil || len(r) != 0 {
+			t.Error("failed to receive delete", err, len(r))
 		}
+
+		checkIDs(
+			t,
+			d,
+			"kube_namespace1__mega__foo_example_org___test2__service2",
+			"kube_namespace1__mega__bar_example_org___test2__service2",
+		)
 	})
 
 	t.Run("has ingresses, delete some ingresses", func(t *testing.T) {

@@ -140,7 +140,6 @@ var nonWord = regexp.MustCompile("\\W")
 
 var (
 	errServiceNotFound      = errors.New("service not found")
-	errServicePortNotFound  = errors.New("service port not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
 	errInvalidCertificate   = errors.New("invalid CA")
 )
@@ -281,6 +280,10 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	log.Debugf("request to %s succeeded", url)
 	defer rsp.Body.Close()
 
+	if rsp.StatusCode == http.StatusNotFound {
+		return errServiceNotFound
+	}
+
 	if rsp.StatusCode != http.StatusOK {
 		log.Debugf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
@@ -330,7 +333,7 @@ func (c *Client) getServiceURL(namespace, name string, port backendPort) (string
 	}
 
 	log.Debugf("service port not found by name: %s", pn)
-	return "", errServicePortNotFound
+	return "", errServiceNotFound
 }
 
 // TODO: find a nicer way to autogenerate route IDs
@@ -467,8 +470,11 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 				if prule.Backend.Traffic > 0 {
 					r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
 					if err != nil {
-						// tolerate single rule errors
-						//
+						// if the service is not found the route should be removed
+						if err == errServiceNotFound {
+							continue
+						}
+
 						// TODO:
 						// - check how to set failures in ingress status
 						return nil, fmt.Errorf("error while getting service: %v", err)
