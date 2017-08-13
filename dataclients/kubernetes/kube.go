@@ -140,7 +140,6 @@ var nonWord = regexp.MustCompile("\\W")
 
 var (
 	errServiceNotFound      = errors.New("service not found")
-	errServicePortNotFound  = errors.New("service port not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
 	errInvalidCertificate   = errors.New("invalid CA")
 )
@@ -281,6 +280,10 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	log.Debugf("request to %s succeeded", url)
 	defer rsp.Body.Close()
 
+	if rsp.StatusCode == http.StatusNotFound {
+		return errServiceNotFound
+	}
+
 	if rsp.StatusCode != http.StatusOK {
 		log.Debugf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
@@ -330,7 +333,7 @@ func (c *Client) getServiceURL(namespace, name string, port backendPort) (string
 	}
 
 	log.Debugf("service port not found by name: %s", pn)
-	return "", errServicePortNotFound
+	return "", errServiceNotFound
 }
 
 // TODO: find a nicer way to autogenerate route IDs
@@ -423,7 +426,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 //
 // TODO:
 // - check how to set failures in ingress status
-func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
+func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(items))
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
@@ -467,12 +470,14 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 				if prule.Backend.Traffic > 0 {
 					r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
 					if err != nil {
-						// tolerate single rule errors
-						//
+						// if the service is not found the route should be removed
+						if err == errServiceNotFound {
+							continue
+						}
+
 						// TODO:
 						// - check how to set failures in ingress status
-						log.Errorf("error while getting service: %v", err)
-						continue
+						return nil, fmt.Errorf("error while getting service: %v", err)
 					}
 
 					r.HostRegexps = host
@@ -482,7 +487,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 		}
 	}
 
-	return routes
+	return routes, nil
 }
 
 // computeBackendWeights computes and sets the backend traffic weights on the
@@ -598,7 +603,11 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	log.Debugf("all ingresses received: %d", len(il.Items))
 	fItems := c.filterIngressesByClass(il.Items)
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
-	r := c.ingressToRoutes(fItems)
+	r, err := c.ingressToRoutes(fItems)
+	if err != nil {
+		log.Debugf("converting ingresses to routes failed: %v", err)
+		return nil, err
+	}
 	log.Debugf("all routes created: %d", len(r))
 	return r, nil
 }
@@ -649,7 +658,7 @@ func httpRedirectRoute() *eskip.Route {
 func (c *Client) hasReceivedTerm() bool {
 	select {
 	case s := <-c.sigs:
-		log.Infof("shutdown, caused by %s, set healthCheck to be unhealthy", s)
+		log.Infof("shutdown, caused by %s, set health check to be unhealthy", s)
 		c.termReceived = true
 	default:
 	}
@@ -661,10 +670,11 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	r, err := c.loadAndConvert()
 	if err != nil {
-		log.Debugf("failed to load all: %v", err)
+		log.Errorf("failed to load all: %v", err)
 		return nil, err
 	}
 
+	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
 		r = append(r, healthcheckRoute(healthy))
@@ -685,18 +695,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("polling for updates")
 	r, err := c.loadAndConvert()
 	if err != nil {
-		log.Debugf("polling for updates failed: %v", err)
-
-		// moving the error handling decision to the data client,
-		// preserving the previous state to the routing, except
-		// for the healthcheck
-		if c.provideHealthcheck {
-			log.Error("error while receiveing updated ingress routes;", err)
-			hc := healthcheckRoute(false)
-			c.current[healthcheckRouteID] = hc
-			return []*eskip.Route{hc}, nil, nil
-		}
-
+		log.Errorf("polling for updates failed: %v", err)
 		return nil, nil, err
 	}
 
@@ -724,6 +723,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
 
+	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
 		hc := healthcheckRoute(healthy)

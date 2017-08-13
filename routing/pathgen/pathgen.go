@@ -1,18 +1,4 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-package routing
+package pathgen
 
 import (
 	"math/rand"
@@ -29,7 +15,7 @@ const (
 	defaultSeparator            = "/"
 )
 
-type pathGeneratorOptions struct {
+type PathGeneratorOptions struct {
 	FilenameChars        string
 	MinFilenameLength    int
 	MaxFilenameLength    int
@@ -45,12 +31,12 @@ type pathGeneratorOptions struct {
 // filenames consist of random characters of random length.
 // The generated sequences are reproducible, controlled by
 // the RandSeed option.
-type pathGenerator struct {
-	options *pathGeneratorOptions
-	rnd     *rand.Rand
+type PathGenerator struct {
+	options *PathGeneratorOptions
+	Rnd     *rand.Rand
 }
 
-func applyDefaults(o *pathGeneratorOptions) {
+func applyDefaults(o *PathGeneratorOptions) {
 	if o.FilenameChars == "" {
 		o.FilenameChars = defaultChars
 	}
@@ -83,51 +69,64 @@ func applyDefaults(o *pathGeneratorOptions) {
 // Creates a path generator with the provided options,
 // falling back to the default value for each non-specified
 // option field.
-func newPathGenerator(o pathGeneratorOptions) *pathGenerator {
+func New(o PathGeneratorOptions) *PathGenerator {
 
 	// options taken as value, free to modify
 	applyDefaults(&o)
 
-	return &pathGenerator{&o, rand.New(rand.NewSource(o.RandSeed))}
+	return &PathGenerator{&o, rand.New(rand.NewSource(o.RandSeed))}
 }
 
 // takes a random number positioned between [min, max)
-func (pg *pathGenerator) between(min, max int) int {
-	return min + pg.rnd.Intn(max-min)
+func (pg *PathGenerator) Between(min, max int) int {
+	return min + pg.Rnd.Intn(max-min)
 }
 
 // takes a random byte from the range of available characters
-func (pg *pathGenerator) char() byte {
-	return []byte(pg.options.FilenameChars)[pg.rnd.Intn(len(pg.options.FilenameChars))]
+func (pg *PathGenerator) char() byte {
+	return []byte(pg.options.FilenameChars)[pg.Rnd.Intn(len(pg.options.FilenameChars))]
+}
+
+func (pg *PathGenerator) Str(min, max int) string {
+	len := pg.Between(min, max)
+	s := make([]byte, len)
+	for i := 0; i < len; i++ {
+		s[i] = pg.char()
+	}
+
+	return string(s)
+}
+
+func (pg *PathGenerator) Strs(min, max, minLength, maxLength int) []string {
+	len := pg.Between(min, max)
+	s := make([]string, len)
+	for i := 0; i < len; i++ {
+		s[i] = pg.Str(minLength, maxLength)
+	}
+
+	return s
 }
 
 // generates a random name using the available characters and of length within
 // the defined boundaries
-func (pg *pathGenerator) name() string {
-	len := pg.between(pg.options.MinFilenameLength, pg.options.MaxFilenameLength)
-
-	name := make([]byte, len)
-	for i := 0; i < len; i++ {
-		name[i] = pg.char()
-	}
-
-	return string(name)
+func (pg *PathGenerator) Name() string {
+	return pg.Str(pg.options.MinFilenameLength, pg.options.MaxFilenameLength)
 }
 
 // generates random names of count between the defined boundaries
-func (pg *pathGenerator) names() []string {
-	len := pg.between(pg.options.MinNamesInPath, pg.options.MaxNamesInPath)
+func (pg *PathGenerator) Names() []string {
+	len := pg.Between(pg.options.MinNamesInPath, pg.options.MaxNamesInPath)
 	names := make([]string, len)
 	for i := 0; i < len; i++ {
-		names[i] = pg.name()
+		names[i] = pg.Name()
 	}
 
 	return names
 }
 
 // tells if using a closing slash for a path, based on the defined chance
-func (pg *pathGenerator) closingSlash() bool {
-	return pg.rnd.Intn(pg.options.ClosingSlashInEveryN) == 0
+func (pg *PathGenerator) closingSlash() bool {
+	return pg.Rnd.Intn(pg.options.ClosingSlashInEveryN) == 0
 }
 
 // Generates a random path.
@@ -149,10 +148,10 @@ func (pg *pathGenerator) closingSlash() bool {
 // between `MinFilenameLength` and `MaxFilenameLength`.
 //
 // The sequence followed by `Next` is reproducible, to get a different
-// sequence, a new pathGenerator instance is required, with a
+// sequence, a new PathGenerator instance is required, with a
 // different `RandSeed` value.
-func (pg *pathGenerator) Next() string {
-	names := pg.names()
+func (pg *PathGenerator) Next() string {
+	names := pg.Names()
 
 	// appending an empty filename in case a closing slash needs to be
 	// added
