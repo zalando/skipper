@@ -34,7 +34,7 @@ func Example() {
 			modPath(/\.html$/, ".jsx") ->
 			requestHeader("X-Type", "page") ->
 			"https://render.example.org";
-		
+
 		route1: Path("/some/path") -> "https://backend-0.example.org"; // a simple route
 
 		// route definition with a shunt (no backend address)
@@ -96,90 +96,6 @@ func ExampleFilter() {
 	// filter name: helloFilter
 	// filter arg 0: Hello, world!
 	// filter arg 1: 3.14
-}
-
-func ExampleNetworkRoute() {
-	code := `
-		ajaxRouteV3: PathRegexp(/^\/api\/v3\/.*/) -> ajaxHeader("v3") -> "https://api.example.org"`
-
-	routes, err := eskip.Parse(code)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	r := routes[0]
-
-	fmt.Println("Parsed a route:")
-	fmt.Printf("id: %v\n", r.Id)
-	fmt.Printf("match regexp: %s\n", r.PathRegexps[0])
-	fmt.Printf("# of filters: %v\n", len(r.Filters))
-	fmt.Printf("backend type: %v\n", r.BackendType)
-	fmt.Printf("backend address: \"%v\"\n", r.Backend)
-
-	// output:
-	// Parsed a route:
-	// id: ajaxRouteV3
-	// match regexp: ^/api/v3/.*
-	// # of filters: 1
-	// backend type: network
-	// backend address: "https://api.example.org"
-}
-
-func ExampleLoopbackRoute() {
-	code := `
-		ajaxRouteV3: PathRegexp(/^\/api\/v3\/.*/) -> ajaxHeader("v3") -> <loopback>`
-
-	routes, err := eskip.Parse(code)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	r := routes[0]
-
-	fmt.Println("Parsed a route:")
-	fmt.Printf("id: %v\n", r.Id)
-	fmt.Printf("match regexp: %s\n", r.PathRegexps[0])
-	fmt.Printf("# of filters: %v\n", len(r.Filters))
-	fmt.Printf("backend type: %v\n", r.BackendType)
-	fmt.Printf("backend address: \"%v\"\n", r.Backend)
-
-	// output:
-	// Parsed a route:
-	// id: ajaxRouteV3
-	// match regexp: ^/api/v3/.*
-	// # of filters: 1
-	// backend type: loopback
-	// backend address: ""
-}
-
-func ExampleShuntRoute() {
-	code := `
-		ajaxRouteV3: PathRegexp(/^\/api\/v3\/.*/) -> ajaxHeader("v3") -> <shunt>`
-
-	routes, err := eskip.Parse(code)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	r := routes[0]
-
-	fmt.Println("Parsed a route:")
-	fmt.Printf("id: %v\n", r.Id)
-	fmt.Printf("match regexp: %s\n", r.PathRegexps[0])
-	fmt.Printf("# of filters: %v\n", len(r.Filters))
-	fmt.Printf("backend type: %v\n", r.BackendType)
-	fmt.Printf("backend address: \"%v\"\n", r.Backend)
-
-	// output:
-	// Parsed a route:
-	// id: ajaxRouteV3
-	// match regexp: ^/api/v3/.*
-	// # of filters: 1
-	// backend type: shunt
-	// backend address: ""
 }
 
 func ExampleParse() {
