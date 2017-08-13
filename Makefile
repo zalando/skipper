@@ -53,7 +53,7 @@ bench: build
 	for p in $(PACKAGES); do go test -bench . $$p; done
 
 lint: build
-	gometalinter --enable-all --deadline=60s ./... | tee -a linter.log
+	gometalinter --enable-all --deadline=60s ./... | tee linter.log
 
 clean:
 	go clean -i ./...
