@@ -17,8 +17,6 @@ imports:
   version: a3f95b5c423586578a4e099b11a46c2479628cac
 - name: github.com/sony/gobreaker
   version: e9556a45379ef1da12e54847edb2fb3d7d566f36
-- name: github.com/zalando/pathmux
-  version: 90241ddcbc6161a874026d890f4bed831b5dfbb5
 - name: golang.org/x/crypto
   version: adbae1b6b6fb4b02448a0fc0dbbc9ba2b95b294d
   subpackages:

@@ -8,7 +8,6 @@ import:
 - package: github.com/rcrowley/go-metrics
 - package: github.com/sirupsen/logrus
   version: ~1.0.0
-- package: github.com/zalando/pathmux
 - package: golang.org/x/crypto
   subpackages:
   - ssh/terminal
