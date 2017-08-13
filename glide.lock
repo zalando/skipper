@@ -1,5 +1,5 @@
-hash: b32ab68082d8773a25dc4ff8236d060a3680e5d4e7f322b248b8b4a06d52e334
-updated: 2017-07-17T18:21:39.526808142+02:00
+hash: 8b21cac50e021fde6af96060d188dd3d6736efd9d5a5441fe0b4721d5be5d728
+updated: 2017-08-10T14:30:16.475291934+02:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
@@ -17,8 +17,6 @@ imports:
   version: a3f95b5c423586578a4e099b11a46c2479628cac
 - name: github.com/sony/gobreaker
   version: e9556a45379ef1da12e54847edb2fb3d7d566f36
-- name: github.com/zalando/pathmux
-  version: 90241ddcbc6161a874026d890f4bed831b5dfbb5
 - name: golang.org/x/crypto
   version: adbae1b6b6fb4b02448a0fc0dbbc9ba2b95b294d
   subpackages:

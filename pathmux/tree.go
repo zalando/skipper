@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-// Matcher objects, when using the LookupMatch function, can be used for additional checks and to override the
+// Matcher objects, when using the LookupMatcher function, can be used for additional checks and to override the
 // default result in case of path matches. The argument passed to the Match function is the original value
 // passed to the Tree.Add function.
 type Matcher interface {

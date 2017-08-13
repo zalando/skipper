@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -137,6 +138,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		Log:            tl})
 	params.Routing = rt
 	p := WithParams(params)
+	p.log = tl
 
 	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
 		return nil, err
@@ -269,10 +271,6 @@ func TestGetRoundtrip(t *testing.T) {
 
 	if cl, ok := w.Header()["Content-Length"]; !ok || cl[0] != strconv.Itoa(len(payload)) {
 		t.Error("wrong content length")
-	}
-
-	if xpb, ok := w.Header()["X-Powered-By"]; !ok || xpb[0] != "Skipper" {
-		t.Error("Wrong X-Powered-By header value")
 	}
 
 	if xpb, ok := w.Header()["Server"]; !ok || xpb[0] != "Skipper" {
@@ -460,11 +458,11 @@ func TestAppliesFilters(t *testing.T) {
 	fr.Register(builtin.NewRequestHeader())
 	fr.Register(builtin.NewResponseHeader())
 
-	doc := fmt.Sprintf(`hello:
-		Path("/hello") ->
-		requestHeader("X-Test-Request-Header", "request header value") ->
-		responseHeader("X-Test-Response-Header", "response header value") ->
-		"%s"`, s.URL)
+	doc := fmt.Sprintf(`hello: Path("/hello")
+		-> requestHeader("X-Test-Request-Header", "request header value")
+		-> responseHeader("X-Test-Response-Header", "response header value")
+		-> "%s"
+	`, s.URL)
 	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
 	if err != nil {
 		t.Error(err)
@@ -994,33 +992,235 @@ func TestRoundtripperRetry(t *testing.T) {
 }
 
 func TestBranding(t *testing.T) {
-	for path, code := range map[string]int{"/path/to/be/found": 200, "/path/not/to/be/found": 404} {
-		t.Run(path, func(t *testing.T) {
-			p, err := newTestProxy(fmt.Sprintf(`Path("/path/to/be/*") -> status(200) -> <shunt>`), FlagsNone)
+	routesTpl := `
+        shunt: Path("/shunt") -> status(200) -> <shunt>;
+
+        connectionError: Path("/connection-error") -> "${backend-down}";
+
+        default: Path("/default") -> "${backend-default}";
+
+        backendSet: Path("/backend-set") -> "${backend-set}";
+
+        shuntFilterSet: Path("/shunt-filter-set")
+            -> setResponseHeader("Server", "filter")
+            -> status(200)
+            -> <shunt>;
+
+        connectionErrorFilterSet: Path("/connection-error-filter-set")
+            -> setResponseHeader("Server", "filter")
+            -> "${backend-down}";
+
+        defaultFilterSet: Path("/default-filter-set")
+            -> setResponseHeader("Server", "filter")
+            -> "${backend-default}";
+
+        backendSetFilterSet: Path("/backend-set-filter-set")
+            -> setResponseHeader("Server", "filter")
+            -> "${backend-set}";
+
+        shuntFilterDrop: Path("/shunt-filter-drop")
+            -> dropResponseHeader("Server")
+            -> status(200)
+            -> <shunt>;
+
+        connectionErrorFilterDrop: Path("/connection-error-filter-drop")
+            -> dropResponseHeader("Server")
+            -> "${backend-down}";
+
+        defaultFilterDrop: Path("/default-filter-drop")
+            -> dropResponseHeader("Server")
+            -> "${backend-default}";
+
+        backendSetFilterDrop: Path("/backend-set-filter-drop")
+            -> dropResponseHeader("Server")
+            -> "${backend-set}";
+    `
+
+	backendDefault := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer backendDefault.Close()
+
+	backendSet := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", "backend")
+	}))
+	defer backendSet.Close()
+
+	backendDown := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	backendDown.Close()
+
+	routes := routesTpl
+	routes = strings.Replace(routes, "${backend-down}", backendDown.URL, -1)
+	routes = strings.Replace(routes, "${backend-default}", backendDefault.URL, -1)
+	routes = strings.Replace(routes, "${backend-set}", backendSet.URL, -1)
+
+	p, err := newTestProxy(routes, FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	for _, ti := range []struct {
+		uri    string
+		header string
+	}{
+		{"/shunt", "Skipper"},
+		{"/connection-error", "Skipper"},
+		{"/default", "Skipper"},
+		{"/backend-set", "backend"},
+		{"/shunt-filter-set", "filter"},
+
+		// filters are not executed on backend connection errors
+		{"/connection-error-filter-set", "Skipper"},
+
+		{"/default-filter-set", "filter"},
+		{"/backend-set-filter-set", "filter"},
+		{"/shunt-filter-drop", ""},
+
+		// filters are not executed on backend connection errors
+		{"/connection-error-filter-drop", "Skipper"},
+
+		{"/default-filter-drop", ""},
+		{"/backend-set-filter-drop", ""},
+	} {
+		t.Run(ti.uri, func(t *testing.T) {
+			rsp, err := http.Get(ps.URL + ti.uri)
 			if err != nil {
 				t.Error(err)
 				return
 			}
 
-			defer p.close()
+			defer rsp.Body.Close()
 
-			s := httptest.NewServer(p.proxy)
-			defer s.Close()
-
-			rsp, err := http.Get(s.URL + path)
-			if err != nil {
-				t.Error(err)
+			if rsp.StatusCode == http.StatusNotFound {
+				t.Error("not found")
 				return
 			}
 
-			if rsp.StatusCode != code {
-				t.Error("wrong status", rsp.StatusCode, code)
-				return
-			}
-
-			if rsp.Header.Get("X-Powered-By") != "Skipper" || rsp.Header.Get("Server") != "Skipper" {
-				t.Error("failed to add branding")
+			if rsp.Header.Get("Server") != ti.header {
+				t.Errorf(
+					"failed to set the right server header; got: %s; expected: %s",
+					rsp.Header.Get("Server"),
+					ti.header,
+				)
 			}
 		})
 	}
+}
+
+func TestFixNoAppLogFor404(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	p, err := newTestProxy("", FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	rsp, err := http.Get(ps.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer rsp.Body.Close()
+
+	if err := p.log.WaitFor(unknownRouteID, 120*time.Millisecond); err == nil {
+		t.Error("unexpected log on route lookup failed")
+	} else if err != loggingtest.ErrWaitTimeout {
+		t.Error(err)
+	}
+}
+
+func TestRequestContentHeaders(t *testing.T) {
+	const contentLength = 1 << 15
+
+	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if len(b) != contentLength {
+			t.Error("failed to forward content")
+			return
+		}
+
+		if r.URL.Path == "/with-content-length" {
+			if r.ContentLength != contentLength {
+				t.Error("failed to forward content length")
+				return
+			}
+
+			if len(r.TransferEncoding) != 0 {
+				t.Error("unexpected transfer encoding")
+				return
+			}
+
+			return
+		}
+
+		if r.ContentLength > 0 {
+			t.Error("unexpected content length")
+		}
+
+		if len(r.TransferEncoding) != 1 || r.TransferEncoding[0] != "chunked" {
+			t.Error("failed to set chunked encoding")
+			return
+		}
+	}))
+
+	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, backend.URL), FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	req := func(withContentLength bool) {
+		path := "/without-content-length"
+		if withContentLength {
+			path = "/with-content-length"
+		}
+
+		req, err := http.NewRequest(
+			"GET",
+			ps.URL+path,
+			io.LimitReader(rand.New(rand.NewSource(42)), contentLength),
+		)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if withContentLength {
+			req.ContentLength = contentLength
+		}
+
+		rsp, err := (&http.Client{}).Do(req)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		rsp.Body.Close()
+	}
+
+	req(false)
+	req(true)
 }
