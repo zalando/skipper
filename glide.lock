@@ -1,14 +1,17 @@
-hash: b32ab68082d8773a25dc4ff8236d060a3680e5d4e7f322b248b8b4a06d52e334
-updated: 2017-07-17T18:21:39.526808142+02:00
+hash: 8b21cac50e021fde6af96060d188dd3d6736efd9d5a5441fe0b4721d5be5d728
+updated: 2017-08-13T20:09:10.397364831+02:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
 - name: github.com/dimfeld/httppath
-  version: c8e499c3ef3c3e272ed8bdcc1ccf39f73c88debc
+  version: ee938bf735983d53694d79138ad9820efff94c92
 - name: github.com/google/go-cmp
-  version: e6ff442c1751c5257df71dd2a42b9bcbbd6f01a6
+  version: 8099a9787ce5dc5984ed879a3bda47dc730a8e97
   subpackages:
   - cmp
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value
 - name: github.com/oklog/ulid
   version: d311cb43c92434ec4072dfbbda3400741d0a6337
 - name: github.com/rcrowley/go-metrics
@@ -18,13 +21,13 @@ imports:
 - name: github.com/sony/gobreaker
   version: e9556a45379ef1da12e54847edb2fb3d7d566f36
 - name: golang.org/x/crypto
-  version: adbae1b6b6fb4b02448a0fc0dbbc9ba2b95b294d
+  version: c2303dcbe84172e0c0da4c9f083eeca54c06f298
   subpackages:
   - bcrypt
   - blowfish
   - ssh/terminal
 - name: golang.org/x/sys
-  version: f7928cfef4d09d1b080aa2b6fd3ca9ba1567c733
+  version: 7de4796419dc3b554e6dab3a119a62469569d299
   subpackages:
   - unix
 testImports:
