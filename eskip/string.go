@@ -146,11 +146,15 @@ func (r *Route) Print(pretty bool) string {
 	return strings.Join(s, separator)
 }
 
-// Serializes a set of routes.
+// String is the same as Print but defaulting to pretty=false.
 func String(routes ...*Route) string {
 	return Print(false, routes...)
 }
 
+// Print serializes a set of routes into a string. If there's only a
+// single route, and its ID is not set, it prints only a route expression.
+// If it has multiple routes with IDs, it prints full route definitions
+// with the IDs and separated by ';'.
 func Print(pretty bool, routes ...*Route) string {
 	if len(routes) == 1 && routes[0].Id == "" {
 		return routes[0].Print(pretty)
@@ -161,11 +165,20 @@ func Print(pretty bool, routes ...*Route) string {
 		rs[i] = fmt.Sprintf("%s: %s", r.Id, r.Print(pretty))
 	}
 
-	return strings.Join(rs, ";\n")
+	sep := ";\n"
+	if pretty {
+		sep += "\n"
+	}
+
+	return strings.Join(rs, sep)
 }
 
 func Fprint(w io.Writer, pretty bool, routes ...*Route) {
-	for _, r := range routes {
-		fmt.Fprintf(w, "%s: %s;\n", r.Id, r.Print(pretty))
+	f := "%s: %s;\n"
+	for i, r := range routes {
+		fmt.Fprintf(w, f, r.Id, r.Print(pretty))
+		if i == 0 {
+			f = "\n" + f
+		}
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/pathmux"
+	"github.com/zalando/skipper/routing/pathgen"
 )
 
 type truePredicate struct{}
@@ -167,7 +168,7 @@ func initGenericMatcher() {
 }
 
 // generate random paths
-func generatePaths(pg *pathGenerator, count int) []string {
+func generatePaths(pg *pathgen.PathGenerator, count int) []string {
 	paths := make([]string, count)
 
 	for i := 0; i < count; i++ {
@@ -217,7 +218,7 @@ func initRandomPaths() {
 
 	// we need to avoid '/' paths here, because we are not testing conflicting cases
 	// here, and with 0 or 1 MinNamesInPath, there would be multiple '/'s.
-	pg := newPathGenerator(pathGeneratorOptions{
+	pg := pathgen.New(pathgen.PathGeneratorOptions{
 		MinNamesInPath: 2,
 		MaxNamesInPath: 15})
 
@@ -769,14 +770,14 @@ func TestMatchWildcardPaths(t *testing.T) {
 }
 
 func TestCompileRegexpsError(t *testing.T) {
-	_, err := compileRxs([]string{"**"})
+	_, err := getCompiledRxs(make(map[string]*regexp.Regexp), []string{"**"})
 	if err == nil {
 		t.Error("failed to fail")
 	}
 }
 
 func TestCompileRegexps(t *testing.T) {
-	rxs, err := compileRxs([]string{"some", "expressions"})
+	rxs, err := getCompiledRxs(make(map[string]*regexp.Regexp), []string{"some", "expressions"})
 	if err != nil || len(rxs) != 2 {
 		t.Error("failed to compile regexps", err, len(rxs))
 	}
@@ -789,7 +790,7 @@ func TestMakeLeafInvalidHostRx(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = newLeaf(r)
+	_, err = newLeaf(r, make(map[string]*regexp.Regexp))
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -802,7 +803,7 @@ func TestMakeLeafInvalidPathRx(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = newLeaf(r)
+	_, err = newLeaf(r, make(map[string]*regexp.Regexp))
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -815,7 +816,7 @@ func TestMakeLeafInvalidHeaderRegexp(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = newLeaf(r)
+	_, err = newLeaf(r, make(map[string]*regexp.Regexp))
 	if err == nil {
 		t.Error("failed to fail")
 	}
@@ -834,7 +835,7 @@ func TestMakeLeaf(t *testing.T) {
 		t.Error(err)
 	}
 
-	l, err := newLeaf(r)
+	l, err := newLeaf(r, make(map[string]*regexp.Regexp))
 	if err != nil || l.method != "PUT" ||
 		len(l.hostRxs) != 1 || len(l.pathRxs) != 1 ||
 		len(l.headersExact) != 1 || len(l.headersRegexp) != 1 ||

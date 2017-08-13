@@ -34,7 +34,7 @@ check: build
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do go test $$p; done
+	for p in $(PACKAGES); do go test $$p || break -1; done
 
 shortcheck: build
 	# go test -test.short -run ^Test $(PACKAGES)
@@ -42,7 +42,7 @@ shortcheck: build
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do go test -test.short -run ^Test $$p; done
+	for p in $(PACKAGES); do go test -test.short -run ^Test $$p || break -1; done
 
 bench: build
 	# go test -bench . $(PACKAGES)
