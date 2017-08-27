@@ -31,7 +31,7 @@ Proxy Mechanism
 The incoming request is matched to the current routing tree, implemented
 in skipper/routing. The result may be a route, which will be used for
 forwarding or handling the request, or nil, in which case the proxy
-responds with 404.
+responds with a configured http status code (defaults to 404).
 
 
 2. upstream request augmentation:

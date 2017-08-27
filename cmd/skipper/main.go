@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -86,6 +87,7 @@ const (
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
 	versionUsage                   = "print Skipper version"
 	maxLoopbacksUsage              = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
+	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
 )
 
 var (
@@ -141,6 +143,7 @@ var (
 	maxLoopbacks              int
 	enableBreakers            bool
 	breakers                  breakerFlags
+	defaultHTTPStatus         int
 )
 
 func init() {
@@ -191,6 +194,7 @@ func init() {
 	flag.IntVar(&maxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
 	flag.BoolVar(&enableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&breakers, "breaker", breakerUsage)
+	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.Parse()
 }
 
@@ -280,6 +284,7 @@ func main() {
 		MaxLoopbacks:              maxLoopbacks,
 		EnableBreakers:            enableBreakers,
 		BreakerSettings:           breakers,
+		DefaultHTTPStatus:         defaultHTTPStatus,
 	}
 
 	if insecure {

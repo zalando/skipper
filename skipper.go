@@ -243,6 +243,10 @@ type Options struct {
 
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
+
+	// DefaultHTTPStatus is the HTTP status used when no routes are found
+	// for a request.
+	DefaultHTTPStatus int
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -450,6 +454,7 @@ func Run(o Options) error {
 		FlushInterval:          o.BackendFlushInterval,
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
+		DefaultHTTPStatus:      o.DefaultHTTPStatus,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
