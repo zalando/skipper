@@ -117,6 +117,10 @@ type Params struct {
 	// find the matching circuit breaker for backend requests. If not
 	// set, no circuit breakers are used.
 	CircuitBreakers *circuit.Registry
+
+	// DefaultHTTPStatus is the HTTP status used when no routes are found
+	// for a request.
+	DefaultHTTPStatus int
 }
 
 var (
@@ -318,6 +322,10 @@ func WithParams(p Params) *Proxy {
 		p.MaxLoopbacks = DefaultMaxLoopbacks
 	} else if p.MaxLoopbacks < 0 {
 		p.MaxLoopbacks = 0
+	}
+
+	if p.DefaultHTTPStatus >= http.StatusContinue && p.DefaultHTTPStatus <= http.StatusNetworkAuthenticationRequired {
+		errRouteLookupFailed.code = p.DefaultHTTPStatus
 	}
 
 	return &Proxy{
