@@ -1229,14 +1229,14 @@ func TestSettingDefaultHTTPStatus(t *testing.T) {
 	params := Params{
 		DefaultHTTPStatus: http.StatusBadGateway,
 	}
-	_ = WithParams(params)
-	if errRouteLookupFailed.code != http.StatusBadGateway {
-		t.Errorf("expected default HTTP status %d, got %d", http.StatusBadGateway, errRouteLookupFailed.code)
+	p := WithParams(params)
+	if p.defaultHTTPStatus != http.StatusBadGateway {
+		t.Errorf("expected default HTTP status %d, got %d", http.StatusBadGateway, p.defaultHTTPStatus)
 	}
 
 	params.DefaultHTTPStatus = http.StatusNetworkAuthenticationRequired + 1
-	_ = WithParams(params)
-	if errRouteLookupFailed.code != http.StatusBadGateway {
-		t.Errorf("expected default HTTP status %d, got %d", http.StatusNotFound, errRouteLookupFailed.code)
+	p = WithParams(params)
+	if p.defaultHTTPStatus != http.StatusNotFound {
+		t.Errorf("expected default HTTP status %d, got %d", http.StatusNotFound, p.defaultHTTPStatus)
 	}
 }
