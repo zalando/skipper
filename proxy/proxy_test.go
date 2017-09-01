@@ -1224,3 +1224,19 @@ func TestRequestContentHeaders(t *testing.T) {
 	req(false)
 	req(true)
 }
+
+func TestSettingDefaultHTTPStatus(t *testing.T) {
+	params := Params{
+		DefaultHTTPStatus: http.StatusBadGateway,
+	}
+	p := WithParams(params)
+	if p.defaultHTTPStatus != http.StatusBadGateway {
+		t.Errorf("expected default HTTP status %d, got %d", http.StatusBadGateway, p.defaultHTTPStatus)
+	}
+
+	params.DefaultHTTPStatus = http.StatusNetworkAuthenticationRequired + 1
+	p = WithParams(params)
+	if p.defaultHTTPStatus != http.StatusNotFound {
+		t.Errorf("expected default HTTP status %d, got %d", http.StatusNotFound, p.defaultHTTPStatus)
+	}
+}

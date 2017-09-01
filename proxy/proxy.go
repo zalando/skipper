@@ -117,11 +117,15 @@ type Params struct {
 	// find the matching circuit breaker for backend requests. If not
 	// set, no circuit breakers are used.
 	CircuitBreakers *circuit.Registry
+
+	// DefaultHTTPStatus is the HTTP status used when no routes are found
+	// for a request.
+	DefaultHTTPStatus int
 }
 
 var (
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
-	errRouteLookupFailed   = &proxyError{code: http.StatusNotFound}
+	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
 	errCircuitBreakerOpen  = &proxyError{
 		err:  errors.New("circuit breaker open"),
 		code: http.StatusServiceUnavailable,
@@ -171,6 +175,7 @@ type Proxy struct {
 	maxLoops            int
 	breakers            *circuit.Registry
 	log                 logging.Logger
+	defaultHTTPStatus   int
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -320,6 +325,12 @@ func WithParams(p Params) *Proxy {
 		p.MaxLoopbacks = 0
 	}
 
+	defaultHTTPStatus := http.StatusNotFound
+
+	if p.DefaultHTTPStatus >= http.StatusContinue && p.DefaultHTTPStatus <= http.StatusNetworkAuthenticationRequired {
+		defaultHTTPStatus = p.DefaultHTTPStatus
+	}
+
 	return &Proxy{
 		routing:             p.Routing,
 		roundTripper:        tr,
@@ -332,6 +343,7 @@ func WithParams(p Params) *Proxy {
 		maxLoops:            p.MaxLoopbacks,
 		breakers:            p.CircuitBreakers,
 		log:                 &logging.DefaultLog{},
+		defaultHTTPStatus:   defaultHTTPStatus,
 	}
 }
 
@@ -644,6 +656,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	case err == errCircuitBreakerOpen:
 		ctx.responseWriter.Header().Set("X-Circuit-Open", "true")
 	case err == errRouteLookupFailed:
+		code = p.defaultHTTPStatus
 	default:
 		p.log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
 	}
