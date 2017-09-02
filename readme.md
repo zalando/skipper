@@ -117,3 +117,12 @@ topics:
 ### Packaging support
 
 See https://github.com/zalando/skipper/blob/master/packaging/readme.md
+
+## Community
+
+### Proposals
+
+We do our proposals open in [Skipper's Google drive](https://drive.google.com/drive/folders/0B9LwJMF9koB-ZEk4bEhZal9uOWM).
+If you want to make a proposal feel free to create an
+[issue](https://github.com/zalando/skipper/issues) and if it is a
+bigger change we will invite you to a document, such that we can work together.
