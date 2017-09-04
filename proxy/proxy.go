@@ -365,6 +365,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	for _, fi := range f {
 		start := time.Now()
 		tryCatch(func() {
+			ctx.setMetricsPrefix(fi.Name)
 			fi.Request(ctx)
 			p.metrics.MeasureFilterRequest(fi.Name, start)
 		}, func(err interface{}) {
@@ -397,6 +398,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 		fi := filters[count-1-i]
 		start := time.Now()
 		tryCatch(func() {
+			ctx.setMetricsPrefix(fi.Name)
 			fi.Response(ctx)
 			p.metrics.MeasureFilterResponse(fi.Name, start)
 		}, func(err interface{}) {
@@ -666,7 +668,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(w, r, p.flags.PreserveOriginal())
+	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics)
 	ctx.startServe = time.Now()
 
 	defer func() {
