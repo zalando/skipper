@@ -226,7 +226,7 @@ func (m *Metrics) MeasureFilterResponse(filterName string, start time.Time) {
 }
 
 func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
-	if !m.options.EnableAllFiltersMetrics {
+	if m.options.EnableAllFiltersMetrics {
 		m.measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
 	}
 }
