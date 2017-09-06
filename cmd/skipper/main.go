@@ -74,6 +74,11 @@ const (
 	serveRouteMetricsUsage         = "enables reporting total serve time metrics for each route"
 	serveHostMetricsUsage          = "enables reporting total serve time metrics for each host"
 	backendHostMetricsUsage        = "enables reporting total serve time metrics for each backend"
+	allFiltersMetricsUsage         = "enables reporting combined filter metrics for each route"
+	routeResponseMetricsUsage      = "enables reporting response time metrics for each route"
+	routeBackendErrorCountersUsage = "enables counting backend errors for each route"
+	routeStreamErrorCountersUsage  = "enables counting streaming errors for each route"
+	disableMetricsCompatsUsage     = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
 	applicationLogUsage            = "output file for the application log. When not set, /dev/stderr is used"
 	applicationLogLevelUsage       = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
 	applicationLogPrefixUsage      = "prefix for each log entry"
@@ -128,6 +133,11 @@ var (
 	serveRouteMetrics         bool
 	serveHostMetrics          bool
 	backendHostMetrics        bool
+	allFiltersMetrics         bool
+	routeResponseMetrics      bool
+	routeBackendErrorCounters bool
+	routeStreamErrorCounters  bool
+	disableMetricsCompat      bool
 	applicationLog            string
 	applicationLogLevel       string
 	applicationLogPrefix      string
@@ -179,6 +189,11 @@ func init() {
 	flag.BoolVar(&serveRouteMetrics, "serve-route-metrics", false, serveRouteMetricsUsage)
 	flag.BoolVar(&serveHostMetrics, "serve-host-metrics", false, serveHostMetricsUsage)
 	flag.BoolVar(&backendHostMetrics, "backend-host-metrics", false, backendHostMetricsUsage)
+	flag.BoolVar(&allFiltersMetrics, "all-filters-metrics", false, allFiltersMetricsUsage)
+	flag.BoolVar(&routeResponseMetrics, "route-response-metrics", false, routeResponseMetricsUsage)
+	flag.BoolVar(&routeBackendErrorCounters, "route-backend-error-counters", false, routeBackendErrorCountersUsage)
+	flag.BoolVar(&routeStreamErrorCounters, "route-stream-error-counters", false, routeStreamErrorCountersUsage)
+	flag.BoolVar(&disableMetricsCompat, "disable-metrics-compat", false, disableMetricsCompatsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
 	flag.StringVar(&applicationLogLevel, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
@@ -240,51 +255,56 @@ func main() {
 	}
 
 	options := skipper.Options{
-		Address:                   address,
-		EtcdUrls:                  eus,
-		EtcdPrefix:                etcdPrefix,
-		Kubernetes:                kubernetes,
-		KubernetesInCluster:       kubernetesInCluster,
-		KubernetesURL:             kubernetesURL,
-		KubernetesHealthcheck:     kubernetesHealthcheck,
-		KubernetesHTTPSRedirect:   kubernetesHTTPSRedirect,
-		KubernetesIngressClass:    kubernetesIngressClass,
-		InnkeeperUrl:              innkeeperURL,
-		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
-		RoutesFile:                routesFile,
-		IdleConnectionsPerHost:    idleConnsPerHost,
-		CloseIdleConnsPeriod:      time.Duration(clsic) * time.Second,
-		IgnoreTrailingSlash:       false,
-		OAuthUrl:                  oauthURL,
-		OAuthScope:                oauthScope,
-		OAuthCredentialsDir:       oauthCredentialsDir,
-		InnkeeperAuthToken:        innkeeperAuthToken,
-		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
-		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
-		DevMode:                   devMode,
-		MetricsListener:           metricsListener,
-		SupportListener:           supportListener,
-		MetricsPrefix:             metricsPrefix,
-		EnableProfile:             enableProfile,
-		EnableDebugGcMetrics:      debugGcMetrics,
-		EnableRuntimeMetrics:      runtimeMetrics,
-		EnableServeRouteMetrics:   serveRouteMetrics,
-		EnableServeHostMetrics:    serveHostMetrics,
-		EnableBackendHostMetrics:  backendHostMetrics,
-		ApplicationLogOutput:      applicationLog,
-		ApplicationLogPrefix:      applicationLogPrefix,
-		AccessLogOutput:           accessLog,
-		AccessLogDisabled:         accessLogDisabled,
-		AccessLogJSONEnabled:      accessLogJSONEnabled,
-		DebugListener:             debugListener,
-		CertPathTLS:               certPathTLS,
-		KeyPathTLS:                keyPathTLS,
-		BackendFlushInterval:      backendFlushInterval,
-		ExperimentalUpgrade:       experimentalUpgrade,
-		MaxLoopbacks:              maxLoopbacks,
-		EnableBreakers:            enableBreakers,
-		BreakerSettings:           breakers,
-		DefaultHTTPStatus:         defaultHTTPStatus,
+		Address:                             address,
+		EtcdUrls:                            eus,
+		EtcdPrefix:                          etcdPrefix,
+		Kubernetes:                          kubernetes,
+		KubernetesInCluster:                 kubernetesInCluster,
+		KubernetesURL:                       kubernetesURL,
+		KubernetesHealthcheck:               kubernetesHealthcheck,
+		KubernetesHTTPSRedirect:             kubernetesHTTPSRedirect,
+		KubernetesIngressClass:              kubernetesIngressClass,
+		InnkeeperUrl:                        innkeeperURL,
+		SourcePollTimeout:                   time.Duration(sourcePollTimeout) * time.Millisecond,
+		RoutesFile:                          routesFile,
+		IdleConnectionsPerHost:              idleConnsPerHost,
+		CloseIdleConnsPeriod:                time.Duration(clsic) * time.Second,
+		IgnoreTrailingSlash:                 false,
+		OAuthUrl:                            oauthURL,
+		OAuthScope:                          oauthScope,
+		OAuthCredentialsDir:                 oauthCredentialsDir,
+		InnkeeperAuthToken:                  innkeeperAuthToken,
+		InnkeeperPreRouteFilters:            innkeeperPreRouteFilters,
+		InnkeeperPostRouteFilters:           innkeeperPostRouteFilters,
+		DevMode:                             devMode,
+		MetricsListener:                     metricsListener,
+		SupportListener:                     supportListener,
+		MetricsPrefix:                       metricsPrefix,
+		EnableProfile:                       enableProfile,
+		EnableDebugGcMetrics:                debugGcMetrics,
+		EnableRuntimeMetrics:                runtimeMetrics,
+		EnableServeRouteMetrics:             serveRouteMetrics,
+		EnableServeHostMetrics:              serveHostMetrics,
+		EnableBackendHostMetrics:            backendHostMetrics,
+		EnableAllFiltersMetrics:             allFiltersMetrics,
+		EnableRouteResponseMetrics:          routeResponseMetrics,
+		EnableRouteBackendErrorsCounters:    routeBackendErrorCounters,
+		EnableRouteStreamingErrorsCounters:  routeStreamErrorCounters,
+		DisableMetricsCompatibilityDefaults: disableMetricsCompat,
+		ApplicationLogOutput:                applicationLog,
+		ApplicationLogPrefix:                applicationLogPrefix,
+		AccessLogOutput:                     accessLog,
+		AccessLogDisabled:                   accessLogDisabled,
+		AccessLogJSONEnabled:                accessLogJSONEnabled,
+		DebugListener:                       debugListener,
+		CertPathTLS:                         certPathTLS,
+		KeyPathTLS:                          keyPathTLS,
+		BackendFlushInterval:                backendFlushInterval,
+		ExperimentalUpgrade:                 experimentalUpgrade,
+		MaxLoopbacks:                        maxLoopbacks,
+		EnableBreakers:                      enableBreakers,
+		BreakerSettings:                     breakers,
+		DefaultHTTPStatus:                   defaultHTTPStatus,
 	}
 
 	if insecure {
