@@ -39,6 +39,38 @@ type Options struct {
 	// for each backend host
 	EnableBackendHostMetrics bool
 
+	// EnableAllFiltersMetrics enables collecting combined filter
+	// metrics per each route. Without the DisableCompatibilityDefaults,
+	// it is enabled by default.
+	EnableAllFiltersMetrics bool
+
+	// EnableRouteResponseMetrics enables collecting response time
+	// metrics per each route. Without the DisableCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteResponseMetrics bool
+
+	// EnableRouteBackendErrorsCounters enables counters for backend
+	// errors per each route. Without the DisableCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteBackendErrorsCounters bool
+
+	// EnableRouteStreamingErrorsCounters enables counters for streaming
+	// errors per each route. Without the DisableCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteStreamingErrorsCounters bool
+
+	// EnableRouteBackendMetrics enables backend response time metrics
+	// per each route. Without the DisableCompatibilityDefaults, it is
+	// enabled by default.
+	EnableRouteBackendMetrics bool
+
+	// The following options, for backwards compatibility, are true
+	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
+	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
+	// EnableRouteBackendMetrics. With this compatibility flag, the default
+	// for these options can be set to false.
+	DisableCompatibilityDefaults bool
+
 	// EnableProfile exposes profiling information on /pprof of the
 	// metrics listener.
 	EnableProfile bool
@@ -77,7 +109,23 @@ var (
 	Void    *Metrics
 )
 
+func applyCompatibilityDefaults(o Options) Options {
+	if o.DisableCompatibilityDefaults {
+		return o
+	}
+
+	o.EnableAllFiltersMetrics = true
+	o.EnableRouteResponseMetrics = true
+	o.EnableRouteBackendErrorsCounters = true
+	o.EnableRouteStreamingErrorsCounters = true
+	o.EnableRouteBackendMetrics = true
+
+	return o
+}
+
 func New(o Options) *Metrics {
+	o = applyCompatibilityDefaults(o)
+
 	m := &Metrics{}
 	m.reg = metrics.NewRegistry()
 	m.createTimer = createTimer
@@ -164,11 +212,15 @@ func (m *Metrics) MeasureFilterRequest(filterName string, start time.Time) {
 }
 
 func (m *Metrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
-	m.measureSince(fmt.Sprintf(KeyFiltersRequest, routeId), start)
+	if m.options.EnableAllFiltersMetrics {
+		m.measureSince(fmt.Sprintf(KeyFiltersRequest, routeId), start)
+	}
 }
 
 func (m *Metrics) MeasureBackend(routeId string, start time.Time) {
-	m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
+	if m.options.EnableRouteBackendMetrics {
+		m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
+	}
 }
 
 func (m *Metrics) MeasureBackendHost(routeBackendHost string, start time.Time) {
@@ -182,12 +234,16 @@ func (m *Metrics) MeasureFilterResponse(filterName string, start time.Time) {
 }
 
 func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
-	m.measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
+	if m.options.EnableAllFiltersMetrics {
+		m.measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
+	}
 }
 
 func (m *Metrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
-	method = measuredMethod(method)
-	m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
+	if m.options.EnableRouteResponseMetrics {
+		method = measuredMethod(method)
+		m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
+	}
 }
 
 func hostForKey(h string) string {
@@ -241,11 +297,15 @@ func (m *Metrics) IncRoutingFailures() {
 }
 
 func (m *Metrics) IncErrorsBackend(routeId string) {
-	m.incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
+	if m.options.EnableRouteBackendErrorsCounters {
+		m.incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
+	}
 }
 
 func (m *Metrics) IncErrorsStreaming(routeId string) {
-	m.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
+	if m.options.EnableRouteStreamingErrorsCounters {
+		m.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
+	}
 }
 
 // This listener is used to expose the collected metrics.
