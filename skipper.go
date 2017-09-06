@@ -206,11 +206,16 @@ type Options struct {
 	// it is enabled by default.
 	EnableRouteStreamingErrorsCounters bool
 
+	// EnableRouteBackendMetrics enables backend response time metrics
+	// per each route. Without the DisableMetricsCompatibilityDefaults, it is
+	// enabled by default.
+	EnableRouteBackendMetrics bool
+
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
-	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters.
-	// With this compatibility flag, the default for these options can be
-	// set to false.
+	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
+	// EnableRouteBackendMetrics. With this compatibility flag, the default
+	// for these options can be set to false.
 	DisableMetricsCompatibilityDefaults bool
 
 	// Output file for the application log. Default value: /dev/stderr.
@@ -509,13 +514,19 @@ func Run(o Options) error {
 		mux.Handle("/routes", routing)
 		mux.Handle("/routes/", routing)
 		metricsHandler := metrics.NewHandler(metrics.Options{
-			Prefix:                   o.MetricsPrefix,
-			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
-			EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
-			EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
-			EnableServeHostMetrics:   o.EnableServeHostMetrics,
-			EnableBackendHostMetrics: o.EnableBackendHostMetrics,
-			EnableProfile:            o.EnableProfile,
+			Prefix:                             o.MetricsPrefix,
+			EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
+			EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
+			EnableServeRouteMetrics:            o.EnableServeRouteMetrics,
+			EnableServeHostMetrics:             o.EnableServeHostMetrics,
+			EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
+			EnableProfile:                      o.EnableProfile,
+			EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
+			EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
+			EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
+			EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
+			EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
+			DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		})
 		mux.Handle("/metrics", metricsHandler)
 		mux.Handle("/metrics/", metricsHandler)

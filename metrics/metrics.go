@@ -59,11 +59,16 @@ type Options struct {
 	// it is enabled by default.
 	EnableRouteStreamingErrorsCounters bool
 
+	// EnableRouteBackendMetrics enables backend response time metrics
+	// per each route. Without the DisableCompatibilityDefaults, it is
+	// enabled by default.
+	EnableRouteBackendMetrics bool
+
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
-	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters.
-	// With this compatibility flag, the default for these options can be
-	// set to false.
+	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
+	// EnableRouteBackendMetrics. With this compatibility flag, the default
+	// for these options can be set to false.
 	DisableCompatibilityDefaults bool
 
 	// EnableProfile exposes profiling information on /pprof of the
@@ -113,6 +118,7 @@ func applyCompatibilityDefaults(o Options) Options {
 	o.EnableRouteResponseMetrics = true
 	o.EnableRouteBackendErrorsCounters = true
 	o.EnableRouteStreamingErrorsCounters = true
+	o.EnableRouteBackendMetrics = true
 
 	return o
 }
@@ -212,7 +218,9 @@ func (m *Metrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
 }
 
 func (m *Metrics) MeasureBackend(routeId string, start time.Time) {
-	m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
+	if m.options.EnableRouteBackendMetrics {
+		m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
+	}
 }
 
 func (m *Metrics) MeasureBackendHost(routeBackendHost string, start time.Time) {

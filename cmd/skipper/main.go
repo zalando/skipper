@@ -78,6 +78,7 @@ const (
 	routeResponseMetricsUsage      = "enables reporting response time metrics for each route"
 	routeBackendErrorCountersUsage = "enables counting backend errors for each route"
 	routeStreamErrorCountersUsage  = "enables counting streaming errors for each route"
+	routeBackendMetricsUsage       = "enables reporting backend response time metrics for each route"
 	disableMetricsCompatsUsage     = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
 	applicationLogUsage            = "output file for the application log. When not set, /dev/stderr is used"
 	applicationLogLevelUsage       = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
@@ -137,6 +138,7 @@ var (
 	routeResponseMetrics      bool
 	routeBackendErrorCounters bool
 	routeStreamErrorCounters  bool
+	routeBackendMetrics       bool
 	disableMetricsCompat      bool
 	applicationLog            string
 	applicationLogLevel       string
@@ -193,6 +195,7 @@ func init() {
 	flag.BoolVar(&routeResponseMetrics, "route-response-metrics", false, routeResponseMetricsUsage)
 	flag.BoolVar(&routeBackendErrorCounters, "route-backend-error-counters", false, routeBackendErrorCountersUsage)
 	flag.BoolVar(&routeStreamErrorCounters, "route-stream-error-counters", false, routeStreamErrorCountersUsage)
+	flag.BoolVar(&routeBackendMetrics, "route-backend-metrics", false, routeBackendMetricsUsage)
 	flag.BoolVar(&disableMetricsCompat, "disable-metrics-compat", false, disableMetricsCompatsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
 	flag.StringVar(&applicationLogLevel, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
@@ -290,6 +293,7 @@ func main() {
 		EnableRouteResponseMetrics:          routeResponseMetrics,
 		EnableRouteBackendErrorsCounters:    routeBackendErrorCounters,
 		EnableRouteStreamingErrorsCounters:  routeStreamErrorCounters,
+		EnableRouteBackendMetrics:           routeBackendMetrics,
 		DisableMetricsCompatibilityDefaults: disableMetricsCompat,
 		ApplicationLogOutput:                applicationLog,
 		ApplicationLogPrefix:                applicationLogPrefix,
