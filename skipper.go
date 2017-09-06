@@ -187,22 +187,22 @@ type Options struct {
 	EnableBackendHostMetrics bool
 
 	// EnableAllFiltersMetrics enables collecting combined filter
-	// metrics per each route. Without the DisableCompatibilityDefaults,
+	// metrics per each route. Without the DisableMetricsCompatibilityDefaults,
 	// it is enabled by default.
 	EnableAllFiltersMetrics bool
 
 	// EnableRouteResponseMetrics enables collecting response time
-	// metrics per each route. Without the DisableCompatibilityDefaults,
+	// metrics per each route. Without the DisableMetricsCompatibilityDefaults,
 	// it is enabled by default.
 	EnableRouteResponseMetrics bool
 
 	// EnableRouteBackendErrorsCounters enables counters for backend
-	// errors per each route. Without the DisableCompatibilityDefaults,
+	// errors per each route. Without the DisableMetricsCompatibilityDefaults,
 	// it is enabled by default.
 	EnableRouteBackendErrorsCounters bool
 
 	// EnableRouteStreamingErrorsCounters enables counters for streaming
-	// errors per each route. Without the DisableCompatibilityDefaults,
+	// errors per each route. Without the DisableMetricsCompatibilityDefaults,
 	// it is enabled by default.
 	EnableRouteStreamingErrorsCounters bool
 
