@@ -211,7 +211,7 @@ type Options struct {
 	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters.
 	// With this compatibility flag, the default for these options can be
 	// set to false.
-	DisableCompatibilityDefaults bool
+	DisableMetricsCompatibilityDefaults bool
 
 	// Output file for the application log. Default value: /dev/stderr.
 	//
