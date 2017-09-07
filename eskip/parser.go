@@ -6,10 +6,19 @@ import __yyfmt__ "fmt"
 //line parser.y:16
 import "strconv"
 
+type Number interface{}
+
 // conversion error ignored, tokenizer expression already checked format
-func convertNumber(s string) float64 {
+func convertNumber(s string) interface{} {
+	var number Number
 	n, _ := strconv.ParseFloat(s, 64)
-	return n
+	if n == float64(int64(n)) {
+		t, _ := strconv.ParseInt(s, 10, 64)
+		number = t
+	} else {
+		number = n
+	}
+	return number
 }
 
 //line parser.y:28
@@ -27,7 +36,7 @@ type eskipSymType struct {
 	backend   string
 	shunt     bool
 	loopback  bool
-	numval    float64
+	numval    interface{}
 	stringval string
 	regexpval string
 }

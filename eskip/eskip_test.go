@@ -302,7 +302,7 @@ func TestParseFilters(t *testing.T) {
 	}, {
 		"success",
 		`filter1(3.14) -> filter2("key", 42)`,
-		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", float64(42)}}},
+		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", int64(42)}}},
 		false,
 	}} {
 		fs, err := ParseFilters(ti.expression)

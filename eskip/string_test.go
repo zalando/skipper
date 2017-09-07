@@ -189,16 +189,12 @@ func TestParseAndStringAndParse(t *testing.T) {
 	doc = testDoc(t, doc)
 }
 
-func TestNumberString(t *testing.T) {
+func TestFloat64String(t *testing.T) {
 	for _, ti := range []float64{
-		0,
-		1,
 		0.1,
 		0.123,
 		0.123456789,
 		0.12345678901234568901234567890,
-		123,
-		123456789,
 		123456789012345678901234567890,
 	} {
 		t.Run(fmt.Sprint(ti), func(t *testing.T) {
@@ -217,6 +213,36 @@ func TestNumberString(t *testing.T) {
 			}
 
 			if v, ok := out[0].Filters[0].Args[0].(float64); !ok || v != ti {
+				t.Error("print/parse failed", v, ti)
+			}
+		})
+	}
+}
+
+func TestInt64String(t *testing.T) {
+	for _, ti := range []int64{
+		0,
+		1,
+		3,
+		123,
+		123456789,
+	} {
+		t.Run(fmt.Sprint(ti), func(t *testing.T) {
+			in := &Route{Filters: []*Filter{{Name: "filter", Args: []interface{}{ti}}}}
+			str := String(in)
+			t.Log("output", str)
+			out, err := Parse(str)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			if len(out) != 1 || len(out[0].Filters) != 1 || len(out[0].Filters[0].Args) != 1 {
+				t.Error("parse failed")
+				return
+			}
+
+			if v, ok := out[0].Filters[0].Args[0].(int64); !ok || v != ti {
 				t.Error("print/parse failed", v, ti)
 			}
 		})
