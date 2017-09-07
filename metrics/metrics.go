@@ -77,17 +77,19 @@ type Options struct {
 }
 
 const (
-	KeyRouteLookup      = "routelookup"
-	KeyRouteFailure     = "routefailure"
-	KeyFilterRequest    = "filter.%s.request"
-	KeyFiltersRequest   = "allfilters.request.%s"
-	KeyProxyBackend     = "backend.%s"
-	KeyProxyBackendHost = "backendhost.%s"
-	KeyFilterResponse   = "filter.%s.response"
-	KeyFiltersResponse  = "allfilters.response.%s"
-	KeyResponse         = "response.%d.%s.skipper.%s"
-	KeyServeRoute       = "serveroute.%s.%s.%d"
-	KeyServeHost        = "servehost.%s.%s.%d"
+	KeyRouteLookup          = "routelookup"
+	KeyRouteFailure         = "routefailure"
+	KeyFilterRequest        = "filter.%s.request"
+	KeyFiltersRequest       = "allfilters.request.%s"
+	KeyProxyBackend         = "backend.%s"
+	KeyProxyBackendCombined = "all.backend"
+	KeyProxyBackendHost     = "backendhost.%s"
+	KeyFilterResponse       = "filter.%s.response"
+	KeyFiltersResponse      = "allfilters.response.%s"
+	KeyResponse             = "response.%d.%s.skipper.%s"
+	KeyResponseCombined     = "all.response.%d.%s.skipper"
+	KeyServeRoute           = "serveroute.%s.%s.%d"
+	KeyServeHost            = "servehost.%s.%s.%d"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
@@ -218,6 +220,7 @@ func (m *Metrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
 }
 
 func (m *Metrics) MeasureBackend(routeId string, start time.Time) {
+	m.measureSince(KeyProxyBackendCombined, start)
 	if m.options.EnableRouteBackendMetrics {
 		m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
 	}
@@ -240,8 +243,9 @@ func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
 }
 
 func (m *Metrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
+	method = measuredMethod(method)
+	m.measureSince(fmt.Sprintf(KeyResponseCombined, code, method), start)
 	if m.options.EnableRouteResponseMetrics {
-		method = measuredMethod(method)
 		m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
 	}
 }
