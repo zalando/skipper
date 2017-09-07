@@ -569,7 +569,7 @@ func TestUsesPreAndPostRouteFilters(t *testing.T) {
 		if r.Filters[1].Name != "filter2" ||
 			len(r.Filters[1].Args) != 2 ||
 			r.Filters[1].Args[0] != "key" ||
-			r.Filters[1].Args[1] != float64(42) {
+			r.Filters[1].Args[1] != int64(42) {
 			t.Error("failed to parse filters 3")
 		}
 
