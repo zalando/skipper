@@ -191,6 +191,10 @@ type Options struct {
 	// it is enabled by default.
 	EnableAllFiltersMetrics bool
 
+	// EnableCombinedResponseMetrics enables collecting response time
+	// metrics combined for every route.
+	EnableCombinedResponseMetrics bool
+
 	// EnableRouteResponseMetrics enables collecting response time
 	// metrics per each route. Without the DisableMetricsCompatibilityDefaults,
 	// it is enabled by default.
@@ -522,6 +526,7 @@ func Run(o Options) error {
 			EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
 			EnableProfile:                      o.EnableProfile,
 			EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
+			EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
 			EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
 			EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
 			EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
