@@ -27,6 +27,14 @@ func TestStatus(t *testing.T) {
 		expectedCode: http.StatusNotFound,
 	}, {
 		msg:          "set status",
+		args:         []interface{}{int64(http.StatusTeapot)},
+		expectedCode: http.StatusTeapot,
+	}, {
+		msg:          "too many arguments",
+		args:         []interface{}{int64(http.StatusTeapot), "something else"},
+		expectedCode: http.StatusNotFound,
+	}, {
+		msg:          "set status",
 		args:         []interface{}{float64(http.StatusTeapot)},
 		expectedCode: http.StatusTeapot,
 	}} {

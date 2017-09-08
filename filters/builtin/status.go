@@ -19,6 +19,8 @@ func (s *statusSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	switch c := args[0].(type) {
+	case int64:
+		return statusFilter(c), nil
 	case int:
 		return statusFilter(c), nil
 	case float64:

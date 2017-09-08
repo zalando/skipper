@@ -62,9 +62,20 @@ func (spec *redirect) CreateFilter(config []interface{}) (filters.Filter, error)
 		return invalidArgs()
 	}
 
+	var statusCode int64
+	var httpCode int
 	code, ok := config[0].(float64)
 	if !ok {
-		return invalidArgs()
+		statusCode, ok = config[0].(int64)
+		if !ok {
+			return invalidArgs()
+		}
+	}
+
+	if code == 0 {
+		httpCode = int(statusCode)
+	} else {
+		httpCode = int(code)
 	}
 
 	location, ok := config[1].(string)
@@ -77,7 +88,7 @@ func (spec *redirect) CreateFilter(config []interface{}) (filters.Filter, error)
 		return invalidArgs()
 	}
 
-	return &redirect{spec.deprecated, int(code), u}, nil
+	return &redirect{spec.deprecated, httpCode, u}, nil
 }
 
 func getRequestHost(r *http.Request) string {
