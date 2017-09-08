@@ -44,6 +44,10 @@ type Options struct {
 	// it is enabled by default.
 	EnableAllFiltersMetrics bool
 
+	// EnableCombinedResponseMetrics enables collecting response time
+	// metrics combined for every route.
+	EnableCombinedResponseMetrics bool
+
 	// EnableRouteResponseMetrics enables collecting response time
 	// metrics per each route. Without the DisableCompatibilityDefaults,
 	// it is enabled by default.
@@ -244,7 +248,10 @@ func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
 
 func (m *Metrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
 	method = measuredMethod(method)
-	m.measureSince(fmt.Sprintf(KeyResponseCombined, code, method), start)
+	if m.options.EnableCombinedResponseMetrics {
+		m.measureSince(fmt.Sprintf(KeyResponseCombined, code, method), start)
+	}
+
 	if m.options.EnableRouteResponseMetrics {
 		m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
 	}
