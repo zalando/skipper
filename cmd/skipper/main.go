@@ -93,6 +93,7 @@ const (
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
 	versionUsage                   = "print Skipper version"
 	maxLoopbacksUsage              = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
+	opentracingUsage               = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
 )
 
@@ -155,6 +156,7 @@ var (
 	maxLoopbacks              int
 	enableBreakers            bool
 	breakers                  breakerFlags
+	openTracing               string
 	defaultHTTPStatus         int
 )
 
@@ -212,6 +214,7 @@ func init() {
 	flag.IntVar(&maxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
 	flag.BoolVar(&enableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&breakers, "breaker", breakerUsage)
+	flag.StringVar(&openTracing, "opentracing", "", opentracingUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.Parse()
 }
@@ -258,57 +261,52 @@ func main() {
 	}
 
 	options := skipper.Options{
-		Address:                             address,
-		EtcdUrls:                            eus,
-		EtcdPrefix:                          etcdPrefix,
-		Kubernetes:                          kubernetes,
-		KubernetesInCluster:                 kubernetesInCluster,
-		KubernetesURL:                       kubernetesURL,
-		KubernetesHealthcheck:               kubernetesHealthcheck,
-		KubernetesHTTPSRedirect:             kubernetesHTTPSRedirect,
-		KubernetesIngressClass:              kubernetesIngressClass,
-		InnkeeperUrl:                        innkeeperURL,
-		SourcePollTimeout:                   time.Duration(sourcePollTimeout) * time.Millisecond,
-		RoutesFile:                          routesFile,
-		IdleConnectionsPerHost:              idleConnsPerHost,
-		CloseIdleConnsPeriod:                time.Duration(clsic) * time.Second,
-		IgnoreTrailingSlash:                 false,
-		OAuthUrl:                            oauthURL,
-		OAuthScope:                          oauthScope,
-		OAuthCredentialsDir:                 oauthCredentialsDir,
-		InnkeeperAuthToken:                  innkeeperAuthToken,
-		InnkeeperPreRouteFilters:            innkeeperPreRouteFilters,
-		InnkeeperPostRouteFilters:           innkeeperPostRouteFilters,
-		DevMode:                             devMode,
-		MetricsListener:                     metricsListener,
-		SupportListener:                     supportListener,
-		MetricsPrefix:                       metricsPrefix,
-		EnableProfile:                       enableProfile,
-		EnableDebugGcMetrics:                debugGcMetrics,
-		EnableRuntimeMetrics:                runtimeMetrics,
-		EnableServeRouteMetrics:             serveRouteMetrics,
-		EnableServeHostMetrics:              serveHostMetrics,
-		EnableBackendHostMetrics:            backendHostMetrics,
-		EnableAllFiltersMetrics:             allFiltersMetrics,
-		EnableRouteResponseMetrics:          routeResponseMetrics,
-		EnableRouteBackendErrorsCounters:    routeBackendErrorCounters,
-		EnableRouteStreamingErrorsCounters:  routeStreamErrorCounters,
-		EnableRouteBackendMetrics:           routeBackendMetrics,
-		DisableMetricsCompatibilityDefaults: disableMetricsCompat,
-		ApplicationLogOutput:                applicationLog,
-		ApplicationLogPrefix:                applicationLogPrefix,
-		AccessLogOutput:                     accessLog,
-		AccessLogDisabled:                   accessLogDisabled,
-		AccessLogJSONEnabled:                accessLogJSONEnabled,
-		DebugListener:                       debugListener,
-		CertPathTLS:                         certPathTLS,
-		KeyPathTLS:                          keyPathTLS,
-		BackendFlushInterval:                backendFlushInterval,
-		ExperimentalUpgrade:                 experimentalUpgrade,
-		MaxLoopbacks:                        maxLoopbacks,
-		EnableBreakers:                      enableBreakers,
-		BreakerSettings:                     breakers,
-		DefaultHTTPStatus:                   defaultHTTPStatus,
+		Address:                   address,
+		EtcdUrls:                  eus,
+		EtcdPrefix:                etcdPrefix,
+		Kubernetes:                kubernetes,
+		KubernetesInCluster:       kubernetesInCluster,
+		KubernetesURL:             kubernetesURL,
+		KubernetesHealthcheck:     kubernetesHealthcheck,
+		KubernetesHTTPSRedirect:   kubernetesHTTPSRedirect,
+		KubernetesIngressClass:    kubernetesIngressClass,
+		InnkeeperUrl:              innkeeperURL,
+		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
+		RoutesFile:                routesFile,
+		IdleConnectionsPerHost:    idleConnsPerHost,
+		CloseIdleConnsPeriod:      time.Duration(clsic) * time.Second,
+		IgnoreTrailingSlash:       false,
+		OAuthUrl:                  oauthURL,
+		OAuthScope:                oauthScope,
+		OAuthCredentialsDir:       oauthCredentialsDir,
+		InnkeeperAuthToken:        innkeeperAuthToken,
+		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
+		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
+		DevMode:                   devMode,
+		MetricsListener:           metricsListener,
+		SupportListener:           supportListener,
+		MetricsPrefix:             metricsPrefix,
+		EnableProfile:             enableProfile,
+		EnableDebugGcMetrics:      debugGcMetrics,
+		EnableRuntimeMetrics:      runtimeMetrics,
+		EnableServeRouteMetrics:   serveRouteMetrics,
+		EnableServeHostMetrics:    serveHostMetrics,
+		EnableBackendHostMetrics:  backendHostMetrics,
+		ApplicationLogOutput:      applicationLog,
+		ApplicationLogPrefix:      applicationLogPrefix,
+		AccessLogOutput:           accessLog,
+		AccessLogDisabled:         accessLogDisabled,
+		AccessLogJSONEnabled:      accessLogJSONEnabled,
+		DebugListener:             debugListener,
+		CertPathTLS:               certPathTLS,
+		KeyPathTLS:                keyPathTLS,
+		BackendFlushInterval:      backendFlushInterval,
+		ExperimentalUpgrade:       experimentalUpgrade,
+		MaxLoopbacks:              maxLoopbacks,
+		EnableBreakers:            enableBreakers,
+		BreakerSettings:           breakers,
+		OpenTracing:               strings.Split(openTracing, " "),
+		DefaultHTTPStatus:         defaultHTTPStatus,
 	}
 
 	if insecure {

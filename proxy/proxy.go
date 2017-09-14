@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"time"
 
+	ot "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
@@ -121,6 +123,10 @@ type Params struct {
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
 	DefaultHTTPStatus int
+
+	// OpenTracing defines whether to enable opentracing for client
+	// connections or not
+	OpenTracing bool
 }
 
 var (
@@ -176,6 +182,7 @@ type Proxy struct {
 	breakers            *circuit.Registry
 	log                 logging.Logger
 	defaultHTTPStatus   int
+	openTracing         bool
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -272,6 +279,8 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 		rr.Header.Add("Authorization", fmt.Sprintf("Basic %s", upBase64))
 	}
 
+	rr = rr.WithContext(r.Context())
+
 	return rr, nil
 }
 
@@ -344,6 +353,7 @@ func WithParams(p Params) *Proxy {
 		breakers:            p.CircuitBreakers,
 		log:                 &logging.DefaultLog{},
 		defaultHTTPStatus:   defaultHTTPStatus,
+		openTracing:         p.OpenTracing,
 	}
 }
 
@@ -488,6 +498,24 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 		return nil, &proxyError{handled: true}
 	}
 
+	if p.openTracing {
+		tracer := ot.GlobalTracer()
+		ingress := ot.SpanFromContext(req.Context())
+		var proxySpan ot.Span
+		if ingress == nil {
+			proxySpan = tracer.StartSpan("proxy")
+		} else {
+			proxySpan = tracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
+		}
+		defer proxySpan.Finish()
+
+		carrier := ot.HTTPHeadersCarrier(req.Header)
+		tracer.Inject(proxySpan.Context(), ot.HTTPHeaders, carrier)
+		proxySpan.SetTag(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum))
+
+		req = req.WithContext(ot.ContextWithSpan(req.Context(), proxySpan))
+	}
+
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
 		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
@@ -611,7 +639,6 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	start := time.Now()
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
-	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
@@ -670,6 +697,22 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics)
 	ctx.startServe = time.Now()
+
+	if p.openTracing {
+		carrier := ot.HTTPHeadersCarrier(r.Header)
+		tracer := ot.GlobalTracer()
+		wireContext, err := tracer.Extract(ot.HTTPHeaders, carrier)
+		var span ot.Span
+		if err == nil {
+			span = tracer.StartSpan("ingress", ext.RPCServerOption(wireContext))
+		} else {
+			p.log.Errorf("extracting span from wire: %s", err)
+			span = tracer.StartSpan("ingress")
+		}
+		defer span.Finish()
+
+		ctx.request = ctx.request.WithContext(ot.ContextWithSpan(ctx.request.Context(), span))
+	}
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {

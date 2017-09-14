@@ -24,6 +24,7 @@ import (
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -276,6 +277,9 @@ type Options struct {
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
 
+	// OpenTracing enables opentracing
+	OpenTracing []string
+
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
 	DefaultHTTPStatus int
@@ -487,6 +491,7 @@ func Run(o Options) error {
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
 		DefaultHTTPStatus:      o.DefaultHTTPStatus,
+		OpenTracing:            len(o.OpenTracing) > 0,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
@@ -539,6 +544,12 @@ func Run(o Options) error {
 		log.Infoln("Metrics are disabled")
 	}
 
+	if len(o.OpenTracing) > 0 {
+		proxyParams.OpenTracing = true
+		if err = tracing.Init(o.OpenTracing); err != nil {
+			return err
+		}
+	}
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)
 	defer proxy.Close()
