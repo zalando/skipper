@@ -639,6 +639,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	start := time.Now()
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
+	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
