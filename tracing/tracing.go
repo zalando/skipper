@@ -3,10 +3,10 @@ package tracing
 
 import (
 	"errors"
-	"strings"
+	"fmt"
+	"path/filepath"
+	"plugin"
 
-	instana "github.com/instana/golang-sensor"
-	lightstep "github.com/lightstep/lightstep-tracer-go"
 	ot "github.com/opentracing/opentracing-go"
 )
 
@@ -18,8 +18,13 @@ var (
 	ErrMissingArguments error = errors.New("no arguments passed")
 )
 
+// Tracer is required to be implemented by any module
+type Tracer interface {
+	InitTracer(opts []string) (ot.Tracer, error)
+}
+
 // Init sets up opentracing
-func Init(opts []string) error {
+func Init(pluginDir string, opts []string) error {
 	if len(opts) == 0 {
 		return ErrMissingArguments
 	}
@@ -27,32 +32,25 @@ func Init(opts []string) error {
 	impl, opts = opts[0], opts[1:]
 
 	var tracer ot.Tracer
-	switch impl {
-	case "noop":
+	if impl == "noop" {
 		tracer = &ot.NoopTracer{}
-
-	case "instana":
-		tracer = instana.NewTracerWithOptions(&instana.Options{
-			Service:  "skipper", // FIXME
-			LogLevel: instana.Error,
-		})
-
-	case "lightstep":
-		var token string
-		for _, o := range opts {
-			if strings.HasPrefix(o, "token=") {
-				token = o[6:]
-			}
+	} else {
+		mod, err := plugin.Open(filepath.Join(pluginDir, impl+".so")) // FIXME this is Linux and other ELF...
+		if err != nil {
+			return fmt.Errorf("open module %s: %s", impl, err)
 		}
-		tracer = lightstep.NewTracer(lightstep.Options{
-			AccessToken: token,
-			Tags: map[string]interface{}{
-				lightstep.ComponentNameKey: "skipper", // FIXME
-			},
-		})
-
-	default:
-		return ErrUnsupportedTracer
+		tracerSym, err := mod.Lookup("Tracer")
+		if err != nil {
+			return fmt.Errorf("check module symbols %s: %s", impl, err)
+		}
+		pluggedTracer, ok := tracerSym.(Tracer)
+		if !ok {
+			return fmt.Errorf("module %s does not implement Tracer", impl)
+		}
+		tracer, err = pluggedTracer.InitTracer(opts)
+		if err != nil {
+			return fmt.Errorf("module %s returned: %s", impl, err)
+		}
 	}
 	ot.SetGlobalTracer(tracer)
 	return nil

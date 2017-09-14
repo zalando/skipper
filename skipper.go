@@ -280,6 +280,9 @@ type Options struct {
 	// OpenTracing enables opentracing
 	OpenTracing []string
 
+	// PluginDir defines the dir to load plugins from
+	PluginDir string
+
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
 	DefaultHTTPStatus int
@@ -546,7 +549,7 @@ func Run(o Options) error {
 
 	if len(o.OpenTracing) > 0 {
 		proxyParams.OpenTracing = true
-		if err = tracing.Init(o.OpenTracing); err != nil {
+		if err = tracing.Init(o.PluginDir, o.OpenTracing); err != nil {
 			return err
 		}
 	}
