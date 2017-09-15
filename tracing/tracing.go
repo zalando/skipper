@@ -1,42 +1,49 @@
 // Package tracing handles opentracing support for skipper
 //
-// The tracers, except for "noop", are build as loadable modules. The modules must have
-// an "InitTracer" function with the function signature
+// The tracers, except for "noop", are built as Go Plugins. Note the warning from Go's
+// plugin.go:
+//
+//    // The plugin support is currently incomplete, only supports Linux,
+//    // and has known bugs. Please report any issues.
+//
+// All plugins must have a function named "InitTracer" with the following signature
 //
 //    func([]string) (opentracing.Tracer, error)
 //
-// The parameters passed are all arguments for the module, i.e. everything after the first
-// word from skipper's -opentracing parameter. E.g. when the -opentracing parmeter is
+// The parameters passed are all arguments for the plugin, i.e. everything after the first
+// word from skipper's -opentracing parameter. E.g. when the -opentracing parameter is
 // "mytracer foo=bar token=xxx somename=bla:3" the "mytracer" plugin will receive
 //
 //    []string{"foo=bar", "token=xxx", "somename=bla:3"}
 //
 // as arguments.
 //
-// The tracer plugin is responsible for argument parsing.
+// The tracer plugin implementation is responsible to parse the received arguments.
 //
 // An example plugin looks like
 //
 //     package main
 //
 //     import (
-//          instana "github.com/instana/golang-sensor"
+//          basic "github.com/opentracing/basictracer-go"
 //          opentracing "github.com/opentracing/opentracing-go"
 //     )
 //
 //     func InitTracer(opts []string) (opentracing.Tracer, error) {
-//          return instana.NewTracerWithOptions(&instana.Options{
-//              Service:  "skipper",
-//              LogLevel: instana.Error,
+//          return basic.NewTracerWithOptions(basic.Options{
+//              Recorder:       basic.NewInMemoryRecorder(),
+//              ShouldSample:   func(traceID uint64) bool { return traceID%64 == 0 },
+//              MaxLogsPerSpan: 25,
 //          }), nil
 //     }
 //
-// This needs to be build with
+// This should to be build with
 //
-//    go build -buildmode=plugin -o instana.so ./instana/instana.go
+//    go build -buildmode=plugin -o basic.so ./basic/basic.go
 //
 // and copied to the directory given as -plugindir (by default, ".").
-// Then it can be loaded with -opentracing "instana" as parameter to skipper.
+//
+// Then it can be loaded with -opentracing basic as parameter to skipper.
 package tracing
 
 import (
@@ -51,7 +58,7 @@ import (
 // LoadPlugin loads the given opentracing plugin and returns an opentracing.Tracer
 func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	if len(opts) == 0 {
-		return nil, errors.New("no arguments passed")
+		return nil, errors.New("opentracing: the implementation parameter is mandatory")
 	}
 	var impl string
 	impl, opts = opts[0], opts[1:]
