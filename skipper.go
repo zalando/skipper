@@ -494,7 +494,6 @@ func Run(o Options) error {
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
 		DefaultHTTPStatus:      o.DefaultHTTPStatus,
-		OpenTracing:            len(o.OpenTracing) > 0,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
@@ -548,11 +547,13 @@ func Run(o Options) error {
 	}
 
 	if len(o.OpenTracing) > 0 {
-		proxyParams.OpenTracing = true
-		if err = tracing.Init(o.PluginDir, o.OpenTracing); err != nil {
+		tracer, err := tracing.Init(o.PluginDir, o.OpenTracing)
+		if err != nil {
 			return err
 		}
+		proxyParams.OpenTracer = tracer
 	}
+
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)
 	defer proxy.Close()

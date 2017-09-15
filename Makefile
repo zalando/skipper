@@ -59,6 +59,9 @@ clean:
 	go clean -i ./...
 
 deps:
+	# get opentracing to the default GOPATH, so we can build plugins outside
+	# the main skipper repo:
+	go get -t github.com/opentracing/opentracing-go
 	go get -t github.com/zalando/skipper/...
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	go get github.com/Masterminds/glide

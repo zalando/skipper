@@ -124,9 +124,8 @@ type Params struct {
 	// for a request.
 	DefaultHTTPStatus int
 
-	// OpenTracing defines whether to enable opentracing for client
-	// connections or not
-	OpenTracing bool
+	// OpenTracer holds the tracer enabled for this proxy instance
+	OpenTracer ot.Tracer
 }
 
 var (
@@ -182,7 +181,7 @@ type Proxy struct {
 	breakers            *circuit.Registry
 	log                 logging.Logger
 	defaultHTTPStatus   int
-	openTracing         bool
+	openTracer          ot.Tracer
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -353,7 +352,7 @@ func WithParams(p Params) *Proxy {
 		breakers:            p.CircuitBreakers,
 		log:                 &logging.DefaultLog{},
 		defaultHTTPStatus:   defaultHTTPStatus,
-		openTracing:         p.OpenTracing,
+		openTracer:          p.OpenTracer,
 	}
 }
 
@@ -498,19 +497,18 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 		return nil, &proxyError{handled: true}
 	}
 
-	if p.openTracing {
-		tracer := ot.GlobalTracer()
+	if p.openTracer != nil {
 		ingress := ot.SpanFromContext(req.Context())
 		var proxySpan ot.Span
 		if ingress == nil {
-			proxySpan = tracer.StartSpan("proxy")
+			proxySpan = p.openTracer.StartSpan("proxy")
 		} else {
-			proxySpan = tracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
+			proxySpan = p.openTracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
 		}
 		defer proxySpan.Finish()
 
 		carrier := ot.HTTPHeadersCarrier(req.Header)
-		tracer.Inject(proxySpan.Context(), ot.HTTPHeaders, carrier)
+		p.openTracer.Inject(proxySpan.Context(), ot.HTTPHeaders, carrier)
 		proxySpan.SetTag(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum))
 
 		req = req.WithContext(ot.ContextWithSpan(req.Context(), proxySpan))
@@ -699,16 +697,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics)
 	ctx.startServe = time.Now()
 
-	if p.openTracing {
+	if p.openTracer != nil {
 		carrier := ot.HTTPHeadersCarrier(r.Header)
-		tracer := ot.GlobalTracer()
-		wireContext, err := tracer.Extract(ot.HTTPHeaders, carrier)
+		wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, carrier)
 		var span ot.Span
 		if err == nil {
-			span = tracer.StartSpan("ingress", ext.RPCServerOption(wireContext))
+			span = p.openTracer.StartSpan("ingress", ext.RPCServerOption(wireContext))
 		} else {
 			p.log.Errorf("extracting span from wire: %s", err)
-			span = tracer.StartSpan("ingress")
+			span = p.openTracer.StartSpan("ingress")
 		}
 		defer span.Finish()
 

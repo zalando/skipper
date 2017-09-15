@@ -1,22 +1,10 @@
-hash: 8b21cac50e021fde6af96060d188dd3d6736efd9d5a5441fe0b4721d5be5d728
-updated: 2017-09-14T10:28:36.662808132+02:00
+hash: 0b1a0d65dbc8d9fd727f28e22bd95f62bc5683c6f1b6f459dd685606114620db
+updated: 2017-09-15T08:00:19.636139891+02:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
 - name: github.com/dimfeld/httppath
   version: ee938bf735983d53694d79138ad9820efff94c92
-- name: github.com/gogo/protobuf
-  version: 2adc21fd136931e0388e278825291678e1d98309
-  subpackages:
-  - proto
-- name: github.com/golang/protobuf
-  version: 6a1fa9404c0aebf36c879bc50152edcc953910d2
-  subpackages:
-  - proto
-  - ptypes
-  - ptypes/any
-  - ptypes/duration
-  - ptypes/timestamp
 - name: github.com/google/go-cmp
   version: d5735f74713c51f7450a43d0a98d41ce2c1db3cb
   subpackages:
@@ -24,28 +12,8 @@ imports:
   - cmp/internal/diff
   - cmp/internal/function
   - cmp/internal/value
-- name: github.com/instana/golang-sensor
-  version: cfaedf1127f0398a23f30354b7acadfad1258394
-- name: github.com/lightstep/lightstep-tracer-go
-  version: 8ea6e2a40aeb49f0a846212f919d156082f58e16
-  subpackages:
-  - collectorpb
-  - lightstep_thrift
-  - lightsteppb
-  - thrift_0_9_2/lib/go/thrift
-- name: github.com/looplab/fsm
-  version: bcc3636384ce80a109a6039432b30ff5b82476ee
 - name: github.com/oklog/ulid
   version: d311cb43c92434ec4072dfbbda3400741d0a6337
-- name: github.com/opentracing/basictracer-go
-  version: 1b32af207119a14b1b231d451df3ed04a72efebf
-  subpackages:
-  - wire
-- name: github.com/opentracing/opentracing-go
-  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
-  subpackages:
-  - ext
-  - log
 - name: github.com/rcrowley/go-metrics
   version: 1f30fe9094a513ce4c700b9a54458bbb0c96996c
 - name: github.com/sirupsen/logrus
@@ -58,51 +26,11 @@ imports:
   - bcrypt
   - blowfish
   - ssh/terminal
-- name: golang.org/x/net
-  version: f5079bd7f6f74e23c4d65efa0f4ce14cbd6a3c0f
-  subpackages:
-  - context
-  - http2
-  - http2/hpack
-  - idna
-  - internal/timeseries
-  - lex/httplex
-  - trace
 - name: golang.org/x/sys
   version: 739734461d1c916b6c72a63d7efda2b27edb369f
   subpackages:
   - unix
   - windows
-- name: golang.org/x/text
-  version: acd49d43e9b95df46670431bf5c7ae59586daad8
-  subpackages:
-  - secure/bidirule
-  - transform
-  - unicode/bidi
-  - unicode/norm
-- name: google.golang.org/genproto
-  version: 595979c8a7bf586b2d293fb42246bf91a0b893d9
-  subpackages:
-  - googleapis/rpc/status
-- name: google.golang.org/grpc
-  version: c443156028b9fa563e063e9fa8ba7881d467833b
-  subpackages:
-  - balancer
-  - codes
-  - connectivity
-  - credentials
-  - grpclb/grpc_lb_v1/messages
-  - grpclog
-  - internal
-  - keepalive
-  - metadata
-  - naming
-  - peer
-  - resolver
-  - stats
-  - status
-  - tap
-  - transport
 testImports:
 - name: github.com/davecgh/go-spew
   version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
