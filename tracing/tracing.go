@@ -1,4 +1,42 @@
 // Package tracing handles opentracing support for skipper
+//
+// The tracers, except for "noop", are build as loadable modules. The modules must have
+// an "InitTracer" function with the function signature
+//
+//    func([]string) (opentracing.Tracer, error)
+//
+// The parameters passed are all arguments for the module, i.e. everything after the first
+// word from skipper's -opentracing parameter. E.g. when the -opentracing parmeter is
+// "mytracer foo=bar token=xxx somename=bla:3" the "mytracer" plugin will receive
+//
+//    []string{"foo=bar", "token=xxx", "somename=bla:3"}
+//
+// as arguments.
+//
+// The tracer plugin is responsible for argument parsing.
+//
+// An example plugin looks like
+//
+//     package main
+//
+//     import (
+//          instana "github.com/instana/golang-sensor"
+//          opentracing "github.com/opentracing/opentracing-go"
+//     )
+//
+//     func InitTracer(opts []string) (opentracing.Tracer, error) {
+//          return instana.NewTracerWithOptions(&instana.Options{
+//              Service:  "skipper",
+//              LogLevel: instana.Error,
+//          }), nil
+//     }
+//
+// This needs to be build with
+//
+//    go build -buildmode=plugin -o instana.so ./instana/instana.go
+//
+// and copied to the directory given as -plugindir (by default, ".").
+// Then it can be loaded with -opentracing "instana" as parameter to skipper.
 package tracing
 
 import (
@@ -10,8 +48,8 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 )
 
-// Init sets up opentracing
-func Init(pluginDir string, opts []string) (ot.Tracer, error) {
+// LoadPlugin loads the given opentracing plugin and returns an opentracing.Tracer
+func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	if len(opts) == 0 {
 		return nil, errors.New("no arguments passed")
 	}
