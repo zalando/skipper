@@ -37,7 +37,7 @@
 //          }), nil
 //     }
 //
-// This should to be build with
+// This should be built with
 //
 //    go build -buildmode=plugin -o basic.so ./basic/basic.go
 //
