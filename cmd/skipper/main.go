@@ -75,6 +75,7 @@ const (
 	serveHostMetricsUsage          = "enables reporting total serve time metrics for each host"
 	backendHostMetricsUsage        = "enables reporting total serve time metrics for each backend"
 	allFiltersMetricsUsage         = "enables reporting combined filter metrics for each route"
+	combinedResponseMetricsUsage   = "enables reporting combined response time metrics"
 	routeResponseMetricsUsage      = "enables reporting response time metrics for each route"
 	routeBackendErrorCountersUsage = "enables counting backend errors for each route"
 	routeStreamErrorCountersUsage  = "enables counting streaming errors for each route"
@@ -137,6 +138,7 @@ var (
 	serveHostMetrics          bool
 	backendHostMetrics        bool
 	allFiltersMetrics         bool
+	combinedResponseMetrics   bool
 	routeResponseMetrics      bool
 	routeBackendErrorCounters bool
 	routeStreamErrorCounters  bool
@@ -196,6 +198,7 @@ func init() {
 	flag.BoolVar(&serveHostMetrics, "serve-host-metrics", false, serveHostMetricsUsage)
 	flag.BoolVar(&backendHostMetrics, "backend-host-metrics", false, backendHostMetricsUsage)
 	flag.BoolVar(&allFiltersMetrics, "all-filters-metrics", false, allFiltersMetricsUsage)
+	flag.BoolVar(&combinedResponseMetrics, "combined-response-metrics", false, combinedResponseMetricsUsage)
 	flag.BoolVar(&routeResponseMetrics, "route-response-metrics", false, routeResponseMetricsUsage)
 	flag.BoolVar(&routeBackendErrorCounters, "route-backend-error-counters", false, routeBackendErrorCountersUsage)
 	flag.BoolVar(&routeStreamErrorCounters, "route-stream-error-counters", false, routeStreamErrorCountersUsage)
@@ -296,6 +299,7 @@ func main() {
 		EnableServeHostMetrics:              serveHostMetrics,
 		EnableBackendHostMetrics:            backendHostMetrics,
 		EnableAllFiltersMetrics:             allFiltersMetrics,
+		EnableCombinedResponseMetrics:       combinedResponseMetrics,
 		EnableRouteResponseMetrics:          routeResponseMetrics,
 		EnableRouteBackendErrorsCounters:    routeBackendErrorCounters,
 		EnableRouteStreamingErrorsCounters:  routeStreamErrorCounters,
