@@ -291,7 +291,6 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
 		Flags:                Flags(options),
 		PriorityRoutes:       pr,
 		CloseIdleConnsPeriod: -time.Second,
-		OpenTracer:           &ot.NoopTracer{},
 	})
 }
 
@@ -303,6 +302,10 @@ func WithParams(p Params) *Proxy {
 
 	if p.CloseIdleConnsPeriod == 0 {
 		p.CloseIdleConnsPeriod = DefaultCloseIdleConnsPeriod
+	}
+
+	if p.OpenTracer == nil {
+		p.OpenTracer = &ot.NoopTracer{}
 	}
 
 	tr := &http.Transport{MaxIdleConnsPerHost: p.IdleConnectionsPerHost}

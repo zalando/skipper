@@ -64,7 +64,12 @@ func (fc *Context) BackendUrl() string                  { return fc.FBackendUrl 
 func (fc *Context) OutgoingHost() string                { return fc.FOutgoingHost }
 func (fc *Context) SetOutgoingHost(h string)            { fc.FOutgoingHost = h }
 func (fc *Context) Metrics() filters.Metrics            { return fc.FMetrics }
-func (fc *Context) Tracer() opentracing.Tracer          { return &opentracing.NoopTracer{} }
+func (fc *Context) Tracer() opentracing.Tracer {
+	if fc.FTracer != nil {
+		return fc.FTracer
+	}
+	return &opentracing.NoopTracer{}
+}
 func (fc *Context) Serve(resp *http.Response) {
 	fc.FServedWithResponse = true
 	fc.FResponse = resp

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/proxy"
@@ -113,8 +112,7 @@ func TestRedirect(t *testing.T) {
 				DataClients:    []routing.DataClient{dc},
 				Log:            tl})
 			p := proxy.WithParams(proxy.Params{
-				Routing:    rt,
-				OpenTracer: &opentracing.NoopTracer{},
+				Routing: rt,
 			})
 
 			closeAll := func() {

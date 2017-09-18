@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging/loggingtest"
@@ -138,7 +137,6 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		DataClients:    []routing.DataClient{dc},
 		Log:            tl})
 	params.Routing = rt
-	params.OpenTracer = &opentracing.NoopTracer{}
 	p := WithParams(params)
 	p.log = tl
 
