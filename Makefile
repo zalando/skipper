@@ -59,12 +59,13 @@ clean:
 	go clean -i ./...
 
 deps:
-	# get opentracing to the default GOPATH, so we can build plugins outside
-	# the main skipper repo:
 	go get -t github.com/zalando/skipper/...
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	go get github.com/Masterminds/glide
 	glide install --strip-vendor
+	# get opentracing to the default GOPATH, so we can build plugins outside
+	# the main skipper repo
+	# * will be removed from vendor/ after the deps checks (workaround for glide list)
 	go get -t github.com/opentracing/opentracing-go
 	# fix vendored deps:
 	rm -rf vendor/github.com/sirupsen/logrus/examples # breaks go install ./...
