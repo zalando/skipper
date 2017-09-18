@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging/loggingtest"
@@ -137,6 +138,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		DataClients:    []routing.DataClient{dc},
 		Log:            tl})
 	params.Routing = rt
+	params.OpenTracer = &opentracing.NoopTracer{}
 	p := WithParams(params)
 	p.log = tl
 
@@ -592,7 +594,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	}
 
 	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
-		return r == req
+		return r.URL.Host == req.URL.Host && r.URL.Scheme == req.URL.Scheme
 	}}
 
 	doc := `hello: Path("/hello") -> <shunt>`
@@ -636,7 +638,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	}
 
 	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
-		return r == req
+		return r.URL.Host == req.URL.Host && r.URL.Scheme == req.URL.Scheme
 	}}
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s1.URL)

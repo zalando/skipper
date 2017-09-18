@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 )
@@ -176,7 +177,7 @@ func TestLoopbackShunt(t *testing.T) {
 			-> <shunt>;
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusTeapot, http.Header{
+	testLoopback(t, routes, Params{OpenTracer: &opentracing.NoopTracer{}}, http.StatusTeapot, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 	})
@@ -199,7 +200,7 @@ func TestLoopbackWithBackend(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Params{OpenTracer: &opentracing.NoopTracer{}}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 		"X-Backend-Done":     []string{"true"},
@@ -218,7 +219,7 @@ func TestLoopbackReachLimit(t *testing.T) {
 			-> <loopback>;
 	`
 
-	testLoopback(t, routes, Params{MaxLoopbacks: 3}, http.StatusInternalServerError, http.Header{
+	testLoopback(t, routes, Params{MaxLoopbacks: 3, OpenTracer: &opentracing.NoopTracer{}}, http.StatusInternalServerError, http.Header{
 		"X-Entry-Route-Done": nil,
 		"X-Loop-Route-Done":  nil,
 	})
@@ -236,7 +237,7 @@ func TestLoopbackReachDefaultLimit(t *testing.T) {
 			-> <loopback>;
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusInternalServerError, http.Header{
+	testLoopback(t, routes, Params{OpenTracer: &opentracing.NoopTracer{}}, http.StatusInternalServerError, http.Header{
 		"X-Entry-Route-Done": nil,
 		"X-Loop-Route-Done":  nil,
 	})
@@ -260,7 +261,7 @@ func TestLoopbackPreserveOriginalRequest(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{Flags: PreserveOriginal}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Params{Flags: PreserveOriginal, OpenTracer: &opentracing.NoopTracer{}}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 	})
@@ -283,7 +284,7 @@ func TestLoopbackPreserveHost(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{Flags: PreserveHost}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Params{Flags: PreserveHost, OpenTracer: &opentracing.NoopTracer{}}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 	})
@@ -309,7 +310,7 @@ func TestLoopbackDeprecatedFilterShunt(t *testing.T) {
 
 	// NOTE: the deprecated filter shunting executed the remaining filters, preserving here this wrong
 	// behavior to avoid making unrelated changes
-	testLoopback(t, routes, Params{}, http.StatusFound, http.Header{
+	testLoopback(t, routes, Params{OpenTracer: &opentracing.NoopTracer{}}, http.StatusFound, http.Header{
 		"X-Entry-Route-Done":  []string{"true"},
 		"X-Loop-Route-Done":   []string{"1", "2"},
 		"X-Loop-Backend-Done": nil,
@@ -334,7 +335,7 @@ func TestLoopbackFilterShunt(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusFound, http.Header{
+	testLoopback(t, routes, Params{OpenTracer: &opentracing.NoopTracer{}}, http.StatusFound, http.Header{
 		"X-Entry-Route-Done":  []string{"true"},
 		"X-Loop-Route-Done":   []string{"1"},
 		"X-Loop-Backend-Done": nil,
@@ -362,7 +363,7 @@ func TestLoopbackPathParams(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Params{OpenTracer: &opentracing.NoopTracer{}}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 		"X-Backend-Done":     []string{"true"},
@@ -389,7 +390,7 @@ func TestLoopbackStatebag(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Params{OpenTracer: &opentracing.NoopTracer{}}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 		"X-Backend-Done":     []string{"true"},

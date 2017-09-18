@@ -290,7 +290,9 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
 		Routing:              r,
 		Flags:                Flags(options),
 		PriorityRoutes:       pr,
-		CloseIdleConnsPeriod: -time.Second})
+		CloseIdleConnsPeriod: -time.Second,
+		OpenTracer:           &ot.NoopTracer{},
+	})
 }
 
 // WithParams returns an initialized Proxy.
@@ -497,22 +499,25 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 		return nil, &proxyError{handled: true}
 	}
 
-	if p.openTracer != nil {
-		ingress := ot.SpanFromContext(req.Context())
-		var proxySpan ot.Span
-		if ingress == nil {
-			proxySpan = p.openTracer.StartSpan("proxy")
-		} else {
-			proxySpan = p.openTracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
-		}
-		defer proxySpan.Finish()
-
-		carrier := ot.HTTPHeadersCarrier(req.Header)
-		p.openTracer.Inject(proxySpan.Context(), ot.HTTPHeaders, carrier)
-		proxySpan.SetTag(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum))
-
-		req = req.WithContext(ot.ContextWithSpan(req.Context(), proxySpan))
+	ingress := ot.SpanFromContext(req.Context())
+	var proxySpan ot.Span
+	if ingress == nil {
+		proxySpan = p.openTracer.StartSpan("proxy")
+	} else {
+		proxySpan = p.openTracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
 	}
+	ext.SpanKind.Set(proxySpan, ext.SpanKindRPCClientEnum)
+	u := cloneURL(req.URL)
+	u.RawQuery = ""
+	ext.HTTPUrl.Set(proxySpan, u.String())
+	ext.HTTPMethod.Set(proxySpan, req.Method)
+	proxySpan.SetTag("skipper.route", ctx.route.String())
+	defer proxySpan.Finish()
+
+	carrier := ot.HTTPHeadersCarrier(req.Header)
+	p.openTracer.Inject(proxySpan.Context(), ot.HTTPHeaders, carrier)
+
+	req = req.WithContext(ot.ContextWithSpan(req.Context(), proxySpan))
 
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
@@ -526,7 +531,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 
 		return nil, err
 	}
-
+	ext.HTTPStatusCode.Set(proxySpan, uint16(response.StatusCode))
 	return response, nil
 }
 
@@ -696,21 +701,22 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics)
 	ctx.startServe = time.Now()
+	ctx.tracer = p.openTracer
 
-	if p.openTracer != nil {
-		carrier := ot.HTTPHeadersCarrier(r.Header)
-		wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, carrier)
-		var span ot.Span
-		if err == nil {
-			span = p.openTracer.StartSpan("ingress", ext.RPCServerOption(wireContext))
-		} else {
-			p.log.Errorf("extracting span from wire: %s", err)
-			span = p.openTracer.StartSpan("ingress")
-		}
-		defer span.Finish()
-
-		ctx.request = ctx.request.WithContext(ot.ContextWithSpan(ctx.request.Context(), span))
+	carrier := ot.HTTPHeadersCarrier(r.Header)
+	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, carrier)
+	var span ot.Span
+	if err == nil {
+		span = p.openTracer.StartSpan("ingress", ext.RPCServerOption(wireContext))
+	} else {
+		p.log.Debugf("extracting span from wire: %s", err)
+		span = p.openTracer.StartSpan("ingress")
 	}
+	ext.HTTPUrl.Set(span, r.URL.Path)
+	ext.HTTPMethod.Set(span, r.Method)
+	defer span.Finish()
+
+	ctx.request = ctx.request.WithContext(ot.ContextWithSpan(ctx.request.Context(), span))
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -721,7 +727,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	err := p.do(ctx)
+	err = p.do(ctx)
 	if err != nil {
 		p.errorResponse(ctx, err)
 		return
