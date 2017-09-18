@@ -1,5 +1,5 @@
-hash: 0b1a0d65dbc8d9fd727f28e22bd95f62bc5683c6f1b6f459dd685606114620db
-updated: 2017-09-15T08:00:19.636139891+02:00
+hash: 8b21cac50e021fde6af96060d188dd3d6736efd9d5a5441fe0b4721d5be5d728
+updated: 2017-09-18T08:27:23.835117849+02:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
@@ -14,6 +14,11 @@ imports:
   - cmp/internal/value
 - name: github.com/oklog/ulid
   version: d311cb43c92434ec4072dfbbda3400741d0a6337
+- name: github.com/opentracing/opentracing-go
+  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
+  subpackages:
+  - ext
+  - log
 - name: github.com/rcrowley/go-metrics
   version: 1f30fe9094a513ce4c700b9a54458bbb0c96996c
 - name: github.com/sirupsen/logrus
@@ -26,6 +31,10 @@ imports:
   - bcrypt
   - blowfish
   - ssh/terminal
+- name: golang.org/x/net
+  version: f5079bd7f6f74e23c4d65efa0f4ce14cbd6a3c0f
+  subpackages:
+  - context
 - name: golang.org/x/sys
   version: 739734461d1c916b6c72a63d7efda2b27edb369f
   subpackages:
