@@ -155,6 +155,8 @@ var (
 	maxLoopbacks              int
 	enableBreakers            bool
 	breakers                  breakerFlags
+	enableRatelimiters        bool
+	ratelimits                ratelimitFlags
 	defaultHTTPStatus         int
 )
 
@@ -212,6 +214,8 @@ func init() {
 	flag.IntVar(&maxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
 	flag.BoolVar(&enableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&breakers, "breaker", breakerUsage)
+	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
+	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.Parse()
 }
@@ -308,6 +312,8 @@ func main() {
 		MaxLoopbacks:                        maxLoopbacks,
 		EnableBreakers:                      enableBreakers,
 		BreakerSettings:                     breakers,
+		EnableRatelimiters:                  enableRatelimiters,
+		RatelimitSettings:                   ratelimits,
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 	}
 
