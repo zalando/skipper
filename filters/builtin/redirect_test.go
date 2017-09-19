@@ -111,7 +111,9 @@ func TestRedirect(t *testing.T) {
 				FilterRegistry: MakeRegistry(),
 				DataClients:    []routing.DataClient{dc},
 				Log:            tl})
-			p := proxy.New(rt, proxy.OptionsNone)
+			p := proxy.WithParams(proxy.Params{
+				Routing: rt,
+			})
 
 			closeAll := func() {
 				p.Close()

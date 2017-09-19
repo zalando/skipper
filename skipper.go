@@ -25,6 +25,7 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -192,6 +193,10 @@ type Options struct {
 	// it is enabled by default.
 	EnableAllFiltersMetrics bool
 
+	// EnableCombinedResponseMetrics enables collecting response time
+	// metrics combined for every route.
+	EnableCombinedResponseMetrics bool
+
 	// EnableRouteResponseMetrics enables collecting response time
 	// metrics per each route. Without the DisableMetricsCompatibilityDefaults,
 	// it is enabled by default.
@@ -286,6 +291,12 @@ type Options struct {
 
 	// RatelimitSettings contain global and host specific settings for the ratelimitters.
 	RatelimitSettings []ratelimit.Settings
+
+	// OpenTracing enables opentracing
+	OpenTracing []string
+
+	// PluginDir defines the dir to load plugins from
+	PluginDir string
 
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
@@ -538,6 +549,7 @@ func Run(o Options) error {
 			EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
 			EnableProfile:                      o.EnableProfile,
 			EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
+			EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
 			EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
 			EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
 			EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
@@ -553,6 +565,18 @@ func Run(o Options) error {
 		go http.ListenAndServe(supportListener, mux)
 	} else {
 		log.Infoln("Metrics are disabled")
+	}
+
+	if len(o.OpenTracing) > 0 {
+		tracer, err := tracing.LoadPlugin(o.PluginDir, o.OpenTracing)
+		if err != nil {
+			return err
+		}
+		proxyParams.OpenTracer = tracer
+	} else {
+		// always have a tracer available, so filter authors can rely on the
+		// existance of a tracer
+		proxyParams.OpenTracer, _ = tracing.LoadPlugin(o.PluginDir, []string{"noop"})
 	}
 
 	// create the proxy

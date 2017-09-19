@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"time"
 
+	ot "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
@@ -129,6 +131,9 @@ type Params struct {
 	// find the matching ratelimiter for backend requests. If not
 	// set, no ratelimits are used.
 	RateLimiters *ratelimit.Registry
+
+	// OpenTracer holds the tracer enabled for this proxy instance
+	OpenTracer ot.Tracer
 }
 
 var (
@@ -186,6 +191,7 @@ type Proxy struct {
 	limiters            *ratelimit.Registry
 	log                 logging.Logger
 	defaultHTTPStatus   int
+	openTracer          ot.Tracer
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -283,6 +289,8 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 		rr.Header.Add("Authorization", fmt.Sprintf("Basic %s", upBase64))
 	}
 
+	rr = rr.WithContext(r.Context())
+
 	return rr, nil
 }
 
@@ -293,7 +301,8 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
 		Routing:              r,
 		Flags:                Flags(options),
 		PriorityRoutes:       pr,
-		CloseIdleConnsPeriod: -time.Second})
+		CloseIdleConnsPeriod: -time.Second,
+	})
 }
 
 // WithParams returns an initialized Proxy.
@@ -304,6 +313,10 @@ func WithParams(p Params) *Proxy {
 
 	if p.CloseIdleConnsPeriod == 0 {
 		p.CloseIdleConnsPeriod = DefaultCloseIdleConnsPeriod
+	}
+
+	if p.OpenTracer == nil {
+		p.OpenTracer = &ot.NoopTracer{}
 	}
 
 	tr := &http.Transport{MaxIdleConnsPerHost: p.IdleConnectionsPerHost}
@@ -356,6 +369,7 @@ func WithParams(p Params) *Proxy {
 		limiters:            p.RateLimiters,
 		log:                 &logging.DefaultLog{},
 		defaultHTTPStatus:   defaultHTTPStatus,
+		openTracer:          p.OpenTracer,
 	}
 }
 
@@ -500,6 +514,26 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 		return nil, &proxyError{handled: true}
 	}
 
+	ingress := ot.SpanFromContext(req.Context())
+	var proxySpan ot.Span
+	if ingress == nil {
+		proxySpan = p.openTracer.StartSpan("proxy")
+	} else {
+		proxySpan = p.openTracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
+	}
+	ext.SpanKind.Set(proxySpan, ext.SpanKindRPCClientEnum)
+	u := cloneURL(req.URL)
+	u.RawQuery = ""
+	ext.HTTPUrl.Set(proxySpan, u.String())
+	ext.HTTPMethod.Set(proxySpan, req.Method)
+	proxySpan.SetTag("skipper.route", ctx.route.String())
+	defer proxySpan.Finish()
+
+	carrier := ot.HTTPHeadersCarrier(req.Header)
+	p.openTracer.Inject(proxySpan.Context(), ot.HTTPHeaders, carrier)
+
+	req = req.WithContext(ot.ContextWithSpan(req.Context(), proxySpan))
+
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
 		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
@@ -512,7 +546,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 
 		return nil, err
 	}
-
+	ext.HTTPStatusCode.Set(proxySpan, uint16(response.StatusCode))
 	return response, nil
 }
 
@@ -725,6 +759,22 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics)
 	ctx.startServe = time.Now()
+	ctx.tracer = p.openTracer
+
+	carrier := ot.HTTPHeadersCarrier(r.Header)
+	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, carrier)
+	var span ot.Span
+	if err == nil {
+		span = p.openTracer.StartSpan("ingress", ext.RPCServerOption(wireContext))
+	} else {
+		p.log.Debugf("extracting span from wire: %s", err)
+		span = p.openTracer.StartSpan("ingress")
+	}
+	ext.HTTPUrl.Set(span, r.URL.Path)
+	ext.HTTPMethod.Set(span, r.Method)
+	defer span.Finish()
+
+	ctx.request = ctx.request.WithContext(ot.ContextWithSpan(ctx.request.Context(), span))
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -735,7 +785,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	err := p.do(ctx)
+	err = p.do(ctx)
 	if err != nil {
 		p.errorResponse(ctx, err)
 		return

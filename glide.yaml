@@ -22,3 +22,8 @@ testImport:
   version: ~1.1.4
   subpackages:
   - assert
+ignore:
+  # ignore opentracing, this needs to be in the default $GOPATH
+  # to enable module building outside the main skipper repo
+  ## disabled until glide supports --ignore, see https://github.com/Masterminds/glide/pull/909
+  #- github.com/opentracing/opentracing-go

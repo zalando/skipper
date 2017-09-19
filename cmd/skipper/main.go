@@ -75,6 +75,7 @@ const (
 	serveHostMetricsUsage          = "enables reporting total serve time metrics for each host"
 	backendHostMetricsUsage        = "enables reporting total serve time metrics for each backend"
 	allFiltersMetricsUsage         = "enables reporting combined filter metrics for each route"
+	combinedResponseMetricsUsage   = "enables reporting combined response time metrics"
 	routeResponseMetricsUsage      = "enables reporting response time metrics for each route"
 	routeBackendErrorCountersUsage = "enables counting backend errors for each route"
 	routeStreamErrorCountersUsage  = "enables counting streaming errors for each route"
@@ -93,7 +94,9 @@ const (
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
 	versionUsage                   = "print Skipper version"
 	maxLoopbacksUsage              = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
+	opentracingUsage               = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
+	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
 )
 
 var (
@@ -135,6 +138,7 @@ var (
 	serveHostMetrics          bool
 	backendHostMetrics        bool
 	allFiltersMetrics         bool
+	combinedResponseMetrics   bool
 	routeResponseMetrics      bool
 	routeBackendErrorCounters bool
 	routeStreamErrorCounters  bool
@@ -157,7 +161,9 @@ var (
 	breakers                  breakerFlags
 	enableRatelimiters        bool
 	ratelimits                ratelimitFlags
+	openTracing               string
 	defaultHTTPStatus         int
+	pluginDir                 string
 )
 
 func init() {
@@ -194,6 +200,7 @@ func init() {
 	flag.BoolVar(&serveHostMetrics, "serve-host-metrics", false, serveHostMetricsUsage)
 	flag.BoolVar(&backendHostMetrics, "backend-host-metrics", false, backendHostMetricsUsage)
 	flag.BoolVar(&allFiltersMetrics, "all-filters-metrics", false, allFiltersMetricsUsage)
+	flag.BoolVar(&combinedResponseMetrics, "combined-response-metrics", false, combinedResponseMetricsUsage)
 	flag.BoolVar(&routeResponseMetrics, "route-response-metrics", false, routeResponseMetricsUsage)
 	flag.BoolVar(&routeBackendErrorCounters, "route-backend-error-counters", false, routeBackendErrorCountersUsage)
 	flag.BoolVar(&routeStreamErrorCounters, "route-stream-error-counters", false, routeStreamErrorCountersUsage)
@@ -216,6 +223,8 @@ func init() {
 	flag.Var(&breakers, "breaker", breakerUsage)
 	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
 	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
+	flag.StringVar(&openTracing, "opentracing", "", opentracingUsage)
+	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.Parse()
 }
@@ -294,6 +303,7 @@ func main() {
 		EnableServeHostMetrics:              serveHostMetrics,
 		EnableBackendHostMetrics:            backendHostMetrics,
 		EnableAllFiltersMetrics:             allFiltersMetrics,
+		EnableCombinedResponseMetrics:       combinedResponseMetrics,
 		EnableRouteResponseMetrics:          routeResponseMetrics,
 		EnableRouteBackendErrorsCounters:    routeBackendErrorCounters,
 		EnableRouteStreamingErrorsCounters:  routeStreamErrorCounters,
@@ -314,6 +324,8 @@ func main() {
 		BreakerSettings:                     breakers,
 		EnableRatelimiters:                  enableRatelimiters,
 		RatelimitSettings:                   ratelimits,
+		OpenTracing:                         strings.Split(openTracing, " "),
+		PluginDir:                           pluginDir,
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 	}
 
