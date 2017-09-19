@@ -26,7 +26,9 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 	tl := loggingtest.New()
 	rt := routing.New(routing.Options{FilterRegistry: fr, DataClients: []routing.DataClient{dc}, Log: tl})
 	o.Routing = rt
-	o.OpenTracer = &opentracing.NoopTracer{}
+	if o.OpenTracer == nil {
+		o.OpenTracer = &opentracing.NoopTracer{}
+	}
 	pr := proxy.WithParams(o)
 	tsp := httptest.NewServer(pr)
 

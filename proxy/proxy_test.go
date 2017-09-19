@@ -151,6 +151,10 @@ func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ..
 	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags, PriorityRoutes: pr})
 }
 
+func newTestProxyWithParams(doc string, params Params) (*testProxy, error) {
+	return newTestProxyWithFiltersAndParams(nil, doc, params)
+}
+
 func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
 	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr})
 }
