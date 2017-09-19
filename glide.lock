@@ -1,12 +1,12 @@
 hash: 8b21cac50e021fde6af96060d188dd3d6736efd9d5a5441fe0b4721d5be5d728
-updated: 2017-08-13T20:09:10.397364831+02:00
+updated: 2017-09-18T08:27:23.835117849+02:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
 - name: github.com/dimfeld/httppath
   version: ee938bf735983d53694d79138ad9820efff94c92
 - name: github.com/google/go-cmp
-  version: 8099a9787ce5dc5984ed879a3bda47dc730a8e97
+  version: d5735f74713c51f7450a43d0a98d41ce2c1db3cb
   subpackages:
   - cmp
   - cmp/internal/diff
@@ -14,22 +14,32 @@ imports:
   - cmp/internal/value
 - name: github.com/oklog/ulid
   version: d311cb43c92434ec4072dfbbda3400741d0a6337
+- name: github.com/opentracing/opentracing-go
+  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
+  subpackages:
+  - ext
+  - log
 - name: github.com/rcrowley/go-metrics
   version: 1f30fe9094a513ce4c700b9a54458bbb0c96996c
 - name: github.com/sirupsen/logrus
-  version: a3f95b5c423586578a4e099b11a46c2479628cac
+  version: f006c2ac4710855cf0f916dd6b77acf6b048dc6e
 - name: github.com/sony/gobreaker
   version: e9556a45379ef1da12e54847edb2fb3d7d566f36
 - name: golang.org/x/crypto
-  version: c2303dcbe84172e0c0da4c9f083eeca54c06f298
+  version: faadfbdc035307d901e69eea569f5dda451a3ee3
   subpackages:
   - bcrypt
   - blowfish
   - ssh/terminal
+- name: golang.org/x/net
+  version: f5079bd7f6f74e23c4d65efa0f4ce14cbd6a3c0f
+  subpackages:
+  - context
 - name: golang.org/x/sys
-  version: 7de4796419dc3b554e6dab3a119a62469569d299
+  version: 739734461d1c916b6c72a63d7efda2b27edb369f
   subpackages:
   - unix
+  - windows
 testImports:
 - name: github.com/davecgh/go-spew
   version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9

@@ -94,7 +94,9 @@ const (
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
 	versionUsage                   = "print Skipper version"
 	maxLoopbacksUsage              = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
+	opentracingUsage               = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
+	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
 )
 
 var (
@@ -157,7 +159,9 @@ var (
 	maxLoopbacks              int
 	enableBreakers            bool
 	breakers                  breakerFlags
+	openTracing               string
 	defaultHTTPStatus         int
+	pluginDir                 string
 )
 
 func init() {
@@ -215,6 +219,8 @@ func init() {
 	flag.IntVar(&maxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
 	flag.BoolVar(&enableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&breakers, "breaker", breakerUsage)
+	flag.StringVar(&openTracing, "opentracing", "", opentracingUsage)
+	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.Parse()
 }
@@ -312,6 +318,8 @@ func main() {
 		MaxLoopbacks:                        maxLoopbacks,
 		EnableBreakers:                      enableBreakers,
 		BreakerSettings:                     breakers,
+		OpenTracing:                         strings.Split(openTracing, " "),
+		PluginDir:                           pluginDir,
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 	}
 

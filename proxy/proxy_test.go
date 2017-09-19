@@ -151,6 +151,10 @@ func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ..
 	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags, PriorityRoutes: pr})
 }
 
+func newTestProxyWithParams(doc string, params Params) (*testProxy, error) {
+	return newTestProxyWithFiltersAndParams(nil, doc, params)
+}
+
 func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
 	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr})
 }
@@ -592,7 +596,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	}
 
 	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
-		return r == req
+		return r.URL.Host == req.URL.Host && r.URL.Scheme == req.URL.Scheme
 	}}
 
 	doc := `hello: Path("/hello") -> <shunt>`
@@ -636,7 +640,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	}
 
 	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
-		return r == req
+		return r.URL.Host == req.URL.Host && r.URL.Scheme == req.URL.Scheme
 	}}
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s1.URL)

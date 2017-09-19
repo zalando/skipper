@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging/loggingtest"
@@ -25,6 +26,9 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 	tl := loggingtest.New()
 	rt := routing.New(routing.Options{FilterRegistry: fr, DataClients: []routing.DataClient{dc}, Log: tl})
 	o.Routing = rt
+	if o.OpenTracer == nil {
+		o.OpenTracer = &opentracing.NoopTracer{}
+	}
 	pr := proxy.WithParams(o)
 	tsp := httptest.NewServer(pr)
 
@@ -37,7 +41,8 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 		Log:     tl,
 		routing: rt,
 		proxy:   pr,
-		server:  tsp}
+		server:  tsp,
+	}
 }
 
 func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {

@@ -34,7 +34,7 @@ check: build
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do go test $$p || break -1; done
+	for p in $(PACKAGES); do go test $$p || break; done
 
 shortcheck: build
 	# go test -test.short -run ^Test $(PACKAGES)
@@ -63,6 +63,10 @@ deps:
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	go get github.com/Masterminds/glide
 	glide install --strip-vendor
+	# get opentracing to the default GOPATH, so we can build plugins outside
+	# the main skipper repo
+	# * will be removed from vendor/ after the deps checks (workaround for glide list)
+	go get -t github.com/opentracing/opentracing-go
 	# fix vendored deps:
 	rm -rf vendor/github.com/sirupsen/logrus/examples # breaks go install ./...
 
@@ -79,6 +83,8 @@ check-imports:
 	@glide list && true || \
 	(echo "run make deps and check if any new dependencies were vendored with glide get" && \
 	false)
+	# workaround until glide list supports --ignore $PACKAGE:
+	rm -rf vendor/github.com/opentracing/opentracing-go
 
 precommit: check-imports fmt build shortcheck vet
 

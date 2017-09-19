@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 	"time"
+
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 // Context object providing state and information that is unique to a request.
@@ -73,8 +75,11 @@ type FilterContext interface {
 	// is 'Host' and calls this method.)
 	SetOutgoingHost(string)
 
-	//Allow filters to collect metrics other than the default metrics (Filter Request, Filter Response methods)
+	// Allow filters to collect metrics other than the default metrics (Filter Request, Filter Response methods)
 	Metrics() Metrics
+
+	// Allow filters to add Tags, Baggage to the trace or set the ComponentName.
+	Tracer() opentracing.Tracer
 }
 
 // Metrics provides possibility to use custom metrics from filter implementations. The custom metrics will
