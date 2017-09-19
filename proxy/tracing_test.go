@@ -150,10 +150,18 @@ func (t *tracer) Inject(sm ot.SpanContext, format interface{}, carrier interface
 
 func (t *tracer) Extract(format interface{}, carrier interface{}) (ot.SpanContext, error) {
 	val := http.Header(carrier.(ot.HTTPHeadersCarrier)).Get("X-Trace-Header")
-	fmt.Printf("VALUE=%s\n", val)
-
 	if val != "" {
-		return &span{trace: val, tracer: t, tags: make(map[string]interface{})}, nil
+		return &span{
+			trace:  val,
+			tracer: t,
+			tags:   make(map[string]interface{}),
+			refs: []ot.SpanReference{
+				{
+					Type:              ot.ChildOfRef,
+					ReferencedContext: &span{trace: val},
+				},
+			},
+		}, nil
 	}
 	return nil, ot.ErrSpanContextNotFound
 }
