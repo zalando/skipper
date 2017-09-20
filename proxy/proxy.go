@@ -584,7 +584,7 @@ func (p *Proxy) do(ctx *context) error {
 
 	ctx.loopCounter++
 
-	if ok, settings := p.limiters.Check(ctx.request); !ok {
+	if settings, ok := p.limiters.Check(ctx.request); !ok {
 		p.log.Debugf("proxy.go limiter settings: %s", settings)
 		rerr := ratelimitError(settings)
 		return rerr

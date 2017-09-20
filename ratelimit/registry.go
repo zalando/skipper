@@ -69,18 +69,18 @@ func (r *Registry) Get(s Settings) *Ratelimit {
 	return r.get(s)
 }
 
-// Check returns false in case of request is ratelimitted and false
-// otherwise. It returns the used Settings as 2nd argument.
-func (r *Registry) Check(req *http.Request) (bool, Settings) {
+// Check returns Settings used and false in case of request is
+// ratelimitted and false otherwise.
+func (r *Registry) Check(req *http.Request) (Settings, bool) {
 	if r == nil {
-		return true, Settings{}
+		return Settings{}, true
 	}
 
 	ip := net.RemoteHost(req)
 
 	if !r.Get(r.global).Allow(ip.String()) {
-		return false, r.global
+		return r.global, false
 	}
-	return true, Settings{}
+	return Settings{}, true
 
 }
