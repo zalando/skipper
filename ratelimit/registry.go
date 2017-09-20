@@ -14,9 +14,9 @@ const (
 	DefaultCleanInterval = 60 * time.Second
 )
 
-// Registry objects hold the active ratelimitters, ensure synchronized
+// Registry objects hold the active ratelimiters, ensure synchronized
 // access to them, apply default settings and recycle the idle
-// ratelimitters.
+// ratelimiters.
 type Registry struct {
 	sync.Mutex
 	defaults Settings
@@ -62,7 +62,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 // Get returns a Ratelimit instance for provided Settings
 func (r *Registry) Get(s Settings) *Ratelimit {
-	if s.Type == DisableRatelimit {
+	if s.Type == DisableRatelimit || s.Type == NoRatelimit {
 		return nil
 	}
 

@@ -8,11 +8,11 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 )
 
-const ratelimitUsage = `set global rate limit settings, e.g. -ratelimit type=local,maxHits=20,timeWindow=60
+const ratelimitUsage = `set global rate limit settings, e.g. -ratelimit type=local,max-hits=20,time-window=60
 	possible ratelimit properties:
 	type: local/disabled (defaults to local)
-	maxHits: the number of hits a local (meaning per instance) ratelimiter can get
-	timeWindow: the duration of the sliding window for the rate limiter
+	max-hits: the number of hits a local (meaning per instance) ratelimiter can get
+	time-window: the duration of the sliding window for the rate limiter
 	(see also: https://godoc.org/github.com/zalando/skipper/ratelimit)`
 
 const enableRatelimitUsage = `enable ratelimit`
@@ -50,13 +50,13 @@ func (r *ratelimitFlags) Set(value string) error {
 			default:
 				return errInvalidRatelimitConfig
 			}
-		case "maxHits":
+		case "max-hits":
 			i, err := strconv.Atoi(kv[1])
 			if err != nil {
 				return err
 			}
 			s.MaxHits = i
-		case "timeWindow":
+		case "time-window":
 			d, err := parseDurationFlag(kv[1])
 			if err != nil {
 				return err
@@ -68,7 +68,7 @@ func (r *ratelimitFlags) Set(value string) error {
 		}
 	}
 
-	if s.Type == ratelimit.NonRatelimit {
+	if s.Type == ratelimit.NoRatelimit {
 		s.Type = ratelimit.DisableRatelimit
 	}
 

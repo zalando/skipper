@@ -35,9 +35,10 @@ func TestRegistry(t *testing.T) {
 		checkNil(t, rl)
 	})
 	t.Run("with settings", func(t *testing.T) {
-		r := NewRegistry(createSettings(3))
+		s := createSettings(3)
+		r := NewRegistry(s)
 
-		rl := r.Get(Settings{Host: "foo"})
+		rl := r.Get(s)
 		checkNotNil(t, rl)
 	})
 }

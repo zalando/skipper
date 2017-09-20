@@ -22,8 +22,8 @@ const (
 )
 
 const (
-	// NonRatelimit is not used
-	NonRatelimit Type = iota
+	// NoRatelimit is not used
+	NoRatelimit Type = iota
 	// LocalRatelimit is used to have a simple local rate limit,
 	// which is calculated and measured within each instance
 	LocalRatelimit
@@ -50,7 +50,7 @@ func (s Settings) Empty() bool {
 }
 
 func (to Settings) mergeSettings(from Settings) Settings {
-	if to.Type == NonRatelimit {
+	if to.Type == NoRatelimit {
 		to.Type = from.Type
 	}
 	if to.MaxHits == 0 {
@@ -70,7 +70,7 @@ func (s Settings) String() string {
 	case DisableRatelimit:
 		return "disable"
 	case LocalRatelimit:
-		return fmt.Sprintf("ratelimit(type=local,maxHits=%d,timeWindow=%s)", s.MaxHits, s.TimeWindow)
+		return fmt.Sprintf("ratelimit(type=local,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	default:
 		return "non"
 	}

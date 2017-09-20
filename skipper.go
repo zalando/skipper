@@ -289,7 +289,7 @@ type Options struct {
 	//
 	EnableRatelimiters bool
 
-	// RatelimitSettings contain global and host specific settings for the ratelimitters.
+	// RatelimitSettings contain global and host specific settings for the ratelimiters.
 	RatelimitSettings []ratelimit.Settings
 
 	// OpenTracing enables opentracing
