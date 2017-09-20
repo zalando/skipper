@@ -223,7 +223,7 @@ func init() {
 	flag.Var(&breakers, "breaker", breakerUsage)
 	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
 	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
-	flag.StringVar(&openTracing, "opentracing", "", opentracingUsage)
+	flag.StringVar(&openTracing, "opentracing", "noop", opentracingUsage)
 	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.Parse()
