@@ -140,8 +140,9 @@ var (
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
 	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
 	errCircuitBreakerOpen  = &proxyError{
-		err:  errors.New("circuit breaker open"),
-		code: http.StatusServiceUnavailable,
+		err:              errors.New("circuit breaker open"),
+		code:             http.StatusServiceUnavailable,
+		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
 	errRatelimitError = errors.New("ratelimited")
 )
@@ -739,15 +740,15 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		return
 	}
 
+	if ok && len(perr.additionalHeader) > 0 {
+		copyHeader(ctx.responseWriter.Header(), perr.additionalHeader)
+
+	}
 	switch {
-	case err == errCircuitBreakerOpen:
-		ctx.responseWriter.Header().Set("X-Circuit-Open", "true")
 	case err == errRouteLookupFailed:
 		code = p.defaultHTTPStatus
-	case perr.err == errRatelimitError:
+	case ok && perr.err == errRatelimitError:
 		code = perr.code
-		v := perr.additionalHeader.Get(ratelimit.Header)
-		ctx.responseWriter.Header().Set(ratelimit.Header, v)
 	default:
 		p.log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
 	}
