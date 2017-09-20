@@ -219,7 +219,7 @@ func init() {
 	flag.IntVar(&maxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
 	flag.BoolVar(&enableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&breakers, "breaker", breakerUsage)
-	flag.StringVar(&openTracing, "opentracing", "", opentracingUsage)
+	flag.StringVar(&openTracing, "opentracing", "noop", opentracingUsage)
 	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.Parse()
