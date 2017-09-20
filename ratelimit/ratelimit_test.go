@@ -79,20 +79,3 @@ func TestDisableRatelimit(t *testing.T) {
 		checkNotRatelimitted(t, rl, client1)
 	})
 }
-
-// func TestSettingsString(t *testing.T) {
-// 	s := RatelimitSettings{
-// 		Type:          LocalRatelimit,
-// 		MaxHits:       6,
-// 		TimeWindow:    3 * time.Second,
-// 		CleanInterval: 6 * time.Second,
-// 	}
-
-// 	ss := s.String()
-// 	expect := "type=rate,host=www.example.org,window=300,failures=30,timeout=1m0s,half-open-requests=15,idle-ttl=1h0m0s"
-// 	if ss != expect {
-// 		t.Error("invalid ratelimit settings string")
-// 		t.Logf("got     : %s", ss)
-// 		t.Logf("expected: %s", expect)
-// 	}
-// }
