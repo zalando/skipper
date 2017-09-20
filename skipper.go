@@ -23,6 +23,7 @@ import (
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 )
@@ -281,6 +282,16 @@ type Options struct {
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
 
+	// EnableRatelimiters enables the usage of the ratelimiter in the route definitions without initializing any
+	// by default. It is a shortcut for setting the RatelimitSettings to:
+	//
+	// 	[]ratelimit.Settings{{Type: DisableRatelimit}}
+	//
+	EnableRatelimiters bool
+
+	// RatelimitSettings contain global and host specific settings for the ratelimiters.
+	RatelimitSettings []ratelimit.Settings
+
 	// OpenTracing enables opentracing
 	OpenTracing []string
 
@@ -502,6 +513,11 @@ func Run(o Options) error {
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
 		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
+	}
+
+	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
+		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
+		proxyParams.RateLimiters = ratelimit.NewRegistry(o.RatelimitSettings...)
 	}
 
 	if o.DebugListener != "" {

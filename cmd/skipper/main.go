@@ -159,6 +159,8 @@ var (
 	maxLoopbacks              int
 	enableBreakers            bool
 	breakers                  breakerFlags
+	enableRatelimiters        bool
+	ratelimits                ratelimitFlags
 	openTracing               string
 	defaultHTTPStatus         int
 	pluginDir                 string
@@ -219,6 +221,8 @@ func init() {
 	flag.IntVar(&maxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
 	flag.BoolVar(&enableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&breakers, "breaker", breakerUsage)
+	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
+	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
 	flag.StringVar(&openTracing, "opentracing", "noop", opentracingUsage)
 	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
@@ -318,6 +322,8 @@ func main() {
 		MaxLoopbacks:                        maxLoopbacks,
 		EnableBreakers:                      enableBreakers,
 		BreakerSettings:                     breakers,
+		EnableRatelimiters:                  enableRatelimiters,
+		RatelimitSettings:                   ratelimits,
 		OpenTracing:                         strings.Split(openTracing, " "),
 		PluginDir:                           pluginDir,
 		DefaultHTTPStatus:                   defaultHTTPStatus,
