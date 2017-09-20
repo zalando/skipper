@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -26,20 +27,10 @@ func TestArgs(t *testing.T) {
 	t.Run("local", func(t *testing.T) {
 		rl := NewLocalRatelimit()
 		t.Run("missing", testErr(rl, nil))
-		// t.Run("too many", testErr(s, 6, "1m", 12, "30m", 42))
-		// t.Run("wrong failure count", testErr(s, "6", "1m", 12))
-		// t.Run("wrong timeout", testErr(s, 6, "foo", 12))
-		// t.Run("wrong half-open requests", testErr(s, 6, "1m", "foo"))
-		// t.Run("only failure count", testOK(s, 6))
-		// t.Run("only failure count and timeout", testOK(s, 6, "1m"))
-		// t.Run("full", testOK(s, 6, "1m", 12))
-		// t.Run("timeout as milliseconds", testOK(s, 6, 60000, 12))
-		// t.Run("with idle ttl", testOK(s, 6, 60000, 12, "30m"))
 	})
 
 	t.Run("disable", func(t *testing.T) {
 		rl := NewDisableRatelimit()
-		//t.Run("with args fail", testErr(rl, 6))
 		t.Run("no args, ok", testOK(rl))
 	})
 }
@@ -55,12 +46,18 @@ func TestRateLimit(t *testing.T) {
 
 			f, err := s.CreateFilter(args)
 			if err != nil {
-				t.Error(err)
+				t.Fatalf("failed to create filter from args %v: %v", args, err)
+			}
+			if f == nil {
+				t.Fatalf("filter is nil, args %v: %v", args, err)
 			}
 
 			// TODO(sszuecs): do we need state bag?
 			ctx := &filtertest.Context{
-				FStateBag: make(map[string]interface{}),
+				FStateBag: map[string]interface{}{
+					RouteSettingsKey: ratelimit.Settings{},
+				},
+				FRequest: &http.Request{},
 			}
 
 			f.Request(ctx)
@@ -84,11 +81,10 @@ func TestRateLimit(t *testing.T) {
 			Type:          ratelimit.LocalRatelimit,
 			MaxHits:       3,
 			TimeWindow:    1 * time.Second,
-			CleanInterval: 1 * time.Minute,
+			CleanInterval: 10 * time.Second,
 		},
 		3,
 		"1s",
-		"1m",
 	))
 
 	t.Run("ratelimit disable", test(
