@@ -15,7 +15,7 @@ type Type int
 const (
 	// Header is
 	Header = "X-Rate-Limit"
-	// LocalRatelimitName is the name of the LocalRatelimit, which will be shown in log
+	// LocalRatelimitName is the name of the LocalRatelimit filter, which will be shown in log
 	LocalRatelimitName = "localRatelimit"
 	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
 	DisableRatelimitName = "disableRatelimit"
