@@ -77,15 +77,22 @@ func (s Settings) String() string {
 }
 
 type implementation interface {
+	// Allow is used to get a decision if you should allow the call to pass or to ratelimit
 	Allow(string) bool
+	// Close is used to clean up underlying implementations, if you want to stop a Ratelimiter
+	Close()
 }
 
+// Ratelimit is a proxy objects that delegates to implemetations and
+// stores settings for the ratelimiter
 type Ratelimit struct {
 	settings Settings
 	ts       time.Time
 	impl     implementation
 }
 
+// Allow returns true if the s is not ratelimited, false if it is
+// ratelimited
 func (l *Ratelimit) Allow(s string) bool {
 	if l == nil {
 		return true
@@ -93,17 +100,25 @@ func (l *Ratelimit) Allow(s string) bool {
 	return l.impl.Allow(s)
 }
 
+// Close will stop a cleanup goroutines in underlying implementation.
+func (l *Ratelimit) Close() {
+	l.impl.Close()
+}
+
 type voidRatelimit struct{}
 
+// Allow always returns true, not ratelimited
 func (l voidRatelimit) Allow(string) bool {
 	return true
+}
+func (l voidRatelimit) Close() {
 }
 
 func newRatelimit(s Settings) *Ratelimit {
 	var impl implementation
 	switch s.Type {
 	case LocalRatelimit:
-		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval, nil)
+		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
 	default:
 		impl = voidRatelimit{}
 	}

@@ -1,5 +1,5 @@
 hash: ce54e6c1b180407f563a8b45ddb724ef6247731412229814c2799a9c2a176f5c
-updated: 2017-09-19T19:08:03.167233505+02:00
+updated: 2017-09-20T15:32:09.381911487+02:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
@@ -26,7 +26,7 @@ imports:
 - name: github.com/sony/gobreaker
   version: e9556a45379ef1da12e54847edb2fb3d7d566f36
 - name: github.com/szuecs/rate-limit-buffer
-  version: 19fe2d3ec08a015c0d7eb4dc108e23a7d8e03eaa
+  version: 585b0c9c230415b668ed4d42ef18f7a32c061702
 - name: golang.org/x/crypto
   version: eb71ad9bd329b5ac0fd0148dd99bd62e8be8e035
   subpackages:
