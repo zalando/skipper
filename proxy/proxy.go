@@ -18,7 +18,6 @@ import (
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
-	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/ratelimit"
@@ -576,29 +575,6 @@ func ratelimitError(settings ratelimit.Settings) error {
 			ratelimit.Header: []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
 		},
 	}
-}
-
-// TODO(sszuecs) not in use for the global rate limiter, but should be
-// used in per route rate limiting
-func (p *Proxy) checkRatelimit(c *context) bool {
-	if p.limiters == nil {
-		return true
-	}
-
-	settings, _ := c.stateBag[ratelimitfilters.RouteSettingsKey].(ratelimit.Settings)
-	settings.Host = c.outgoingHost
-
-	rl := p.limiters.Get(settings)
-	if rl == nil {
-		return true
-	}
-
-	s := settings.Lookuper.Lookup(c.originalRequest)
-
-	if s == "" {
-		return true
-	}
-	return rl.Allow(s)
 }
 
 func (p *Proxy) do(ctx *context) error {

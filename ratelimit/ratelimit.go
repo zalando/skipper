@@ -31,7 +31,14 @@ const (
 	DisableRatelimit
 )
 
+// Lookuper makes it possible to be more flexible for ratelimiting.
 type Lookuper interface {
+	// Lookup is used to get the string which is used to define
+	// how the bucket of a ratelimiter looks like, which is used
+	// to decide to ratelimit or not. For example you can use the
+	// X-Forwarded-For Header if you want to rate limit based on
+	// source ip behind a proxy/loadbalancer or the Authorization
+	// Header for request per token or user.
 	Lookup(*http.Request) string
 }
 
