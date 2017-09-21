@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
@@ -17,8 +18,10 @@ import (
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
+	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -124,6 +127,11 @@ type Params struct {
 	// for a request.
 	DefaultHTTPStatus int
 
+	// RateLimiters provides a registry that skipper can use to
+	// find the matching ratelimiter for backend requests. If not
+	// set, no ratelimits are used.
+	RateLimiters *ratelimit.Registry
+
 	// OpenTracer holds the tracer enabled for this proxy instance
 	OpenTracer ot.Tracer
 }
@@ -132,9 +140,11 @@ var (
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
 	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
 	errCircuitBreakerOpen  = &proxyError{
-		err:  errors.New("circuit breaker open"),
-		code: http.StatusServiceUnavailable,
+		err:              errors.New("circuit breaker open"),
+		code:             http.StatusServiceUnavailable,
+		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
+	errRatelimitError = errors.New("ratelimited")
 )
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
@@ -179,6 +189,7 @@ type Proxy struct {
 	experimentalUpgrade bool
 	maxLoops            int
 	breakers            *circuit.Registry
+	limiters            *ratelimit.Registry
 	log                 logging.Logger
 	defaultHTTPStatus   int
 	openTracer          ot.Tracer
@@ -190,9 +201,10 @@ type Proxy struct {
 // was already handled, e.g. in case of deprecated shunting or the
 // upgrade request.
 type proxyError struct {
-	err     error
-	code    int
-	handled bool
+	err              error
+	code             int
+	handled          bool
+	additionalHeader http.Header
 }
 
 func (e *proxyError) Error() string {
@@ -355,6 +367,7 @@ func WithParams(p Params) *Proxy {
 		experimentalUpgrade: p.ExperimentalUpgrade,
 		maxLoops:            p.MaxLoopbacks,
 		breakers:            p.CircuitBreakers,
+		limiters:            p.RateLimiters,
 		log:                 &logging.DefaultLog{},
 		defaultHTTPStatus:   defaultHTTPStatus,
 		openTracer:          p.OpenTracer,
@@ -538,6 +551,37 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 	return response, nil
 }
 
+// checkRatelimit is used in case of a route ratelimit
+// configuration. It returns the used ratelimit.Settings and true if
+// the request passed in the context should be allowed.
+func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, bool) {
+	if p.limiters == nil {
+		return ratelimit.Settings{}, true
+	}
+
+	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].(ratelimit.Settings)
+	if !ok {
+		return ratelimit.Settings{}, true
+	}
+	settings.Host = ctx.outgoingHost
+
+	rl := p.limiters.Get(settings)
+	if rl == nil {
+		return settings, true
+	}
+
+	if settings.Lookuper == nil {
+		p.log.Error("lookuper is nil")
+		return settings, true
+	}
+	s := settings.Lookuper.Lookup(ctx.Request())
+
+	if s == "" {
+		return settings, true
+	}
+	return settings, rl.Allow(s)
+}
+
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	if p.breakers == nil {
 		return nil, true
@@ -555,12 +599,28 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	return done, ok
 }
 
+func ratelimitError(settings ratelimit.Settings) error {
+	return &proxyError{
+		err:  errRatelimitError,
+		code: http.StatusTooManyRequests,
+		additionalHeader: http.Header{
+			ratelimit.Header: []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
+		},
+	}
+}
+
 func (p *Proxy) do(ctx *context) error {
 	if ctx.loopCounter > p.maxLoops {
 		return errMaxLoopbacksReached
 	}
 
 	ctx.loopCounter++
+
+	if settings, ok := p.limiters.Check(ctx.request); !ok {
+		p.log.Debugf("proxy.go limiter settings: %s", settings)
+		rerr := ratelimitError(settings)
+		return rerr
+	}
 
 	lookupStart := time.Now()
 	route, params := p.lookupRoute(ctx.request)
@@ -578,6 +638,10 @@ func (p *Proxy) do(ctx *context) error {
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
+	if settings, allow := p.checkRatelimit(ctx); !allow {
+		rerr := ratelimitError(settings)
+		return rerr
+	}
 
 	if ctx.deprecatedShunted() {
 		p.log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
@@ -688,11 +752,15 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		return
 	}
 
+	if ok && len(perr.additionalHeader) > 0 {
+		copyHeader(ctx.responseWriter.Header(), perr.additionalHeader)
+
+	}
 	switch {
-	case err == errCircuitBreakerOpen:
-		ctx.responseWriter.Header().Set("X-Circuit-Open", "true")
 	case err == errRouteLookupFailed:
 		code = p.defaultHTTPStatus
+	case ok && perr.err == errRatelimitError:
+		code = perr.code
 	default:
 		p.log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
 	}
