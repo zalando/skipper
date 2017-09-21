@@ -52,7 +52,6 @@ func TestRateLimit(t *testing.T) {
 				t.Fatalf("filter is nil, args %v: %v", args, err)
 			}
 
-			// TODO(sszuecs): do we need state bag?
 			ctx := &filtertest.Context{
 				FStateBag: map[string]interface{}{
 					RouteSettingsKey: ratelimit.Settings{},
@@ -82,6 +81,7 @@ func TestRateLimit(t *testing.T) {
 			MaxHits:       3,
 			TimeWindow:    1 * time.Second,
 			CleanInterval: 10 * time.Second,
+			Lookuper:      ratelimit.NewXForwardedForLookuper(),
 		},
 		3,
 		"1s",

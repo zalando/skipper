@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
+	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/ratelimit"
@@ -550,6 +551,37 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 	return response, nil
 }
 
+// checkRatelimit is used in case of a route ratelimit
+// configuration. It returns the used ratelimit.Settings and true if
+// the request passed in the context should be allowed.
+func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, bool) {
+	if p.limiters == nil {
+		return ratelimit.Settings{}, true
+	}
+
+	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].(ratelimit.Settings)
+	if !ok {
+		return ratelimit.Settings{}, true
+	}
+	settings.Host = ctx.outgoingHost
+
+	rl := p.limiters.Get(settings)
+	if rl == nil {
+		return settings, true
+	}
+
+	if settings.Lookuper == nil {
+		p.log.Error("lookuper is nil")
+		return settings, true
+	}
+	s := settings.Lookuper.Lookup(ctx.Request())
+
+	if s == "" {
+		return settings, true
+	}
+	return settings, rl.Allow(s)
+}
+
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	if p.breakers == nil {
 		return nil, true
@@ -606,6 +638,10 @@ func (p *Proxy) do(ctx *context) error {
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
+	if settings, allow := p.checkRatelimit(ctx); !allow {
+		rerr := ratelimitError(settings)
+		return rerr
+	}
 
 	if ctx.deprecatedShunted() {
 		p.log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)

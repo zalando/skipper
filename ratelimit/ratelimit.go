@@ -6,6 +6,7 @@ import (
 	"time"
 
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
+	"github.com/zalando/skipper/net"
 )
 
 // Type defines the type of the used breaker: consecutive, rate or
@@ -40,6 +41,26 @@ type Lookuper interface {
 	// source ip behind a proxy/loadbalancer or the Authorization
 	// Header for request per token or user.
 	Lookup(*http.Request) string
+}
+
+type XForwardedForLookuper struct{}
+
+func NewXForwardedForLookuper() XForwardedForLookuper {
+	return XForwardedForLookuper{}
+}
+
+func (_ XForwardedForLookuper) Lookup(req *http.Request) string {
+	return net.RemoteHost(req).String()
+}
+
+type AuthLookuper struct{}
+
+func NewAuthLookuper() AuthLookuper {
+	return AuthLookuper{}
+}
+
+func (_ AuthLookuper) Lookup(req *http.Request) string {
+	return req.Header.Get("Authorization")
 }
 
 // Settings configures the chosen rate limiter
