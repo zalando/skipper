@@ -10,6 +10,7 @@ import (
 	"github.com/zalando/skipper/filters/cookie"
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
+	"github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/tee"
 )
 
@@ -87,6 +88,8 @@ func MakeRegistry() filters.Registry {
 		circuit.NewConsecutiveBreaker(),
 		circuit.NewRateBreaker(),
 		circuit.NewDisableBreaker(),
+		ratelimit.NewLocalRatelimit(),
+		ratelimit.NewDisableRatelimit(),
 	} {
 		r.Register(s)
 	}
