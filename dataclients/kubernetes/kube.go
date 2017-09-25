@@ -466,8 +466,6 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			// update Traffic field for each backend
 			computeBackendWeights(backendWeights, rule)
 
-			hostRoutes := make([]*eskip.Route, 0, len(rule.Http.Paths))
-
 			for _, prule := range rule.Http.Paths {
 				if prule.Backend.Traffic > 0 {
 					r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
@@ -483,44 +481,13 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 					}
 
 					r.HostRegexps = host
-					hostRoutes = append(hostRoutes, r)
+					routes = append(routes, r)
 				}
-			}
-
-			routes = append(routes, hostRoutes...)
-
-			// if routes were configured, but there is no catchall route defined,
-			// create a route which returns 404
-			if len(hostRoutes) > 0 && !catchAllRoutes(hostRoutes) {
-				catchAll := &eskip.Route{
-					Id:          routeID(i.Metadata.Namespace, i.Metadata.Name, rule.Host, "", ""),
-					HostRegexps: host,
-					BackendType: eskip.ShuntBackend,
-				}
-				routes = append(routes, catchAll)
 			}
 		}
 	}
 
 	return routes, nil
-}
-
-// catchAllRoutes returns true if one of the routes in the list has a catchAll
-// path expression.
-func catchAllRoutes(routes []*eskip.Route) bool {
-	for _, route := range routes {
-		if len(route.PathRegexps) == 0 {
-			return true
-		}
-
-		for _, exp := range route.PathRegexps {
-			if exp == "^/" {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 // computeBackendWeights computes and sets the backend traffic weights on the
