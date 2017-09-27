@@ -62,8 +62,8 @@ Defines the maximum number of requests per user within a TimeWindow.
 
 Settings - TimeWindow
 
-Defines the time window until rate limits will be forced, if maximum
-number of requests are exceeded. This is defined as string
+Defines the time window until rate limits will be enforced, if maximum
+number of requests are exceeded. This is defined as a string
 representation of Go's time.Duration, e.g. 1m30s.
 
 Settings - Lookuper
@@ -84,9 +84,9 @@ Registry
 
 The active rate limiters are stored in a registry. They are created
 based on routes or command line flags. The registry synchronizes
-access to the shared rate limiters. A registry has default settings it
-will apply and it will use the disable rate limiter in case it's not
-defined in the configuration or not global enabled.
+access to the shared rate limiters. A registry has default settings
+that it will apply and that it will use the disable rate limiter in
+case it's not defined in the configuration or not global enabled.
 
 */
 
