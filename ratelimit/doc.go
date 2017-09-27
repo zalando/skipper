@@ -1,7 +1,7 @@
 /*
 Package ratelimit implements rate limiting functionality for the proxy.
 
-It provides per instance based, local, rate limiting. It can be
+It provides per process rate limiting. It can be
 configured globally, or based on routes. Rate limiting can be lookuped
 based on HTTP headers like X-Forwarded-For or Authorization.
 
