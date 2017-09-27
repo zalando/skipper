@@ -112,6 +112,7 @@ topics:
 - Proxy Packages
 - Logging and Metrics
 - Performance Considerations
+- Rate Limiters
 
 
 ### Packaging support
