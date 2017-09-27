@@ -21,19 +21,19 @@ one most users want to use.
 Usage
 
 When imported as a package, the Registry can be used to hold the rate
-limiters and their settings On a higher level, rate limiter settings
+limiters and their settings. On a higher level, rate limiter settings
 can be simply passed to skipper as part of the skipper.Options object,
 or defined as command line flags.
 
 The following command starts skipper with default X-Forwarded-For
 Lookuper, that will start to rate limit after 5 requests within 60s
-from the same requester
+from the same client
 
     % skipper -ratelimits type=local,max-hits=5,time-window=60s
 
 The following configuration will rate limit /foo after 2 requests
 within 90s from the same requester and all other requests after 20
-requests within 60s from the same requester
+requests within 60s from the same client
 
     % cat ratelimit.eskip
     foo: Path("/foo") -> localRatelimit(2,"1m30s") -> "http://www.example.org/foo"
@@ -74,9 +74,9 @@ used to group client requests. It accepts the default
 
 HTTP Response
 
-In case of rate limiting a client it send a HTTP status code 429 Too
-Many Requests and a header to the response, which shows the maximum
-request per hour (based on RFC 6585):
+In case of rate limiting, the HTTP response status will be 429 Too
+Many Requests, and a header will be set which shows the maximum
+requests per hour (based on RFC 6585):
 
      X-Rate-Limit: 6000
 
