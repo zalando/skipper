@@ -428,6 +428,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 // - check how to set failures in ingress status
 func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(items))
+	hostRoutes := make(map[string][]*eskip.Route)
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 			i.Spec == nil {
@@ -466,8 +467,6 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			// update Traffic field for each backend
 			computeBackendWeights(backendWeights, rule)
 
-			hostRoutes := make([]*eskip.Route, 0, len(rule.Http.Paths))
-
 			for _, prule := range rule.Http.Paths {
 				if prule.Backend.Traffic > 0 {
 					r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
@@ -483,22 +482,28 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 					}
 
 					r.HostRegexps = host
-					hostRoutes = append(hostRoutes, r)
+					if routes, ok := hostRoutes[rule.Host]; ok {
+						hostRoutes[rule.Host] = append(routes, r)
+					} else {
+						hostRoutes[rule.Host] = []*eskip.Route{r}
+					}
 				}
 			}
+		}
+	}
 
-			routes = append(routes, hostRoutes...)
+	for host, rs := range hostRoutes {
+		routes = append(routes, rs...)
 
-			// if routes were configured, but there is no catchall route defined,
-			// create a route which returns 404
-			if len(hostRoutes) > 0 && !catchAllRoutes(hostRoutes) {
-				catchAll := &eskip.Route{
-					Id:          routeID(i.Metadata.Namespace, i.Metadata.Name, rule.Host, "", ""),
-					HostRegexps: host,
-					BackendType: eskip.ShuntBackend,
-				}
-				routes = append(routes, catchAll)
+		// if routes were configured, but there is no catchall route
+		// defined for the host name, create a route which returns 404
+		if len(rs) > 0 && !catchAllRoutes(rs) {
+			catchAll := &eskip.Route{
+				Id:          routeID("", "catchall", host, "", ""),
+				HostRegexps: rs[0].HostRegexps,
+				BackendType: eskip.ShuntBackend,
 			}
+			routes = append(routes, catchAll)
 		}
 	}
 
