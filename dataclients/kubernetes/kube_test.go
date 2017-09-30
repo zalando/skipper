@@ -703,10 +703,10 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
 			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
 			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__foo_example_org____":                    "",
+			"kube___catchall__foo_example_org____":                          "",
 			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
 			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org____":                    "",
+			"kube___catchall__bar_example_org____":                          "",
 		})
 	})
 
@@ -757,10 +757,10 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
 			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
 			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__foo_example_org____":                    "",
+			"kube___catchall__foo_example_org____":                          "",
 			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
 			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org____":                    "",
+			"kube___catchall__bar_example_org____":                          "",
 		})
 	})
 
@@ -849,10 +849,10 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega______",
 			"kube_namespace1__mega__foo_example_org___test1__service1",
 			"kube_namespace1__mega__foo_example_org___test2__service2",
-			"kube_namespace1__mega__foo_example_org____",
+			"kube___catchall__foo_example_org____",
 			"kube_namespace1__mega__bar_example_org___test1__service1",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube_namespace1__mega__bar_example_org____",
+			"kube___catchall__bar_example_org____",
 		)
 	})
 
@@ -882,7 +882,7 @@ func TestIngress(t *testing.T) {
 			d,
 			"kube_namespace1__mega__bar_example_org___test1__service1",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube_namespace1__mega__bar_example_org____",
+			"kube___catchall__bar_example_org____",
 		)
 	})
 
@@ -998,7 +998,7 @@ func TestIngress(t *testing.T) {
 			d,
 			"kube_namespace1__mega__bar_example_org___test1__service1",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube_namespace1__mega__bar_example_org____",
+			"kube___catchall__bar_example_org____",
 		)
 	})
 	t.Run("has ingresses, add new ones and filter not valid ones using class ingress", func(t *testing.T) {
@@ -1106,7 +1106,7 @@ func TestConvertPathRule(t *testing.T) {
 
 		checkRoutes(t, r, map[string]string{
 			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
-			"kube_namespace1__new1__new1_example_org____":               "",
+			"kube___catchall__new1_example_org____":                     "",
 			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.2.3.4:8080",
 		})
 	})
@@ -1430,10 +1430,10 @@ func TestHealthcheckReload(t *testing.T) {
 			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
 			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
 			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__foo_example_org____":                    "",
+			"kube___catchall__foo_example_org____":                          "",
 			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
 			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org____":                    "",
+			"kube___catchall__bar_example_org____":                          "",
 		})
 	})
 }
