@@ -89,5 +89,4 @@ that it will apply and that it will use the disable rate limiter in
 case it's not defined in the configuration or not global enabled.
 
 */
-
 package ratelimit
