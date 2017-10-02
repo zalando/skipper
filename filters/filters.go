@@ -75,11 +75,27 @@ type FilterContext interface {
 	// is 'Host' and calls this method.)
 	SetOutgoingHost(string)
 
+	// Metadata about the upstream proxy call available to the filters at response time
+	ProxyMetadata() ProxyMetadata
+
 	// Allow filters to collect metrics other than the default metrics (Filter Request, Filter Response methods)
 	Metrics() Metrics
 
 	// Allow filters to add Tags, Baggage to the trace or set the ComponentName.
 	Tracer() opentracing.Tracer
+}
+
+// ProxyMetadata provides details about the proxy level calls upstream to filters
+// this means filters can record details of the underlying backend calls if they wish
+type ProxyMetadata interface {
+	// Time spent in Skipper before sending the request to upstream proxy
+	SendingTime() time.Duration
+
+	// Time spent waiting for a response from upstream proxy
+	WaitingTime() time.Duration
+
+	// Time spent receiving the response from the upstream proxy
+	ReceivingTime() time.Duration
 }
 
 // Metrics provides possibility to use custom metrics from filter implementations. The custom metrics will

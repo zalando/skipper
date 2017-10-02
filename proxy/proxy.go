@@ -622,6 +622,7 @@ func (p *Proxy) do(ctx *context) error {
 		return rerr
 	}
 
+	var sent, wait, recieve time.Duration = 0, 0, 0
 	lookupStart := time.Now()
 	route, params := p.lookupRoute(ctx.request)
 	p.metrics.MeasureRouteLookup(lookupStart)
@@ -680,6 +681,10 @@ func (p *Proxy) do(ctx *context) error {
 			return err
 		}
 
+		recieveStart := time.Now()
+		sent = backendStart.Sub(ctx.startServe)
+		wait = time.Now().Sub(backendStart)
+
 		if done != nil {
 			done(rsp.StatusCode < http.StatusInternalServerError)
 		}
@@ -687,9 +692,11 @@ func (p *Proxy) do(ctx *context) error {
 		ctx.setResponse(rsp, p.flags.PreserveOriginal())
 		p.metrics.MeasureBackend(ctx.route.Id, backendStart)
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
+		recieve = time.Now().Sub(recieveStart)
 	}
 
 	addBranding(ctx.response.Header)
+	ctx.setProxyMetadata(sent, wait, recieve)
 	p.applyFiltersToResponse(processedFilters, ctx)
 	return nil
 }
