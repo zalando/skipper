@@ -227,6 +227,11 @@ func init() {
 	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.Parse()
+
+	// check if arguments were correctly parsed.
+	if len(flag.Args()) != 0 {
+		log.Fatalf("Invalid arguments: %s", flag.Args())
+	}
 }
 
 func parseDurationFlag(ds string) (time.Duration, error) {
