@@ -4,8 +4,8 @@ import (
 	"testing"
 	"reflect"
 	"fmt"
+	"sort"
 )
-
 
 func addPathToTree(t *testing.T, tree *node, path string) {
 	t.Logf("Adding path %s", path)
@@ -24,6 +24,7 @@ func TestVizTree(t *testing.T) {
 	addPathToTree(t, tree, "/i/:aaa")
 	addPathToTree(t, tree, "/images")
 	addPathToTree(t, tree, "/images/abc.jpg")
+	addPathToTree(t, tree, "/images/abc.jpg/:size")
 	addPathToTree(t, tree, "/images/:imgname")
 	addPathToTree(t, tree, "/images/*path")
 	addPathToTree(t, tree, "/ima")
@@ -56,13 +57,13 @@ func TestVizTree(t *testing.T) {
 		t.Error("/ should match")
 		return
 	}
-	testChildren(t, vizTree,  []string {"i", "ima", "images", "images1", "images2", "apples",  "apples1",  "appeasement","appealing", "app", "plaster"})
+	testChildren(t, vizTree,  []string {"i", "ima", "images", "images1", "images2", "apples",  "apples1",  "appeasement","appealing", "app", "date", "plaster", "post", "users"})
 	testIfChildMatch(t, vizTree, "images")
-	testChildren(t, vizTree.child("images"),  []string {"abc.jpg", "*path"})
+	testChildren(t, vizTree.child("images"), []string{"abc.jpg", "*path"})
 	testIfChildMatch(t, vizTree, "images1")
-	testChildren(t, vizTree.child("images1"),  []string {"*path1"})
+	testChildren(t, vizTree.child("images1"), []string{"*path1"})
 	testIfChildMatch(t, vizTree, "app")
-	testChildren(t, vizTree.child("app"),  []string {"les"})
+	testChildren(t, vizTree.child("app"), []string{"les"})
 }
 
 func testChildren(t *testing.T, tree *vizNode, expectedChildren []string) {
@@ -75,8 +76,10 @@ func testChildren(t *testing.T, tree *vizNode, expectedChildren []string) {
 		t.Errorf("No children found")
 		return
 	}
+	sort.Strings(expectedChildren)
+	sort.Strings(children)
 	if !reflect.DeepEqual(children, expectedChildren) {
-		t.Errorf("Children  %v are different from expected children %v", children, expectedChildren)
+		t.Errorf("Children  %v are different \n from expected children %v", children, expectedChildren)
 		return
 	}
 }

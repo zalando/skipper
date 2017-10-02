@@ -7,83 +7,51 @@ type vizNode struct {
 }
 
 func MakeVizTree(tree *node) (*vizNode) {
-	return aggregateTree(tree, nil, "/")
+	vizTree, _ := aggregateTree(tree, "/")
+	return vizTree
 }
 
-func aggregateTree(tree *node, vizTree *vizNode, previousPath string) (*vizNode) {
-	numberOfChildren := len(tree.staticChild)
-	if numberOfChildren == 0 {
-		// No leafValue means this node should be ignored
-		if tree.leafValue == nil {
-			var previousNode *vizNode
-			if vizTree != nil {
-				previousNode = vizTree.child(previousPath)
-			}
-			if tree.catchAllChild != nil && tree.catchAllChild.leafValue != nil {
-				catchAllChild := &vizNode{"*" + tree.catchAllChild.path, nil, true}
-				if previousNode != nil {
-					previousNode.children = append(previousNode.children, catchAllChild)
-				} else if vizTree != nil {
-					vizTree.children = append(vizTree.children, catchAllChild)
-				} else {
-					return catchAllChild
-				}
-			}
-			return vizTree
-		}
-		var childPath string
-		if tree.path == "/" {
-			childPath = previousPath
-		} else {
-			childPath = previousPath + tree.path
-		}
-		newChildNode := &vizNode{childPath, nil, true}
-		if vizTree != nil {
-			vizTree.children = append(vizTree.children, newChildNode)
-		} else {
-			vizTree = newChildNode
-		}
-		return vizTree
+func aggregateTree(tree *node, previousPath string) (*vizNode, []*vizNode) {
+	if tree == nil {
+		return nil, nil
 	}
-	var newChildNode *vizNode
+	numberOfChildren := len(tree.staticChild)
+	var currentNode, middleNode *vizNode
+	middleNode = nil
 	nextPath := previousPath + tree.path
 	if tree.path == "/" {
 		nextPath = ""
-		var previousNode *vizNode
-		if vizTree != nil {
-			previousNode = vizTree.child(previousPath)
-		}
-		if previousNode == nil {
-			newChildNode = &vizNode{previousPath, nil, tree.leafValue != nil}
-			if vizTree != nil {
-				vizTree.children = append(vizTree.children, newChildNode)
-			} else {
-				vizTree = newChildNode
-			}
-		} else {
-			newChildNode = previousNode
-		}
+		currentNode = &vizNode{previousPath, nil, tree.leafValue != nil}
 	} else {
 		if tree.leafValue != nil {
-			newChildNode = &vizNode{nextPath, nil, true}
-			if vizTree != nil {
-				vizTree.children = append(vizTree.children, newChildNode)
-			} else {
-				vizTree = newChildNode
-			}
+			middleNode = &vizNode{nextPath, nil, true}
 		}
-		newChildNode = vizTree
-
 	}
+	children := make([]*vizNode, 0, numberOfChildren)
 	for i := 0; i < numberOfChildren; i++ {
-		child := tree.staticChild[i]
-		aggregateTree(child, newChildNode, nextPath)
+		childNode, grandsonNodes := aggregateTree(tree.staticChild[i], nextPath)
+		if  grandsonNodes != nil {
+			children = append(children, grandsonNodes...)
+		}
+		if  childNode != nil {
+			children = append(children, childNode)
+		}
 	}
+
 	if tree.catchAllChild != nil && tree.catchAllChild.leafValue != nil {
 		catchAllChild := &vizNode{"*" + tree.catchAllChild.path, nil, true}
-		newChildNode.children = append(newChildNode.children, catchAllChild)
+		children = append(children, catchAllChild)
 	}
-	return vizTree
+	if currentNode != nil {
+		currentNode.children = children
+		return currentNode, nil
+	}
+	if middleNode != nil {
+		if clearMiddleNodes(children, middleNode.path) {
+			return nil, children
+		}
+	}
+	return middleNode, children
 }
 
 func (n *vizNode) child(path string) (*vizNode) {
@@ -94,4 +62,14 @@ func (n *vizNode) child(path string) (*vizNode) {
 		}
 	}
 	return nil
+}
+func clearMiddleNodes(children []*vizNode, path string) (bool) {
+	for i := 0; i < len(children); i++ {
+		child := children[i]
+		if path == child.path {
+			child.canMatch = true
+			return true
+		}
+	}
+	return false
 }
