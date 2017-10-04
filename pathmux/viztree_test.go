@@ -1,9 +1,9 @@
 package pathmux
 
 import (
-	"testing"
 	"reflect"
 	"sort"
+	"testing"
 )
 
 func addPathToTree(t *testing.T, tree *Tree, path string) {

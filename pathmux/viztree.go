@@ -11,12 +11,12 @@ type vizNode struct {
 
 type VizTree vizNode
 
-func NewVizTree(tree *Tree) (*VizTree) {
+func NewVizTree(tree *Tree) *VizTree {
 	vizTree := aggregateTree((*node)(tree), "/")
 	return (*VizTree)(vizTree[0])
 }
 
-func aggregateTree(tree *node, previousPath string) ([]*vizNode) {
+func aggregateTree(tree *node, previousPath string) []*vizNode {
 	if tree == nil {
 		return nil
 	}
@@ -72,7 +72,7 @@ func aggregateTree(tree *node, previousPath string) ([]*vizNode) {
 	return children
 }
 
-func (n *vizNode) child(path string) (*vizNode) {
+func (n *vizNode) child(path string) *vizNode {
 	for i := 0; i < len(n.children); i++ {
 		child := n.children[i]
 		if path == child.path {
@@ -81,7 +81,7 @@ func (n *vizNode) child(path string) (*vizNode) {
 	}
 	return nil
 }
-func processWildCardNode(tree *node) ([]*vizNode) {
+func processWildCardNode(tree *node) []*vizNode {
 	if tree == nil {
 		return nil
 	}
@@ -113,7 +113,7 @@ func processWildCardNode(tree *node) ([]*vizNode) {
 
 	return children
 }
-func getNode(children []*vizNode, path string) (*vizNode) {
+func getNode(children []*vizNode, path string) *vizNode {
 	for i := 0; i < len(children); i++ {
 		child := children[i]
 		if path == child.path {
@@ -122,7 +122,7 @@ func getNode(children []*vizNode, path string) (*vizNode) {
 	}
 	return nil
 }
-func getLeafNames(children []*vizNode, removeFromChildren bool) ([]string) {
+func getLeafNames(children []*vizNode, removeFromChildren bool) []string {
 	var leafWildcardNames []string
 	for i := 0; i < len(children); i++ {
 		if children[i].leafWildcardNames != nil {
@@ -134,7 +134,7 @@ func getLeafNames(children []*vizNode, removeFromChildren bool) ([]string) {
 	}
 	return leafWildcardNames
 }
-func sliceLeafNames(names []string) ([]string) {
+func sliceLeafNames(names []string) []string {
 	if names == nil || len(names) < 2 {
 		return nil
 	}

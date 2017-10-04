@@ -20,7 +20,6 @@ func addPath(t *testing.T, tree *node, path string) {
 	n.leafValue = handler
 }
 
-
 func testPath(t *testing.T, tree *node, path string, expectPath string, expectedParams map[string]string) {
 	if t.Failed() {
 		t.FailNow()
