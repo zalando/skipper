@@ -4,54 +4,72 @@ type vizNode struct {
 	path     string
 	children []*vizNode
 	canMatch bool
+
+	// The wildcard names still waiting to be processed, should be always nil after the end of the conversion.
+	leafWildcardNames []string
 }
 
-func MakeVizTree(tree *node) (*vizNode) {
-	vizTree, _ := aggregateTree(tree, "/")
-	return vizTree
+type VizTree vizNode
+
+func NewVizTree(tree *Tree) (*VizTree) {
+	vizTree := aggregateTree((*node)(tree), "/")
+	return (*VizTree)(vizTree[0])
 }
 
-func aggregateTree(tree *node, previousPath string) (*vizNode, []*vizNode) {
+func aggregateTree(tree *node, previousPath string) ([]*vizNode) {
 	if tree == nil {
-		return nil, nil
+		return nil
+	}
+	var currentNode, middleNode *vizNode
+	nextPath := previousPath + tree.path
+	// On every slash we create new nodes if the previous path has a value, otherwise we ignore it
+	if tree.path == "/" {
+		if previousPath != "" {
+			currentNode = &vizNode{previousPath, nil, tree.leafValue != nil, tree.leafWildcardNames}
+		}
+		nextPath = ""
+	} else {
+		// This is to handle intermediate nodes that are matched without a slash
+		if tree.leafValue != nil {
+			middleNode = &vizNode{nextPath, nil, true, tree.leafWildcardNames}
+		}
 	}
 	numberOfChildren := len(tree.staticChild)
-	var currentNode, middleNode *vizNode
-	middleNode = nil
-	nextPath := previousPath + tree.path
-	if tree.path == "/" {
-		nextPath = ""
-		currentNode = &vizNode{previousPath, nil, tree.leafValue != nil}
-	} else {
-		if tree.leafValue != nil {
-			middleNode = &vizNode{nextPath, nil, true}
-		}
-	}
 	children := make([]*vizNode, 0, numberOfChildren)
 	for i := 0; i < numberOfChildren; i++ {
-		childNode, grandsonNodes := aggregateTree(tree.staticChild[i], nextPath)
-		if  grandsonNodes != nil {
-			children = append(children, grandsonNodes...)
-		}
-		if  childNode != nil {
-			children = append(children, childNode)
-		}
+		childrenNodes := aggregateTree(tree.staticChild[i], nextPath)
+		children = append(children, childrenNodes...)
 	}
+	childrenNodes := processWildCardNode(tree.wildcardChild)
+	// Keep lifting the leaf wildcard names for later processing
+	leafWildcardNames := getLeafNames(childrenNodes, currentNode != nil || middleNode != nil)
+	children = append(children, childrenNodes...)
 
 	if tree.catchAllChild != nil && tree.catchAllChild.leafValue != nil {
-		catchAllChild := &vizNode{"*" + tree.catchAllChild.path, nil, true}
-		children = append(children, catchAllChild)
+		children = append(children, &vizNode{"*" + tree.catchAllChild.path, nil, true, sliceLeafNames(tree.catchAllChild.leafWildcardNames)})
 	}
 	if currentNode != nil {
+		if leafWildcardNames != nil {
+			currentNode.leafWildcardNames = leafWildcardNames
+		}
 		currentNode.children = children
-		return currentNode, nil
+		return []*vizNode{currentNode}
 	}
 	if middleNode != nil {
-		if clearMiddleNodes(children, middleNode.path) {
-			return nil, children
+		// Prevent duplication of intermediate nodes
+		if previousNode := getNode(children, middleNode.path); previousNode == nil {
+			if leafWildcardNames != nil {
+				middleNode.leafWildcardNames = leafWildcardNames
+			}
+			children = append(children, middleNode)
+		} else {
+			previousNode.canMatch = true
+			if leafWildcardNames != nil {
+				previousNode.leafWildcardNames = leafWildcardNames
+			}
 		}
 	}
-	return middleNode, children
+	return children
 }
 
 func (n *vizNode) child(path string) (*vizNode) {
@@ -63,13 +81,62 @@ func (n *vizNode) child(path string) (*vizNode) {
 	}
 	return nil
 }
-func clearMiddleNodes(children []*vizNode, path string) (bool) {
+func processWildCardNode(tree *node) ([]*vizNode) {
+	if tree == nil {
+		return nil
+	}
+	numberOfChildren := len(tree.staticChild)
+	if tree.leafWildcardNames != nil && numberOfChildren == 0 {
+		currentPath, leafWildcardNames := tree.leafWildcardNames[len(tree.leafWildcardNames)-1], sliceLeafNames(tree.leafWildcardNames)
+		return []*vizNode{{":" + currentPath, nil, tree.leafValue != nil, leafWildcardNames}}
+	}
+	children := make([]*vizNode, 0, numberOfChildren)
+	for i := 0; i < numberOfChildren; i++ {
+		childrenNodes := aggregateTree(tree.staticChild[i], "")
+		for j := 0; j < len(childrenNodes); j++ {
+			child := childrenNodes[j]
+			if child.leafWildcardNames != nil {
+				currentPath, leafWildcardNames := ":"+child.leafWildcardNames[len(child.leafWildcardNames)-1], sliceLeafNames(child.leafWildcardNames)
+				child.leafWildcardNames = nil
+				if previousNode := getNode(children, currentPath); previousNode == nil {
+					child = &vizNode{currentPath, []*vizNode{child}, tree.leafValue != nil, leafWildcardNames}
+				} else {
+					previousNode.children = append(previousNode.children, child)
+					child = nil
+				}
+			}
+			if child != nil {
+				children = append(children, child)
+			}
+		}
+	}
+
+	return children
+}
+func getNode(children []*vizNode, path string) (*vizNode) {
 	for i := 0; i < len(children); i++ {
 		child := children[i]
 		if path == child.path {
-			child.canMatch = true
-			return true
+			return child
 		}
 	}
-	return false
+	return nil
+}
+func getLeafNames(children []*vizNode, removeFromChildren bool) ([]string) {
+	var leafWildcardNames []string
+	for i := 0; i < len(children); i++ {
+		if children[i].leafWildcardNames != nil {
+			leafWildcardNames = children[i].leafWildcardNames
+			if removeFromChildren {
+				children[i].leafWildcardNames = nil
+			}
+		}
+	}
+	return leafWildcardNames
+}
+func sliceLeafNames(names []string) ([]string) {
+	if names == nil || len(names) < 2 {
+		return nil
+	}
+	return names[:len(names)-1]
 }
