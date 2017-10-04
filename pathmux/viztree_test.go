@@ -3,7 +3,6 @@ package pathmux
 import (
 	"testing"
 	"reflect"
-	"fmt"
 	"sort"
 )
 
@@ -22,10 +21,10 @@ func TestVizTree(t *testing.T) {
 	addPathToTree(t, tree, "/")
 	addPathToTree(t, tree, "/i")
 	addPathToTree(t, tree, "/i/:aaa")
-	addPathToTree(t, tree, "/images")
 	addPathToTree(t, tree, "/images/abc.jpg")
 	addPathToTree(t, tree, "/images/abc.jpg/:size")
 	addPathToTree(t, tree, "/images/:imgname")
+	addPathToTree(t, tree, "/images")
 	addPathToTree(t, tree, "/images/*path")
 	addPathToTree(t, tree, "/ima")
 	addPathToTree(t, tree, "/ima/:par")
@@ -52,18 +51,28 @@ func TestVizTree(t *testing.T) {
 	addPathToTree(t, tree, "/:something/def")
 
 	vizTree := MakeVizTree(tree)
-	printVizTree(vizTree)
 	if !vizTree.canMatch {
 		t.Error("/ should match")
 		return
 	}
-	testChildren(t, vizTree,  []string {"i", "ima", "images", "images1", "images2", "apples",  "apples1",  "appeasement","appealing", "app", "date", "plaster", "post", "users"})
+	testChildren(t, vizTree, []string{"i", "ima", "images", "images1", "images2", "apples", "apples1", "appeasement", "appealing", "app", "date", "plaster", ":page", "post", "users", ":something"})
+	testIfChildMatch(t, vizTree, "i")
+	testChildren(t, vizTree.child("i"), []string{":aaa"})
 	testIfChildMatch(t, vizTree, "images")
-	testChildren(t, vizTree.child("images"), []string{"abc.jpg", "*path"})
+	testChildren(t, vizTree.child("images"), []string{"abc.jpg", "*path", ":imgname"})
+	testChildren(t, vizTree.child("images").child("abc.jpg"), []string{":size"})
 	testIfChildMatch(t, vizTree, "images1")
 	testChildren(t, vizTree.child("images1"), []string{"*path1"})
 	testIfChildMatch(t, vizTree, "app")
 	testChildren(t, vizTree.child("app"), []string{"les"})
+	testChildren(t, vizTree.child(":something"), []string{"abc", "def"})
+	testChildren(t, vizTree.child("users"), []string{":pk", ":id"})
+	testChildren(t, vizTree.child("users").child(":pk"), []string{":related"})
+	testChildren(t, vizTree.child("users").child(":id"), []string{"updatePassword"})
+	testChildren(t, vizTree.child("post").child(":post").child("page"), []string{":page"})
+	testChildren(t, vizTree.child("date"), []string{":year"})
+	testChildren(t, vizTree.child("date").child(":year"), []string{":month", "month"})
+	testChildren(t, vizTree.child("date").child(":year").child(":month"), []string{":post", "abc", "*post"})
 }
 
 func testChildren(t *testing.T, tree *vizNode, expectedChildren []string) {
@@ -75,6 +84,13 @@ func testChildren(t *testing.T, tree *vizNode, expectedChildren []string) {
 	if err != nil || children == nil {
 		t.Errorf("No children found")
 		return
+	}
+
+	for i := 0; i < len(tree.children); i++ {
+		if tree.children[i].leafWildcardNames != nil {
+			t.Errorf("leafWildcardNames different from nil")
+			return
+		}
 	}
 	sort.Strings(expectedChildren)
 	sort.Strings(children)
@@ -99,18 +115,4 @@ func childrenString(n *vizNode) (children []string, err error) {
 		children = append(children, n.children[i].path)
 	}
 	return
-}
-
-func printVizTree(vizTree *vizNode) {
-	if len(vizTree.children) > 0 {
-		fmt.Println("printing vizsubtree ", vizTree.path)
-	}
-	for i := 0; i < len(vizTree.children); i++ {
-		child := vizTree.children[i]
-		fmt.Println("path ", child.path)
-	}
-	for i := 0; i < len(vizTree.children); i++ {
-		child := vizTree.children[i]
-		printVizTree(child)
-	}
 }
