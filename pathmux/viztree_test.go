@@ -49,36 +49,36 @@ func TestVizTree(t *testing.T) {
 	addPathToTree(t, tree, "/:something/abc")
 	addPathToTree(t, tree, "/:something/def")
 
-	vizTree := (*vizNode)(NewVizTree(tree))
+	vizTree := (*VizTree)(NewVizTree(tree))
 	if !vizTree.canMatch {
 		t.Error("/ should match")
 		return
 	}
 	testChildren(t, vizTree, []string{"i", "ima", "images", "images1", "images2", "apples", "apples1", "appeasement", "appealing", "app", "date", "plaster", ":page", "post", "users", ":something"})
 	testIfChildMatch(t, vizTree, "i")
-	testChildren(t, vizTree.child("i"), []string{":aaa"})
+	testChildren(t, vizTree.Child("i"), []string{":aaa"})
 	testIfChildMatch(t, vizTree, "images")
-	testChildren(t, vizTree.child("images"), []string{"abc.jpg", "*path", ":imgname"})
-	testChildren(t, vizTree.child("images").child("abc.jpg"), []string{":size"})
+	testChildren(t, vizTree.Child("images"), []string{"abc.jpg", "*path", ":imgname"})
+	testChildren(t, vizTree.Child("images").Child("abc.jpg"), []string{":size"})
 	testIfChildMatch(t, vizTree, "images1")
-	testChildren(t, vizTree.child("images1"), []string{"*path1"})
+	testChildren(t, vizTree.Child("images1"), []string{"*path1"})
 	testIfChildMatch(t, vizTree, "app")
-	testChildren(t, vizTree.child("app"), []string{"les"})
-	testChildren(t, vizTree.child(":something"), []string{"abc", "def"})
-	testChildren(t, vizTree.child("users"), []string{":pk", ":id"})
-	testChildren(t, vizTree.child("users").child(":pk"), []string{":related"})
-	testChildren(t, vizTree.child("users").child(":id"), []string{"updatePassword"})
-	testChildren(t, vizTree.child("post").child(":post").child("page"), []string{":page"})
-	testChildren(t, vizTree.child("date"), []string{":year"})
-	testChildren(t, vizTree.child("date").child(":year"), []string{":month", "month"})
-	testChildren(t, vizTree.child("date").child(":year").child(":month"), []string{":post", "abc", "*post"})
+	testChildren(t, vizTree.Child("app"), []string{"les"})
+	testChildren(t, vizTree.Child(":something"), []string{"abc", "def"})
+	testChildren(t, vizTree.Child("users"), []string{":pk", ":id"})
+	testChildren(t, vizTree.Child("users").Child(":pk"), []string{":related"})
+	testChildren(t, vizTree.Child("users").Child(":id"), []string{"updatePassword"})
+	testChildren(t, vizTree.Child("post").Child(":post").Child("page"), []string{":page"})
+	testChildren(t, vizTree.Child("date"), []string{":year"})
+	testChildren(t, vizTree.Child("date").Child(":year"), []string{":month", "month"})
+	testChildren(t, vizTree.Child("date").Child(":year").Child(":month"), []string{":post", "abc", "*post"})
 }
 
-func testChildren(t *testing.T, tree *vizNode, expectedChildren []string) {
+func testChildren(t *testing.T, tree *VizTree, expectedChildren []string) {
 	if t.Failed() {
 		t.FailNow()
 	}
-	t.Log("Testing children of", tree.path)
+	t.Log("Testing children of", tree.Path)
 	children, err := childrenString(tree)
 	if err != nil || children == nil {
 		t.Errorf("No children found")
@@ -98,20 +98,20 @@ func testChildren(t *testing.T, tree *vizNode, expectedChildren []string) {
 		return
 	}
 }
-func testIfChildMatch(t *testing.T, tree *vizNode, childPath string) {
+func testIfChildMatch(t *testing.T, tree *VizTree, childPath string) {
 	if t.Failed() {
 		t.FailNow()
 	}
-	t.Logf("Looking for child %v of %v", childPath, tree.path)
-	if tree.child(childPath) == nil {
-		t.Errorf("No children %v found in %v", childPath, tree.path)
+	t.Logf("Looking for child %v of %v", childPath, tree.Path)
+	if tree.Child(childPath) == nil {
+		t.Errorf("No children %v found in %v", childPath, tree.Path)
 		return
 	}
 }
 
-func childrenString(n *vizNode) (children []string, err error) {
+func childrenString(n *VizTree) (children []string, err error) {
 	for i := 0; i < len(n.children); i++ {
-		children = append(children, n.children[i].path)
+		children = append(children, n.children[i].Path)
 	}
 	return
 }
