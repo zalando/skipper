@@ -33,8 +33,15 @@ type context struct {
 	incomingDebugResponse *http.Response
 	loopCounter           int
 	startServe            time.Time
+	proxyMeta             *proxyMetadata
 	metrics               *filterMetrics
 	tracer                opentracing.Tracer
+}
+
+type proxyMetadata struct {
+	sendingTime   time.Duration
+	waitingTime   time.Duration
+	receivingTime time.Duration
 }
 
 type filterMetrics struct {
@@ -118,6 +125,7 @@ func newContext(w http.ResponseWriter, r *http.Request, preserveOriginal bool, m
 		request:        r,
 		stateBag:       make(map[string]interface{}),
 		outgoingHost:   r.Host,
+		proxyMeta:      &proxyMetadata{0, 0, 0},
 		metrics:        &filterMetrics{impl: m},
 	}
 
@@ -169,20 +177,21 @@ func (c *context) setResponse(r *http.Response, preserveOriginal bool) {
 	}
 }
 
-func (c *context) ResponseWriter() http.ResponseWriter { return c.responseWriter }
-func (c *context) Request() *http.Request              { return c.request }
-func (c *context) Response() *http.Response            { return c.response }
-func (c *context) MarkServed()                         { c.deprecatedServed = true }
-func (c *context) Served() bool                        { return c.deprecatedServed || c.servedWithResponse }
-func (c *context) PathParam(key string) string         { return c.pathParams[key] }
-func (c *context) StateBag() map[string]interface{}    { return c.stateBag }
-func (c *context) BackendUrl() string                  { return c.route.Backend }
-func (c *context) OriginalRequest() *http.Request      { return c.originalRequest }
-func (c *context) OriginalResponse() *http.Response    { return c.originalResponse }
-func (c *context) OutgoingHost() string                { return c.outgoingHost }
-func (c *context) SetOutgoingHost(h string)            { c.outgoingHost = h }
-func (c *context) Metrics() filters.Metrics            { return c.metrics }
-func (c *context) Tracer() opentracing.Tracer          { return c.tracer }
+func (c *context) ResponseWriter() http.ResponseWriter  { return c.responseWriter }
+func (c *context) Request() *http.Request               { return c.request }
+func (c *context) Response() *http.Response             { return c.response }
+func (c *context) MarkServed()                          { c.deprecatedServed = true }
+func (c *context) Served() bool                         { return c.deprecatedServed || c.servedWithResponse }
+func (c *context) PathParam(key string) string          { return c.pathParams[key] }
+func (c *context) StateBag() map[string]interface{}     { return c.stateBag }
+func (c *context) BackendUrl() string                   { return c.route.Backend }
+func (c *context) OriginalRequest() *http.Request       { return c.originalRequest }
+func (c *context) OriginalResponse() *http.Response     { return c.originalResponse }
+func (c *context) OutgoingHost() string                 { return c.outgoingHost }
+func (c *context) SetOutgoingHost(h string)             { c.outgoingHost = h }
+func (c *context) ProxyMetadata() filters.ProxyMetadata { return c.proxyMeta }
+func (c *context) Metrics() filters.Metrics             { return c.metrics }
+func (c *context) Tracer() opentracing.Tracer           { return c.tracer }
 
 func (c *context) Serve(r *http.Response) {
 	r.Request = c.Request()
@@ -216,6 +225,14 @@ func (c *context) clone() *context {
 	return &cc
 }
 
+func (c *context) setProxyMetadata(sent time.Duration, wait time.Duration, recieve time.Duration) {
+	c.proxyMeta = &proxyMetadata{
+		sendingTime:   sent,
+		waitingTime:   wait,
+		receivingTime: recieve,
+	}
+}
+
 func (c *context) setMetricsPrefix(prefix string) {
 	c.metrics.prefix = prefix + ".custom."
 }
@@ -226,4 +243,16 @@ func (m *filterMetrics) IncCounter(key string) {
 
 func (m *filterMetrics) MeasureSince(key string, start time.Time) {
 	m.impl.MeasureSince(m.prefix+key, start)
+}
+
+func (m *proxyMetadata) SendingTime() time.Duration {
+	return m.sendingTime
+}
+
+func (m *proxyMetadata) WaitingTime() time.Duration {
+	return m.waitingTime
+}
+
+func (m *proxyMetadata) ReceivingTime() time.Duration {
+	return m.receivingTime
 }
