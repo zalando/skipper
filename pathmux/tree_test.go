@@ -8,10 +8,6 @@ import (
 
 type HandlerFunc func(w http.ResponseWriter, r *http.Request, urlParams map[string]string)
 
-func dummyHandler(w http.ResponseWriter, r *http.Request, urlParams map[string]string) {
-
-}
-
 func addPath(t *testing.T, tree *node, path string) {
 	t.Logf("Adding path %s", path)
 	n, err := tree.addPath(path[1:], nil)
@@ -23,8 +19,6 @@ func addPath(t *testing.T, tree *node, path string) {
 	})
 	n.leafValue = handler
 }
-
-var test *testing.T
 
 func testPath(t *testing.T, tree *node, path string, expectPath string, expectedParams map[string]string) {
 	if t.Failed() {
@@ -112,7 +106,6 @@ func checkHandlerNodes(t *testing.T, n *node) {
 }
 
 func TestTree(t *testing.T) {
-	test = t
 	tree := &node{path: "/"}
 
 	addPath(t, tree, "/")
@@ -229,7 +222,6 @@ func TestTree(t *testing.T) {
 
 	checkHandlerNodes(t, tree)
 
-	test = nil
 }
 
 func TestPanics(t *testing.T) {
