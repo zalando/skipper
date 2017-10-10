@@ -81,19 +81,21 @@ type Options struct {
 }
 
 const (
-	KeyRouteLookup          = "routelookup"
-	KeyRouteFailure         = "routefailure"
-	KeyFilterRequest        = "filter.%s.request"
-	KeyFiltersRequest       = "allfilters.request.%s"
-	KeyProxyBackend         = "backend.%s"
-	KeyProxyBackendCombined = "all.backend"
-	KeyProxyBackendHost     = "backendhost.%s"
-	KeyFilterResponse       = "filter.%s.response"
-	KeyFiltersResponse      = "allfilters.response.%s"
-	KeyResponse             = "response.%d.%s.skipper.%s"
-	KeyResponseCombined     = "all.response.%d.%s.skipper"
-	KeyServeRoute           = "serveroute.%s.%s.%d"
-	KeyServeHost            = "servehost.%s.%s.%d"
+	KeyRouteLookup                = "routelookup"
+	KeyRouteFailure               = "routefailure"
+	KeyFilterRequest              = "filter.%s.request"
+	KeyFiltersRequest             = "allfilters.request.%s"
+	KeyAllFiltersRequestCombined  = "allfilters.combined.request"
+	KeyProxyBackend               = "backend.%s"
+	KeyProxyBackendCombined       = "all.backend"
+	KeyProxyBackendHost           = "backendhost.%s"
+	KeyFilterResponse             = "filter.%s.response"
+	KeyFiltersResponse            = "allfilters.response.%s"
+	KeyAllFiltersResponseCombined = "allfilters.combined.response"
+	KeyResponse                   = "response.%d.%s.skipper.%s"
+	KeyResponseCombined           = "all.response.%d.%s.skipper"
+	KeyServeRoute                 = "serveroute.%s.%s.%d"
+	KeyServeHost                  = "servehost.%s.%s.%d"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
@@ -218,6 +220,7 @@ func (m *Metrics) MeasureFilterRequest(filterName string, start time.Time) {
 }
 
 func (m *Metrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
+	m.measureSince(KeyAllFiltersRequestCombined, start)
 	if m.options.EnableAllFiltersMetrics {
 		m.measureSince(fmt.Sprintf(KeyFiltersRequest, routeId), start)
 	}
@@ -241,6 +244,7 @@ func (m *Metrics) MeasureFilterResponse(filterName string, start time.Time) {
 }
 
 func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
+	m.measureSince(KeyAllFiltersResponseCombined, start)
 	if m.options.EnableAllFiltersMetrics {
 		m.measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
 	}
