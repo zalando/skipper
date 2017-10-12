@@ -17,10 +17,11 @@ package main
 import (
 	"errors"
 	"flag"
-	"golang.org/x/crypto/ssh/terminal"
 	"net/url"
 	"os"
 	"strings"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -37,6 +38,7 @@ const (
 	appendFileFlag     = "append-file"
 	prettyFlag         = "pretty"
 	jsonFlag           = "json"
+	hasNoTTYFlag       = "no-tty"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
@@ -70,6 +72,7 @@ var (
 	appendFileArg     string
 	pretty            bool
 	printJson         bool
+	hasNoTTY          bool
 )
 
 var (
@@ -103,6 +106,7 @@ func initFlags() {
 
 	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
 	flags.BoolVar(&printJson, jsonFlag, false, jsonUsage)
+	flags.BoolVar(&hasNoTTY, hasNoTTYFlag, false, hasNoTTYUsage)
 }
 
 func init() {
@@ -205,7 +209,7 @@ func processStdin() *medium {
 	// what can go wrong
 	fdint := int(os.Stdin.Fd())
 
-	if isTest || terminal.IsTerminal(fdint) {
+	if isTest || terminal.IsTerminal(fdint) || hasNoTTY {
 		return nil
 	}
 

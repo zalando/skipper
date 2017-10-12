@@ -83,6 +83,7 @@ const (
 	appendFileUsage     = "append filters from a file to each patched route"
 	prettyUsage         = "prints routes in a more readable format"
 	jsonUsage           = "prints routes as JSON"
+	hasNoTTYUsage       = "allows non-terminal applications to execute eskip commands"
 
 	// command line help (1):
 	help1 = `Usage: eskip <command> [media flags] [--] [file]
