@@ -15,39 +15,58 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters"
 	"net/http"
 	"net/url"
+	"strings"
+
+	"github.com/zalando/skipper/filters"
+)
+
+type redirectType int
+
+const (
+	redDeprecated redirectType = iota
+	redTo
+	redToLower
 )
 
 // Filter to return
 type redirect struct {
-	deprecated bool
-	code       int
-	location   *url.URL
+	typ      redirectType
+	code     int
+	location *url.URL
 }
 
-// Returns a new filter Spec, whose instances create an HTTP redirect
+// NewRedirect returns a new filter Spec, whose instances create an HTTP redirect
 // response. Marks the request as served. Instances expect two
 // parameters: the redirect status code and the redirect location.
 // Name: "redirect".
 //
 // This filter is deprecated, use RedirectTo instead.
-func NewRedirect() filters.Spec { return &redirect{deprecated: true} }
+func NewRedirect() filters.Spec { return &redirect{typ: redDeprecated} }
 
-// Returns a new filter Spec, whose instances create an HTTP redirect
+// NewRedirectTo returns a new filter Spec, whose instances create an HTTP redirect
 // response. It shunts the request flow, meaning that the filter chain on
 // the request path is not continued. The request is not forwarded to the
 // backend. Instances expect two parameters: the redirect status code and
 // the redirect location.
 // Name: "redirectTo".
-func NewRedirectTo() filters.Spec { return &redirect{deprecated: false} }
+func NewRedirectTo() filters.Spec { return &redirect{typ: redTo} }
 
-// "redirect" or "redirectTo"
+// NewRedirectLower returns a new filter Spec, whose instances create an HTTP redirect
+// response, which redirects with a lowercase path. It is similar to redTo except that
+// it converts the route path to lower while redirecting
+// Name: "redirectToLower".
+func NewRedirectLower() filters.Spec { return &redirect{typ: redToLower} }
+
+// "redirect" or "redirectToLower" or "redirectTo"
 func (spec *redirect) Name() string {
-	if spec.deprecated {
+	switch spec.typ {
+	case redDeprecated:
 		return RedirectName
-	} else {
+	case redToLower:
+		return RedirectToLowerName
+	default:
 		return RedirectToName
 	}
 }
@@ -77,7 +96,7 @@ func (spec *redirect) CreateFilter(config []interface{}) (filters.Filter, error)
 		return invalidArgs()
 	}
 
-	return &redirect{spec.deprecated, int(code), u}, nil
+	return &redirect{spec.typ, int(code), u}, nil
 }
 
 func getRequestHost(r *http.Request) string {
@@ -94,7 +113,7 @@ func getRequestHost(r *http.Request) string {
 	return h
 }
 
-func getLocation(ctx filters.FilterContext, location *url.URL) string {
+func getLocation(ctx filters.FilterContext, location *url.URL, typ redirectType) string {
 	r := ctx.Request()
 
 	uc := *location
@@ -118,6 +137,11 @@ func getLocation(ctx filters.FilterContext, location *url.URL) string {
 		u.Path = r.URL.Path
 	}
 
+	// Check if the redirect has to be case-insensitive
+	if typ == redToLower {
+		u.Path = strings.ToLower(u.Path)
+	}
+
 	if u.RawQuery == "" {
 		u.RawQuery = r.URL.RawQuery
 	}
@@ -126,31 +150,32 @@ func getLocation(ctx filters.FilterContext, location *url.URL) string {
 }
 
 // Redirect implements the redirect logic as a standalone function.
-func Redirect(ctx filters.FilterContext, code int, location *url.URL) {
-	u := getLocation(ctx, location)
+func Redirect(ctx filters.FilterContext, code int, location *url.URL, typ redirectType) {
+	u := getLocation(ctx, location, typ)
 	ctx.Serve(&http.Response{
 		StatusCode: code,
 		Header:     http.Header{"Location": []string{u}}})
 }
 
-func (f *redirect) Request(ctx filters.FilterContext) {
-	if f.deprecated {
+func (spec *redirect) Request(ctx filters.FilterContext) {
+
+	if spec.typ == redDeprecated {
 		return
 	}
 
-	Redirect(ctx, f.code, f.location)
+	Redirect(ctx, spec.code, spec.location, spec.typ)
 }
 
 // Sets the status code and the location header of the response. Marks the
 // request served.
-func (f *redirect) Response(ctx filters.FilterContext) {
-	if !f.deprecated {
+func (spec *redirect) Response(ctx filters.FilterContext) {
+	if spec.typ != redDeprecated {
 		return
 	}
 
-	u := getLocation(ctx, f.location)
+	u := getLocation(ctx, spec.location, spec.typ)
 	w := ctx.ResponseWriter()
 	w.Header().Set("Location", u)
-	w.WriteHeader(f.code)
+	w.WriteHeader(spec.code)
 	ctx.MarkServed()
 }
