@@ -680,6 +680,10 @@ func (p *Proxy) do(ctx *context) error {
 			return err
 		}
 
+		if rsp.StatusCode >= http.StatusInternalServerError {
+			p.metrics.MeasureBackend5xx(backendStart)
+		}
+
 		if done != nil {
 			done(rsp.StatusCode < http.StatusInternalServerError)
 		}
