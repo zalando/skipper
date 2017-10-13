@@ -96,6 +96,7 @@ const (
 	KeyResponseCombined           = "all.response.%d.%s.skipper"
 	KeyServeRoute                 = "serveroute.%s.%s.%d"
 	KeyServeHost                  = "servehost.%s.%s.%d"
+	Key5xxsBackend                = "all.backend.5xx"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
@@ -315,6 +316,10 @@ func (m *Metrics) IncErrorsBackend(routeId string) {
 	if m.options.EnableRouteBackendErrorsCounters {
 		m.incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
 	}
+}
+
+func (m *Metrics) MeasureBackend5xx(t time.Time) {
+	m.measureSince(Key5xxsBackend, t)
 }
 
 func (m *Metrics) IncErrorsStreaming(routeId string) {
