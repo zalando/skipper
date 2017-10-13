@@ -38,7 +38,6 @@ const (
 	appendFileFlag     = "append-file"
 	prettyFlag         = "pretty"
 	jsonFlag           = "json"
-	hasNoTTYFlag       = "no-tty"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
@@ -72,7 +71,6 @@ var (
 	appendFileArg     string
 	pretty            bool
 	printJson         bool
-	hasNoTTY          bool
 )
 
 var (
@@ -106,7 +104,6 @@ func initFlags() {
 
 	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
 	flags.BoolVar(&printJson, jsonFlag, false, jsonUsage)
-	flags.BoolVar(&hasNoTTY, hasNoTTYFlag, false, hasNoTTYUsage)
 }
 
 func init() {
@@ -285,12 +282,12 @@ func processArgs() ([]*medium, error) {
 
 	if fileArg != nil {
 		media = append(media, fileArg)
-	}
+	} else {
+		stdinArg := processStdin()
 
-	stdinArg := processStdin()
-
-	if stdinArg != nil {
-		media = append(media, stdinArg)
+		if stdinArg != nil {
+			media = append(media, stdinArg)
+		}
 	}
 
 	patchMedia := processPatchArgs(
