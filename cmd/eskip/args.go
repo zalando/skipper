@@ -206,7 +206,7 @@ func processStdin() *medium {
 	// what can go wrong
 	fdint := int(os.Stdin.Fd())
 
-	if isTest || terminal.IsTerminal(fdint) || hasNoTTY {
+	if isTest || terminal.IsTerminal(fdint) {
 		return nil
 	}
 
