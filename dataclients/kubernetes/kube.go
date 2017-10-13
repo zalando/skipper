@@ -23,6 +23,62 @@ failing healthcheck after the signal was received. This means that, when the Ing
 the healthcheck of the cluster, and the Skipper process receives the TERM signal, it won't exit by itself
 immediately, but will start reporting failures on healthcheck requests. Until it gets killed by the kubelet,
 Skipper keeps serving the requests in this case.
+
+Example - Ingress
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+Example - Ingress with ratelimiting
+
+The example shows 3 calls per minute per client, based on
+X-Forwarded-For header or IP incase there is no X-Forwarded-For header
+set, are allowed to each skipper instance for the given ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/ratelimit: localRatelimit(3, "1m")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+The example shows 500 calls per hour per client, based on
+Authorization header set, are allowed to each skipper instance for the
+given ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/ratelimit: localRatelimit(500, "1h", "auth")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
 */
 package kubernetes
 
@@ -69,6 +125,7 @@ const (
 	httpRedirectRouteID         = "kube__redirect"
 	healthcheckPath             = "/kube-system/healthz"
 	backendWeightsAnnotationKey = "zalando.org/backend-weights"
+	ratelimitAnnotationKey      = "zalando.org/ratelimit"
 )
 
 var internalIPs = []interface{}{
@@ -421,11 +478,10 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 	return r, nil
 }
 
-// logs if invalid, but proceeds with the valid ones
-// should report failures in Ingress status
-//
-// TODO:
-// - check how to set failures in ingress status
+// ingressToRoutes logs if an invalid found, but proceeds with the
+// valid ones.  Reporting failures in Ingress status is not possible,
+// because Ingress status field is v1.LoadBalancerIngress that only
+// supports IP and Hostname as string.
 func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
@@ -440,6 +496,12 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			routes = append(routes, r)
 		} else if err != nil {
 			log.Errorf("error while converting default backend: %v", err)
+		}
+
+		// parse ratelimit annotation
+		var ratelimitFilter string
+		if ratelimitAnnotationValue, ok := i.Metadata.Annotations[ratelimitAnnotationKey]; ok {
+			ratelimitFilter = ratelimitAnnotationValue
 		}
 
 		// parse backend-weihgts annotation if it exists
@@ -475,9 +537,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						if err == errServiceNotFound {
 							continue
 						}
-
-						// TODO:
-						// - check how to set failures in ingress status
+						// Ingress status field does not support errors
 						return nil, fmt.Errorf("error while getting service: %v", err)
 					}
 
@@ -485,6 +545,15 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 					if routes, ok := hostRoutes[rule.Host]; ok {
 						hostRoutes[rule.Host] = append(routes, r)
 					} else {
+						if ratelimitFilter != "" {
+							ratelimitFilters, err := eskip.ParseFilters(ratelimitFilter)
+							if err != nil {
+								log.Errorf("Can not parse ratelimit filter: %v", err)
+							} else {
+								sav := r.Filters[:]
+								r.Filters = append(ratelimitFilters, sav...)
+							}
+						}
 						hostRoutes[rule.Host] = []*eskip.Route{r}
 					}
 				}
