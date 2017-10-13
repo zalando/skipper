@@ -17,10 +17,11 @@ package main
 import (
 	"errors"
 	"flag"
-	"golang.org/x/crypto/ssh/terminal"
 	"net/url"
 	"os"
 	"strings"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -281,12 +282,12 @@ func processArgs() ([]*medium, error) {
 
 	if fileArg != nil {
 		media = append(media, fileArg)
-	}
+	} else {
+		stdinArg := processStdin()
 
-	stdinArg := processStdin()
-
-	if stdinArg != nil {
-		media = append(media, stdinArg)
+		if stdinArg != nil {
+			media = append(media, stdinArg)
+		}
 	}
 
 	patchMedia := processPatchArgs(

@@ -96,7 +96,7 @@ innkeeper     endpoint of an innkeeper server. See more about innkeeper:
               https://github.com/zalando/innkeeper
 etcd          endpoint(s) of an etcd cluster. See more about etcd:
               https://github.com/coreos/etcd
-stdin         standard input when not tty, expecting routes
+stdin         standard input when not tty, expecting routes but ignored if a file is provided
 file          a file containing routes
 inline        routes as command line parameter
 inline ids    a list of route ids (only for delete)
