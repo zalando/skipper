@@ -2143,18 +2143,3 @@ func checkLocalRatelimit(t *testing.T, got []*eskip.Route, expected map[string]s
 		}
 	}
 }
-
-// func TestIngressToRoutes(t *testing.T) {
-// 	dc, err := New(Options{KubernetesURL: api.server.URL})
-// 	if err != nil {
-// 		t.Errorf("failed to create client")
-// 	}
-// 	items := testIngresses()
-// 	routes, err := dc.ingressToRoutes(items)
-// 	if err != nil {
-// 		t.Errorf("failed to run ingressToRoutes")
-// 	}
-// 	if len(routes) < 1 {
-// 		t.Errorf("failed to get Routes")
-// 	}
-// }
