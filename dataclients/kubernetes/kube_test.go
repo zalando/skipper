@@ -80,7 +80,7 @@ func testRule(host string, paths ...*pathRule) *rule {
 	}
 }
 
-func testIngress(ns, name, defaultService string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
+func testIngress(ns, name, defaultService, ratelimitCfg string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
 	var defaultBackend *backend
 	if len(defaultService) != 0 {
 		defaultBackend = &backend{
@@ -90,11 +90,17 @@ func testIngress(ns, name, defaultService string, defaultPort backendPort, traff
 		}
 	}
 
+	meta := metadata{
+		Namespace: ns,
+		Name:      name,
+	}
+	if ratelimitCfg != "" {
+		meta.Annotations = map[string]string{
+			"zalando.org/ratelimit": ratelimitCfg,
+		}
+	}
 	return &ingressItem{
-		Metadata: &metadata{
-			Namespace: ns,
-			Name:      name,
-		},
+		Metadata: &meta,
 		Spec: &ingressSpec{
 			DefaultBackend: defaultBackend,
 			Rules:          rules,
@@ -116,10 +122,11 @@ func testServices() services {
 
 func testIngresses() []*ingressItem {
 	return []*ingressItem{
-		testIngress("namespace1", "default-only", "service1", backendPort{8080}, 1.0),
+		testIngress("namespace1", "default-only", "service1", "", backendPort{8080}, 1.0),
 		testIngress(
 			"namespace2",
 			"path-rule-only",
+			"",
 			"",
 			backendPort{},
 			1.0,
@@ -132,6 +139,7 @@ func testIngresses() []*ingressItem {
 			"namespace1",
 			"mega",
 			"service1",
+			"",
 			backendPort{"port1"},
 			1.0,
 			testRule(
@@ -145,6 +153,7 @@ func testIngresses() []*ingressItem {
 				testPathRule("/test2", "service2", backendPort{"port2"}),
 			),
 		),
+		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", backendPort{8080}, 1.0),
 	}
 }
 
@@ -346,7 +355,7 @@ func TestIngressData(t *testing.T) {
 				"bar": testService("1.2.3.4", nil),
 			},
 		},
-		[]*ingressItem{testIngress("foo", "baz", "bar", backendPort{8080}, 1.0)},
+		[]*ingressItem{testIngress("foo", "baz", "bar", "", backendPort{8080}, 1.0)},
 		map[string]string{
 			"kube_foo__baz______": "http://1.2.3.4:8080",
 		},
@@ -360,6 +369,7 @@ func TestIngressData(t *testing.T) {
 		[]*ingressItem{testIngress(
 			"foo",
 			"baz",
+			"",
 			"",
 			backendPort{},
 			1.0,
@@ -387,6 +397,7 @@ func TestIngressData(t *testing.T) {
 			"foo",
 			"qux",
 			"bar",
+			"",
 			backendPort{8080},
 			1.0,
 			testRule(
@@ -413,6 +424,7 @@ func TestIngressData(t *testing.T) {
 			"foo",
 			"qux",
 			"",
+			"",
 			backendPort{},
 			1.0,
 			testRule(
@@ -438,6 +450,7 @@ func TestIngressData(t *testing.T) {
 			testIngress(
 				"foo",
 				"qux",
+				"",
 				"",
 				backendPort{},
 				1.0,
@@ -686,7 +699,7 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
-		if r, err := dc.LoadAll(); err != nil || len(r) != 0 {
+		if r, err2 := dc.LoadAll(); err2 != nil || len(r) != 0 {
 			t.Error("failed to load initial")
 		}
 
@@ -707,6 +720,7 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
 			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
 			"kube___catchall__bar_example_org____":                          "",
+			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
 		})
 	})
 
@@ -761,6 +775,7 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
 			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
 			"kube___catchall__bar_example_org____":                          "",
+			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
 		})
 	})
 
@@ -853,6 +868,7 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega__bar_example_org___test1__service1",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
 			"kube___catchall__bar_example_org____",
+			"kube_namespace1__ratelimit______",
 		)
 	})
 
@@ -906,6 +922,7 @@ func TestIngress(t *testing.T) {
 				"namespace1",
 				"new1",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -916,6 +933,7 @@ func TestIngress(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new2",
+				"",
 				"",
 				backendPort{""},
 				1.0,
@@ -958,6 +976,7 @@ func TestIngress(t *testing.T) {
 				"namespace1",
 				"new1",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -968,6 +987,7 @@ func TestIngress(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new2",
+				"",
 				"",
 				backendPort{""},
 				1.0,
@@ -1019,6 +1039,7 @@ func TestIngress(t *testing.T) {
 			"namespace1",
 			"new1",
 			"",
+			"",
 			backendPort{""},
 			1.0,
 			testRule(
@@ -1029,6 +1050,7 @@ func TestIngress(t *testing.T) {
 		ti2 := testIngress(
 			"namespace1",
 			"new2",
+			"",
 			"",
 			backendPort{""},
 			1.0,
@@ -1079,6 +1101,7 @@ func TestConvertPathRule(t *testing.T) {
 				"namespace1",
 				"new1",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1089,6 +1112,7 @@ func TestConvertPathRule(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new1",
+				"",
 				"",
 				backendPort{""},
 				1.0,
@@ -1434,6 +1458,7 @@ func TestHealthcheckReload(t *testing.T) {
 			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
 			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
 			"kube___catchall__bar_example_org____":                          "",
+			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
 		})
 	})
 }
@@ -2074,5 +2099,47 @@ func TestComputeBackendWeights(t *testing.T) {
 				t.Errorf("modified input and output should match")
 			}
 		})
+	}
+}
+
+func TestRatelimits(t *testing.T) {
+	api := newTestAPI(t, nil, &ingressList{})
+	defer api.Close()
+
+	t.Run("check localratelimit", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+
+		dc, err := New(Options{
+			KubernetesURL: api.server.URL,
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error("failed to fail")
+		}
+
+		checkLocalRatelimit(t, r, map[string]string{
+			"kube_namespace1__ratelimit______": "localRatelimit(20,\"1m\")",
+		})
+	})
+}
+
+func checkLocalRatelimit(t *testing.T, got []*eskip.Route, expected map[string]string) {
+	for _, r := range got {
+		if r.Filters != nil {
+			for _, f := range r.Filters {
+				_, ok := expected[r.Id]
+				if ok && f.Name != "localRatelimit" {
+					t.Errorf("%s should have a localratelimit", r.Id)
+				}
+				if !ok && f.Name == "localRatelimit" {
+					t.Errorf("%s should not have a localratelimit", r.Id)
+				}
+			}
+		}
 	}
 }
