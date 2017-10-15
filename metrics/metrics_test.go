@@ -132,40 +132,67 @@ func TestMeasurement(t *testing.T) {
 
 type proxyMetricTest struct {
 	metricsKey  string
-	measureFunc func()
+	measureFunc func(*Metrics)
 }
 
 var proxyMetricsTests = []proxyMetricTest{
 	// T1 - Measure routing
-	{KeyRouteLookup, func() { Default.MeasureRouteLookup(time.Now()) }},
+	{KeyRouteLookup, func(m *Metrics) { m.MeasureRouteLookup(time.Now()) }},
 	// T2 - Measure filter request
-	{fmt.Sprintf(KeyFilterRequest, "foo"), func() { Default.MeasureFilterRequest("foo", time.Now()) }},
+	{fmt.Sprintf(KeyFilterRequest, "foo"), func(m *Metrics) { m.MeasureFilterRequest("foo", time.Now()) }},
 	// T3 - Measure all filters request
-	{fmt.Sprintf(KeyFiltersRequest, "bar"), func() { Default.MeasureAllFiltersRequest("bar", time.Now()) }},
+	{fmt.Sprintf(KeyFiltersRequest, "bar"), func(m *Metrics) { m.MeasureAllFiltersRequest("bar", time.Now()) }},
 	// T4 - Measure proxy backend
-	{fmt.Sprintf(KeyProxyBackend, "baz"), func() { Default.MeasureBackend("baz", time.Now()) }},
+	{fmt.Sprintf(KeyProxyBackend, "baz"), func(m *Metrics) { m.MeasureBackend("baz", time.Now()) }},
 	// T5 - Measure filters response
-	{fmt.Sprintf(KeyFilterResponse, "qux"), func() { Default.MeasureFilterResponse("qux", time.Now()) }},
+	{fmt.Sprintf(KeyFilterResponse, "qux"), func(m *Metrics) { m.MeasureFilterResponse("qux", time.Now()) }},
 	// T6 - Measure all filters response
-	{fmt.Sprintf(KeyFiltersResponse, "quux"), func() { Default.MeasureAllFiltersResponse("quux", time.Now()) }},
+	{fmt.Sprintf(KeyFiltersResponse, "quux"), func(m *Metrics) { m.MeasureAllFiltersResponse("quux", time.Now()) }},
 	// T7 - Measure response
 	{fmt.Sprintf(KeyResponse, http.StatusOK, "GET", "norf"),
-		func() { Default.MeasureResponse(http.StatusOK, "GET", "norf", time.Now()) }},
+		func(m *Metrics) { m.MeasureResponse(http.StatusOK, "GET", "norf", time.Now()) }},
 	// T8 - Inc routing failure
-	{KeyRouteFailure, func() { Default.IncRoutingFailures() }},
+	{KeyRouteFailure, func(m *Metrics) { m.IncRoutingFailures() }},
 	// T9 - Inc backend errors
-	{fmt.Sprintf(KeyErrorsBackend, "r1"), func() { Default.IncErrorsBackend("r1") }},
+	{fmt.Sprintf(KeyErrorsBackend, "r1"), func(m *Metrics) { m.IncErrorsBackend("r1") }},
 	// T10 - Inc streaming errors
-	{fmt.Sprintf(KeyErrorsStreaming, "r1"), func() { Default.IncErrorsStreaming("r1") }},
+	{fmt.Sprintf(KeyErrorsStreaming, "r1"), func(m *Metrics) { m.IncErrorsStreaming("r1") }},
+}
+
+func waitForNewMetric(m *Metrics, key string, timeout time.Duration, maxTries int) bool {
+	done := make(chan bool)
+	to := time.After(timeout)
+	go func() {
+		for {
+			if m.reg.Get(key) != nil {
+				done <- true
+				return
+			}
+
+			select {
+			case <-to:
+				done <- false
+				return
+			case <-time.After(time.Duration(int(timeout) / maxTries)):
+			}
+		}
+	}()
+
+	return <-done
 }
 
 func TestProxyMetrics(t *testing.T) {
+	const (
+		registryTimeout  = time.Millisecond
+		registryMaxTries = 16
+	)
+
 	for _, pmt := range proxyMetricsTests {
-		NewHandler(Options{})
-		pmt.measureFunc()
-		Default.reg.Each(func(key string, _ interface{}) {
-			if key != pmt.metricsKey {
-				t.Errorf("Registry contained unexpected metric for key '%s'. Found '%s'", pmt.metricsKey, key)
+		t.Run(pmt.metricsKey, func(t *testing.T) {
+			m := New(Options{})
+			pmt.measureFunc(m)
+			if !waitForNewMetric(m, pmt.metricsKey, registryTimeout, registryMaxTries) {
+				t.Errorf("expected metric was not found: '%s'", pmt.metricsKey)
 			}
 		})
 	}
