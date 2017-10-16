@@ -217,6 +217,10 @@ type Options struct {
 	// enabled by default.
 	EnableRouteBackendMetrics bool
 
+	// When set, makes the histograms use an exponentially decaying sample
+	// instead of the default uniform one.
+	MetricsUseExpDecaySample bool
+
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
 	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
@@ -554,6 +558,7 @@ func Run(o Options) error {
 			EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
 			EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
 			EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
+			UseExpDecaySample:                  o.MetricsUseExpDecaySample,
 			DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		})
 		mux.Handle("/metrics", metricsHandler)
