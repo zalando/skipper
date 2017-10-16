@@ -68,6 +68,10 @@ type Options struct {
 	// enabled by default.
 	EnableRouteBackendMetrics bool
 
+	// UseExpDecaySample, when set, makes the histograms use an exponentially
+	// decaying sample instead of the default uniform one.
+	UseExpDecaySample bool
+
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
 	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
@@ -103,7 +107,9 @@ const (
 
 	statsRefreshDuration = time.Duration(5 * time.Second)
 
-	defaultReservoirSize = 1024
+	defaultUniformReservoirSize  = 1024
+	defaultExpDecayReservoirSize = 1028
+	defaultExpDecayAlpha         = 0.015
 )
 
 type Metrics struct {
@@ -137,7 +143,15 @@ func New(o Options) *Metrics {
 
 	m := &Metrics{}
 	m.reg = metrics.NewRegistry()
-	m.createTimer = createTimer
+
+	var createSample func() metrics.Sample
+	if o.UseExpDecaySample {
+		createSample = newExpDecaySample
+	} else {
+		createSample = newUniformSample
+	}
+	m.createTimer = func() metrics.Timer { return createTimer(createSample()) }
+
 	m.createCounter = metrics.NewCounter
 	m.options = o
 
@@ -185,8 +199,16 @@ func NewHandler(o Options) http.Handler {
 	return handler
 }
 
-func createTimer() metrics.Timer {
-	return metrics.NewCustomTimer(metrics.NewHistogram(metrics.NewUniformSample(defaultReservoirSize)), metrics.NewMeter())
+func newUniformSample() metrics.Sample {
+	return metrics.NewUniformSample(defaultUniformReservoirSize)
+}
+
+func newExpDecaySample() metrics.Sample {
+	return metrics.NewExpDecaySample(defaultExpDecayReservoirSize, defaultExpDecayAlpha)
+}
+
+func createTimer(sample metrics.Sample) metrics.Timer {
+	return metrics.NewCustomTimer(metrics.NewHistogram(sample), metrics.NewMeter())
 }
 
 func (m *Metrics) getTimer(key string) metrics.Timer {
