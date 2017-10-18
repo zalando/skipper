@@ -13,6 +13,10 @@ Skipper is an HTTP router and reverse proxy for service composition. It's design
 definitions with detailed lookup conditions, and flexible augmentation of the request flow with filters. It can be
 used out of the box or extended with custom lookup, filter logic and configuration sources.
 
+### NOTE for Skoap users
+
+The Skoap filters can be found currently in the branch called 'skoap-migration'. The original incubator repository at zalando-incubator/skoap has been removed.
+
 ## Main features:
 
 - identifies routes based on the requests' properties, such as path, method, host and headers
