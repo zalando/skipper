@@ -126,6 +126,7 @@ const (
 	healthcheckPath             = "/kube-system/healthz"
 	backendWeightsAnnotationKey = "zalando.org/backend-weights"
 	ratelimitAnnotationKey      = "zalando.org/ratelimit"
+	skipperfilterAnnotationKey  = "zalando.org/skipper-filter"
 )
 
 var internalIPs = []interface{}{
@@ -499,9 +500,15 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		}
 
 		// parse ratelimit annotation
-		var ratelimitFilter string
+		var annotationFilter string
 		if ratelimitAnnotationValue, ok := i.Metadata.Annotations[ratelimitAnnotationKey]; ok {
-			ratelimitFilter = ratelimitAnnotationValue
+			annotationFilter = ratelimitAnnotationValue
+		}
+		if val, ok := i.Metadata.Annotations[skipperfilterAnnotationKey]; ok {
+			if annotationFilter != "" {
+				annotationFilter = annotationFilter + " -> "
+			}
+			annotationFilter = annotationFilter + val
 		}
 
 		// parse backend-weihgts annotation if it exists
@@ -545,13 +552,13 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 					if routes, ok := hostRoutes[rule.Host]; ok {
 						hostRoutes[rule.Host] = append(routes, r)
 					} else {
-						if ratelimitFilter != "" {
-							ratelimitFilters, err := eskip.ParseFilters(ratelimitFilter)
+						if annotationFilter != "" {
+							annotationFilters, err := eskip.ParseFilters(annotationFilter)
 							if err != nil {
-								log.Errorf("Can not parse ratelimit filter: %v", err)
+								log.Errorf("Can not parse annotation filters: %v", err)
 							} else {
 								sav := r.Filters[:]
-								r.Filters = append(ratelimitFilters, sav...)
+								r.Filters = append(annotationFilters, sav...)
 							}
 						}
 						hostRoutes[rule.Host] = []*eskip.Route{r}
