@@ -1,6 +1,7 @@
 package eskip
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 )
@@ -221,4 +222,227 @@ func TestNumberString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPrintLines(t *testing.T) {
+	// single expression
+	// single def
+	// empty defs
+	// defs
+	// with pretty and with not
+	// package level
+	// route level
+
+	check := func(t *testing.T, got, expected string) {
+		if got != expected {
+			t.Error("invalid string result")
+			t.Log("got:     ", got)
+			t.Log("expected:", expected)
+		}
+	}
+
+	t.Run("route method", func(t *testing.T) {
+		route := &Route{
+			Predicates: []*Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/foo",
+				},
+			}},
+			Filters: []*Filter{{
+				Name: "setPath",
+				Args: []interface{}{
+					"/",
+				},
+			}},
+			Backend: "https://www.example.org",
+		}
+
+		expected := `Path("/foo") -> setPath("/") -> "https://www.example.org"`
+		got := route.String()
+		check(t, got, expected)
+	})
+
+	type packageLevelTest struct {
+		title    string
+		routes   []*Route
+		expected string
+	}
+
+	testsBase := []packageLevelTest{{
+		title: "single expression (no ID)",
+		routes: []*Route{{
+			Predicates: []*Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/foo",
+				},
+			}},
+			Filters: []*Filter{{
+				Name: "setPath",
+				Args: []interface{}{
+					"/",
+				},
+			}},
+			Backend: "https://www.example.org",
+		}},
+	}, {
+		title: "single expression (no ID)",
+		routes: []*Route{{
+			Id: "testRoute1",
+			Predicates: []*Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/foo",
+				},
+			}},
+			Filters: []*Filter{{
+				Name: "setPath",
+				Args: []interface{}{
+					"/",
+				},
+			}},
+			Backend: "https://www.example.org",
+		}},
+	}, {
+		title: "empty",
+	}, {
+		title: "multiple routes",
+		routes: []*Route{{
+			Id: "testRoute1",
+			Predicates: []*Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/foo",
+				},
+			}},
+			Filters: []*Filter{{
+				Name: "setPath",
+				Args: []interface{}{
+					"/",
+				},
+			}},
+			Backend: "https://ww1.example.org",
+		}, {
+			Id: "testRoute2",
+			Predicates: []*Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/bar",
+				},
+			}},
+			Filters: []*Filter{{
+				Name: "setPath",
+				Args: []interface{}{
+					"/",
+				},
+			}},
+			Backend: "https://ww2.example.org",
+		}, {
+			Id: "testRoute3",
+			Predicates: []*Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/baz",
+				},
+			}},
+			Filters: []*Filter{{
+				Name: "setPath",
+				Args: []interface{}{
+					"/",
+				},
+			}},
+			Backend: "https://ww3.example.org",
+		}},
+	}}
+
+	expectedFlat := []string{
+		`Path("/foo") -> setPath("/") -> "https://www.example.org"`,
+		`testRoute1: Path("/foo") -> setPath("/") -> "https://www.example.org"`,
+		``,
+		`testRoute1: Path("/foo") -> setPath("/") -> "https://ww1.example.org";
+testRoute2: Path("/bar") -> setPath("/") -> "https://ww2.example.org";
+testRoute3: Path("/baz") -> setPath("/") -> "https://ww3.example.org"`,
+	}
+
+	expectedPretty := []string{
+		`Path("/foo")
+  -> setPath("/")
+  -> "https://www.example.org"`,
+		`testRoute1: Path("/foo")
+  -> setPath("/")
+  -> "https://www.example.org"`,
+		``,
+		`testRoute1: Path("/foo")
+  -> setPath("/")
+  -> "https://ww1.example.org";
+
+testRoute2: Path("/bar")
+  -> setPath("/")
+  -> "https://ww2.example.org";
+
+testRoute3: Path("/baz")
+  -> setPath("/")
+  -> "https://ww3.example.org"`,
+	}
+
+	makeTests := func(base []packageLevelTest, expected []string) []packageLevelTest {
+		tests := make([]packageLevelTest, len(base))
+		for i := range base {
+			tests[i] = base[i]
+			tests[i].expected = expected[i]
+		}
+
+		return tests
+	}
+
+	testsFlat := makeTests(testsBase, expectedFlat)
+	testsPretty := makeTests(testsBase, expectedPretty)
+
+	runTests := func(t *testing.T, tests []packageLevelTest, print func(packageLevelTest) string) {
+		for _, test := range tests {
+			t.Run(test.title, func(t *testing.T) {
+				got := print(test)
+				check(t, got, test.expected)
+			})
+		}
+	}
+
+	t.Run("String() package level", func(t *testing.T) {
+		runTests(t, testsFlat, func(test packageLevelTest) string { return String(test.routes...) })
+	})
+
+	t.Run("Print()", func(t *testing.T) {
+		t.Run("not pretty", func(t *testing.T) {
+			runTests(t, testsFlat, func(test packageLevelTest) string {
+				return Print(false, test.routes...)
+			})
+		})
+
+		t.Run("pretty", func(t *testing.T) {
+			runTests(t, testsPretty, func(test packageLevelTest) string {
+				return Print(true, test.routes...)
+			})
+		})
+	})
+
+	t.Run("Fprint()", func(t *testing.T) {
+		fprint := func(pretty bool, routes []*Route) string {
+			var buf bytes.Buffer
+			Fprint(&buf, pretty, routes...)
+			return buf.String()
+		}
+
+		t.Run("not pretty", func(t *testing.T) {
+			runTests(t, testsFlat, func(test packageLevelTest) string {
+				return fprint(false, test.routes)
+			})
+		})
+
+		t.Run("pretty", func(t *testing.T) {
+			runTests(t, testsPretty, func(test packageLevelTest) string {
+				return fprint(true, test.routes)
+			})
+		})
+	})
 }
