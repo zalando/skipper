@@ -1,6 +1,7 @@
 package eskip
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"math"
@@ -156,29 +157,46 @@ func String(routes ...*Route) string {
 // If it has multiple routes with IDs, it prints full route definitions
 // with the IDs and separated by ';'.
 func Print(pretty bool, routes ...*Route) string {
-	if len(routes) == 1 && routes[0].Id == "" {
-		return routes[0].Print(pretty)
-	}
+	var buf bytes.Buffer
+	Fprint(&buf, pretty, routes...)
+	return buf.String()
+}
 
-	rs := make([]string, len(routes))
+func isDefinition(route *Route) bool {
+	return route.Id != ""
+}
+
+func fprintExpression(w io.Writer, route *Route, pretty bool) {
+	fmt.Fprint(w, route.Print(pretty))
+}
+
+func fprintDefinition(w io.Writer, route *Route, pretty bool) {
+	fmt.Fprintf(w, "%s: %s", route.Id, route.Print(pretty))
+}
+
+func fprintDefinitions(w io.Writer, routes []*Route, pretty bool) {
 	for i, r := range routes {
-		rs[i] = fmt.Sprintf("%s: %s", r.Id, r.Print(pretty))
-	}
+		if i > 0 {
+			fmt.Fprint(w, "\n")
+			if pretty {
+				fmt.Fprint(w, "\n")
+			}
+		}
 
-	sep := ";\n"
-	if pretty {
-		sep += "\n"
+		fprintDefinition(w, r, pretty)
+		fmt.Fprint(w, ";")
 	}
-
-	return strings.Join(rs, sep)
 }
 
 func Fprint(w io.Writer, pretty bool, routes ...*Route) {
-	f := "%s: %s;\n"
-	for i, r := range routes {
-		fmt.Fprintf(w, f, r.Id, r.Print(pretty))
-		if i == 0 {
-			f = "\n" + f
-		}
+	if len(routes) == 0 {
+		return
 	}
+
+	if len(routes) == 1 && routes[0].Id == "" {
+		fprintExpression(w, routes[0], pretty)
+		return
+	}
+
+	fprintDefinitions(w, routes, pretty)
 }
