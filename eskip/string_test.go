@@ -6,16 +6,23 @@ import (
 	"testing"
 )
 
-func findDiffPos(left, right string) int {
-	pos := 0
+func findDiffPos(left, right string) (pos int, leftOut, rightOut string) {
 	for i := 0; i < len(left); i++ {
+		if len(right) <= i {
+			pos = i
+			break
+		}
+
 		if left[i:i+1] != right[i:i+1] {
 			pos = i
 			break
 		}
 	}
 
-	return pos
+	leftOut = left[0:pos]
+	rightOut = right[0:pos]
+
+	return
 }
 
 func testDoc(t *testing.T, doc string) string {
@@ -26,7 +33,8 @@ func testDoc(t *testing.T, doc string) string {
 
 	docBack := String(routes...)
 	if docBack != doc {
-		t.Error("failed to serialize doc", findDiffPos(docBack, doc))
+		pos, _, _ := findDiffPos(docBack, doc)
+		t.Error("failed to serialize doc", pos)
 		t.Log(docBack)
 		t.Log(doc)
 	}
@@ -90,8 +98,8 @@ func TestRouteString(t *testing.T) {
 	}} {
 		rstring := item.route.String()
 		if rstring != item.string {
-			pos := findDiffPos(rstring, item.string)
-			t.Error(rstring, item.string, i, pos, rstring[pos:pos+1], item.string[pos:pos+1])
+			pos, rstringOut, itemOut := findDiffPos(rstring, item.string)
+			t.Error(rstring, item.string, i, pos, rstringOut, itemOut)
 		}
 	}
 }
@@ -105,7 +113,7 @@ func TestRouteExpression(t *testing.T) {
 
 func TestDocString(t *testing.T) {
 	testDoc(t, `route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
-		`route2: Path("/some/path") -> "https://www.example.org"`)
+		`route2: Path("/some/path") -> "https://www.example.org";`)
 }
 
 func TestPrintNonPretty(t *testing.T) {
@@ -151,7 +159,7 @@ func TestPrintMultiRoutePretty(t *testing.T) {
 			`  -> filter("expression")`+"\n"+
 			`  -> <shunt>;`+"\n\n"+
 			`route2: Path("/some/path")`+"\n"+
-			`  -> "https://www.example.org"`,
+			`  -> "https://www.example.org";`,
 		t, 0, true, true)
 }
 
@@ -159,7 +167,7 @@ func TestPrintMultiRouteNonPretty(t *testing.T) {
 	testPrinting(`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
 		`route2: Path("/some/path") -> "https://www.example.org"`,
 		`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
-			`route2: Path("/some/path") -> "https://www.example.org"`,
+			`route2: Path("/some/path") -> "https://www.example.org";`,
 		t, 0, false, true)
 }
 
@@ -177,14 +185,14 @@ func testPrinting(routestr string, expected string, t *testing.T, i int, pretty 
 	}
 
 	if printedRoute != expected {
-		pos := findDiffPos(printedRoute, expected)
-		t.Error(printedRoute, expected, i, pos, printedRoute[pos:pos+1], expected[pos:pos+1])
+		pos, printed, expected := findDiffPos(printedRoute, expected)
+		t.Error(printedRoute, expected, i, pos, printed, expected)
 	}
 }
 
 func TestParseAndStringAndParse(t *testing.T) {
 	doc := `route1: Method("GET") -> filter("expression") -> <shunt>;` + "\n" +
-		`route2: Path("/some/path") -> "https://www.example.org"`
+		`route2: Path("/some/path") -> "https://www.example.org";`
 	doc = testDoc(t, doc)
 	doc = testDoc(t, doc)
 	doc = testDoc(t, doc)
