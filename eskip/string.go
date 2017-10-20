@@ -193,7 +193,7 @@ func Fprint(w io.Writer, pretty bool, routes ...*Route) {
 		return
 	}
 
-	if len(routes) == 1 && routes[0].Id == "" {
+	if len(routes) == 1 && !isDefinition(routes[0]) {
 		fprintExpression(w, routes[0], pretty)
 		return
 	}
