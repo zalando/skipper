@@ -311,12 +311,12 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
-		f, err := eskipfile.Open(o.RoutesFile)
+		f, err := eskipfile.Watch(o.RoutesFile)
 		if err != nil {
 			log.Error("error while opening eskip file", err)
 			return nil, err
 		}
-
+		// TODO: where to add/defer f.Close() ?
 		clients = append(clients, f)
 	}
 
@@ -452,6 +452,7 @@ func Run(o Options) error {
 
 	// append custom data clients
 	dataClients = append(dataClients, o.CustomDataClients...)
+	// defer for each dataClient.Close(), but it's nor part of the API :/
 
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
@@ -493,18 +494,18 @@ func Run(o Options) error {
 		traffic.New())
 
 	// create a routing engine
-	routing := routing.New(routing.Options{
+	r := routing.New(routing.Options{
 		FilterRegistry:  registry,
 		MatchingOptions: mo,
 		PollTimeout:     o.SourcePollTimeout,
 		DataClients:     dataClients,
 		Predicates:      o.CustomPredicates,
 		UpdateBuffer:    updateBuffer})
-	defer routing.Close()
+	defer r.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
-		Routing:                routing,
+		Routing:                r,
 		Flags:                  proxyFlags,
 		PriorityRoutes:         o.PriorityRoutes,
 		IdleConnectionsPerHost: o.IdleConnectionsPerHost,
@@ -585,8 +586,8 @@ func Run(o Options) error {
 	}
 
 	// create the proxy
-	proxy := proxy.WithParams(proxyParams)
-	defer proxy.Close()
+	p := proxy.WithParams(proxyParams)
+	defer p.Close()
 
-	return listenAndServe(proxy, &o)
+	return listenAndServe(p, &o)
 }
