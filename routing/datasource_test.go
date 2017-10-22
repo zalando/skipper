@@ -81,9 +81,9 @@ func TestLogging(t *testing.T) {
 
 	init := func(l logging.Logger, client DataClient, supress bool) *Routing {
 		return New(Options{
-			DataClients: []DataClient{client},
-			Log:         l,
-			SupressLogs: supress,
+			DataClients:  []DataClient{client},
+			Log:          l,
+			SuppressLogs: supress,
 		})
 	}
 

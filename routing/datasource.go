@@ -172,7 +172,7 @@ func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan []*eskip.Route {
 				return
 			}
 
-			incoming.log(o.Log, o.SupressLogs)
+			incoming.log(o.Log, o.SuppressLogs)
 			c := incoming.client
 			defsByClient[c] = applyIncoming(defsByClient[c], incoming)
 
