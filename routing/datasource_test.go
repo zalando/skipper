@@ -71,94 +71,93 @@ func TestLogging(t *testing.T) {
 		t.Skip()
 	}
 
-	const r1 = `
+	const routes = `
 		r1_1: Path("/foo") -> "https://foo.example.org";
 		r1_2: Path("/bar") -> "https://bar.example.org";
 		r1_3: Path("/baz") -> "https://baz.example.org";
+		r1_4: Path("/qux") -> "https://qux.example.org";
+		r1_5: Path("/quux") -> "https://quux.example.org";
 	`
 
-	const r2 = `
-		r2_1: Path("/qux") -> "https://qux.example.org";
-		r2_2: Path("/quux") -> "https://quux.example.org";
-	`
-
-	const r3 = ""
-
-	createClients := func() ([]DataClient, error) {
-		dc1, err := testdataclient.NewDoc(r1)
-		if err != nil {
-			return nil, err
-		}
-
-		dc2, err := testdataclient.NewDoc(r2)
-		if err != nil {
-			return nil, err
-		}
-
-		dc3, err := testdataclient.NewDoc(r3)
-		if err != nil {
-			return nil, err
-		}
-
-		return []DataClient{dc1, dc2, dc3}, nil
-	}
-
-	init := func(l logging.Logger, clients []DataClient) *Routing {
+	init := func(l logging.Logger, client DataClient, supress bool) *Routing {
 		return New(Options{
-			DataClients: clients,
+			DataClients: []DataClient{client},
 			Log:         l,
+			SupressLogs: supress,
 		})
 	}
 
-	testUpdate := func(t *testing.T, logCountInit, logCountUpsert, logCountDelete int) {
-		c, err := createClients()
+	testUpdate := func(
+		t *testing.T, supress bool,
+		initQuery string, initCount int,
+		upsertQuery string, upsertCount int,
+		deleteQuery string, deleteCount int,
+	) {
+		client, err := testdataclient.NewDoc(routes)
 		if err != nil {
 			t.Error(err)
 			return
 		}
 
 		testLog := loggingtest.New()
-		rt := init(testLog, c)
+		defer testLog.Close()
+		testLog.Unmute()
+
+		rt := init(testLog, client, supress)
 		defer rt.Close()
 
-		if err := testLog.WaitForN("route settings, update", logCountInit, 120*time.Millisecond); err != nil {
+		if err := testLog.WaitFor("route settings applied", 120*time.Millisecond); err != nil {
 			t.Error(err)
+			return
 		}
 
-		count := testLog.Count("route settings, update")
-		if count != logCountInit {
+		count := testLog.Count(initQuery)
+		if count != initCount {
 			t.Error("unexpected count of log entries", count)
+			return
 		}
 
 		testLog.Reset()
 
-		testLog.Info("update 1")
-		c[0].(*testdataclient.Client).UpdateDoc(
-			`r1_1: Path("/foo_mod") -> "https://foo.example.org"`,
+		client.UpdateDoc(
+			`r1_1: Path("/foo_mod") -> "https://foo.example.org";
+			r1_4: Path("/qux_mod") -> "https://qux.example.org"`,
 			[]string{"r1_2"},
 		)
-		testLog.Info("update 2")
-		c[1].(*testdataclient.Client).UpdateDoc(
-			`r2_1: Path("/qux_mod") -> "https://qux.example.org"`,
-			nil,
-		)
 
-		if err := testLog.WaitForN("route settings, update", logCountUpsert+logCountDelete, 120*time.Millisecond); err != nil {
+		if err := testLog.WaitFor("route settings applied", 120*time.Millisecond); err != nil {
 			t.Error(err)
+			return
 		}
 
-		count = testLog.Count("route settings, update, route")
-		if count != logCountUpsert {
+		count = testLog.Count(upsertQuery)
+		if count != upsertCount {
 			t.Error("unexpected count of log entries", count)
+			return
 		}
 
-		count = testLog.Count("route settings, update, deleted")
-		if count != logCountDelete {
+		count = testLog.Count(deleteQuery)
+		if count != deleteCount {
 			t.Error("unexpected count of log entries", count)
+			return
 		}
 	}
 
 	t.Run("full", func(t *testing.T) {
-		testUpdate(t, 5, 2, 1)
+		testUpdate(
+			t, false,
+			"route settings, update", 5,
+			"route settings, update, route:", 2,
+			"route settings, update, deleted", 1,
+		)
+	})
+
+	t.Run("supressed", func(t *testing.T) {
+		testUpdate(
+			t, true,
+			"route settings, update", 2,
+			"route settings, update, upsert count:", 1,
+			"route settings, update, delete count:", 1,
+		)
 	})
 }

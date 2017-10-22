@@ -112,6 +112,9 @@ type Options struct {
 
 	// Set a custom logger if necessary.
 	Log logging.Logger
+
+	// SupressLogs indicates whether to log only a summary of the route changes.
+	SupressLogs bool
 }
 
 // RouteFilter contains extensions to generic filter
