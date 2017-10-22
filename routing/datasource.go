@@ -38,7 +38,13 @@ type incomingData struct {
 	deletedIds     []string
 }
 
-func (d *incomingData) log(l logging.Logger) {
+func (d *incomingData) log(l logging.Logger, supress bool) {
+	if supress {
+		l.Infof("route settings, %v, upsert count: %v", d.typ, len(d.upsertedRoutes))
+		l.Infof("route settings, %v, delete count: %v", d.typ, len(d.deletedIds))
+		return
+	}
+
 	for _, r := range d.upsertedRoutes {
 		l.Infof("route settings, %v, route: %v: %v", d.typ, r.Id, r)
 	}
@@ -166,7 +172,7 @@ func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan []*eskip.Route {
 				return
 			}
 
-			incoming.log(o.Log)
+			incoming.log(o.Log, o.SuppressLogs)
 			c := incoming.client
 			defsByClient[c] = applyIncoming(defsByClient[c], incoming)
 

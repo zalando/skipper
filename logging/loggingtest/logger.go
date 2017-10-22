@@ -14,6 +14,11 @@ type logSubscription struct {
 	notify chan<- struct{}
 }
 
+type countRequest struct {
+	exp      string
+	response chan<- int
+}
+
 type logWatch struct {
 	entries []string
 	reqs    []*logSubscription
@@ -24,6 +29,7 @@ type logWatch struct {
 type Logger struct {
 	logc   chan string
 	notify chan<- logSubscription
+	count  chan countRequest
 	clear  chan struct{}
 	mute   chan bool
 	quit   chan<- struct{}
@@ -64,6 +70,17 @@ func (lw *logWatch) notify(req logSubscription) {
 	}
 }
 
+func (lw *logWatch) count(req countRequest) {
+	var count int
+	for _, e := range lw.entries {
+		if strings.Contains(e, req.exp) {
+			count++
+		}
+	}
+
+	req.response <- count
+}
+
 func (lw *logWatch) clear() {
 	lw.entries = nil
 	lw.reqs = nil
@@ -74,6 +91,7 @@ func New() *Logger {
 	lw := &logWatch{}
 	logc := make(chan string)
 	notify := make(chan logSubscription)
+	count := make(chan countRequest)
 	clear := make(chan struct{})
 	mute := make(chan bool)
 	quit := make(chan struct{})
@@ -81,7 +99,15 @@ func New() *Logger {
 	// start muted to reduce spam during failing tests
 	muted := true
 
-	tl := &Logger{logc, notify, clear, mute, quit}
+	tl := &Logger{
+		logc:   logc,
+		notify: notify,
+		count:  count,
+		clear:  clear,
+		mute:   mute,
+		quit:   quit,
+	}
+
 	go func() {
 		for {
 			select {
@@ -93,6 +119,8 @@ func New() *Logger {
 
 			case req := <-notify:
 				lw.notify(req)
+			case req := <-count:
+				lw.count(req)
 			case <-clear:
 				lw.clear()
 			case m := <-mute:
@@ -132,6 +160,18 @@ func (tl *Logger) WaitForN(exp string, n int, to time.Duration) error {
 // ErrWaitTimeout when to timeout expired.
 func (tl *Logger) WaitFor(exp string, to time.Duration) error {
 	return tl.WaitForN(exp, 1, to)
+}
+
+// Count returns the recorded messages that match exp.
+func (tl *Logger) Count(exp string) int {
+	rsp := make(chan int)
+	req := countRequest{
+		exp:      exp,
+		response: rsp,
+	}
+
+	tl.count <- req
+	return <-rsp
 }
 
 // Clears the stored logging events.
