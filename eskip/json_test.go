@@ -75,3 +75,35 @@ func TestJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestParseJSON(t *testing.T) {
+	const doc = `
+		route1: Path("/foo") -> setPath("/bar") -> "https://bar.example.org";
+		route2: Path("/baz") -> setPath("/qux") -> "https://qux.example.org";
+		route3: * -> "https://www.example.org";
+	`
+
+	routes, err := Parse(doc)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	jsn, err := PrintJSON(false, routes...)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	routesBack, err := ParseJSON(jsn)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if !reflect.DeepEqual(routesBack, routes) {
+		t.Error("failed to parse json")
+		t.Log("got:     ", litter.Sdump(routesBack))
+		t.Log("expected:", litter.Sdump(routes))
+	}
+}

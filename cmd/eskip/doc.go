@@ -85,6 +85,7 @@ const (
 	prettyUsage         = "prints routes in a more readable format"
 	indentStrUsage      = "indent string used in pretty printing. Must match regexp \\s"
 	jsonUsage           = "prints routes as JSON"
+	readJsonUsage       = "reads routes as JSON"
 
 	// command line help (1):
 	help1 = `Usage: eskip <command> [media flags] [--] [file]

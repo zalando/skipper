@@ -18,6 +18,7 @@ type watchResponse struct {
 // instances of it.
 type WatchClient struct {
 	fileName   string
+	parseFunc  eskip.ParseFunc
 	routes     map[string]*eskip.Route
 	getAll     chan (chan<- watchResponse)
 	getUpdates chan (chan<- watchResponse)
@@ -26,9 +27,14 @@ type WatchClient struct {
 
 // Watch creates a route configuration client with file watching. Watch doesn't follow file system nodes, it
 // always reads from the file identified by the initially provided file name.
-func Watch(name string) *WatchClient {
+func Watch(fileName string) *WatchClient {
+	return WatchFile(fileName, eskip.ParseBytes)
+}
+
+func WatchFile(fileName string, parseFunc eskip.ParseFunc) *WatchClient {
 	c := &WatchClient{
-		fileName:   name,
+		fileName:   fileName,
+		parseFunc:  parseFunc,
 		getAll:     make(chan (chan<- watchResponse)),
 		getUpdates: make(chan (chan<- watchResponse)),
 		quit:       make(chan struct{}),
@@ -85,7 +91,7 @@ func (c *WatchClient) loadAll() watchResponse {
 		return watchResponse{err: err}
 	}
 
-	r, err := eskip.Parse(string(content))
+	r, err := c.parseFunc(content)
 	if err != nil {
 		return watchResponse{err: err}
 	}
@@ -105,7 +111,7 @@ func (c *WatchClient) loadUpdates() watchResponse {
 		return watchResponse{err: err}
 	}
 
-	r, err := eskip.Parse(string(content))
+	r, err := c.parseFunc(content)
 	if err != nil {
 		return watchResponse{err: err}
 	}

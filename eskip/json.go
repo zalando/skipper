@@ -165,10 +165,16 @@ func marshalNameArgs(name string, args []interface{}) ([]byte, error) {
 		args = []interface{}{}
 	}
 
-	return json.Marshal(&jsonNameArgs{
+	var buf bytes.Buffer
+	e := json.NewEncoder(&buf)
+	e.SetEscapeHTML(false) // why not working :(
+
+	err := e.Encode(&jsonNameArgs{
 		Name: name,
 		Args: args,
 	})
+
+	return buf.Bytes(), err
 }
 
 func unmarshalNameArgs(b []byte) (string, []interface{}, error) {
@@ -177,26 +183,39 @@ func unmarshalNameArgs(b []byte) (string, []interface{}, error) {
 	return jna.Name, jna.Args, err
 }
 
+// MarshalJSON returns the JSON representation of a filter.
+//
+// (Typically used only as part of the unmarshalling complete routes.)
 func (f *Filter) MarshalJSON() ([]byte, error) {
 	return marshalNameArgs(f.Name, f.Args)
 }
 
+// UnmarshalJSON returns the JSON representation of a filter.
+//
+// (Typically used only as part of the unmarshalling complete routes.)
 func (f *Filter) UnmarshalJSON(b []byte) error {
 	var err error
 	f.Name, f.Args, err = unmarshalNameArgs(b)
 	return err
 }
 
+// MarshalJSON returns the JSON representation of a predicate.
+//
+// (Typically used only as part of the unmarshalling complete routes.)
 func (p *Predicate) MarshalJSON() ([]byte, error) {
 	return marshalNameArgs(p.Name, p.Args)
 }
 
+// UnmarshalJSON returns the JSON representation of a predicate.
+//
+// (Typically used only as part of the unmarshalling complete routes.)
 func (p *Predicate) UnmarshalJSON(b []byte) error {
 	var err error
 	p.Name, p.Args, err = unmarshalNameArgs(b)
 	return err
 }
 
+// MarshalJSON returns the JSON representation of a route.
 func (r *Route) MarshalJSON() ([]byte, error) {
 	backend := r.backendString()
 
@@ -221,6 +240,7 @@ func (r *Route) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// UnmarshalJSON parses the JSON representation of a single route.
 func (r *Route) UnmarshalJSON(b []byte) error {
 	var jr jsonRoute
 	if err := json.Unmarshal(b, &jr); err != nil {
@@ -251,4 +271,27 @@ func (r *Route) UnmarshalJSON(b []byte) error {
 	}
 
 	return nil
+}
+
+// PrintJSON returns the JSON representation of the input routes.
+//
+// The indent argument is currently ignored, and it serves only as a placeholder.
+func PrintJSON(indent bool, r ...*Route) ([]byte, error) {
+	var buf bytes.Buffer
+
+	e := json.NewEncoder(&buf)
+	e.SetEscapeHTML(false)
+	if err := e.Encode(r); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// ParseJSON expects the JSON representation of a list of routes and returns
+// the parsed in-memory representation of them.
+func ParseJSON(b []byte) ([]*Route, error) {
+	var routes []*Route
+	err := json.Unmarshal(b, &routes)
+	return routes, err
 }
