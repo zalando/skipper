@@ -80,7 +80,7 @@ func testRule(host string, paths ...*pathRule) *rule {
 	}
 }
 
-func testIngress(ns, name, defaultService, ratelimitCfg, filterString string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
+func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
 	var defaultBackend *backend
 	if len(defaultService) != 0 {
 		defaultBackend = &backend{
@@ -101,7 +101,12 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString string, de
 	}
 	if filterString != "" {
 		meta.Annotations = map[string]string{
-			skipperfilterAnnotationKey: ratelimitCfg,
+			skipperfilterAnnotationKey: filterString,
+		}
+	}
+	if predicateString != "" {
+		meta.Annotations = map[string]string{
+			skipperpredicateAnnotationKey: predicateString,
 		}
 	}
 	return &ingressItem{
@@ -127,10 +132,11 @@ func testServices() services {
 
 func testIngresses() []*ingressItem {
 	return []*ingressItem{
-		testIngress("namespace1", "default-only", "service1", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace1", "default-only", "service1", "", "", "", backendPort{8080}, 1.0),
 		testIngress(
 			"namespace2",
 			"path-rule-only",
+			"",
 			"",
 			"",
 			"",
@@ -147,6 +153,7 @@ func testIngresses() []*ingressItem {
 			"service1",
 			"",
 			"",
+			"",
 			backendPort{"port1"},
 			1.0,
 			testRule(
@@ -160,8 +167,8 @@ func testIngresses() []*ingressItem {
 				testPathRule("/test2", "service2", backendPort{"port2"}),
 			),
 		),
-		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", backendPort{8080}, 1.0),
-		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", backendPort{8080}, 1.0),
+		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", backendPort{8080}, 1.0),
 	}
 }
 
@@ -363,7 +370,7 @@ func TestIngressData(t *testing.T) {
 				"bar": testService("1.2.3.4", nil),
 			},
 		},
-		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", backendPort{8080}, 1.0)},
+		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", "", backendPort{8080}, 1.0)},
 		map[string]string{
 			"kube_foo__baz______": "http://1.2.3.4:8080",
 		},
@@ -377,6 +384,7 @@ func TestIngressData(t *testing.T) {
 		[]*ingressItem{testIngress(
 			"foo",
 			"baz",
+			"",
 			"",
 			"",
 			"",
@@ -408,6 +416,7 @@ func TestIngressData(t *testing.T) {
 			"bar",
 			"",
 			"",
+			"",
 			backendPort{8080},
 			1.0,
 			testRule(
@@ -436,6 +445,7 @@ func TestIngressData(t *testing.T) {
 			"",
 			"",
 			"",
+			"",
 			backendPort{},
 			1.0,
 			testRule(
@@ -461,6 +471,7 @@ func TestIngressData(t *testing.T) {
 			testIngress(
 				"foo",
 				"qux",
+				"",
 				"",
 				"",
 				"",
@@ -939,6 +950,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -949,6 +961,7 @@ func TestIngress(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new2",
+				"",
 				"",
 				"",
 				"",
@@ -995,6 +1008,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1005,6 +1019,7 @@ func TestIngress(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new2",
+				"",
 				"",
 				"",
 				"",
@@ -1060,6 +1075,7 @@ func TestIngress(t *testing.T) {
 			"",
 			"",
 			"",
+			"",
 			backendPort{""},
 			1.0,
 			testRule(
@@ -1070,6 +1086,7 @@ func TestIngress(t *testing.T) {
 		ti2 := testIngress(
 			"namespace1",
 			"new2",
+			"",
 			"",
 			"",
 			"",
@@ -1124,6 +1141,7 @@ func TestConvertPathRule(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1134,6 +1152,7 @@ func TestConvertPathRule(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new1",
+				"",
 				"",
 				"",
 				"",
@@ -2205,6 +2224,47 @@ func checkSkipperFilter(t *testing.T, got []*eskip.Route, expected map[string][]
 			}
 			if ok && f2.Name != "consecutiveBreaker" {
 				t.Errorf("%s should have a consecutiveBreaker", r.Id)
+			}
+		}
+	}
+}
+
+func TestSkipperPredicate(t *testing.T) {
+	api := newTestAPI(t, nil, &ingressList{})
+	defer api.Close()
+
+	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", backendPort{8080}, 1.0)
+
+	t.Run("check ingress predicate", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		api.ingresses.Items = append(api.ingresses.Items, ingWithPredicate)
+
+		dc, err := New(Options{
+			KubernetesURL: api.server.URL,
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error("failed to fail")
+		}
+
+		checkSkipperPredicate(t, r, map[string]string{
+			"kube_namespace1__predicate______": "QueryParam(\"query\", \"^example$\")",
+		})
+	})
+}
+
+func checkSkipperPredicate(t *testing.T, got []*eskip.Route, expected map[string]string) {
+	for _, r := range got {
+		if len(r.Predicates) == 1 {
+			p1 := r.Predicates[0]
+			_, ok := expected[r.Id]
+			if ok && p1.Name != "QueryParam" {
+				t.Errorf("%s should have a QueryParam predicate", r.Id)
 			}
 		}
 	}
