@@ -45,6 +45,20 @@ func Open(path string) (*Client, error) {
 	return &Client{routes}, nil
 }
 
+func OpenJSON(path string) (*Client, error) {
+	content, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	routes, err := eskip.ParseJSON(content)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Client{routes}, nil
+}
+
 func (c Client) LoadAndParseAll() (routeInfos []*eskip.RouteInfo, err error) {
 	for _, route := range c.routes {
 		routeInfos = append(routeInfos, &eskip.RouteInfo{Route: *route})
