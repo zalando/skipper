@@ -38,6 +38,7 @@ const (
 	appendFileFlag     = "append-file"
 	prettyFlag         = "pretty"
 	jsonFlag           = "json"
+	readJSONFlag       = "read-json"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
@@ -70,7 +71,8 @@ var (
 	appendFiltersArg  string
 	appendFileArg     string
 	pretty            bool
-	printJson         bool
+	printJSON         bool
+	readJSON          bool
 )
 
 var (
@@ -103,7 +105,8 @@ func initFlags() {
 	flags.StringVar(&appendFileArg, appendFileFlag, "", appendFileUsage)
 
 	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
-	flags.BoolVar(&printJson, jsonFlag, false, jsonUsage)
+	flags.BoolVar(&printJSON, jsonFlag, false, jsonUsage)
+	flags.BoolVar(&readJSON, readJSONFlag, false, jsonUsage)
 }
 
 func init() {
