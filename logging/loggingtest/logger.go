@@ -14,9 +14,9 @@ type logSubscription struct {
 	notify chan<- struct{}
 }
 
-type countRequest struct {
-	exp      string
-	response chan<- int
+type countMessage struct {
+	expression string
+	response   chan<- int
 }
 
 type logWatch struct {
@@ -29,7 +29,7 @@ type logWatch struct {
 type Logger struct {
 	logc   chan string
 	notify chan<- logSubscription
-	count  chan countRequest
+	count  chan countMessage
 	clear  chan struct{}
 	mute   chan bool
 	quit   chan<- struct{}
@@ -70,15 +70,15 @@ func (lw *logWatch) notify(req logSubscription) {
 	}
 }
 
-func (lw *logWatch) count(req countRequest) {
+func (lw *logWatch) count(m countMessage) {
 	var count int
 	for _, e := range lw.entries {
-		if strings.Contains(e, req.exp) {
+		if strings.Contains(e, m.expression) {
 			count++
 		}
 	}
 
-	req.response <- count
+	m.response <- count
 }
 
 func (lw *logWatch) clear() {
@@ -91,7 +91,7 @@ func New() *Logger {
 	lw := &logWatch{}
 	logc := make(chan string)
 	notify := make(chan logSubscription)
-	count := make(chan countRequest)
+	count := make(chan countMessage)
 	clear := make(chan struct{})
 	mute := make(chan bool)
 	quit := make(chan struct{})
@@ -163,14 +163,14 @@ func (tl *Logger) WaitFor(exp string, to time.Duration) error {
 }
 
 // Count returns the recorded messages that match exp.
-func (tl *Logger) Count(exp string) int {
+func (tl *Logger) Count(expression string) int {
 	rsp := make(chan int)
-	req := countRequest{
-		exp:      exp,
-		response: rsp,
+	m := countMessage{
+		expression: expression,
+		response:   rsp,
 	}
 
-	tl.count <- req
+	tl.count <- m
 	return <-rsp
 }
 
