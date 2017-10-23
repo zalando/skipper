@@ -151,6 +151,10 @@ type Options struct {
 	// Custom data clients to be used together with the default etcd and Innkeeper.
 	CustomDataClients []routing.DataClient
 
+	// SuppressRouteUpdateLogs indicates to log only summaries of the routing updates
+	// instead of full details of the updated/deleted routes.
+	SuppressRouteUpdateLogs bool
+
 	// Dev mode. Currently this flag disables prioritization of the
 	// consumer side over the feeding side during the routing updates to
 	// populate the updated routes faster.
@@ -499,7 +503,9 @@ func Run(o Options) error {
 		PollTimeout:     o.SourcePollTimeout,
 		DataClients:     dataClients,
 		Predicates:      o.CustomPredicates,
-		UpdateBuffer:    updateBuffer})
+		UpdateBuffer:    updateBuffer,
+		SuppressLogs:    o.SuppressRouteUpdateLogs,
+	})
 	defer routing.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags

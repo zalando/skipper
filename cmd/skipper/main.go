@@ -98,6 +98,7 @@ const (
 	opentracingUsage               = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
 	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
+	suppressRouteUpdateLogsUsage   = "print only summaries on route updates/deletes"
 )
 
 var (
@@ -166,6 +167,7 @@ var (
 	openTracing               string
 	defaultHTTPStatus         int
 	pluginDir                 string
+	suppressRouteUpdateLogs   bool
 )
 
 func init() {
@@ -229,6 +231,7 @@ func init() {
 	flag.StringVar(&openTracing, "opentracing", "noop", opentracingUsage)
 	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
+	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.Parse()
 
 	// check if arguments were correctly parsed.
@@ -336,6 +339,7 @@ func main() {
 		OpenTracing:                         strings.Split(openTracing, " "),
 		PluginDir:                           pluginDir,
 		DefaultHTTPStatus:                   defaultHTTPStatus,
+		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 	}
 
 	if insecure {
