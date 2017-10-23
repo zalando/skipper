@@ -119,6 +119,10 @@ type Options struct {
 	// File containing static route definitions.
 	RoutesFile string
 
+	// RoutesFileJSON provides a file containing static route definitions in JSON format.
+	// If RoutesFile is set, RoutesFileJSON is ignored.
+	RoutesFileJSON string
+
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
 
@@ -314,8 +318,15 @@ type Options struct {
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
+	var openFile func(string) (*eskipfile.Client, error)
 	if o.RoutesFile != "" {
-		f, err := eskipfile.Open(o.RoutesFile)
+		openFile = eskipfile.Open
+	} else if o.RoutesFileJSON != "" {
+		openFile = eskipfile.OpenJSON
+	}
+
+	if openFile != nil {
+		f, err := openFile(o.RoutesFile)
 		if err != nil {
 			log.Error("error while opening eskip file", err)
 			return nil, err
