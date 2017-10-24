@@ -79,6 +79,46 @@ given ingress.
               serviceName: app-svc
               servicePort: 80
 
+Example - Ingress with custom skipper filter configuration
+
+The example shows the use of 2 filters from skipper for the implicitly
+defined route in ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+Example - Ingress with custom skipper Predicate configuration
+
+The example shows the use of a skipper predicates for the implicitly
+defined route in ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-predicate: QueryParam("query", "^example$")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
 */
 package kubernetes
 
@@ -111,22 +151,23 @@ import (
 // - provide option to limit the used namespaces?
 
 const (
-	defaultKubernetesURL        = "http://localhost:8001"
-	ingressesURI                = "/apis/extensions/v1beta1/ingresses"
-	ingressClassKey             = "kubernetes.io/ingress.class"
-	defaultIngressClass         = "skipper"
-	serviceURIFmt               = "/api/v1/namespaces/%s/services/%s"
-	serviceAccountDir           = "/var/run/secrets/kubernetes.io/serviceaccount/"
-	serviceAccountTokenKey      = "token"
-	serviceAccountRootCAKey     = "ca.crt"
-	serviceHostEnvVar           = "KUBERNETES_SERVICE_HOST"
-	servicePortEnvVar           = "KUBERNETES_SERVICE_PORT"
-	healthcheckRouteID          = "kube__healthz"
-	httpRedirectRouteID         = "kube__redirect"
-	healthcheckPath             = "/kube-system/healthz"
-	backendWeightsAnnotationKey = "zalando.org/backend-weights"
-	ratelimitAnnotationKey      = "zalando.org/ratelimit"
-	skipperfilterAnnotationKey  = "zalando.org/skipper-filter"
+	defaultKubernetesURL          = "http://localhost:8001"
+	ingressesURI                  = "/apis/extensions/v1beta1/ingresses"
+	ingressClassKey               = "kubernetes.io/ingress.class"
+	defaultIngressClass           = "skipper"
+	serviceURIFmt                 = "/api/v1/namespaces/%s/services/%s"
+	serviceAccountDir             = "/var/run/secrets/kubernetes.io/serviceaccount/"
+	serviceAccountTokenKey        = "token"
+	serviceAccountRootCAKey       = "ca.crt"
+	serviceHostEnvVar             = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar             = "KUBERNETES_SERVICE_PORT"
+	healthcheckRouteID            = "kube__healthz"
+	httpRedirectRouteID           = "kube__redirect"
+	healthcheckPath               = "/kube-system/healthz"
+	backendWeightsAnnotationKey   = "zalando.org/backend-weights"
+	ratelimitAnnotationKey        = "zalando.org/ratelimit"
+	skipperfilterAnnotationKey    = "zalando.org/skipper-filter"
+	skipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
 )
 
 var internalIPs = []interface{}{
@@ -499,7 +540,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			log.Errorf("error while converting default backend: %v", err)
 		}
 
-		// parse ratelimit annotation
+		// parse filter and ratelimit annotation
 		var annotationFilter string
 		if ratelimitAnnotationValue, ok := i.Metadata.Annotations[ratelimitAnnotationKey]; ok {
 			annotationFilter = ratelimitAnnotationValue
@@ -509,6 +550,11 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 				annotationFilter = annotationFilter + " -> "
 			}
 			annotationFilter = annotationFilter + val
+		}
+		// parse predicate annotation
+		var annotationPredicate string
+		if val, ok := i.Metadata.Annotations[skipperpredicateAnnotationKey]; ok {
+			annotationPredicate = val
 		}
 
 		// parse backend-weihgts annotation if it exists
@@ -561,7 +607,17 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 								r.Filters = append(annotationFilters, sav...)
 							}
 						}
-						hostRoutes[rule.Host] = []*eskip.Route{r}
+						route := []*eskip.Route{r}
+
+						if annotationPredicate != "" {
+							predicates, err := eskip.ParsePredicates(annotationPredicate)
+							if err != nil {
+								log.Errorf("Can not parse annotation predicate: %v", err)
+							} else {
+								route[0].Predicates = predicates
+							}
+						}
+						hostRoutes[rule.Host] = route
 					}
 				}
 			}
