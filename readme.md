@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/zalando/skipper.svg)](https://travis-ci.org/zalando/skipper)
-[![GoDoc](https://godoc.org/github.com/zalando/skipper/proxy?status.svg)](https://godoc.org/github.com/zalando/skipper/proxy)
+[![GoDoc](https://godoc.org/github.com/zalando/skipper?status.svg)](https://godoc.org/github.com/zalando/skipper)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/zalando/skipper)](https://goreportcard.com/report/zalando/skipper)
 [![codecov](https://codecov.io/gh/zalando/skipper/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando/skipper)
@@ -26,7 +26,10 @@ The Skoap filters can be found currently in the branch called 'skoap-migration'.
 - updates routing rules without downtime, while supporting multiple types of data sources — including
   [etcd](https://github.com/coreos/etcd), [Innkeeper](https://github.com/zalando/innkeeper), static files and
   custom configuration sources
-- can serve as a Kubernetes Ingress implementation in combination with a controller; [see example](https://github.com/zalando-incubator/kube-ingress-aws-controller)
+- can serve as a
+  [Kubernetes Ingress implementation](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes)
+  in combination with a controller that will route public traffic to
+  your skipper fleet; [see AWS example](https://github.com/zalando-incubator/kube-ingress-aws-controller)
 - shipped with eskip: a descriptive configuration language designed for routing rules
 
 Skipper provides a default executable command with a few built-in filters. However, its primary use case is to
@@ -34,8 +37,8 @@ be extended with custom filters, predicates or data sources. [Go here for additi
 
 A few examples for extending Skipper:
 
-- Authentication proxy https://github.com/zalando-incubator/skoap
-- Image server https://github.com/zalando-incubator/skrop
+- Authentication proxy https://github.com/zalando-incubator/skoap (repository removed see 'skoap-migration' branch)
+- Image server https://github.com/zalando-stups/skrop
 
 
 ### Getting Started
@@ -76,6 +79,11 @@ Start Skipper and make an HTTP request:
     skipper -routes-file example.eskip &
     curl localhost:9090/hello
 
+##### Docker
+
+To run the latest Docker container:
+
+    docker run registry.opensource.zalan.do/pathfinder/skipper:latest
 
 #### Working with the code
 
@@ -110,7 +118,7 @@ topics:
 - Filters - Augmenting Requests
 - Service Backends
 - Route Definitions
-- Data Sources
+- Data Sources: Kubernetes
 - Circuit Breakers
 - Extending It with Customized Predicates, Filters, and Builds
 - Proxy Packages
@@ -123,7 +131,17 @@ topics:
 
 See https://github.com/zalando/skipper/blob/master/packaging/readme.md
 
+In case you want to implement and link your own modules into your
+skipper for more advanced features like [opentracing API](https://github.com/opentracing) support there
+is https://github.com/skipper-plugins organization to enable you to do
+so. In order to explain you the build process with custom Go modules
+there is https://github.com/skipper-plugins/skipper-tracing-build,
+that is used to build skipper's [opentracing package](https://github.com/skipper-plugins/opentracing).
+
+
 ## Community
+
+User or developer questions can be asked in our [public Google Group](https://groups.google.com/forum/#!forum/skipper-router)
 
 ### Proposals
 
