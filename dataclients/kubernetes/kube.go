@@ -26,6 +26,8 @@ Skipper keeps serving the requests in this case.
 
 Example - Ingress
 
+A basic ingress specification:
+
     apiVersion: extensions/v1beta1
     kind: Ingress
     metadata:
@@ -119,7 +121,7 @@ defined route in ingress.
               serviceName: app-svc
               servicePort: 80
 
-Example - Ingress with shadow traffic to app.shadow.example.org
+Example - Ingress with shadow traffic
 
 This will send production traffic to app-default.example.org and
 copies incoming requests to https://app.shadow.example.org, but drops
