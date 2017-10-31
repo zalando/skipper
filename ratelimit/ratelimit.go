@@ -17,7 +17,7 @@ const (
 	// Header is
 	Header = "X-Rate-Limit"
 	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
-	ServiceRatelimitName = "serviceRatelimit"
+	ServiceRatelimitName = "ratelimit"
 	// LocalRatelimitName is the name of the LocalRatelimit filter, which will be shown in log
 	LocalRatelimitName = "localRatelimit"
 	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log

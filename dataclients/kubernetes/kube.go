@@ -41,6 +41,26 @@ Example - Ingress
 
 Example - Ingress with ratelimiting
 
+The example shows 50 calls per minute are allowed to each skipper
+instance for the given ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/ratelimit: ratelimit(50, "1m")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+Example - Ingress with client based ratelimiting
+
 The example shows 3 calls per minute per client, based on
 X-Forwarded-For header or IP incase there is no X-Forwarded-For header
 set, are allowed to each skipper instance for the given ingress.
