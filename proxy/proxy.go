@@ -616,6 +616,7 @@ func (p *Proxy) do(ctx *context) error {
 
 	ctx.loopCounter++
 
+	// proxy global setting
 	if settings, ok := p.limiters.Check(ctx.request); !ok {
 		p.log.Debugf("proxy.go limiter settings: %s", settings)
 		rerr := ratelimitError(settings)
@@ -638,6 +639,7 @@ func (p *Proxy) do(ctx *context) error {
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
+	// per route rate limit
 	if settings, allow := p.checkRatelimit(ctx); !allow {
 		rerr := ratelimitError(settings)
 		return rerr
