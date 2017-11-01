@@ -16,6 +16,8 @@ type Type int
 const (
 	// Header is
 	Header = "X-Rate-Limit"
+	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
+	ServiceRatelimitName = "ratelimit"
 	// LocalRatelimitName is the name of the LocalRatelimit filter, which will be shown in log
 	LocalRatelimitName = "localRatelimit"
 	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
@@ -25,8 +27,13 @@ const (
 const (
 	// NoRatelimit is not used
 	NoRatelimit Type = iota
-	// LocalRatelimit is used to have a simple local rate limit,
-	// which is calculated and measured within each instance
+	// ServiceRatelimit is used to have a simple rate limit for a
+	// backend service, which is calculated and measured within
+	// each instance
+	ServiceRatelimit
+	// LocalRatelimit is used to have a simple local rate limit
+	// per user for a backend, which is calculated and measured
+	// within each instance
 	LocalRatelimit
 	// DisableRatelimit is used to disable rate limit
 	DisableRatelimit
@@ -43,22 +50,45 @@ type Lookuper interface {
 	Lookup(*http.Request) string
 }
 
+// SameBucketLookuper implements Lookuper interface and will always
+// match to the same bucket.
+type SameBucketLookuper struct{}
+
+// NewSameBucketLookuper returns a SameBucketLookuper.
+func NewSameBucketLookuper() SameBucketLookuper {
+	return SameBucketLookuper{}
+}
+
+// Lookup will always return "s" to select the same bucket.
+func (_ SameBucketLookuper) Lookup(req *http.Request) string {
+	return "s"
+}
+
+// XForwardedForLookuper implements Lookuper interface and will
+// select a bucket by X-Forwarded-For header or clientIP.
 type XForwardedForLookuper struct{}
 
+// NewXForwardedForLookuper returns an empty XForwardedForLookuper
 func NewXForwardedForLookuper() XForwardedForLookuper {
 	return XForwardedForLookuper{}
 }
 
+// Lookup returns the content of the X-Forwarded-For header or the
+// clientIP if not set.
 func (_ XForwardedForLookuper) Lookup(req *http.Request) string {
 	return net.RemoteHost(req).String()
 }
 
+// AuthLookuper implements Lookuper interface and will select a bucket
+// by Authorization header.
 type AuthLookuper struct{}
 
+// NewAuthLookuper returns an empty AuthLookuper
 func NewAuthLookuper() AuthLookuper {
 	return AuthLookuper{}
 }
 
+// Lookup returns the content of the Authorization header.
 func (_ AuthLookuper) Lookup(req *http.Request) string {
 	return req.Header.Get("Authorization")
 }
@@ -97,6 +127,8 @@ func (s Settings) String() string {
 	switch s.Type {
 	case DisableRatelimit:
 		return "disable"
+	case ServiceRatelimit:
+		return fmt.Sprintf("ratelimit(type=service,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
 		return fmt.Sprintf("ratelimit(type=local,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	default:
@@ -145,8 +177,10 @@ func (l voidRatelimit) Close() {
 func newRatelimit(s Settings) *Ratelimit {
 	var impl implementation
 	switch s.Type {
+	case ServiceRatelimit:
+		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
-		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
+		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
 	default:
 		impl = voidRatelimit{}
 	}

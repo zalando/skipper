@@ -91,6 +91,7 @@ func MakeRegistry() filters.Registry {
 		circuit.NewRateBreaker(),
 		circuit.NewDisableBreaker(),
 		ratelimit.NewLocalRatelimit(),
+		ratelimit.NewRatelimit(),
 		ratelimit.NewDisableRatelimit(),
 	} {
 		r.Register(s)
