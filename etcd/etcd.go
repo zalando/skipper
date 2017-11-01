@@ -421,6 +421,9 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		} else if err != nil {
 			return nil, nil, err
 		} else if response.Node.Dir {
+            if response.Node.ModifiedIndex > c.etcdIndex {
+                c.etcdIndex = response.Node.ModifiedIndex
+            }
 			continue
 		}
 
