@@ -10,8 +10,8 @@ import (
 
 const ratelimitUsage = `set global rate limit settings, e.g. -ratelimit type=local,max-hits=20,time-window=60
 	possible ratelimit properties:
-	type: local/disabled (defaults to local)
-	max-hits: the number of hits a local (meaning per instance) ratelimiter can get
+	type: local/service/disabled (defaults to disabled)
+	max-hits: the number of hits a ratelimiter can get
 	time-window: the duration of the sliding window for the rate limiter
 	(see also: https://godoc.org/github.com/zalando/skipper/ratelimit)`
 
@@ -45,6 +45,8 @@ func (r *ratelimitFlags) Set(value string) error {
 			switch kv[1] {
 			case "local":
 				s.Type = ratelimit.LocalRatelimit
+			case "service":
+				s.Type = ratelimit.ServiceRatelimit
 			case "disabled":
 				s.Type = ratelimit.DisableRatelimit
 			default:

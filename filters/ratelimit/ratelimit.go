@@ -26,10 +26,10 @@ type filter struct {
 
 // NewLocalRatelimit creates a local measured rate limiting, that is
 // only aware of itself. If you have 5 instances with 20 req/s, then
-// it would allow 100 req/s to the backend. A third argument can be
-// used to set which part of the request should be used to find the
-// same user. Third argument defaults to XForwardedForLookuper,
-// meaning X-Forwarded-For Header.
+// it would allow 100 req/s to the backend from the same user. A third
+// argument can be used to set which part of the request should be
+// used to find the same user. Third argument defaults to
+// XForwardedForLookuper, meaning X-Forwarded-For Header.
 //
 // Example:
 //
@@ -46,6 +46,19 @@ func NewLocalRatelimit() filters.Spec {
 	return &spec{typ: ratelimit.LocalRatelimit, filterName: ratelimit.LocalRatelimitName}
 }
 
+// NewRatelimit creates a service rate limiting, that is
+// only aware of itself. If you have 5 instances with 20 req/s, then
+// it would at max allow 100 req/s to the backend.
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> ratelimit(20, "1s")
+//    -> "https://foo.backend.net";
+func NewRatelimit() filters.Spec {
+	return &spec{typ: ratelimit.ServiceRatelimit, filterName: ratelimit.ServiceRatelimitName}
+}
+
 // NewDisableRatelimit disables rate limiting
 //
 // Example:
@@ -59,6 +72,38 @@ func NewDisableRatelimit() filters.Spec {
 
 func (s *spec) Name() string {
 	return s.filterName
+}
+
+func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 2 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	var err error
+	var maxHits int
+	if len(args) > 0 {
+		maxHits, err = getIntArg(args[0])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var timeWindow time.Duration
+	if len(args) > 1 {
+		timeWindow, err = getDurationArg(args[1])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &filter{
+		settings: ratelimit.Settings{
+			Type:       ratelimit.ServiceRatelimit,
+			MaxHits:    maxHits,
+			TimeWindow: timeWindow,
+			Lookuper:   ratelimit.NewSameBucketLookuper(),
+		},
+	}, nil
 }
 
 func localRatelimitFilter(args []interface{}) (filters.Filter, error) {
@@ -120,6 +165,8 @@ func disableFilter(args []interface{}) (filters.Filter, error) {
 
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	switch s.typ {
+	case ratelimit.ServiceRatelimit:
+		return serviceRatelimitFilter(args)
 	case ratelimit.LocalRatelimit:
 		return localRatelimitFilter(args)
 	default:

@@ -68,11 +68,23 @@ func TestRateLimit(t *testing.T) {
 
 			if settings != expect {
 				t.Error("invalid settings")
-				t.Log("got", settings)
+				t.Log("got     ", settings)
 				t.Log("expected", expect)
 			}
 		}
 	}
+
+	t.Run("ratelimit service", test(
+		NewRatelimit,
+		ratelimit.Settings{
+			Type:       ratelimit.ServiceRatelimit,
+			MaxHits:    3,
+			TimeWindow: 1 * time.Second,
+			Lookuper:   ratelimit.NewSameBucketLookuper(),
+		},
+		3,
+		"1s",
+	))
 
 	t.Run("ratelimit local", test(
 		NewLocalRatelimit,
