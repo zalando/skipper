@@ -13,6 +13,11 @@ type routes struct {
 
 // New creates a data client that parses a string of eskip routes and
 // serves it for the routing package.
+//
+// Usage from the command line:
+//
+//     skipper -inline-routes '* -> inlineContent("Hello, world!") -> <shunt>'
+//
 func New(r string) (routing.DataClient, error) {
 	parsed, err := eskip.Parse(r)
 	if err != nil {
