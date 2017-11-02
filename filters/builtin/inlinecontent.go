@@ -1,0 +1,71 @@
+package builtin
+
+import (
+	"bytes"
+	"io/ioutil"
+	"net/http"
+	"strconv"
+
+	"github.com/zalando/skipper/filters"
+)
+
+type inlineContent struct {
+	text string
+	mime string
+}
+
+func NewInlineContent() filters.Spec {
+	return &inlineContent{}
+}
+
+func (c *inlineContent) Name() string { return InlineContentName }
+
+func stringArg(a interface{}) (s string, err error) {
+	var ok bool
+	s, ok = a.(string)
+	if !ok {
+		err = filters.ErrInvalidFilterParameters
+	}
+
+	return
+}
+
+func (c *inlineContent) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) == 0 || len(args) > 2 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	var (
+		f   inlineContent
+		err error
+	)
+
+	f.text, err = stringArg(args[0])
+	if err != nil {
+		return nil, err
+	}
+
+	if len(args) == 2 {
+		f.mime, err = stringArg(args[1])
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		f.mime = http.DetectContentType([]byte(f.text))
+	}
+
+	return &f, nil
+}
+
+func (c *inlineContent) Request(ctx filters.FilterContext) {
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type":   []string{c.mime},
+			"Content-Length": []string{strconv.Itoa(len(c.text))},
+		},
+		Body: ioutil.NopCloser(bytes.NewBufferString(c.text)),
+	})
+}
+
+func (c *inlineContent) Response(filters.FilterContext) {}
