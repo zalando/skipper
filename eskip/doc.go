@@ -154,6 +154,8 @@ filters:
 
 	static("/images", "/var/www/images")
 
+	inlineContent("{\"foo\": 42}", "application/json")
+
 	stripQuery("true")
 
 	preserveHost()
