@@ -43,6 +43,7 @@ const (
 	CompressName        = "compress"
 	SetQueryName        = "setQuery"
 	DropQueryName       = "dropQuery"
+	InlineContentName   = "inlineContent"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -69,6 +70,7 @@ func MakeRegistry() filters.Registry {
 		NewRedirectTo(),
 		NewRedirectLower(),
 		NewStripQuery(),
+		NewInlineContent(),
 		flowid.New(),
 		PreserveHost(),
 		NewStatus(),
