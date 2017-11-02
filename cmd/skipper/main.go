@@ -59,6 +59,7 @@ const (
 	oauthCredentialsDirUsage       = "directory where oauth credentials are stored: client.json and user.json"
 	oauthScopeUsage                = "the whitespace separated list of oauth scopes"
 	routesFileUsage                = "file containing static route definitions"
+	inlineRoutesUsage              = "inline routes in eskip format"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	proxyPreserveHostUsage         = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
@@ -123,6 +124,7 @@ var (
 	innkeeperURL              string
 	sourcePollTimeout         int64
 	routesFile                string
+	inlineRoutes              string
 	oauthURL                  string
 	oauthScope                string
 	oauthCredentialsDir       string
@@ -187,6 +189,7 @@ func init() {
 	flag.StringVar(&innkeeperURL, "innkeeper-url", "", innkeeperURLUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
+	flag.StringVar(&inlineRoutes, "inline-routes", "", inlineRoutesUsage)
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
 	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
 	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
@@ -294,6 +297,7 @@ func main() {
 		InnkeeperUrl:                        innkeeperURL,
 		SourcePollTimeout:                   time.Duration(sourcePollTimeout) * time.Millisecond,
 		RoutesFile:                          routesFile,
+		InlineRoutes:                        inlineRoutes,
 		IdleConnectionsPerHost:              idleConnsPerHost,
 		CloseIdleConnsPeriod:                time.Duration(clsic) * time.Second,
 		IgnoreTrailingSlash:                 false,

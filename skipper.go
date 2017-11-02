@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
@@ -118,6 +119,9 @@ type Options struct {
 
 	// File containing static route definitions.
 	RoutesFile string
+
+	// InlineRoutes can define routes as eskip text.
+	InlineRoutes string
 
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
@@ -322,6 +326,16 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 		}
 
 		clients = append(clients, f)
+	}
+
+	if o.InlineRoutes != "" {
+		ir, err := routestring.New(o.InlineRoutes)
+		if err != nil {
+			log.Error("error while parsing inline routes", err)
+			return nil, err
+		}
+
+		clients = append(clients, ir)
 	}
 
 	if o.InnkeeperUrl != "" {
