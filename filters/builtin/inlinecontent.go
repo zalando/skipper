@@ -14,6 +14,22 @@ type inlineContent struct {
 	mime string
 }
 
+// Creates a filter spec for the inlineContent() filter.
+//
+// Usage of the filter:
+//
+//     * -> status(420) -> inlineContent("Enhance Your Calm") -> <shunt>
+//
+// Or:
+//
+//     * -> inlineContent("{\"foo\": 42}", "application/json") -> <shunt>
+//
+// It accepts two arguments: the content and the optional content type.
+// When the content type is not set, it tries to detect it using
+// http.DetectContentType.
+//
+// The filter shunts the request with status code 200.
+//
 func NewInlineContent() filters.Spec {
 	return &inlineContent{}
 }
