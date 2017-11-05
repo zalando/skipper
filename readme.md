@@ -113,19 +113,236 @@ can be found in our Kubernetes configuration https://github.com/zalando-incubato
 Skipper's Godoc page, https://godoc.org/github.com/zalando/skipper, includes detailed information on these
 topics:
 
-- The Routing Mechanism
+- The [Routing](https://godoc.org/github.com/zalando/skipper/routing) Mechanism
 - Matching Requests
-- Filters - Augmenting Requests
+- [Filters](https://godoc.org/github.com/zalando/skipper/filters) - Augmenting Requests
 - Service Backends
 - Route Definitions
-- Data Sources: Kubernetes
-- Circuit Breakers
+- Data Sources: [ETCD](https://godoc.org/github.com/zalando/skipper/etcd), [Inkeeper API](https://godoc.org/github.com/zalando/skipper/innkeeper), [Kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://godoc.org/github.com/zalando/skipper/dataclients/routestring)
+- [Circuit Breakers](https://godoc.org/github.com/zalando/skipper/filters/circuit)
 - Extending It with Customized Predicates, Filters, and Builds
-- Proxy Packages
-- Logging and Metrics
+- [Predicates](https://godoc.org/github.com/zalando/skipper/predicates) - additional predicates to match a route
+- [Proxy Packages](https://godoc.org/github.com/zalando/skipper/proxy)
+- [Logging](https://godoc.org/github.com/zalando/skipper/logging) and [Metrics](https://godoc.org/github.com/zalando/skipper/metrics)
 - Performance Considerations
-- Rate Limiters
+- [Rate Limiters](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
 
+#### 1 Minute Skipper introduction
+
+The following example shows a skipper routes file in eskip format, that has 3 named routes: baidu, google and yandex.
+
+    % cat doc-1min-intro.eskip
+    baidu:
+            Path("/baidu")
+            -> setRequestHeader("Host", "www.baidu.com")
+            -> setPath("/s")
+            -> setQuery("wd", "godoc skipper")
+            -> "http://www.baidu.com";
+    google:
+            *
+            -> setPath("/search")
+            -> setQuery("q", "godoc skipper")
+            -> "https://www.google.com";
+    yandex:
+            * && Cookie("yandex", "true")
+            -> setPath("/search/")
+            -> setQuery("text", "godoc skipper")
+            -> tee("http://127.0.0.1:12345/")
+            -> "https://yandex.ru";
+
+Matching the route:
+
+- baidu is using Path() matching to differentiate the HTTP requests to select the route.
+- google is the default matching with wildcard '*'
+- yandex is the default matching with wildcard '*' if you have a cookie "yandex=true"
+
+Request Filters:
+
+- If baidu is selected, skipper sets the Host header, changes the path and sets a query string to the http request to the backend "http://www.baidu.com".
+- If google is selected, skipper changes the path and sets a query string to the http request to the backend "https://www.google.com".
+- If yandex is selected, skipper changes the path and sets a query string to the http request to the backend "https://yandex.ru". The modified request will be copied to "http://127.0.0.1:12345/"
+
+Run skipper with the routes file doc-1min-intro.eskip shown above
+
+    % skipper -routes-file doc-1min-intro.eskip
+
+To test each route you can use curl:
+
+    % curl -v localhost:9090/baidu
+    % curl -v localhost:9090/
+    % curl -v --cookie "yandex=true" localhost:9090/
+
+To see the request that is made by the tee() filter you can use nc:
+
+    [terminal1]% nc -l 12345
+    [terminal2]% curl -v --cookie "yandex=true" localhost:9090/
+
+#### 3 Minutes Skipper in Kubernetes introduction
+
+You should have a base understanding of [Kubernetes](https://kubernetes.io) and
+[Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/).
+
+Prerequisites: First you have to install skipper-ingress as for
+example daemonset, create a deployment and a service.
+
+We start to deploy skipper-ingress as daemonset, use hostNetwork and
+expose on each Kubernetes worker node port 9999 for incoming ingress
+traffic.
+
+    % cat skipper-ingress-ds.yaml
+    apiVersion: extensions/v1beta1
+    kind: DaemonSet
+    metadata:
+      name: skipper-ingress
+      namespace: kube-system
+      labels:
+        application: skipper-ingress
+        version: v0.9.115
+        component: ingress
+    spec:
+      selector:
+        matchLabels:
+          application: skipper-ingress
+      updateStrategy:
+        type: RollingUpdate
+      template:
+        metadata:
+          name: skipper-ingress
+          labels:
+            application: skipper-ingress
+            version: v0.9.115
+            component: ingress
+          annotations:
+            scheduler.alpha.kubernetes.io/critical-pod: ''
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: master
+                    operator: DoesNotExist
+          tolerations:
+          - key: CriticalAddonsOnly
+            operator: Exists
+          hostNetwork: true
+          containers:
+          - name: skipper-ingress
+            image: registry.opensource.zalan.do/pathfinder/skipper:v0.9.115
+            ports:
+            - name: ingress-port
+              containerPort: 9999
+              hostPort: 9999
+            args:
+              - "skipper"
+              - "-kubernetes"
+              - "-kubernetes-in-cluster"
+              - "-address=:9999"
+              - "-proxy-preserve-host"
+              - "-serve-host-metrics"
+              - "-enable-ratelimits"
+              - "-experimental-upgrade"
+              - "-metrics-exp-decay-sample"
+            resources:
+              limits:
+                cpu: 200m
+                memory: 200Mi
+              requests:
+                cpu: 25m
+                memory: 25Mi
+            readinessProbe:
+              httpGet:
+                path: /kube-system/healthz
+                port: 9999
+              initialDelaySeconds: 5
+              timeoutSeconds: 5
+
+
+We now deploy a simple demo application serving html:
+
+    % cat demo-deployment.yaml
+    apiVersion: apps/v1beta1
+    kind: Deployment
+    metadata:
+      name: skipper-demo
+    spec:
+      replicas: 2
+      template:
+        metadata:
+          labels:
+            application: skipper-demo
+        spec:
+          containers:
+          - name: skipper-demo
+            image: registry.opensource.zalan.do/pathfinder/skipper:v0.9.117
+            args:
+              - "skipper"
+              - "-inline-routes"
+              - "* -> inlineContent(\"<body style='color: white; background-color: green;'><h1>Hello!</h1>\") -> <shunt>"
+            ports:
+            - containerPort: 9090
+
+We deploy a service type ClusterIP that we will select from ingress:
+
+    % cat demo-svc.yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: sszuecs-demo
+      labels:
+        application: skipper-demo
+    spec:
+      type: ClusterIP
+      ports:
+        - port: 80
+          protocol: TCP
+          targetPort: 9090
+          name: external
+      selector:
+        application: sszuecs-demo
+
+To deploy both, you have to run:
+
+    % kubectl create -f demo-deployment.yaml
+    % kubectl create -f demo-svc.yaml
+
+Now we have a skipper-ingress as daemonset running exposing port 9999
+on each worker node, a backend application with 2 replica2 running
+that serves some html at TCP port 9090 and we expose a cluster service
+with port 80. Besides skipper-ingress, deployment and service can not
+be reached from outside the cluster. We now expose with Ingress our
+service to your network:
+
+    % cat demo-ing.yaml
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      name: skipper-demo"
+    spec:
+      rules:
+      - host: skipper-demo.<mydomain.org>
+        http:
+          paths:
+          - backend:
+              serviceName: skipper-demo"
+              servicePort: 80
+
+To deploy this ingress, you have to run:
+
+    % kubectl create -f demo-ing.yaml
+
+Skipper will configure itself for the given ingress, such that you can test doing:
+
+    % curl -v -H"Host: skipper-demo.<mydomain.org>" http://<nodeip>:9999/
+
+The next question you may ask is: How to expose this to your customers?
+
+The answer depends on your setup and complexity requirements. As
+simplest case you could add one A record in your DNS *.<mydomain.org>
+to your frontend loadbalancer IP that directs all traffic from *.<mydomain.org>
+to all Kubernetes worker nodes on TCP port 9999.
+
+A more complex setup we use in production and can be done with something that configures your frontend loadbalancer, for example [kube-aws-ingress-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller), and your DNS, [external-dns](https://github.com/kubernetes-incubator/external-dns) automatically.
 
 ### Packaging support
 
