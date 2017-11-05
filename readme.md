@@ -115,10 +115,10 @@ topics:
 
 - The [Routing](https://godoc.org/github.com/zalando/skipper/routing) Mechanism
 - Matching Requests
-- [Filters](https://godoc.org/github.com/zalando/skipper/filters) - Augmenting Requests
+- [Filters](https://godoc.org/github.com/zalando/skipper/filters) - Augmenting Requests and Responses
 - Service Backends
 - Route Definitions
-- Data Sources: [ETCD](https://godoc.org/github.com/zalando/skipper/etcd), [Inkeeper API](https://godoc.org/github.com/zalando/skipper/innkeeper), [Kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://godoc.org/github.com/zalando/skipper/dataclients/routestring)
+- Data Sources: [eskip file](https://godoc.org/github.com/zalando/skipper/eskipfile), [etcd](https://godoc.org/github.com/zalando/skipper/etcd), [Inkeeper API](https://godoc.org/github.com/zalando/skipper/innkeeper), [Kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://godoc.org/github.com/zalando/skipper/dataclients/routestring)
 - [Circuit Breakers](https://godoc.org/github.com/zalando/skipper/filters/circuit)
 - Extending It with Customized Predicates, Filters, and Builds
 - [Predicates](https://godoc.org/github.com/zalando/skipper/predicates) - additional predicates to match a route
@@ -185,8 +185,8 @@ You should have a base understanding of [Kubernetes](https://kubernetes.io) and
 Prerequisites: First you have to install skipper-ingress as for
 example daemonset, create a deployment and a service.
 
-We start to deploy skipper-ingress as daemonset, use hostNetwork and
-expose on each Kubernetes worker node port 9999 for incoming ingress
+We start to deploy skipper-ingress as a daemonset, use hostNetwork and
+expose the TCP port 9999 on each Kubernetes worker node for incoming ingress
 traffic.
 
     % cat skipper-ingress-ds.yaml
@@ -306,12 +306,12 @@ To deploy both, you have to run:
     % kubectl create -f demo-deployment.yaml
     % kubectl create -f demo-svc.yaml
 
-Now we have a skipper-ingress as daemonset running exposing port 9999
-on each worker node, a backend application with 2 replica2 running
-that serves some html at TCP port 9090 and we expose a cluster service
-with port 80. Besides skipper-ingress, deployment and service can not
-be reached from outside the cluster. We now expose with Ingress our
-service to your network:
+Now we have a skipper-ingress running as daemonset exposing the TCP
+port 9999 on each worker node, a backend application running with 2
+replicas that serves some html on TCP port 9090, and we expose a
+cluster service on TCP port 80. Besides skipper-ingress, deployment
+and service can not be reached from outside the cluster. Now we expose
+the application with Ingress to the external network:
 
     % cat demo-ing.yaml
     apiVersion: extensions/v1beta1
@@ -335,14 +335,18 @@ Skipper will configure itself for the given ingress, such that you can test doin
 
     % curl -v -H"Host: skipper-demo.<mydomain.org>" http://<nodeip>:9999/
 
-The next question you may ask is: How to expose this to your customers?
+The next question you may ask is: how to expose this to your customers?
 
-The answer depends on your setup and complexity requirements. As
+The answer depends on your setup and complexity requirements. In the
 simplest case you could add one A record in your DNS *.<mydomain.org>
 to your frontend loadbalancer IP that directs all traffic from *.<mydomain.org>
 to all Kubernetes worker nodes on TCP port 9999.
 
-A more complex setup we use in production and can be done with something that configures your frontend loadbalancer, for example [kube-aws-ingress-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller), and your DNS, [external-dns](https://github.com/kubernetes-incubator/external-dns) automatically.
+A more complex setup we use in production and can be done with
+something that configures your frontend loadbalancer, for example
+[kube-aws-ingress-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller),
+and your DNS, [external-dns](https://github.com/kubernetes-incubator/external-dns)
+automatically.
 
 ### Packaging support
 
