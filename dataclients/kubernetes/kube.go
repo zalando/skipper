@@ -643,6 +643,15 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 					if routes, ok := hostRoutes[rule.Host]; ok {
 						hostRoutes[rule.Host] = append(routes, r)
 					} else {
+						// FIXME: the custom filters and predicates don't make it
+						// if a route with the same host already exists
+						//
+						// QUESTION: is this switch required? we can append to
+						// nil:
+						//
+						//     hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
+						//
+
 						if annotationFilter != "" {
 							annotationFilters, err := eskip.ParseFilters(annotationFilter)
 							if err != nil {
