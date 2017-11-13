@@ -75,6 +75,8 @@ func MakeRegistry() filters.Registry {
 		PreserveHost(),
 		NewStatus(),
 		NewCompress(),
+		NewCopyRequestHeader(),
+		NewCopyResponseHeader(),
 		diag.NewRandom(),
 		diag.NewLatency(),
 		diag.NewBandwidth(),
