@@ -18,7 +18,7 @@ const (
 	// Deprecated: use setRequestHeader or appendRequestHeader
 	RequestHeaderName = "requestHeader"
 
-	// Deprecated: use setRequestHeader or appendRequestHeader
+	// Deprecated: use setResponseHeader or appendResponseHeader
 	ResponseHeaderName = "responseHeader"
 
 	// Deprecated: use redirectTo
