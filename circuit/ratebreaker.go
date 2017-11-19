@@ -14,7 +14,6 @@ import (
 
 type rateBreaker struct {
 	settings BreakerSettings
-	open     bool
 	mx       *sync.Mutex
 	sampler  *binarySampler
 	gb       *gobreaker.TwoStepCircuitBreaker
@@ -31,6 +30,9 @@ func newRate(s BreakerSettings) *rateBreaker {
 		MaxRequests: uint32(s.HalfOpenRequests),
 		Timeout:     s.Timeout,
 		ReadyToTrip: func(gobreaker.Counts) bool { return b.readyToTrip() },
+		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+			log.Infof("circuit breaker %v went from %v to %v", name, from.String(), to.String())
+		},
 	})
 
 	return b
@@ -44,13 +46,7 @@ func (b *rateBreaker) readyToTrip() bool {
 		return false
 	}
 
-	b.open = b.sampler.count >= b.settings.Failures
-	if b.open {
-		log.Infof("circuit breaker open: %v", b.settings)
-		b.sampler = nil
-	}
-
-	return b.open
+	return b.sampler.count >= b.settings.Failures
 }
 
 // count the failures in closed and half-open state
@@ -73,11 +69,6 @@ func (b *rateBreaker) Allow() (func(bool), bool) {
 
 	if !closed {
 		return nil, false
-	}
-
-	if b.open {
-		b.open = false
-		log.Infof("circuit breaker closed: %v", b.settings)
 	}
 
 	return func(success bool) {
