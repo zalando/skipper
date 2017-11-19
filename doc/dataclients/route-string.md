@@ -2,7 +2,7 @@
 
 Route string dataclient can be used to create simple demo
 applications, for example if you want to show traffic switching or
-ratelimiting in your demo.
+ratelimiting or just need to serve some json in your demo.
 
 ## Serve text
 
