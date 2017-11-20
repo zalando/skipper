@@ -110,7 +110,7 @@ can be found in our Kubernetes configuration https://github.com/zalando-incubato
 
 ### Documentation
 
-Skipper's [docs directory](tree/master/doc) and Godoc page, https://godoc.org/github.com/zalando/skipper, includes detailed information on these
+Skipper's [docs directory](doc/readme.md) and Godoc page, https://godoc.org/github.com/zalando/skipper, includes detailed information on these
 topics:
 
 - The [Routing](https://godoc.org/github.com/zalando/skipper/routing) Mechanism
