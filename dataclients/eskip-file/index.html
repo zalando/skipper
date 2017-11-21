@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+        
+        <link rel="shortcut icon" href="../../img/favicon.ico">
+        <title>Eskip - Skipper</title>
+        <link href="../../css/bootstrap-custom.min.css" rel="stylesheet">
+        <link href="../../css/font-awesome-4.5.0.css" rel="stylesheet">
+        <link href="../../css/base.css" rel="stylesheet">
+        <link rel="stylesheet" href="../../css/highlight.css">
+        <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.3.0/respond.min.js"></script>
+        <![endif]-->
+
+        <script src="../../js/jquery-1.10.2.min.js"></script>
+        <script src="../../js/bootstrap-3.0.3.min.js"></script>
+        <script src="../../js/highlight.pack.js"></script> 
+    </head>
+
+    <body>
+
+        <div class="navbar navbar-default navbar-fixed-top" role="navigation">
+    <div class="container">
+
+        <!-- Collapsed navigation -->
+        <div class="navbar-header">
+            <!-- Expander button -->
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="../..">Skipper</a>
+        </div>
+
+        <!-- Expanded navigation -->
+        <div class="navbar-collapse collapse">
+                <!-- Main navigation -->
+                <ul class="nav navbar-nav">
+                    <li >
+                        <a href="../..">Architecture</a>
+                    </li>
+                    <li >
+                        <a href="../../deployments/">Deployments</a>
+                    </li>
+                    <li class="dropdown active">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown">Data Clients <b class="caret"></b></a>
+                        <ul class="dropdown-menu">
+                            
+<li class="active">
+    <a href="./">Eskip</a>
+</li>
+                            
+<li >
+    <a href="../etcd/">Etcd</a>
+</li>
+                            
+<li >
+    <a href="../inkeeper-api/">Inkeeper API</a>
+</li>
+                            
+<li >
+    <a href="../kubernetes/">Kubernetes</a>
+</li>
+                            
+<li >
+    <a href="../route-string/">Route String</a>
+</li>
+                        </ul>
+                    </li>
+                </ul>
+
+            <ul class="nav navbar-nav navbar-right">
+                <li>
+                    <a href="#" data-toggle="modal" data-target="#mkdocs_search_modal">
+                        <i class="fa fa-search"></i> Search
+                    </a>
+                </li>
+                    <li >
+                        <a rel="next" href="../../deployments/">
+                            <i class="fa fa-arrow-left"></i> Previous
+                        </a>
+                    </li>
+                    <li >
+                        <a rel="prev" href="../etcd/">
+                            Next <i class="fa fa-arrow-right"></i>
+                        </a>
+                    </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+        <div class="container">
+                <div class="col-md-3"><div class="bs-sidebar hidden-print affix well" role="complementary">
+    <ul class="nav bs-sidenav">
+        <li class="main active"><a href="#eskip-file">Eskip File</a></li>
+    </ul>
+</div></div>
+                <div class="col-md-9" role="main">
+
+<h1 id="eskip-file">Eskip File</h1>
+<p>Eskip file dataclient can be used to serve static defined routes, read
+from an eskip file. The <a href="https://godoc.org/github.com/zalando/skipper/eskip">file format eskip</a>
+shows your route definitions in a clear way:</p>
+<pre><code>% cat example.eskip
+hello: Path("/hello") -&gt; "https://www.example.org"'
+</code></pre>
+<p>The <a href="https://github.com/zalando/skipper">skipper project</a> has two
+binaries, one is <code>skipper</code>, the other is <code>eskip</code>.
+<a href="https://godoc.org/github.com/zalando/skipper/cmd/eskip">Eskip</a>
+can be used to validate the syntax of your routes file before
+reloading a production server:</p>
+<pre><code>% eskip check example.eskip
+</code></pre>
+<p>A more complicated example with different routes, matches,
+<a href="https://godoc.org/github.com/zalando/skipper/predicates">predicates</a> and
+<a href="https://godoc.org/github.com/zalando/skipper/filters">filters</a> shows that
+you can name your route and use preconditions and create, change, delete
+HTTP headers as you like:</p>
+<pre><code>% cat complicated_example.eskip
+host-header-match:
+         Host("^skipper.teapot.org$")
+         -&gt; setRequestHeader("Authorization", "Basic YWRtaW46YWRtaW5zcGFzc3dvcmQK")
+         -&gt; "https://target-to.auth-with.basic-auth.enterprise.com";
+baidu-path-match:
+        Path("/baidu")
+        -&gt; setRequestHeader("Host", "www.baidu.com")
+        -&gt; setPath("/s")
+        -&gt; setQuery("wd", "godoc skipper")
+        -&gt; "http://www.baidu.com";
+google-wildcard-match:
+        *
+        -&gt; setPath("/search")
+        -&gt; setQuery("q", "godoc skipper")
+        -&gt; "https://www.google.com";
+yandex-wildacard-if-cookie:
+        * &amp;&amp; Cookie("yandex", "true")
+        -&gt; setPath("/search/")
+        -&gt; setQuery("text", "godoc skipper")
+        -&gt; tee("http://127.0.0.1:12345/")
+        -&gt; "https://yandex.ru";
+</code></pre>
+<p>The former example shows 4 routes: host-header-match,
+baidu-path-match, google-wildcard-match and yandex-wildcard-if-cookie.</p>
+<ul>
+<li>host-header-match:</li>
+<li>used if HTTP host header is exactly: "skipper.teapot.org",</li>
+<li>sets a Basic Authorization header and</li>
+<li>sends the modified request to https://target-to.auth-with.basic-auth.enterprise.com</li>
+<li>baidu-path-match:</li>
+<li>used in case the request patch matches /baidu</li>
+<li>it will set the Host header to the proxy request</li>
+<li>it will set the path from /baidu to /s</li>
+<li>it will set the querystring to "ws=godoc skipper" and</li>
+<li>sends the modified request to http://baidu.com</li>
+<li>google-wildcard-match:</li>
+<li>used as default if no other route matches</li>
+<li>it will set the path to /search</li>
+<li>it will set the querystring to "q=godoc skipper" and</li>
+<li>sends the modified request to https://www.google.com</li>
+<li>yandex-wildcard-if-cookie:</li>
+<li>used as default if a Cookie named "yandex" has the value "true"</li>
+<li>it will set the path to /search/</li>
+<li>it will set the querystring to "text=godoc skipper"</li>
+<li>it will send a copy of the modified request to http://127.0.0.1:12345/ (similar to unix <code>tee</code>) and drop the response and</li>
+<li>sends the modified request to https://yandex.ru</li>
+</ul>
+<p>More examples you find in <a href="https://godoc.org/github.com/zalando/skipper/eskip">eskip file format</a>
+description, in <a href="https://godoc.org/github.com/zalando/skipper/filters">filters</a>
+and in <a href="https://godoc.org/github.com/zalando/skipper/predicates">predicates</a>.</p>
+<p>Eskip file format is also used if you print your current routes in skipper,
+for example (metrics listener required):</p>
+<pre><code>% curl localhost:9911/routes
+*
+  -&gt; setResponseHeader("Content-Type", "application/json; charset=utf-8")
+  -&gt; inlineContent("{\"foo\": 3}")
+  -&gt; &lt;shunt&gt;
+</code></pre></div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="http://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script>var base_url = '../..';</script>
+        <script src="../../js/base.js"></script>
+        <script src="../../search/require.js"></script>
+        <script src="../../search/search.js"></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="Search Modal" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <h4 class="modal-title" id="exampleModalLabel">Search</h4>
+            </div>
+            <div class="modal-body">
+                <p>
+                    From here you can search these documents. Enter
+                    your search terms below.
+                </p>
+                <form role="form">
+                    <div class="form-group">
+                        <input type="text" class="form-control" placeholder="Search..." id="mkdocs-search-query">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="Keyboard Shortcuts Modal" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <h4 class="modal-title" id="exampleModalLabel">Keyboard Shortcuts</h4>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>&larr;</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>&rarr;</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+
+    </body>
+</html>

@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+        
+        <link rel="shortcut icon" href="../../img/favicon.ico">
+        <title>Kubernetes - Skipper</title>
+        <link href="../../css/bootstrap-custom.min.css" rel="stylesheet">
+        <link href="../../css/font-awesome-4.5.0.css" rel="stylesheet">
+        <link href="../../css/base.css" rel="stylesheet">
+        <link rel="stylesheet" href="../../css/highlight.css">
+        <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.3.0/respond.min.js"></script>
+        <![endif]-->
+
+        <script src="../../js/jquery-1.10.2.min.js"></script>
+        <script src="../../js/bootstrap-3.0.3.min.js"></script>
+        <script src="../../js/highlight.pack.js"></script> 
+    </head>
+
+    <body>
+
+        <div class="navbar navbar-default navbar-fixed-top" role="navigation">
+    <div class="container">
+
+        <!-- Collapsed navigation -->
+        <div class="navbar-header">
+            <!-- Expander button -->
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="../..">Skipper</a>
+        </div>
+
+        <!-- Expanded navigation -->
+        <div class="navbar-collapse collapse">
+                <!-- Main navigation -->
+                <ul class="nav navbar-nav">
+                    <li >
+                        <a href="../..">Architecture</a>
+                    </li>
+                    <li >
+                        <a href="../../deployments/">Deployments</a>
+                    </li>
+                    <li class="dropdown active">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown">Data Clients <b class="caret"></b></a>
+                        <ul class="dropdown-menu">
+                            
+<li >
+    <a href="../eskip-file/">Eskip</a>
+</li>
+                            
+<li >
+    <a href="../etcd/">Etcd</a>
+</li>
+                            
+<li >
+    <a href="../inkeeper-api/">Inkeeper API</a>
+</li>
+                            
+<li class="active">
+    <a href="./">Kubernetes</a>
+</li>
+                            
+<li >
+    <a href="../route-string/">Route String</a>
+</li>
+                        </ul>
+                    </li>
+                </ul>
+
+            <ul class="nav navbar-nav navbar-right">
+                <li>
+                    <a href="#" data-toggle="modal" data-target="#mkdocs_search_modal">
+                        <i class="fa fa-search"></i> Search
+                    </a>
+                </li>
+                    <li >
+                        <a rel="next" href="../inkeeper-api/">
+                            <i class="fa fa-arrow-left"></i> Previous
+                        </a>
+                    </li>
+                    <li >
+                        <a rel="prev" href="../route-string/">
+                            Next <i class="fa fa-arrow-right"></i>
+                        </a>
+                    </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+        <div class="container">
+                <div class="col-md-3"><div class="bs-sidebar hidden-print affix well" role="complementary">
+    <ul class="nav bs-sidenav">
+        <li class="main active"><a href="#kubernetes">Kubernetes</a></li>
+            <li><a href="#skipper-features">Skipper Features</a></li>
+            <li><a href="#3-minutes-skipper-in-kubernetes-introduction">3 Minutes Skipper in Kubernetes introduction</a></li>
+            <li><a href="#advanced-examples">Advanced Examples</a></li>
+    </ul>
+</div></div>
+                <div class="col-md-9" role="main">
+
+<h1 id="kubernetes">Kubernetes</h1>
+<p>Skipper's Kubernetes dataclient can be used, if you want to run skipper as
+<a href="https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-controllers">kubernetes-ingress-controller</a>.
+It will get it's route information from provisioned
+<a href="https://kubernetes.io/docs/concepts/services-networking/ingress">Ingress Objects</a>.
+Detailed information you find in our <a href="https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes">godoc for dataclient kubernetes</a>.</p>
+<h2 id="skipper-features">Skipper Features</h2>
+<p>Skipper has the following main features:</p>
+<ul>
+<li>Filters - create, update, delete all kind of HTTP data</li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/filters/builtin">collection of base http manipulations</a>: for example manipulating Path, Querystring, ResponseHeader, RequestHeader and redirect handling</li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/filters/cookie">cookie handling</a></li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/filters/circuit">circuitbreakers</a>: consecutiveBreaker or rateBreaker</li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/filters/ratelimit">ratelimit</a>: based on client or backend data</li>
+<li>Shadow traffic: <a href="https://godoc.org/github.com/zalando/skipper/filters/tee">tee()</a></li>
+<li>Predicates - advanced matching capability</li>
+<li>URL Path match: <code>Path("/foo")</code></li>
+<li>Host header match: <code>Host("^www.example.org$")</code></li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/predicates/query">Querystring</a>: <code>QueryParam("featureX")</code></li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/predicates/cookie">Cookie based</a>: <code>Cookie("alpha", /^enabled$/)</code></li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/predicates/source">source whitelist</a>: <code>Source("1.2.3.4/24")</code></li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/predicates/interval">time based interval</a></li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/predicates/traffic">traffic by percentage</a> supports also sticky sessions</li>
+<li>Kubernetes integration</li>
+<li>All Filters and Predicates can be used with 2 annotations<ul>
+<li>Predicates: <code>zalando.org/skipper-predicate</code></li>
+<li>Filters: <code>zalando.org/skipper-filter</code></li>
+</ul>
+</li>
+<li><a href="https://godoc.org/github.com/zalando/skipper/metrics">metrics</a></li>
+<li>access logs</li>
+<li>Blue-Green deployments, with another Ingress annotation <code>zalando.org/backend-weights</code>, see Advanced Examples section</li>
+</ul>
+<h2 id="3-minutes-skipper-in-kubernetes-introduction">3 Minutes Skipper in Kubernetes introduction</h2>
+<p>You should have a base understanding of <a href="https://kubernetes.io">Kubernetes</a> and
+<a href="https://kubernetes.io/docs/concepts/services-networking/ingress/">Ingress</a>.</p>
+<p>Prerequisites: First you have to install skipper-ingress as for
+example daemonset, create a deployment and a service.</p>
+<p>We start to deploy skipper-ingress as a daemonset, use hostNetwork and
+expose the TCP port 9999 on each Kubernetes worker node for incoming ingress
+traffic.</p>
+<pre><code>% cat skipper-ingress-ds.yaml
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: skipper-ingress
+  namespace: kube-system
+  labels:
+    application: skipper-ingress
+    version: v0.9.115
+    component: ingress
+spec:
+  selector:
+    matchLabels:
+      application: skipper-ingress
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      name: skipper-ingress
+      labels:
+        application: skipper-ingress
+        version: v0.9.115
+        component: ingress
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: master
+                operator: DoesNotExist
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      hostNetwork: true
+      containers:
+      - name: skipper-ingress
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.9.115
+        ports:
+        - name: ingress-port
+          containerPort: 9999
+          hostPort: 9999
+        args:
+          - "skipper"
+          - "-kubernetes"
+          - "-kubernetes-in-cluster"
+          - "-address=:9999"
+          - "-proxy-preserve-host"
+          - "-serve-host-metrics"
+          - "-enable-ratelimits"
+          - "-experimental-upgrade"
+          - "-metrics-exp-decay-sample"
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 25m
+            memory: 25Mi
+        readinessProbe:
+          httpGet:
+            path: /kube-system/healthz
+            port: 9999
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+</code></pre>
+<p>We now deploy a simple demo application serving html:</p>
+<pre><code>% cat demo-deployment.yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: skipper-demo
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        application: skipper-demo
+    spec:
+      containers:
+      - name: skipper-demo
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.9.117
+        args:
+          - "skipper"
+          - "-inline-routes"
+          - "* -&gt; inlineContent(\"&lt;body style='color: white; background-color: green;'&gt;&lt;h1&gt;Hello!&lt;/h1&gt;\") -&gt; &lt;shunt&gt;"
+        ports:
+        - containerPort: 9090
+</code></pre>
+<p>We deploy a service type ClusterIP that we will select from ingress:</p>
+<pre><code>% cat demo-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sszuecs-demo
+  labels:
+    application: skipper-demo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 9090
+      name: external
+  selector:
+    application: sszuecs-demo
+</code></pre>
+<p>To deploy both, you have to run:</p>
+<pre><code>% kubectl create -f demo-deployment.yaml
+% kubectl create -f demo-svc.yaml
+</code></pre>
+<p>Now we have a skipper-ingress running as daemonset exposing the TCP
+port 9999 on each worker node, a backend application running with 2
+replicas that serves some html on TCP port 9090, and we expose a
+cluster service on TCP port 80. Besides skipper-ingress, deployment
+and service can not be reached from outside the cluster. Now we expose
+the application with Ingress to the external network:</p>
+<pre><code>% cat demo-ing.yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: skipper-demo"
+spec:
+  rules:
+  - host: skipper-demo.&lt;mydomain.org&gt;
+    http:
+      paths:
+      - backend:
+          serviceName: skipper-demo"
+          servicePort: 80
+</code></pre>
+<p>To deploy this ingress, you have to run:</p>
+<pre><code>% kubectl create -f demo-ing.yaml
+</code></pre>
+<p>Skipper will configure itself for the given ingress, such that you can test doing:</p>
+<pre><code>% curl -v -H"Host: skipper-demo.&lt;mydomain.org&gt;" http://&lt;nodeip&gt;:9999/
+</code></pre>
+<p>The next question you may ask is: how to expose this to your customers?</p>
+<p>The answer depends on your setup and complexity requirements. In the
+simplest case you could add one A record in your DNS <em>.<mydomain.org>
+to your frontend loadbalancer IP that directs all traffic from </em>.<mydomain.org>
+to all Kubernetes worker nodes on TCP port 9999.</p>
+<p>A more complex setup we use in production and can be done with
+something that configures your frontend loadbalancer, for example
+<a href="https://github.com/zalando-incubator/kube-ingress-aws-controller">kube-aws-ingress-controller</a>,
+and your DNS, <a href="https://github.com/kubernetes-incubator/external-dns">external-dns</a>
+automatically.</p>
+<h2 id="advanced-examples">Advanced Examples</h2>
+<h3 id="blue-green-deployments">Blue-Green deployments</h3>
+<p>To do blue-green deployments you have to have control over traffic
+switching. Skipper gives you the opportunity to set weights to backend
+services in your ingress specification. <code>zalando.org/backend-weights</code>
+is a hash map, which key relates to the <code>serviceName</code> of the backend
+and the value is the weight of traffic you want to send to the
+particular backend. It works for more than 2 backends, but for
+simplicity this example shows 2 backends, which should be the default
+case for supporting blue-green deployments.</p>
+<p>In the following example <strong>my-app-1</strong> service will get <strong>80%</strong> of the traffic
+and <strong>my-app-2</strong> will get <strong>20%</strong> of the traffic:</p>
+<pre><code>apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: my-app
+  labels:
+    application: my-app
+  annotations:
+    zalando.org/backend-weights: |
+      {"my-app-1": 80, "my-app-2": 20}
+spec:
+  rules:
+  - host: my-app.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: my-app-1
+          servicePort: http
+        path: /
+      - backend:
+          serviceName: my-app-2
+          servicePort: http
+        path: /
+</code></pre>
+<h3 id="circuitbreaker">Circuitbreaker</h3>
+<pre><code>apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: consecutiveBreaker
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+
+
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: rateBreaker
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+</code></pre>
+<h3 id="ratelimits">Ratelimits</h3>
+<p>More details you will find in <a href="https://godoc.org/github.com/zalando/skipper/filters/ratelimit">ratelimit package</a>
+and <a href="https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes">kubernetes dataclient</a> documentation.</p>
+<h4 id="client-ratelimits">Client Ratelimits</h4>
+<p>The example shows 3 calls per minute per client, based on
+X-Forwarded-For header or IP incase there is no X-Forwarded-For header
+set, are allowed to each skipper instance for the given ingress.</p>
+<pre><code>apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: localRatelimit(3, "1m")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+</code></pre>
+<h4 id="service-ratelimits">Service Ratelimits</h4>
+<p>The example shows 50 calls per minute are allowed to each skipper
+instance for the given ingress.</p>
+<pre><code>apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: ratelimit(50, "1m")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+</code></pre>
+<h3 id="use-predicates">use Predicates</h3>
+<p><a href="https://godoc.org/github.com/zalando/skipper/predicates">Predicates</a>
+are influencing the route matching, which you might want to carefully
+test before using it in production. This enables you to do feature
+toggles or time based enabling endpoints.</p>
+<p>You can use all kinds of <a href="https://godoc.org/github.com/zalando/skipper/predicates">predicates</a>
+with <a href="https://godoc.org/github.com/zalando/skipper/filters">filters</a> together.</p>
+<h4 id="feature-toggle">Feature Toggle</h4>
+<p>This ingress route will only be matched if there is a Querystring
+"version=alpha" defined in the request. Like this you can easily build
+feature toggles.</p>
+<pre><code>apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-predicate: QueryParam("version", "^alpha$")
+  name: alpha
+spec:
+  rules:
+  - host: alpha-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: alpha-svc
+          servicePort: 80
+</code></pre>
+<h3 id="chaining-filters">Chaining Filters</h3>
+<p>You can set multiple filters in a chain similar to the <a href="https://godoc.org/github.com/zalando/skipper/eskip">eskip format</a>.</p>
+<pre><code>apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: localRatelimit(50, "10m") -&gt; requestCookie("test-session", "abc")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+</code></pre></div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="http://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script>var base_url = '../..';</script>
+        <script src="../../js/base.js"></script>
+        <script src="../../search/require.js"></script>
+        <script src="../../search/search.js"></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="Search Modal" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <h4 class="modal-title" id="exampleModalLabel">Search</h4>
+            </div>
+            <div class="modal-body">
+                <p>
+                    From here you can search these documents. Enter
+                    your search terms below.
+                </p>
+                <form role="form">
+                    <div class="form-group">
+                        <input type="text" class="form-control" placeholder="Search..." id="mkdocs-search-query">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="Keyboard Shortcuts Modal" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <h4 class="modal-title" id="exampleModalLabel">Keyboard Shortcuts</h4>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>&larr;</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>&rarr;</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+
+    </body>
+</html>
