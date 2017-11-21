@@ -1,0 +1,10 @@
+site_name: Skipper
+pages:
+    - Architecture: index.md
+    - Deployments: deployments.md
+    - Data Clients:
+        - Eskip: dataclients/eskip-file.md
+        - Etcd: dataclients/etcd.md
+        - Inkeeper API: dataclients/inkeeper-api.md
+        - Kubernetes: dataclients/kubernetes.md
+        - Route String: dataclients/route-string.md
