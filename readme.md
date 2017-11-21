@@ -19,16 +19,21 @@ The Skoap filters can be found currently in the branch called 'skoap-migration'.
 
 ## Main features:
 
+An overview of [deployments and data-clients](https://zalando.github.io/skipper/deployments/)
+shows some use cases to run skipper.
+
+Skipper
+
 - identifies routes based on the requests' properties, such as path, method, host and headers
 - allows modification of the requests and responses with filters that are independently configured for each route
 - simultaneously streams incoming requests and backend responses
 - optionally acts as a final endpoint (shunt), e.g. as a static file server or a mock backend for diagnostics
 - updates routing rules without downtime, while supporting multiple types of data sources — including
-  [etcd](https://github.com/coreos/etcd), [Innkeeper](https://github.com/zalando/innkeeper), static files and
-  custom configuration sources
+  [etcd](https://github.com/coreos/etcd), [Kubernetes Ingress](https://zalando.github.io/skipper/dataclients/kubernetes/), [Innkeeper](https://github.com/zalando/innkeeper), [static files](https://zalando.github.io/skipper/dataclients/eskip-file/), [route string](https://zalando.github.io/skipper/dataclients/route-string/) and
+  [custom configuration sources](https://godoc.org/github.com/zalando/skipper/predicates/source)
 - can serve as a
-  [Kubernetes Ingress implementation](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes)
-  in combination with a controller that will route public traffic to
+  [Kubernetes Ingress controller](https://zalando.github.io/skipper/dataclients/kubernetes/)
+  without reloads. You can use it in combination with a controller that will route public traffic to
   your skipper fleet; [see AWS example](https://github.com/zalando-incubator/kube-ingress-aws-controller)
 - shipped with eskip: a descriptive configuration language designed for routing rules
 
@@ -99,19 +104,27 @@ Build and test all packages:
     make check
 
 
-### Kubernetes Ingress
+#### Kubernetes Ingress
 
-Skipper can be used to run as an Ingress implementation in combination with a controller, e.g.
-https://github.com/zalando-incubator/kube-ingress-aws-controller.
+Skipper can be used to run as an Kubernetes Ingress controller.
+[Details with examples](https://zalando.github.io/skipper/dataclients/kubernetes)
+of [Skipper's capabilities](https://zalando.github.io/skipper/dataclients/kubernetes/#skipper-features) and an
+[overview](https://zalando.github.io/skipper/deployments/#kubernetes-ingress)
+you will can be found in our [deployment docs](https://zalando.github.io/skipper).
+
+For AWS integration, we provide an ingress controller
+https://github.com/zalando-incubator/kube-ingress-aws-controller, that
+manage ALBs in front of your skipper deployment.
 A production example,
 https://github.com/zalando-incubator/kubernetes-on-aws/blob/dev/cluster/manifests/skipper/daemonset.yaml,
 can be found in our Kubernetes configuration https://github.com/zalando-incubator/kubernetes-on-aws.
 
-
 ### Documentation
 
-Skipper's [docs directory](doc/readme.md) and Godoc page, https://godoc.org/github.com/zalando/skipper, includes detailed information on these
-topics:
+[Skipper's Documentation](https://zalando.github.io/skipper) and
+[Godoc developer documentation](https://godoc.org/github.com/zalando/skipper),
+includes information about [deployment use cases](https://zalando.github.io/skipper/deployments/)
+and detailed information on these topics:
 
 - The [Routing](https://godoc.org/github.com/zalando/skipper/routing) Mechanism
 - Matching Requests
