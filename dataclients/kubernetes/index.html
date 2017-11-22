@@ -336,11 +336,20 @@ spec:
         path: /
 </code></pre>
 <h3 id="circuitbreaker">Circuitbreaker</h3>
+<h4 id="consecutive-breaker">Consecutive Breaker</h4>
+<p>The <a href="https://godoc.org/github.com/zalando/skipper/filters/circuit#NewConsecutiveBreaker">consecutiveBreaker</a>
+filter is a breaker for the ingress route that open if the backend failures
+for the route reach a value of N (in this example N=15), where N is a
+mandatory argument of the filter and there are some more optional arguments
+<a href="https://godoc.org/github.com/zalando/skipper/filters/circuit#NewConsecutiveBreaker">documented</a>:</p>
+<pre><code>consecutiveBreaker(15)
+</code></pre>
+<p>The ingress spec would look like this:</p>
 <pre><code>apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   annotations:
-    zalando.org/skipper-filter: consecutiveBreaker
+    zalando.org/skipper-filter: consecutiveBreaker(15)
   name: app
 spec:
   rules:
@@ -350,13 +359,22 @@ spec:
       - backend:
           serviceName: app-svc
           servicePort: 80
-
-
-apiVersion: extensions/v1beta1
+</code></pre>
+<h4 id="rate-breaker">Rate Breaker</h4>
+<p>The <a href="https://godoc.org/github.com/zalando/skipper/filters/circuit#NewRateBreaker">rateBreaker</a>
+filter is a breaker for the ingress route that open if the backend
+failures for the route reach a value of N within a window of the last
+M requests, where N (in this example 30) and M (in this example 300)
+are mandatory arguments of the filter and there are some more optional arguments
+<a href="https://godoc.org/github.com/zalando/skipper/filters/circuit#NewRateBreaker">documented</a>.</p>
+<pre><code>rateBreaker(30, 300)
+</code></pre>
+<p>The ingress spec would look like this:</p>
+<pre><code>apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   annotations:
-    zalando.org/skipper-filter: rateBreaker
+    zalando.org/skipper-filter: rateBreaker(30, 300)
   name: app
 spec:
   rules:

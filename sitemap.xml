@@ -4,7 +4,7 @@
     
     <url>
      <loc>/</loc>
-     <lastmod>2017-11-21</lastmod>
+     <lastmod>2017-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -12,7 +12,7 @@
     
     <url>
      <loc>/deployments/</loc>
-     <lastmod>2017-11-21</lastmod>
+     <lastmod>2017-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -21,31 +21,31 @@
         
     <url>
      <loc>/dataclients/eskip-file/</loc>
-     <lastmod>2017-11-21</lastmod>
+     <lastmod>2017-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/dataclients/etcd/</loc>
-     <lastmod>2017-11-21</lastmod>
+     <lastmod>2017-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/dataclients/inkeeper-api/</loc>
-     <lastmod>2017-11-21</lastmod>
+     <lastmod>2017-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/dataclients/kubernetes/</loc>
-     <lastmod>2017-11-21</lastmod>
+     <lastmod>2017-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/dataclients/route-string/</loc>
-     <lastmod>2017-11-21</lastmod>
+     <lastmod>2017-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
