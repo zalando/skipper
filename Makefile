@@ -1,6 +1,6 @@
 SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*")
 PACKAGES           = $(shell glide novendor || echo -n "./...")
-CURRENT_VERSION    = $(shell git tag | sort -V | tail -n1)
+CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
 VERSION           ?= $(CURRENT_VERSION)
 NEXT_MAJOR         = $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
 NEXT_MINOR         = $(shell go run packaging/version/version.go minor $(CURRENT_VERSION))
@@ -23,6 +23,12 @@ eskip: $(SOURCES) bindir
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip
 
 build: $(SOURCES) lib skipper eskip
+
+build.osx:
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
+build.windows:
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 install: $(SOURCES)
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
