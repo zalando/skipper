@@ -121,6 +121,10 @@ can be used to validate the syntax of your routes file before
 reloading a production server:</p>
 <pre><code>% eskip check example.eskip
 </code></pre>
+<p>To run skipper serving routes from an <code>eskip</code> file you have to use
+<code>-routes-file &lt;file&gt;</code> parameter:</p>
+<pre><code>% skipper -routes-file example.eskip
+</code></pre>
 <p>A more complicated example with different routes, matches,
 <a href="https://godoc.org/github.com/zalando/skipper/predicates">predicates</a> and
 <a href="https://godoc.org/github.com/zalando/skipper/filters">filters</a> shows that
