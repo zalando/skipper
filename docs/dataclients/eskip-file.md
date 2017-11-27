@@ -15,6 +15,11 @@ reloading a production server:
 
     % eskip check example.eskip
 
+To run skipper serving routes from an `eskip` file you have to use
+`-routes-file <file>` parameter:
+
+    % skipper -routes-file example.eskip
+
 
 A more complicated example with different routes, matches,
 [predicates](https://godoc.org/github.com/zalando/skipper/predicates) and
