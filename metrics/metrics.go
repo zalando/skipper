@@ -39,30 +39,77 @@ type Options struct {
 	// for each backend host
 	EnableBackendHostMetrics bool
 
+	// EnableAllFiltersMetrics enables collecting combined filter
+	// metrics per each route. Without the DisableCompatibilityDefaults,
+	// it is enabled by default.
+	EnableAllFiltersMetrics bool
+
+	// EnableCombinedResponseMetrics enables collecting response time
+	// metrics combined for every route.
+	EnableCombinedResponseMetrics bool
+
+	// EnableRouteResponseMetrics enables collecting response time
+	// metrics per each route. Without the DisableCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteResponseMetrics bool
+
+	// EnableRouteBackendErrorsCounters enables counters for backend
+	// errors per each route. Without the DisableCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteBackendErrorsCounters bool
+
+	// EnableRouteStreamingErrorsCounters enables counters for streaming
+	// errors per each route. Without the DisableCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteStreamingErrorsCounters bool
+
+	// EnableRouteBackendMetrics enables backend response time metrics
+	// per each route. Without the DisableCompatibilityDefaults, it is
+	// enabled by default.
+	EnableRouteBackendMetrics bool
+
+	// UseExpDecaySample, when set, makes the histograms use an exponentially
+	// decaying sample instead of the default uniform one.
+	UseExpDecaySample bool
+
+	// The following options, for backwards compatibility, are true
+	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
+	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
+	// EnableRouteBackendMetrics. With this compatibility flag, the default
+	// for these options can be set to false.
+	DisableCompatibilityDefaults bool
+
 	// EnableProfile exposes profiling information on /pprof of the
 	// metrics listener.
 	EnableProfile bool
 }
 
 const (
-	KeyRouteLookup      = "routelookup"
-	KeyRouteFailure     = "routefailure"
-	KeyFilterRequest    = "filter.%s.request"
-	KeyFiltersRequest   = "allfilters.request.%s"
-	KeyProxyBackend     = "backend.%s"
-	KeyProxyBackendHost = "backendhost.%s"
-	KeyFilterResponse   = "filter.%s.response"
-	KeyFiltersResponse  = "allfilters.response.%s"
-	KeyResponse         = "response.%d.%s.skipper.%s"
-	KeyServeRoute       = "serveroute.%s.%s.%d"
-	KeyServeHost        = "servehost.%s.%s.%d"
+	KeyRouteLookup                = "routelookup"
+	KeyRouteFailure               = "routefailure"
+	KeyFilterRequest              = "filter.%s.request"
+	KeyFiltersRequest             = "allfilters.request.%s"
+	KeyAllFiltersRequestCombined  = "allfilters.combined.request"
+	KeyProxyBackend               = "backend.%s"
+	KeyProxyBackendCombined       = "all.backend"
+	KeyProxyBackendHost           = "backendhost.%s"
+	KeyFilterResponse             = "filter.%s.response"
+	KeyFiltersResponse            = "allfilters.response.%s"
+	KeyAllFiltersResponseCombined = "allfilters.combined.response"
+	KeyResponse                   = "response.%d.%s.skipper.%s"
+	KeyResponseCombined           = "all.response.%d.%s.skipper"
+	KeyServeRoute                 = "serveroute.%s.%s.%d"
+	KeyServeHost                  = "servehost.%s.%s.%d"
+	Key5xxsBackend                = "all.backend.5xx"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
 
 	statsRefreshDuration = time.Duration(5 * time.Second)
 
-	defaultReservoirSize = 1024
+	defaultUniformReservoirSize  = 1024
+	defaultExpDecayReservoirSize = 1028
+	defaultExpDecayAlpha         = 0.015
 )
 
 type Metrics struct {
@@ -77,10 +124,34 @@ var (
 	Void    *Metrics
 )
 
+func applyCompatibilityDefaults(o Options) Options {
+	if o.DisableCompatibilityDefaults {
+		return o
+	}
+
+	o.EnableAllFiltersMetrics = true
+	o.EnableRouteResponseMetrics = true
+	o.EnableRouteBackendErrorsCounters = true
+	o.EnableRouteStreamingErrorsCounters = true
+	o.EnableRouteBackendMetrics = true
+
+	return o
+}
+
 func New(o Options) *Metrics {
+	o = applyCompatibilityDefaults(o)
+
 	m := &Metrics{}
 	m.reg = metrics.NewRegistry()
-	m.createTimer = createTimer
+
+	var createSample func() metrics.Sample
+	if o.UseExpDecaySample {
+		createSample = newExpDecaySample
+	} else {
+		createSample = newUniformSample
+	}
+	m.createTimer = func() metrics.Timer { return createTimer(createSample()) }
+
 	m.createCounter = metrics.NewCounter
 	m.options = o
 
@@ -128,8 +199,16 @@ func NewHandler(o Options) http.Handler {
 	return handler
 }
 
-func createTimer() metrics.Timer {
-	return metrics.NewCustomTimer(metrics.NewHistogram(metrics.NewUniformSample(defaultReservoirSize)), metrics.NewMeter())
+func newUniformSample() metrics.Sample {
+	return metrics.NewUniformSample(defaultUniformReservoirSize)
+}
+
+func newExpDecaySample() metrics.Sample {
+	return metrics.NewExpDecaySample(defaultExpDecayReservoirSize, defaultExpDecayAlpha)
+}
+
+func createTimer(sample metrics.Sample) metrics.Timer {
+	return metrics.NewCustomTimer(metrics.NewHistogram(sample), metrics.NewMeter())
 }
 
 func (m *Metrics) getTimer(key string) metrics.Timer {
@@ -140,6 +219,14 @@ func (m *Metrics) updateTimer(key string, d time.Duration) {
 	if t := m.getTimer(key); t != nil {
 		t.Update(d)
 	}
+}
+
+func (m *Metrics) MeasureSince(key string, start time.Time) {
+	m.measureSince(key, start)
+}
+
+func (m *Metrics) IncCounter(key string) {
+	m.incCounter(key)
 }
 
 func (m *Metrics) measureSince(key string, start time.Time) {
@@ -156,11 +243,17 @@ func (m *Metrics) MeasureFilterRequest(filterName string, start time.Time) {
 }
 
 func (m *Metrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
-	m.measureSince(fmt.Sprintf(KeyFiltersRequest, routeId), start)
+	m.measureSince(KeyAllFiltersRequestCombined, start)
+	if m.options.EnableAllFiltersMetrics {
+		m.measureSince(fmt.Sprintf(KeyFiltersRequest, routeId), start)
+	}
 }
 
 func (m *Metrics) MeasureBackend(routeId string, start time.Time) {
-	m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
+	m.measureSince(KeyProxyBackendCombined, start)
+	if m.options.EnableRouteBackendMetrics {
+		m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
+	}
 }
 
 func (m *Metrics) MeasureBackendHost(routeBackendHost string, start time.Time) {
@@ -174,12 +267,21 @@ func (m *Metrics) MeasureFilterResponse(filterName string, start time.Time) {
 }
 
 func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
-	m.measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
+	m.measureSince(KeyAllFiltersResponseCombined, start)
+	if m.options.EnableAllFiltersMetrics {
+		m.measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
+	}
 }
 
 func (m *Metrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
 	method = measuredMethod(method)
-	m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
+	if m.options.EnableCombinedResponseMetrics {
+		m.measureSince(fmt.Sprintf(KeyResponseCombined, code, method), start)
+	}
+
+	if m.options.EnableRouteResponseMetrics {
+		m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
+	}
 }
 
 func hostForKey(h string) string {
@@ -233,11 +335,19 @@ func (m *Metrics) IncRoutingFailures() {
 }
 
 func (m *Metrics) IncErrorsBackend(routeId string) {
-	m.incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
+	if m.options.EnableRouteBackendErrorsCounters {
+		m.incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
+	}
+}
+
+func (m *Metrics) MeasureBackend5xx(t time.Time) {
+	m.measureSince(Key5xxsBackend, t)
 }
 
 func (m *Metrics) IncErrorsStreaming(routeId string) {
-	m.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
+	if m.options.EnableRouteStreamingErrorsCounters {
+		m.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
+	}
 }
 
 // This listener is used to expose the collected metrics.

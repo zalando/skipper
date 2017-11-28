@@ -14,6 +14,11 @@ type logSubscription struct {
 	notify chan<- struct{}
 }
 
+type countMessage struct {
+	expression string
+	response   chan<- int
+}
+
 type logWatch struct {
 	entries []string
 	reqs    []*logSubscription
@@ -22,9 +27,11 @@ type logWatch struct {
 // Logger provides an implementation of the logging.Logger interface
 // that can be used to receive notifications about log events.
 type Logger struct {
-	save   chan string
+	logc   chan string
 	notify chan<- logSubscription
+	count  chan countMessage
 	clear  chan struct{}
+	mute   chan bool
 	quit   chan<- struct{}
 }
 
@@ -63,6 +70,17 @@ func (lw *logWatch) notify(req logSubscription) {
 	}
 }
 
+func (lw *logWatch) count(m countMessage) {
+	var count int
+	for _, e := range lw.entries {
+		if strings.Contains(e, m.expression) {
+			count++
+		}
+	}
+
+	m.response <- count
+}
+
 func (lw *logWatch) clear() {
 	lw.entries = nil
 	lw.reqs = nil
@@ -71,37 +89,57 @@ func (lw *logWatch) clear() {
 // Returns a new, initialized instance of Logger.
 func New() *Logger {
 	lw := &logWatch{}
-	save := make(chan string)
+	logc := make(chan string)
 	notify := make(chan logSubscription)
+	count := make(chan countMessage)
 	clear := make(chan struct{})
+	mute := make(chan bool)
 	quit := make(chan struct{})
+
+	// start muted to reduce spam during failing tests
+	muted := true
+
+	tl := &Logger{
+		logc:   logc,
+		notify: notify,
+		count:  count,
+		clear:  clear,
+		mute:   mute,
+		quit:   quit,
+	}
 
 	go func() {
 		for {
 			select {
-			case e := <-save:
+			case e := <-logc:
 				lw.save(e)
+				if !muted {
+					log.Println(e)
+				}
+
 			case req := <-notify:
 				lw.notify(req)
+			case req := <-count:
+				lw.count(req)
 			case <-clear:
 				lw.clear()
+			case m := <-mute:
+				muted = m
 			case <-quit:
 				return
 			}
 		}
 	}()
 
-	return &Logger{save, notify, clear, quit}
+	return tl
 }
 
 func (tl *Logger) logf(f string, a ...interface{}) {
-	log.Printf(f, a...)
-	tl.save <- fmt.Sprintf(f, a...)
+	tl.logc <- fmt.Sprintf(f, a...)
 }
 
 func (tl *Logger) log(a ...interface{}) {
-	log.Println(a...)
-	tl.save <- fmt.Sprint(a...)
+	tl.logc <- fmt.Sprint(a...)
 }
 
 // Returns nil when n logging events matching exp were received or returns
@@ -124,9 +162,29 @@ func (tl *Logger) WaitFor(exp string, to time.Duration) error {
 	return tl.WaitForN(exp, 1, to)
 }
 
+// Count returns the recorded messages that match exp.
+func (tl *Logger) Count(expression string) int {
+	rsp := make(chan int)
+	m := countMessage{
+		expression: expression,
+		response:   rsp,
+	}
+
+	tl.count <- m
+	return <-rsp
+}
+
 // Clears the stored logging events.
 func (tl *Logger) Reset() {
 	tl.clear <- struct{}{}
+}
+
+func (tl *Logger) Mute() {
+	tl.mute <- true
+}
+
+func (tl *Logger) Unmute() {
+	tl.mute <- false
 }
 
 // Closes the logger.

@@ -23,6 +23,147 @@ failing healthcheck after the signal was received. This means that, when the Ing
 the healthcheck of the cluster, and the Skipper process receives the TERM signal, it won't exit by itself
 immediately, but will start reporting failures on healthcheck requests. Until it gets killed by the kubelet,
 Skipper keeps serving the requests in this case.
+
+Example - Ingress
+
+A basic ingress specification:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+Example - Ingress with ratelimiting
+
+The example shows 50 calls per minute are allowed to each skipper
+instance for the given ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/ratelimit: ratelimit(50, "1m")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+Example - Ingress with client based ratelimiting
+
+The example shows 3 calls per minute per client, based on
+X-Forwarded-For header or IP incase there is no X-Forwarded-For header
+set, are allowed to each skipper instance for the given ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/ratelimit: localRatelimit(3, "1m")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+The example shows 500 calls per hour per client, based on
+Authorization header set, are allowed to each skipper instance for the
+given ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/ratelimit: localRatelimit(500, "1h", "auth")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+Example - Ingress with custom skipper filter configuration
+
+The example shows the use of 2 filters from skipper for the implicitly
+defined route in ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+Example - Ingress with custom skipper Predicate configuration
+
+The example shows the use of a skipper predicates for the implicitly
+defined route in ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-predicate: QueryParam("query", "^example$")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+Example - Ingress with shadow traffic
+
+This will send production traffic to app-default.example.org and
+copies incoming requests to https://app.shadow.example.org, but drops
+responses from shadow URL. This is helpful to test your next
+generation software with production workload. See also
+https://godoc.org/github.com/zalando/skipper/filters/tee for details.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-filter: tee("https://app.shadow.example.org")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
 */
 package kubernetes
 
@@ -55,20 +196,23 @@ import (
 // - provide option to limit the used namespaces?
 
 const (
-	defaultKubernetesURL        = "http://localhost:8001"
-	ingressesURI                = "/apis/extensions/v1beta1/ingresses"
-	ingressClassKey             = "kubernetes.io/ingress.class"
-	defaultIngressClass         = "skipper"
-	serviceURIFmt               = "/api/v1/namespaces/%s/services/%s"
-	serviceAccountDir           = "/var/run/secrets/kubernetes.io/serviceaccount/"
-	serviceAccountTokenKey      = "token"
-	serviceAccountRootCAKey     = "ca.crt"
-	serviceHostEnvVar           = "KUBERNETES_SERVICE_HOST"
-	servicePortEnvVar           = "KUBERNETES_SERVICE_PORT"
-	healthcheckRouteID          = "kube__healthz"
-	httpRedirectRouteID         = "kube__redirect"
-	healthcheckPath             = "/kube-system/healthz"
-	backendWeightsAnnotationKey = "zalando.org/backend-weights"
+	defaultKubernetesURL          = "http://localhost:8001"
+	ingressesURI                  = "/apis/extensions/v1beta1/ingresses"
+	ingressClassKey               = "kubernetes.io/ingress.class"
+	defaultIngressClass           = "skipper"
+	serviceURIFmt                 = "/api/v1/namespaces/%s/services/%s"
+	serviceAccountDir             = "/var/run/secrets/kubernetes.io/serviceaccount/"
+	serviceAccountTokenKey        = "token"
+	serviceAccountRootCAKey       = "ca.crt"
+	serviceHostEnvVar             = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar             = "KUBERNETES_SERVICE_PORT"
+	healthcheckRouteID            = "kube__healthz"
+	httpRedirectRouteID           = "kube__redirect"
+	healthcheckPath               = "/kube-system/healthz"
+	backendWeightsAnnotationKey   = "zalando.org/backend-weights"
+	ratelimitAnnotationKey        = "zalando.org/ratelimit"
+	skipperfilterAnnotationKey    = "zalando.org/skipper-filter"
+	skipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
 )
 
 var internalIPs = []interface{}{
@@ -140,7 +284,6 @@ var nonWord = regexp.MustCompile("\\W")
 
 var (
 	errServiceNotFound      = errors.New("service not found")
-	errServicePortNotFound  = errors.New("service port not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
 	errInvalidCertificate   = errors.New("invalid CA")
 )
@@ -281,6 +424,10 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	log.Debugf("request to %s succeeded", url)
 	defer rsp.Body.Close()
 
+	if rsp.StatusCode == http.StatusNotFound {
+		return errServiceNotFound
+	}
+
 	if rsp.StatusCode != http.StatusOK {
 		log.Debugf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
@@ -330,7 +477,7 @@ func (c *Client) getServiceURL(namespace, name string, port backendPort) (string
 	}
 
 	log.Debugf("service port not found by name: %s", pn)
-	return "", errServicePortNotFound
+	return "", errServiceNotFound
 }
 
 // TODO: find a nicer way to autogenerate route IDs
@@ -418,13 +565,13 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 	return r, nil
 }
 
-// logs if invalid, but proceeds with the valid ones
-// should report failures in Ingress status
-//
-// TODO:
-// - check how to set failures in ingress status
-func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
+// ingressToRoutes logs if an invalid found, but proceeds with the
+// valid ones.  Reporting failures in Ingress status is not possible,
+// because Ingress status field is v1.LoadBalancerIngress that only
+// supports IP and Hostname as string.
+func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(items))
+	hostRoutes := make(map[string][]*eskip.Route)
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 			i.Spec == nil {
@@ -436,6 +583,23 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 			routes = append(routes, r)
 		} else if err != nil {
 			log.Errorf("error while converting default backend: %v", err)
+		}
+
+		// parse filter and ratelimit annotation
+		var annotationFilter string
+		if ratelimitAnnotationValue, ok := i.Metadata.Annotations[ratelimitAnnotationKey]; ok {
+			annotationFilter = ratelimitAnnotationValue
+		}
+		if val, ok := i.Metadata.Annotations[skipperfilterAnnotationKey]; ok {
+			if annotationFilter != "" {
+				annotationFilter = annotationFilter + " -> "
+			}
+			annotationFilter = annotationFilter + val
+		}
+		// parse predicate annotation
+		var annotationPredicate string
+		if val, ok := i.Metadata.Annotations[skipperpredicateAnnotationKey]; ok {
+			annotationPredicate = val
 		}
 
 		// parse backend-weihgts annotation if it exists
@@ -467,22 +631,73 @@ func (c *Client) ingressToRoutes(items []*ingressItem) []*eskip.Route {
 				if prule.Backend.Traffic > 0 {
 					r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
 					if err != nil {
-						// tolerate single rule errors
-						//
-						// TODO:
-						// - check how to set failures in ingress status
-						log.Errorf("error while getting service: %v", err)
-						continue
+						// if the service is not found the route should be removed
+						if err == errServiceNotFound {
+							continue
+						}
+						// Ingress status field does not support errors
+						return nil, fmt.Errorf("error while getting service: %v", err)
 					}
 
 					r.HostRegexps = host
-					routes = append(routes, r)
+					if annotationFilter != "" {
+						annotationFilters, err := eskip.ParseFilters(annotationFilter)
+						if err != nil {
+							log.Errorf("Can not parse annotation filters: %v", err)
+						} else {
+							sav := r.Filters[:]
+							r.Filters = append(annotationFilters, sav...)
+						}
+					}
+
+					if annotationPredicate != "" {
+						predicates, err := eskip.ParsePredicates(annotationPredicate)
+						if err != nil {
+							log.Errorf("Can not parse annotation predicate: %v", err)
+						} else {
+							r.Predicates = predicates
+						}
+					}
+					hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 				}
 			}
 		}
 	}
 
-	return routes
+	for host, rs := range hostRoutes {
+		routes = append(routes, rs...)
+
+		// if routes were configured, but there is no catchall route
+		// defined for the host name, create a route which returns 404
+		if len(rs) > 0 && !catchAllRoutes(rs) {
+			catchAll := &eskip.Route{
+				Id:          routeID("", "catchall", host, "", ""),
+				HostRegexps: rs[0].HostRegexps,
+				BackendType: eskip.ShuntBackend,
+			}
+			routes = append(routes, catchAll)
+		}
+	}
+
+	return routes, nil
+}
+
+// catchAllRoutes returns true if one of the routes in the list has a catchAll
+// path expression.
+func catchAllRoutes(routes []*eskip.Route) bool {
+	for _, route := range routes {
+		if len(route.PathRegexps) == 0 {
+			return true
+		}
+
+		for _, exp := range route.PathRegexps {
+			if exp == "^/" {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // computeBackendWeights computes and sets the backend traffic weights on the
@@ -598,7 +813,11 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	log.Debugf("all ingresses received: %d", len(il.Items))
 	fItems := c.filterIngressesByClass(il.Items)
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
-	r := c.ingressToRoutes(fItems)
+	r, err := c.ingressToRoutes(fItems)
+	if err != nil {
+		log.Debugf("converting ingresses to routes failed: %v", err)
+		return nil, err
+	}
 	log.Debugf("all routes created: %d", len(r))
 	return r, nil
 }
@@ -649,7 +868,7 @@ func httpRedirectRoute() *eskip.Route {
 func (c *Client) hasReceivedTerm() bool {
 	select {
 	case s := <-c.sigs:
-		log.Infof("shutdown, caused by %s, set healthCheck to be unhealthy", s)
+		log.Infof("shutdown, caused by %s, set health check to be unhealthy", s)
 		c.termReceived = true
 	default:
 	}
@@ -661,10 +880,11 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	r, err := c.loadAndConvert()
 	if err != nil {
-		log.Debugf("failed to load all: %v", err)
+		log.Errorf("failed to load all: %v", err)
 		return nil, err
 	}
 
+	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
 		r = append(r, healthcheckRoute(healthy))
@@ -685,18 +905,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("polling for updates")
 	r, err := c.loadAndConvert()
 	if err != nil {
-		log.Debugf("polling for updates failed: %v", err)
-
-		// moving the error handling decision to the data client,
-		// preserving the previous state to the routing, except
-		// for the healthcheck
-		if c.provideHealthcheck {
-			log.Error("error while receiveing updated ingress routes;", err)
-			hc := healthcheckRoute(false)
-			c.current[healthcheckRouteID] = hc
-			return []*eskip.Route{hc}, nil, nil
-		}
-
+		log.Errorf("polling for updates failed: %v", err)
 		return nil, nil, err
 	}
 
@@ -724,6 +933,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
 
+	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
 		hc := healthcheckRoute(healthy)

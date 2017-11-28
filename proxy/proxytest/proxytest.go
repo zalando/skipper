@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging/loggingtest"
@@ -14,7 +15,7 @@ import (
 
 type TestProxy struct {
 	URL     string
-	log     *loggingtest.Logger
+	Log     *loggingtest.Logger
 	routing *routing.Routing
 	proxy   *proxy.Proxy
 	server  *httptest.Server
@@ -25,6 +26,9 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 	tl := loggingtest.New()
 	rt := routing.New(routing.Options{FilterRegistry: fr, DataClients: []routing.DataClient{dc}, Log: tl})
 	o.Routing = rt
+	if o.OpenTracer == nil {
+		o.OpenTracer = &opentracing.NoopTracer{}
+	}
 	pr := proxy.WithParams(o)
 	tsp := httptest.NewServer(pr)
 
@@ -34,10 +38,11 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 
 	return &TestProxy{
 		URL:     tsp.URL,
-		log:     tl,
+		Log:     tl,
 		routing: rt,
 		proxy:   pr,
-		server:  tsp}
+		server:  tsp,
+	}
 }
 
 func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
@@ -45,7 +50,7 @@ func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
 }
 
 func (p *TestProxy) Close() error {
-	p.log.Close()
+	p.Log.Close()
 	p.routing.Close()
 
 	err := p.proxy.Close()

@@ -1,32 +1,44 @@
-hash: b32ab68082d8773a25dc4ff8236d060a3680e5d4e7f322b248b8b4a06d52e334
-updated: 2017-07-17T18:21:39.526808142+02:00
+hash: 3a752320e676a837db5f77cbd70ebdc0a8d90b13e7539b614c68df092eb2efd3
+updated: 2017-10-31T19:35:10.727940916+01:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
 - name: github.com/dimfeld/httppath
   version: c8e499c3ef3c3e272ed8bdcc1ccf39f73c88debc
 - name: github.com/google/go-cmp
-  version: e6ff442c1751c5257df71dd2a42b9bcbbd6f01a6
+  version: d5735f74713c51f7450a43d0a98d41ce2c1db3cb
   subpackages:
   - cmp
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value
 - name: github.com/oklog/ulid
   version: d311cb43c92434ec4072dfbbda3400741d0a6337
+- name: github.com/opentracing/opentracing-go
+  version: 1361b9cd60be79c4c3a7fa9841b3c132e40066a7
+  subpackages:
+  - ext
+  - log
 - name: github.com/rcrowley/go-metrics
   version: 1f30fe9094a513ce4c700b9a54458bbb0c96996c
 - name: github.com/sirupsen/logrus
-  version: a3f95b5c423586578a4e099b11a46c2479628cac
+  version: f006c2ac4710855cf0f916dd6b77acf6b048dc6e
 - name: github.com/sony/gobreaker
   version: e9556a45379ef1da12e54847edb2fb3d7d566f36
-- name: github.com/zalando/pathmux
-  version: 90241ddcbc6161a874026d890f4bed831b5dfbb5
+- name: github.com/szuecs/rate-limit-buffer
+  version: 1a179ab26baf3b8450aaaa662e3120155fadb39d
 - name: golang.org/x/crypto
-  version: adbae1b6b6fb4b02448a0fc0dbbc9ba2b95b294d
+  version: d172538b2cfce0c13cee31e647d0367aa8cd2486
   subpackages:
   - bcrypt
   - blowfish
   - ssh/terminal
+- name: golang.org/x/net
+  version: e90d6d0afc4c315a0d87a568ae68577cc15149a0
+  subpackages:
+  - context
 - name: golang.org/x/sys
-  version: f7928cfef4d09d1b080aa2b6fd3ca9ba1567c733
+  version: 8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9
   subpackages:
   - unix
 testImports:
@@ -38,6 +50,8 @@ testImports:
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
+- name: github.com/sanity-io/litter
+  version: 74aad7f5a675c9103cbc98548c7711e3de027208
 - name: github.com/stretchr/testify
   version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
   subpackages:

@@ -3,6 +3,9 @@ package filters
 import (
 	"errors"
 	"net/http"
+	"time"
+
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 // Context object providing state and information that is unique to a request.
@@ -71,6 +74,24 @@ type FilterContext interface {
 	// (The requestHeader filter automatically detects if the header name
 	// is 'Host' and calls this method.)
 	SetOutgoingHost(string)
+
+	// Allow filters to collect metrics other than the default metrics (Filter Request, Filter Response methods)
+	Metrics() Metrics
+
+	// Allow filters to add Tags, Baggage to the trace or set the ComponentName.
+	Tracer() opentracing.Tracer
+}
+
+// Metrics provides possibility to use custom metrics from filter implementations. The custom metrics will
+// be exposed by the common metrics endpoint exposed by the proxy, where they can be accessed by the custom
+// key prefixed by the filter name and the string 'custom'. E.g: <filtername>.custom.<customkey>.
+type Metrics interface {
+
+	// MeasureSince adds values to a timer with a custom key.
+	MeasureSince(key string, start time.Time)
+
+	// IncCounter increments a custom counter identified by its key.
+	IncCounter(key string)
 }
 
 // Filters are created by the Spec components, optionally using filter

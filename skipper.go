@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
@@ -23,7 +24,9 @@ import (
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -117,6 +120,9 @@ type Options struct {
 	// File containing static route definitions.
 	RoutesFile string
 
+	// InlineRoutes can define routes as eskip text.
+	InlineRoutes string
+
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
 
@@ -148,6 +154,10 @@ type Options struct {
 
 	// Custom data clients to be used together with the default etcd and Innkeeper.
 	CustomDataClients []routing.DataClient
+
+	// SuppressRouteUpdateLogs indicates to log only summaries of the routing updates
+	// instead of full details of the updated/deleted routes.
+	SuppressRouteUpdateLogs bool
 
 	// Dev mode. Currently this flag disables prioritization of the
 	// consumer side over the feeding side during the routing updates to
@@ -185,6 +195,46 @@ type Options struct {
 	// If set, detailed response time metrics will be collected
 	// for each backend host
 	EnableBackendHostMetrics bool
+
+	// EnableAllFiltersMetrics enables collecting combined filter
+	// metrics per each route. Without the DisableMetricsCompatibilityDefaults,
+	// it is enabled by default.
+	EnableAllFiltersMetrics bool
+
+	// EnableCombinedResponseMetrics enables collecting response time
+	// metrics combined for every route.
+	EnableCombinedResponseMetrics bool
+
+	// EnableRouteResponseMetrics enables collecting response time
+	// metrics per each route. Without the DisableMetricsCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteResponseMetrics bool
+
+	// EnableRouteBackendErrorsCounters enables counters for backend
+	// errors per each route. Without the DisableMetricsCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteBackendErrorsCounters bool
+
+	// EnableRouteStreamingErrorsCounters enables counters for streaming
+	// errors per each route. Without the DisableMetricsCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteStreamingErrorsCounters bool
+
+	// EnableRouteBackendMetrics enables backend response time metrics
+	// per each route. Without the DisableMetricsCompatibilityDefaults, it is
+	// enabled by default.
+	EnableRouteBackendMetrics bool
+
+	// When set, makes the histograms use an exponentially decaying sample
+	// instead of the default uniform one.
+	MetricsUseExpDecaySample bool
+
+	// The following options, for backwards compatibility, are true
+	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
+	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
+	// EnableRouteBackendMetrics. With this compatibility flag, the default
+	// for these options can be set to false.
+	DisableMetricsCompatibilityDefaults bool
 
 	// Output file for the application log. Default value: /dev/stderr.
 	//
@@ -243,6 +293,26 @@ type Options struct {
 
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
+
+	// EnableRatelimiters enables the usage of the ratelimiter in the route definitions without initializing any
+	// by default. It is a shortcut for setting the RatelimitSettings to:
+	//
+	// 	[]ratelimit.Settings{{Type: DisableRatelimit}}
+	//
+	EnableRatelimiters bool
+
+	// RatelimitSettings contain global and host specific settings for the ratelimiters.
+	RatelimitSettings []ratelimit.Settings
+
+	// OpenTracing enables opentracing
+	OpenTracing []string
+
+	// PluginDir defines the dir to load plugins from
+	PluginDir string
+
+	// DefaultHTTPStatus is the HTTP status used when no routes are found
+	// for a request.
+	DefaultHTTPStatus int
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -256,6 +326,16 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 		}
 
 		clients = append(clients, f)
+	}
+
+	if o.InlineRoutes != "" {
+		ir, err := routestring.New(o.InlineRoutes)
+		if err != nil {
+			log.Error("error while parsing inline routes", err)
+			return nil, err
+		}
+
+		clients = append(clients, ir)
 	}
 
 	if o.InnkeeperUrl != "" {
@@ -437,7 +517,9 @@ func Run(o Options) error {
 		PollTimeout:     o.SourcePollTimeout,
 		DataClients:     dataClients,
 		Predicates:      o.CustomPredicates,
-		UpdateBuffer:    updateBuffer})
+		UpdateBuffer:    updateBuffer,
+		SuppressLogs:    o.SuppressRouteUpdateLogs,
+	})
 	defer routing.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
@@ -450,10 +532,16 @@ func Run(o Options) error {
 		FlushInterval:          o.BackendFlushInterval,
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
+		DefaultHTTPStatus:      o.DefaultHTTPStatus,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
 		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
+	}
+
+	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
+		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
+		proxyParams.RateLimiters = ratelimit.NewRegistry(o.RatelimitSettings...)
 	}
 
 	if o.DebugListener != "" {
@@ -477,13 +565,21 @@ func Run(o Options) error {
 		mux.Handle("/routes", routing)
 		mux.Handle("/routes/", routing)
 		metricsHandler := metrics.NewHandler(metrics.Options{
-			Prefix:                   o.MetricsPrefix,
-			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
-			EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
-			EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
-			EnableServeHostMetrics:   o.EnableServeHostMetrics,
-			EnableBackendHostMetrics: o.EnableBackendHostMetrics,
-			EnableProfile:            o.EnableProfile,
+			Prefix:                             o.MetricsPrefix,
+			EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
+			EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
+			EnableServeRouteMetrics:            o.EnableServeRouteMetrics,
+			EnableServeHostMetrics:             o.EnableServeHostMetrics,
+			EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
+			EnableProfile:                      o.EnableProfile,
+			EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
+			EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
+			EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
+			EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
+			EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
+			EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
+			UseExpDecaySample:                  o.MetricsUseExpDecaySample,
+			DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		})
 		mux.Handle("/metrics", metricsHandler)
 		mux.Handle("/metrics/", metricsHandler)
@@ -494,6 +590,18 @@ func Run(o Options) error {
 		go http.ListenAndServe(supportListener, mux)
 	} else {
 		log.Infoln("Metrics are disabled")
+	}
+
+	if len(o.OpenTracing) > 0 {
+		tracer, err := tracing.LoadPlugin(o.PluginDir, o.OpenTracing)
+		if err != nil {
+			return err
+		}
+		proxyParams.OpenTracer = tracer
+	} else {
+		// always have a tracer available, so filter authors can rely on the
+		// existance of a tracer
+		proxyParams.OpenTracer, _ = tracing.LoadPlugin(o.PluginDir, []string{"noop"})
 	}
 
 	// create the proxy

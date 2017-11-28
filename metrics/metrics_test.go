@@ -105,44 +105,94 @@ func TestMeasurement(t *testing.T) {
 	if c1.Count() != 1 {
 		t.Errorf("'TestCounter1' metric should be 1. Got %d", c1.Count())
 	}
+
+	c2 := Default.getCounter("TestCounter2")
+	if c2.Count() != 0 {
+		t.Error("'TestCounter2' metric should be zero")
+	}
+	Default.IncCounter("TestCounter2")
+	time.Sleep(20 * time.Millisecond)
+	if c2.Count() != 1 {
+		t.Errorf("'TestCounter2' metric should be 1. Got %d", c2.Count())
+	}
+
+	t3 := Default.getTimer("TestMeasurement3")
+	if t3.Count() != 0 && t3.Max() != 0 {
+		t.Error("'TestMeasurement3' metric should only have zeroes")
+	}
+
+	Default.MeasureSince("TestMeasurement3", now)
+	time.Sleep(20 * time.Millisecond)
+
+	if t3.Count() == 0 || t3.Max() == 0 {
+		t.Error("'TestMeasurement2' metric should have some numbers")
+	}
+
 }
 
 type proxyMetricTest struct {
 	metricsKey  string
-	measureFunc func()
+	measureFunc func(*Metrics)
 }
 
 var proxyMetricsTests = []proxyMetricTest{
 	// T1 - Measure routing
-	{KeyRouteLookup, func() { Default.MeasureRouteLookup(time.Now()) }},
+	{KeyRouteLookup, func(m *Metrics) { m.MeasureRouteLookup(time.Now()) }},
 	// T2 - Measure filter request
-	{fmt.Sprintf(KeyFilterRequest, "foo"), func() { Default.MeasureFilterRequest("foo", time.Now()) }},
+	{fmt.Sprintf(KeyFilterRequest, "foo"), func(m *Metrics) { m.MeasureFilterRequest("foo", time.Now()) }},
 	// T3 - Measure all filters request
-	{fmt.Sprintf(KeyFiltersRequest, "bar"), func() { Default.MeasureAllFiltersRequest("bar", time.Now()) }},
+	{fmt.Sprintf(KeyFiltersRequest, "bar"), func(m *Metrics) { m.MeasureAllFiltersRequest("bar", time.Now()) }},
 	// T4 - Measure proxy backend
-	{fmt.Sprintf(KeyProxyBackend, "baz"), func() { Default.MeasureBackend("baz", time.Now()) }},
+	{fmt.Sprintf(KeyProxyBackend, "baz"), func(m *Metrics) { m.MeasureBackend("baz", time.Now()) }},
 	// T5 - Measure filters response
-	{fmt.Sprintf(KeyFilterResponse, "qux"), func() { Default.MeasureFilterResponse("qux", time.Now()) }},
+	{fmt.Sprintf(KeyFilterResponse, "qux"), func(m *Metrics) { m.MeasureFilterResponse("qux", time.Now()) }},
 	// T6 - Measure all filters response
-	{fmt.Sprintf(KeyFiltersResponse, "quux"), func() { Default.MeasureAllFiltersResponse("quux", time.Now()) }},
+	{fmt.Sprintf(KeyFiltersResponse, "quux"), func(m *Metrics) { m.MeasureAllFiltersResponse("quux", time.Now()) }},
 	// T7 - Measure response
 	{fmt.Sprintf(KeyResponse, http.StatusOK, "GET", "norf"),
-		func() { Default.MeasureResponse(http.StatusOK, "GET", "norf", time.Now()) }},
+		func(m *Metrics) { m.MeasureResponse(http.StatusOK, "GET", "norf", time.Now()) }},
 	// T8 - Inc routing failure
-	{KeyRouteFailure, func() { Default.IncRoutingFailures() }},
+	{KeyRouteFailure, func(m *Metrics) { m.IncRoutingFailures() }},
 	// T9 - Inc backend errors
-	{fmt.Sprintf(KeyErrorsBackend, "r1"), func() { Default.IncErrorsBackend("r1") }},
+	{fmt.Sprintf(KeyErrorsBackend, "r1"), func(m *Metrics) { m.IncErrorsBackend("r1") }},
 	// T10 - Inc streaming errors
-	{fmt.Sprintf(KeyErrorsStreaming, "r1"), func() { Default.IncErrorsStreaming("r1") }},
+	{fmt.Sprintf(KeyErrorsStreaming, "r1"), func(m *Metrics) { m.IncErrorsStreaming("r1") }},
+}
+
+func waitForNewMetric(m *Metrics, key string, timeout time.Duration, maxTries int) bool {
+	done := make(chan bool)
+	to := time.After(timeout)
+	go func() {
+		for {
+			if m.reg.Get(key) != nil {
+				done <- true
+				return
+			}
+
+			select {
+			case <-to:
+				done <- false
+				return
+			case <-time.After(time.Duration(int(timeout) / maxTries)):
+			}
+		}
+	}()
+
+	return <-done
 }
 
 func TestProxyMetrics(t *testing.T) {
+	const (
+		registryTimeout  = time.Millisecond
+		registryMaxTries = 16
+	)
+
 	for _, pmt := range proxyMetricsTests {
-		NewHandler(Options{})
-		pmt.measureFunc()
-		Default.reg.Each(func(key string, _ interface{}) {
-			if key != pmt.metricsKey {
-				t.Errorf("Registry contained unexpected metric for key '%s'. Found '%s'", pmt.metricsKey, key)
+		t.Run(pmt.metricsKey, func(t *testing.T) {
+			m := New(Options{})
+			pmt.measureFunc(m)
+			if !waitForNewMetric(m, pmt.metricsKey, registryTimeout, registryMaxTries) {
+				t.Errorf("expected metric was not found: '%s'", pmt.metricsKey)
 			}
 		})
 	}

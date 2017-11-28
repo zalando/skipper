@@ -7,7 +7,6 @@ import (
 
 type consecutiveBreaker struct {
 	settings BreakerSettings
-	open     bool
 	gb       *gobreaker.TwoStepCircuitBreaker
 }
 
@@ -21,18 +20,16 @@ func newConsecutive(s BreakerSettings) *consecutiveBreaker {
 		MaxRequests: uint32(s.HalfOpenRequests),
 		Timeout:     s.Timeout,
 		ReadyToTrip: b.readyToTrip,
+		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+			log.Infof("circuit breaker %v went from %v to %v", name, from.String(), to.String())
+		},
 	})
 
 	return b
 }
 
 func (b *consecutiveBreaker) readyToTrip(c gobreaker.Counts) bool {
-	b.open = int(c.ConsecutiveFailures) >= b.settings.Failures
-	if b.open {
-		log.Infof("circuit breaker open: %v", b.settings)
-	}
-
-	return b.open
+	return int(c.ConsecutiveFailures) >= b.settings.Failures
 }
 
 func (b *consecutiveBreaker) Allow() (func(bool), bool) {
@@ -44,11 +41,5 @@ func (b *consecutiveBreaker) Allow() (func(bool), bool) {
 	if !closed {
 		return nil, false
 	}
-
-	if b.open {
-		b.open = false
-		log.Infof("circuit breaker closed: %v", b.settings)
-	}
-
 	return done, true
 }

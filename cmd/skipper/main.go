@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -58,6 +59,7 @@ const (
 	oauthCredentialsDirUsage       = "directory where oauth credentials are stored: client.json and user.json"
 	oauthScopeUsage                = "the whitespace separated list of oauth scopes"
 	routesFileUsage                = "file containing static route definitions"
+	inlineRoutesUsage              = "inline routes in eskip format"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	proxyPreserveHostUsage         = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
@@ -73,6 +75,14 @@ const (
 	serveRouteMetricsUsage         = "enables reporting total serve time metrics for each route"
 	serveHostMetricsUsage          = "enables reporting total serve time metrics for each host"
 	backendHostMetricsUsage        = "enables reporting total serve time metrics for each backend"
+	allFiltersMetricsUsage         = "enables reporting combined filter metrics for each route"
+	combinedResponseMetricsUsage   = "enables reporting combined response time metrics"
+	routeResponseMetricsUsage      = "enables reporting response time metrics for each route"
+	routeBackendErrorCountersUsage = "enables counting backend errors for each route"
+	routeStreamErrorCountersUsage  = "enables counting streaming errors for each route"
+	routeBackendMetricsUsage       = "enables reporting backend response time metrics for each route"
+	metricsUseExpDecaySampleUsage  = "use exponentially decaying sample in metrics"
+	disableMetricsCompatsUsage     = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
 	applicationLogUsage            = "output file for the application log. When not set, /dev/stderr is used"
 	applicationLogLevelUsage       = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
 	applicationLogPrefixUsage      = "prefix for each log entry"
@@ -86,6 +96,10 @@ const (
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
 	versionUsage                   = "print Skipper version"
 	maxLoopbacksUsage              = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
+	opentracingUsage               = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
+	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
+	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
+	suppressRouteUpdateLogsUsage   = "print only summaries on route updates/deletes"
 )
 
 var (
@@ -110,6 +124,7 @@ var (
 	innkeeperURL              string
 	sourcePollTimeout         int64
 	routesFile                string
+	inlineRoutes              string
 	oauthURL                  string
 	oauthScope                string
 	oauthCredentialsDir       string
@@ -126,6 +141,14 @@ var (
 	serveRouteMetrics         bool
 	serveHostMetrics          bool
 	backendHostMetrics        bool
+	allFiltersMetrics         bool
+	combinedResponseMetrics   bool
+	routeResponseMetrics      bool
+	routeBackendErrorCounters bool
+	routeStreamErrorCounters  bool
+	routeBackendMetrics       bool
+	metricsUseExpDecaySample  bool
+	disableMetricsCompat      bool
 	applicationLog            string
 	applicationLogLevel       string
 	applicationLogPrefix      string
@@ -141,6 +164,12 @@ var (
 	maxLoopbacks              int
 	enableBreakers            bool
 	breakers                  breakerFlags
+	enableRatelimiters        bool
+	ratelimits                ratelimitFlags
+	openTracing               string
+	defaultHTTPStatus         int
+	pluginDir                 string
+	suppressRouteUpdateLogs   bool
 )
 
 func init() {
@@ -160,6 +189,7 @@ func init() {
 	flag.StringVar(&innkeeperURL, "innkeeper-url", "", innkeeperURLUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
+	flag.StringVar(&inlineRoutes, "inline-routes", "", inlineRoutesUsage)
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
 	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
 	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
@@ -176,6 +206,14 @@ func init() {
 	flag.BoolVar(&serveRouteMetrics, "serve-route-metrics", false, serveRouteMetricsUsage)
 	flag.BoolVar(&serveHostMetrics, "serve-host-metrics", false, serveHostMetricsUsage)
 	flag.BoolVar(&backendHostMetrics, "backend-host-metrics", false, backendHostMetricsUsage)
+	flag.BoolVar(&allFiltersMetrics, "all-filters-metrics", false, allFiltersMetricsUsage)
+	flag.BoolVar(&combinedResponseMetrics, "combined-response-metrics", false, combinedResponseMetricsUsage)
+	flag.BoolVar(&routeResponseMetrics, "route-response-metrics", false, routeResponseMetricsUsage)
+	flag.BoolVar(&routeBackendErrorCounters, "route-backend-error-counters", false, routeBackendErrorCountersUsage)
+	flag.BoolVar(&routeStreamErrorCounters, "route-stream-error-counters", false, routeStreamErrorCountersUsage)
+	flag.BoolVar(&routeBackendMetrics, "route-backend-metrics", false, routeBackendMetricsUsage)
+	flag.BoolVar(&metricsUseExpDecaySample, "metrics-exp-decay-sample", false, metricsUseExpDecaySampleUsage)
+	flag.BoolVar(&disableMetricsCompat, "disable-metrics-compat", false, disableMetricsCompatsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
 	flag.StringVar(&applicationLogLevel, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
@@ -191,7 +229,18 @@ func init() {
 	flag.IntVar(&maxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
 	flag.BoolVar(&enableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&breakers, "breaker", breakerUsage)
+	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
+	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
+	flag.StringVar(&openTracing, "opentracing", "noop", opentracingUsage)
+	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
+	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
+	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.Parse()
+
+	// check if arguments were correctly parsed.
+	if len(flag.Args()) != 0 {
+		log.Fatalf("Invalid arguments: %s", flag.Args())
+	}
 }
 
 func parseDurationFlag(ds string) (time.Duration, error) {
@@ -236,50 +285,65 @@ func main() {
 	}
 
 	options := skipper.Options{
-		Address:                   address,
-		EtcdUrls:                  eus,
-		EtcdPrefix:                etcdPrefix,
-		Kubernetes:                kubernetes,
-		KubernetesInCluster:       kubernetesInCluster,
-		KubernetesURL:             kubernetesURL,
-		KubernetesHealthcheck:     kubernetesHealthcheck,
-		KubernetesHTTPSRedirect:   kubernetesHTTPSRedirect,
-		KubernetesIngressClass:    kubernetesIngressClass,
-		InnkeeperUrl:              innkeeperURL,
-		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
-		RoutesFile:                routesFile,
-		IdleConnectionsPerHost:    idleConnsPerHost,
-		CloseIdleConnsPeriod:      time.Duration(clsic) * time.Second,
-		IgnoreTrailingSlash:       false,
-		OAuthUrl:                  oauthURL,
-		OAuthScope:                oauthScope,
-		OAuthCredentialsDir:       oauthCredentialsDir,
-		InnkeeperAuthToken:        innkeeperAuthToken,
-		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
-		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
-		DevMode:                   devMode,
-		MetricsListener:           metricsListener,
-		SupportListener:           supportListener,
-		MetricsPrefix:             metricsPrefix,
-		EnableProfile:             enableProfile,
-		EnableDebugGcMetrics:      debugGcMetrics,
-		EnableRuntimeMetrics:      runtimeMetrics,
-		EnableServeRouteMetrics:   serveRouteMetrics,
-		EnableServeHostMetrics:    serveHostMetrics,
-		EnableBackendHostMetrics:  backendHostMetrics,
-		ApplicationLogOutput:      applicationLog,
-		ApplicationLogPrefix:      applicationLogPrefix,
-		AccessLogOutput:           accessLog,
-		AccessLogDisabled:         accessLogDisabled,
-		AccessLogJSONEnabled:      accessLogJSONEnabled,
-		DebugListener:             debugListener,
-		CertPathTLS:               certPathTLS,
-		KeyPathTLS:                keyPathTLS,
-		BackendFlushInterval:      backendFlushInterval,
-		ExperimentalUpgrade:       experimentalUpgrade,
-		MaxLoopbacks:              maxLoopbacks,
-		EnableBreakers:            enableBreakers,
-		BreakerSettings:           breakers,
+		Address:                             address,
+		EtcdUrls:                            eus,
+		EtcdPrefix:                          etcdPrefix,
+		Kubernetes:                          kubernetes,
+		KubernetesInCluster:                 kubernetesInCluster,
+		KubernetesURL:                       kubernetesURL,
+		KubernetesHealthcheck:               kubernetesHealthcheck,
+		KubernetesHTTPSRedirect:             kubernetesHTTPSRedirect,
+		KubernetesIngressClass:              kubernetesIngressClass,
+		InnkeeperUrl:                        innkeeperURL,
+		SourcePollTimeout:                   time.Duration(sourcePollTimeout) * time.Millisecond,
+		RoutesFile:                          routesFile,
+		InlineRoutes:                        inlineRoutes,
+		IdleConnectionsPerHost:              idleConnsPerHost,
+		CloseIdleConnsPeriod:                time.Duration(clsic) * time.Second,
+		IgnoreTrailingSlash:                 false,
+		OAuthUrl:                            oauthURL,
+		OAuthScope:                          oauthScope,
+		OAuthCredentialsDir:                 oauthCredentialsDir,
+		InnkeeperAuthToken:                  innkeeperAuthToken,
+		InnkeeperPreRouteFilters:            innkeeperPreRouteFilters,
+		InnkeeperPostRouteFilters:           innkeeperPostRouteFilters,
+		DevMode:                             devMode,
+		MetricsListener:                     metricsListener,
+		SupportListener:                     supportListener,
+		MetricsPrefix:                       metricsPrefix,
+		EnableProfile:                       enableProfile,
+		EnableDebugGcMetrics:                debugGcMetrics,
+		EnableRuntimeMetrics:                runtimeMetrics,
+		EnableServeRouteMetrics:             serveRouteMetrics,
+		EnableServeHostMetrics:              serveHostMetrics,
+		EnableBackendHostMetrics:            backendHostMetrics,
+		EnableAllFiltersMetrics:             allFiltersMetrics,
+		EnableCombinedResponseMetrics:       combinedResponseMetrics,
+		EnableRouteResponseMetrics:          routeResponseMetrics,
+		EnableRouteBackendErrorsCounters:    routeBackendErrorCounters,
+		EnableRouteStreamingErrorsCounters:  routeStreamErrorCounters,
+		EnableRouteBackendMetrics:           routeBackendMetrics,
+		MetricsUseExpDecaySample:            metricsUseExpDecaySample,
+		DisableMetricsCompatibilityDefaults: disableMetricsCompat,
+		ApplicationLogOutput:                applicationLog,
+		ApplicationLogPrefix:                applicationLogPrefix,
+		AccessLogOutput:                     accessLog,
+		AccessLogDisabled:                   accessLogDisabled,
+		AccessLogJSONEnabled:                accessLogJSONEnabled,
+		DebugListener:                       debugListener,
+		CertPathTLS:                         certPathTLS,
+		KeyPathTLS:                          keyPathTLS,
+		BackendFlushInterval:                backendFlushInterval,
+		ExperimentalUpgrade:                 experimentalUpgrade,
+		MaxLoopbacks:                        maxLoopbacks,
+		EnableBreakers:                      enableBreakers,
+		BreakerSettings:                     breakers,
+		EnableRatelimiters:                  enableRatelimiters,
+		RatelimitSettings:                   ratelimits,
+		OpenTracing:                         strings.Split(openTracing, " "),
+		PluginDir:                           pluginDir,
+		DefaultHTTPStatus:                   defaultHTTPStatus,
+		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 	}
 
 	if insecure {

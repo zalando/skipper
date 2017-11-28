@@ -14,3 +14,5 @@ packaging/eskip
 .coverprofile
 .coverprofile-all
 vendor
+linter.log
+site/
