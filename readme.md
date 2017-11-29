@@ -44,7 +44,7 @@ A few examples for extending Skipper:
 
 - Authentication proxy https://github.com/zalando-incubator/skoap (repository removed see 'skoap-migration' branch)
 - Image server https://github.com/zalando-stups/skrop
-
+- Plugins https://github.com/skipper-plugins/
 
 ### Getting Started
 
@@ -139,6 +139,7 @@ and detailed information on these topics:
 - [Logging](https://godoc.org/github.com/zalando/skipper/logging) and [Metrics](https://godoc.org/github.com/zalando/skipper/metrics)
 - Performance Considerations
 - [Rate Limiters](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
+- [Opentracing plugin](https://github.com/skipper-plugins/opentracing/)
 
 #### 1 Minute Skipper introduction
 
