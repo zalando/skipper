@@ -1,5 +1,8 @@
 // Package tracing handles opentracing support for skipper
 //
+// Implementations of Opentracing API can be found in the https://github.com/skipper-plugins.
+// It follows how to implement a new tracer plugin for this interface.
+//
 // The tracers, except for "noop", are built as Go Plugins. Note the warning from Go's
 // plugin.go:
 //
