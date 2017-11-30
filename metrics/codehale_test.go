@@ -49,7 +49,7 @@ func TestDefaultOptionsWithListener(t *testing.T) {
 	}
 }
 
-func TestDebugGcStats(t *testing.T) {
+func TestCodaHaleDebugGcStats(t *testing.T) {
 	o := Options{EnableDebugGcMetrics: true}
 	NewHandler(o)
 
@@ -58,7 +58,7 @@ func TestDebugGcStats(t *testing.T) {
 	}
 }
 
-func TestRuntimeStats(t *testing.T) {
+func TestCodaHaleRuntimeStats(t *testing.T) {
 	o := Options{EnableRuntimeMetrics: true}
 	NewHandler(o)
 
@@ -67,7 +67,7 @@ func TestRuntimeStats(t *testing.T) {
 	}
 }
 
-func TestMeasurement(t *testing.T) {
+func TestCodaHaleMeasurement(t *testing.T) {
 	o := Options{}
 	NewHandler(o)
 
@@ -132,39 +132,39 @@ func TestMeasurement(t *testing.T) {
 
 type proxyMetricTest struct {
 	metricsKey  string
-	measureFunc func(*Metrics)
+	measureFunc func(Metrics)
 }
 
 var proxyMetricsTests = []proxyMetricTest{
 	// T1 - Measure routing
-	{KeyRouteLookup, func(m *Metrics) { m.MeasureRouteLookup(time.Now()) }},
+	{KeyRouteLookup, func(m Metrics) { m.MeasureRouteLookup(time.Now()) }},
 	// T2 - Measure filter request
-	{fmt.Sprintf(KeyFilterRequest, "foo"), func(m *Metrics) { m.MeasureFilterRequest("foo", time.Now()) }},
+	{fmt.Sprintf(KeyFilterRequest, "foo"), func(m Metrics) { m.MeasureFilterRequest("foo", time.Now()) }},
 	// T3 - Measure all filters request
-	{fmt.Sprintf(KeyFiltersRequest, "bar"), func(m *Metrics) { m.MeasureAllFiltersRequest("bar", time.Now()) }},
+	{fmt.Sprintf(KeyFiltersRequest, "bar"), func(m Metrics) { m.MeasureAllFiltersRequest("bar", time.Now()) }},
 	// T4 - Measure proxy backend
-	{fmt.Sprintf(KeyProxyBackend, "baz"), func(m *Metrics) { m.MeasureBackend("baz", time.Now()) }},
+	{fmt.Sprintf(KeyProxyBackend, "baz"), func(m Metrics) { m.MeasureBackend("baz", time.Now()) }},
 	// T5 - Measure filters response
-	{fmt.Sprintf(KeyFilterResponse, "qux"), func(m *Metrics) { m.MeasureFilterResponse("qux", time.Now()) }},
+	{fmt.Sprintf(KeyFilterResponse, "qux"), func(m Metrics) { m.MeasureFilterResponse("qux", time.Now()) }},
 	// T6 - Measure all filters response
-	{fmt.Sprintf(KeyFiltersResponse, "quux"), func(m *Metrics) { m.MeasureAllFiltersResponse("quux", time.Now()) }},
+	{fmt.Sprintf(KeyFiltersResponse, "quux"), func(m Metrics) { m.MeasureAllFiltersResponse("quux", time.Now()) }},
 	// T7 - Measure response
 	{fmt.Sprintf(KeyResponse, http.StatusOK, "GET", "norf"),
-		func(m *Metrics) { m.MeasureResponse(http.StatusOK, "GET", "norf", time.Now()) }},
+		func(m Metrics) { m.MeasureResponse(http.StatusOK, "GET", "norf", time.Now()) }},
 	// T8 - Inc routing failure
-	{KeyRouteFailure, func(m *Metrics) { m.IncRoutingFailures() }},
+	{KeyRouteFailure, func(m Metrics) { m.IncRoutingFailures() }},
 	// T9 - Inc backend errors
-	{fmt.Sprintf(KeyErrorsBackend, "r1"), func(m *Metrics) { m.IncErrorsBackend("r1") }},
+	{fmt.Sprintf(KeyErrorsBackend, "r1"), func(m Metrics) { m.IncErrorsBackend("r1") }},
 	// T10 - Inc streaming errors
-	{fmt.Sprintf(KeyErrorsStreaming, "r1"), func(m *Metrics) { m.IncErrorsStreaming("r1") }},
+	{fmt.Sprintf(KeyErrorsStreaming, "r1"), func(m Metrics) { m.IncErrorsStreaming("r1") }},
 }
 
-func waitForNewMetric(m *Metrics, key string, timeout time.Duration, maxTries int) bool {
+func waitForNewMetric(c *CodaHale, key string, timeout time.Duration, maxTries int) bool {
 	done := make(chan bool)
 	to := time.After(timeout)
 	go func() {
 		for {
-			if m.reg.Get(key) != nil {
+			if c.reg.Get(key) != nil {
 				done <- true
 				return
 			}
@@ -181,7 +181,7 @@ func waitForNewMetric(m *Metrics, key string, timeout time.Duration, maxTries in
 	return <-done
 }
 
-func TestProxyMetrics(t *testing.T) {
+func TestCodaHaleProxyMetrics(t *testing.T) {
 	const (
 		registryTimeout  = time.Millisecond
 		registryMaxTries = 16
@@ -189,7 +189,7 @@ func TestProxyMetrics(t *testing.T) {
 
 	for _, pmt := range proxyMetricsTests {
 		t.Run(pmt.metricsKey, func(t *testing.T) {
-			m := New(Options{})
+			m := NewCodaHale(Options{})
 			pmt.measureFunc(m)
 			if !waitForNewMetric(m, pmt.metricsKey, registryTimeout, registryMaxTries) {
 				t.Errorf("expected metric was not found: '%s'", pmt.metricsKey)
@@ -217,7 +217,7 @@ var serializationTests = []serializationTest{
 	{func() int { return 42 }, serializationResult{"unknown": {"test": {"error": "unknown metrics type int"}}}},
 }
 
-func TestMetricSerialization(t *testing.T) {
+func TestCodaHaleMetricSerialization(t *testing.T) {
 	metrics.UseNilMetrics = true
 	defer func() { metrics.UseNilMetrics = false }()
 
@@ -256,7 +256,7 @@ type serveMetricsTestItem struct {
 	checks   []serveMetricsCheck
 }
 
-func TestServeMetrics(t *testing.T) {
+func TestCodaHaleServeMetrics(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
@@ -410,7 +410,7 @@ func TestServeMetrics(t *testing.T) {
 		}},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			checkMetrics := func(m *Metrics, key string, enabled bool, count int64, minDuration time.Duration) (bool, string) {
+			checkMetrics := func(m *CodaHale, key string, enabled bool, count int64, minDuration time.Duration) (bool, string) {
 				v := m.reg.Get(key)
 
 				switch {
@@ -440,7 +440,7 @@ func TestServeMetrics(t *testing.T) {
 				return true, ""
 			}
 
-			m := New(ti.options)
+			m := NewCodaHale(ti.options)
 			for _, mi := range ti.measures {
 				m.MeasureServe(mi.route, mi.host, mi.method, mi.status, time.Now().Add(-mi.duration))
 			}
