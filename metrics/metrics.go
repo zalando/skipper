@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"net/http"
-	"net/http/pprof"
 	"time"
 )
 
@@ -98,7 +97,7 @@ type Options struct {
 }
 
 var (
-	Default *CodaHale
+	Default Metrics
 	Void    *CodaHale
 )
 
@@ -109,18 +108,23 @@ func init() {
 
 // NewHandler returns a collection of metrics handlers.
 func NewHandler(o Options) http.Handler {
-	Default = NewCodaHale(o)
+	//Default = NewCodaHale(o)
+	//
+	//handler := &codaHaleMetricsHandler{registry: Default.reg, options: o}
+	//if o.EnableProfile {
+	//	mux := http.NewServeMux()
+	//	mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+	//	mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+	//	mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+	//	mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+	//	mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+	//	handler.profile = mux
+	//}
 
-	handler := &codaHaleMetricsHandler{registry: Default.reg, options: o}
-	if o.EnableProfile {
-		mux := http.NewServeMux()
-		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
-		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
-		handler.profile = mux
-	}
+	handler := http.NewServeMux()
+	prom := NewPrometheus(o)
+	prom.RegisterHandler("/metrics", handler)
+	Default = prom
 
 	return handler
 }
