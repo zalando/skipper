@@ -100,6 +100,7 @@ const (
 	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
 	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
 	suppressRouteUpdateLogsUsage   = "print only summaries on route updates/deletes"
+	enablePrometheusMetricsUsage   = "use Prometheus metrics format to expose metrics"
 )
 
 var (
@@ -170,6 +171,7 @@ var (
 	defaultHTTPStatus         int
 	pluginDir                 string
 	suppressRouteUpdateLogs   bool
+	enablePrometheusMetrics   bool
 )
 
 func init() {
@@ -235,6 +237,7 @@ func init() {
 	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
+	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
 	flag.Parse()
 
 	// check if arguments were correctly parsed.
@@ -344,6 +347,7 @@ func main() {
 		PluginDir:                           pluginDir,
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
+		EnablePrometheusMetrics:             enablePrometheusMetrics,
 	}
 
 	if insecure {

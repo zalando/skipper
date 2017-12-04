@@ -313,6 +313,9 @@ type Options struct {
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
 	DefaultHTTPStatus int
+
+	// EnablePrometheusMetrics enables Prometheus format metrics.
+	EnablePrometheusMetrics bool
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -564,7 +567,14 @@ func Run(o Options) error {
 		mux := http.NewServeMux()
 		mux.Handle("/routes", routing)
 		mux.Handle("/routes/", routing)
-		metricsHandler := metrics.NewHandler(metrics.Options{
+
+		metricsKind := metrics.CodaHaleKind
+		if o.EnablePrometheusMetrics {
+			metricsKind = metrics.PrometheusKind
+		}
+
+		metricsHandler := metrics.NewDefaultHandler(metrics.Options{
+			Format:                             metricsKind,
 			Prefix:                             o.MetricsPrefix,
 			EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
 			EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
