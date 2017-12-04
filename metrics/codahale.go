@@ -203,28 +203,16 @@ func (c *CodaHale) IncErrorsStreaming(routeId string) {
 	}
 }
 
+func (c *CodaHale) RegisterHandler(path string, handler *http.ServeMux) {
+	h := &codaHaleMetricsHandler{path: path, registry: c.reg, options: c.options}
+	handler.Handle(path, h)
+}
+
 type codaHaleMetricsHandler struct {
+	path     string
 	registry metrics.Registry
 	profile  http.Handler
 	options  Options
-}
-
-func filterMetrics(reg metrics.Registry, prefix, key string) skipperMetrics {
-	metrics := make(skipperMetrics)
-
-	canonicalKey := strings.TrimPrefix(key, prefix)
-	m := reg.Get(canonicalKey)
-	if m != nil {
-		metrics[key] = m
-	} else {
-		reg.Each(func(name string, i interface{}) {
-			if key == "" || (strings.HasPrefix(name, canonicalKey)) {
-				metrics[prefix+name] = i
-			}
-		})
-	}
-
-	return metrics
 }
 
 func (c *codaHaleMetricsHandler) sendMetrics(w http.ResponseWriter, p string) {
@@ -243,14 +231,30 @@ func (c *codaHaleMetricsHandler) sendMetrics(w http.ResponseWriter, p string) {
 
 // This listener is only used to expose the metrics
 func (c *codaHaleMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	p := r.URL.Path
-	if r.Method == "GET" && (p == "/metrics" || strings.HasPrefix(p, "/metrics/")) {
-		c.sendMetrics(w, strings.TrimPrefix(p, "/metrics"))
-	} else if c.profile != nil && r.Method == "GET" && (p == "/debug/pprof" || strings.HasPrefix(p, "/debug/pprof/")) {
-		c.profile.ServeHTTP(w, r)
-	} else {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	if r.Method == "POST" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
+	p := r.URL.Path
+	c.sendMetrics(w, strings.TrimPrefix(p, c.path))
+}
+
+func filterMetrics(reg metrics.Registry, prefix, key string) skipperMetrics {
+	metrics := make(skipperMetrics)
+
+	canonicalKey := strings.TrimPrefix(key, prefix)
+	m := reg.Get(canonicalKey)
+	if m != nil {
+		metrics[key] = m
+	} else {
+		reg.Each(func(name string, i interface{}) {
+			if key == "" || (strings.HasPrefix(name, canonicalKey)) {
+				metrics[prefix+name] = i
+			}
+		})
+	}
+
+	return metrics
 }
 
 type skipperMetrics map[string]interface{}

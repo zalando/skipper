@@ -1,4 +1,4 @@
-package metrics
+package metrics_test
 
 import (
 	"encoding/json"
@@ -7,13 +7,51 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rcrowley/go-metrics"
+	"github.com/zalando/skipper/metrics"
 )
 
-func TestBadRequests(t *testing.T) {
-	o := Options{EnableRuntimeMetrics: true}
-	r := metrics.NewRegistry()
-	mh := &codaHaleMetricsHandler{registry: r, options: o}
+func TestHandlerPrometheusBadRequests(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.PrometheusKind,
+		EnableRuntimeMetrics: true,
+	}
+	mh := metrics.NewDefaultHandler(o)
+
+	r, _ := http.NewRequest("GET", "/", nil)
+	rw := httptest.NewRecorder()
+
+	mh.ServeHTTP(rw, r)
+	if rw.Code != http.StatusBadRequest {
+		t.Error("The root resource should not provide a valid response")
+	}
+}
+
+func TestHandlerPrometheusMetricsRequest(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.PrometheusKind,
+		EnableRuntimeMetrics: true,
+	}
+	mh := metrics.NewDefaultHandler(o)
+
+	r, _ := http.NewRequest("GET", "/metrics", nil)
+	rw := httptest.NewRecorder()
+
+	mh.ServeHTTP(rw, r)
+	if rw.Code != http.StatusOK {
+		t.Error("Metrics endpoint should provide a valid response")
+	}
+	b := rw.Body.Bytes()
+	if len(b) == 0 {
+		t.Error("Metrics endpoint should've returned some runtime metrics in it")
+	}
+}
+
+func TestHandlerCodaHaleBadRequests(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
+	}
+	mh := metrics.NewDefaultHandler(o)
 
 	r1, _ := http.NewRequest("GET", "/", nil)
 	rw1 := httptest.NewRecorder()
@@ -31,15 +69,18 @@ func TestBadRequests(t *testing.T) {
 	}
 }
 
-func TestAllMetricsRequest(t *testing.T) {
-	o := Options{}
-	reg := metrics.NewRegistry()
-	metrics.RegisterRuntimeMemStats(reg)
-	mh := &codaHaleMetricsHandler{registry: reg, options: o}
+func TestHandlerCodaHaleAllMetricsRequest(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
+	}
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
 
 	r, _ := http.NewRequest("GET", "/metrics", nil)
 	rw := httptest.NewRecorder()
 	mh.ServeHTTP(rw, r)
+
 	if rw.Code != http.StatusOK {
 		t.Error("Metrics endpoint should provide a valid response")
 	}
@@ -54,11 +95,13 @@ func TestAllMetricsRequest(t *testing.T) {
 	}
 }
 
-func TestSingleMetricsRequest(t *testing.T) {
-	o := Options{}
-	reg := metrics.NewRegistry()
-	metrics.RegisterRuntimeMemStats(reg)
-	mh := &codaHaleMetricsHandler{registry: reg, options: o}
+func TestHandlerCodaHaleSingleMetricsRequest(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
+	}
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
 
 	r, _ := http.NewRequest("GET", "/metrics/runtime.MemStats.NumGC", nil)
 	rw := httptest.NewRecorder()
@@ -81,11 +124,14 @@ func TestSingleMetricsRequest(t *testing.T) {
 	}
 }
 
-func TestSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
-	o := Options{Prefix: "zmon."}
-	reg := metrics.NewRegistry()
-	metrics.RegisterRuntimeMemStats(reg)
-	mh := &codaHaleMetricsHandler{registry: reg, options: o}
+func TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		Prefix:               "zmon.",
+		EnableRuntimeMetrics: true,
+	}
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
 
 	r, _ := http.NewRequest("GET", "/metrics/zmon.runtime.MemStats.NumGC", nil)
 	rw := httptest.NewRecorder()
@@ -108,11 +154,13 @@ func TestSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
 	}
 }
 
-func TestMetricsRequestWithPattern(t *testing.T) {
-	o := Options{}
-	reg := metrics.NewRegistry()
-	metrics.RegisterRuntimeMemStats(reg)
-	mh := &codaHaleMetricsHandler{registry: reg, options: o}
+func TestHandlerCodaHaleMetricsRequestWithPattern(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
+	}
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
 
 	r, _ := http.NewRequest("GET", "/metrics/runtime.Num", nil)
 	rw := httptest.NewRecorder()
@@ -143,11 +191,13 @@ func TestMetricsRequestWithPattern(t *testing.T) {
 	}
 }
 
-func TestUnknownMetricRequest(t *testing.T) {
-	o := Options{}
-	reg := metrics.NewRegistry()
-	metrics.RegisterRuntimeMemStats(reg)
-	mh := &codaHaleMetricsHandler{registry: reg, options: o}
+func TestHandlerCodaHaleUnknownMetricRequest(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
+	}
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
 
 	r, _ := http.NewRequest("GET", "/metrics/DOES-NOT-EXIST", nil)
 	rw := httptest.NewRecorder()

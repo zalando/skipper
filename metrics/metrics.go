@@ -1,9 +1,49 @@
 package metrics
 
 import (
+	"fmt"
 	"net/http"
+	"net/http/pprof"
+	"strings"
 	"time"
 )
+
+const (
+	defaultMetricsPath = "/metrics"
+)
+
+// Kind is the type a metrics expose backend can be.
+type Kind int
+
+const (
+	UnkownKind Kind = iota
+	CodaHaleKind
+	PrometheusKind
+)
+
+func (k Kind) String() string {
+	switch k {
+	case CodaHaleKind:
+		return "codahale"
+	case PrometheusKind:
+		return "prometheus"
+	default:
+		return "unknown"
+	}
+}
+
+// ParseMetricsKind parses an string and returns the correct Metrics kind.
+func ParseMetricsKind(t string) Kind {
+	t = strings.ToLower(t)
+	switch t {
+	case "codahale":
+		return CodaHaleKind
+	case "prometheus":
+		return PrometheusKind
+	default:
+		return UnkownKind
+	}
+}
 
 // Metrics is the generic interface that all the required backends
 // should implement to be an skipper metrics compatible backend.
@@ -23,10 +63,14 @@ type Metrics interface {
 	IncErrorsBackend(routeId string)
 	MeasureBackend5xx(t time.Time)
 	IncErrorsStreaming(routeId string)
+	RegisterHandler(path string, handler *http.ServeMux)
 }
 
 // Options for initializing metrics collection.
 type Options struct {
+	// the metrics exposing format.
+	Format Kind
+
 	// Common prefix for the keys of the different
 	// collected metrics.
 	Prefix string
@@ -98,7 +142,7 @@ type Options struct {
 
 var (
 	Default Metrics
-	Void    *CodaHale
+	Void    Metrics
 )
 
 func init() {
@@ -106,25 +150,46 @@ func init() {
 	Default = Void
 }
 
+// NewDefaultHandler returns a default metrics handler.
+func NewDefaultHandler(o Options) http.Handler {
+	var m Metrics
+
+	switch o.Format {
+	case PrometheusKind:
+		m = NewPrometheus(o)
+	default:
+		// CodaHale is the default backend always.
+		m = NewCodaHale(o)
+	}
+
+	return NewHandler(o, m)
+}
+
 // NewHandler returns a collection of metrics handlers.
-func NewHandler(o Options) http.Handler {
-	//Default = NewCodaHale(o)
-	//
-	//handler := &codaHaleMetricsHandler{registry: Default.reg, options: o}
-	//if o.EnableProfile {
-	//	mux := http.NewServeMux()
-	//	mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
-	//	mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-	//	mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-	//	mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-	//	mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
-	//	handler.profile = mux
-	//}
+func NewHandler(o Options, m Metrics) http.Handler {
 
-	handler := http.NewServeMux()
-	prom := NewPrometheus(o)
-	prom.RegisterHandler("/metrics", handler)
-	Default = prom
+	mux := http.NewServeMux()
+	if o.EnableProfile {
+		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+	}
 
-	return handler
+	// Root path should return 404.
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	})
+
+	Default = m
+
+	// Fix trailing slashes and register routes.
+	mPath := defaultMetricsPath
+	mPath = strings.TrimRight(mPath, "/")
+	m.RegisterHandler(mPath, mux)
+	mPath = fmt.Sprintf("%s/", mPath)
+	m.RegisterHandler(mPath, mux)
+
+	return mux
 }
