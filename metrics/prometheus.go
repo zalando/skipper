@@ -161,7 +161,7 @@ func NewPrometheus(opts Options) *Prometheus {
 	proxyStreamingErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: promStreamingSubsystem,
-		Name:      "errors_total",
+		Name:      "error_total",
 		Help:      "Total number of streaming route errors.",
 	}, []string{"route"})
 

@@ -606,9 +606,9 @@ func TestPrometheusMetrics(t *testing.T) {
 				pm.IncErrorsStreaming("route3")
 			},
 			expMetrics: []string{
-				`skipper_streaming_errors_total{route="route1"} 2`,
-				`skipper_streaming_errors_total{route="route2"} 1`,
-				`skipper_streaming_errors_total{route="route3"} 1`,
+				`skipper_streaming_error_total{route="route1"} 2`,
+				`skipper_streaming_error_total{route="route2"} 1`,
+				`skipper_streaming_error_total{route="route3"} 1`,
 			},
 			expCode: http.StatusOK,
 		},
