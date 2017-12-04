@@ -1,7 +1,6 @@
 package metrics_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -721,7 +720,6 @@ func TestPrometheusMetrics(t *testing.T) {
 				for _, expMetric := range test.expMetrics {
 					if ok := strings.Contains(string(body), expMetric); !ok {
 						t.Errorf("'%s' metric not present on the result of metrics service", expMetric)
-						fmt.Println(string(body))
 					}
 				}
 			}
