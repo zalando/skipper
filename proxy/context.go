@@ -39,7 +39,7 @@ type context struct {
 
 type filterMetrics struct {
 	prefix string
-	impl   *metrics.Metrics
+	impl   metrics.Metrics
 }
 
 func defaultBody() io.ReadCloser {
@@ -112,7 +112,7 @@ func appendParams(to, from map[string]string) map[string]string {
 	return to
 }
 
-func newContext(w http.ResponseWriter, r *http.Request, preserveOriginal bool, m *metrics.Metrics) *context {
+func newContext(w http.ResponseWriter, r *http.Request, preserveOriginal bool, m metrics.Metrics) *context {
 	c := &context{
 		responseWriter: w,
 		request:        r,

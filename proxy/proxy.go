@@ -183,7 +183,7 @@ type Proxy struct {
 	roundTripper        *http.Transport
 	priorityRoutes      []PriorityRoute
 	flags               Flags
-	metrics             *metrics.Metrics
+	metrics             metrics.Metrics
 	quit                chan struct{}
 	flushInterval       time.Duration
 	experimentalUpgrade bool
