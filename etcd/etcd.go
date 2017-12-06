@@ -269,7 +269,7 @@ func (c *Client) etcdRequest(method, path, data string) (*response, error) {
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		if c.oauthToken != "" {
-			r.Header.Set("Authorization", "Bearer " + c.oauthToken)
+			r.Header.Set("Authorization", "Bearer "+c.oauthToken)
 		}
 
 		return r, nil

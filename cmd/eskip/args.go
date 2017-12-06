@@ -158,9 +158,9 @@ func processEtcdArgs(etcdUrls, etcdPrefix, oauthToken string) (*medium, error) {
 	}
 
 	return &medium{
-		typ:  etcd,
-		urls: urls,
-		path: etcdPrefix,
+		typ:        etcd,
+		urls:       urls,
+		path:       etcdPrefix,
 		oauthToken: oauthToken}, nil
 }
 

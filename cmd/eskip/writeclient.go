@@ -25,9 +25,9 @@ func createWriteClient(out *medium) (writeClient, error) {
 		return createInnkeeperClient(out)
 	case etcd:
 		return etcdclient.New(etcdclient.Options{
-			Endpoints: urlsToStrings(out.urls),
-			Prefix:    out.path,
-			Insecure:  insecure,
+			Endpoints:  urlsToStrings(out.urls),
+			Prefix:     out.path,
+			Insecure:   insecure,
 			OAuthToken: out.oauthToken})
 	}
 	return nil, invalidOutput
