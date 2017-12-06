@@ -106,6 +106,9 @@ type Options struct {
 
 	// Skip TLS certificate check.
 	Insecure bool
+
+	// Optional OAuth-Token
+	OAuthToken string
 }
 
 // A Client is used to load the whole set of routes and the updates from an
@@ -115,6 +118,7 @@ type Client struct {
 	routesRoot string
 	client     *http.Client
 	etcdIndex  uint64
+	oauthToken string
 }
 
 var (
@@ -154,7 +158,8 @@ func New(o Options) (*Client, error) {
 		endpoints:  o.Endpoints,
 		routesRoot: o.Prefix + routesPath,
 		client:     httpClient,
-		etcdIndex:  0}, nil
+		etcdIndex:  0,
+		oauthToken: o.OAuthToken}, nil
 }
 
 func isTimeout(err error) bool {
@@ -262,6 +267,11 @@ func (c *Client) etcdRequest(method, path, data string) (*response, error) {
 		}
 
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		if c.oauthToken != "" {
+			r.Header.Set("Authorization", "Bearer " + c.oauthToken)
+		}
+
 		return r, nil
 	})
 
