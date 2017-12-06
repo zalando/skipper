@@ -74,6 +74,7 @@ const (
 	etcdPrefixUsage     = "path prefix for routes in etcd"
 	innkeeperUrlUsage   = "url for the innkeeper service"
 	oauthTokenUsage     = "oauth token used to authenticate to innkeeper"
+	etcdOAuthTokenUsage = "oauth token used to authenticate to etcd"
 	inlineRoutesUsage   = "inline: routes in eskip format"
 	inlineIdsUsage      = "inline ids: comma separated route ids"
 	insecureUsage       = "skip TLS certificate verification"
