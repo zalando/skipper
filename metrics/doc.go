@@ -11,7 +11,7 @@ For CodaHale format it uses the Go implementation of the Go Coda Hale metrics li
 https://github.com/dropwizard/metrics
 https://github.com/rcrowley/go-metrics
 
-For Prometheus format is will use Prometheus Go  official client library:
+For Prometheus format, it uses Prometheus Go official client library:
 
 https://github.com/prometheus/client_golang
 
@@ -34,7 +34,7 @@ REST API
 
 This listener accepts GET requests on the /metrics endpoint like any other REST api. A request to "/metrics" should
 return a JSON response including all the collected metrics if CodaHale format is used, or in Plain text if Prometheus
-format is use . Please note that a lot of metrics are created lazily whenever a request triggers them. This means that
+format is used. Please note that a lot of metrics are created lazily whenever a request triggers them. This means that
 the API response will depend on the current routes and the filters used. In the case there are no metrics due to inactivity,
 the API will return 404 if CodaHale is used or 200 if Prometheus is used.
 
