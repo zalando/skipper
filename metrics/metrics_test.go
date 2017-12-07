@@ -21,7 +21,7 @@ func TestHandlerPrometheusBadRequests(t *testing.T) {
 	rw := httptest.NewRecorder()
 
 	mh.ServeHTTP(rw, r)
-	if rw.Code != http.StatusBadRequest {
+	if rw.Code != http.StatusNotFound {
 		t.Error("The root resource should not provide a valid response")
 	}
 }
@@ -57,14 +57,14 @@ func TestHandlerCodaHaleBadRequests(t *testing.T) {
 	rw1 := httptest.NewRecorder()
 
 	mh.ServeHTTP(rw1, r1)
-	if rw1.Code != http.StatusBadRequest {
+	if rw1.Code != http.StatusNotFound {
 		t.Error("The root resource should not provide a valid response")
 	}
 
 	r2, _ := http.NewRequest("POST", "/metrics", nil)
 	rw2 := httptest.NewRecorder()
 	mh.ServeHTTP(rw2, r2)
-	if rw2.Code != http.StatusBadRequest {
+	if rw2.Code != http.StatusMethodNotAllowed {
 		t.Error("POST method should not provide a valid response")
 	}
 }

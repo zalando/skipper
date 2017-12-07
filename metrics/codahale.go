@@ -232,7 +232,7 @@ func (c *codaHaleMetricsHandler) sendMetrics(w http.ResponseWriter, p string) {
 // This listener is only used to expose the metrics
 func (c *codaHaleMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 	p := r.URL.Path

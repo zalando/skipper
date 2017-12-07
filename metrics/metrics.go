@@ -179,7 +179,7 @@ func NewHandler(o Options, m Metrics) http.Handler {
 
 	// Root path should return 404.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusNotFound)
 	})
 
 	Default = m
