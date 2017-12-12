@@ -27,7 +27,7 @@ import (
 const (
 	etcdUrlsFlag       = "etcd-urls"
 	etcdPrefixFlag     = "etcd-prefix"
-	etcdOAuthTokenFlag = "oauth-token-etcd"
+	etcdOAuthTokenFlag = "etcd-oauth-token"
 	innkeeperUrlFlag   = "innkeeper-url"
 	oauthTokenFlag     = "oauth-token"
 	inlineRoutesFlag   = "routes"
