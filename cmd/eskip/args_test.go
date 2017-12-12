@@ -84,7 +84,7 @@ func TestProcessArgs(t *testing.T) {
 		false,
 		nil,
 		[]*medium{{
-			typ: etcd,
+			typ:        etcd,
 			oauthToken: "example",
 			urls: []*url.URL{
 				{Scheme: "https", Host: "etcd1.example.org:4242"},
