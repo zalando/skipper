@@ -80,6 +80,19 @@ func TestProcessArgs(t *testing.T) {
 	}, {
 
 		// etcd-urls
+		[]string{"-etcd-urls", "https://etcd1.example.org:4242,https://etcd2.example.org:4545", "-etcd-oauth-token", "example"},
+		false,
+		nil,
+		[]*medium{{
+			typ: etcd,
+			oauthToken: "example",
+			urls: []*url.URL{
+				{Scheme: "https", Host: "etcd1.example.org:4242"},
+				{Scheme: "https", Host: "etcd2.example.org:4545"}},
+			path: "/skipper"}},
+	}, {
+
+		// etcd-urls
 		[]string{"-etcd-urls", "https://etcd1.example.org:4242,https://etcd2.example.org:4545"},
 		false,
 		nil,
