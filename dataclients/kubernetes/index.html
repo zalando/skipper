@@ -105,7 +105,11 @@
         <li class="main active"><a href="#kubernetes">Kubernetes</a></li>
             <li><a href="#skipper-features">Skipper Features</a></li>
             <li><a href="#3-minutes-skipper-in-kubernetes-introduction">3 Minutes Skipper in Kubernetes introduction</a></li>
-            <li><a href="#advanced-examples">Advanced Examples</a></li>
+            <li><a href="#blue-green-deployments">Blue-Green deployments</a></li>
+            <li><a href="#circuitbreaker">Circuitbreaker</a></li>
+            <li><a href="#ratelimits">Ratelimits</a></li>
+            <li><a href="#use-predicates">use Predicates</a></li>
+            <li><a href="#chaining-filters">Chaining Filters</a></li>
     </ul>
 </div></div>
                 <div class="col-md-9" role="main">
@@ -300,8 +304,7 @@ something that configures your frontend loadbalancer, for example
 <a href="https://github.com/zalando-incubator/kube-ingress-aws-controller">kube-aws-ingress-controller</a>,
 and your DNS, <a href="https://github.com/kubernetes-incubator/external-dns">external-dns</a>
 automatically.</p>
-<h2 id="advanced-examples">Advanced Examples</h2>
-<h3 id="blue-green-deployments">Blue-Green deployments</h3>
+<h2 id="blue-green-deployments">Blue-Green deployments</h2>
 <p>To do blue-green deployments you have to have control over traffic
 switching. Skipper gives you the opportunity to set weights to backend
 services in your ingress specification. <code>zalando.org/backend-weights</code>
@@ -335,8 +338,8 @@ spec:
           servicePort: http
         path: /
 </code></pre>
-<h3 id="circuitbreaker">Circuitbreaker</h3>
-<h4 id="consecutive-breaker">Consecutive Breaker</h4>
+<h2 id="circuitbreaker">Circuitbreaker</h2>
+<h3 id="consecutive-breaker">Consecutive Breaker</h3>
 <p>The <a href="https://godoc.org/github.com/zalando/skipper/filters/circuit#NewConsecutiveBreaker">consecutiveBreaker</a>
 filter is a breaker for the ingress route that open if the backend failures
 for the route reach a value of N (in this example N=15), where N is a
@@ -360,7 +363,7 @@ spec:
           serviceName: app-svc
           servicePort: 80
 </code></pre>
-<h4 id="rate-breaker">Rate Breaker</h4>
+<h3 id="rate-breaker">Rate Breaker</h3>
 <p>The <a href="https://godoc.org/github.com/zalando/skipper/filters/circuit#NewRateBreaker">rateBreaker</a>
 filter is a breaker for the ingress route that open if the backend
 failures for the route reach a value of N within a window of the last
@@ -385,10 +388,10 @@ spec:
           serviceName: app-svc
           servicePort: 80
 </code></pre>
-<h3 id="ratelimits">Ratelimits</h3>
+<h2 id="ratelimits">Ratelimits</h2>
 <p>More details you will find in <a href="https://godoc.org/github.com/zalando/skipper/filters/ratelimit">ratelimit package</a>
 and <a href="https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes">kubernetes dataclient</a> documentation.</p>
-<h4 id="client-ratelimits">Client Ratelimits</h4>
+<h3 id="client-ratelimits">Client Ratelimits</h3>
 <p>The example shows 3 calls per minute per client, based on
 X-Forwarded-For header or IP incase there is no X-Forwarded-For header
 set, are allowed to each skipper instance for the given ingress.</p>
@@ -407,7 +410,7 @@ spec:
           serviceName: app-svc
           servicePort: 80
 </code></pre>
-<h4 id="service-ratelimits">Service Ratelimits</h4>
+<h3 id="service-ratelimits">Service Ratelimits</h3>
 <p>The example shows 50 calls per minute are allowed to each skipper
 instance for the given ingress.</p>
 <pre><code>apiVersion: extensions/v1beta1
@@ -425,14 +428,14 @@ spec:
           serviceName: app-svc
           servicePort: 80
 </code></pre>
-<h3 id="use-predicates">use Predicates</h3>
+<h2 id="use-predicates">use Predicates</h2>
 <p><a href="https://godoc.org/github.com/zalando/skipper/predicates">Predicates</a>
 are influencing the route matching, which you might want to carefully
 test before using it in production. This enables you to do feature
 toggles or time based enabling endpoints.</p>
 <p>You can use all kinds of <a href="https://godoc.org/github.com/zalando/skipper/predicates">predicates</a>
 with <a href="https://godoc.org/github.com/zalando/skipper/filters">filters</a> together.</p>
-<h4 id="feature-toggle">Feature Toggle</h4>
+<h3 id="feature-toggle">Feature Toggle</h3>
 <p>This ingress route will only be matched if there is a Querystring
 "version=alpha" defined in the request. Like this you can easily build
 feature toggles.</p>
@@ -451,7 +454,24 @@ spec:
           serviceName: alpha-svc
           servicePort: 80
 </code></pre>
-<h3 id="chaining-filters">Chaining Filters</h3>
+<h3 id="ip-whitelisting">IP Whitelisting</h3>
+<p>This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.0.0/17</p>
+<pre><code>apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-predicate: Source("1.2.3.0/24", "195.168.0.0/17")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+</code></pre>
+<h2 id="chaining-filters">Chaining Filters</h2>
 <p>You can set multiple filters in a chain similar to the <a href="https://godoc.org/github.com/zalando/skipper/eskip">eskip format</a>.</p>
 <pre><code>apiVersion: extensions/v1beta1
 kind: Ingress
