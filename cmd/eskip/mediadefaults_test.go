@@ -52,7 +52,8 @@ func TestAddDefaultMedia(t *testing.T) {
 		out: nil,
 		err: nil,
 		inResult: &medium{
-			typ: etcd,
+			typ:        etcd,
+			oauthToken: "",
 			urls: []*url.URL{
 				{Scheme: "https", Host: "etcd1.example.org:2379"},
 				{Scheme: "https", Host: "etcd2.example.org:4001"}},
@@ -70,7 +71,8 @@ func TestAddDefaultMedia(t *testing.T) {
 			typ: stdin,
 		},
 		outResult: &medium{
-			typ: etcd,
+			typ:        etcd,
+			oauthToken: "",
 			urls: []*url.URL{
 				{Scheme: "http", Host: "127.0.0.1:2379"},
 				{Scheme: "http", Host: "127.0.0.1:4001"}},
@@ -92,7 +94,8 @@ func TestAddDefaultMedia(t *testing.T) {
 			typ: stdin,
 		},
 		outResult: &medium{
-			typ: etcd,
+			typ:        etcd,
+			oauthToken: "",
 			urls: []*url.URL{
 				{Scheme: "https", Host: "etcd1.example.org:2379"},
 				{Scheme: "https", Host: "etcd2.example.org:4001"}},

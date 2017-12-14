@@ -27,6 +27,7 @@ import (
 const (
 	etcdUrlsFlag       = "etcd-urls"
 	etcdPrefixFlag     = "etcd-prefix"
+	etcdOAuthTokenFlag = "etcd-oauth-token"
 	innkeeperUrlFlag   = "innkeeper-url"
 	oauthTokenFlag     = "oauth-token"
 	inlineRoutesFlag   = "routes"
@@ -62,6 +63,7 @@ var (
 	etcdPrefix        string
 	innkeeperUrl      string
 	oauthToken        string
+	etcdOAuthToken    string
 	inlineRoutes      string
 	inlineRouteIds    string
 	insecure          bool
@@ -88,6 +90,7 @@ func initFlags() {
 	// the default value not used here, because it depends on the command
 	flags.StringVar(&etcdUrls, etcdUrlsFlag, "", etcdUrlsUsage)
 	flags.StringVar(&etcdPrefix, etcdPrefixFlag, "", etcdPrefixUsage)
+	flags.StringVar(&etcdOAuthToken, etcdOAuthTokenFlag, "", etcdOAuthTokenUsage)
 
 	flags.StringVar(&innkeeperUrl, innkeeperUrlFlag, "", innkeeperUrlUsage)
 	flags.StringVar(&oauthToken, oauthTokenFlag, "", oauthTokenUsage)
@@ -135,7 +138,7 @@ func stringsToUrls(strs ...string) ([]*url.URL, error) {
 
 // returns etcd type medium if any of '-etcd-urls' or '-etcd-prefix'
 // are defined.
-func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
+func processEtcdArgs(etcdUrls, etcdPrefix, oauthToken string) (*medium, error) {
 	if etcdUrls == "" && etcdPrefix == "" {
 		return nil, nil
 	}
@@ -155,9 +158,10 @@ func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
 	}
 
 	return &medium{
-		typ:  etcd,
-		urls: urls,
-		path: etcdPrefix}, nil
+		typ:        etcd,
+		urls:       urls,
+		path:       etcdPrefix,
+		oauthToken: oauthToken}, nil
 }
 
 func processInnkeeperArgs(innkeeperUrl, oauthToken string) (*medium, error) {
@@ -254,7 +258,7 @@ func processArgs() ([]*medium, error) {
 		media = append(media, innkeeperArg)
 	}
 
-	etcdArg, err := processEtcdArgs(etcdUrls, etcdPrefix)
+	etcdArg, err := processEtcdArgs(etcdUrls, etcdPrefix, etcdOAuthToken)
 	if err != nil {
 		return nil, err
 	}
