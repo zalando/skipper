@@ -203,9 +203,7 @@ something that configures your frontend loadbalancer, for example
 and your DNS, [external-dns](https://github.com/kubernetes-incubator/external-dns)
 automatically.
 
-## Advanced Examples
-
-### Blue-Green deployments
+## Blue-Green deployments
 
 To do blue-green deployments you have to have control over traffic
 switching. Skipper gives you the opportunity to set weights to backend
@@ -242,9 +240,9 @@ and **my-app-2** will get **20%** of the traffic:
               servicePort: http
             path: /
 
-### Circuitbreaker
+## Circuitbreaker
 
-#### Consecutive Breaker
+### Consecutive Breaker
 
 The [consecutiveBreaker](https://godoc.org/github.com/zalando/skipper/filters/circuit#NewConsecutiveBreaker)
 filter is a breaker for the ingress route that open if the backend failures
@@ -271,7 +269,7 @@ The ingress spec would look like this:
               serviceName: app-svc
               servicePort: 80
 
-#### Rate Breaker
+### Rate Breaker
 
 The [rateBreaker](https://godoc.org/github.com/zalando/skipper/filters/circuit#NewRateBreaker)
 filter is a breaker for the ingress route that open if the backend
@@ -300,12 +298,12 @@ The ingress spec would look like this:
               servicePort: 80
 
 
-### Ratelimits
+## Ratelimits
 
 More details you will find in [ratelimit package](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
 and [kubernetes dataclient](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes) documentation.
 
-#### Client Ratelimits
+### Client Ratelimits
 
 The example shows 3 calls per minute per client, based on
 X-Forwarded-For header or IP incase there is no X-Forwarded-For header
@@ -327,7 +325,7 @@ set, are allowed to each skipper instance for the given ingress.
               servicePort: 80
 
 
-#### Service Ratelimits
+### Service Ratelimits
 
 The example shows 50 calls per minute are allowed to each skipper
 instance for the given ingress.
@@ -347,7 +345,7 @@ instance for the given ingress.
               serviceName: app-svc
               servicePort: 80
 
-### use Predicates
+## use Predicates
 
 [Predicates](https://godoc.org/github.com/zalando/skipper/predicates)
 are influencing the route matching, which you might want to carefully
@@ -357,7 +355,7 @@ toggles or time based enabling endpoints.
 You can use all kinds of [predicates](https://godoc.org/github.com/zalando/skipper/predicates)
 with [filters](https://godoc.org/github.com/zalando/skipper/filters) together.
 
-#### Feature Toggle
+### Feature Toggle
 
 This ingress route will only be matched if there is a Querystring
 "version=alpha" defined in the request. Like this you can easily build
@@ -378,8 +376,28 @@ feature toggles.
               serviceName: alpha-svc
               servicePort: 80
 
+### IP Whitelisting
 
-### Chaining Filters
+This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.0.0/17
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-predicate: Source("1.2.3.0/24", "195.168.0.0/17")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+
+
+## Chaining Filters
 
 You can set multiple filters in a chain similar to the [eskip format](https://godoc.org/github.com/zalando/skipper/eskip).
 
