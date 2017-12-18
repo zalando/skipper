@@ -234,7 +234,7 @@ func scanSymbol(code string) (t token, rest string, err error) {
 }
 
 func selectFixed(code string) scanner {
-	for fixed, _ := range fixedTokens {
+	for fixed := range fixedTokens {
 		if len(code) >= len(fixed) && strings.HasPrefix(code, string(fixed)) {
 			return fixed
 		}

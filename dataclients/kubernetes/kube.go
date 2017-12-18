@@ -854,7 +854,7 @@ func httpRedirectRoute() *eskip.Route {
 			"X-Forwarded-Proto": "http",
 		},
 		HeaderRegexps: map[string][]string{
-			"X-Forwarded-Port": []string{".*"},
+			"X-Forwarded-Port": {".*"},
 		},
 		PathRegexps: []string{".*"},
 		Filters: []*eskip.Filter{{

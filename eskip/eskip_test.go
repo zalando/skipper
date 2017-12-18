@@ -108,8 +108,8 @@ func TestParseRouteExpression(t *testing.T) {
 		`Custom1(3.14, "test value") && Custom2() -> "https://www.example.org"`,
 		&Route{
 			Predicates: []*Predicate{
-				&Predicate{"Custom1", []interface{}{float64(3.14), "test value"}},
-				&Predicate{"Custom2", nil}},
+				{"Custom1", []interface{}{float64(3.14), "test value"}},
+				{"Custom2", nil}},
 			Backend: "https://www.example.org"},
 		false,
 	}, {
@@ -127,7 +127,7 @@ func TestParseRouteExpression(t *testing.T) {
 		`* -> setRequestHeader("X-Foo", "bar") -> <shunt>`,
 		&Route{
 			Filters: []*Filter{
-				&Filter{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
+				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
 			},
 			BackendType: ShuntBackend,
 			Shunt:       true,
@@ -138,7 +138,7 @@ func TestParseRouteExpression(t *testing.T) {
 		`* -> setRequestHeader("X-Foo", "bar") -> <loopback>`,
 		&Route{
 			Filters: []*Filter{
-				&Filter{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
+				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
 			},
 			BackendType: LoopBackend,
 		},
@@ -147,7 +147,7 @@ func TestParseRouteExpression(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			stringMapKeys := func(m map[string]string) []string {
 				keys := make([]string, 0, len(m))
-				for k, _ := range m {
+				for k := range m {
 					keys = append(keys, k)
 				}
 
@@ -156,7 +156,7 @@ func TestParseRouteExpression(t *testing.T) {
 
 			stringsMapKeys := func(m map[string][]string) []string {
 				keys := make([]string, 0, len(m))
-				for k, _ := range m {
+				for k := range m {
 					keys = append(keys, k)
 				}
 
@@ -343,7 +343,7 @@ func TestRouteJSON(t *testing.T) {
 			Headers: map[string]string{
 				`ap"key`: `ap"value`},
 			HeaderRegexps: map[string][]string{
-				`ap"key`: []string{"slash/value0", "slash/value1"}},
+				`ap"key`: {"slash/value0", "slash/value1"}},
 			Predicates: []*Predicate{{"Test", []interface{}{3.14, "hello"}}},
 			Filters: []*Filter{
 				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
