@@ -318,7 +318,7 @@ func (l *eskipLex) Lex(lval *eskipSymType) int {
 }
 
 func (l *eskipLex) Error(err string) {
-	l.err = errors.New(fmt.Sprintf(
+	l.err = fmt.Errorf(
 		"parse failed after token %v, position %d: %s",
-		l.lastToken, l.initialLength-len(l.code), err))
+		l.lastToken, l.initialLength-len(l.code), err)
 }
