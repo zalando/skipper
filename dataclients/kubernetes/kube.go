@@ -200,6 +200,7 @@ const (
 	ingressesURI                  = "/apis/extensions/v1beta1/ingresses"
 	ingressClassKey               = "kubernetes.io/ingress.class"
 	defaultIngressClass           = "skipper"
+	endpointURIFmt                = "/api/v1/namespaces/%s/endpoints/%s"
 	serviceURIFmt                 = "/api/v1/namespaces/%s/services/%s"
 	serviceAccountDir             = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey        = "token"
@@ -273,6 +274,7 @@ type Client struct {
 	apiURL               string
 	provideHealthcheck   bool
 	provideHTTPSRedirect bool
+	loadBalanced         bool
 	token                string
 	current              map[string]*eskip.Route
 	termReceived         bool
@@ -284,6 +286,7 @@ var nonWord = regexp.MustCompile("\\W")
 
 var (
 	errServiceNotFound      = errors.New("service not found")
+	errEndpointNotFound     = errors.New("endpoint not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
 	errInvalidCertificate   = errors.New("invalid CA")
 )
@@ -329,6 +332,7 @@ func New(o Options) (*Client, error) {
 		apiURL:               apiURL,
 		provideHealthcheck:   o.ProvideHealthcheck,
 		provideHTTPSRedirect: o.ProvideHTTPSRedirect,
+		loadBalanced:         true, // TODO(sszuecs): parameterize
 		current:              make(map[string]*eskip.Route),
 		token:                token,
 		sigs:                 sigs,
@@ -491,7 +495,7 @@ func routeID(namespace, name, host, path, backend string) string {
 }
 
 // converts the default backend if any
-func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, error) {
+func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, error) {
 	// the usage of the default backend depends on what we want
 	// we can generate a hostname out of it based on shared rules
 	// and instructions in annotations, if there are no rules defined
@@ -503,43 +507,62 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 		return nil, false, nil
 	}
 
-	address, err := c.getServiceURL(
+	eps, err := c.getEndpoints(
 		i.Metadata.Namespace,
 		i.Spec.DefaultBackend.ServiceName,
-		i.Spec.DefaultBackend.ServicePort,
 	)
-
 	if err != nil {
 		return nil, false, err
 	}
 
-	r := &eskip.Route{
-		Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", ""),
-		Backend: address,
+	var routes []*eskip.Route
+	for idx, ep := range eps {
+		r := &eskip.Route{
+			Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", string(idx)),
+			Backend: ep,
+		}
+		routes = append(routes, r)
 	}
-
-	return r, true, nil
+	return routes, true, nil
 }
 
-func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, servicesURLs map[string]string) (*eskip.Route, error) {
+// https://kube-aws-test-1.teapot.zalan.do/api/v1/namespaces/default/endpoints/skipper-test
+func (c *Client) getEndpoints(ns, name string) ([]string, error) {
+	log.Debugf("requesting endpoint: %s/%s", ns, name)
+	url := fmt.Sprintf(endpointURIFmt, ns, name)
+	var ep endpoint
+	if err := c.getJSON(url, &ep); err != nil {
+		return nil, err
+	}
+
+	if ep.Subsets == nil {
+		log.Debug("invalid endpoint datagram, missing subsets")
+		return nil, errEndpointNotFound
+	}
+
+	return ep.Targets(), nil
+}
+
+func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpointsURLs map[string][]string) ([]*eskip.Route, error) {
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
-	serviceKey := ns + prule.Backend.ServiceName + prule.Backend.ServicePort.String()
+
+	endpointKey := ns + prule.Backend.ServiceName
 	var (
-		address string
-		err     error
+		eps []string
+		err error
 	)
-	if val, ok := servicesURLs[serviceKey]; !ok {
-		address, err = c.getServiceURL(ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
+	if val, ok := endpointsURLs[endpointKey]; !ok {
+		eps, err = c.getEndpoints(ns, prule.Backend.ServiceName)
 		if err != nil {
 			return nil, err
 		}
-		servicesURLs[serviceKey] = address
-		log.Debugf("New route for %s/%s/%s", ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
+		endpointsURLs[endpointKey] = eps
+		log.Debugf("%d new routes for %s/%s/%s", len(eps), ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
 	} else {
-		address = val
-		log.Debugf("Route for %s/%s/%s already known", ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
+		eps = val
+		log.Debugf("%d routes for %s/%s/%s already known", len(eps), ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
 	}
 
 	var pathExpressions []string
@@ -547,22 +570,27 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 		pathExpressions = []string{"^" + prule.Path}
 	}
 
-	r := &eskip.Route{
-		Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName),
-		PathRegexps: pathExpressions,
-		Backend:     address,
+	var routes []*eskip.Route
+	for idx, ep := range eps {
+		// TODO(sszuecs): add RoundRobin predicate here with all information
+		r := &eskip.Route{
+			Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName+fmt.Sprintf("_%d", idx)),
+			PathRegexps: pathExpressions,
+			Backend:     ep,
+		}
+
+		// add traffic predicate if traffic weight is between 0.0 and 1.0
+		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+			r.Predicates = []*eskip.Predicate{{
+				Name: traffic.PredicateName,
+				Args: []interface{}{prule.Backend.Traffic},
+			}}
+			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, prule.Backend.ServiceName)
+		}
+		routes = append(routes, r)
 	}
 
-	// add traffic predicate if traffic weight is between 0.0 and 1.0
-	if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
-		r.Predicates = []*eskip.Predicate{{
-			Name: traffic.PredicateName,
-			Args: []interface{}{prule.Backend.Traffic},
-		}}
-		log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, prule.Backend.ServiceName)
-	}
-
-	return r, nil
+	return routes, nil
 }
 
 // ingressToRoutes logs if an invalid found, but proceeds with the
@@ -580,7 +608,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		}
 
 		if r, ok, err := c.convertDefaultBackend(i); ok {
-			routes = append(routes, r)
+			routes = append(routes, r...)
 		} else if err != nil {
 			log.Errorf("error while converting default backend: %v", err)
 		}
@@ -612,7 +640,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		}
 
 		// We need this to avoid asking the k8s API for the same services
-		servicesURLs := make(map[string]string)
+		endpointsURLs := make(map[string][]string)
 		for _, rule := range i.Spec.Rules {
 			if rule.Http == nil {
 				log.Warn("invalid ingress item: rule missing http definitions")
@@ -629,7 +657,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 			for _, prule := range rule.Http.Paths {
 				if prule.Backend.Traffic > 0 {
-					r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
+					endpoints, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, endpointsURLs)
 					if err != nil {
 						// if the service is not found the route should be removed
 						if err == errServiceNotFound {
@@ -639,31 +667,32 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						return nil, fmt.Errorf("error while getting service: %v", err)
 					}
 
-					r.HostRegexps = host
-					if annotationFilter != "" {
-						annotationFilters, err := eskip.ParseFilters(annotationFilter)
-						if err != nil {
-							log.Errorf("Can not parse annotation filters: %v", err)
-						} else {
-							sav := r.Filters[:]
-							r.Filters = append(annotationFilters, sav...)
+					for _, r := range endpoints {
+						r.HostRegexps = host
+						if annotationFilter != "" {
+							annotationFilters, err := eskip.ParseFilters(annotationFilter)
+							if err != nil {
+								log.Errorf("Can not parse annotation filters: %v", err)
+							} else {
+								sav := r.Filters[:]
+								r.Filters = append(annotationFilters, sav...)
+							}
 						}
-					}
 
-					if annotationPredicate != "" {
-						predicates, err := eskip.ParsePredicates(annotationPredicate)
-						if err != nil {
-							log.Errorf("Can not parse annotation predicate: %v", err)
-						} else {
-							r.Predicates = predicates
+						if annotationPredicate != "" {
+							predicates, err := eskip.ParsePredicates(annotationPredicate)
+							if err != nil {
+								log.Errorf("Can not parse annotation predicate: %v", err)
+							} else {
+								r.Predicates = predicates
+							}
 						}
+						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 					}
-					hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 				}
 			}
 		}
 	}
-
 	for host, rs := range hostRoutes {
 		routes = append(routes, rs...)
 
