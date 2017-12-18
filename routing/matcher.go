@@ -282,9 +282,7 @@ func moveToSubtreeIfExists(subtree *pathMatcher, paths map[string]*pathMatcher, 
 		return
 	}
 
-	for _, l := range pm.leaves {
-		subtree.leaves = append(subtree.leaves, l)
-	}
+	subtree.leaves = append(subtree.leaves, pm.leaves...)
 
 	delete(paths, path)
 }
