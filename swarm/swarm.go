@@ -315,18 +315,15 @@ func (s *Swarm) control() {
 
 		select {
 		case req := <-s.getOutgoing:
-			m := takeMaxLatest(s.messages, req.overhead, req.limit)
-			s.messages = nil
-			req.ret <- m
+			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
+			req.ret <- s.messages
 		case m := <-s.outgoing:
 			s.messages = append(s.messages, m.encoded)
 			s.messages = takeMaxLatest(s.messages, 0, s.maxMessageBuffer)
 			if m.message.Type == sharedValue {
 				s.shared.set(s.local.Name, m.message.Key, m.message.Value)
 			}
-			println("set messages", len(s.messages))
 		case b := <-s.incoming:
-			println("receiving incoming", len(b))
 			m, err := decodeMessage(b)
 			if err != nil {
 				// assuming buffered error channels
@@ -335,7 +332,6 @@ func (s *Swarm) control() {
 				default:
 				}
 			} else if m.Type == sharedValue {
-				println("it's a shared value")
 				s.shared.set(m.Source, m.Key, m.Value)
 			} else if m.Type == broadcast {
 				for k, l := range s.listeners {
@@ -385,12 +381,10 @@ func (s *Swarm) broadcast(m *message) error {
 }
 
 func (s *Swarm) Broadcast(m interface{}) error {
-	println("broadcasting value")
 	return s.broadcast(&message{Type: broadcast, Value: m})
 }
 
 func (s *Swarm) ShareValue(key string, value interface{}) error {
-	println("sharing value")
 	return s.broadcast(&message{Type: sharedValue, Key: key, Value: value})
 }
 

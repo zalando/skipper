@@ -34,24 +34,13 @@ func TestInitializeSwarm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const delay = 999 * time.Millisecond
-	time.Sleep(6 * delay)
-
 	first.ShareValue("foo", 1)
-	time.Sleep(delay)
-
 	second.ShareValue("foo", 2)
-	time.Sleep(delay)
-
 	second.ShareValue("bar", 3)
-	time.Sleep(delay)
-
 	third.ShareValue("bar", 4)
-	time.Sleep(delay)
 
-	litter.Dump(first.shared)
-	litter.Dump(second.shared)
-	litter.Dump(third.shared)
+	const delay = 300 * time.Millisecond
+	time.Sleep(delay)
 
 	checkValues := func(s []*Swarm, key string, expected map[string]interface{}) {
 		for _, si := range s {
