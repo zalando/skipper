@@ -511,7 +511,23 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		i.Metadata.Namespace,
 		i.Spec.DefaultBackend.ServiceName,
 	)
-	if err != nil {
+	if err == errEndpointNotFound {
+		address, err2 := c.getServiceURL(
+			i.Metadata.Namespace,
+			i.Spec.DefaultBackend.ServiceName,
+			i.Spec.DefaultBackend.ServicePort,
+		)
+		if err2 != nil {
+			return nil, false, err2
+		}
+
+		r := &eskip.Route{
+			Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", ""),
+			Backend: address,
+		}
+		return []*eskip.Route{r}, true, nil
+
+	} else if err != nil {
 		return nil, false, err
 	}
 
