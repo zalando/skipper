@@ -507,6 +507,8 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		return nil, false, nil
 	}
 
+	var routes []*eskip.Route
+
 	eps, err := c.getEndpoints(
 		i.Metadata.Namespace,
 		i.Spec.DefaultBackend.ServiceName,
@@ -525,13 +527,11 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 			Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", ""),
 			Backend: address,
 		}
-		return []*eskip.Route{r}, true, nil
-
+		routes = append(routes, r)
 	} else if err != nil {
 		return nil, false, err
 	}
 
-	var routes []*eskip.Route
 	for idx, ep := range eps {
 		r := &eskip.Route{
 			Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", string(idx)),
@@ -566,12 +566,28 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 
 	endpointKey := ns + prule.Backend.ServiceName
 	var (
-		eps []string
-		err error
+		eps    []string
+		err    error
+		routes []*eskip.Route
 	)
+
 	if val, ok := endpointsURLs[endpointKey]; !ok {
 		eps, err = c.getEndpoints(ns, prule.Backend.ServiceName)
-		if err != nil {
+		if err == errEndpointNotFound {
+			address, err2 := c.getServiceURL(
+				ns,
+				prule.Backend.ServiceName,
+				prule.Backend.ServicePort,
+			)
+			if err2 != nil {
+				return nil, err2
+			}
+			r := &eskip.Route{
+				Id:      routeID(ns, prule.Backend.ServiceName, "", "", ""),
+				Backend: address,
+			}
+			routes = append(routes, r)
+		} else if err != nil {
 			return nil, err
 		}
 		endpointsURLs[endpointKey] = eps
@@ -586,7 +602,6 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		pathExpressions = []string{"^" + prule.Path}
 	}
 
-	var routes []*eskip.Route
 	for idx, ep := range eps {
 		// TODO(sszuecs): add RoundRobin predicate here with all information
 		r := &eskip.Route{

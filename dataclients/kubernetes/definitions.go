@@ -150,8 +150,8 @@ func (ep endpoint) Targets() []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
-			for _, addr := range s.Adresses {
-				result = append(result, fmt.Sprintf("http://%s:%d", addr, port))
+			for _, addr := range s.Addresses {
+				result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
 			}
 		}
 	}
@@ -159,8 +159,8 @@ func (ep endpoint) Targets() []string {
 }
 
 type subset struct {
-	Adresses []*address `json:"adresses"`
-	Ports    []*port    `json:"ports"`
+	Addresses []*address `json:"addresses"`
+	Ports     []*port    `json:"ports"`
 }
 
 type address struct {
