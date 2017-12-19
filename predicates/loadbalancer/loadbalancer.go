@@ -1,24 +1,28 @@
-package roundrobin
+package loadbalancer
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
 const (
-	PredicateName = "RoundRobin"
+	PredicateName = "LoadBalancer"
 )
 
 type spec struct {
+	mu       sync.RWMutex
 	counters map[string]int
 }
 
 type predicate struct {
-	group    string
-	index    int
-	count    int
+	group string
+	index int
+	count int
+
+	mu       sync.RWMutex
 	counters map[string]int
 }
 
@@ -62,13 +66,17 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if count <= 0 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
-	// TODO: Sync needed
+	if index >= count {
+		return nil, predicates.ErrInvalidPredicateParameters
+	}
+	s.mu.Lock()
 	if s.counters == nil {
 		s.counters = make(map[string]int)
 	}
 	if _, ok := s.counters[group]; !ok {
 		s.counters[group] = 0
 	}
+	s.mu.Unlock()
 	return &predicate{
 		group:    group,
 		index:    index,
@@ -77,13 +85,16 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	}, nil
 }
 
-// TODO: Sync needed
 func (p *predicate) Match(r *http.Request) bool {
+	p.mu.RLock()
 	current := p.counters[p.group]
+	p.mu.RUnlock()
 	matched := current == p.index
 	if matched {
+		p.mu.Lock()
 		current = (current + 1) % p.count
 		p.counters[p.group] = current
+		p.mu.Unlock()
 	}
 	return matched
 }
