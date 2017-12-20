@@ -731,7 +731,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 							if err != nil {
 								log.Errorf("Can not parse annotation predicate: %v", err)
 							} else {
-								r.Predicates = predicates
+								r.Predicates = append(r.Predicates, predicates...)
 							}
 						}
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
