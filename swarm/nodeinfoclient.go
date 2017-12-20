@@ -3,17 +3,18 @@ package swarm
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type NodeInfoClient struct {
-	client *http.Client
+	kubeAPIBaseURL string
+	client         *http.Client
 }
 
 func buildhttpClient() *http.Client {
@@ -29,25 +30,24 @@ func buildhttpClient() *http.Client {
 	}
 }
 
-func NewNodeInfoClient() NodeInfoClient {
-	return NodeInfoClient{
-		client: buildhttpClient(),
+func NewNodeInfoClient(kubeAPIBaseURL string) *NodeInfoClient {
+	return &NodeInfoClient{
+		kubeAPIBaseURL: kubeAPIBaseURL,
+		client:         buildhttpClient(),
 	}
 }
 
 type metadata struct {
-	Namespace   string            `json:"namespace"`
-	Name        string            `json:"name"`
-	Annotations map[string]string `json:"annotations"`
+	Name string `json:"name"`
 }
 
 type status struct {
-	PodIp string `json:"podIP"`
+	PodIP string `json:"podIP"`
 }
 
 type item struct {
-	metadata `json:"metadata"`
-	status   `json:"status"`
+	Metadata metadata `json:"metadata"`
+	Status   status   `json:"status"`
 }
 
 type itemList struct {
@@ -55,7 +55,13 @@ type itemList struct {
 }
 
 func (c *NodeInfoClient) GetNodeInfo(namespace string, applicationName string) ([]*NodeInfo, error) {
-	rsp, err := c.client.Get("")
+	rsp, err := c.client.Get(fmt.Sprintf(
+		// TODO: use safer url building
+		"%s/api/v1/namespaces/%s/pods?labelSelector=application%3D%s",
+		c.kubeAPIBaseURL,
+		namespace,
+		applicationName,
+	))
 	if err != nil {
 		log.Debugf("request to %s %s failed: %v", namespace, applicationName, err)
 		return nil, err
@@ -63,11 +69,7 @@ func (c *NodeInfoClient) GetNodeInfo(namespace string, applicationName string) (
 
 	defer rsp.Body.Close()
 
-	if rsp.StatusCode == http.StatusNotFound {
-		return nil, errors.New("service not found")
-	}
-
-	if rsp.StatusCode != http.StatusOK {
+	if rsp.StatusCode > http.StatusBadRequest {
 		log.Debugf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 		return nil, fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 	}
@@ -84,12 +86,12 @@ func (c *NodeInfoClient) GetNodeInfo(namespace string, applicationName string) (
 	}
 	nodes := make([]*NodeInfo, 0)
 	for _, i := range il.Items {
-		addr := net.ParseIP(i.PodIp)
+		addr := net.ParseIP(i.Status.PodIP)
 		if addr == nil {
-			log.Warn(fmt.Sprintf("failed to parse the ip %s", i.PodIp))
+			log.Warn(fmt.Sprintf("failed to parse the ip %s", i.Status.PodIP))
 			continue
 		}
-		nodes = append(nodes, &NodeInfo{Name: i.Name, Addr: addr})
+		nodes = append(nodes, &NodeInfo{Name: i.Metadata.Name, Addr: addr})
 	}
 	return nodes, nil
 }

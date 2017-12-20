@@ -2,9 +2,10 @@ package swarmtest
 
 import (
 	"errors"
-	"github.com/hashicorp/memberlist"
 	"net"
 	"time"
+
+	"github.com/hashicorp/memberlist"
 )
 
 type CustomNetTransport struct {

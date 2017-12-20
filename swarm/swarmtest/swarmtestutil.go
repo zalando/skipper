@@ -3,9 +3,10 @@ package swarmtest
 import (
 	"errors"
 	"fmt"
-	"github.com/hashicorp/memberlist"
 	"log"
 	"time"
+
+	"github.com/hashicorp/memberlist"
 )
 
 type nodeStateType int
