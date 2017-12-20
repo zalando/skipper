@@ -10,7 +10,7 @@ import (
 
 func TestInitializeSwarm(t *testing.T) {
 	first, err := Start(
-		Options{NodeSpec: &NodeInfo{Name: "first", Port: 9933}},
+		Options{SelfSpec: KnownEntryPoint(&NodeInfo{Name: "first", Port: 9933})},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -19,7 +19,7 @@ func TestInitializeSwarm(t *testing.T) {
 	entryPoint := KnownEntryPoint(first.Local())
 
 	second, err := Join(
-		Options{NodeSpec: &NodeInfo{Name: "second", Port: 9934}},
+		Options{SelfSpec: KnownEntryPoint(&NodeInfo{Name: "second", Port: 9934})},
 		entryPoint,
 	)
 	if err != nil {
@@ -27,7 +27,7 @@ func TestInitializeSwarm(t *testing.T) {
 	}
 
 	third, err := Join(
-		Options{NodeSpec: &NodeInfo{Name: "third", Port: 9935}},
+		Options{SelfSpec: KnownEntryPoint(&NodeInfo{Name: "third", Port: 9935})},
 		entryPoint,
 	)
 	if err != nil {

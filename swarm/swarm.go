@@ -19,7 +19,7 @@ const (
 )
 
 const (
-	DefaultMaxMessageBuffer = 1 << 23
+	DefaultMaxMessageBuffer = 1 << 22
 	DefaultLeaveTimeout     = 180 * time.Millisecond
 )
 
@@ -29,12 +29,17 @@ type NodeInfo struct {
 	Port int
 }
 
+type Self interface {
+	Node() (*NodeInfo, error)
+}
+
 // Join returns a current node that a node can use to join to a swarm.
 type EntryPoint interface {
 	Nodes() ([]*NodeInfo, error)
 }
 
-type knownEntryPoint struct {
+type KnownEPoint struct {
+	self  *NodeInfo
 	nodes []*NodeInfo
 }
 
@@ -76,7 +81,7 @@ type mlDelegate struct {
 
 type Options struct {
 	// defaults from the underlying implementation
-	NodeSpec *NodeInfo
+	SelfSpec Self
 
 	// leaky, expected to be buffered, or errors are lost
 	Errors chan<- error
@@ -111,11 +116,15 @@ type Swarm struct {
 	mlist    *memberlist.Memberlist
 }
 
-func KnownEntryPoint(n ...*NodeInfo) EntryPoint {
-	return &knownEntryPoint{nodes: n}
+func KnownEntryPoint(self *NodeInfo, n ...*NodeInfo) *KnownEPoint {
+	return &KnownEPoint{self: self, nodes: n}
 }
 
-func (e *knownEntryPoint) Nodes() ([]*NodeInfo, error) {
+func (e *KnownEPoint) Node() (*NodeInfo, error) {
+	return e.self, nil
+}
+
+func (e *KnownEPoint) Nodes() ([]*NodeInfo, error) {
 	return e.nodes, nil
 }
 
@@ -174,27 +183,32 @@ func Start(o Options) (*Swarm, error) {
 
 func Join(o Options, e EntryPoint) (*Swarm, error) {
 	c := memberlist.DefaultLocalConfig()
-	if o.NodeSpec == nil {
-		o.NodeSpec = &NodeInfo{}
+	if o.SelfSpec == nil {
+		o.SelfSpec = KnownEntryPoint(&NodeInfo{})
 	}
 
-	if o.NodeSpec.Name == "" {
-		o.NodeSpec.Name = c.Name
-	} else {
-		c.Name = o.NodeSpec.Name
+	nodeSpec, err := o.SelfSpec.Node()
+	if err != nil {
+		return nil, err
 	}
 
-	if o.NodeSpec.Addr == nil {
-		o.NodeSpec.Addr = net.ParseIP(c.BindAddr)
+	if nodeSpec.Name == "" {
+		nodeSpec.Name = c.Name
 	} else {
-		c.BindAddr = o.NodeSpec.Addr.String()
+		c.Name = nodeSpec.Name
+	}
+
+	if nodeSpec.Addr == nil {
+		nodeSpec.Addr = net.ParseIP(c.BindAddr)
+	} else {
+		c.BindAddr = nodeSpec.Addr.String()
 		c.AdvertiseAddr = c.BindAddr
 	}
 
-	if o.NodeSpec.Port == 0 {
-		o.NodeSpec.Port = c.BindPort
+	if nodeSpec.Port == 0 {
+		nodeSpec.Port = c.BindPort
 	} else {
-		c.BindPort = o.NodeSpec.Port
+		c.BindPort = nodeSpec.Port
 		c.AdvertisePort = c.BindPort
 	}
 
@@ -245,7 +259,7 @@ func Join(o Options, e EntryPoint) (*Swarm, error) {
 	}
 
 	s := &Swarm{
-		local:            o.NodeSpec,
+		local:            nodeSpec,
 		errors:           o.Errors,
 		maxMessageBuffer: o.MaxMessageBuffer,
 		leaveTimeout:     o.LeaveTimeout,
