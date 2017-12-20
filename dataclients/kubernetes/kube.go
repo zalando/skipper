@@ -188,6 +188,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/loadbalancer"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 )
@@ -536,6 +537,14 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		r := &eskip.Route{
 			Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", string(idx)),
 			Backend: ep,
+			Predicates: []*eskip.Predicate{{
+				Name: loadbalancer.PredicateName,
+				Args: []interface{}{
+					routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", ""), // group
+					idx,      // index of the group
+					len(eps), // number of items in the group
+				},
+			}},
 		}
 		routes = append(routes, r)
 	}
@@ -603,19 +612,26 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 	}
 
 	for idx, ep := range eps {
-		// TODO(sszuecs): add RoundRobin predicate here with all information
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName+fmt.Sprintf("_%d", idx)),
 			PathRegexps: pathExpressions,
 			Backend:     ep,
+			Predicates: []*eskip.Predicate{{
+				Name: loadbalancer.PredicateName,
+				Args: []interface{}{
+					routeID(ns, name, host, prule.Path, prule.Backend.ServiceName), // group
+					idx,      // index of the group
+					len(eps), // number of items in the group
+				},
+			}},
 		}
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
-			r.Predicates = []*eskip.Predicate{{
+			r.Predicates = append([]*eskip.Predicate{{
 				Name: traffic.PredicateName,
 				Args: []interface{}{prule.Backend.Traffic},
-			}}
+			}}, r.Predicates...)
 			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, prule.Backend.ServiceName)
 		}
 		routes = append(routes, r)
