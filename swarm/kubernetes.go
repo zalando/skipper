@@ -131,18 +131,19 @@ func (kep *KubernetesEntryPoint) control() {
 	}
 }
 
-func (kep *KubernetesEntryPoint) Node() (*NodeInfo, error) {
+func (kep *KubernetesEntryPoint) req() *knodeResponse {
 	ret := make(chan *knodeResponse)
 	req := &knodeRequest{ret: ret}
 	kep.nodes <- req
-	rsp := <-req.ret
+	return <-req.ret
+}
+
+func (kep *KubernetesEntryPoint) Node() (*NodeInfo, error) {
+	rsp := kep.req()
 	return rsp.self, rsp.err
 }
 
 func (kep *KubernetesEntryPoint) Nodes() ([]*NodeInfo, error) {
-	ret := make(chan *knodeResponse)
-	req := &knodeRequest{ret: ret}
-	kep.nodes <- req
-	rsp := <-req.ret
+	rsp := kep.req()
 	return rsp.nodes, rsp.err
 }
