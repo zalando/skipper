@@ -17,6 +17,7 @@ func TestKubernetesSwarm(t *testing.T) {
 
 	entry := KubernetesEntry(KubernetesOptions{
 		Client: NewNodeInfoClient(s.URL),
+		hackPort: 8800,
 	})
 	first, err := Start(
 		Options{SelfSpec: entry},
@@ -27,6 +28,7 @@ func TestKubernetesSwarm(t *testing.T) {
 
 	entry = KubernetesEntry(KubernetesOptions{
 		Client: NewNodeInfoClient(s.URL),
+		hackPort: 8801,
 	})
 	second, err := Join(
 		Options{SelfSpec: entry},
@@ -38,6 +40,7 @@ func TestKubernetesSwarm(t *testing.T) {
 
 	entry = KubernetesEntry(KubernetesOptions{
 		Client: NewNodeInfoClient(s.URL),
+		hackPort: 8802,
 	})
 	third, err := Join(
 		Options{SelfSpec: entry},
