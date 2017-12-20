@@ -20,6 +20,7 @@ import (
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/interval"
+	"github.com/zalando/skipper/predicates/loadbalancer"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
@@ -511,7 +512,8 @@ func Run(o Options) error {
 		interval.NewAfter(),
 		cookie.New(),
 		query.New(),
-		traffic.New())
+		traffic.New(),
+		loadbalancer.New())
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
