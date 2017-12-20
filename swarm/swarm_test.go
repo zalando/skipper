@@ -16,18 +16,18 @@ func TestInitializeSwarm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entryPoint := KnownEntryPoint(first.Local())
-
+	entryPoint := KnownEntryPoint(&NodeInfo{Name: "second", Port: 9934}, first.Local())
 	second, err := Join(
-		Options{SelfSpec: KnownEntryPoint(&NodeInfo{Name: "second", Port: 9934})},
+		Options{SelfSpec: entryPoint},
 		entryPoint,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	entryPoint = KnownEntryPoint(&NodeInfo{Name: "third", Port: 9935}, first.Local())
 	third, err := Join(
-		Options{SelfSpec: KnownEntryPoint(&NodeInfo{Name: "third", Port: 9935})},
+		Options{SelfSpec: entryPoint},
 		entryPoint,
 	)
 	if err != nil {
