@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	predicateName = "LoadBalancer"
+	PredicateName = "LoadBalancer"
 )
 
 type spec struct {
@@ -49,7 +49,7 @@ func New() routing.PredicateSpec {
 }
 
 func (*spec) Name() string {
-	return predicateName
+	return PredicateName
 }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
