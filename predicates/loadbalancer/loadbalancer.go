@@ -86,14 +86,6 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if index >= count {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
-	s.mu.Lock()
-	if s.counters == nil {
-		s.counters = make(map[string]int)
-	}
-	if _, ok := s.counters[group]; !ok {
-		s.counters[group] = 0
-	}
-	s.mu.Unlock()
 	return &predicate{
 		mu:       s.mu,
 		group:    group,

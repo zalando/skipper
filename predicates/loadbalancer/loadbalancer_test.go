@@ -3,8 +3,8 @@ package loadbalancer
 import (
 	"net/http"
 	"reflect"
-	"testing"
 	"sync"
+	"testing"
 
 	"github.com/zalando/skipper/routing"
 )
@@ -74,13 +74,11 @@ func TestSpecCreate(t *testing.T) {
 			"creates a predicate with given group name, index, and count",
 			[]interface{}{"a", 1, 7},
 			&predicate{
-				mu: &sync.RWMutex{},
-				group: "a",
-				index: 1,
-				count: 7,
-				counters: map[string]int{
-					"a": 0,
-				},
+				mu:       &sync.RWMutex{},
+				group:    "a",
+				index:    1,
+				count:    7,
+				counters: map[string]int{},
 			},
 			false,
 		},
@@ -88,20 +86,18 @@ func TestSpecCreate(t *testing.T) {
 			"creates a predicate with given group name, index, and count with floats",
 			[]interface{}{"a", 1.0, 7.0},
 			&predicate{
-				mu: &sync.RWMutex{},
-				group: "a",
-				index: 1,
-				count: 7,
-				counters: map[string]int{
-					"a": 0,
-				},
+				mu:       &sync.RWMutex{},
+				group:    "a",
+				index:    1,
+				count:    7,
+				counters: map[string]int{},
 			},
 			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &spec{mu: &sync.RWMutex{}}
+			s := &spec{mu: &sync.RWMutex{}, counters: make(map[string]int)}
 			got, err := s.Create(tt.args)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("spec.Create() error = %v, wantErr %v", err, tt.wantErr)
