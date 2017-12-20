@@ -28,7 +28,7 @@ const (
 )
 
 type spec struct {
-	mu       sync.RWMutex
+	mu       *sync.RWMutex
 	counters map[string]int
 }
 
@@ -37,13 +37,14 @@ type predicate struct {
 	index int
 	count int
 
-	mu       sync.RWMutex
+	mu       *sync.RWMutex
 	counters map[string]int
 }
 
 // New creates a new load balancer predicate spec.
 func New() routing.PredicateSpec {
 	return &spec{
+		mu:       &sync.RWMutex{},
 		counters: make(map[string]int),
 	}
 }
@@ -94,6 +95,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	}
 	s.mu.Unlock()
 	return &predicate{
+		mu:       s.mu,
 		group:    group,
 		index:    index,
 		count:    count,
