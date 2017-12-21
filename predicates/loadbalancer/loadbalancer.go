@@ -101,8 +101,8 @@ func (p *predicate) Match(r *http.Request) bool {
 	p.mu.RUnlock()
 	matched := current == p.index%p.count
 	log.Infof(
-		"lb predicate: matmched=%t group=%s count=%d current=%d",
-		matched, p.group, p.count, current,
+		"lb predicate: matmched=%t group=%s index=%d count=%d current=%d",
+		matched, p.group, p.index, p.count, current,
 	)
 	if matched {
 		p.mu.Lock()
