@@ -15,9 +15,24 @@ func TestKubernetesSwarm(t *testing.T) {
 		w.Write([]byte(content))
 	}))
 
+	hackNodes := func(n []*NodeInfo) []*NodeInfo {
+		for i := range n {
+			n[i].Port = 30000 + i
+		}
+
+		return n
+	}
+
+	hackSelf := func(i int) func(n []*NodeInfo) *NodeInfo {
+		return func(n []*NodeInfo) *NodeInfo {
+			return n[i]
+		}
+	}
+
 	entry := KubernetesEntry(KubernetesOptions{
-		Client: NewNodeInfoClient(s.URL),
-		hackPort: 8800,
+		Client:    NewNodeInfoClient(s.URL),
+		hackNodes: hackNodes,
+		hackSelf:  hackSelf(0),
 	})
 	first, err := Start(
 		Options{SelfSpec: entry},
@@ -27,8 +42,9 @@ func TestKubernetesSwarm(t *testing.T) {
 	}
 
 	entry = KubernetesEntry(KubernetesOptions{
-		Client: NewNodeInfoClient(s.URL),
-		hackPort: 8801,
+		Client:    NewNodeInfoClient(s.URL),
+		hackNodes: hackNodes,
+		hackSelf:  hackSelf(1),
 	})
 	second, err := Join(
 		Options{SelfSpec: entry},
@@ -39,8 +55,9 @@ func TestKubernetesSwarm(t *testing.T) {
 	}
 
 	entry = KubernetesEntry(KubernetesOptions{
-		Client: NewNodeInfoClient(s.URL),
-		hackPort: 8802,
+		Client:    NewNodeInfoClient(s.URL),
+		hackNodes: hackNodes,
+		hackSelf:  hackSelf(3),
 	})
 	third, err := Join(
 		Options{SelfSpec: entry},

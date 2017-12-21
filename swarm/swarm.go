@@ -125,7 +125,6 @@ func (e *KnownEPoint) Node() (*NodeInfo, error) {
 }
 
 func (e *KnownEPoint) Nodes() ([]*NodeInfo, error) {
-	println("returning nodes", len(e.nodes))
 	return e.nodes, nil
 }
 

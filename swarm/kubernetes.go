@@ -20,7 +20,9 @@ type KubernetesOptions struct {
 	ApplicationName string
 	Client          KubernetesClient
 	FetchTimeout    time.Duration
-	hackPort        int
+
+	hackNodes func(n []*NodeInfo) []*NodeInfo
+	hackSelf  func(n []*NodeInfo) *NodeInfo
 }
 
 type knodeResponse struct {
@@ -58,8 +60,8 @@ func KubernetesEntry(o KubernetesOptions) *KubernetesEntryPoint {
 	o = fillDefaults(o)
 	kep := &KubernetesEntryPoint{
 		KubernetesOptions: o,
-		fetch: make(chan *knodeResponse),
-		nodes: make(chan *knodeRequest),
+		fetch:             make(chan *knodeResponse),
+		nodes:             make(chan *knodeRequest),
 	}
 	go kep.control()
 	return kep
@@ -68,10 +70,23 @@ func KubernetesEntry(o KubernetesOptions) *KubernetesEntryPoint {
 func (kep *KubernetesEntryPoint) fetchNodes(to time.Duration) {
 	<-time.After(to)
 	nodes, err := kep.Client.GetNodeInfo(kep.Namespace, kep.ApplicationName)
+	if err != nil {
+		kep.fetch <- &knodeResponse{err: err}
+		return
+	}
+
+	if kep.hackNodes != nil {
+		nodes = kep.hackNodes(nodes)
+	}
+
 	kep.fetch <- &knodeResponse{nodes: nodes, err: err}
 }
 
-func findSelf(n []*NodeInfo) (*NodeInfo, error) {
+func (kep *KubernetesEntryPoint) findSelf(n []*NodeInfo) (*NodeInfo, error) {
+	if kep.hackSelf != nil {
+		return kep.hackSelf(n), nil
+	}
+
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return nil, err
@@ -83,14 +98,12 @@ func findSelf(n []*NodeInfo) (*NodeInfo, error) {
 			return nil, err
 		}
 
+		for j := range n {
 
-			for j := range n {
-
-				if ip.Equal(n[j].Addr) {
-					return n[j], nil
-				}
+			if ip.Equal(n[j].Addr) {
+				return n[j], nil
 			}
-
+		}
 	}
 
 	return nil, errSelfAddressNotFound
@@ -109,7 +122,6 @@ func (kep *KubernetesEntryPoint) control() {
 	for {
 		select {
 		case frsp := <-kep.fetch:
-
 			// nodeReqs nil, therefore blocked until first fetch done
 			nodeReqs = kep.nodes
 
@@ -117,7 +129,7 @@ func (kep *KubernetesEntryPoint) control() {
 			go kep.fetchNodes(kep.FetchTimeout)
 
 			if frsp.err == nil {
-				self, err := findSelf(frsp.nodes)
+				self, err := kep.findSelf(frsp.nodes)
 				if err != nil {
 					lastError = err
 				} else {
@@ -159,7 +171,7 @@ func (kep *KubernetesEntryPoint) Nodes() ([]*NodeInfo, error) {
 	rsp := kep.req()
 	nodes := make([]*NodeInfo, 0)
 	for i, node := range rsp.nodes {
-		node.Port = 33333+i
+		node.Port = 33333 + i
 	}
 	return nodes, rsp.err
 }
