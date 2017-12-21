@@ -9,6 +9,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/loadbalancer"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -67,10 +68,17 @@ func TestConcurrent(t *testing.T) {
 	failureCount := newCounter()
 
 	var wg sync.WaitGroup
-	runClient := func() {
+	runClient := func(id string) {
 		for i := 0; i < 300; i++ {
 			func() {
-				rsp, err := http.Get(p.URL)
+				req, err := http.NewRequest("GET", p.URL, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				req.Header.Set("X-Trace", fmt.Sprintf("%s-%d", id, i))
+
+				rsp, err := http.DefaultClient.Do(req)
 				if err != nil {
 					failureCount.inc()
 					t.Log(err)
@@ -91,10 +99,18 @@ func TestConcurrent(t *testing.T) {
 	const concurrency = 32
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
-		go runClient()
+		go runClient(fmt.Sprintf("client-%d", i))
 	}
 
 	wg.Wait()
+
+	for _, logs := range loadbalancer.CountNonMatched {
+		if len(logs) > 1 {
+			for i := range logs {
+				t.Log(logs[i])
+			}
+		}
+	}
 
 	t.Error("just fail", c1, c2, failureCount)
 }

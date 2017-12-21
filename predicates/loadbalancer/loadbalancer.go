@@ -16,10 +16,10 @@ Eskip example:
 package loadbalancer
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
@@ -96,15 +96,20 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	}, nil
 }
 
+var CountNonMatched = make(map[string][]string)
+
 func (p *predicate) Match(r *http.Request) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	current := p.counters[p.group]
 	matched := (current % p.count) == p.index
-	log.Infof(
-		"lb predicate: matched=%t group=%s index=%d count=%d current=%d",
-		matched, p.group, p.index, p.count, current,
-	)
+	if !matched {
+		reqID := r.Header.Get("X-Trace")
+		CountNonMatched[reqID] = append(CountNonMatched[reqID], fmt.Sprintf(
+			"lb predicate: traceid=%s matched=%t group=%s index=%d count=%d current=%d",
+			reqID, matched, p.group, p.index, p.count, current,
+		))
+	}
 	if matched {
 		current = (current + 1) % p.count
 		p.counters[p.group] = current
