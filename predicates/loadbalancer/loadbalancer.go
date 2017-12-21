@@ -100,6 +100,10 @@ func (p *predicate) Match(r *http.Request) bool {
 	current := p.counters[p.group]
 	p.mu.RUnlock()
 	matched := current == p.index%p.count
+	log.Infof(
+		"lb predicate: matmched=%t group=%s count=%d current=%d",
+		matched, p.group, p.count, current,
+	)
 	if matched {
 		p.mu.Lock()
 		current = (current + 1) % p.count
