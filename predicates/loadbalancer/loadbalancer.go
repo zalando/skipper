@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
