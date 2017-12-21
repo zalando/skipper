@@ -78,6 +78,10 @@ func (s *specDecide) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *predicateDecide) Match(r *http.Request) bool {
+	if r.Header.Get(p.decisionHeader) != "" {
+		return false
+	}
+
 	d := p.counter.inc(p.size)
 	r.Header.Set(p.decisionHeader, strconv.Itoa(d))
 	return true
