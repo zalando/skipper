@@ -8,6 +8,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/predicates/loadbalancer"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -24,7 +25,12 @@ type TestProxy struct {
 func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *TestProxy {
 	dc := testdataclient.New(routes)
 	tl := loggingtest.New()
-	rt := routing.New(routing.Options{FilterRegistry: fr, DataClients: []routing.DataClient{dc}, Log: tl})
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		DataClients:    []routing.DataClient{dc},
+		Log:            tl,
+		Predicates:     []routing.PredicateSpec{loadbalancer.New()},
+	})
 	o.Routing = rt
 	if o.OpenTracer == nil {
 		o.OpenTracer = &opentracing.NoopTracer{}
