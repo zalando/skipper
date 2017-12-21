@@ -97,19 +97,17 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *predicate) Match(r *http.Request) bool {
-	p.mu.RLock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	current := p.counters[p.group]
-	p.mu.RUnlock()
 	matched := (current % p.count) == p.index
 	log.Infof(
 		"lb predicate: matched=%t group=%s index=%d count=%d current=%d",
 		matched, p.group, p.index, p.count, current,
 	)
 	if matched {
-		p.mu.Lock()
 		current = (current + 1) % p.count
 		p.counters[p.group] = current
-		p.mu.Unlock()
 	}
 	return matched
 }
