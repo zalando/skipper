@@ -29,7 +29,11 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 		FilterRegistry: fr,
 		DataClients:    []routing.DataClient{dc},
 		Log:            tl,
-		Predicates:     []routing.PredicateSpec{loadbalancer.New()},
+		Predicates: []routing.PredicateSpec{
+			loadbalancer.New(),
+			loadbalancer.NewDecide(),
+			loadbalancer.NewBalance(),
+		},
 	})
 	o.Routing = rt
 	if o.OpenTracer == nil {

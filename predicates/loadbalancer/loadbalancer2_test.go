@@ -9,37 +9,12 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/predicates/loadbalancer"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-type counter chan int
+func TestConcurrency2(t *testing.T) {
+	const distributionTolerance = 100
 
-func newCounter() counter {
-	c := make(counter, 1)
-	c <- 0
-	return c
-}
-
-func (c counter) inc() {
-	v := <-c
-	c <- v + 1
-}
-
-func (c counter) value() int {
-	v := <-c
-	c <- v
-	return v
-}
-
-func (c counter) String() string {
-	return fmt.Sprint(c.value())
-}
-
-func TestConcurrent(t *testing.T) {
-	t.Skip()
-
-	// two backends
 	c1 := newCounter()
 	b1 := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		c1.inc()
@@ -52,10 +27,10 @@ func TestConcurrent(t *testing.T) {
 	}))
 	defer b2.Close()
 
-	// proxy with two load balanced routes
 	const routesFmt = `
-		route1: LoadBalancer("A", 0, 2) -> status(200) -> "%s";
-		route2: LoadBalancer("A", 1, 2) -> status(200) -> "%s";
+		routeADecide: LoadDecide("A", 2) -> <loopback>;
+		routeA1:      LoadBalancer2("A", 0) -> status(200) -> "%s";
+		routeA2:      LoadBalancer2("A", 1) -> status(200) -> "%s";
 	`
 	routes := fmt.Sprintf(routesFmt, b1.URL, b2.URL)
 
@@ -90,7 +65,7 @@ func TestConcurrent(t *testing.T) {
 				defer rsp.Body.Close()
 				if rsp.StatusCode != http.StatusOK {
 					failureCount.inc()
-					t.Log("invalid status code", rsp.StatusCode)
+					// t.Log("invalid status code", rsp.StatusCode)
 				}
 			}()
 		}
@@ -106,13 +81,12 @@ func TestConcurrent(t *testing.T) {
 
 	wg.Wait()
 
-	for _, logs := range loadbalancer.CountNonMatched {
-		if len(logs) > 1 {
-			for i := range logs {
-				t.Log(logs[i])
-			}
-		}
+	if failureCount.value() > 0 {
+		t.Error("concurrent load balancing failed, failures:", failureCount.value())
 	}
 
-	t.Error("just fail", c1, c2, failureCount)
+	t.Log(int(uint(c1.value()-c2.value())), c1.value(), c2.value())
+	if int(uint(c1.value()-c2.value())) > distributionTolerance {
+		t.Error("failed to equally balance load, counters:", c1.value(), c2.value())
+	}
 }
