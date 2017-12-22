@@ -6,7 +6,7 @@ It will get it's route information from provisioned
 [Ingress Objects](https://kubernetes.io/docs/concepts/services-networking/ingress).
 Detailed information you find in our [godoc for dataclient kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes).
 
-## Skipper Features
+# Skipper Features
 
 Skipper has the following main features:
 
@@ -365,7 +365,7 @@ instance for the given ingress.
               serviceName: app-svc
               servicePort: 80
 
-## use Predicates
+# use Predicates
 
 [Predicates](https://godoc.org/github.com/zalando/skipper/predicates)
 are influencing the route matching, which you might want to carefully
@@ -375,7 +375,7 @@ toggles or time based enabling endpoints.
 You can use all kinds of [predicates](https://godoc.org/github.com/zalando/skipper/predicates)
 with [filters](https://godoc.org/github.com/zalando/skipper/filters) together.
 
-### Feature Toggle
+## Feature Toggle
 
 Feature toggles are often implemented as query string to select a new
 feature. Normally you would have to implement this in your
@@ -421,7 +421,7 @@ prod-svc:
               serviceName: prod-svc
               servicePort: 80
 
-### IP Whitelisting
+## IP Whitelisting
 
 This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.0.0/17
 
@@ -441,7 +441,7 @@ This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.
               servicePort: 80
 
 
-### A/B test
+## A/B test
 
 Implementing A/B testing is heavy. Skipper can help you to do
 that. You need to have a traffic split somewhere and have your
@@ -525,7 +525,7 @@ For "B" this would be:
               servicePort: 80
 
 
-## Chaining Filters
+# Chaining Filters and Predicates
 
 You can set multiple filters in a chain similar to the [eskip format](https://godoc.org/github.com/zalando/skipper/eskip).
 
@@ -533,6 +533,7 @@ You can set multiple filters in a chain similar to the [eskip format](https://go
     kind: Ingress
     metadata:
       annotations:
+        zalando.org/skipper-predicate: Cookie("flavor", /^B$/) && Source("1.2.3.0/24", "195.168.0.0/17")
         zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
       name: app
     spec:
