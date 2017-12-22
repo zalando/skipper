@@ -203,6 +203,15 @@ something that configures your frontend loadbalancer, for example
 and your DNS, [external-dns](https://github.com/kubernetes-incubator/external-dns)
 automatically.
 
+## Skipper Ingress Annotations
+
+Annotation | example data | usage
+--- | --- | ---
+zalando.org/backend-weights | {"my-app-1": 80, "my-app-2": 20} | green-blue deployments
+zalando.org/skipper-filter | consecutiveBreaker(15) | arbitrary filters
+zalando.org/skipper-predicate | QueryParam("version", "^alpha$") | arbitrary predicates
+zalando.org/ratelimit | ratelimit(50, "1m") | deprecated, use zalando.org/skipper-filter instead
+
 # Blue-Green deployments
 
 To do blue-green deployments you have to have control over traffic
