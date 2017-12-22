@@ -203,7 +203,7 @@ something that configures your frontend loadbalancer, for example
 and your DNS, [external-dns](https://github.com/kubernetes-incubator/external-dns)
 automatically.
 
-## Blue-Green deployments
+# Blue-Green deployments
 
 To do blue-green deployments you have to have control over traffic
 switching. Skipper gives you the opportunity to set weights to backend
@@ -239,6 +239,11 @@ and **my-app-2** will get **20%** of the traffic:
               serviceName: my-app-2
               servicePort: http
             path: /
+
+# Filters
+
+Filters can modify http requests and responses. There are a plenty of
+things you can do with them.
 
 ## Circuitbreaker
 
@@ -365,7 +370,30 @@ instance for the given ingress.
               serviceName: app-svc
               servicePort: 80
 
-# use Predicates
+## Shadow Traffic
+
+If you want to test a new replacement of a production service with
+production load, you can copy incoming requests to your new endpoint
+and ignore the responses from your new backend. This can be done by
+the [tee() and teenf() filters](https://godoc.org/github.com/zalando/skipper/filters/tee).
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-filter: teenf("https://app-new.example.org")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+
+# Predicates
 
 [Predicates](https://godoc.org/github.com/zalando/skipper/predicates)
 are influencing the route matching, which you might want to carefully
