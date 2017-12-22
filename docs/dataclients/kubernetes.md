@@ -305,7 +305,7 @@ and [kubernetes dataclient](https://godoc.org/github.com/zalando/skipper/datacli
 
 ### Client Ratelimits
 
-The example shows 3 calls per minute per client, based on
+The example shows 20 calls per hour per client, based on
 X-Forwarded-For header or IP incase there is no X-Forwarded-For header
 set, are allowed to each skipper instance for the given ingress.
 
@@ -313,7 +313,27 @@ set, are allowed to each skipper instance for the given ingress.
     kind: Ingress
     metadata:
       annotations:
-        zalando.org/skipper-filter: localRatelimit(3, "1m")
+        zalando.org/skipper-filter: localRatelimit(20, "1h")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+If you need to service rate limit service to service communication and
+you use Authorization headers to protect your backend from your
+clients, then you can pass a 3 parameter to group clients by "Authorization
+Header":
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-filter: localRatelimit(20, "1h", "auth")
       name: app
     spec:
       rules:
@@ -357,23 +377,48 @@ with [filters](https://godoc.org/github.com/zalando/skipper/filters) together.
 
 ### Feature Toggle
 
-This ingress route will only be matched if there is a Querystring
-"version=alpha" defined in the request. Like this you can easily build
-feature toggles.
+Feature toggles are often implemented as query string to select a new
+feature. Normally you would have to implement this in your
+application, but Skipper can help you with that and you can select
+routes with an ingress definition.
+
+You create 2 ingresses that matches the same route, here host header
+match to `app-default.example.org` and one ingress has a defined query
+parameter to select the route to the alpha version deployment. If the
+query string in the URL has `version=alpha` set, for example
+`https://app-default.example.org/mypath?version=alpha`, the service
+`alpha-svc` will get the traffic, if not `prod-svc`.
+
+alpha-svc:
 
     apiVersion: extensions/v1beta1
     kind: Ingress
     metadata:
       annotations:
         zalando.org/skipper-predicate: QueryParam("version", "^alpha$")
-      name: alpha
+      name: alpha-app
     spec:
       rules:
-      - host: alpha-default.example.org
+      - host: app-default.example.org
         http:
           paths:
           - backend:
               serviceName: alpha-svc
+              servicePort: 80
+
+prod-svc:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      name: prod-app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: prod-svc
               servicePort: 80
 
 ### IP Whitelisting
@@ -395,6 +440,90 @@ This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.
               serviceName: app-svc
               servicePort: 80
 
+
+### A/B test
+
+Implementing A/B tests are heavy to build and Skipper can help you to
+do that. You have to have a traffic split somewhere and have your
+customers sticky to either A or B flavor of your application. Most
+likely people would implement using cookies. Skipper can set a
+[cookie with responseCookie()](https://godoc.org/github.com/zalando/skipper/filters/cookie)
+in a response to the client and the
+[cookie
+predicate](https://godoc.org/github.com/zalando/skipper/predicates/cookie)
+can be used to match the route based on the cookie. Like this you can
+have sticky sessions to either A or B for your clients.
+This example shows to have 10% traffic using A and the rest using B.
+
+10% choice of setting the Cookie "flavor" to "A":
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-predicate: Traffic(.1)
+        zalando.org/skipper-filter: responseCookie("flavor, "A", 31536000)
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: a-app-svc
+              servicePort: 80
+
+Rest is setting Cookie "flavor" to "B":
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-filter: responseCookie("flavor, "B", 31536000)
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: b-app-svc
+              servicePort: 80
+
+To be sticky, you have to create 2 ingress with predicate to match
+routes with the cookie we set before. For "A" this would be:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-predicate: Cookie("flavor", /^A$/)
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: a-app-svc
+              servicePort: 80
+
+For "B" this would be:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-predicate: Cookie("flavor", /^B$/)
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: b-app-svc
+              servicePort: 80
 
 
 ## Chaining Filters
