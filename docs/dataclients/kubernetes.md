@@ -212,6 +212,102 @@ zalando.org/skipper-filter | consecutiveBreaker(15) | arbitrary filters
 zalando.org/skipper-predicate | QueryParam("version", "^alpha$") | arbitrary predicates
 zalando.org/ratelimit | ratelimit(50, "1m") | deprecated, use zalando.org/skipper-filter instead
 
+# Basic HTTP manipulations
+
+HTTP manipulations are done by using skipper filters.
+A basic example how to use skipper filters in ingress:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-filter: consecutiveBreaker(15)
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+## Add a request Header
+
+Add a header in the request path to your backend.
+
+    setRequestHeader("X-Foo", "bar")
+
+## Add a response Header
+
+Add a header in the response path of your clients.
+
+    setResponseHeader("X-Foo", "bar")
+
+## Set the Path
+
+Change the path in the request path to your backend.
+
+    setPath("/newPath/")
+
+## Set the Querystring
+
+Set the Querystring in the request path to your backend.
+
+    setQuery("text", "godoc skipper")
+
+## Redirect
+
+Create a redirect with HTTP code 301 to https://foo.example.org/.
+
+    redirectTo(301, "https://foo.example.org/")
+
+## Cookies
+
+Set a Cookie in the request path to your backend.
+
+    requestCookie("test-session", "abc")
+
+Set a Cookie in the response path of your clients.
+
+    responseCookie("test-session", "abc", 31536000)
+    responseCookie("test-session", "abc", 31536000, "change-only")
+
+    // response cookie without HttpOnly:
+    jsCookie("test-session-info", "abc-debug", 31536000, "change-only")
+
+## Authorization
+
+Our [filter auth
+godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
+shows how to use filters for authorization.
+
+### Basic Auth
+
+    % htpasswd -nbm myName myPassword
+
+    basicAuth("/path/to/htpasswd")
+    basicAuth("/path/to/htpasswd", "My Website")
+
+## Diagnosis - Throttling - Latency
+
+For diagnosis purpose there are filters that enables you to throttle
+the bandwidth or add latency. For the full list of filters see our
+[diag filter godoc page](https://godoc.org/github.com/zalando/skipper/filters/diag).
+
+    bandwidth(30) // incoming in kb/s
+    backendBandwidth(30) // outgoing in kb/s
+    backendLatency(120) // in ms
+
+## FlowID to trace request flows
+
+To trace request flows skipper can generate a unique Flow Id for
+every HTTP request that it receives.
+Skipper sets the X-Flow-Id header to a unique value. Read more about
+this in our [flowid filter godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
+
+     flowId("reuse")
+
 # Blue-Green deployments
 
 To do blue-green deployments you have to have control over traffic
