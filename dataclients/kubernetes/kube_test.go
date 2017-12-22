@@ -534,19 +534,19 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "filter no class ingresses",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 				}},
 			},
 			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 				}},
 			},
@@ -554,13 +554,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "filter specific key ingress",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
 					},
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -569,7 +569,7 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -577,13 +577,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "filter empty class ingresses",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -592,7 +592,7 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -600,13 +600,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "explicitly include any ingress class",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
@@ -615,10 +615,10 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: ".*",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 				}},
 			},
@@ -626,13 +626,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "match from a set of ingress classes",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "skipper-test, other-test",
 					},
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "other-test",
@@ -641,7 +641,7 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: "skipper-test",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -2208,7 +2208,7 @@ func TestSkipperFilter(t *testing.T) {
 		}
 
 		checkSkipperFilter(t, r, map[string][]string{
-			"kube_namespace1__ratelimitAndBreaker______": []string{"localRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
+			"kube_namespace1__ratelimitAndBreaker______": {"localRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
 		})
 	})
 }
