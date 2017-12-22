@@ -324,7 +324,7 @@ set, are allowed to each skipper instance for the given ingress.
               serviceName: app-svc
               servicePort: 80
 
-If you need to service rate limit service to service communication and
+If you need to rate limit service to service communication and
 you use Authorization headers to protect your backend from your
 clients, then you can pass a 3 parameter to group clients by "Authorization
 Header":
@@ -443,17 +443,16 @@ This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.
 
 ### A/B test
 
-Implementing A/B tests are heavy to build and Skipper can help you to
-do that. You have to have a traffic split somewhere and have your
+Implementing A/B testing is heavy. Skipper can help you to do
+that. You need to have a traffic split somewhere and have your
 customers sticky to either A or B flavor of your application. Most
 likely people would implement using cookies. Skipper can set a
 [cookie with responseCookie()](https://godoc.org/github.com/zalando/skipper/filters/cookie)
 in a response to the client and the
-[cookie
-predicate](https://godoc.org/github.com/zalando/skipper/predicates/cookie)
+[cookie predicate](https://godoc.org/github.com/zalando/skipper/predicates/cookie)
 can be used to match the route based on the cookie. Like this you can
-have sticky sessions to either A or B for your clients.
-This example shows to have 10% traffic using A and the rest using B.
+have sticky sessions to either A or B for your clients.  This example
+shows to have 10% traffic using A and the rest using B.
 
 10% choice of setting the Cookie "flavor" to "A":
 
