@@ -109,7 +109,7 @@ type Params struct {
 	// The Flush interval for copying upgraded connections
 	FlushInterval time.Duration
 
-	// Enable the expiremental upgrade protocol feature
+	// Enable the experimental upgrade protocol feature
 	ExperimentalUpgrade bool
 
 	// MaxLoopbacks sets the maximum number of allowed loops. If 0
@@ -150,7 +150,7 @@ var (
 // When set, the proxy will skip the TLS verification on outgoing requests.
 func (f Flags) Insecure() bool { return f&Insecure != 0 }
 
-// When set, the filters will recieve an unmodified clone of the original
+// When set, the filters will receive an unmodified clone of the original
 // incoming request and response.
 func (f Flags) PreserveOriginal() bool { return f&(PreserveOriginal|Debug) != 0 }
 

@@ -44,7 +44,7 @@ Read more about [Skipper's kubernetes dataclient](dataclients/kubernetes.md).
 [Inkeeper API](https://github.com/zalando/innkeeper), if you like to
 create routes via an API.
 Our [Inkeeper API dataclient](dataclients/inkeeper-api.md) can be used
-as well. It was used in production in the past. (TODO: do we use it somwhere?)
+as well. It was used in production in the past. (TODO: do we use it somewhere?)
 
 ## Demos / Talks
 
