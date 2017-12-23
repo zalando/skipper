@@ -2,13 +2,18 @@ package script
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/script/base64"
 	"log"
+	"net/http"
 	"net/url"
 	"strings"
 
 	lua "github.com/yuin/gopher-lua"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/script/base64"
+
+	"github.com/cjoudrey/gluahttp"
+	"github.com/cjoudrey/gluaurl"
+	gjson "layeh.com/gopher-json"
 )
 
 type luaScript struct{}
@@ -32,6 +37,10 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 
 	l := lua.NewState()
 	l.PreloadModule("base64", base64.Loader)
+	l.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
+	l.PreloadModule("url", gluaurl.Loader)
+	l.PreloadModule("json", gjson.Loader)
+
 	var err error
 	if strings.HasSuffix(src, ".lua") {
 		err = l.DoFile(src)
