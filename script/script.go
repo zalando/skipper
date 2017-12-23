@@ -133,8 +133,53 @@ func (s *script) filterContextAsLuaTable(f filters.FilterContext) *lua.LTable {
 	s.state.SetMetatable(reshdr, reshdr_mt)
 	res.RawSet(lua.LString("header"), reshdr)
 	t.RawSet(lua.LString("response"), res)
+	t.RawSet(lua.LString("serve"), s.state.NewFunction(ctx.serveRequest))
 
 	return t
+}
+
+func (c *luaContext) serveRequest(s *lua.LState) int {
+	t := s.Get(-1)
+	r, ok := t.(*lua.LTable)
+	if !ok {
+		s.Push(lua.LString("invalid type, need a table"))
+		return 1
+	}
+	res := &http.Response{}
+	r.ForEach(serveTableWalk(res))
+	c.Serve(res)
+	return 0
+}
+
+func serveTableWalk(res *http.Response) func (lua.LValue, lua.LValue) {
+	return func(k, v lua.LValue) {
+		s, ok := k.(lua.LString)
+		if !ok {
+			return
+		}
+		switch string(s) {
+		case "status_code":
+			n, ok := v.(lua.LNumber)
+			if !ok {
+				return
+			}
+			res.StatusCode = int(n)
+		case "header":
+			t, ok := v.(*lua.LTable)
+			if !ok {
+				return
+			}
+			h := make(http.Header)
+			t.ForEach(serveHeaderWalk(h))
+			res.Header = h
+		}
+	}
+}
+
+func serveHeaderWalk(h http.Header) func (lua.LValue, lua.LValue) {
+	return func(k, v lua.LValue) {
+		h.Set(k.String(), v.String())
+	}
 }
 
 func (c *luaContext) getRequestValue(s *lua.LState) int {

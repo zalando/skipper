@@ -47,6 +47,9 @@ course only valid in the `response()` phase.
 * `method` - (read only) request method, e.g. "GET" or "POST"
 * `url` - (read/write) request URL as string
 
+## serving requests from lua
+* `serve(table)` - table needs `status_code` (number) and `header` (table) keys - more to come :), see redirect example below
+
 
 # Examples
 
@@ -74,3 +77,16 @@ function request(ctx)
         -- print("URL="..ctx.request.url)
 end
 ```
+
+## redirect
+```lua
+function request(ctx)
+        ctx.serve({
+		status_code=302,
+		header={
+			location="http://www.example.org/",
+		},
+	})
+end
+```
+
