@@ -120,17 +120,17 @@ func TestMatch(t *testing.T) {
 		{
 			"should match the predicates in round-robin fashion",
 			[][]interface{}{
-				[]interface{}{
+				{
 					"a",
 					0,
 					3,
 				},
-				[]interface{}{
+				{
 					"a",
 					1,
 					3,
 				},
-				[]interface{}{
+				{
 					"a",
 					2,
 					3,
