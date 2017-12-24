@@ -1,7 +1,6 @@
 package flowid
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"regexp"
@@ -16,7 +15,7 @@ const (
 )
 
 var (
-	ErrInvalidLen       = errors.New(fmt.Sprintf("Invalid length. Must be between %d and %d", MinLength, MaxLength))
+	ErrInvalidLen       = fmt.Errorf("Invalid length. Must be between %d and %d", MinLength, MaxLength)
 	standardFlowIDRegex = regexp.MustCompile(`^[0-9a-zA-Z+-]+$`)
 )
 

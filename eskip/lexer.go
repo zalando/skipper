@@ -234,7 +234,7 @@ func scanSymbol(code string) (t token, rest string, err error) {
 }
 
 func selectFixed(code string) scanner {
-	for fixed, _ := range fixedTokens {
+	for fixed := range fixedTokens {
 		if len(code) >= len(fixed) && strings.HasPrefix(code, string(fixed)) {
 			return fixed
 		}
@@ -318,7 +318,7 @@ func (l *eskipLex) Lex(lval *eskipSymType) int {
 }
 
 func (l *eskipLex) Error(err string) {
-	l.err = errors.New(fmt.Sprintf(
+	l.err = fmt.Errorf(
 		"parse failed after token %v, position %d: %s",
-		l.lastToken, l.initialLength-len(l.code), err))
+		l.lastToken, l.initialLength-len(l.code), err)
 }

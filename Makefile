@@ -80,7 +80,7 @@ vet: $(SOURCES)
 	go vet $(PACKAGES)
 
 fmt: $(SOURCES)
-	@gofmt -w $(SOURCES)
+	@gofmt -w -s $(SOURCES)
 
 check-fmt: $(SOURCES)
 	@if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi

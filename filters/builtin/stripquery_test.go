@@ -63,12 +63,12 @@ var headerTests = []struct {
 	uri    string
 	header http.Header
 }{
-	{"http://example.org/foo?bar=baz", map[string][]string{"x-query-param-bar": []string{"baz"}}},
-	{"http://example.org/foo?bar", map[string][]string{"x-query-param-bar": []string{""}}},
-	{"http://example.org/foo?bar=baz&bar=qux", map[string][]string{"x-query-param-bar": []string{"baz"}}},
-	{"http://example.org/foo?a-b=123", map[string][]string{"x-query-param-a-b": []string{"123"}}},
-	{"http://example.org/foo?a%20b=123", map[string][]string{"x-query-param-ab": []string{"123"}}},
-	{"http://example.org/foo?馬鹿=123", map[string][]string{"x-query-param-u99acu9e7f": []string{"123"}}},
+	{"http://example.org/foo?bar=baz", map[string][]string{"x-query-param-bar": {"baz"}}},
+	{"http://example.org/foo?bar", map[string][]string{"x-query-param-bar": {""}}},
+	{"http://example.org/foo?bar=baz&bar=qux", map[string][]string{"x-query-param-bar": {"baz"}}},
+	{"http://example.org/foo?a-b=123", map[string][]string{"x-query-param-a-b": {"123"}}},
+	{"http://example.org/foo?a%20b=123", map[string][]string{"x-query-param-ab": {"123"}}},
+	{"http://example.org/foo?馬鹿=123", map[string][]string{"x-query-param-u99acu9e7f": {"123"}}},
 }
 
 func TestPreserveQuery(t *testing.T) {
