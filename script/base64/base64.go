@@ -1,3 +1,4 @@
+// Package base64 provides an easy way to encode and decode base64
 package base64
 
 import (

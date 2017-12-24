@@ -1,14 +1,17 @@
-
 # lua scripts
 
 Scripts for skipper need at least one of two possible functions: `request` or `response`. If
-present, they are called with a skipper filter context like
+present, they are called with a skipper filter context and the params passed in the route as map like
 ```
-function request(ctx)
-	print(ctx.request.method .. " " .. ctx.request.url .. " -> " .. ctx.request.backend_url)
+-- route looks like
+--
+-- any: * -> luaScript("./test.lua", "myparam=foo", "other=bar") -> <shunt>
+--
+function request(ctx, params)
+	print(ctx.request.method .. " " .. ctx.request.url .. " -> " .. params.myparam)
 end
 ```
-
+Only "key=value" string pairs may be passed as parameters to the script.
 
 The following modules have been preloaded and can be used with e.g.
 `local http = require("http")`, see also the examples below
@@ -58,29 +61,46 @@ course only valid in the `response()` phase.
 ```lua
 local base64 = require("base64")
 
-function request(ctx)
+function request(ctx, params)
         token = string.gsub(ctx.request.header["Authorization"], "^%s*[Bb]earer%s+", "", 1)
-        ctx.request.header["Authorization"] = "Basic " .. base64.encode("username:" .. token)
+	user = ctx.request.header["x-username"]
+	if user == "" then
+		user = "username"
+	end
+        ctx.request.header["Authorization"] = "Basic " .. base64.encode(user .. ":"  .. token)
         -- print(ctx.request.header["Authorization"])
+end
+```
+
+## validate token
+```
+local http = require("http")
+function request(ctx, params)
+        token = string.gsub(ctx.request.header["Authorization"], "^%s*[Bb]earer%s+", "", 1)
+	if token == "" then
+		ctx.serve({status_code=401})
+		return
+	fi
+	-- do not use in production, no circuit breaker ...
+	res = http.get("https://auth.example.com/oauth2/tokeninfo?access_token="..token)
+	if res.status_code ~= 200 then
+		ctx.serve({status_code=401})
+		return
+	end
 end
 ```
 
 ## strip query
 ```lua
-function request(ctx)
-        u = ctx.request.url
-        s, e = string.find(u, "?")
-        if s ~= nil then
-                u = string.sub(u, 0, s-1)
-		ctx.request.url = u
-        end
+function request(ctx, params)
+        ctx.request.url = string.gsub(ctx.request.url, "%?.*$", "")
         -- print("URL="..ctx.request.url)
 end
 ```
 
 ## redirect
 ```lua
-function request(ctx)
+function request(ctx, params)
         ctx.serve({
 		status_code=302,
 		header={
@@ -89,4 +109,3 @@ function request(ctx)
 	})
 end
 ```
-
