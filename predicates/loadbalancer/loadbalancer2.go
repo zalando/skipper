@@ -4,32 +4,57 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
 const (
-	loadBalancerDecideName = "LoadDecide"
-	loadBalancerName       = "LoadBalancer2"
-	decisionHeaderFmt      = "X-Skipper-Load-Balancer-Decision-%s"
+	groupName  = "LBGroup"
+	memberName = "LBMember"
+	decideName = "lbDecide"
+
+	decisionHeader = "X-Load-Balancer-Member"
 )
 
 type counter chan int
 
-type specDecide struct{}
+type groupSpec struct{}
 
-type predicateDecide struct {
-	counter        counter
-	decisionHeader string
-	size           int
+type groupPredicate struct {
+	group string
 }
 
-type spec2 struct{}
+type memberSpec struct{}
 
-type predicate2 struct {
-	decisionHeader string
-	indexStr       string
+type memberPredicate struct {
+	group       string
+	indexString string
+}
+
+type decideSpec struct{}
+
+type decideFilter struct {
+	group   string
+	size    int
+	counter counter
+}
+
+func getGroupDecision(h http.Header, group string) (string, bool) {
+	for _, header := range h[decisionHeader] {
+		decision := strings.Split(header, "=")
+		if len(decision) != 2 {
+			continue
+		}
+
+		if decision[0] == group {
+			return decision[1], true
+		}
+	}
+
+	return "", false
 }
 
 func newCounter() counter {
@@ -44,13 +69,43 @@ func (c counter) inc(groupSize int) int {
 	return v % groupSize
 }
 
-func NewDecide() routing.PredicateSpec {
-	return &specDecide{}
+func (c counter) value() int {
+	v := <-c
+	c <- v
+	return v
 }
 
-func (s *specDecide) Name() string { return loadBalancerDecideName }
+func NewGroup() routing.PredicateSpec {
+	return &groupSpec{}
+}
 
-func (s *specDecide) Create(args []interface{}) (routing.Predicate, error) {
+func (s *groupSpec) Name() string { return groupName }
+
+func (s *groupSpec) Create(args []interface{}) (routing.Predicate, error) {
+	if len(args) != 1 {
+		return nil, predicates.ErrInvalidPredicateParameters
+	}
+
+	group, ok := args[0].(string)
+	if !ok {
+		return nil, predicates.ErrInvalidPredicateParameters
+	}
+
+	return &groupPredicate{group: group}, nil
+}
+
+func (p *groupPredicate) Match(req *http.Request) bool {
+	_, has := getGroupDecision(req.Header, p.group)
+	return !has
+}
+
+func NewMember() routing.PredicateSpec {
+	return &memberSpec{}
+}
+
+func (s *memberSpec) Name() string { return memberName }
+
+func (s *memberSpec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
@@ -60,50 +115,7 @@ func (s *specDecide) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	size, ok := args[0].(int)
-	if !ok {
-		fsize, ok := args[1].(float64)
-		if !ok {
-			return nil, predicates.ErrInvalidPredicateParameters
-		}
-
-		size = int(fsize)
-	}
-
-	return &predicateDecide{
-		counter:        newCounter(),
-		decisionHeader: fmt.Sprintf(decisionHeaderFmt, group),
-		size:           size,
-	}, nil
-}
-
-func (p *predicateDecide) Match(r *http.Request) bool {
-	if r.Header.Get(p.decisionHeader) != "" {
-		return false
-	}
-
-	d := p.counter.inc(p.size)
-	r.Header.Set(p.decisionHeader, strconv.Itoa(d))
-	return true
-}
-
-func NewBalance() routing.PredicateSpec {
-	return &spec2{}
-}
-
-func (s *spec2) Name() string { return loadBalancerName }
-
-func (s *spec2) Create(args []interface{}) (routing.Predicate, error) {
-	if len(args) != 2 {
-		return nil, predicates.ErrInvalidPredicateParameters
-	}
-
-	group, ok := args[0].(string)
-	if !ok {
-		return nil, predicates.ErrInvalidPredicateParameters
-	}
-
-	index, ok := args[0].(int)
+	index, ok := args[1].(int)
 	if !ok {
 		findex, ok := args[1].(float64)
 		if !ok {
@@ -113,17 +125,51 @@ func (s *spec2) Create(args []interface{}) (routing.Predicate, error) {
 		index = int(findex)
 	}
 
-	return &predicate2{
-		decisionHeader: fmt.Sprintf(decisionHeaderFmt, group),
-		indexStr:       strconv.Itoa(index),
+	return &memberPredicate{
+		group:       group,
+		indexString: strconv.Itoa(index), // we only need it as a string
 	}, nil
 }
 
-func (p *predicate2) Match(r *http.Request) bool {
-	m := r.Header.Get(p.decisionHeader) == p.indexStr
-	if m {
-		r.Header.Del(p.decisionHeader)
+func (p *memberPredicate) Match(req *http.Request) bool {
+	member, _ := getGroupDecision(req.Header, p.group)
+	return member == p.indexString
+}
+
+func NewDecide() filters.Spec { return &decideSpec{} }
+
+func (s *decideSpec) Name() string { return decideName }
+
+func (s *decideSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 2 {
+		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	return m
+	group, ok := args[0].(string)
+	if !ok {
+		return nil, predicates.ErrInvalidPredicateParameters
+	}
+
+	size, ok := args[1].(int)
+	if !ok {
+		fsize, ok := args[1].(float64)
+		if !ok {
+			return nil, predicates.ErrInvalidPredicateParameters
+		}
+
+		size = int(fsize)
+	}
+
+	return &decideFilter{
+		group:   group,
+		size:    size,
+		counter: newCounter(),
+	}, nil
 }
+
+func (f *decideFilter) Request(ctx filters.FilterContext) {
+	current := f.counter.inc(f.size)
+	ctx.Request().Header.Set(decisionHeader, fmt.Sprintf("%s=%d", f.group, current))
+}
+
+func (f *decideFilter) Response(filters.FilterContext) {}

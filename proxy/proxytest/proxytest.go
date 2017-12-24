@@ -30,9 +30,8 @@ func WithParams(fr filters.Registry, o proxy.Params, routes ...*eskip.Route) *Te
 		DataClients:    []routing.DataClient{dc},
 		Log:            tl,
 		Predicates: []routing.PredicateSpec{
-			loadbalancer.New(),
-			loadbalancer.NewDecide(),
-			loadbalancer.NewBalance(),
+			loadbalancer.NewGroup(),
+			loadbalancer.NewMember(),
 		},
 	})
 	o.Routing = rt
