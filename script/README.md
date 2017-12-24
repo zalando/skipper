@@ -65,7 +65,7 @@ function request(ctx, params)
         token = string.gsub(ctx.request.header["Authorization"], "^%s*[Bb]earer%s+", "", 1)
 	user = ctx.request.header["x-username"]
 	if user == "" then
-		user = "username"
+		user = params.username
 	end
         ctx.request.header["Authorization"] = "Basic " .. base64.encode(user .. ":"  .. token)
         -- print(ctx.request.header["Authorization"])
