@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	groupName  = "LBGroup"
-	memberName = "LBMember"
-	decideName = "lbDecide"
+	groupPredicateName  = "LBGroup"
+	memberPredicateName = "LBMember"
+	decideFilterName    = "lbDecide"
 
 	decisionHeader = "X-Load-Balancer-Member"
 )
@@ -79,7 +79,7 @@ func NewGroup() routing.PredicateSpec {
 	return &groupSpec{}
 }
 
-func (s *groupSpec) Name() string { return groupName }
+func (s *groupSpec) Name() string { return groupPredicateName }
 
 func (s *groupSpec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 1 {
@@ -103,7 +103,7 @@ func NewMember() routing.PredicateSpec {
 	return &memberSpec{}
 }
 
-func (s *memberSpec) Name() string { return memberName }
+func (s *memberSpec) Name() string { return memberPredicateName }
 
 func (s *memberSpec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 2 {
@@ -138,7 +138,7 @@ func (p *memberPredicate) Match(req *http.Request) bool {
 
 func NewDecide() filters.Spec { return &decideSpec{} }
 
-func (s *decideSpec) Name() string { return decideName }
+func (s *decideSpec) Name() string { return decideFilterName }
 
 func (s *decideSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 2 {

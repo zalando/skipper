@@ -1,18 +1,22 @@
 package loadbalancer_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/loadbalancer"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 func TestConcurrency2(t *testing.T) {
 	const (
+		backendCount     = 7
 		concurrency      = 32
 		repeatedRequests = 300
 
@@ -20,33 +24,38 @@ func TestConcurrency2(t *testing.T) {
 		distributionTolerance = concurrency * repeatedRequests * 5 / 100
 	)
 
-	const routes = `
-		routeADecide: LBGroup("A") -> lbDecide("A", 7) -> <loopback>;
-		routeA1:      LBMember("A", 0) -> inlineContent("lb group member 1") -> <shunt>;
-		routeA2:      LBMember("A", 1) -> inlineContent("lb group member 2") -> <shunt>;
-		routeA3:      LBMember("A", 2) -> inlineContent("lb group member 3") -> <shunt>;
-		routeA4:      LBMember("A", 3) -> inlineContent("lb group member 4") -> <shunt>;
-		routeA5:      LBMember("A", 4) -> inlineContent("lb group member 5") -> <shunt>;
-		routeA6:      LBMember("A", 5) -> inlineContent("lb group member 6") -> <shunt>;
-		routeA7:      LBMember("A", 6) -> inlineContent("lb group member 7") -> <shunt>;
-	`
-
-	r, err := eskip.Parse(routes)
-	if err != nil {
-		t.Fatal(err)
+	startBackend := func(content []byte) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(content)
+		}))
 	}
 
-	p := proxytest.New(builtin.MakeRegistry(), r...)
+	var (
+		contents []string
+		backends []string
+	)
+
+	for i := 0; i < backendCount; i++ {
+		content := fmt.Sprintf("lb group member %d", i)
+		contents = append(contents, content)
+
+		b := startBackend([]byte(content))
+		defer b.Close()
+		backends = append(backends, b.URL)
+	}
+
+	baseRoute := &eskip.Route{
+		Id:      "foo",
+		Backend: "https://foo",
+	}
+
+	routes := loadbalancer.BalanceRoute(baseRoute, backends)
+	p := proxytest.New(builtin.MakeRegistry(), routes...)
 	defer p.Close()
 
-	memberCounters := map[string]counter{
-		"lb group member 1": newCounter(),
-		"lb group member 2": newCounter(),
-		"lb group member 3": newCounter(),
-		"lb group member 4": newCounter(),
-		"lb group member 5": newCounter(),
-		"lb group member 6": newCounter(),
-		"lb group member 7": newCounter(),
+	memberCounters := make(map[string]counter)
+	for i := range contents {
+		memberCounters[contents[i]] = newCounter()
 	}
 
 	var wg sync.WaitGroup
