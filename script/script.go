@@ -2,11 +2,14 @@
 package script
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 
 	lua "github.com/yuin/gopher-lua"
 	"github.com/zalando/skipper/filters"
@@ -24,7 +27,7 @@ func NewLuaScript() filters.Spec {
 }
 
 func (ls *luaScript) Name() string {
-	return "luaScript"
+	return "lua"
 }
 
 func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) {
@@ -35,7 +38,41 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
+	var params []string
+	for _, p := range config[1:] {
+		ps, ok := p.(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		params = append(params, ps)
+	}
 
+	s := &script{source: src, routeParams: params}
+	if err := s.initScript(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (s *script) getState() (*lua.LState, error) {
+	s.Lock()
+	defer s.Unlock()
+	n := len(s.pool)
+	if n == 0 {
+		s.newState()
+	}
+	x := s.pool[n-1]
+	s.pool = s.pool[0 : n-1]
+	return x, nil
+}
+
+func (s *script) putState(L *lua.LState) {
+	s.Lock()
+	defer s.Unlock()
+	s.pool = append(s.pool, L)
+}
+
+func (s *script) newState() (*lua.LState, error) {
 	l := lua.NewState()
 	l.PreloadModule("base64", base64.Loader)
 	l.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
@@ -43,15 +80,15 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 	l.PreloadModule("json", gjson.Loader)
 
 	var err error
-	if strings.HasSuffix(src, ".lua") {
-		err = l.DoFile(src)
+	if strings.HasSuffix(s.source, ".lua") {
+		err = l.DoFile(s.source)
 	} else {
-		err = l.DoString(src)
+		err = l.DoString(s.source)
 	}
 	if err != nil {
-		log.Printf("ERROR loading `%s`: %s", src, err)
+		log.Printf("ERROR loading `%s`: %s", s.source, err)
 		l.Close()
-		return nil, filters.ErrInvalidFilterParameters
+		return nil, err
 	}
 
 	hasFuncs := false
@@ -64,33 +101,33 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 	if !hasFuncs {
 		log.Printf("ERROR: at least one of `request` and `response` function must be present")
 		l.Close()
-		return nil, filters.ErrInvalidFilterParameters
+		return nil, errors.New("at least one of `request` and `response` function must be present")
 	}
 
-	pt := l.NewTable()
-	for _, p := range config[1:] {
-		ps, ok := p.(string)
-		if !ok {
-			l.Close()
-			return nil, filters.ErrInvalidFilterParameters
-		}
-		parts := strings.SplitN(ps, "=", 2)
-		if len(parts) == 1 {
-			parts = append(parts, "")
-		}
-		pt.RawSetString(parts[0], lua.LString(parts[1]))
+	return l, nil
+}
+
+func (s *script) initScript() error {
+	s.pool = make([]*lua.LState, 0, 5)
+	L, err := s.newState()
+	if err != nil {
+		return err
 	}
-	return &script{state: l, source: src, params: pt}, nil
+	s.putState(L)
+	return nil
 }
 
 type script struct {
-	state  *lua.LState
-	source string
-	params *lua.LTable
+	sync.Mutex
+	source      string
+	routeParams []string
+	pool        []*lua.LState
 }
 
 func (s *script) Request(f filters.FilterContext) {
+	start := time.Now()
 	s.runFunc("request", f)
+	log.Printf("request(): took %s", time.Now().Sub(start))
 }
 
 func (s *script) Response(f filters.FilterContext) {
@@ -98,59 +135,77 @@ func (s *script) Response(f filters.FilterContext) {
 }
 
 func (s *script) runFunc(name string, f filters.FilterContext) {
-	fn := s.state.GetGlobal(name)
+	L, err := s.getState()
+	if err != nil {
+		log.Printf("ERROR: %s", err)
+		return
+	}
+	defer s.putState(L)
+
+	fn := L.GetGlobal(name)
 	if fn.Type() != lua.LTFunction {
 		return
 	}
 
-	err := s.state.CallByParam(
+	pt := L.NewTable()
+	for _, p := range s.routeParams {
+		parts := strings.SplitN(p, "=", 2)
+		if len(parts) == 1 {
+			parts = append(parts, "")
+		}
+		pt.RawSetString(parts[0], lua.LString(parts[1]))
+	}
+
+	start := time.Now()
+	err = L.CallByParam(
 		lua.P{
 			Fn:      fn,
 			NRet:    0,
 			Protect: true,
 		},
-		s.filterContextAsLuaTable(f),
-		s.params,
+		s.filterContextAsLuaTable(L, f),
+		pt,
 	)
 	if err != nil {
 		fmt.Printf("Error calling %s from %s: %s", name, s.source, err)
 	}
+	log.Printf("running %s: %s", name, time.Now().Sub(start))
 }
 
-func (s *script) filterContextAsLuaTable(f filters.FilterContext) *lua.LTable {
+func (s *script) filterContextAsLuaTable(L *lua.LState, f filters.FilterContext) *lua.LTable {
 	// this will be passed as parameter to the lua functions
-	t := s.state.NewTable()
+	t := L.NewTable()
 
 	// access to f.Request():
-	req := s.state.NewTable()
+	req := L.NewTable()
 	t.RawSet(lua.LString("request"), req)
 
 	// add metatable to dynamically access fields in the request
-	req_mt := s.state.NewTable()
-	req_mt.RawSet(lua.LString("__index"), s.state.NewFunction(getRequestValue(f)))
-	req_mt.RawSet(lua.LString("__newindex"), s.state.NewFunction(setRequestValue(f)))
-	s.state.SetMetatable(req, req_mt)
+	req_mt := L.NewTable()
+	req_mt.RawSet(lua.LString("__index"), L.NewFunction(getRequestValue(f)))
+	req_mt.RawSet(lua.LString("__newindex"), L.NewFunction(setRequestValue(f)))
+	L.SetMetatable(req, req_mt)
 
 	// and the request headers
-	reqhdr := s.state.NewTable()
-	reqhdr_mt := s.state.NewTable()
-	reqhdr_mt.RawSet(lua.LString("__index"), s.state.NewFunction(getRequestHeader(f)))
-	reqhdr_mt.RawSet(lua.LString("__newindex"), s.state.NewFunction(setRequestHeader(f)))
+	reqhdr := L.NewTable()
+	reqhdr_mt := L.NewTable()
+	reqhdr_mt.RawSet(lua.LString("__index"), L.NewFunction(getRequestHeader(f)))
+	reqhdr_mt.RawSet(lua.LString("__newindex"), L.NewFunction(setRequestHeader(f)))
 	req.RawSet(lua.LString("header"), reqhdr)
-	s.state.SetMetatable(reqhdr, reqhdr_mt)
+	L.SetMetatable(reqhdr, reqhdr_mt)
 
 	// same for response, a bit simpler
-	res := s.state.NewTable()
-	reshdr := s.state.NewTable()
-	reshdr_mt := s.state.NewTable()
-	reshdr_mt.RawSet(lua.LString("__index"), s.state.NewFunction(getResponseHeader(f)))
-	reshdr_mt.RawSet(lua.LString("__newindex"), s.state.NewFunction(setResponseHeader(f)))
-	s.state.SetMetatable(reshdr, reshdr_mt)
+	res := L.NewTable()
+	reshdr := L.NewTable()
+	reshdr_mt := L.NewTable()
+	reshdr_mt.RawSet(lua.LString("__index"), L.NewFunction(getResponseHeader(f)))
+	reshdr_mt.RawSet(lua.LString("__newindex"), L.NewFunction(setResponseHeader(f)))
+	L.SetMetatable(reshdr, reshdr_mt)
 	res.RawSet(lua.LString("header"), reshdr)
 	t.RawSet(lua.LString("response"), res)
 
 	// finally
-	t.RawSet(lua.LString("serve"), s.state.NewFunction(serveRequest(f)))
+	t.RawSet(lua.LString("serve"), L.NewFunction(serveRequest(f)))
 
 	return t
 }

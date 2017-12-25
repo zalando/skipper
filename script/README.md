@@ -5,7 +5,7 @@ present, they are called with a skipper filter context and the params passed in 
 ```
 -- route looks like
 --
--- any: * -> luaScript("./test.lua", "myparam=foo", "other=bar") -> <shunt>
+-- any: * -> lua("./test.lua", "myparam=foo", "other=bar") -> <shunt>
 --
 function request(ctx, params)
 	print(ctx.request.method .. " " .. ctx.request.url .. " -> " .. params.myparam)
