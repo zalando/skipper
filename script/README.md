@@ -2,7 +2,7 @@
 
 Scripts for skipper need at least one of two possible functions: `request` or `response`. If
 present, they are called with a skipper filter context and the params passed in the route as map like
-```
+```lua
 -- route looks like
 --
 -- any: * -> lua("./test.lua", "myparam=foo", "other=bar") -> <shunt>
@@ -78,7 +78,7 @@ end
 ```
 
 ## validate token
-```
+```lua
 local http = require("http")
 function request(ctx, params)
         token = string.gsub(ctx.request.header["Authorization"], "^%s*[Bb]earer%s+", "", 1)
