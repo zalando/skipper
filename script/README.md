@@ -11,15 +11,20 @@ function request(ctx, params)
 	print(ctx.request.method .. " " .. ctx.request.url .. " -> " .. params.myparam)
 end
 ```
+
 Only "key=value" string pairs may be passed as parameters to the script.
 
 The following modules have been preloaded and can be used with e.g.
 `local http = require("http")`, see also the examples below
 
-* `http`        "github.com/cjoudrey/gluahttp"
+* `http`        "github.com/cjoudrey/gluahttp" - TODO: configurable with something different than `&http.Client{}`
 * `url`        "github.com/cjoudrey/gluaurl"
 * `json`       "layeh.com/gopher-json" / "github.com/layeh/gopher-json"
 * `base64`     "github.com/zalando/skipper/base64"
+
+There's no guarantee that the `request()` and `response()` functions of a lua script run in the
+same lua state during one request. Setting a var in the request and accessing it in the response
+will lead to hard debuggable errors. Use the `ctx.state_bag` once it's available (TODO ;-))
 
 # Request
 
@@ -29,9 +34,9 @@ Request headers can be accessed by accessing the `ctx.request.header` map like
 ```lua
 	ua = ctx.request.header["user-agent"]
 ```
+
 Header names are normalized by the `net/http` go module like usual. Setting header is done
 by assigning to the headers map. Setting a header to `nil` deletes the header:
-
 ```lua
 	ctx.request.header["user-agent"] = "skipper.lua/0.1"
 	ctx.request.header["Authorization"] = nil -- delete authorization header
@@ -51,7 +56,7 @@ course only valid in the `response()` phase.
 * `url` - (read/write) request URL as string
 
 ## serving requests from lua
-* `serve(table)` - table needs `status_code` (number) and `header` (table) keys - more to come :), see redirect example below
+* `serve(table)` - table needs `status_code` (number) and `header` (table) keys - more to come :), see redirect example below, TODO: add `body`
 
 
 # Examples
