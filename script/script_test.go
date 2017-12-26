@@ -102,3 +102,40 @@ func TestStateBag(t *testing.T) {
 		t.Errorf("failed to set statebag value")
 	}
 }
+
+func TestGetHeader(t *testing.T) {
+	code := `function request(ctx, params); ctx.state_bag["User-Agent"] = ctx.request.header["User-Agent"]; end`
+	ls := &luaScript{}
+	scr, err := ls.CreateFilter([]interface{}{code})
+	if err != nil {
+		t.Errorf("failed to compile test code: %s", err)
+	}
+	req, _ := http.NewRequest("GET", "http://www.example.com/", nil)
+	req.Header.Set("user-agent", "luatest/1.0")
+	fc := &luaContext{
+		bag: make(map[string]interface{}),
+		request: req,
+	}
+	scr.Request(fc)
+	if fc.StateBag()["User-Agent"].(string) != "luatest/1.0" {
+		t.Errorf("failed to get request header value")
+	}
+}
+
+func TestSetHeader(t *testing.T) {
+	code := `function request(ctx, params); ctx.request.header["User-Agent"] = "skipper.lua/1.0"; end`
+	ls := &luaScript{}
+	scr, err := ls.CreateFilter([]interface{}{code})
+	if err != nil {
+		t.Errorf("failed to compile test code: %s", err)
+	}
+	req, _ := http.NewRequest("GET", "http://www.example.com/", nil)
+	fc := &luaContext{
+		bag: make(map[string]interface{}),
+		request: req,
+	}
+	scr.Request(fc)
+	if fc.request.Header.Get("User-Agent") != "skipper.lua/1.0" {
+		t.Errorf("failed to set request header value")
+	}
+}
