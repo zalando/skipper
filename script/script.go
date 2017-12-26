@@ -186,6 +186,13 @@ func (s *script) filterContextAsLuaTable(L *lua.LState, f filters.FilterContext)
 	req_mt.RawSet(lua.LString("__newindex"), L.NewFunction(setRequestValue(f)))
 	L.SetMetatable(req, req_mt)
 
+	sb := L.NewTable()
+	sb_mt := L.NewTable()
+	sb_mt.RawSet(lua.LString("__index"), L.NewFunction(getStateBag(f)))
+	sb_mt.RawSet(lua.LString("__newindex"), L.NewFunction(setStateBag(f)))
+	L.SetMetatable(sb, sb_mt)
+	t.RawSet(lua.LString("state_bag"), sb)
+
 	// and the request headers
 	reqhdr := L.NewTable()
 	reqhdr_mt := L.NewTable()
@@ -302,6 +309,52 @@ func setRequestValue(f filters.FilterContext) func(*lua.LState) int {
 		return 0
 	}
 }
+
+func getStateBag(f filters.FilterContext) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		fld := s.ToString(-1)
+		res, ok := f.StateBag()[fld]
+		if !ok {
+			s.Push(lua.LNil)
+			return 1
+		}
+		switch res.(type) {
+		case string:
+			s.Push(lua.LString(res.(string)))
+		case int:
+			s.Push(lua.LNumber(res.(int)))
+		case int64:
+			s.Push(lua.LNumber(res.(int64)))
+		case float64:
+			s.Push(lua.LNumber(res.(float64)))
+		default:
+			s.Push(lua.LNil)
+		}
+		return 1
+	}
+}
+
+func setStateBag(f filters.FilterContext) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		fld := s.ToString(-2)
+		val := s.Get(-1)
+		var res interface{}
+		switch val.Type() {
+		case lua.LTString:
+			res = string(val.(lua.LString))
+		case lua.LTNumber:
+			res = float64(val.(lua.LNumber))
+		default:
+			s.Push(lua.LString("unsupported type for state bag"))
+			return 1
+		}
+
+		f.StateBag()[fld] = res
+		return 0
+	}
+}
+
+
 
 func getRequestHeader(f filters.FilterContext) func(*lua.LState) int {
 	return func(s *lua.LState) int {

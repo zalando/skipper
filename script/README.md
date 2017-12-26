@@ -24,7 +24,7 @@ The following modules have been preloaded and can be used with e.g.
 
 There's no guarantee that the `request()` and `response()` functions of a lua script run in the
 same lua state during one request. Setting a var in the request and accessing it in the response
-will lead to hard debuggable errors. Use the `ctx.state_bag` once it's available (TODO ;-))
+will lead to hard debuggable errors. Use the `ctx.state_bag`.
 
 # Request
 
@@ -60,6 +60,19 @@ course only valid in the `response()` phase.
 
 
 # Examples
+
+# State Bag
+
+```lua
+function request(ctx, params)
+	-- the value of "mykey" will be available to all filters in the chain now:
+	ctx.state_bag["mykey"] = "foo"
+end
+
+function response(ctx, params)
+	print(ctx.state_bag["mykey"])
+end
+```
 
 ## OAuth2 token as basic auth password
 
