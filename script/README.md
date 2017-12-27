@@ -1,7 +1,8 @@
 # lua scripts
 
-Scripts for skipper need at least one of two possible functions: `request` or `response`. If
-present, they are called with a skipper filter context and the params passed in the route as map like
+Scripts for skipper need at least one of two possible functions:
+`request` or `response`. If present, they are called with a skipper
+filter context and the params passed in the route as map like
 ```lua
 -- route looks like
 --
@@ -11,7 +12,6 @@ function request(ctx, params)
 	print(ctx.request.method .. " " .. ctx.request.url .. " -> " .. params.myparam)
 end
 ```
-
 Only "key=value" string pairs may be passed as parameters to the script.
 
 The following modules have been preloaded and can be used with e.g.
@@ -22,9 +22,11 @@ The following modules have been preloaded and can be used with e.g.
 * `json`       "layeh.com/gopher-json" / "github.com/layeh/gopher-json"
 * `base64`     "github.com/zalando/skipper/base64"
 
-There's no guarantee that the `request()` and `response()` functions of a lua script run in the
-same lua state during one request. Setting a var in the request and accessing it in the response
-will lead to hard debuggable errors. Use the `ctx.state_bag`.
+There is no guarantee that the `request()` and `response()` functions of a
+lua script run in the same lua state during one request. Setting a var in
+the request and accessing it in the response will lead to hard debuggable
+errors. Use the `ctx.state_bag` to propagate values from `request` to
+`response` - and any other filter in the chain.
 
 # Request
 
@@ -34,16 +36,16 @@ Request headers can be accessed by accessing the `ctx.request.header` map like
 ```lua
 	ua = ctx.request.header["user-agent"]
 ```
-
-Header names are normalized by the `net/http` go module like usual. Setting header is done
-by assigning to the headers map. Setting a header to `nil` deletes the header:
+Header names are normalized by the `net/http` go module like usual. Setting
+header is done by assigning to the headers map. Setting a header to `nil` or
+an empty string deletes the header - setting to `nil` is preferred.
 ```lua
 	ctx.request.header["user-agent"] = "skipper.lua/0.1"
 	ctx.request.header["Authorization"] = nil -- delete authorization header
 ```
 
-Response headers work the same way by accessing / assigning to `ctx.response.header` - this is of
-course only valid in the `response()` phase.
+Response headers work the same way by accessing / assigning to
+`ctx.response.header` - this is of course only valid in the `response()` phase.
 
 ## Other request fields
 
@@ -55,14 +57,14 @@ course only valid in the `response()` phase.
 * `method` - (read only) request method, e.g. "GET" or "POST"
 * `url` - (read/write) request URL as string
 
-## serving requests from lua
-* `serve(table)` - table needs `status_code` (number) and `header` (table) keys - more to come :), see redirect example below, TODO: add `body`
+## Serving requests from lua
+* `serve(table)` - table needs `status_code` (number) and `header` (table) keys - more to come :), see redirect example
+ below, TODO: add `body`
 
+## StateBag
 
-# Examples
-
-# State Bag
-
+The state bag can be used to pass values from one filter to another in the same
+chain. It is shared by all filters in one request.
 ```lua
 function request(ctx, params)
 	-- the value of "mykey" will be available to all filters in the chain now:
@@ -74,19 +76,21 @@ function response(ctx, params)
 end
 ```
 
+# Examples
+
 ## OAuth2 token as basic auth password
 
 ```lua
 local base64 = require("base64")
 
 function request(ctx, params)
-        token = string.gsub(ctx.request.header["Authorization"], "^%s*[Bb]earer%s+", "", 1)
-	user = ctx.request.header["x-username"]
-	if user == "" then
-		user = params.username
-	end
-        ctx.request.header["Authorization"] = "Basic " .. base64.encode(user .. ":"  .. token)
-        -- print(ctx.request.header["Authorization"])
+    token = string.gsub(ctx.request.header["Authorization"], "^%s*[Bb]earer%s+", "", 1)
+    user = ctx.request.header["x-username"]
+    if user == "" then
+        user = params.username
+    end
+    ctx.request.header["Authorization"] = "Basic " .. base64.encode(user .. ":"  .. token)
+    -- print(ctx.request.header["Authorization"])
 end
 ```
 
@@ -94,36 +98,41 @@ end
 ```lua
 local http = require("http")
 function request(ctx, params)
-        token = string.gsub(ctx.request.header["Authorization"], "^%s*[Bb]earer%s+", "", 1)
-	if token == "" then
-		ctx.serve({status_code=401})
-		return
-	fi
-	-- do not use in production, no circuit breaker ...
-	res = http.get("https://auth.example.com/oauth2/tokeninfo?access_token="..token)
-	if res.status_code ~= 200 then
-		ctx.serve({status_code=401})
-		return
-	end
+    token = string.gsub(ctx.request.header["Authorization"], "^%s*[Bb]earer%s+", "", 1)
+    if token == "" then
+        ctx.serve({status_code=401})
+        return
+    end
+    -- do not use in production, no circuit breaker ...
+    res, err = http.get("https://auth.example.com/oauth2/tokeninfo?access_token="..token)
+    if err ~= nil then
+        print("Failed to get tokeninfo: " .. err)
+        ctx.serve({status_code=401})
+        return
+    end
+    if res.status_code ~= 200 then
+        ctx.serve({status_code=401})
+        return
+    end
 end
 ```
 
 ## strip query
 ```lua
 function request(ctx, params)
-        ctx.request.url = string.gsub(ctx.request.url, "%?.*$", "")
-        -- print("URL="..ctx.request.url)
+    ctx.request.url = string.gsub(ctx.request.url, "%?.*$", "")
+    -- print("URL="..ctx.request.url)
 end
 ```
 
 ## redirect
 ```lua
 function request(ctx, params)
-        ctx.serve({
-		status_code=302,
-		header={
-			location="http://www.example.org/",
-		},
-	})
+    ctx.serve({
+        status_code=302,
+        header={
+            location="http://www.example.org/",
+        },
+    })
 end
 ```

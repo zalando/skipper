@@ -1,17 +1,18 @@
 package script
 
 import (
-	"testing"
-        opentracing "github.com/opentracing/opentracing-go"
 	"net/http"
+	"testing"
+
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 )
 
 func TestLoadScript(t *testing.T) {
-	for _, test := range []struct{
-		name	string
-		code    string
-		returnsOK	bool
+	for _, test := range []struct {
+		name      string
+		code      string
+		returnsOK bool
 	}{
 		{
 			"load_ok",
@@ -28,7 +29,6 @@ func TestLoadScript(t *testing.T) {
 			`function request(ctx, params); print(ctx.request.method)`,
 			false,
 		},
-
 	} {
 		ls := &luaScript{}
 		_, err := ls.CreateFilter([]interface{}{test.code, "foo=bar"})
@@ -39,15 +39,14 @@ func TestLoadScript(t *testing.T) {
 }
 
 type luaContext struct {
-	request *http.Request
+	request  *http.Request
 	response *http.Response
-	bag	map[string]interface{}
+	bag      map[string]interface{}
 }
 
 func (l *luaContext) ResponseWriter() http.ResponseWriter {
 	return nil
 }
-
 
 func (l *luaContext) Request() *http.Request {
 	return l.request
@@ -69,9 +68,9 @@ func (l *luaContext) Served() bool {
 	return false
 }
 
-func (l *luaContext) MarkServed() { }
+func (l *luaContext) MarkServed() {}
 
-func (l *luaContext) Serve(_ *http.Response) { }
+func (l *luaContext) Serve(_ *http.Response) {}
 
 func (l *luaContext) PathParam(_ string) string { return "" }
 
@@ -83,7 +82,7 @@ func (l *luaContext) BackendUrl() string { return "" }
 
 func (l *luaContext) OutgoingHost() string { return "www.example.com" }
 
-func (l *luaContext) SetOutgoingHost(_ string) { }
+func (l *luaContext) SetOutgoingHost(_ string) {}
 
 func (l *luaContext) Metrics() filters.Metrics { return nil }
 
@@ -113,7 +112,7 @@ func TestGetHeader(t *testing.T) {
 	req, _ := http.NewRequest("GET", "http://www.example.com/", nil)
 	req.Header.Set("user-agent", "luatest/1.0")
 	fc := &luaContext{
-		bag: make(map[string]interface{}),
+		bag:     make(map[string]interface{}),
 		request: req,
 	}
 	scr.Request(fc)
@@ -131,7 +130,7 @@ func TestSetHeader(t *testing.T) {
 	}
 	req, _ := http.NewRequest("GET", "http://www.example.com/", nil)
 	fc := &luaContext{
-		bag: make(map[string]interface{}),
+		bag:     make(map[string]interface{}),
 		request: req,
 	}
 	scr.Request(fc)

@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
-	"time"
 
 	lua "github.com/yuin/gopher-lua"
 	"github.com/zalando/skipper/filters"
@@ -20,16 +18,25 @@ import (
 	gjson "layeh.com/gopher-json"
 )
 
+// InitialPoolSize is the number of lua states created initially per route
+var InitialPoolSize int = 3
+// MaxPoolSize is the number of lua states stored per route - there may be more parallel
+// requests, but only this number is cached.
+var MaxPoolSize int = 10
+
 type luaScript struct{}
 
+// NewLuaScript creates a new filter spec for skipper
 func NewLuaScript() filters.Spec {
 	return &luaScript{}
 }
 
+// Name returns the name of the filter ("lua")
 func (ls *luaScript) Name() string {
 	return "lua"
 }
 
+// CreateFilter creates the filter
 func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) {
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -55,21 +62,27 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 }
 
 func (s *script) getState() (*lua.LState, error) {
-	s.Lock()
-	defer s.Unlock()
-	n := len(s.pool)
-	if n == 0 {
-		s.newState()
+	select {
+	case L := <-s.pool:
+		if L == nil {
+			return nil, errors.New("pool closed")
+		}
+		return L, nil
+	default:
+		return s.newState()
 	}
-	x := s.pool[n-1]
-	s.pool = s.pool[0 : n-1]
-	return x, nil
 }
 
 func (s *script) putState(L *lua.LState) {
-	s.Lock()
-	defer s.Unlock()
-	s.pool = append(s.pool, L)
+	if s.pool == nil { // pool closed
+		L.Close()
+		return
+	}
+	select {
+	case s.pool <- L:
+	default: // pool full, close state
+		L.Close()
+	}
 }
 
 func (s *script) newState() (*lua.LState, error) {
@@ -108,26 +121,25 @@ func (s *script) newState() (*lua.LState, error) {
 }
 
 func (s *script) initScript() error {
-	s.pool = make([]*lua.LState, 0, 5)
-	L, err := s.newState()
-	if err != nil {
-		return err
+	s.pool = make(chan *lua.LState, MaxPoolSize) // FIXME make configurable
+	for i := 0; i < InitialPoolSize; i++ {
+		L, err := s.newState()
+		if err != nil {
+			return err
+		}
+		s.putState(L)
 	}
-	s.putState(L)
 	return nil
 }
 
 type script struct {
-	sync.Mutex
 	source      string
 	routeParams []string
-	pool        []*lua.LState
+	pool        chan *lua.LState
 }
 
 func (s *script) Request(f filters.FilterContext) {
-	start := time.Now()
 	s.runFunc("request", f)
-	log.Printf("request(): took %s", time.Now().Sub(start))
 }
 
 func (s *script) Response(f filters.FilterContext) {
@@ -156,7 +168,6 @@ func (s *script) runFunc(name string, f filters.FilterContext) {
 		pt.RawSetString(parts[0], lua.LString(parts[1]))
 	}
 
-	start := time.Now()
 	err = L.CallByParam(
 		lua.P{
 			Fn:      fn,
@@ -169,7 +180,6 @@ func (s *script) runFunc(name string, f filters.FilterContext) {
 	if err != nil {
 		fmt.Printf("Error calling %s from %s: %s", name, s.source, err)
 	}
-	log.Printf("running %s: %s", name, time.Now().Sub(start))
 }
 
 func (s *script) filterContextAsLuaTable(L *lua.LState, f filters.FilterContext) *lua.LTable {
@@ -353,8 +363,6 @@ func setStateBag(f filters.FilterContext) func(*lua.LState) int {
 		return 0
 	}
 }
-
-
 
 func getRequestHeader(f filters.FilterContext) func(*lua.LState) int {
 	return func(s *lua.LState) int {
