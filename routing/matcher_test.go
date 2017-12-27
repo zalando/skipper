@@ -471,7 +471,7 @@ func TestMatchHeadersRegexpFalse(t *testing.T) {
 	h := make(http.Header)
 	h["Some-Header"] = []string{"some-value"}
 	h["Some-Other-Header"] = []string{"some-other-value-0", "some-other-value-1"}
-	if matchHeaders(nil, map[string][]*regexp.Regexp{"Some-Header": []*regexp.Regexp{rx}}, h) {
+	if matchHeaders(nil, map[string][]*regexp.Regexp{"Some-Header": {rx}}, h) {
 		t.Error("failed not to match header")
 	}
 }
@@ -481,7 +481,7 @@ func TestMatchHeadersRegexpTrue(t *testing.T) {
 	h := make(http.Header)
 	h["Some-Header"] = []string{"some-value"}
 	h["Some-Other-Header"] = []string{"some-other-value-0", "some-other-value-1"}
-	if !matchHeaders(nil, map[string][]*regexp.Regexp{"Some-Header": []*regexp.Regexp{rx}}, h) {
+	if !matchHeaders(nil, map[string][]*regexp.Regexp{"Some-Header": {rx}}, h) {
 		t.Error("failed not to match header")
 	}
 }
@@ -501,7 +501,7 @@ func TestMatchLeafWrongMethod(t *testing.T) {
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
-		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
 	if matchLeaf(l, req, "/some/path") {
 		t.Error("failed not to match leaf method")
 	}
@@ -522,7 +522,7 @@ func TestMatchLeafWrongHost(t *testing.T) {
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
-		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
 	if matchLeaf(l, req, "/some/path") {
 		t.Error("failed not to match leaf host")
 	}
@@ -543,7 +543,7 @@ func TestMatchLeafWrongPath(t *testing.T) {
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
-		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
 	if matchLeaf(l, req, "/some/other/path") {
 		t.Error("failed not to match leaf path")
 	}
@@ -564,7 +564,7 @@ func TestMatchLeafWrongExactHeader(t *testing.T) {
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
-		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
 	if matchLeaf(l, req, "/some/path") {
 		t.Error("failed not to match leaf exact header")
 	}
@@ -585,7 +585,7 @@ func TestMatchLeafWrongRegexpHeader(t *testing.T) {
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
-		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
 	if matchLeaf(l, req, "/some/path") {
 		t.Error("failed not to match leaf regexp header")
 	}
@@ -606,7 +606,7 @@ func TestMatchLeaf(t *testing.T) {
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
-		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": []*regexp.Regexp{rxhd}}}
+		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
 	if !matchLeaf(l, req, "/some/path") {
 		t.Error("failed to match leaf")
 	}
@@ -632,8 +632,8 @@ func TestMatchLeavesTrue(t *testing.T) {
 
 func TestMatchPathTreeNoMatch(t *testing.T) {
 	tree := &pathmux.Tree{}
-	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
-	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{}}}
+	pm1 := &pathMatcher{leaves: []*leafMatcher{{}}}
 	err := tree.Add("/some/path", pm0)
 	if err != nil {
 		t.Error(err)
@@ -651,8 +651,8 @@ func TestMatchPathTreeNoMatch(t *testing.T) {
 
 func TestMatchPathTree(t *testing.T) {
 	tree := &pathmux.Tree{}
-	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{route: &Route{Route: eskip.Route{Id: "1"}}}}}
-	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{route: &Route{Route: eskip.Route{Id: "1"}}}}}
+	pm1 := &pathMatcher{leaves: []*leafMatcher{{}}}
 	err := tree.Add("/some/path", pm0)
 	if err != nil {
 		t.Error(err)
@@ -671,8 +671,8 @@ func TestMatchPathTree(t *testing.T) {
 
 func TestMatchPathTreeWithWildcards(t *testing.T) {
 	tree := &pathmux.Tree{}
-	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{route: &Route{Route: eskip.Route{Id: "1"}}}}}
-	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{route: &Route{Route: eskip.Route{Id: "1"}}}}}
+	pm1 := &pathMatcher{leaves: []*leafMatcher{{}}}
 	err := tree.Add("/some/path/:param0/:param1", pm0)
 	if err != nil {
 		t.Error(err)
@@ -688,7 +688,7 @@ func TestMatchPathTreeWithWildcards(t *testing.T) {
 }
 
 func TestMatchPath(t *testing.T) {
-	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{}}}
 	tree := &pathmux.Tree{}
 	err := tree.Add("/some/path", pm0)
 	if err != nil {
@@ -703,7 +703,7 @@ func TestMatchPath(t *testing.T) {
 }
 
 func TestMatchPathResolved(t *testing.T) {
-	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{}}}
 	tree := &pathmux.Tree{}
 	err := tree.Add("/some/path", pm0)
 	if err != nil {
@@ -718,7 +718,7 @@ func TestMatchPathResolved(t *testing.T) {
 }
 
 func TestMatchWrongMethod(t *testing.T) {
-	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{method: "PUT"}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{method: "PUT"}}}
 	tree := &pathmux.Tree{}
 	err := tree.Add("/some/path/*_", pm0)
 	if err != nil {
@@ -750,8 +750,8 @@ func TestMatchTopLeaves(t *testing.T) {
 
 func TestMatchWildcardPaths(t *testing.T) {
 	tree := &pathmux.Tree{}
-	pm0 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
-	pm1 := &pathMatcher{leaves: []*leafMatcher{&leafMatcher{}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{}}}
+	pm1 := &pathMatcher{leaves: []*leafMatcher{{}}}
 	err := tree.Add("/some/path/:param0/:param1", pm0)
 	if err != nil {
 		t.Error(err)

@@ -57,7 +57,7 @@ func (er *errorReader) Read(b []byte) (int, error) {
 }
 
 func setHeaders(to, from http.Header) {
-	for k, _ := range to {
+	for k := range to {
 		delete(to, k)
 	}
 

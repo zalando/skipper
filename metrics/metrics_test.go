@@ -182,7 +182,7 @@ func TestHandlerCodaHaleMetricsRequestWithPattern(t *testing.T) {
 		if k != "gauges" {
 			t.Error("Metrics should report `gauges` metrics")
 		} else {
-			for k2, _ := range v {
+			for k2 := range v {
 				if !strings.HasPrefix(k2, "runtime.Num") {
 					t.Error("Metrics endpoint returned metrics with the wrong prefix")
 				}

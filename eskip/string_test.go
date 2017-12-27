@@ -61,7 +61,7 @@ func TestRouteString(t *testing.T) {
 			Headers: map[string]string{
 				`ap"key`: `ap"value`},
 			HeaderRegexps: map[string][]string{
-				`ap"key`: []string{"slash/value0", "slash/value1"}},
+				`ap"key`: {"slash/value0", "slash/value1"}},
 			Predicates: []*Predicate{{"Test", []interface{}{3.14, "hello"}}},
 			Filters: []*Filter{
 				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
