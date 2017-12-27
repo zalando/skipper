@@ -20,6 +20,7 @@ import (
 
 // InitialPoolSize is the number of lua states created initially per route
 var InitialPoolSize int = 3
+
 // MaxPoolSize is the number of lua states stored per route - there may be more parallel
 // requests, but only this number is cached.
 var MaxPoolSize int = 10
