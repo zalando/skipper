@@ -5,7 +5,8 @@ current implementation supports [Lua 5.1](https://www.lua.org/manual/5.1/).
 
 A script can be given as file (ending with `.lua`) or as inline code. The
 script needs to be the first parameter for the `lua` filter, e.g.
-* file `lua("/path/to/file.lua")`
+* file `lua("/path/to/file.lua")` - if a file path is not absolute, the path
+ is relative to skipper's working directory.
 * inline `lua("function request(c, p); print(c.request.url); end")`
 
 Any other additional parameters for the filter must be `key=value` strings.
@@ -51,7 +52,7 @@ Header names are normalized by the `net/http` go module like usual. Setting
 header is done by assigning to the headers map. Setting a header to `nil` or
 an empty string deletes the header - setting to `nil` is preferred.
 ```lua
-ctx.request.header["user-agent"] = "skipper.lua/0.1"
+ctx.request.header["user-agent"] = "skipper.lua/0.0.1"
 ctx.request.header["Authorization"] = nil -- delete authorization header
 ```
 
@@ -88,6 +89,9 @@ end
 ```
 
 # Examples
+
+Note: the examples serve as examples. If there is a go based plugin available,
+use that instead. The overhead of calling lua is 4-5 times slower than pure go.
 
 ## OAuth2 token as basic auth password
 ```lua
@@ -146,3 +150,40 @@ function request(ctx, params)
     })
 end
 ```
+
+# Benchmark
+
+## redirectTo vs lua redirect
+See skptesting/benchmark-lua.sh
+
+Route for "skipper" is `* -> redirectTo("http://localhost:9980") -> <shunt>`,
+route for "lua" is `* -> lua("function request(c,p); c.serve({status_code=302, header={location='http://localhost:9980'}});end") -> <shunt>`
+
+```
+[benchmarking skipper]
+Running 12s test @ http://127.0.0.1:9990/lorem.html
+  2 threads and 128 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     6.75ms   14.22ms 260.28ms   92.19%
+    Req/Sec    23.87k     2.93k   32.22k    70.42%
+  572695 requests in 12.06s, 100.49MB read
+  Non-2xx or 3xx responses: 572695
+Requests/sec:  47474.31
+Transfer/sec:      8.33MB
+[benchmarking skipper done]
+
+[benchmarking lua]
+Running 12s test @ http://127.0.0.1:9991/lorem.html
+  2 threads and 128 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    38.31ms   53.48ms 580.80ms   83.69%
+    Req/Sec     5.44k     1.03k    8.23k    71.25%
+  130123 requests in 12.01s, 20.97MB read
+Requests/sec:  10831.94
+Transfer/sec:      1.75MB
+[benchmarking lua done]
+```
+The benchmark was run with the default pool size of `script.InitialPoolSize = 3; script.MaxPoolSize = 10`.
+With `script.InitialPoolSize = 128; script.MaxPoolSize = 128` (tweaked for this benchmark) you get about 12k req/s in lua.
+
+Similar results are achieved when testing `stripQuery()` vs the lua version from above.
