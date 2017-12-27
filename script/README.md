@@ -7,6 +7,7 @@ A script can be given as file (ending with `.lua`) or as inline code. The
 script needs to be the first parameter for the `lua` filter, e.g.
 * file `lua("/path/to/file.lua")`
 * inline `lua("function request(c, p); print(c.request.url); end")`
+
 Any other additional parameters for the filter must be `key=value` strings.
 These will be passed as table to the called functions as second parameter.
 **NOTE**: Any parameter starting with "lua-" should not be used to pass
