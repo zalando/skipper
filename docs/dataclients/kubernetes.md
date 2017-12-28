@@ -207,7 +207,7 @@ automatically.
 
 Annotation | example data | usage
 --- | --- | ---
-zalando.org/backend-weights | {"my-app-1": 80, "my-app-2": 20} | green-blue deployments
+zalando.org/backend-weights | {"my-app-1": 80, "my-app-2": 20} | blue-green deployments
 zalando.org/skipper-filter | consecutiveBreaker(15) | arbitrary filters
 zalando.org/skipper-predicate | QueryParam("version", "^alpha$") | arbitrary predicates
 zalando.org/ratelimit | ratelimit(50, "1m") | deprecated, use zalando.org/skipper-filter instead
@@ -291,7 +291,7 @@ shows how to use filters for authorization.
 
 ## Diagnosis - Throttling - Latency
 
-For diagnosis purpose there are filters that enables you to throttle
+For diagnosis purpose there are filters that enable you to throttle
 the bandwidth or add latency. For the full list of filters see our
 [diag filter godoc page](https://godoc.org/github.com/zalando/skipper/filters/diag).
 
@@ -347,7 +347,7 @@ and **my-app-2** will get **20%** of the traffic:
 
 # Filters
 
-Filters can modify http requests and responses. There are a plenty of
+Filters can modify http requests and responses. There are plenty of
 things you can do with them.
 
 ## Circuitbreaker
