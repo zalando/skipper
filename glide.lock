@@ -1,5 +1,5 @@
 hash: 9c7974184c79501c4165e7c3091cc6b646b7695ea9d50b0acdd98687cef1a76c
-updated: 2017-12-01T09:09:58.196766274Z
+updated: 2017-12-27T09:53:59.379678362+01:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
@@ -7,6 +7,10 @@ imports:
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
   subpackages:
   - quantile
+- name: github.com/cjoudrey/gluahttp
+  version: b4bfe0c50fea948dcbf3966e120996d6607bbd89
+- name: github.com/cjoudrey/gluaurl
+  version: 31cbb9bef199454415879f2e6d609d1136d60cad
 - name: github.com/dimfeld/httppath
   version: ee938bf735983d53694d79138ad9820efff94c92
 - name: github.com/golang/protobuf
@@ -35,6 +39,7 @@ imports:
   version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
+  - prometheus/promhttp
 - name: github.com/prometheus/client_model
   version: 99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c
   subpackages:
@@ -52,11 +57,17 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: e181e095bae94582363434144c61a9653aff6e50
 - name: github.com/sirupsen/logrus
-  version: f006c2ac4710855cf0f916dd6b77acf6b048dc6e
+  version: d682213848ed68c0a260ca37d6dd5ace8423f5ba
 - name: github.com/sony/gobreaker
   version: 3cb67c77c1d1e72fda30c6970578164d24f806b6
 - name: github.com/szuecs/rate-limit-buffer
   version: 1a179ab26baf3b8450aaaa662e3120155fadb39d
+- name: github.com/yuin/gopher-lua
+  version: d819443c5178271c8db41a300b07b843cd632488
+  subpackages:
+  - ast
+  - parse
+  - pm
 - name: golang.org/x/crypto
   version: 94eea52f7b742c7cbe0b03b22f0c4c8631ece122
   subpackages:
@@ -72,9 +83,11 @@ imports:
   subpackages:
   - unix
   - windows
+- name: layeh.com/gopher-json
+  version: c128cc74278be889c4381681712931976fe0d88b
 testImports:
 - name: github.com/davecgh/go-spew
-  version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
+  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
   subpackages:
   - spew
 - name: github.com/pmezard/go-difflib
