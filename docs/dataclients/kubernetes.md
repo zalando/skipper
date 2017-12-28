@@ -6,7 +6,7 @@ It will get it's route information from provisioned
 [Ingress Objects](https://kubernetes.io/docs/concepts/services-networking/ingress).
 Detailed information you find in our [godoc for dataclient kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes).
 
-## Skipper Features
+# Skipper Features
 
 Skipper has the following main features:
 
@@ -203,7 +203,112 @@ something that configures your frontend loadbalancer, for example
 and your DNS, [external-dns](https://github.com/kubernetes-incubator/external-dns)
 automatically.
 
-## Blue-Green deployments
+## Skipper Ingress Annotations
+
+Annotation | example data | usage
+--- | --- | ---
+zalando.org/backend-weights | {"my-app-1": 80, "my-app-2": 20} | blue-green deployments
+zalando.org/skipper-filter | consecutiveBreaker(15) | arbitrary filters
+zalando.org/skipper-predicate | QueryParam("version", "^alpha$") | arbitrary predicates
+zalando.org/ratelimit | ratelimit(50, "1m") | deprecated, use zalando.org/skipper-filter instead
+
+# Basic HTTP manipulations
+
+HTTP manipulations are done by using skipper filters.
+A basic example how to use skipper filters in ingress:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-filter: consecutiveBreaker(15)
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+## Add a request Header
+
+Add a header in the request path to your backend.
+
+    setRequestHeader("X-Foo", "bar")
+
+## Add a response Header
+
+Add a header in the response path of your clients.
+
+    setResponseHeader("X-Foo", "bar")
+
+## Set the Path
+
+Change the path in the request path to your backend.
+
+    setPath("/newPath/")
+
+## Set the Querystring
+
+Set the Querystring in the request path to your backend.
+
+    setQuery("text", "godoc skipper")
+
+## Redirect
+
+Create a redirect with HTTP code 301 to https://foo.example.org/.
+
+    redirectTo(301, "https://foo.example.org/")
+
+## Cookies
+
+Set a Cookie in the request path to your backend.
+
+    requestCookie("test-session", "abc")
+
+Set a Cookie in the response path of your clients.
+
+    responseCookie("test-session", "abc", 31536000)
+    responseCookie("test-session", "abc", 31536000, "change-only")
+
+    // response cookie without HttpOnly:
+    jsCookie("test-session-info", "abc-debug", 31536000, "change-only")
+
+## Authorization
+
+Our [filter auth
+godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
+shows how to use filters for authorization.
+
+### Basic Auth
+
+    % htpasswd -nbm myName myPassword
+
+    basicAuth("/path/to/htpasswd")
+    basicAuth("/path/to/htpasswd", "My Website")
+
+## Diagnosis - Throttling - Latency
+
+For diagnosis purpose there are filters that enable you to throttle
+the bandwidth or add latency. For the full list of filters see our
+[diag filter godoc page](https://godoc.org/github.com/zalando/skipper/filters/diag).
+
+    bandwidth(30) // incoming in kb/s
+    backendBandwidth(30) // outgoing in kb/s
+    backendLatency(120) // in ms
+
+## FlowID to trace request flows
+
+To trace request flows skipper can generate a unique Flow Id for
+every HTTP request that it receives.
+Skipper sets the X-Flow-Id header to a unique value. Read more about
+this in our [flowid filter godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
+
+     flowId("reuse")
+
+# Blue-Green deployments
 
 To do blue-green deployments you have to have control over traffic
 switching. Skipper gives you the opportunity to set weights to backend
@@ -239,6 +344,11 @@ and **my-app-2** will get **20%** of the traffic:
               serviceName: my-app-2
               servicePort: http
             path: /
+
+# Filters
+
+Filters can modify http requests and responses. There are plenty of
+things you can do with them.
 
 ## Circuitbreaker
 
@@ -365,7 +475,30 @@ instance for the given ingress.
               serviceName: app-svc
               servicePort: 80
 
-## use Predicates
+## Shadow Traffic
+
+If you want to test a new replacement of a production service with
+production load, you can copy incoming requests to your new endpoint
+and ignore the responses from your new backend. This can be done by
+the [tee() and teenf() filters](https://godoc.org/github.com/zalando/skipper/filters/tee).
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-filter: teenf("https://app-new.example.org")
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+
+# Predicates
 
 [Predicates](https://godoc.org/github.com/zalando/skipper/predicates)
 are influencing the route matching, which you might want to carefully
@@ -375,7 +508,7 @@ toggles or time based enabling endpoints.
 You can use all kinds of [predicates](https://godoc.org/github.com/zalando/skipper/predicates)
 with [filters](https://godoc.org/github.com/zalando/skipper/filters) together.
 
-### Feature Toggle
+## Feature Toggle
 
 Feature toggles are often implemented as query string to select a new
 feature. Normally you would have to implement this in your
@@ -421,7 +554,7 @@ prod-svc:
               serviceName: prod-svc
               servicePort: 80
 
-### IP Whitelisting
+## IP Whitelisting
 
 This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.0.0/17
 
@@ -441,7 +574,7 @@ This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.
               servicePort: 80
 
 
-### A/B test
+## A/B test
 
 Implementing A/B testing is heavy. Skipper can help you to do
 that. You need to have a traffic split somewhere and have your
@@ -525,7 +658,7 @@ For "B" this would be:
               servicePort: 80
 
 
-## Chaining Filters
+# Chaining Filters and Predicates
 
 You can set multiple filters in a chain similar to the [eskip format](https://godoc.org/github.com/zalando/skipper/eskip).
 
@@ -533,6 +666,7 @@ You can set multiple filters in a chain similar to the [eskip format](https://go
     kind: Ingress
     metadata:
       annotations:
+        zalando.org/skipper-predicate: Cookie("flavor", /^B$/) && Source("1.2.3.0/24", "195.168.0.0/17")
         zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
       name: app
     spec:
