@@ -8,3 +8,4 @@ pages:
         - Inkeeper API: dataclients/inkeeper-api.md
         - Kubernetes: dataclients/kubernetes.md
         - Route String: dataclients/route-string.md
+    - Scripts: scripts.md
