@@ -321,7 +321,7 @@ func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 
 				switch t.typ {
 				case bandwidth, backendBandwidth:
-					delay -= time.Now().Sub(start)
+					delay -= time.Since(start)
 				}
 
 				time.Sleep(t.delay)

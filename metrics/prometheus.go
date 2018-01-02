@@ -209,7 +209,7 @@ func NewPrometheus(opts Options) *Prometheus {
 
 // sinceS returns the seconds passed since the start time until now.
 func (p *Prometheus) sinceS(start time.Time) float64 {
-	return time.Now().Sub(start).Seconds()
+	return time.Since(start).Seconds()
 }
 
 func (p *Prometheus) registerMetrics() {
