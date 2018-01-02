@@ -320,7 +320,21 @@ func WithParams(p Params) *Proxy {
 		p.OpenTracer = &ot.NoopTracer{}
 	}
 
-	tr := &http.Transport{MaxIdleConnsPerHost: p.IdleConnectionsPerHost}
+	// TODO(sszuecs): make options possible and discuss the defaults in the PR
+	tr := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   500 * time.Millisecond,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		TLSHandshakeTimeout:   500 * time.Millisecond,
+		ResponseHeaderTimeout: 1 * time.Second,
+		ExpectContinueTimeout: 500 * time.Millisecond,
+		MaxIdleConns:          20, // 0 -> no limit
+		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
+		IdleConnTimeout:       10 * time.Second,
+	}
+
 	quit := make(chan struct{})
 	if p.CloseIdleConnsPeriod > 0 {
 		go func() {
