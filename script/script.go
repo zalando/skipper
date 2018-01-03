@@ -269,14 +269,19 @@ func serveTableWalk(res *http.Response) func(lua.LValue, lua.LValue) {
 			res.Header = h
 
 		case "body":
-			// would love to be able to pass a table to be then rendered as
-			// json body... but layeh.com/gopher-json does not export toJSON
-			// currently
-			body, ok := v.(lua.LString)
-			if !ok {
-				return
+			var body []byte
+			var err error
+			switch v.Type() {
+			case lua.LTString:
+				data := string(v.(lua.LString))
+				body = []byte(data)
+			case lua.LTTable:
+				body, err = gjson.ToJSON(v.(*lua.LTable))
+				if err != nil {
+					return
+				}
 			}
-			res.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(string(body))))
+			res.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 		}
 	}
 }
