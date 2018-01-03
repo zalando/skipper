@@ -2,8 +2,10 @@
 package script
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -256,6 +258,7 @@ func serveTableWalk(res *http.Response) func(lua.LValue, lua.LValue) {
 				return
 			}
 			res.StatusCode = int(n)
+
 		case "header":
 			t, ok := v.(*lua.LTable)
 			if !ok {
@@ -264,6 +267,16 @@ func serveTableWalk(res *http.Response) func(lua.LValue, lua.LValue) {
 			h := make(http.Header)
 			t.ForEach(serveHeaderWalk(h))
 			res.Header = h
+
+		case "body":
+			// would love to be able to pass a table to be then rendered as
+			// json body... but layeh.com/gopher-json does not export toJSON
+			// currently
+			body, ok := v.(lua.LString)
+			if !ok {
+				return
+			}
+			res.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(string(body))))
 		}
 	}
 }
