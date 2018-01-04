@@ -26,7 +26,8 @@ func parse(addr string) net.IP {
 // header is set, then it is used instead.
 func RemoteHost(r *http.Request) net.IP {
 	ffs := r.Header.Get("X-Forwarded-For")
-	ff := strings.Split(ffs, ",")[0]
+	a := strings.Split(ffs, ",")
+	ff := a[len(a)-1]
 	if ffh := parse(ff); ffh != nil {
 		return ffh
 	}
