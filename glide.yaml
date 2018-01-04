@@ -21,6 +21,8 @@ import:
   version: ^0.9.0-pre1
   subpackages:
   - prometheus
+- package: layeh.com/gopher-json
+  version: 1aab82196e3b418b56866938f28b6a693f2c6b18
 testImport:
 - package: github.com/stretchr/testify
   version: ~1.1.4

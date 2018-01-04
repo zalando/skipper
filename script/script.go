@@ -276,7 +276,7 @@ func serveTableWalk(res *http.Response) func(lua.LValue, lua.LValue) {
 				data := string(v.(lua.LString))
 				body = []byte(data)
 			case lua.LTTable:
-				body, err = gjson.ToJSON(v.(*lua.LTable))
+				body, err = gjson.Encode(v.(*lua.LTable))
 				if err != nil {
 					return
 				}
