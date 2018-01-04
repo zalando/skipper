@@ -126,7 +126,22 @@ type Route struct {
 	// The address of a backend for a parsed route.
 	// E.g. "https://www.example.org"
 	Backend string
+
+	// HACK(sszuecs) used for loadbalancing
+	Group string
+	Idx   int
+	Size  int
+	State LBState
 }
+
+type LBState int
+
+const (
+	Pending   LBState = 1 << iota // do we need this state? If not default means healthy
+	Healthy                       // pool member serving traffic and accepting new connections
+	Unhealthy                     // pool member probably serving traffic but should not get new connections, because of SIGTERM, overload, ..
+	Dead                          // pool member we can not TCP connect to and net.Error#Temporary() returns false, this state should be considered safe for retry another backend
+)
 
 type RoutePredicate func(*Route) bool
 

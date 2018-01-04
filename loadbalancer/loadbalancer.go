@@ -122,14 +122,14 @@ func checkActiveHealth(rt http.RoundTripper, group, healthEndpoint string, membe
 		formerState := member.state
 		member.mu.RUnlock()
 
-		s := doActiveHealthCheck(rt, healthEndpoint, backend, backendType, formerState)
+		s := doActiveHealthCheckOld(rt, healthEndpoint, backend, backendType, formerState)
 		member.mu.Lock()
 		member.state = s
 		member.mu.Unlock()
 	}
 }
 
-func doActiveHealthCheck(rt http.RoundTripper, healthEndpoint, backend string, backendType eskip.BackendType, formerState state) state {
+func doActiveHealthCheckOld(rt http.RoundTripper, healthEndpoint, backend string, backendType eskip.BackendType, formerState state) state {
 	if backendType != eskip.NetworkBackend {
 		return healthy
 	}
@@ -257,4 +257,127 @@ func (hc *HealthChecker) add(group string, newRoute *eskip.Route) {
 	hc.Lock()
 	hc.pools[group].member = append(hc.pools[group].member, newMember)
 	hc.Unlock()
+}
+
+// NEW implementation - not using all the things above
+type LB struct {
+	ch     chan *eskip.Route
+	quitCH chan struct{}
+}
+
+func NewLB(quitCH chan struct{}) *LB {
+	return &LB{
+		ch:     make(chan *eskip.Route, 100),
+		quitCH: quitCH,
+	}
+}
+
+func (lb *LB) HealthyMemberRoutes(routes []*eskip.Route) []*eskip.Route {
+	result := make([]*eskip.Route, 0)
+	for _, r := range routes {
+		if r.Group != "" {
+			switch r.State {
+			case eskip.Pending:
+				log.Infof("filtered pending member route and schedule health check: %v", r)
+				lb.ch <- r
+				continue
+			case eskip.Healthy:
+				// pass
+			case eskip.Unhealthy:
+				log.Infof("filtered unhealthy member route and scheduled health check: %v", r)
+				lb.scheduleCheckWithDelay(r, time.Second*3)
+				continue
+			case eskip.Dead:
+				log.Infof("filtered dead member route and scheduled health check: %v", r)
+				lb.scheduleCheckWithDelay(r, time.Second*30)
+				continue
+			}
+		}
+		result = append(result, r)
+	}
+	return result
+}
+
+func (lb *LB) scheduleCheckWithDelay(route *eskip.Route, d time.Duration) {
+	go func(route *eskip.Route, d time.Duration) {
+		time.Sleep(d)
+		lb.ch <- route
+	}(route, d)
+}
+
+func (lb *LB) StartDoHealthCheck(d time.Duration) {
+	ticker := time.NewTicker(d)
+	go func() {
+		rt := &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   500 * time.Millisecond,
+				KeepAlive: 30 * time.Second,
+				DualStack: true,
+			}).DialContext,
+			TLSHandshakeTimeout:   500 * time.Millisecond,
+			ResponseHeaderTimeout: 1 * time.Second,
+			ExpectContinueTimeout: 500 * time.Millisecond,
+			MaxIdleConns:          20, // 0 -> no limit
+			MaxIdleConnsPerHost:   1,  // http.DefaultMaxIdleConnsPerHost=2
+			IdleConnTimeout:       10 * time.Second,
+		}
+
+		for {
+			select {
+			case t := <-ticker.C:
+				log.Debugf("Tick at", t)
+				now := time.Now()
+				for r := range lb.ch {
+					s := doActiveHealthCheck(rt, "healthEndpoint", r)
+					r.State = s
+				}
+				log.Debugf("Took %v", time.Now().Sub(now))
+			case <-lb.quitCH:
+				ticker.Stop()
+			}
+		}
+	}()
+}
+
+func doActiveHealthCheck(rt http.RoundTripper, healthEndpoint string, route *eskip.Route) eskip.LBState {
+	if route.BackendType != eskip.NetworkBackend {
+		return eskip.Healthy
+	}
+
+	u, err := url.Parse(route.Backend)
+	if err != nil {
+		log.Errorf("Failed to parse route backend %s: %v", route.Backend, err)
+		return route.State
+	}
+
+	buf := make([]byte, 1024)
+	req, err := http.NewRequest("GET", u.String(), bytes.NewReader(buf))
+	if err != nil {
+		log.Errorf("Failed to create health check request: %v", err)
+		return route.State
+	}
+
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		perr, ok := err.(net.Error)
+		if ok && !perr.Temporary() {
+			log.Infof("Backend %v connection refused -> mark as dead", route.Backend)
+			return eskip.Dead
+		} else if ok {
+			log.Infof("Backend %v with temporary error '%v' -> mark as unhealthy", route.Backend, perr)
+			return eskip.Unhealthy
+		}
+		log.Errorf("Failed to do health check %v", err)
+		return route.State
+	}
+
+	// we only check StatusCode
+	resp.Body.Close()
+
+	switch code := resp.StatusCode; code {
+	case http.StatusOK:
+		return eskip.Healthy
+	default:
+		return eskip.Unhealthy
+	}
 }

@@ -612,6 +612,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 	}
 
 	for idx, ep := range eps {
+		group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName)
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName+fmt.Sprintf("_%d", idx)),
 			PathRegexps: pathExpressions,
@@ -619,11 +620,15 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 			Predicates: []*eskip.Predicate{{
 				Name: loadbalancer.PredicateName,
 				Args: []interface{}{
-					routeID(ns, name, host, prule.Path, prule.Backend.ServiceName), // group
+					group,    // group
 					idx,      // index of the group
 					len(eps), // number of items in the group
 				},
 			}},
+			Group: group,
+			Idx:   idx,
+			Size:  len(eps),
+			State: eskip.Pending,
 		}
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
@@ -714,6 +719,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						return nil, fmt.Errorf("error while getting service: %v", err)
 					}
 
+					// TODO(sszuecs): somehow filter unhealthy/dead endpoints..
 					for _, r := range endpoints {
 						r.HostRegexps = host
 						if annotationFilter != "" {
@@ -976,7 +982,10 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	return r, nil
 }
 
-// TODO: implement a force reset after some time
+// LoadUpdate returns all known eskip.Route, a list of route IDs
+// scheduled for delete and an error.
+//
+// TODO: implement a force reset after some time.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("polling for updates")
 	r, err := c.loadAndConvert()

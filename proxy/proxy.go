@@ -552,7 +552,10 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
 		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
-		if _, ok := err.(net.Error); ok {
+		if perr, ok := err.(net.Error); ok {
+			// ctx.route -> check loadbalancer predicate or group somehow
+			// TODO(sszuecs)
+			p.log.Debugf("perr timeout=%v, temporary=%v: %v", perr.Timeout(), perr.Temporary(), perr)
 			err = &proxyError{
 				err:  err,
 				code: http.StatusServiceUnavailable,

@@ -116,3 +116,15 @@ func (p *predicate) Match(r *http.Request) bool {
 	}
 	return matched
 }
+
+func (p *predicate) Group() string {
+	return p.group
+}
+
+func (p *predicate) Count() int {
+	return p.count
+}
+
+func (p *predicate) Index() int {
+	return p.index
+}
