@@ -5,9 +5,9 @@ current implementation supports [Lua 5.1](https://www.lua.org/manual/5.1/).
 
 ## Route filters
 
-The lua scripts are set up as filter with the `lua()` filter in a route
-description. The first parameter for the filter is the script. This can be
-either a file name (ending with `.lua`) or inline code, e.g. as
+The lua scripts can be added to a route description with the lua() filter,
+the first parameter for the filter is the script. This can be either a file
+name (ending with `.lua`) or inline code, e.g. as
 * file `lua("/path/to/file.lua")` - if a file path is not absolute, the path
  is relative to skipper's working directory.
 * inline `lua("function request(c, p); print(c.request.url); end")`
