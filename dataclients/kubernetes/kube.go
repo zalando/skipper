@@ -611,6 +611,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		pathExpressions = []string{"^" + prule.Path}
 	}
 
+	nextRoute := make(map[string]*eskip.Route)
 	for idx, ep := range eps {
 		group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName)
 		r := &eskip.Route{
@@ -630,6 +631,17 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 			Size:  len(eps),
 			State: eskip.Pending,
 		}
+
+		// Create linked list of routes, if there are more then one endpoint in a group.
+		// rN.Head points to r1 for every N.
+		// rN.Next points to rN-1 for every N, besides the last which points to nil.
+		if prev, ok := nextRoute[group]; ok {
+			prev.Next = r
+			r.Head = prev.Head
+		} else {
+			r.Head = r
+		}
+		nextRoute[group] = r
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {

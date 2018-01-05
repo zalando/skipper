@@ -127,7 +127,19 @@ type Route struct {
 	// E.g. "https://www.example.org"
 	Backend string
 
-	// HACK(sszuecs) used for loadbalancing
+	// Next is forming a linked to the next route of a
+	// loadbalanced group of routes. This is nil if the route is
+	// the last in the linked list or there is only one route. To
+	// find the Next in case of the last route of the list, you
+	// have to use the Head.
+	Next *Route
+
+	// Head is the pointer to the head of linked list that forms
+	// the loadbalancer group of Route. Every Route will point to
+	// the same Route for being Head.
+	Head *Route
+
+	// HACK(sszuecs) used for loadbalancing, should be dropped
 	Group string
 	Idx   int
 	Size  int
