@@ -139,21 +139,13 @@ type Route struct {
 	// the same Route for being Head.
 	Head *Route
 
-	// HACK(sszuecs) used for loadbalancing, should be dropped
+	// Me is a pointer to self, to workaround Go type missmatch
+	// check, because eskip.Route != routing.Route
+	Me *Route
+
+	// Group is equal for all routes, members, forming a loadbalancer pool.
 	Group string
-	Idx   int
-	Size  int
-	State LBState
 }
-
-type LBState int
-
-const (
-	Pending   LBState = 1 << iota // do we need this state? If not default means healthy
-	Healthy                       // pool member serving traffic and accepting new connections
-	Unhealthy                     // pool member probably serving traffic but should not get new connections, because of SIGTERM, overload, ..
-	Dead                          // pool member we can not TCP connect to and net.Error#Temporary() returns false, this state should be considered safe for retry another backend
-)
 
 type RoutePredicate func(*Route) bool
 

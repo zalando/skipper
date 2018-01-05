@@ -19,6 +19,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/ratelimit"
@@ -134,6 +135,9 @@ type Params struct {
 
 	// OpenTracer holds the tracer enabled for this proxy instance
 	OpenTracer ot.Tracer
+
+	// Loadbalancer to report unhealthy or dead backends to
+	LoadBalancer *loadbalancer.LB
 }
 
 var (
@@ -193,6 +197,7 @@ type Proxy struct {
 	log                 logging.Logger
 	defaultHTTPStatus   int
 	openTracer          ot.Tracer
+	lb                  *loadbalancer.LB
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -385,6 +390,7 @@ func WithParams(p Params) *Proxy {
 		log:                 &logging.DefaultLog{},
 		defaultHTTPStatus:   defaultHTTPStatus,
 		openTracer:          p.OpenTracer,
+		lb:                  p.LoadBalancer,
 	}
 }
 
@@ -553,8 +559,10 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 	if err != nil {
 		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
 		if perr, ok := err.(net.Error); ok {
-			// ctx.route -> check loadbalancer predicate or group somehow
-			// TODO(sszuecs)
+			p.lb.AddHealthcheck(ctx.route.Backend)
+			// TODO(sszuecs): here we could apply a retry
+			// with ctx.Route.Next or modify proxyError to
+			// makr as retrieable and le the caller retry
 			p.log.Debugf("perr timeout=%v, temporary=%v: %v", perr.Timeout(), perr.Temporary(), perr)
 			err = &proxyError{
 				err:  err,

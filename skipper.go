@@ -17,6 +17,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
+	lb "github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates/cookie"
@@ -318,9 +319,14 @@ type Options struct {
 
 	// EnablePrometheusMetrics enables Prometheus format metrics.
 	EnablePrometheusMetrics bool
+
+	// LoadBalancerHealthCheckInterval enables and sets the
+	// interval when to schedule health checks for dead or
+	// unhealthy routes
+	LoadBalancerHealthCheckInterval time.Duration
 }
 
-func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
+func createDataClients(o Options, auth innkeeper.Authentication, lb *lb.LB) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
@@ -382,6 +388,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			ProvideHealthcheck:   o.KubernetesHealthcheck,
 			ProvideHTTPSRedirect: o.KubernetesHTTPSRedirect,
 			IngressClass:         o.KubernetesIngressClass,
+			LoadBalancer:         lb,
 		})
 		if err != nil {
 			return nil, err
@@ -485,8 +492,13 @@ func Run(o Options) error {
 		OAuthUrl:            o.OAuthUrl,
 		OAuthScope:          o.OAuthScope})
 
+	var lbInstance *lb.LB
+	if o.LoadBalancerHealthCheckInterval != 0 {
+		lbInstance = lb.NewLB(o.LoadBalancerHealthCheckInterval)
+	}
+
 	// create data clients
-	dataClients, err := createDataClients(o, auth)
+	dataClients, err := createDataClients(o, auth, lbInstance)
 	if err != nil {
 		return err
 	}
@@ -557,6 +569,7 @@ func Run(o Options) error {
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
 		DefaultHTTPStatus:      o.DefaultHTTPStatus,
+		LoadBalancer:           lbInstance,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {

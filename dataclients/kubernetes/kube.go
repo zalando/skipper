@@ -188,6 +188,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	lb "github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/predicates/loadbalancer"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
@@ -267,6 +268,9 @@ type Options struct {
 
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
+
+	// loadbalancer
+	LoadBalancer *lb.LB
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -275,12 +279,12 @@ type Client struct {
 	apiURL               string
 	provideHealthcheck   bool
 	provideHTTPSRedirect bool
-	loadBalanced         bool
 	token                string
 	current              map[string]*eskip.Route
 	termReceived         bool
 	sigs                 chan os.Signal
 	ingressClass         *regexp.Regexp
+	lb                   *lb.LB
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -333,11 +337,11 @@ func New(o Options) (*Client, error) {
 		apiURL:               apiURL,
 		provideHealthcheck:   o.ProvideHealthcheck,
 		provideHTTPSRedirect: o.ProvideHTTPSRedirect,
-		loadBalanced:         true, // TODO(sszuecs): parameterize
 		current:              make(map[string]*eskip.Route),
 		token:                token,
 		sigs:                 sigs,
 		ingressClass:         ingClsRx,
+		lb:                   o.LoadBalancer,
 	}, nil
 }
 
@@ -627,9 +631,6 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 				},
 			}},
 			Group: group,
-			Idx:   idx,
-			Size:  len(eps),
-			State: eskip.Pending,
 		}
 
 		// Create linked list of routes, if there are more then one endpoint in a group.
@@ -641,6 +642,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		} else {
 			r.Head = r
 		}
+		r.Me = r
 		nextRoute[group] = r
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
@@ -731,7 +733,6 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						return nil, fmt.Errorf("error while getting service: %v", err)
 					}
 
-					// TODO(sszuecs): somehow filter unhealthy/dead endpoints..
 					for _, r := range endpoints {
 						r.HostRegexps = host
 						if annotationFilter != "" {
@@ -913,7 +914,9 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 	log.Debugf("all routes created: %d", len(r))
-	return r, nil
+	routes := c.lb.FilterHealthyMemberRoutes(r)
+	log.Debugf("all routes after filter unhealthy routes: %d", len(routes))
+	return routes, nil
 }
 
 func healthcheckRoute(healthy bool) *eskip.Route {
