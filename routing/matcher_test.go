@@ -1114,9 +1114,7 @@ func BenchmarkConstructionMass(b *testing.B) {
 
 	const count = 10000
 	routes := make([]*Route, count)
-	for i, r := range randomRoutes[:count] {
-		routes[i] = r
-	}
+	copy(routes, randomRoutes[:count])
 
 	for i := 0; i < b.N; i++ {
 		_, errs := newMatcher(routes, IgnoreTrailingSlash)

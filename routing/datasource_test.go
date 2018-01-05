@@ -79,16 +79,16 @@ func TestLogging(t *testing.T) {
 		r1_5: Path("/quux") -> "https://quux.example.org";
 	`
 
-	init := func(l logging.Logger, client DataClient, supress bool) *Routing {
+	init := func(l logging.Logger, client DataClient, suppress bool) *Routing {
 		return New(Options{
 			DataClients:  []DataClient{client},
 			Log:          l,
-			SuppressLogs: supress,
+			SuppressLogs: suppress,
 		})
 	}
 
 	testUpdate := func(
-		t *testing.T, supress bool,
+		t *testing.T, suppress bool,
 		initQuery string, initCount int,
 		upsertQuery string, upsertCount int,
 		deleteQuery string, deleteCount int,
@@ -103,7 +103,7 @@ func TestLogging(t *testing.T) {
 		defer testLog.Close()
 		testLog.Unmute()
 
-		rt := init(testLog, client, supress)
+		rt := init(testLog, client, suppress)
 		defer rt.Close()
 
 		if err := testLog.WaitFor("route settings applied", 120*time.Millisecond); err != nil {
@@ -152,7 +152,7 @@ func TestLogging(t *testing.T) {
 		)
 	})
 
-	t.Run("supressed", func(t *testing.T) {
+	t.Run("suppressed", func(t *testing.T) {
 		testUpdate(
 			t, true,
 			"route settings, update", 2,

@@ -69,7 +69,7 @@ type Filter struct {
 	// name of the filter specification
 	Name string `json:"name"`
 
-	// filter args applied withing a particular route
+	// filter args applied within a particular route
 	Args []interface{} `json:"args"`
 }
 

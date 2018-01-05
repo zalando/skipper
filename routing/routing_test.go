@@ -129,10 +129,7 @@ func stringsAreSame(xs, ys []string) bool {
 			delete(diff, y)
 		}
 	}
-	if len(diff) == 0 {
-		return true
-	}
-	return false
+	return len(diff) == 0
 }
 
 func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
@@ -432,7 +429,7 @@ func TestProcessesPredicates(t *testing.T) {
 	}
 }
 
-// TestNonMatchedStaticRoute for bug #116: non-matched static route supress wild-carded route
+// TestNonMatchedStaticRoute for bug #116: non-matched static route suppress wild-carded route
 func TestNonMatchedStaticRoute(t *testing.T) {
 	dc, err := testdataclient.NewDoc(`
 		a: Path("/foo/*_") -> "https://foo.org";
@@ -463,7 +460,7 @@ func TestNonMatchedStaticRoute(t *testing.T) {
 		t.Error(err)
 	} else {
 		if r.Backend != "https://foo.org" {
-			t.Error("non-matched static route supress wild-carded route")
+			t.Error("non-matched static route suppress wild-carded route")
 		}
 	}
 }

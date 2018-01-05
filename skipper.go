@@ -644,7 +644,7 @@ func Run(o Options) error {
 		proxyParams.OpenTracer = tracer
 	} else {
 		// always have a tracer available, so filter authors can rely on the
-		// existance of a tracer
+		// existence of a tracer
 		proxyParams.OpenTracer, _ = tracing.LoadPlugin(o.PluginDir, []string{"noop"})
 	}
 

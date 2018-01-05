@@ -282,7 +282,7 @@ func TestGetRoundtrip(t *testing.T) {
 	}
 
 	if !bytes.Equal(w.Body.Bytes(), payload) {
-		t.Error("wrong content", string(w.Body.Bytes()))
+		t.Error("wrong content", w.Body.String())
 	}
 }
 
@@ -321,7 +321,7 @@ func TestPostRoundtrip(t *testing.T) {
 	}
 
 	if w.Body.Len() != 0 {
-		t.Error("wrong content", string(w.Body.Bytes()))
+		t.Error("wrong content", w.Body.String())
 	}
 }
 
