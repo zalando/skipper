@@ -123,4 +123,4 @@ func (f *modPath) Request(ctx filters.FilterContext) {
 }
 
 // Noop.
-func (_ *modPath) Response(_ filters.FilterContext) {}
+func (*modPath) Response(filters.FilterContext) {}
