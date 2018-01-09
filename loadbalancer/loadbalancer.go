@@ -23,6 +23,8 @@ package loadbalancer
 
 import (
 	"bytes"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -115,8 +117,6 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*eskip.Route) []*eskip.Route {
 			lb.RUnlock()
 			if ok {
 				switch st {
-				case unhealthy:
-					fallthrough
 				case dead:
 					log.Infof("filtered member route: %v", r)
 					continue
@@ -212,12 +212,9 @@ func doActiveHealthCheck(rt http.RoundTripper, backend string) state {
 	}
 
 	// we only check StatusCode
+	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
 
-	switch code := resp.StatusCode; code {
-	case http.StatusOK:
-		return healthy
-	default:
-		return unhealthy
-	}
+	// If we are here we imagine the owner of the application does it right
+	return healthy
 }
