@@ -129,4 +129,4 @@ func (f *modQuery) Request(ctx filters.FilterContext) {
 }
 
 // Noop.
-func (_ *modQuery) Response(_ filters.FilterContext) {}
+func (*modQuery) Response(filters.FilterContext) {}
