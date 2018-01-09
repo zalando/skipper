@@ -458,15 +458,17 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	srv := &http.Server{
 		Addr:              o.Address,
 		Handler:           loggingHandler,
-		ReadTimeout:       5 * time.Second,
-		ReadHeaderTimeout: 2 * time.Second, // *new*: amount of time to read http.Headers, resets DeadLine -> h
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       3 * time.Second, // *new*: max time to wait to close a connection if keepalive is us
-		MaxHeaderBytes:    4096,            // if 0, DefaultMaxHeaderBytes is used
+		ReadTimeout:       5 * time.Minute,
+		ReadHeaderTimeout: 60 * time.Second, // *new*: amount of time to read http.Headers, resets DeadLine -> h
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       60 * time.Second,           // *new*: max time to wait to close a connection if keepalive is us
+		MaxHeaderBytes:    http.DefaultMaxHeaderBytes, // if 0, DefaultMaxHeaderBytes is used
 		// TLSNextProto: // if used HTTP/2 is not enabled by default
-		ConnState: func(conn net.Conn, state http.ConnState) { // *new*: callback to react on client connection
-			log.Printf("con: %v -> state: %v", conn, state)
-
+		ConnState: func(conn net.Conn, state http.ConnState) {
+			// TODO(sszuecs): add metrics for number of type http.ConnState,
+			// which are in general nice mertrics for loadbalancers.
+			// http.ConnState is one of: StateNew StateActive StateIdle StateHijacked StateClosed
+			//log.Printf("con: %v -> state: %v", conn, state)
 		},
 	}
 

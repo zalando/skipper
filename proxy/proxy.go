@@ -335,19 +335,22 @@ func WithParams(p Params) *Proxy {
 	// TODO(sszuecs): make options possible and discuss the defaults in the PR
 	tr := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout:   500 * time.Millisecond,
+			Timeout:   5 * time.Second,
 			KeepAlive: 30 * time.Second,
 			DualStack: true,
 		}).DialContext,
-		TLSHandshakeTimeout:   500 * time.Millisecond,
-		ResponseHeaderTimeout: 1 * time.Second,
-		ExpectContinueTimeout: 500 * time.Millisecond,
-		MaxIdleConns:          20, // 0 -> no limit
-		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
-		IdleConnTimeout:       10 * time.Second,
+		TLSHandshakeTimeout: 5 * time.Second,
+		//ResponseHeaderTimeout: 60 * time.Second,
+		//ExpectContinueTimeout: 30 * time.Second,
+		MaxIdleConns:        20, // 0 -> no limit
+		MaxIdleConnsPerHost: p.IdleConnectionsPerHost,
+		IdleConnTimeout:     p.CloseIdleConnsPeriod,
 	}
 
 	quit := make(chan struct{})
+	// We need this to reliably fade on DNS change, which is right
+	// now not fixed with IdleConnTimeout in the http.Transport.
+	// TODO(sszuecs): create in issue in golang.org and reference here
 	if p.CloseIdleConnsPeriod > 0 {
 		go func() {
 			for {
