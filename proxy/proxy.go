@@ -229,6 +229,13 @@ func (e *proxyError) Error() string {
 	return fmt.Sprintf("proxy error: %d", code)
 }
 
+func (e *proxyError) NetError() net.Error {
+	if perr, ok := e.err.(net.Error); ok {
+		return perr
+	}
+	return nil
+}
+
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
 		to[http.CanonicalHeaderKey(k)] = v
@@ -519,16 +526,16 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 	return nil
 }
 
-func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
+func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
 	if err != nil {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
-		return nil, err
+		return nil, &proxyError{err: err}
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
 		if err := p.makeUpgradeRequest(ctx, ctx.route, req); err != nil {
-			return nil, err
+			return nil, &proxyError{err: err}
 		}
 
 		// We are not owner of the connection anymore.
@@ -560,9 +567,6 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
 		if perr, ok := err.(net.Error); ok {
 			p.lb.AddHealthcheck(ctx.route.Backend)
-			// TODO(sszuecs): here we could apply a retry
-			// with ctx.Route.Next or modify proxyError to
-			// makr as retrieable and le the caller retry
 			p.log.Debugf("perr timeout=%v, temporary=%v: %v", perr.Timeout(), perr.Temporary(), perr)
 			err = &proxyError{
 				err:  err,
@@ -570,7 +574,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
 			}
 		}
 
-		return nil, err
+		return nil, &proxyError{err: err}
 	}
 	ext.HTTPStatusCode.Set(proxySpan, uint16(response.StatusCode))
 	return response, nil
@@ -697,14 +701,30 @@ func (p *Proxy) do(ctx *context) error {
 		}
 
 		backendStart := time.Now()
-		rsp, err := p.makeBackendRequest(ctx)
-		if err != nil {
+		rsp, perr := p.makeBackendRequest(ctx)
+		if perr != nil {
 			if done != nil {
 				done(false)
 			}
 
 			p.metrics.IncErrorsBackend(ctx.route.Id)
-			return err
+
+			neterr := perr.NetError()
+			if neterr != nil && !neterr.Temporary() {
+				// here we do a transparent retry, because we know it's safe to do
+				origRoute := ctx.route.Route.Me
+				if ctx.route.Next != nil && origRoute != ctx.route.Next {
+					ctx.route.Route = *ctx.route.Next
+				} else if ctx.route.Head != nil && origRoute != ctx.route.Head {
+					ctx.route.Route = *ctx.route.Head
+				}
+				rsp, perr = p.makeBackendRequest(ctx)
+				if perr != nil {
+					return perr.err
+				}
+			} else {
+				return perr.err
+			}
 		}
 
 		if rsp.StatusCode >= http.StatusInternalServerError {
