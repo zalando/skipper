@@ -134,6 +134,21 @@ type Params struct {
 
 	// OpenTracer holds the tracer enabled for this proxy instance
 	OpenTracer ot.Tracer
+
+	// Timeout sets the TCP client connection timeout for proxy http connections to the backend
+	Timeout time.Duration
+
+	// KeepAlive sets the TCP keepalive for proxy http connections to the backend
+	KeepAlive time.Duration
+
+	// DualStack sets if the proxy TCP connections to the backend should be dual stack
+	DualStack bool
+
+	// TLSHandshakeTimeout sets the TLS handshake timeout for proxy connections to the backend
+	TLSHandshakeTimeout time.Duration
+
+	// MaxIdleConns limits the number of idle connections to all backends, 0 means no limit
+	MaxIdleConns int
 }
 
 var (
@@ -323,14 +338,14 @@ func WithParams(p Params) *Proxy {
 	// TODO(sszuecs): make options possible and discuss the defaults in the PR
 	tr := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
+			Timeout:   p.Timeout,
+			KeepAlive: p.KeepAlive,
+			DualStack: p.DualStack,
 		}).DialContext,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: p.TLSHandshakeTimeout,
 		//ResponseHeaderTimeout: 60 * time.Second,
 		//ExpectContinueTimeout: 30 * time.Second,
-		MaxIdleConns:        20, // 0 -> no limit
+		MaxIdleConns:        p.MaxIdleConns,
 		MaxIdleConnsPerHost: p.IdleConnectionsPerHost,
 		IdleConnTimeout:     p.CloseIdleConnsPeriod,
 	}

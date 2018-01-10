@@ -160,6 +160,27 @@ type Options struct {
 	// Enable connection state metrics for server http connections.
 	EnableConnMetricsServer bool
 
+	// TimeoutBackend sets the TCP client connection timeout for
+	// proxy http connections to the backend.
+	TimeoutBackend time.Duration
+
+	// KeepAliveBackend sets the TCP keepalive for proxy http
+	// connections to the backend.
+	KeepAliveBackend time.Duration
+
+	// DualStackBackend sets if the proxy TCP connections to the
+	// backend should be dual stack.
+	DualStackBackend bool
+
+	// TLSHandshakeTimeoutBackend sets the TLS handshake timeout
+	// for proxy connections to the backend.
+	TLSHandshakeTimeoutBackend time.Duration
+
+	// MaxIdleConnsBackend sets MaxIdleConns, which limits the
+	// number of idle connections to all backends, 0 means no
+	// limit.
+	MaxIdleConnsBackend int
+
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
 	IgnoreTrailingSlash bool
@@ -577,6 +598,11 @@ func Run(o Options) error {
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
 		DefaultHTTPStatus:      o.DefaultHTTPStatus,
+		Timeout:                o.TimeoutBackend,
+		KeepAlive:              o.KeepAliveBackend,
+		DualStack:              o.DualStackBackend,
+		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:           o.MaxIdleConnsBackend,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
