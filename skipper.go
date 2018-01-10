@@ -2,7 +2,6 @@ package skipper
 
 import (
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path"
@@ -453,30 +452,11 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
 
-	// TODO(sszuecs): make options possible and discuss the
-	// defaults in the PR, maybe set defaults as Go has?
-	srv := &http.Server{
-		Addr:              o.Address,
-		Handler:           loggingHandler,
-		ReadTimeout:       5 * time.Minute,
-		ReadHeaderTimeout: 60 * time.Second, // *new*: amount of time to read http.Headers, resets DeadLine -> h
-		WriteTimeout:      60 * time.Second,
-		IdleTimeout:       60 * time.Second,           // *new*: max time to wait to close a connection if keepalive is us
-		MaxHeaderBytes:    http.DefaultMaxHeaderBytes, // if 0, DefaultMaxHeaderBytes is used
-		// TLSNextProto: // if used HTTP/2 is not enabled by default
-		ConnState: func(conn net.Conn, state http.ConnState) {
-			// TODO(sszuecs): add metrics for number of type http.ConnState,
-			// which are in general nice mertrics for loadbalancers.
-			// http.ConnState is one of: StateNew StateActive StateIdle StateHijacked StateClosed
-			//log.Printf("con: %v -> state: %v", conn, state)
-		},
-	}
-
 	if o.isHTTPS() {
-		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
+		return http.ListenAndServeTLS(o.Address, o.CertPathTLS, o.KeyPathTLS, loggingHandler)
 	}
 	log.Infof("certPathTLS or keyPathTLS not found, defaulting to HTTP")
-	return srv.ListenAndServe()
+	return http.ListenAndServe(o.Address, loggingHandler)
 }
 
 // Run skipper.
