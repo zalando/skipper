@@ -142,6 +142,24 @@ type Options struct {
 	// by the proxy are closed.
 	CloseIdleConnsPeriod time.Duration
 
+	// Defines ReadTimeoutServer for server http connections.
+	ReadTimeoutServer time.Duration
+
+	// Defines ReadHeaderTimeout for server http connections.
+	ReadHeaderTimeoutServer time.Duration
+
+	// Defines WriteTimeout for server http connections.
+	WriteTimeoutServer time.Duration
+
+	// Defines IdleTimeout for server http connections.
+	IdleTimeoutServer time.Duration
+
+	// Defines MaxHeaderBytes for server http connections.
+	MaxHeaderBytes int
+
+	// Enable connection state metrics for server http connections.
+	EnableConnMetricsServer bool
+
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
 	IgnoreTrailingSlash bool
@@ -450,18 +468,20 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	srv := &http.Server{
 		Addr:              o.Address,
 		Handler:           loggingHandler,
-		ReadTimeout:       5 * time.Minute,
-		ReadHeaderTimeout: 60 * time.Second, // *new*: amount of time to read http.Headers, resets DeadLine -> h
-		WriteTimeout:      60 * time.Second,
-		IdleTimeout:       60 * time.Second,           // *new*: max time to wait to close a connection if keepalive is us
-		MaxHeaderBytes:    http.DefaultMaxHeaderBytes, // if 0, DefaultMaxHeaderBytes is used
+		ReadTimeout:       o.ReadTimeoutServer,       //5 * time.Minute,
+		ReadHeaderTimeout: o.ReadHeaderTimeoutServer, //60 * time.Second,    // *new*: amount of time to read http.Headers, resets DeadLine -> h
+		WriteTimeout:      o.WriteTimeoutServer,      //60 * time.Second,
+		IdleTimeout:       o.IdleTimeoutServer,       //60 * time.Second,           // *new*: max time to wait to close a connection if keepalive is us
+		MaxHeaderBytes:    o.MaxHeaderBytes,
 		// TLSNextProto: // if used HTTP/2 is not enabled by default
-		ConnState: func(conn net.Conn, state http.ConnState) {
+	}
+	if o.EnableConnMetricsServer {
+		srv.ConnState = func(conn net.Conn, state http.ConnState) {
 			// TODO(sszuecs): add metrics for number of type http.ConnState,
 			// which are in general nice mertrics for loadbalancers.
 			// http.ConnState is one of: StateNew StateActive StateIdle StateHijacked StateClosed
 			//log.Printf("con: %v -> state: %v", conn, state)
-		},
+		}
 	}
 
 	if o.isHTTPS() {

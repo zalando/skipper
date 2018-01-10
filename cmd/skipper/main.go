@@ -34,13 +34,17 @@ const (
 	defaultSourcePollTimeout = int64(3000)
 	defaultSupportListener   = ":9911"
 	// deprecated
-	defaultMetricsListener      = ":9911"
-	defaultMetricsPrefix        = "skipper."
-	defaultRuntimeMetrics       = true
-	defaultApplicationLogPrefix = "[APP]"
-	defaultApplicationLogLevel  = "INFO"
-	defaultBackendFlushInterval = 20 * time.Millisecond
-	defaultExperimentalUpgrade  = false
+	defaultMetricsListener         = ":9911"
+	defaultMetricsPrefix           = "skipper."
+	defaultRuntimeMetrics          = true
+	defaultApplicationLogPrefix    = "[APP]"
+	defaultApplicationLogLevel     = "INFO"
+	defaultBackendFlushInterval    = 20 * time.Millisecond
+	defaultExperimentalUpgrade     = false
+	defaultReadTimeoutServer       = 5 * time.Minute
+	defaultReadHeaderTimeoutServer = 60 * time.Second
+	defaultWriteTimeoutServer      = 60 * time.Second
+	defaultIdleTimeoutServer       = 60 * time.Second
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -101,6 +105,12 @@ const (
 	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
 	suppressRouteUpdateLogsUsage   = "print only summaries on route updates/deletes"
 	enablePrometheusMetricsUsage   = "use Prometheus metrics format to expose metrics"
+	readTimeoutServerUsage         = "set ReadTimeout for http server connections"
+	readHeaderTimeoutServerUsage   = "set ReadHeaderTimeout for http server connections"
+	writeTimeoutServerUsage        = "set WriteTimeout for http server connections"
+	idleTimeoutServerUsage         = "set IdleTimeout for http server connections"
+	maxHeaderBytesUsage            = "set MaxHeaderBytes for http server connections"
+	enableConnMetricsServerUsage   = "Enables connection metrics for http server connections"
 )
 
 var (
@@ -172,6 +182,12 @@ var (
 	pluginDir                 string
 	suppressRouteUpdateLogs   bool
 	enablePrometheusMetrics   bool
+	readTimeoutServer         time.Duration
+	readHeaderTimeoutServer   time.Duration
+	writeTimeoutServer        time.Duration
+	idleTimeoutServer         time.Duration
+	maxHeaderBytes            int
+	enableConnMetricsServer   bool
 )
 
 func init() {
@@ -238,6 +254,12 @@ func init() {
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
+	flag.DurationVar(&readTimeoutServer, "read-timeout-server", defaultReadTimeoutServer, readTimeoutServerUsage)
+	flag.DurationVar(&readHeaderTimeoutServer, "read-header-timeout-server", defaultReadHeaderTimeoutServer, readHeaderTimeoutServerUsage)
+	flag.DurationVar(&writeTimeoutServer, "write-timeout-server", defaultWriteTimeoutServer, writeTimeoutServerUsage)
+	flag.DurationVar(&idleTimeoutServer, "idle-timeout-server", defaultIdleTimeoutServer, idleConnsPerHostUsage)
+	flag.IntVar(&maxHeaderBytes, "max-header-bytes", http.DefaultMaxHeaderBytes, maxHeaderBytesUsage)
+	flag.BoolVar(&enableConnMetricsServer, "enable-connection-metrics", false, enableConnMetricsServerUsage)
 	flag.Parse()
 
 	// check if arguments were correctly parsed.
@@ -348,6 +370,12 @@ func main() {
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
+		ReadTimeoutServer:                   readTimeoutServer,
+		ReadHeaderTimeoutServer:             readHeaderTimeoutServer,
+		WriteTimeoutServer:                  writeTimeoutServer,
+		IdleTimeoutServer:                   idleTimeoutServer,
+		MaxHeaderBytes:                      maxHeaderBytes,
+		EnableConnMetricsServer:             enableConnMetricsServer,
 	}
 
 	if insecure {
