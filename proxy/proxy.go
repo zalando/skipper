@@ -39,6 +39,18 @@ const (
 	// The default period at which the idle connections are forcibly
 	// closed.
 	DefaultCloseIdleConnsPeriod = 20 * time.Second
+
+  hopHeaders = map[string]bool{
+    	 "Connection": true,
+    	 "Proxy-Connection": true,
+    	 "Keep-Alive": true,
+    	 "Proxy-Authenticate": true,
+    	 "Proxy-Authorization": true,
+    	 "Te": true,
+    	 "Trailer": true,
+    	 "Transfer-Encoding": true,
+    	 "Upgrade":true,
+  }
 )
 
 // Flags control the behavior of the proxy.
@@ -68,17 +80,22 @@ const (
 	// and with the approximate changes they would make to the
 	// response.
 	Debug
+
+  // HopeHeadersRemoval indicates whether the Hop Headers should be removed
+	// in compliance with RFC 2616
+  HopHeadersRemoval
 )
 
 // Options are deprecated alias for Flags.
 type Options Flags
 
 const (
-	OptionsNone             = Options(FlagsNone)
-	OptionsInsecure         = Options(Insecure)
-	OptionsPreserveOriginal = Options(PreserveOriginal)
-	OptionsPreserveHost     = Options(PreserveHost)
-	OptionsDebug            = Options(Debug)
+	OptionsNone              = Options(FlagsNone)
+	OptionsInsecure          = Options(Insecure)
+	OptionsPreserveOriginal  = Options(PreserveOriginal)
+	OptionsPreserveHost      = Options(PreserveHost)
+	OptionsDebug             = Options(Debug)
+	OptionsHopHeadersRemoval = Options(HopHeadersRemoval)
 )
 
 // Proxy initialization options.
@@ -176,6 +193,9 @@ func (f Flags) PreserveHost() bool { return f&PreserveHost != 0 }
 // When set, the proxy runs in debug mode.
 func (f Flags) Debug() bool { return f&Debug != 0 }
 
+// When set, the proxy will remove the Hop Headers
+func (f Flags) HopHeadersRemoval() bool { return f&HopHeadersRemoval != 0 }
+
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
 type PriorityRoute interface {
@@ -245,9 +265,22 @@ func copyHeader(to, from http.Header) {
 	}
 }
 
+func copyHeaderExcluding(to, from http.Header, excludeHeaders map[string]bool) {
+  for k, v := range from {
+		if len(excludeHeaders) == 0 || !excludeHeaders[k]
+			to[http.CanonicalHeaderKey(k)] = v
+	}
+}
+
 func cloneHeader(h http.Header) http.Header {
 	hh := make(http.Header)
 	copyHeader(hh, h)
+	return hh
+}
+
+func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Header {
+	hh := make(http.Header)
+	copyHeaderExcluding(hh, h)
 	return hh
 }
 
@@ -295,10 +328,13 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 		return nil, err
 	}
 
-	rr.Header = cloneHeader(r.Header)
+	if removeHopHeaders
+		rr.Header = cloneHeaderExcluding(r.Header, hopHeaders)
+	else
+		rr.Header = cloneHeader(r.Header)
 	rr.Host = host
 
-	// If there is basic auth configured int the URL we add them as headers
+	// If there is basic auth configured in the URL we add them as headers
 	if u.User != nil {
 		up := u.User.String()
 		upBase64 := base64.StdEncoding.EncodeToString([]byte(up))
