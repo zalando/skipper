@@ -312,7 +312,7 @@ func copyStream(to flusherWriter, from io.Reader) error {
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request, error) {
+func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeaders bool) (*http.Request, error) {
 	u := r.URL
 	u.Scheme = rt.Scheme
 	u.Host = rt.Host
@@ -567,7 +567,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
-	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
+	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval())
 	if err != nil {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
 		return nil, err
@@ -725,7 +725,7 @@ func (p *Proxy) do(ctx *context) error {
 
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 	} else if p.flags.Debug() {
-		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
+		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval())
 		if err != nil {
 			return &proxyError{err: err}
 		}
