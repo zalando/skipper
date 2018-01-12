@@ -335,7 +335,6 @@ func WithParams(p Params) *Proxy {
 		p.OpenTracer = &ot.NoopTracer{}
 	}
 
-	// TODO(sszuecs): make options possible and discuss the defaults in the PR
 	tr := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   p.Timeout,
@@ -353,7 +352,7 @@ func WithParams(p Params) *Proxy {
 	quit := make(chan struct{})
 	// We need this to reliably fade on DNS change, which is right
 	// now not fixed with IdleConnTimeout in the http.Transport.
-	// TODO(sszuecs): create in issue in golang.org and reference here
+	// https://github.com/golang/go/issues/23427
 	if p.CloseIdleConnsPeriod > 0 {
 		go func() {
 			for {
