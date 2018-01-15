@@ -1,7 +1,9 @@
 package skipper
 
 import (
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -140,6 +142,45 @@ type Options struct {
 	// Defines the time period of how often the idle connections maintained
 	// by the proxy are closed.
 	CloseIdleConnsPeriod time.Duration
+
+	// Defines ReadTimeoutServer for server http connections.
+	ReadTimeoutServer time.Duration
+
+	// Defines ReadHeaderTimeout for server http connections.
+	ReadHeaderTimeoutServer time.Duration
+
+	// Defines WriteTimeout for server http connections.
+	WriteTimeoutServer time.Duration
+
+	// Defines IdleTimeout for server http connections.
+	IdleTimeoutServer time.Duration
+
+	// Defines MaxHeaderBytes for server http connections.
+	MaxHeaderBytes int
+
+	// Enable connection state metrics for server http connections.
+	EnableConnMetricsServer bool
+
+	// TimeoutBackend sets the TCP client connection timeout for
+	// proxy http connections to the backend.
+	TimeoutBackend time.Duration
+
+	// KeepAliveBackend sets the TCP keepalive for proxy http
+	// connections to the backend.
+	KeepAliveBackend time.Duration
+
+	// DualStackBackend sets if the proxy TCP connections to the
+	// backend should be dual stack.
+	DualStackBackend bool
+
+	// TLSHandshakeTimeoutBackend sets the TLS handshake timeout
+	// for proxy connections to the backend.
+	TLSHandshakeTimeoutBackend time.Duration
+
+	// MaxIdleConnsBackend sets MaxIdleConns, which limits the
+	// number of idle connections to all backends, 0 means no
+	// limit.
+	MaxIdleConnsBackend int
 
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
@@ -443,11 +484,29 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	// create the access log handler
 	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
+
+	srv := &http.Server{
+		Addr:              o.Address,
+		Handler:           loggingHandler,
+		ReadTimeout:       o.ReadTimeoutServer,
+		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
+		WriteTimeout:      o.WriteTimeoutServer,
+		IdleTimeout:       o.IdleTimeoutServer,
+		MaxHeaderBytes:    o.MaxHeaderBytes,
+	}
+
+	if o.EnableConnMetricsServer {
+		m := metrics.Default
+		srv.ConnState = func(conn net.Conn, state http.ConnState) {
+			m.IncCounter(fmt.Sprintf("lb-conn-%s", state))
+		}
+	}
+
 	if o.isHTTPS() {
-		return http.ListenAndServeTLS(o.Address, o.CertPathTLS, o.KeyPathTLS, loggingHandler)
+		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
 	}
 	log.Infof("certPathTLS or keyPathTLS not found, defaulting to HTTP")
-	return http.ListenAndServe(o.Address, loggingHandler)
+	return srv.ListenAndServe()
 }
 
 // Run skipper.
@@ -536,6 +595,11 @@ func Run(o Options) error {
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
 		DefaultHTTPStatus:      o.DefaultHTTPStatus,
+		Timeout:                o.TimeoutBackend,
+		KeepAlive:              o.KeepAliveBackend,
+		DualStack:              o.DualStackBackend,
+		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:           o.MaxIdleConnsBackend,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {

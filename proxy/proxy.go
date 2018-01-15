@@ -134,6 +134,21 @@ type Params struct {
 
 	// OpenTracer holds the tracer enabled for this proxy instance
 	OpenTracer ot.Tracer
+
+	// Timeout sets the TCP client connection timeout for proxy http connections to the backend
+	Timeout time.Duration
+
+	// KeepAlive sets the TCP keepalive for proxy http connections to the backend
+	KeepAlive time.Duration
+
+	// DualStack sets if the proxy TCP connections to the backend should be dual stack
+	DualStack bool
+
+	// TLSHandshakeTimeout sets the TLS handshake timeout for proxy connections to the backend
+	TLSHandshakeTimeout time.Duration
+
+	// MaxIdleConns limits the number of idle connections to all backends, 0 means no limit
+	MaxIdleConns int
 }
 
 var (
@@ -320,8 +335,24 @@ func WithParams(p Params) *Proxy {
 		p.OpenTracer = &ot.NoopTracer{}
 	}
 
-	tr := &http.Transport{MaxIdleConnsPerHost: p.IdleConnectionsPerHost}
+	tr := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   p.Timeout,
+			KeepAlive: p.KeepAlive,
+			DualStack: p.DualStack,
+		}).DialContext,
+		TLSHandshakeTimeout: p.TLSHandshakeTimeout,
+		//ResponseHeaderTimeout: 60 * time.Second,
+		//ExpectContinueTimeout: 30 * time.Second,
+		MaxIdleConns:        p.MaxIdleConns,
+		MaxIdleConnsPerHost: p.IdleConnectionsPerHost,
+		IdleConnTimeout:     p.CloseIdleConnsPeriod,
+	}
+
 	quit := make(chan struct{})
+	// We need this to reliably fade on DNS change, which is right
+	// now not fixed with IdleConnTimeout in the http.Transport.
+	// https://github.com/golang/go/issues/23427
 	if p.CloseIdleConnsPeriod > 0 {
 		go func() {
 			for {
