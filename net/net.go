@@ -23,8 +23,14 @@ func parse(addr string) net.IP {
 	return nil
 }
 
-// The remote address of the client. When the 'X-Forwarded-For'
-// header is set, then it is used instead.
+// RemoteHost returns the remote address of the client. When the
+// 'X-Forwarded-For' header is set, then it is used instead. This is
+// the most often behaviour for proxies. Wikipedia shows the format
+// https://en.wikipedia.org/wiki/X-Forwarded-For#Format
+//
+// Example:
+//
+//     X-Forwarded-For: client, proxy1, proxy2
 func RemoteHost(r *http.Request) net.IP {
 	ffs := r.Header.Get("X-Forwarded-For")
 	ff := strings.Split(ffs, ",")[0]
@@ -35,8 +41,14 @@ func RemoteHost(r *http.Request) net.IP {
 	return parse(r.RemoteAddr)
 }
 
-// The remote address of the client. When the 'X-Forwarded-For'
-// header is set, then it is used instead.
+// RemoteHostFromLast returns the remote address of the client. When
+// the 'X-Forwarded-For' header is set, then it is used instead. This
+// is known to be true for AWS Application LoadBalancer. AWS docs
+// https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/x-forwarded-headers.html
+//
+// Example:
+//
+//     X-Forwarded-For: ip-address-1, ip-address-2, client-ip-address
 func RemoteHostFromLast(r *http.Request) net.IP {
 	ffs := r.Header.Get("X-Forwarded-For")
 	a := strings.Split(ffs, ",")
