@@ -50,10 +50,15 @@ func RemoteHost(r *http.Request) net.IP {
 //
 //     X-Forwarded-For: ip-address-1, ip-address-2, client-ip-address
 func RemoteHostFromLast(r *http.Request) net.IP {
-	ffs := r.Header.Get("X-Forwarded-For")
-	a := strings.Split(ffs, ",")
-	ff := strings.TrimLeft(a[len(a)-1], " ")
-	if ffh := parse(ff); ffh != nil {
+	a := r.Header["X-Forwarded-For"]
+	if a == nil {
+		return parse(r.RemoteAddr)
+	}
+	l := len(a) - 1
+	if l < 0 {
+		l = 0
+	}
+	if ffh := parse(a[l]); ffh != nil {
 		return ffh
 	}
 	return parse(r.RemoteAddr)

@@ -19,6 +19,10 @@ matching.
 
 The source predicate supports one or more IP addresses with or without a netmask.
 
+There are two flavors of this predicate Source() and SourceFromLast().
+The difference is that Source() finds the remote host as first entry from
+the X-Forwarded-For header and SourceFromLast() as last entry.
+
 Examples:
 
     // only match requests from 1.2.3.4
@@ -29,25 +33,34 @@ Examples:
 
     // only match requests from 1.2.3.4 and the 2.2.2.0/24 network
     example3: Source("1.2.3.4", "2.2.2.0/24") -> "http://example.org";
+
+    // same as example3, only match requests from 1.2.3.4 and the 2.2.2.0/24 network
+    example4: SourceFromLast("1.2.3.4", "2.2.2.0/24") -> "http://example.org";
 */
 package source
 
 import (
 	"errors"
-	snet "github.com/zalando/skipper/net"
-	"github.com/zalando/skipper/routing"
 	"net"
 	"net/http"
 	"strings"
+
+	snet "github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/routing"
 )
 
-const Name = "Source"
+const (
+	Name     = "Source"
+	NameLast = "SourceFromLast"
+)
 
 var InvalidArgsError = errors.New("invalid arguments")
 
 type spec struct{}
+type specLast struct{}
 
 type predicate struct {
+	fromLast           bool
 	acceptedSourceNets []net.IPNet
 }
 
@@ -86,11 +99,51 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *predicate) Match(r *http.Request) bool {
-	src := snet.RemoteHost(r)
+	var src net.IP
+	if p.fromLast {
+		src = snet.RemoteHostFromLast(r)
+	} else {
+		src = snet.RemoteHost(r)
+	}
+
 	for _, acceptedNet := range p.acceptedSourceNets {
 		if acceptedNet.Contains(src) {
 			return true
 		}
 	}
 	return false
+}
+
+func NewFromLast() routing.PredicateSpec { return &specLast{} }
+
+func (s *specLast) Name() string {
+	return Name
+}
+
+func (s *specLast) Create(args []interface{}) (routing.Predicate, error) {
+	if len(args) == 0 {
+		return nil, InvalidArgsError
+	}
+
+	p := &predicate{fromLast: true}
+
+	for i := range args {
+		if s, ok := args[i].(string); ok {
+			var netmask = s
+			if !strings.Contains(s, "/") {
+				netmask = s + "/32"
+			}
+			_, net, err := net.ParseCIDR(netmask)
+
+			if err != nil {
+				return nil, InvalidArgsError
+			}
+
+			p.acceptedSourceNets = append(p.acceptedSourceNets, *net)
+		} else {
+			return nil, InvalidArgsError
+		}
+	}
+
+	return p, nil
 }

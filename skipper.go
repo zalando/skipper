@@ -506,6 +506,7 @@ func Run(o Options) error {
 	// include bundled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
 		source.New(),
+		source.NewFromLast(),
 		interval.NewBetween(),
 		interval.NewBefore(),
 		interval.NewAfter(),
