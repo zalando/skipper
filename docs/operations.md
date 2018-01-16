@@ -1,5 +1,11 @@
 # Operations
 
+This is the work in progress operations guide for showing information,
+which are relevant for production use.
+
+Skipper is proven to scale with number of routes beyond 200.000 routes
+running with peaks to 45.000 http requests per second.
+
 ## Connection Options
 
 Skipper's connection options are allowing you to set Go's [http.Server](https://golang.org/pkg/net/http/#Server)
@@ -114,7 +120,7 @@ size of the http header from your clients.
         set MaxHeaderBytes for http server connections (default 1048576)
 
 
-### Monitoring
+## Monitoring
 
 Monitoring is one of the most important things you need to run in
 production and skipper has a [godoc page](https://godoc.org/github.com/zalando/skipper)
@@ -122,7 +128,7 @@ for the [metrics package](https://godoc.org/github.com/zalando/skipper/metrics),
 describing options and most keys you will find in the metrics handler
 endpoint. The default is listening on :9911/metrics.
 
-#### Connection metrics
+### Connection metrics
 
 This option will enable known loadbalancer connections metrics, like
 counters for active and new connections. This feature sets a metrics
@@ -153,7 +159,7 @@ It will expose them in /metrics, for example json structure looks like this exam
       /* stripped a lot of metrics here */
     }
 
-#### Application metrics
+### Application metrics
 
 Application metrics for your proxied applications you can enable with the option:
 
@@ -224,7 +230,7 @@ utilized applications (less than 100 requests per second):
         use exponentially decaying sample in metrics
 
 
-#### Go metrics
+### Go metrics
 
 Metrics from the
 [go runtime memstats](https://golang.org/pkg/runtime/#MemStats)
@@ -332,7 +338,7 @@ are exposed from skipper to the metrics endpoint, default listener
       }
    }
 
-### Dataclient
+## Dataclient
 
 Dataclients poll some kind of data source for routes. To change the timeout for calls that polls a dataclient, which could be the kubernetes API, use the following option:
 
