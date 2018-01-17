@@ -167,7 +167,7 @@ func (t *tracer) Extract(format interface{}, carrier interface{}) (ot.SpanContex
 }
 
 // SpanContext interface
-func (s *span) ForeachBaggageItem(_ func(k, v string) bool) {}
+func (s *span) ForeachBaggageItem(func(k, v string) bool) {}
 
 // Span interface
 func (s *span) Finish() {
@@ -192,15 +192,15 @@ func (s *span) SetTag(key string, value interface{}) ot.Span {
 	return s
 }
 
-func (_ *span) LogFields(_ ...log.Field) {}
+func (*span) LogFields(...log.Field) {}
 
-func (_ *span) LogKV(_ ...interface{}) {}
+func (*span) LogKV(...interface{}) {}
 
 func (s *span) SetBaggageItem(restrictedKey, value string) ot.Span {
 	return s
 }
 
-func (_ *span) BaggageItem(_ string) string {
+func (*span) BaggageItem(string) string {
 	return ""
 }
 
@@ -208,8 +208,8 @@ func (s *span) Tracer() ot.Tracer {
 	return s.tracer
 }
 
-func (_ *span) LogEvent(_ string) {}
+func (*span) LogEvent(string) {}
 
-func (_ *span) LogEventWithPayload(_ string, _ interface{}) {}
+func (*span) LogEventWithPayload(string, interface{}) {}
 
-func (_ *span) Log(_ ot.LogData) {}
+func (*span) Log(ot.LogData) {}

@@ -31,6 +31,6 @@ func (r *routes) LoadAll() ([]*eskip.Route, error) {
 	return r.parsed, nil
 }
 
-func (_ *routes) LoadUpdate() ([]*eskip.Route, []string, error) {
+func (*routes) LoadUpdate() ([]*eskip.Route, []string, error) {
 	return nil, nil, nil
 }
