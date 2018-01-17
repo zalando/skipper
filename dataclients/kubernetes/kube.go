@@ -263,21 +263,29 @@ type Options struct {
 	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
 	IngressClass string
 
+	// ReverseSourcePredicate set to true will do the Source IP
+	// whitelisting for the heartbeat endpoint correctly in AWS.
+	// Amazon's ALB writes the client IP to the last item of the
+	// string list of the X-Forwarded-For header, in this case you
+	// want to set this to true.
+	ReverseSourcePredicate bool
+
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
-	httpClient           *http.Client
-	apiURL               string
-	provideHealthcheck   bool
-	provideHTTPSRedirect bool
-	token                string
-	current              map[string]*eskip.Route
-	termReceived         bool
-	sigs                 chan os.Signal
-	ingressClass         *regexp.Regexp
+	httpClient             *http.Client
+	apiURL                 string
+	provideHealthcheck     bool
+	provideHTTPSRedirect   bool
+	token                  string
+	current                map[string]*eskip.Route
+	termReceived           bool
+	sigs                   chan os.Signal
+	ingressClass           *regexp.Regexp
+	reverseSourcePredicate bool
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -325,14 +333,15 @@ func New(o Options) (*Client, error) {
 	}
 
 	return &Client{
-		httpClient:           httpClient,
-		apiURL:               apiURL,
-		provideHealthcheck:   o.ProvideHealthcheck,
-		provideHTTPSRedirect: o.ProvideHTTPSRedirect,
-		current:              make(map[string]*eskip.Route),
-		token:                token,
-		sigs:                 sigs,
-		ingressClass:         ingClsRx,
+		httpClient:             httpClient,
+		apiURL:                 apiURL,
+		provideHealthcheck:     o.ProvideHealthcheck,
+		provideHTTPSRedirect:   o.ProvideHTTPSRedirect,
+		current:                make(map[string]*eskip.Route),
+		token:                  token,
+		sigs:                   sigs,
+		ingressClass:           ingClsRx,
+		reverseSourcePredicate: o.ReverseSourcePredicate,
 	}, nil
 }
 
@@ -822,19 +831,29 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	return r, nil
 }
 
-func healthcheckRoute(healthy bool) *eskip.Route {
+func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 	status := http.StatusOK
 	if !healthy {
 		status = http.StatusServiceUnavailable
 	}
 
-	return &eskip.Route{
-		Id: healthcheckRouteID,
-		Predicates: []*eskip.Predicate{{
+	var p []*eskip.Predicate
+	if reverseSourcePredicate {
+		p = []*eskip.Predicate{{
+			Name: source.NameLast,
+			Args: internalIPs,
+		}}
+	} else {
+		p = []*eskip.Predicate{{
 			Name: source.Name,
 			Args: internalIPs,
-		}},
-		Path: healthcheckPath,
+		}}
+	}
+
+	return &eskip.Route{
+		Id:         healthcheckRouteID,
+		Predicates: p,
+		Path:       healthcheckPath,
 		Filters: []*eskip.Filter{{
 			Name: builtin.StatusName,
 			Args: []interface{}{status}},
@@ -887,7 +906,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
-		r = append(r, healthcheckRoute(healthy))
+		r = append(r, healthcheckRoute(healthy, c.reverseSourcePredicate))
 	}
 
 	if c.provideHTTPSRedirect {
@@ -936,7 +955,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
-		hc := healthcheckRoute(healthy)
+		hc := healthcheckRoute(healthy, c.reverseSourcePredicate)
 		next[healthcheckRouteID] = hc
 		updatedRoutes = append(updatedRoutes, hc)
 	}

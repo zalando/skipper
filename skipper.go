@@ -316,6 +316,14 @@ type Options struct {
 
 	// EnablePrometheusMetrics enables Prometheus format metrics.
 	EnablePrometheusMetrics bool
+
+	// ReverseSourcePredicate enables the automatic use of IP
+	// whitelisting in different places to use the reversed way of
+	// identifying a client IP within the X-Forwarded-For
+	// header. Amazon's ALB for example writes the client IP to
+	// the last item of the string list of the X-Forwarded-For
+	// header, in this case you want to set this to true.
+	ReverseSourcePredicate bool
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -375,11 +383,12 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			KubernetesInCluster:  o.KubernetesInCluster,
-			KubernetesURL:        o.KubernetesURL,
-			ProvideHealthcheck:   o.KubernetesHealthcheck,
-			ProvideHTTPSRedirect: o.KubernetesHTTPSRedirect,
-			IngressClass:         o.KubernetesIngressClass,
+			KubernetesInCluster:    o.KubernetesInCluster,
+			KubernetesURL:          o.KubernetesURL,
+			ProvideHealthcheck:     o.KubernetesHealthcheck,
+			ProvideHTTPSRedirect:   o.KubernetesHTTPSRedirect,
+			IngressClass:           o.KubernetesIngressClass,
+			ReverseSourcePredicate: o.ReverseSourcePredicate,
 		})
 		if err != nil {
 			return nil, err

@@ -101,6 +101,7 @@ const (
 	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
 	suppressRouteUpdateLogsUsage   = "print only summaries on route updates/deletes"
 	enablePrometheusMetricsUsage   = "use Prometheus metrics format to expose metrics"
+	reverseSourcePredicateUsage    = "reverse the order of finding the client IP from X-Forwarded-For header"
 )
 
 var (
@@ -172,6 +173,7 @@ var (
 	pluginDir                 string
 	suppressRouteUpdateLogs   bool
 	enablePrometheusMetrics   bool
+	reverseSourcePredicate    bool
 )
 
 func init() {
@@ -238,6 +240,7 @@ func init() {
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
+	flag.BoolVar(&reverseSourcePredicate, "reverse-source-predicate", false, reverseSourcePredicateUsage)
 	flag.Parse()
 
 	// check if arguments were correctly parsed.
@@ -348,6 +351,7 @@ func main() {
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
+		ReverseSourcePredicate:              reverseSourcePredicate,
 	}
 
 	if insecure {

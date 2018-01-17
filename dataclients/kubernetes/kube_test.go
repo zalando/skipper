@@ -220,7 +220,7 @@ func checkIDs(t *testing.T, got []string, expected ...string) {
 	}
 }
 
-func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) {
+func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, reversed bool) {
 	for _, r := range got {
 		if r.Id != healthcheckRouteID {
 			continue
@@ -243,7 +243,10 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) 
 
 		var found bool
 		for _, p := range r.Predicates {
-			if p.Name != source.Name {
+			if reversed && p.Name != source.NameLast {
+				continue
+			}
+			if !reversed && p.Name != source.Name {
 				continue
 			}
 
@@ -255,15 +258,15 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) 
 			}
 
 			for _, s := range internalIPs {
-				var found bool
+				var found2 bool
 				for _, sp := range p.Args {
 					if sp == s {
-						found = true
+						found2 = true
 						break
 					}
 				}
 
-				if !found {
+				if !found2 {
 					t.Error("invalid source ip")
 				}
 			}
@@ -1277,7 +1280,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("no healthcheck", func(t *testing.T) {
@@ -1290,7 +1293,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("no healthcheck, fail", func(t *testing.T) {
@@ -1321,7 +1324,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, true, true, false)
 	})
 
 	t.Run("use healthcheck", func(t *testing.T) {
@@ -1340,7 +1343,27 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, true, true, false)
+	})
+
+	t.Run("use reverse healthcheck", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		dc, err := New(Options{
+			KubernetesURL:          api.server.URL,
+			ProvideHealthcheck:     true,
+			ReverseSourcePredicate: true,
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error(err)
+		}
+
+		checkHealthcheck(t, r, true, true, true)
 	})
 }
 
@@ -1365,7 +1388,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1410,7 +1433,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, true, true, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1438,7 +1461,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, true, true, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1466,7 +1489,7 @@ func TestHealthcheckReload(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("use healthcheck, reload succeeds", func(t *testing.T) {
@@ -1488,7 +1511,7 @@ func TestHealthcheckReload(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, true, true, false)
 		checkRoutes(t, r, map[string]string{
 			healthcheckRouteID:                                              "",
 			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
@@ -1747,7 +1770,7 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("healthcheck false after term", func(t *testing.T) {
@@ -1772,7 +1795,7 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		checkHealthcheck(t, r, true, false)
+		checkHealthcheck(t, r, true, false, false)
 	})
 
 	t.Run("no difference after term when disabled, update", func(t *testing.T) {
@@ -1803,7 +1826,7 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("healthcheck false after term, update", func(t *testing.T) {
@@ -1834,7 +1857,7 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		checkHealthcheck(t, r, true, false)
+		checkHealthcheck(t, r, true, false, false)
 	})
 }
 
