@@ -109,6 +109,7 @@ const (
 	pluginDirUsage                  = "set the directory to load plugins from, default is ./"
 	suppressRouteUpdateLogsUsage    = "print only summaries on route updates/deletes"
 	enablePrometheusMetricsUsage    = "use Prometheus metrics format to expose metrics"
+	reverseSourcePredicateUsage     = "reverse the order of finding the client IP from X-Forwarded-For header"
 	readTimeoutServerUsage          = "set ReadTimeout for http server connections"
 	readHeaderTimeoutServerUsage    = "set ReadHeaderTimeout for http server connections"
 	writeTimeoutServerUsage         = "set WriteTimeout for http server connections"
@@ -123,11 +124,8 @@ const (
 )
 
 var (
-	version string
-	commit  string
-)
-
-var (
+	version                    string
+	commit                     string
 	address                    string
 	etcdUrls                   string
 	etcdPrefix                 string
@@ -191,6 +189,7 @@ var (
 	pluginDir                  string
 	suppressRouteUpdateLogs    bool
 	enablePrometheusMetrics    bool
+	reverseSourcePredicate     bool
 	readTimeoutServer          time.Duration
 	readHeaderTimeoutServer    time.Duration
 	writeTimeoutServer         time.Duration
@@ -268,6 +267,7 @@ func init() {
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
+	flag.BoolVar(&reverseSourcePredicate, "reverse-source-predicate", false, reverseSourcePredicateUsage)
 	flag.DurationVar(&readTimeoutServer, "read-timeout-server", defaultReadTimeoutServer, readTimeoutServerUsage)
 	flag.DurationVar(&readHeaderTimeoutServer, "read-header-timeout-server", defaultReadHeaderTimeoutServer, readHeaderTimeoutServerUsage)
 	flag.DurationVar(&writeTimeoutServer, "write-timeout-server", defaultWriteTimeoutServer, writeTimeoutServerUsage)
@@ -390,6 +390,7 @@ func main() {
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
+		ReverseSourcePredicate:              reverseSourcePredicate,
 		ReadTimeoutServer:                   readTimeoutServer,
 		ReadHeaderTimeoutServer:             readHeaderTimeoutServer,
 		WriteTimeoutServer:                  writeTimeoutServer,
