@@ -51,7 +51,7 @@ func TestCreate(t *testing.T) {
 		if err == nil && ti.err || err != nil && !ti.err {
 			t.Error(ti.msg, "failure case", err, ti.err)
 		}
-		_, err = (&specLast{}).Create(ti.args)
+		_, err = (&spec{fromLast: true}).Create(ti.args)
 		if err == nil && ti.err || err != nil && !ti.err {
 			t.Error(ti.msg, "failure case", err, ti.err)
 		}
@@ -194,7 +194,7 @@ func TestMatchingFromLast(t *testing.T) {
 		&http.Request{RemoteAddr: "C0:FF::EC"},
 		false,
 	}} {
-		pred, err := (&specLast{}).Create(ti.args)
+		pred, err := (&spec{fromLast: true}).Create(ti.args)
 		if err != nil {
 			t.Error("failed to create predicate", err)
 		} else {
