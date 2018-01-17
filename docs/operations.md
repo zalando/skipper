@@ -127,6 +127,16 @@ for the [metrics package](https://godoc.org/github.com/zalando/skipper/metrics),
 describing options and most keys you will find in the metrics handler
 endpoint. The default is listening on :9911/metrics.
 
+### Prometheus
+
+In case you want to get metrics in [Prometheus](https://prometheus.io/) format exposed, use this
+option to enable it:
+
+    -enable-prometheus-metrics
+
+It will return [Prometheus](https://prometheus.io/) metrics on the
+common metrics endpoint :9911/metrics.
+
 ### Connection metrics
 
 This option will enable known loadbalancer connections metrics, like
