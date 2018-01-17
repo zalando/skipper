@@ -56,17 +56,22 @@ const (
 
 var InvalidArgsError = errors.New("invalid arguments")
 
-type spec struct{}
-type specLast struct{}
+type spec struct {
+	fromLast bool
+}
 
 type predicate struct {
 	fromLast           bool
 	acceptedSourceNets []net.IPNet
 }
 
-func New() routing.PredicateSpec { return &spec{} }
+func New() routing.PredicateSpec         { return &spec{} }
+func NewFromLast() routing.PredicateSpec { return &spec{fromLast: true} }
 
 func (s *spec) Name() string {
+	if s.fromLast {
+		return NameLast
+	}
 	return Name
 }
 
@@ -75,7 +80,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, InvalidArgsError
 	}
 
-	p := &predicate{}
+	p := &predicate{fromLast: s.fromLast}
 
 	for i := range args {
 		if s, ok := args[i].(string); ok {
@@ -112,38 +117,4 @@ func (p *predicate) Match(r *http.Request) bool {
 		}
 	}
 	return false
-}
-
-func NewFromLast() routing.PredicateSpec { return &specLast{} }
-
-func (s *specLast) Name() string {
-	return Name
-}
-
-func (s *specLast) Create(args []interface{}) (routing.Predicate, error) {
-	if len(args) == 0 {
-		return nil, InvalidArgsError
-	}
-
-	p := &predicate{fromLast: true}
-
-	for i := range args {
-		if s, ok := args[i].(string); ok {
-			var netmask = s
-			if !strings.Contains(s, "/") {
-				netmask = s + "/32"
-			}
-			_, net, err := net.ParseCIDR(netmask)
-
-			if err != nil {
-				return nil, InvalidArgsError
-			}
-
-			p.acceptedSourceNets = append(p.acceptedSourceNets, *net)
-		} else {
-			return nil, InvalidArgsError
-		}
-	}
-
-	return p, nil
 }
