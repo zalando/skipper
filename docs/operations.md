@@ -11,10 +11,9 @@ running with peaks to 45.000 http requests per second.
 Skipper's connection options are allowing you to set Go's [http.Server](https://golang.org/pkg/net/http/#Server)
 Options on the client side and [http.Transport](https://golang.org/pkg/net/http/#Transport) on the backend side.
 
-There is a [blog post about net http
-timeouts](https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/),
-that I highly recommend if you want to understand the impact of these
-settings.
+"It is recommended to read
+[this blog post about net http timeouts](https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/)
+in order to better understand the impact of these settings.
 
 ### Backend
 
