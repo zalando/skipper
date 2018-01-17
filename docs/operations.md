@@ -4,7 +4,8 @@ This is the work in progress operations guide for showing information,
 which are relevant for production use.
 
 Skipper is proven to scale with number of routes beyond 200.000 routes
-running with peaks to 45.000 http requests per second.
+per instance. Skipper is running with peaks to 45.000 http requests
+per second using multiple instances.
 
 ## Connection Options
 
