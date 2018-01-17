@@ -25,7 +25,7 @@ func parse(addr string) net.IP {
 
 // RemoteHost returns the remote address of the client. When the
 // 'X-Forwarded-For' header is set, then it is used instead. This is
-// the most often behaviour for proxies. Wikipedia shows the format
+// how most often proxies behave. Wikipedia shows the format
 // https://en.wikipedia.org/wiki/X-Forwarded-For#Format
 //
 // Example:
