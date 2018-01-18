@@ -330,14 +330,14 @@ the application with Ingress to the external network:
     apiVersion: extensions/v1beta1
     kind: Ingress
     metadata:
-      name: skipper-demo"
+      name: skipper-demo
     spec:
       rules:
       - host: skipper-demo.<mydomain.org>
         http:
           paths:
           - backend:
-              serviceName: skipper-demo"
+              serviceName: skipper-demo
               servicePort: 80
 
 To deploy this ingress, you have to run:

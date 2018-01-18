@@ -34,13 +34,21 @@ const (
 	defaultSourcePollTimeout = int64(3000)
 	defaultSupportListener   = ":9911"
 	// deprecated
-	defaultMetricsListener      = ":9911"
-	defaultMetricsPrefix        = "skipper."
-	defaultRuntimeMetrics       = true
-	defaultApplicationLogPrefix = "[APP]"
-	defaultApplicationLogLevel  = "INFO"
-	defaultBackendFlushInterval = 20 * time.Millisecond
-	defaultExperimentalUpgrade  = false
+	defaultMetricsListener            = ":9911"
+	defaultMetricsPrefix              = "skipper."
+	defaultRuntimeMetrics             = true
+	defaultApplicationLogPrefix       = "[APP]"
+	defaultApplicationLogLevel        = "INFO"
+	defaultBackendFlushInterval       = 20 * time.Millisecond
+	defaultExperimentalUpgrade        = false
+	defaultReadTimeoutServer          = 5 * time.Minute
+	defaultReadHeaderTimeoutServer    = 60 * time.Second
+	defaultWriteTimeoutServer         = 60 * time.Second
+	defaultIdleTimeoutServer          = 60 * time.Second
+	defaultTimeoutBackend             = 60 * time.Second
+	defaultKeepaliveBackend           = 30 * time.Second
+	defaultTLSHandshakeTimeoutBackend = 60 * time.Second
+	defaultMaxIdleConnsBackend        = 0
 
 	addressUsage                           = "network address that skipper should listen on"
 	etcdUrlsUsage                          = "urls of nodes in an etcd cluster, storing route definitions"
@@ -103,14 +111,23 @@ const (
 	enablePrometheusMetricsUsage           = "use Prometheus metrics format to expose metrics"
 	loadBalancerHealthCheckIntervalUsage   = "use to set the health checker interval to check healthiness of former dead or unhealthy routes"
 	defaultLoadBalancerHealthCheckInterval = 0 // disabled
+	reverseSourcePredicateUsage            = "reverse the order of finding the client IP from X-Forwarded-For header"
+	readTimeoutServerUsage                 = "set ReadTimeout for http server connections"
+	readHeaderTimeoutServerUsage           = "set ReadHeaderTimeout for http server connections"
+	writeTimeoutServerUsage                = "set WriteTimeout for http server connections"
+	idleTimeoutServerUsage                 = "set IdleTimeout for http server connections"
+	maxHeaderBytesUsage                    = "set MaxHeaderBytes for http server connections"
+	enableConnMetricsServerUsage           = "enables connection metrics for http server connections"
+	timeoutBackendUsage                    = "sets the TCP client connection timeout for backend connections"
+	keepaliveBackendUsage                  = "sets the keepalive for backend connections"
+	enableDualstackBackendUsage            = "enables DualStack for backend connections"
+	tlsHandshakeTimeoutBackendUsage        = "sets the TLS handshake timeout for backend connections"
+	maxIdleConnsBackendUsage               = "sets the maximum idle connections for all backend connections"
 )
 
 var (
-	version string
-	commit  string
-)
-
-var (
+	version                         string
+	commit                          string
 	address                         string
 	etcdUrls                        string
 	etcdPrefix                      string
@@ -175,6 +192,18 @@ var (
 	suppressRouteUpdateLogs         bool
 	enablePrometheusMetrics         bool
 	loadBalancerHealthCheckInterval time.Duration
+	reverseSourcePredicate          bool
+	readTimeoutServer               time.Duration
+	readHeaderTimeoutServer         time.Duration
+	writeTimeoutServer              time.Duration
+	idleTimeoutServer               time.Duration
+	maxHeaderBytes                  int
+	enableConnMetricsServer         bool
+	timeoutBackend                  time.Duration
+	keepaliveBackend                time.Duration
+	enableDualstackBackend          bool
+	tlsHandshakeTimeoutBackend      time.Duration
+	maxIdleConnsBackend             int
 )
 
 func init() {
@@ -242,6 +271,18 @@ func init() {
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
 	flag.DurationVar(&loadBalancerHealthCheckInterval, "lb-healthcheck-interval", defaultLoadBalancerHealthCheckInterval, loadBalancerHealthCheckIntervalUsage)
+	flag.BoolVar(&reverseSourcePredicate, "reverse-source-predicate", false, reverseSourcePredicateUsage)
+	flag.DurationVar(&readTimeoutServer, "read-timeout-server", defaultReadTimeoutServer, readTimeoutServerUsage)
+	flag.DurationVar(&readHeaderTimeoutServer, "read-header-timeout-server", defaultReadHeaderTimeoutServer, readHeaderTimeoutServerUsage)
+	flag.DurationVar(&writeTimeoutServer, "write-timeout-server", defaultWriteTimeoutServer, writeTimeoutServerUsage)
+	flag.DurationVar(&idleTimeoutServer, "idle-timeout-server", defaultIdleTimeoutServer, idleConnsPerHostUsage)
+	flag.IntVar(&maxHeaderBytes, "max-header-bytes", http.DefaultMaxHeaderBytes, maxHeaderBytesUsage)
+	flag.BoolVar(&enableConnMetricsServer, "enable-connection-metrics", false, enableConnMetricsServerUsage)
+	flag.DurationVar(&timeoutBackend, "timeout-backend", defaultTimeoutBackend, timeoutBackendUsage)
+	flag.DurationVar(&keepaliveBackend, "keepalive-backend", defaultKeepaliveBackend, keepaliveBackendUsage)
+	flag.BoolVar(&enableDualstackBackend, "enable-dualstack-backend", true, enableDualstackBackendUsage)
+	flag.DurationVar(&tlsHandshakeTimeoutBackend, "tls-timeout-backend", defaultTLSHandshakeTimeoutBackend, tlsHandshakeTimeoutBackendUsage)
+	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
 
 	flag.Parse()
 
@@ -354,6 +395,13 @@ func main() {
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
 		LoadBalancerHealthCheckInterval:     loadBalancerHealthCheckInterval,
+		ReverseSourcePredicate:              reverseSourcePredicate,
+		ReadTimeoutServer:                   readTimeoutServer,
+		ReadHeaderTimeoutServer:             readHeaderTimeoutServer,
+		WriteTimeoutServer:                  writeTimeoutServer,
+		IdleTimeoutServer:                   idleTimeoutServer,
+		MaxHeaderBytes:                      maxHeaderBytes,
+		EnableConnMetricsServer:             enableConnMetricsServer,
 	}
 
 	if insecure {

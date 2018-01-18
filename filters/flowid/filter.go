@@ -2,9 +2,10 @@ package flowid
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/filters"
 	"log"
 	"strings"
+
+	"github.com/zalando/skipper/filters"
 )
 
 const (
@@ -82,7 +83,7 @@ func (f *flowId) Request(fc filters.FilterContext) {
 }
 
 // Response is No-Op in this filter
-func (_ *flowId) Response(filters.FilterContext) {}
+func (*flowId) Response(filters.FilterContext) {}
 
 // CreateFilter will return a new flowId filter from the spec
 // If at least 1 argument is present and it contains the value "reuse", the filter instance is configured to accept
@@ -104,4 +105,4 @@ func (spec *flowIdSpec) CreateFilter(fc []interface{}) (filters.Filter, error) {
 }
 
 // Name returns the canonical filter name
-func (_ *flowIdSpec) Name() string { return Name }
+func (*flowIdSpec) Name() string { return Name }

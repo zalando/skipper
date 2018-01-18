@@ -60,7 +60,7 @@ func NewSameBucketLookuper() SameBucketLookuper {
 }
 
 // Lookup will always return "s" to select the same bucket.
-func (_ SameBucketLookuper) Lookup(req *http.Request) string {
+func (SameBucketLookuper) Lookup(*http.Request) string {
 	return "s"
 }
 
@@ -75,7 +75,7 @@ func NewXForwardedForLookuper() XForwardedForLookuper {
 
 // Lookup returns the content of the X-Forwarded-For header or the
 // clientIP if not set.
-func (_ XForwardedForLookuper) Lookup(req *http.Request) string {
+func (XForwardedForLookuper) Lookup(req *http.Request) string {
 	return net.RemoteHost(req).String()
 }
 
@@ -89,7 +89,7 @@ func NewAuthLookuper() AuthLookuper {
 }
 
 // Lookup returns the content of the Authorization header.
-func (_ AuthLookuper) Lookup(req *http.Request) string {
+func (AuthLookuper) Lookup(req *http.Request) string {
 	return req.Header.Get("Authorization")
 }
 

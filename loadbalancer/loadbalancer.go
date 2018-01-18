@@ -34,7 +34,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mailgun/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 )
 
