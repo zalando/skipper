@@ -100,6 +100,7 @@ func (lb *LB) AddHealthcheck(backend string) {
 	if lb == nil {
 		return
 	}
+	log.Debugf("add backend to be health checked by the loadbalancer: %s", backend)
 	lb.ch <- backend
 }
 
@@ -215,6 +216,6 @@ func doActiveHealthCheck(rt http.RoundTripper, backend string) state {
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
 
-	// If we are here we imagine the owner of the application does it right
+	log.Infof("Backend %v is healty again", backend)
 	return healthy
 }
