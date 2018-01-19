@@ -908,7 +908,6 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
-	log.Debugf("requesting ingresses")
 	if err := c.getJSON(ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err

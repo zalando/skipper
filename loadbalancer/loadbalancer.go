@@ -97,7 +97,7 @@ func (lb *LB) populateChecks() {
 // loadbalancer will use to do active healthchecking and dataclients
 // can ask the loadbalancer to filter unhealhyt or dead routes.
 func (lb *LB) AddHealthcheck(backend string) {
-	if lb == nil {
+	if lb == nil || lb.stop {
 		return
 	}
 	log.Debugf("add backend to be health checked by the loadbalancer: %s", backend)
@@ -111,8 +111,11 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*eskip.Route) []*eskip.Route {
 		return routes
 	}
 	result := make([]*eskip.Route, 0)
+	knownBackends := make(map[string]bool)
 	for _, r := range routes {
+		knownBackends[r.Backend] = true
 		if r.Group != "" { // only loadbalanced routes have a Group, set by dataclients
+			var st state
 			lb.RLock()
 			st, ok := lb.routeState[r.Backend]
 			lb.RUnlock()
@@ -126,22 +129,32 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*eskip.Route) []*eskip.Route {
 		}
 		result = append(result, r)
 	}
+
+	lb.Lock()
+	// FIXME: cleanup unknown routes, this will break if you use multiple dataclients at once
+	for b := range lb.routeState {
+		if _, ok := knownBackends[b]; !ok {
+			delete(lb.routeState, b)
+		}
+	}
+	lb.Unlock()
+
 	return result
 }
 
 // startDoHealthChecks will schedule every healthcheckInterval
 // healthchecks to all backends, which were reported.
 func (lb *LB) startDoHealthChecks() {
-	ticker := time.NewTicker(lb.healthcheckInterval)
+	healthTicker := time.NewTicker(lb.healthcheckInterval)
 	rt := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout:   500 * time.Millisecond,
+			Timeout:   3000 * time.Millisecond,
 			KeepAlive: 30 * time.Second,
 			DualStack: true,
 		}).DialContext,
-		TLSHandshakeTimeout:   500 * time.Millisecond,
-		ResponseHeaderTimeout: 1 * time.Second,
-		ExpectContinueTimeout: 500 * time.Millisecond,
+		TLSHandshakeTimeout:   3000 * time.Millisecond,
+		ResponseHeaderTimeout: 10 * time.Second,
+		ExpectContinueTimeout: 5000 * time.Millisecond,
 		MaxIdleConns:          20, // 0 -> no limit
 		MaxIdleConnsPerHost:   1,  // http.DefaultMaxIdleConnsPerHost=2
 		IdleConnTimeout:       10 * time.Second,
@@ -149,8 +162,7 @@ func (lb *LB) startDoHealthChecks() {
 
 	for {
 		select {
-		case t := <-ticker.C:
-			log.Debugf("Tick at", t)
+		case <-healthTicker.C:
 			now := time.Now()
 
 			lb.RLock()
@@ -175,10 +187,13 @@ func (lb *LB) startDoHealthChecks() {
 					lb.Unlock()
 				}
 			}
-			log.Debugf("Took %v", time.Now().Sub(now))
+			log.Debugf("Checking health took %v", time.Now().Sub(now))
+
 		case <-lb.sigtermSignal:
-			ticker.Stop()
+			log.Infoln("Shutdown loadbalancer")
+			healthTicker.Stop()
 			lb.stop = true
+			close(lb.ch)
 			return
 		}
 	}
