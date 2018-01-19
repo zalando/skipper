@@ -9,3 +9,4 @@ pages:
         - Kubernetes: dataclients/kubernetes.md
         - Route String: dataclients/route-string.md
     - Scripts: scripts.md
+    - Operations: operations.md
