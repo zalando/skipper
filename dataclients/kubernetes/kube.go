@@ -188,8 +188,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/loadbalancer"
 	lb "github.com/zalando/skipper/loadbalancer"
-	"github.com/zalando/skipper/predicates/loadbalancer"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 )

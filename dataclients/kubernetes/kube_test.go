@@ -1253,7 +1253,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			route, err := dc.convertPathRule("", "", "", tc.rule, map[string]string{"foo": "backend"})
+			route, err := dc.convertPathRule("", "", "", tc.rule, map[string][]string{"foo": {"backend"}})
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}

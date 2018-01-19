@@ -10,7 +10,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/predicates/loadbalancer"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
