@@ -229,7 +229,7 @@ type proxyError struct {
 
 func (e *proxyError) Error() string {
 	if e.err != nil {
-		return e.err.Error()
+		return fmt.Sprintf("proxy error with code %d, unwrap: %v", e.code, e.err.Error())
 	}
 
 	if e.handled {
@@ -584,10 +584,21 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
 		if perr, ok := err.(net.Error); ok {
 			p.lb.AddHealthcheck(ctx.route.Backend)
-			p.log.Debugf("perr timeout=%v, temporary=%v: %v", perr.Timeout(), perr.Temporary(), perr)
-			err = &proxyError{
-				err:  err,
-				code: http.StatusServiceUnavailable,
+			if perr.Timeout() {
+				return nil, &proxyError{
+					err:  err,
+					code: http.StatusGatewayTimeout,
+				}
+			} else if !perr.Temporary() {
+				return nil, &proxyError{
+					err:  err,
+					code: http.StatusServiceUnavailable,
+				}
+			} else {
+				return nil, &proxyError{
+					err:  err,
+					code: http.StatusInternalServerError,
+				}
 			}
 		}
 
@@ -737,9 +748,14 @@ func (p *Proxy) do(ctx *context) error {
 				}
 				rsp, perr = p.makeBackendRequest(ctx)
 				if perr != nil {
+					p.log.Errorf("Failed to do backend request to %s, retry failed to %s: %v", origRoute.Backend, ctx.route.Backend, perr)
+					if perr.code >= http.StatusInternalServerError {
+						p.metrics.MeasureBackend5xx(backendStart)
+					}
 					return perr.err
 				}
 			} else {
+				p.log.Errorf("Failed to do backend request to %s: %v", ctx.route.Backend, perr)
 				return perr.err
 			}
 		}
