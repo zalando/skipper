@@ -166,7 +166,7 @@ func TestTeeEndToEndBody(t *testing.T) {
 	<-shadowHandler.served
 
 	rsp.Body.Close()
-	if shadowHandler.body != testingStr && originalHandler.body != testingStr {
+	if shadowHandler.body != testingStr || originalHandler.body != testingStr {
 		t.Error("Bodies are not equal")
 	}
 }
