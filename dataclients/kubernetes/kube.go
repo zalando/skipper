@@ -593,6 +593,11 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		routes []*eskip.Route
 	)
 
+	var pathExpressions []string
+	if prule.Path != "" {
+		pathExpressions = []string{"^" + prule.Path}
+	}
+
 	if val, ok := endpointsURLs[endpointKey]; !ok {
 		eps, err = c.getEndpoints(ns, prule.Backend.ServiceName)
 		if err == errEndpointNotFound {
@@ -605,23 +610,27 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 				return nil, err2
 			}
 			r := &eskip.Route{
-				Id:      routeID(ns, prule.Backend.ServiceName, "", "", ""),
-				Backend: address,
+				Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName),
+				PathRegexps: pathExpressions,
+				Backend:     address,
+			}
+			if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+				r.Predicates = append([]*eskip.Predicate{{
+					Name: traffic.PredicateName,
+					Args: []interface{}{prule.Backend.Traffic},
+				}}, r.Predicates...)
+				log.Infof("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, prule.Backend.ServiceName)
 			}
 			routes = append(routes, r)
 		} else if err != nil {
 			return nil, err
+		} else {
+			endpointsURLs[endpointKey] = eps
 		}
-		endpointsURLs[endpointKey] = eps
 		log.Debugf("%d new routes for %s/%s/%s", len(eps), ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
 	} else {
 		eps = val
 		log.Debugf("%d routes for %s/%s/%s already known", len(eps), ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
-	}
-
-	var pathExpressions []string
-	if prule.Path != "" {
-		pathExpressions = []string{"^" + prule.Path}
 	}
 
 	nextRoute := make(map[string]*eskip.Route)

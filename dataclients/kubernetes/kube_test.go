@@ -1188,18 +1188,18 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 		route *eskip.Route
 	}{
 		{
-			msg: "if traffic weihgt is between 0 and 1 predicate should be added to route",
+			msg: "if traffic weight is between 0 and 1 predicate should be added to route",
 			rule: &pathRule{
 				Path: "",
 				Backend: &backend{
-					ServiceName: "foo",
+					ServiceName: "service1",
+					ServicePort: backendPort{"port1"},
 					Traffic:     0.3,
 				},
 			},
 			route: &eskip.Route{
-				Id:          routeID("", "", "", "", "foo"),
-				PathRegexps: nil,
-				Backend:     "backend",
+				Id:      routeID("namespace1", "", "", "", "service1"),
+				Backend: "http://1.2.3.4:8080",
 				Predicates: []*eskip.Predicate{
 					{
 						Name: "Traffic",
@@ -1209,38 +1209,38 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 			},
 		},
 		{
-			msg: "if traffic weihgt is 0, don't include traffic predicate",
+			msg: "if traffic weight is 0, don't include traffic predicate",
 			rule: &pathRule{
 				Path: "",
 				Backend: &backend{
-					ServiceName: "foo",
+					ServiceName: "service1",
+					ServicePort: backendPort{"port1"},
 					Traffic:     0.0,
 				},
 			},
 			route: &eskip.Route{
-				Id:          routeID("", "", "", "", "foo"),
-				PathRegexps: nil,
-				Backend:     "backend",
+				Id:      routeID("namespace1", "", "", "", "service1"),
+				Backend: "http://1.2.3.4:8080",
 			},
 		},
 		{
-			msg: "if traffic weihgt is 1, don't include traffic predicate",
+			msg: "if traffic weight is 1, don't include traffic predicate",
 			rule: &pathRule{
 				Path: "",
 				Backend: &backend{
-					ServiceName: "foo",
+					ServiceName: "service1",
+					ServicePort: backendPort{"port1"},
 					Traffic:     1.0,
 				},
 			},
 			route: &eskip.Route{
-				Id:          routeID("", "", "", "", "foo"),
-				PathRegexps: nil,
-				Backend:     "backend",
+				Id:      routeID("namespace1", "", "", "", "service1"),
+				Backend: "http://1.2.3.4:8080",
 			},
 		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
-			api := newTestAPI(t, nil, &ingressList{})
+			api := newTestAPI(t, testServices(), &ingressList{})
 			defer api.Close()
 			dc, err := New(Options{KubernetesURL: api.server.URL})
 			if err != nil {
@@ -1253,12 +1253,12 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			route, err := dc.convertPathRule("", "", "", tc.rule, map[string][]string{"foo": {"backend"}})
+			route, err := dc.convertPathRule("namespace1", "", "", tc.rule, map[string][]string{})
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}
 
-			if !reflect.DeepEqual(tc.route, route) {
+			if !reflect.DeepEqual(tc.route, route[0]) {
 				t.Errorf("generated route should match expected route")
 			}
 		})
