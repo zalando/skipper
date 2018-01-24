@@ -147,6 +147,12 @@ type Route struct {
 	Group string
 }
 
+// IsLoadBalanced returns true only if the route is a loadbalanced
+// group. Next can be nil if r is the last in the group.
+func (r *Route) IsLoadBalanced() bool {
+	return r.Me != nil && r.Head != nil && r.Group != ""
+}
+
 type RoutePredicate func(*Route) bool
 
 // RouteInfo contains a route id, plus the loaded and parsed route or

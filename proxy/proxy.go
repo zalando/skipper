@@ -581,8 +581,8 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
-		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
 		if perr, ok := err.(net.Error); ok {
+			p.log.Errorf("Net error during backend roundtrip: %s timeout=%v temaporary=%v: %v", ctx.route.Id, perr.Timeout(), perr.Temporary(), err)
 			p.lb.AddHealthcheck(ctx.route.Backend)
 			if perr.Timeout() {
 				return nil, &proxyError{
@@ -601,7 +601,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 				}
 			}
 		}
-
+		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
 		return nil, &proxyError{err: err}
 	}
 	ext.HTTPStatusCode.Set(proxySpan, uint16(response.StatusCode))
@@ -738,7 +738,7 @@ func (p *Proxy) do(ctx *context) error {
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 
 			neterr := perr.NetError()
-			if neterr != nil && !neterr.Temporary() {
+			if neterr != nil && !neterr.Temporary() && ctx.route.IsLoadBalanced() {
 				// here we do a transparent retry, because we know it's safe to do
 				origRoute := ctx.route.Route.Me
 				if ctx.route.Next != nil && origRoute != ctx.route.Next {
