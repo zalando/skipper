@@ -131,7 +131,7 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*eskip.Route) []*eskip.Route {
 	}
 
 	lb.Lock()
-	// FIXME: cleanup unknown routes, this will break if you use multiple dataclients at once
+	// TODO(sszuecs): cleanup unknown routes, this will break if you use multiple dataclients at once
 	for b := range lb.routeState {
 		if _, ok := knownBackends[b]; !ok {
 			delete(lb.routeState, b)
@@ -166,7 +166,7 @@ func (lb *LB) startDoHealthChecks() {
 			now := time.Now()
 
 			lb.RLock()
-			backends := make([]string, len(lb.routeState))
+			backends := make([]string, 0, len(lb.routeState))
 			for b := range lb.routeState {
 				backends = append(backends, b)
 			}
