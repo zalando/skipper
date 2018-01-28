@@ -40,6 +40,9 @@ import (
 
 type state int
 
+// TODO:
+// - can these states really combined or it's just an incremental enum?
+// - shouldn't `unknown` be 0?
 const (
 	healthy   state = 1 << iota // pool member serving traffic and accepting new connections
 	unhealthy                   // pool member probably serving traffic but should not get new connections, because of SIGTERM, overload, ..
@@ -93,7 +96,7 @@ func (lb *LB) populateChecks() {
 	}
 }
 
-// AddHealthcheck can be used to report unhealty routes, which
+// AddHealthcheck can be used to report unhealthy routes, which
 // loadbalancer will use to do active healthchecking and dataclients
 // can ask the loadbalancer to filter unhealhyt or dead routes.
 func (lb *LB) AddHealthcheck(backend string) {
@@ -228,9 +231,10 @@ func doActiveHealthCheck(rt http.RoundTripper, backend string) state {
 	}
 
 	// we only check StatusCode
+	// TODO: check StatusCode ;)
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
 
-	log.Infof("Backend %v is healty again", backend)
+	log.Infof("Backend %v is healthy again", backend)
 	return healthy
 }

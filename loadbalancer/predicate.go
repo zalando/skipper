@@ -1,25 +1,18 @@
 package loadbalancer
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
 const (
-	groupPredicateName  = "LBGroup"
-	memberPredicateName = "LBMember"
-	decideFilterName    = "lbDecide"
-
-	decisionHeader = "X-Load-Balancer-Member"
+	GroupPredicateName  = "LBGroup"
+	MemberPredicateName = "LBMember"
 )
-
-type counter chan int
 
 type groupSpec struct{}
 
@@ -32,14 +25,6 @@ type memberSpec struct{}
 type memberPredicate struct {
 	group       string
 	indexString string
-}
-
-type decideSpec struct{}
-
-type decideFilter struct {
-	group   string
-	size    int
-	counter counter
 }
 
 func getGroupDecision(h http.Header, group string) (string, bool) {
@@ -57,29 +42,11 @@ func getGroupDecision(h http.Header, group string) (string, bool) {
 	return "", false
 }
 
-func newCounter() counter {
-	c := make(counter, 1)
-	c <- 0
-	return c
-}
-
-func (c counter) inc(groupSize int) int {
-	v := <-c
-	c <- v + 1
-	return v % groupSize
-}
-
-func (c counter) value() int {
-	v := <-c
-	c <- v
-	return v
-}
-
 func NewGroup() routing.PredicateSpec {
 	return &groupSpec{}
 }
 
-func (s *groupSpec) Name() string { return groupPredicateName }
+func (s *groupSpec) Name() string { return GroupPredicateName }
 
 func (s *groupSpec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 1 {
@@ -103,7 +70,7 @@ func NewMember() routing.PredicateSpec {
 	return &memberSpec{}
 }
 
-func (s *memberSpec) Name() string { return memberPredicateName }
+func (s *memberSpec) Name() string { return MemberPredicateName }
 
 func (s *memberSpec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 2 {
@@ -135,41 +102,3 @@ func (p *memberPredicate) Match(req *http.Request) bool {
 	member, _ := getGroupDecision(req.Header, p.group)
 	return member == p.indexString
 }
-
-func NewDecide() filters.Spec { return &decideSpec{} }
-
-func (s *decideSpec) Name() string { return decideFilterName }
-
-func (s *decideSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 2 {
-		return nil, predicates.ErrInvalidPredicateParameters
-	}
-
-	group, ok := args[0].(string)
-	if !ok {
-		return nil, predicates.ErrInvalidPredicateParameters
-	}
-
-	size, ok := args[1].(int)
-	if !ok {
-		fsize, ok := args[1].(float64)
-		if !ok {
-			return nil, predicates.ErrInvalidPredicateParameters
-		}
-
-		size = int(fsize)
-	}
-
-	return &decideFilter{
-		group:   group,
-		size:    size,
-		counter: newCounter(),
-	}, nil
-}
-
-func (f *decideFilter) Request(ctx filters.FilterContext) {
-	current := f.counter.inc(f.size)
-	ctx.Request().Header.Set(decisionHeader, fmt.Sprintf("%s=%d", f.group, current))
-}
-
-func (f *decideFilter) Response(filters.FilterContext) {}

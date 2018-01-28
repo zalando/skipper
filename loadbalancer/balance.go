@@ -21,13 +21,13 @@ func createDecisionRoute(original *eskip.Route, groupName string, groupSize int)
 
 	// we keep the original predicates, too, to avoid conflicts with other routing:
 	dr.Predicates = append(dr.Predicates, &eskip.Predicate{
-		Name: groupPredicateName,
+		Name: GroupPredicateName,
 		Args: []interface{}{groupName},
 	})
 
 	// original filters only in the member routes:
 	dr.Filters = []*eskip.Filter{{
-		Name: decideFilterName,
+		Name: DecideFilterName,
 		Args: []interface{}{groupName, groupSize},
 	}}
 
@@ -44,7 +44,7 @@ func createMember(original *eskip.Route, groupName string, index int, backend st
 
 	// we keep the original predicates, too, to avoid conflicts with other routing:
 	m.Predicates = append(m.Predicates, &eskip.Predicate{
-		Name: memberPredicateName,
+		Name: MemberPredicateName,
 		Args: []interface{}{groupName, index},
 	})
 
@@ -65,6 +65,11 @@ func createMembers(original *eskip.Route, groupName string, backends []string) [
 
 	return members
 }
+
+// TODO:
+// - the default function should not load balancer if there's only a single route
+// - for special use cases on the side of the user code, provide an additional function that load balances even
+// when there's only a single route (?)
 
 func BalanceRoute(r *eskip.Route, backends []string) []*eskip.Route {
 	if len(backends) == 0 {

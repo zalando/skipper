@@ -73,11 +73,11 @@ func TestBalanceRoute(t *testing.T) {
 				Name: "Pred2",
 				Args: []interface{}{4, 5, 6},
 			}, {
-				Name: groupPredicateName,
+				Name: GroupPredicateName,
 				Args: []interface{}{createGroupName("foo")},
 			}},
 			Filters: []*eskip.Filter{{
-				Name: decideFilterName,
+				Name: DecideFilterName,
 				Args: []interface{}{createGroupName("foo"), 1},
 			}},
 			BackendType: eskip.LoopBackend,
@@ -91,7 +91,7 @@ func TestBalanceRoute(t *testing.T) {
 				Name: "Pred2",
 				Args: []interface{}{4, 5, 6},
 			}, {
-				Name: memberPredicateName,
+				Name: MemberPredicateName,
 				Args: []interface{}{createGroupName("foo"), 0},
 			}},
 			Filters: []*eskip.Filter{{
@@ -135,11 +135,11 @@ func TestBalanceRoute(t *testing.T) {
 				Name: "Pred2",
 				Args: []interface{}{4, 5, 6},
 			}, {
-				Name: groupPredicateName,
+				Name: GroupPredicateName,
 				Args: []interface{}{createGroupName("foo")},
 			}},
 			Filters: []*eskip.Filter{{
-				Name: decideFilterName,
+				Name: DecideFilterName,
 				Args: []interface{}{createGroupName("foo"), 3},
 			}},
 			BackendType: eskip.LoopBackend,
@@ -153,7 +153,7 @@ func TestBalanceRoute(t *testing.T) {
 				Name: "Pred2",
 				Args: []interface{}{4, 5, 6},
 			}, {
-				Name: memberPredicateName,
+				Name: MemberPredicateName,
 				Args: []interface{}{createGroupName("foo"), 0},
 			}},
 			Filters: []*eskip.Filter{{
@@ -174,7 +174,7 @@ func TestBalanceRoute(t *testing.T) {
 				Name: "Pred2",
 				Args: []interface{}{4, 5, 6},
 			}, {
-				Name: memberPredicateName,
+				Name: MemberPredicateName,
 				Args: []interface{}{createGroupName("foo"), 1},
 			}},
 			Filters: []*eskip.Filter{{
@@ -195,7 +195,7 @@ func TestBalanceRoute(t *testing.T) {
 				Name: "Pred2",
 				Args: []interface{}{4, 5, 6},
 			}, {
-				Name: memberPredicateName,
+				Name: MemberPredicateName,
 				Args: []interface{}{createGroupName("foo"), 2},
 			}},
 			Filters: []*eskip.Filter{{

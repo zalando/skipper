@@ -594,7 +594,9 @@ func Run(o Options) error {
 		cookie.New(),
 		query.New(),
 		traffic.New(),
-		loadbalancer.New())
+		loadbalancer.NewGroup(),
+		loadbalancer.NewMember(),
+	)
 
 	// create a routing engine
 	routing := routing.New(routing.Options{

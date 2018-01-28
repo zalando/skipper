@@ -9,7 +9,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/loadbalancer"
+	// "github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -37,6 +37,7 @@ func (c counter) String() string {
 }
 
 func TestConcurrent(t *testing.T) {
+	// This test should be converted into the new predicate/filter style
 	t.Skip()
 
 	// two backends
@@ -106,13 +107,15 @@ func TestConcurrent(t *testing.T) {
 
 	wg.Wait()
 
-	for _, logs := range loadbalancer.CountNonMatched {
-		if len(logs) > 1 {
-			for i := range logs {
-				t.Log(logs[i])
+	/*
+		for _, logs := range loadbalancer.CountNonMatched {
+			if len(logs) > 1 {
+				for i := range logs {
+					t.Log(logs[i])
+				}
 			}
 		}
-	}
+	*/
 
 	t.Error("just fail", c1, c2, failureCount)
 }
