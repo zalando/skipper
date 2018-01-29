@@ -540,6 +540,8 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 // because Ingress status field is v1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
 func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
+	// TODO: apply the laod balancing by using the loadbalancer.BalanceRoute() function
+
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
 	for _, i := range items {
@@ -554,6 +556,9 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		} else if err != nil {
 			log.Errorf("error while converting default backend: %v", err)
 		}
+
+		// TODO: only apply the filters from the annotations if it
+		// is not an LB decision route
 
 		// parse filter and ratelimit annotation
 		var annotationFilter string
@@ -611,6 +616,8 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 					for _, r := range endpoints {
 						r.HostRegexps = host
+						// TODO: only apply the filters from the annotations if it
+						// is not an LB decision route
 						if annotationFilter != "" {
 							annotationFilters, err := eskip.ParseFilters(annotationFilter)
 							if err != nil {
