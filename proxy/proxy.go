@@ -15,7 +15,6 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
@@ -747,7 +746,7 @@ func (p *Proxy) do(ctx *context) error {
 				} else if ctx.route.Head != nil && origRoute != ctx.route.Head {
 					ctx.route = ctx.route.Head
 				}
-				log.Infof("Do retry call to: %s orig: %s", ctx.route.Route.Backend, origRoute.Backend)
+				p.log.Infof("Do retry call to: %s orig: %s", ctx.route.Route.Backend, origRoute.Backend)
 				perr = nil
 				var perr2 *proxyError
 				rsp, perr2 = p.makeBackendRequest(ctx)
