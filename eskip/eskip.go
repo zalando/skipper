@@ -126,31 +126,6 @@ type Route struct {
 	// The address of a backend for a parsed route.
 	// E.g. "https://www.example.org"
 	Backend string
-
-	// Next is forming a linked to the next route of a
-	// loadbalanced group of routes. This is nil if the route is
-	// the last in the linked list or there is only one route. To
-	// find the Next in case of the last route of the list, you
-	// have to use the Head.
-	Next *Route
-
-	// Head is the pointer to the head of linked list that forms
-	// the loadbalancer group of Route. Every Route will point to
-	// the same Route for being Head.
-	Head *Route
-
-	// Me is a pointer to self, to workaround Go type missmatch
-	// check, because eskip.Route != routing.Route
-	Me *Route
-
-	// Group is equal for all routes, members, forming a loadbalancer pool.
-	Group string
-}
-
-// IsLoadBalanced returns true only if the route is a loadbalanced
-// group. Next can be nil if r is the last in the group.
-func (r *Route) IsLoadBalanced() bool {
-	return r.Me != nil && r.Head != nil && r.Group != ""
 }
 
 type RoutePredicate func(*Route) bool

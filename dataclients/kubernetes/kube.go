@@ -381,7 +381,10 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 
 	group := routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", "")
 
-	// TODO: dont' do load balancing if there's only a single endpoint
+	// TODO:
+	// - don't do load balancing if there's only a single endpoint
+	// - better: cleanup single route load balancer groups in the routing package before applying the next
+	// routing table
 
 	for idx, ep := range eps {
 		r := &eskip.Route{
@@ -490,7 +493,6 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 	}
 
 	group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName)
-	nextRoute := make(map[string]*eskip.Route)
 	for idx, ep := range eps {
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName+fmt.Sprintf("_%d", idx)),
@@ -503,20 +505,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 					idx, // index within the group
 				},
 			}},
-			Group: group,
 		}
-
-		// Create linked list of routes, if there are more then one endpoint in a group.
-		// rN.Head points to r1 for every N.
-		// rN.Next points to rN-1 for every N, besides the last which points to nil.
-		if prev, ok := nextRoute[group]; ok {
-			prev.Next = r
-			r.Head = prev.Head
-		} else {
-			r.Head = r
-		}
-		r.Me = r
-		nextRoute[group] = r
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
@@ -806,8 +795,15 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 	log.Debugf("all routes created: %d", len(r))
-	routes := c.lb.FilterHealthyMemberRoutes(r)
+
+	// TODO: this is runtime stuff, should be moved to the routing from the dataclient
+	// NOTE: it would be awesome to add a logic, that cleans off the unhealthy endpoints or triggers it.
+	// For that we'll add some interface, so that different scenarios can benefit from it, but I think it's
+	// still not the eskip level is the right one for that.
+	// routes := c.lb.FilterHealthyMemberRoutes(r)
+	routes := r
 	log.Debugf("all routes after filter unhealthy routes: %d", len(routes))
+
 	return routes, nil
 }
 

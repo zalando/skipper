@@ -738,13 +738,18 @@ func (p *Proxy) do(ctx *context) error {
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 
 			neterr := perr.NetError()
-			if neterr != nil && !neterr.Temporary() && ctx.route.IsLoadBalanced() {
+			if neterr != nil && !neterr.Temporary() && ctx.route.IsLoadBalanced {
 				// here we do a transparent retry, because we know it's safe to do
-				origRoute := ctx.route.Route.Me
+				origRoute := ctx.route.Me
 				if ctx.route.Next != nil && origRoute != ctx.route.Next {
-					ctx.route.Route = *ctx.route.Next
+					// QUESTION:
+					// - is it guaranteed that network errors only happen before the
+					// backend started processing a request? why cannot it happen
+					// after? E.g. the connection is broken while the server is reading
+					// the request body?
+					ctx.route = ctx.route.Next
 				} else if ctx.route.Head != nil && origRoute != ctx.route.Head {
-					ctx.route.Route = *ctx.route.Head
+					ctx.route = ctx.route.Head
 				}
 				rsp, perr = p.makeBackendRequest(ctx)
 				if perr != nil {

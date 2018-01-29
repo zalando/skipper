@@ -1,24 +1,3 @@
-// Package loadbalancer implements health checking of pool members for
-// a group of routes, if backend calls are reported to the loadbalancer.
-//
-// Based on https://landing.google.com/sre/book/chapters/load-balancing-datacenter.html#identifying-bad-tasks-flow-control-and-lame-ducks-bEs0uy we use
-//
-// Healthy (healthy)
-//
-//     The backend task has initialized correctly and is processing
-//     requests.
-//
-// Refusing connections (dead)
-//
-//     The backend task is unresponsive. This can happen because the
-//     task is starting up or shutting down, or because the backend is
-//     in an abnormal state (though it would be rare for a backend to
-//     stop listening on its port if it is not shutting down).
-//
-// Lame duck (unhealthy)
-//
-//     The backend task is listening on its port and can serve, but is
-//     explicitly asking clients to stop sending requests.
 package loadbalancer
 
 import (
@@ -35,7 +14,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/routing"
 )
 
 type state int
@@ -109,11 +88,11 @@ func (lb *LB) AddHealthcheck(backend string) {
 
 // FilterHealthyMemberRoutes can be used by dataclients to filter for
 // routes that have known not healthy backends.
-func (lb *LB) FilterHealthyMemberRoutes(routes []*eskip.Route) []*eskip.Route {
+func (lb *LB) FilterHealthyMemberRoutes(routes []*routing.Route) []*routing.Route {
 	if lb == nil {
 		return routes
 	}
-	result := make([]*eskip.Route, 0)
+	var result []*routing.Route
 	knownBackends := make(map[string]bool)
 	for _, r := range routes {
 		knownBackends[r.Backend] = true

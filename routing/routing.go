@@ -146,6 +146,29 @@ type Route struct {
 
 	// The preprocessed filter instances.
 	Filters []*RouteFilter
+
+	// TODO: would a circular list be better?
+
+	// Next is forming a linked to the next route of a
+	// loadbalanced group of routes. This is nil if the route is
+	// the last in the linked list or there is only one route. To
+	// find the Next in case of the last route of the list, you
+	// have to use the Head.
+	Next *Route
+
+	// Head is the pointer to the head of linked list that forms
+	// the loadbalancer group of Route. Every Route will point to
+	// the same Route for being Head.
+	Head *Route
+
+	// Me is a pointer to self, to workaround Go type missmatch
+	// check, because eskip.Route != routing.Route
+	Me *Route
+
+	// Group is equal for all routes, members, forming a loadbalancer pool.
+	Group string
+
+	IsLoadBalanced bool
 }
 
 // Routing ('router') instance providing live

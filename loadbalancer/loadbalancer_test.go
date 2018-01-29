@@ -4,9 +4,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/zalando/skipper/eskip"
+	// "github.com/google/go-cmp/cmp"
+	// "github.com/zalando/skipper/eskip"
 )
 
 var testlb *LB
@@ -92,77 +91,79 @@ func TestLB_AddHealthcheck(t *testing.T) {
 	}
 }
 
-func createRoute(id, backend, group string) *eskip.Route {
-	return &eskip.Route{
-		Id:      id,
-		Backend: backend,
-		Group:   group,
-	}
-}
+// func createRoute(id, backend, group string) *eskip.Route {
+// 	return &eskip.Route{
+// 		Id:      id,
+// 		Backend: backend,
+// 		Group:   group,
+// 	}
+// }
 
 // TODO:
 // - these tests should have a local server running instead of hitting example.com
-// - this test sensitive for timing, especially the 'multiple routes two filtered route' can unpredictably fail
+// - these tests are sensitive for timing, especially the 'multiple routes two filtered route' can unpredictably fail
 func TestLB_FilterHealthyMemberRoutes(t *testing.T) {
 	t.Skip() // see TODO
 
-	tests := []struct {
-		name       string
-		lb         *LB
-		routes     []*eskip.Route
-		routeState map[string]state
-		want       []*eskip.Route
-	}{
-		{
-			name:   "nil lb should not filter routes",
-			lb:     nil,
-			routes: []*eskip.Route{createRoute("id", "http://127.0.0.1:1234/", "g1")},
-			want:   []*eskip.Route{createRoute("id", "http://127.0.0.1:1234/", "g1")},
-		},
-		{
-			name:   "one non filtered route",
-			lb:     NewLB(750 * time.Millisecond),
-			routes: []*eskip.Route{createRoute("id", "http://example.com/", "foo")},
-			want:   []*eskip.Route{createRoute("id", "http://example.com/", "foo")},
-		},
-		{
-			name:   "one filtered route",
-			lb:     NewLB(750 * time.Millisecond),
-			routes: []*eskip.Route{createRoute("id", "http://127.0.0.1:1334/", "bar")},
-			want:   []*eskip.Route{},
-		},
-		{
-			name: "multiple routes two filtered route",
-			lb:   NewLB(750 * time.Millisecond),
-			routes: []*eskip.Route{
-				createRoute("id", "http://example.com/", "foo"),
-				createRoute("id", "http://127.0.0.1:1334/", "baz"),
-				createRoute("id", "http://127.0.0.1:1335/", "baz"),
+	/*
+		tests := []struct {
+			name       string
+			lb         *LB
+			routes     []*eskip.Route
+			routeState map[string]state
+			want       []*eskip.Route
+		}{
+			{
+				name:   "nil lb should not filter routes",
+				lb:     nil,
+				routes: []*eskip.Route{createRoute("id", "http://127.0.0.1:1234/", "g1")},
+				want:   []*eskip.Route{createRoute("id", "http://127.0.0.1:1234/", "g1")},
 			},
-			want: []*eskip.Route{createRoute("id", "http://example.com/", "foo")},
-		},
-	}
-	for _, tt := range tests {
-		for _, r := range tt.routes {
-			tt.lb.AddHealthcheck(r.Backend)
+			{
+				name:   "one non filtered route",
+				lb:     NewLB(750 * time.Millisecond),
+				routes: []*eskip.Route{createRoute("id", "http://example.com/", "foo")},
+				want:   []*eskip.Route{createRoute("id", "http://example.com/", "foo")},
+			},
+			{
+				name:   "one filtered route",
+				lb:     NewLB(750 * time.Millisecond),
+				routes: []*eskip.Route{createRoute("id", "http://127.0.0.1:1334/", "bar")},
+				want:   []*eskip.Route{},
+			},
+			{
+				name: "multiple routes two filtered route",
+				lb:   NewLB(750 * time.Millisecond),
+				routes: []*eskip.Route{
+					createRoute("id", "http://example.com/", "foo"),
+					createRoute("id", "http://127.0.0.1:1334/", "baz"),
+					createRoute("id", "http://127.0.0.1:1335/", "baz"),
+				},
+				want: []*eskip.Route{createRoute("id", "http://example.com/", "foo")},
+			},
 		}
-
-		// TODO (aryszka):
-		// - check all newly added sleeps, and use mock synchronization points instead
-		time.Sleep(1 * time.Second)
-
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.lb.FilterHealthyMemberRoutes(tt.routes); !cmp.Equal(got, tt.want) {
-				t.Errorf("%s, got: %v, expected: %v", tt.name, got, tt.want)
-				t.Log(cmp.Diff(got, tt.want))
+		for _, tt := range tests {
+			for _, r := range tt.routes {
+				tt.lb.AddHealthcheck(r.Backend)
 			}
-		})
-		// cleanup
-		if tt.lb != nil {
-			// TODO: don't scatter sigterm handling across components of the code. Use instead a
-			// Close function or quit channel, and use the sigterm only centrally in the most
-			// root block of the executable binary.
-			tt.lb.sigtermSignal <- syscall.SIGTERM
+
+			// TODO (aryszka):
+			// - check all newly added sleeps, and use mock synchronization points instead
+			time.Sleep(1 * time.Second)
+
+			t.Run(tt.name, func(t *testing.T) {
+				if got := tt.lb.FilterHealthyMemberRoutes(tt.routes); !cmp.Equal(got, tt.want) {
+					t.Errorf("%s, got: %v, expected: %v", tt.name, got, tt.want)
+					t.Log(cmp.Diff(got, tt.want))
+				}
+			})
+			// cleanup
+			if tt.lb != nil {
+				// TODO: don't scatter sigterm handling across components of the code. Use instead a
+				// Close function or quit channel, and use the sigterm only centrally in the most
+				// root block of the executable binary.
+				tt.lb.sigtermSignal <- syscall.SIGTERM
+			}
 		}
-	}
+	*/
 }
