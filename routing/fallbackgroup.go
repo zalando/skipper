@@ -9,6 +9,9 @@ func applyFallbackGroups(r []*Route) []*Route {
 	for i := range r {
 		for j := range r[i].Predicates {
 			er := r[i].Route
+
+			// NOTE: this one "LBMember" is now hard coded. It can be fixed if we implement this
+			// logic as a post processor.
 			if er.Predicates[j].Name != "LBMember" {
 				continue
 			}

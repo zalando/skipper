@@ -115,6 +115,8 @@ type Options struct {
 
 	// SuppressLogs indicates whether to log only a summary of the route changes.
 	SuppressLogs bool
+
+	PostProcessors []PostProcessor
 }
 
 // RouteFilter contains extensions to generic filter
@@ -169,6 +171,11 @@ type Route struct {
 	Group string
 
 	IsLoadBalanced bool
+}
+
+// Experimental!
+type PostProcessor interface {
+	Do([]*Route) []*Route
 }
 
 // Routing ('router') instance providing live

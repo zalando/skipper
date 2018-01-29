@@ -22,7 +22,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/loadbalancer"
-	lb "github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 )
@@ -108,9 +107,6 @@ type Options struct {
 
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
-
-	// loadbalancer
-	LoadBalancer *lb.LB
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -124,7 +120,6 @@ type Client struct {
 	termReceived           bool
 	sigs                   chan os.Signal
 	ingressClass           *regexp.Regexp
-	lb                     *lb.LB
 	reverseSourcePredicate bool
 }
 
@@ -174,15 +169,14 @@ func New(o Options) (*Client, error) {
 	}
 
 	return &Client{
-		httpClient:           httpClient,
-		apiURL:               apiURL,
-		provideHealthcheck:   o.ProvideHealthcheck,
-		provideHTTPSRedirect: o.ProvideHTTPSRedirect,
-		current:              make(map[string]*eskip.Route),
-		token:                token,
-		sigs:                 sigs,
-		ingressClass:         ingClsRx,
-		lb:                   o.LoadBalancer,
+		httpClient:             httpClient,
+		apiURL:                 apiURL,
+		provideHealthcheck:     o.ProvideHealthcheck,
+		provideHTTPSRedirect:   o.ProvideHTTPSRedirect,
+		current:                make(map[string]*eskip.Route),
+		token:                  token,
+		sigs:                   sigs,
+		ingressClass:           ingClsRx,
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 	}, nil
 }
@@ -796,15 +790,7 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	}
 	log.Debugf("all routes created: %d", len(r))
 
-	// TODO: this is runtime stuff, should be moved to the routing from the dataclient
-	// NOTE: it would be awesome to add a logic, that cleans off the unhealthy endpoints or triggers it.
-	// For that we'll add some interface, so that different scenarios can benefit from it, but I think it's
-	// still not the eskip level is the right one for that.
-	// routes := c.lb.FilterHealthyMemberRoutes(r)
-	routes := r
-	log.Debugf("all routes after filter unhealthy routes: %d", len(routes))
-
-	return routes, nil
+	return r, nil
 }
 
 func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {

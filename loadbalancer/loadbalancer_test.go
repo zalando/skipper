@@ -10,7 +10,7 @@ import (
 
 var testlb *LB
 
-func createNewLB() *LB {
+func createNew() *LB {
 	if testlb == nil {
 		testlb = &LB{
 			stop:                false,
@@ -20,7 +20,7 @@ func createNewLB() *LB {
 	return testlb
 }
 
-func TestNewLB(t *testing.T) {
+func TestNew(t *testing.T) {
 	tests := []struct {
 		name                string
 		healthcheckInterval time.Duration
@@ -33,13 +33,13 @@ func TestNewLB(t *testing.T) {
 		}, {
 			name:                "no run of goroutine, because long duration",
 			healthcheckInterval: 30 * time.Second,
-			want:                createNewLB(),
+			want:                createNew(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewLB(tt.healthcheckInterval); got != tt.want && !(got.healthcheckInterval == tt.want.healthcheckInterval || got.stop == tt.want.stop) {
-				t.Errorf("NewLB() = %v, want %v", got, tt.want)
+			if got := New(tt.healthcheckInterval); got != tt.want && !(got.healthcheckInterval == tt.want.healthcheckInterval || got.stop == tt.want.stop) {
+				t.Errorf("New() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -60,13 +60,13 @@ func TestLB_AddHealthcheck(t *testing.T) {
 		},
 		{
 			name:    "add backend to health check",
-			lb:      NewLB(3 * time.Minute),
+			lb:      New(3 * time.Minute),
 			backend: "http://www.example.com/",
 			want:    unhealthy,
 		},
 		{
 			name:    "add backend to health check and do health check",
-			lb:      NewLB(250 * time.Millisecond),
+			lb:      New(250 * time.Millisecond),
 			backend: "http://127.0.0.1:1333/",
 			want:    dead,
 		},
@@ -121,19 +121,19 @@ func TestLB_FilterHealthyMemberRoutes(t *testing.T) {
 			},
 			{
 				name:   "one non filtered route",
-				lb:     NewLB(750 * time.Millisecond),
+				lb:     New(750 * time.Millisecond),
 				routes: []*eskip.Route{createRoute("id", "http://example.com/", "foo")},
 				want:   []*eskip.Route{createRoute("id", "http://example.com/", "foo")},
 			},
 			{
 				name:   "one filtered route",
-				lb:     NewLB(750 * time.Millisecond),
+				lb:     New(750 * time.Millisecond),
 				routes: []*eskip.Route{createRoute("id", "http://127.0.0.1:1334/", "bar")},
 				want:   []*eskip.Route{},
 			},
 			{
 				name: "multiple routes two filtered route",
-				lb:   NewLB(750 * time.Millisecond),
+				lb:   New(750 * time.Millisecond),
 				routes: []*eskip.Route{
 					createRoute("id", "http://example.com/", "foo"),
 					createRoute("id", "http://127.0.0.1:1334/", "baz"),

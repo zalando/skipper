@@ -41,10 +41,16 @@ type LB struct {
 	routeState          map[string]state
 }
 
+type HealthcheckPostProcessor struct{ *LB }
+
+func (hcpp HealthcheckPostProcessor) Do(r []*routing.Route) []*routing.Route {
+	return hcpp.LB.FilterHealthyMemberRoutes(r)
+}
+
 // NewLB creates a new LB and starts background jobs for populating
 // backends to check added routes and checking them every
 // healthcheckInterval.
-func NewLB(healthcheckInterval time.Duration) *LB {
+func New(healthcheckInterval time.Duration) *LB {
 	if healthcheckInterval == 0 {
 		return nil
 	}
@@ -89,6 +95,10 @@ func (lb *LB) AddHealthcheck(backend string) {
 // FilterHealthyMemberRoutes can be used by dataclients to filter for
 // routes that have known not healthy backends.
 func (lb *LB) FilterHealthyMemberRoutes(routes []*routing.Route) []*routing.Route {
+	// NOTE: it would be awesome to add a logic, that cleans off the unhealthy endpoints or triggers it.
+	// For that we'll add some interface, so that different scenarios can benefit from it, but I think it's
+	// still not the eskip level is the right one for that.
+
 	if lb == nil {
 		return routes
 	}

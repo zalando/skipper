@@ -19,7 +19,6 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
-	lb "github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates/cookie"
@@ -374,7 +373,7 @@ type Options struct {
 	ReverseSourcePredicate bool
 }
 
-func createDataClients(o Options, auth innkeeper.Authentication, lb *lb.LB) ([]routing.DataClient, error) {
+func createDataClients(o Options, auth innkeeper.Authentication, lb *loadbalancer.LB) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
@@ -436,7 +435,6 @@ func createDataClients(o Options, auth innkeeper.Authentication, lb *lb.LB) ([]r
 			ProvideHealthcheck:     o.KubernetesHealthcheck,
 			ProvideHTTPSRedirect:   o.KubernetesHTTPSRedirect,
 			IngressClass:           o.KubernetesIngressClass,
-			LoadBalancer:           lb,
 			ReverseSourcePredicate: o.ReverseSourcePredicate,
 		})
 		if err != nil {
@@ -541,9 +539,9 @@ func Run(o Options) error {
 		OAuthUrl:            o.OAuthUrl,
 		OAuthScope:          o.OAuthScope})
 
-	var lbInstance *lb.LB
+	var lbInstance *loadbalancer.LB
 	if o.LoadBalancerHealthCheckInterval != 0 {
-		lbInstance = lb.NewLB(o.LoadBalancerHealthCheckInterval)
+		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
 	}
 
 	// create data clients
@@ -607,6 +605,7 @@ func Run(o Options) error {
 		Predicates:      o.CustomPredicates,
 		UpdateBuffer:    updateBuffer,
 		SuppressLogs:    o.SuppressRouteUpdateLogs,
+		PostProcessors:  []routing.PostProcessor{loadbalancer.HealthcheckPostProcessor{LB: lbInstance}},
 	})
 	defer routing.Close()
 
