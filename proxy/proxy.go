@@ -15,6 +15,7 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
@@ -582,7 +583,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
 		if perr, ok := err.(net.Error); ok {
-			p.log.Errorf("Net error during backend roundtrip: %s timeout=%v temaporary=%v: %v", ctx.route.Id, perr.Timeout(), perr.Temporary(), err)
+			p.log.Errorf("Net error during backend roundtrip to %#v: %s timeout=%v temporary=%v: %v", req, ctx.route.Id, perr.Timeout(), perr.Temporary(), err)
 			p.lb.AddHealthcheck(ctx.route.Backend)
 			if perr.Timeout() {
 				return nil, &proxyError{
@@ -742,23 +743,22 @@ func (p *Proxy) do(ctx *context) error {
 				// here we do a transparent retry, because we know it's safe to do
 				origRoute := ctx.route.Me
 				if ctx.route.Next != nil && origRoute != ctx.route.Next {
-					// QUESTION:
-					// - is it guaranteed that network errors only happen before the
-					// backend started processing a request? why cannot it happen
-					// after? E.g. the connection is broken while the server is reading
-					// the request body?
 					ctx.route = ctx.route.Next
 				} else if ctx.route.Head != nil && origRoute != ctx.route.Head {
 					ctx.route = ctx.route.Head
 				}
-				rsp, perr = p.makeBackendRequest(ctx)
-				if perr != nil {
-					p.log.Errorf("Failed to do backend request to %s, retry failed to %s: %v", origRoute.Backend, ctx.route.Backend, perr)
-					if perr.code >= http.StatusInternalServerError {
+				log.Infof("Do retry call to: %s orig: %s", ctx.route.Route.Backend, origRoute.Backend)
+				perr = nil
+				var perr2 *proxyError
+				rsp, perr2 = p.makeBackendRequest(ctx)
+				if perr2 != nil {
+					p.log.Errorf("Failed to do backend request to %s, retry failed to %s: %v", origRoute.Backend, ctx.route.Backend, perr2)
+					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
-					return perr.err
+					return perr2.err
 				}
+				p.log.Infof("Successfully retry to %v, orig %v, code: %d", ctx.route.Backend, origRoute.Backend, rsp.StatusCode)
 			} else {
 				p.log.Errorf("Failed to do backend request to %s: %v", ctx.route.Backend, perr)
 				return perr.err

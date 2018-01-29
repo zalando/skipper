@@ -88,7 +88,7 @@ func (lb *LB) AddHealthcheck(backend string) {
 	if lb == nil || lb.stop {
 		return
 	}
-	log.Debugf("add backend to be health checked by the loadbalancer: %s", backend)
+	log.Infof("add backend to be health checked by the loadbalancer: %s", backend)
 	lb.ch <- backend
 }
 
@@ -113,6 +113,8 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*routing.Route) []*routing.Rout
 			lb.RUnlock()
 			if ok {
 				switch st {
+				case unhealthy:
+					fallthrough
 				case dead:
 					log.Infof("filtered member route: %v", r)
 					continue
@@ -131,6 +133,7 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*routing.Route) []*routing.Rout
 	}
 	lb.Unlock()
 
+	log.Infof("filterRoutes incoming=%d outgoing=%d", len(routes), len(result))
 	return result
 }
 
