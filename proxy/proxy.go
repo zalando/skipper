@@ -746,7 +746,7 @@ func (p *Proxy) do(ctx *context) error {
 				} else if ctx.route.Head != nil && origRoute != ctx.route.Head {
 					ctx.route = ctx.route.Head
 				}
-				p.log.Infof("Do retry call to: %s orig: %s", ctx.route.Route.Backend, origRoute.Backend)
+
 				perr = nil
 				var perr2 *proxyError
 				rsp, perr2 = p.makeBackendRequest(ctx)
