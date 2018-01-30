@@ -76,7 +76,9 @@ func (lb *LB) populateChecks() {
 			return
 		}
 		lb.Lock()
-		lb.routeState[s] = unhealthy
+		if st, ok := lb.routeState[s]; !ok || st != healthy {
+			lb.routeState[s] = unhealthy
+		}
 		lb.Unlock()
 	}
 }
