@@ -39,18 +39,6 @@ const (
 	// The default period at which the idle connections are forcibly
 	// closed.
 	DefaultCloseIdleConnsPeriod = 20 * time.Second
-
-  hopHeaders = map[string]bool{
-    	 "Connection": true,
-    	 "Proxy-Connection": true,
-    	 "Keep-Alive": true,
-    	 "Proxy-Authenticate": true,
-    	 "Proxy-Authorization": true,
-    	 "Te": true,
-    	 "Trailer": true,
-    	 "Transfer-Encoding": true,
-    	 "Upgrade":true,
-  }
 )
 
 // Flags control the behavior of the proxy.
@@ -177,6 +165,18 @@ var (
 		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
 	errRatelimitError = errors.New("ratelimited")
+  hopHeaders = map[string]bool{
+			 "Connection": true,
+			 "Proxy-Connection": true,
+			 "Keep-Alive": true,
+			 "Proxy-Authenticate": true,
+			 "Proxy-Authorization": true,
+			 "Te": true,
+			 "Trailer": true,
+			 "Transfer-Encoding": true,
+			 "Upgrade":true,
+	}
+
 )
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
@@ -267,8 +267,9 @@ func copyHeader(to, from http.Header) {
 
 func copyHeaderExcluding(to, from http.Header, excludeHeaders map[string]bool) {
   for k, v := range from {
-		if len(excludeHeaders) == 0 || !excludeHeaders[k]
+		if len(excludeHeaders) == 0 || !excludeHeaders[k] {
 			to[http.CanonicalHeaderKey(k)] = v
+		}
 	}
 }
 
@@ -280,7 +281,7 @@ func cloneHeader(h http.Header) http.Header {
 
 func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Header {
 	hh := make(http.Header)
-	copyHeaderExcluding(hh, h)
+	copyHeaderExcluding(hh, h, excludeList)
 	return hh
 }
 
@@ -328,10 +329,11 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 		return nil, err
 	}
 
-	if removeHopHeaders
+	if removeHopHeaders {
 		rr.Header = cloneHeaderExcluding(r.Header, hopHeaders)
-	else
+	} else {
 		rr.Header = cloneHeader(r.Header)
+	}
 	rr.Host = host
 
 	// If there is basic auth configured in the URL we add them as headers
