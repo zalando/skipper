@@ -582,7 +582,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
 		if perr, ok := err.(net.Error); ok {
-			p.log.Errorf("Net error during backend roundtrip to %#v: %s timeout=%v temporary=%v: %v", req, ctx.route.Id, perr.Timeout(), perr.Temporary(), err)
+			p.log.Errorf("Net error during backend roundtrip to %s: %s timeout=%v temporary=%v: %v", ctx.route.Backend, ctx.route.Id, perr.Timeout(), perr.Temporary(), err)
 			p.lb.AddHealthcheck(ctx.route.Backend)
 			if perr.Timeout() {
 				return nil, &proxyError{
