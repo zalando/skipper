@@ -69,7 +69,7 @@ func setup() (*proxytest.TestProxy, []closer) {
 	groupD_BE1Failing := newFailingBackend()
 	groupD_BE2Failing := newFailingBackend()
 
-	cs := []closer{nonGrouped, nonGroupedFailing, groupA_BE1, groupA_BE2, groupB_BE1Failing, groupB_BE2}
+	cs := []closer{nonGrouped, nonGroupedFailing, groupA_BE1, groupA_BE2, groupB_BE1Failing, groupB_BE2, groupC_BE1, groupC_BE2Failing, groupD_BE1Failing, groupD_BE2Failing}
 
 	const routesFmt = `
 		nonGrouped: Path("/") -> "%s";
@@ -206,6 +206,32 @@ func TestConnectionRefused(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func BenchmarkConnectionRefusedA(b *testing.B) {
+	idx := 2
+	p, cs := setup()
+	for i, c := range cs {
+		if i != idx {
+			defer c.Close()
+		}
+	}
+	defer p.Close()
+	expectedCode := 200
+	path := "/a"
+
+	for n := 0; n < b.N; n++ {
+		if n == 200 {
+			go cs[idx].Close()
+		}
+		rsp, err := http.Get(p.URL + path)
+		if err != nil {
+			b.Errorf("loadbalanced request %d to %s should not fail: %v", n, path, err)
+		}
+		if rsp.StatusCode != expectedCode {
+			b.Errorf("loadbalanced request %d to %s should have statuscode != %d: %d", n, path, expectedCode, rsp.StatusCode)
+		}
 	}
 }
 
