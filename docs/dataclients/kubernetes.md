@@ -34,8 +34,8 @@ Skipper has the following main features:
 
 # Ingress Controller deployment
 
-How to [install skipper ingress-controller](kubernetes/ingress-controller.md) for cluster operators.
+How to [install skipper ingress-controller](../kubernetes/ingress-controller.md) for cluster operators.
 
 # Ingress Usage
 
-Find out more [how to use skipper ingress features](kubernetes/ingress-usage.md) for deployers.
+Find out more [how to use skipper ingress features](../kubernetes/ingress-usage.md) for deployers.
