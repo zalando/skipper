@@ -7,7 +7,7 @@ Skipper is proven to scale with number of routes beyond 200.000 routes
 per instance. Skipper is running with peaks to 45.000 http requests
 per second using multiple instances.
 
-## Connection Options
+# Connection Options
 
 Skipper's connection options are allowing you to set Go's [http.Server](https://golang.org/pkg/net/http/#Server)
 Options on the client side and [http.Transport](https://golang.org/pkg/net/http/#Transport) on the backend side.
@@ -16,7 +16,7 @@ Options on the client side and [http.Transport](https://golang.org/pkg/net/http/
 [this blog post about net http timeouts](https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/)
 in order to better understand the impact of these settings.
 
-### Backend
+## Backend
 
 Backend is the side skipper opens a client connection to.
 
@@ -79,7 +79,7 @@ implementation of DialContext, which is the TCP connection pool used in the
         enables DualStack for backend connections (default true)
 
 
-### Client
+## Client
 
 Client is the side skipper gets incoming calls from.
 Here we can set timeouts in different parts of the http connection.
@@ -120,15 +120,16 @@ size of the http header from your clients.
         set MaxHeaderBytes for http server connections (default 1048576)
 
 
-## Monitoring
+# Monitoring
 
 Monitoring is one of the most important things you need to run in
 production and skipper has a [godoc page](https://godoc.org/github.com/zalando/skipper)
 for the [metrics package](https://godoc.org/github.com/zalando/skipper/metrics),
 describing options and most keys you will find in the metrics handler
-endpoint. The default is listening on :9911/metrics.
+endpoint. The default is listening on `:9911/metrics`. You can modify
+the listen port with the `-support-listener` flag.
 
-### Prometheus
+## Prometheus
 
 In case you want to get metrics in [Prometheus](https://prometheus.io/) format exposed, use this
 option to enable it:
@@ -138,7 +139,7 @@ option to enable it:
 It will return [Prometheus](https://prometheus.io/) metrics on the
 common metrics endpoint :9911/metrics.
 
-### Connection metrics
+## Connection metrics
 
 This option will enable known loadbalancer connections metrics, like
 counters for active and new connections. This feature sets a metrics
@@ -169,7 +170,7 @@ It will expose them in /metrics, for example json structure looks like this exam
       /* stripped a lot of metrics here */
     }
 
-### Application metrics
+## Application metrics
 
 Application metrics for your proxied applications you can enable with the option:
 
@@ -240,7 +241,7 @@ utilized applications (less than 100 requests per second):
         use exponentially decaying sample in metrics
 
 
-### Go metrics
+## Go metrics
 
 Metrics from the
 [go runtime memstats](https://golang.org/pkg/runtime/#MemStats)
@@ -348,9 +349,31 @@ are exposed from skipper to the metrics endpoint, default listener
       }
    }
 
-## Dataclient
+# Dataclient
 
-Dataclients poll some kind of data source for routes. To change the timeout for calls that polls a dataclient, which could be the kubernetes API, use the following option:
+Dataclients poll some kind of data source for routes. To change the
+timeout for calls that polls a dataclient, which could be the
+kubernetes API, use the following option:
 
     -source-poll-timeout int
         polling timeout of the routing data sources, in milliseconds (default 3000)
+
+# Routing table information
+
+Skipper allows you to get some runtime insights. You can get the
+current routing table from skipper with in the
+[eskip file format](https://godoc.org/github.com/zalando/skipper/eskip):
+
+    % curl localhost:9911/routes
+    *
+      -> "http://localhost:12345/"
+
+You also can get the number of routes `X-Count` and the UNIX timestamp
+of the last route table update `X-Timestamp`, using a HEAD request:
+
+    % curl -I localhost:9911/routes
+    HTTP/1.1 200 OK
+    Content-Type: text/plain
+    X-Count: 1
+    X-Timestamp: 1517777628
+    Date: Sun, 04 Feb 2018 20:54:31 GMT
