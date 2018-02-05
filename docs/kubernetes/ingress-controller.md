@@ -211,8 +211,8 @@ Skipper will configure itself for the given ingress, such that you can test doin
 The next question you may ask is: how to expose this to your customers?
 
 The answer depends on your setup and complexity requirements. In the
-simplest case you could add one A record in your DNS *.<mydomain.org>
-to your frontend loadbalancer IP that directs all traffic from *.<mydomain.org>
+simplest case you could add one A record in your DNS `*.<mydomain.org>`
+to your frontend loadbalancer IP that directs all traffic from `*.<mydomain.org>`
 to all Kubernetes worker nodes on TCP port 9999.
 
 A more complex setup we use in production and can be done with
