@@ -15,8 +15,8 @@ for rapidly changing it's routing tree.
 Cloud loadbalancers are fine to scale and to change, but does not
 provide many features. Skipper has advanced resiliency and deployment
 features, that you can use to enhance your environment. For example
-ratelimits, circuitbreakers, blue-green deployments, shadow traffic,
-....
+ratelimits, circuitbreakers, blue-green deployments, shadow traffic
+and [more](ingress-usage.md).
 
 ## What is an Ingress-Controller
 
@@ -40,9 +40,15 @@ loadbalancer, for example automated using
 
 TODO: add pictures here
 
-## What is required
+## Requirements
+
+In general for one endpoint you need, a DNS A/AAAA record pointing to
+one or more loadbalancer IPs. Skipper is best used behind this
+loadbalancer to route and manipulate HTTP data.
 
 TODO
+
+
 
 ## 3 Minutes Skipper in Kubernetes introduction
 

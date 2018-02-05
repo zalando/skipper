@@ -6,9 +6,28 @@ It will get it's route information from provisioned
 [Ingress Objects](https://kubernetes.io/docs/concepts/services-networking/ingress).
 Detailed information you find in our [godoc for dataclient kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes).
 
-# Skipper Features
+## Kubernetes Ingress Controller deployment
 
-Skipper has the following main features:
+How to [install skipper ingress-controller](../kubernetes/ingress-controller.md) for cluster operators.
+
+## Kubernetes Ingress Usage
+
+Find out more [how to use skipper ingress features](../kubernetes/ingress-usage.md) for deployers.
+
+## Why to choose Skipper?
+
+Kubernetes is a fast changing environment and traditional http routers
+are not made for frequently changing routing tables. Skipper is a http
+proxy made to apply updates very often. Skipper is used in
+production with more than 200.000 routing table entries.
+Skipper has Filters to change http data and Predicates to change the
+matching rules, both can combined and chained. You can set these in
+ingress.yaml files to build resiliency patterns like ratelimit or
+circuitbreaker. You can also use them to build more highlevel
+deployment patterns, for example feature toggles, shadow traffic or
+blue-green deployments.
+
+Skipper's main features:
 
 - Filters - create, update, delete all kind of HTTP data
   - [collection of base http manipulations](https://godoc.org/github.com/zalando/skipper/filters/builtin): for example manipulating Path, Querystring, ResponseHeader, RequestHeader and redirect handling
@@ -30,12 +49,4 @@ Skipper has the following main features:
     - Filters: `zalando.org/skipper-filter`
   - [metrics](https://godoc.org/github.com/zalando/skipper/metrics)
   - access logs
-  - Blue-Green deployments, with another Ingress annotation `zalando.org/backend-weights`, see Advanced Examples section
-
-# Ingress Controller deployment
-
-How to [install skipper ingress-controller](../kubernetes/ingress-controller.md) for cluster operators.
-
-# Ingress Usage
-
-Find out more [how to use skipper ingress features](../kubernetes/ingress-usage.md) for deployers.
+  - Blue-Green deployments, with another Ingress annotation `zalando.org/backend-weights`

@@ -13,7 +13,9 @@ zalando.org/skipper-filter | consecutiveBreaker(15) | arbitrary filters
 zalando.org/skipper-predicate | QueryParam("version", "^alpha$") | arbitrary predicates
 zalando.org/ratelimit | ratelimit(50, "1m") | deprecated, use zalando.org/skipper-filter instead
 
-# HTTP Host header routing
+# Basics
+
+## HTTP Host header routing
 
 HTTP host header is defined within the rules `host` section and this
 route will match by http `Host: app-default.example.org` and route to
@@ -32,17 +34,42 @@ endpoints selected by the Kubernetes service `app-svc` on port `80`.
               serviceName: app-svc
               servicePort: 80
 
+To have 2 routes with different `Host` headers serving the same
+backends, you have to specify 2 entries in the rules section, as
+kubernetes defined the ingress spec.
 
-# Basic HTTP manipulations
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+      - host: foo.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
 
-HTTP manipulations are done by using skipper filters.
-A basic example how to use skipper filters in ingress:
+## Filters and Predicates
+
+- **Filters** can manipulate http data, which is not possible in the ingress spec.
+- **Predicates** change the route matching, beyond normal ingress definitions
+
+This example shows how to add predicates and filters:
 
     apiVersion: extensions/v1beta1
     kind: Ingress
     metadata:
       annotations:
-        zalando.org/skipper-filter: consecutiveBreaker(15)
+        zalando.org/skipper-predicate: predicate1 && predicate2 && .. && predicateN
+        zalando.org/skipper-filter: filter1 -> filter2 -> .. -> filterN
       name: app
     spec:
       rules:
@@ -53,27 +80,37 @@ A basic example how to use skipper filters in ingress:
               serviceName: app-svc
               servicePort: 80
 
+
+# Filters - Basic HTTP manipulations
+
+HTTP manipulations are done by using skipper filters. Changes can be
+done in the request path, meaning request to your backend or in the
+response path to the client, which made the request.
+
+The following examples can be used within `zalando.org/skipper-filter`
+annotation.
+
 ## Add a request Header
 
-Add a header in the request path to your backend.
+Add a HTTP header in the request path to your backend.
 
     setRequestHeader("X-Foo", "bar")
 
 ## Add a response Header
 
-Add a header in the response path of your clients.
+Add a HTTP header in the response path of your clients.
 
     setResponseHeader("X-Foo", "bar")
 
 ## Set the Path
 
-Change the path in the request path to your backend.
+Change the path in the request path to your backend to `/newPath/`.
 
     setPath("/newPath/")
 
 ## Set the Querystring
 
-Set the Querystring in the request path to your backend.
+Set the Querystring in the request path to your backend to `?text=godoc%20skipper`.
 
     setQuery("text", "godoc skipper")
 
@@ -99,8 +136,7 @@ Set a Cookie in the response path of your clients.
 
 ## Authorization
 
-Our [filter auth
-godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
+Our [filter auth godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
 shows how to use filters for authorization.
 
 ### Basic Auth
@@ -110,7 +146,11 @@ shows how to use filters for authorization.
     basicAuth("/path/to/htpasswd")
     basicAuth("/path/to/htpasswd", "My Website")
 
-## Diagnosis - Throttling - Latency
+### Bearer Token (OAuth/JWT)
+
+TBD
+
+## Diagnosis - Throttling Bandwidth - Latency
 
 For diagnosis purpose there are filters that enable you to throttle
 the bandwidth or add latency. For the full list of filters see our
@@ -120,53 +160,17 @@ the bandwidth or add latency. For the full list of filters see our
     backendBandwidth(30) // outgoing in kb/s
     backendLatency(120) // in ms
 
-## FlowID to trace request flows
+## Flow Id to trace request flows
 
-To trace request flows skipper can generate a unique Flow Id for
-every HTTP request that it receives.
-Skipper sets the X-Flow-Id header to a unique value. Read more about
-this in our [flowid filter godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
+To trace request flows skipper can generate a unique Flow Id for every
+HTTP request that it receives. You can then find the trace of the
+request in all your access logs.  Skipper sets the X-Flow-Id header to
+a unique value. Read more about this in our
+[flowid filter godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
 
      flowId("reuse")
 
-# Blue-Green deployments
-
-To do blue-green deployments you have to have control over traffic
-switching. Skipper gives you the opportunity to set weights to backend
-services in your ingress specification. `zalando.org/backend-weights`
-is a hash map, which key relates to the `serviceName` of the backend
-and the value is the weight of traffic you want to send to the
-particular backend. It works for more than 2 backends, but for
-simplicity this example shows 2 backends, which should be the default
-case for supporting blue-green deployments.
-
-In the following example **my-app-1** service will get **80%** of the traffic
-and **my-app-2** will get **20%** of the traffic:
-
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      name: my-app
-      labels:
-        application: my-app
-      annotations:
-        zalando.org/backend-weights: |
-          {"my-app-1": 80, "my-app-2": 20}
-    spec:
-      rules:
-      - host: my-app.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: my-app-1
-              servicePort: http
-            path: /
-          - backend:
-              serviceName: my-app-2
-              servicePort: http
-            path: /
-
-# Filters
+# Filters - reliability features
 
 Filters can modify http requests and responses. There are plenty of
 things you can do with them.
@@ -490,6 +494,43 @@ For "B" this would be:
               serviceName: b-app-svc
               servicePort: 80
 
+
+# Blue-Green deployments
+
+To do blue-green deployments you have to have control over traffic
+switching. Skipper gives you the opportunity to set weights to backend
+services in your ingress specification. `zalando.org/backend-weights`
+is a hash map, which key relates to the `serviceName` of the backend
+and the value is the weight of traffic you want to send to the
+particular backend. It works for more than 2 backends, but for
+simplicity this example shows 2 backends, which should be the default
+case for supporting blue-green deployments.
+
+In the following example **my-app-1** service will get **80%** of the traffic
+and **my-app-2** will get **20%** of the traffic:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      name: my-app
+      labels:
+        application: my-app
+      annotations:
+        zalando.org/backend-weights: |
+          {"my-app-1": 80, "my-app-2": 20}
+    spec:
+      rules:
+      - host: my-app.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: my-app-1
+              servicePort: http
+            path: /
+          - backend:
+              serviceName: my-app-2
+              servicePort: http
+            path: /
 
 # Chaining Filters and Predicates
 
