@@ -13,6 +13,18 @@ zalando.org/skipper-filter | consecutiveBreaker(15) | arbitrary filters
 zalando.org/skipper-predicate | QueryParam("version", "^alpha$") | arbitrary predicates
 zalando.org/ratelimit | ratelimit(50, "1m") | deprecated, use zalando.org/skipper-filter instead
 
+## Supported Service types
+
+Ingress backend definitions are services, which have different
+[service types](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services---service-types).
+
+Service type | supported | workaround
+--- | --- | ---
+ClusterIP | yes | ---
+NodePort | yes | ---
+ExternalName | no, [related issue](https://github.com/zalando/skipper/issues/549) | [use deployment with routestring](../dataclients/route-string/#proxy-to-a-given-url)
+LoadBalancer | no | it should not, because kubernetes cloud-controller-manager will maintain it
+
 # Basics
 
 ## HTTP Host header routing
@@ -36,7 +48,12 @@ endpoints selected by the Kubernetes service `app-svc` on port `80`.
 
 To have 2 routes with different `Host` headers serving the same
 backends, you have to specify 2 entries in the rules section, as
-kubernetes defined the ingress spec.
+kubernetes defined the ingress spec. This is often used in cases of
+migrations from one domain to another one or migrations to or from
+bare metal datacenters to cloud providers or inter cloud or intra
+cloud providers migrations. Examples are AWS account migration, AWS to
+GCP migration, GCP to bare metal migration or bare metal to Alibaba
+Cloud migration.
 
     apiVersion: extensions/v1beta1
     kind: Ingress
