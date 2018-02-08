@@ -36,7 +36,7 @@ func argsString(args []interface{}) string {
 	for _, a := range args {
 		switch v := a.(type) {
 		case int:
-			sargs = append(Fmt, sargs, "%d", a)
+			sargs = appendFmt(sargs, "%d", a)
 		case float64:
 			f := "%g"
 
