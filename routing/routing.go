@@ -291,6 +291,19 @@ func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	return rt.m.match(req)
 }
 
+type TestLookup struct {
+	matcher *matcher
+}
+
+func (tl *TestLookup) Do(req *http.Request) (*Route, map[string]string) {
+	return tl.matcher.match(req)
+}
+
+func (r *Routing) Get() *TestLookup {
+	rt := r.routeTable.Load().(*routeTable)
+	return &TestLookup{matcher: rt.m}
+}
+
 // Close closes routing, stops receiving routes.
 func (r *Routing) Close() {
 	close(r.quit)

@@ -35,6 +35,8 @@ type context struct {
 	startServe            time.Time
 	metrics               *filterMetrics
 	tracer                opentracing.Tracer
+
+	capturedTestLookup *routing.TestLookup
 }
 
 type filterMetrics struct {
@@ -112,13 +114,21 @@ func appendParams(to, from map[string]string) map[string]string {
 	return to
 }
 
-func newContext(w http.ResponseWriter, r *http.Request, preserveOriginal bool, m metrics.Metrics) *context {
+func newContext(
+	w http.ResponseWriter,
+	r *http.Request,
+	preserveOriginal bool,
+	m metrics.Metrics,
+	tl *routing.TestLookup,
+) *context {
 	c := &context{
 		responseWriter: w,
 		request:        r,
 		stateBag:       make(map[string]interface{}),
 		outgoingHost:   r.Host,
 		metrics:        &filterMetrics{impl: m},
+
+		capturedTestLookup: tl,
 	}
 
 	if preserveOriginal {

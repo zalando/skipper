@@ -494,15 +494,15 @@ func addBranding(headerMap http.Header) {
 	}
 }
 
-func (p *Proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
+func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]string) {
 	for _, prt := range p.priorityRoutes {
-		rt, params = prt.Match(r)
+		rt, params = prt.Match(ctx.request)
 		if rt != nil {
 			return rt, params
 		}
 	}
 
-	return p.routing.Route(r)
+	return ctx.capturedTestLookup.Do(ctx.request)
 }
 
 // send a premature error response
@@ -681,7 +681,7 @@ func (p *Proxy) do(ctx *context) error {
 	}
 
 	lookupStart := time.Now()
-	route, params := p.lookupRoute(ctx.request)
+	route, params := p.lookupRoute(ctx)
 	p.metrics.MeasureRouteLookup(lookupStart)
 
 	if route == nil {
@@ -858,7 +858,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics)
+	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
 	ctx.startServe = time.Now()
 	ctx.tracer = p.openTracer
 
