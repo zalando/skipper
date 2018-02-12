@@ -4,7 +4,7 @@ This documentation is meant for for cluster operators and describes
 how to install skipper as Ingress-Controller into your Kubernetes
 Cluster.
 
-# Why you should use skipper as ingress controller?
+## Why you should use skipper as ingress controller?
 
 Baremetal loadbalancer perform really well, but the configuration is
 not updated frequently and most of these installations are not meant
@@ -18,7 +18,7 @@ features, that you can use to enhance your environment. For example
 ratelimits, circuitbreakers, blue-green deployments, shadow traffic
 and [more](ingress-usage.md).
 
-# What is an Ingress-Controller
+## What is an Ingress-Controller
 
 Ingress-controllers are serving http requests into a kubernetes
 cluster. Most of the time traffic will pass ingress got to a
@@ -61,7 +61,7 @@ loadbalancer virtual IP.
 
 ![ingress-traffic-flow](../img/ingress-traffic-flow-baremetal.svg)
 
-# Requirements
+## Requirements
 
 In general for one endpoint you need, a DNS A/AAAA record pointing to
 one or more loadbalancer IPs. Skipper is best used behind this
