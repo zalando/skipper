@@ -25,32 +25,62 @@ cluster. Most of the time traffic will pass ingress got to a
 kubernetes service IP which will forward the packets to kubernetes PODs
 selected by the kubernetes service.
 For having a successful ingress, you need to have a DNS name pointing
-to some stable IP addresses that act as a loadbalancer. In AWS, this
-could be an ALB with DNS pointing to the ALB. The ALB can then point
-to an ingress-controller running on an EC2 node and uses Kubernetes
-`hostnetwork` port specification in the POD spec.
-In datacenter, baremetal environments, you probably have a hardware
-loadbalancer or some haproxy or nginx setup, that serves most of your
-production traffic and DNS points to these endpoints.
+to some stable IP addresses that act as a loadbalancer.
 
-Skipper as ingress-controller in clouds, can be deployed behind the
-cloud loadbalancer. You would point your DNS entries to the cloud
-loadbalancer, for example automated using
+Skipper as ingress-controller:
+
+* cloud: deploy behind the cloud loadbalancer
+* baremetal: deploy behind your hardware/software loadbalancer and have all skipper as members in one pool.
+
+You would point your DNS entries to the
+loadbalancer in front of skipper, for example automated using
 [external-dns](https://github.com/kubernetes-incubator/external-dns).
 
-TODO: add pictures here
+## AWS deployment
+
+In AWS, this could be an ALB with DNS pointing to the ALB. The ALB can
+then point to an ingress-controller running on an EC2 node and uses
+Kubernetes `hostnetwork` port specification in the POD spec.
+
+![ingress-traffic-flow](../img/ingress-traffic-flow-aws.svg)
+
+## Baremetal deployment
+
+In datacenter, baremetal environments, you probably have a hardware
+loadbalancer or some haproxy or nginx setup, that serves most of your
+production traffic and DNS points to these endpoints. For example
+`*.ingress.example.com` could point to your virtual server IPs in front
+of ingress. Skippers could be used as pool members, which do the http
+routing. Your loadbalancer of choice could have a wildcard certificate
+for `*.ingress.example.com` and DNS for this would point to your
+loadbalancer. You can also automate DNS records with
+[external-dns](https://github.com/kubernetes-incubator/external-dns),
+if you for example use PowerDNS as provider and have a loadbalancer
+controller that modifies the status field in ingress to your
+loadbalancer virtual IP.
+
+![ingress-traffic-flow](../img/ingress-traffic-flow-baremetal.svg)
 
 ## Requirements
 
 In general for one endpoint you need, a DNS A/AAAA record pointing to
 one or more loadbalancer IPs. Skipper is best used behind this
-loadbalancer to route and manipulate HTTP data.
+layer 4 loadbalancer to route and manipulate HTTP data.
 
-TODO
+minimal example:
 
+* layer 4 loadbalancer has `1.2.3.4:80` as socket for a virtual server pointing to all skipper ingress
+* `*.ingress.example.com` points to 1.2.3.4
+* ingress object with host entry for `myapp.ingress.example.com` targets a service type ClusterIP
+* service type ClusterIP has a selector that targets your PODs of your myapp deployment
 
+TLS example:
 
-## 3 Minutes Skipper in Kubernetes introduction
+* same as before, but you would terminate TLS on your layer 4 loadbalancer
+* layer 4 loadbalancer has `1.2.3.4:443` as socket for a virtual server
+* you can use an automated redirect for all port 80 requests to https with `-kubernetes-https-redirect`
+
+# Install Skipper as ingress-controller
 
 You should have a base understanding of [Kubernetes](https://kubernetes.io) and
 [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/).
