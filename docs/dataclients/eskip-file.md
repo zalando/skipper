@@ -28,47 +28,47 @@ you can name your route and use preconditions and create, change, delete
 HTTP headers as you like:
 
     % cat complicated_example.eskip
-    host-header-match:
+    hostHeaderMatch:
              Host("^skipper.teapot.org$")
              -> setRequestHeader("Authorization", "Basic YWRtaW46YWRtaW5zcGFzc3dvcmQK")
              -> "https://target-to.auth-with.basic-auth.enterprise.com";
-    baidu-path-match:
+    baiduPathMatch:
             Path("/baidu")
             -> setRequestHeader("Host", "www.baidu.com")
             -> setPath("/s")
             -> setQuery("wd", "godoc skipper")
             -> "http://www.baidu.com";
-    google-wildcard-match:
+    googleWildcardMatch:
             *
             -> setPath("/search")
             -> setQuery("q", "godoc skipper")
             -> "https://www.google.com";
-    yandex-wildacard-if-cookie:
+    yandexWildacardIfCookie:
             * && Cookie("yandex", "true")
             -> setPath("/search/")
             -> setQuery("text", "godoc skipper")
             -> tee("http://127.0.0.1:12345/")
             -> "https://yandex.ru";
 
-The former example shows 4 routes: host-header-match,
-baidu-path-match, google-wildcard-match and yandex-wildcard-if-cookie.
+The former example shows 4 routes: hostHeaderMatch,
+baiduPathMatch, googleWildcardMatch and yandexWildcardIfCookie.
 
-- host-header-match:
+- hostHeaderMatch:
   - used if HTTP host header is exactly: "skipper.teapot.org",
   - sets a Basic Authorization header and
   - sends the modified request to https://target-to.auth-with.basic-auth.enterprise.com
-- baidu-path-match:
+- baiduPathMatch:
   - used in case the request patch matches /baidu
   - it will set the Host header to the proxy request
   - it will set the path from /baidu to /s
   - it will set the querystring to "ws=godoc skipper" and
   - sends the modified request to http://baidu.com
-- google-wildcard-match:
+- googleWildcardMatch:
   - used as default if no other route matches
   - it will set the path to /search
   - it will set the querystring to "q=godoc skipper" and
   - sends the modified request to https://www.google.com
-- yandex-wildcard-if-cookie:
+- yandexWildcardIfCookie:
   - used as default if a Cookie named "yandex" has the value "true"
   - it will set the path to /search/
   - it will set the querystring to "text=godoc skipper"
