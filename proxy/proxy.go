@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	stdlibcontext "context"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
@@ -224,12 +225,13 @@ type proxyError struct {
 	err              error
 	code             int
 	handled          bool
+	dialingFailed    bool
 	additionalHeader http.Header
 }
 
-func (e *proxyError) Error() string {
+func (e proxyError) Error() string {
 	if e.err != nil {
-		return fmt.Sprintf("proxy error with code %d, unwrap: %v", e.code, e.err.Error())
+		return fmt.Sprintf("proxy error with code %d, dialing failed %v, unwrap: %v", e.code, e.DialError(), e.err.Error())
 	}
 
 	if e.handled {
@@ -242,6 +244,13 @@ func (e *proxyError) Error() string {
 	}
 
 	return fmt.Sprintf("proxy error: %d", code)
+}
+
+// DialError returns true if the error was caused while dialing TCP or
+// TLS connections, before HTTP data was sent. It is safe to retry
+// a call, if this returns true.
+func (e *proxyError) DialError() bool {
+	return e.dialingFailed
 }
 
 func (e *proxyError) NetError() net.Error {
@@ -322,6 +331,34 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	return rr, nil
 }
 
+type skipperDialer struct {
+	net.Dialer
+	f func(ctx stdlibcontext.Context, network, addr string) (net.Conn, error)
+}
+
+func newSkipperDialer(d net.Dialer) *skipperDialer {
+	return &skipperDialer{
+		Dialer: d,
+		f:      d.DialContext,
+	}
+}
+
+// DialContext wraps net.Dialer's DialContext and returns an error,
+// that can be checked if it was a Transport (TCP/TLS handshake) error
+// or timeout, or a timeout from http, which is not in general
+// retrieable.
+func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr string) (net.Conn, error) {
+	con, err := dc.f(ctx, network, addr)
+	if err != nil {
+		return nil, &proxyError{
+			err:           err,
+			code:          -1,   // omit 0 handling in proxy.Error()
+			dialingFailed: true, // indicate error happened before http
+		}
+	}
+	return con, nil
+}
+
 // New returns an initialized Proxy.
 // Deprecated, see WithParams and Params instead.
 func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
@@ -348,7 +385,7 @@ func WithParams(p Params) *Proxy {
 	}
 
 	tr := &http.Transport{
-		DialContext: (&net.Dialer{
+		DialContext: newSkipperDialer(net.Dialer{
 			Timeout:   p.Timeout,
 			KeepAlive: p.KeepAlive,
 			DualStack: p.DualStack,
@@ -581,15 +618,20 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
-		if perr, ok := err.(net.Error); ok {
-			p.log.Errorf("Net error during backend roundtrip to %s: %s timeout=%v temporary=%v: %v", ctx.route.Backend, ctx.route.Id, perr.Timeout(), perr.Temporary(), err)
-			p.lb.AddHealthcheck(ctx.route.Backend)
-			if perr.Timeout() {
+		if perr, ok := err.(proxyError); ok {
+			p.log.Errorf("Failed to do backend roundtrip to %s: %v", ctx.route.Backend, perr)
+			//p.lb.AddHealthcheck(ctx.route.Backend)
+			return nil, &perr
+
+		} else if nerr, ok := err.(net.Error); ok {
+			p.log.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %v", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err)
+			//p.lb.AddHealthcheck(ctx.route.Backend)
+			if nerr.Timeout() {
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusGatewayTimeout,
 				}
-			} else if !perr.Temporary() {
+			} else if !nerr.Temporary() {
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusServiceUnavailable,
@@ -737,8 +779,7 @@ func (p *Proxy) do(ctx *context) error {
 
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 
-			neterr := perr.NetError()
-			if neterr != nil && !neterr.Temporary() && ctx.route.IsLoadBalanced {
+			if perr.DialError() && ctx.route.IsLoadBalanced {
 				// here we do a transparent retry, because we know it's safe to do
 				origRoute := ctx.route.Me
 				if ctx.route.Next != nil && origRoute != ctx.route.Next {
