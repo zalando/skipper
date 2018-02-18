@@ -67,7 +67,7 @@ func createMembers(original *eskip.Route, groupName string, backends []string) [
 }
 
 // TODO:
-// - the default function should not load balancer if there's only a single route
+// - the default function should not load balance if there's only a single route
 // - for special use cases on the side of the user code, provide an additional function that load balances even
 // when there's only a single route (?)
 

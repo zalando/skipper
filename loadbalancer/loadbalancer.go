@@ -108,7 +108,7 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*routing.Route) []*routing.Rout
 	knownBackends := make(map[string]bool)
 	for _, r := range routes {
 		knownBackends[r.Backend] = true
-		if r.Group != "" { // only loadbalanced routes have a Group, set by dataclients
+		if r.IsLoadBalanced {
 			var st state
 			lb.RLock()
 			st, ok := lb.routeState[r.Backend]
@@ -127,7 +127,6 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*routing.Route) []*routing.Rout
 	}
 
 	lb.Lock()
-	// TODO(sszuecs): cleanup unknown routes, this will break if you use multiple dataclients at once
 	for b := range lb.routeState {
 		if _, ok := knownBackends[b]; !ok {
 			delete(lb.routeState, b)

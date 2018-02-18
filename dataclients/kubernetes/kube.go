@@ -355,6 +355,14 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		i.Spec.DefaultBackend.ServiceName,
 	)
 	if err == errEndpointNotFound {
+		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
+		// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
+		// We should then implement a redirect route for that.
+		// Example spec:
+		//
+		//     spec:
+		//       type: ExternalName
+		//       externalName: my.database.example.com
 		address, err2 := c.getServiceURL(
 			i.Metadata.Namespace,
 			i.Spec.DefaultBackend.ServiceName,
@@ -417,7 +425,6 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	return routes, true, nil
 }
 
-// https://kube-aws-test-1.teapot.zalan.do/api/v1/namespaces/default/endpoints/skipper-test
 func (c *Client) getEndpoints(ns, name string) ([]string, error) {
 	log.Debugf("requesting endpoint: %s/%s", ns, name)
 	url := fmt.Sprintf(endpointURIFmt, ns, name)
@@ -427,7 +434,6 @@ func (c *Client) getEndpoints(ns, name string) ([]string, error) {
 	}
 
 	if ep.Subsets == nil {
-		log.Debug("invalid endpoint datagram, missing subsets")
 		return nil, errEndpointNotFound
 	}
 
@@ -454,6 +460,14 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 	if val, ok := endpointsURLs[endpointKey]; !ok {
 		eps, err = c.getEndpoints(ns, prule.Backend.ServiceName)
 		if err == errEndpointNotFound {
+			// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
+			// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
+			// We should then implement a redirect route for that.
+			// Example spec:
+			//
+			//     spec:
+			//       type: ExternalName
+			//       externalName: my.database.example.com
 			address, err2 := c.getServiceURL(
 				ns,
 				prule.Backend.ServiceName,

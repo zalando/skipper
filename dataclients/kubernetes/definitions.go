@@ -118,30 +118,6 @@ type service struct {
 	Spec *serviceSpec `json:"spec"`
 }
 
-// subsets:
-// - addresses:
-//   - ip: 10.2.13.5
-//     nodeName: ip-172-31-15-188.eu-central-1.compute.internal
-//     targetRef:
-//       kind: Pod
-//       name: skipper-test-1218614873-j82nc
-//       namespace: default
-//       resourceVersion: "76953776"
-//       uid: 772c8cfd-e400-11e7-a687-065d1a116fce
-//   - ip: 10.2.52.5
-//     nodeName: ip-172-31-0-136.eu-central-1.compute.internal
-//     targetRef:
-//       kind: Pod
-//       name: skipper-test-1218614873-wgt8h
-//       namespace: default
-//       resourceVersion: "76953799"
-//       uid: 788b51aa-e400-11e7-a687-065d1a116fce
-//   ports:
-//   - port: 9090
-//     protocol: TCP
-//   - name: ssh
-//     port: 22
-//     protocol: TCP
 type endpoint struct {
 	Subsets []*subset `json:"subsets"`
 }
