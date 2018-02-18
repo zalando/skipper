@@ -1,17 +1,25 @@
 /*
-Package loadbalancer implements a predicate which will match for different backends
+Package loadbalancer implements predicates and filter which will match for different backends
 in a round-robin fashion.
 
-First parameter defines a group which determines the set of possible routes to match.
+First parameter to LBGroup, lbDecide and LBMember defines a group which determines the set of possible routes to match.
 
-Second parameter is 0-based index of the route among the other routes in the same group.
+lbDecide's second parameter is the number of members in a loadbalancer group.
 
-Third parameter is the total number of routes in the group.
+LBMember's second parameter is 0-based index of the route among the other routes in the same group.
 
 Eskip example:
 
-	LoadBalancer("group-name", 0, 2) -> "https://www.example.org:8000";
-	LoadBalancer("group-name", 1, 2) -> "https://www.example.org:8001";
+	hello_lb_group: Path("/foo") && LBGroup("hello")
+	        -> lbDecide("hello", 3)
+	        -> <loopback>;
+	hello_1: Path("/foo") && LBMember("hello",0)
+	        -> "http://127.0.0.1:12345";
+	hello_2: Path("/foo") && LBMember("hello",1)
+	        -> "http://127.0.0.1:12346";
+	hello_3: Path("/foo") && LBMember("hello",2)
+	        -> "http://127.0.0.1:12347";
+
 
 Package loadbalancer also implements health checking of pool members for
 a group of routes, if backend calls are reported to the loadbalancer.
