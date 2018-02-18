@@ -373,7 +373,7 @@ type Options struct {
 	ReverseSourcePredicate bool
 }
 
-func createDataClients(o Options, auth innkeeper.Authentication, lb *loadbalancer.LB) ([]routing.DataClient, error) {
+func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
@@ -545,7 +545,7 @@ func Run(o Options) error {
 	}
 
 	// create data clients
-	dataClients, err := createDataClients(o, auth, lbInstance)
+	dataClients, err := createDataClients(o, auth)
 	if err != nil {
 		return err
 	}
