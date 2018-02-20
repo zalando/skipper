@@ -69,9 +69,9 @@ const (
 	// response.
 	Debug
 
-  // HopeHeadersRemoval indicates whether the Hop Headers should be removed
+	// HopeHeadersRemoval indicates whether the Hop Headers should be removed
 	// in compliance with RFC 2616
-  HopHeadersRemoval
+	HopHeadersRemoval
 )
 
 // Options are deprecated alias for Flags.
@@ -165,18 +165,17 @@ var (
 		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
 	errRatelimitError = errors.New("ratelimited")
-  hopHeaders = map[string]bool{
-			 "Connection": true,
-			 "Proxy-Connection": true,
-			 "Keep-Alive": true,
-			 "Proxy-Authenticate": true,
-			 "Proxy-Authorization": true,
-			 "Te": true,
-			 "Trailer": true,
-			 "Transfer-Encoding": true,
-			 "Upgrade":true,
+	hopHeaders        = map[string]bool{
+		"Connection":          true,
+		"Proxy-Connection":    true,
+		"Keep-Alive":          true,
+		"Proxy-Authenticate":  true,
+		"Proxy-Authorization": true,
+		"Te":                true,
+		"Trailer":           true,
+		"Transfer-Encoding": true,
+		"Upgrade":           true,
 	}
-
 )
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
@@ -266,7 +265,7 @@ func copyHeader(to, from http.Header) {
 }
 
 func copyHeaderExcluding(to, from http.Header, excludeHeaders map[string]bool) {
-  for k, v := range from {
+	for k, v := range from {
 		if len(excludeHeaders) == 0 || !excludeHeaders[k] {
 			to[http.CanonicalHeaderKey(k)] = v
 		}
