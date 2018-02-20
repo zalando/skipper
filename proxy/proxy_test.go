@@ -1283,3 +1283,42 @@ func TestHopHeaderRemoval(t *testing.T) {
 		t.Error("wrong status", w.Code)
 	}
 }
+
+func TestHopHeaderRemovalDisabled(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		if r.Method != "GET" {
+			t.Error("wrong request method")
+		}
+
+		if th, ok := r.Header["Connection"]; !ok || th[0] != "token" {
+			t.Error("wrong Connection header")
+		}
+	})
+
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+
+	tp, err := newTestProxy(doc, FlagsNone)
+	if err != nil {
+		t.Error()
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
+	}
+}
