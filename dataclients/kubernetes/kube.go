@@ -716,22 +716,26 @@ func catchAllRoutes(routes []*eskip.Route) bool {
 //
 // where for a weight of 1.0 no Traffic predicate will be generated.
 func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
-	type sumCount struct {
-		sum   float64
-		count int
+	type pathInfo struct {
+		sum        float64
+		lastActive *backend
+		count      int
 	}
 
 	// get backend weight sum and count of backends for all paths
-	pathSumCount := make(map[string]*sumCount)
+	pathInfos := make(map[string]*pathInfo)
 	for _, path := range rule.Http.Paths {
-		sc, ok := pathSumCount[path.Path]
+		sc, ok := pathInfos[path.Path]
 		if !ok {
-			sc = &sumCount{}
-			pathSumCount[path.Path] = sc
+			sc = &pathInfo{}
+			pathInfos[path.Path] = sc
 		}
 
 		if weight, ok := backendWeights[path.Backend.ServiceName]; ok {
 			sc.sum += weight
+			if weight > 0 {
+				sc.lastActive = path.Backend
+			}
 		} else {
 			sc.count++
 		}
@@ -739,8 +743,14 @@ func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 
 	// calculate traffic weight for each backend
 	for _, path := range rule.Http.Paths {
-		if sc, ok := pathSumCount[path.Path]; ok {
+		if sc, ok := pathInfos[path.Path]; ok {
 			if weight, ok := backendWeights[path.Backend.ServiceName]; ok {
+				// force a weight of 1.0 for the last backend with a non-zero weight to avoid rounding issues
+				if sc.lastActive == path.Backend {
+					path.Backend.Traffic = 1.0
+					continue
+				}
+
 				path.Backend.Traffic = weight / sc.sum
 				// subtract weight from the sum in order to
 				// give subsequent backends a higher relative
