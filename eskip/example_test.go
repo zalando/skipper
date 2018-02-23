@@ -126,7 +126,7 @@ func ExampleNetworkBackend() {
 	// backend address: "https://api.example.org"
 }
 
-func ExampleLoopbackBackend() {
+func ExampleLoopBackend() {
 	code := `
 		ajaxRouteV3: PathRegexp(/^\/api\/v3\/.*/) -> ajaxHeader("v3") -> <loopback>`
 
