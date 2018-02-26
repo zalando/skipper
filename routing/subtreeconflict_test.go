@@ -1,4 +1,4 @@
-package routing
+package routing_test
 
 import (
 	"net/http"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 )
 
@@ -103,27 +104,27 @@ func TestSubtreeConflict(t *testing.T) {
 	routingDefs := []struct {
 		name    string
 		routes  string
-		options MatchingOptions
+		options routing.MatchingOptions
 	}{
-		{"order 1, keep trailing", routesOrder1, MatchingOptionsNone},
-		{"order 2, keep trailing", routesOrder2, MatchingOptionsNone},
-		{"order 1, ignore trailing", routesOrder1, IgnoreTrailingSlash},
-		{"order 2, ignore trailing", routesOrder2, IgnoreTrailingSlash},
+		{"order 1, keep trailing", routesOrder1, routing.MatchingOptionsNone},
+		{"order 2, keep trailing", routesOrder2, routing.MatchingOptionsNone},
+		{"order 1, ignore trailing", routesOrder1, routing.IgnoreTrailingSlash},
+		{"order 2, ignore trailing", routesOrder2, routing.IgnoreTrailingSlash},
 
-		{"invert trailing, order 1, keep trailing", routesInvertTrailingOrder1, MatchingOptionsNone},
-		{"invert trailing, order 2, keep trailing", routesInvertTrailingOrder2, MatchingOptionsNone},
-		{"invert trailing, order 1, ignore trailing", routesInvertTrailingOrder1, IgnoreTrailingSlash},
-		{"invert trailing, order 2, ignore trailing", routesInvertTrailingOrder2, IgnoreTrailingSlash},
+		{"invert trailing, order 1, keep trailing", routesInvertTrailingOrder1, routing.MatchingOptionsNone},
+		{"invert trailing, order 2, keep trailing", routesInvertTrailingOrder2, routing.MatchingOptionsNone},
+		{"invert trailing, order 1, ignore trailing", routesInvertTrailingOrder1, routing.IgnoreTrailingSlash},
+		{"invert trailing, order 2, ignore trailing", routesInvertTrailingOrder2, routing.IgnoreTrailingSlash},
 
-		{"no trailing, order 1, keep trailing", routesNoTrailingOrder1, MatchingOptionsNone},
-		{"no trailing, order 2, keep trailing", routesNoTrailingOrder2, MatchingOptionsNone},
-		{"no trailing, order 1, ignore trailing", routesNoTrailingOrder1, IgnoreTrailingSlash},
-		{"no trailing, order 2, ignore trailing", routesNoTrailingOrder2, IgnoreTrailingSlash},
+		{"no trailing, order 1, keep trailing", routesNoTrailingOrder1, routing.MatchingOptionsNone},
+		{"no trailing, order 2, keep trailing", routesNoTrailingOrder2, routing.MatchingOptionsNone},
+		{"no trailing, order 1, ignore trailing", routesNoTrailingOrder1, routing.IgnoreTrailingSlash},
+		{"no trailing, order 2, ignore trailing", routesNoTrailingOrder2, routing.IgnoreTrailingSlash},
 
-		{"with trailing, order 1, keep trailing", routesWithTrailingOrder1, MatchingOptionsNone},
-		{"with trailing, order 2, keep trailing", routesWithTrailingOrder2, MatchingOptionsNone},
-		{"with trailing, order 1, ignore trailing", routesWithTrailingOrder1, IgnoreTrailingSlash},
-		{"with trailing, order 2, ignore trailing", routesWithTrailingOrder2, IgnoreTrailingSlash},
+		{"with trailing, order 1, keep trailing", routesWithTrailingOrder1, routing.MatchingOptionsNone},
+		{"with trailing, order 2, keep trailing", routesWithTrailingOrder2, routing.MatchingOptionsNone},
+		{"with trailing, order 1, ignore trailing", routesWithTrailingOrder1, routing.IgnoreTrailingSlash},
+		{"with trailing, order 2, ignore trailing", routesWithTrailingOrder2, routing.IgnoreTrailingSlash},
 	}
 
 	reqs := []struct {
@@ -196,9 +197,9 @@ func TestSubtreeConflict(t *testing.T) {
 						return
 					}
 
-					r := New(Options{
+					r := routing.New(routing.Options{
 						FilterRegistry:  builtin.MakeRegistry(),
-						DataClients:     []DataClient{dc},
+						DataClients:     []routing.DataClient{dc},
 						Log:             log,
 						MatchingOptions: def.options,
 					})

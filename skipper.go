@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates/cookie"
@@ -358,6 +359,11 @@ type Options struct {
 	// EnablePrometheusMetrics enables Prometheus format metrics.
 	EnablePrometheusMetrics bool
 
+	// LoadBalancerHealthCheckInterval enables and sets the
+	// interval when to schedule health checks for dead or
+	// unhealthy routes
+	LoadBalancerHealthCheckInterval time.Duration
+
 	// ReverseSourcePredicate enables the automatic use of IP
 	// whitelisting in different places to use the reversed way of
 	// identifying a client IP within the X-Forwarded-For
@@ -533,6 +539,11 @@ func Run(o Options) error {
 		OAuthUrl:            o.OAuthUrl,
 		OAuthScope:          o.OAuthScope})
 
+	var lbInstance *loadbalancer.LB
+	if o.LoadBalancerHealthCheckInterval != 0 {
+		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
+	}
+
 	// create data clients
 	dataClients, err := createDataClients(o, auth)
 	if err != nil {
@@ -580,7 +591,10 @@ func Run(o Options) error {
 		interval.NewAfter(),
 		cookie.New(),
 		query.New(),
-		traffic.New())
+		traffic.New(),
+		loadbalancer.NewGroup(),
+		loadbalancer.NewMember(),
+	)
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
@@ -591,6 +605,7 @@ func Run(o Options) error {
 		Predicates:      o.CustomPredicates,
 		UpdateBuffer:    updateBuffer,
 		SuppressLogs:    o.SuppressRouteUpdateLogs,
+		PostProcessors:  []routing.PostProcessor{loadbalancer.HealthcheckPostProcessor{LB: lbInstance}},
 	})
 	defer routing.Close()
 
@@ -605,6 +620,7 @@ func Run(o Options) error {
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
 		DefaultHTTPStatus:      o.DefaultHTTPStatus,
+		LoadBalancer:           lbInstance,
 		Timeout:                o.TimeoutBackend,
 		KeepAlive:              o.KeepAliveBackend,
 		DualStack:              o.DualStackBackend,

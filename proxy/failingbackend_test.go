@@ -120,6 +120,10 @@ func (b *failingBackend) close() {
 	b.synced(b.closeSynced)
 }
 
+func (b *failingBackend) Close() {
+	b.close()
+}
+
 func (b *failingBackend) down() { b.close() }
 
 func (b *failingBackend) reset() {
