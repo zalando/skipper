@@ -36,7 +36,7 @@ type context struct {
 	metrics               *filterMetrics
 	tracer                opentracing.Tracer
 
-	capturedTestLookup *routing.TestLookup
+	routeLookup *routing.RouteLookup
 }
 
 type filterMetrics struct {
@@ -119,7 +119,7 @@ func newContext(
 	r *http.Request,
 	preserveOriginal bool,
 	m metrics.Metrics,
-	tl *routing.TestLookup,
+	rl *routing.RouteLookup,
 ) *context {
 	c := &context{
 		responseWriter: w,
@@ -128,7 +128,7 @@ func newContext(
 		outgoingHost:   r.Host,
 		metrics:        &filterMetrics{impl: m},
 
-		capturedTestLookup: tl,
+		routeLookup: rl,
 	}
 
 	if preserveOriginal {

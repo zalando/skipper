@@ -539,7 +539,7 @@ func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]
 		}
 	}
 
-	return ctx.capturedTestLookup.Do(ctx.request)
+	return ctx.routeLookup.Do(ctx.request)
 }
 
 // send a premature error response

@@ -291,17 +291,31 @@ func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	return rt.m.match(req)
 }
 
-type TestLookup struct {
+// RouteLookup captures a single generation of the lookup tree, allowing multiple
+// lookups to the same version of the lookup tree.
+//
+// Experimental feature. Using this solution potentially can cause large memory
+// consumption in extreme cases, typically when:
+// the total number routes is large, the backend responses to a subset of these
+// routes is slow, and there's a rapid burst of consecutive updates to the
+// routing table. This situation is considered an edge case, but until a protection
+// against is found, the feature is experimental and its exported interface may
+// change.
+type RouteLookup struct {
 	matcher *matcher
 }
 
-func (tl *TestLookup) Do(req *http.Request) (*Route, map[string]string) {
-	return tl.matcher.match(req)
+// Do executes the lookup against the captured routing table. Equivalent to
+// Routing.Route().
+func (rl *RouteLookup) Do(req *http.Request) (*Route, map[string]string) {
+	return rl.matcher.match(req)
 }
 
-func (r *Routing) Get() *TestLookup {
+// Get returns a captured generation of the lookup table. This feature is
+// experimental. See the description of the RouteLookup type.
+func (r *Routing) Get() *RouteLookup {
 	rt := r.routeTable.Load().(*routeTable)
-	return &TestLookup{matcher: rt.m}
+	return &RouteLookup{matcher: rt.m}
 }
 
 // Close closes routing, stops receiving routes.
