@@ -14,7 +14,30 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-func TestConcurrency2(t *testing.T) {
+type counter chan int
+
+func newCounter() counter {
+	c := make(counter, 1)
+	c <- 0
+	return c
+}
+
+func (c counter) inc() {
+	v := <-c
+	c <- v + 1
+}
+
+func (c counter) value() int {
+	v := <-c
+	c <- v
+	return v
+}
+
+func (c counter) String() string {
+	return fmt.Sprint(c.value())
+}
+
+func TestConcurrency(t *testing.T) {
 	const (
 		backendCount     = 7
 		concurrency      = 32
