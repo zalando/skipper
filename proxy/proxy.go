@@ -266,7 +266,7 @@ func copyHeader(to, from http.Header) {
 
 func copyHeaderExcluding(to, from http.Header, excludeHeaders map[string]bool) {
 	for k, v := range from {
-		if _,ok := excludeHeaders[k]; !ok {
+		if _, ok := excludeHeaders[k]; !ok {
 			to[http.CanonicalHeaderKey(k)] = v
 		}
 	}
