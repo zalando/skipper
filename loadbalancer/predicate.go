@@ -42,6 +42,18 @@ func getGroupDecision(h http.Header, group string) (string, bool) {
 	return "", false
 }
 
+// NewGroup creates a predicate spec identifying the entry route
+// of a load balanced route group. E.g. eskip: LBGroup("my-group")
+// where the single mandatory string argument is the name of the
+// group, used as a reference in the LB decision filter and the
+// the group member predicates.
+//
+// Typically, one such route is used in a load balancer setup and
+// it contains the the decision filter (lbDecide("my-group", 4)).
+// It is recommended to generate these routes with the
+// loadbalancer.Balance() function that expects a single route and
+// N backend endpoints as input and returns the loadbalanced set
+// of routes representing the group.
 func NewGroup() routing.PredicateSpec {
 	return &groupSpec{}
 }
@@ -66,6 +78,13 @@ func (p *groupPredicate) Match(req *http.Request) bool {
 	return !has
 }
 
+// NewMember creates a predicate spec identifying a member route
+// of a load balanced route group. E.g. eskip: LBMember("my-group", 2)
+// where the first argument is the name of the group, while the
+// second is the index of the current route.
+//
+// Typically, these routes are generated with the loadbalancer.Balance()
+// function. See the description of LBGroup(), too.
 func NewMember() routing.PredicateSpec {
 	return &memberSpec{}
 }

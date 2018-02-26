@@ -41,8 +41,11 @@ type LB struct {
 	routeState          map[string]state
 }
 
+// HealthcheckPostProcessor wraps the LB structure implementing the
+// routing.PostProcessor interface for filtering healthy routes.
 type HealthcheckPostProcessor struct{ *LB }
 
+// Do filters the routes with healthy backends.
 func (hcpp HealthcheckPostProcessor) Do(r []*routing.Route) []*routing.Route {
 	return hcpp.LB.FilterHealthyMemberRoutes(r)
 }

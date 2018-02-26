@@ -39,6 +39,9 @@ func (c counter) value() int {
 	return v
 }
 
+// NewDecide create a filter specification for the decision route in
+// load balancing scenarios. It expects two arguments: the name of the
+// load balancing group, and the size of the load balancing group.
 func NewDecide() filters.Spec { return &decideSpec{} }
 
 func (s *decideSpec) Name() string { return DecideFilterName }

@@ -71,6 +71,12 @@ func createMembers(original *eskip.Route, groupName string, backends []string) [
 // - for special use cases on the side of the user code, provide an additional function that load balances even
 // when there's only a single route (?)
 
+// BalanceRoute automatically converts a single route to a set of routes load
+// balanced between the provided backend addresses. It takes a route and a set
+// of backend addresses, and returns a set of routes with each backend replaced
+// by one of the provided ones, plus it generates a decision route. It
+// automatically applies the load balancer predicate and the decision filter,
+// and preserves all the other predicates and filters.
 func BalanceRoute(r *eskip.Route, backends []string) []*eskip.Route {
 	if len(backends) == 0 {
 		return nil

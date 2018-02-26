@@ -116,6 +116,7 @@ type Options struct {
 	// SuppressLogs indicates whether to log only a summary of the route changes.
 	SuppressLogs bool
 
+	// PostProcessrs contains custom route post-processors.
 	PostProcessors []PostProcessor
 }
 
@@ -170,10 +171,16 @@ type Route struct {
 	// Group is equal for all routes, members, forming a loadbalancer pool.
 	Group string
 
+	// IsLoadBalanced tells the proxy that the current route
+	// is a member of a load balanced group.
 	IsLoadBalanced bool
 }
 
-// Experimental!
+// PostProcessor is an interface for custom post-processors applying changes
+// to the routes after they were created from their data representation and
+// before they were passed to the proxy.
+//
+// This feature is experimental.
 type PostProcessor interface {
 	Do([]*Route) []*Route
 }
