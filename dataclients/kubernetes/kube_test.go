@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/big"
+	mrand "math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/source"
+	"testing/quick"
 )
 
 type services map[string]map[string]*service
@@ -2220,6 +2222,72 @@ func TestComputeBackendWeights(t *testing.T) {
 				t.Errorf("modified input and output should match")
 			}
 		})
+	}
+}
+
+type backendWeight float64
+
+func (w backendWeight) Generate(rand *mrand.Rand, size int) reflect.Value {
+	generatedWeight := rand.Float64() * 100
+	return reflect.ValueOf(backendWeight(generatedWeight))
+}
+
+func TestComputeBackendWeightMustHaveFallback(t *testing.T) {
+	beweight := func(a, b, c, d backendWeight) bool {
+		if a+b+c+d == 0.0 {
+			return true
+		}
+
+		weights := map[string]float64{"foo": float64(a), "bar": float64(b), "baz": float64(c), "quux": float64(d)}
+		fooBackend := &backend{
+			ServiceName: "foo",
+		}
+		barBackend := &backend{
+			ServiceName: "bar",
+		}
+		bazBackend := &backend{
+			ServiceName: "baz",
+		}
+		quuxBackend := &backend{
+			ServiceName: "quux",
+		}
+		allBackends := []*backend{fooBackend, barBackend, bazBackend, quuxBackend}
+
+		input := &rule{
+			Http: &httpRule{
+				Paths: []*pathRule{
+					{
+						Path:    "",
+						Backend: fooBackend,
+					},
+					{
+						Path:    "",
+						Backend: barBackend,
+					},
+					{
+						Path:    "",
+						Backend: bazBackend,
+					},
+					{
+						Path:    "",
+						Backend: quuxBackend,
+					},
+				},
+			},
+		}
+		computeBackendWeights(weights, input)
+
+		// check that there's one backend with weight of 1.0
+		for _, backend := range allBackends {
+			if backend.Traffic == 1.0 {
+				return true
+			}
+		}
+		return false
+	}
+
+	if err := quick.Check(beweight, nil); err != nil {
+		t.Error(err)
 	}
 }
 
