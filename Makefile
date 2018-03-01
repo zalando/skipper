@@ -89,7 +89,7 @@ check-imports:
 	@glide list && true || \
 	(echo "run make deps and check if any new dependencies were vendored with glide get" && \
 	false)
-	# workaround until glide list supports --ignore $PACKAGE:
+	# workaround until glide list supports --ignore $$PACKAGE:
 	rm -rf vendor/github.com/opentracing/opentracing-go
 
 precommit: check-imports fmt build shortcheck vet

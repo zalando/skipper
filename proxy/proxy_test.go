@@ -927,8 +927,8 @@ func TestBackendServiceUnavailable(t *testing.T) {
 
 	defer rsp.Body.Close()
 
-	if rsp.StatusCode != http.StatusServiceUnavailable {
-		t.Error("failed to return 503 Service Unavailable on failing backend connection")
+	if rsp.StatusCode != http.StatusInternalServerError {
+		t.Error("failed to return 500 Service Unavailable on failing backend connection")
 	}
 }
 

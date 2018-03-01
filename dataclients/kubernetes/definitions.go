@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -115,4 +116,35 @@ type serviceSpec struct {
 
 type service struct {
 	Spec *serviceSpec `json:"spec"`
+}
+
+type endpoint struct {
+	Subsets []*subset `json:"subsets"`
+}
+
+func (ep endpoint) Targets() []string {
+	result := make([]string, 0)
+	for _, s := range ep.Subsets {
+		for _, port := range s.Ports {
+			for _, addr := range s.Addresses {
+				result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
+			}
+		}
+	}
+	return result
+}
+
+type subset struct {
+	Addresses []*address `json:"addresses"`
+	Ports     []*port    `json:"ports"`
+}
+
+type address struct {
+	IP   string `json:"ip"`
+	Node string `json:"nodeName"`
+}
+
+type port struct {
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"`
 }

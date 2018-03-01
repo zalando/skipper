@@ -34,175 +34,178 @@ const (
 	defaultSourcePollTimeout = int64(3000)
 	defaultSupportListener   = ":9911"
 	// deprecated
-	defaultMetricsListener            = ":9911"
-	defaultMetricsPrefix              = "skipper."
-	defaultRuntimeMetrics             = true
-	defaultApplicationLogPrefix       = "[APP]"
-	defaultApplicationLogLevel        = "INFO"
-	defaultBackendFlushInterval       = 20 * time.Millisecond
-	defaultExperimentalUpgrade        = false
-	defaultReadTimeoutServer          = 5 * time.Minute
-	defaultReadHeaderTimeoutServer    = 60 * time.Second
-	defaultWriteTimeoutServer         = 60 * time.Second
-	defaultIdleTimeoutServer          = 60 * time.Second
-	defaultTimeoutBackend             = 60 * time.Second
-	defaultKeepaliveBackend           = 30 * time.Second
-	defaultTLSHandshakeTimeoutBackend = 60 * time.Second
-	defaultMaxIdleConnsBackend        = 0
+	defaultMetricsListener                 = ":9911"
+	defaultMetricsPrefix                   = "skipper."
+	defaultRuntimeMetrics                  = true
+	defaultApplicationLogPrefix            = "[APP]"
+	defaultApplicationLogLevel             = "INFO"
+	defaultBackendFlushInterval            = 20 * time.Millisecond
+	defaultExperimentalUpgrade             = false
+	defaultReadTimeoutServer               = 5 * time.Minute
+	defaultReadHeaderTimeoutServer         = 60 * time.Second
+	defaultWriteTimeoutServer              = 60 * time.Second
+	defaultIdleTimeoutServer               = 60 * time.Second
+	defaultTimeoutBackend                  = 60 * time.Second
+	defaultKeepaliveBackend                = 30 * time.Second
+	defaultTLSHandshakeTimeoutBackend      = 60 * time.Second
+	defaultMaxIdleConnsBackend             = 0
+	defaultLoadBalancerHealthCheckInterval = 0 // disabled
 
-	addressUsage                    = "network address that skipper should listen on"
-	etcdUrlsUsage                   = "urls of nodes in an etcd cluster, storing route definitions"
-	etcdPrefixUsage                 = "path prefix for skipper related data in etcd"
-	kubernetesUsage                 = "enables skipper to generate routes for ingress resources in kubernetes cluster"
-	kubernetesInClusterUsage        = "specify if skipper is running inside kubernetes cluster"
-	kubernetesURLUsage              = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
-	kubernetesHealthcheckUsage      = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
-	kubernetesHTTPSRedirectUsage    = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
-	kubernetesIngressClassUsage     = "ingress class regular expression used to filter ingress resources for kubernetes"
-	innkeeperURLUsage               = "API endpoint of the Innkeeper service, storing route definitions"
-	innkeeperAuthTokenUsage         = "fixed token for innkeeper authentication"
-	innkeeperPreRouteFiltersUsage   = "filters to be prepended to each route loaded from Innkeeper"
-	innkeeperPostRouteFiltersUsage  = "filters to be appended to each route loaded from Innkeeper"
-	oauthURLUsage                   = "OAuth2 URL for Innkeeper authentication"
-	oauthCredentialsDirUsage        = "directory where oauth credentials are stored: client.json and user.json"
-	oauthScopeUsage                 = "the whitespace separated list of oauth scopes"
-	routesFileUsage                 = "file containing static route definitions"
-	inlineRoutesUsage               = "inline routes in eskip format"
-	sourcePollTimeoutUsage          = "polling timeout of the routing data sources, in milliseconds"
-	insecureUsage                   = "flag indicating to ignore the verification of the TLS certificates of the backend services"
-	proxyPreserveHostUsage          = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
-	idleConnsPerHostUsage           = "maximum idle connections per backend host"
-	closeIdleConnsPeriodUsage       = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
-	devModeUsage                    = "enables developer time behavior, like ubuffered routing updates"
-	supportListenerUsage            = "network address used for exposing the /metrics endpoint. An empty value disables support endpoint."
-	metricsListenerUsage            = "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty."
-	metricsPrefixUsage              = "allows setting a custom path prefix for metrics export"
-	enableProfileUsage              = "enable profile information on the metrics endpoint with path /pprof"
-	debugGcMetricsUsage             = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
-	runtimeMetricsUsage             = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
-	serveRouteMetricsUsage          = "enables reporting total serve time metrics for each route"
-	serveHostMetricsUsage           = "enables reporting total serve time metrics for each host"
-	backendHostMetricsUsage         = "enables reporting total serve time metrics for each backend"
-	allFiltersMetricsUsage          = "enables reporting combined filter metrics for each route"
-	combinedResponseMetricsUsage    = "enables reporting combined response time metrics"
-	routeResponseMetricsUsage       = "enables reporting response time metrics for each route"
-	routeBackendErrorCountersUsage  = "enables counting backend errors for each route"
-	routeStreamErrorCountersUsage   = "enables counting streaming errors for each route"
-	routeBackendMetricsUsage        = "enables reporting backend response time metrics for each route"
-	metricsUseExpDecaySampleUsage   = "use exponentially decaying sample in metrics"
-	disableMetricsCompatsUsage      = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
-	applicationLogUsage             = "output file for the application log. When not set, /dev/stderr is used"
-	applicationLogLevelUsage        = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
-	applicationLogPrefixUsage       = "prefix for each log entry"
-	accessLogUsage                  = "output file for the access log, When not set, /dev/stderr is used"
-	accessLogDisabledUsage          = "when this flag is set, no access log is printed"
-	accessLogJSONEnabledUsage       = "when this flag is set, log in JSON format is used"
-	debugEndpointUsage              = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
-	certPathTLSUsage                = "the path on the local filesystem to the certificate file (including any intermediates)"
-	keyPathTLSUsage                 = "the path on the local filesystem to the certificate's private key file"
-	backendFlushIntervalUsage       = "flush interval for upgraded proxy connections"
-	experimentalUpgradeUsage        = "enable experimental feature to handle upgrade protocol requests"
-	versionUsage                    = "print Skipper version"
-	maxLoopbacksUsage               = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
-	opentracingUsage                = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
-	defaultHTTPStatusUsage          = "default HTTP status used when no route is found for a request"
-	pluginDirUsage                  = "set the directory to load plugins from, default is ./"
-	suppressRouteUpdateLogsUsage    = "print only summaries on route updates/deletes"
-	enablePrometheusMetricsUsage    = "use Prometheus metrics format to expose metrics"
-	reverseSourcePredicateUsage     = "reverse the order of finding the client IP from X-Forwarded-For header"
-	readTimeoutServerUsage          = "set ReadTimeout for http server connections"
-	readHeaderTimeoutServerUsage    = "set ReadHeaderTimeout for http server connections"
-	writeTimeoutServerUsage         = "set WriteTimeout for http server connections"
-	idleTimeoutServerUsage          = "set IdleTimeout for http server connections"
-	maxHeaderBytesUsage             = "set MaxHeaderBytes for http server connections"
-	enableConnMetricsServerUsage    = "enables connection metrics for http server connections"
-	timeoutBackendUsage             = "sets the TCP client connection timeout for backend connections"
-	keepaliveBackendUsage           = "sets the keepalive for backend connections"
-	enableDualstackBackendUsage     = "enables DualStack for backend connections"
-	tlsHandshakeTimeoutBackendUsage = "sets the TLS handshake timeout for backend connections"
-	maxIdleConnsBackendUsage        = "sets the maximum idle connections for all backend connections"
-	enableHopHeadersRemovalUsage    = "enables removal of Hop-Headers according to RFC-2616"
+	addressUsage                         = "network address that skipper should listen on"
+	etcdUrlsUsage                        = "urls of nodes in an etcd cluster, storing route definitions"
+	etcdPrefixUsage                      = "path prefix for skipper related data in etcd"
+	kubernetesUsage                      = "enables skipper to generate routes for ingress resources in kubernetes cluster"
+	kubernetesInClusterUsage             = "specify if skipper is running inside kubernetes cluster"
+	kubernetesURLUsage                   = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
+	kubernetesHealthcheckUsage           = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
+	kubernetesHTTPSRedirectUsage         = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
+	kubernetesIngressClassUsage          = "ingress class regular expression used to filter ingress resources for kubernetes"
+	innkeeperURLUsage                    = "API endpoint of the Innkeeper service, storing route definitions"
+	innkeeperAuthTokenUsage              = "fixed token for innkeeper authentication"
+	innkeeperPreRouteFiltersUsage        = "filters to be prepended to each route loaded from Innkeeper"
+	innkeeperPostRouteFiltersUsage       = "filters to be appended to each route loaded from Innkeeper"
+	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
+	oauthCredentialsDirUsage             = "directory where oauth credentials are stored: client.json and user.json"
+	oauthScopeUsage                      = "the whitespace separated list of oauth scopes"
+	routesFileUsage                      = "file containing static route definitions"
+	inlineRoutesUsage                    = "inline routes in eskip format"
+	sourcePollTimeoutUsage               = "polling timeout of the routing data sources, in milliseconds"
+	insecureUsage                        = "flag indicating to ignore the verification of the TLS certificates of the backend services"
+	proxyPreserveHostUsage               = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
+	idleConnsPerHostUsage                = "maximum idle connections per backend host"
+	closeIdleConnsPeriodUsage            = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
+	devModeUsage                         = "enables developer time behavior, like ubuffered routing updates"
+	supportListenerUsage                 = "network address used for exposing the /metrics endpoint. An empty value disables support endpoint."
+	metricsListenerUsage                 = "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty."
+	metricsPrefixUsage                   = "allows setting a custom path prefix for metrics export"
+	enableProfileUsage                   = "enable profile information on the metrics endpoint with path /pprof"
+	debugGcMetricsUsage                  = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
+	runtimeMetricsUsage                  = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
+	serveRouteMetricsUsage               = "enables reporting total serve time metrics for each route"
+	serveHostMetricsUsage                = "enables reporting total serve time metrics for each host"
+	backendHostMetricsUsage              = "enables reporting total serve time metrics for each backend"
+	allFiltersMetricsUsage               = "enables reporting combined filter metrics for each route"
+	combinedResponseMetricsUsage         = "enables reporting combined response time metrics"
+	routeResponseMetricsUsage            = "enables reporting response time metrics for each route"
+	routeBackendErrorCountersUsage       = "enables counting backend errors for each route"
+	routeStreamErrorCountersUsage        = "enables counting streaming errors for each route"
+	routeBackendMetricsUsage             = "enables reporting backend response time metrics for each route"
+	metricsUseExpDecaySampleUsage        = "use exponentially decaying sample in metrics"
+	disableMetricsCompatsUsage           = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
+	applicationLogUsage                  = "output file for the application log. When not set, /dev/stderr is used"
+	applicationLogLevelUsage             = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
+	applicationLogPrefixUsage            = "prefix for each log entry"
+	accessLogUsage                       = "output file for the access log, When not set, /dev/stderr is used"
+	accessLogDisabledUsage               = "when this flag is set, no access log is printed"
+	accessLogJSONEnabledUsage            = "when this flag is set, log in JSON format is used"
+	debugEndpointUsage                   = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
+	certPathTLSUsage                     = "the path on the local filesystem to the certificate file (including any intermediates)"
+	keyPathTLSUsage                      = "the path on the local filesystem to the certificate's private key file"
+	backendFlushIntervalUsage            = "flush interval for upgraded proxy connections"
+	experimentalUpgradeUsage             = "enable experimental feature to handle upgrade protocol requests"
+	versionUsage                         = "print Skipper version"
+	maxLoopbacksUsage                    = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
+	opentracingUsage                     = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
+	defaultHTTPStatusUsage               = "default HTTP status used when no route is found for a request"
+	pluginDirUsage                       = "set the directory to load plugins from, default is ./"
+	suppressRouteUpdateLogsUsage         = "print only summaries on route updates/deletes"
+	enablePrometheusMetricsUsage         = "use Prometheus metrics format to expose metrics"
+	loadBalancerHealthCheckIntervalUsage = "use to set the health checker interval to check healthiness of former dead or unhealthy routes"
+	reverseSourcePredicateUsage          = "reverse the order of finding the client IP from X-Forwarded-For header"
+	readTimeoutServerUsage               = "set ReadTimeout for http server connections"
+	readHeaderTimeoutServerUsage         = "set ReadHeaderTimeout for http server connections"
+	writeTimeoutServerUsage              = "set WriteTimeout for http server connections"
+	idleTimeoutServerUsage               = "set IdleTimeout for http server connections"
+	maxHeaderBytesUsage                  = "set MaxHeaderBytes for http server connections"
+	enableConnMetricsServerUsage         = "enables connection metrics for http server connections"
+	timeoutBackendUsage                  = "sets the TCP client connection timeout for backend connections"
+	keepaliveBackendUsage                = "sets the keepalive for backend connections"
+	enableDualstackBackendUsage          = "enables DualStack for backend connections"
+	tlsHandshakeTimeoutBackendUsage      = "sets the TLS handshake timeout for backend connections"
+	maxIdleConnsBackendUsage             = "sets the maximum idle connections for all backend connections"
+	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
 )
 
 var (
-	version                    string
-	commit                     string
-	address                    string
-	etcdUrls                   string
-	etcdPrefix                 string
-	insecure                   bool
-	proxyPreserveHost          bool
-	removeHopHeaders           bool
-	idleConnsPerHost           int
-	closeIdleConnsPeriod       string
-	kubernetes                 bool
-	kubernetesInCluster        bool
-	kubernetesURL              string
-	kubernetesHealthcheck      bool
-	kubernetesHTTPSRedirect    bool
-	kubernetesIngressClass     string
-	innkeeperURL               string
-	sourcePollTimeout          int64
-	routesFile                 string
-	inlineRoutes               string
-	oauthURL                   string
-	oauthScope                 string
-	oauthCredentialsDir        string
-	innkeeperAuthToken         string
-	innkeeperPreRouteFilters   string
-	innkeeperPostRouteFilters  string
-	devMode                    bool
-	supportListener            string
-	metricsListener            string
-	metricsPrefix              string
-	enableProfile              bool
-	debugGcMetrics             bool
-	runtimeMetrics             bool
-	serveRouteMetrics          bool
-	serveHostMetrics           bool
-	backendHostMetrics         bool
-	allFiltersMetrics          bool
-	combinedResponseMetrics    bool
-	routeResponseMetrics       bool
-	routeBackendErrorCounters  bool
-	routeStreamErrorCounters   bool
-	routeBackendMetrics        bool
-	metricsUseExpDecaySample   bool
-	disableMetricsCompat       bool
-	applicationLog             string
-	applicationLogLevel        string
-	applicationLogPrefix       string
-	accessLog                  string
-	accessLogDisabled          bool
-	accessLogJSONEnabled       bool
-	debugListener              string
-	certPathTLS                string
-	keyPathTLS                 string
-	backendFlushInterval       time.Duration
-	experimentalUpgrade        bool
-	printVersion               bool
-	maxLoopbacks               int
-	enableBreakers             bool
-	breakers                   breakerFlags
-	enableRatelimiters         bool
-	ratelimits                 ratelimitFlags
-	openTracing                string
-	defaultHTTPStatus          int
-	pluginDir                  string
-	suppressRouteUpdateLogs    bool
-	enablePrometheusMetrics    bool
-	reverseSourcePredicate     bool
-	readTimeoutServer          time.Duration
-	readHeaderTimeoutServer    time.Duration
-	writeTimeoutServer         time.Duration
-	idleTimeoutServer          time.Duration
-	maxHeaderBytes             int
-	enableConnMetricsServer    bool
-	timeoutBackend             time.Duration
-	keepaliveBackend           time.Duration
-	enableDualstackBackend     bool
-	tlsHandshakeTimeoutBackend time.Duration
-	maxIdleConnsBackend        int
+	version                         string
+	commit                          string
+	address                         string
+	etcdUrls                        string
+	etcdPrefix                      string
+	insecure                        bool
+	proxyPreserveHost               bool
+	removeHopHeaders                bool
+	idleConnsPerHost                int
+	closeIdleConnsPeriod            string
+	kubernetes                      bool
+	kubernetesInCluster             bool
+	kubernetesURL                   string
+	kubernetesHealthcheck           bool
+	kubernetesHTTPSRedirect         bool
+	kubernetesIngressClass          string
+	innkeeperURL                    string
+	sourcePollTimeout               int64
+	routesFile                      string
+	inlineRoutes                    string
+	oauthURL                        string
+	oauthScope                      string
+	oauthCredentialsDir             string
+	innkeeperAuthToken              string
+	innkeeperPreRouteFilters        string
+	innkeeperPostRouteFilters       string
+	devMode                         bool
+	supportListener                 string
+	metricsListener                 string
+	metricsPrefix                   string
+	enableProfile                   bool
+	debugGcMetrics                  bool
+	runtimeMetrics                  bool
+	serveRouteMetrics               bool
+	serveHostMetrics                bool
+	backendHostMetrics              bool
+	allFiltersMetrics               bool
+	combinedResponseMetrics         bool
+	routeResponseMetrics            bool
+	routeBackendErrorCounters       bool
+	routeStreamErrorCounters        bool
+	routeBackendMetrics             bool
+	metricsUseExpDecaySample        bool
+	disableMetricsCompat            bool
+	applicationLog                  string
+	applicationLogLevel             string
+	applicationLogPrefix            string
+	accessLog                       string
+	accessLogDisabled               bool
+	accessLogJSONEnabled            bool
+	debugListener                   string
+	certPathTLS                     string
+	keyPathTLS                      string
+	backendFlushInterval            time.Duration
+	experimentalUpgrade             bool
+	printVersion                    bool
+	maxLoopbacks                    int
+	enableBreakers                  bool
+	breakers                        breakerFlags
+	enableRatelimiters              bool
+	ratelimits                      ratelimitFlags
+	openTracing                     string
+	defaultHTTPStatus               int
+	pluginDir                       string
+	suppressRouteUpdateLogs         bool
+	enablePrometheusMetrics         bool
+	loadBalancerHealthCheckInterval time.Duration
+	reverseSourcePredicate          bool
+	readTimeoutServer               time.Duration
+	readHeaderTimeoutServer         time.Duration
+	writeTimeoutServer              time.Duration
+	idleTimeoutServer               time.Duration
+	maxHeaderBytes                  int
+	enableConnMetricsServer         bool
+	timeoutBackend                  time.Duration
+	keepaliveBackend                time.Duration
+	enableDualstackBackend          bool
+	tlsHandshakeTimeoutBackend      time.Duration
+	maxIdleConnsBackend             int
 )
 
 func init() {
@@ -270,6 +273,7 @@ func init() {
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
+	flag.DurationVar(&loadBalancerHealthCheckInterval, "lb-healthcheck-interval", defaultLoadBalancerHealthCheckInterval, loadBalancerHealthCheckIntervalUsage)
 	flag.BoolVar(&reverseSourcePredicate, "reverse-source-predicate", false, reverseSourcePredicateUsage)
 	flag.DurationVar(&readTimeoutServer, "read-timeout-server", defaultReadTimeoutServer, readTimeoutServerUsage)
 	flag.DurationVar(&readHeaderTimeoutServer, "read-header-timeout-server", defaultReadHeaderTimeoutServer, readHeaderTimeoutServerUsage)
@@ -393,6 +397,7 @@ func main() {
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
+		LoadBalancerHealthCheckInterval:     loadBalancerHealthCheckInterval,
 		ReverseSourcePredicate:              reverseSourcePredicate,
 		ReadTimeoutServer:                   readTimeoutServer,
 		ReadHeaderTimeoutServer:             readHeaderTimeoutServer,

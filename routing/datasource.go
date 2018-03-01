@@ -395,6 +395,13 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		case defs := <-updatesRelay:
 			o.Log.Info("route settings received")
 			routes, invalidRoutes := processRouteDefs(o, o.FilterRegistry, defs)
+
+			// TODO: consider if the fallbacks logic should be a post processor
+			routes = applyFallbackGroups(routes)
+			for i := range o.PostProcessors {
+				routes = o.PostProcessors[i].Do(routes)
+			}
+
 			m, errs := newMatcher(routes, o.MatchingOptions)
 
 			invalidRouteIds := make(map[string]struct{})
