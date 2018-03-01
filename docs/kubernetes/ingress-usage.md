@@ -125,6 +125,12 @@ Change the path in the request path to your backend to `/newPath/`.
 
     setPath("/newPath/")
 
+## Modify Path
+
+Modify the path in the request path from `/api/foo` to your backend to `/foo`.
+
+    modPath("^/api/", "/")
+
 ## Set the Querystring
 
 Set the Querystring in the request path to your backend to `?text=godoc%20skipper`.
