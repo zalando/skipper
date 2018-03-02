@@ -70,17 +70,22 @@ const (
 	// and with the approximate changes they would make to the
 	// response.
 	Debug
+
+	// HopeHeadersRemoval indicates whether the Hop Headers should be removed
+	// in compliance with RFC 2616
+	HopHeadersRemoval
 )
 
 // Options are deprecated alias for Flags.
 type Options Flags
 
 const (
-	OptionsNone             = Options(FlagsNone)
-	OptionsInsecure         = Options(Insecure)
-	OptionsPreserveOriginal = Options(PreserveOriginal)
-	OptionsPreserveHost     = Options(PreserveHost)
-	OptionsDebug            = Options(Debug)
+	OptionsNone              = Options(FlagsNone)
+	OptionsInsecure          = Options(Insecure)
+	OptionsPreserveOriginal  = Options(PreserveOriginal)
+	OptionsPreserveHost      = Options(PreserveHost)
+	OptionsDebug             = Options(Debug)
+	OptionsHopHeadersRemoval = Options(HopHeadersRemoval)
 )
 
 // Proxy initialization options.
@@ -165,6 +170,17 @@ var (
 		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
 	errRatelimitError = errors.New("ratelimited")
+	hopHeaders        = map[string]bool{
+		"Connection":          true,
+		"Proxy-Connection":    true,
+		"Keep-Alive":          true,
+		"Proxy-Authenticate":  true,
+		"Proxy-Authorization": true,
+		"Te":                true,
+		"Trailer":           true,
+		"Transfer-Encoding": true,
+		"Upgrade":           true,
+	}
 )
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
@@ -180,6 +196,9 @@ func (f Flags) PreserveHost() bool { return f&PreserveHost != 0 }
 
 // When set, the proxy runs in debug mode.
 func (f Flags) Debug() bool { return f&Debug != 0 }
+
+// When set, the proxy will remove the Hop Headers
+func (f Flags) HopHeadersRemoval() bool { return f&HopHeadersRemoval != 0 }
 
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
@@ -266,9 +285,25 @@ func copyHeader(to, from http.Header) {
 	}
 }
 
+func copyHeaderExcluding(to, from http.Header, excludeHeaders map[string]bool) {
+	for k, v := range from {
+		// The http package converts header names to their canonical version.
+		// Meaning that the lookup below will be done using the canonical version of the header.
+		if _, ok := excludeHeaders[k]; !ok {
+			to[http.CanonicalHeaderKey(k)] = v
+		}
+	}
+}
+
 func cloneHeader(h http.Header) http.Header {
 	hh := make(http.Header)
 	copyHeader(hh, h)
+	return hh
+}
+
+func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Header {
+	hh := make(http.Header)
+	copyHeaderExcluding(hh, h, excludeList)
 	return hh
 }
 
@@ -300,7 +335,7 @@ func copyStream(to flusherWriter, from io.Reader) error {
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request, error) {
+func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeaders bool) (*http.Request, error) {
 	u := r.URL
 	u.Scheme = rt.Scheme
 	u.Host = rt.Host
@@ -316,10 +351,14 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 		return nil, err
 	}
 
-	rr.Header = cloneHeader(r.Header)
+	if removeHopHeaders {
+		rr.Header = cloneHeaderExcluding(r.Header, hopHeaders)
+	} else {
+		rr.Header = cloneHeader(r.Header)
+	}
 	rr.Host = host
 
-	// If there is basic auth configured int the URL we add them as headers
+	// If there is basic auth configured in the URL we add them as headers
 	if u.User != nil {
 		up := u.User.String()
 		upBase64 := base64.StdEncoding.EncodeToString([]byte(up))
@@ -581,7 +620,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
-	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
+	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval())
 	if err != nil {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
 		return nil, &proxyError{err: err}
@@ -757,7 +796,7 @@ func (p *Proxy) do(ctx *context) error {
 
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 	} else if p.flags.Debug() {
-		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
+		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval())
 		if err != nil {
 			return &proxyError{err: err}
 		}

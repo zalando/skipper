@@ -123,6 +123,7 @@ const (
 	enableDualstackBackendUsage          = "enables DualStack for backend connections"
 	tlsHandshakeTimeoutBackendUsage      = "sets the TLS handshake timeout for backend connections"
 	maxIdleConnsBackendUsage             = "sets the maximum idle connections for all backend connections"
+	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
 )
 
 var (
@@ -133,6 +134,7 @@ var (
 	etcdPrefix                      string
 	insecure                        bool
 	proxyPreserveHost               bool
+	removeHopHeaders                bool
 	idleConnsPerHost                int
 	closeIdleConnsPeriod            string
 	kubernetes                      bool
@@ -211,6 +213,7 @@ func init() {
 	flag.StringVar(&etcdUrls, "etcd-urls", "", etcdUrlsUsage)
 	flag.BoolVar(&insecure, "insecure", false, insecureUsage)
 	flag.BoolVar(&proxyPreserveHost, "proxy-preserve-host", false, proxyPreserveHostUsage)
+	flag.BoolVar(&removeHopHeaders, "remove-hop-headers", false, enableHopHeadersRemovalUsage)
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
 	flag.StringVar(&closeIdleConnsPeriod, "close-idle-conns-period", strconv.Itoa(int(proxy.DefaultCloseIdleConnsPeriod/time.Second)), closeIdleConnsPeriodUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
@@ -410,6 +413,10 @@ func main() {
 
 	if proxyPreserveHost {
 		options.ProxyFlags |= proxy.PreserveHost
+	}
+
+	if removeHopHeaders {
+		options.ProxyFlags |= proxy.HopHeadersRemoval
 	}
 
 	log.Fatal(skipper.Run(options))
