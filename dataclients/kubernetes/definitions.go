@@ -122,12 +122,15 @@ type endpoint struct {
 	Subsets []*subset `json:"subsets"`
 }
 
-func (ep endpoint) Targets() []string {
+func (ep endpoint) Targets(ingSvcPort string) []string {
+	epPort, _ := strconv.Atoi(ingSvcPort)
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
-			for _, addr := range s.Addresses {
-				result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
+			if port.Name == ingSvcPort || port.Port == epPort {
+				for _, addr := range s.Addresses {
+					result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
+				}
 			}
 		}
 	}
@@ -145,6 +148,7 @@ type address struct {
 }
 
 type port struct {
+	Name     string `json:"name"`
 	Port     int    `json:"port"`
 	Protocol string `json:"protocol"`
 }
