@@ -353,6 +353,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	eps, err := c.getEndpoints(
 		i.Metadata.Namespace,
 		i.Spec.DefaultBackend.ServiceName,
+		i.Spec.DefaultBackend.ServicePort.String(),
 	)
 	if err == errEndpointNotFound {
 		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
@@ -425,7 +426,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	return routes, true, nil
 }
 
-func (c *Client) getEndpoints(ns, name string) ([]string, error) {
+func (c *Client) getEndpoints(ns, name, port string) ([]string, error) {
 	log.Debugf("requesting endpoint: %s/%s", ns, name)
 	url := fmt.Sprintf(endpointURIFmt, ns, name)
 	var ep endpoint
@@ -437,7 +438,7 @@ func (c *Client) getEndpoints(ns, name string) ([]string, error) {
 		return nil, errEndpointNotFound
 	}
 
-	return ep.Targets(), nil
+	return ep.Targets(port), nil
 }
 
 func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpointsURLs map[string][]string) ([]*eskip.Route, error) {
@@ -458,7 +459,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 	}
 
 	if val, ok := endpointsURLs[endpointKey]; !ok {
-		eps, err = c.getEndpoints(ns, prule.Backend.ServiceName)
+		eps, err = c.getEndpoints(ns, prule.Backend.ServiceName, prule.Backend.ServicePort.String())
 		if err == errEndpointNotFound {
 			// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
 			// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
