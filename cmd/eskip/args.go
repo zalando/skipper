@@ -19,6 +19,7 @@ import (
 	"flag"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -38,6 +39,7 @@ const (
 	appendFiltersFlag  = "append"
 	appendFileFlag     = "append-file"
 	prettyFlag         = "pretty"
+	indentStrFlag      = "indent"
 	jsonFlag           = "json"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
@@ -55,6 +57,7 @@ func (w *noopWriter) Write(b []byte) (int, error) {
 var (
 	invalidNumberOfArgs = errors.New("invalid number of args")
 	missingOAuthToken   = errors.New("missing OAuth token")
+	invalidIndentStr    = errors.New("invalid indent. Must match regexp \\s")
 )
 
 // parsing vars for flags:
@@ -72,6 +75,7 @@ var (
 	appendFiltersArg  string
 	appendFileArg     string
 	pretty            bool
+	indentStr         string
 	printJson         bool
 )
 
@@ -106,6 +110,7 @@ func initFlags() {
 	flags.StringVar(&appendFileArg, appendFileFlag, "", appendFileUsage)
 
 	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
+	flags.StringVar(&indentStr, indentStrFlag, "  ", indentStrUsage)
 	flags.BoolVar(&printJson, jsonFlag, false, jsonUsage)
 }
 
@@ -204,6 +209,15 @@ func processFileArg() (*medium, error) {
 		path: nonFlagArgs[0]}, nil
 }
 
+// if pretty print then check that indent matches pattern
+func processIndentStr() error {
+	if pretty && !(regexp.MustCompile("^[\\s]*$").MatchString(indentStr)) {
+		return invalidIndentStr
+	}
+	return nil
+
+}
+
 // returns stdin type medium if stdin is not TTY.
 func processStdin() *medium {
 
@@ -280,6 +294,11 @@ func processArgs() ([]*medium, error) {
 	}
 
 	fileArg, err := processFileArg()
+	if err != nil {
+		return nil, err
+	}
+
+	err = processIndentStr()
 	if err != nil {
 		return nil, err
 	}

@@ -8,7 +8,13 @@ import (
 	"strings"
 )
 
+type PrettyPrintInfo struct {
+	Pretty    bool
+	IndentStr string
+}
+
 func escape(s string, chars string) string {
+
 	s = strings.Replace(s, "\\", "\\\\", -1)
 	for i := 0; i < len(chars); i++ {
 		c := chars[i : i+1]
@@ -97,13 +103,13 @@ func (r *Route) predicateString() string {
 	return strings.Join(predicates, " && ")
 }
 
-func (r *Route) filterString(pretty bool) string {
+func (r *Route) filterString(prettyPrintInfo PrettyPrintInfo) string {
 	var sfilters []string
 	for _, f := range r.Filters {
 		sfilters = appendFmt(sfilters, "%s(%s)", f.Name, argsString(f.Args))
 	}
-	if pretty {
-		return strings.Join(sfilters, "\n  -> ")
+	if prettyPrintInfo.Pretty {
+		return strings.Join(sfilters, "\n"+prettyPrintInfo.IndentStr+"-> ")
 	}
 	return strings.Join(sfilters, " -> ")
 }
@@ -130,35 +136,35 @@ func (r *Route) backendStringQuoted() string {
 
 // Serializes a route expression. Omits the route id if any.
 func (r *Route) String() string {
-	return r.Print(false)
+	return r.Print(PrettyPrintInfo{Pretty: false, IndentStr: ""})
 }
 
-func (r *Route) Print(pretty bool) string {
+func (r *Route) Print(prettyPrintInfo PrettyPrintInfo) string {
 	s := []string{r.predicateString()}
 
-	fs := r.filterString(pretty)
+	fs := r.filterString(prettyPrintInfo)
 	if fs != "" {
 		s = append(s, fs)
 	}
 
 	s = append(s, r.backendStringQuoted())
 	separator := " -> "
-	if pretty {
-		separator = "\n  -> "
+	if prettyPrintInfo.Pretty {
+		separator = "\n" + prettyPrintInfo.IndentStr + "-> "
 	}
 	return strings.Join(s, separator)
 }
 
 // String is the same as Print but defaulting to pretty=false.
 func String(routes ...*Route) string {
-	return Print(false, routes...)
+	return Print(PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
 }
 
 // Print serializes a set of routes into a string. If there's only a
 // single route, and its ID is not set, it prints only a route expression.
 // If it has multiple routes with IDs, it prints full route definitions
 // with the IDs and separated by ';'.
-func Print(pretty bool, routes ...*Route) string {
+func Print(pretty PrettyPrintInfo, routes ...*Route) string {
 	var buf bytes.Buffer
 	Fprint(&buf, pretty, routes...)
 	return buf.String()
@@ -168,37 +174,37 @@ func isDefinition(route *Route) bool {
 	return route.Id != ""
 }
 
-func fprintExpression(w io.Writer, route *Route, pretty bool) {
-	fmt.Fprint(w, route.Print(pretty))
+func fprintExpression(w io.Writer, route *Route, prettyPrintInfo PrettyPrintInfo) {
+	fmt.Fprint(w, route.Print(prettyPrintInfo))
 }
 
-func fprintDefinition(w io.Writer, route *Route, pretty bool) {
-	fmt.Fprintf(w, "%s: %s", route.Id, route.Print(pretty))
+func fprintDefinition(w io.Writer, route *Route, prettyPrintInfo PrettyPrintInfo) {
+	fmt.Fprintf(w, "%s: %s", route.Id, route.Print(prettyPrintInfo))
 }
 
-func fprintDefinitions(w io.Writer, routes []*Route, pretty bool) {
+func fprintDefinitions(w io.Writer, routes []*Route, prettyPrintInfo PrettyPrintInfo) {
 	for i, r := range routes {
 		if i > 0 {
 			fmt.Fprint(w, "\n")
-			if pretty {
+			if prettyPrintInfo.Pretty {
 				fmt.Fprint(w, "\n")
 			}
 		}
 
-		fprintDefinition(w, r, pretty)
+		fprintDefinition(w, r, prettyPrintInfo)
 		fmt.Fprint(w, ";")
 	}
 }
 
-func Fprint(w io.Writer, pretty bool, routes ...*Route) {
+func Fprint(w io.Writer, prettyPrintInfo PrettyPrintInfo, routes ...*Route) {
 	if len(routes) == 0 {
 		return
 	}
 
 	if len(routes) == 1 && !isDefinition(routes[0]) {
-		fprintExpression(w, routes[0], pretty)
+		fprintExpression(w, routes[0], prettyPrintInfo)
 		return
 	}
 
-	fprintDefinitions(w, routes, pretty)
+	fprintDefinitions(w, routes, prettyPrintInfo)
 }
