@@ -438,7 +438,11 @@ func (c *Client) getEndpoints(ns, name, port string) ([]string, error) {
 		return nil, errEndpointNotFound
 	}
 
-	return ep.Targets(port), nil
+	targets := ep.Targets(port)
+	if len(targets) == 0 {
+		return nil, errEndpointNotFound
+	}
+	return targets, nil
 }
 
 func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpointsURLs map[string][]string) ([]*eskip.Route, error) {
