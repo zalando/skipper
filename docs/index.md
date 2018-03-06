@@ -25,7 +25,7 @@ example [Jaeger](https://github.com/jaegertracing/jaeger) is supported.
 Skipper has a rich set of metrics that are exposed as json, but can be
 exported in [Prometheus](https://prometheus.io) format.
 
-![Skipper's architecture ](../img/architecture.svg)
+![Skipper's architecture ](/img/architecture.svg)
 
 ## Route processing
 
@@ -46,4 +46,4 @@ group automatically. Just before the response to the caller, skipper
 will process the response filters, that can change the
 `http.Response`.
 
-![Skipper's request and response processing ](../img/req-and-resp-processing.svg)
+![Skipper's request and response processing ](/img/req-and-resp-processing.svg)
