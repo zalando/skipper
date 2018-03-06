@@ -130,7 +130,7 @@ func TestPrintNonPretty(t *testing.T) {
 			`Path("/some/path") -> "https://www.example.org"`,
 		},
 	} {
-		testPrinting(item.route, item.expected, t, i, false, false)
+		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: false, IndentStr: ""}, false)
 	}
 }
 
@@ -148,7 +148,7 @@ func TestPrintPretty(t *testing.T) {
 			"Path(\"/some/path\")\n  -> \"https://www.example.org\"",
 		},
 	} {
-		testPrinting(item.route, item.expected, t, i, true, false)
+		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: true, IndentStr: "  "}, false)
 	}
 }
 
@@ -160,7 +160,7 @@ func TestPrintMultiRoutePretty(t *testing.T) {
 			`  -> <shunt>;`+"\n\n"+
 			`route2: Path("/some/path")`+"\n"+
 			`  -> "https://www.example.org";`,
-		t, 0, true, true)
+		t, 0, PrettyPrintInfo{Pretty: true, IndentStr: "  "}, true)
 }
 
 func TestPrintMultiRouteNonPretty(t *testing.T) {
@@ -168,10 +168,10 @@ func TestPrintMultiRouteNonPretty(t *testing.T) {
 		`route2: Path("/some/path") -> "https://www.example.org"`,
 		`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
 			`route2: Path("/some/path") -> "https://www.example.org";`,
-		t, 0, false, true)
+		t, 0, PrettyPrintInfo{Pretty: false, IndentStr: ""}, true)
 }
 
-func testPrinting(routestr string, expected string, t *testing.T, i int, pretty bool, multi bool) {
+func testPrinting(routestr string, expected string, t *testing.T, i int, prettyPrintInfo PrettyPrintInfo, multi bool) {
 	routes, err := Parse(routestr)
 	if err != nil {
 		t.Error(err)
@@ -179,9 +179,9 @@ func testPrinting(routestr string, expected string, t *testing.T, i int, pretty 
 	var printedRoute string
 
 	if multi {
-		printedRoute = Print(pretty, routes...)
+		printedRoute = Print(prettyPrintInfo, routes...)
 	} else {
-		printedRoute = routes[0].Print(pretty)
+		printedRoute = routes[0].Print(prettyPrintInfo)
 	}
 
 	if printedRoute != expected {
@@ -267,7 +267,7 @@ func TestPrintLines(t *testing.T) {
 		t.Run("Print()", func(t *testing.T) {
 			t.Run("not pretty", func(t *testing.T) {
 				expected := `Path("/foo") -> setPath("/") -> "https://www.example.org"`
-				got := route.Print(false)
+				got := route.Print(PrettyPrintInfo{Pretty: false, IndentStr: ""})
 				check(t, got, expected)
 			})
 
@@ -275,7 +275,7 @@ func TestPrintLines(t *testing.T) {
 				expected := `Path("/foo")
   -> setPath("/")
   -> "https://www.example.org"`
-				got := route.Print(true)
+				got := route.Print(PrettyPrintInfo{Pretty: true, IndentStr: "  "})
 				check(t, got, expected)
 			})
 		})
@@ -434,19 +434,19 @@ testRoute3: Path("/baz")
 		t.Run("Print()", func(t *testing.T) {
 			t.Run("not pretty", func(t *testing.T) {
 				runTests(t, testsFlat, func(test packageLevelTest) string {
-					return Print(false, test.routes...)
+					return Print(PrettyPrintInfo{Pretty: false, IndentStr: ""}, test.routes...)
 				})
 			})
 
 			t.Run("pretty", func(t *testing.T) {
 				runTests(t, testsPretty, func(test packageLevelTest) string {
-					return Print(true, test.routes...)
+					return Print(PrettyPrintInfo{Pretty: true, IndentStr: "  "}, test.routes...)
 				})
 			})
 		})
 
 		t.Run("Fprint()", func(t *testing.T) {
-			fprint := func(pretty bool, routes []*Route) string {
+			fprint := func(pretty PrettyPrintInfo, routes []*Route) string {
 				var buf bytes.Buffer
 				Fprint(&buf, pretty, routes...)
 				return buf.String()
@@ -454,13 +454,13 @@ testRoute3: Path("/baz")
 
 			t.Run("not pretty", func(t *testing.T) {
 				runTests(t, testsFlat, func(test packageLevelTest) string {
-					return fprint(false, test.routes)
+					return fprint(PrettyPrintInfo{Pretty: false, IndentStr: ""}, test.routes)
 				})
 			})
 
 			t.Run("pretty", func(t *testing.T) {
 				runTests(t, testsPretty, func(test packageLevelTest) string {
-					return fprint(true, test.routes)
+					return fprint(PrettyPrintInfo{Pretty: true, IndentStr: "  "}, test.routes)
 				})
 			})
 		})

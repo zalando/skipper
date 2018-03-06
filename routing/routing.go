@@ -360,14 +360,14 @@ func extractParam(r *http.Request, key string, defaultValue int) (int, error) {
 	return val, nil
 }
 
-func extractPretty(r *http.Request) bool {
+func extractPretty(r *http.Request) eskip.PrettyPrintInfo {
 	vals, ok := r.Form["nopretty"]
 	if !ok || len(vals) == 0 {
-		return true
+		return eskip.PrettyPrintInfo{Pretty: true, IndentStr: "  "}
 	}
 	val := vals[0]
 	if val == "0" || val == "false" {
-		return true
+		return eskip.PrettyPrintInfo{Pretty: true, IndentStr: "  "}
 	}
-	return false
+	return eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}
 }

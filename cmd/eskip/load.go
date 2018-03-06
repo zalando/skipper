@@ -18,8 +18,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/eskip"
 	"io/ioutil"
+
+	"github.com/zalando/skipper/eskip"
 )
 
 type loadResult struct {
@@ -125,7 +126,7 @@ func printCmd(a cmdArgs) error {
 			}
 		}
 
-		eskip.Fprint(stdout, pretty, lr.routes...)
+		eskip.Fprint(stdout, eskip.PrettyPrintInfo{Pretty: pretty, IndentStr: indentStr}, lr.routes...)
 	}
 
 	if len(lr.parseErrors) > 0 {
