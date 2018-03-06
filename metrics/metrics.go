@@ -161,7 +161,7 @@ func NewDefaultHandler(o Options) http.Handler {
 
 	switch o.Format {
 	case AllKind:
-		m = NewAllKind(o)
+		m = NewAll(o)
 	case PrometheusKind:
 		m = NewPrometheus(o)
 	default:

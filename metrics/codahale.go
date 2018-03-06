@@ -257,7 +257,6 @@ func filterMetrics(reg metrics.Registry, prefix, key string) skipperMetrics {
 			}
 		})
 	}
-
 	return metrics
 }
 
