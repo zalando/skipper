@@ -105,8 +105,9 @@ type ingressList struct {
 }
 
 type servicePort struct {
-	Name string `json:"name"`
-	Port int    `json:"port"`
+	Name       string `json:"name"`
+	Port       int    `json:"port"`
+	TargetPort int    `json:"targetPort"`
 }
 
 type serviceSpec struct {
@@ -115,6 +116,7 @@ type serviceSpec struct {
 }
 
 type service struct {
+	Meta *metadata    `json:"metadata"`
 	Spec *serviceSpec `json:"spec"`
 }
 
@@ -122,12 +124,11 @@ type endpoint struct {
 	Subsets []*subset `json:"subsets"`
 }
 
-func (ep endpoint) Targets(ingSvcPort string) []string {
-	epPort, _ := strconv.Atoi(ingSvcPort)
+func (ep endpoint) Targets(svcPortName string, svcPortTarget int) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
-			if port.Name == ingSvcPort || port.Port == epPort {
+			if port.Name == svcPortName || port.Port == svcPortTarget {
 				for _, addr := range s.Addresses {
 					result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
 				}

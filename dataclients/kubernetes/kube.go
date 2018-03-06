@@ -295,29 +295,32 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 // TODO:
 // - check if it can be batched
 // - check the existing controllers for cases when hunting for cluster ip
-func (c *Client) getServiceURL(namespace, name string, port backendPort) (string, error) {
+func (c *Client) getService(namespace, name string, port backendPort) (*service, error) {
 	log.Debugf("requesting service: %s/%s", namespace, name)
 	url := fmt.Sprintf(serviceURIFmt, namespace, name)
 	var s service
 	if err := c.getJSON(url, &s); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if s.Spec == nil {
 		log.Debug("invalid service datagram, missing spec")
-		return "", errServiceNotFound
+		return nil, errServiceNotFound
 	}
+	return &s, nil
+}
 
+func (c *Client) getServiceURL(svc *service, port backendPort) (string, error) {
 	if p, ok := port.number(); ok {
 		log.Debugf("service port as number: %d", p)
-		return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, p), nil
+		return fmt.Sprintf("http://%s:%d", svc.Spec.ClusterIP, p), nil
 	}
 
 	pn, _ := port.name()
-	for _, pi := range s.Spec.Ports {
+	for _, pi := range svc.Spec.Ports {
 		if pi.Name == pn {
 			log.Debugf("service port found by name: %s -> %d", pn, pi.Port)
-			return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, pi.Port), nil
+			return fmt.Sprintf("http://%s:%d", svc.Spec.ClusterIP, pi.Port), nil
 		}
 	}
 
@@ -426,7 +429,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	return routes, true, nil
 }
 
-func (c *Client) getEndpoints(ns, name, port string) ([]string, error) {
+func (c *Client) getEndpoints(ns, name, port string, targetPort int) ([]string, error) {
 	log.Debugf("requesting endpoint: %s/%s", ns, name)
 	url := fmt.Sprintf(endpointURIFmt, ns, name)
 	var ep endpoint
@@ -438,7 +441,7 @@ func (c *Client) getEndpoints(ns, name, port string) ([]string, error) {
 		return nil, errEndpointNotFound
 	}
 
-	targets := ep.Targets(port)
+	targets := ep.Targets(port, targetPort)
 	if len(targets) == 0 {
 		return nil, errEndpointNotFound
 	}
