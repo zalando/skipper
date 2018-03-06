@@ -26,3 +26,24 @@ Skipper has a rich set of metrics that are exposed as json, but can be
 exported in [Prometheus](https://prometheus.io) format.
 
 ![Skipper's architecture ](../img/architecture.svg)
+
+## Route processing
+
+Package `skipper` has a Go `http.Server` and does the `ListenAndServe`
+call with the `loggingHandler` wrapped `proxy`.  The `loggingHandler`
+is basically a middleware for the `proxy` and both implement the plain
+Go [http.Handler interface](https://golang.org/pkg/net/http/#Handler).
+
+For each incoming `http.Request` the `proxy` will create a request
+context and enhance it with an OpentracingAPI Span. It will check
+proxy global ratelimits first and after that lookup the route in the
+routing table. After that skipper will apply all request filters, that
+can modify the `http.Request`. It will then check the route local
+ratelimits, the circuitbreakers and do the backend call. If the
+backend call got a TCP or TLS connection error in a loadbalanced
+route, skipper will do a retry to another backend of that loadbalanced
+group automatically. Just before the response to the caller, skipper
+will process the response filters, that can change the
+`http.Response`.
+
+![Skipper's request and response processing ](../img/req-and-resp-processing.svg)
