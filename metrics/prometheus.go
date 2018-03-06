@@ -239,10 +239,14 @@ func (p *Prometheus) registerMetrics() {
 	}
 }
 
+func (p *Prometheus) CreateHandler() http.Handler {
+	return promhttp.HandlerFor(p.registry, promhttp.HandlerOpts{})
+}
+
 // RegisterHandler satisfies Metrics interface.
 func (p *Prometheus) RegisterHandler(path string, mux *http.ServeMux) {
-	memHandler := promhttp.HandlerFor(p.registry, promhttp.HandlerOpts{})
-	mux.Handle(path, memHandler)
+	promHandler := p.CreateHandler()
+	mux.Handle(path, promHandler)
 }
 
 // MeasureSince satisfies Metrics interface.

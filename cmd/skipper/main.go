@@ -110,6 +110,7 @@ const (
 	pluginDirUsage                       = "set the directory to load plugins from, default is ./"
 	suppressRouteUpdateLogsUsage         = "print only summaries on route updates/deletes"
 	enablePrometheusMetricsUsage         = "use Prometheus metrics format to expose metrics"
+	enableCodahaleMetricsUsage           = "use Codahale metrics format to expose metrics (enabled by default, but you have to select in case you want to have both)"
 	loadBalancerHealthCheckIntervalUsage = "use to set the health checker interval to check healthiness of former dead or unhealthy routes"
 	reverseSourcePredicateUsage          = "reverse the order of finding the client IP from X-Forwarded-For header"
 	readTimeoutServerUsage               = "set ReadTimeout for http server connections"
@@ -193,6 +194,7 @@ var (
 	pluginDir                       string
 	suppressRouteUpdateLogs         bool
 	enablePrometheusMetrics         bool
+	enableCodahaleMetrics           bool
 	loadBalancerHealthCheckInterval time.Duration
 	reverseSourcePredicate          bool
 	readTimeoutServer               time.Duration
@@ -273,6 +275,7 @@ func init() {
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
+	flag.BoolVar(&enableCodahaleMetrics, "enable-codahale-metrics", false, enableCodahaleMetricsUsage)
 	flag.DurationVar(&loadBalancerHealthCheckInterval, "lb-healthcheck-interval", defaultLoadBalancerHealthCheckInterval, loadBalancerHealthCheckIntervalUsage)
 	flag.BoolVar(&reverseSourcePredicate, "reverse-source-predicate", false, reverseSourcePredicateUsage)
 	flag.DurationVar(&readTimeoutServer, "read-timeout-server", defaultReadTimeoutServer, readTimeoutServerUsage)
@@ -397,6 +400,7 @@ func main() {
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
+		EnableCodahaleMetrics:               enableCodahaleMetrics,
 		LoadBalancerHealthCheckInterval:     loadBalancerHealthCheckInterval,
 		ReverseSourcePredicate:              reverseSourcePredicate,
 		ReadTimeoutServer:                   readTimeoutServer,

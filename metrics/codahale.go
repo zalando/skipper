@@ -204,8 +204,12 @@ func (c *CodaHale) IncErrorsStreaming(routeId string) {
 }
 
 func (c *CodaHale) RegisterHandler(path string, handler *http.ServeMux) {
-	h := &codaHaleMetricsHandler{path: path, registry: c.reg, options: c.options}
+	h := c.CreateHandler(path)
 	handler.Handle(path, h)
+}
+
+func (c *CodaHale) CreateHandler(path string) http.Handler {
+	return &codaHaleMetricsHandler{path: path, registry: c.reg, options: c.options}
 }
 
 type codaHaleMetricsHandler struct {
