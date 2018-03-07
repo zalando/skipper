@@ -6,6 +6,8 @@ import (
 	"net/http/pprof"
 	"strings"
 	"time"
+
+	"github.com/prometheus/common/log"
 )
 
 const (
@@ -16,10 +18,10 @@ const (
 type Kind int
 
 const (
-	UnkownKind Kind = iota
-	CodaHaleKind
+	UnkownKind   Kind = 0
+	CodaHaleKind Kind = 1 << iota
 	PrometheusKind
-	AllKind
+	AllKind = CodaHaleKind | PrometheusKind
 )
 
 func (k Kind) String() string {
@@ -186,6 +188,7 @@ func NewHandler(o Options, m Metrics) http.Handler {
 
 	// Root path should return 404.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Infof("root handler")
 		w.WriteHeader(http.StatusNotFound)
 	})
 

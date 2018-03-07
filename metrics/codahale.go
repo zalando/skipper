@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	metrics "github.com/rcrowley/go-metrics"
 )
 
@@ -229,6 +230,7 @@ func (c *codaHaleMetricsHandler) sendMetrics(w http.ResponseWriter, p string) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(metrics)
 	} else {
+		logrus.Errorf("metrics for path %s not found", p)
 		http.NotFound(w, nil)
 	}
 }
