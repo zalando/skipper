@@ -66,6 +66,10 @@ func (s *decideSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		size = int(fsize)
 	}
 
+	if size < 1 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
 	return &decideFilter{
 		group:   group,
 		size:    size,
