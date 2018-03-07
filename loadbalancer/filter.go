@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/predicates"
 )
 
 const DecideFilterName = "lbDecide"
@@ -48,22 +47,26 @@ func (s *decideSpec) Name() string { return DecideFilterName }
 
 func (s *decideSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 2 {
-		return nil, predicates.ErrInvalidPredicateParameters
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	group, ok := args[0].(string)
 	if !ok {
-		return nil, predicates.ErrInvalidPredicateParameters
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	size, ok := args[1].(int)
 	if !ok {
 		fsize, ok := args[1].(float64)
 		if !ok {
-			return nil, predicates.ErrInvalidPredicateParameters
+			return nil, filters.ErrInvalidFilterParameters
 		}
 
 		size = int(fsize)
+	}
+
+	if size < 1 {
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	return &decideFilter{
