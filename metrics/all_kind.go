@@ -6,10 +6,10 @@ import (
 )
 
 type All struct {
-	prometheus      *Prometheus
-	codaHale        *CodaHale
-	prommHandler    http.Handler
-	codaHaleHandler http.Handler
+	prometheus        *Prometheus
+	codaHale          *CodaHale
+	prometheusHandler http.Handler
+	codaHaleHandler   http.Handler
 }
 
 func NewAll(o Options) *All {
@@ -83,7 +83,7 @@ func (a *All) IncErrorsStreaming(routeId string) {
 
 }
 func (a *All) RegisterHandler(path string, handler *http.ServeMux) {
-	a.prommHandler = a.prometheus.CreateHandler()
+	a.prometheusHandler = a.prometheus.CreateHandler()
 	a.codaHaleHandler = a.codaHale.CreateHandler(path)
 	handler.Handle(path, a.newHandler())
 }
@@ -93,7 +93,7 @@ func (a *All) newHandler() http.Handler {
 		if req.Header.Get("Accept") == "application/json" {
 			a.codaHaleHandler.ServeHTTP(w, req)
 		} else {
-			a.prommHandler.ServeHTTP(w, req)
+			a.prometheusHandler.ServeHTTP(w, req)
 		}
 	})
 }
