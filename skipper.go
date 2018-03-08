@@ -356,7 +356,10 @@ type Options struct {
 	// for a request.
 	DefaultHTTPStatus int
 
-	// EnablePrometheusMetrics (*deprecated*) enables Prometheus format metrics.
+	// EnablePrometheusMetrics enables Prometheus format metrics.
+	//
+	// This option is *deprecated*. The recommended way to enable prometheus metrics is to
+	// use the MetricsFlavours option.
 	EnablePrometheusMetrics bool
 
 	// MetricsFlavours sets the metrics storage and exposed format
@@ -669,17 +672,9 @@ func Run(o Options) error {
 		for _, s := range o.MetricsFlavours {
 			switch s {
 			case "codahale":
-				if metricsKind == metrics.PrometheusKind {
-					metricsKind = metrics.AllKind
-				} else {
-					metricsKind = metrics.CodaHaleKind
-				}
+				metricsKind |= metrics.CodaHaleKind
 			case "prometheus":
-				if metricsKind == metrics.CodaHaleKind {
-					metricsKind = metrics.AllKind
-				} else {
-					metricsKind = metrics.PrometheusKind
-				}
+				metricsKind |= metrics.PrometheusKind
 			}
 		}
 		// set default if unset

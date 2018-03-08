@@ -109,7 +109,7 @@ const (
 	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
 	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
 	suppressRouteUpdateLogsUsage   = "print only summaries on route updates/deletes"
-	enablePrometheusMetricsUsage   = "*deprecated* use Prometheus metrics format to expose metrics"
+	enablePrometheusMetricsUsage   = "siwtch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
 
 	loadBalancerHealthCheckIntervalUsage = "use to set the health checker interval to check healthiness of former dead or unhealthy routes"
 	reverseSourcePredicateUsage          = "reverse the order of finding the client IP from X-Forwarded-For header"
