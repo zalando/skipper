@@ -10,6 +10,7 @@ func Test_endpoint_Targets(t *testing.T) {
 		name       string
 		Subsets    []*subset
 		ingSvcPort string
+		targetPort *backendPort
 		want       []string
 	}{
 		{
@@ -32,6 +33,7 @@ func Test_endpoint_Targets(t *testing.T) {
 				},
 			},
 			ingSvcPort: "http",
+			targetPort: &backendPort{value: 80},
 			want:       []string{"http://1.2.3.4:80"},
 		},
 		{
@@ -54,6 +56,7 @@ func Test_endpoint_Targets(t *testing.T) {
 				},
 			},
 			ingSvcPort: "80",
+			targetPort: &backendPort{value: 80},
 			want:       []string{"http://1.2.3.4:80"},
 		},
 		{
@@ -81,6 +84,7 @@ func Test_endpoint_Targets(t *testing.T) {
 				},
 			},
 			ingSvcPort: "http",
+			targetPort: &backendPort{value: 80},
 			want:       []string{"http://1.2.3.4:80"},
 		},
 		{
@@ -108,6 +112,7 @@ func Test_endpoint_Targets(t *testing.T) {
 				},
 			},
 			ingSvcPort: "80",
+			targetPort: &backendPort{value: 80},
 			want:       []string{"http://1.2.3.4:80"},
 		},
 	}
@@ -116,7 +121,7 @@ func Test_endpoint_Targets(t *testing.T) {
 			ep := endpoint{
 				Subsets: tt.Subsets,
 			}
-			if got := ep.Targets(tt.ingSvcPort); !reflect.DeepEqual(got, tt.want) {
+			if got := ep.Targets(tt.ingSvcPort, tt.targetPort.String()); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("endpoint.Targets() = %v, want %v", got, tt.want)
 			}
 		})

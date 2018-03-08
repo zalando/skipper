@@ -193,7 +193,7 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 		}
 		sort.Strings(expectedIDs)
 		sort.Strings(curIDs)
-		t.Errorf("number of routes %d doesn't match expected %d: %v", len(r), len(expected), cmp.Diff(curIDs, expectedIDs))
+		t.Errorf("number of routes %d doesn't match expected %d: %v", len(r), len(expected), cmp.Diff(expectedIDs, curIDs))
 		return
 	}
 
