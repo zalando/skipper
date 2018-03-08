@@ -5,4 +5,6 @@ RUN mkdir -p /usr/bin
 ADD skipper eskip /usr/bin/
 ENV PATH $PATH:/usr/bin
 
+EXPOSE 9090
+
 CMD ["/usr/bin/skipper"]
