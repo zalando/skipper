@@ -46,6 +46,7 @@ type Prometheus struct {
 
 	opts     Options
 	registry *prometheus.Registry
+	handler  http.Handler
 }
 
 // NewPrometheus returns a new Prometheus metric backend.
@@ -243,9 +244,18 @@ func (p *Prometheus) CreateHandler() http.Handler {
 	return promhttp.HandlerFor(p.registry, promhttp.HandlerOpts{})
 }
 
+func (p *Prometheus) getHandler() http.Handler {
+	if p.handler != nil {
+		return p.handler
+	}
+
+	p.handler = p.CreateHandler()
+	return p.handler
+}
+
 // RegisterHandler satisfies Metrics interface.
 func (p *Prometheus) RegisterHandler(path string, mux *http.ServeMux) {
-	promHandler := p.CreateHandler()
+	promHandler := p.getHandler()
 	mux.Handle(path, promHandler)
 }
 

@@ -46,6 +46,7 @@ type CodaHale struct {
 	createTimer   func() metrics.Timer
 	createCounter func() metrics.Counter
 	options       Options
+	handler       http.Handler
 }
 
 // NewCodaHale returns a new CodaHale backend of metrics.
@@ -205,12 +206,21 @@ func (c *CodaHale) IncErrorsStreaming(routeId string) {
 }
 
 func (c *CodaHale) RegisterHandler(path string, handler *http.ServeMux) {
-	h := c.CreateHandler(path)
+	h := c.getHandler(path)
 	handler.Handle(path, h)
 }
 
 func (c *CodaHale) CreateHandler(path string) http.Handler {
 	return &codaHaleMetricsHandler{path: path, registry: c.reg, options: c.options}
+}
+
+func (c *CodaHale) getHandler(path string) http.Handler {
+	if c.handler != nil {
+		return c.handler
+	}
+
+	c.handler = c.CreateHandler(path)
+	return c.handler
 }
 
 type codaHaleMetricsHandler struct {
