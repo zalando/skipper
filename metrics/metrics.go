@@ -6,8 +6,6 @@ import (
 	"net/http/pprof"
 	"strings"
 	"time"
-
-	"github.com/prometheus/common/log"
 )
 
 const (
@@ -188,7 +186,6 @@ func NewHandler(o Options, m Metrics) http.Handler {
 
 	// Root path should return 404.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Infof("root handler")
 		w.WriteHeader(http.StatusNotFound)
 	})
 

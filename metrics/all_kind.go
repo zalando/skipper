@@ -2,9 +2,8 @@ package metrics
 
 import (
 	"net/http"
+	"strings"
 	"time"
-
-	"github.com/prometheus/common/log"
 )
 
 type All struct {
@@ -93,7 +92,7 @@ func (a *All) RegisterHandler(path string, handler *http.ServeMux) {
 func (a *All) newHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Accept") == "application/codahale+json" {
-			log.Infof("got accepted header with path %s", req.URL)
+			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/metrics")
 			a.codaHaleHandler.ServeHTTP(w, req)
 		} else {
 			a.prometheusHandler.ServeHTTP(w, req)
