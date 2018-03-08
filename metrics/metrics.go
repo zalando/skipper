@@ -16,9 +16,10 @@ const (
 type Kind int
 
 const (
-	UnkownKind Kind = iota
-	CodaHaleKind
+	UnkownKind   Kind = 0
+	CodaHaleKind Kind = 1 << iota
 	PrometheusKind
+	AllKind = CodaHaleKind | PrometheusKind
 )
 
 func (k Kind) String() string {
@@ -27,6 +28,8 @@ func (k Kind) String() string {
 		return "codahale"
 	case PrometheusKind:
 		return "prometheus"
+	case AllKind:
+		return "all"
 	default:
 		return "unknown"
 	}
@@ -40,6 +43,8 @@ func ParseMetricsKind(t string) Kind {
 		return CodaHaleKind
 	case "prometheus":
 		return PrometheusKind
+	case "all":
+		return AllKind
 	default:
 		return UnkownKind
 	}
@@ -155,6 +160,8 @@ func NewDefaultHandler(o Options) http.Handler {
 	var m Metrics
 
 	switch o.Format {
+	case AllKind:
+		m = NewAll(o)
 	case PrometheusKind:
 		m = NewPrometheus(o)
 	default:
