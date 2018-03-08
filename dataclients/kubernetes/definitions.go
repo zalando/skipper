@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type metadata struct {
@@ -105,9 +107,20 @@ type ingressList struct {
 }
 
 type servicePort struct {
-	Name       string `json:"name"`
-	Port       int    `json:"port"`
-	TargetPort int    `json:"targetPort"`
+	Name       string       `json:"name"`
+	Port       int          `json:"port"`
+	TargetPort *backendPort `json:"targetPort"` // string or int
+}
+
+func (sp servicePort) MatchingPort(svcPort backendPort) bool {
+	s := svcPort.String()
+	spt := sp.TargetPort
+	return s != "" && ((spt != nil && spt.String() == s) && (sp.Name == s ||
+		strconv.Itoa(sp.Port) == s))
+}
+
+func (sp servicePort) String() string {
+	return fmt.Sprintf("%s %d %s", sp.Name, sp.Port, sp.TargetPort)
 }
 
 type serviceSpec struct {
@@ -120,15 +133,28 @@ type service struct {
 	Spec *serviceSpec `json:"spec"`
 }
 
+func (s service) GetTargetPort(svcPort backendPort) (string, error) {
+	//log.Infof("search backendPort: %s", svcPort)
+	for _, sp := range s.Spec.Ports {
+		//log.Infof("test sp=%s, svcPort=%v", sp, svcPort)
+		if sp.MatchingPort(svcPort) {
+			log.Infof("GetTargetPort found matching port %s", sp.TargetPort)
+			return sp.TargetPort.String(), nil
+		}
+	}
+	return "", fmt.Errorf("target port not found %v given %s", s.Spec.Ports, svcPort)
+}
+
 type endpoint struct {
 	Subsets []*subset `json:"subsets"`
 }
 
-func (ep endpoint) Targets(svcPortName string, svcPortTarget int) []string {
+func (ep endpoint) Targets(svcPortName, svcPortTarget string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
-			if port.Name == svcPortName || port.Port == svcPortTarget {
+			if port.Name == svcPortName || strconv.Itoa(port.Port) == svcPortTarget {
+				log.Infof("Targets() found %d", port.Port)
 				for _, addr := range s.Addresses {
 					result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
 				}
