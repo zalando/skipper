@@ -29,15 +29,15 @@ const (
 
 	routingDocumentExample = `
         route0: ` + singleRouteExample + `;
-        
+
         route1: Path("/some/path") -> "https://backend-0.example.com";
         route2: Path("/some/other/path") -> fixPath() -> "https://backend-1.example.com";
-        
+
         route3:
             Method("POST") && Path("/api") ->
             requestHeader("X-Type", "ajax-post") ->
             "https://api.example.com";
-        
+
         catchAll: * -> "https://www.example.org";
         catchAllWithCustom: * && Custom() -> "https://www.example.org"`
 )
@@ -184,5 +184,29 @@ func TestNumber(t *testing.T) {
 	_, err := parse(`* -> number(3.14) -> <shunt>`)
 	if err != nil {
 		t.Error("failed to parse number", err)
+	}
+}
+
+func TestRegExp(t *testing.T) {
+	testRegExpOnce(t, `PathRegexp(/[/]/)-> <shunt>`, `[/]`)
+	testRegExpOnce(t, `PathRegexp(/[\[]/)-> <shunt>`, `[\[]`)
+	testRegExpOnce(t, `PathRegexp(/[\]]/)-> <shunt>`, `[\]]`)
+	testRegExpOnce(t, `PathRegexp(/[\\]/)-> <shunt>`, `[\\]`)
+	testRegExpOnce(t, `PathRegexp(/[\/]/)-> <shunt>`, `[/]`)
+	testRegExpOnce(t, `PathRegexp(/["]/)-> <shunt>`, `["]`)
+	testRegExpOnce(t, `PathRegexp(/[\"]/)-> <shunt>`, `[\"]`)
+	testRegExpOnce(t, `PathRegexp(/\//)-> <shunt>`, `/`)
+	testRegExpOnce(t, `PathRegexp(/[[:upper:]]/)-> <shunt>`, `[[:upper:]]`)
+}
+
+func testRegExpOnce(t *testing.T, regexpStr string, expectedRegExp string) {
+	routes, err := parse(regexpStr)
+	if err != nil {
+		t.Error("failed to parse PathRegexp:"+regexpStr, err)
+		return
+	}
+
+	if expectedRegExp != routes[0].matchers[0].args[0] {
+		t.Error("failed to parse PathRegexp:"+regexpStr+", expected regexp to be "+expectedRegExp, err)
 	}
 }
