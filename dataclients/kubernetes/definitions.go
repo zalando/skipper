@@ -132,7 +132,7 @@ type service struct {
 
 func (s service) GetTargetPort(svcPort backendPort) (string, error) {
 	for _, sp := range s.Spec.Ports {
-		if sp.MatchingPort(svcPort) {
+		if sp.MatchingPort(svcPort) && sp.TargetPort != nil {
 			return sp.TargetPort.String(), nil
 		}
 	}
