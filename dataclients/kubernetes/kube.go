@@ -295,29 +295,32 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 // TODO:
 // - check if it can be batched
 // - check the existing controllers for cases when hunting for cluster ip
-func (c *Client) getServiceURL(namespace, name string, port backendPort) (string, error) {
+func (c *Client) getService(namespace, name string) (*service, error) {
 	log.Debugf("requesting service: %s/%s", namespace, name)
 	url := fmt.Sprintf(serviceURIFmt, namespace, name)
 	var s service
 	if err := c.getJSON(url, &s); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if s.Spec == nil {
 		log.Debug("invalid service datagram, missing spec")
-		return "", errServiceNotFound
+		return nil, errServiceNotFound
 	}
+	return &s, nil
+}
 
+func (c *Client) getServiceURL(svc *service, port backendPort) (string, error) {
 	if p, ok := port.number(); ok {
 		log.Debugf("service port as number: %d", p)
-		return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, p), nil
+		return fmt.Sprintf("http://%s:%d", svc.Spec.ClusterIP, p), nil
 	}
 
 	pn, _ := port.name()
-	for _, pi := range s.Spec.Ports {
+	for _, pi := range svc.Spec.Ports {
 		if pi.Name == pn {
 			log.Debugf("service port found by name: %s -> %d", pn, pi.Port)
-			return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, pi.Port), nil
+			return fmt.Sprintf("http://%s:%d", svc.Spec.ClusterIP, pi.Port), nil
 		}
 	}
 
@@ -348,14 +351,36 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		return nil, false, nil
 	}
 
-	var routes []*eskip.Route
-
-	eps, err := c.getEndpoints(
-		i.Metadata.Namespace,
-		i.Spec.DefaultBackend.ServiceName,
-		i.Spec.DefaultBackend.ServicePort.String(),
+	var (
+		eps     []string
+		err     error
+		routes  []*eskip.Route
+		ns      = i.Metadata.Namespace
+		name    = i.Metadata.Name
+		svcName = i.Spec.DefaultBackend.ServiceName
+		svcPort = i.Spec.DefaultBackend.ServicePort
 	)
-	if err == errEndpointNotFound {
+
+	svc, err := c.getService(ns, svcName)
+	if err != nil {
+		log.Errorf("convertDefaultBackend: Failed to get service %s, %s, %s", ns, svcName, svcPort)
+		return nil, false, err
+	}
+	targetPort, err := svc.GetTargetPort(svcPort)
+	if err != nil {
+		err = nil
+		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
+	} else {
+		log.Infof("Found target port %v, for service %s", targetPort, svcName)
+		eps, err = c.getEndpoints(
+			ns,
+			svcName,
+			svcPort.String(),
+			targetPort,
+		)
+		log.Infof("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
+	}
+	if len(eps) == 0 || err == errEndpointNotFound {
 		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
 		// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
 		// We should then implement a redirect route for that.
@@ -364,17 +389,13 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		//     spec:
 		//       type: ExternalName
 		//       externalName: my.database.example.com
-		address, err2 := c.getServiceURL(
-			i.Metadata.Namespace,
-			i.Spec.DefaultBackend.ServiceName,
-			i.Spec.DefaultBackend.ServicePort,
-		)
+		address, err2 := c.getServiceURL(svc, svcPort)
 		if err2 != nil {
 			return nil, false, err2
 		}
 
 		r := &eskip.Route{
-			Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", ""),
+			Id:      routeID(ns, name, "", "", ""),
 			Backend: address,
 		}
 		routes = append(routes, r)
@@ -382,7 +403,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		return nil, false, err
 	}
 
-	group := routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", "")
+	group := routeID(ns, name, "", "", "")
 
 	// TODO:
 	// - don't do load balancing if there's only a single endpoint
@@ -391,7 +412,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 
 	for idx, ep := range eps {
 		r := &eskip.Route{
-			Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", string(idx)),
+			Id:      routeID(ns, name, "", "", string(idx)),
 			Backend: ep,
 			Predicates: []*eskip.Predicate{{
 				Name: loadbalancer.MemberPredicateName,
@@ -405,7 +426,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	}
 
 	decisionRoute := &eskip.Route{
-		Id:          routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", "") + "__lb_group",
+		Id:          routeID(ns, name, "", "", "") + "__lb_group",
 		BackendType: eskip.LoopBackend,
 		Predicates: []*eskip.Predicate{{
 			Name: loadbalancer.GroupPredicateName,
@@ -426,7 +447,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	return routes, true, nil
 }
 
-func (c *Client) getEndpoints(ns, name, port string) ([]string, error) {
+func (c *Client) getEndpoints(ns, name, servicePort, targetPort string) ([]string, error) {
 	log.Debugf("requesting endpoint: %s/%s", ns, name)
 	url := fmt.Sprintf(endpointURIFmt, ns, name)
 	var ep endpoint
@@ -438,7 +459,11 @@ func (c *Client) getEndpoints(ns, name, port string) ([]string, error) {
 		return nil, errEndpointNotFound
 	}
 
-	return ep.Targets(port), nil
+	targets := ep.Targets(servicePort, targetPort)
+	if len(targets) == 0 {
+		return nil, errEndpointNotFound
+	}
+	return targets, nil
 }
 
 func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpointsURLs map[string][]string) ([]*eskip.Route, error) {
@@ -451,6 +476,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		eps    []string
 		err    error
 		routes []*eskip.Route
+		svc    *service
 	)
 
 	var pathExpressions []string
@@ -458,9 +484,27 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		pathExpressions = []string{"^" + prule.Path}
 	}
 
+	svcPort := prule.Backend.ServicePort
+	svcName := prule.Backend.ServiceName
+
 	if val, ok := endpointsURLs[endpointKey]; !ok {
-		eps, err = c.getEndpoints(ns, prule.Backend.ServiceName, prule.Backend.ServicePort.String())
-		if err == errEndpointNotFound {
+		svc, err = c.getService(ns, svcName)
+		if err != nil {
+			log.Errorf("convertPathRule: Failed to get service %s, %s, %s", ns, svcName, svcPort)
+			return nil, err
+		}
+
+		targetPort, err := svc.GetTargetPort(svcPort)
+		if err != nil {
+			// fallback to service, but service definition is wrong or no pods
+			log.Debugf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
+			err = nil
+		} else {
+			// err handled below
+			eps, err = c.getEndpoints(ns, svcName, svcPort.String(), targetPort)
+			log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
+		}
+		if len(eps) == 0 || err == errEndpointNotFound {
 			// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
 			// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
 			// We should then implement a redirect route for that.
@@ -469,16 +513,12 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 			//     spec:
 			//       type: ExternalName
 			//       externalName: my.database.example.com
-			address, err2 := c.getServiceURL(
-				ns,
-				prule.Backend.ServiceName,
-				prule.Backend.ServicePort,
-			)
+			address, err2 := c.getServiceURL(svc, svcPort)
 			if err2 != nil {
 				return nil, err2
 			}
 			r := &eskip.Route{
-				Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName),
+				Id:          routeID(ns, name, host, prule.Path, svcName),
 				PathRegexps: pathExpressions,
 				Backend:     address,
 			}
@@ -487,7 +527,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 					Name: traffic.PredicateName,
 					Args: []interface{}{prule.Backend.Traffic},
 				}}, r.Predicates...)
-				log.Infof("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, prule.Backend.ServiceName)
+				log.Infof("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
 			}
 			routes = append(routes, r)
 		} else if err != nil {
@@ -495,16 +535,16 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		} else {
 			endpointsURLs[endpointKey] = eps
 		}
-		log.Debugf("%d new routes for %s/%s/%s", len(eps), ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
+		log.Debugf("%d new routes for %s/%s/%s", len(eps), ns, svcName, svcPort)
 	} else {
 		eps = val
-		log.Debugf("%d routes for %s/%s/%s already known", len(eps), ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
+		log.Debugf("%d routes for %s/%s/%s already known", len(eps), ns, svcName, svcPort)
 	}
 
 	group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName)
 	for idx, ep := range eps {
 		r := &eskip.Route{
-			Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName+fmt.Sprintf("_%d", idx)),
+			Id:          routeID(ns, name, host, prule.Path, svcName+fmt.Sprintf("_%d", idx)),
 			PathRegexps: pathExpressions,
 			Backend:     ep,
 			Predicates: []*eskip.Predicate{{
@@ -522,13 +562,13 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 				Name: traffic.PredicateName,
 				Args: []interface{}{prule.Backend.Traffic},
 			}}, r.Predicates...)
-			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, prule.Backend.ServiceName)
+			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
 		}
 		routes = append(routes, r)
 	}
 
 	decisionRoute := &eskip.Route{
-		Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName) + "__lb_group",
+		Id:          routeID(ns, name, host, prule.Path, svcName) + "__lb_group",
 		PathRegexps: pathExpressions,
 		BackendType: eskip.LoopBackend,
 		Predicates: []*eskip.Predicate{{

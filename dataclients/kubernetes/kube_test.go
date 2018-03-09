@@ -18,15 +18,18 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"sort"
 	"syscall"
 	"testing"
 	"time"
 
+	"testing/quick"
+
+	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/source"
-	"testing/quick"
 )
 
 type services map[string]map[string]*service
@@ -128,6 +131,7 @@ func testServices() services {
 		},
 		"namespace2": map[string]*service{
 			"service3": testService("9.0.1.2", map[string]int{"port3": 7272}),
+			"service4": testService("10.0.1.2", map[string]int{"port4": 4444, "port5": 5555}),
 		},
 	}
 }
@@ -171,12 +175,25 @@ func testIngresses() []*ingressItem {
 		),
 		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", backendPort{8080}, 1.0),
 		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", backendPort{8080}, 1.0),
+		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", backendPort{4444}, 1.0),
 	}
 }
 
 func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	if len(r) != len(expected) {
-		t.Error("number of routes doesn't match expected", len(r), len(expected))
+		curIDs := make([]string, len(r))
+		expectedIDs := make([]string, len(expected))
+		for i := range r {
+			curIDs[i] = r[i].Id
+		}
+		j := 0
+		for k := range expected {
+			expectedIDs[j] = k
+			j++
+		}
+		sort.Strings(expectedIDs)
+		sort.Strings(curIDs)
+		t.Errorf("number of routes %d doesn't match expected %d: %v", len(r), len(expected), cmp.Diff(expectedIDs, curIDs))
 		return
 	}
 
@@ -185,7 +202,7 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 		for _, ri := range r {
 			if ri.Id == id {
 				if ri.Backend != backend {
-					t.Error("invalid backend", ri.Backend, backend)
+					t.Errorf("invalid backend %v", cmp.Diff(ri.Backend, backend))
 					return
 				}
 
@@ -202,7 +219,7 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 
 func checkIDs(t *testing.T, got []string, expected ...string) {
 	if len(got) != len(expected) {
-		t.Error("number of IDs doesn't match expected", len(got), len(expected))
+		t.Errorf("number of IDs %d doesn't match expected %d", len(got), len(expected))
 		return
 	}
 
@@ -765,6 +782,8 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__ratelimit________lb_group":                              "",
 			"kube_namespace1__ratelimitAndBreaker______":                              "http://1.2.3.4:8080",
 			"kube_namespace1__ratelimitAndBreaker________lb_group":                    "",
+			"kube_namespace2__svcwith2ports______":                                    "http://10.0.1.2:4444",
+			"kube_namespace2__svcwith2ports________lb_group":                          "",
 		})
 	})
 
@@ -831,6 +850,8 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__ratelimit________lb_group":                              "",
 			"kube_namespace1__ratelimitAndBreaker______":                              "http://1.2.3.4:8080",
 			"kube_namespace1__ratelimitAndBreaker________lb_group":                    "",
+			"kube_namespace2__svcwith2ports________lb_group":                          "",
+			"kube_namespace2__svcwith2ports______":                                    "http://10.0.1.2:4444",
 		})
 	})
 
@@ -935,6 +956,8 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__ratelimit________lb_group",
 			"kube_namespace1__ratelimitAndBreaker______",
 			"kube_namespace1__ratelimitAndBreaker________lb_group",
+			"kube_namespace2__svcwith2ports______",
+			"kube_namespace2__svcwith2ports________lb_group",
 		)
 	})
 
@@ -1335,6 +1358,9 @@ func TestHealthcheckInitial(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
+		if err != nil {
+			t.Error(err)
+		}
 
 		r, err := dc.LoadAll()
 		if err != nil {
@@ -1582,6 +1608,8 @@ func TestHealthcheckReload(t *testing.T) {
 			"kube_namespace1__ratelimit________lb_group":                              "",
 			"kube_namespace1__ratelimitAndBreaker______":                              "http://1.2.3.4:8080",
 			"kube_namespace1__ratelimitAndBreaker________lb_group":                    "",
+			"kube_namespace2__svcwith2ports______":                                    "http://10.0.1.2:4444",
+			"kube_namespace2__svcwith2ports________lb_group":                          "",
 		})
 	})
 }

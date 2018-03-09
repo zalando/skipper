@@ -105,8 +105,19 @@ type ingressList struct {
 }
 
 type servicePort struct {
-	Name string `json:"name"`
-	Port int    `json:"port"`
+	Name       string       `json:"name"`
+	Port       int          `json:"port"`
+	TargetPort *backendPort `json:"targetPort"` // string or int
+}
+
+func (sp servicePort) MatchingPort(svcPort backendPort) bool {
+	s := svcPort.String()
+	spt := strconv.Itoa(sp.Port)
+	return s != "" && (spt == s || sp.Name == s)
+}
+
+func (sp servicePort) String() string {
+	return fmt.Sprintf("%s %d %s", sp.Name, sp.Port, sp.TargetPort)
 }
 
 type serviceSpec struct {
@@ -115,19 +126,28 @@ type serviceSpec struct {
 }
 
 type service struct {
+	Meta *metadata    `json:"metadata"`
 	Spec *serviceSpec `json:"spec"`
+}
+
+func (s service) GetTargetPort(svcPort backendPort) (string, error) {
+	for _, sp := range s.Spec.Ports {
+		if sp.MatchingPort(svcPort) && sp.TargetPort != nil {
+			return sp.TargetPort.String(), nil
+		}
+	}
+	return "", fmt.Errorf("GetTargetPort: target port not found %v given %s", s.Spec.Ports, svcPort)
 }
 
 type endpoint struct {
 	Subsets []*subset `json:"subsets"`
 }
 
-func (ep endpoint) Targets(ingSvcPort string) []string {
-	epPort, _ := strconv.Atoi(ingSvcPort)
+func (ep endpoint) Targets(svcPortName, svcPortTarget string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
-			if port.Name == ingSvcPort || port.Port == epPort {
+			if port.Name == svcPortName || strconv.Itoa(port.Port) == svcPortTarget {
 				for _, addr := range s.Addresses {
 					result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
 				}
