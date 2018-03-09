@@ -34,7 +34,7 @@ install: $(SOURCES)
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
-check: build convert-testfiles
+check: build
 	# go test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
@@ -42,7 +42,7 @@ check: build convert-testfiles
 	#
 	for p in $(PACKAGES); do go test $$p || break; done
 
-shortcheck: build convert-testfiles
+shortcheck: build
 	# go test -test.short -run ^Test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
@@ -96,7 +96,7 @@ precommit: check-imports fmt build shortcheck vet
 
 check-precommit: check-imports check-fmt build shortcheck vet
 
-.coverprofile-all: convert-testfiles $(SOURCES)
+.coverprofile-all: $(SOURCES)
 	# go list -f \
 	# 	'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
 	# 	$(PACKAGES) | xargs -i sh -c {}

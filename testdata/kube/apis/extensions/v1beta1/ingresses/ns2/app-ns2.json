@@ -1,0 +1,1 @@
+{"apiVersion":"extensions/v1beta1","kind":"Ingress","metadata":{"name":"app1","namespace":"ns2"},"spec":{"rules":[{"host":"app1-ns2.example.org","http":{"paths":[{"backend":{"serviceName":"app1-svc","servicePort":80}}]}}]}}

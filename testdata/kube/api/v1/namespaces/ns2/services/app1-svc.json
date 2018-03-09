@@ -1,0 +1,1 @@
+{"kind":"Service","apiVersion":"v1","metadata":{"name":"app1-svc","namespace":"ns2","labels":{"application":"app1"}},"spec":{"clusterIP":"10.3.1.3","type":"ClusterIP","ports":[{"port":80,"targetPort":9999,"protocol":"TCP"}],"selector":{"application":"app1"}}}
