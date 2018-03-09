@@ -357,7 +357,14 @@ type Options struct {
 	DefaultHTTPStatus int
 
 	// EnablePrometheusMetrics enables Prometheus format metrics.
+	//
+	// This option is *deprecated*. The recommended way to enable prometheus metrics is to
+	// use the MetricsFlavours option.
 	EnablePrometheusMetrics bool
+
+	// MetricsFlavours sets the metrics storage and exposed format
+	// of metrics endpoints.
+	MetricsFlavours []string
 
 	// LoadBalancerHealthCheckInterval enables and sets the
 	// interval when to schedule health checks for dead or
@@ -658,10 +665,23 @@ func Run(o Options) error {
 		mux.Handle("/routes", routing)
 		mux.Handle("/routes/", routing)
 
-		metricsKind := metrics.CodaHaleKind
 		if o.EnablePrometheusMetrics {
-			metricsKind = metrics.PrometheusKind
+			o.MetricsFlavours = append(o.MetricsFlavours, "prometheus")
 		}
+		metricsKind := metrics.UnkownKind
+		for _, s := range o.MetricsFlavours {
+			switch s {
+			case "codahale":
+				metricsKind |= metrics.CodaHaleKind
+			case "prometheus":
+				metricsKind |= metrics.PrometheusKind
+			}
+		}
+		// set default if unset
+		if metricsKind == metrics.UnkownKind {
+			metricsKind = metrics.CodaHaleKind
+		}
+		log.Infof("Expose metrics in %s format", metricsKind)
 
 		metricsHandler := metrics.NewDefaultHandler(metrics.Options{
 			Format:                             metricsKind,
