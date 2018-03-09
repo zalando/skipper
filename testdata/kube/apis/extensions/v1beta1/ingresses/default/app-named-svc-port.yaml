@@ -1,0 +1,12 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app-namedport-1
+spec:
+  rules:
+  - host: app-default-named.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc-named
+          servicePort: http

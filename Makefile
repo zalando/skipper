@@ -34,7 +34,7 @@ install: $(SOURCES)
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
-check: build
+check: build convert-testfiles
 	# go test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
@@ -42,7 +42,7 @@ check: build
 	#
 	for p in $(PACKAGES); do go test $$p || break; done
 
-shortcheck: build
+shortcheck: build convert-testfiles
 	# go test -test.short -run ^Test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
@@ -96,7 +96,7 @@ precommit: check-imports fmt build shortcheck vet
 
 check-precommit: check-imports check-fmt build shortcheck vet
 
-.coverprofile-all: $(SOURCES)
+.coverprofile-all: convert-testfiles $(SOURCES)
 	# go list -f \
 	# 	'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
 	# 	$(PACKAGES) | xargs -i sh -c {}
@@ -157,3 +157,7 @@ else ifeq ($(TRAVIS_BRANCH), master)
 else
 	make deps shortcheck
 endif
+
+convert-testfiles:
+	find ./testdata/kube -name '*.json' -delete
+	ruby -ryaml -rjson -e 'Dir["./**/*.yaml"].each {|f| File.open(f[0..-5]+"json", "w") {|fd| fd.write(JSON.dump(YAML.load(File.open(f))))}}'
