@@ -356,6 +356,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		err     error
 		routes  []*eskip.Route
 		ns      = i.Metadata.Namespace
+		name    = i.Metadata.Name
 		svcName = i.Spec.DefaultBackend.ServiceName
 		svcPort = i.Spec.DefaultBackend.ServicePort
 	)
@@ -393,7 +394,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		}
 
 		r := &eskip.Route{
-			Id:      routeID(ns, svcName, "", "", ""),
+			Id:      routeID(ns, name, "", "", ""),
 			Backend: address,
 		}
 		routes = append(routes, r)
@@ -401,7 +402,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		return nil, false, err
 	}
 
-	group := routeID(ns, svcName, "", "", "")
+	group := routeID(ns, name, "", "", "")
 
 	// TODO:
 	// - don't do load balancing if there's only a single endpoint
@@ -410,7 +411,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 
 	for idx, ep := range eps {
 		r := &eskip.Route{
-			Id:      routeID(ns, svcName, "", "", string(idx)),
+			Id:      routeID(ns, name, "", "", string(idx)),
 			Backend: ep,
 			Predicates: []*eskip.Predicate{{
 				Name: loadbalancer.MemberPredicateName,
@@ -424,7 +425,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	}
 
 	decisionRoute := &eskip.Route{
-		Id:          routeID(ns, svcName, "", "", "") + "__lb_group",
+		Id:          routeID(ns, name, "", "", "") + "__lb_group",
 		BackendType: eskip.LoopBackend,
 		Predicates: []*eskip.Predicate{{
 			Name: loadbalancer.GroupPredicateName,
