@@ -369,15 +369,16 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	targetPort, err := svc.GetTargetPort(svcPort)
 	if err != nil {
 		err = nil
-		//log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
+		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
 	} else {
+		log.Infof("Found target port %v, for service %s", targetPort, svcName)
 		eps, err = c.getEndpoints(
 			ns,
 			svcName,
 			svcPort.String(),
 			targetPort,
 		)
-		log.Infof("convertDefaultBackend: Found %d endpoints: %s", len(eps), err)
+		log.Infof("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}
 	if len(eps) == 0 || err == errEndpointNotFound {
 		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
@@ -495,11 +496,13 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 
 		targetPort, err := svc.GetTargetPort(svcPort)
 		if err != nil {
+			// fallback to service, but service definition is wrong or no pods
+			log.Debugf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
 			err = nil
-			//log.Infof("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
 		} else {
+			// err handled below
 			eps, err = c.getEndpoints(ns, svcName, svcPort.String(), targetPort)
-			log.Infof("convertPathRule: Found %d endpoints: %s", len(eps), err)
+			log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
 		}
 		if len(eps) == 0 || err == errEndpointNotFound {
 			// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
