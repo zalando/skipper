@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type metadata struct {
@@ -114,9 +112,8 @@ type servicePort struct {
 
 func (sp servicePort) MatchingPort(svcPort backendPort) bool {
 	s := svcPort.String()
-	spt := sp.TargetPort
-	return s != "" && ((spt != nil && spt.String() == s) && (sp.Name == s ||
-		strconv.Itoa(sp.Port) == s))
+	spt := strconv.Itoa(sp.Port)
+	return s != "" && (spt == s || sp.Name == s)
 }
 
 func (sp servicePort) String() string {
@@ -134,15 +131,12 @@ type service struct {
 }
 
 func (s service) GetTargetPort(svcPort backendPort) (string, error) {
-	//log.Infof("search backendPort: %s", svcPort)
 	for _, sp := range s.Spec.Ports {
-		//log.Infof("test sp=%s, svcPort=%v", sp, svcPort)
 		if sp.MatchingPort(svcPort) {
-			log.Infof("GetTargetPort found matching port %s", sp.TargetPort)
 			return sp.TargetPort.String(), nil
 		}
 	}
-	return "", fmt.Errorf("target port not found %v given %s", s.Spec.Ports, svcPort)
+	return "", fmt.Errorf("GetTargetPort: target port not found %v given %s", s.Spec.Ports, svcPort)
 }
 
 type endpoint struct {
@@ -154,7 +148,6 @@ func (ep endpoint) Targets(svcPortName, svcPortTarget string) []string {
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
 			if port.Name == svcPortName || strconv.Itoa(port.Port) == svcPortTarget {
-				log.Infof("Targets() found %d", port.Port)
 				for _, addr := range s.Addresses {
 					result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
 				}
