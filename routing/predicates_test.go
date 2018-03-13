@@ -114,6 +114,7 @@ func TestPredicateList(t *testing.T) {
 					"/foo",
 				},
 			}},
+			BackendType: eskip.ShuntBackend,
 		}, {
 			Id:          "catchAll",
 			BackendType: eskip.ShuntBackend,
@@ -336,7 +337,7 @@ func TestPredicateList(t *testing.T) {
 						t.Error("routing failed")
 						t.Log(
 							"wrong route matched:", r.Id,
-							", expected:", check.expectedID,
+							"but expected:", check.expectedID,
 						)
 
 						return

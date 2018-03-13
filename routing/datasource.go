@@ -18,6 +18,15 @@ const (
 	incomingUpdate
 )
 
+// legacy, non-tree predicate names:
+const (
+	hostRegexpName   = "Host"
+	pathRegexpName   = "PathRegexp"
+	methodName       = "Method"
+	headerName       = "Header"
+	headerRegexpName = "HeaderRegexp"
+)
+
 func (it incomingType) String() string {
 	switch it {
 	case incomingReset:
@@ -241,6 +250,89 @@ func isTreePredicate(name string) bool {
 	}
 }
 
+func getFreeStringArg(count int, p *eskip.Predicate) ([]string, error) {
+	err := func() error { return fmt.Errorf("invalid predicate args in %s", p.Name) }
+
+	if len(p.Args) != count {
+		return nil, err()
+	}
+
+	var a []string
+	for i := range p.Args {
+		s, ok := p.Args[i].(string)
+		if !ok {
+			return nil, err()
+		}
+
+		a = append(a, s)
+	}
+
+	return a, nil
+}
+
+func mergeLegacyNonTreePredicates(r *eskip.Route) error {
+	for i := len(r.Predicates) - 1; i >= 0; i-- {
+		p := r.Predicates[i]
+
+		if isTreePredicate(p.Name) {
+			continue
+		}
+
+		switch p.Name {
+		case hostRegexpName:
+			a, err := getFreeStringArg(1, p)
+			if err != nil {
+				return err
+			}
+
+			r.HostRegexps = append(r.HostRegexps, a[0])
+			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
+		case pathRegexpName:
+			a, err := getFreeStringArg(1, p)
+			if err != nil {
+				return err
+			}
+
+			r.PathRegexps = append(r.PathRegexps, a[0])
+			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
+		case methodName:
+			a, err := getFreeStringArg(1, p)
+			if err != nil {
+				return err
+			}
+
+			r.Method = a[0]
+			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
+		case headerName:
+			a, err := getFreeStringArg(2, p)
+			if err != nil {
+				return err
+			}
+
+			if r.Headers == nil {
+				r.Headers = make(map[string]string)
+			}
+
+			r.Headers[a[0]] = a[1]
+			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
+		case headerRegexpName:
+			a, err := getFreeStringArg(2, p)
+			if err != nil {
+				return err
+			}
+
+			if r.HeaderRegexps == nil {
+				r.HeaderRegexps = make(map[string][]string)
+			}
+
+			r.HeaderRegexps[a[0]] = append(r.HeaderRegexps[a[0]], a[1])
+			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
+		}
+	}
+
+	return nil
+}
+
 // initialize predicate instances from their spec with the concrete arguments
 func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, error) {
 	cps := make([]Predicate, 0, len(defs))
@@ -332,6 +424,10 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 
 	fs, err := createFilters(fr, def.Filters)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := mergeLegacyNonTreePredicates(def); err != nil {
 		return nil, err
 	}
 
