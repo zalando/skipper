@@ -18,7 +18,7 @@ func TestGetTargetPort(t *testing.T) {
 			svc: &service{
 				Spec: &serviceSpec{
 					Ports: []*servicePort{
-						&servicePort{
+						{
 							Port:       80,
 							TargetPort: &backendPort{value: 5000},
 						},
@@ -33,7 +33,7 @@ func TestGetTargetPort(t *testing.T) {
 			svc: &service{
 				Spec: &serviceSpec{
 					Ports: []*servicePort{
-						&servicePort{
+						{
 							Port: 80,
 						},
 					},
@@ -99,15 +99,15 @@ func Test_endpoint_Targets(t *testing.T) {
 		{
 			name: "single node and port fully specified by name",
 			Subsets: []*subset{
-				&subset{
+				{
 					Addresses: []*address{
-						&address{
+						{
 							IP:   "1.2.3.4",
 							Node: "nodeA",
 						},
 					},
 					Ports: []*port{
-						&port{
+						{
 							Name:     "http",
 							Port:     80,
 							Protocol: "tcp",
@@ -122,15 +122,15 @@ func Test_endpoint_Targets(t *testing.T) {
 		{
 			name: "single node and port fully specified by port number",
 			Subsets: []*subset{
-				&subset{
+				{
 					Addresses: []*address{
-						&address{
+						{
 							IP:   "1.2.3.4",
 							Node: "nodeA",
 						},
 					},
 					Ports: []*port{
-						&port{
+						{
 							Name:     "http",
 							Port:     80,
 							Protocol: "tcp",
@@ -145,20 +145,20 @@ func Test_endpoint_Targets(t *testing.T) {
 		{
 			name: "single node and 2 ports fully specified by name",
 			Subsets: []*subset{
-				&subset{
+				{
 					Addresses: []*address{
-						&address{
+						{
 							IP:   "1.2.3.4",
 							Node: "nodeA",
 						},
 					},
 					Ports: []*port{
-						&port{
+						{
 							Name:     "http",
 							Port:     80,
 							Protocol: "tcp",
 						},
-						&port{
+						{
 							Name:     "metrics",
 							Port:     9911,
 							Protocol: "tcp",
@@ -173,20 +173,20 @@ func Test_endpoint_Targets(t *testing.T) {
 		{
 			name: "single node and 2 ports fully specified by port number",
 			Subsets: []*subset{
-				&subset{
+				{
 					Addresses: []*address{
-						&address{
+						{
 							IP:   "1.2.3.4",
 							Node: "nodeA",
 						},
 					},
 					Ports: []*port{
-						&port{
+						{
 							Name:     "http",
 							Port:     80,
 							Protocol: "tcp",
 						},
-						&port{
+						{
 							Name:     "metrics",
 							Port:     9911,
 							Protocol: "tcp",
