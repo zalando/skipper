@@ -394,8 +394,7 @@ func TestIngressData(t *testing.T) {
 		},
 		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", "", backendPort{8080}, 1.0)},
 		map[string]string{
-			"kube_foo__baz______":           "http://1.2.3.4:8080",
-			"kube_foo__baz________lb_group": "",
+			"kube_foo__baz______": "http://1.2.3.4:8080",
 		},
 	}, {
 		"service backend from ingress and service, path rule",
@@ -423,8 +422,7 @@ func TestIngressData(t *testing.T) {
 			),
 		)},
 		map[string]string{
-			"kube_foo__baz__www_example_org_____bar":           "http://1.2.3.4:8181",
-			"kube_foo__baz__www_example_org_____bar__lb_group": "",
+			"kube_foo__baz__www_example_org_____bar": "http://1.2.3.4:8181",
 		},
 	}, {
 		"service backend from ingress and service, default and path rule",
@@ -453,10 +451,8 @@ func TestIngressData(t *testing.T) {
 			),
 		)},
 		map[string]string{
-			"kube_foo__qux______":                              "http://1.2.3.4:8080",
-			"kube_foo__qux________lb_group":                    "",
-			"kube_foo__qux__www_example_org_____baz":           "http://5.6.7.8:8181",
-			"kube_foo__qux__www_example_org_____baz__lb_group": "",
+			"kube_foo__qux______":                    "http://1.2.3.4:8080",
+			"kube_foo__qux__www_example_org_____baz": "http://5.6.7.8:8181",
 		},
 	}, {
 		"service backend from ingress and service, with port name",
@@ -484,8 +480,7 @@ func TestIngressData(t *testing.T) {
 			),
 		)},
 		map[string]string{
-			"kube_foo__qux__www_example_org_____bar":           "http://1.2.3.4:8181",
-			"kube_foo__qux__www_example_org_____bar__lb_group": "",
+			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
 		},
 	}, {
 		"ignore ingress entries with missing metadata",
@@ -529,8 +524,7 @@ func TestIngressData(t *testing.T) {
 			},
 		},
 		map[string]string{
-			"kube_foo__qux__www_example_org_____bar":           "http://1.2.3.4:8181",
-			"kube_foo__qux__www_example_org_____bar__lb_group": "",
+			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -762,28 +756,18 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only______":                                     "http://1.2.3.4:8080",
-			"kube_namespace1__default_only________lb_group":                           "",
-			"kube_namespace2__path_rule_only__www_example_org_____service3":           "http://9.0.1.2:7272",
-			"kube_namespace2__path_rule_only__www_example_org_____service3__lb_group": "",
-			"kube_namespace1__mega______":                                             "http://1.2.3.4:8080",
-			"kube_namespace1__mega________lb_group":                                   "",
-			"kube_namespace1__mega__foo_example_org___test1__service1":                "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1__service1__lb_group":      "",
-			"kube_namespace1__mega__foo_example_org___test2__service2":                "http://5.6.7.8:8181",
-			"kube_namespace1__mega__foo_example_org___test2__service2__lb_group":      "",
-			"kube___catchall__foo_example_org____":                                    "",
-			"kube_namespace1__mega__bar_example_org___test1__service1":                "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test1__service1__lb_group":      "",
-			"kube_namespace1__mega__bar_example_org___test2__service2":                "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org___test2__service2__lb_group":      "",
-			"kube___catchall__bar_example_org____":                                    "",
-			"kube_namespace1__ratelimit______":                                        "http://1.2.3.4:8080",
-			"kube_namespace1__ratelimit________lb_group":                              "",
-			"kube_namespace1__ratelimitAndBreaker______":                              "http://1.2.3.4:8080",
-			"kube_namespace1__ratelimitAndBreaker________lb_group":                    "",
-			"kube_namespace2__svcwith2ports______":                                    "http://10.0.1.2:4444",
-			"kube_namespace2__svcwith2ports________lb_group":                          "",
+			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
+			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube___catchall__foo_example_org____":                          "",
+			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube___catchall__bar_example_org____":                          "",
+			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
+			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.2.3.4:8080",
+			"kube_namespace2__svcwith2ports______":                          "http://10.0.1.2:4444",
 		})
 	})
 
@@ -810,8 +794,7 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__mega__foo_example_org___test1__service1":           "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1__service1__lb_group": "",
+			"kube_namespace1__mega__foo_example_org___test1__service1": "http://1.2.3.4:8080",
 		})
 	})
 
@@ -830,28 +813,18 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only______":                                     "http://1.2.3.4:8080",
-			"kube_namespace1__default_only________lb_group":                           "",
-			"kube_namespace2__path_rule_only__www_example_org_____service3":           "http://9.0.1.2:7272",
-			"kube_namespace2__path_rule_only__www_example_org_____service3__lb_group": "",
-			"kube_namespace1__mega______":                                             "http://1.2.3.4:8080",
-			"kube_namespace1__mega________lb_group":                                   "",
-			"kube_namespace1__mega__foo_example_org___test1__service1":                "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1__service1__lb_group":      "",
-			"kube_namespace1__mega__foo_example_org___test2__service2":                "http://5.6.7.8:8181",
-			"kube_namespace1__mega__foo_example_org___test2__service2__lb_group":      "",
-			"kube___catchall__foo_example_org____":                                    "",
-			"kube_namespace1__mega__bar_example_org___test1__service1":                "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test1__service1__lb_group":      "",
-			"kube_namespace1__mega__bar_example_org___test2__service2":                "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org___test2__service2__lb_group":      "",
-			"kube___catchall__bar_example_org____":                                    "",
-			"kube_namespace1__ratelimit______":                                        "http://1.2.3.4:8080",
-			"kube_namespace1__ratelimit________lb_group":                              "",
-			"kube_namespace1__ratelimitAndBreaker______":                              "http://1.2.3.4:8080",
-			"kube_namespace1__ratelimitAndBreaker________lb_group":                    "",
-			"kube_namespace2__svcwith2ports________lb_group":                          "",
-			"kube_namespace2__svcwith2ports______":                                    "http://10.0.1.2:4444",
+			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
+			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube___catchall__foo_example_org____":                          "",
+			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube___catchall__bar_example_org____":                          "",
+			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
+			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.2.3.4:8080",
+			"kube_namespace2__svcwith2ports______":                          "http://10.0.1.2:4444",
 		})
 	})
 
@@ -908,9 +881,7 @@ func TestIngress(t *testing.T) {
 			t,
 			d,
 			"kube_namespace1__mega__foo_example_org___test2__service2",
-			"kube_namespace1__mega__foo_example_org___test2__service2__lb_group",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube_namespace1__mega__bar_example_org___test2__service2__lb_group",
 		)
 	})
 
@@ -939,25 +910,16 @@ func TestIngress(t *testing.T) {
 			t,
 			d,
 			"kube_namespace2__path_rule_only__www_example_org_____service3",
-			"kube_namespace2__path_rule_only__www_example_org_____service3__lb_group",
 			"kube_namespace1__mega______",
-			"kube_namespace1__mega________lb_group",
 			"kube_namespace1__mega__foo_example_org___test1__service1",
-			"kube_namespace1__mega__foo_example_org___test1__service1__lb_group",
 			"kube_namespace1__mega__foo_example_org___test2__service2",
-			"kube_namespace1__mega__foo_example_org___test2__service2__lb_group",
 			"kube___catchall__foo_example_org____",
 			"kube_namespace1__mega__bar_example_org___test1__service1",
-			"kube_namespace1__mega__bar_example_org___test1__service1__lb_group",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube_namespace1__mega__bar_example_org___test2__service2__lb_group",
 			"kube___catchall__bar_example_org____",
 			"kube_namespace1__ratelimit______",
-			"kube_namespace1__ratelimit________lb_group",
 			"kube_namespace1__ratelimitAndBreaker______",
-			"kube_namespace1__ratelimitAndBreaker________lb_group",
 			"kube_namespace2__svcwith2ports______",
-			"kube_namespace2__svcwith2ports________lb_group",
 		)
 	})
 
@@ -986,9 +948,7 @@ func TestIngress(t *testing.T) {
 			t,
 			d,
 			"kube_namespace1__mega__bar_example_org___test1__service1",
-			"kube_namespace1__mega__bar_example_org___test1__service1__lb_group",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube_namespace1__mega__bar_example_org___test2__service2__lb_group",
 			"kube___catchall__bar_example_org____",
 		)
 	})
@@ -1046,10 +1006,8 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org_____service1":           "http://1.2.3.4:8080",
-			"kube_namespace1__new1__new1_example_org_____service1__lb_group": "",
-			"kube_namespace1__new2__new2_example_org_____service2":           "http://5.6.7.8:8181",
-			"kube_namespace1__new2__new2_example_org_____service2__lb_group": "",
+			"kube_namespace1__new1__new1_example_org_____service1": "http://1.2.3.4:8080",
+			"kube_namespace1__new2__new2_example_org_____service2": "http://5.6.7.8:8181",
 		})
 	})
 
@@ -1109,20 +1067,16 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org_____service1":           "http://1.2.3.4:8080",
-			"kube_namespace1__new1__new1_example_org_____service1__lb_group": "",
-			"kube_namespace1__new2__new2_example_org_____service2":           "http://5.6.7.8:8181",
-			"kube_namespace1__new2__new2_example_org_____service2__lb_group": "",
-			"kube_namespace2__path_rule_only__www_example_org_____service3":  "http://9.0.1.2:9999",
+			"kube_namespace1__new1__new1_example_org_____service1":          "http://1.2.3.4:8080",
+			"kube_namespace1__new2__new2_example_org_____service2":          "http://5.6.7.8:8181",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:9999",
 		})
 
 		checkIDs(
 			t,
 			d,
 			"kube_namespace1__mega__bar_example_org___test1__service1",
-			"kube_namespace1__mega__bar_example_org___test1__service1__lb_group",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube_namespace1__mega__bar_example_org___test2__service2__lb_group",
 			"kube___catchall__bar_example_org____",
 		)
 	})
@@ -1180,8 +1134,7 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org_____service1":           "http://1.2.3.4:8080",
-			"kube_namespace1__new1__new1_example_org_____service1__lb_group": "",
+			"kube_namespace1__new1__new1_example_org_____service1": "http://1.2.3.4:8080",
 		})
 	})
 }
@@ -1243,11 +1196,9 @@ func TestConvertPathRule(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___test1__service1":           "http://1.2.3.4:8080",
-			"kube_namespace1__new1__new1_example_org___test1__service1__lb_group": "",
-			"kube___catchall__new1_example_org____":                               "",
-			"kube_namespace1__new1__new1_example_org___test2__service1":           "http://1.2.3.4:8080",
-			"kube_namespace1__new1__new1_example_org___test2__service1__lb_group": "",
+			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
+			"kube___catchall__new1_example_org____":                     "",
+			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.2.3.4:8080",
 		})
 	})
 }
@@ -1587,29 +1538,19 @@ func TestHealthcheckReload(t *testing.T) {
 
 		checkHealthcheck(t, r, true, true, false)
 		checkRoutes(t, r, map[string]string{
-			healthcheckRouteID:                                                        "",
-			"kube_namespace1__default_only______":                                     "http://1.2.3.4:8080",
-			"kube_namespace1__default_only________lb_group":                           "",
-			"kube_namespace2__path_rule_only__www_example_org_____service3":           "http://9.0.1.2:7272",
-			"kube_namespace2__path_rule_only__www_example_org_____service3__lb_group": "",
-			"kube_namespace1__mega______":                                             "http://1.2.3.4:8080",
-			"kube_namespace1__mega________lb_group":                                   "",
-			"kube_namespace1__mega__foo_example_org___test1__service1":                "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1__service1__lb_group":      "",
-			"kube_namespace1__mega__foo_example_org___test2__service2":                "http://5.6.7.8:8181",
-			"kube_namespace1__mega__foo_example_org___test2__service2__lb_group":      "",
-			"kube___catchall__foo_example_org____":                                    "",
-			"kube_namespace1__mega__bar_example_org___test1__service1":                "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test1__service1__lb_group":      "",
-			"kube_namespace1__mega__bar_example_org___test2__service2":                "http://5.6.7.8:8181",
-			"kube_namespace1__mega__bar_example_org___test2__service2__lb_group":      "",
-			"kube___catchall__bar_example_org____":                                    "",
-			"kube_namespace1__ratelimit______":                                        "http://1.2.3.4:8080",
-			"kube_namespace1__ratelimit________lb_group":                              "",
-			"kube_namespace1__ratelimitAndBreaker______":                              "http://1.2.3.4:8080",
-			"kube_namespace1__ratelimitAndBreaker________lb_group":                    "",
-			"kube_namespace2__svcwith2ports______":                                    "http://10.0.1.2:4444",
-			"kube_namespace2__svcwith2ports________lb_group":                          "",
+			healthcheckRouteID:                                              "",
+			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
+			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube___catchall__foo_example_org____":                          "",
+			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
+			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube___catchall__bar_example_org____":                          "",
+			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
+			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.2.3.4:8080",
+			"kube_namespace2__svcwith2ports______":                          "http://10.0.1.2:4444",
 		})
 	})
 }

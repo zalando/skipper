@@ -425,6 +425,10 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		routes = append(routes, r)
 	}
 
+	if len(eps) == 0 {
+		return routes, true, nil
+	}
+
 	decisionRoute := &eskip.Route{
 		Id:          routeID(ns, name, "", "", "") + "__lb_group",
 		BackendType: eskip.LoopBackend,
@@ -565,6 +569,10 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
 		}
 		routes = append(routes, r)
+	}
+
+	if len(eps) == 0 {
+		return routes, nil
 	}
 
 	decisionRoute := &eskip.Route{
