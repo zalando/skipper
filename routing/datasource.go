@@ -271,10 +271,10 @@ func getFreeStringArg(count int, p *eskip.Predicate) ([]string, error) {
 }
 
 func mergeLegacyNonTreePredicates(r *eskip.Route) error {
-	for i := len(r.Predicates) - 1; i >= 0; i-- {
-		p := r.Predicates[i]
-
+	var rest []*eskip.Predicate
+	for _, p := range r.Predicates {
 		if isTreePredicate(p.Name) {
+			rest = append(rest, p)
 			continue
 		}
 
@@ -286,7 +286,6 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) error {
 			}
 
 			r.HostRegexps = append(r.HostRegexps, a[0])
-			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
 		case pathRegexpName:
 			a, err := getFreeStringArg(1, p)
 			if err != nil {
@@ -294,7 +293,6 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) error {
 			}
 
 			r.PathRegexps = append(r.PathRegexps, a[0])
-			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
 		case methodName:
 			a, err := getFreeStringArg(1, p)
 			if err != nil {
@@ -302,7 +300,6 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) error {
 			}
 
 			r.Method = a[0]
-			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
 		case headerName:
 			a, err := getFreeStringArg(2, p)
 			if err != nil {
@@ -314,7 +311,6 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) error {
 			}
 
 			r.Headers[a[0]] = a[1]
-			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
 		case headerRegexpName:
 			a, err := getFreeStringArg(2, p)
 			if err != nil {
@@ -326,10 +322,12 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) error {
 			}
 
 			r.HeaderRegexps[a[0]] = append(r.HeaderRegexps[a[0]], a[1])
-			r.Predicates = append(r.Predicates[:i], r.Predicates[i+1:]...)
+		default:
+			rest = append(rest, p)
 		}
 	}
 
+	r.Predicates = rest
 	return nil
 }
 
