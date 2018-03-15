@@ -256,7 +256,7 @@ func checkRoutesExact(t *testing.T, r []*eskip.Route, expect []*eskip.Route) {
 		}
 
 		if !found {
-			t.Errorf("route not found: %v", r[i])
+			t.Errorf("route not found: %s: %v", r[i].Id, r[i])
 			return
 		}
 	}

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -413,7 +414,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 
 	for idx, ep := range eps {
 		r := &eskip.Route{
-			Id:      routeID(ns, name, "", "", string(idx)),
+			Id:      routeID(ns, name, "", "", strconv.Itoa(idx)),
 			Backend: ep,
 			Predicates: []*eskip.Predicate{{
 				Name: loadbalancer.MemberPredicateName,

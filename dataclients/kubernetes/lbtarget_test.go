@@ -6,12 +6,12 @@ func TestLBTargets(t *testing.T) {
 	const expectedRoutes = `
 
 		// default backend, target 1:
-		kube_namespace1__ingress1_______:
+		kube_namespace1__ingress1______0:
 		  LBMember("kube_namespace1__ingress1______", 0)
 		  -> "http://42.0.1.2:8080";
 
 		// default backend, target 2:
-		kube_namespace1__ingress1_______:
+		kube_namespace1__ingress1______1:
 		  LBMember("kube_namespace1__ingress1______", 1)
 		  -> "http://42.0.1.3:8080";
 
