@@ -412,6 +412,19 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	// - better: cleanup single route load balancer groups in the routing package before applying the next
 	// routing table
 
+	if len(eps) == 0 {
+		return routes, true, nil
+	}
+
+	if len(eps) == 1 {
+		r := &eskip.Route{
+			Id:      routeID(ns, name, "", "", ""),
+			Backend: eps[0],
+		}
+		routes = append(routes, r)
+		return routes, true, nil
+	}
+
 	for idx, ep := range eps {
 		r := &eskip.Route{
 			Id:      routeID(ns, name, "", "", strconv.Itoa(idx)),
@@ -425,10 +438,6 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 			}},
 		}
 		routes = append(routes, r)
-	}
-
-	if len(eps) == 0 {
-		return routes, true, nil
 	}
 
 	decisionRoute := &eskip.Route{
@@ -547,6 +556,29 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		log.Debugf("%d routes for %s/%s/%s already known", len(eps), ns, svcName, svcPort)
 	}
 
+	if len(eps) == 1 {
+		r := &eskip.Route{
+			Id:          routeID(ns, name, host, prule.Path, svcName),
+			PathRegexps: pathExpressions,
+			Backend:     eps[0],
+		}
+
+		// add traffic predicate if traffic weight is between 0.0 and 1.0
+		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+			r.Predicates = append([]*eskip.Predicate{{
+				Name: traffic.PredicateName,
+				Args: []interface{}{prule.Backend.Traffic},
+			}}, r.Predicates...)
+			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+		}
+		routes = append(routes, r)
+		return routes, nil
+	}
+
+	if len(eps) == 0 {
+		return routes, nil
+	}
+
 	group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName)
 	for idx, ep := range eps {
 		r := &eskip.Route{
@@ -571,10 +603,6 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
 		}
 		routes = append(routes, r)
-	}
-
-	if len(eps) == 0 {
-		return routes, nil
 	}
 
 	decisionRoute := &eskip.Route{

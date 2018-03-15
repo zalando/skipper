@@ -2,6 +2,90 @@ package kubernetes
 
 import "testing"
 
+func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes string) {
+	svc := testServiceWithTargetPort(
+		"1.2.3.4",
+		map[string]int{"port1": 8080},
+		map[int]*backendPort{8080: {8080}},
+	)
+
+	services := services{
+		"namespace1": map[string]*service{"service1": svc},
+	}
+
+	var subsets []*subset
+	for i := range targets {
+		subsets = append(subsets, &subset{
+			Addresses: []*address{{
+				IP: targets[i],
+			}},
+			Ports: []*port{{
+				Name: "port1",
+				Port: 8080,
+			}},
+		})
+	}
+
+	endpoints := endpoints{
+		"namespace1": map[string]endpoint{
+			"service1": {Subsets: subsets},
+		},
+	}
+
+	ingress := testIngress(
+		"namespace1",
+		"ingress1",
+		"service1",
+		"",
+		"",
+		"",
+		backendPort{"port1"},
+		1.0,
+		testRule(
+			"test.example.org",
+			testPathRule("/test1", "service1", backendPort{"port1"}),
+		),
+	)
+
+	api := newTestAPIWithEndpoints(t, services, &ingressList{Items: []*ingressItem{ingress}}, endpoints)
+	defer api.Close()
+
+	dc, err := New(Options{KubernetesURL: api.server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := dc.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkRoutesDoc(t, r, expectedRoutes)
+}
+
+func TestSingleLBTarget(t *testing.T) {
+	const expectedRoutes = `
+
+		// default backend:
+		kube_namespace1__ingress1______:
+		  *
+		  -> "http://42.0.1.2:8080";
+
+		// path rule:
+		kube_namespace1__ingress1__test_example_org___test1__service1:
+		  Host(/^test[.]example[.]org$/)
+		  && PathRegexp(/^\/test1/)
+		  -> "http://42.0.1.2:8080";
+
+		// catch all:
+		kube___catchall__test_example_org____:
+		  Host(/^test[.]example[.]org$/)
+		  -> <shunt>;
+	`
+
+	testSingleIngressWithTargets(t, []string{"42.0.1.2"}, expectedRoutes)
+}
+
 func TestLBTargets(t *testing.T) {
 	const expectedRoutes = `
 
@@ -48,67 +132,5 @@ func TestLBTargets(t *testing.T) {
 		  -> <shunt>;
 	`
 
-	svc := testServiceWithTargetPort(
-		"1.2.3.4",
-		map[string]int{"port1": 8080},
-		map[int]*backendPort{8080: {8080}},
-	)
-
-	services := services{
-		"namespace1": map[string]*service{"service1": svc},
-	}
-
-	endpoints := endpoints{
-		"namespace1": map[string]endpoint{
-			"service1": {
-				Subsets: []*subset{{
-					Addresses: []*address{{
-						IP: "42.0.1.2",
-					}},
-					Ports: []*port{{
-						Name: "port1",
-						Port: 8080,
-					}},
-				}, {
-					Addresses: []*address{{
-						IP: "42.0.1.3",
-					}},
-					Ports: []*port{{
-						Name: "port1",
-						Port: 8080,
-					}},
-				}},
-			},
-		},
-	}
-
-	ingress := testIngress(
-		"namespace1",
-		"ingress1",
-		"service1",
-		"",
-		"",
-		"",
-		backendPort{"port1"},
-		1.0,
-		testRule(
-			"test.example.org",
-			testPathRule("/test1", "service1", backendPort{"port1"}),
-		),
-	)
-
-	api := newTestAPIWithEndpoints(t, services, &ingressList{Items: []*ingressItem{ingress}}, endpoints)
-	defer api.Close()
-
-	dc, err := New(Options{KubernetesURL: api.server.URL})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	r, err := dc.LoadAll()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	checkRoutesDoc(t, r, expectedRoutes)
+	testSingleIngressWithTargets(t, []string{"42.0.1.2", "42.0.1.3"}, expectedRoutes)
 }
