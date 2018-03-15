@@ -824,15 +824,6 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 	return m
 }
 
-func (c *Client) listRoutes() []*eskip.Route {
-	l := make([]*eskip.Route, 0, len(c.current))
-	for _, r := range c.current {
-		l = append(l, r)
-	}
-
-	return l
-}
-
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
 func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
