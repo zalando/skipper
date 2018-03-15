@@ -250,18 +250,21 @@ func isTreePredicate(name string) bool {
 	}
 }
 
-func getFreeStringArg(count int, p *eskip.Predicate) ([]string, error) {
-	err := func() error { return fmt.Errorf("invalid predicate args in %s", p.Name) }
-
+func getFreeStringArgs(count int, p *eskip.Predicate) ([]string, error) {
 	if len(p.Args) != count {
-		return nil, err()
+		return nil, fmt.Errorf(
+			"invalid length of predicate args in %s, %d instead of %d",
+			p.Name,
+			len(p.Args),
+			count,
+		)
 	}
 
 	var a []string
 	for i := range p.Args {
 		s, ok := p.Args[i].(string)
 		if !ok {
-			return nil, err()
+			return nil, fmt.Errorf("expected argument of type string, %s", p.Name)
 		}
 
 		a = append(a, s)
@@ -280,28 +283,28 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) error {
 
 		switch p.Name {
 		case hostRegexpName:
-			a, err := getFreeStringArg(1, p)
+			a, err := getFreeStringArgs(1, p)
 			if err != nil {
 				return err
 			}
 
 			r.HostRegexps = append(r.HostRegexps, a[0])
 		case pathRegexpName:
-			a, err := getFreeStringArg(1, p)
+			a, err := getFreeStringArgs(1, p)
 			if err != nil {
 				return err
 			}
 
 			r.PathRegexps = append(r.PathRegexps, a[0])
 		case methodName:
-			a, err := getFreeStringArg(1, p)
+			a, err := getFreeStringArgs(1, p)
 			if err != nil {
 				return err
 			}
 
 			r.Method = a[0]
 		case headerName:
-			a, err := getFreeStringArg(2, p)
+			a, err := getFreeStringArgs(2, p)
 			if err != nil {
 				return err
 			}
@@ -312,7 +315,7 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) error {
 
 			r.Headers[a[0]] = a[1]
 		case headerRegexpName:
-			a, err := getFreeStringArg(2, p)
+			a, err := getFreeStringArgs(2, p)
 			if err != nil {
 				return err
 			}
