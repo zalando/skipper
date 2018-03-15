@@ -47,6 +47,7 @@ Skipper's main features:
   - All Filters and Predicates can be used with 2 annotations
     - Predicates: `zalando.org/skipper-predicate`
     - Filters: `zalando.org/skipper-filter`
+  - Custom routes can be defined with the annotation `zalando.org/skipper-routes`
   - [metrics](https://godoc.org/github.com/zalando/skipper/metrics)
   - access logs
   - Blue-Green deployments, with another Ingress annotation `zalando.org/backend-weights`

@@ -49,6 +49,7 @@ const (
 	ratelimitAnnotationKey        = "zalando.org/ratelimit"
 	skipperfilterAnnotationKey    = "zalando.org/skipper-filter"
 	skipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
+	skipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
 )
 
 var internalIPs = []interface{}{
@@ -670,6 +671,17 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			annotationPredicate = val
 		}
 
+		// parse routes annotation
+		var extraRoutes []*eskip.Route
+		annotationRoutes := i.Metadata.Annotations[skipperRoutesAnnotationKey]
+		if annotationRoutes != "" {
+			var err error
+			extraRoutes, err = eskip.Parse(annotationRoutes)
+			if err != nil {
+				log.Errorf("failed to parse routes from %s, skipping: %v", skipperRoutesAnnotationKey, err)
+			}
+		}
+
 		// parse backend-weihgts annotation if it exists
 		var backendWeights map[string]float64
 		if backends, ok := i.Metadata.Annotations[backendWeightsAnnotationKey]; ok {
@@ -691,6 +703,13 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			// this wrapping is temporary and escaping is not the right thing to do
 			// currently handled as mandatory
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
+
+			// add extra routes from optional annotation
+			for _, route := range extraRoutes {
+				route.HostRegexps = host
+				route.Id = routeID("", route.Id, rule.Host, "", "")
+				hostRoutes[rule.Host] = append(hostRoutes[rule.Host], route)
+			}
 
 			// update Traffic field for each backend
 			computeBackendWeights(backendWeights, rule)
