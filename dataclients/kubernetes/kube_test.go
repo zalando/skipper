@@ -32,17 +32,24 @@ import (
 	"github.com/zalando/skipper/predicates/source"
 )
 
-type services map[string]map[string]*service
+type (
+	services  map[string]map[string]*service
+	endpoints map[string]map[string]endpoint
+)
 
 type testAPI struct {
 	test      *testing.T
 	services  services
 	ingresses *ingressList
+	endpoints endpoints
 	server    *httptest.Server
 	failNext  bool
 }
 
-var serviceURIRx = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/services/([^/]+)$")
+var (
+	serviceURIRx  = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/services/([^/]+)$")
+	endpointURIRx = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/endpoints/([^/]+)")
+)
 
 func init() {
 	log.SetLevel(log.InfoLevel)
@@ -50,11 +57,16 @@ func init() {
 }
 
 func testService(clusterIP string, ports map[string]int) *service {
+	return testServiceWithTargetPort(clusterIP, ports, nil)
+}
+
+func testServiceWithTargetPort(clusterIP string, ports map[string]int, targetPorts map[int]*backendPort) *service {
 	sports := make([]*servicePort, 0, len(ports))
 	for name, port := range ports {
 		sports = append(sports, &servicePort{
-			Name: name,
-			Port: port,
+			Name:       name,
+			Port:       port,
+			TargetPort: targetPorts[port],
 		})
 	}
 
@@ -217,6 +229,39 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	}
 }
 
+func checkRoutesDoc(t *testing.T, r []*eskip.Route, expect string) {
+	expectRoutes, err := eskip.Parse(expect)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkRoutesExact(t, r, expectRoutes)
+}
+
+func checkRoutesExact(t *testing.T, r []*eskip.Route, expect []*eskip.Route) {
+	if len(r) != len(expect) {
+		t.Error("length doesn't match")
+		t.Log("got:     ", len(r))
+		t.Log("expected:", len(expect))
+		return
+	}
+
+	for i := range r {
+		var found bool
+		for j := range expect {
+			if r[i].Id == expect[j].Id && r[i].String() == expect[j].String() {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Errorf("route not found: %v", r[i])
+			return
+		}
+	}
+}
+
 func checkIDs(t *testing.T, got []string, expected ...string) {
 	if len(got) != len(expected) {
 		t.Errorf("number of IDs %d doesn't match expected %d", len(got), len(expected))
@@ -321,10 +366,15 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, rever
 }
 
 func newTestAPI(t *testing.T, s services, i *ingressList) *testAPI {
+	return newTestAPIWithEndpoints(t, s, i, nil)
+}
+
+func newTestAPIWithEndpoints(t *testing.T, s services, i *ingressList, e endpoints) *testAPI {
 	api := &testAPI{
 		test:      t,
 		services:  s,
 		ingresses: i,
+		endpoints: e,
 	}
 
 	api.server = httptest.NewServer(api)
@@ -339,6 +389,16 @@ func respondJSON(w io.Writer, v interface{}) error {
 
 	_, err = w.Write(b)
 	return err
+}
+
+func (api *testAPI) getEndpoints(uri string) endpoint {
+	var ep endpoint
+	if m := endpointURIRx.FindAllStringSubmatch(uri, -1); len(m) != 0 {
+		ns, n := m[0][1], m[0][2]
+		ep = api.endpoints[ns][n]
+	}
+
+	return ep
 }
 
 func (api *testAPI) getTestService(uri string) (*service, bool) {
@@ -359,6 +419,15 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == ingressesURI {
 		if err := respondJSON(w, api.ingresses); err != nil {
+			api.test.Error(err)
+		}
+
+		return
+	}
+
+	if endpointURIRx.MatchString(r.URL.Path) {
+		ep := api.getEndpoints(r.URL.Path)
+		if err := respondJSON(w, ep); err != nil {
 			api.test.Error(err)
 		}
 

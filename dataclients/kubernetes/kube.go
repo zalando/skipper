@@ -371,6 +371,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		err = nil
 		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
 	} else {
+		// TODO(aryszka): check docs that service name is always good for requesting the endpoints
 		log.Infof("Found target port %v, for service %s", targetPort, svcName)
 		eps, err = c.getEndpoints(
 			ns,
