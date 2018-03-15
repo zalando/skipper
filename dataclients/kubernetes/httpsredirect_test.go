@@ -42,8 +42,9 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 	})
 
 	const to = 120 * time.Millisecond
-	l.WaitFor("all ingresses received", to)
-	l.WaitFor("route settings applied", to)
+	if err := l.WaitFor("route settings applied", to); err != nil {
+		t.Fatal("waiting for route settings", err)
+	}
 
 	if err != nil {
 		t.Error(err)
