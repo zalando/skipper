@@ -8,7 +8,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -200,9 +199,6 @@ func testIngresses() []*ingressItem {
 }
 
 func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
-	for _, route := range r {
-		fmt.Println(route.Id)
-	}
 	if len(r) != len(expected) {
 		curIDs := make([]string, len(r))
 		expectedIDs := make([]string, len(expected))
@@ -638,7 +634,7 @@ func TestIngressData(t *testing.T) {
 		)},
 		map[string]string{
 			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
-			"kube_____www_example_org____":           "",
+			"kube_foo__qux__0__www_example_org____":  "",
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {

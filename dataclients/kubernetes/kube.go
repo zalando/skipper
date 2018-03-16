@@ -340,6 +340,13 @@ func routeID(namespace, name, host, path, backend string) string {
 	return fmt.Sprintf("kube_%s__%s__%s__%s__%s", namespace, name, host, path, backend)
 }
 
+// routeIDForCustom generates a route id for a custom route of an ingress
+// resource.
+func routeIDForCustom(namespace, name, id, host string, index int) string {
+	name = name + "_" + id + "_" + strconv.Itoa(index)
+	return routeID(namespace, name, host, "", "")
+}
+
 // converts the default backend if any
 func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, error) {
 	// the usage of the default backend depends on what we want
@@ -709,9 +716,9 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
 			// add extra routes from optional annotation
-			for _, route := range extraRoutes {
+			for idx, route := range extraRoutes {
 				route.HostRegexps = host
-				route.Id = routeID("", route.Id, rule.Host, "", "")
+				route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host, idx)
 				hostRoutes[rule.Host] = append(hostRoutes[rule.Host], route)
 			}
 
