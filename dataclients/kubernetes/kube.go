@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -371,6 +372,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		err = nil
 		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
 	} else {
+		// TODO(aryszka): check docs that service name is always good for requesting the endpoints
 		log.Infof("Found target port %v, for service %s", targetPort, svcName)
 		eps, err = c.getEndpoints(
 			ns,
@@ -410,9 +412,22 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	// - better: cleanup single route load balancer groups in the routing package before applying the next
 	// routing table
 
+	if len(eps) == 0 {
+		return routes, true, nil
+	}
+
+	if len(eps) == 1 {
+		r := &eskip.Route{
+			Id:      routeID(ns, name, "", "", ""),
+			Backend: eps[0],
+		}
+		routes = append(routes, r)
+		return routes, true, nil
+	}
+
 	for idx, ep := range eps {
 		r := &eskip.Route{
-			Id:      routeID(ns, name, "", "", string(idx)),
+			Id:      routeID(ns, name, "", "", strconv.Itoa(idx)),
 			Backend: ep,
 			Predicates: []*eskip.Predicate{{
 				Name: loadbalancer.MemberPredicateName,
@@ -539,6 +554,29 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 	} else {
 		eps = val
 		log.Debugf("%d routes for %s/%s/%s already known", len(eps), ns, svcName, svcPort)
+	}
+
+	if len(eps) == 1 {
+		r := &eskip.Route{
+			Id:          routeID(ns, name, host, prule.Path, svcName),
+			PathRegexps: pathExpressions,
+			Backend:     eps[0],
+		}
+
+		// add traffic predicate if traffic weight is between 0.0 and 1.0
+		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+			r.Predicates = append([]*eskip.Predicate{{
+				Name: traffic.PredicateName,
+				Args: []interface{}{prule.Backend.Traffic},
+			}}, r.Predicates...)
+			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+		}
+		routes = append(routes, r)
+		return routes, nil
+	}
+
+	if len(eps) == 0 {
+		return routes, nil
 	}
 
 	group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName)
@@ -814,15 +852,6 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 	}
 
 	return m
-}
-
-func (c *Client) listRoutes() []*eskip.Route {
-	l := make([]*eskip.Route, 0, len(c.current))
-	for _, r := range c.current {
-		l = append(l, r)
-	}
-
-	return l
 }
 
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
