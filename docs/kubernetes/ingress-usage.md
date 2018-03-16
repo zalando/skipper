@@ -100,7 +100,7 @@ This example shows how to add predicates and filters:
 
 ## Custom Routes
 
-Custom routes is a way of extending the default routes configured for your
+Custom routes is a way of extending the default routes configured for an
 ingress resource.
 
 This example shows how to add a custom route for handling `OPTIONS` requests.
