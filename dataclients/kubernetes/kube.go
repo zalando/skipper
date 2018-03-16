@@ -639,16 +639,19 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
 	for _, i := range items {
+		logger := log.WithFields(log.Fields{
+			"ingress": fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name),
+		})
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 			i.Spec == nil {
-			log.Warn("invalid ingress item: missing metadata")
+			logger.Warn("invalid ingress item: missing metadata")
 			continue
 		}
 
 		if r, ok, err := c.convertDefaultBackend(i); ok {
 			routes = append(routes, r...)
 		} else if err != nil {
-			log.Errorf("error while converting default backend: %v", err)
+			logger.Errorf("error while converting default backend: %v", err)
 		}
 
 		// TODO: only apply the filters from the annotations if it
@@ -678,7 +681,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			var err error
 			extraRoutes, err = eskip.Parse(annotationRoutes)
 			if err != nil {
-				log.Errorf("failed to parse routes from %s, skipping: %v", skipperRoutesAnnotationKey, err)
+				logger.Errorf("failed to parse routes from %s, skipping: %v", skipperRoutesAnnotationKey, err)
 			}
 		}
 
@@ -687,7 +690,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		if backends, ok := i.Metadata.Annotations[backendWeightsAnnotationKey]; ok {
 			err := json.Unmarshal([]byte(backends), &backendWeights)
 			if err != nil {
-				log.Errorf("error while parsing backend-weights annotation: %v", err)
+				logger.Errorf("error while parsing backend-weights annotation: %v", err)
 			}
 		}
 
@@ -695,7 +698,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		endpointsURLs := make(map[string][]string)
 		for _, rule := range i.Spec.Rules {
 			if rule.Http == nil {
-				log.Warn("invalid ingress item: rule missing http definitions")
+				logger.Warn("invalid ingress item: rule missing http definitions")
 				continue
 			}
 
@@ -733,7 +736,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						if annotationFilter != "" {
 							annotationFilters, err := eskip.ParseFilters(annotationFilter)
 							if err != nil {
-								log.Errorf("Can not parse annotation filters: %v", err)
+								logger.Errorf("Can not parse annotation filters: %v", err)
 							} else {
 								sav := r.Filters[:]
 								r.Filters = append(annotationFilters, sav...)
@@ -743,7 +746,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						if annotationPredicate != "" {
 							predicates, err := eskip.ParsePredicates(annotationPredicate)
 							if err != nil {
-								log.Errorf("Can not parse annotation predicate: %v", err)
+								logger.Errorf("Can not parse annotation predicate: %v", err)
 							} else {
 								r.Predicates = append(r.Predicates, predicates...)
 							}
