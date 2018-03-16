@@ -13,3 +13,4 @@ pages:
         - Ingress Usage: kubernetes/ingress-usage.md
     - Scripts: scripts.md
     - Operations: operations.md
+    - Videos: videos.md
