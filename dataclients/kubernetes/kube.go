@@ -639,14 +639,15 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
 	for _, i := range items {
+		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
+			i.Spec == nil {
+			log.Warn("invalid ingress item: missing metadata")
+			continue
+		}
+
 		logger := log.WithFields(log.Fields{
 			"ingress": fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name),
 		})
-		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
-			i.Spec == nil {
-			logger.Warn("invalid ingress item: missing metadata")
-			continue
-		}
 
 		if r, ok, err := c.convertDefaultBackend(i); ok {
 			routes = append(routes, r...)
