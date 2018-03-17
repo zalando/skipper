@@ -123,6 +123,8 @@ type Options struct {
 	// File containing static route definitions.
 	RoutesFile string
 
+	WatchRoutesFile string
+
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
 
@@ -390,6 +392,11 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			return nil, err
 		}
 
+		clients = append(clients, f)
+	}
+
+	if o.WatchRoutesFile != "" {
+		f := eskipfile.Watch(o.WatchRoutesFile)
 		clients = append(clients, f)
 	}
 

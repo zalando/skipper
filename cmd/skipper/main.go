@@ -351,7 +351,7 @@ func main() {
 		KubernetesIngressClass:              kubernetesIngressClass,
 		InnkeeperUrl:                        innkeeperURL,
 		SourcePollTimeout:                   time.Duration(sourcePollTimeout) * time.Millisecond,
-		RoutesFile:                          routesFile,
+		WatchRoutesFile:                     routesFile,
 		InlineRoutes:                        inlineRoutes,
 		IdleConnectionsPerHost:              idleConnsPerHost,
 		CloseIdleConnsPeriod:                time.Duration(clsic) * time.Second,
