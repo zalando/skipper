@@ -101,7 +101,7 @@ func TestLogging(t *testing.T) {
 
 		testLog := loggingtest.New()
 		defer testLog.Close()
-		testLog.Unmute()
+		// testLog.Unmute()
 
 		rt := init(testLog, client, suppress)
 		defer rt.Close()
@@ -114,6 +114,8 @@ func TestLogging(t *testing.T) {
 		count := testLog.Count(initQuery)
 		if count != initCount {
 			t.Error("unexpected count of log entries", count)
+			t.Log("expected", initCount, initQuery)
+			t.Log("got     ", count)
 			return
 		}
 
@@ -146,7 +148,7 @@ func TestLogging(t *testing.T) {
 	t.Run("full", func(t *testing.T) {
 		testUpdate(
 			t, false,
-			"route settings, update", 5,
+			"route settings, reset", 5,
 			"route settings, update, route:", 2,
 			"route settings, update, deleted", 1,
 		)
@@ -155,7 +157,7 @@ func TestLogging(t *testing.T) {
 	t.Run("suppressed", func(t *testing.T) {
 		testUpdate(
 			t, true,
-			"route settings, update", 2,
+			"route settings, reset", 2,
 			"route settings, update, upsert count:", 1,
 			"route settings, update, delete count:", 1,
 		)
