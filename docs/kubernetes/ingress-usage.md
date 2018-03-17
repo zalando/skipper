@@ -8,10 +8,11 @@ features Skipper provides
 
 Annotation | example data | usage
 --- | --- | ---
-zalando.org/backend-weights | {"my-app-1": 80, "my-app-2": 20} | blue-green deployments
-zalando.org/skipper-filter | consecutiveBreaker(15) | arbitrary filters
-zalando.org/skipper-predicate | QueryParam("version", "^alpha$") | arbitrary predicates
-zalando.org/ratelimit | ratelimit(50, "1m") | deprecated, use zalando.org/skipper-filter instead
+zalando.org/backend-weights | `{"my-app-1": 80, "my-app-2": 20}` | blue-green deployments
+zalando.org/skipper-filter | `consecutiveBreaker(15)` | arbitrary filters
+zalando.org/skipper-predicate | `QueryParam("version", "^alpha$")` | arbitrary predicates
+zalando.org/skipper-routes | `Method("OPTIONS") -> stauts(200) -> <shunt>` | extra custom routes
+zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
 
 ## Supported Service types
 
@@ -97,6 +98,44 @@ This example shows how to add predicates and filters:
               serviceName: app-svc
               servicePort: 80
 
+## Custom Routes
+
+Custom routes is a way of extending the default routes configured for an
+ingress resource.
+
+This example shows how to add a custom route for handling `OPTIONS` requests.
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-routes: |
+      Method("OPTIONS") ->
+      setResponseHeader("Access-Control-Allow-Origin", "*") ->
+      setResponseHeader("Access-Control-Allow-Methods", "GET, OPTIONS") ->
+      setResponseHeader("Access-Control-Allow-Headers", "Authorization") ->
+      status(200) -> <shunt>
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
+
+This will generate a custom route for the ingress which looks like this:
+
+```
+Host(/^app-default[.]example[.]org$/) && Method("OPTIONS") ->
+  setResponseHeader("Access-Control-Allow-Origin", "*") ->
+  setResponseHeader("Access-Control-Allow-Methods", "GET, OPTIONS") ->
+  setResponseHeader("Access-Control-Allow-Headers", "Authorization") ->
+  status(200) -> <shunt>
+```
 
 # Filters - Basic HTTP manipulations
 

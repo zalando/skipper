@@ -141,6 +141,31 @@ defined route in ingress.
               serviceName: app-svc
               servicePort: 80
 
+Example - Ingress with custom skipper Routes configuration
+
+The example shows the use of custom skipper routes which be additional to the
+routes generated for the ingress.
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-routes: |
+          Method("OPTIONS") ->
+          setResponseHeader("Access-Control-Allow-Origin", "*") ->
+          setResponseHeader("Access-Control-Allow-Methods", "GET, OPTIONS") ->
+          setResponseHeader("Access-Control-Allow-Headers", "Authorization") ->
+          status(200) -> <shunt>
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
 Example - Ingress with shadow traffic
 
 This will send production traffic to app-default.example.org and
