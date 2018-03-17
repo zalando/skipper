@@ -123,6 +123,8 @@ type Options struct {
 	// File containing static route definitions.
 	RoutesFile string
 
+	// File containing route definitions with file watch enabled. (For the skipper
+	// command this option is used when starting it with the -routes-file flag.)
 	WatchRoutesFile string
 
 	// InlineRoutes can define routes as eskip text.

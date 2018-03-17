@@ -6,11 +6,12 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-// A Client contains the route definitions from an eskip file.
+// Client contains the route definitions from an eskip file, not implementing file watch. Use the Open function
+// to create instances of it.
 type Client struct{ routes []*eskip.Route }
 
-// Opens an eskip file and parses it, returning a DataClient implementation.
-// If reading or parsing the file fails, returns an error.
+// Opens an eskip file and parses it, returning a DataClient implementation. If reading or parsing the file
+// fails, returns an error. This implementation doesn't provide file watch.
 func Open(path string) (*Client, error) {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -32,9 +33,8 @@ func (c Client) LoadAndParseAll() (routeInfos []*eskip.RouteInfo, err error) {
 	return
 }
 
-// Returns the parsed route definitions found in the file.
+// LoadAll returns the parsed route definitions found in the file.
 func (c Client) LoadAll() ([]*eskip.Route, error) { return c.routes, nil }
 
-// Noop. The current implementation doesn't support watching the eskip
-// file for changes.
+// LoadUpdate: noop. The current implementation doesn't support watching the eskip file for changes.
 func (c Client) LoadUpdate() ([]*eskip.Route, []string, error) { return nil, nil, nil }

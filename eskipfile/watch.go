@@ -14,6 +14,8 @@ type watchResponse struct {
 	err        error
 }
 
+// WatchClient implements a route configuration client with file watching. Use the Watch function to initialize
+// instances of it.
 type WatchClient struct {
 	fileName   string
 	routes     map[string]*eskip.Route
@@ -22,6 +24,8 @@ type WatchClient struct {
 	quit       chan struct{}
 }
 
+// Watch creates a route configuration client with file watching. Watch doesn't follow file system nodes, it
+// always reads from the file identified by the initially provided file name.
 func Watch(name string) *WatchClient {
 	c := &WatchClient{
 		fileName:   name,
@@ -123,6 +127,7 @@ func (c *WatchClient) watch() {
 	}
 }
 
+// LoadAll returns the parsed route definitions found in the file.
 func (c *WatchClient) LoadAll() ([]*eskip.Route, error) {
 	req := make(chan watchResponse)
 	c.getAll <- req
@@ -130,6 +135,7 @@ func (c *WatchClient) LoadAll() ([]*eskip.Route, error) {
 	return rsp.routes, rsp.err
 }
 
+// LoadUpdate returns differential updates when a watched file has changed.
 func (c *WatchClient) LoadUpdate() ([]*eskip.Route, []string, error) {
 	req := make(chan watchResponse)
 	c.getUpdates <- req
@@ -137,6 +143,7 @@ func (c *WatchClient) LoadUpdate() ([]*eskip.Route, []string, error) {
 	return rsp.routes, rsp.deletedIDs, rsp.err
 }
 
+// Close stops watching the configured file and providing updates.
 func (c *WatchClient) Close() {
 	close(c.quit)
 }
