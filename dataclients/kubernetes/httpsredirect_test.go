@@ -19,7 +19,7 @@ type redirectTest struct {
 	backend         string
 	fallbackBackend string
 	t               *testing.T
-	l *loggingtest.Logger
+	l               *loggingtest.Logger
 }
 
 func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) {
@@ -93,7 +93,7 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 		backend:         backend,
 		fallbackBackend: fallbackBackend,
 		t:               t,
-		l: l,
+		l:               l,
 	}, nil
 }
 
