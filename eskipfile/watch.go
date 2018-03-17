@@ -2,32 +2,32 @@ package eskipfile
 
 import (
 	"io/ioutil"
-	"reflect"
 	"os"
+	"reflect"
 
 	"github.com/zalando/skipper/eskip"
 )
 
 type watchResponse struct {
-	routes []*eskip.Route
+	routes     []*eskip.Route
 	deletedIDs []string
-	err error
+	err        error
 }
 
 type WatchClient struct {
-	fileName string
-	routes map[string]*eskip.Route
-	getAll chan (chan<- watchResponse)
+	fileName   string
+	routes     map[string]*eskip.Route
+	getAll     chan (chan<- watchResponse)
 	getUpdates chan (chan<- watchResponse)
-	quit chan struct {}
+	quit       chan struct{}
 }
 
 func Watch(name string) *WatchClient {
 	c := &WatchClient{
-		fileName: name,
-		getAll: make(chan (chan<- watchResponse)),
+		fileName:   name,
+		getAll:     make(chan (chan<- watchResponse)),
 		getUpdates: make(chan (chan<- watchResponse)),
-		quit: make(chan struct{}),
+		quit:       make(chan struct{}),
 	}
 
 	go c.watch()
@@ -44,18 +44,13 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 }
 
 func (c *WatchClient) storeRoutes(r []*eskip.Route) {
-	println("storing", len(r))
 	c.routes = mapRoutes(r)
 }
 
 func (c *WatchClient) diffStoreRoutes(r []*eskip.Route) (upsert []*eskip.Route, deletedIDs []string) {
-	println("diffing", len(r), len(c.routes))
-
 	for i := range r {
 		if !reflect.DeepEqual(r[i], c.routes[r[i].Id]) {
 			upsert = append(upsert, r[i])
-		} else {
-			println("unchanged", r[i].Id)
 		}
 	}
 
@@ -63,7 +58,6 @@ func (c *WatchClient) diffStoreRoutes(r []*eskip.Route) (upsert []*eskip.Route, 
 	for id := range c.routes {
 		if _, keep := m[id]; !keep {
 			deletedIDs = append(deletedIDs, id)
-			println("deleted", id)
 		}
 	}
 
@@ -82,46 +76,37 @@ func (c *WatchClient) deleteAllListIDs() []string {
 }
 
 func (c *WatchClient) loadAll() watchResponse {
-	println("loading all")
 	content, err := ioutil.ReadFile(c.fileName)
 	if err != nil {
-		println("load error")
 		return watchResponse{err: err}
 	}
 
 	r, err := eskip.Parse(string(content))
 	if err != nil {
-		println("parse error")
 		return watchResponse{err: err}
 	}
 
-	println("success")
 	c.storeRoutes(r)
 	return watchResponse{routes: r}
 }
 
 func (c *WatchClient) loadUpdates() watchResponse {
-	println("loading update")
 	content, err := ioutil.ReadFile(c.fileName)
 	if err != nil {
 		if _, isPerr := err.(*os.PathError); isPerr {
-			println("path error")
 			deletedIDs := c.deleteAllListIDs()
 			return watchResponse{deletedIDs: deletedIDs}
 		}
 
-		println("load error")
 		return watchResponse{err: err}
 	}
 
 	r, err := eskip.Parse(string(content))
 	if err != nil {
-		println("parse error")
 		return watchResponse{err: err}
 	}
 
 	upsert, del := c.diffStoreRoutes(r)
-	println("update", len(upsert), len(del))
 	return watchResponse{routes: upsert, deletedIDs: del}
 }
 

@@ -1,14 +1,14 @@
 package eskipfile
 
 import (
-	"testing"
 	"net/http"
-	"time"
 	"net/url"
+	"testing"
+	"time"
 
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/filters/builtin"
 )
 
 func TestOpenFails(t *testing.T) {
@@ -30,13 +30,13 @@ func TestOpenSucceeds(t *testing.T) {
 
 	rt := routing.New(routing.Options{
 		FilterRegistry: builtin.MakeRegistry(),
-		DataClients: []routing.DataClient{f},
-		Log: l,
-		PollTimeout: 180 * time.Millisecond,
+		DataClients:    []routing.DataClient{f},
+		Log:            l,
+		PollTimeout:    180 * time.Millisecond,
 	})
 	defer rt.Close()
 
-	if err := l.WaitFor("route settings applied", 120 * time.Millisecond); err != nil {
+	if err := l.WaitFor("route settings applied", 120*time.Millisecond); err != nil {
 		t.Error(err)
 		return
 	}

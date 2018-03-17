@@ -1,15 +1,15 @@
 package eskipfile
 
 import (
-	"testing"
-	"os"
-	"time"
 	"net/http"
 	"net/url"
+	"os"
+	"testing"
+	"time"
 
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/filters/builtin"
 )
 
 const testWatchFile = "fixtures/watch-test.eskip"
@@ -31,8 +31,8 @@ const testWatchFileUpdatedContent = `
 
 type watchTest struct {
 	testing *testing.T
-	log *loggingtest.Logger
-	file *WatchClient
+	log     *loggingtest.Logger
+	file    *WatchClient
 	routing *routing.Routing
 }
 
@@ -67,13 +67,13 @@ func initWatchTest(t *testing.T) *watchTest {
 	f := Watch(testWatchFile)
 	return &watchTest{
 		testing: t,
-		log: l,
-		file: f,
+		log:     l,
+		file:    f,
 		routing: routing.New(routing.Options{
-			Log: l,
+			Log:            l,
 			FilterRegistry: builtin.MakeRegistry(),
-			DataClients: []routing.DataClient{f},
-			PollTimeout: 12 * time.Millisecond,
+			DataClients:    []routing.DataClient{f},
+			PollTimeout:    6 * time.Millisecond,
 		}),
 	}
 }
@@ -109,7 +109,7 @@ func (t *watchTest) timeoutOrFailInitial() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 120 * time.Millisecond); err != nil {
+	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err != nil {
 		// timeout is also good, the routing handles its own
 		return
 	}
@@ -125,7 +125,7 @@ func (t *watchTest) timeoutAndSucceedInitial() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 120 * time.Millisecond); err == nil {
+	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err == nil {
 		t.testing.Error("unexpected change detected")
 	}
 
@@ -140,7 +140,7 @@ func (t *watchTest) waitAndFailInitial() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 120 * time.Millisecond); err != nil {
+	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err != nil {
 		t.testing.Fatal(err)
 	}
 
@@ -155,7 +155,7 @@ func (t *watchTest) waitAndSucceedInitial() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 120 * time.Millisecond); err != nil {
+	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err != nil {
 		t.testing.Fatal(err)
 	}
 
@@ -170,7 +170,7 @@ func (t *watchTest) waitAndSucceedUpdated() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 120 * time.Millisecond); err != nil {
+	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err != nil {
 		t.testing.Fatal(err)
 	}
 
@@ -212,17 +212,15 @@ func TestWatchUpdateFails(t *testing.T) {
 	test.timeoutAndSucceedInitial()
 }
 
-func TestWatchUpdateRecovers(t *testing.T) {
+func TestWatchUpdateRecover(t *testing.T) {
 	createFile()
 	defer deleteFile()
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
 	invalidFile()
-	println("file damaged")
 	test.timeoutAndSucceedInitial()
 	updateFile()
-	println("file updated")
 	test.waitAndSucceedUpdated()
 }
 
@@ -245,5 +243,12 @@ func TestInitialAndDeleteFile(t *testing.T) {
 	test.waitAndFailInitial()
 }
 
-func TestUpdate(t *testing.T) {
+func TestWatchUpdate(t *testing.T) {
+	createFile()
+	defer deleteFile()
+	test := initWatchTest(t)
+	defer test.close()
+	test.waitAndSucceedInitial()
+	updateFile()
+	test.waitAndSucceedUpdated()
 }
