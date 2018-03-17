@@ -1,0 +1,2 @@
+foo: Path("/foo") -> setPath("/") -> "https://foo.example.org";
+bar: Path("/bar") -> setPath("/") -> "https://bar.example.org";
