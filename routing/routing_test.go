@@ -738,7 +738,6 @@ func TestRoutingHandlerHEAD(t *testing.T) {
 
 func TestUpdateFailsRecovers(t *testing.T) {
 	l := loggingtest.New()
-	// l.Unmute()
 	defer l.Close()
 
 	dc, err := testdataclient.NewDoc(`
