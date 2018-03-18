@@ -63,6 +63,7 @@ lint: build
 
 clean:
 	go clean -i ./...
+	rm -rf .coverprofile-all .cover
 
 deps:
 	go get -t github.com/zalando/skipper/...

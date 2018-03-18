@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -733,4 +734,70 @@ func TestRoutingHandlerHEAD(t *testing.T) {
 	if rsp.Header.Get("X-Count") != "3" {
 		t.Error("invalid count header")
 	}
+}
+
+func TestUpdateFailsRecovers(t *testing.T) {
+	l := loggingtest.New()
+	defer l.Close()
+
+	dc, err := testdataclient.NewDoc(`
+		foo: Path("/foo") -> setPath("/") -> "https://foo.example.org";
+		bar: Path("/bar") -> setPath("/") -> "https://bar.example.org";
+		baz: Path("/baz") -> setPath("/") -> "https://baz.example.org";
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients:    []routing.DataClient{dc},
+		PollTimeout:    12 * time.Millisecond,
+		Log:            l,
+	})
+	defer rt.Close()
+
+	check := func(id, path, backend string, match bool) {
+		if t.Failed() {
+			return
+		}
+
+		if r, _ := rt.Route(&http.Request{URL: &url.URL{Path: path}}); r == nil && match {
+			t.Error("route not found:", id)
+		} else if r == nil && !match {
+			return
+		} else if !match {
+			t.Error("unexpected route found:", id, path)
+		} else if r.Id != id || r.Backend != backend {
+			t.Error("invalid route matched")
+			t.Log("got:     ", r.Id, r.Backend)
+			t.Log("expected:", id, backend)
+		}
+	}
+
+	if err := l.WaitFor("route settings applied", 120*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	check("foo", "/foo", "https://foo.example.org", true)
+	check("bar", "/bar", "https://bar.example.org", true)
+	check("baz", "/baz", "https://baz.example.org", true)
+
+	l.Reset()
+	dc.FailNext()
+
+	if err := dc.UpdateDoc(`
+		foo: Path("/foo") -> setPath("/") -> "https://foo.example.org";
+		baz: Path("/baz") -> setPath("/") -> "https://baz-new.example.org";
+	`, []string{"bar"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.WaitFor("route settings applied", 120*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	check("foo", "/foo", "https://foo.example.org", true)
+	check("bar", "", "", false)
+	check("baz", "/baz", "https://baz-new.example.org", true)
 }
