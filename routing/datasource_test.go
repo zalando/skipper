@@ -101,7 +101,6 @@ func TestLogging(t *testing.T) {
 
 		testLog := loggingtest.New()
 		defer testLog.Close()
-		// testLog.Unmute()
 
 		rt := init(testLog, client, suppress)
 		defer rt.Close()
