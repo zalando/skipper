@@ -116,6 +116,10 @@ type Swarm struct {
 	mlist    *memberlist.Memberlist
 }
 
+func NewSwarm() *Swarm {
+	return &Swarm{}
+}
+
 func KnownEntryPoint(self *NodeInfo, n ...*NodeInfo) *KnownEPoint {
 	return &KnownEPoint{self: self, nodes: n}
 }
@@ -204,7 +208,7 @@ func Join(o Options, e EntryPoint) (*Swarm, error) {
 		c.BindAddr = nodeSpec.Addr.String()
 		c.AdvertiseAddr = c.BindAddr
 	}
-	println("nodespec" , nodeSpec.Port)
+	println("nodespec", nodeSpec.Port)
 	if nodeSpec.Port == 0 {
 		nodeSpec.Port = c.BindPort
 	} else {

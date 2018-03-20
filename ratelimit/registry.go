@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/swarm"
 )
 
 const (
@@ -23,10 +24,11 @@ type Registry struct {
 	global   Settings
 	//routeSettings map[string]Settings
 	lookup map[Settings]*Ratelimit
+	swarm  *swarm.Swarm
 }
 
 // NewRegistry initializes a registry with the provided default settings.
-func NewRegistry(settings ...Settings) *Registry {
+func NewRegistry(sw *swarm.Swarm, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -38,6 +40,7 @@ func NewRegistry(settings ...Settings) *Registry {
 		defaults: defaults,
 		global:   defaults,
 		lookup:   make(map[Settings]*Ratelimit),
+		swarm:    sw,
 	}
 
 	if len(settings) > 0 {
@@ -53,7 +56,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s)
+		rl = newRatelimit(s, r.swarm)
 		r.lookup[s] = rl
 	}
 

@@ -3,10 +3,12 @@ package ratelimit
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/swarm"
 )
 
 // Type defines the type of the used breaker: consecutive, rate or
@@ -23,6 +25,8 @@ const (
 	ServiceRatelimitName = "ratelimit"
 	// LocalRatelimitName is the name of the LocalRatelimit filter, which will be shown in log
 	LocalRatelimitName = "localRatelimit"
+	// ClusterRatelimitName is the name of the ClusterRatelimit filter, which will be shown in log
+	ClusterRatelimitName = "clusterRatelimit"
 	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
 	DisableRatelimitName = "disableRatelimit"
 )
@@ -38,6 +42,9 @@ const (
 	// per user for a backend, which is calculated and measured
 	// within each instance
 	LocalRatelimit
+	// ClusterRatelimit is used to calculate a rate limit for a
+	// whole skipper fleet, needs swarm to be enabled
+	ClusterRatelimit
 	// DisableRatelimit is used to disable rate limit
 	DisableRatelimit
 )
@@ -134,6 +141,8 @@ func (s Settings) String() string {
 		return fmt.Sprintf("ratelimit(type=service,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
 		return fmt.Sprintf("ratelimit(type=local,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+	case ClusterRatelimit:
+		return fmt.Sprintf("ratelimit(type=cluster,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	default:
 		return "non"
 	}
@@ -144,9 +153,14 @@ type implementation interface {
 	Allow(string) bool
 	// Close is used to clean up underlying implementations, if you want to stop a Ratelimiter
 	Close()
+
 	// RetryAfter is used to inform the client how many seconds it should wait
 	// before making a new request
 	RetryAfter(string) int
+
+	// Delta is used to get the duration until the next call is possible, negative durations allow
+	// immediate calls
+	Delta(string) time.Duration
 }
 
 // Ratelimit is a proxy objects that delegates to implemetations and
@@ -193,13 +207,24 @@ func (l voidRatelimit) RetryAfter(string) int {
 	return 0
 }
 
-func newRatelimit(s Settings) *Ratelimit {
+func (l voidRatelimit) Delta(string) time.Duration {
+	return -1 * time.Second
+}
+
+func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {
 	var impl implementation
 	switch s.Type {
 	case ServiceRatelimit:
 		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
 		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
+	case ClusterRatelimit:
+		if sw != nil {
+			impl = NewClusterRateLimiter(s, sw)
+		} else {
+			fmt.Fprintf(os.Stderr, "ERROR: no -enable-swarm, falling back to no ratelimit for %q\n", s)
+			impl = voidRatelimit{}
+		}
 	default:
 		impl = voidRatelimit{}
 	}

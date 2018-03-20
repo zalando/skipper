@@ -62,6 +62,11 @@ func NewRatelimit() filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, filterName: ratelimit.ServiceRatelimitName}
 }
 
+//
+func NewClusterRateLimit() filters.Spec {
+	return &spec{typ: ratelimit.ClusterRatelimit, filterName: ratelimit.ClusterRatelimitName}
+}
+
 // NewDisableRatelimit disables rate limiting
 //
 // Example:
@@ -107,6 +112,55 @@ func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
 			Lookuper:   ratelimit.NewSameBucketLookuper(),
 		},
 	}, nil
+}
+
+func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
+	if !(len(args) == 2 || len(args) == 3) {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	var err error
+	var maxHits int
+	if len(args) > 0 {
+		maxHits, err = getIntArg(args[0])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var timeWindow time.Duration
+	if len(args) > 1 {
+		timeWindow, err = getDurationArg(args[1])
+		if err != nil {
+			return nil, err
+		}
+	}
+	s := ratelimit.Settings{
+		Type:       ratelimit.ClusterRatelimit,
+		MaxHits:    maxHits,
+		TimeWindow: timeWindow,
+	}
+
+	if len(args) > 2 {
+		lookuperName, err := getStringArg(args[2])
+		if err != nil {
+			return nil, err
+		}
+		switch lookuperName {
+		case "auth":
+			s.Lookuper = ratelimit.NewAuthLookuper()
+			s.CleanInterval = 10 * timeWindow
+		case "xfwd":
+			s.Lookuper = ratelimit.NewXForwardedForLookuper()
+			s.CleanInterval = 10 * timeWindow
+		default:
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	} else {
+		s.Lookuper = ratelimit.NewSameBucketLookuper()
+	}
+
+	return &filter{settings: s}, nil
 }
 
 func localRatelimitFilter(args []interface{}) (filters.Filter, error) {

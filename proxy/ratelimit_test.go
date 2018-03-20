@@ -74,7 +74,7 @@ func TestCheckDisableRateLimit(t *testing.T) {
 	r := []*eskip.Route{{Backend: backend.URL}}
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
-		RateLimiters: ratelimit.NewRegistry(ratelimit.Settings{
+		RateLimiters: ratelimit.NewRegistry(nil, ratelimit.Settings{
 			Type:          ratelimit.DisableRatelimit,
 			MaxHits:       10,
 			TimeWindow:    1 * time.Second,
@@ -140,7 +140,7 @@ func TestCheckLocalRateLimit(t *testing.T) {
 	}
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
-		RateLimiters:         ratelimit.NewRegistry(ratelimitSettings),
+		RateLimiters:         ratelimit.NewRegistry(nil, ratelimitSettings),
 	}, r...)
 	defer p.Close()
 
@@ -227,7 +227,7 @@ func TestCheckServiceRateLimit(t *testing.T) {
 	}
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
-		RateLimiters:         ratelimit.NewRegistry(ratelimitSettings),
+		RateLimiters:         ratelimit.NewRegistry(nil, ratelimitSettings),
 	}, r...)
 	defer p.Close()
 
