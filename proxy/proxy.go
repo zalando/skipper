@@ -840,7 +840,7 @@ func (p *Proxy) do(ctx *context) error {
 				p.log.Infof("Successfully retry to %v, orig %v, code: %d", ctx.route.Backend, origRoute.Backend, rsp.StatusCode)
 			} else {
 				p.log.Errorf("Failed to do backend request to %s: %v", ctx.route.Backend, perr)
-				return perr.err
+				return perr
 			}
 		}
 
@@ -900,7 +900,11 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 	code := http.StatusInternalServerError
 	if ok && perr.code != 0 {
-		code = perr.code
+		if perr.code == -1 { // -1 == dial connection refused
+			code = http.StatusBadGateway
+		} else {
+			code = perr.code
+		}
 	}
 
 	if p.flags.Debug() {
