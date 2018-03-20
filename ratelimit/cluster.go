@@ -46,9 +46,13 @@ func (c *ClusterLimit) Allow(s string) bool {
 	nodeHits := c.maxHits / float64(len(swarmValues)) // hits per node within the window from the global rate limit
 	for _, val := range swarmValues {
 		if delta, ok := val.(time.Duration); ok {
-			if delta <= 0 { // should not happen... but anyway, we set to global rate
+			switch {
+			case delta == 0:
+				// initially all are set to time.Time{}, so we get 0 delta
+			case delta < 0:
+				// should not happen... but anyway, we set to global rate
 				rate += c.maxHits / float64(c.window)
-			} else {
+			default:
 				rate += nodeHits / float64(delta)
 			}
 		}
