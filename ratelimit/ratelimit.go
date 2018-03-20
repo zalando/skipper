@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/swarm"
@@ -219,6 +220,7 @@ func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {
 	case LocalRatelimit:
 		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
 	case ClusterRatelimit:
+		logrus.Infof("SWARM: cluster ratelimit found, try to create..")
 		if sw != nil {
 			impl = NewClusterRateLimiter(s, sw)
 		} else {

@@ -8,6 +8,7 @@ package ratelimit
 import (
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/ratelimit"
 )
@@ -226,7 +227,11 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return serviceRatelimitFilter(args)
 	case ratelimit.LocalRatelimit:
 		return localRatelimitFilter(args)
+	case ratelimit.ClusterRatelimit:
+		log.Debugf("SWARM: create cluster ratelimit: %v", args)
+		return clusterRatelimitFilter(args)
 	default:
+		log.Debugf("SWARM: warning disable ratelimit: %v", args)
 		return disableFilter(args)
 	}
 }

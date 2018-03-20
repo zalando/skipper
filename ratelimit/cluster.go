@@ -1,10 +1,9 @@
 package ratelimit
 
 import (
-	"fmt"
-	"os"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 )
 
@@ -39,7 +38,7 @@ const swarmPrefix string = `ratelimit.`
 func (c *ClusterLimit) Allow(s string) bool {
 	_ = c.local.Allow(s) // update local rate limit
 	if err := c.swarm.ShareValue(swarmPrefix+s, c.local.Delta(s)); err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to share value: %s\n", err)
+		log.Errorf("SWARM failed to share value: %s\n", err)
 	}
 	var rate float64
 	swarmValues := c.swarm.Values(swarmPrefix + s)
@@ -57,6 +56,7 @@ func (c *ClusterLimit) Allow(s string) bool {
 			}
 		}
 	}
+	log.Debugf("SWARM clusterRatelimit: %d values: %d, rate: %0.2f", len(swarmValues), rate)
 	return rate < float64(c.maxHits)/float64(c.window)
 }
 

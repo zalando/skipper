@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/memberlist"
+	log "github.com/sirupsen/logrus"
 )
 
 type NodeState int
@@ -21,12 +22,17 @@ const (
 const (
 	DefaultMaxMessageBuffer = 1 << 22
 	DefaultLeaveTimeout     = 180 * time.Millisecond
+	DefaultSwarmPort        = 9990
 )
 
 type NodeInfo struct {
 	Name string
 	Addr net.IP
 	Port int
+}
+
+func (ni *NodeInfo) String() string {
+	return fmt.Sprintf("NodeInfo{%s, %s, %d}", ni.Name, ni.Addr, ni.Port)
 }
 
 type Self interface {
@@ -89,6 +95,11 @@ type Options struct {
 	MaxMessageBuffer int
 
 	LeaveTimeout time.Duration
+
+	KubernetesAPIBaseURL string
+	Namespace            string
+	LabelSelectorKey     string
+	LabelSelectorValue   string
 }
 
 type sharedValues map[string]map[string]interface{}
@@ -118,14 +129,46 @@ type Swarm struct {
 
 func NewSwarm() (*Swarm, error) {
 	return Start(Options{
-		Errors:           make(chan<- error), // FIXME - do WE have to read this, or...?
-		MaxMessageBuffer: 100,
-		LeaveTimeout:     time.Duration(5 * time.Second),
+		Errors:               make(chan<- error), // FIXME - do WE have to read this, or...?
+		MaxMessageBuffer:     100,
+		LeaveTimeout:         time.Duration(5 * time.Second),
+		KubernetesAPIBaseURL: "https://10.3.0.1",
+		Namespace:            "kube-system",
+		LabelSelectorKey:     "application",
+		LabelSelectorValue:   "skipper-ingress",
 	})
 }
 
-func KnownEntryPoint(self *NodeInfo, n ...*NodeInfo) *KnownEPoint {
-	return &KnownEPoint{self: self, nodes: n}
+func NewKnownEntryPoint(o Options) *KnownEPoint {
+	nic := NewNodeInfoClient(o.KubernetesAPIBaseURL, o.Namespace, o.LabelSelectorKey, o.LabelSelectorValue)
+	nodes, err := nic.GetNodeInfo()
+	if err != nil {
+		log.Fatalf("SWARM: Failed to get nodeinfo: %v", err)
+	}
+	self := getSelf(nodes)
+	log.Infof("SWARM: Join swarm self=%s, nodes=%v", self, nodes)
+	return &KnownEPoint{self: self, nodes: nodes}
+}
+
+func getSelf(nodes []*NodeInfo) *NodeInfo {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		log.Fatalf("SWARM: Failed to get addr: %v", err)
+	}
+
+	for _, ni := range nodes {
+		for _, addr := range addrs {
+			ip, _, err := net.ParseCIDR(addr.String())
+			if err != nil {
+				log.Errorf("SWARM: could not parse cidr: %v", err)
+				continue
+			}
+			if ip.Equal(ni.Addr) {
+				return ni
+			}
+		}
+	}
+	return nil
 }
 
 func (e *KnownEPoint) Node() (*NodeInfo, error) {
@@ -192,7 +235,7 @@ func Start(o Options) (*Swarm, error) {
 func Join(o Options, e EntryPoint) (*Swarm, error) {
 	c := memberlist.DefaultLocalConfig()
 	if o.SelfSpec == nil {
-		o.SelfSpec = KnownEntryPoint(&NodeInfo{})
+		o.SelfSpec = NewKnownEntryPoint(o)
 	}
 
 	nodeSpec, err := o.SelfSpec.Node()
@@ -338,11 +381,14 @@ func (s *Swarm) control() {
 		select {
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
+			log.Infof("SWARM: getOutgoing %d messages", len(s.messages))
 			req.ret <- s.messages
 		case m := <-s.outgoing:
 			s.messages = append(s.messages, m.encoded)
 			s.messages = takeMaxLatest(s.messages, 0, s.maxMessageBuffer)
+			log.Infof("SWARM: outgoing %d messages", len(s.messages))
 			if m.message.Type == sharedValue {
+				log.Infof("SWARM: share value: %s %s: %v", s.local.Name, m.message.Key, m.message.Value)
 				s.shared.set(s.local.Name, m.message.Key, m.message.Value)
 			}
 		case b := <-s.incoming:
@@ -354,8 +400,10 @@ func (s *Swarm) control() {
 				default:
 				}
 			} else if m.Type == sharedValue {
+				log.Infof("SWARM: got shared value: %s %s: %v", m.Source, m.Key, m.Value)
 				s.shared.set(m.Source, m.Key, m.Value)
 			} else if m.Type == broadcast {
+				log.Infof("SWARM: got broadcast value: %s %s: %v", m.Source, m.Key, m.Value)
 				for k, l := range s.listeners {
 					if k == m.Key {
 						// assuming buffered listener channels
@@ -370,8 +418,10 @@ func (s *Swarm) control() {
 				}
 			}
 		case req := <-s.getValues:
+			log.Infof("SWARM: getValues for key: %s", req.key)
 			req.ret <- s.shared[req.key]
 		case <-s.leave:
+			log.Infof("SWARM: leaving %s", s.local)
 			// TODO: call shutdown
 			if err := s.mlist.Leave(s.leaveTimeout); err != nil {
 				select {
