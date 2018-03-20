@@ -23,6 +23,7 @@ type NodeInfoClient struct {
 }
 
 func NewNodeInfoClient(kubeAPIBaseURL, ns, labelKey, labelVal string) *NodeInfoClient {
+	log.Debug("SWARM: NewNodeInfoClient")
 	cli, err := NewClient(true, kubeAPIBaseURL)
 	if err != nil {
 		log.Fatalf("SWARM: failed to create kubernetes client: %v", err)

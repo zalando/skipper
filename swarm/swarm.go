@@ -233,13 +233,17 @@ func Start(o Options) (*Swarm, error) {
 }
 
 func Join(o Options, e EntryPoint) (*Swarm, error) {
+	var knownEntryPoint *KnownEPoint
+	log.Infof("SWARM: Going to join swarm")
 	c := memberlist.DefaultLocalConfig()
 	if o.SelfSpec == nil {
-		o.SelfSpec = NewKnownEntryPoint(o)
+		knownEntryPoint = NewKnownEntryPoint(o)
+		o.SelfSpec = knownEntryPoint
 	}
 
 	nodeSpec, err := o.SelfSpec.Node()
 	if err != nil {
+		log.Errorf("SWARM: failed to get self nodeSpec: %v", err)
 		return nil, err
 	}
 
@@ -286,24 +290,38 @@ func Join(o Options, e EntryPoint) (*Swarm, error) {
 
 	ml, err := memberlist.Create(c)
 	if err != nil {
+		log.Errorf("SWARM: failed to create memberlist: %v", err)
 		return nil, err
 	}
 
 	c.Delegate.(*mlDelegate).meta = ml.LocalNode().Meta
+	log.Debugf("SWARM: memberlist: %+v", ml)
+	log.Debugf("SWARM: memberlist config: %+v", c)
 
 	var entryNodes []*NodeInfo
-	if e != nil {
+	if e != nil { // TODO: always nil is passed
 		entryNodes, err = e.Nodes()
 		if err != nil {
+			log.Errorf("SWARM: failed to find nodes1: %v", err)
+			// TODO: retry?
+			return nil, err
+		}
+	} else {
+		// TODO(sszuecs): is this intended, we might want to look how to use the lib again
+		entryNodes, err = knownEntryPoint.Nodes()
+		if err != nil {
+			log.Errorf("SWARM: failed to find nodes: %v", err)
 			// TODO: retry?
 			return nil, err
 		}
 	}
 
+	log.Infof("SWARM: Found %d entryNodes", len(entryNodes))
 	if len(entryNodes) > 0 {
 		addresses := mapNodesToAddresses(entryNodes)
 		_, err := ml.Join(addresses)
 		if err != nil {
+			log.Errorf("SWARM: failed to join: %v", err)
 			// TODO: retry?
 			return nil, err
 		}
@@ -381,7 +399,11 @@ func (s *Swarm) control() {
 		select {
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
-			log.Infof("SWARM: getOutgoing %d messages", len(s.messages))
+			if len(s.messages) > 0 {
+				log.Infof("SWARM: getOutgoing %d messages", len(s.messages))
+			} else {
+				log.Debug("SWARM: getOutgoing with 0 messages")
+			}
 			req.ret <- s.messages
 		case m := <-s.outgoing:
 			s.messages = append(s.messages, m.encoded)
