@@ -116,8 +116,12 @@ type Swarm struct {
 	mlist    *memberlist.Memberlist
 }
 
-func NewSwarm() *Swarm {
-	return &Swarm{}
+func NewSwarm() (*Swarm, error) {
+	return Start(Options{
+		Errors:           make(chan<- error), // FIXME - do WE have to read this, or...?
+		MaxMessageBuffer: 100,
+		LeaveTimeout:     time.Duration(5 * time.Second),
+	})
 }
 
 func KnownEntryPoint(self *NodeInfo, n ...*NodeInfo) *KnownEPoint {
