@@ -767,7 +767,11 @@ func Run(o Options) error {
 
 	var theSwarm *swarm.Swarm
 	if o.EnableSwarm {
-		theSwarm = swarm.NewSwarm()
+		theSwarm, err = swarm.NewSwarm()
+		if err != nil {
+			log.Errorf("failed to init swarm: %s", err)
+			return err
+		}
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
