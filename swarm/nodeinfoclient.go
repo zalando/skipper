@@ -58,7 +58,7 @@ type itemList struct {
 func (c *NodeInfoClient) nodeInfoURL(namespace, applicationName string) (string, error) {
 	u, err := url.Parse(c.kubeAPIBaseURL)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	u.Path = "/api/v1/namespaces/" + url.PathEscape(namespace) + "/pods"
 	a := make(url.Values)
@@ -73,7 +73,7 @@ func (c *NodeInfoClient) nodeInfoURL(namespace, applicationName string) (string,
 func (c *NodeInfoClient) GetNodeInfo(namespace string, applicationName string) ([]*NodeInfo, error) {
 	u, err := c.nodeInfoURL(namespace, applicationName)
 	if err != nil {
-		log.Debugf("failed to build request url for %s %s: %s", namespac, applicationNam, err)
+		log.Debugf("failed to build request url for %s %s: %s", namespace, applicationName, err)
 		return nil, err
 	}
 
