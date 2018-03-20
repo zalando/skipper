@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -54,14 +55,29 @@ type itemList struct {
 	Items []*item `json:"items"`
 }
 
+func (c *NodeInfoClient) nodeInfoURL(namespace, applicationName string) (string, error) {
+	u, err := url.Parse(c.kubeAPIBaseURL)
+	if err != nil {
+		return nil, err
+	}
+	u.Path = "/api/v1/namespaces/" + url.PathEscape(namespace) + "/pods"
+	a := make(url.Values)
+	a.Add("application", applicationName)
+	ls := make(url.Values)
+	ls.Add("labelSelector", a.Encode())
+	u.RawQuery = ls.Encode()
+
+	return u.String(), nil
+}
+
 func (c *NodeInfoClient) GetNodeInfo(namespace string, applicationName string) ([]*NodeInfo, error) {
-	rsp, err := c.client.Get(fmt.Sprintf(
-		// TODO: use safer url building
-		"%s/api/v1/namespaces/%s/pods?labelSelector=application%3D%s",
-		c.kubeAPIBaseURL,
-		namespace,
-		applicationName,
-	))
+	u, err := c.nodeInfoURL(namespace, applicationName)
+	if err != nil {
+		log.Debugf("failed to build request url for %s %s: %s", namespac, applicationNam, err)
+		return nil, err
+	}
+
+	rsp, err := c.client.Get(u)
 	if err != nil {
 		log.Debugf("request to %s %s failed: %v", namespace, applicationName, err)
 		return nil, err
