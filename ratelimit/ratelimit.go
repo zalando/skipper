@@ -162,6 +162,8 @@ type implementation interface {
 	// Delta is used to get the duration until the next call is possible, negative durations allow
 	// immediate calls
 	Delta(string) time.Duration
+	// Resize is used to resize the buffer depending on the number of nodes available
+	Resize(string, int)
 }
 
 // Ratelimit is a proxy objects that delegates to implemetations and
@@ -210,6 +212,9 @@ func (l voidRatelimit) RetryAfter(string) int {
 
 func (l voidRatelimit) Delta(string) time.Duration {
 	return -1 * time.Second
+}
+
+func (l voidRatelimit) Resize(string, int) {
 }
 
 func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {

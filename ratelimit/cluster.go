@@ -17,6 +17,13 @@ type ClusterLimit struct {
 	maxHits float64
 	window  time.Duration
 	swarm   Swarmer
+	resize  chan resizeLimit
+	quit    chan struct{}
+}
+
+type resizeLimit struct {
+	s string
+	n int
 }
 
 func NewClusterRateLimiter(s Settings, sw Swarmer) implementation {
@@ -24,12 +31,27 @@ func NewClusterRateLimiter(s Settings, sw Swarmer) implementation {
 		swarm:   sw,
 		maxHits: float64(s.MaxHits),
 		window:  s.TimeWindow,
+		resize:  make(chan resizeLimit),
+		quit:    make(chan struct{}),
 	}
 	if s.CleanInterval == 0 {
 		rl.local = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
 	} else {
 		rl.local = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
 	}
+
+	go func() {
+		for {
+			select {
+			case size := <-rl.resize:
+				// call with "go" ?
+				rl.local.Resize(size.s, int(rl.maxHits)/size.n)
+			case <-rl.quit:
+				return
+			}
+		}
+	}()
+
 	return rl
 }
 
@@ -40,8 +62,11 @@ func (c *ClusterLimit) Allow(s string) bool {
 	if err := c.swarm.ShareValue(swarmPrefix+s, c.local.Delta(s)); err != nil {
 		log.Errorf("SWARM failed to share value: %s\n", err)
 	}
+
 	var rate float64
 	swarmValues := c.swarm.Values(swarmPrefix + s)
+	c.resize <- resizeLimit{s: s, n: len(swarmValues)}
+
 	nodeHits := c.maxHits / float64(len(swarmValues)) // hits per node within the window from the global rate limit
 	for _, val := range swarmValues {
 		if delta, ok := val.(time.Duration); ok {
@@ -61,9 +86,14 @@ func (c *ClusterLimit) Allow(s string) bool {
 }
 
 func (c *ClusterLimit) Close() {
+	close(c.quit)
 	c.local.Close()
 }
 
 func (c *ClusterLimit) Delta(s string) time.Duration {
 	return c.local.Delta(s)
+}
+
+func (c *ClusterLimit) Resize(s string, n int) {
+	c.local.Resize(s, n)
 }
