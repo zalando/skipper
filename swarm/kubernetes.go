@@ -81,7 +81,6 @@ func NewClient(kubernetesInCluster bool, kubernetesURL string) (*Client, error) 
 		return nil, err
 	}
 
-	log.Debugf("SWARM: running in-cluster: %t. api server url: %s.", kubernetesInCluster, apiURL)
 	return &Client{
 		httpClient: httpClient,
 		apiURL:     apiURL,

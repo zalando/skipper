@@ -35,13 +35,14 @@ func (ni *NodeInfo) String() string {
 	return fmt.Sprintf("NodeInfo{%s, %s, %d}", ni.Name, ni.Addr, ni.Port)
 }
 
+// Self can return itself as NodeInfo
 type Self interface {
-	Node() (*NodeInfo, error)
+	Node() *NodeInfo
 }
 
-// Join returns a current node that a node can use to join to a swarm.
+// EntryPoint knows its peers of nodes which contains itself
 type EntryPoint interface {
-	Nodes() ([]*NodeInfo, error)
+	Nodes() []*NodeInfo
 }
 
 type KnownEPoint struct {
@@ -86,9 +87,6 @@ type mlDelegate struct {
 }
 
 type Options struct {
-	// defaults from the underlying implementation
-	SelfSpec Self
-
 	// leaky, expected to be buffered, or errors are lost
 	Errors chan<- error
 
@@ -171,12 +169,18 @@ func getSelf(nodes []*NodeInfo) *NodeInfo {
 	return nil
 }
 
-func (e *KnownEPoint) Node() (*NodeInfo, error) {
-	return e.self, nil
+func (e *KnownEPoint) Node() *NodeInfo {
+	if e == nil {
+		return nil
+	}
+	return e.self
 }
 
-func (e *KnownEPoint) Nodes() ([]*NodeInfo, error) {
-	return e.nodes, nil
+func (e *KnownEPoint) Nodes() []*NodeInfo {
+	if e == nil {
+		return nil
+	}
+	return e.nodes
 }
 
 func (d *mlDelegate) NodeMeta(limit int) []byte {
@@ -229,41 +233,30 @@ func (sv sharedValues) set(source, key string, value interface{}) {
 }
 
 func Start(o Options) (*Swarm, error) {
-	return Join(o, nil)
+	knownEntryPoint := NewKnownEntryPoint(o)
+	return Join(o, knownEntryPoint.Node(), knownEntryPoint.Nodes())
 }
 
-func Join(o Options, e EntryPoint) (*Swarm, error) {
-	var knownEntryPoint *KnownEPoint
-	log.Infof("SWARM: Going to join swarm")
+func Join(o Options, self *NodeInfo, nodes []*NodeInfo) (*Swarm, error) {
+	log.Infof("SWARM: Going to join swarm of %d nodes, self=%s", len(nodes), self)
 	c := memberlist.DefaultLocalConfig()
-	if o.SelfSpec == nil {
-		knownEntryPoint = NewKnownEntryPoint(o)
-		o.SelfSpec = knownEntryPoint
-	}
 
-	nodeSpec, err := o.SelfSpec.Node()
-	if err != nil {
-		log.Errorf("SWARM: failed to get self nodeSpec: %v", err)
-		return nil, err
-	}
-
-	if nodeSpec.Name == "" {
-		nodeSpec.Name = c.Name
+	if self.Name == "" {
+		self.Name = c.Name
 	} else {
-		c.Name = nodeSpec.Name
+		c.Name = self.Name
 	}
 
-	if nodeSpec.Addr == nil {
-		nodeSpec.Addr = net.ParseIP(c.BindAddr)
+	if self.Addr == nil {
+		self.Addr = net.ParseIP(c.BindAddr)
 	} else {
-		c.BindAddr = nodeSpec.Addr.String()
+		c.BindAddr = self.Addr.String()
 		c.AdvertiseAddr = c.BindAddr
 	}
-	println("nodespec", nodeSpec.Port)
-	if nodeSpec.Port == 0 {
-		nodeSpec.Port = c.BindPort
+	if self.Port == 0 {
+		self.Port = c.BindPort
 	} else {
-		c.BindPort = nodeSpec.Port
+		c.BindPort = self.Port
 		c.AdvertisePort = c.BindPort
 	}
 
@@ -295,40 +288,18 @@ func Join(o Options, e EntryPoint) (*Swarm, error) {
 	}
 
 	c.Delegate.(*mlDelegate).meta = ml.LocalNode().Meta
-	log.Debugf("SWARM: memberlist: %+v", ml)
-	log.Debugf("SWARM: memberlist config: %+v", c)
 
-	var entryNodes []*NodeInfo
-	if e != nil { // TODO: always nil is passed
-		entryNodes, err = e.Nodes()
-		if err != nil {
-			log.Errorf("SWARM: failed to find nodes1: %v", err)
-			// TODO: retry?
-			return nil, err
-		}
-	} else {
-		// TODO(sszuecs): is this intended, we might want to look how to use the lib again
-		entryNodes, err = knownEntryPoint.Nodes()
-		if err != nil {
-			log.Errorf("SWARM: failed to find nodes: %v", err)
-			// TODO: retry?
-			return nil, err
-		}
-	}
-
-	log.Infof("SWARM: Found %d entryNodes", len(entryNodes))
-	if len(entryNodes) > 0 {
-		addresses := mapNodesToAddresses(entryNodes)
+	if len(nodes) > 0 {
+		addresses := mapNodesToAddresses(nodes)
 		_, err := ml.Join(addresses)
 		if err != nil {
 			log.Errorf("SWARM: failed to join: %v", err)
-			// TODO: retry?
 			return nil, err
 		}
 	}
 
 	s := &Swarm{
-		local:            nodeSpec,
+		local:            self,
 		errors:           o.Errors,
 		maxMessageBuffer: o.MaxMessageBuffer,
 		leaveTimeout:     o.LeaveTimeout,

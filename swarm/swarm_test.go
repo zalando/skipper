@@ -9,29 +9,28 @@ import (
 )
 
 func TestInitializeSwarm(t *testing.T) {
-	first, err := Start(
-		Options{SelfSpec: KnownEntryPoint(&NodeInfo{Name: "first", Port: 9933})},
-	)
-	if err != nil {
-		t.Fatal(err)
+	ep1 := &KnownEPoint{
+		self: &NodeInfo{Name: "first", Port: 9933},
 	}
-
-	entryPoint := KnownEntryPoint(&NodeInfo{Name: "second", Port: 9934}, first.Local())
-	second, err := Join(
-		Options{SelfSpec: entryPoint},
-		entryPoint,
-	)
-	if err != nil {
-		t.Fatal(err)
+	ep2 := &KnownEPoint{
+		self: &NodeInfo{Name: "second", Port: 9934},
 	}
+	ep3 := &KnownEPoint{
+		self: &NodeInfo{Name: "third", Port: 9935},
+	}
+	all := []*NodeInfo{ep1.Node(), ep2.Node(), ep3.Node()}
 
-	entryPoint = KnownEntryPoint(&NodeInfo{Name: "third", Port: 9935}, first.Local())
-	third, err := Join(
-		Options{SelfSpec: entryPoint},
-		entryPoint,
-	)
+	first, err := Join(Options{}, ep1.Node(), all)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to start first: %v", err)
+	}
+	second, err := Join(Options{}, ep2.Node(), all)
+	if err != nil {
+		t.Fatalf("Failed to start second: %v", err)
+	}
+	third, err := Join(Options{}, ep3.Node(), all)
+	if err != nil {
+		t.Fatalf("Failed to start third: %v", err)
 	}
 
 	first.ShareValue("foo", 1)
