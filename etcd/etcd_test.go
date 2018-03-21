@@ -16,8 +16,6 @@ package etcd
 
 import (
 	"errors"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
 	"net"
 	"net/http"
@@ -26,9 +24,18 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/etcd/etcdtest"
 )
 
 func TestMain(m *testing.M) {
+	for _, arg := range os.Args {
+		if arg == "-test.short=true" {
+			return
+		}
+	}
+
 	err := etcdtest.Start()
 	if err != nil {
 		log.Fatal(err)
@@ -253,6 +260,10 @@ func TestValidatesDocument(t *testing.T) {
 }
 
 func TestReceivesInitial(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.ResetData(); err != nil {
 		t.Error(t)
 		return
@@ -282,6 +293,10 @@ func TestReceivesInitial(t *testing.T) {
 }
 
 func TestReceivesUpdates(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.ResetData(); err != nil {
 		t.Error(err)
 		return
@@ -312,6 +327,10 @@ func TestReceivesUpdates(t *testing.T) {
 }
 
 func TestReceiveInsert(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.ResetData(); err != nil {
 		t.Error(err)
 		return
@@ -345,6 +364,9 @@ func TestReceiveInsert(t *testing.T) {
 }
 
 func TestReceiveDelete(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	if err := etcdtest.ResetData(); err != nil {
 		t.Error(err)
 		return
@@ -388,6 +410,10 @@ func TestUpsertNoId(t *testing.T) {
 }
 
 func TestUpsertNew(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return
@@ -414,6 +440,10 @@ func TestUpsertNew(t *testing.T) {
 }
 
 func TestUpsertExisting(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return
@@ -461,6 +491,10 @@ func TestDeleteNoId(t *testing.T) {
 }
 
 func TestDeleteNotExists(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return
@@ -491,6 +525,10 @@ func TestDeleteNotExists(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return
@@ -521,6 +559,10 @@ func TestDelete(t *testing.T) {
 }
 
 func TestLoadWithParseFailures(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return

@@ -15,16 +15,23 @@
 package main
 
 import (
-	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
 	"net/url"
 	"os"
 	"testing"
+
+	"github.com/zalando/skipper/etcd/etcdtest"
 )
 
 var testEtcdUrls []*url.URL
 
 func TestMain(m *testing.M) {
+	for _, arg := range os.Args {
+		if arg == "-test.short=true" {
+			return
+		}
+	}
+
 	err := etcdtest.Start()
 	if err != nil {
 		log.Fatal(err)
@@ -58,6 +65,9 @@ func TestUpsertLoadFail(t *testing.T) {
 }
 
 func TestUpsertGeneratesId(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `Method("POST") -> <shunt>`}
@@ -78,6 +88,9 @@ func TestUpsertGeneratesId(t *testing.T) {
 }
 
 func TestUpsertUsesId(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
@@ -107,6 +120,9 @@ func TestResetLoadFail(t *testing.T) {
 }
 
 func TestResetLoadExistingFails(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route2: Method("POST") -> <shunt>`}
@@ -133,6 +149,9 @@ func TestResetLoadExistingFails(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route2: Method("PUT") -> <shunt>; route3: Method("HEAD") -> <shunt>`}
@@ -197,6 +216,9 @@ func TestDeleteLoadFails(t *testing.T) {
 }
 
 func TestDeleteFromIds(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
@@ -223,6 +245,9 @@ func TestDeleteFromIds(t *testing.T) {
 }
 
 func TestDeleteFromRoutes(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	etcdtest.DeleteAllFrom(defaultEtcdPrefix)
 
 	in := &medium{typ: inline, eskip: `route1: Method("POST") -> <shunt>`}
