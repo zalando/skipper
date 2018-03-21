@@ -1,11 +1,10 @@
 package swarm
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
-	"github.com/sanity-io/litter"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestInitializeSwarm(t *testing.T) {
@@ -44,10 +43,8 @@ func TestInitializeSwarm(t *testing.T) {
 	checkValues := func(s []*Swarm, key string, expected map[string]interface{}) {
 		for _, si := range s {
 			got := si.Values(key)
-			if !reflect.DeepEqual(got, expected) {
-				t.Error("invalid state")
-				t.Log("got:     ", litter.Sdump(got))
-				t.Log("expected:", litter.Sdump(expected))
+			if !cmp.Equal(got, expected) {
+				t.Errorf("invalid state: %v", cmp.Diff(got, expected))
 				return
 			}
 		}
