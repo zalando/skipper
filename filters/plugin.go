@@ -40,7 +40,8 @@
 //
 //    go build -buildmode=plugin -o noopfilter.so noop/noop.o
 //
-// and copied to the directory given as -plugindir (by default, ".").
+// and copied to the "filters" sub-directory of the directory given as -plugindir (by default, "./plugins").
+// I.e. the module needs to go into ./plugins/filters/
 //
 // Then it can be loaded with -filters noopfilter as parameter to skipper.
 package filters
@@ -52,12 +53,20 @@ import (
 )
 
 // LoadPlugin loads the given filter plugin and returns an filter.Spec
-func LoadPlugin(pluginDir string, opts []string) (Spec, error) {
+func LoadPlugin(pluginDirs []string, opts []string) (Spec, error) {
 	var impl string
 	impl, opts = opts[0], opts[1:]
 
-	pluginFile := filepath.Join(pluginDir, impl+".so") // FIXME this is Linux and other ELF...
-	mod, err := plugin.Open(pluginFile)
+	var err error
+	var mod *plugin.Plugin
+	var pluginFile string
+	for _, dir := range pluginDirs {
+		pluginFile = filepath.Join(dir, impl+".so") // FIXME this is Linux and other ELF...
+		mod, err = plugin.Open(pluginFile)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("open module %s: %s", pluginFile, err)
 	}

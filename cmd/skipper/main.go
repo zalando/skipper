@@ -209,7 +209,7 @@ var (
 	enableDualstackBackend          bool
 	tlsHandshakeTimeoutBackend      time.Duration
 	maxIdleConnsBackend             int
-	filterPlugins                   string
+	filterPlugins                   filterFlags
 )
 
 func init() {
@@ -273,7 +273,7 @@ func init() {
 	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
 	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
 	flag.StringVar(&openTracing, "opentracing", "noop", opentracingUsage)
-	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
+	flag.StringVar(&pluginDir, "plugindir", "", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
@@ -291,7 +291,7 @@ func init() {
 	flag.BoolVar(&enableDualstackBackend, "enable-dualstack-backend", true, enableDualstackBackendUsage)
 	flag.DurationVar(&tlsHandshakeTimeoutBackend, "tls-timeout-backend", defaultTLSHandshakeTimeoutBackend, tlsHandshakeTimeoutBackendUsage)
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
-	flag.StringVar(&filterPlugins, "filter-plugins", "", filterPluginUsage)
+	flag.Var(&filterPlugins, "filter-plugin", filterPluginUsage)
 
 	flag.Parse()
 
@@ -399,7 +399,7 @@ func main() {
 		EnableRatelimiters:                  enableRatelimiters,
 		RatelimitSettings:                   ratelimits,
 		OpenTracing:                         strings.Split(openTracing, " "),
-		PluginDir:                           pluginDir,
+		PluginDirs:                          []string{"./plugins"},
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
@@ -412,12 +412,11 @@ func main() {
 		IdleTimeoutServer:                   idleTimeoutServer,
 		MaxHeaderBytes:                      maxHeaderBytes,
 		EnableConnMetricsServer:             enableConnMetricsServer,
+		FilterPlugins:                       filterPlugins.Get(),
 	}
 
-	if filterPlugins != "" {
-		for _, pl := range strings.Split(filterPlugins, ",") {
-			options.FilterPlugins = append(options.FilterPlugins, strings.Split(pl, " "))
-		}
+	if pluginDir != "" {
+		options.PluginDirs = append(options.PluginDirs, pluginDir)
 	}
 
 	if insecure {

@@ -44,7 +44,9 @@
 //
 //    go build -buildmode=plugin -o basic.so ./basic/basic.go
 //
-// and copied to the directory given as -plugindir (by default, ".").
+// and copied to the "tracing" sub-directory of the directory given as -plugindir (by default, "./plugins").
+// I.e. the module needs to go into ./plugins/tracing/
+// and copied to the directory given as -plugindir (by default, "./plugins/tracing").
 //
 // Then it can be loaded with -opentracing basic as parameter to skipper.
 package tracing
@@ -59,7 +61,7 @@ import (
 )
 
 // LoadPlugin loads the given opentracing plugin and returns an opentracing.Tracer
-func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
+func LoadPlugin(pluginDirs []string, opts []string) (ot.Tracer, error) {
 	if len(opts) == 0 {
 		return nil, errors.New("opentracing: the implementation parameter is mandatory")
 	}
@@ -70,8 +72,16 @@ func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 		return &ot.NoopTracer{}, nil
 	}
 
-	pluginFile := filepath.Join(pluginDir, impl+".so") // FIXME this is Linux and other ELF...
-	mod, err := plugin.Open(pluginFile)
+	var err error
+	var mod *plugin.Plugin
+	var pluginFile string
+	for _, dir := range pluginDirs {
+		pluginFile = filepath.Join(dir, impl+".so") // FIXME this is Linux and other ELF...
+		mod, err = plugin.Open(pluginFile)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("open module %s: %s", pluginFile, err)
 	}

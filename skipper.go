@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -349,8 +350,8 @@ type Options struct {
 	// OpenTracing enables opentracing
 	OpenTracing []string
 
-	// PluginDir defines the dir to load plugins from
-	PluginDir string
+	// PluginDir defines the directories to load plugins from
+	PluginDirs []string
 
 	// FilterPlugins loads additional filters from modules
 	FilterPlugins [][]string
@@ -568,8 +569,12 @@ func Run(o Options) error {
 	}
 
 	if len(o.FilterPlugins) > 0 {
+		var fpDirs []string
+		for _, dir := range o.PluginDirs {
+			fpDirs = append(fpDirs, filepath.Join(dir, "filters"))
+		}
 		for _, fltr := range o.FilterPlugins {
-			spec, err := filters.LoadPlugin(o.PluginDir, fltr)
+			spec, err := filters.LoadPlugin(fpDirs, fltr)
 			if err != nil {
 				return err
 			}
@@ -726,7 +731,11 @@ func Run(o Options) error {
 	}
 
 	if len(o.OpenTracing) > 0 {
-		tracer, err := tracing.LoadPlugin(o.PluginDir, o.OpenTracing)
+		var tpDirs []string
+		for _, dir := range o.PluginDirs {
+			tpDirs = append(tpDirs, filepath.Join(dir, "tracing"))
+		}
+		tracer, err := tracing.LoadPlugin(tpDirs, o.OpenTracing)
 		if err != nil {
 			return err
 		}
@@ -734,7 +743,8 @@ func Run(o Options) error {
 	} else {
 		// always have a tracer available, so filter authors can rely on the
 		// existence of a tracer
-		proxyParams.OpenTracer, _ = tracing.LoadPlugin(o.PluginDir, []string{"noop"})
+		// NOTE: no need to change plugin dirs, this is "loaded" directly from the tracing/ package
+		proxyParams.OpenTracer, _ = tracing.LoadPlugin(o.PluginDirs, []string{"noop"})
 	}
 
 	// create the proxy
