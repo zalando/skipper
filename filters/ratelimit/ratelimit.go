@@ -69,7 +69,7 @@ func NewRatelimit() filters.Spec {
 // Example:
 //
 //    backendHealthcheck: Path("/healthcheck")
-//    -> clusterRatelimit(20, "1s")
+//    -> clusterRatelimit(200, "1m")
 //    -> "https://foo.backend.net";
 //
 // The above example behaves like the "ratelimit", i.e. per backend. To create a client limit
@@ -79,7 +79,7 @@ func NewRatelimit() filters.Spec {
 // Example:
 //
 //    backendHealthcheck: Path("/healthcheck")
-//    -> clusterRatelimit(20, "1s", "xfwd")
+//    -> clusterRatelimit(200, "1m", "xfwd")
 //    -> "https://foo.backend.net";
 //
 func NewClusterRateLimit() filters.Spec {
