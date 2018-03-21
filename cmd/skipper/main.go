@@ -108,6 +108,7 @@ const (
 	opentracingUsage               = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
 	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
+	filterPluginUsage              = "set a custom filter plugins to load, a comma separated list"
 	suppressRouteUpdateLogsUsage   = "print only summaries on route updates/deletes"
 	enablePrometheusMetricsUsage   = "siwtch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
 
@@ -208,6 +209,7 @@ var (
 	enableDualstackBackend          bool
 	tlsHandshakeTimeoutBackend      time.Duration
 	maxIdleConnsBackend             int
+	filterPlugins                   string
 )
 
 func init() {
@@ -289,6 +291,7 @@ func init() {
 	flag.BoolVar(&enableDualstackBackend, "enable-dualstack-backend", true, enableDualstackBackendUsage)
 	flag.DurationVar(&tlsHandshakeTimeoutBackend, "tls-timeout-backend", defaultTLSHandshakeTimeoutBackend, tlsHandshakeTimeoutBackendUsage)
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
+	flag.StringVar(&filterPlugins, "filter-plugins", "", filterPluginUsage)
 
 	flag.Parse()
 
@@ -409,6 +412,12 @@ func main() {
 		IdleTimeoutServer:                   idleTimeoutServer,
 		MaxHeaderBytes:                      maxHeaderBytes,
 		EnableConnMetricsServer:             enableConnMetricsServer,
+	}
+
+	if filterPlugins != "" {
+		for _, pl := range strings.Split(filterPlugins, ",") {
+			options.FilterPlugins = append(options.FilterPlugins, strings.Split(pl, " "))
+		}
 	}
 
 	if insecure {

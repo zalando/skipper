@@ -352,6 +352,9 @@ type Options struct {
 	// PluginDir defines the dir to load plugins from
 	PluginDir string
 
+	// FilterPlugins loads additional filters from modules
+	FilterPlugins [][]string
+
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
 	DefaultHTTPStatus int
@@ -562,6 +565,16 @@ func Run(o Options) error {
 
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
+	}
+
+	if len(o.FilterPlugins) > 0 {
+		for _, fltr := range o.FilterPlugins {
+			spec, err := filters.LoadPlugin(o.PluginDir, fltr)
+			if err != nil {
+				return err
+			}
+			o.CustomFilters = append(o.CustomFilters, spec)
+		}
 	}
 
 	// create a filter registry with the available filter specs registered,
