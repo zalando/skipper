@@ -63,6 +63,24 @@ func NewRatelimit() filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, filterName: ratelimit.ServiceRatelimitName}
 }
 
+// NewClusterRatelimit creates a rate limiting that is aware of the other
+// instances. The value given here should be the combined rate of all instances.
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> clusterRatelimit(20, "1s")
+//    -> "https://foo.backend.net";
+//
+// The above example behaves like the "ratelimit", i.e. per backend. To create a client limit
+// like in "localRatelimit" a third parameter is mandatory. Currently known parameters are
+// "auth" (limit by "Authorization" header) and "xfwd" (client ip from X-Forwarded-For header)
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> clusterRatelimit(20, "1s", "xfwd")
+//    -> "https://foo.backend.net";
 //
 func NewClusterRateLimit() filters.Spec {
 	return &spec{typ: ratelimit.ClusterRatelimit, filterName: ratelimit.ClusterRatelimitName}
