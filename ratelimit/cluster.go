@@ -59,7 +59,9 @@ const swarmPrefix string = `ratelimit.`
 
 func (c *ClusterLimit) Allow(s string) bool {
 	_ = c.local.Allow(s) // update local rate limit
-	if err := c.swarm.ShareValue(swarmPrefix+s, c.local.Delta(s)); err != nil {
+	d := c.local.Delta(s)
+	dTransfer := int64(d)
+	if err := c.swarm.ShareValue(swarmPrefix+s, dTransfer); err != nil {
 		log.Errorf("SWARM failed to share value: %s\n", err)
 	}
 
@@ -69,7 +71,8 @@ func (c *ClusterLimit) Allow(s string) bool {
 
 	nodeHits := c.maxHits / float64(len(swarmValues)) // hits per node within the window from the global rate limit
 	for _, val := range swarmValues {
-		if delta, ok := val.(time.Duration); ok {
+		if deltaI, ok := val.(int64); ok {
+			delta := time.Duration(deltaI)
 			switch {
 			case delta == 0:
 				// initially all are set to time.Time{}, so we get 0 delta
