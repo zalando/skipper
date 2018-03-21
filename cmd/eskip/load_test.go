@@ -17,10 +17,11 @@ package main
 import (
 	"bytes"
 	"errors"
-	"github.com/zalando/skipper/etcd/etcdtest"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/zalando/skipper/etcd/etcdtest"
 )
 
 const testStdinName = "testStdin"
@@ -142,6 +143,9 @@ func TestCheckRepeatingRouteIds(t *testing.T) {
 }
 
 func TestCheckEtcdInvalid(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	urls, err := stringsToUrls(etcdtest.Urls...)
 	if err != nil {
 		t.Error(err)
@@ -160,6 +164,10 @@ func TestCheckEtcdInvalid(t *testing.T) {
 }
 
 func TestCheckEtcd(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	urls, err := stringsToUrls(etcdtest.Urls...)
 	if err != nil {
 		t.Error(err)
