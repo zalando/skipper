@@ -31,7 +31,6 @@ import (
 
 func TestMain(m *testing.M) {
 	for _, arg := range os.Args {
-		log.Printf("arg: %s", arg)
 		if arg == "-test.short=true" {
 			return
 		}
