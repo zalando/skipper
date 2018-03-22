@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -722,11 +721,7 @@ func Run(o Options) error {
 	}
 
 	if len(o.OpenTracing) > 0 {
-		var tpDirs []string
-		for _, dir := range o.PluginDirs {
-			tpDirs = append(tpDirs, filepath.Join(dir, "tracing"))
-		}
-		tracer, err := tracing.LoadPlugin(tpDirs, o.OpenTracing)
+		tracer, err := tracing.LoadPlugin(o.PluginDirs, o.OpenTracing)
 		if err != nil {
 			return err
 		}
