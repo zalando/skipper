@@ -8,6 +8,7 @@ import (
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/filters/cookie"
+	"github.com/zalando/skipper/filters/cors"
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
 	"github.com/zalando/skipper/filters/ratelimit"
@@ -101,6 +102,7 @@ func MakeRegistry() filters.Registry {
 		ratelimit.NewDisableRatelimit(),
 		loadbalancer.NewDecide(),
 		script.NewLuaScript(),
+		cors.NewOrigin(),
 	} {
 		r.Register(s)
 	}
