@@ -555,6 +555,8 @@ func Run(o Options) error {
 		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
 	}
 
+	findAndLoadPlugins(&o)
+
 	// create data clients
 	dataClients, err := createDataClients(o, auth)
 	if err != nil {
@@ -566,20 +568,6 @@ func Run(o Options) error {
 
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
-	}
-
-	if len(o.FilterPlugins) > 0 {
-		var fpDirs []string
-		for _, dir := range o.PluginDirs {
-			fpDirs = append(fpDirs, filepath.Join(dir, "filters"))
-		}
-		for _, fltr := range o.FilterPlugins {
-			spec, err := filters.LoadPlugin(fpDirs, fltr)
-			if err != nil {
-				return err
-			}
-			o.CustomFilters = append(o.CustomFilters, spec)
-		}
 	}
 
 	// create a filter registry with the available filter specs registered,

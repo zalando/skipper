@@ -1,7 +1,8 @@
 # Skipper plugins
 
-Skipper may be extended with functionality not present in the core. Currently you can
-add additional tracers and filters. These additions need to be built as go plugin.
+Skipper may be extended with functionality not present in the core. Currently
+you can add additional tracers and filters. These additions need to be built
+as go plugin.
 
 Note the warning from Go's plugin.go:
 ```go
@@ -11,28 +12,90 @@ Note the warning from Go's plugin.go:
 
 ## Plugin directories
 
-Plugins are loaded from sub directories of the plugin directories. By default the plugin
-directory is set to `./plugins` (i.e. relative to skipper's working directory). An additional
-directory may be given with the `-plugindir=/path/to/dir` option to skipper. 
+Plugins are loaded from sub directories of the plugin directories. By default
+the plugin directory is set to `./plugins` (i.e. relative to skipper's working
+directory). An additional directory may be given with the `-plugindir=/path/to/dir`
+option to skipper.
 
-Each type of plugin expects the plugins to load in a different subdir of the plugin directories:
+Any file with the suffix `.so` found below the plugin directories (also in sub
+directories) is attempted to load without any arguments. When a plugin needs an
+argument, this must be explicitly loaded and the arguments passed, e.g. with
+`-filter-plugin geoip,db=/path/to/db`.
 
-* Tracing plugins (i.e. opentracing implementations) can be loaded from "$PLUGIN_DIR/tracing"
-* Filter plugins can be loaded from "$PLUGIN_DIR/filters"
-
-where `$PLUGIN_DIR` is any of the plugin directories.
+## Building a plugin
 
 Each plugin should be built with
 ```bash
 go build -buildmode=plugin -o example.so example.go
 ```
-## Tracing plugins
+There are some pitfalls:
+* packages which are shared between skipper and the plugin **must not** be in
+  a `vendor/` directory, otherwise the plugin will fail to load
+* plugins must be rebuilt when skipper is rebuilt
 
-The tracers, except for "noop", are built as Go Plugins. A tracing plugin can be loaded 
-with `-opentracing NAME` as parameter to skipper.
+## Filter plugins
 
-Implementations of Opentracing API can be found in the https://github.com/skipper-plugins.
-It follows how to implement a new tracer plugin for this interface.
+All plugins must have a function named "InitFilter" with the following signature
+
+```go
+func([]string) (filters.Spec, error)
+````
+
+The parameters passed are all arguments for the plugin, i.e. everything after the first
+word from skipper's `-filter-plugin` parameter. E.g. when the `-filter-plugin` 
+parameter is
+
+```
+"myfilter,datafile=/path/to/file,foo=bar"
+```
+
+the "myfilter" plugin will receive
+
+```go
+[]string{"datafile=/path/to/file", "foo=bar"}
+```
+
+as arguments.
+
+The filter plugin implementation is responsible to parse the received arguments.
+
+### Example filter plugin
+
+An example "noop" plugin looks like
+
+```go
+package main
+
+import (
+	"github.com/zalando/skipper/filters"
+)
+
+type noopSpec struct{}
+
+func InitFilter(opts []string) (filters.Spec, error) {
+	return noopSpec{}, nil
+}
+
+func (s noopSpec) Name() string {
+	return "noop"
+}
+func (s noopSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+	return noopFilter{}, nil
+}
+
+type noopFilter struct{}
+
+func (f noopFilter) Request(filters.FilterContext)  {}
+func (f noopFilter) Response(filters.FilterContext) {}
+```
+
+## OpenTracing plugins
+
+The tracers, except for "noop", are built as Go Plugins. A tracing plugin can
+be loaded with `-opentracing NAME` as parameter to skipper.
+
+Implementations of OpenTracing API can be found in the
+https://github.com/skipper-plugins/opentracing repository.
 
 All plugins must have a function named "InitTracer" with the following signature
 
@@ -66,54 +129,4 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
          MaxLogsPerSpan: 25,
      }), nil
 }
-```
-
-## Filter plugins
-
-All plugins must have a function named "InitFilter" with the following signature
-
-```go
-func([]string) (filters.Spec, error)
-````
-
-The parameters passed are all arguments for the plugin, i.e. everything after the first
-word from skipper's `-filter-plugin` parameter. E.g. when the `-filter-plugin` 
-parameter is
-```
-"myfilter,datafile=/path/to/file,foo=bar"
-```
-the "myfilter" plugin will receive
-```go
-[]string{"datafile=/path/to/file", "foo=bar"}
-```
-
-as arguments.
-
-The filter plugin implementation is responsible to parse the received arguments.
-
-An example "noop" plugin looks like
-```go
-package main
-
-import (
-	"github.com/zalando/skipper/filters"
-)
-
-type noopSpec struct{}
-
-func InitFilter(opts []string) (filters.Spec, error) {
-	return noopSpec{}, nil
-}
-
-func (s noopSpec) Name() string {
-	return "noop"
-}
-func (s noopSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
-	return noopFilter{}, nil
-}
-
-type noopFilter struct{}
-
-func (f noopFilter) Request(filters.FilterContext)  {}
-func (f noopFilter) Response(filters.FilterContext) {}
 ```

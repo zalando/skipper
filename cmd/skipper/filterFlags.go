@@ -22,7 +22,6 @@ func (f *filterFlags) Set(value string) error {
 	if f == nil {
 		f = &filterFlags{}
 	}
-	f.values = nil
 	for _, v := range strings.Split(value, " ") {
 		f.values = append(f.values, strings.Split(v, ","))
 	}
