@@ -146,6 +146,34 @@ func (p noopPredicate) Match(*http.Request) bool {
 }
 ```
 
+## DataClient plugins
+
+Similar to the above predicate and filter plugins. The command line option for data
+client plugins is `-dataclient-plugin`. A "noop" data client looks like
+
+```go
+package main
+
+import (
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/routing"
+)
+
+func InitDataClient([]string) (routing.DataClient, error) {
+	var dc DataClient = ""
+	return dc, nil
+}
+
+type DataClient string
+
+func (dc DataClient) LoadAll() ([]*eskip.Route, error) {
+	return eskip.Parse(string(dc))
+}
+
+func (dc DataClient) LoadUpdate() ([]*eskip.Route, []string, error) {
+	return nil, nil, nil
+}
+```
 
 ## OpenTracing plugins
 

@@ -63,39 +63,68 @@ func findAndLoadPlugins(o *Options) {
 		delete(found, name)
 	}
 
-	for name, path := range found {
-		mod, err := plugin.Open(path)
-		if err != nil {
-			fmt.Printf("open module %s from %s: %s", name, path, err)
+	for _, pred := range o.DataClientPlugins {
+		name := pred[0]
+		path, ok := found[name]
+		if !ok {
+			fmt.Printf("data client plugin %s not found in plugin dirs\n", name)
 			continue
 		}
+		spec, err := LoadDataClientPlugin(path, pred[1:])
+		if err != nil {
+			fmt.Printf("failed to load plugin %s: %s\n", path, err)
+			continue
+		}
+		o.CustomDataClients = append(o.CustomDataClients, spec)
+		fmt.Printf("loaded plugin %s from %s\n", name, path)
+		delete(found, name)
+	}
+
+	for name, path := range found {
+		fmt.Printf("attempting to load plugin from %s\n", path)
+		mod, err := plugin.Open(path)
+		if err != nil {
+			fmt.Printf("open plugin %s from %s: %s\n", name, path, err)
+			continue
+		}
+
 		if sym, err := mod.Lookup("InitFilter"); err == nil {
 			spec, err := loadFilterPlugin(sym, path, []string{})
 			if err != nil {
-				fmt.Printf("filter module %s returned: %s", path, err)
+				fmt.Printf("filter plugin %s returned: %s\n", path, err)
 				continue
 			}
 			o.CustomFilters = append(o.CustomFilters, spec)
-			fmt.Printf("plugin %s loaded from %s\n", name, path)
-			continue
+			fmt.Printf("filter plugin %s loaded from %s\n", name, path)
 		}
-		if sym, err := mod.Lookup("InitPredicate"); err != nil {
+
+		if sym, err := mod.Lookup("InitPredicate"); err == nil {
 			spec, err := loadPredicatePlugin(sym, path, []string{})
 			if err != nil {
-				fmt.Printf("predicate module %s returned: %s", path, err)
+				fmt.Printf("predicate plugin %s returned: %s\n", path, err)
 				continue
 			}
 			o.CustomPredicates = append(o.CustomPredicates, spec)
-			continue
+			fmt.Printf("predicate plugin %s loaded from %s\n", name, path)
 		}
-		// same for DataClients ...
+
+		fmt.Printf("checking %s for data client in %s\n", name, path)
+		if sym, err := mod.Lookup("InitDataClient"); err == nil {
+			spec, err := loadDataClientPlugin(sym, path, []string{})
+			if err != nil {
+				fmt.Printf("data client plugin %s returned: %s\n", path, err)
+				continue
+			}
+			o.CustomDataClients = append(o.CustomDataClients, spec)
+			fmt.Printf("data client plugin %s loaded from %s\n", name, path)
+		}
 	}
 }
 
 func LoadFilterPlugin(path string, args []string) (filters.Spec, error) {
 	mod, err := plugin.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("open filter module %s: %s", path, err)
+		return nil, fmt.Errorf("open filter plugin %s: %s", path, err)
 	}
 	sym, err := mod.Lookup("InitFilter")
 	if err != nil {
@@ -107,11 +136,11 @@ func LoadFilterPlugin(path string, args []string) (filters.Spec, error) {
 func loadFilterPlugin(sym plugin.Symbol, path string, args []string) (filters.Spec, error) {
 	fn, ok := sym.(func([]string) (filters.Spec, error))
 	if !ok {
-		return nil, fmt.Errorf("module %s's InitFilter function has wrong signature", path)
+		return nil, fmt.Errorf("plugin %s's InitFilter function has wrong signature", path)
 	}
 	spec, err := fn(args)
 	if err != nil {
-		return nil, fmt.Errorf("module %s returned: %s", path, err)
+		return nil, fmt.Errorf("plugin %s returned: %s", path, err)
 	}
 	return spec, nil
 }
@@ -131,7 +160,31 @@ func LoadPredicatePlugin(path string, args []string) (routing.PredicateSpec, err
 func loadPredicatePlugin(sym plugin.Symbol, path string, args []string) (routing.PredicateSpec, error) {
 	fn, ok := sym.(func([]string) (routing.PredicateSpec, error))
 	if !ok {
-		return nil, fmt.Errorf("module %s's InitPredicate function has wrong signature", path)
+		return nil, fmt.Errorf("plugin %s's InitPredicate function has wrong signature", path)
+	}
+	spec, err := fn(args)
+	if err != nil {
+		return nil, fmt.Errorf("plugin %s returned: %s", path, err)
+	}
+	return spec, nil
+}
+
+func LoadDataClientPlugin(path string, args []string) (routing.DataClient, error) {
+	mod, err := plugin.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open data client module %s: %s", path, err)
+	}
+	sym, err := mod.Lookup("InitDataClient")
+	if err != nil {
+		return nil, fmt.Errorf("lookup module symbol failed for %s: %s", path, err)
+	}
+	return loadDataClientPlugin(sym, path, args)
+}
+
+func loadDataClientPlugin(sym plugin.Symbol, path string, args []string) (routing.DataClient, error) {
+	fn, ok := sym.(func([]string) (routing.DataClient, error))
+	if !ok {
+		return nil, fmt.Errorf("plugin %s's InitDataClient function has wrong signature", path)
 	}
 	spec, err := fn(args)
 	if err != nil {

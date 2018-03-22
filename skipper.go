@@ -361,6 +361,10 @@ type Options struct {
 	// what the []string should contain.
 	PredicatePlugins [][]string
 
+	// DataClientPlugins loads additional data clients from modules. See above for FilterPlugins
+	// what the []string should contain.
+	DataClientPlugins [][]string
+
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
 	DefaultHTTPStatus int

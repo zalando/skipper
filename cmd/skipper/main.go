@@ -210,6 +210,7 @@ var (
 	maxIdleConnsBackend             int
 	filterPlugins                   filterFlags
 	predicatePlugins                predicateFlags
+	dataclientPlugins               dataclientFlags
 )
 
 func init() {
@@ -293,6 +294,7 @@ func init() {
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
 	flag.Var(&filterPlugins, "filter-plugin", filterPluginUsage)
 	flag.Var(&predicatePlugins, "predicate-plugin", predicatePluginUsage)
+	flag.Var(&dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
 
 	flag.Parse()
 
@@ -415,6 +417,7 @@ func main() {
 		EnableConnMetricsServer:             enableConnMetricsServer,
 		FilterPlugins:                       filterPlugins.Get(),
 		PredicatePlugins:                    predicatePlugins.Get(),
+		DataClientPlugins:                   dataclientPlugins.Get(),
 	}
 
 	if pluginDir != "" {
