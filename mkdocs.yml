@@ -11,6 +11,7 @@ pages:
     - Kubernetes:
         - Ingress Controller Deployment: kubernetes/ingress-controller.md
         - Ingress Usage: kubernetes/ingress-usage.md
+    - Plugins: plugins.md
     - Scripts: scripts.md
     - Operations: operations.md
     - Videos: videos.md

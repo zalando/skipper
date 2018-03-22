@@ -1,14 +1,13 @@
 # Skipper plugins
 
-Skipper may be extended with functionality not present in the core. Currently
-you can add additional tracers and filters. These additions need to be built
-as go plugin.
+Skipper may be extended with functionality not present in the core.
+These additions can be built as go plugin, so they do not have to
+be present in the main skipper repository.
 
 Note the warning from Go's plugin.go:
-```go
+
     // The plugin support is currently incomplete, only supports Linux,
     // and has known bugs. Please report any issues.
-```
 
 ## Plugin directories
 
@@ -25,9 +24,9 @@ argument, this must be explicitly loaded and the arguments passed, e.g. with
 ## Building a plugin
 
 Each plugin should be built with
-```bash
-go build -buildmode=plugin -o example.so example.go
-```
+
+    go build -buildmode=plugin -o example.so example.go
+
 There are some pitfalls:
 * packages which are shared between skipper and the plugin **must not** be in
   a `vendor/` directory, otherwise the plugin will fail to load
@@ -37,23 +36,17 @@ There are some pitfalls:
 
 All plugins must have a function named "InitFilter" with the following signature
 
-```go
-func([]string) (filters.Spec, error)
-````
+    func([]string) (filters.Spec, error)
 
 The parameters passed are all arguments for the plugin, i.e. everything after the first
 word from skipper's `-filter-plugin` parameter. E.g. when the `-filter-plugin` 
 parameter is
 
-```
-"myfilter,datafile=/path/to/file,foo=bar"
-```
+    "myfilter,datafile=/path/to/file,foo=bar"
 
 the "myfilter" plugin will receive
 
-```go
-[]string{"datafile=/path/to/file", "foo=bar"}
-```
+    []string{"datafile=/path/to/file", "foo=bar"}
 
 as arguments.
 
@@ -93,23 +86,17 @@ func (f noopFilter) Response(filters.FilterContext) {}
 
 All plugins must have a function named "InitPredicate" with the following signature
 
-```go
-func([]string) (routing.PredicateSpec, error)
-````
+    func([]string) (routing.PredicateSpec, error)
 
 The parameters passed are all arguments for the plugin, i.e. everything after the first
 word from skipper's `-predicate-plugin` parameter. E.g. when the `-predicate-plugin` 
 parameter is
 
-```
-"mypred,datafile=/path/to/file,foo=bar"
-```
+    "mypred,datafile=/path/to/file,foo=bar"
 
 the "mypred" plugin will receive
 
-```go
-[]string{"datafile=/path/to/file", "foo=bar"}
-```
+    []string{"datafile=/path/to/file", "foo=bar"}
 
 as arguments.
 
@@ -149,7 +136,12 @@ func (p noopPredicate) Match(*http.Request) bool {
 ## DataClient plugins
 
 Similar to the above predicate and filter plugins. The command line option for data
-client plugins is `-dataclient-plugin`. A "noop" data client looks like
+client plugins is `-dataclient-plugin`. The module must have a `InitDataClient`
+function with the signature
+
+    func([]string) (routing.DataClient, error)
+
+A "noop" data client looks like
 
 ```go
 package main
@@ -185,15 +177,13 @@ https://github.com/skipper-plugins/opentracing repository.
 
 All plugins must have a function named "InitTracer" with the following signature
 
-```go
-func([]string) (opentracing.Tracer, error)
-```
+    func([]string) (opentracing.Tracer, error)
 
 The parameters passed are all arguments for the plugin, i.e. everything after the first
 word from skipper's -opentracing parameter. E.g. when the -opentracing parameter is
-"mytracer foo=bar token=xxx somename=bla:3" the "mytracer" plugin will receive
+`mytracer foo=bar token=xxx somename=bla:3` the "mytracer" plugin will receive
 
-   []string{"foo=bar", "token=xxx", "somename=bla:3"}
+    []string{"foo=bar", "token=xxx", "somename=bla:3"}
 
 as arguments.
 
