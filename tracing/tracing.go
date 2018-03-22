@@ -44,9 +44,7 @@
 //
 //    go build -buildmode=plugin -o basic.so ./basic/basic.go
 //
-// and copied to the "tracing" sub-directory of the directory given as -plugindir (by default, "./plugins").
-// I.e. the module needs to go into ./plugins/tracing/
-// and copied to the directory given as -plugindir (by default, "./plugins/tracing").
+// and copied to the given as -plugindir (by default, "./plugins").
 //
 // Then it can be loaded with -opentracing basic as parameter to skipper.
 package tracing
