@@ -28,9 +28,15 @@ Each plugin should be built with
     go build -buildmode=plugin -o example.so example.go
 
 There are some pitfalls:
+
 * packages which are shared between skipper and the plugin **must not** be in
-  a `vendor/` directory, otherwise the plugin will fail to load
+  a `vendor/` directory, otherwise the plugin will fail to load or in some
+  cases give wrong results (e.g. an opentracing span cannot be found in the
+  context even if it is present). This also means:
+  Do not vendor skipper in a plugin repo...
 * plugins must be rebuilt when skipper is rebuilt
+* do not attempt to rebuild a module and copy it over a loaded plugin, that
+  will crash skipper immediately...
 
 ## Filter plugins
 
@@ -51,6 +57,8 @@ the "myfilter" plugin will receive
 as arguments.
 
 The filter plugin implementation is responsible to parse the received arguments.
+
+Filter plugins can be found in the [filter repo](https://github.com/skipper-plugins/filters)
 
 ### Example filter plugin
 
@@ -102,6 +110,8 @@ as arguments.
 
 The predicate plugin implementation is responsible to parse the received arguments.
 
+Predicate plugins can be found in the [predicate repo](https://github.com/skipper-plugins/predicates)
+
 ### Example predicate plugin
 
 An example "MatchAll" plugin looks like
@@ -110,7 +120,8 @@ An example "MatchAll" plugin looks like
 package main
 
 import (
-	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/routing"
+	"net/http"
 )
 
 type noopSpec struct{}
