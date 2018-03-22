@@ -352,10 +352,13 @@ type Options struct {
 	// PluginDir defines the directories to load plugins from
 	PluginDirs []string
 
-	// FilterPlugins loads additional filters from modules
+	// FilterPlugins loads additional filters from modules. The first value in each []string
+	// needs to be the plugin name (as on disk, without path, without ".so" suffix). The
+	// following values are passed as arguments to the plugin while loading, see docs/plugins.md
 	FilterPlugins [][]string
 
-	// PredicatePlugins loads additional predicates from modules
+	// PredicatePlugins loads additional predicates from modules. See above for FilterPlugins
+	// what the []string should contain.
 	PredicatePlugins [][]string
 
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
