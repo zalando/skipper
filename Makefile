@@ -73,7 +73,6 @@ deps:
 	# get opentracing to the default GOPATH, so we can build plugins outside
 	# the main skipper repo
 	# * will be removed from vendor/ after the deps checks (workaround for glide list)
-	rm -rf vendor/github.com/opentracing/opentracing-go
 	go get -t github.com/opentracing/opentracing-go
 	# fix vendored deps:
 	rm -rf vendor/github.com/sirupsen/logrus/examples # breaks go install ./...
