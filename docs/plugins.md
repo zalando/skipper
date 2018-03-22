@@ -89,6 +89,64 @@ func (f noopFilter) Request(filters.FilterContext)  {}
 func (f noopFilter) Response(filters.FilterContext) {}
 ```
 
+## Predicate plugins
+
+All plugins must have a function named "InitPredicate" with the following signature
+
+```go
+func([]string) (routing.PredicateSpec, error)
+````
+
+The parameters passed are all arguments for the plugin, i.e. everything after the first
+word from skipper's `-predicate-plugin` parameter. E.g. when the `-predicate-plugin` 
+parameter is
+
+```
+"mypred,datafile=/path/to/file,foo=bar"
+```
+
+the "mypred" plugin will receive
+
+```go
+[]string{"datafile=/path/to/file", "foo=bar"}
+```
+
+as arguments.
+
+The predicate plugin implementation is responsible to parse the received arguments.
+
+### Example predicate plugin
+
+An example "MatchAll" plugin looks like
+
+```go
+package main
+
+import (
+	"github.com/zalando/skipper/filters"
+)
+
+type noopSpec struct{}
+
+func InitPredicate(opts []string) (routing.PredicateSpec, error) {
+	return noopSpec{}, nil
+}
+
+func (s noopSpec) Name() string {
+	return "MatchAll"
+}
+func (s noopSpec) Create(config []interface{}) (routing.Predicate, error) {
+	return noopPredicate{}, nil
+}
+
+type noopPredicate struct{}
+
+func (p noopPredicate) Match(*http.Request) bool {
+    return true
+}
+```
+
+
 ## OpenTracing plugins
 
 The tracers, except for "noop", are built as Go Plugins. A tracing plugin can

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/routing"
 )
 
 func findAndLoadPlugins(o *Options) {
@@ -41,27 +42,26 @@ func findAndLoadPlugins(o *Options) {
 			continue
 		}
 		o.CustomFilters = append(o.CustomFilters, spec)
-		fmt.Printf("loaded plugin %s from %s\n", name, path)
+		fmt.Printf("loaded plugin %s (%s) from %s\n", name, spec.Name(), path)
 		delete(found, name)
 	}
 
-	/*
-		for _, pred := range o.PredicatePlugins {
-			name := pred[0]
-			path, ok := found[name]
-			if !ok {
-				fmt.Printf("predicate plugin %s not found in plugin dirs\n", name)
-				continue
-			}
-			spec, err := LoadPredicatePlugin(path, fltr[1:])
-			if err != nil {
-				fmt.Printf("failed to load plugin %s: %s\n", path, err)
-				continue
-			}
-			o.CustomPredicates = append(o.CustomPredicates, spec)
-			delete(found, name)
+	for _, pred := range o.PredicatePlugins {
+		name := pred[0]
+		path, ok := found[name]
+		if !ok {
+			fmt.Printf("predicate plugin %s not found in plugin dirs\n", name)
+			continue
 		}
-	*/
+		spec, err := LoadPredicatePlugin(path, pred[1:])
+		if err != nil {
+			fmt.Printf("failed to load plugin %s: %s\n", path, err)
+			continue
+		}
+		o.CustomPredicates = append(o.CustomPredicates, spec)
+		fmt.Printf("loaded plugin %s (%s) from %s\n", name, spec.Name(), path)
+		delete(found, name)
+	}
 
 	for name, path := range found {
 		mod, err := plugin.Open(path)
@@ -79,18 +79,16 @@ func findAndLoadPlugins(o *Options) {
 			fmt.Printf("plugin %s loaded from %s\n", name, path)
 			continue
 		}
-		/*
-			if sym, err := mod.Lookup("InitPredicate"); err != nil {
-				spec, err := loadPredicatePlugin(sym, path, []string{})
-				if err != nil {
-					fmt.Printf("predicate module %s returned: %s", path, err)
-					continue
-				}
-				o.CustomPredicates = append(o.CustomPredicates, spec)
+		if sym, err := mod.Lookup("InitPredicate"); err != nil {
+			spec, err := loadPredicatePlugin(sym, path, []string{})
+			if err != nil {
+				fmt.Printf("predicate module %s returned: %s", path, err)
 				continue
 			}
-			// same for DataClients ...
-		*/
+			o.CustomPredicates = append(o.CustomPredicates, spec)
+			continue
+		}
+		// same for DataClients ...
 	}
 }
 
@@ -110,6 +108,30 @@ func loadFilterPlugin(sym plugin.Symbol, path string, args []string) (filters.Sp
 	fn, ok := sym.(func([]string) (filters.Spec, error))
 	if !ok {
 		return nil, fmt.Errorf("module %s's InitFilter function has wrong signature", path)
+	}
+	spec, err := fn(args)
+	if err != nil {
+		return nil, fmt.Errorf("module %s returned: %s", path, err)
+	}
+	return spec, nil
+}
+
+func LoadPredicatePlugin(path string, args []string) (routing.PredicateSpec, error) {
+	mod, err := plugin.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open predicate module %s: %s", path, err)
+	}
+	sym, err := mod.Lookup("InitPredicate")
+	if err != nil {
+		return nil, fmt.Errorf("lookup module symbol failed for %s: %s", path, err)
+	}
+	return loadPredicatePlugin(sym, path, args)
+}
+
+func loadPredicatePlugin(sym plugin.Symbol, path string, args []string) (routing.PredicateSpec, error) {
+	fn, ok := sym.(func([]string) (routing.PredicateSpec, error))
+	if !ok {
+		return nil, fmt.Errorf("module %s's InitPredicate function has wrong signature", path)
 	}
 	spec, err := fn(args)
 	if err != nil {

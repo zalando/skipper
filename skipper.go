@@ -356,6 +356,9 @@ type Options struct {
 	// FilterPlugins loads additional filters from modules
 	FilterPlugins [][]string
 
+	// PredicatePlugins loads additional predicates from modules
+	PredicatePlugins [][]string
+
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
 	DefaultHTTPStatus int

@@ -108,7 +108,6 @@ const (
 	opentracingUsage               = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
 	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
-	filterPluginUsage              = "set a custom filter plugins to load, a comma separated list"
 	suppressRouteUpdateLogsUsage   = "print only summaries on route updates/deletes"
 	enablePrometheusMetricsUsage   = "siwtch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
 
@@ -210,6 +209,7 @@ var (
 	tlsHandshakeTimeoutBackend      time.Duration
 	maxIdleConnsBackend             int
 	filterPlugins                   filterFlags
+	predicatePlugins                predicateFlags
 )
 
 func init() {
@@ -292,6 +292,7 @@ func init() {
 	flag.DurationVar(&tlsHandshakeTimeoutBackend, "tls-timeout-backend", defaultTLSHandshakeTimeoutBackend, tlsHandshakeTimeoutBackendUsage)
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
 	flag.Var(&filterPlugins, "filter-plugin", filterPluginUsage)
+	flag.Var(&predicatePlugins, "predicate-plugin", predicatePluginUsage)
 
 	flag.Parse()
 
@@ -413,6 +414,7 @@ func main() {
 		MaxHeaderBytes:                      maxHeaderBytes,
 		EnableConnMetricsServer:             enableConnMetricsServer,
 		FilterPlugins:                       filterPlugins.Get(),
+		PredicatePlugins:                    predicatePlugins.Get(),
 	}
 
 	if pluginDir != "" {
