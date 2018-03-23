@@ -64,7 +64,6 @@ func findAndLoadPlugins(o *Options) error {
 		path, ok := found[name]
 		if !ok {
 			return fmt.Errorf("data client plugin %s not found in plugin dirs\n", name)
-			continue
 		}
 		spec, err := LoadDataClientPlugin(path, pred[1:])
 		if err != nil {
@@ -95,7 +94,6 @@ func findAndLoadPlugins(o *Options) error {
 			spec, err := loadPredicatePlugin(sym, path, []string{})
 			if err != nil {
 				return fmt.Errorf("predicate plugin %s returned: %s\n", path, err)
-				continue
 			}
 			o.CustomPredicates = append(o.CustomPredicates, spec)
 			fmt.Printf("predicate plugin %s loaded from %s\n", name, path)
