@@ -181,7 +181,8 @@ func (dc DataClient) LoadUpdate() ([]*eskip.Route, []string, error) {
 ## MultiType plugins
 
 Sometimes it is necessary to combine multiple plugin types into one module. This can
-be done with this kind of plugin.
+be done with this kind of plugin. Note that these modules are not auto loaded, these
+need an explicit `-multi-plugin name,arg1,arg2` command line switch for skipper.
 
 The module must have a `InitPlugin` function with the signature
 
