@@ -23,9 +23,6 @@ func (f *pluginFlags) String() string {
 }
 
 func (f *pluginFlags) Set(value string) error {
-	if f == nil {
-		f = &pluginFlags{}
-	}
 	for _, v := range strings.Split(value, " ") {
 		f.values = append(f.values, strings.Split(v, ","))
 	}
