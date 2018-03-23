@@ -729,6 +729,8 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, bool) {
 	if s == "" {
 		return settings, true
 	}
+
+	ctx.stateBag[ratelimitfilters.RetryAfterKey] = rl.RetryAfter(s)
 	return settings, rl.Allow(s)
 }
 
@@ -749,13 +751,18 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	return done, ok
 }
 
-func ratelimitError(settings ratelimit.Settings) error {
+func ratelimitError(settings ratelimit.Settings, ctx *context) error {
+	header := http.Header{
+		ratelimit.Header: []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
+	}
+	retryAfter, ok := ctx.stateBag[ratelimitfilters.RetryAfterKey].(int)
+	if ok {
+		header.Add(ratelimit.RetryAfterHeader, strconv.Itoa(retryAfter))
+	}
 	return &proxyError{
-		err:  errRatelimitError,
-		code: http.StatusTooManyRequests,
-		additionalHeader: http.Header{
-			ratelimit.Header: []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
-		},
+		err:              errRatelimitError,
+		code:             http.StatusTooManyRequests,
+		additionalHeader: header,
 	}
 }
 
@@ -769,7 +776,7 @@ func (p *Proxy) do(ctx *context) error {
 	// proxy global setting
 	if settings, ok := p.limiters.Check(ctx.request); !ok {
 		p.log.Debugf("proxy.go limiter settings: %s", settings)
-		rerr := ratelimitError(settings)
+		rerr := ratelimitError(settings, ctx)
 		return rerr
 	}
 
@@ -791,7 +798,7 @@ func (p *Proxy) do(ctx *context) error {
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 	// per route rate limit
 	if settings, allow := p.checkRatelimit(ctx); !allow {
-		rerr := ratelimitError(settings)
+		rerr := ratelimitError(settings, ctx)
 		return rerr
 	}
 

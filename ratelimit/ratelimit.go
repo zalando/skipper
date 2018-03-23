@@ -16,6 +16,9 @@ type Type int
 const (
 	// Header is
 	Header = "X-Rate-Limit"
+	// RetryHeader is name of the header which will be used to indicate how
+	// long a client should wait before making a new request
+	RetryAfterHeader = "Retry-After"
 	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
 	ServiceRatelimitName = "ratelimit"
 	// LocalRatelimitName is the name of the LocalRatelimit filter, which will be shown in log
@@ -141,6 +144,9 @@ type implementation interface {
 	Allow(string) bool
 	// Close is used to clean up underlying implementations, if you want to stop a Ratelimiter
 	Close()
+	// RetryAfter is used to inform the client how many seconds it should wait
+	// before making a new request
+	RetryAfter(string) int
 }
 
 // Ratelimit is a proxy objects that delegates to implemetations and
@@ -165,13 +171,26 @@ func (l *Ratelimit) Close() {
 	l.impl.Close()
 }
 
+// RetryAfter informs how many seconds to wait for the next request
+func (l *Ratelimit) RetryAfter(s string) int {
+	if l == nil {
+		return 0
+	}
+	return l.impl.RetryAfter(s)
+}
+
 type voidRatelimit struct{}
 
 // Allow always returns true, not ratelimited
 func (l voidRatelimit) Allow(string) bool {
 	return true
 }
+
 func (l voidRatelimit) Close() {
+}
+
+func (l voidRatelimit) RetryAfter(string) int {
+	return 0
 }
 
 func newRatelimit(s Settings) *Ratelimit {
