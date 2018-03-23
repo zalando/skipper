@@ -565,7 +565,9 @@ func Run(o Options) error {
 		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
 	}
 
-	findAndLoadPlugins(&o)
+	if err := findAndLoadPlugins(&o); err != nil {
+		return err
+	}
 
 	// create data clients
 	dataClients, err := createDataClients(o, auth)
