@@ -190,7 +190,149 @@ The module must have a `InitPlugin` function with the signature
 Any of the returned types may be nil, so you can have e.g. a combined filter / data client
 plugin or share a filter and a predicate, e.g. like
 
+```go
+package main
 
+import (
+	"fmt"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+
+	ot "github.com/opentracing/opentracing-go"
+	maxminddb "github.com/oschwald/maxminddb-golang"
+
+	"github.com/zalando/skipper/filters"
+	snet "github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/routing"
+)
+
+type geoipSpec struct {
+	db   *maxminddb.Reader
+	name string
+}
+
+func InitPlugin(opts []string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error) {
+	var db string
+	for _, o := range opts {
+		switch {
+		case strings.HasPrefix(o, "db="):
+			db = o[3:]
+		}
+	}
+	if db == "" {
+		return nil, nil, nil, fmt.Errorf("missing db= parameter for geoip plugin")
+	}
+	reader, err := maxminddb.Open(db)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to open db %s: %s", db, err)
+	}
+
+	return &geoipSpec{db: reader, name: "geoip"},
+		&geoipSpec{db: reader, name: "GeoIP"},
+		nil,
+		nil
+}
+
+func (s *geoipSpec) Name() string {
+	return s.name
+}
+
+func (s *geoipSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+	var fromLast bool
+	header := "X-GeoIP-Country"
+	var err error
+	for _, c := range config {
+		if s, ok := c.(string); ok {
+			switch {
+			case strings.HasPrefix(s, "from_last="):
+				fromLast, err = strconv.ParseBool(s[10:])
+				if err != nil {
+					return nil, filters.ErrInvalidFilterParameters
+				}
+			case strings.HasPrefix(s, "header="):
+				header = s[7:]
+			}
+		}
+	}
+	return &geoip{db: s.db, fromLast: fromLast, header: header}, nil
+}
+
+func (s *geoipSpec) Create(config []interface{}) (routing.Predicate, error) {
+	var fromLast bool
+	var err error
+	countries := make(map[string]struct{})
+	for _, c := range config {
+		if s, ok := c.(string); ok {
+			switch {
+			case strings.HasPrefix(s, "from_last="):
+				fromLast, err = strconv.ParseBool(s[10:])
+				if err != nil {
+					return nil, predicates.ErrInvalidPredicateParameters
+				}
+			default:
+				countries[strings.ToUpper(s)] = struct{}{}
+			}
+		}
+	}
+	return &geoip{db: s.db, fromLast: fromLast, countries: countries}, nil
+}
+
+type geoip struct {
+	db        *maxminddb.Reader
+	fromLast  bool
+	header    string
+	countries map[string]struct{}
+}
+
+type countryRecord struct {
+	Country struct {
+		ISOCode string `maxminddb:"iso_code"`
+	} `maxminddb:"country"`
+}
+
+func (g *geoip) lookup(r *http.Request) string {
+	var src net.IP
+	if g.fromLast {
+		src = snet.RemoteHostFromLast(r)
+	} else {
+		src = snet.RemoteHost(r)
+	}
+
+	record := countryRecord{}
+	err := g.db.Lookup(src, &record)
+	if err != nil {
+		fmt.Printf("geoip(): failed to lookup %s: %s", src, err)
+	}
+	if record.Country.ISOCode == "" {
+		return "UNKNOWN"
+	}
+	return record.Country.ISOCode
+}
+
+func (g *geoip) Request(c filters.FilterContext) {
+	c.Request().Header.Set(g.header, g.lookup(c.Request()))
+}
+
+func (g *geoip) Response(c filters.FilterContext) {}
+
+func (g *geoip) Match(r *http.Request) bool {
+	span := ot.SpanFromContext(r.Context())
+	if span != nil {
+		span.LogKV("GeoIP", "start")
+	}
+
+	code := g.lookup(r)
+	_, ok := g.countries[code]
+
+	if span != nil {
+		span.LogKV("GeoIP", code)
+	}
+	return ok
+}
+```
 
 ## OpenTracing plugins
 
