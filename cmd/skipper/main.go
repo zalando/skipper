@@ -211,6 +211,7 @@ var (
 	filterPlugins                   filterFlags
 	predicatePlugins                predicateFlags
 	dataclientPlugins               dataclientFlags
+	multiPlugins                    multiPluginFlags
 )
 
 func init() {
@@ -295,6 +296,7 @@ func init() {
 	flag.Var(&filterPlugins, "filter-plugin", filterPluginUsage)
 	flag.Var(&predicatePlugins, "predicate-plugin", predicatePluginUsage)
 	flag.Var(&dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
+	flag.Var(&multiPlugins, "multi-plugin", multiPluginUsage)
 
 	flag.Parse()
 
@@ -418,6 +420,7 @@ func main() {
 		FilterPlugins:                       filterPlugins.Get(),
 		PredicatePlugins:                    predicatePlugins.Get(),
 		DataClientPlugins:                   dataclientPlugins.Get(),
+		MultiPlugins:                        multiPlugins.Get(),
 	}
 
 	if pluginDir != "" {

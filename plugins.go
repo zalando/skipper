@@ -29,6 +29,31 @@ func findAndLoadPlugins(o *Options) {
 		})
 	}
 
+	for _, plug := range o.MultiPlugins {
+		name := plug[0]
+		path, ok := found[name]
+		if !ok {
+			fmt.Printf("mutlitype plugin %s not found in plugin dirs\n", name)
+			continue
+		}
+		fltr, pred, dc, err := LoadMultiPlugin(path, plug[1:])
+		if err != nil {
+			fmt.Printf("failed to load plugin %s: %s\n", path, err)
+			continue
+		}
+		if fltr != nil {
+			o.CustomFilters = append(o.CustomFilters, fltr)
+		}
+		if pred != nil {
+			o.CustomPredicates = append(o.CustomPredicates, pred)
+		}
+		if dc != nil {
+			o.CustomDataClients = append(o.CustomDataClients, dc)
+		}
+		fmt.Printf("loaded plugin %s from %s\n", name, path)
+		delete(found, name)
+	}
+
 	for _, fltr := range o.FilterPlugins {
 		name := fltr[0]
 		path, ok := found[name]
@@ -119,6 +144,26 @@ func findAndLoadPlugins(o *Options) {
 			fmt.Printf("data client plugin %s loaded from %s\n", name, path)
 		}
 	}
+}
+
+func LoadMultiPlugin(path string, args []string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error) {
+	mod, err := plugin.Open(path)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("open multitype plugin %s: %s", path, err)
+	}
+	sym, err := mod.Lookup("InitPlugin")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("lookup module symbol failed for %s: %s", path, err)
+	}
+	fn, ok := sym.(func([]string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error))
+	if !ok {
+		return nil, nil, nil, fmt.Errorf("plugin %s's InitPlugin function has wrong signature", path)
+	}
+	fltr, pred, dc, err := fn(args)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("plugin %s returned: %s", path, err)
+	}
+	return fltr, pred, dc, nil
 }
 
 func LoadFilterPlugin(path string, args []string) (filters.Spec, error) {

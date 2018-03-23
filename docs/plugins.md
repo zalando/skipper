@@ -178,6 +178,20 @@ func (dc DataClient) LoadUpdate() ([]*eskip.Route, []string, error) {
 }
 ```
 
+## MultiType plugins
+
+Sometimes it is necessary to combine multiple plugin types into one module. This can
+be done with this kind of plugin.
+
+The module must have a `InitPlugin` function with the signature
+
+    func([]string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error)
+
+Any of the returned types may be nil, so you can have e.g. a combined filter / data client
+plugin or share a filter and a predicate, e.g. like
+
+
+
 ## OpenTracing plugins
 
 The tracers, except for "noop", are built as Go Plugins. A tracing plugin can
