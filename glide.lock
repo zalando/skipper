@@ -1,5 +1,5 @@
-hash: ed4c9832f72de1aeb33488d81331aa379adc61ba07337c51e15bada9c8299b2d
-updated: 2018-01-04T08:00:57.348776525+01:00
+hash: 9553ba72abe52ef7ffb117fe347b1a8530cc0315d011f5b944e0035551511c67
+updated: 2018-03-22T23:34:00.457358076+01:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
@@ -57,11 +57,11 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: 1f30fe9094a513ce4c700b9a54458bbb0c96996c
 - name: github.com/sirupsen/logrus
-  version: d682213848ed68c0a260ca37d6dd5ace8423f5ba
+  version: c155da19408a8799da419ed3eeb0cb5db0ad5dbc
 - name: github.com/sony/gobreaker
   version: e9556a45379ef1da12e54847edb2fb3d7d566f36
 - name: github.com/szuecs/rate-limit-buffer
-  version: 1a179ab26baf3b8450aaaa662e3120155fadb39d
+  version: 5d55546321233ce69d1b8c9bdaaff2c7cde3479e
 - name: github.com/yuin/gopher-lua
   version: 478861c8ce6e8c2f16d5984d5ed30c4327c70437
   subpackages:
