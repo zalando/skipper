@@ -16,12 +16,14 @@ type filter struct {
 	allowedOrigins []string
 }
 
+// NewOrigin creates a CORS origin handler
+// that can check for allowed origin or set an all allowed header
 func NewOrigin() filters.Spec {
 	return &basicSpec{}
 }
 
-// We check for the origin header if there are allowed origins
-// otherwise we just set '*' as the value
+// Response checks for the origin header if there are allowed origins
+// otherwise it just sets '*' as the value
 func (a filter) Response(ctx filters.FilterContext) {
 	if len(a.allowedOrigins) == 0 {
 		ctx.Response().Header.Add(allowOriginHeader, "*")
@@ -40,10 +42,11 @@ func (a filter) Response(ctx filters.FilterContext) {
 	}
 }
 
-// We do not touch request at all
+// Request is a noop
 func (a filter) Request(filters.FilterContext) {}
 
-// Creates out the cors filter
+// CreateFilter takes an optional string array.
+// If any argument is not a string, it will return an error
 func (spec basicSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	f := &filter{}
 	for _, a := range args {
