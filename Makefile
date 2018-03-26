@@ -166,5 +166,5 @@ else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
 else ifeq ($(TRAVIS_BRANCH), master)
 	make deps check-precommit
 else
-	make deps shortcheck
+	make deps shortcheck check-plugins
 endif
