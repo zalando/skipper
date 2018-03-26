@@ -40,7 +40,7 @@ There are some pitfalls:
 
 ## Filter plugins
 
-All plugins must have a function named "InitFilter" with the following signature
+All plugins must have a function named `InitFilter` with the following signature
 
     func([]string) (filters.Spec, error)
 
@@ -48,9 +48,9 @@ The parameters passed are all arguments for the plugin, i.e. everything after th
 word from skipper's `-filter-plugin` parameter. E.g. when the `-filter-plugin` 
 parameter is
 
-    "myfilter,datafile=/path/to/file,foo=bar"
+    myfilter,datafile=/path/to/file,foo=bar
 
-the "myfilter" plugin will receive
+the `myfilter` plugin will receive
 
     []string{"datafile=/path/to/file", "foo=bar"}
 
@@ -62,7 +62,7 @@ Filter plugins can be found in the [filter repo](https://github.com/skipper-plug
 
 ### Example filter plugin
 
-An example "noop" plugin looks like
+An example `noop` plugin looks like
 
 ```go
 package main
@@ -92,7 +92,7 @@ func (f noopFilter) Response(filters.FilterContext) {}
 
 ## Predicate plugins
 
-All plugins must have a function named "InitPredicate" with the following signature
+All plugins must have a function named `InitPredicate` with the following signature
 
     func([]string) (routing.PredicateSpec, error)
 
@@ -100,9 +100,9 @@ The parameters passed are all arguments for the plugin, i.e. everything after th
 word from skipper's `-predicate-plugin` parameter. E.g. when the `-predicate-plugin` 
 parameter is
 
-    "mypred,datafile=/path/to/file,foo=bar"
+    mypred,datafile=/path/to/file,foo=bar
 
-the "mypred" plugin will receive
+the `mypred` plugin will receive
 
     []string{"datafile=/path/to/file", "foo=bar"}
 
@@ -114,7 +114,7 @@ Predicate plugins can be found in the [predicate repo](https://github.com/skippe
 
 ### Example predicate plugin
 
-An example "MatchAll" plugin looks like
+An example `MatchAll` plugin looks like
 
 ```go
 package main
@@ -152,7 +152,7 @@ function with the signature
 
     func([]string) (routing.DataClient, error)
 
-A "noop" data client looks like
+A `noop` data client looks like
 
 ```go
 package main
@@ -337,13 +337,13 @@ func (g *geoip) Match(r *http.Request) bool {
 
 ## OpenTracing plugins
 
-The tracers, except for "noop", are built as Go Plugins. A tracing plugin can
+The tracers, except for `noop`, are built as Go Plugins. A tracing plugin can
 be loaded with `-opentracing NAME` as parameter to skipper.
 
 Implementations of OpenTracing API can be found in the
 https://github.com/skipper-plugins/opentracing repository.
 
-All plugins must have a function named "InitTracer" with the following signature
+All plugins must have a function named `InitTracer` with the following signature
 
     func([]string) (opentracing.Tracer, error)
 
