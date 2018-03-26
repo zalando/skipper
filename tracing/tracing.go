@@ -44,7 +44,7 @@
 //
 //    go build -buildmode=plugin -o basic.so ./basic/basic.go
 //
-// and copied to the directory given as -plugindir (by default, ".").
+// and copied to the given as -plugindir (by default, "./plugins").
 //
 // Then it can be loaded with -opentracing basic as parameter to skipper.
 package tracing
@@ -58,7 +58,18 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 )
 
+func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer ot.Tracer, err error) {
+	for _, dir := range pluginDirs {
+		tracer, err = LoadPlugin(dir, opts)
+		if err == nil {
+			return tracer, nil
+		}
+	}
+	return nil, err
+}
+
 // LoadPlugin loads the given opentracing plugin and returns an opentracing.Tracer
+// DEPRECATED, use LoadTracingPlugin
 func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	if len(opts) == 0 {
 		return nil, errors.New("opentracing: the implementation parameter is mandatory")

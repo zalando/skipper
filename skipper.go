@@ -349,8 +349,24 @@ type Options struct {
 	// OpenTracing enables opentracing
 	OpenTracing []string
 
-	// PluginDir defines the dir to load plugins from
+	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
+	// PluginDirs defines the directories to load plugins from
+	PluginDirs []string
+
+	// FilterPlugins loads additional filters from modules. The first value in each []string
+	// needs to be the plugin name (as on disk, without path, without ".so" suffix). The
+	// following values are passed as arguments to the plugin while loading, see also
+	// https://zalando.github.io/skipper/plugins/
+	FilterPlugins [][]string
+
+	// PredicatePlugins loads additional predicates from modules. See above for FilterPlugins
+	// what the []string should contain.
+	PredicatePlugins [][]string
+
+	// DataClientPlugins loads additional data clients from modules. See above for FilterPlugins
+	// what the []string should contain.
+	DataClientPlugins [][]string
 
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
@@ -551,6 +567,10 @@ func Run(o Options) error {
 		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
 	}
 
+	if err := findAndLoadPlugins(&o); err != nil {
+		return err
+	}
+
 	// create data clients
 	dataClients, err := createDataClients(o, auth)
 	if err != nil {
@@ -712,8 +732,9 @@ func Run(o Options) error {
 		log.Infoln("Metrics are disabled")
 	}
 
+	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 	if len(o.OpenTracing) > 0 {
-		tracer, err := tracing.LoadPlugin(o.PluginDir, o.OpenTracing)
+		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, o.OpenTracing)
 		if err != nil {
 			return err
 		}
@@ -721,7 +742,7 @@ func Run(o Options) error {
 	} else {
 		// always have a tracer available, so filter authors can rely on the
 		// existence of a tracer
-		proxyParams.OpenTracer, _ = tracing.LoadPlugin(o.PluginDir, []string{"noop"})
+		proxyParams.OpenTracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
 	}
 
 	// create the proxy

@@ -208,6 +208,9 @@ var (
 	enableDualstackBackend          bool
 	tlsHandshakeTimeoutBackend      time.Duration
 	maxIdleConnsBackend             int
+	filterPlugins                   pluginFlags
+	predicatePlugins                pluginFlags
+	dataclientPlugins               pluginFlags
 )
 
 func init() {
@@ -271,7 +274,7 @@ func init() {
 	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
 	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
 	flag.StringVar(&openTracing, "opentracing", "noop", opentracingUsage)
-	flag.StringVar(&pluginDir, "plugindir", ".", pluginDirUsage)
+	flag.StringVar(&pluginDir, "plugindir", "", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
@@ -289,6 +292,9 @@ func init() {
 	flag.BoolVar(&enableDualstackBackend, "enable-dualstack-backend", true, enableDualstackBackendUsage)
 	flag.DurationVar(&tlsHandshakeTimeoutBackend, "tls-timeout-backend", defaultTLSHandshakeTimeoutBackend, tlsHandshakeTimeoutBackendUsage)
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
+	flag.Var(&filterPlugins, "filter-plugin", filterPluginUsage)
+	flag.Var(&predicatePlugins, "predicate-plugin", predicatePluginUsage)
+	flag.Var(&dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
 
 	flag.Parse()
 
@@ -396,7 +402,7 @@ func main() {
 		EnableRatelimiters:                  enableRatelimiters,
 		RatelimitSettings:                   ratelimits,
 		OpenTracing:                         strings.Split(openTracing, " "),
-		PluginDir:                           pluginDir,
+		PluginDirs:                          []string{"./plugins"},
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
@@ -409,6 +415,13 @@ func main() {
 		IdleTimeoutServer:                   idleTimeoutServer,
 		MaxHeaderBytes:                      maxHeaderBytes,
 		EnableConnMetricsServer:             enableConnMetricsServer,
+		FilterPlugins:                       filterPlugins.Get(),
+		PredicatePlugins:                    predicatePlugins.Get(),
+		DataClientPlugins:                   dataclientPlugins.Get(),
+	}
+
+	if pluginDir != "" {
+		options.PluginDirs = append(options.PluginDirs, pluginDir)
 	}
 
 	if insecure {

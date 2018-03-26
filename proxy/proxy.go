@@ -961,24 +961,21 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
-	ctx.startServe = time.Now()
-	ctx.tracer = p.openTracer
-
-	carrier := ot.HTTPHeadersCarrier(r.Header)
-	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, carrier)
 	var span ot.Span
+	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
 	if err == nil {
 		span = p.openTracer.StartSpan("ingress", ext.RPCServerOption(wireContext))
 	} else {
-		p.log.Debugf("extracting span from wire: %s", err)
 		span = p.openTracer.StartSpan("ingress")
 	}
 	ext.HTTPUrl.Set(span, r.URL.Path)
 	ext.HTTPMethod.Set(span, r.Method)
 	defer span.Finish()
+	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
-	ctx.request = ctx.request.WithContext(ot.ContextWithSpan(ctx.request.Context(), span))
+	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
+	ctx.startServe = time.Now()
+	ctx.tracer = p.openTracer
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
