@@ -123,6 +123,10 @@ type Options struct {
 	// File containing static route definitions.
 	RoutesFile string
 
+	// File containing route definitions with file watch enabled. (For the skipper
+	// command this option is used when starting it with the -routes-file flag.)
+	WatchRoutesFile string
+
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
 
@@ -406,6 +410,11 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			return nil, err
 		}
 
+		clients = append(clients, f)
+	}
+
+	if o.WatchRoutesFile != "" {
+		f := eskipfile.Watch(o.WatchRoutesFile)
 		clients = append(clients, f)
 	}
 

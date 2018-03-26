@@ -67,7 +67,7 @@ const (
 	oauthURLUsage                  = "OAuth2 URL for Innkeeper authentication"
 	oauthCredentialsDirUsage       = "directory where oauth credentials are stored: client.json and user.json"
 	oauthScopeUsage                = "the whitespace separated list of oauth scopes"
-	routesFileUsage                = "file containing static route definitions"
+	routesFileUsage                = "file containing route definitions"
 	inlineRoutesUsage              = "inline routes in eskip format"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
@@ -357,7 +357,7 @@ func main() {
 		KubernetesIngressClass:              kubernetesIngressClass,
 		InnkeeperUrl:                        innkeeperURL,
 		SourcePollTimeout:                   time.Duration(sourcePollTimeout) * time.Millisecond,
-		RoutesFile:                          routesFile,
+		WatchRoutesFile:                     routesFile,
 		InlineRoutes:                        inlineRoutes,
 		IdleConnectionsPerHost:              idleConnsPerHost,
 		CloseIdleConnsPeriod:                time.Duration(clsic) * time.Second,
