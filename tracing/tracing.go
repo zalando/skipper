@@ -58,8 +58,19 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 )
 
+func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer ot.Tracer, err error) {
+	for _, dir := range pluginDirs {
+		tracer, err = LoadPlugin(dir, opts)
+		if err == nil {
+			return tracer, nil
+		}
+	}
+	return nil, err
+}
+
 // LoadPlugin loads the given opentracing plugin and returns an opentracing.Tracer
-func LoadPlugin(pluginDirs []string, opts []string) (ot.Tracer, error) {
+// DEPRECATED, use LoadTracingPlugin
+func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	if len(opts) == 0 {
 		return nil, errors.New("opentracing: the implementation parameter is mandatory")
 	}
@@ -70,16 +81,8 @@ func LoadPlugin(pluginDirs []string, opts []string) (ot.Tracer, error) {
 		return &ot.NoopTracer{}, nil
 	}
 
-	var err error
-	var mod *plugin.Plugin
-	var pluginFile string
-	for _, dir := range pluginDirs {
-		pluginFile = filepath.Join(dir, impl+".so") // FIXME this is Linux and other ELF...
-		mod, err = plugin.Open(pluginFile)
-		if err == nil {
-			break
-		}
-	}
+	pluginFile := filepath.Join(pluginDir, impl+".so") // FIXME this is Linux and other ELF...
+	mod, err := plugin.Open(pluginFile)
 	if err != nil {
 		return nil, fmt.Errorf("open module %s: %s", pluginFile, err)
 	}

@@ -349,7 +349,9 @@ type Options struct {
 	// OpenTracing enables opentracing
 	OpenTracing []string
 
-	// PluginDir defines the directories to load plugins from
+	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
+	PluginDir string
+	// PluginDirs defines the directories to load plugins from
 	PluginDirs []string
 
 	// FilterPlugins loads additional filters from modules. The first value in each []string
@@ -569,7 +571,9 @@ func Run(o Options) error {
 		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
 	}
 
-	findAndLoadPlugins(&o)
+	if err := findAndLoadPlugins(&o); err != nil {
+		return err
+	}
 
 	// create data clients
 	dataClients, err := createDataClients(o, auth)
@@ -732,8 +736,9 @@ func Run(o Options) error {
 		log.Infoln("Metrics are disabled")
 	}
 
+	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 	if len(o.OpenTracing) > 0 {
-		tracer, err := tracing.LoadPlugin(o.PluginDirs, o.OpenTracing)
+		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, o.OpenTracing)
 		if err != nil {
 			return err
 		}
@@ -741,8 +746,7 @@ func Run(o Options) error {
 	} else {
 		// always have a tracer available, so filter authors can rely on the
 		// existence of a tracer
-		// NOTE: no need to change plugin dirs, this is "loaded" directly from the tracing/ package
-		proxyParams.OpenTracer, _ = tracing.LoadPlugin(o.PluginDirs, []string{"noop"})
+		proxyParams.OpenTracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
 	}
 
 	// create the proxy

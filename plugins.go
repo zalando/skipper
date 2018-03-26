@@ -2,6 +2,7 @@ package skipper
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"plugin"
@@ -11,12 +12,15 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-func findAndLoadPlugins(o *Options) {
+func findAndLoadPlugins(o *Options) error {
 	found := make(map[string]string)
 
 	for _, dir := range o.PluginDirs {
 		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
+			if err != nil {
+				log.Fatalf("failed to search for plugins: %s", err)
+			}
+			if info.IsDir() {
 				return nil
 			}
 			if strings.HasSuffix(path, ".so") {
@@ -58,13 +62,11 @@ func findAndLoadPlugins(o *Options) {
 		name := fltr[0]
 		path, ok := found[name]
 		if !ok {
-			fmt.Printf("filter plugin %s not found in plugin dirs\n", name)
-			continue
+			return fmt.Errorf("filter plugin %s not found in plugin dirs\n", name)
 		}
 		spec, err := LoadFilterPlugin(path, fltr[1:])
 		if err != nil {
-			fmt.Printf("failed to load plugin %s: %s\n", path, err)
-			continue
+			return fmt.Errorf("failed to load plugin %s: %s\n", path, err)
 		}
 		o.CustomFilters = append(o.CustomFilters, spec)
 		fmt.Printf("loaded plugin %s (%s) from %s\n", name, spec.Name(), path)
@@ -75,13 +77,11 @@ func findAndLoadPlugins(o *Options) {
 		name := pred[0]
 		path, ok := found[name]
 		if !ok {
-			fmt.Printf("predicate plugin %s not found in plugin dirs\n", name)
-			continue
+			return fmt.Errorf("predicate plugin %s not found in plugin dirs\n", name)
 		}
 		spec, err := LoadPredicatePlugin(path, pred[1:])
 		if err != nil {
-			fmt.Printf("failed to load plugin %s: %s\n", path, err)
-			continue
+			return fmt.Errorf("failed to load plugin %s: %s\n", path, err)
 		}
 		o.CustomPredicates = append(o.CustomPredicates, spec)
 		fmt.Printf("loaded plugin %s (%s) from %s\n", name, spec.Name(), path)
@@ -92,13 +92,11 @@ func findAndLoadPlugins(o *Options) {
 		name := pred[0]
 		path, ok := found[name]
 		if !ok {
-			fmt.Printf("data client plugin %s not found in plugin dirs\n", name)
-			continue
+			return fmt.Errorf("data client plugin %s not found in plugin dirs\n", name)
 		}
 		spec, err := LoadDataClientPlugin(path, pred[1:])
 		if err != nil {
-			fmt.Printf("failed to load plugin %s: %s\n", path, err)
-			continue
+			return fmt.Errorf("failed to load plugin %s: %s\n", path, err)
 		}
 		o.CustomDataClients = append(o.CustomDataClients, spec)
 		fmt.Printf("loaded plugin %s from %s\n", name, path)
@@ -109,15 +107,13 @@ func findAndLoadPlugins(o *Options) {
 		fmt.Printf("attempting to load plugin from %s\n", path)
 		mod, err := plugin.Open(path)
 		if err != nil {
-			fmt.Printf("open plugin %s from %s: %s\n", name, path, err)
-			continue
+			return fmt.Errorf("open plugin %s from %s: %s\n", name, path, err)
 		}
 
 		if sym, err := mod.Lookup("InitFilter"); err == nil {
 			spec, err := loadFilterPlugin(sym, path, []string{})
 			if err != nil {
-				fmt.Printf("filter plugin %s returned: %s\n", path, err)
-				continue
+				return fmt.Errorf("filter plugin %s returned: %s\n", path, err)
 			}
 			o.CustomFilters = append(o.CustomFilters, spec)
 			fmt.Printf("filter plugin %s loaded from %s\n", name, path)
@@ -126,8 +122,7 @@ func findAndLoadPlugins(o *Options) {
 		if sym, err := mod.Lookup("InitPredicate"); err == nil {
 			spec, err := loadPredicatePlugin(sym, path, []string{})
 			if err != nil {
-				fmt.Printf("predicate plugin %s returned: %s\n", path, err)
-				continue
+				return fmt.Errorf("predicate plugin %s returned: %s\n", path, err)
 			}
 			o.CustomPredicates = append(o.CustomPredicates, spec)
 			fmt.Printf("predicate plugin %s loaded from %s\n", name, path)
@@ -137,13 +132,13 @@ func findAndLoadPlugins(o *Options) {
 		if sym, err := mod.Lookup("InitDataClient"); err == nil {
 			spec, err := loadDataClientPlugin(sym, path, []string{})
 			if err != nil {
-				fmt.Printf("data client plugin %s returned: %s\n", path, err)
-				continue
+				return fmt.Errorf("data client plugin %s returned: %s\n", path, err)
 			}
 			o.CustomDataClients = append(o.CustomDataClients, spec)
 			fmt.Printf("data client plugin %s loaded from %s\n", name, path)
 		}
 	}
+	return nil
 }
 
 func LoadMultiPlugin(path string, args []string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error) {
