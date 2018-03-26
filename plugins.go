@@ -2,6 +2,7 @@ package skipper
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"plugin"
@@ -16,7 +17,10 @@ func findAndLoadPlugins(o *Options) error {
 
 	for _, dir := range o.PluginDirs {
 		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
+			if err != nil {
+				log.Fatalf("failed to search for plugins: %s", err)
+			}
+			if info.IsDir() {
 				return nil
 			}
 			if strings.HasSuffix(path, ".so") {
