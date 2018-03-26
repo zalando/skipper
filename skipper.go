@@ -571,7 +571,7 @@ func Run(o Options) error {
 		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
 	}
 
-	if err := findAndLoadPlugins(&o); err != nil {
+	if err := o.findAndLoadPlugins(); err != nil {
 		return err
 	}
 

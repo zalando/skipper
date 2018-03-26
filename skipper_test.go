@@ -208,3 +208,12 @@ func TestHTTPServer(t *testing.T) {
 		t.Fatalf("Failed to stream response body: %v", err)
 	}
 }
+
+func TestLoadPlugins(t *testing.T) {
+	o := Options{
+		PluginDirs: []string{"./_test_plugins"},
+	}
+	if err := o.findAndLoadPlugins(); err != nil {
+		t.Fatalf("Failed to load plugins: %s", err)
+	}
+}
