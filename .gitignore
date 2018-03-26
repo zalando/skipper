@@ -17,3 +17,4 @@ vendor
 linter.log
 site/
 plugins/
+_test_plugins/*.so

@@ -368,6 +368,10 @@ type Options struct {
 	// what the []string should contain.
 	DataClientPlugins [][]string
 
+	// MultiPlugins combine multiple types of the above plugin types in one plugin (where
+	// necessary because of shared data between e.g. a filter and a data client).
+	MultiPlugins [][]string
+
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
 	DefaultHTTPStatus int
@@ -567,7 +571,7 @@ func Run(o Options) error {
 		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
 	}
 
-	if err := findAndLoadPlugins(&o); err != nil {
+	if err := o.findAndLoadPlugins(); err != nil {
 		return err
 	}
 

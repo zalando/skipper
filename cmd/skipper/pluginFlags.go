@@ -8,6 +8,7 @@ const (
 	filterPluginUsage     = "set a custom filter plugins to load, a comma separated list of name and arguments"
 	predicatePluginUsage  = "set a custom predicate plugins to load, a comma separated list of name and arguments"
 	dataclientPluginUsage = "set a custom dataclient plugins to load, a comma separated list of name and arguments"
+	multiPluginUsage      = "set a custom multitype plugins to load, a comma separated list of name and arguments"
 )
 
 type pluginFlags struct {
