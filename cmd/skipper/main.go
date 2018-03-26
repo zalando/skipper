@@ -208,9 +208,9 @@ var (
 	enableDualstackBackend          bool
 	tlsHandshakeTimeoutBackend      time.Duration
 	maxIdleConnsBackend             int
-	filterPlugins                   filterFlags
-	predicatePlugins                predicateFlags
-	dataclientPlugins               dataclientFlags
+	filterPlugins                   pluginFlags
+	predicatePlugins                pluginFlags
+	dataclientPlugins               pluginFlags
 )
 
 func init() {
