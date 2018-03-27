@@ -37,6 +37,8 @@ const (
 	defaultRoutingUpdateBuffer = 1 << 5
 )
 
+const DefaultPluginDir = "./plugins"
+
 // Options to start skipper.
 type Options struct {
 
