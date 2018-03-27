@@ -402,7 +402,7 @@ func main() {
 		EnableRatelimiters:                  enableRatelimiters,
 		RatelimitSettings:                   ratelimits,
 		OpenTracing:                         strings.Split(openTracing, " "),
-		PluginDirs:                          []string{"./plugins"},
+		PluginDirs:                          []string{skipper.DefaultPluginDir},
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
