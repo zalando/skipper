@@ -7,4 +7,5 @@ ENV PATH $PATH:/usr/bin
 
 EXPOSE 9090 9911
 
+RUN mkdir plugins
 CMD ["/usr/bin/skipper"]
