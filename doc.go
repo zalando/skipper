@@ -352,7 +352,7 @@ Example, hello.go:
     }
 
 A file containing the routes, routes.eskip:
-    
+
     random:
         Random(.05) -> hello("fish?") -> "https://fish.example.org";
     hello:
