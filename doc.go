@@ -353,8 +353,9 @@ Example, hello.go:
 
 A file containing the routes, routes.eskip:
     
-    hello:
+    random:
         Random(.05) -> hello("fish?") -> "https://fish.example.org";
+    hello:
         * -> hello("world") -> "https://www.example.org"
 
 Start the custom router:
