@@ -11,7 +11,7 @@ Annotation | example data | usage
 zalando.org/backend-weights | `{"my-app-1": 80, "my-app-2": 20}` | blue-green deployments
 zalando.org/skipper-filter | `consecutiveBreaker(15)` | arbitrary filters
 zalando.org/skipper-predicate | `QueryParam("version", "^alpha$")` | arbitrary predicates
-zalando.org/skipper-routes | `Method("OPTIONS") -> stauts(200) -> <shunt>` | extra custom routes
+zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | extra custom routes
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
 
 ## Supported Service types
