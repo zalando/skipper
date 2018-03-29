@@ -158,6 +158,14 @@ Add a HTTP header in the response path of your clients.
 
     setResponseHeader("X-Foo", "bar")
 
+## Enable gzip
+
+Compress responses with gzip.
+
+    compress() // compress all valid MIME types
+    compress("text/html") // only compress HTML files
+    compress(9, "text/html") // control the level of compression, 1 = fastest, 9 = best compression, 0 = no compression
+
 ## Set the Path
 
 Change the path in the request path to your backend to `/newPath/`.
