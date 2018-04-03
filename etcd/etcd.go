@@ -31,8 +31,8 @@ package etcd
 import (
 	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
@@ -126,8 +126,8 @@ type Client struct {
 	client     *http.Client
 	etcdIndex  uint64
 	oauthToken string
-	username string
-	password string
+	username   string
+	password   string
 }
 
 var (
@@ -169,8 +169,8 @@ func New(o Options) (*Client, error) {
 		client:     httpClient,
 		etcdIndex:  0,
 		oauthToken: o.OAuthToken,
-		username: o.Username,
-		password: o.Password}, nil
+		username:   o.Username,
+		password:   o.Password}, nil
 }
 
 func isTimeout(err error) bool {
@@ -283,8 +283,8 @@ func (c *Client) etcdRequest(method, path, data string) (*response, error) {
 		if c.oauthToken != "" {
 			r.Header.Set("Authorization", "Bearer "+c.oauthToken)
 		} else if c.username != "" && c.password != "" {
-			credentials := base64.StdEncoding.EncodeToString([]byte(c.username+":"+c.password))
-			r.Header.Set("Authorization", "Basic "+ credentials)
+			credentials := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
+			r.Header.Set("Authorization", "Basic "+credentials)
 		}
 
 		return r, nil
