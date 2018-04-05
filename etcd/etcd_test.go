@@ -27,6 +27,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/etcd/etcdtest"
+	"encoding/base64"
 )
 
 func TestMain(m *testing.M) {
@@ -599,5 +600,56 @@ func TestLoadWithParseFailures(t *testing.T) {
 
 	if parseError == nil {
 		t.Error("failed to detect parse error")
+	}
+}
+
+func TestRequestWithOauthToken(t *testing.T) {
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}))
+	recorder := httptest.NewRecorder()
+	defer s.Close()
+
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "token", "", ""})
+
+	c.Delete("")
+	oAuthHeader := recorder.HeaderMap.Get("Authorization")
+	if oAuthHeader != "Bearer token" {
+		t.Error("Bearer token not set")
+	}
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+}
+
+func TestRequestWithBasicAuth(t *testing.T) {
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}))
+	recorder := httptest.NewRecorder()
+	defer s.Close()
+
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "user", "password"})
+
+	c.Delete("")
+	oAuthHeader := recorder.HeaderMap.Get("Authorization")
+
+	decodedArr, err := base64.StdEncoding.DecodeString(oAuthHeader)
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	decoded := string(decodedArr[:])
+	if decoded != "Basic user:password" {
+		t.Error("Bearer token not set")
+	}
+
+	if err != nil {
+		t.Error(err)
+		return
 	}
 }
