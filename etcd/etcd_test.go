@@ -271,7 +271,7 @@ func TestReceivesInitial(t *testing.T) {
 
 	expectedEndpoints := strings.Join(etcdtest.Urls, ";")
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "",""})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
