@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
+	"encoding/base64"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/etcd/etcdtest"
-	"encoding/base64"
 )
 
 func TestMain(m *testing.M) {
