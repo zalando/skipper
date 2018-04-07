@@ -11,6 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// NodeState represents the current state of a cluster node known by
+// this instance.
 type NodeState int
 
 const (
@@ -20,11 +22,19 @@ const (
 )
 
 const (
+	// DefaultMaxMessageBuffer is the default maximum size of the
+	// exchange packets send out to peers.
 	DefaultMaxMessageBuffer = 1 << 22
-	DefaultLeaveTimeout     = 180 * time.Millisecond
-	DefaultSwarmPort        = 9990
+	// DefaultSwarmPort is used as default to connect to other
+	// known swarm peers.
+	DefaultSwarmPort = 9990
+	// DefaultLeaveTimeout is the timeout to wait for responses
+	// for a leave message send by this instance to other peers.
+	DefaultLeaveTimeout = time.Duration(5 * time.Second)
 )
 
+// NodeInfo is a value object tat contains information about swarm
+// cluster nodes, that is required to access member nodes.
 type NodeInfo struct {
 	Name string
 	Addr net.IP
@@ -33,6 +43,15 @@ type NodeInfo struct {
 
 func (ni *NodeInfo) String() string {
 	return fmt.Sprintf("NodeInfo{%s, %s, %d}", ni.Name, ni.Addr, ni.Port)
+}
+
+func mapNodesToAddresses(n []*NodeInfo) []string {
+	var s []string
+	for i := range n {
+		s = append(s, fmt.Sprintf("%v:%d", n[i].Addr, n[i].Port))
+	}
+
+	return s
 }
 
 // Self can return itself as NodeInfo
@@ -45,107 +64,41 @@ type EntryPoint interface {
 	Nodes() []*NodeInfo
 }
 
-type KnownEPoint struct {
+// knownEntryPoint is the Kubernetes based implementation of the
+// interfaces Self and Entrypoint. It stores an initial list of peers
+// to connect to at the start.
+type knownEntryPoint struct {
 	self  *NodeInfo
 	nodes []*NodeInfo
 }
 
-type messageType int
-
-const (
-	sharedValue messageType = iota
-	broadcast
-)
-
-type message struct {
-	Type   messageType
-	Source string
-	Key    string
-	Value  interface{}
-}
-
-type outgoingMessage struct {
-	message *message
-	encoded []byte
-}
-
-type Message struct {
-	Source string
-	Value  interface{}
-}
-
-type reqOutgoing struct {
-	overhead int
-	limit    int
-	ret      chan [][]byte
-}
-
-type mlDelegate struct {
-	meta     []byte
-	outgoing chan<- reqOutgoing
-	incoming chan<- []byte
-}
-
-type Options struct {
-	// leaky, expected to be buffered, or errors are lost
-	Errors chan<- error
-
-	MaxMessageBuffer int
-
-	LeaveTimeout time.Duration
-
-	KubernetesAPIBaseURL string
-	Namespace            string
-	LabelSelectorKey     string
-	LabelSelectorValue   string
-}
-
-type sharedValues map[string]map[string]interface{}
-
-type valueReq struct {
-	key string
-	ret chan map[string]interface{}
-}
-
-type Swarm struct {
-	local            *NodeInfo
-	errors           chan<- error
-	maxMessageBuffer int
-	leaveTimeout     time.Duration
-
-	getOutgoing <-chan reqOutgoing
-	outgoing    chan *outgoingMessage
-	incoming    <-chan []byte
-	listeners   map[string]chan<- *Message
-	leave       chan struct{}
-	getValues   chan *valueReq
-
-	messages [][]byte
-	shared   sharedValues
-	mlist    *memberlist.Memberlist
-}
-
-func NewSwarm() (*Swarm, error) {
-	return Start(Options{
-		Errors:               make(chan<- error), // FIXME - do WE have to read this, or...?
-		MaxMessageBuffer:     100,
-		LeaveTimeout:         time.Duration(5 * time.Second),
-		KubernetesAPIBaseURL: "https://10.3.0.1",
-		Namespace:            "kube-system",
-		LabelSelectorKey:     "application",
-		LabelSelectorValue:   "skipper-ingress",
-	})
-}
-
-func NewKnownEntryPoint(o Options) *KnownEPoint {
-	nic := NewNodeInfoClient(o.KubernetesAPIBaseURL, o.Namespace, o.LabelSelectorKey, o.LabelSelectorValue)
+// newKnownEntryPoint returns a new knownEntryPoint that knows all
+// initial peers and itself. If it can not get a list of peers it will
+// fail fast.
+func newKnownEntryPoint(o Options) *knownEntryPoint {
+	nic := NewNodeInfoClient(o)
 	nodes, err := nic.GetNodeInfo()
 	if err != nil {
 		log.Fatalf("SWARM: Failed to get nodeinfo: %v", err)
 	}
 	self := getSelf(nodes)
 	log.Infof("SWARM: Join swarm self=%s, nodes=%v", self, nodes)
-	return &KnownEPoint{self: self, nodes: nodes}
+	return &knownEntryPoint{self: self, nodes: nodes}
+}
+
+// Node return its self
+func (e *knownEntryPoint) Node() *NodeInfo {
+	if e == nil {
+		return nil
+	}
+	return e.self
+}
+
+func (e *knownEntryPoint) Nodes() []*NodeInfo {
+	if e == nil {
+		return nil
+	}
+	return e.nodes
 }
 
 func getSelf(nodes []*NodeInfo) *NodeInfo {
@@ -169,74 +122,71 @@ func getSelf(nodes []*NodeInfo) *NodeInfo {
 	return nil
 }
 
-func (e *KnownEPoint) Node() *NodeInfo {
-	if e == nil {
-		return nil
-	}
-	return e.self
+// Options for swarm objects.
+type Options struct {
+	// leaky, expected to be buffered, or errors are lost
+	Errors chan<- error
+
+	MaxMessageBuffer int
+
+	LeaveTimeout time.Duration
+
+	KubernetesInCluster  bool
+	KubernetesAPIBaseURL string
+	Namespace            string
+	LabelSelectorKey     string
+	LabelSelectorValue   string
+	SwarmPort            int
 }
 
-func (e *KnownEPoint) Nodes() []*NodeInfo {
-	if e == nil {
-		return nil
-	}
-	return e.nodes
+// Swarm is the main type for exchanging low latency, weakly
+// consistent information.
+type Swarm struct {
+	local            *NodeInfo
+	errors           chan<- error
+	maxMessageBuffer int
+	leaveTimeout     time.Duration
+
+	getOutgoing <-chan reqOutgoing
+	outgoing    chan *outgoingMessage
+	incoming    <-chan []byte
+	listeners   map[string]chan<- *Message
+	leave       chan struct{}
+	getValues   chan *valueReq
+
+	messages [][]byte
+	shared   sharedValues
+	mlist    *memberlist.Memberlist
 }
 
-func (d *mlDelegate) NodeMeta(limit int) []byte {
-	if len(d.meta) > limit {
-		// TODO: would nil better here?
-		// documentation is unclear
-		return d.meta[:limit]
-	}
-
-	return d.meta
-}
-
-func (d *mlDelegate) NotifyMsg(m []byte) {
-	d.incoming <- m
-}
-
-// TODO: verify over TCP-only
-func (d *mlDelegate) GetBroadcasts(overhead, limit int) [][]byte {
-	req := reqOutgoing{
-		overhead: overhead,
-		limit:    limit,
-		ret:      make(chan [][]byte),
-	}
-	d.outgoing <- req
-	return <-req.ret
-}
-
-func (d *mlDelegate) LocalState(bool) []byte                 { return nil }
-func (d *mlDelegate) MergeRemoteState(buf []byte, join bool) {}
-
-func mapNodesToAddresses(n []*NodeInfo) []string {
-	var s []string
-	for i := range n {
-		s = append(s, fmt.Sprintf("%v:%d", n[i].Addr, n[i].Port))
+func NewSwarm(kubernetesInCluster bool, kubernetesURL string) (*Swarm, error) {
+	u, err := buildAPIURL(kubernetesInCluster, kubernetesURL)
+	if err != nil {
+		log.Fatalf("Failed to build kubernetes API url from url %s running in cluster %v: %v", kubernetesURL, kubernetesInCluster, err)
 	}
 
-	return s
-}
-
-// the top level map is used internally, we can use it as mutable
-// the leaf maps are shared, we need to clone those
-func (sv sharedValues) set(source, key string, value interface{}) {
-	prev := sv[key]
-	sv[key] = make(map[string]interface{})
-	for s, v := range prev {
-		sv[key][s] = v
+	o := Options{
+		Errors:               make(chan<- error), // FIXME - do WE have to read this, or...?
+		MaxMessageBuffer:     DefaultMaxMessageBuffer,
+		LeaveTimeout:         DefaultLeaveTimeout,
+		KubernetesInCluster:  kubernetesInCluster,
+		KubernetesAPIBaseURL: u,
+		Namespace:            DefaultNamespace,
+		LabelSelectorKey:     DefaultLabelSelctorKey,
+		LabelSelectorValue:   DefaultLabelSelctorValue,
+		SwarmPort:            DefaultSwarmPort,
 	}
-
-	sv[key][source] = value
+	return Start(o)
 }
 
+// Start will find Swarm peers and join them.
 func Start(o Options) (*Swarm, error) {
-	knownEntryPoint := NewKnownEntryPoint(o)
+	knownEntryPoint := newKnownEntryPoint(o)
 	return Join(o, knownEntryPoint.Node(), knownEntryPoint.Nodes())
 }
 
+// Join will join given Swarm peers and return an initialiazed Swarm
+// object if successful.
 func Join(o Options, self *NodeInfo, nodes []*NodeInfo) (*Swarm, error) {
 	log.Infof("SWARM: Going to join swarm of %d nodes, self=%s", len(nodes), self)
 	c := memberlist.DefaultLocalConfig()
@@ -316,56 +266,10 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo) (*Swarm, error) {
 	return s, nil
 }
 
-func reverse(b [][]byte) [][]byte {
-	for i := range b[:len(b)/2] {
-		b[i], b[len(b)-1-i] = b[len(b)-1-i], b[i]
-	}
-
-	return b
-}
-
-func takeMaxLatest(b [][]byte, overhead, max int) [][]byte {
-	var (
-		bb   [][]byte
-		size int
-	)
-
-	for i := range b {
-		bli := b[len(b)-i-1]
-
-		if size+len(bli)+overhead > max {
-			break
-		}
-
-		bb = append(bb, bli)
-		size += len(bli) + overhead
-	}
-
-	return reverse(bb)
-}
-
-func encodeMessage(m *message) ([]byte, error) {
-	// we're not saving the encoder together with the connections, because
-	// even if the reflection info would be cached, it's very fragile and
-	// complicated. These messages should be small, it should be OK to pay
-	// this cost.
-
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(m)
-	return buf.Bytes(), err
-}
-
-func decodeMessage(b []byte) (*message, error) {
-	var m message
-	dec := gob.NewDecoder(bytes.NewBuffer(b))
-	err := dec.Decode(&m)
-	return &m, err
-}
-
+// control is the control loop of a Swarm member.
 func (s *Swarm) control() {
 	for {
-		// TODO: regularly check the available instances
+		// TODO: regularly check the available instances <- Do we need this?
 
 		select {
 		case req := <-s.getOutgoing:
@@ -373,6 +277,7 @@ func (s *Swarm) control() {
 			if len(s.messages) > 0 {
 				log.Infof("SWARM: getOutgoing %d messages", len(s.messages))
 			} else {
+				// XXX(sszuecs): does this happen?
 				log.Debug("SWARM: getOutgoing with 0 messages")
 			}
 			req.ret <- s.messages
@@ -428,6 +333,7 @@ func (s *Swarm) control() {
 	}
 }
 
+// Local is a getter to the local member of a swarm.
 // TODO: memberlist has support for this, less redundant to use that
 func (s *Swarm) Local() *NodeInfo { return s.local }
 
@@ -445,16 +351,21 @@ func (s *Swarm) broadcast(m *message) error {
 	return nil
 }
 
+// Broadcast sends a broadcast message with a value to all peers.
 func (s *Swarm) Broadcast(m interface{}) error {
 	return s.broadcast(&message{Type: broadcast, Value: m})
 }
 
+// ShareValue sends a broadcast message with a sharedValue to all peers.
 func (s *Swarm) ShareValue(key string, value interface{}) error {
 	return s.broadcast(&message{Type: sharedValue, Key: key, Value: value})
 }
 
+// DeleteValue does nothing, but implements an interface.
 func (s *Swarm) DeleteValue(string) error { return nil }
 
+// Values implements an interface to send a request and wait blocking
+// for a response.
 func (s *Swarm) Values(key string) map[string]interface{} {
 	req := &valueReq{
 		key: key,
@@ -464,13 +375,151 @@ func (s *Swarm) Values(key string) map[string]interface{} {
 	return <-req.ret
 }
 
-func (s *Swarm) Members() []*NodeInfo            { return nil }
-func (s *Swarm) State() NodeState                { return Initial }
-func (s *Swarm) Instances() map[string]NodeState { return nil }
+// XXX(sszuecs): required? seems not
+// func (s *Swarm) Members() []*NodeInfo            { return nil }
+// func (s *Swarm) State() NodeState                { return Initial }
+// func (s *Swarm) Instances() map[string]NodeState { return nil }
 
 // assumed to buffered or may drop
 func (s *Swarm) Listen(key string, c chan<- *Message) {}
 
 func (s *Swarm) Leave() {
 	close(s.leave)
+}
+
+type messageType int
+
+const (
+	sharedValue messageType = iota
+	broadcast
+)
+
+type message struct {
+	Type   messageType
+	Source string
+	Key    string
+	Value  interface{}
+}
+
+type outgoingMessage struct {
+	message *message
+	encoded []byte
+}
+
+type Message struct {
+	Source string
+	Value  interface{}
+}
+
+type reqOutgoing struct {
+	overhead int
+	limit    int
+	ret      chan [][]byte
+}
+
+// mlDelegate is a memberlist delegate
+type mlDelegate struct {
+	meta     []byte
+	outgoing chan<- reqOutgoing
+	incoming chan<- []byte
+}
+
+type sharedValues map[string]map[string]interface{}
+
+type valueReq struct {
+	key string
+	ret chan map[string]interface{}
+}
+
+// NodeMeta implements a memberlist delegate
+func (d *mlDelegate) NodeMeta(limit int) []byte {
+	if len(d.meta) > limit {
+		// TODO: would nil better here?
+		// documentation is unclear
+		return d.meta[:limit]
+	}
+
+	return d.meta
+}
+
+// NotifyMsg implements a memberlist delegate
+func (d *mlDelegate) NotifyMsg(m []byte) {
+	d.incoming <- m
+}
+
+// GetBroadcasts implements a memberlist delegate
+// TODO: verify over TCP-only
+func (d *mlDelegate) GetBroadcasts(overhead, limit int) [][]byte {
+	req := reqOutgoing{
+		overhead: overhead,
+		limit:    limit,
+		ret:      make(chan [][]byte),
+	}
+	d.outgoing <- req
+	return <-req.ret
+}
+
+// LocalState implements a memberlist delegate
+func (d *mlDelegate) LocalState(bool) []byte { return nil }
+
+// MergeRemoteState implements a memberlist delegate
+func (d *mlDelegate) MergeRemoteState(buf []byte, join bool) {}
+
+// the top level map is used internally, we can use it as mutable
+// the leaf maps are shared, we need to clone those
+func (sv sharedValues) set(source, key string, value interface{}) {
+	prev := sv[key]
+	sv[key] = make(map[string]interface{})
+	for s, v := range prev {
+		sv[key][s] = v
+	}
+
+	sv[key][source] = value
+}
+
+func reverse(b [][]byte) [][]byte {
+	for i := range b[:len(b)/2] {
+		b[i], b[len(b)-1-i] = b[len(b)-1-i], b[i]
+	}
+
+	return b
+}
+
+func takeMaxLatest(b [][]byte, overhead, max int) [][]byte {
+	var (
+		bb   [][]byte
+		size int
+	)
+
+	for i := range b {
+		bli := b[len(b)-i-1]
+
+		if size+len(bli)+overhead > max {
+			break
+		}
+
+		bb = append(bb, bli)
+		size += len(bli) + overhead
+	}
+
+	return reverse(bb)
+}
+
+func encodeMessage(m *message) ([]byte, error) {
+	// we're not saving the encoder together with the connections, because
+	// even if the reflection info would be cached, it's very fragile and
+	// complicated. These messages should be small, it should be OK to pay
+	// this cost.
+
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(m)
+	return buf.Bytes(), err
+}
+
+func decodeMessage(b []byte) (*message, error) {
+	var m message
+	dec := gob.NewDecoder(bytes.NewBuffer(b))
+	err := dec.Decode(&m)
+	return &m, err
 }

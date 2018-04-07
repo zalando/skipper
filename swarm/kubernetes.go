@@ -1,5 +1,7 @@
 package swarm
 
+// TODO: remove me - file is used, no dead code
+
 import (
 	"bytes"
 	"crypto/tls"
@@ -19,8 +21,9 @@ import (
 )
 
 const (
-	DefaultNamespace    = "kube-system"
-	DefaultEndpointName = "skipper-ingress"
+	DefaultNamespace         = "kube-system"
+	DefaultLabelSelctorKey   = "application"
+	DefaultLabelSelctorValue = "skipper-ingress"
 
 	defaultKubernetesURL    = "http://localhost:8001"
 	endpointURIFmt          = "/api/v1/namespaces/%s/endpoints/%s"
@@ -218,7 +221,7 @@ func (c *Client) createRequest(method, url string, body io.Reader) (*http.Reques
 	return req, nil
 }
 
-// types copied from dataclient/kubernetes/definitions.go
+// The following types and code are copied from dataclient/kubernetes/definitions.go
 type endpoint struct {
 	Subsets []*subset `json:"subsets"`
 }

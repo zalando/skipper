@@ -8,13 +8,13 @@ import (
 )
 
 func TestInitializeSwarm(t *testing.T) {
-	ep1 := &KnownEPoint{
+	ep1 := &knownEntryPoint{
 		self: &NodeInfo{Name: "first", Port: 9933},
 	}
-	ep2 := &KnownEPoint{
+	ep2 := &knownEntryPoint{
 		self: &NodeInfo{Name: "second", Port: 9934},
 	}
-	ep3 := &KnownEPoint{
+	ep3 := &knownEntryPoint{
 		self: &NodeInfo{Name: "third", Port: 9935},
 	}
 	all := []*NodeInfo{ep1.Node(), ep2.Node(), ep3.Node()}

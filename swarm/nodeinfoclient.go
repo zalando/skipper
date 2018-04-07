@@ -1,5 +1,7 @@
 package swarm
 
+// TODO: remove me - file is used, no dead code
+
 import (
 	"bytes"
 	"encoding/json"
@@ -22,21 +24,21 @@ type NodeInfoClient struct {
 	port                int
 }
 
-func NewNodeInfoClient(kubeAPIBaseURL, ns, labelKey, labelVal string) *NodeInfoClient {
+func NewNodeInfoClient(o Options) *NodeInfoClient {
 	log.Debug("SWARM: NewNodeInfoClient")
-	cli, err := NewClient(true, kubeAPIBaseURL)
+	cli, err := NewClient(o.KubernetesInCluster, o.KubernetesAPIBaseURL)
 	if err != nil {
 		log.Fatalf("SWARM: failed to create kubernetes client: %v", err)
 	}
 
 	return &NodeInfoClient{
-		kubernetesInCluster: true,
-		kubeAPIBaseURL:      kubeAPIBaseURL,
 		client:              cli,
-		namespace:           ns,
-		labelKey:            labelKey,
-		labelVal:            labelVal,
-		port:                DefaultSwarmPort,
+		kubernetesInCluster: o.KubernetesInCluster,
+		kubeAPIBaseURL:      o.KubernetesAPIBaseURL,
+		namespace:           o.Namespace,
+		labelKey:            o.LabelSelectorKey,
+		labelVal:            o.LabelSelectorValue,
+		port:                o.SwarmPort,
 	}
 }
 
@@ -72,6 +74,9 @@ func (c *NodeInfoClient) nodeInfoURL() (string, error) {
 	return u.String(), nil
 }
 
+// GetNodeInfo returns a list of peers to join from an external
+// service discovery source. Right now, the only source is hardcoded
+// to be Kubernetes.
 func (c *NodeInfoClient) GetNodeInfo() ([]*NodeInfo, error) {
 	u, err := c.nodeInfoURL()
 	if err != nil {

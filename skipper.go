@@ -767,7 +767,7 @@ func Run(o Options) error {
 
 	var theSwarm *swarm.Swarm
 	if o.EnableSwarm {
-		theSwarm, err = swarm.NewSwarm()
+		theSwarm, err = swarm.NewSwarm(o.KubernetesInCluster, o.KubernetesURL)
 		if err != nil {
 			log.Errorf("failed to init swarm: %s", err)
 			return err
