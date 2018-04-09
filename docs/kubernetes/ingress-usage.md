@@ -240,6 +240,25 @@ a unique value. Read more about this in our
 
      flowId("reuse")
 
+# Filters - return fast
+
+Sometimes you just want to return a header, redirect or even static
+html content. You can return from skipper without doing a proxy call
+to a backend, if you end your filter chain with `<shunt>`.
+
+## Return static content
+
+The following example sets a response header `X: bar`, a response body
+`<html><body>hello</body></html>` and a
+HTTP status code 200:
+
+    zalando.org/skipper-filter: |
+      setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
+
+Keep in mind you need a valid backend definition to backends which are
+available, otherwise Skipper would not accept the entire route
+definition from the ingress object for safety reasons.
+
 # Filters - reliability features
 
 Filters can modify http requests and responses. There are plenty of
