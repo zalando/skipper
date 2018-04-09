@@ -14,15 +14,16 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"regexp"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/eskip"
 )
 
 const (
-	DefaultNamespace         = "kube-system"
-	DefaultLabelSelctorKey   = "application"
+	// DefaultNamespace is the default namespace where swarm searches for peer information
+	DefaultNamespace = "kube-system"
+	// DefaultLabelSelctorKey is the default label key to select PODs for peer information
+	DefaultLabelSelctorKey = "application"
+	// DefaultLabelSelctorValue is the default label value to select PODs for peer information
 	DefaultLabelSelctorValue = "skipper-ingress"
 
 	defaultKubernetesURL    = "http://localhost:8001"
@@ -40,19 +41,16 @@ var (
 	errEndpointNotFound     = errors.New("endpoint not found")
 )
 
+// Client is the client to access kubernetes resources to find the
+// peers to join a swarm.
 type Client struct {
-	httpClient             *http.Client
-	apiURL                 string
-	provideHealthcheck     bool
-	provideHTTPSRedirect   bool
-	token                  string
-	current                map[string]*eskip.Route
-	termReceived           bool
-	sigs                   chan os.Signal
-	ingressClass           *regexp.Regexp
-	reverseSourcePredicate bool
+	httpClient *http.Client
+	apiURL     string
+	token      string
 }
 
+// Get does the http GET call to kubernetes API to find the initial
+// peers of a swarm.
 func (c *Client) Get(s string) (*http.Response, error) {
 	req, err := c.createRequest("GET", s, nil)
 	if err != nil {
@@ -67,7 +65,7 @@ func (c *Client) Get(s string) (*http.Response, error) {
 	return rsp, err
 }
 
-// New creates and initializes a Kubernetes DataClient.
+// NewClient creates and initializes a Kubernetes DataClient.
 func NewClient(kubernetesInCluster bool, kubernetesURL string) (*Client, error) {
 	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, kubernetesInCluster)
 	if err != nil {

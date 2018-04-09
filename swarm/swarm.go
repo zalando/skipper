@@ -76,7 +76,7 @@ type knownEntryPoint struct {
 // initial peers and itself. If it can not get a list of peers it will
 // fail fast.
 func newKnownEntryPoint(o Options) *knownEntryPoint {
-	nic := NewNodeInfoClient(o)
+	nic := NewnodeInfoClient(o)
 	nodes, err := nic.GetNodeInfo()
 	if err != nil {
 		log.Fatalf("SWARM: Failed to get nodeinfo: %v", err)
