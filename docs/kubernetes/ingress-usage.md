@@ -248,17 +248,16 @@ to a backend, if you end your filter chain with `<shunt>`.
 
 ## Return static content
 
-To set a response header `X: bar`, return
-`<html><body>hello</body></html>` in the HTTP response body and return
-HTTP status code 200 from ingress itself, you can use the following
-filter chain:
+The following example sets a response header `X: bar`, a response body
+`<html><body>hello</body></html>` and a
+HTTP status code 200:
 
     zalando.org/skipper-filter: |
       setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
 
 Keep in mind you need a valid backend definition to backends which are
-available, otherwise Skipper would not populate the route for safety
-reasons.
+available, otherwise Skipper would not accept the entire route
+definition from the ingress object for safety reasons.
 
 # Filters - reliability features
 
