@@ -18,5 +18,7 @@
 //     group Membership protocol is a protocol used for maintaining
 //     membership amongst processes in a distributed system.
 //
-//
+// While starting skipper, it will find its swarm peers through the
+// Kubernetes API server. It will do a label selector query to find
+// PODs of the swarm.
 package swarm
