@@ -8,13 +8,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func newFakeNodeInfoClient(url string) *NodeInfoClient {
+func newFakeNodeInfoClient(url string) *nodeInfoClient {
 	cli, err := NewClient(false, url)
 	if err != nil {
 		log.Fatalf("failed to create kubernetes client: %v", err)
 	}
 
-	return &NodeInfoClient{
+	return &nodeInfoClient{
 		kubernetesInCluster: false,
 		kubeAPIBaseURL:      url,
 		client:              cli,
