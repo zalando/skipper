@@ -1,8 +1,8 @@
 // Package swarm implements functionality to exchange information
-// between skipper instances. It is meant for low latency, weakly
-// consistent data. As an example tere is the filter clusterRatelimit
-// implementation, that uses swarm data exchnage to have a global
-// state of current requests.
+// between skipper instances. It is meant for multiple readers and
+// writers, with low latency, weakly consistent data. As an example
+// tere is the filter clusterRatelimit implementation, that uses swarm
+// data exchange to have a global state of current requests.
 //
 // Background information:
 //
