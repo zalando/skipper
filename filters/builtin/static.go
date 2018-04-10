@@ -30,7 +30,7 @@ func (spec *static) Name() string { return StaticName }
 // prefix and file system root.
 func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 	if len(config) != 2 {
-		return nil, fmt.Errorf("invalid number of args: %d, expected 1", len(config))
+		return nil, fmt.Errorf("invalid number of args: %d, expected 2", len(config))
 	}
 
 	webRoot, ok := config[0].(string)
