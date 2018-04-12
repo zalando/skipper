@@ -1,8 +1,10 @@
-// Package swarm implements functionality to exchange information
-// between skipper instances. It is meant for multiple readers and
-// writers, with low latency, weakly consistent data. As an example
-// there is the filter clusterRatelimit implementation, that uses swarm
-// data exchange to have a global state of current requests.
+// Package swarm implements the exchange of information between
+// Skipper instances using a gossip protocol with name swim.  This
+// aims at a solution that can work in a context of multiple readers
+// and writers, with the guarantee of low latency, weakly consistent
+// data, from which derives the decision to use such protocol. As an
+// example the implementation of the filter `clusterRatelimit` uses
+// the swarm data exchange to have a global state of current requests.
 //
 // Background information:
 //
@@ -18,7 +20,7 @@
 //     group Membership protocol is a protocol used for maintaining
 //     membership amongst processes in a distributed system.
 //
-// While starting skipper, it will find its swarm peers through the
-// Kubernetes API server. It will do a label selector query to find
-// PODs of the swarm.
+// While starting, Skipper will find its swarm peers through the
+// Kubernetes API server. It will do that using a label selector query
+// to find PODs of the swarm.
 package swarm
