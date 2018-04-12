@@ -3,10 +3,12 @@ package loadbalancer_test
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
@@ -161,6 +163,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 
 	startBackend := func(content []byte) *httptest.Server {
 		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
 			w.Write(content)
 		}))
 	}
@@ -188,13 +191,12 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 		baseRoutes[app] = &eskip.Route{
 			Id:   app,
 			Path: fmt.Sprintf("/%s", app),
-			//Backend: eskip.LoopBackend,
 		}
 		routes = append(routes, loadbalancer.BalanceRoute(baseRoutes[app], backends[app])...)
 	}
 
 	for _, r := range routes {
-		t.Log("r")
+		t.Log(r.String())
 	}
 
 	p := proxytest.New(builtin.MakeRegistry(), routes...)
