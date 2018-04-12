@@ -28,7 +28,7 @@ type memberPredicate struct {
 }
 
 func getGroupDecision(h http.Header, group string) (string, bool) {
-	for _, header := range h[decisionHeader] {
+	for _, header := range h[DecisionHeader] {
 		decision := strings.Split(header, "=")
 		if len(decision) != 2 {
 			continue

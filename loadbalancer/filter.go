@@ -6,9 +6,10 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const DecideFilterName = "lbDecide"
-
-const decisionHeader = "X-Load-Balancer-Member"
+const (
+	DecideFilterName = "lbDecide"
+	DecisionHeader   = "X-Load-Balancer-Member"
+)
 
 type counter chan int
 
@@ -78,7 +79,7 @@ func (s *decideSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 func (f *decideFilter) Request(ctx filters.FilterContext) {
 	current := f.counter.inc(f.size)
-	ctx.Request().Header.Set(decisionHeader, fmt.Sprintf("%s=%d", f.group, current))
+	ctx.Request().Header.Set(DecisionHeader, fmt.Sprintf("%s=%d", f.group, current))
 }
 
 func (f *decideFilter) Response(filters.FilterContext) {}
