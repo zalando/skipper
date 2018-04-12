@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/loadbalancer"
@@ -183,13 +184,17 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 			defer b.Close()
 			backends[app] = append(backends[app], b.URL)
 		}
+	}
 
+	for _, app := range apps {
 		baseRoutes[app] = &eskip.Route{
-			Id:      app,
-			Backend: "https://" + app,
+			Id: app,
+			//Backend: eskip.LoopBackend,
 		}
-
 		routes = append(routes, loadbalancer.BalanceRoute(baseRoutes[app], backends[app])...)
+	}
+	for _, r := range routes {
+		log.Infof("%s", r)
 	}
 
 	p := proxytest.New(builtin.MakeRegistry(), routes...)
