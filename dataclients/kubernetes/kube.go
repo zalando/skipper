@@ -444,6 +444,12 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 					idx, // index within the group
 				},
 			}},
+			Filters: []*eskip.Filter{{
+				Name: builtin.DropRequestHeaderName,
+				Args: []interface{}{
+					loadbalancer.DecisionHeader,
+				},
+			}},
 		}
 		routes = append(routes, r)
 	}
@@ -598,6 +604,12 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 				Args: []interface{}{
 					group,
 					idx, // index within the group
+				},
+			}},
+			Filters: []*eskip.Filter{{
+				Name: builtin.DropRequestHeaderName,
+				Args: []interface{}{
+					loadbalancer.DecisionHeader,
 				},
 			}},
 		}
