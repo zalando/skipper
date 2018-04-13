@@ -195,10 +195,6 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 		routes = append(routes, loadbalancer.BalanceRoute(baseRoutes[app], backends[app])...)
 	}
 
-	for _, r := range routes {
-		t.Log(r.String())
-	}
-
 	p := proxytest.New(builtin.MakeRegistry(), routes...)
 	defer p.Close()
 
@@ -269,8 +265,6 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 				if d < 0 {
 					d = 0 - d
 				}
-
-				t.Logf("counter - %s %s: %d diff=%d", app, member, counter.value(), d)
 
 				if d > distributionTolerance {
 					t.Error(
