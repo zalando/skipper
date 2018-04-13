@@ -270,6 +270,8 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 					d = 0 - d
 				}
 
+				t.Logf("counter - %s %s: %d diff=%d", app, member, counter.value(), d)
+
 				if d > distributionTolerance {
 					t.Error(
 						"failed to equally balance load across 2 different lb routes, counters:",
