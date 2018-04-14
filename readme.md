@@ -377,6 +377,8 @@ that is used to build skipper's [opentracing package](https://github.com/skipper
 
 User or developer questions can be asked in our [public Google Group](https://groups.google.com/forum/#!forum/skipper-router)
 
+We also have a slack channel #skipper in gophers.slack.com. Get an invite at [gophers official invite page](https://invite.slack.golangbridge.org).
+
 ### Proposals
 
 We do our proposals open in [Skipper's Google drive](https://drive.google.com/drive/folders/0B9LwJMF9koB-ZEk4bEhZal9uOWM).
