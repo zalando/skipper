@@ -1065,7 +1065,8 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
 		if healthy != c.healthy {
-			hc := healthcheckRoute(healthy, c.reverseSourcePredicate)
+			c.healthy = healthy
+			hc := healthcheckRoute(c.healthy, c.reverseSourcePredicate)
 			next[healthcheckRouteID] = hc
 			updatedRoutes = append(updatedRoutes, hc)
 		}

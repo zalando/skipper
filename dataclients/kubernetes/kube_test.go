@@ -1576,7 +1576,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true, false)
+		checkHealthcheck(t, r, false, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1604,7 +1604,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true, false)
+		checkHealthcheck(t, r, false, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
