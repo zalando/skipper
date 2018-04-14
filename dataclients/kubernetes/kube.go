@@ -116,6 +116,7 @@ type Client struct {
 	httpClient             *http.Client
 	apiURL                 string
 	provideHealthcheck     bool
+	healthy                bool
 	provideHTTPSRedirect   bool
 	token                  string
 	current                map[string]*eskip.Route
@@ -1010,8 +1011,8 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
-		healthy := !c.hasReceivedTerm()
-		r = append(r, healthcheckRoute(healthy, c.reverseSourcePredicate))
+		c.healthy = !c.hasReceivedTerm()
+		r = append(r, healthcheckRoute(c.healthy, c.reverseSourcePredicate))
 	}
 
 	if c.provideHTTPSRedirect {
@@ -1063,9 +1064,11 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
-		hc := healthcheckRoute(healthy, c.reverseSourcePredicate)
-		next[healthcheckRouteID] = hc
-		updatedRoutes = append(updatedRoutes, hc)
+		if healthy != c.healthy {
+			hc := healthcheckRoute(healthy, c.reverseSourcePredicate)
+			next[healthcheckRouteID] = hc
+			updatedRoutes = append(updatedRoutes, hc)
+		}
 	}
 
 	c.current = next
