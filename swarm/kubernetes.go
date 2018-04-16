@@ -1,7 +1,5 @@
 package swarm
 
-// TODO: remove me - file is used, no dead code
-
 import (
 	"bytes"
 	"crypto/tls"
