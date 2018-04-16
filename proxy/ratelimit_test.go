@@ -71,7 +71,7 @@ func TestCheckDisableRateLimit(t *testing.T) {
 	fr := builtin.MakeRegistry()
 	backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer backend.Close()
-	r := []*eskip.Route{&eskip.Route{Backend: backend.URL}}
+	r := []*eskip.Route{{Backend: backend.URL}}
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
 		RateLimiters: ratelimit.NewRegistry(ratelimit.Settings{
@@ -130,7 +130,7 @@ func TestCheckLocalRateLimit(t *testing.T) {
 	fr := builtin.MakeRegistry()
 	backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer backend.Close()
-	r := []*eskip.Route{&eskip.Route{Backend: backend.URL}}
+	r := []*eskip.Route{{Backend: backend.URL}}
 	timeWindow := 1 * time.Second
 	ratelimitSettings := ratelimit.Settings{
 		Type:          ratelimit.LocalRatelimit,
@@ -218,7 +218,7 @@ func TestCheckServiceRateLimit(t *testing.T) {
 	fr := builtin.MakeRegistry()
 	backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer backend.Close()
-	r := []*eskip.Route{&eskip.Route{Backend: backend.URL}}
+	r := []*eskip.Route{{Backend: backend.URL}}
 	timeWindow := 1 * time.Second
 	ratelimitSettings := ratelimit.Settings{
 		Type:       ratelimit.ServiceRatelimit,

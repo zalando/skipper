@@ -74,6 +74,7 @@ const (
 	etcdPrefixUsage     = "path prefix for routes in etcd"
 	innkeeperUrlUsage   = "url for the innkeeper service"
 	oauthTokenUsage     = "oauth token used to authenticate to innkeeper"
+	etcdOAuthTokenUsage = "oauth token used to authenticate to etcd"
 	inlineRoutesUsage   = "inline: routes in eskip format"
 	inlineIdsUsage      = "inline ids: comma separated route ids"
 	insecureUsage       = "skip TLS certificate verification"
@@ -82,6 +83,7 @@ const (
 	appendFiltersUsage  = "append filters to each patched route"
 	appendFileUsage     = "append filters from a file to each patched route"
 	prettyUsage         = "prints routes in a more readable format"
+	indentStrUsage      = "indent string used in pretty printing. Must match regexp \\s"
 	jsonUsage           = "prints routes as JSON"
 
 	// command line help (1):

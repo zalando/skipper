@@ -70,7 +70,7 @@ func TestConvertHostEmpty(t *testing.T) {
 
 func TestConvertHeaderMatchers(t *testing.T) {
 	route := &eskip.Route{
-		HeaderRegexps: map[string][]string{"header": []string{"first"}},
+		HeaderRegexps: map[string][]string{"header": {"first"}},
 		Headers:       map[string]string{"header1": "second"}}
 
 	headerMatchers := convertHeaderMatchers(route)
@@ -94,8 +94,8 @@ func TestConvertHeaderMatchersEmpty(t *testing.T) {
 
 func TestConvertFilWithArgs(t *testing.T) {
 	route := &eskip.Route{Filters: []*eskip.Filter{
-		&eskip.Filter{Name: "filter1", Args: []interface{}{"Hello", 1}},
-		&eskip.Filter{Name: "filter2", Args: []interface{}{2, "Hello1", "World"}},
+		{Name: "filter1", Args: []interface{}{"Hello", 1}},
+		{Name: "filter2", Args: []interface{}{2, "Hello1", "World"}},
 	}}
 
 	filters := convertFil(route)
@@ -113,8 +113,8 @@ func TestConvertFilWithArgs(t *testing.T) {
 
 func TestConvertFilWithoutArgs(t *testing.T) {
 	route := &eskip.Route{Filters: []*eskip.Filter{
-		&eskip.Filter{Name: "filter1", Args: []interface{}{}},
-		&eskip.Filter{Name: "filter2"},
+		{Name: "filter1", Args: []interface{}{}},
+		{Name: "filter2"},
 	}}
 
 	filters := convertFil(route)
@@ -155,11 +155,11 @@ func TestConvertEskipToInnkeeper(t *testing.T) {
 		HostRegexps:   []string{"www.matcher.com"},
 		Method:        "GET",
 		PathRegexps:   []string{"/hello*"},
-		HeaderRegexps: map[string][]string{"header": []string{"first"}},
+		HeaderRegexps: map[string][]string{"header": {"first"}},
 		Headers:       map[string]string{"header1": "second"},
 		Filters: []*eskip.Filter{
-			&eskip.Filter{Name: "filter1", Args: []interface{}{"Hello", 1}},
-			&eskip.Filter{Name: "filter2", Args: []interface{}{2, "Hello1", "World"}}},
+			{Name: "filter1", Args: []interface{}{"Hello", 1}},
+			{Name: "filter2", Args: []interface{}{2, "Hello1", "World"}}},
 		Backend: "www.backend.com"}}
 
 	routes := convertEskipToInnkeeper(route)

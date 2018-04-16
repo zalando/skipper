@@ -25,7 +25,7 @@ type (
 
 // New creates a predicate specification, whose instances can be used to match parsed request cookies.
 //
-// The cookie predicate accpets two arguments, the cookie name, with what a cookie must exist in the request,
+// The cookie predicate accepts two arguments, the cookie name, with what a cookie must exist in the request,
 // and an expression that the cookie value needs to match.
 //
 // Eskip example:

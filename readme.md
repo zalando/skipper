@@ -4,8 +4,7 @@
 [![Go Report Card](https://goreportcard.com/badge/zalando/skipper)](https://goreportcard.com/report/zalando/skipper)
 [![codecov](https://codecov.io/gh/zalando/skipper/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando/skipper)
 
-<p align="center"><img height="360" alt="Skipper" src="https://raw.githubusercontent.com/zalando/skipper/gh-pages/img/skipper.h360.png"></p>
-
+<p><img height="180" alt="Skipper" src="https://raw.githubusercontent.com/zalando/skipper/master/img/skipper-h180.png"></p>
 
 # Skipper
 
@@ -44,7 +43,7 @@ A few examples for extending Skipper:
 
 - Authentication proxy https://github.com/zalando-incubator/skoap (repository removed see 'skoap-migration' branch)
 - Image server https://github.com/zalando-stups/skrop
-
+- Plugins https://github.com/skipper-plugins/
 
 ### Getting Started
 
@@ -146,6 +145,7 @@ and detailed information on these topics:
 - [Logging](https://godoc.org/github.com/zalando/skipper/logging) and [Metrics](https://godoc.org/github.com/zalando/skipper/metrics)
 - Performance Considerations
 - [Rate Limiters](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
+- [Opentracing plugin](https://github.com/skipper-plugins/opentracing/)
 
 #### 1 Minute Skipper introduction
 
@@ -337,14 +337,14 @@ the application with Ingress to the external network:
     apiVersion: extensions/v1beta1
     kind: Ingress
     metadata:
-      name: skipper-demo"
+      name: skipper-demo
     spec:
       rules:
       - host: skipper-demo.<mydomain.org>
         http:
           paths:
           - backend:
-              serviceName: skipper-demo"
+              serviceName: skipper-demo
               servicePort: 80
 
 To deploy this ingress, you have to run:
@@ -383,6 +383,8 @@ that is used to build skipper's [opentracing package](https://github.com/skipper
 ## Community
 
 User or developer questions can be asked in our [public Google Group](https://groups.google.com/forum/#!forum/skipper-router)
+
+We also have a slack channel #skipper in gophers.slack.com. Get an invite at [gophers official invite page](https://invite.slack.golangbridge.org).
 
 ### Proposals
 

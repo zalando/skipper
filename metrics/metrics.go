@@ -1,20 +1,81 @@
 package metrics
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
 	"strings"
 	"time"
-
-	"github.com/rcrowley/go-metrics"
 )
 
-type skipperMetrics map[string]interface{}
+const (
+	defaultMetricsPath = "/metrics"
+)
+
+// Kind is the type a metrics expose backend can be.
+type Kind int
+
+const (
+	UnkownKind   Kind = 0
+	CodaHaleKind Kind = 1 << iota
+	PrometheusKind
+	AllKind = CodaHaleKind | PrometheusKind
+)
+
+func (k Kind) String() string {
+	switch k {
+	case CodaHaleKind:
+		return "codahale"
+	case PrometheusKind:
+		return "prometheus"
+	case AllKind:
+		return "all"
+	default:
+		return "unknown"
+	}
+}
+
+// ParseMetricsKind parses an string and returns the correct Metrics kind.
+func ParseMetricsKind(t string) Kind {
+	t = strings.ToLower(t)
+	switch t {
+	case "codahale":
+		return CodaHaleKind
+	case "prometheus":
+		return PrometheusKind
+	case "all":
+		return AllKind
+	default:
+		return UnkownKind
+	}
+}
+
+// Metrics is the generic interface that all the required backends
+// should implement to be an skipper metrics compatible backend.
+type Metrics interface {
+	MeasureSince(key string, start time.Time)
+	IncCounter(key string)
+	MeasureRouteLookup(start time.Time)
+	MeasureFilterRequest(filterName string, start time.Time)
+	MeasureAllFiltersRequest(routeId string, start time.Time)
+	MeasureBackend(routeId string, start time.Time)
+	MeasureBackendHost(routeBackendHost string, start time.Time)
+	MeasureFilterResponse(filterName string, start time.Time)
+	MeasureAllFiltersResponse(routeId string, start time.Time)
+	MeasureResponse(code int, method string, routeId string, start time.Time)
+	MeasureServe(routeId, host, method string, code int, start time.Time)
+	IncRoutingFailures()
+	IncErrorsBackend(routeId string)
+	MeasureBackend5xx(t time.Time)
+	IncErrorsStreaming(routeId string)
+	RegisterHandler(path string, handler *http.ServeMux)
+}
 
 // Options for initializing metrics collection.
 type Options struct {
+	// the metrics exposing format.
+	Format Kind
+
 	// Common prefix for the keys of the different
 	// collected metrics.
 	Prefix string
@@ -84,327 +145,58 @@ type Options struct {
 	EnableProfile bool
 }
 
-const (
-	KeyRouteLookup                = "routelookup"
-	KeyRouteFailure               = "routefailure"
-	KeyFilterRequest              = "filter.%s.request"
-	KeyFiltersRequest             = "allfilters.request.%s"
-	KeyAllFiltersRequestCombined  = "allfilters.combined.request"
-	KeyProxyBackend               = "backend.%s"
-	KeyProxyBackendCombined       = "all.backend"
-	KeyProxyBackendHost           = "backendhost.%s"
-	KeyFilterResponse             = "filter.%s.response"
-	KeyFiltersResponse            = "allfilters.response.%s"
-	KeyAllFiltersResponseCombined = "allfilters.combined.response"
-	KeyResponse                   = "response.%d.%s.skipper.%s"
-	KeyResponseCombined           = "all.response.%d.%s.skipper"
-	KeyServeRoute                 = "serveroute.%s.%s.%d"
-	KeyServeHost                  = "servehost.%s.%s.%d"
-	Key5xxsBackend                = "all.backend.5xx"
-
-	KeyErrorsBackend   = "errors.backend.%s"
-	KeyErrorsStreaming = "errors.streaming.%s"
-
-	statsRefreshDuration = time.Duration(5 * time.Second)
-
-	defaultUniformReservoirSize  = 1024
-	defaultExpDecayReservoirSize = 1028
-	defaultExpDecayAlpha         = 0.015
-)
-
-type Metrics struct {
-	reg           metrics.Registry
-	createTimer   func() metrics.Timer
-	createCounter func() metrics.Counter
-	options       Options
-}
-
 var (
-	Default *Metrics
-	Void    *Metrics
+	Default Metrics
+	Void    Metrics
 )
-
-func applyCompatibilityDefaults(o Options) Options {
-	if o.DisableCompatibilityDefaults {
-		return o
-	}
-
-	o.EnableAllFiltersMetrics = true
-	o.EnableRouteResponseMetrics = true
-	o.EnableRouteBackendErrorsCounters = true
-	o.EnableRouteStreamingErrorsCounters = true
-	o.EnableRouteBackendMetrics = true
-
-	return o
-}
-
-func New(o Options) *Metrics {
-	o = applyCompatibilityDefaults(o)
-
-	m := &Metrics{}
-	m.reg = metrics.NewRegistry()
-
-	var createSample func() metrics.Sample
-	if o.UseExpDecaySample {
-		createSample = newExpDecaySample
-	} else {
-		createSample = newUniformSample
-	}
-	m.createTimer = func() metrics.Timer { return createTimer(createSample()) }
-
-	m.createCounter = metrics.NewCounter
-	m.options = o
-
-	if o.EnableDebugGcMetrics {
-		metrics.RegisterDebugGCStats(m.reg)
-		go metrics.CaptureDebugGCStats(m.reg, statsRefreshDuration)
-	}
-
-	if o.EnableRuntimeMetrics {
-		metrics.RegisterRuntimeMemStats(m.reg)
-		go metrics.CaptureRuntimeMemStats(m.reg, statsRefreshDuration)
-	}
-
-	return m
-}
-
-func NewVoid() *Metrics {
-	m := &Metrics{}
-	m.reg = metrics.NewRegistry()
-	m.createTimer = func() metrics.Timer { return metrics.NilTimer{} }
-	m.createCounter = func() metrics.Counter { return metrics.NilCounter{} }
-	return m
-}
 
 func init() {
 	Void = NewVoid()
 	Default = Void
 }
 
-// NewHandler returns a collection of metrics handlers.
-func NewHandler(o Options) http.Handler {
-	Default = New(o)
+// NewDefaultHandler returns a default metrics handler.
+func NewDefaultHandler(o Options) http.Handler {
+	var m Metrics
 
-	handler := &metricsHandler{registry: Default.reg, options: o}
+	switch o.Format {
+	case AllKind:
+		m = NewAll(o)
+	case PrometheusKind:
+		m = NewPrometheus(o)
+	default:
+		// CodaHale is the default backend always.
+		m = NewCodaHale(o)
+	}
+
+	return NewHandler(o, m)
+}
+
+// NewHandler returns a collection of metrics handlers.
+func NewHandler(o Options, m Metrics) http.Handler {
+
+	mux := http.NewServeMux()
 	if o.EnableProfile {
-		mux := http.NewServeMux()
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
 		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
 		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
 		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
 		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
-		handler.profile = mux
 	}
 
-	return handler
-}
+	// Root path should return 404.
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
 
-func newUniformSample() metrics.Sample {
-	return metrics.NewUniformSample(defaultUniformReservoirSize)
-}
+	Default = m
 
-func newExpDecaySample() metrics.Sample {
-	return metrics.NewExpDecaySample(defaultExpDecayReservoirSize, defaultExpDecayAlpha)
-}
+	// Fix trailing slashes and register routes.
+	mPath := defaultMetricsPath
+	mPath = strings.TrimRight(mPath, "/")
+	m.RegisterHandler(mPath, mux)
+	mPath = fmt.Sprintf("%s/", mPath)
+	m.RegisterHandler(mPath, mux)
 
-func createTimer(sample metrics.Sample) metrics.Timer {
-	return metrics.NewCustomTimer(metrics.NewHistogram(sample), metrics.NewMeter())
-}
-
-func (m *Metrics) getTimer(key string) metrics.Timer {
-	return m.reg.GetOrRegister(key, m.createTimer).(metrics.Timer)
-}
-
-func (m *Metrics) updateTimer(key string, d time.Duration) {
-	if t := m.getTimer(key); t != nil {
-		t.Update(d)
-	}
-}
-
-func (m *Metrics) MeasureSince(key string, start time.Time) {
-	m.measureSince(key, start)
-}
-
-func (m *Metrics) IncCounter(key string) {
-	m.incCounter(key)
-}
-
-func (m *Metrics) measureSince(key string, start time.Time) {
-	d := time.Since(start)
-	go m.updateTimer(key, d)
-}
-
-func (m *Metrics) MeasureRouteLookup(start time.Time) {
-	m.measureSince(KeyRouteLookup, start)
-}
-
-func (m *Metrics) MeasureFilterRequest(filterName string, start time.Time) {
-	m.measureSince(fmt.Sprintf(KeyFilterRequest, filterName), start)
-}
-
-func (m *Metrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
-	m.measureSince(KeyAllFiltersRequestCombined, start)
-	if m.options.EnableAllFiltersMetrics {
-		m.measureSince(fmt.Sprintf(KeyFiltersRequest, routeId), start)
-	}
-}
-
-func (m *Metrics) MeasureBackend(routeId string, start time.Time) {
-	m.measureSince(KeyProxyBackendCombined, start)
-	if m.options.EnableRouteBackendMetrics {
-		m.measureSince(fmt.Sprintf(KeyProxyBackend, routeId), start)
-	}
-}
-
-func (m *Metrics) MeasureBackendHost(routeBackendHost string, start time.Time) {
-	if m.options.EnableBackendHostMetrics {
-		m.measureSince(fmt.Sprintf(KeyProxyBackendHost, hostForKey(routeBackendHost)), start)
-	}
-}
-
-func (m *Metrics) MeasureFilterResponse(filterName string, start time.Time) {
-	m.measureSince(fmt.Sprintf(KeyFilterResponse, filterName), start)
-}
-
-func (m *Metrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
-	m.measureSince(KeyAllFiltersResponseCombined, start)
-	if m.options.EnableAllFiltersMetrics {
-		m.measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
-	}
-}
-
-func (m *Metrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
-	method = measuredMethod(method)
-	if m.options.EnableCombinedResponseMetrics {
-		m.measureSince(fmt.Sprintf(KeyResponseCombined, code, method), start)
-	}
-
-	if m.options.EnableRouteResponseMetrics {
-		m.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
-	}
-}
-
-func hostForKey(h string) string {
-	h = strings.Replace(h, ".", "_", -1)
-	h = strings.Replace(h, ":", "__", -1)
-	return h
-}
-
-func measuredMethod(m string) string {
-	switch m {
-	case "OPTIONS",
-		"GET",
-		"HEAD",
-		"POST",
-		"PUT",
-		"DELETE",
-		"TRACE",
-		"CONNECT":
-		return m
-	default:
-		return "_unknownmethod_"
-	}
-}
-
-func (m *Metrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
-	method = measuredMethod(method)
-
-	if m.options.EnableServeRouteMetrics {
-		m.measureSince(fmt.Sprintf(KeyServeRoute, routeId, method, code), start)
-	}
-
-	if m.options.EnableServeHostMetrics {
-		m.measureSince(fmt.Sprintf(KeyServeHost, hostForKey(host), method, code), start)
-	}
-}
-
-func (m *Metrics) getCounter(key string) metrics.Counter {
-	return m.reg.GetOrRegister(key, m.createCounter).(metrics.Counter)
-}
-
-func (m *Metrics) incCounter(key string) {
-	go func() {
-		if c := m.getCounter(key); c != nil {
-			c.Inc(1)
-		}
-	}()
-}
-
-func (m *Metrics) IncRoutingFailures() {
-	m.incCounter(KeyRouteFailure)
-}
-
-func (m *Metrics) IncErrorsBackend(routeId string) {
-	if m.options.EnableRouteBackendErrorsCounters {
-		m.incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
-	}
-}
-
-func (m *Metrics) MeasureBackend5xx(t time.Time) {
-	m.measureSince(Key5xxsBackend, t)
-}
-
-func (m *Metrics) IncErrorsStreaming(routeId string) {
-	if m.options.EnableRouteStreamingErrorsCounters {
-		m.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
-	}
-}
-
-// This listener is used to expose the collected metrics.
-func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
-	data := make(map[string]map[string]interface{})
-	for name, metric := range sm {
-		values := make(map[string]interface{})
-		var metricsFamily string
-		switch m := metric.(type) {
-		case metrics.Gauge:
-			metricsFamily = "gauges"
-			values["value"] = m.Value()
-		case metrics.Histogram:
-			metricsFamily = "histograms"
-			h := m.Snapshot()
-			ps := h.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999})
-			values["count"] = h.Count()
-			values["min"] = h.Min()
-			values["max"] = h.Max()
-			values["mean"] = h.Mean()
-			values["stddev"] = h.StdDev()
-			values["median"] = ps[0]
-			values["75%"] = ps[1]
-			values["95%"] = ps[2]
-			values["99%"] = ps[3]
-			values["99.9%"] = ps[4]
-		case metrics.Timer:
-			metricsFamily = "timers"
-			t := m.Snapshot()
-			ps := t.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999})
-			values["count"] = t.Count()
-			values["min"] = t.Min()
-			values["max"] = t.Max()
-			values["mean"] = t.Mean()
-			values["stddev"] = t.StdDev()
-			values["median"] = ps[0]
-			values["75%"] = ps[1]
-			values["95%"] = ps[2]
-			values["99%"] = ps[3]
-			values["99.9%"] = ps[4]
-			values["1m.rate"] = t.Rate1()
-			values["5m.rate"] = t.Rate5()
-			values["15m.rate"] = t.Rate15()
-			values["mean.rate"] = t.RateMean()
-		case metrics.Counter:
-			metricsFamily = "counters"
-			t := m.Snapshot()
-			values["count"] = t.Count()
-		default:
-			metricsFamily = "unknown"
-			values["error"] = fmt.Sprintf("unknown metrics type %T", m)
-		}
-		if data[metricsFamily] == nil {
-			data[metricsFamily] = make(map[string]interface{})
-		}
-		data[metricsFamily][name] = values
-	}
-
-	return json.Marshal(data)
+	return mux
 }

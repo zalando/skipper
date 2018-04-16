@@ -16,8 +16,6 @@ package etcd
 
 import (
 	"errors"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/etcd/etcdtest"
 	"log"
 	"net"
 	"net/http"
@@ -26,9 +24,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"encoding/base64"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/etcd/etcdtest"
 )
 
 func TestMain(m *testing.M) {
+	for _, arg := range os.Args {
+		if arg == "-test.short=true" {
+			return
+		}
+	}
+
 	err := etcdtest.Start()
 	if err != nil {
 		log.Fatal(err)
@@ -253,6 +261,10 @@ func TestValidatesDocument(t *testing.T) {
 }
 
 func TestReceivesInitial(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.ResetData(); err != nil {
 		t.Error(t)
 		return
@@ -260,7 +272,7 @@ func TestReceivesInitial(t *testing.T) {
 
 	expectedEndpoints := strings.Join(etcdtest.Urls, ";")
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -282,12 +294,16 @@ func TestReceivesInitial(t *testing.T) {
 }
 
 func TestReceivesUpdates(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.ResetData(); err != nil {
 		t.Error(err)
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -312,12 +328,16 @@ func TestReceivesUpdates(t *testing.T) {
 }
 
 func TestReceiveInsert(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.ResetData(); err != nil {
 		t.Error(err)
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -345,12 +365,15 @@ func TestReceiveInsert(t *testing.T) {
 }
 
 func TestReceiveDelete(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	if err := etcdtest.ResetData(); err != nil {
 		t.Error(err)
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -375,7 +398,7 @@ func TestReceiveDelete(t *testing.T) {
 }
 
 func TestUpsertNoId(t *testing.T) {
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -388,12 +411,16 @@ func TestUpsertNoId(t *testing.T) {
 }
 
 func TestUpsertNew(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -414,12 +441,16 @@ func TestUpsertNew(t *testing.T) {
 }
 
 func TestUpsertExisting(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return
 	}
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -448,7 +479,7 @@ func TestUpsertExisting(t *testing.T) {
 }
 
 func TestDeleteNoId(t *testing.T) {
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -461,11 +492,15 @@ func TestDeleteNoId(t *testing.T) {
 }
 
 func TestDeleteNotExists(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return
 	}
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -491,11 +526,15 @@ func TestDeleteNotExists(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return
 	}
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -521,6 +560,10 @@ func TestDelete(t *testing.T) {
 }
 
 func TestLoadWithParseFailures(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	if err := etcdtest.DeleteAll(); err != nil {
 		t.Error(err)
 		return
@@ -529,7 +572,7 @@ func TestLoadWithParseFailures(t *testing.T) {
 	etcdtest.PutData("catalog", `Path("/pdp") -> "https://catalog.example.org"`)
 	etcdtest.PutData("cms", "invalid expression")
 
-	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false})
+	c, err := New(Options{etcdtest.Urls, "/skippertest", 0, false, "", "", ""})
 	if err != nil {
 		t.Error(err)
 		return
@@ -557,5 +600,74 @@ func TestLoadWithParseFailures(t *testing.T) {
 
 	if parseError == nil {
 		t.Error("failed to detect parse error")
+	}
+}
+
+func TestRequestWithOauthToken(t *testing.T) {
+	var authHeader string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader = r.Header.Get("Authorization")
+		w.Header().Set("X-Etcd-Index", "42")
+		w.Write([]byte(`{"node": {"key": "foo"}}`))
+	}))
+	defer s.Close()
+
+	c, err := New(Options{[]string{s.URL}, "/skippertest", 0, false, "token", "", ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.Delete("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	if authHeader != "Bearer token" {
+		t.Error("invalid auth header sent")
+		t.Log(authHeader)
+		return
+	}
+}
+
+func TestRequestWithBasicAuth(t *testing.T) {
+	var authHeader string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader = r.Header.Get("Authorization")
+		w.Header().Set("X-Etcd-Index", "42")
+		w.Write([]byte(`{"node": {"key": "foo"}}`))
+	}))
+	defer s.Close()
+
+	c, err := New(Options{[]string{s.URL}, "/skippertest", 0, false, "", "user", "password"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.Delete("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 {
+		t.Error("invalid auth header sent")
+		t.Log(authHeader)
+		return
+	}
+
+	if parts[0] != "Basic" {
+		t.Error("invalid auth header sent")
+		t.Log(authHeader)
+		return
+	}
+
+	decodedArr, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Error(err)
+		t.Log("header sent:", authHeader)
+		return
+	}
+
+	decoded := string(decodedArr)
+	if decoded != "user:password" {
+		t.Fatal("invalid token not set")
 	}
 }

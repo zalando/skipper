@@ -16,3 +16,4 @@ packaging/eskip
 vendor
 linter.log
 site/
+plugins/

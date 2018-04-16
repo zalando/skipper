@@ -1,170 +1,3 @@
-/*
-Package kubernetes implements Kubernetes Ingress support for Skipper.
-
-See: http://kubernetes.io/docs/user-guide/ingress/
-
-The package provides a Skipper DataClient implementation that can be used to access the Kubernetes API for
-ingress resources and generate routes based on them. The client polls for the ingress settings, and there is no
-need for a separate controller. On the other hand, it doesn't provide a full Ingress solution alone, because it
-doesn't do any load balancer configuration or DNS updates. For a full Ingress solution, it is possible to use
-Skipper together with Kube-ingress-aws-controller, which targets AWS and takes care of the load balancer setup
-for Kubernetes Ingress.
-
-See: https://github.com/zalando-incubator/kube-ingress-aws-controller
-
-Both Kube-ingress-aws-controller and Skipper Kubernetes are part of the larger project, Kubernetes On AWS:
-
-https://github.com/zalando-incubator/kubernetes-on-aws/
-
-Ingress shutdown by healthcheck
-
-The Kubernetes ingress client catches TERM signals when the ProvideHealthcheck option is enabled, and reports
-failing healthcheck after the signal was received. This means that, when the Ingress client is responsible for
-the healthcheck of the cluster, and the Skipper process receives the TERM signal, it won't exit by itself
-immediately, but will start reporting failures on healthcheck requests. Until it gets killed by the kubelet,
-Skipper keeps serving the requests in this case.
-
-Example - Ingress
-
-A basic ingress specification:
-
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
-
-Example - Ingress with ratelimiting
-
-The example shows 50 calls per minute are allowed to each skipper
-instance for the given ingress.
-
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/ratelimit: ratelimit(50, "1m")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
-
-Example - Ingress with client based ratelimiting
-
-The example shows 3 calls per minute per client, based on
-X-Forwarded-For header or IP incase there is no X-Forwarded-For header
-set, are allowed to each skipper instance for the given ingress.
-
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/ratelimit: localRatelimit(3, "1m")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
-
-The example shows 500 calls per hour per client, based on
-Authorization header set, are allowed to each skipper instance for the
-given ingress.
-
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/ratelimit: localRatelimit(500, "1h", "auth")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
-
-Example - Ingress with custom skipper filter configuration
-
-The example shows the use of 2 filters from skipper for the implicitly
-defined route in ingress.
-
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
-
-Example - Ingress with custom skipper Predicate configuration
-
-The example shows the use of a skipper predicates for the implicitly
-defined route in ingress.
-
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-predicate: QueryParam("query", "^example$")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
-
-Example - Ingress with shadow traffic
-
-This will send production traffic to app-default.example.org and
-copies incoming requests to https://app.shadow.example.org, but drops
-responses from shadow URL. This is helpful to test your next
-generation software with production workload. See also
-https://godoc.org/github.com/zalando/skipper/filters/tee for details.
-
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: tee("https://app.shadow.example.org")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
-
-*/
 package kubernetes
 
 import (
@@ -181,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -188,6 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 )
@@ -200,6 +35,7 @@ const (
 	ingressesURI                  = "/apis/extensions/v1beta1/ingresses"
 	ingressClassKey               = "kubernetes.io/ingress.class"
 	defaultIngressClass           = "skipper"
+	endpointURIFmt                = "/api/v1/namespaces/%s/endpoints/%s"
 	serviceURIFmt                 = "/api/v1/namespaces/%s/services/%s"
 	serviceAccountDir             = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey        = "token"
@@ -213,6 +49,7 @@ const (
 	ratelimitAnnotationKey        = "zalando.org/ratelimit"
 	skipperfilterAnnotationKey    = "zalando.org/skipper-filter"
 	skipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
+	skipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
 )
 
 var internalIPs = []interface{}{
@@ -263,27 +100,37 @@ type Options struct {
 	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
 	IngressClass string
 
+	// ReverseSourcePredicate set to true will do the Source IP
+	// whitelisting for the heartbeat endpoint correctly in AWS.
+	// Amazon's ALB writes the client IP to the last item of the
+	// string list of the X-Forwarded-For header, in this case you
+	// want to set this to true.
+	ReverseSourcePredicate bool
+
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
-	httpClient           *http.Client
-	apiURL               string
-	provideHealthcheck   bool
-	provideHTTPSRedirect bool
-	token                string
-	current              map[string]*eskip.Route
-	termReceived         bool
-	sigs                 chan os.Signal
-	ingressClass         *regexp.Regexp
+	httpClient             *http.Client
+	apiURL                 string
+	provideHealthcheck     bool
+	healthy                bool
+	provideHTTPSRedirect   bool
+	token                  string
+	current                map[string]*eskip.Route
+	termReceived           bool
+	sigs                   chan os.Signal
+	ingressClass           *regexp.Regexp
+	reverseSourcePredicate bool
 }
 
 var nonWord = regexp.MustCompile("\\W")
 
 var (
 	errServiceNotFound      = errors.New("service not found")
+	errEndpointNotFound     = errors.New("endpoint not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
 	errInvalidCertificate   = errors.New("invalid CA")
 )
@@ -325,14 +172,15 @@ func New(o Options) (*Client, error) {
 	}
 
 	return &Client{
-		httpClient:           httpClient,
-		apiURL:               apiURL,
-		provideHealthcheck:   o.ProvideHealthcheck,
-		provideHTTPSRedirect: o.ProvideHTTPSRedirect,
-		current:              make(map[string]*eskip.Route),
-		token:                token,
-		sigs:                 sigs,
-		ingressClass:         ingClsRx,
+		httpClient:             httpClient,
+		apiURL:                 apiURL,
+		provideHealthcheck:     o.ProvideHealthcheck,
+		provideHTTPSRedirect:   o.ProvideHTTPSRedirect,
+		current:                make(map[string]*eskip.Route),
+		token:                  token,
+		sigs:                   sigs,
+		ingressClass:           ingClsRx,
+		reverseSourcePredicate: o.ReverseSourcePredicate,
 	}, nil
 }
 
@@ -450,29 +298,32 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 // TODO:
 // - check if it can be batched
 // - check the existing controllers for cases when hunting for cluster ip
-func (c *Client) getServiceURL(namespace, name string, port backendPort) (string, error) {
+func (c *Client) getService(namespace, name string) (*service, error) {
 	log.Debugf("requesting service: %s/%s", namespace, name)
 	url := fmt.Sprintf(serviceURIFmt, namespace, name)
 	var s service
 	if err := c.getJSON(url, &s); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if s.Spec == nil {
 		log.Debug("invalid service datagram, missing spec")
-		return "", errServiceNotFound
+		return nil, errServiceNotFound
 	}
+	return &s, nil
+}
 
+func (c *Client) getServiceURL(svc *service, port backendPort) (string, error) {
 	if p, ok := port.number(); ok {
 		log.Debugf("service port as number: %d", p)
-		return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, p), nil
+		return fmt.Sprintf("http://%s:%d", svc.Spec.ClusterIP, p), nil
 	}
 
 	pn, _ := port.name()
-	for _, pi := range s.Spec.Ports {
+	for _, pi := range svc.Spec.Ports {
 		if pi.Name == pn {
 			log.Debugf("service port found by name: %s -> %d", pn, pi.Port)
-			return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, pi.Port), nil
+			return fmt.Sprintf("http://%s:%d", svc.Spec.ClusterIP, pi.Port), nil
 		}
 	}
 
@@ -490,8 +341,15 @@ func routeID(namespace, name, host, path, backend string) string {
 	return fmt.Sprintf("kube_%s__%s__%s__%s__%s", namespace, name, host, path, backend)
 }
 
+// routeIDForCustom generates a route id for a custom route of an ingress
+// resource.
+func routeIDForCustom(namespace, name, id, host string, index int) string {
+	name = name + "_" + id + "_" + strconv.Itoa(index)
+	return routeID(namespace, name, host, "", "")
+}
+
 // converts the default backend if any
-func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, error) {
+func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, error) {
 	// the usage of the default backend depends on what we want
 	// we can generate a hostname out of it based on shared rules
 	// and instructions in annotations, if there are no rules defined
@@ -503,66 +361,292 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 		return nil, false, nil
 	}
 
-	address, err := c.getServiceURL(
-		i.Metadata.Namespace,
-		i.Spec.DefaultBackend.ServiceName,
-		i.Spec.DefaultBackend.ServicePort,
+	var (
+		eps     []string
+		err     error
+		routes  []*eskip.Route
+		ns      = i.Metadata.Namespace
+		name    = i.Metadata.Name
+		svcName = i.Spec.DefaultBackend.ServiceName
+		svcPort = i.Spec.DefaultBackend.ServicePort
 	)
 
+	svc, err := c.getService(ns, svcName)
 	if err != nil {
+		log.Errorf("convertDefaultBackend: Failed to get service %s, %s, %s", ns, svcName, svcPort)
+		return nil, false, err
+	}
+	targetPort, err := svc.GetTargetPort(svcPort)
+	if err != nil {
+		err = nil
+		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
+	} else {
+		// TODO(aryszka): check docs that service name is always good for requesting the endpoints
+		log.Infof("Found target port %v, for service %s", targetPort, svcName)
+		eps, err = c.getEndpoints(
+			ns,
+			svcName,
+			svcPort.String(),
+			targetPort,
+		)
+		log.Infof("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
+	}
+	if len(eps) == 0 || err == errEndpointNotFound {
+		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
+		// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
+		// We should then implement a redirect route for that.
+		// Example spec:
+		//
+		//     spec:
+		//       type: ExternalName
+		//       externalName: my.database.example.com
+		address, err2 := c.getServiceURL(svc, svcPort)
+		if err2 != nil {
+			return nil, false, err2
+		}
+
+		r := &eskip.Route{
+			Id:      routeID(ns, name, "", "", ""),
+			Backend: address,
+		}
+		routes = append(routes, r)
+	} else if err != nil {
 		return nil, false, err
 	}
 
-	r := &eskip.Route{
-		Id:      routeID(i.Metadata.Namespace, i.Metadata.Name, "", "", ""),
-		Backend: address,
+	group := routeID(ns, name, "", "", "")
+
+	// TODO:
+	// - don't do load balancing if there's only a single endpoint
+	// - better: cleanup single route load balancer groups in the routing package before applying the next
+	// routing table
+
+	if len(eps) == 0 {
+		return routes, true, nil
 	}
 
-	return r, true, nil
+	if len(eps) == 1 {
+		r := &eskip.Route{
+			Id:      routeID(ns, name, "", "", ""),
+			Backend: eps[0],
+		}
+		routes = append(routes, r)
+		return routes, true, nil
+	}
+
+	for idx, ep := range eps {
+		r := &eskip.Route{
+			Id:      routeID(ns, name, "", "", strconv.Itoa(idx)),
+			Backend: ep,
+			Predicates: []*eskip.Predicate{{
+				Name: loadbalancer.MemberPredicateName,
+				Args: []interface{}{
+					group,
+					idx, // index within the group
+				},
+			}},
+			Filters: []*eskip.Filter{{
+				Name: builtin.DropRequestHeaderName,
+				Args: []interface{}{
+					loadbalancer.DecisionHeader,
+				},
+			}},
+		}
+		routes = append(routes, r)
+	}
+
+	decisionRoute := &eskip.Route{
+		Id:          routeID(ns, name, "", "", "") + "__lb_group",
+		BackendType: eskip.LoopBackend,
+		Predicates: []*eskip.Predicate{{
+			Name: loadbalancer.GroupPredicateName,
+			Args: []interface{}{
+				group,
+			},
+		}},
+		Filters: []*eskip.Filter{{
+			Name: loadbalancer.DecideFilterName,
+			Args: []interface{}{
+				group,
+				len(eps), // number of member routes
+			},
+		}},
+	}
+
+	routes = append(routes, decisionRoute)
+	return routes, true, nil
 }
 
-func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, servicesURLs map[string]string) (*eskip.Route, error) {
+func (c *Client) getEndpoints(ns, name, servicePort, targetPort string) ([]string, error) {
+	log.Debugf("requesting endpoint: %s/%s", ns, name)
+	url := fmt.Sprintf(endpointURIFmt, ns, name)
+	var ep endpoint
+	if err := c.getJSON(url, &ep); err != nil {
+		return nil, err
+	}
+
+	if ep.Subsets == nil {
+		return nil, errEndpointNotFound
+	}
+
+	targets := ep.Targets(servicePort, targetPort)
+	if len(targets) == 0 {
+		return nil, errEndpointNotFound
+	}
+	return targets, nil
+}
+
+func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpointsURLs map[string][]string) ([]*eskip.Route, error) {
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
-	serviceKey := ns + prule.Backend.ServiceName + prule.Backend.ServicePort.String()
+
+	endpointKey := ns + prule.Backend.ServiceName
 	var (
-		address string
-		err     error
+		eps    []string
+		err    error
+		routes []*eskip.Route
+		svc    *service
 	)
-	if val, ok := servicesURLs[serviceKey]; !ok {
-		address, err = c.getServiceURL(ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
-		if err != nil {
-			return nil, err
-		}
-		servicesURLs[serviceKey] = address
-		log.Debugf("New route for %s/%s/%s", ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
-	} else {
-		address = val
-		log.Debugf("Route for %s/%s/%s already known", ns, prule.Backend.ServiceName, prule.Backend.ServicePort)
-	}
 
 	var pathExpressions []string
 	if prule.Path != "" {
 		pathExpressions = []string{"^" + prule.Path}
 	}
 
-	r := &eskip.Route{
-		Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName),
+	svcPort := prule.Backend.ServicePort
+	svcName := prule.Backend.ServiceName
+
+	if val, ok := endpointsURLs[endpointKey]; !ok {
+		svc, err = c.getService(ns, svcName)
+		if err != nil {
+			log.Errorf("convertPathRule: Failed to get service %s, %s, %s", ns, svcName, svcPort)
+			return nil, err
+		}
+
+		targetPort, err := svc.GetTargetPort(svcPort)
+		if err != nil {
+			// fallback to service, but service definition is wrong or no pods
+			log.Debugf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
+			err = nil
+		} else {
+			// err handled below
+			eps, err = c.getEndpoints(ns, svcName, svcPort.String(), targetPort)
+			log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
+		}
+		if len(eps) == 0 || err == errEndpointNotFound {
+			// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
+			// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
+			// We should then implement a redirect route for that.
+			// Example spec:
+			//
+			//     spec:
+			//       type: ExternalName
+			//       externalName: my.database.example.com
+			address, err2 := c.getServiceURL(svc, svcPort)
+			if err2 != nil {
+				return nil, err2
+			}
+			r := &eskip.Route{
+				Id:          routeID(ns, name, host, prule.Path, svcName),
+				PathRegexps: pathExpressions,
+				Backend:     address,
+			}
+			if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+				r.Predicates = append([]*eskip.Predicate{{
+					Name: traffic.PredicateName,
+					Args: []interface{}{prule.Backend.Traffic},
+				}}, r.Predicates...)
+				log.Infof("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+			}
+			routes = append(routes, r)
+		} else if err != nil {
+			return nil, err
+		} else {
+			endpointsURLs[endpointKey] = eps
+		}
+		log.Debugf("%d new routes for %s/%s/%s", len(eps), ns, svcName, svcPort)
+	} else {
+		eps = val
+		log.Debugf("%d routes for %s/%s/%s already known", len(eps), ns, svcName, svcPort)
+	}
+
+	if len(eps) == 1 {
+		r := &eskip.Route{
+			Id:          routeID(ns, name, host, prule.Path, svcName),
+			PathRegexps: pathExpressions,
+			Backend:     eps[0],
+		}
+
+		// add traffic predicate if traffic weight is between 0.0 and 1.0
+		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+			r.Predicates = append([]*eskip.Predicate{{
+				Name: traffic.PredicateName,
+				Args: []interface{}{prule.Backend.Traffic},
+			}}, r.Predicates...)
+			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+		}
+		routes = append(routes, r)
+		return routes, nil
+	}
+
+	if len(eps) == 0 {
+		return routes, nil
+	}
+
+	group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName)
+	for idx, ep := range eps {
+		r := &eskip.Route{
+			Id:          routeID(ns, name, host, prule.Path, svcName+fmt.Sprintf("_%d", idx)),
+			PathRegexps: pathExpressions,
+			Backend:     ep,
+			Predicates: []*eskip.Predicate{{
+				Name: loadbalancer.MemberPredicateName,
+				Args: []interface{}{
+					group,
+					idx, // index within the group
+				},
+			}},
+			Filters: []*eskip.Filter{{
+				Name: builtin.DropRequestHeaderName,
+				Args: []interface{}{
+					loadbalancer.DecisionHeader,
+				},
+			}},
+		}
+
+		// add traffic predicate if traffic weight is between 0.0 and 1.0
+		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+			r.Predicates = append([]*eskip.Predicate{{
+				Name: traffic.PredicateName,
+				Args: []interface{}{prule.Backend.Traffic},
+			}}, r.Predicates...)
+			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+		}
+		routes = append(routes, r)
+	}
+
+	decisionRoute := &eskip.Route{
+		Id:          routeID(ns, name, host, prule.Path, svcName) + "__lb_group",
 		PathRegexps: pathExpressions,
-		Backend:     address,
+		BackendType: eskip.LoopBackend,
+		Predicates: []*eskip.Predicate{{
+			Name: loadbalancer.GroupPredicateName,
+			Args: []interface{}{
+				group,
+			},
+		}},
+		Filters: []*eskip.Filter{{
+			Name: loadbalancer.DecideFilterName,
+			Args: []interface{}{
+				group,
+				len(eps), // number of member routes
+			},
+		}},
 	}
 
-	// add traffic predicate if traffic weight is between 0.0 and 1.0
-	if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
-		r.Predicates = []*eskip.Predicate{{
-			Name: traffic.PredicateName,
-			Args: []interface{}{prule.Backend.Traffic},
-		}}
-		log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, prule.Backend.ServiceName)
-	}
-
-	return r, nil
+	routes = append(routes, decisionRoute)
+	return routes, nil
 }
 
 // ingressToRoutes logs if an invalid found, but proceeds with the
@@ -570,6 +654,8 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, service
 // because Ingress status field is v1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
 func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
+	// TODO: apply the laod balancing by using the loadbalancer.BalanceRoute() function
+
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
 	for _, i := range items {
@@ -579,11 +665,18 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			continue
 		}
 
+		logger := log.WithFields(log.Fields{
+			"ingress": fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name),
+		})
+
 		if r, ok, err := c.convertDefaultBackend(i); ok {
-			routes = append(routes, r)
+			routes = append(routes, r...)
 		} else if err != nil {
-			log.Errorf("error while converting default backend: %v", err)
+			logger.Errorf("error while converting default backend: %v", err)
 		}
+
+		// TODO: only apply the filters from the annotations if it
+		// is not an LB decision route
 
 		// parse filter and ratelimit annotation
 		var annotationFilter string
@@ -602,20 +695,31 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			annotationPredicate = val
 		}
 
+		// parse routes annotation
+		var extraRoutes []*eskip.Route
+		annotationRoutes := i.Metadata.Annotations[skipperRoutesAnnotationKey]
+		if annotationRoutes != "" {
+			var err error
+			extraRoutes, err = eskip.Parse(annotationRoutes)
+			if err != nil {
+				logger.Errorf("failed to parse routes from %s, skipping: %v", skipperRoutesAnnotationKey, err)
+			}
+		}
+
 		// parse backend-weihgts annotation if it exists
 		var backendWeights map[string]float64
 		if backends, ok := i.Metadata.Annotations[backendWeightsAnnotationKey]; ok {
 			err := json.Unmarshal([]byte(backends), &backendWeights)
 			if err != nil {
-				log.Errorf("error while parsing backend-weights annotation: %v", err)
+				logger.Errorf("error while parsing backend-weights annotation: %v", err)
 			}
 		}
 
 		// We need this to avoid asking the k8s API for the same services
-		servicesURLs := make(map[string]string)
+		endpointsURLs := make(map[string][]string)
 		for _, rule := range i.Spec.Rules {
 			if rule.Http == nil {
-				log.Warn("invalid ingress item: rule missing http definitions")
+				logger.Warn("invalid ingress item: rule missing http definitions")
 				continue
 			}
 
@@ -624,12 +728,19 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			// currently handled as mandatory
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
+			// add extra routes from optional annotation
+			for idx, route := range extraRoutes {
+				route.HostRegexps = host
+				route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host, idx)
+				hostRoutes[rule.Host] = append(hostRoutes[rule.Host], route)
+			}
+
 			// update Traffic field for each backend
 			computeBackendWeights(backendWeights, rule)
 
 			for _, prule := range rule.Http.Paths {
 				if prule.Backend.Traffic > 0 {
-					r, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, servicesURLs)
+					endpoints, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, endpointsURLs)
 					if err != nil {
 						// if the service is not found the route should be removed
 						if err == errServiceNotFound {
@@ -639,31 +750,34 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						return nil, fmt.Errorf("error while getting service: %v", err)
 					}
 
-					r.HostRegexps = host
-					if annotationFilter != "" {
-						annotationFilters, err := eskip.ParseFilters(annotationFilter)
-						if err != nil {
-							log.Errorf("Can not parse annotation filters: %v", err)
-						} else {
-							sav := r.Filters[:]
-							r.Filters = append(annotationFilters, sav...)
+					for _, r := range endpoints {
+						r.HostRegexps = host
+						// TODO: only apply the filters from the annotations if it
+						// is not an LB decision route
+						if annotationFilter != "" {
+							annotationFilters, err := eskip.ParseFilters(annotationFilter)
+							if err != nil {
+								logger.Errorf("Can not parse annotation filters: %v", err)
+							} else {
+								sav := r.Filters[:]
+								r.Filters = append(annotationFilters, sav...)
+							}
 						}
-					}
 
-					if annotationPredicate != "" {
-						predicates, err := eskip.ParsePredicates(annotationPredicate)
-						if err != nil {
-							log.Errorf("Can not parse annotation predicate: %v", err)
-						} else {
-							r.Predicates = predicates
+						if annotationPredicate != "" {
+							predicates, err := eskip.ParsePredicates(annotationPredicate)
+							if err != nil {
+								logger.Errorf("Can not parse annotation predicate: %v", err)
+							} else {
+								r.Predicates = append(r.Predicates, predicates...)
+							}
 						}
+						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 					}
-					hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 				}
 			}
 		}
 	}
-
 	for host, rs := range hostRoutes {
 		routes = append(routes, rs...)
 
@@ -724,22 +838,26 @@ func catchAllRoutes(routes []*eskip.Route) bool {
 //
 // where for a weight of 1.0 no Traffic predicate will be generated.
 func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
-	type sumCount struct {
-		sum   float64
-		count int
+	type pathInfo struct {
+		sum        float64
+		lastActive *backend
+		count      int
 	}
 
 	// get backend weight sum and count of backends for all paths
-	pathSumCount := make(map[string]*sumCount)
+	pathInfos := make(map[string]*pathInfo)
 	for _, path := range rule.Http.Paths {
-		sc, ok := pathSumCount[path.Path]
+		sc, ok := pathInfos[path.Path]
 		if !ok {
-			sc = &sumCount{}
-			pathSumCount[path.Path] = sc
+			sc = &pathInfo{}
+			pathInfos[path.Path] = sc
 		}
 
 		if weight, ok := backendWeights[path.Backend.ServiceName]; ok {
 			sc.sum += weight
+			if weight > 0 {
+				sc.lastActive = path.Backend
+			}
 		} else {
 			sc.count++
 		}
@@ -747,8 +865,14 @@ func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 
 	// calculate traffic weight for each backend
 	for _, path := range rule.Http.Paths {
-		if sc, ok := pathSumCount[path.Path]; ok {
+		if sc, ok := pathInfos[path.Path]; ok {
 			if weight, ok := backendWeights[path.Backend.ServiceName]; ok {
+				// force a weight of 1.0 for the last backend with a non-zero weight to avoid rounding issues
+				if sc.lastActive == path.Backend {
+					path.Backend.Traffic = 1.0
+					continue
+				}
+
 				path.Backend.Traffic = weight / sc.sum
 				// subtract weight from the sum in order to
 				// give subsequent backends a higher relative
@@ -773,15 +897,6 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 	return m
 }
 
-func (c *Client) listRoutes() []*eskip.Route {
-	l := make([]*eskip.Route, 0, len(c.current))
-	for _, r := range c.current {
-		l = append(l, r)
-	}
-
-	return l
-}
-
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
 func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
@@ -804,7 +919,6 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
-	log.Debugf("requesting ingresses")
 	if err := c.getJSON(ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err
@@ -819,22 +933,33 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 	log.Debugf("all routes created: %d", len(r))
+
 	return r, nil
 }
 
-func healthcheckRoute(healthy bool) *eskip.Route {
+func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 	status := http.StatusOK
 	if !healthy {
 		status = http.StatusServiceUnavailable
 	}
 
-	return &eskip.Route{
-		Id: healthcheckRouteID,
-		Predicates: []*eskip.Predicate{{
+	var p []*eskip.Predicate
+	if reverseSourcePredicate {
+		p = []*eskip.Predicate{{
+			Name: source.NameLast,
+			Args: internalIPs,
+		}}
+	} else {
+		p = []*eskip.Predicate{{
 			Name: source.Name,
 			Args: internalIPs,
-		}},
-		Path: healthcheckPath,
+		}}
+	}
+
+	return &eskip.Route{
+		Id:         healthcheckRouteID,
+		Predicates: p,
+		Path:       healthcheckPath,
 		Filters: []*eskip.Filter{{
 			Name: builtin.StatusName,
 			Args: []interface{}{status}},
@@ -854,7 +979,7 @@ func httpRedirectRoute() *eskip.Route {
 			"X-Forwarded-Proto": "http",
 		},
 		HeaderRegexps: map[string][]string{
-			"X-Forwarded-Port": []string{".*"},
+			"X-Forwarded-Port": {".*"},
 		},
 		PathRegexps: []string{".*"},
 		Filters: []*eskip.Filter{{
@@ -886,8 +1011,8 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
-		healthy := !c.hasReceivedTerm()
-		r = append(r, healthcheckRoute(healthy))
+		c.healthy = !c.hasReceivedTerm()
+		r = append(r, healthcheckRoute(c.healthy, c.reverseSourcePredicate))
 	}
 
 	if c.provideHTTPSRedirect {
@@ -900,7 +1025,10 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	return r, nil
 }
 
-// TODO: implement a force reset after some time
+// LoadUpdate returns all known eskip.Route, a list of route IDs
+// scheduled for delete and an error.
+//
+// TODO: implement a force reset after some time.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("polling for updates")
 	r, err := c.loadAndConvert()
@@ -936,9 +1064,12 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
-		hc := healthcheckRoute(healthy)
-		next[healthcheckRouteID] = hc
-		updatedRoutes = append(updatedRoutes, hc)
+		if healthy != c.healthy {
+			c.healthy = healthy
+			hc := healthcheckRoute(c.healthy, c.reverseSourcePredicate)
+			next[healthcheckRouteID] = hc
+			updatedRoutes = append(updatedRoutes, hc)
+		}
 	}
 
 	c.current = next

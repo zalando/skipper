@@ -282,7 +282,7 @@ func TestGetRoundtrip(t *testing.T) {
 	}
 
 	if !bytes.Equal(w.Body.Bytes(), payload) {
-		t.Error("wrong content", string(w.Body.Bytes()))
+		t.Error("wrong content", w.Body.String())
 	}
 }
 
@@ -321,7 +321,7 @@ func TestPostRoundtrip(t *testing.T) {
 	}
 
 	if w.Body.Len() != 0 {
-		t.Error("wrong content", string(w.Body.Bytes()))
+		t.Error("wrong content", w.Body.String())
 	}
 }
 
@@ -927,8 +927,8 @@ func TestBackendServiceUnavailable(t *testing.T) {
 
 	defer rsp.Body.Close()
 
-	if rsp.StatusCode != http.StatusServiceUnavailable {
-		t.Error("failed to return 503 Service Unavailable on failing backend connection")
+	if rsp.StatusCode != http.StatusBadGateway {
+		t.Error("failed to return 502 Bad Gateway on failing backend connection")
 	}
 }
 
@@ -1242,5 +1242,83 @@ func TestSettingDefaultHTTPStatus(t *testing.T) {
 	p = WithParams(params)
 	if p.defaultHTTPStatus != http.StatusNotFound {
 		t.Errorf("expected default HTTP status %d, got %d", http.StatusNotFound, p.defaultHTTPStatus)
+	}
+}
+
+func TestHopHeaderRemoval(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		if r.Method != "GET" {
+			t.Error("wrong request method")
+		}
+
+		if r.Header["Connection"] != nil {
+			t.Error("expected Connection header to be missing")
+		}
+	})
+
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+
+	tp, err := newTestProxy(doc, HopHeadersRemoval)
+	if err != nil {
+		t.Error()
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
+	}
+}
+
+func TestHopHeaderRemovalDisabled(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		if r.Method != "GET" {
+			t.Error("wrong request method")
+		}
+
+		if th, ok := r.Header["Connection"]; !ok || th[0] != "token" {
+			t.Error("wrong Connection header")
+		}
+	})
+
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+
+	tp, err := newTestProxy(doc, FlagsNone)
+	if err != nil {
+		t.Error()
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
 	}
 }

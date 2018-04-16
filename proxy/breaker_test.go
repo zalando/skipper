@@ -173,7 +173,7 @@ func proxyRequest(c *breakerTestContext) (*http.Response, error) {
 func checkStatus(c *breakerTestContext, rsp *http.Response, expected int) {
 	if rsp.StatusCode != expected {
 		c.t.Errorf(
-			"wrong response status: %d instead of %d",
+			"wrong response status: %d, expected %d",
 			rsp.StatusCode,
 			expected,
 		)
@@ -375,7 +375,7 @@ func TestBreakerConsecutive(t *testing.T) {
 			request(200),
 			checkBackendCounter(1),
 			setBackendDown,
-			times(testConsecutiveFailureCount, request(503)),
+			times(testConsecutiveFailureCount, request(http.StatusBadGateway)),
 			checkBackendCounter(0),
 			requestOpen,
 		},
@@ -486,7 +486,7 @@ func TestBreakerRate(t *testing.T) {
 			times(testRateWindow, request(200)),
 			checkBackendCounter(testRateWindow),
 			setBackendDown,
-			times(testRateFailures, request(503)),
+			times(testRateFailures, request(http.StatusBadGateway)),
 			checkBackendCounter(0),
 			requestOpen,
 		},

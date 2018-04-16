@@ -11,33 +11,45 @@ import (
 	"io"
 	"io/ioutil"
 	"math/big"
+	mrand "math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"reflect"
 	"regexp"
+	"sort"
 	"syscall"
 	"testing"
 	"time"
 
+	"testing/quick"
+
+	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/source"
 )
 
-type services map[string]map[string]*service
+type (
+	services  map[string]map[string]*service
+	endpoints map[string]map[string]endpoint
+)
 
 type testAPI struct {
 	test      *testing.T
 	services  services
 	ingresses *ingressList
+	endpoints endpoints
 	server    *httptest.Server
 	failNext  bool
 }
 
-var serviceURIRx = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/services/([^/]+)$")
+var (
+	serviceURIRx  = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/services/([^/]+)$")
+	endpointURIRx = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/endpoints/([^/]+)")
+)
 
 func init() {
 	log.SetLevel(log.InfoLevel)
@@ -45,11 +57,16 @@ func init() {
 }
 
 func testService(clusterIP string, ports map[string]int) *service {
+	return testServiceWithTargetPort(clusterIP, ports, nil)
+}
+
+func testServiceWithTargetPort(clusterIP string, ports map[string]int, targetPorts map[int]*backendPort) *service {
 	sports := make([]*servicePort, 0, len(ports))
 	for name, port := range ports {
 		sports = append(sports, &servicePort{
-			Name: name,
-			Port: port,
+			Name:       name,
+			Port:       port,
+			TargetPort: targetPorts[port],
 		})
 	}
 
@@ -80,7 +97,7 @@ func testRule(host string, paths ...*pathRule) *rule {
 	}
 }
 
-func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
+func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
 	var defaultBackend *backend
 	if len(defaultService) != 0 {
 		defaultBackend = &backend{
@@ -109,6 +126,11 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 			skipperpredicateAnnotationKey: predicateString,
 		}
 	}
+	if routesString != "" {
+		meta.Annotations = map[string]string{
+			skipperRoutesAnnotationKey: routesString,
+		}
+	}
 	return &ingressItem{
 		Metadata: &meta,
 		Spec: &ingressSpec{
@@ -126,16 +148,18 @@ func testServices() services {
 		},
 		"namespace2": map[string]*service{
 			"service3": testService("9.0.1.2", map[string]int{"port3": 7272}),
+			"service4": testService("10.0.1.2", map[string]int{"port4": 4444, "port5": 5555}),
 		},
 	}
 }
 
 func testIngresses() []*ingressItem {
 	return []*ingressItem{
-		testIngress("namespace1", "default-only", "service1", "", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace1", "default-only", "service1", "", "", "", "", backendPort{8080}, 1.0),
 		testIngress(
 			"namespace2",
 			"path-rule-only",
+			"",
 			"",
 			"",
 			"",
@@ -154,6 +178,7 @@ func testIngresses() []*ingressItem {
 			"",
 			"",
 			"",
+			"",
 			backendPort{"port1"},
 			1.0,
 			testRule(
@@ -167,14 +192,27 @@ func testIngresses() []*ingressItem {
 				testPathRule("/test2", "service2", backendPort{"port2"}),
 			),
 		),
-		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", backendPort{8080}, 1.0),
-		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", backendPort{8080}, 1.0),
+		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", backendPort{4444}, 1.0),
 	}
 }
 
 func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	if len(r) != len(expected) {
-		t.Error("number of routes doesn't match expected", len(r), len(expected))
+		curIDs := make([]string, len(r))
+		expectedIDs := make([]string, len(expected))
+		for i := range r {
+			curIDs[i] = r[i].Id
+		}
+		j := 0
+		for k := range expected {
+			expectedIDs[j] = k
+			j++
+		}
+		sort.Strings(expectedIDs)
+		sort.Strings(curIDs)
+		t.Errorf("number of routes %d doesn't match expected %d: %v", len(r), len(expected), cmp.Diff(expectedIDs, curIDs))
 		return
 	}
 
@@ -183,7 +221,7 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 		for _, ri := range r {
 			if ri.Id == id {
 				if ri.Backend != backend {
-					t.Error("invalid backend", ri.Backend, backend)
+					t.Errorf("invalid backend %v", cmp.Diff(ri.Backend, backend))
 					return
 				}
 
@@ -198,9 +236,42 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	}
 }
 
+func checkRoutesDoc(t *testing.T, r []*eskip.Route, expect string) {
+	expectRoutes, err := eskip.Parse(expect)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkRoutesExact(t, r, expectRoutes)
+}
+
+func checkRoutesExact(t *testing.T, r []*eskip.Route, expect []*eskip.Route) {
+	if len(r) != len(expect) {
+		t.Error("length doesn't match")
+		t.Log("got:     ", len(r))
+		t.Log("expected:", len(expect))
+		return
+	}
+
+	for i := range r {
+		var found bool
+		for j := range expect {
+			if r[i].Id == expect[j].Id && r[i].String() == expect[j].String() {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Errorf("route not found: %s: %v", r[i].Id, r[i])
+			return
+		}
+	}
+}
+
 func checkIDs(t *testing.T, got []string, expected ...string) {
 	if len(got) != len(expected) {
-		t.Error("number of IDs doesn't match expected", len(got), len(expected))
+		t.Errorf("number of IDs %d doesn't match expected %d", len(got), len(expected))
 		return
 	}
 
@@ -220,7 +291,7 @@ func checkIDs(t *testing.T, got []string, expected ...string) {
 	}
 }
 
-func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) {
+func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, reversed bool) {
 	for _, r := range got {
 		if r.Id != healthcheckRouteID {
 			continue
@@ -243,7 +314,10 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) 
 
 		var found bool
 		for _, p := range r.Predicates {
-			if p.Name != source.Name {
+			if reversed && p.Name != source.NameLast {
+				continue
+			}
+			if !reversed && p.Name != source.Name {
 				continue
 			}
 
@@ -255,15 +329,15 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) 
 			}
 
 			for _, s := range internalIPs {
-				var found bool
+				var found2 bool
 				for _, sp := range p.Args {
 					if sp == s {
-						found = true
+						found2 = true
 						break
 					}
 				}
 
-				if !found {
+				if !found2 {
 					t.Error("invalid source ip")
 				}
 			}
@@ -299,10 +373,15 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy bool) 
 }
 
 func newTestAPI(t *testing.T, s services, i *ingressList) *testAPI {
+	return newTestAPIWithEndpoints(t, s, i, nil)
+}
+
+func newTestAPIWithEndpoints(t *testing.T, s services, i *ingressList, e endpoints) *testAPI {
 	api := &testAPI{
 		test:      t,
 		services:  s,
 		ingresses: i,
+		endpoints: e,
 	}
 
 	api.server = httptest.NewServer(api)
@@ -317,6 +396,16 @@ func respondJSON(w io.Writer, v interface{}) error {
 
 	_, err = w.Write(b)
 	return err
+}
+
+func (api *testAPI) getEndpoints(uri string) endpoint {
+	var ep endpoint
+	if m := endpointURIRx.FindAllStringSubmatch(uri, -1); len(m) != 0 {
+		ns, n := m[0][1], m[0][2]
+		ep = api.endpoints[ns][n]
+	}
+
+	return ep
 }
 
 func (api *testAPI) getTestService(uri string) (*service, bool) {
@@ -337,6 +426,15 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == ingressesURI {
 		if err := respondJSON(w, api.ingresses); err != nil {
+			api.test.Error(err)
+		}
+
+		return
+	}
+
+	if endpointURIRx.MatchString(r.URL.Path) {
+		ep := api.getEndpoints(r.URL.Path)
+		if err := respondJSON(w, ep); err != nil {
 			api.test.Error(err)
 		}
 
@@ -370,7 +468,7 @@ func TestIngressData(t *testing.T) {
 				"bar": testService("1.2.3.4", nil),
 			},
 		},
-		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", "", backendPort{8080}, 1.0)},
+		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", "", "", backendPort{8080}, 1.0)},
 		map[string]string{
 			"kube_foo__baz______": "http://1.2.3.4:8080",
 		},
@@ -384,6 +482,7 @@ func TestIngressData(t *testing.T) {
 		[]*ingressItem{testIngress(
 			"foo",
 			"baz",
+			"",
 			"",
 			"",
 			"",
@@ -417,6 +516,7 @@ func TestIngressData(t *testing.T) {
 			"",
 			"",
 			"",
+			"",
 			backendPort{8080},
 			1.0,
 			testRule(
@@ -442,6 +542,7 @@ func TestIngressData(t *testing.T) {
 		[]*ingressItem{testIngress(
 			"foo",
 			"qux",
+			"",
 			"",
 			"",
 			"",
@@ -475,6 +576,7 @@ func TestIngressData(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{},
 				1.0,
 				testRule(
@@ -503,6 +605,36 @@ func TestIngressData(t *testing.T) {
 		},
 		map[string]string{
 			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
+		},
+	}, {
+		"skipper-routes annotation",
+		services{
+			"foo": map[string]*service{
+				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
+			},
+		},
+		[]*ingressItem{testIngress(
+			"foo",
+			"qux",
+			"",
+			"",
+			"",
+			"",
+			`Method("OPTIONS") -> <shunt>`,
+			backendPort{},
+			1.0,
+			testRule(
+				"www.example.org",
+				testPathRule(
+					"/",
+					"bar",
+					backendPort{"baz"},
+				),
+			),
+		)},
+		map[string]string{
+			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
+			"kube_foo__qux__0__www_example_org____":  "",
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -534,19 +666,19 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "filter no class ingresses",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 				}},
 			},
 			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 				}},
 			},
@@ -554,13 +686,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "filter specific key ingress",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
 					},
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -569,7 +701,7 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -577,13 +709,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "filter empty class ingresses",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -592,7 +724,7 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -600,13 +732,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "explicitly include any ingress class",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
@@ -615,10 +747,10 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: ".*",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 				}},
 			},
@@ -626,13 +758,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "match from a set of ingress classes",
 			items: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "skipper-test, other-test",
 					},
 				}},
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "other-test",
@@ -641,7 +773,7 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: "skipper-test",
 			expectedItems: []*ingressItem{
-				&ingressItem{Metadata: &metadata{
+				{Metadata: &metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -745,6 +877,7 @@ func TestIngress(t *testing.T) {
 			"kube___catchall__bar_example_org____":                          "",
 			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
 			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.2.3.4:8080",
+			"kube_namespace2__svcwith2ports______":                          "http://10.0.1.2:4444",
 		})
 	})
 
@@ -801,6 +934,7 @@ func TestIngress(t *testing.T) {
 			"kube___catchall__bar_example_org____":                          "",
 			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
 			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.2.3.4:8080",
+			"kube_namespace2__svcwith2ports______":                          "http://10.0.1.2:4444",
 		})
 	})
 
@@ -832,7 +966,7 @@ func TestIngress(t *testing.T) {
 		})
 	})
 
-	t.Run("has ingresses, loose a service", func(t *testing.T) {
+	t.Run("has ingresses, lose a service", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -895,6 +1029,7 @@ func TestIngress(t *testing.T) {
 			"kube___catchall__bar_example_org____",
 			"kube_namespace1__ratelimit______",
 			"kube_namespace1__ratelimitAndBreaker______",
+			"kube_namespace2__svcwith2ports______",
 		)
 	})
 
@@ -951,6 +1086,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -961,6 +1097,7 @@ func TestIngress(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new2",
+				"",
 				"",
 				"",
 				"",
@@ -1009,6 +1146,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1019,6 +1157,7 @@ func TestIngress(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new2",
+				"",
 				"",
 				"",
 				"",
@@ -1076,6 +1215,7 @@ func TestIngress(t *testing.T) {
 			"",
 			"",
 			"",
+			"",
 			backendPort{""},
 			1.0,
 			testRule(
@@ -1086,6 +1226,7 @@ func TestIngress(t *testing.T) {
 		ti2 := testIngress(
 			"namespace1",
 			"new2",
+			"",
 			"",
 			"",
 			"",
@@ -1142,6 +1283,7 @@ func TestConvertPathRule(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1152,6 +1294,7 @@ func TestConvertPathRule(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new1",
+				"",
 				"",
 				"",
 				"",
@@ -1185,18 +1328,18 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 		route *eskip.Route
 	}{
 		{
-			msg: "if traffic weihgt is between 0 and 1 predicate should be added to route",
+			msg: "if traffic weight is between 0 and 1 predicate should be added to route",
 			rule: &pathRule{
 				Path: "",
 				Backend: &backend{
-					ServiceName: "foo",
+					ServiceName: "service1",
+					ServicePort: backendPort{"port1"},
 					Traffic:     0.3,
 				},
 			},
 			route: &eskip.Route{
-				Id:          routeID("", "", "", "", "foo"),
-				PathRegexps: nil,
-				Backend:     "backend",
+				Id:      routeID("namespace1", "", "", "", "service1"),
+				Backend: "http://1.2.3.4:8080",
 				Predicates: []*eskip.Predicate{
 					{
 						Name: "Traffic",
@@ -1206,38 +1349,38 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 			},
 		},
 		{
-			msg: "if traffic weihgt is 0, don't include traffic predicate",
+			msg: "if traffic weight is 0, don't include traffic predicate",
 			rule: &pathRule{
 				Path: "",
 				Backend: &backend{
-					ServiceName: "foo",
+					ServiceName: "service1",
+					ServicePort: backendPort{"port1"},
 					Traffic:     0.0,
 				},
 			},
 			route: &eskip.Route{
-				Id:          routeID("", "", "", "", "foo"),
-				PathRegexps: nil,
-				Backend:     "backend",
+				Id:      routeID("namespace1", "", "", "", "service1"),
+				Backend: "http://1.2.3.4:8080",
 			},
 		},
 		{
-			msg: "if traffic weihgt is 1, don't include traffic predicate",
+			msg: "if traffic weight is 1, don't include traffic predicate",
 			rule: &pathRule{
 				Path: "",
 				Backend: &backend{
-					ServiceName: "foo",
+					ServiceName: "service1",
+					ServicePort: backendPort{"port1"},
 					Traffic:     1.0,
 				},
 			},
 			route: &eskip.Route{
-				Id:          routeID("", "", "", "", "foo"),
-				PathRegexps: nil,
-				Backend:     "backend",
+				Id:      routeID("namespace1", "", "", "", "service1"),
+				Backend: "http://1.2.3.4:8080",
 			},
 		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
-			api := newTestAPI(t, nil, &ingressList{})
+			api := newTestAPI(t, testServices(), &ingressList{})
 			defer api.Close()
 			dc, err := New(Options{KubernetesURL: api.server.URL})
 			if err != nil {
@@ -1250,12 +1393,12 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			route, err := dc.convertPathRule("", "", "", tc.rule, map[string]string{"foo": "backend"})
+			route, err := dc.convertPathRule("namespace1", "", "", tc.rule, map[string][]string{})
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}
 
-			if !reflect.DeepEqual(tc.route, route) {
+			if !reflect.DeepEqual(tc.route, route[0]) {
 				t.Errorf("generated route should match expected route")
 			}
 		})
@@ -1277,20 +1420,23 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("no healthcheck", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
+		if err != nil {
+			t.Error(err)
+		}
 
 		r, err := dc.LoadAll()
 		if err != nil {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("no healthcheck, fail", func(t *testing.T) {
@@ -1306,7 +1452,7 @@ func TestHealthcheckInitial(t *testing.T) {
 		}
 	})
 
-	t.Run("use healthceck, empty", func(t *testing.T) {
+	t.Run("use healthcheck, empty", func(t *testing.T) {
 		api.ingresses.Items = nil
 		dc, err := New(Options{
 			KubernetesURL:      api.server.URL,
@@ -1321,7 +1467,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, true, true, false)
 	})
 
 	t.Run("use healthcheck", func(t *testing.T) {
@@ -1340,7 +1486,27 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, true, true, false)
+	})
+
+	t.Run("use reverse healthcheck", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		dc, err := New(Options{
+			KubernetesURL:          api.server.URL,
+			ProvideHealthcheck:     true,
+			ReverseSourcePredicate: true,
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		r, err := dc.LoadAll()
+		if err != nil {
+			t.Error(err)
+		}
+
+		checkHealthcheck(t, r, true, true, true)
 	})
 }
 
@@ -1365,7 +1531,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1410,7 +1576,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, false, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1438,7 +1604,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, false, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1466,7 +1632,7 @@ func TestHealthcheckReload(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("use healthcheck, reload succeeds", func(t *testing.T) {
@@ -1488,7 +1654,7 @@ func TestHealthcheckReload(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true)
+		checkHealthcheck(t, r, true, true, false)
 		checkRoutes(t, r, map[string]string{
 			healthcheckRouteID:                                              "",
 			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
@@ -1502,6 +1668,7 @@ func TestHealthcheckReload(t *testing.T) {
 			"kube___catchall__bar_example_org____":                          "",
 			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
 			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.2.3.4:8080",
+			"kube_namespace2__svcwith2ports______":                          "http://10.0.1.2:4444",
 		})
 	})
 }
@@ -1747,7 +1914,7 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("healthcheck false after term", func(t *testing.T) {
@@ -1772,7 +1939,7 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		checkHealthcheck(t, r, true, false)
+		checkHealthcheck(t, r, true, false, false)
 	})
 
 	t.Run("no difference after term when disabled, update", func(t *testing.T) {
@@ -1803,7 +1970,7 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		checkHealthcheck(t, r, false, false)
+		checkHealthcheck(t, r, false, false, false)
 	})
 
 	t.Run("healthcheck false after term, update", func(t *testing.T) {
@@ -1834,7 +2001,7 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
-		checkHealthcheck(t, r, true, false)
+		checkHealthcheck(t, r, true, false, false)
 	})
 }
 
@@ -2145,6 +2312,72 @@ func TestComputeBackendWeights(t *testing.T) {
 	}
 }
 
+type backendWeight float64
+
+func (w backendWeight) Generate(rand *mrand.Rand, size int) reflect.Value {
+	generatedWeight := rand.Float64() * 100
+	return reflect.ValueOf(backendWeight(generatedWeight))
+}
+
+func TestComputeBackendWeightMustHaveFallback(t *testing.T) {
+	beweight := func(a, b, c, d backendWeight) bool {
+		if a+b+c+d == 0.0 {
+			return true
+		}
+
+		weights := map[string]float64{"foo": float64(a), "bar": float64(b), "baz": float64(c), "quux": float64(d)}
+		fooBackend := &backend{
+			ServiceName: "foo",
+		}
+		barBackend := &backend{
+			ServiceName: "bar",
+		}
+		bazBackend := &backend{
+			ServiceName: "baz",
+		}
+		quuxBackend := &backend{
+			ServiceName: "quux",
+		}
+		allBackends := []*backend{fooBackend, barBackend, bazBackend, quuxBackend}
+
+		input := &rule{
+			Http: &httpRule{
+				Paths: []*pathRule{
+					{
+						Path:    "",
+						Backend: fooBackend,
+					},
+					{
+						Path:    "",
+						Backend: barBackend,
+					},
+					{
+						Path:    "",
+						Backend: bazBackend,
+					},
+					{
+						Path:    "",
+						Backend: quuxBackend,
+					},
+				},
+			},
+		}
+		computeBackendWeights(weights, input)
+
+		// check that there's one backend with weight of 1.0
+		for _, backend := range allBackends {
+			if backend.Traffic == 1.0 {
+				return true
+			}
+		}
+		return false
+	}
+
+	if err := quick.Check(beweight, nil); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestRatelimits(t *testing.T) {
 	api := newTestAPI(t, nil, &ingressList{})
 	defer api.Close()
@@ -2208,7 +2441,7 @@ func TestSkipperFilter(t *testing.T) {
 		}
 
 		checkSkipperFilter(t, r, map[string][]string{
-			"kube_namespace1__ratelimitAndBreaker______": []string{"localRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
+			"kube_namespace1__ratelimitAndBreaker______": {"localRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
 		})
 	})
 }
@@ -2233,7 +2466,7 @@ func TestSkipperPredicate(t *testing.T) {
 	api := newTestAPI(t, nil, &ingressList{})
 	defer api.Close()
 
-	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", backendPort{8080}, 1.0)
+	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", backendPort{8080}, 1.0)
 
 	t.Run("check ingress predicate", func(t *testing.T) {
 		api.services = testServices()

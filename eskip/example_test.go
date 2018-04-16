@@ -34,7 +34,7 @@ func Example() {
 			modPath(/\.html$/, ".jsx") ->
 			requestHeader("X-Type", "page") ->
 			"https://render.example.org";
-		
+
 		route1: Path("/some/path") -> "https://backend-0.example.org"; // a simple route
 
 		// route definition with a shunt (no backend address)
@@ -98,7 +98,7 @@ func ExampleFilter() {
 	// filter arg 1: 3.14
 }
 
-func ExampleNetworkRoute() {
+func ExampleNetworkBackend() {
 	code := `
 		ajaxRouteV3: PathRegexp(/^\/api\/v3\/.*/) -> ajaxHeader("v3") -> "https://api.example.org"`
 
@@ -126,7 +126,7 @@ func ExampleNetworkRoute() {
 	// backend address: "https://api.example.org"
 }
 
-func ExampleLoopbackRoute() {
+func ExampleLoopBackend() {
 	code := `
 		ajaxRouteV3: PathRegexp(/^\/api\/v3\/.*/) -> ajaxHeader("v3") -> <loopback>`
 
@@ -154,7 +154,7 @@ func ExampleLoopbackRoute() {
 	// backend address: ""
 }
 
-func ExampleShuntRoute() {
+func ExampleShuntBackend() {
 	code := `
 		ajaxRouteV3: PathRegexp(/^\/api\/v3\/.*/) -> ajaxHeader("v3") -> <shunt>`
 

@@ -2,11 +2,12 @@ package logging
 
 import (
 	"bytes"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
 	"strings"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func TestCustomOutputForApplicationLog(t *testing.T) {
@@ -27,7 +28,7 @@ func TestCustomPrefixForApplicationLog(t *testing.T) {
 		ApplicationLogPrefix: prefix})
 	log.Infof("Hello, world!")
 	got := buf.String()
-	if !strings.HasPrefix(got, "[TEST_PREFIX]") || strings.Index(got, "Hello, world!") < 0 {
+	if !strings.HasPrefix(got, "[TEST_PREFIX]") || !strings.Contains(got, "Hello, world!") {
 		t.Error("failed to use custom prefix")
 	}
 }

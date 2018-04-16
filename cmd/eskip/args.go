@@ -19,6 +19,7 @@ import (
 	"flag"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -27,6 +28,7 @@ import (
 const (
 	etcdUrlsFlag       = "etcd-urls"
 	etcdPrefixFlag     = "etcd-prefix"
+	etcdOAuthTokenFlag = "etcd-oauth-token"
 	innkeeperUrlFlag   = "innkeeper-url"
 	oauthTokenFlag     = "oauth-token"
 	inlineRoutesFlag   = "routes"
@@ -37,6 +39,7 @@ const (
 	appendFiltersFlag  = "append"
 	appendFileFlag     = "append-file"
 	prettyFlag         = "pretty"
+	indentStrFlag      = "indent"
 	jsonFlag           = "json"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
@@ -54,6 +57,7 @@ func (w *noopWriter) Write(b []byte) (int, error) {
 var (
 	invalidNumberOfArgs = errors.New("invalid number of args")
 	missingOAuthToken   = errors.New("missing OAuth token")
+	invalidIndentStr    = errors.New("invalid indent. Must match regexp \\s")
 )
 
 // parsing vars for flags:
@@ -62,6 +66,7 @@ var (
 	etcdPrefix        string
 	innkeeperUrl      string
 	oauthToken        string
+	etcdOAuthToken    string
 	inlineRoutes      string
 	inlineRouteIds    string
 	insecure          bool
@@ -70,6 +75,7 @@ var (
 	appendFiltersArg  string
 	appendFileArg     string
 	pretty            bool
+	indentStr         string
 	printJson         bool
 )
 
@@ -88,6 +94,7 @@ func initFlags() {
 	// the default value not used here, because it depends on the command
 	flags.StringVar(&etcdUrls, etcdUrlsFlag, "", etcdUrlsUsage)
 	flags.StringVar(&etcdPrefix, etcdPrefixFlag, "", etcdPrefixUsage)
+	flags.StringVar(&etcdOAuthToken, etcdOAuthTokenFlag, "", etcdOAuthTokenUsage)
 
 	flags.StringVar(&innkeeperUrl, innkeeperUrlFlag, "", innkeeperUrlUsage)
 	flags.StringVar(&oauthToken, oauthTokenFlag, "", oauthTokenUsage)
@@ -103,6 +110,7 @@ func initFlags() {
 	flags.StringVar(&appendFileArg, appendFileFlag, "", appendFileUsage)
 
 	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
+	flags.StringVar(&indentStr, indentStrFlag, "  ", indentStrUsage)
 	flags.BoolVar(&printJson, jsonFlag, false, jsonUsage)
 }
 
@@ -135,7 +143,7 @@ func stringsToUrls(strs ...string) ([]*url.URL, error) {
 
 // returns etcd type medium if any of '-etcd-urls' or '-etcd-prefix'
 // are defined.
-func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
+func processEtcdArgs(etcdUrls, etcdPrefix, oauthToken string) (*medium, error) {
 	if etcdUrls == "" && etcdPrefix == "" {
 		return nil, nil
 	}
@@ -155,9 +163,10 @@ func processEtcdArgs(etcdUrls, etcdPrefix string) (*medium, error) {
 	}
 
 	return &medium{
-		typ:  etcd,
-		urls: urls,
-		path: etcdPrefix}, nil
+		typ:        etcd,
+		urls:       urls,
+		path:       etcdPrefix,
+		oauthToken: oauthToken}, nil
 }
 
 func processInnkeeperArgs(innkeeperUrl, oauthToken string) (*medium, error) {
@@ -198,6 +207,15 @@ func processFileArg() (*medium, error) {
 	return &medium{
 		typ:  file,
 		path: nonFlagArgs[0]}, nil
+}
+
+// if pretty print then check that indent matches pattern
+func processIndentStr() error {
+	if pretty && !(regexp.MustCompile("^[\\s]*$").MatchString(indentStr)) {
+		return invalidIndentStr
+	}
+	return nil
+
 }
 
 // returns stdin type medium if stdin is not TTY.
@@ -254,7 +272,7 @@ func processArgs() ([]*medium, error) {
 		media = append(media, innkeeperArg)
 	}
 
-	etcdArg, err := processEtcdArgs(etcdUrls, etcdPrefix)
+	etcdArg, err := processEtcdArgs(etcdUrls, etcdPrefix, etcdOAuthToken)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +294,11 @@ func processArgs() ([]*medium, error) {
 	}
 
 	fileArg, err := processFileArg()
+	if err != nil {
+		return nil, err
+	}
+
+	err = processIndentStr()
 	if err != nil {
 		return nil, err
 	}

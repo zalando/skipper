@@ -1,463 +1,209 @@
-package metrics
+package metrics_test
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"reflect"
+	"net/http/httptest"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/rcrowley/go-metrics"
+	"github.com/zalando/skipper/metrics"
 )
 
-func TestUseVoidByDefaultOptions(t *testing.T) {
-	if Default != Void {
-		t.Error("Default Options should not create a registry or enable metrics")
+func TestHandlerPrometheusBadRequests(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.PrometheusKind,
+		EnableRuntimeMetrics: true,
 	}
+	mh := metrics.NewDefaultHandler(o)
 
-	timer := Default.getTimer(KeyRouteLookup)
-	switch timer.(type) {
-	case metrics.NilTimer:
-	default:
-		t.Errorf("Able to get metric timer for key '%s' while it shouldn't be possible", KeyRouteLookup)
-	}
+	r, _ := http.NewRequest("GET", "/", nil)
+	rw := httptest.NewRecorder()
 
-	counter := Default.getCounter(KeyRouteFailure)
-	switch counter.(type) {
-	case metrics.NilCounter:
-	default:
-		t.Errorf("Able to get metric counter for key '%s' while it shouldn't be possible", KeyRouteFailure)
+	mh.ServeHTTP(rw, r)
+	if rw.Code != http.StatusNotFound {
+		t.Error("The root resource should not provide a valid response")
 	}
 }
 
-func TestDefaultOptionsWithListener(t *testing.T) {
-	o := Options{}
-	NewHandler(o)
-
-	if Default == Void {
-		t.Error("Options containing a listener should create a registry")
+func TestHandlerPrometheusMetricsRequest(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.PrometheusKind,
+		EnableRuntimeMetrics: true,
 	}
+	mh := metrics.NewDefaultHandler(o)
 
-	if Default.reg.Get("debug.GCStats.LastGC") != nil {
-		t.Error("Default options should not enable debug gc stats")
+	r, _ := http.NewRequest("GET", "/metrics", nil)
+	rw := httptest.NewRecorder()
+
+	mh.ServeHTTP(rw, r)
+	if rw.Code != http.StatusOK {
+		t.Error("Metrics endpoint should provide a valid response")
 	}
-
-	if Default.reg.Get("runtime.MemStats.Alloc") != nil {
-		t.Error("Default options should not enable runtime stats")
-	}
-}
-
-func TestDebugGcStats(t *testing.T) {
-	o := Options{EnableDebugGcMetrics: true}
-	NewHandler(o)
-
-	if Default.reg.Get("debug.GCStats.LastGC") == nil {
-		t.Error("Options enabled debug gc stats but failed to find the key 'debug.GCStats.LastGC'")
+	b := rw.Body.Bytes()
+	if len(b) == 0 {
+		t.Error("Metrics endpoint should've returned some runtime metrics in it")
 	}
 }
 
-func TestRuntimeStats(t *testing.T) {
-	o := Options{EnableRuntimeMetrics: true}
-	NewHandler(o)
+func TestHandlerCodaHaleBadRequests(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
+	}
+	mh := metrics.NewDefaultHandler(o)
 
-	if Default.reg.Get("runtime.MemStats.Alloc") == nil {
-		t.Error("Options enabled runtime stats but failed to find the key 'runtime.MemStats.Alloc'")
+	r1, _ := http.NewRequest("GET", "/", nil)
+	rw1 := httptest.NewRecorder()
+
+	mh.ServeHTTP(rw1, r1)
+	if rw1.Code != http.StatusNotFound {
+		t.Error("The root resource should not provide a valid response")
+	}
+
+	r2, _ := http.NewRequest("POST", "/metrics", nil)
+	rw2 := httptest.NewRecorder()
+	mh.ServeHTTP(rw2, r2)
+	if rw2.Code != http.StatusMethodNotAllowed {
+		t.Error("POST method should not provide a valid response")
 	}
 }
 
-func TestMeasurement(t *testing.T) {
-	o := Options{}
-	NewHandler(o)
-
-	t1 := Default.getTimer("TestMeasurement1")
-	if t1.Count() != 0 && t1.Max() != 0 {
-		t.Error("'TestMeasurement1' metric should only have zeroes")
+func TestHandlerCodaHaleAllMetricsRequest(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
 	}
-	now := time.Now()
-	time.Sleep(5)
-	Default.measureSince("TestMeasurement1", now)
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
 
-	time.Sleep(20 * time.Millisecond)
-	if t1.Count() == 0 || t1.Max() == 0 {
-		t.Error("'TestMeasurement1' metric should have some numbers")
-	}
+	r, _ := http.NewRequest("GET", "/metrics", nil)
+	rw := httptest.NewRecorder()
+	mh.ServeHTTP(rw, r)
 
-	t2 := Default.getTimer("TestMeasurement2")
-	if t2.Count() != 0 && t2.Max() != 0 {
-		t.Error("'TestMeasurement2' metric should only have zeroes")
+	if rw.Code != http.StatusOK {
+		t.Error("Metrics endpoint should provide a valid response")
 	}
 
-	Default.measureSince("TestMeasurement2", now)
-	time.Sleep(20 * time.Millisecond)
-
-	if t2.Count() == 0 || t2.Max() == 0 {
-		t.Error("'TestMeasurement2' metric should have some numbers")
+	var data map[string]map[string]interface{}
+	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
+		t.Error("Unable to unmarshal metrics response")
 	}
 
-	c1 := Default.getCounter("TestCounter1")
-	if c1.Count() != 0 {
-		t.Error("'TestCounter1' metric should be zero")
+	if _, ok := data["gauges"]["runtime.MemStats.NumGC"]; !ok {
+		t.Error("Metrics endpoint should've returned some runtime metrics in it")
 	}
-	Default.incCounter("TestCounter1")
-	time.Sleep(20 * time.Millisecond)
-	if c1.Count() != 1 {
-		t.Errorf("'TestCounter1' metric should be 1. Got %d", c1.Count())
-	}
-
-	c2 := Default.getCounter("TestCounter2")
-	if c2.Count() != 0 {
-		t.Error("'TestCounter2' metric should be zero")
-	}
-	Default.IncCounter("TestCounter2")
-	time.Sleep(20 * time.Millisecond)
-	if c2.Count() != 1 {
-		t.Errorf("'TestCounter2' metric should be 1. Got %d", c2.Count())
-	}
-
-	t3 := Default.getTimer("TestMeasurement3")
-	if t3.Count() != 0 && t3.Max() != 0 {
-		t.Error("'TestMeasurement3' metric should only have zeroes")
-	}
-
-	Default.MeasureSince("TestMeasurement3", now)
-	time.Sleep(20 * time.Millisecond)
-
-	if t3.Count() == 0 || t3.Max() == 0 {
-		t.Error("'TestMeasurement2' metric should have some numbers")
-	}
-
 }
 
-type proxyMetricTest struct {
-	metricsKey  string
-	measureFunc func(*Metrics)
+func TestHandlerCodaHaleSingleMetricsRequest(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
+	}
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
+
+	r, _ := http.NewRequest("GET", "/metrics/runtime.MemStats.NumGC", nil)
+	rw := httptest.NewRecorder()
+	mh.ServeHTTP(rw, r)
+	if rw.Code != http.StatusOK {
+		t.Error("Metrics endpoint should provide a valid response")
+	}
+
+	var data map[string]map[string]interface{}
+	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
+		t.Error("Unable to unmarshal metrics response")
+	}
+
+	if len(data) != 1 {
+		t.Error("Metrics endpoint for exact match should've returned exactly te requested item")
+	}
+
+	if _, ok := data["gauges"]["runtime.MemStats.NumGC"]; !ok {
+		t.Error("Metrics endpoint should've returned some runtime metrics in it")
+	}
 }
 
-var proxyMetricsTests = []proxyMetricTest{
-	// T1 - Measure routing
-	{KeyRouteLookup, func(m *Metrics) { m.MeasureRouteLookup(time.Now()) }},
-	// T2 - Measure filter request
-	{fmt.Sprintf(KeyFilterRequest, "foo"), func(m *Metrics) { m.MeasureFilterRequest("foo", time.Now()) }},
-	// T3 - Measure all filters request
-	{fmt.Sprintf(KeyFiltersRequest, "bar"), func(m *Metrics) { m.MeasureAllFiltersRequest("bar", time.Now()) }},
-	// T4 - Measure proxy backend
-	{fmt.Sprintf(KeyProxyBackend, "baz"), func(m *Metrics) { m.MeasureBackend("baz", time.Now()) }},
-	// T5 - Measure filters response
-	{fmt.Sprintf(KeyFilterResponse, "qux"), func(m *Metrics) { m.MeasureFilterResponse("qux", time.Now()) }},
-	// T6 - Measure all filters response
-	{fmt.Sprintf(KeyFiltersResponse, "quux"), func(m *Metrics) { m.MeasureAllFiltersResponse("quux", time.Now()) }},
-	// T7 - Measure response
-	{fmt.Sprintf(KeyResponse, http.StatusOK, "GET", "norf"),
-		func(m *Metrics) { m.MeasureResponse(http.StatusOK, "GET", "norf", time.Now()) }},
-	// T8 - Inc routing failure
-	{KeyRouteFailure, func(m *Metrics) { m.IncRoutingFailures() }},
-	// T9 - Inc backend errors
-	{fmt.Sprintf(KeyErrorsBackend, "r1"), func(m *Metrics) { m.IncErrorsBackend("r1") }},
-	// T10 - Inc streaming errors
-	{fmt.Sprintf(KeyErrorsStreaming, "r1"), func(m *Metrics) { m.IncErrorsStreaming("r1") }},
+func TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		Prefix:               "zmon.",
+		EnableRuntimeMetrics: true,
+	}
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
+
+	r, _ := http.NewRequest("GET", "/metrics/zmon.runtime.MemStats.NumGC", nil)
+	rw := httptest.NewRecorder()
+	mh.ServeHTTP(rw, r)
+	if rw.Code != http.StatusOK {
+		t.Error("Metrics endpoint should provide a valid response for exact match using prefix")
+	}
+
+	var data map[string]map[string]interface{}
+	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
+		t.Error("Unable to unmarshal metrics response for exact match using prefix")
+	}
+
+	if len(data) != 1 {
+		t.Error("Metrics endpoint for exact match using prefix should've returned exactly te requested item")
+	}
+
+	if _, ok := data["gauges"]["zmon.runtime.MemStats.NumGC"]; !ok {
+		t.Error("Metrics endpoint for exact match using prefix should've returned some runtime metrics in it")
+	}
 }
 
-func waitForNewMetric(m *Metrics, key string, timeout time.Duration, maxTries int) bool {
-	done := make(chan bool)
-	to := time.After(timeout)
-	go func() {
-		for {
-			if m.reg.Get(key) != nil {
-				done <- true
-				return
-			}
+func TestHandlerCodaHaleMetricsRequestWithPattern(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
+	}
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
 
-			select {
-			case <-to:
-				done <- false
-				return
-			case <-time.After(time.Duration(int(timeout) / maxTries)):
+	r, _ := http.NewRequest("GET", "/metrics/runtime.Num", nil)
+	rw := httptest.NewRecorder()
+	mh.ServeHTTP(rw, r)
+	if rw.Code != http.StatusOK {
+		t.Error("Metrics endpoint should provide a valid response")
+	}
+
+	var data map[string]map[string]interface{}
+	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
+		t.Error("Unable to unmarshal metrics response")
+	}
+
+	if len(data) < 1 {
+		t.Error("Metrics endpoint for prefix should've returned some runtime metrics in it")
+	}
+
+	for k, v := range data {
+		if k != "gauges" {
+			t.Error("Metrics should report `gauges` metrics")
+		} else {
+			for k2 := range v {
+				if !strings.HasPrefix(k2, "runtime.Num") {
+					t.Error("Metrics endpoint returned metrics with the wrong prefix")
+				}
 			}
 		}
-	}()
-
-	return <-done
-}
-
-func TestProxyMetrics(t *testing.T) {
-	const (
-		registryTimeout  = time.Millisecond
-		registryMaxTries = 16
-	)
-
-	for _, pmt := range proxyMetricsTests {
-		t.Run(pmt.metricsKey, func(t *testing.T) {
-			m := New(Options{})
-			pmt.measureFunc(m)
-			if !waitForNewMetric(m, pmt.metricsKey, registryTimeout, registryMaxTries) {
-				t.Errorf("expected metric was not found: '%s'", pmt.metricsKey)
-			}
-		})
 	}
 }
 
-type serializationResult map[string]map[string]map[string]interface{}
-
-type serializationTest struct {
-	i        interface{}
-	expected serializationResult
-}
-
-var serializationTests = []serializationTest{
-	{metrics.NewGauge, serializationResult{"gauges": {"test": {"value": 0.0}}}},
-	{metrics.NewCounter, serializationResult{"counters": {"test": {"count": 0.0}}}},
-	{metrics.NewTimer, serializationResult{"timers": {"test": {"15m.rate": 0.0, "1m.rate": 0.0, "5m.rate": 0.0,
-		"75%": 0.0, "95%": 0.0, "99%": 0.0, "99.9%": 0.0, "count": 0.0, "max": 0.0, "mean": 0.0, "mean.rate": 0.0,
-		"median": 0.0, "min": 0.0, "stddev": 0.0}}}},
-	{func() metrics.Histogram { return metrics.NewHistogram(nil) }, serializationResult{"histograms": {"test": {"75%": 0.0,
-		"95%": 0.0, "99%": 0.0, "99.9%": 0.0, "count": 0.0, "max": 0.0, "mean": 0.0, "median": 0.0, "min": 0.0,
-		"stddev": 0.0}}}},
-	{func() int { return 42 }, serializationResult{"unknown": {"test": {"error": "unknown metrics type int"}}}},
-}
-
-func TestMetricSerialization(t *testing.T) {
-	metrics.UseNilMetrics = true
-	defer func() { metrics.UseNilMetrics = false }()
-
-	for _, st := range serializationTests {
-		m := reflect.ValueOf(st.i).Call(nil)[0].Interface()
-		metrics := skipperMetrics{"test": m}
-		var buf bytes.Buffer
-		json.NewEncoder(&buf).Encode(metrics)
-		var got serializationResult
-		json.Unmarshal(buf.Bytes(), &got)
-
-		if !reflect.DeepEqual(got, st.expected) {
-			t.Errorf("Got wrong serialization result. Expected '%v' but got '%v'", st.expected, got)
-		}
-
+func TestHandlerCodaHaleUnknownMetricRequest(t *testing.T) {
+	o := metrics.Options{
+		Format:               metrics.CodaHaleKind,
+		EnableRuntimeMetrics: true,
 	}
-}
+	m := metrics.NewCodaHale(o)
+	mh := metrics.NewHandler(o, m)
 
-type serveMetricsMeasure struct {
-	route, host, method string
-	status              int
-	duration            time.Duration
-}
+	r, _ := http.NewRequest("GET", "/metrics/DOES-NOT-EXIST", nil)
+	rw := httptest.NewRecorder()
 
-type serveMetricsCheck struct {
-	key         string
-	enabled     bool
-	count       int64
-	minDuration time.Duration
-}
-
-type serveMetricsTestItem struct {
-	msg      string
-	options  Options
-	measures []serveMetricsMeasure
-	checks   []serveMetricsCheck
-}
-
-func TestServeMetrics(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
-	for _, ti := range []serveMetricsTestItem{{
-		"route and host disabled",
-		Options{},
-		[]serveMetricsMeasure{{
-			"route1",
-			"www.example.org:4443",
-			"GET",
-			200,
-			30 * time.Millisecond,
-		}},
-		[]serveMetricsCheck{{
-			key:     "serveroute.route1.GET.200",
-			enabled: false,
-		}, {
-			key:     "servehost.www_example_org__4443.GET.200",
-			enabled: false,
-		}},
-	}, {
-		"route enabled, host disabled",
-		Options{EnableServeRouteMetrics: true},
-		[]serveMetricsMeasure{{
-			"route1",
-			"www.example.org:4443",
-			"GET",
-			200,
-			30 * time.Millisecond,
-		}},
-		[]serveMetricsCheck{{
-			key:         "serveroute.route1.GET.200",
-			enabled:     true,
-			count:       1,
-			minDuration: 30 * time.Millisecond,
-		}, {
-			key:     "servehost.www_example_org__4443.GET.200",
-			enabled: false,
-		}},
-	}, {
-		"route disabled, host enabled",
-		Options{EnableServeHostMetrics: true},
-		[]serveMetricsMeasure{{
-			"route1",
-			"www.example.org:4443",
-			"GET",
-			200,
-			30 * time.Millisecond,
-		}},
-		[]serveMetricsCheck{{
-			key:     "serveroute.route1.GET.200",
-			enabled: false,
-		}, {
-			key:         "servehost.www_example_org__4443.GET.200",
-			enabled:     true,
-			count:       1,
-			minDuration: 30 * time.Millisecond,
-		}},
-	}, {
-		"route and host enabled",
-		Options{
-			EnableServeRouteMetrics: true,
-			EnableServeHostMetrics:  true,
-		},
-		[]serveMetricsMeasure{{
-			"route1",
-			"www.example.org:4443",
-			"GET",
-			200,
-			30 * time.Millisecond,
-		}},
-		[]serveMetricsCheck{{
-			key:         "serveroute.route1.GET.200",
-			enabled:     true,
-			count:       1,
-			minDuration: 30 * time.Millisecond,
-		}, {
-			key:         "servehost.www_example_org__4443.GET.200",
-			enabled:     true,
-			count:       1,
-			minDuration: 30 * time.Millisecond,
-		}},
-	}, {
-		"collect different metrics",
-		Options{
-			EnableServeRouteMetrics: true,
-			EnableServeHostMetrics:  true,
-		},
-		[]serveMetricsMeasure{{
-			"route1",
-			"www.example.org:4443",
-			"GET",
-			200,
-			30 * time.Millisecond,
-		}, {
-			"route1",
-			"www.example.org:4443",
-			"GET",
-			200,
-			15 * time.Millisecond,
-		}, {
-			"route1",
-			"www.example.org:4443",
-			"GET",
-			200,
-			30 * time.Millisecond,
-		}, {
-			"route2",
-			"www.example.org",
-			"GET",
-			200,
-			30 * time.Millisecond,
-		}, {
-			"route1",
-			"www.example.org:4443",
-			"POST",
-			302,
-			30 * time.Millisecond,
-		}},
-		[]serveMetricsCheck{{
-			key:         "serveroute.route1.GET.200",
-			enabled:     true,
-			count:       3,
-			minDuration: 15 * time.Millisecond,
-		}, {
-			key:         "servehost.www_example_org__4443.GET.200",
-			enabled:     true,
-			count:       3,
-			minDuration: 15 * time.Millisecond,
-		}, {
-			key:         "serveroute.route2.GET.200",
-			enabled:     true,
-			count:       1,
-			minDuration: 30 * time.Millisecond,
-		}, {
-			key:         "servehost.www_example_org.GET.200",
-			enabled:     true,
-			count:       1,
-			minDuration: 30 * time.Millisecond,
-		}, {
-			key:         "serveroute.route1.POST.302",
-			enabled:     true,
-			count:       1,
-			minDuration: 30 * time.Millisecond,
-		}, {
-			key:         "servehost.www_example_org__4443.POST.302",
-			enabled:     true,
-			count:       1,
-			minDuration: 30 * time.Millisecond,
-		}},
-	}} {
-		t.Run(ti.msg, func(t *testing.T) {
-			checkMetrics := func(m *Metrics, key string, enabled bool, count int64, minDuration time.Duration) (bool, string) {
-				v := m.reg.Get(key)
-
-				switch {
-				case enabled && v == nil:
-					return false, "failed to return metrics"
-				case !enabled && v != nil:
-					return false, "unexpected metrics"
-				case !enabled && v == nil:
-					return true, ""
-				}
-
-				tr, ok := v.(metrics.Timer)
-				if !ok {
-					return false, "invalid metric type"
-				}
-
-				trs := tr.Snapshot()
-
-				if trs.Count() != count {
-					return false, fmt.Sprintf("failed to get the right count: %d instead of %d", trs.Count(), count)
-				}
-
-				if trs.Min() <= int64(minDuration) {
-					return false, "failed to get the right duration"
-				}
-
-				return true, ""
-			}
-
-			m := New(ti.options)
-			for _, mi := range ti.measures {
-				m.MeasureServe(mi.route, mi.host, mi.method, mi.status, time.Now().Add(-mi.duration))
-			}
-
-			time.Sleep(12 * time.Millisecond)
-			for _, ci := range ti.checks {
-				if ok, reason := checkMetrics(
-					m,
-					ci.key,
-					ci.enabled,
-					ci.count,
-					ci.minDuration,
-				); !ok {
-					t.Error(reason)
-					return
-				}
-			}
-		})
+	mh.ServeHTTP(rw, r)
+	if rw.Code != http.StatusNotFound {
+		t.Error("Request for unknown metrics should return a Not Found status")
 	}
 }

@@ -1,10 +1,14 @@
 package skipper
 
 import (
+	"crypto/tls"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -16,6 +20,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/innkeeper"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates/cookie"
@@ -33,6 +38,8 @@ const (
 	defaultSourcePollTimeout   = 30 * time.Millisecond
 	defaultRoutingUpdateBuffer = 1 << 5
 )
+
+const DefaultPluginDir = "./plugins"
 
 // Options to start skipper.
 type Options struct {
@@ -120,6 +127,10 @@ type Options struct {
 	// File containing static route definitions.
 	RoutesFile string
 
+	// File containing route definitions with file watch enabled. (For the skipper
+	// command this option is used when starting it with the -routes-file flag.)
+	WatchRoutesFile string
+
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
 
@@ -140,6 +151,45 @@ type Options struct {
 	// Defines the time period of how often the idle connections maintained
 	// by the proxy are closed.
 	CloseIdleConnsPeriod time.Duration
+
+	// Defines ReadTimeoutServer for server http connections.
+	ReadTimeoutServer time.Duration
+
+	// Defines ReadHeaderTimeout for server http connections.
+	ReadHeaderTimeoutServer time.Duration
+
+	// Defines WriteTimeout for server http connections.
+	WriteTimeoutServer time.Duration
+
+	// Defines IdleTimeout for server http connections.
+	IdleTimeoutServer time.Duration
+
+	// Defines MaxHeaderBytes for server http connections.
+	MaxHeaderBytes int
+
+	// Enable connection state metrics for server http connections.
+	EnableConnMetricsServer bool
+
+	// TimeoutBackend sets the TCP client connection timeout for
+	// proxy http connections to the backend.
+	TimeoutBackend time.Duration
+
+	// KeepAliveBackend sets the TCP keepalive for proxy http
+	// connections to the backend.
+	KeepAliveBackend time.Duration
+
+	// DualStackBackend sets if the proxy TCP connections to the
+	// backend should be dual stack.
+	DualStackBackend bool
+
+	// TLSHandshakeTimeoutBackend sets the TLS handshake timeout
+	// for proxy connections to the backend.
+	TLSHandshakeTimeoutBackend time.Duration
+
+	// MaxIdleConnsBackend sets MaxIdleConns, which limits the
+	// number of idle connections to all backends, 0 means no
+	// limit.
+	MaxIdleConnsBackend int
 
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
@@ -269,9 +319,10 @@ type Options struct {
 
 	DebugListener string
 
-	//Path of certificate when using TLS
+	// Path of certificate(s) when using TLS, mutiple may be given comma separated
 	CertPathTLS string
-	//Path of key when using TLS
+	// Path of key(s) when using TLS, multiple may be given comma separated. For
+	// multiple keys, the order must match the one given in CertPathTLS
 	KeyPathTLS string
 
 	// Flush interval for upgraded Proxy connections
@@ -307,12 +358,51 @@ type Options struct {
 	// OpenTracing enables opentracing
 	OpenTracing []string
 
-	// PluginDir defines the dir to load plugins from
+	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
+	// PluginDirs defines the directories to load plugins from
+	PluginDirs []string
+
+	// FilterPlugins loads additional filters from modules. The first value in each []string
+	// needs to be the plugin name (as on disk, without path, without ".so" suffix). The
+	// following values are passed as arguments to the plugin while loading, see also
+	// https://zalando.github.io/skipper/plugins/
+	FilterPlugins [][]string
+
+	// PredicatePlugins loads additional predicates from modules. See above for FilterPlugins
+	// what the []string should contain.
+	PredicatePlugins [][]string
+
+	// DataClientPlugins loads additional data clients from modules. See above for FilterPlugins
+	// what the []string should contain.
+	DataClientPlugins [][]string
 
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
 	DefaultHTTPStatus int
+
+	// EnablePrometheusMetrics enables Prometheus format metrics.
+	//
+	// This option is *deprecated*. The recommended way to enable prometheus metrics is to
+	// use the MetricsFlavours option.
+	EnablePrometheusMetrics bool
+
+	// MetricsFlavours sets the metrics storage and exposed format
+	// of metrics endpoints.
+	MetricsFlavours []string
+
+	// LoadBalancerHealthCheckInterval enables and sets the
+	// interval when to schedule health checks for dead or
+	// unhealthy routes
+	LoadBalancerHealthCheckInterval time.Duration
+
+	// ReverseSourcePredicate enables the automatic use of IP
+	// whitelisting in different places to use the reversed way of
+	// identifying a client IP within the X-Forwarded-For
+	// header. Amazon's ALB for example writes the client IP to
+	// the last item of the string list of the X-Forwarded-For
+	// header, in this case you want to set this to true.
+	ReverseSourcePredicate bool
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -325,6 +415,11 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			return nil, err
 		}
 
+		clients = append(clients, f)
+	}
+
+	if o.WatchRoutesFile != "" {
+		f := eskipfile.Watch(o.WatchRoutesFile)
 		clients = append(clients, f)
 	}
 
@@ -372,11 +467,12 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			KubernetesInCluster:  o.KubernetesInCluster,
-			KubernetesURL:        o.KubernetesURL,
-			ProvideHealthcheck:   o.KubernetesHealthcheck,
-			ProvideHTTPSRedirect: o.KubernetesHTTPSRedirect,
-			IngressClass:         o.KubernetesIngressClass,
+			KubernetesInCluster:    o.KubernetesInCluster,
+			KubernetesURL:          o.KubernetesURL,
+			ProvideHealthcheck:     o.KubernetesHealthcheck,
+			ProvideHTTPSRedirect:   o.KubernetesHTTPSRedirect,
+			IngressClass:           o.KubernetesIngressClass,
+			ReverseSourcePredicate: o.ReverseSourcePredicate,
 		})
 		if err != nil {
 			return nil, err
@@ -440,11 +536,48 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	// create the access log handler
 	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
+
+	srv := &http.Server{
+		Addr:              o.Address,
+		Handler:           loggingHandler,
+		ReadTimeout:       o.ReadTimeoutServer,
+		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
+		WriteTimeout:      o.WriteTimeoutServer,
+		IdleTimeout:       o.IdleTimeoutServer,
+		MaxHeaderBytes:    o.MaxHeaderBytes,
+	}
+
+	if o.EnableConnMetricsServer {
+		m := metrics.Default
+		srv.ConnState = func(conn net.Conn, state http.ConnState) {
+			m.IncCounter(fmt.Sprintf("lb-conn-%s", state))
+		}
+	}
+
 	if o.isHTTPS() {
-		return http.ListenAndServeTLS(o.Address, o.CertPathTLS, o.KeyPathTLS, loggingHandler)
+		if strings.Index(o.CertPathTLS, ",") > 0 && strings.Index(o.KeyPathTLS, ",") > 0 {
+			tlsCfg := &tls.Config{}
+			crts := strings.Split(o.CertPathTLS, ",")
+			keys := strings.Split(o.KeyPathTLS, ",")
+			if len(crts) != len(keys) {
+				log.Fatalf("number of certs does not match number of keys")
+			}
+			for i, crt := range crts {
+				kp, err := tls.LoadX509KeyPair(crt, keys[i])
+				if err != nil {
+					log.Fatalf("Failed to load X509 keypair from %s/%s: %v", crt, keys[i], err)
+				}
+				tlsCfg.Certificates = append(tlsCfg.Certificates, kp)
+			}
+			tlsCfg.BuildNameToCertificate()
+			o.CertPathTLS = ""
+			o.KeyPathTLS = ""
+			srv.TLSConfig = tlsCfg
+		}
+		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
 	}
 	log.Infof("certPathTLS or keyPathTLS not found, defaulting to HTTP")
-	return http.ListenAndServe(o.Address, loggingHandler)
+	return srv.ListenAndServe()
 }
 
 // Run skipper.
@@ -461,6 +594,15 @@ func Run(o Options) error {
 		OAuthCredentialsDir: o.OAuthCredentialsDir,
 		OAuthUrl:            o.OAuthUrl,
 		OAuthScope:          o.OAuthScope})
+
+	var lbInstance *loadbalancer.LB
+	if o.LoadBalancerHealthCheckInterval != 0 {
+		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
+	}
+
+	if err := findAndLoadPlugins(&o); err != nil {
+		return err
+	}
 
 	// create data clients
 	dataClients, err := createDataClients(o, auth)
@@ -503,12 +645,16 @@ func Run(o Options) error {
 	// include bundled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
 		source.New(),
+		source.NewFromLast(),
 		interval.NewBetween(),
 		interval.NewBefore(),
 		interval.NewAfter(),
 		cookie.New(),
 		query.New(),
-		traffic.New())
+		traffic.New(),
+		loadbalancer.NewGroup(),
+		loadbalancer.NewMember(),
+	)
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
@@ -519,6 +665,7 @@ func Run(o Options) error {
 		Predicates:      o.CustomPredicates,
 		UpdateBuffer:    updateBuffer,
 		SuppressLogs:    o.SuppressRouteUpdateLogs,
+		PostProcessors:  []routing.PostProcessor{loadbalancer.HealthcheckPostProcessor{LB: lbInstance}},
 	})
 	defer routing.Close()
 
@@ -533,6 +680,12 @@ func Run(o Options) error {
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
 		DefaultHTTPStatus:      o.DefaultHTTPStatus,
+		LoadBalancer:           lbInstance,
+		Timeout:                o.TimeoutBackend,
+		KeepAlive:              o.KeepAliveBackend,
+		DualStack:              o.DualStackBackend,
+		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:           o.MaxIdleConnsBackend,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
@@ -564,7 +717,27 @@ func Run(o Options) error {
 		mux := http.NewServeMux()
 		mux.Handle("/routes", routing)
 		mux.Handle("/routes/", routing)
-		metricsHandler := metrics.NewHandler(metrics.Options{
+
+		if o.EnablePrometheusMetrics {
+			o.MetricsFlavours = append(o.MetricsFlavours, "prometheus")
+		}
+		metricsKind := metrics.UnkownKind
+		for _, s := range o.MetricsFlavours {
+			switch s {
+			case "codahale":
+				metricsKind |= metrics.CodaHaleKind
+			case "prometheus":
+				metricsKind |= metrics.PrometheusKind
+			}
+		}
+		// set default if unset
+		if metricsKind == metrics.UnkownKind {
+			metricsKind = metrics.CodaHaleKind
+		}
+		log.Infof("Expose metrics in %s format", metricsKind)
+
+		metricsHandler := metrics.NewDefaultHandler(metrics.Options{
+			Format:                             metricsKind,
 			Prefix:                             o.MetricsPrefix,
 			EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
 			EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
@@ -592,16 +765,17 @@ func Run(o Options) error {
 		log.Infoln("Metrics are disabled")
 	}
 
+	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 	if len(o.OpenTracing) > 0 {
-		tracer, err := tracing.LoadPlugin(o.PluginDir, o.OpenTracing)
+		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, o.OpenTracing)
 		if err != nil {
 			return err
 		}
 		proxyParams.OpenTracer = tracer
 	} else {
 		// always have a tracer available, so filter authors can rely on the
-		// existance of a tracer
-		proxyParams.OpenTracer, _ = tracing.LoadPlugin(o.PluginDir, []string{"noop"})
+		// existence of a tracer
+		proxyParams.OpenTracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
 	}
 
 	// create the proxy
