@@ -14,6 +14,8 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 type counter chan int
@@ -46,7 +48,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 		repeatedRequests = 300
 
 		// 5% tolerated
-		distributionTolerance = concurrency * repeatedRequests * 5 / 100
+		distributionTolerance = concurrency * repeatedRequests / backendCount * 5 / 100
 	)
 
 	startBackend := func(content []byte) *httptest.Server {
@@ -131,24 +133,111 @@ func TestConcurrencySingleRoute(t *testing.T) {
 		return
 	}
 
-	for member, counter := range memberCounters {
-		for compareMember, compare := range memberCounters {
-			d := counter.value() - compare.value()
-			if d < 0 {
-				d = 0 - d
-			}
+	checkDistribution(t, memberCounters, distributionTolerance)
+}
 
-			if d > distributionTolerance {
-				t.Error(
-					"failed to equally balance load, counters:",
-					member,
-					counter.value(),
-					compareMember,
-					compare.value(),
-				)
+func TestConstantlyUpdatingRoutes(t *testing.T) {
+	const (
+		backendCount       = 7
+		concurrency        = 32
+		repeatedRequests   = 300
+		routeUpdateTimeout = 5 * time.Millisecond
+		// 5% tolerated
+		distributionTolerance = concurrency * repeatedRequests / backendCount * 5 / 100
+	)
+
+	startBackend := func(content []byte) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(content)
+		}))
+	}
+
+	var (
+		contents []string
+		backends []string
+	)
+
+	for i := 0; i < backendCount; i++ {
+		content := fmt.Sprintf("lb group member %d", i)
+		contents = append(contents, content)
+
+		b := startBackend([]byte(content))
+		defer b.Close()
+		backends = append(backends, b.URL)
+	}
+
+	baseRoute := &eskip.Route{
+		Id:      "foo",
+		Backend: "https://foo",
+	}
+
+	routes := loadbalancer.BalanceRoute(baseRoute, backends)
+	dataClient := createDataClientWithUpdates(routes, routeUpdateTimeout)
+
+	p := proxytest.WithRoutingOptions(builtin.MakeRegistry(), routing.Options{
+		DataClients: []routing.DataClient{dataClient},
+		PollTimeout: routeUpdateTimeout,
+	}, routes...)
+	defer p.Close()
+
+	memberCounters := make(map[string]counter)
+	for i := range contents {
+		memberCounters[contents[i]] = newCounter()
+	}
+
+	var wg sync.WaitGroup
+	runClient := func() {
+		ticker := time.NewTicker(routeUpdateTimeout)
+		for i := 0; i < repeatedRequests && !t.Failed(); i++ {
+			select {
+			case <-ticker.C:
+				req, err := http.NewRequest("GET", p.URL, nil)
+				if err != nil {
+					t.Fatal(err)
+					break
+				}
+
+				rsp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Error(err)
+					break
+				}
+
+				defer rsp.Body.Close()
+				if rsp.StatusCode != http.StatusOK {
+					t.Error("invalid status code", rsp.StatusCode)
+					break
+				}
+
+				b, err := ioutil.ReadAll(rsp.Body)
+				if err != nil {
+					t.Error(err)
+					break
+				}
+
+				c, ok := memberCounters[string(b)]
+				if !ok {
+					t.Error("invalid response content", string(b))
+					break
+				}
+				c.inc()
 			}
 		}
+
+		wg.Done()
 	}
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go runClient()
+	}
+
+	wg.Wait()
+	if t.Failed() {
+		return
+	}
+
+	checkDistribution(t, memberCounters, distributionTolerance)
 }
 
 func TestConcurrencyMultipleRoutes(t *testing.T) {
@@ -158,7 +247,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 		repeatedRequests = 300
 
 		// 5% tolerated
-		distributionTolerance = concurrency * repeatedRequests * 5 / 100
+		distributionTolerance = concurrency * repeatedRequests / backendCount * 5 / 100
 	)
 
 	startBackend := func(content []byte) *httptest.Server {
@@ -259,22 +348,51 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 	}
 
 	for _, app := range apps {
-		for member, counter := range memberCounters[app] {
-			for compareMember, compare := range memberCounters[app] {
-				d := counter.value() - compare.value()
-				if d < 0 {
-					d = 0 - d
-				}
+		checkDistribution(t, memberCounters[app], distributionTolerance)
+	}
+}
 
-				if d > distributionTolerance {
-					t.Error(
-						"failed to equally balance load across 2 different lb routes, counters:",
-						member,
-						counter.value(),
-						compareMember,
-						compare.value(),
-					)
-				}
+func createDataClientWithUpdates(initial []*eskip.Route, updateTimeout time.Duration) *testdataclient.Client {
+	dataClient := testdataclient.New(initial)
+
+	ticker := time.NewTicker(updateTimeout)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				dataClient.Update(append(initial, &eskip.Route{
+					Id:      "meaningless_route",
+					Backend: "https://some.site",
+					Predicates: []*eskip.Predicate{{
+						Name: "Host",
+						Args: []interface{}{
+							"no.sense",
+						},
+					}},
+				}), []string{})
+			}
+		}
+	}()
+
+	return dataClient
+}
+
+func checkDistribution(t *testing.T, counters map[string]counter, tolerance int) {
+	for member, counter := range counters {
+		for compareMember, compare := range counters {
+			d := counter.value() - compare.value()
+			if d < 0 {
+				d = 0 - d
+			}
+
+			if d > tolerance {
+				t.Error(
+					"failed to equally balance load, counters:",
+					member,
+					counter.value(),
+					compareMember,
+					compare.value(),
+				)
 			}
 		}
 	}
