@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/zalando/skipper/filters"
+	"math/rand"
 )
 
 const (
@@ -21,9 +22,9 @@ type decideFilter struct {
 	counter counter
 }
 
-func newCounter() counter {
+func newCounter(size int) counter {
 	c := make(counter, 1)
-	c <- 0
+	c <- rand.Intn(size)
 	return c
 }
 
@@ -73,7 +74,7 @@ func (s *decideSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return &decideFilter{
 		group:   group,
 		size:    size,
-		counter: newCounter(),
+		counter: newCounter(size),
 	}, nil
 }
 
