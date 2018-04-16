@@ -565,7 +565,7 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 			for i, crt := range crts {
 				kp, err := tls.LoadX509KeyPair(crt, keys[i])
 				if err != nil {
-					log.Fatalf("Failed to load X509 keypair from %s/%s: %s", crt, keys[i], err)
+					log.Fatalf("Failed to load X509 keypair from %s/%s: %v", crt, keys[i], err)
 				}
 				tlsCfg.Certificates = append(tlsCfg.Certificates, kp)
 			}
