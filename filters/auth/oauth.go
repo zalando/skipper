@@ -10,6 +10,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	logfilter "github.com/zalando/skipper/filters/log"
+	"golang.org/x/oauth2"
+)
+
+var (
+	// oauth2Config is the global config, which is used as default
+	// to configure all oauth2 related filters.
+	oauth2Config oauth2.Config
 )
 
 const authHeaderName = "Authorization"
@@ -17,7 +24,9 @@ const authHeaderName = "Authorization"
 type roleCheckType int
 
 const (
-	checkScope roleCheckType = iota
+	checkScope     roleCheckType = iota
+	checkAnyScopes               // TODO(sszuecs): set operation any()
+	checkAllScopes               // TODO(sszuecs): set operation all()
 	checkGroup
 )
 
@@ -44,13 +53,13 @@ type (
 	groupClient struct{ urlBase string }
 
 	authDoc struct {
-		Uid    string   `json:"uid"`
+		UID    string   `json:"uid"`
 		Realm  string   `json:"realm"`
 		Scopes []string `json:"scope"` // TODO: verify this with service2service authentication
 	}
 
 	groupDoc struct {
-		Id string `json:"id"`
+		ID string `json:"id"`
 	}
 
 	spec struct {
@@ -117,6 +126,8 @@ func intersect(left, right []string) bool {
 	return false
 }
 
+// jsonGet requests url with Bearer auth header if `auth` was given
+// and writes into doc.
 func jsonGet(url, auth string, doc interface{}) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -156,7 +167,7 @@ func (tc *groupClient) getGroups(uid, token string) ([]string, error) {
 
 	ts := make([]string, len(t))
 	for i, ti := range t {
-		ts[i] = ti.Id
+		ts[i] = ti.ID
 	}
 
 	return ts, nil
@@ -164,6 +175,24 @@ func (tc *groupClient) getGroups(uid, token string) ([]string, error) {
 
 func newSpec(typ roleCheckType) filters.Spec {
 	return &spec{typ: typ}
+}
+
+// Options to configure auth providers
+type Options struct {
+	// TokenURL is the tokeninfo URL able to return information about a token.
+	TokenURL string
+}
+
+// NewOAuth creates a new auth filter specification to validate authorization
+// tokens.
+func NewOAuth2(o Options) filters.Spec {
+	oauth2Config = oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			TokenURL: o.TokenURL,
+		},
+	}
+
+	return newSpec(checkScope)
 }
 
 // NewAuth creates a new auth filter specification to validate authorization
@@ -254,7 +283,7 @@ func (f *filter) validateGroup(token string, a *authDoc) (bool, error) {
 		return true, nil
 	}
 
-	groups, err := f.groupClient.getGroups(a.Uid, token)
+	groups, err := f.groupClient.getGroups(a.UID, token)
 	return intersect(f.args, groups), err
 }
 
@@ -281,28 +310,28 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	}
 
 	if !f.validateRealm(authDoc) {
-		unauthorized(ctx, authDoc.Uid, invalidRealm)
+		unauthorized(ctx, authDoc.UID, invalidRealm)
 		return
 	}
 
 	if f.typ == checkScope {
 		if !f.validateScope(authDoc) {
-			unauthorized(ctx, authDoc.Uid, invalidScope)
+			unauthorized(ctx, authDoc.UID, invalidScope)
 			return
 		}
 
-		authorized(ctx, authDoc.Uid)
+		authorized(ctx, authDoc.UID)
 		return
 	}
 
 	if valid, err := f.validateGroup(token, authDoc); err != nil {
-		unauthorized(ctx, authDoc.Uid, groupServiceAccess)
+		unauthorized(ctx, authDoc.UID, groupServiceAccess)
 		log.Println(err)
 	} else if !valid {
-		unauthorized(ctx, authDoc.Uid, invalidGroup)
+		unauthorized(ctx, authDoc.UID, invalidGroup)
 	} else {
-		authorized(ctx, authDoc.Uid)
+		authorized(ctx, authDoc.UID)
 	}
 }
 
-func (f *filter) Response(_ filters.FilterContext) {}
+func (f *filter) Response(filters.FilterContext) {}
