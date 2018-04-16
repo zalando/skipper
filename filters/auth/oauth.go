@@ -4,6 +4,7 @@ import (
 	// "encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -19,15 +20,14 @@ var (
 	oauth2Config oauth2.Config
 )
 
-const authHeaderName = "Authorization"
-
 type roleCheckType int
 
 const (
-	checkScope     roleCheckType = iota
-	checkAnyScopes               // TODO(sszuecs): set operation any()
-	checkAllScopes               // TODO(sszuecs): set operation all()
-	checkGroup
+	// set operation any()
+	checkAnyScopes roleCheckType = iota
+	checkAllScopes               // set operation all()
+	checkUID                     // TODO(sszuecs): should be syntactic sugar to work on 'uid' scopes
+	checkGroup                   // TODO: define an interface: external webhook API + json/type
 )
 
 type rejectReason string
@@ -42,10 +42,16 @@ const (
 	invalidGroup       rejectReason = "invalid-group"
 )
 
+// TODO: discuss these names, because these are the filter names used by the endusers
 const (
-	AuthName      = "auth"
+	AuthAnyName   = "authAny"
+	AuthAllName   = "authAll"
+	AuthUIDName   = "authUid"
 	AuthGroupName = "authGroup"
-	// BasicAuthName = "basicAuth"
+	AuthUnknown   = "authUnknown"
+	// BasicAuthAnyName = "basicAuth"
+
+	authHeaderName = "Authorization"
 )
 
 type (
@@ -55,7 +61,7 @@ type (
 	authDoc struct {
 		UID    string   `json:"uid"`
 		Realm  string   `json:"realm"`
-		Scopes []string `json:"scope"` // TODO: verify this with service2service authentication
+		Scopes []string `json:"scope"`
 	}
 
 	groupDoc struct {
@@ -72,7 +78,7 @@ type (
 		authClient  *authClient
 		groupClient *groupClient
 		realm       string
-		args        []string
+		scopes      []string
 	}
 )
 
@@ -114,6 +120,21 @@ func getStrings(args []interface{}) ([]string, error) {
 	return s, nil
 }
 
+// all checks that all strings in the left are also in the
+// right. Right can be a superset of left.
+func all(left, right []string) bool {
+	for _, l := range left {
+		for _, r := range right {
+			if l != r {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// intersect checks that one string in the left is also in the right
 func intersect(left, right []string) bool {
 	for _, l := range left {
 		for _, r := range right {
@@ -192,7 +213,7 @@ func NewOAuth2(o Options) filters.Spec {
 		},
 	}
 
-	return newSpec(checkScope)
+	return newSpec(checkAnyScopes)
 }
 
 // NewAuth creates a new auth filter specification to validate authorization
@@ -206,7 +227,7 @@ func NewOAuth2(o Options) filters.Spec {
 // The token is set as the Authorization Bearer header.
 //
 func NewAuth() filters.Spec {
-	return newSpec(checkScope)
+	return newSpec(checkAnyScopes)
 }
 
 // NewAuditGroup reates a new auth filter specification to validate authorization
@@ -228,13 +249,20 @@ func NewAuthGroup() filters.Spec {
 }
 
 func (s *spec) Name() string {
-	if s.typ == checkScope {
-		return AuthName
-	} else {
+	switch s.typ {
+	case checkAnyScopes:
+		return AuthAnyName
+	case checkAllScopes:
+		return AuthAllName
+	case checkUID:
+		return AuthUIDName
+	case checkGroup:
 		return AuthGroupName
 	}
+	return AuthUnknown
 }
 
+// CreateFilter creates an auth filter which has as
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
@@ -246,20 +274,45 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	var ac *authClient
-	ac, sargs = &authClient{sargs[0]}, sargs[1:]
-
 	var tc *groupClient
-	if s.typ == checkGroup {
-		tc, sargs = &groupClient{sargs[0]}, sargs[1:]
+
+	switch sargs[0] {
+	case AuthAnyName:
+		ac = &authClient{sargs[0]}
+	case AuthAllName:
+		ac = &authClient{sargs[0]}
+	case AuthUIDName:
+		ac = &authClient{sargs[0]}
+	case AuthGroupName:
+		tc = &groupClient{sargs[0]}
 	}
+
+	sargs = sargs[1:]
 
 	f := &filter{typ: s.typ, authClient: ac, groupClient: tc}
 	if len(sargs) > 0 {
-		f.realm, f.args = sargs[0], sargs[1:]
+		f.realm, f.scopes = sargs[0], sargs[1:]
 	}
 
 	return f, nil
 
+}
+
+// String prints nicely the filter configuration based on the configuration and check used.
+func (f *filter) String() string {
+	switch f.typ {
+	case checkAnyScopes:
+		return fmt.Sprintf("%s(%s)", AuthAnyName, strings.Join(f.scopes, ","))
+	case checkAllScopes:
+		return fmt.Sprintf("%s(%s)", AuthAllName, strings.Join(f.scopes, ","))
+	case checkUID:
+		// TODO(sszuecs) nice print
+		return AuthUIDName
+	case checkGroup:
+		// TODO(sszuecs) nice print
+		return AuthGroupName
+	}
+	return AuthUnknown
 }
 
 func (f *filter) validateRealm(a *authDoc) bool {
@@ -270,21 +323,29 @@ func (f *filter) validateRealm(a *authDoc) bool {
 	return a.Realm == f.realm
 }
 
-func (f *filter) validateScope(a *authDoc) bool {
-	if len(f.args) == 0 {
+func (f *filter) validateAnyScopes(a *authDoc) bool {
+	if len(f.scopes) == 0 {
 		return true
 	}
 
-	return intersect(f.args, a.Scopes)
+	return intersect(f.scopes, a.Scopes)
+}
+
+func (f *filter) validateAllScopes(a *authDoc) bool {
+	if len(f.scopes) == 0 {
+		return true
+	}
+
+	return all(f.scopes, a.Scopes)
 }
 
 func (f *filter) validateGroup(token string, a *authDoc) (bool, error) {
-	if len(f.args) == 0 {
+	if len(f.scopes) == 0 {
 		return true, nil
 	}
 
 	groups, err := f.groupClient.getGroups(a.UID, token)
-	return intersect(f.args, groups), err
+	return intersect(f.scopes, groups), err
 }
 
 func (f *filter) Request(ctx filters.FilterContext) {
@@ -314,22 +375,32 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if f.typ == checkScope {
-		if !f.validateScope(authDoc) {
-			unauthorized(ctx, authDoc.UID, invalidScope)
-			return
+	var allowed bool
+	switch f.typ {
+	case checkAnyScopes:
+		allowed = f.validateAnyScopes(authDoc)
+	case checkAllScopes:
+		allowed = f.validateAllScopes(authDoc)
+	case checkUID:
+		// TODO
+	case checkGroup:
+		if valid, err := f.validateGroup(token, authDoc); err != nil {
+			unauthorized(ctx, authDoc.UID, groupServiceAccess)
+			log.Println(err)
+		} else if !valid {
+			unauthorized(ctx, authDoc.UID, invalidGroup)
+		} else {
+			authorized(ctx, authDoc.UID)
 		}
-
-		authorized(ctx, authDoc.UID)
 		return
+	default:
+		log.Errorf("Wrong filter type: %s", f)
 	}
 
-	if valid, err := f.validateGroup(token, authDoc); err != nil {
-		unauthorized(ctx, authDoc.UID, groupServiceAccess)
-		log.Println(err)
-	} else if !valid {
-		unauthorized(ctx, authDoc.UID, invalidGroup)
+	if !allowed {
+		unauthorized(ctx, authDoc.UID, invalidScope)
 	} else {
+
 		authorized(ctx, authDoc.UID)
 	}
 }
