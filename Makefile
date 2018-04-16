@@ -22,10 +22,7 @@ skipper: $(SOURCES) bindir
 eskip: $(SOURCES) bindir
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip
 
-skoap: $(SOURCES) bindir
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skoap ./cmd/skoap
-
-build: $(SOURCES) lib skipper eskip skoap
+build: $(SOURCES) lib skipper eskip
 
 build.osx:
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
@@ -36,7 +33,6 @@ build.windows:
 install: $(SOURCES)
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
-	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skoap
 
 check: build
 	# go test $(PACKAGES)
