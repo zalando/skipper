@@ -18,3 +18,4 @@ linter.log
 site/
 plugins/
 _test_plugins/*.so
+_test_plugins_fail/*.so
