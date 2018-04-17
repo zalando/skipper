@@ -186,7 +186,7 @@ need an explicit `-multi-plugin name,arg1,arg2` command line switch for skipper.
 
 The module must have a `InitPlugin` function with the signature
 
-    func([]string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error)
+    func([]string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error)
 
 Any of the returned types may be nil, so you can have e.g. a combined filter / data client
 plugin or share a filter and a predicate, e.g. like
@@ -215,7 +215,7 @@ type geoipSpec struct {
 	name string
 }
 
-func InitPlugin(opts []string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error) {
+func InitPlugin(opts []string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error) {
 	var db string
 	for _, o := range opts {
 		switch {
@@ -231,8 +231,8 @@ func InitPlugin(opts []string) (filters.Spec, routing.PredicateSpec, routing.Dat
 		return nil, nil, nil, fmt.Errorf("failed to open db %s: %s", db, err)
 	}
 
-	return &geoipSpec{db: reader, name: "geoip"},
-		&geoipSpec{db: reader, name: "GeoIP"},
+	return []filters.Spec{&geoipSpec{db: reader, name: "geoip"}},
+		[]routing.PredicateSpec{&geoipSpec{db: reader, name: "GeoIP"}},
 		nil,
 		nil
 }
