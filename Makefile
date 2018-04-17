@@ -1,4 +1,4 @@
-SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*" -and -not -path "./_test_plugins" )
+SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*" -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
 PACKAGES           = $(shell glide novendor || echo -n "./...")
 CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
 VERSION           ?= $(CURRENT_VERSION)
