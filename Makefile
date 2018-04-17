@@ -9,7 +9,9 @@ COMMIT_HASH        = $(shell git rev-parse --short HEAD)
 TEST_ETCD_VERSION ?= v2.3.8
 TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/predicate_match_none.so \
-		     _test_plugins/dataclient_noop.so
+		     _test_plugins/dataclient_noop.so \
+		     _test_plugins/multitype_noop.so \
+		     _test_plugins_fail/fail.so
 
 default: build
 
@@ -59,6 +61,9 @@ check-plugins: $(TEST_PLUGINS)
 _test_plugins/%.so: _test_plugins/%.go
 	go build -buildmode=plugin -o $@ $<
 
+_test_plugins_fail/%.so: _test_plugins_fail/%.go
+	go build -buildmode=plugin -o $@ $<
+
 bench: build
 	# go test -bench . $(PACKAGES)
 	#
@@ -74,6 +79,7 @@ clean:
 	go clean -i ./...
 	rm -rf .coverprofile-all .cover
 	rm ./_test_plugins/*.so
+	rm ./_test_plugins_fail/*.so
 
 deps:
 	go get -t github.com/zalando/skipper/...

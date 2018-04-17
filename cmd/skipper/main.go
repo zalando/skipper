@@ -420,7 +420,7 @@ func main() {
 		FilterPlugins:                       filterPlugins.Get(),
 		PredicatePlugins:                    predicatePlugins.Get(),
 		DataClientPlugins:                   dataclientPlugins.Get(),
-		MultiPlugins:                        multiPlugins.Get(),
+		Plugins:                             multiPlugins.Get(),
 	}
 
 	if pluginDir != "" {

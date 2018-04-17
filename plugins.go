@@ -3,18 +3,20 @@ package skipper
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
+
 	"os"
 	"path/filepath"
 	"plugin"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/routing"
 )
 
 func (o *Options) findAndLoadPlugins() error {
 	found := make(map[string]string)
+	done := make(map[string][]string)
 
 	for _, dir := range o.PluginDirs {
 		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -33,30 +35,30 @@ func (o *Options) findAndLoadPlugins() error {
 				name := filepath.Base(path)
 				name = name[:len(name)-3] // strip suffix
 				found[name] = path
-				fmt.Printf("found plugin %s at %s\n", name, path)
+				log.Printf("found plugin %s at %s", name, path)
 			}
 			return nil
 		})
 	}
 
-	if err := o.LoadMultiPlugins(found); err != nil {
+	if err := o.loadPlugins(found, done); err != nil {
 		return err
 	}
-	if err := o.LoadFilterPlugins(found); err != nil {
+	if err := o.loadFilterPlugins(found, done); err != nil {
 		return err
 	}
-	if err := o.LoadPredicatePlugins(found); err != nil {
+	if err := o.loadPredicatePlugins(found, done); err != nil {
 		return err
 	}
-	if err := o.LoadDataClientPlugins(found); err != nil {
+	if err := o.loadDataClientPlugins(found, done); err != nil {
 		return err
 	}
 
 	for name, path := range found {
-		fmt.Printf("attempting to load plugin from %s\n", path)
+		log.Printf("attempting to load plugin from %s", path)
 		mod, err := plugin.Open(path)
 		if err != nil {
-			return fmt.Errorf("open plugin %s from %s: %s\n", name, path, err)
+			return fmt.Errorf("open plugin %s from %s: %s", name, path, err)
 		}
 
 		conf, err := readPluginConfig(path)
@@ -64,83 +66,118 @@ func (o *Options) findAndLoadPlugins() error {
 			return fmt.Errorf("failed to read config for %s: %s", path, err)
 		}
 
-		if sym, err := mod.Lookup("InitPlugin"); err == nil {
-			fltr, pred, dc, err := loadMultiPlugin(sym, path, conf)
-			if err != nil {
-				return fmt.Errorf("filter plugin %s returned: %s\n", path, err)
+		if !pluginIsLoaded(done, name, "InitPlugin") {
+			if sym, err := mod.Lookup("InitPlugin"); err == nil {
+				fltrs, preds, dcs, err := initPlugin(sym, path, conf)
+				if err != nil {
+					return fmt.Errorf("filter plugin %s returned: %s", path, err)
+				}
+				o.CustomFilters = append(o.CustomFilters, fltrs...)
+				o.CustomPredicates = append(o.CustomPredicates, preds...)
+				o.CustomDataClients = append(o.CustomDataClients, dcs...)
+				log.Printf("multitype plugin %s loaded from %s (filter: %d, predicate: %d, dataclient: %d)",
+					name, path, len(fltrs), len(preds), len(dcs))
+				markPluginLoaded(done, name, "InitPlugin")
 			}
-			if fltr != nil {
-				o.CustomFilters = append(o.CustomFilters, fltr)
-			}
-			if pred != nil {
-				o.CustomPredicates = append(o.CustomPredicates, pred)
-			}
-			if dc != nil {
-				o.CustomDataClients = append(o.CustomDataClients, dc)
-			}
-			fmt.Printf("mutlitype plugin %s loaded from %s (filter: %t, predicate: %t, dataclient: %t)\n",
-				name, path, fltr != nil, pred != nil, dc != nil)
+		} else {
+			log.Printf("plugin %s already loaded with InitPlugin", name)
 		}
 
-		if sym, err := mod.Lookup("InitFilter"); err == nil {
-			spec, err := loadFilterPlugin(sym, path, conf)
-			if err != nil {
-				return fmt.Errorf("filter plugin %s returned: %s\n", path, err)
+		if !pluginIsLoaded(done, name, "InitFilter") {
+			if sym, err := mod.Lookup("InitFilter"); err == nil {
+				spec, err := initFilterPlugin(sym, path, conf)
+				if err != nil {
+					return fmt.Errorf("filter plugin %s returned: %s", path, err)
+				}
+				o.CustomFilters = append(o.CustomFilters, spec)
+				log.Printf("filter plugin %s loaded from %s", name, path)
+				markPluginLoaded(done, name, "InitFilter")
 			}
-			o.CustomFilters = append(o.CustomFilters, spec)
-			fmt.Printf("filter plugin %s loaded from %s\n", name, path)
+		} else {
+			log.Printf("plugin %s already loaded with InitFilter", name)
 		}
 
-		if sym, err := mod.Lookup("InitPredicate"); err == nil {
-			spec, err := loadPredicatePlugin(sym, path, conf)
-			if err != nil {
-				return fmt.Errorf("predicate plugin %s returned: %s\n", path, err)
+		if !pluginIsLoaded(done, name, "InitPredicate") {
+			if sym, err := mod.Lookup("InitPredicate"); err == nil {
+				spec, err := initPredicatePlugin(sym, path, conf)
+				if err != nil {
+					return fmt.Errorf("predicate plugin %s returned: %s", path, err)
+				}
+				o.CustomPredicates = append(o.CustomPredicates, spec)
+				log.Printf("predicate plugin %s loaded from %s", name, path)
+				markPluginLoaded(done, name, "InitPredicate")
 			}
-			o.CustomPredicates = append(o.CustomPredicates, spec)
-			fmt.Printf("predicate plugin %s loaded from %s\n", name, path)
+		} else {
+			log.Printf("plugin %s already loaded with InitPredicate", name)
 		}
 
-		if sym, err := mod.Lookup("InitDataClient"); err == nil {
-			spec, err := loadDataClientPlugin(sym, path, conf)
-			if err != nil {
-				return fmt.Errorf("data client plugin %s returned: %s\n", path, err)
+		if !pluginIsLoaded(done, name, "InitDataClient") {
+			if sym, err := mod.Lookup("InitDataClient"); err == nil {
+				spec, err := initDataClientPlugin(sym, path, conf)
+				if err != nil {
+					return fmt.Errorf("data client plugin %s returned: %s", path, err)
+				}
+				o.CustomDataClients = append(o.CustomDataClients, spec)
+				log.Printf("data client plugin %s loaded from %s", name, path)
+				markPluginLoaded(done, name, "InitDataClient")
 			}
-			o.CustomDataClients = append(o.CustomDataClients, spec)
-			fmt.Printf("data client plugin %s loaded from %s\n", name, path)
+		} else {
+			log.Printf("plugin %s already loaded with InitDataClient", name)
 		}
+	}
+
+	var implementsMultiple []string
+	for name, specs := range done {
+		if len(specs) > 1 {
+			implementsMultiple = append(implementsMultiple, name)
+		}
+	}
+	if len(implementsMultiple) != 0 {
+		return fmt.Errorf("found plugins implementing multiple Init* functions: %v", implementsMultiple)
 	}
 	return nil
 }
 
-func (o *Options) LoadMultiPlugins(found map[string]string) error {
-	for _, plug := range o.MultiPlugins {
+func pluginIsLoaded(done map[string][]string, name, spec string) bool {
+	loaded, ok := done[name]
+	if !ok {
+		return false
+	}
+	for _, s := range loaded {
+		if s == spec {
+			return true
+		}
+	}
+	return false
+}
+
+func markPluginLoaded(done map[string][]string, name, spec string) {
+	done[name] = append(done[name], spec)
+}
+
+func (o *Options) loadPlugins(found map[string]string, done map[string][]string) error {
+	for _, plug := range o.Plugins {
 		name := plug[0]
 		path, ok := found[name]
 		if !ok {
-			return fmt.Errorf("mutlitype plugin %s not found in plugin dirs\n", name)
+			return fmt.Errorf("multitype plugin %s not found in plugin dirs", name)
 		}
-		fltr, pred, dc, err := LoadMultiPlugin(path, plug[1:])
+		fltrs, preds, dcs, err := loadPlugin(path, plug[1:])
 		if err != nil {
-			return fmt.Errorf("failed to load plugin %s: %s\n", path, err)
+			return fmt.Errorf("failed to load plugin %s: %s", path, err)
 		}
 
-		if fltr != nil {
-			o.CustomFilters = append(o.CustomFilters, fltr)
-		}
-		if pred != nil {
-			o.CustomPredicates = append(o.CustomPredicates, pred)
-		}
-		if dc != nil {
-			o.CustomDataClients = append(o.CustomDataClients, dc)
-		}
-		fmt.Printf("mutlitype plugin %s loaded from %s (filter: %t, predicate: %t, dataclient: %t)\n",
-			name, path, fltr != nil, pred != nil, dc != nil)
-		delete(found, name)
+		o.CustomFilters = append(o.CustomFilters, fltrs...)
+		o.CustomPredicates = append(o.CustomPredicates, preds...)
+		o.CustomDataClients = append(o.CustomDataClients, dcs...)
+		log.Printf("multitype plugin %s loaded from %s (filter: %d, predicate: %d, dataclient: %d)",
+			name, path, len(fltrs), len(preds), len(dcs))
+		markPluginLoaded(done, name, "InitPlugin")
 	}
 	return nil
 }
 
-func LoadMultiPlugin(path string, args []string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error) {
+func loadPlugin(path string, args []string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error) {
 	mod, err := plugin.Open(path)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("open multitype plugin %s: %s", path, err)
@@ -155,40 +192,40 @@ func LoadMultiPlugin(path string, args []string) (filters.Spec, routing.Predicat
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("lookup module symbol failed for %s: %s", path, err)
 	}
-	return loadMultiPlugin(sym, path, append(conf, args...))
+	return initPlugin(sym, path, append(conf, args...))
 }
 
-func loadMultiPlugin(sym plugin.Symbol, path string, args []string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error) {
-	fn, ok := sym.(func([]string) (filters.Spec, routing.PredicateSpec, routing.DataClient, error))
+func initPlugin(sym plugin.Symbol, path string, args []string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error) {
+	fn, ok := sym.(func([]string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error))
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("plugin %s's InitPlugin function has wrong signature", path)
 	}
-	fltr, pred, dc, err := fn(args)
+	fltrs, preds, dcs, err := fn(args)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("plugin %s returned: %s", path, err)
 	}
-	return fltr, pred, dc, nil
+	return fltrs, preds, dcs, nil
 }
 
-func (o *Options) LoadFilterPlugins(found map[string]string) error {
+func (o *Options) loadFilterPlugins(found map[string]string, done map[string][]string) error {
 	for _, fltr := range o.FilterPlugins {
 		name := fltr[0]
 		path, ok := found[name]
 		if !ok {
-			return fmt.Errorf("filter plugin %s not found in plugin dirs\n", name)
+			return fmt.Errorf("filter plugin %s not found in plugin dirs", name)
 		}
-		spec, err := LoadFilterPlugin(path, fltr[1:])
+		spec, err := loadFilterPlugin(path, fltr[1:])
 		if err != nil {
-			return fmt.Errorf("failed to load plugin %s: %s\n", path, err)
+			return fmt.Errorf("failed to load plugin %s: %s", path, err)
 		}
 		o.CustomFilters = append(o.CustomFilters, spec)
-		fmt.Printf("loaded plugin %s (%s) from %s\n", name, spec.Name(), path)
-		delete(found, name)
+		log.Printf("loaded plugin %s (%s) from %s", name, spec.Name(), path)
+		markPluginLoaded(done, name, "InitFilter")
 	}
 	return nil
 }
 
-func LoadFilterPlugin(path string, args []string) (filters.Spec, error) {
+func loadFilterPlugin(path string, args []string) (filters.Spec, error) {
 	mod, err := plugin.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open filter plugin %s: %s", path, err)
@@ -203,10 +240,10 @@ func LoadFilterPlugin(path string, args []string) (filters.Spec, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lookup module symbol failed for %s: %s", path, err)
 	}
-	return loadFilterPlugin(sym, path, append(conf, args...))
+	return initFilterPlugin(sym, path, append(conf, args...))
 }
 
-func loadFilterPlugin(sym plugin.Symbol, path string, args []string) (filters.Spec, error) {
+func initFilterPlugin(sym plugin.Symbol, path string, args []string) (filters.Spec, error) {
 	fn, ok := sym.(func([]string) (filters.Spec, error))
 	if !ok {
 		return nil, fmt.Errorf("plugin %s's InitFilter function has wrong signature", path)
@@ -218,25 +255,25 @@ func loadFilterPlugin(sym plugin.Symbol, path string, args []string) (filters.Sp
 	return spec, nil
 }
 
-func (o *Options) LoadPredicatePlugins(found map[string]string) error {
+func (o *Options) loadPredicatePlugins(found map[string]string, done map[string][]string) error {
 	for _, pred := range o.PredicatePlugins {
 		name := pred[0]
 		path, ok := found[name]
 		if !ok {
-			return fmt.Errorf("predicate plugin %s not found in plugin dirs\n", name)
+			return fmt.Errorf("predicate plugin %s not found in plugin dirs", name)
 		}
-		spec, err := LoadPredicatePlugin(path, pred[1:])
+		spec, err := loadPredicatePlugin(path, pred[1:])
 		if err != nil {
-			return fmt.Errorf("failed to load plugin %s: %s\n", path, err)
+			return fmt.Errorf("failed to load plugin %s: %s", path, err)
 		}
 		o.CustomPredicates = append(o.CustomPredicates, spec)
-		fmt.Printf("loaded plugin %s (%s) from %s\n", name, spec.Name(), path)
-		delete(found, name)
+		log.Printf("loaded plugin %s (%s) from %s", name, spec.Name(), path)
+		markPluginLoaded(done, name, "InitPredicate")
 	}
 	return nil
 }
 
-func LoadPredicatePlugin(path string, args []string) (routing.PredicateSpec, error) {
+func loadPredicatePlugin(path string, args []string) (routing.PredicateSpec, error) {
 	mod, err := plugin.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open predicate module %s: %s", path, err)
@@ -250,10 +287,10 @@ func LoadPredicatePlugin(path string, args []string) (routing.PredicateSpec, err
 	if err != nil {
 		return nil, fmt.Errorf("lookup module symbol failed for %s: %s", path, err)
 	}
-	return loadPredicatePlugin(sym, path, append(conf, args...))
+	return initPredicatePlugin(sym, path, append(conf, args...))
 }
 
-func loadPredicatePlugin(sym plugin.Symbol, path string, args []string) (routing.PredicateSpec, error) {
+func initPredicatePlugin(sym plugin.Symbol, path string, args []string) (routing.PredicateSpec, error) {
 	fn, ok := sym.(func([]string) (routing.PredicateSpec, error))
 	if !ok {
 		return nil, fmt.Errorf("plugin %s's InitPredicate function has wrong signature", path)
@@ -265,25 +302,25 @@ func loadPredicatePlugin(sym plugin.Symbol, path string, args []string) (routing
 	return spec, nil
 }
 
-func (o *Options) LoadDataClientPlugins(found map[string]string) error {
+func (o *Options) loadDataClientPlugins(found map[string]string, done map[string][]string) error {
 	for _, pred := range o.DataClientPlugins {
 		name := pred[0]
 		path, ok := found[name]
 		if !ok {
-			return fmt.Errorf("data client plugin %s not found in plugin dirs\n", name)
+			return fmt.Errorf("data client plugin %s not found in plugin dirs", name)
 		}
-		spec, err := LoadDataClientPlugin(path, pred[1:])
+		spec, err := loadDataClientPlugin(path, pred[1:])
 		if err != nil {
-			return fmt.Errorf("failed to load plugin %s: %s\n", path, err)
+			return fmt.Errorf("failed to load plugin %s: %s", path, err)
 		}
 		o.CustomDataClients = append(o.CustomDataClients, spec)
-		fmt.Printf("loaded plugin %s from %s\n", name, path)
-		delete(found, name)
+		log.Printf("loaded plugin %s from %s", name, path)
+		markPluginLoaded(done, name, "InitDataClient")
 	}
 	return nil
 }
 
-func LoadDataClientPlugin(path string, args []string) (routing.DataClient, error) {
+func loadDataClientPlugin(path string, args []string) (routing.DataClient, error) {
 	mod, err := plugin.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open data client module %s: %s", path, err)
@@ -298,10 +335,10 @@ func LoadDataClientPlugin(path string, args []string) (routing.DataClient, error
 	if err != nil {
 		return nil, fmt.Errorf("lookup module symbol failed for %s: %s", path, err)
 	}
-	return loadDataClientPlugin(sym, path, append(conf, args...))
+	return initDataClientPlugin(sym, path, append(conf, args...))
 }
 
-func loadDataClientPlugin(sym plugin.Symbol, path string, args []string) (routing.DataClient, error) {
+func initDataClientPlugin(sym plugin.Symbol, path string, args []string) (routing.DataClient, error) {
 	fn, ok := sym.(func([]string) (routing.DataClient, error))
 	if !ok {
 		return nil, fmt.Errorf("plugin %s's InitDataClient function has wrong signature", path)

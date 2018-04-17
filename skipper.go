@@ -377,9 +377,9 @@ type Options struct {
 	// what the []string should contain.
 	DataClientPlugins [][]string
 
-	// MultiPlugins combine multiple types of the above plugin types in one plugin (where
+	// Plugins combine multiple types of the above plugin types in one plugin (where
 	// necessary because of shared data between e.g. a filter and a data client).
-	MultiPlugins [][]string
+	Plugins [][]string
 
 	// DefaultHTTPStatus is the HTTP status used when no routes are found
 	// for a request.
