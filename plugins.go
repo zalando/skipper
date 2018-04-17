@@ -19,6 +19,11 @@ func (o *Options) findAndLoadPlugins() error {
 	for _, dir := range o.PluginDirs {
 		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
+				// don't fail when default plugin dir is missing
+				if _, ok := err.(*os.PathError); ok && dir == DefaultPluginDir {
+					return err
+				}
+
 				log.Fatalf("failed to search for plugins: %s", err)
 			}
 			if info.IsDir() {

@@ -67,7 +67,7 @@ const (
 	oauthURLUsage                  = "OAuth2 URL for Innkeeper authentication"
 	oauthCredentialsDirUsage       = "directory where oauth credentials are stored: client.json and user.json"
 	oauthScopeUsage                = "the whitespace separated list of oauth scopes"
-	routesFileUsage                = "file containing static route definitions"
+	routesFileUsage                = "file containing route definitions"
 	inlineRoutesUsage              = "inline routes in eskip format"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	insecureUsage                  = "flag indicating to ignore the verification of the TLS certificates of the backend services"
@@ -99,8 +99,8 @@ const (
 	accessLogDisabledUsage         = "when this flag is set, no access log is printed"
 	accessLogJSONEnabledUsage      = "when this flag is set, log in JSON format is used"
 	debugEndpointUsage             = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
-	certPathTLSUsage               = "the path on the local filesystem to the certificate file (including any intermediates)"
-	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file"
+	certPathTLSUsage               = "the path on the local filesystem to the certificate file(s) (including any intermediates), multiple may be given comma separated"
+	keyPathTLSUsage                = "the path on the local filesystem to the certificate's private key file(s), multiple keys may be given comma separated - the order must match the certs"
 	backendFlushIntervalUsage      = "flush interval for upgraded proxy connections"
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
 	versionUsage                   = "print Skipper version"
@@ -359,7 +359,7 @@ func main() {
 		KubernetesIngressClass:              kubernetesIngressClass,
 		InnkeeperUrl:                        innkeeperURL,
 		SourcePollTimeout:                   time.Duration(sourcePollTimeout) * time.Millisecond,
-		RoutesFile:                          routesFile,
+		WatchRoutesFile:                     routesFile,
 		InlineRoutes:                        inlineRoutes,
 		IdleConnectionsPerHost:              idleConnsPerHost,
 		CloseIdleConnsPeriod:                time.Duration(clsic) * time.Second,
@@ -404,7 +404,7 @@ func main() {
 		EnableRatelimiters:                  enableRatelimiters,
 		RatelimitSettings:                   ratelimits,
 		OpenTracing:                         strings.Split(openTracing, " "),
-		PluginDirs:                          []string{"./plugins"},
+		PluginDirs:                          []string{skipper.DefaultPluginDir},
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 		EnablePrometheusMetrics:             enablePrometheusMetrics,

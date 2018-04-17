@@ -1,12 +1,14 @@
 package skipper
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -36,6 +38,8 @@ const (
 	defaultSourcePollTimeout   = 30 * time.Millisecond
 	defaultRoutingUpdateBuffer = 1 << 5
 )
+
+const DefaultPluginDir = "./plugins"
 
 // Options to start skipper.
 type Options struct {
@@ -122,6 +126,10 @@ type Options struct {
 
 	// File containing static route definitions.
 	RoutesFile string
+
+	// File containing route definitions with file watch enabled. (For the skipper
+	// command this option is used when starting it with the -routes-file flag.)
+	WatchRoutesFile string
 
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
@@ -311,9 +319,10 @@ type Options struct {
 
 	DebugListener string
 
-	//Path of certificate when using TLS
+	// Path of certificate(s) when using TLS, mutiple may be given comma separated
 	CertPathTLS string
-	//Path of key when using TLS
+	// Path of key(s) when using TLS, multiple may be given comma separated. For
+	// multiple keys, the order must match the one given in CertPathTLS
 	KeyPathTLS string
 
 	// Flush interval for upgraded Proxy connections
@@ -410,6 +419,11 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			return nil, err
 		}
 
+		clients = append(clients, f)
+	}
+
+	if o.WatchRoutesFile != "" {
+		f := eskipfile.Watch(o.WatchRoutesFile)
 		clients = append(clients, f)
 	}
 
@@ -545,6 +559,25 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	}
 
 	if o.isHTTPS() {
+		if strings.Index(o.CertPathTLS, ",") > 0 && strings.Index(o.KeyPathTLS, ",") > 0 {
+			tlsCfg := &tls.Config{}
+			crts := strings.Split(o.CertPathTLS, ",")
+			keys := strings.Split(o.KeyPathTLS, ",")
+			if len(crts) != len(keys) {
+				log.Fatalf("number of certs does not match number of keys")
+			}
+			for i, crt := range crts {
+				kp, err := tls.LoadX509KeyPair(crt, keys[i])
+				if err != nil {
+					log.Fatalf("Failed to load X509 keypair from %s/%s: %v", crt, keys[i], err)
+				}
+				tlsCfg.Certificates = append(tlsCfg.Certificates, kp)
+			}
+			tlsCfg.BuildNameToCertificate()
+			o.CertPathTLS = ""
+			o.KeyPathTLS = ""
+			srv.TLSConfig = tlsCfg
+		}
 		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
 	}
 	log.Infof("certPathTLS or keyPathTLS not found, defaulting to HTTP")

@@ -253,7 +253,7 @@ Example, randompredicate.go:
 
     func (s *randomSpec) Name() string { return "Random" }
 
-    func (s *randomSpec) Create(args []interface{}) routing.Predicate {
+    func (s *randomSpec) Create(args []interface{}) (routing.Predicate, error) {
         p := &randomPredicate{.5}
         if len(args) > 0 {
             if c, ok := args[0].(float64); ok {
@@ -261,7 +261,7 @@ Example, randompredicate.go:
             }
         }
 
-        return p
+        return p, nil
     }
 
     func (p *randomPredicate) Match(_ *http.Request) bool {
@@ -336,9 +336,11 @@ Example, hello.go:
     package main
 
     import (
+        "log"
+
         "github.com/zalando/skipper"
         "github.com/zalando/skipper/filters"
-        "log"
+        "github.com/zalando/skipper/routing"
     )
 
     func main() {
@@ -351,8 +353,10 @@ Example, hello.go:
 
 A file containing the routes, routes.eskip:
 
-    Random(.05) -> hello("fish?") -> "https://fish.example.org";
-    * -> hello("world") -> "https://www.example.org"
+    random:
+        Random(.05) -> hello("fish?") -> "https://fish.example.org";
+    hello:
+        * -> hello("world") -> "https://www.example.org"
 
 Start the custom router:
 

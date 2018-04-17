@@ -11,7 +11,7 @@ Annotation | example data | usage
 zalando.org/backend-weights | `{"my-app-1": 80, "my-app-2": 20}` | blue-green deployments
 zalando.org/skipper-filter | `consecutiveBreaker(15)` | arbitrary filters
 zalando.org/skipper-predicate | `QueryParam("version", "^alpha$")` | arbitrary predicates
-zalando.org/skipper-routes | `Method("OPTIONS") -> stauts(200) -> <shunt>` | extra custom routes
+zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | extra custom routes
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
 
 ## Supported Service types
@@ -158,6 +158,14 @@ Add a HTTP header in the response path of your clients.
 
     setResponseHeader("X-Foo", "bar")
 
+## Enable gzip
+
+Compress responses with gzip.
+
+    compress() // compress all valid MIME types
+    compress("text/html") // only compress HTML files
+    compress(9, "text/html") // control the level of compression, 1 = fastest, 9 = best compression, 0 = no compression
+
 ## Set the Path
 
 Change the path in the request path to your backend to `/newPath/`.
@@ -231,6 +239,25 @@ a unique value. Read more about this in our
 [flowid filter godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
 
      flowId("reuse")
+
+# Filters - return fast
+
+Sometimes you just want to return a header, redirect or even static
+html content. You can return from skipper without doing a proxy call
+to a backend, if you end your filter chain with `<shunt>`.
+
+## Return static content
+
+The following example sets a response header `X: bar`, a response body
+`<html><body>hello</body></html>` and a
+HTTP status code 200:
+
+    zalando.org/skipper-filter: |
+      setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
+
+Keep in mind you need a valid backend definition to backends which are
+available, otherwise Skipper would not accept the entire route
+definition from the ingress object for safety reasons.
 
 # Filters - reliability features
 

@@ -116,6 +116,7 @@ type Client struct {
 	httpClient             *http.Client
 	apiURL                 string
 	provideHealthcheck     bool
+	healthy                bool
 	provideHTTPSRedirect   bool
 	token                  string
 	current                map[string]*eskip.Route
@@ -444,6 +445,12 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 					idx, // index within the group
 				},
 			}},
+			Filters: []*eskip.Filter{{
+				Name: builtin.DropRequestHeaderName,
+				Args: []interface{}{
+					loadbalancer.DecisionHeader,
+				},
+			}},
 		}
 		routes = append(routes, r)
 	}
@@ -598,6 +605,12 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 				Args: []interface{}{
 					group,
 					idx, // index within the group
+				},
+			}},
+			Filters: []*eskip.Filter{{
+				Name: builtin.DropRequestHeaderName,
+				Args: []interface{}{
+					loadbalancer.DecisionHeader,
 				},
 			}},
 		}
@@ -998,8 +1011,8 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
-		healthy := !c.hasReceivedTerm()
-		r = append(r, healthcheckRoute(healthy, c.reverseSourcePredicate))
+		c.healthy = !c.hasReceivedTerm()
+		r = append(r, healthcheckRoute(c.healthy, c.reverseSourcePredicate))
 	}
 
 	if c.provideHTTPSRedirect {
@@ -1051,9 +1064,12 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
-		hc := healthcheckRoute(healthy, c.reverseSourcePredicate)
-		next[healthcheckRouteID] = hc
-		updatedRoutes = append(updatedRoutes, hc)
+		if healthy != c.healthy {
+			c.healthy = healthy
+			hc := healthcheckRoute(c.healthy, c.reverseSourcePredicate)
+			next[healthcheckRouteID] = hc
+			updatedRoutes = append(updatedRoutes, hc)
+		}
 	}
 
 	c.current = next

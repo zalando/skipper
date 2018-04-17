@@ -1,6 +1,7 @@
 build_steps:
     - desc: 'Install required build software'
       cmd: |
+        apt-get update
         apt-get install -y make git apt-transport-https ca-certificates curl
     - desc: 'Install go'
       cmd: |
