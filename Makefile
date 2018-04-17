@@ -47,7 +47,7 @@ check: build check-plugins
 	#
 	for p in $(PACKAGES); do go test $$p || break; done
 
-shortcheck: build
+shortcheck: build check-plugins
 	# go test -test.short -run ^Test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
