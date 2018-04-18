@@ -64,7 +64,7 @@ _test_plugins/%.so: _test_plugins/%.go
 _test_plugins_fail/%.so: _test_plugins_fail/%.go
 	go build -buildmode=plugin -o $@ $<
 
-bench: build
+bench: build $(TEST_PLUGINS)
 	# go test -bench . $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
@@ -113,7 +113,7 @@ precommit: check-imports fmt build shortcheck vet
 
 check-precommit: check-imports check-fmt build shortcheck vet
 
-.coverprofile-all: $(SOURCES)
+.coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	# go list -f \
 	# 	'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
 	# 	$(PACKAGES) | xargs -i sh -c {}
