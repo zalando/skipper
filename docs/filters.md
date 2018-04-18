@@ -1,5 +1,11 @@
 # Skipper Filters
 
+The parameters can be strings, regex or float64 / int
+
+* `string` is a string surrounded by double quotes (`"`)
+* `regex` is a regular expression, surrounded by `/`, e.g. `/^www\.example\.org(:\d+)?$/`
+* `int` / `float64` are usual (decimal) numbers like `401` or `1.23456`
+
 ## setRequestHeader
 ## setResponseHeader
 ## appendRequestHeader
@@ -13,15 +19,15 @@
 ## redirectToLower
 ## static
 
-Serves static content from the filesystem. 
+Serves static content from the filesystem.
 
 Parameters:
-* Request path to strip
-* Target base path in the filesystem.
+* Request path to strip (string)
+* Target base path in the filesystem (string)
 
 Example:
 
-This serves files from `/srv/www/dehydrated` when requested via `/.well-known/acme-challenge/`, 
+This serves files from `/srv/www/dehydrated` when requested via `/.well-known/acme-challenge/`,
 e.g. the request `GET /.well-known/acme-challenge/foo` will serve the file `/srv/www/dehydrated/foo`.
 ```
 acme: Host(/./) && Method("GET") && Path("/.well-known/acme-challenge/*")
