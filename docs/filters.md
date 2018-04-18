@@ -14,7 +14,29 @@
 ## static
 ## stripQuery
 ## preserveHost
+
+Sets the incoming `Host: ` header also on the outgoing backend connection
+
+Parameters: none
+
+Example:
+```
+route1: * -> preserveHost() -> "http://backend.example.org";
+```
+
 ## status
+
+Sets the response status code to the given value, with no regards to the backend response.
+
+Parameters:
+* status code (int)
+
+Example:
+
+```
+route1: Host(/^all401\.example\.org$/) -> status(401) -> <shunt>;
+```
+
 ## compress
 ## setQuery
 ## dropQuery
