@@ -604,7 +604,7 @@ func Run(o Options) error {
 		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
 	}
 
-	if err := findAndLoadPlugins(&o); err != nil {
+	if err = findAndLoadPlugins(&o); err != nil {
 		return err
 	}
 
@@ -625,8 +625,8 @@ func Run(o Options) error {
 	// register oauth filters and register the custom filters
 	registry := builtin.MakeRegistry()
 	if o.TokenURL != "" {
-		oauthSpec := auth.NewOAuth2(auth.Options{TokenURL: o.TokenURL})
-		registry.Register(oauthSpec)
+		registry.Register(auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAllName}))
+		registry.Register(auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAnyName}))
 	}
 	for _, f := range o.CustomFilters {
 		registry.Register(f)
