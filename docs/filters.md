@@ -28,6 +28,11 @@ acme: Host(/./) && Method("GET") && Path("/.well-known/acme-challenge/*")
     -> static("/.well-known/acme-challenge/", "/srv/www/dehydrated") -> <shunt>;
 ```
 
+Notes:
+* redirects to the directory when a file `index.html` exists
+* serves the content of the `index.html` when a directory is requested
+* does a simple directory listing of files / directories when no `index.html` is present
+
 ## stripQuery
 ## preserveHost
 
