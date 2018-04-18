@@ -29,7 +29,7 @@ acme: Host(/./) && Method("GET") && Path("/.well-known/acme-challenge/*")
 ```
 
 Notes:
-* redirects to the directory when a file `index.html` exists
+* redirects to the directory when a file `index.html` exists and it is requested, i.e. `GET /foo/index.html` redirects to `/foo/` which serves then the `/foo/index.html`
 * serves the content of the `index.html` when a directory is requested
 * does a simple directory listing of files / directories when no `index.html` is present
 
