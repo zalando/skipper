@@ -621,13 +621,15 @@ func Run(o Options) error {
 		log.Warning("no route source specified")
 	}
 
-	// create a filter registry with the available filter specs registered,
-	// register oauth filters and register the custom filters
-	registry := builtin.MakeRegistry()
 	if o.TokenURL != "" {
-		registry.Register(auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAllName}))
-		registry.Register(auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAnyName}))
+		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAllName}))
+		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAnyName}))
 	}
+
+	// create a filter registry with the available filter specs registered,
+	// and register the custom filters
+	registry := builtin.MakeRegistry()
+
 	for _, f := range o.CustomFilters {
 		registry.Register(f)
 	}
