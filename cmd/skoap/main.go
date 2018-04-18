@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
-	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -15,7 +13,6 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/proxy"
-	"github.com/zalando/skipper/routing"
 )
 
 const (
@@ -25,20 +22,18 @@ const (
 	etcdUrlsFlag       = "etcd-urls"
 	targetAddressFlag  = "target-address"
 	preserveHeaderFlag = "preserve-header"
-	realmFlag          = "realm"
-	scopesFlag         = "scopes"
-	groupsFlag         = "groups"
-	auditFlag          = "audit-log"
-	auditBodyFlag      = "audit-log-limit"
-	routesFileFlag     = "routes-file"
-	insecureFlag       = "insecure"
 
-	defaultAddress     = ":9090"
-	authUrlBaseFlag    = "auth-url"
-	defaultAuthUrlBase = "http://[::1]:9081"
+	// TODO(sszuecs): move to skipper
+	realmFlag     = "realm"
+	scopesFlag    = "scopes"
+	groupsFlag    = "groups"
+	auditFlag     = "audit-log"
+	auditBodyFlag = "audit-log-limit"
 
-	groupUrlBaseFlag    = "group-url"
-	defaultGroupUrlBase = "http://[::1]:9082/?uid="
+	routesFileFlag = "routes-file"
+	insecureFlag   = "insecure"
+
+	defaultAddress = ":9090"
 
 	tlsCertFlag = "tls-cert"
 	tlsKeyFlag  = "tls-key"
@@ -98,13 +93,6 @@ https://godoc.org/github.com/zalando/skipper/eskip`
 
 	insecureUsage = `when this flag set, skipper will skip TLS verification`
 
-	authUrlBaseUsage = `URL base of the authentication service. The authentication token found
-in the incoming requests will be validated against this service. It will be passed as the Authorization Bearer
-header`
-
-	groupUrlBaseUsage = `URL base of the group service. The user id received from the authentication service will
-be appended to this url, and the list of groups that the user is a member of will be requested`
-
 	// TODO
 	certPathTLSUsage = "path of the certificate file"
 	keyPathTLSUsage  = "path of the key"
@@ -131,8 +119,6 @@ var (
 	auditBody           int
 	routesFile          string
 	insecure            bool
-	authUrlBase         string
-	groupUrlBase        string
 	certPathTLS         string
 	keyPathTLS          string
 	verbose             bool
@@ -168,8 +154,6 @@ func init() {
 	fs.IntVar(&auditBody, auditBodyFlag, 1024, auditBodyUsage)
 	fs.StringVar(&routesFile, routesFileFlag, "", routesFileUsage)
 	fs.BoolVar(&insecure, insecureFlag, false, insecureUsage)
-	fs.StringVar(&authUrlBase, authUrlBaseFlag, "", authUrlBaseUsage)
-	fs.StringVar(&groupUrlBase, groupUrlBaseFlag, "", groupUrlBaseUsage)
 	fs.StringVar(&certPathTLS, tlsCertFlag, "", certPathTLSUsage)
 	fs.StringVar(&keyPathTLS, tlsKeyFlag, "", keyPathTLSUsage)
 	fs.BoolVar(&verbose, verboseFlag, false, verboseUsage)
@@ -191,61 +175,17 @@ func logUsage(message string) {
 }
 
 func main() {
-	if verbose {
-		logrus.SetLevel(logrus.DebugLevel)
-	} else {
-		logrus.SetLevel(logrus.WarnLevel)
-	}
-
-	if targetAddress == "" && routesFile == "" && etcdUrls == "" {
-		logUsage("either the target address, a routes file or etcd urls needs to be specified")
-	}
-
-	// check that only one of targetAddress, routesFile and etcdUrls is
-	// defined
-	defined := 0
-	for _, f := range []string{targetAddress, routesFile, etcdUrls} {
-		if f != "" {
-			defined++
-		}
-	}
-
-	if defined > 1 {
-		logUsage("can only set one of: target address, etcd urls, or a routes file")
-	}
-
-	singleRouteMode := targetAddress != ""
-
-	if !singleRouteMode && (preserveHeader || realm != "" || scopes != "" || groups != "" || audit || auditBody != 1024) {
-		logUsage("the preserve-header, realm, scopes, groups, audit-log and audit-log-limit flags can be used only together with the target-address flag (single route mode)")
-	}
-
 	if !audit && auditBody != 1024 {
 		logUsage("the audit-log-limit flag can be set only together with the audit-log flag")
-	}
-
-	if scopes != "" && groups != "" {
-		logUsage("the scopes and groups flags cannot be used together")
-	}
-
-	groupCheckMode := groups != ""
-
-	if authUrlBase == "" {
-		authUrlBase = defaultAuthUrlBase
-	}
-
-	if groupUrlBase == "" {
-		groupUrlBase = defaultGroupUrlBase
 	}
 
 	o := skipper.Options{
 		Address:    address,
 		EtcdPrefix: etcdPrefix,
 		CustomFilters: []filters.Spec{
-			auth.NewAuth(),
-			auth.NewAuthGroup(),
-			auth.NewBasicAuth(),
-			logfilter.NewAuditLog()},
+			auth.NewAuth(auth.Options{AuthType: auth.AuthAllName}),
+			auth.NewBasicAuth(),      // TODO(sszuecs): move to skipper
+			logfilter.NewAuditLog()}, // TODO(sszuecs): move to skipper
 		AccessLogDisabled:   true,
 		ProxyOptions:        proxy.OptionsPreserveOriginal,
 		CertPathTLS:         certPathTLS,
@@ -253,63 +193,18 @@ func main() {
 		ExperimentalUpgrade: experimentalUpgrade,
 	}
 
-	if insecure {
-		o.ProxyOptions |= proxy.OptionsInsecure
+	var f []*eskip.Filter
+
+	if !preserveHeader {
+		f = append(f, &eskip.Filter{
+			Name: builtin.DropRequestHeaderName,
+			Args: []interface{}{"Authorization"}})
 	}
 
-	if routesFile != "" {
-		o.RoutesFile = routesFile
-	} else if etcdUrls != "" {
-		var eus []string
-		if len(etcdUrls) > 0 {
-			eus = strings.Split(etcdUrls, ",")
-		}
-		o.EtcdUrls = eus
-	} else {
-		var filterArgs []interface{}
-		if realm != "" {
-			filterArgs = append(filterArgs, realm)
-		}
-
-		args := scopes
-		name := auth.AuthName
-		if groupCheckMode {
-			args = groups
-			name = auth.AuthGroupName
-		}
-
-		if args != "" {
-			if realm == "" {
-				// realm set to empty
-				filterArgs = append(filterArgs, "")
-			}
-
-			argsList := strings.Split(args, ",")
-			for _, a := range argsList {
-				filterArgs = append(filterArgs, a)
-			}
-		}
-
-		f := []*eskip.Filter{{
-			Name: name,
-			Args: filterArgs}}
-
-		if !preserveHeader {
-			f = append(f, &eskip.Filter{
-				Name: builtin.DropRequestHeaderName,
-				Args: []interface{}{"Authorization"}})
-		}
-
-		if audit {
-			f = append([]*eskip.Filter{&eskip.Filter{
-				Name: logfilter.AuditLogName,
-				Args: []interface{}{float64(auditBody)}}}, f...)
-		}
-
-		o.CustomDataClients = []routing.DataClient{
-			&singleRouteClient{
-				Filters: f,
-				Backend: targetAddress}}
+	if audit {
+		f = append([]*eskip.Filter{&eskip.Filter{
+			Name: logfilter.AuditLogName,
+			Args: []interface{}{float64(auditBody)}}}, f...)
 	}
 
 	err := skipper.Run(o)
