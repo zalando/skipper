@@ -1,4 +1,4 @@
-SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*")
+SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*" -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
 PACKAGES           = $(shell glide novendor || echo -n "./...")
 CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
 VERSION           ?= $(CURRENT_VERSION)
@@ -7,6 +7,11 @@ NEXT_MINOR         = $(shell go run packaging/version/version.go minor $(CURRENT
 NEXT_PATCH         = $(shell go run packaging/version/version.go patch $(CURRENT_VERSION))
 COMMIT_HASH        = $(shell git rev-parse --short HEAD)
 TEST_ETCD_VERSION ?= v2.3.8
+TEST_PLUGINS       = _test_plugins/filter_noop.so \
+		     _test_plugins/predicate_match_none.so \
+		     _test_plugins/dataclient_noop.so \
+		     _test_plugins/multitype_noop.so \
+		     _test_plugins_fail/fail.so
 
 default: build
 
@@ -34,7 +39,7 @@ install: $(SOURCES)
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
-check: build
+check: build check-plugins
 	# go test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
@@ -42,13 +47,22 @@ check: build
 	#
 	for p in $(PACKAGES); do go test $$p || break; done
 
-shortcheck: build
+shortcheck: build check-plugins
 	# go test -test.short -run ^Test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
 	for p in $(PACKAGES); do go test -test.short -run ^Test $$p || break -1; done
+
+check-plugins: $(TEST_PLUGINS)
+	go test -run LoadPlugins
+
+_test_plugins/%.so: _test_plugins/%.go
+	go build -buildmode=plugin -o $@ $<
+
+_test_plugins_fail/%.so: _test_plugins_fail/%.go
+	go build -buildmode=plugin -o $@ $<
 
 bench: build
 	# go test -bench . $(PACKAGES)
@@ -64,6 +78,8 @@ lint: build
 clean:
 	go clean -i ./...
 	rm -rf .coverprofile-all .cover
+	rm ./_test_plugins/*.so
+	rm ./_test_plugins_fail/*.so
 
 deps:
 	go get -t github.com/zalando/skipper/...
@@ -156,5 +172,5 @@ else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
 else ifeq ($(TRAVIS_BRANCH), master)
 	make deps check-precommit
 else
-	make deps shortcheck
+	make deps shortcheck check-plugins
 endif

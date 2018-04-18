@@ -40,7 +40,7 @@ There are some pitfalls:
 
 ## Filter plugins
 
-All plugins must have a function named "InitFilter" with the following signature
+All plugins must have a function named `InitFilter` with the following signature
 
     func([]string) (filters.Spec, error)
 
@@ -48,9 +48,9 @@ The parameters passed are all arguments for the plugin, i.e. everything after th
 word from skipper's `-filter-plugin` parameter. E.g. when the `-filter-plugin` 
 parameter is
 
-    "myfilter,datafile=/path/to/file,foo=bar"
+    myfilter,datafile=/path/to/file,foo=bar
 
-the "myfilter" plugin will receive
+the `myfilter` plugin will receive
 
     []string{"datafile=/path/to/file", "foo=bar"}
 
@@ -62,7 +62,7 @@ Filter plugins can be found in the [filter repo](https://github.com/skipper-plug
 
 ### Example filter plugin
 
-An example "noop" plugin looks like
+An example `noop` plugin looks like
 
 ```go
 package main
@@ -92,7 +92,7 @@ func (f noopFilter) Response(filters.FilterContext) {}
 
 ## Predicate plugins
 
-All plugins must have a function named "InitPredicate" with the following signature
+All plugins must have a function named `InitPredicate` with the following signature
 
     func([]string) (routing.PredicateSpec, error)
 
@@ -100,9 +100,9 @@ The parameters passed are all arguments for the plugin, i.e. everything after th
 word from skipper's `-predicate-plugin` parameter. E.g. when the `-predicate-plugin` 
 parameter is
 
-    "mypred,datafile=/path/to/file,foo=bar"
+    mypred,datafile=/path/to/file,foo=bar
 
-the "mypred" plugin will receive
+the `mypred` plugin will receive
 
     []string{"datafile=/path/to/file", "foo=bar"}
 
@@ -114,7 +114,7 @@ Predicate plugins can be found in the [predicate repo](https://github.com/skippe
 
 ### Example predicate plugin
 
-An example "MatchAll" plugin looks like
+An example `MatchAll` plugin looks like
 
 ```go
 package main
@@ -152,7 +152,7 @@ function with the signature
 
     func([]string) (routing.DataClient, error)
 
-A "noop" data client looks like
+A `noop` data client looks like
 
 ```go
 package main
@@ -178,15 +178,172 @@ func (dc DataClient) LoadUpdate() ([]*eskip.Route, []string, error) {
 }
 ```
 
+## MultiType plugins
+
+Sometimes it is necessary to combine multiple plugin types into one module. This can
+be done with this kind of plugin. Note that these modules are not auto loaded, these
+need an explicit `-multi-plugin name,arg1,arg2` command line switch for skipper.
+
+The module must have a `InitPlugin` function with the signature
+
+    func([]string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error)
+
+Any of the returned types may be nil, so you can have e.g. a combined filter / data client
+plugin or share a filter and a predicate, e.g. like
+
+```go
+package main
+
+import (
+	"fmt"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+
+	ot "github.com/opentracing/opentracing-go"
+	maxminddb "github.com/oschwald/maxminddb-golang"
+
+	"github.com/zalando/skipper/filters"
+	snet "github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/routing"
+)
+
+type geoipSpec struct {
+	db   *maxminddb.Reader
+	name string
+}
+
+func InitPlugin(opts []string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error) {
+	var db string
+	for _, o := range opts {
+		switch {
+		case strings.HasPrefix(o, "db="):
+			db = o[3:]
+		}
+	}
+	if db == "" {
+		return nil, nil, nil, fmt.Errorf("missing db= parameter for geoip plugin")
+	}
+	reader, err := maxminddb.Open(db)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to open db %s: %s", db, err)
+	}
+
+	return []filters.Spec{&geoipSpec{db: reader, name: "geoip"}},
+		[]routing.PredicateSpec{&geoipSpec{db: reader, name: "GeoIP"}},
+		nil,
+		nil
+}
+
+func (s *geoipSpec) Name() string {
+	return s.name
+}
+
+func (s *geoipSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+	var fromLast bool
+	header := "X-GeoIP-Country"
+	var err error
+	for _, c := range config {
+		if s, ok := c.(string); ok {
+			switch {
+			case strings.HasPrefix(s, "from_last="):
+				fromLast, err = strconv.ParseBool(s[10:])
+				if err != nil {
+					return nil, filters.ErrInvalidFilterParameters
+				}
+			case strings.HasPrefix(s, "header="):
+				header = s[7:]
+			}
+		}
+	}
+	return &geoip{db: s.db, fromLast: fromLast, header: header}, nil
+}
+
+func (s *geoipSpec) Create(config []interface{}) (routing.Predicate, error) {
+	var fromLast bool
+	var err error
+	countries := make(map[string]struct{})
+	for _, c := range config {
+		if s, ok := c.(string); ok {
+			switch {
+			case strings.HasPrefix(s, "from_last="):
+				fromLast, err = strconv.ParseBool(s[10:])
+				if err != nil {
+					return nil, predicates.ErrInvalidPredicateParameters
+				}
+			default:
+				countries[strings.ToUpper(s)] = struct{}{}
+			}
+		}
+	}
+	return &geoip{db: s.db, fromLast: fromLast, countries: countries}, nil
+}
+
+type geoip struct {
+	db        *maxminddb.Reader
+	fromLast  bool
+	header    string
+	countries map[string]struct{}
+}
+
+type countryRecord struct {
+	Country struct {
+		ISOCode string `maxminddb:"iso_code"`
+	} `maxminddb:"country"`
+}
+
+func (g *geoip) lookup(r *http.Request) string {
+	var src net.IP
+	if g.fromLast {
+		src = snet.RemoteHostFromLast(r)
+	} else {
+		src = snet.RemoteHost(r)
+	}
+
+	record := countryRecord{}
+	err := g.db.Lookup(src, &record)
+	if err != nil {
+		fmt.Printf("geoip(): failed to lookup %s: %s", src, err)
+	}
+	if record.Country.ISOCode == "" {
+		return "UNKNOWN"
+	}
+	return record.Country.ISOCode
+}
+
+func (g *geoip) Request(c filters.FilterContext) {
+	c.Request().Header.Set(g.header, g.lookup(c.Request()))
+}
+
+func (g *geoip) Response(c filters.FilterContext) {}
+
+func (g *geoip) Match(r *http.Request) bool {
+	span := ot.SpanFromContext(r.Context())
+	if span != nil {
+		span.LogKV("GeoIP", "start")
+	}
+
+	code := g.lookup(r)
+	_, ok := g.countries[code]
+
+	if span != nil {
+		span.LogKV("GeoIP", code)
+	}
+	return ok
+}
+```
+
 ## OpenTracing plugins
 
-The tracers, except for "noop", are built as Go Plugins. A tracing plugin can
+The tracers, except for `noop`, are built as Go Plugins. A tracing plugin can
 be loaded with `-opentracing NAME` as parameter to skipper.
 
 Implementations of OpenTracing API can be found in the
 https://github.com/skipper-plugins/opentracing repository.
 
-All plugins must have a function named "InitTracer" with the following signature
+All plugins must have a function named `InitTracer` with the following signature
 
     func([]string) (opentracing.Tracer, error)
 
