@@ -7,15 +7,75 @@ The parameters can be strings, regex or float64 / int
 * `int` / `float64` are usual (decimal) numbers like `401` or `1.23456`
 
 ## setRequestHeader
+
+Set headers for requests.
+
+Parameters:
+* header name (string)
+* header value (string)
+
+Example:
+
+```
+foo: * -> setRequestHeader("X-Passed-Skipper", "true") -> "https://backend.example.org";
+```
+
 ## setResponseHeader
+
+Same as [setRequestHeader](#setrequestheader), only for responses
+
 ## appendRequestHeader
+
+Same as [setRequestHeader](#setrequestheader), does not remove a possibly existing value, but adds a new header value
+
 ## appendResponseHeader
+
+Same as [appendRequestHeader](#appendrequestheader), only for responses
+
 ## dropRequestHeader
+
+Removes a header from the request
+
+Parameters:
+* header name (string)
+
+Example:
+
+```
+foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
+```
+
 ## dropResponseHeader
+
+Same as [dropRequestHeader](#droprequestheader) but for responses from the backend
+
 ## healthcheck
+
 ## modPath
+
+Replace all matched regex expressions in the path.
+
+Parameters:
+* the expression to match (regex)
+* the replacement (string)
+
 ## setPath
+
+
 ## redirectTo
+
+Creates an HTTP redirect response.
+
+Parameters:
+* redirect status code (int)
+* location (string)
+
+Example:
+
+```
+redir: PathRegex(/^\/foo\/bar/) -> redirectTo(302, "/foo/newBar") -> <shunt>;
+```
+
 ## redirectToLower
 ## static
 
