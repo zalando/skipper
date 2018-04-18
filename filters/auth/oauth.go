@@ -200,12 +200,13 @@ func newSpec(typ roleCheckType) filters.Spec {
 
 // Options to configure auth providers
 type Options struct {
-	// TokenURL is the tokeninfo URL able to return information about a token.
+	// TokenURL is the tokeninfo URL able to return information
+	// about a token.
 	TokenURL string
 }
 
-// NewOAuth creates a new auth filter specification to validate authorization
-// tokens.
+// NewOAuth2 creates a new auth filter specification to validate
+// authorization tokens.
 func NewOAuth2(o Options) filters.Spec {
 	oauth2Config = oauth2.Config{
 		Endpoint: oauth2.Endpoint{
@@ -225,13 +226,13 @@ func NewOAuth2(o Options) filters.Spec {
 // to return the user id and the realm of the user associated with
 // the token ('uid' and 'realm' fields in the returned json document).
 // The token is set as the Authorization Bearer header.
-//
 func NewAuth() filters.Spec {
 	return newSpec(checkAnyScopes)
 }
 
-// NewAuditGroup reates a new auth filter specification to validate authorization
-// tokens, optionally check realms and optionally check groups.
+// NewAuthGroup creates a new auth filter specification to validate
+// authorization tokens, optionally check realms and optionally check
+// groups.
 //
 // authUrlBase: the url of the token validation service. The filter
 // expects the service to validate the token found in the Authorization
@@ -243,7 +244,6 @@ func NewAuth() filters.Spec {
 // groupUrlBase: this service is queried for the group ids, that the
 // user is a member of ('id' field of the returned json document's
 // items). The user id of the user is appended at the end of the url.
-//
 func NewAuthGroup() filters.Spec {
 	return newSpec(checkGroup)
 }
@@ -262,7 +262,14 @@ func (s *spec) Name() string {
 	return AuthUnknown
 }
 
-// CreateFilter creates an auth filter which has as
+// CreateFilter creates an auth filter. All arguments have to be
+// strings. The first argument relates to the type of the authnz
+// check, the second argument is the realm and the rest the given
+// scopes to check. How scopes are checked is based on the type. The
+// shown example will grant access only to tokens from `myrealm`, that
+// have scopes `read-x` and `write-y`:
+//
+//     s.CreateFilter("authAll", "myrealm", "read-x", "write-y")
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
@@ -298,19 +305,18 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 }
 
-// String prints nicely the filter configuration based on the configuration and check used.
+// String prints nicely the filter configuration based on the
+// configuration and check used.
 func (f *filter) String() string {
 	switch f.typ {
 	case checkAnyScopes:
-		return fmt.Sprintf("%s(%s)", AuthAnyName, strings.Join(f.scopes, ","))
+		return fmt.Sprintf("%s(%s,%s)", AuthAnyName, f.realm, strings.Join(f.scopes, ","))
 	case checkAllScopes:
-		return fmt.Sprintf("%s(%s)", AuthAllName, strings.Join(f.scopes, ","))
+		return fmt.Sprintf("%s(%s,%s)", AuthAllName, f.realm, strings.Join(f.scopes, ","))
 	case checkUID:
-		// TODO(sszuecs) nice print
-		return AuthUIDName
+		return fmt.Sprintf("%s(%s,%s)", AuthUIDName, f.realm, strings.Join(f.scopes, ","))
 	case checkGroup:
-		// TODO(sszuecs) nice print
-		return AuthGroupName
+		return fmt.Sprintf("%s(%s,%s)", AuthGroupName, f.realm, strings.Join(f.scopes, ","))
 	}
 	return AuthUnknown
 }
@@ -348,6 +354,7 @@ func (f *filter) validateGroup(token string, a *authDoc) (bool, error) {
 	return intersect(f.scopes, groups), err
 }
 
+// Request handles authentication based on the defined auth type.
 func (f *filter) Request(ctx filters.FilterContext) {
 	r := ctx.Request()
 
