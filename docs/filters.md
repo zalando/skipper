@@ -12,6 +12,22 @@
 ## redirectTo
 ## redirectToLower
 ## static
+
+Serves static content from the filesystem. 
+
+Parameters:
+* Request path to strip
+* Target base path in the filesystem.
+
+Example:
+
+This serves files from `/srv/www/dehydrated` when requested via `/.well-known/acme-challenge/`, 
+e.g. the request `GET /.well-known/acme-challenge/foo` will serve the file `/srv/www/dehydrated/foo`.
+```
+acme: Host(/./) && Method("GET") && Path("/.well-known/acme-challenge/*")
+    -> static("/.well-known/acme-challenge/", "/srv/www/dehydrated") -> <shunt>;
+```
+
 ## stripQuery
 ## preserveHost
 
