@@ -20,23 +20,50 @@ Embedding the filter in routes:
 
 Set Basic - Outgoing Authentication Header
 
-OAuth - Mechanism
+OAuth - Check Bearer Tokens
 
-The auth filter takes the incoming request, and tries to extract the Bearer token from the Authorization header. Then it validates against a configured service. Depending on the settings, it also can check if the owner of the token belongs to a specific OAuth2 realm, and it can check if it has at least one of the predefined scopes, or belongs to a certain team. If any of the expectations are not met, it doesn't forward the request to the target endpoint, but returns with status 401.
+The auth filter takes the incoming request, and tries to extract the
+Bearer token from the Authorization header. Then it validates against
+a configured service. Depending on the settings, it also can check if
+the owner of the token belongs to a specific OAuth2 realm, and it can
+check if it has at least one of the predefined scopes. If any of the
+expectations are not met, it doesn't forward the request to the target
+endpoint, but returns with status 401.
 
-When team checking is configured, Skoap makes an additional request to the configured team service before forwarding the request, to get the teams of the owner of the token.
-
-As additional features, the package also supports dropping the incoming Authorization header, replacing it with basic authorization. It also supports simple audit logging.
+As additional features, the package also supports audit logging.
 
 OAuth - Provider Configuration
 
--auth-service
--group-service
+To enable OAuth2 filters you have to set the CLI argument
+-token-url=<TokenURL>.  Scopes and realms are dependend on your OAuth2
+infrastructure provider. Tokens can be OAuth2 or JWT as long as
+TokenURL returns the data being checked.
 
-OAuth - auth() filter
+OAuth - authAny() filter
 
-OAuth - authGroup() filter
+The filter authAny allows access if the realm and one of the scopes
+are satisfied by the request.
 
-OAuth - Example
+    Path("/uid") -> authAny("/employees", "uid") -> "https://internal.example.org/";
+    Path("/") -> authAny("/employees", "uid", "bar") -> "https://internal.example.org/";
+
+OAuth - authAll() filter
+
+The filter authAll allows access if the realm and all of the scopes
+are satisfied by the request.
+
+    Path("/uid") -> authAll("/employees", "uid") -> "https://internal.example.org/";
+    Path("/") -> authAll("/employees", "uid", "bar") -> "https://internal.example.org/";
+
+OAuth - auditLog() filter
+
+The filter auditLog allows you to have an audit log for all
+requests. This filter should be always set, before checking with auth
+filters. To see only permitted access, you can set the auditLog()
+filter after the auth filter.
+
+    Path("/only-allowed-audit-log") -> authAny("/employees", "uid") -> auditLog() -> "https://internal.example.org/";
+    Path("/all-access-requests-audit-log") -> auditLog() -> authAny("/employees", "uid") -> "https://internal.example.org/";
+
 */
 package auth

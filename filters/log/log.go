@@ -112,17 +112,16 @@ func (al *auditLog) Request(ctx filters.FilterContext) {
 
 func (al *auditLog) Response(ctx filters.FilterContext) {
 	req := ctx.Request()
-
-	oreq := ctx.OriginalRequest()
 	rsp := ctx.Response()
 	doc := auditDoc{
-		Method: oreq.Method,
-		Path:   oreq.URL.Path,
+		Method: req.Method,
+		Path:   req.URL.Path,
 		Status: rsp.StatusCode}
 
 	sb := ctx.StateBag()
 	au, _ := sb[AuthUserKey].(string)
 	rr, _ := sb[AuthRejectReasonKey].(string)
+
 	if au != "" || rr != "" {
 		doc.AuthStatus = &authStatusDoc{User: au}
 		if rr != "" {

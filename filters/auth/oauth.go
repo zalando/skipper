@@ -234,7 +234,6 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(sargs) > 0 {
 		f.realm, f.scopes = sargs[0], sargs[1:]
 	}
-	log.Infof("filter: %s", f)
 
 	return f, nil
 
