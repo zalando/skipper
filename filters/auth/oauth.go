@@ -209,39 +209,32 @@ func (s *spec) Name() string {
 }
 
 // CreateFilter creates an auth filter. All arguments have to be
-// strings. The first argument relates to the type of the authnz
-// check, the second argument is the realm and the rest the given
+// strings. The first argument is the realm and the rest the given
 // scopes to check. How scopes are checked is based on the type. The
 // shown example will grant access only to tokens from `myrealm`, that
 // have scopes `read-x` and `write-y`:
 //
-//     s.CreateFilter("authAll", "myrealm", "read-x", "write-y")
+//     s.CreateFilter("myrealm", "read-x", "write-y")
 //
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
 	}
-
 	if len(sargs) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
-
-	var ac *authClient
-
-	switch sargs[0] {
-	case AuthAnyName:
-		ac = &authClient{sargs[0]}
-	case AuthAllName:
-		ac = &authClient{sargs[0]}
+	if s.typ == checkUnknown {
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	sargs = sargs[1:]
+	ac := &authClient{urlBase: s.cfg.Endpoint.TokenURL}
 
 	f := &filter{typ: s.typ, authClient: ac}
 	if len(sargs) > 0 {
 		f.realm, f.scopes = sargs[0], sargs[1:]
 	}
+	log.Infof("filter: %s", f)
 
 	return f, nil
 

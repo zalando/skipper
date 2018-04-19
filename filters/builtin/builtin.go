@@ -11,7 +11,6 @@ import (
 	"github.com/zalando/skipper/filters/cors"
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
-	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/tee"
 	"github.com/zalando/skipper/loadbalancer"
@@ -92,12 +91,9 @@ func MakeRegistry() filters.Registry {
 		tee.NewTeeDeprecated(),
 		tee.NewTeeNoFollow(),
 		auth.NewBasicAuth(),
-		auth.NewAuth(),
-		auth.NewAuthGroup(),
 		cookie.NewRequestCookie(),
 		cookie.NewResponseCookie(),
 		cookie.NewJSCookie(),
-		logfilter.NewAuditLog(),
 		circuit.NewConsecutiveBreaker(),
 		circuit.NewRateBreaker(),
 		circuit.NewDisableBreaker(),

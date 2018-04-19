@@ -2,37 +2,30 @@ package auth
 
 import (
 	"encoding/json"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/proxy/proxytest"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 const (
-	testToken     = "test-token"
-	testUid       = "jdoe"
-	testScope     = "test-scope"
-	testRealm     = "/immortals"
-	testGroup     = "test-group"
-	testAuthPath  = "/test-auth"
-	testGroupPath = "/test-group"
+	testToken    = "test-token"
+	testUID      = "jdoe"
+	testScope    = "test-scope"
+	testRealm    = "/immortals"
+	testAuthPath = "/test-auth"
 )
 
-type (
-	testAuthDoc struct {
-		authDoc
-		SomeOtherStuff string
-	}
-
-	testGroupDoc struct {
-		groupDoc
-		SomeOtherStuff string
-	}
-)
+type testAuthDoc struct {
+	authDoc
+	SomeOtherStuff string
+}
 
 func lastQueryValue(url string) string {
 	s := strings.Split(url, "=")
@@ -45,129 +38,86 @@ func lastQueryValue(url string) string {
 
 func Test(t *testing.T) {
 	for _, ti := range []struct {
-		msg          string
-		typ          roleCheckType
-		authBaseUrl  string
-		groupBaseUrl string
-		args         []interface{}
-		hasAuth      bool
-		auth         string
-		statusCode   int
+		msg         string
+		authType    string
+		authBaseURL string
+		args        []interface{}
+		hasAuth     bool
+		auth        string
+		expected    int
 	}{{
-		msg:        "uninitialized filter, no authorization header, scope check",
-		typ:        checkScope,
-		statusCode: http.StatusUnauthorized,
+		msg:      "uninitialized filter, no authorization header, scope check",
+		authType: AuthAnyName,
+		expected: http.StatusNotFound,
 	}, {
-		msg:        "uninitialized filter, no authorization header, group check",
-		typ:        checkGroup,
-		statusCode: http.StatusUnauthorized,
-	}, {
-		msg:         "no authorization header, scope check",
-		typ:         checkScope,
-		authBaseUrl: testAuthPath,
-		statusCode:  http.StatusUnauthorized,
-	}, {
-		msg:         "invalid token, scope check",
-		typ:         checkScope,
-		authBaseUrl: testAuthPath + "?access_token=",
+		msg:         "invalid token, without realm",
+		authType:    AuthAnyName,
+		authBaseURL: testAuthPath + "?access_token=",
 		hasAuth:     true,
 		auth:        "invalid-token",
-		statusCode:  http.StatusUnauthorized,
+		expected:    http.StatusNotFound,
 	}, {
-		msg:         "valid token, auth only, scope check",
-		typ:         checkScope,
-		authBaseUrl: testAuthPath + "?access_token=",
+		msg:         "invalid realm",
+		authType:    AuthAnyName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{"/not-matching-realm"},
 		hasAuth:     true,
 		auth:        testToken,
-		statusCode:  http.StatusOK,
+		expected:    http.StatusUnauthorized,
 	}, {
-		msg:          "invalid realm, scope check",
-		typ:          checkScope,
-		authBaseUrl:  testAuthPath + "?access_token=",
-		groupBaseUrl: testGroupPath + "?member=",
-		args:         []interface{}{"/not-matching-realm"},
-		hasAuth:      true,
-		auth:         testToken,
-		statusCode:   http.StatusUnauthorized,
+		msg:         "invalid realm, valid token, one valid scope",
+		authType:    AuthAnyName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{"/invalid", testScope},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "invalid scope",
-		typ:         checkScope,
-		authBaseUrl: testAuthPath + "?access_token=",
+		authType:    AuthAnyName,
+		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, "not-matching-scope"},
 		hasAuth:     true,
 		auth:        testToken,
-		statusCode:  http.StatusUnauthorized,
+		expected:    http.StatusUnauthorized,
 	}, {
-		msg:         "valid token, valid scope",
-		typ:         checkScope,
-		authBaseUrl: testAuthPath + "?access_token=",
+		msg:         "valid token, one valid scope",
+		authType:    AuthAnyName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testScope},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
+	}, {
+		msg:         "valid token, one valid scope, one invalid scope",
+		authType:    AuthAnyName,
+		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope, "other-scope"},
 		hasAuth:     true,
 		auth:        testToken,
-		statusCode:  http.StatusOK,
+		expected:    http.StatusOK,
 	}, {
-		msg:          "no authorization header, group check",
-		typ:          checkGroup,
-		authBaseUrl:  testAuthPath,
-		groupBaseUrl: testGroupPath,
-		statusCode:   http.StatusUnauthorized,
+		msg:         "authAll(): valid token, one valid scope",
+		authType:    AuthAllName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testScope},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
 	}, {
-		msg:          "invalid token, group check",
-		typ:          checkGroup,
-		authBaseUrl:  testAuthPath + "?access_token=",
-		groupBaseUrl: testGroupPath + "?member=",
-		hasAuth:      true,
-		auth:         "invalid-token",
-		statusCode:   http.StatusUnauthorized,
-	}, {
-		msg:          "valid token, auth only, group check",
-		typ:          checkGroup,
-		authBaseUrl:  testAuthPath + "?access_token=",
-		groupBaseUrl: testGroupPath + "?member=",
-		hasAuth:      true,
-		auth:         testToken,
-		statusCode:   http.StatusOK,
-	}, {
-		msg:          "invalid realm, group check",
-		typ:          checkGroup,
-		authBaseUrl:  testAuthPath + "?access_token=",
-		groupBaseUrl: testGroupPath + "?member=",
-		args:         []interface{}{"/not-matching-realm"},
-		hasAuth:      true,
-		auth:         testToken,
-		statusCode:   http.StatusUnauthorized,
-	}, {
-		msg:          "valid token, valid realm, no group check",
-		typ:          checkGroup,
-		authBaseUrl:  testAuthPath + "?access_token=",
-		groupBaseUrl: testGroupPath + "?member=",
-		args:         []interface{}{testRealm},
-		hasAuth:      true,
-		auth:         testToken,
-		statusCode:   http.StatusOK,
-	}, {
-		msg:          "valid token, valid realm, no matching group",
-		typ:          checkGroup,
-		authBaseUrl:  testAuthPath + "?access_token=",
-		groupBaseUrl: testGroupPath + "?member=",
-		args:         []interface{}{testRealm, "invalid-group-0", "invalid-group-1"},
-		hasAuth:      true,
-		auth:         testToken,
-		statusCode:   http.StatusUnauthorized,
-	}, {
-		msg:          "valid token, valid realm, matching group, group",
-		typ:          checkGroup,
-		authBaseUrl:  testAuthPath + "?access_token=",
-		groupBaseUrl: testGroupPath + "?member=",
-		args:         []interface{}{testRealm, "invalid-group-0", testGroup},
-		hasAuth:      true,
-		auth:         testToken,
-		statusCode:   http.StatusOK,
+		msg:         "authAll(): valid token, one valid scope, one invalid scope",
+		authType:    AuthAllName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testScope, "other-scope"},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusUnauthorized,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
 
 			authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 				if r.URL.Path != testAuthPath {
 					println("not found", r.URL.Path, testAuthPath)
 					w.WriteHeader(http.StatusNotFound)
@@ -179,8 +129,15 @@ func Test(t *testing.T) {
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
+				log.Infof("auth server got call %s", token)
 
-				d := testAuthDoc{authDoc{testUid, testRealm, []string{testScope}}, "noise"}
+				d := testAuthDoc{
+					authDoc{
+						UID:    testUID,
+						Realm:  testRealm,
+						Scopes: []string{testScope}},
+					"noise",
+				}
 				e := json.NewEncoder(w)
 				err = e.Encode(&d)
 				if err != nil {
@@ -188,42 +145,19 @@ func Test(t *testing.T) {
 				}
 			}))
 
-			groupServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != testGroupPath {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-
-				if token, err := getToken(r); err != nil || token != testToken {
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-
-				if lastQueryValue(r.URL.String()) != testUid {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-
-				d := []testGroupDoc{{groupDoc{testGroup}, "noise"}, {groupDoc{"other-group"}, "more noise"}}
-				e := json.NewEncoder(w)
-				err := e.Encode(&d)
-				if err != nil {
-					t.Error(err)
-				}
-			}))
-
 			var s filters.Spec
-			args := []interface{}{authServer.URL + ti.authBaseUrl}
-			if ti.typ == checkGroup {
-				s = NewAuthGroup()
-				args = append(args, groupServer.URL+ti.groupBaseUrl)
-			} else {
-				s = NewAuth()
-			}
+			args := []interface{}{} //{authServer.URL + ti.authBaseURL}
+			s = NewAuth(Options{
+				TokenURL: authServer.URL + ti.authBaseURL,
+				AuthType: ti.authType,
+			})
+
 			args = append(args, ti.args...)
+			log.Infof("args: %v", args)
 			fr := make(filters.Registry)
 			fr.Register(s)
 			r := &eskip.Route{Filters: []*eskip.Filter{{Name: s.Name(), Args: args}}, Backend: backend.URL}
+			log.Infof("r: %s", r)
 			proxy := proxytest.New(fr, r)
 
 			req, err := http.NewRequest("GET", proxy.URL, nil)
@@ -243,8 +177,8 @@ func Test(t *testing.T) {
 
 			defer rsp.Body.Close()
 
-			if rsp.StatusCode != ti.statusCode {
-				t.Error("auth filter failed", rsp.StatusCode, ti.statusCode)
+			if rsp.StatusCode != ti.expected {
+				t.Errorf("auth filter failed got=%d, expected=%d", rsp.StatusCode, ti.expected)
 			}
 		})
 	}

@@ -50,6 +50,7 @@ const (
 	defaultTLSHandshakeTimeoutBackend      = 60 * time.Second
 	defaultMaxIdleConnsBackend             = 0
 	defaultLoadBalancerHealthCheckInterval = 0 // disabled
+	defaultMaxAuditBody                    = 1024
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -126,6 +127,7 @@ const (
 	maxIdleConnsBackendUsage             = "sets the maximum idle connections for all backend connections"
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
 	tokenURLUsage                        = "sets the default URL to query information about an incoming OAuth2 token"
+	maxAuditBodyUsage                    = "sets the max body to read to log inthe audit log body"
 )
 
 var (
@@ -213,6 +215,7 @@ var (
 	predicatePlugins                pluginFlags
 	dataclientPlugins               pluginFlags
 	tokenURL                        string
+	maxAuditBody                    int
 )
 
 func init() {
@@ -298,6 +301,7 @@ func init() {
 	flag.Var(&predicatePlugins, "predicate-plugin", predicatePluginUsage)
 	flag.Var(&dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
 	flag.StringVar(&tokenURL, "token-url", "", tokenURLUsage)
+	flag.IntVar(&maxAuditBody, "max-audit-body", defaultMaxAuditBody, maxAuditBodyUsage)
 
 	flag.Parse()
 
@@ -422,6 +426,7 @@ func main() {
 		PredicatePlugins:                    predicatePlugins.Get(),
 		DataClientPlugins:                   dataclientPlugins.Get(),
 		TokenURL:                            tokenURL,
+		MaxAuditBody:                        maxAuditBody,
 	}
 
 	if pluginDir != "" {

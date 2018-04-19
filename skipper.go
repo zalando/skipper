@@ -20,6 +20,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
@@ -407,6 +408,9 @@ type Options struct {
 
 	// TokenURL sets the TokenURL similar to https://godoc.org/golang.org/x/oauth2#Endpoint
 	TokenURL string
+
+	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
+	MaxAuditBody int
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -625,6 +629,7 @@ func Run(o Options) error {
 		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAllName}))
 		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAnyName}))
 	}
+	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters

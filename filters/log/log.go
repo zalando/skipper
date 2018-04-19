@@ -6,9 +6,10 @@ package log
 import (
 	"bytes"
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/filters"
 )
@@ -79,26 +80,28 @@ func (tb *teeBody) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// NewAuditLog creates an auditLog filter specification. It expects a writer for
-// the output of the log entries.
+// NewAuditLog creates an auditLog filter specification. It expects a
+// maxAuditBody attribute to limit the size of the log. It will use
+// os.Stderr as writer for the output of the log entries.
 //
-//     spec := NewAuditLog()
-func NewAuditLog() filters.Spec {
-	return &auditLog{writer: os.Stderr}
+//     spec := NewAuditLog(1024)
+func NewAuditLog(maxAuditBody int) filters.Spec {
+	return &auditLog{
+		writer:     os.Stderr,
+		maxBodyLog: maxAuditBody,
+	}
 }
 
 func (al *auditLog) Name() string { return AuditLogName }
 
+// CreateFilter has no arguments. It creates the filter if the user
+// specifies auditLog() in their route.
 func (al *auditLog) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) == 0 {
-		return al, nil
-	}
-
-	if mbl, ok := args[0].(float64); ok {
-		return &auditLog{writer: al.writer, maxBodyLog: int(mbl)}, nil
-	} else {
+	if len(args) != 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
+
+	return &auditLog{writer: al.writer, maxBodyLog: al.maxBodyLog}, nil
 }
 
 func (al *auditLog) Request(ctx filters.FilterContext) {
