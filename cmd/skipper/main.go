@@ -216,6 +216,7 @@ var (
 	dataclientPlugins               pluginFlags
 	tokenURL                        string
 	maxAuditBody                    int
+	multiPlugins                    pluginFlags
 )
 
 func init() {
@@ -302,6 +303,7 @@ func init() {
 	flag.Var(&dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
 	flag.StringVar(&tokenURL, "token-url", "", tokenURLUsage)
 	flag.IntVar(&maxAuditBody, "max-audit-body", defaultMaxAuditBody, maxAuditBodyUsage)
+	flag.Var(&multiPlugins, "multi-plugin", multiPluginUsage)
 
 	flag.Parse()
 
@@ -427,6 +429,7 @@ func main() {
 		DataClientPlugins:                   dataclientPlugins.Get(),
 		TokenURL:                            tokenURL,
 		MaxAuditBody:                        maxAuditBody,
+		Plugins:                             multiPlugins.Get(),
 	}
 
 	if pluginDir != "" {
