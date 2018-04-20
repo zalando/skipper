@@ -49,8 +49,6 @@ foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
 
 Same as [dropRequestHeader](#droprequestheader) but for responses from the backend
 
-## healthcheck
-
 ## modPath
 
 Replace all matched regex expressions in the path.
@@ -61,6 +59,10 @@ Parameters:
 
 ## setPath
 
+Replace the path of the original request to the replacement.
+
+Parameters:
+* the replacement (string)
 
 ## redirectTo
 
@@ -77,6 +79,9 @@ redir: PathRegex(/^\/foo\/bar/) -> redirectTo(302, "/foo/newBar") -> <shunt>;
 ```
 
 ## redirectToLower
+
+Same as [redirectTo](#redirectTo), but replaces all strings to lower case.
+
 ## static
 
 Serves static content from the filesystem.
@@ -174,10 +179,61 @@ The compression happens in a streaming way, using only a small internal buffer.
 
 ## setQuery
 
+Set the query string `?k=v` in the request to the backend to a given value.
+
+Parameters:
+* key (string)
+* value (string)
+
+Example:
+
+```
+setQuery("k", "v")
+```
+
 ## dropQuery
+
+Delete the query string `?k=v` in the request to the backend for a
+given key.
+
+Parameters:
+* key (string)
+
+Example:
+
+```
+dropQuery("k")
+```
+
 ## inlineContent
 
+Returns arbitrary content in the HTTP body.
+
+Parameters:
+* arbitrary (string)
+
+Example:
+
+```
+'* -> inlineContent("<h1>Hello</h1>") -> <shunt>'
+```
+
 ## flowId
+
+Sets an X-Flow-Id header, if it's not already in the request.
+This allows you to have a trace in your logs, that traces from
+the incoming request on the edge to all backend services.
+
+Paramters:
+* no parameter: resets always the X-Flow-Id header to a new value
+* "reuse": only create X-Flow-Id header if not set in the request
+
+Example:
+
+```
+* -> flowId() -> "https://some-backend.example.org";
+* -> flowId("reuse") -> "https://some-backend.example.org";
+```
 
 ## randomContent
 
@@ -364,4 +420,3 @@ See [the scripts page](scripts.md)
 ## corsOrigin
 
 ## lbDecide
-
