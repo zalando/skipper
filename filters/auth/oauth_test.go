@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -19,12 +18,13 @@ const (
 	testUID      = "jdoe"
 	testScope    = "test-scope"
 	testRealm    = "/immortals"
+	testKey      = "uid"
+	testValue    = "jdoe"
 	testAuthPath = "/test-auth"
 )
 
 type testAuthDoc struct {
-	authDoc
-	SomeOtherStuff string
+	authMap map[string]interface{}
 }
 
 func lastQueryValue(url string) string {
@@ -112,6 +112,94 @@ func Test(t *testing.T) {
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusUnauthorized,
+	}, {
+		msg:         "anyKV(): invalid key",
+		authType:    AuthAnyKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, "not-matching-scope"},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusNotFound,
+	}, {
+		msg:         "anyKV(): valid token, one valid key, wrong value",
+		authType:    AuthAnyKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testKey, "other-value"},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusUnauthorized,
+	}, {
+		msg:         "anyKV(): valid token, one valid key value pair",
+		authType:    AuthAnyKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testKey, testValue},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
+	}, {
+		msg:         "anyKV(): valid token, one valid kv, multiple key value pairs1",
+		authType:    AuthAnyKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testKey, testValue, "wrongKey", "wrongValue"},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
+	}, {
+		msg:         "anyKV(): valid token, one valid kv, multiple key value pairs2",
+		authType:    AuthAnyKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, "wrongKey", "wrongValue", testKey, testValue},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
+	}, {
+		msg:         "allKV(): invalid key",
+		authType:    AuthAllKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, "not-matching-scope"},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusNotFound,
+	}, {
+		msg:         "allKV(): valid token, one valid key, wrong value",
+		authType:    AuthAllKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testKey, "other-value"},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusUnauthorized,
+	}, {
+		msg:         "allKV(): valid token, one valid key value pair",
+		authType:    AuthAllKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testKey, testValue},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
+	}, {
+		msg:         "allKV(): valid token, valid key value pairs",
+		authType:    AuthAllKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testKey, testValue, testKey, testValue},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
+	}, {
+		msg:         "allKV(): valid token, one valid kv, multiple key value pairs1",
+		authType:    AuthAllKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, testKey, testValue, "wrongKey", "wrongValue"},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusUnauthorized,
+	}, {
+		msg:         "allKV(): valid token, one valid kv, multiple key value pairs2",
+		authType:    AuthAllKVName,
+		authBaseURL: testAuthPath + "?access_token=",
+		args:        []interface{}{testRealm, "wrongKey", "wrongValue", testKey, testValue},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusUnauthorized,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
@@ -119,7 +207,6 @@ func Test(t *testing.T) {
 			authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 				if r.URL.Path != testAuthPath {
-					println("not found", r.URL.Path, testAuthPath)
 					w.WriteHeader(http.StatusNotFound)
 					return
 				}
@@ -129,15 +216,12 @@ func Test(t *testing.T) {
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
-				log.Infof("auth server got call %s", token)
 
-				d := testAuthDoc{
-					authDoc{
-						UID:    testUID,
-						Realm:  testRealm,
-						Scopes: []string{testScope}},
-					"noise",
-				}
+				d := map[string]interface{}{
+					"uid":   testUID,
+					"realm": testRealm,
+					"scope": []string{testScope}}
+
 				e := json.NewEncoder(w)
 				err = e.Encode(&d)
 				if err != nil {
@@ -153,11 +237,10 @@ func Test(t *testing.T) {
 			})
 
 			args = append(args, ti.args...)
-			log.Infof("args: %v", args)
 			fr := make(filters.Registry)
 			fr.Register(s)
 			r := &eskip.Route{Filters: []*eskip.Filter{{Name: s.Name(), Args: args}}, Backend: backend.URL}
-			log.Infof("r: %s", r)
+
 			proxy := proxytest.New(fr, r)
 
 			req, err := http.NewRequest("GET", proxy.URL, nil)

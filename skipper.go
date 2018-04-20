@@ -632,6 +632,8 @@ func Run(o Options) error {
 	if o.TokenURL != "" {
 		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAllScopeName}))
 		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAnyScopeName}))
+		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAllKVName}))
+		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAnyKVName}))
 	}
 	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
 

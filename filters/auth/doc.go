@@ -55,6 +55,65 @@ are satisfied by the request.
     Path("/uid") -> authAllScope("/employees", "uid") -> "https://internal.example.org/";
     Path("/") -> authAllScope("/employees", "uid", "bar") -> "https://internal.example.org/";
 
+OAuth - authAnyKV() filter
+
+The filter authAnyKV allows access if the token information returned
+by TokenURL has the given key and the given value. The following route
+has a filter definition, that will check if there is a "realm"
+"/employees" and if one of the keys "uid" or "foo" has the value
+"jdoe" or "bar":
+
+    Path("/") -> authAnyKV("/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+
+Example json output of this information:
+
+    {
+      "access_token": "<mytoken>",
+      "client_id": "ztoken",
+      "cn": "John Doe",
+      "expires_in": "300",
+      "grant_type": "password",
+      "realm": "/employees",
+      "scope": [
+        "uid",
+        "foo-r",
+        "bar-w",
+        "qux-rw"
+      ],
+      "token_type": "Bearer",
+      "uid": "jdoe"
+    }
+
+OAuth - authAllKV() filter
+
+The filter authAnyKV allows access if the token information returned by
+TokenURL has the given key and the given value. The following route
+has a filter definition, that will check if there is a "realm"
+"/employees" and if all of the key value pairs match. Here "uid" has to have the value
+"jdoe" and "foo" has to have the value "bar":
+
+    Path("/") -> authAllKV("/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+
+Example json output of this information:
+
+    {
+      "access_token": "<mytoken>",
+      "client_id": "ztoken",
+      "cn": "John Doe",
+      "expires_in": "300",
+      "grant_type": "password",
+      "realm": "/employees",
+      "scope": [
+        "uid",
+        "foo-r",
+        "bar-w",
+        "qux-rw"
+      ],
+      "token_type": "Bearer",
+      "uid": "jdoe"
+    }
+
+
 OAuth - auditLog() filter
 
 The filter auditLog allows you to have an audit log for all
@@ -62,8 +121,8 @@ requests. This filter should be always set, before checking with auth
 filters. To see only permitted access, you can set the auditLog()
 filter after the auth filter.
 
-    Path("/only-allowed-audit-log") -> authAnyScope("/employees", "uid") -> auditLog() -> "https://internal.example.org/";
-    Path("/all-access-requests-audit-log") -> auditLog() -> authAnyScope("/employees", "uid") -> "https://internal.example.org/";
+    Path("/only-allowed-audit-log") -> authAnyScope("/employees", "bar-w") -> auditLog() -> "https://internal.example.org/";
+    Path("/all-access-requests-audit-log") -> auditLog() -> authAnyScope("/employees", "foo-r") -> "https://internal.example.org/";
 
 */
 package auth

@@ -16,9 +16,10 @@ import (
 type roleCheckType int
 
 const (
-	// set operation any()
 	checkAnyScopes roleCheckType = iota
-	checkAllScopes               // set operation all()
+	checkAllScopes
+	checkAnyKV
+	checkAllKV
 	checkUnknown
 )
 
@@ -36,20 +37,19 @@ const (
 const (
 	AuthAnyScopeName = "authAnyScope"
 	AuthAllScopeName = "authAllScope"
-	AuthUnknown = "authUnknown"
+	AuthAnyKVName    = "authAnyKV"
+	AuthAllKVName    = "authAllKV"
+	AuthUnknown      = "authUnknown"
 	// BasicAuthAnyScopeName = "basicAuth"
 
 	authHeaderName = "Authorization"
+	realmKey       = "realm"
+	scopeKey       = "scope"
+	uidKey         = "uid"
 )
 
 type (
 	authClient struct{ urlBase string }
-
-	authDoc struct {
-		UID    string   `json:"uid"`
-		Realm  string   `json:"realm"`
-		Scopes []string `json:"scope"`
-	}
 
 	spec struct {
 		typ        roleCheckType
@@ -62,7 +62,9 @@ type (
 		authClient *authClient
 		realm      string
 		scopes     []string
+		kv         kv
 	}
+	kv map[string]string
 )
 
 var (
@@ -106,6 +108,10 @@ func getStrings(args []interface{}) ([]string, error) {
 // all checks that all strings in the left are also in the
 // right. Right can be a superset of left.
 func all(left, right []string) bool {
+	if len(left) > len(right) {
+		return false
+	}
+
 	for _, l := range left {
 		for _, r := range right {
 			if l != r {
@@ -118,7 +124,7 @@ func all(left, right []string) bool {
 }
 
 // intersect checks that one string in the left is also in the right
-func intersect(left, right []string) bool {
+func intersect(left []string, right []string) bool {
 	for _, l := range left {
 		for _, r := range right {
 			if l == r {
@@ -156,10 +162,10 @@ func jsonGet(url, auth string, doc interface{}) error {
 	return d.Decode(doc)
 }
 
-func (ac *authClient) validate(token string) (*authDoc, error) {
-	var a authDoc
+func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
+	var a map[string]interface{}
 	err := jsonGet(ac.urlBase, token, &a)
-	return &a, err
+	return a, err
 }
 
 func newSpec(typ roleCheckType, cfg oauth2.Config) filters.Spec {
@@ -197,6 +203,10 @@ func typeForName(s string) roleCheckType {
 		return checkAllScopes
 	case AuthAnyScopeName:
 		return checkAnyScopes
+	case AuthAnyKVName:
+		return checkAnyKV
+	case AuthAllKVName:
+		return checkAllKV
 	}
 	return checkUnknown
 }
@@ -207,6 +217,10 @@ func (s *spec) Name() string {
 		return AuthAnyScopeName
 	case checkAllScopes:
 		return AuthAllScopeName
+	case checkAnyKV:
+		return AuthAnyKVName
+	case checkAllKV:
+		return AuthAllKVName
 	}
 	return AuthUnknown
 }
@@ -233,13 +247,36 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	ac := &authClient{urlBase: s.cfg.Endpoint.TokenURL}
 
-	f := &filter{typ: s.typ, authClient: ac}
+	f := &filter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
 	if len(sargs) > 0 {
-		f.realm, f.scopes = sargs[0], sargs[1:]
+		switch f.typ {
+		case checkAnyKV:
+			fallthrough
+		case checkAllKV:
+			f.realm = sargs[0]
+			sargs = sargs[1:]
+			for i := 0; i+1 < len(sargs); i += 2 {
+				f.kv[sargs[i]] = sargs[i+1]
+			}
+			if len(sargs) == 0 || len(sargs)%2 != 0 {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+		default:
+			f.realm, f.scopes = sargs[0], sargs[1:]
+		}
+
 	}
 
 	return f, nil
 
+}
+
+func (kv kv) String() string {
+	var res []string
+	for k, v := range kv {
+		res = append(res, k, v)
+	}
+	return strings.Join(res, ",")
 }
 
 // String prints nicely the filter configuration based on the
@@ -250,32 +287,94 @@ func (f *filter) String() string {
 		return fmt.Sprintf("%s(%s,%s)", AuthAnyScopeName, f.realm, strings.Join(f.scopes, ","))
 	case checkAllScopes:
 		return fmt.Sprintf("%s(%s,%s)", AuthAllScopeName, f.realm, strings.Join(f.scopes, ","))
+	case checkAnyKV:
+		return fmt.Sprintf("%s(%s,%s)", AuthAnyKVName, f.realm, f.kv)
+	case checkAllKV:
+		return fmt.Sprintf("%s(%s,%s)", AuthAllKVName, f.realm, f.kv)
 	}
 	return AuthUnknown
 }
 
-func (f *filter) validateRealm(a *authDoc) bool {
+func (f *filter) validateRealm(h map[string]interface{}) bool {
 	if f.realm == "" {
 		return true
 	}
 
-	return a.Realm == f.realm
+	vI, ok := h[realmKey]
+	if !ok {
+		return false
+	}
+	v, ok := vI.(string)
+	if !ok {
+		return false
+	}
+	return v == f.realm
 }
 
-func (f *filter) validateAnyScopes(a *authDoc) bool {
+func (f *filter) validateAnyScopes(h map[string]interface{}) bool {
 	if len(f.scopes) == 0 {
 		return true
 	}
 
-	return intersect(f.scopes, a.Scopes)
+	vI, ok := h[scopeKey]
+	if !ok {
+		return false
+	}
+	v, ok := vI.([]interface{})
+	if !ok {
+		return false
+	}
+	var a []string
+	for i := range v {
+		a = append(a, v[i].(string))
+	}
+
+	return intersect(f.scopes, a)
 }
 
-func (f *filter) validateAllScopes(a *authDoc) bool {
+func (f *filter) validateAllScopes(h map[string]interface{}) bool {
 	if len(f.scopes) == 0 {
 		return true
 	}
 
-	return all(f.scopes, a.Scopes)
+	vI, ok := h[scopeKey]
+	if !ok {
+		return false
+	}
+	v, ok := vI.([]interface{})
+	if !ok {
+		return false
+	}
+	var a []string
+	for i := range v {
+		a = append(a, v[i].(string))
+	}
+
+	return all(f.scopes, a)
+}
+
+func (f *filter) validateAnyKV(h map[string]interface{}) bool {
+	for k, v := range f.kv {
+		if v2, ok := h[k].(string); ok {
+			if v == v2 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (f *filter) validateAllKV(h map[string]interface{}) bool {
+	if len(h) < len(f.kv) {
+		return false
+	}
+	for k, v := range f.kv {
+		v2, ok := h[k].(string)
+		if !ok || v != v2 {
+			return false
+		}
+	}
+	return true
 }
 
 // Request handles authentication based on the defined auth type.
@@ -288,39 +387,43 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	authDoc, err := f.authClient.validate(token)
+	authMap, err := f.authClient.getTokeninfo(token)
 	if err != nil {
 		reason := authServiceAccess
 		if err == errInvalidToken {
 			reason = invalidToken
 		} else {
-			log.Println(err)
+			log.Errorf("Failed to get token: %v", err)
 		}
-
 		unauthorized(ctx, "", reason)
 		return
 	}
 
-	if !f.validateRealm(authDoc) {
-		unauthorized(ctx, authDoc.UID, invalidRealm)
+	uid, ok := authMap[uidKey].(string)
+	if !ok || !f.validateRealm(authMap) {
+		unauthorized(ctx, uid, invalidRealm)
 		return
 	}
 
 	var allowed bool
 	switch f.typ {
 	case checkAnyScopes:
-		allowed = f.validateAnyScopes(authDoc)
+		allowed = f.validateAnyScopes(authMap)
 	case checkAllScopes:
-		allowed = f.validateAllScopes(authDoc)
+		allowed = f.validateAllScopes(authMap)
+	case checkAnyKV:
+		allowed = f.validateAnyKV(authMap)
+	case checkAllKV:
+		allowed = f.validateAllKV(authMap)
 	default:
 		log.Errorf("Wrong filter type: %s", f)
 	}
 
 	if !allowed {
-		unauthorized(ctx, authDoc.UID, invalidScope)
+		unauthorized(ctx, uid, invalidScope)
 	} else {
 
-		authorized(ctx, authDoc.UID)
+		authorized(ctx, uid)
 	}
 }
 
