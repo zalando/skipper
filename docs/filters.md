@@ -418,5 +418,3 @@ See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper
 See [the scripts page](scripts.md)
 
 ## corsOrigin
-
-## lbDecide
