@@ -40,7 +40,6 @@ const (
 	AuthAnyKVName    = "authAnyKV"
 	AuthAllKVName    = "authAllKV"
 	AuthUnknown      = "authUnknown"
-	// BasicAuthAnyScopeName = "basicAuth"
 
 	authHeaderName = "Authorization"
 	realmKey       = "realm"
