@@ -252,17 +252,59 @@ Example:
 
 Enable adding artificial latency
 
-## chunks
+Parameters:
+* latency in milliseconds (int)
 
-Enables adding chunking responses with custom chunk size
+Example:
+
+```
+* -> latency(120) -> "https://www.example.org";
+```
 
 ## bandwidth
 
-Enable limiting bandwidth.
+Enable bandwidth throttling.
+
+Parameters:
+* bandwidth in kb/s (int)
+
+Example:
+
+```
+* -> bandwidth(30) -> "https://www.example.org";
+```
+
+## chunks
+
+Enables adding chunking responses with custom chunk size with
+artificial delays in between response chunks. To disable delays, set
+the second parameter to "0".
+
+Parameters:
+* byte length (int)
+* time duration (time.Duration)
+
+Example:
+
+```
+* -> chunks(1024, "120ms") -> "https://www.example.org";
+* -> chunks(1024, "0") -> "https://www.example.org";
+```
 
 ## backendLatency
+
+Same as [latency filter](#latency), but on the request path and not on
+the response path.
+
 ## backendBandwidth
+
+Same as [bandwidth filter](#bandwidth), but on the request path and not on
+the response path.
+
 ## backendChunks
+
+Same as [chunks filter](#chunks), but on the request path and not on
+the response path.
 
 ## tee
 
@@ -279,7 +321,7 @@ Example:
 
 This will send an identical request for foo.example.org to
 audit-logging.example.org. Another use case could be using it for benchmarking
-a new backend with some real traffic
+a new backend with some real traffic. This we call "shadow traffic".
 
 The above route will forward the request to `https://foo.example.org` as it
 normally would do, but in addition to that, it will send an identical request to
@@ -298,6 +340,8 @@ In the above example, one can test how a new version of an API would behave on
 incoming requests.
 
 ## teenf
+
+The same as [tee filter](#tee), but does not follow redirects from the backend.
 
 ## basicAuth
 
@@ -410,11 +454,63 @@ backendHealthcheck: Path("/healthcheck")
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
 
 ## localRatelimit
+
+Per skipper instance calculated ratelimit, that allows number of
+requests by client. The definition of the same client is based on data
+of the http header and can be changed with an optional third
+parameter. If the third parameter is set skipper will use the
+Authorization header to put the request in the same client bucket,
+else  the X-Forwarded-For Header will be used.
+
+Parameters:
+* number of allowed requests per time period (int)
+* time period for requests being counted (time.Duration)
+* optional parameter can be set to: "auth" (string)
+
+```
+localRatelimit(3, "1m")
+localRatelimit(3, "1m", "auth")
+```
+
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+
 ## ratelimit
-## disableRatelimit
+
+Per skipper instance calculated ratelimit, that allows number of
+requests to a backend.
+
+Parameters:
+* number of allowed requests per time period (int)
+* time period for requests being counted (time.Duration)
+
+```
+ratelimit(20, "1m")
+ratelimit(300, "1h")
+```
+
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
 
 ## lua
 
 See [the scripts page](scripts.md)
 
 ## corsOrigin
+
+The filter accepts an optional variadic list of acceptable origin
+parameters. If the input argument list is empty, the header will
+always be set to '*' which means any origin is acceptable. Otherwise
+the header is only set if the request contains an Origin header and
+its value matches one of the elements in the input list. The header is
+only set on the response.
+
+Parameters:
+*  url (variadic string)
+
+
+Examples:
+
+```
+corsOrigin()
+corsOrigin("https://www.example.org")
+corsOrigin("https://www.example.org", "http://localhost:9001")
+```
