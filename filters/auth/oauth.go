@@ -34,10 +34,10 @@ const (
 
 // TODO: discuss these names, because these are the filter names used by the endusers
 const (
-	AuthAnyName = "authAny"
-	AuthAllName = "authAll"
+	AuthAnyScopeName = "authAnyScope"
+	AuthAllScopeName = "authAllScope"
 	AuthUnknown = "authUnknown"
-	// BasicAuthAnyName = "basicAuth"
+	// BasicAuthAnyScopeName = "basicAuth"
 
 	authHeaderName = "Authorization"
 )
@@ -171,6 +171,9 @@ type Options struct {
 	// TokenURL is the tokeninfo URL able to return information
 	// about a token.
 	TokenURL string
+	// AuthType is the type of authnz function you want to
+	// use. Examples are the values "authAnyScope" or "authAllScope",
+	// defined in constants AuthAnyScopeName and AuthAllScopeName.
 	AuthType string
 }
 
@@ -190,9 +193,9 @@ func NewAuth(o Options) filters.Spec {
 
 func typeForName(s string) roleCheckType {
 	switch s {
-	case AuthAllName:
+	case AuthAllScopeName:
 		return checkAllScopes
-	case AuthAnyName:
+	case AuthAnyScopeName:
 		return checkAnyScopes
 	}
 	return checkUnknown
@@ -201,9 +204,9 @@ func typeForName(s string) roleCheckType {
 func (s *spec) Name() string {
 	switch s.typ {
 	case checkAnyScopes:
-		return AuthAnyName
+		return AuthAnyScopeName
 	case checkAllScopes:
-		return AuthAllName
+		return AuthAllScopeName
 	}
 	return AuthUnknown
 }
@@ -244,9 +247,9 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 func (f *filter) String() string {
 	switch f.typ {
 	case checkAnyScopes:
-		return fmt.Sprintf("%s(%s,%s)", AuthAnyName, f.realm, strings.Join(f.scopes, ","))
+		return fmt.Sprintf("%s(%s,%s)", AuthAnyScopeName, f.realm, strings.Join(f.scopes, ","))
 	case checkAllScopes:
-		return fmt.Sprintf("%s(%s,%s)", AuthAllName, f.realm, strings.Join(f.scopes, ","))
+		return fmt.Sprintf("%s(%s,%s)", AuthAllScopeName, f.realm, strings.Join(f.scopes, ","))
 	}
 	return AuthUnknown
 }

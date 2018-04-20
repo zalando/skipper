@@ -47,18 +47,18 @@ func Test(t *testing.T) {
 		expected    int
 	}{{
 		msg:      "uninitialized filter, no authorization header, scope check",
-		authType: AuthAnyName,
+		authType: AuthAnyScopeName,
 		expected: http.StatusNotFound,
 	}, {
 		msg:         "invalid token, without realm",
-		authType:    AuthAnyName,
+		authType:    AuthAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		hasAuth:     true,
 		auth:        "invalid-token",
 		expected:    http.StatusNotFound,
 	}, {
 		msg:         "invalid realm",
-		authType:    AuthAnyName,
+		authType:    AuthAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{"/not-matching-realm"},
 		hasAuth:     true,
@@ -66,7 +66,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "invalid realm, valid token, one valid scope",
-		authType:    AuthAnyName,
+		authType:    AuthAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{"/invalid", testScope},
 		hasAuth:     true,
@@ -74,7 +74,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "invalid scope",
-		authType:    AuthAnyName,
+		authType:    AuthAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, "not-matching-scope"},
 		hasAuth:     true,
@@ -82,7 +82,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "valid token, one valid scope",
-		authType:    AuthAnyName,
+		authType:    AuthAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope},
 		hasAuth:     true,
@@ -90,23 +90,23 @@ func Test(t *testing.T) {
 		expected:    http.StatusOK,
 	}, {
 		msg:         "valid token, one valid scope, one invalid scope",
-		authType:    AuthAnyName,
+		authType:    AuthAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope, "other-scope"},
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
-		msg:         "authAll(): valid token, one valid scope",
-		authType:    AuthAllName,
+		msg:         "authAllScope(): valid token, one valid scope",
+		authType:    AuthAllScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope},
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
-		msg:         "authAll(): valid token, one valid scope, one invalid scope",
-		authType:    AuthAllName,
+		msg:         "authAllScope(): valid token, one valid scope, one invalid scope",
+		authType:    AuthAllScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope, "other-scope"},
 		hasAuth:     true,

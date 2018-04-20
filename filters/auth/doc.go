@@ -39,21 +39,21 @@ To enable OAuth2 filters you have to set the CLI argument
 infrastructure provider. Tokens can be OAuth2 or JWT as long as
 TokenURL returns the data being checked.
 
-OAuth - authAny() filter
+OAuth - authAnyScope() filter
 
-The filter authAny allows access if the realm and one of the scopes
+The filter authAnyScope allows access if the realm and one of the scopes
 are satisfied by the request.
 
-    Path("/uid") -> authAny("/employees", "uid") -> "https://internal.example.org/";
-    Path("/") -> authAny("/employees", "uid", "bar") -> "https://internal.example.org/";
+    Path("/uid") -> authAnyScope("/employees", "uid") -> "https://internal.example.org/";
+    Path("/") -> authAnyScope("/employees", "uid", "bar") -> "https://internal.example.org/";
 
-OAuth - authAll() filter
+OAuth - authAllScope() filter
 
-The filter authAll allows access if the realm and all of the scopes
+The filter authAllScope allows access if the realm and all of the scopes
 are satisfied by the request.
 
-    Path("/uid") -> authAll("/employees", "uid") -> "https://internal.example.org/";
-    Path("/") -> authAll("/employees", "uid", "bar") -> "https://internal.example.org/";
+    Path("/uid") -> authAllScope("/employees", "uid") -> "https://internal.example.org/";
+    Path("/") -> authAllScope("/employees", "uid", "bar") -> "https://internal.example.org/";
 
 OAuth - auditLog() filter
 
@@ -62,8 +62,8 @@ requests. This filter should be always set, before checking with auth
 filters. To see only permitted access, you can set the auditLog()
 filter after the auth filter.
 
-    Path("/only-allowed-audit-log") -> authAny("/employees", "uid") -> auditLog() -> "https://internal.example.org/";
-    Path("/all-access-requests-audit-log") -> auditLog() -> authAny("/employees", "uid") -> "https://internal.example.org/";
+    Path("/only-allowed-audit-log") -> authAnyScope("/employees", "uid") -> auditLog() -> "https://internal.example.org/";
+    Path("/all-access-requests-audit-log") -> auditLog() -> authAnyScope("/employees", "uid") -> "https://internal.example.org/";
 
 */
 package auth
