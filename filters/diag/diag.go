@@ -87,7 +87,7 @@ func NewBandwidth() filters.Spec { return &throttle{typ: bandwidth} }
 // set artificial delays in between response chunks. It expects the byte length
 // of the chunks and the delay milliseconds.
 //
-// 	* -> chunks(1024, 120) -> "https://www.example.org";
+// 	* -> chunks(1024, "120ms") -> "https://www.example.org";
 //
 func NewChunks() filters.Spec { return &throttle{typ: chunks} }
 
