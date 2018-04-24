@@ -10,7 +10,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	logfilter "github.com/zalando/skipper/filters/log"
-	"golang.org/x/oauth2"
 )
 
 type roleCheckType int
@@ -42,7 +41,7 @@ const (
 	AuthUnknown                = "authUnknown"
 
 	authHeaderName = "Authorization"
-	realmKey       = "realm" // TODO(sszuecs): should be a a parameter to a filter
+	realmKey       = "realm" // TODO(sszuecs): should be a parameter to a filter
 	scopeKey       = "scope"
 	uidKey         = "uid"
 )
@@ -57,10 +56,10 @@ type (
 
 	authClient struct{ urlBase string }
 
-	spec struct {
-		typ        roleCheckType
-		cfg        oauth2.Config
-		authClient *authClient
+	tokeninfoSpec struct {
+		typ          roleCheckType
+		tokeninfoURL string
+		authClient   *authClient
 	}
 
 	filter struct {
@@ -176,33 +175,27 @@ func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error)
 	return a, err
 }
 
-func newSpec(typ roleCheckType, cfg oauth2.Config) filters.Spec {
-	return &spec{typ: typ, cfg: cfg}
+func newtokeninfoSpec(typ roleCheckType, tokeninfoURL string) filters.Spec {
+	return &tokeninfoSpec{typ: typ, tokeninfoURL: tokeninfoURL}
 }
 
 // Options to configure auth providers
 type Options struct {
-	// TokenURL is the tokeninfo URL able to return information
+	// OAuthTokeninfoURL is the tokeninfo URL able to return information
 	// about a token.
-	TokenURL string
+	OAuthTokeninfoURL string
 	// AuthType is the type of authnz function you want to
 	// use. Examples are the values "outhTokeninfoAnyScope" or "outhTokeninfoAllScope",
 	// defined in constants OAuthTokeninfoAnyScopeName and OAuthTokeninfoAllScopeName.
 	AuthType string
 }
 
-// NewAuth creates a new auth filter specification to validate
+// NewOAuthTokeninfo creates a new auth filter specification to validate
 // authorization for requests. Current implementation uses Bearer
 // tokens to authorize requests, optionally check realms and
 // optionally check scopes.
-func NewAuth(o Options) filters.Spec {
-	cfg := oauth2.Config{
-		Endpoint: oauth2.Endpoint{
-			TokenURL: o.TokenURL,
-		},
-	}
-
-	return newSpec(typeForName(o.AuthType), cfg)
+func NewOAuthTokeninfo(o Options) filters.Spec {
+	return newtokeninfoSpec(typeForName(o.AuthType), o.OAuthTokeninfoURL)
 }
 
 func typeForName(s string) roleCheckType {
@@ -219,7 +212,7 @@ func typeForName(s string) roleCheckType {
 	return checkUnknown
 }
 
-func (s *spec) Name() string {
+func (s *tokeninfoSpec) Name() string {
 	switch s.typ {
 	case checkOAuthTokeninfoAnyScopes:
 		return OAuthTokeninfoAnyScopeName
@@ -241,7 +234,7 @@ func (s *spec) Name() string {
 //
 //     s.CreateFilter("myrealm", "read-x", "write-y")
 //
-func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
@@ -253,7 +246,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac := &authClient{urlBase: s.cfg.Endpoint.TokenURL}
+	ac := &authClient{urlBase: s.tokeninfoURL}
 
 	f := &filter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
 	if len(sargs) > 0 {

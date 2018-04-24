@@ -410,8 +410,8 @@ type Options struct {
 	// header, in this case you want to set this to true.
 	ReverseSourcePredicate bool
 
-	// TokenURL sets the TokenURL similar to https://godoc.org/golang.org/x/oauth2#Endpoint
-	TokenURL string
+	// OAuthTokeninfoURL sets the OAuthTokeninfoURL similar to https://godoc.org/golang.org/x/oauth2#Endpoint
+	OAuthTokeninfoURL string
 
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
@@ -629,11 +629,11 @@ func Run(o Options) error {
 		log.Warning("no route source specified")
 	}
 
-	if o.TokenURL != "" {
-		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAllScopeName}))
-		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAnyScopeName}))
-		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAllKVName}))
-		o.CustomFilters = append(o.CustomFilters, auth.NewAuth(auth.Options{TokenURL: o.TokenURL, AuthType: auth.AuthAnyKVName}))
+	if o.OAuthTokeninfoURL != "" {
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfo(auth.Options{OAuthTokeninfoURL: o.OAuthTokeninfoURL, AuthType: auth.OAuthTokeninfoAllScopeName}))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfo(auth.Options{OAuthTokeninfoURL: o.OAuthTokeninfoURL, AuthType: auth.OAuthTokeninfoAnyScopeName}))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfo(auth.Options{OAuthTokeninfoURL: o.OAuthTokeninfoURL, AuthType: auth.OAuthTokeninfoAllKVName}))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfo(auth.Options{OAuthTokeninfoURL: o.OAuthTokeninfoURL, AuthType: auth.OAuthTokeninfoAnyKVName}))
 	}
 	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
 

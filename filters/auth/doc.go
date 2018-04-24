@@ -35,7 +35,7 @@ As additional features, the package also supports audit logging.
 OAuth - Provider Configuration - Tokeninfo
 
 To enable OAuth2 filters you have to set the CLI argument
--token-url=<TokenURL>.  Scopes and realms depend on the OAuth2
+-token-url=<OAuthTokeninfoURL>.  Scopes and realms depend on the OAuth2
 provider. AccessTokens has to be accepted by your OAuth2 provider's
 TokeninfoURL. Filter names starting with `outhTokeninfo` will work on
 the returned data from TokeninfoURL. The request from skipper to
@@ -61,7 +61,7 @@ are satisfied by the request.
 OAuth - outhTokeninfoAnyKV() filter
 
 The filter outhTokeninfoAnyKV allows access if the token information returned
-by TokenURL has the given key and the given value. The following route
+by OAuthTokeninfoURL has the given key and the given value. The following route
 has a filter definition, that will check if there is a "realm"
 "/employees" and if one of the keys "uid" or "foo" has the value
 "jdoe" or "bar":
@@ -90,7 +90,7 @@ Example json output of this information:
 OAuth - outhTokeninfoAllKV() filter
 
 The filter outhTokeninfoAnyKV allows access if the token information returned by
-TokenURL has the given key and the given value. The following route
+OAuthTokeninfoURL has the given key and the given value. The following route
 has a filter definition, that will check if there is a "realm"
 "/employees" and if all of the key value pairs match. Here "uid" has to have the value
 "jdoe" and "foo" has to have the value "bar":

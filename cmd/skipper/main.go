@@ -126,7 +126,7 @@ const (
 	tlsHandshakeTimeoutBackendUsage      = "sets the TLS handshake timeout for backend connections"
 	maxIdleConnsBackendUsage             = "sets the maximum idle connections for all backend connections"
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
-	tokenURLUsage                        = "sets the default URL to query information about an incoming OAuth2 token"
+	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	maxAuditBodyUsage                    = "sets the max body to read to log inthe audit log body"
 )
 
@@ -214,7 +214,7 @@ var (
 	filterPlugins                   pluginFlags
 	predicatePlugins                pluginFlags
 	dataclientPlugins               pluginFlags
-	tokenURL                        string
+	oauth2TokeninfoURL              string
 	maxAuditBody                    int
 	multiPlugins                    pluginFlags
 )
@@ -301,7 +301,7 @@ func init() {
 	flag.Var(&filterPlugins, "filter-plugin", filterPluginUsage)
 	flag.Var(&predicatePlugins, "predicate-plugin", predicatePluginUsage)
 	flag.Var(&dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
-	flag.StringVar(&tokenURL, "token-url", "", tokenURLUsage)
+	flag.StringVar(&oauth2TokeninfoURL, "token-url", "", oauth2TokeninfoURLUsage)
 	flag.IntVar(&maxAuditBody, "max-audit-body", defaultMaxAuditBody, maxAuditBodyUsage)
 	flag.Var(&multiPlugins, "multi-plugin", multiPluginUsage)
 
@@ -427,7 +427,7 @@ func main() {
 		FilterPlugins:                       filterPlugins.Get(),
 		PredicatePlugins:                    predicatePlugins.Get(),
 		DataClientPlugins:                   dataclientPlugins.Get(),
-		TokenURL:                            tokenURL,
+		OAuthTokeninfoURL:                   oauth2TokeninfoURL,
 		MaxAuditBody:                        maxAuditBody,
 		Plugins:                             multiPlugins.Get(),
 	}

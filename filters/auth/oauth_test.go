@@ -314,8 +314,8 @@ func Test(t *testing.T) {
 
 			var s filters.Spec
 			args := []interface{}{} //{authServer.URL + ti.authBaseURL}
-			s = NewAuth(Options{
-				TokenURL: authServer.URL + ti.authBaseURL,
+			s = NewOAuthTokeninfo(Options{
+				OAuthTokeninfoURL: authServer.URL + ti.authBaseURL,
 				AuthType: ti.authType,
 			})
 
