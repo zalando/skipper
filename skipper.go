@@ -630,10 +630,10 @@ func Run(o Options) error {
 	}
 
 	if o.OAuthTokeninfoURL != "" {
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfo(auth.Options{OAuthTokeninfoURL: o.OAuthTokeninfoURL, AuthType: auth.OAuthTokeninfoAllScopeName}))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfo(auth.Options{OAuthTokeninfoURL: o.OAuthTokeninfoURL, AuthType: auth.OAuthTokeninfoAnyScopeName}))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfo(auth.Options{OAuthTokeninfoURL: o.OAuthTokeninfoURL, AuthType: auth.OAuthTokeninfoAllKVName}))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfo(auth.Options{OAuthTokeninfoURL: o.OAuthTokeninfoURL, AuthType: auth.OAuthTokeninfoAnyKVName}))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllScope(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyScope(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL))
 	}
 	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
 

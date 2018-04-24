@@ -313,11 +313,19 @@ func Test(t *testing.T) {
 			}))
 
 			var s filters.Spec
-			args := []interface{}{} //{authServer.URL + ti.authBaseURL}
-			s = NewOAuthTokeninfo(Options{
-				OAuthTokeninfoURL: authServer.URL + ti.authBaseURL,
-				AuthType: ti.authType,
-			})
+			args := []interface{}{}
+			u := authServer.URL + ti.authBaseURL
+
+			switch ti.authType {
+			case OAuthTokeninfoAnyScopeName:
+				s = NewOAuthTokeninfoAnyScope(u)
+			case OAuthTokeninfoAllScopeName:
+				s = NewOAuthTokeninfoAllScope(u)
+			case OAuthTokeninfoAnyKVName:
+				s = NewOAuthTokeninfoAnyKV(u)
+			case OAuthTokeninfoAllKVName:
+				s = NewOAuthTokeninfoAllKV(u)
+			}
 
 			args = append(args, ti.args...)
 			fr := make(filters.Registry)

@@ -175,10 +175,6 @@ func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error)
 	return a, err
 }
 
-func newtokeninfoSpec(typ roleCheckType, tokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: typ, tokeninfoURL: tokeninfoURL}
-}
-
 // Options to configure auth providers
 type Options struct {
 	// OAuthTokeninfoURL is the tokeninfo URL able to return information
@@ -190,26 +186,36 @@ type Options struct {
 	AuthType string
 }
 
-// NewOAuthTokeninfo creates a new auth filter specification to validate
-// authorization for requests. Current implementation uses Bearer
-// tokens to authorize requests, optionally check realms and
-// optionally check scopes.
-func NewOAuthTokeninfo(o Options) filters.Spec {
-	return newtokeninfoSpec(typeForName(o.AuthType), o.OAuthTokeninfoURL)
+// NewOAuthTokeninfoAllScope creates a new auth filter specification
+// to validate authorization for requests. Current implementation uses
+// Bearer tokens to authorize requests and checks that the token
+// contains all scopes.
+func NewOAuthTokeninfoAllScope(OAuthTokeninfoURL string) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllScopes, tokeninfoURL: OAuthTokeninfoURL}
 }
 
-func typeForName(s string) roleCheckType {
-	switch s {
-	case OAuthTokeninfoAllScopeName:
-		return checkOAuthTokeninfoAllScopes
-	case OAuthTokeninfoAnyScopeName:
-		return checkOAuthTokeninfoAnyScopes
-	case OAuthTokeninfoAnyKVName:
-		return checkOAuthTokeninfoAnyKV
-	case OAuthTokeninfoAllKVName:
-		return checkOAuthTokeninfoAllKV
-	}
-	return checkUnknown
+// NewOAuthTokeninfoAnyScope creates a new auth filter specification
+// to validate authorization for requests. Current implementation uses
+// Bearer tokens to authorize requests and checks that the token
+// contains at least one scope.
+func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyScopes, tokeninfoURL: OAuthTokeninfoURL}
+}
+
+// NewOAuthTokeninfoAllKV creates a new auth filter specification
+// to validate authorization for requests. Current implementation uses
+// Bearer tokens to authorize requests and checks that the token
+// contains all key value pairs provided.
+func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllKV, tokeninfoURL: OAuthTokeninfoURL}
+}
+
+// NewOAuthTokeninfoAnyKV creates a new auth filter specification
+// to validate authorization for requests. Current implementation uses
+// Bearer tokens to authorize requests and checks that the token
+// contains at least one key value pair provided.
+func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL}
 }
 
 func (s *tokeninfoSpec) Name() string {
