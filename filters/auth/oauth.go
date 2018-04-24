@@ -20,6 +20,10 @@ const (
 	checkOAuthTokeninfoAllScopes
 	checkOAuthTokeninfoAnyKV
 	checkOAuthTokeninfoAllKV
+	checkOAuthTokeninfoRealmAnyScopes
+	checkOAuthTokeninfoRealmAllScopes
+	checkOAuthTokeninfoRealmAnyKV
+	checkOAuthTokeninfoRealmAllKV
 	checkUnknown
 )
 
@@ -34,11 +38,15 @@ const (
 )
 
 const (
-	OAuthTokeninfoAnyScopeName = "oauthTokeninfoAnyScope"
-	OAuthTokeninfoAllScopeName = "oauthTokeninfoAllScope"
-	OAuthTokeninfoAnyKVName    = "oauthTokeninfoAnyKV"
-	OAuthTokeninfoAllKVName    = "oauthTokeninfoAllKV"
-	AuthUnknown                = "authUnknown"
+	OAuthTokeninfoAnyScopeName      = "oauthTokeninfoAnyScope"
+	OAuthTokeninfoAllScopeName      = "oauthTokeninfoAllScope"
+	OAuthTokeninfoAnyKVName         = "oauthTokeninfoAnyKV"
+	OAuthTokeninfoAllKVName         = "oauthTokeninfoAllKV"
+	OAuthTokeninfoRealmAnyScopeName = "oauthTokeninfoRealmAnyScope"
+	OAuthTokeninfoRealmAllScopeName = "oauthTokeninfoRealmAllScope"
+	OAuthTokeninfoRealmAnyKVName    = "oauthTokeninfoRealmAnyKV"
+	OAuthTokeninfoRealmAllKVName    = "oauthTokeninfoRealmAllKV"
+	AuthUnknown                     = "authUnknown"
 
 	authHeaderName = "Authorization"
 	realmKey       = "realm" // TODO(sszuecs): should be a parameter to a filter
@@ -47,6 +55,7 @@ const (
 )
 
 type (
+	// TODO(sszuecs) cleanup comment
 	// We have to have 2 kind of URLs, based on tokeninfo vs. token_introspection
 	// tokeninfo (has to be set by ENV or CLI):
 	//    zalando: http://localhost:9021/oauth2/tokeninfo?access_token=accessToken
@@ -77,6 +86,13 @@ type (
 var (
 	errInvalidAuthorizationHeader = errors.New("invalid authorization header")
 	errInvalidToken               = errors.New("invalid token")
+
+	hasRealmCheck = map[roleCheckType]bool{
+		checkOAuthTokeninfoRealmAnyScopes: true,
+		checkOAuthTokeninfoRealmAllScopes: true,
+		checkOAuthTokeninfoRealmAnyKV:     true,
+		checkOAuthTokeninfoRealmAllKV:     true,
+	}
 )
 
 func getToken(r *http.Request) (string, error) {
@@ -157,6 +173,7 @@ func jsonGet(url, auth string, doc interface{}) error {
 	}
 
 	if auth != "" {
+		// TODO(sszuecs): set query string instead and change godoc
 		req.Header.Set(authHeaderName, "Bearer "+auth)
 	}
 
@@ -220,8 +237,11 @@ func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string) filters.Spec {
 	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL}
 }
 
+// TODO(sszuecs): add realm check type constructor functions
+
 func (s *tokeninfoSpec) Name() string {
 	switch s.typ {
+	// TODO(sszuecs): add realm check types
 	case checkOAuthTokeninfoAnyScopes:
 		return OAuthTokeninfoAnyScopeName
 	case checkOAuthTokeninfoAllScopes:
@@ -259,6 +279,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	f := &filter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
 	if len(sargs) > 0 {
 		switch f.typ {
+		// TODO(sszuecs): add realm check types
 		case checkOAuthTokeninfoAnyKV:
 			fallthrough
 		case checkOAuthTokeninfoAllKV:
@@ -292,6 +313,7 @@ func (kv kv) String() string {
 // configuration and check used.
 func (f *filter) String() string {
 	switch f.typ {
+	// TODO(sszuecs): add realm check types
 	case checkOAuthTokeninfoAnyScopes:
 		return fmt.Sprintf("%s(%s,%s)", OAuthTokeninfoAnyScopeName, f.realm, strings.Join(f.scopes, ","))
 	case checkOAuthTokeninfoAllScopes:
@@ -306,6 +328,9 @@ func (f *filter) String() string {
 
 func (f *filter) validateRealm(h map[string]interface{}) bool {
 	if f.realm == "" {
+		return true
+	}
+	if _, ok := hasRealmCheck[f.typ]; !ok {
 		return true
 	}
 
@@ -394,6 +419,8 @@ func (f *filter) validateAllKV(h map[string]interface{}) bool {
 	return true
 }
 
+// TODO(sszuecs): add realm check validate filter methods
+
 // Request handles authentication based on the defined auth type.
 func (f *filter) Request(ctx filters.FilterContext) {
 	r := ctx.Request()
@@ -424,6 +451,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 
 	var allowed bool
 	switch f.typ {
+	// TODO(sszuecs): add realm check types
 	case checkOAuthTokeninfoAnyScopes:
 		allowed = f.validateAnyScopes(authMap)
 	case checkOAuthTokeninfoAllScopes:
