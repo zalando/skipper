@@ -301,7 +301,7 @@ func init() {
 	flag.Var(&filterPlugins, "filter-plugin", filterPluginUsage)
 	flag.Var(&predicatePlugins, "predicate-plugin", predicatePluginUsage)
 	flag.Var(&dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
-	flag.StringVar(&oauth2TokeninfoURL, "token-url", "", oauth2TokeninfoURLUsage)
+	flag.StringVar(&oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
 	flag.IntVar(&maxAuditBody, "max-audit-body", defaultMaxAuditBody, maxAuditBodyUsage)
 	flag.Var(&multiPlugins, "multi-plugin", multiPluginUsage)
 
