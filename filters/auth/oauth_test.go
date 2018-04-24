@@ -180,7 +180,7 @@ func Test(t *testing.T) {
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
-		msg:         "outhTokeninfoAllScope(): valid token, valid scopes",
+		msg:         "oauthTokeninfoAllScope(): valid token, valid scopes",
 		authType:    OAuthTokeninfoAllScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope, testScope2, testScope3},
@@ -188,7 +188,7 @@ func Test(t *testing.T) {
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
-		msg:         "outhTokeninfoAllScope(): valid token, one valid scope, one invalid scope",
+		msg:         "oauthTokeninfoAllScope(): valid token, one valid scope, one invalid scope",
 		authType:    OAuthTokeninfoAllScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope, "other-scope"},

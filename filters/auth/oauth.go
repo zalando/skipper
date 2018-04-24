@@ -35,10 +35,10 @@ const (
 
 // TODO: discuss these names, because these are the filter names used by the endusers
 const (
-	OAuthTokeninfoAnyScopeName = "outhTokeninfoAnyScope"
-	OAuthTokeninfoAllScopeName = "outhTokeninfoAllScope"
-	OAuthTokeninfoAnyKVName    = "outhTokeninfoAnyKV"
-	OAuthTokeninfoAllKVName    = "outhTokeninfoAllKV"
+	OAuthTokeninfoAnyScopeName = "oauthTokeninfoAnyScope"
+	OAuthTokeninfoAllScopeName = "oauthTokeninfoAllScope"
+	OAuthTokeninfoAnyKVName    = "oauthTokeninfoAnyKV"
+	OAuthTokeninfoAllKVName    = "oauthTokeninfoAllKV"
 	AuthUnknown                = "authUnknown"
 
 	authHeaderName = "Authorization"
@@ -195,7 +195,7 @@ type Options struct {
 	// about a token.
 	OAuthTokeninfoURL string
 	// AuthType is the type of authnz function you want to
-	// use. Examples are the values "outhTokeninfoAnyScope" or "outhTokeninfoAllScope",
+	// use. Examples are the values "oauthTokeninfoAnyScope" or "oauthTokeninfoAllScope",
 	// defined in constants OAuthTokeninfoAnyScopeName and OAuthTokeninfoAllScopeName.
 	AuthType string
 }
