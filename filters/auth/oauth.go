@@ -118,15 +118,17 @@ func all(left, right []string) bool {
 		return false
 	}
 
+	result := []bool{}
 	for _, l := range left {
 		for _, r := range right {
-			if l != r {
-				return false
+			if l == r {
+				result = append(result, true)
+				break // next left
 			}
 		}
 	}
 
-	return true
+	return len(result) == len(left)
 }
 
 // intersect checks that one string in the left is also in the right
