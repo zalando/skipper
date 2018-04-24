@@ -121,21 +121,19 @@ func getStrings(args []interface{}) ([]string, error) {
 // all checks that all strings in the left are also in the
 // right. Right can be a superset of left.
 func all(left, right []string) bool {
-	if len(left) > len(right) {
-		return false
-	}
-
-	result := []bool{}
 	for _, l := range left {
+		var found bool
 		for _, r := range right {
 			if l == r {
-				result = append(result, true)
-				break // next left
+				found = true
+				break
 			}
 		}
+		if !found {
+			return false
+		}
 	}
-
-	return len(result) == len(left)
+	return true
 }
 
 // intersect checks that one string in the left is also in the right
