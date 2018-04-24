@@ -16,10 +16,10 @@ import (
 type roleCheckType int
 
 const (
-	checkAnyScopes roleCheckType = iota
-	checkAllScopes
-	checkAnyKV
-	checkAllKV
+	checkOAuthTokeninfoAnyScopes roleCheckType = iota
+	checkOAuthTokeninfoAllScopes
+	checkOAuthTokeninfoAnyKV
+	checkOAuthTokeninfoAllKV
 	checkUnknown
 )
 
@@ -35,19 +35,26 @@ const (
 
 // TODO: discuss these names, because these are the filter names used by the endusers
 const (
-	AuthAnyScopeName = "authAnyScope"
-	AuthAllScopeName = "authAllScope"
-	AuthAnyKVName    = "authAnyKV"
-	AuthAllKVName    = "authAllKV"
-	AuthUnknown      = "authUnknown"
+	OAuthTokeninfoAnyScopeName = "outhTokeninfoAnyScope"
+	OAuthTokeninfoAllScopeName = "outhTokeninfoAllScope"
+	OAuthTokeninfoAnyKVName    = "outhTokeninfoAnyKV"
+	OAuthTokeninfoAllKVName    = "outhTokeninfoAllKV"
+	AuthUnknown                = "authUnknown"
 
 	authHeaderName = "Authorization"
-	realmKey       = "realm"
+	realmKey       = "realm" // TODO(sszuecs): should be a a parameter to a filter
 	scopeKey       = "scope"
 	uidKey         = "uid"
 )
 
 type (
+	// We have to have 2 kind of URLs, based on tokeninfo vs. token_introspection
+	// tokeninfo (has to be set by ENV or CLI):
+	//    zalando: http://localhost:9021/oauth2/tokeninfo?access_token=accessToken
+	//    google : https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=accessToken
+	// token_introspction (needs an issue https://identity.zalando.com , which can then be called to /.well-known/openid-configuration, returning OPTIONAL the introspection_endpoint https://tools.ietf.org/html/draft-ietf-oauth-discovery-06
+	//    zalando: curl -X POST -d "token=$(ztoken)" localhost:9021/oauth2/introspect
+
 	authClient struct{ urlBase string }
 
 	spec struct {
@@ -177,8 +184,8 @@ type Options struct {
 	// about a token.
 	TokenURL string
 	// AuthType is the type of authnz function you want to
-	// use. Examples are the values "authAnyScope" or "authAllScope",
-	// defined in constants AuthAnyScopeName and AuthAllScopeName.
+	// use. Examples are the values "outhTokeninfoAnyScope" or "outhTokeninfoAllScope",
+	// defined in constants OAuthTokeninfoAnyScopeName and OAuthTokeninfoAllScopeName.
 	AuthType string
 }
 
@@ -198,28 +205,28 @@ func NewAuth(o Options) filters.Spec {
 
 func typeForName(s string) roleCheckType {
 	switch s {
-	case AuthAllScopeName:
-		return checkAllScopes
-	case AuthAnyScopeName:
-		return checkAnyScopes
-	case AuthAnyKVName:
-		return checkAnyKV
-	case AuthAllKVName:
-		return checkAllKV
+	case OAuthTokeninfoAllScopeName:
+		return checkOAuthTokeninfoAllScopes
+	case OAuthTokeninfoAnyScopeName:
+		return checkOAuthTokeninfoAnyScopes
+	case OAuthTokeninfoAnyKVName:
+		return checkOAuthTokeninfoAnyKV
+	case OAuthTokeninfoAllKVName:
+		return checkOAuthTokeninfoAllKV
 	}
 	return checkUnknown
 }
 
 func (s *spec) Name() string {
 	switch s.typ {
-	case checkAnyScopes:
-		return AuthAnyScopeName
-	case checkAllScopes:
-		return AuthAllScopeName
-	case checkAnyKV:
-		return AuthAnyKVName
-	case checkAllKV:
-		return AuthAllKVName
+	case checkOAuthTokeninfoAnyScopes:
+		return OAuthTokeninfoAnyScopeName
+	case checkOAuthTokeninfoAllScopes:
+		return OAuthTokeninfoAllScopeName
+	case checkOAuthTokeninfoAnyKV:
+		return OAuthTokeninfoAnyKVName
+	case checkOAuthTokeninfoAllKV:
+		return OAuthTokeninfoAllKVName
 	}
 	return AuthUnknown
 }
@@ -249,9 +256,9 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	f := &filter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
 	if len(sargs) > 0 {
 		switch f.typ {
-		case checkAnyKV:
+		case checkOAuthTokeninfoAnyKV:
 			fallthrough
-		case checkAllKV:
+		case checkOAuthTokeninfoAllKV:
 			f.realm = sargs[0]
 			sargs = sargs[1:]
 			for i := 0; i+1 < len(sargs); i += 2 {
@@ -282,14 +289,14 @@ func (kv kv) String() string {
 // configuration and check used.
 func (f *filter) String() string {
 	switch f.typ {
-	case checkAnyScopes:
-		return fmt.Sprintf("%s(%s,%s)", AuthAnyScopeName, f.realm, strings.Join(f.scopes, ","))
-	case checkAllScopes:
-		return fmt.Sprintf("%s(%s,%s)", AuthAllScopeName, f.realm, strings.Join(f.scopes, ","))
-	case checkAnyKV:
-		return fmt.Sprintf("%s(%s,%s)", AuthAnyKVName, f.realm, f.kv)
-	case checkAllKV:
-		return fmt.Sprintf("%s(%s,%s)", AuthAllKVName, f.realm, f.kv)
+	case checkOAuthTokeninfoAnyScopes:
+		return fmt.Sprintf("%s(%s,%s)", OAuthTokeninfoAnyScopeName, f.realm, strings.Join(f.scopes, ","))
+	case checkOAuthTokeninfoAllScopes:
+		return fmt.Sprintf("%s(%s,%s)", OAuthTokeninfoAllScopeName, f.realm, strings.Join(f.scopes, ","))
+	case checkOAuthTokeninfoAnyKV:
+		return fmt.Sprintf("%s(%s,%s)", OAuthTokeninfoAnyKVName, f.realm, f.kv)
+	case checkOAuthTokeninfoAllKV:
+		return fmt.Sprintf("%s(%s,%s)", OAuthTokeninfoAllKVName, f.realm, f.kv)
 	}
 	return AuthUnknown
 }
@@ -406,13 +413,13 @@ func (f *filter) Request(ctx filters.FilterContext) {
 
 	var allowed bool
 	switch f.typ {
-	case checkAnyScopes:
+	case checkOAuthTokeninfoAnyScopes:
 		allowed = f.validateAnyScopes(authMap)
-	case checkAllScopes:
+	case checkOAuthTokeninfoAllScopes:
 		allowed = f.validateAllScopes(authMap)
-	case checkAnyKV:
+	case checkOAuthTokeninfoAnyKV:
 		allowed = f.validateAnyKV(authMap)
-	case checkAllKV:
+	case checkOAuthTokeninfoAllKV:
 		allowed = f.validateAllKV(authMap)
 	default:
 		log.Errorf("Wrong filter type: %s", f)

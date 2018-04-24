@@ -47,18 +47,18 @@ func Test(t *testing.T) {
 		expected    int
 	}{{
 		msg:      "uninitialized filter, no authorization header, scope check",
-		authType: AuthAnyScopeName,
+		authType: OAuthTokeninfoAnyScopeName,
 		expected: http.StatusNotFound,
 	}, {
 		msg:         "invalid token, without realm",
-		authType:    AuthAnyScopeName,
+		authType:    OAuthTokeninfoAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		hasAuth:     true,
 		auth:        "invalid-token",
 		expected:    http.StatusNotFound,
 	}, {
 		msg:         "invalid realm",
-		authType:    AuthAnyScopeName,
+		authType:    OAuthTokeninfoAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{"/not-matching-realm"},
 		hasAuth:     true,
@@ -66,7 +66,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "invalid realm, valid token, one valid scope",
-		authType:    AuthAnyScopeName,
+		authType:    OAuthTokeninfoAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{"/invalid", testScope},
 		hasAuth:     true,
@@ -74,7 +74,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "invalid scope",
-		authType:    AuthAnyScopeName,
+		authType:    OAuthTokeninfoAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, "not-matching-scope"},
 		hasAuth:     true,
@@ -82,7 +82,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "valid token, one valid scope",
-		authType:    AuthAnyScopeName,
+		authType:    OAuthTokeninfoAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope},
 		hasAuth:     true,
@@ -90,23 +90,23 @@ func Test(t *testing.T) {
 		expected:    http.StatusOK,
 	}, {
 		msg:         "valid token, one valid scope, one invalid scope",
-		authType:    AuthAnyScopeName,
+		authType:    OAuthTokeninfoAnyScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope, "other-scope"},
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
-		msg:         "authAllScope(): valid token, one valid scope",
-		authType:    AuthAllScopeName,
+		msg:         "outhTokeninfoAllScope(): valid token, one valid scope",
+		authType:    OAuthTokeninfoAllScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope},
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
-		msg:         "authAllScope(): valid token, one valid scope, one invalid scope",
-		authType:    AuthAllScopeName,
+		msg:         "outhTokeninfoAllScope(): valid token, one valid scope, one invalid scope",
+		authType:    OAuthTokeninfoAllScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testScope, "other-scope"},
 		hasAuth:     true,
@@ -114,7 +114,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "anyKV(): invalid key",
-		authType:    AuthAnyKVName,
+		authType:    OAuthTokeninfoAnyKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, "not-matching-scope"},
 		hasAuth:     true,
@@ -122,7 +122,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusNotFound,
 	}, {
 		msg:         "anyKV(): valid token, one valid key, wrong value",
-		authType:    AuthAnyKVName,
+		authType:    OAuthTokeninfoAnyKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testKey, "other-value"},
 		hasAuth:     true,
@@ -130,7 +130,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "anyKV(): valid token, one valid key value pair",
-		authType:    AuthAnyKVName,
+		authType:    OAuthTokeninfoAnyKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testKey, testValue},
 		hasAuth:     true,
@@ -138,7 +138,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusOK,
 	}, {
 		msg:         "anyKV(): valid token, one valid kv, multiple key value pairs1",
-		authType:    AuthAnyKVName,
+		authType:    OAuthTokeninfoAnyKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testKey, testValue, "wrongKey", "wrongValue"},
 		hasAuth:     true,
@@ -146,7 +146,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusOK,
 	}, {
 		msg:         "anyKV(): valid token, one valid kv, multiple key value pairs2",
-		authType:    AuthAnyKVName,
+		authType:    OAuthTokeninfoAnyKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, "wrongKey", "wrongValue", testKey, testValue},
 		hasAuth:     true,
@@ -154,7 +154,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusOK,
 	}, {
 		msg:         "allKV(): invalid key",
-		authType:    AuthAllKVName,
+		authType:    OAuthTokeninfoAllKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, "not-matching-scope"},
 		hasAuth:     true,
@@ -162,7 +162,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusNotFound,
 	}, {
 		msg:         "allKV(): valid token, one valid key, wrong value",
-		authType:    AuthAllKVName,
+		authType:    OAuthTokeninfoAllKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testKey, "other-value"},
 		hasAuth:     true,
@@ -170,7 +170,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "allKV(): valid token, one valid key value pair",
-		authType:    AuthAllKVName,
+		authType:    OAuthTokeninfoAllKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testKey, testValue},
 		hasAuth:     true,
@@ -178,7 +178,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusOK,
 	}, {
 		msg:         "allKV(): valid token, valid key value pairs",
-		authType:    AuthAllKVName,
+		authType:    OAuthTokeninfoAllKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testKey, testValue, testKey, testValue},
 		hasAuth:     true,
@@ -186,7 +186,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusOK,
 	}, {
 		msg:         "allKV(): valid token, one valid kv, multiple key value pairs1",
-		authType:    AuthAllKVName,
+		authType:    OAuthTokeninfoAllKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, testKey, testValue, "wrongKey", "wrongValue"},
 		hasAuth:     true,
@@ -194,7 +194,7 @@ func Test(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "allKV(): valid token, one valid kv, multiple key value pairs2",
-		authType:    AuthAllKVName,
+		authType:    OAuthTokeninfoAllKVName,
 		authBaseURL: testAuthPath + "?access_token=",
 		args:        []interface{}{testRealm, "wrongKey", "wrongValue", testKey, testValue},
 		hasAuth:     true,
