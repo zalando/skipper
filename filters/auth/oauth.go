@@ -33,7 +33,6 @@ const (
 	invalidScope       rejectReason = "invalid-scope"
 )
 
-// TODO: discuss these names, because these are the filter names used by the endusers
 const (
 	OAuthTokeninfoAnyScopeName = "oauthTokeninfoAnyScope"
 	OAuthTokeninfoAllScopeName = "oauthTokeninfoAllScope"
@@ -149,7 +148,7 @@ func intersect(left []string, right []string) bool {
 	return false
 }
 
-// jsonGet requests url with Bearer auth header if `auth` was given
+// jsonGet requests url with Bearer auth header if auth was given
 // and writes into doc.
 func jsonGet(url, auth string, doc interface{}) error {
 	req, err := http.NewRequest("GET", url, nil)
@@ -187,17 +186,6 @@ func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error)
 	var a map[string]interface{}
 	err := jsonGet(ac.url.String(), token, &a)
 	return a, err
-}
-
-// Options to configure auth providers
-type Options struct {
-	// OAuthTokeninfoURL is the tokeninfo URL able to return information
-	// about a token.
-	OAuthTokeninfoURL string
-	// AuthType is the type of authnz function you want to
-	// use. Examples are the values "oauthTokeninfoAnyScope" or "oauthTokeninfoAllScope",
-	// defined in constants OAuthTokeninfoAnyScopeName and OAuthTokeninfoAllScopeName.
-	AuthType string
 }
 
 // NewOAuthTokeninfoAllScope creates a new auth filter specification
@@ -249,8 +237,8 @@ func (s *tokeninfoSpec) Name() string {
 // CreateFilter creates an auth filter. All arguments have to be
 // strings. The first argument is the realm and the rest the given
 // scopes to check. How scopes are checked is based on the type. The
-// shown example will grant access only to tokens from `myrealm`, that
-// have scopes `read-x` and `write-y`:
+// shown example will grant access only to tokens from myrealm, that
+// have scopes read-x and write-y:
 //
 //     s.CreateFilter("myrealm", "read-x", "write-y")
 //
@@ -260,9 +248,6 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, err
 	}
 	if len(sargs) == 0 {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-	if s.typ == checkUnknown {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 

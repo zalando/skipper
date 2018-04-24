@@ -43,7 +43,7 @@ the OAuth2 tokeninfo provider. AccessTokens has to be accepted by your
 OAuth2 provider's TokeninfoURL. Filter names starting with
 oauthTokeninfo will work on the returned data from TokeninfoURL. The
 request from skipper to TokeninfoURL will use the query string to do
-the request: `?access_token=<access-token-from-authorization-header>`.
+the request: ?access_token=<access-token-from-authorization-header>.
 
 OAuth2 - oauthTokeninfoAnyScope() filter
 
