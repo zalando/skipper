@@ -20,6 +20,9 @@ Embedding the filter in routes:
 
 Set Basic - Outgoing Authentication Header
 
+	basicAuth("/path/to/htpasswd")
+	basicAuth("/path/to/htpasswd", "My Website")
+
 OAuth - Check Bearer Tokens
 
 The auth filter takes the incoming request, and tries to extract the
