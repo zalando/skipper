@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -54,7 +55,9 @@ type (
 	// token_introspction (needs an issue https://identity.zalando.com , which can then be called to /.well-known/openid-configuration, returning OPTIONAL the introspection_endpoint https://tools.ietf.org/html/draft-ietf-oauth-discovery-06
 	//    zalando: curl -X POST -d "token=$(ztoken)" localhost:9021/oauth2/introspect
 
-	authClient struct{ urlBase string }
+	authClient struct {
+		url *url.URL
+	}
 
 	tokeninfoSpec struct {
 		typ          roleCheckType
@@ -87,10 +90,15 @@ func getToken(r *http.Request) (string, error) {
 	return h[len(b):], nil
 }
 
-func unauthorized(ctx filters.FilterContext, uname string, reason rejectReason) {
+func unauthorized(ctx filters.FilterContext, uname string, reason rejectReason, hostname string) {
 	ctx.StateBag()[logfilter.AuthUserKey] = uname
 	ctx.StateBag()[logfilter.AuthRejectReasonKey] = string(reason)
-	ctx.Serve(&http.Response{StatusCode: http.StatusUnauthorized})
+	rsp := &http.Response{
+		StatusCode: http.StatusUnauthorized,
+		Header:     make(map[string][]string),
+	}
+	rsp.Header.Add("WWW-Authenticate", hostname)
+	ctx.Serve(rsp)
 }
 
 func authorized(ctx filters.FilterContext, uname string) {
@@ -169,9 +177,17 @@ func jsonGet(url, auth string, doc interface{}) error {
 	return d.Decode(doc)
 }
 
+func newAuthClient(baseURL string) (*authClient, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, err
+	}
+	return &authClient{url: u}, nil
+}
+
 func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
 	var a map[string]interface{}
-	err := jsonGet(ac.urlBase, token, &a)
+	err := jsonGet(ac.url.String(), token, &a)
 	return a, err
 }
 
@@ -252,7 +268,10 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac := &authClient{urlBase: s.tokeninfoURL}
+	ac, err := newAuthClient(s.tokeninfoURL)
+	if err != nil {
+		return nil, filters.ErrInvalidFilterParameters
+	}
 
 	f := &filter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
 	if len(sargs) > 0 {
@@ -398,7 +417,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 
 	token, err := getToken(r)
 	if err != nil {
-		unauthorized(ctx, "", missingBearerToken)
+		unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
 		return
 	}
 
@@ -410,13 +429,13 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		} else {
 			log.Errorf("Failed to get token: %v", err)
 		}
-		unauthorized(ctx, "", reason)
+		unauthorized(ctx, "", reason, f.authClient.url.Hostname())
 		return
 	}
 
 	uid, ok := authMap[uidKey].(string)
 	if !ok || !f.validateRealm(authMap) {
-		unauthorized(ctx, uid, invalidRealm)
+		unauthorized(ctx, uid, invalidRealm, f.authClient.url.Hostname())
 		return
 	}
 
@@ -435,7 +454,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	}
 
 	if !allowed {
-		unauthorized(ctx, uid, invalidScope)
+		unauthorized(ctx, uid, invalidScope, f.authClient.url.Hostname())
 	} else {
 
 		authorized(ctx, uid)
