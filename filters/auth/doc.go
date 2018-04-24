@@ -37,13 +37,13 @@ As additional features, the package also supports audit logging.
 
 OAuth - Provider Configuration - Tokeninfo
 
-To enable OAuth2 filters you have to set the CLI argument
--token-url=<OAuthTokeninfoURL>.  Scopes and realms depend on the OAuth2
-provider. AccessTokens has to be accepted by your OAuth2 provider's
-TokeninfoURL. Filter names starting with `outhTokeninfo` will work on
-the returned data from TokeninfoURL. The request from skipper to
-TokeninfoURL will use the query string to do the request:
-`?access_token=<access-token-from-authorization-header>`
+To enable OAuth2 tokeninfo filters you have to set the CLI argument
+-oauth2-tokeninfo-url=<OAuthTokeninfoURL>. Scopes and realms depend on
+the OAuth2 tokeninfo provider. AccessTokens has to be accepted by your
+OAuth2 provider's TokeninfoURL. Filter names starting with
+`outhTokeninfo` will work on the returned data from TokeninfoURL. The
+request from skipper to TokeninfoURL will use the query string to do
+the request: `?access_token=<access-token-from-authorization-header>`.
 
 OAuth - outhTokeninfoAnyScope() filter
 
