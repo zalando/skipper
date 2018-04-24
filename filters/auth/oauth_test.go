@@ -17,6 +17,8 @@ const (
 	testToken    = "test-token"
 	testUID      = "jdoe"
 	testScope    = "test-scope"
+	testScope2   = "test-scope2"
+	testScope3   = "test-scope3"
 	testRealm    = "/immortals"
 	testKey      = "uid"
 	testValue    = "jdoe"
@@ -97,10 +99,10 @@ func Test(t *testing.T) {
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
-		msg:         "outhTokeninfoAllScope(): valid token, one valid scope",
+		msg:         "outhTokeninfoAllScope(): valid token, valid scopes",
 		authType:    OAuthTokeninfoAllScopeName,
 		authBaseURL: testAuthPath + "?access_token=",
-		args:        []interface{}{testRealm, testScope},
+		args:        []interface{}{testRealm, testScope, testScope2, testScope3},
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusOK,
@@ -220,7 +222,7 @@ func Test(t *testing.T) {
 				d := map[string]interface{}{
 					"uid":   testUID,
 					"realm": testRealm,
-					"scope": []string{testScope}}
+					"scope": []string{testScope, testScope2, testScope3}}
 
 				e := json.NewEncoder(w)
 				err = e.Encode(&d)
