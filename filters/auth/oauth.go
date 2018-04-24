@@ -355,7 +355,11 @@ func (f *filter) validateAllScopes(h map[string]interface{}) bool {
 	}
 	var a []string
 	for i := range v {
-		a = append(a, v[i].(string))
+		s, ok := v[i].(string)
+		if !ok {
+			return false
+		}
+		a = append(a, s)
 	}
 
 	return all(f.scopes, a)
