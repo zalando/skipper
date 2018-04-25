@@ -48,10 +48,11 @@ const (
 	OAuthTokeninfoRealmAllKVName    = "oauthTokeninfoRealmAllKV"
 	AuthUnknown                     = "authUnknown"
 
-	authHeaderName = "Authorization"
-	realmKey       = "realm" // TODO(sszuecs): should be a parameter to a filter
-	scopeKey       = "scope"
-	uidKey         = "uid"
+	authHeaderName      = "Authorization"
+	accessTokenQueryKey = "access_token"
+	realmKey            = "realm" // TODO(sszuecs): should be a parameter to a filter
+	scopeKey            = "scope"
+	uidKey              = "uid"
 )
 
 type (
@@ -112,6 +113,7 @@ func unauthorized(ctx filters.FilterContext, uname string, reason rejectReason, 
 		StatusCode: http.StatusUnauthorized,
 		Header:     make(map[string][]string),
 	}
+	// https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.4.2
 	rsp.Header.Add("WWW-Authenticate", hostname)
 	ctx.Serve(rsp)
 }
@@ -164,17 +166,18 @@ func intersect(left []string, right []string) bool {
 	return false
 }
 
-// jsonGet requests url with Bearer auth header if auth was given
-// and writes into doc.
-func jsonGet(url, auth string, doc interface{}) error {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return err
+// jsonGet requests url with access token in the URL query specified
+// by accessTokenQueryKey, if auth was given and writes into doc.
+func jsonGet(url *url.URL, auth string, doc interface{}) error {
+	if auth != "" {
+		q := url.Query()
+		q.Add(accessTokenQueryKey, auth)
+		url.RawQuery = q.Encode()
 	}
 
-	if auth != "" {
-		// TODO(sszuecs): set query string instead and change godoc
-		req.Header.Set(authHeaderName, "Bearer "+auth)
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return err
 	}
 
 	rsp, err := http.DefaultClient.Do(req)
@@ -201,7 +204,7 @@ func newAuthClient(baseURL string) (*authClient, error) {
 
 func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
 	var a map[string]interface{}
-	err := jsonGet(ac.url.String(), token, &a)
+	err := jsonGet(ac.url, token, &a)
 	return a, err
 }
 
