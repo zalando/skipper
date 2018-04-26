@@ -45,33 +45,44 @@ oauthTokeninfo will work on the returned data from TokeninfoURL. The
 request from skipper to TokeninfoURL will use the query string to do
 the request: ?access_token=<access-token-from-authorization-header>.
 
-OAuth2 - oauthTokeninfoAnyScope() filter
+OAuth2 - oauthTokeninfoAnyScope and oauthTokeninfoRealmAnyScope() filters
 
-The filter oauthTokeninfoAnyScope allows access if the realm and one of the scopes
-are satisfied by the request.
+The filters oauthTokeninfoAnyScope and oauthTokeninfoRealmAnyScope allows access if one of the scopes
+are satisfied by the request. Additionally oauthTokeninfoRealmAnyScope checks realm to be "/employees".
 
-    Path("/uid") -> oauthTokeninfoAnyScope("/employees", "uid") -> "https://internal.example.org/";
-    Path("/") -> oauthTokeninfoAnyScope("/employees", "uid", "bar") -> "https://internal.example.org/";
+    Path("/a") -> oauthTokeninfoAnyScope("uid") -> "https://internal.example.org/";
+    Path("/b") -> oauthTokeninfoAnyScope("uid", "bar") -> "https://internal.example.org/";
+    Path("/c") -> oauthTokeninfoRealmAnyScope("/employees", "uid") -> "https://internal.example.org/";
+    Path("/d") -> oauthTokeninfoRealmAnyScope("/employees", "uid", "bar") -> "https://internal.example.org/";
 
-OAuth - oauthTokeninfoAllScope() filter
+OAuth - oauthTokeninfoAllScope() and oauthTokeninfoRealmAllScope() filters
 
-The filter oauthTokeninfoAllScope allows access if the realm and all of the scopes
-are satisfied by the request.
+The filters oauthTokeninfoAllScope and oauthTokeninfoRealmAllScope
+allows access if all of the scopes are satisfied by the
+request. Additionally oauthTokeninfoRealmAllScope checks realm to be
+"/employees".
 
-    Path("/uid") -> oauthTokeninfoAllScope("/employees", "uid") -> "https://internal.example.org/";
-    Path("/") -> oauthTokeninfoAllScope("/employees", "uid", "bar") -> "https://internal.example.org/";
+    Path("/a") -> oauthTokeninfoAllScope("uid") -> "https://internal.example.org/";
+    Path("/b") -> oauthTokeninfoAllScope("uid", "bar") -> "https://internal.example.org/";
+    Path("/c") -> oauthTokeninfoRealmAllScope("/employees", "uid") -> "https://internal.example.org/";
+    Path("/d") -> oauthTokeninfoRealmAllScope("/employees", "uid", "bar") -> "https://internal.example.org/";
 
-OAuth - oauthTokeninfoAnyKV() filter
+OAuth - oauthTokeninfoAnyKV() and oauthTokeninfoRealmAnyKV() filters
 
-The filter oauthTokeninfoAnyKV allows access if the token information returned
-by OAuthTokeninfoURL has the given key and the given value. The following route
-has a filter definition, that will check if there is a "realm"
-"/employees" and if one of the keys "uid" or "foo" has the value
-"jdoe" or "bar":
+The filters oauthTokeninfoAnyKV and oauthTokeninfoRealmAnyKV allows
+access if the token information returned by OAuthTokeninfoURL has the
+given key and the given value. Additionally oauthTokeninfoRealmAnyKV
+will check if there is the correct "realm" set.
 
-    Path("/") -> oauthTokeninfoAnyKV("/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+The following route has a filter definition, that one of the
+keys "uid" or "foo" has the value "jdoe" or "bar". Additionally
+oauthTokeninfoRealmAnyKV will check if there is a "realm"
+"/employees":
 
-Example json output of this information:
+    Path("/") -> oauthTokeninfoAnyKV("uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+    Path("/") -> oauthTokeninfoRealmAnyKV("/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+
+Example json output of this tokeninfo:
 
     {
       "access_token": "<mytoken>",
@@ -90,15 +101,20 @@ Example json output of this information:
       "uid": "jdoe"
     }
 
-OAuth - oauthTokeninfoAllKV() filter
+OAuth - oauthTokeninfoAllKV() and oauthTokeninfoRealmAllKV() filters
 
-The filter oauthTokeninfoAnyKV allows access if the token information returned by
-OAuthTokeninfoURL has the given key and the given value. The following route
-has a filter definition, that will check if there is a "realm"
-"/employees" and if all of the key value pairs match. Here "uid" has to have the value
-"jdoe" and "foo" has to have the value "bar":
+The filters oauthTokeninfoAnyKV and oauthTokeninfoRealmAnyKV allows
+access if the token information returned by OAuthTokeninfoURL has the
+given key and the given value.
+
+The following route has a filter definition, that will check if all of
+the key value pairs match. Here "uid" has to have the value "jdoe" and
+"foo" has to have the value "bar". Additionally
+oauthTokeninfoRealmAllKV will check if there is a "realm"
+"/employees":
 
     Path("/") -> oauthTokeninfoAllKV("/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+    Path("/") -> oauthTokeninfoRealmAllKV("/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
 
 Example json output of this information:
 
@@ -127,8 +143,8 @@ requests. This filter should be always set, before checking with auth
 filters. To see only permitted access, you can set the auditLog()
 filter after the auth filter.
 
-    Path("/only-allowed-audit-log") -> oauthTokeninfoAnyScope("/employees", "bar-w") -> auditLog() -> "https://internal.example.org/";
-    Path("/all-access-requests-audit-log") -> auditLog() -> oauthTokeninfoAnyScope("/employees", "foo-r") -> "https://internal.example.org/";
+    Path("/only-allowed-audit-log") -> oauthTokeninfoRealmAnyScope("/employees", "bar-w") -> auditLog() -> "https://internal.example.org/";
+    Path("/all-access-requests-audit-log") -> auditLog() -> oauthTokeninfoRealmAnyScope("/employees", "foo-r") -> "https://internal.example.org/";
 
 */
 package auth
