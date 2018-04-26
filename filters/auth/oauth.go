@@ -43,6 +43,7 @@ const (
 	accessTokenQueryKey = "access_token"
 	scopeKey            = "scope"
 	uidKey              = "uid"
+	tokeninfoCacheKey   = "tokeninfo"
 )
 
 type (
@@ -383,24 +384,30 @@ func (f *filter) validateAllKV(h map[string]interface{}) bool {
 func (f *filter) Request(ctx filters.FilterContext) {
 	r := ctx.Request()
 
-	token, err := getToken(r)
-	if err != nil {
-		unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
-		return
-	}
-	if token == "" {
-		unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
-		return
-	}
-
-	authMap, err := f.authClient.getTokeninfo(token)
-	if err != nil {
-		reason := authServiceAccess
-		if err == errInvalidToken {
-			reason = invalidToken
+	var authMap map[string]interface{}
+	authMapTemp, ok := ctx.StateBag()[tokeninfoCacheKey]
+	if !ok {
+		token, err := getToken(r)
+		if err != nil {
+			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
+			return
 		}
-		unauthorized(ctx, "", reason, f.authClient.url.Hostname())
-		return
+		if token == "" {
+			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
+			return
+		}
+
+		authMap, err = f.authClient.getTokeninfo(token)
+		if err != nil {
+			reason := authServiceAccess
+			if err == errInvalidToken {
+				reason = invalidToken
+			}
+			unauthorized(ctx, "", reason, f.authClient.url.Hostname())
+			return
+		}
+	} else {
+		authMap = authMapTemp.(map[string]interface{})
 	}
 
 	uid, _ := authMap[uidKey].(string) // uid can be empty string, but if not we set the who for auditlogging
@@ -415,7 +422,6 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		allowed = f.validateAnyKV(authMap)
 	case checkOAuthTokeninfoAllKV:
 		allowed = f.validateAllKV(authMap)
-
 	default:
 		log.Errorf("Wrong filter type: %s", f)
 	}
@@ -423,9 +429,9 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	if !allowed {
 		unauthorized(ctx, uid, invalidScope, f.authClient.url.Hostname())
 	} else {
-
 		authorized(ctx, uid)
 	}
+	ctx.StateBag()[tokeninfoCacheKey] = authMap
 }
 
 func (f *filter) Response(filters.FilterContext) {}
