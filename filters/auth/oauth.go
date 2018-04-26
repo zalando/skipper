@@ -474,12 +474,15 @@ func (f *filter) validateAnyKV(h map[string]interface{}) bool {
 }
 
 func (f *filter) validateAllKV(h map[string]interface{}) bool {
+	log.Infof("validateAllKV")
 	if len(h) < len(f.kv) {
+		println(fmt.Sprintf("validateAllKV: %d < %d", len(h), len(f.kv)))
 		return false
 	}
 	for k, v := range f.kv {
 		v2, ok := h[k].(string)
 		if !ok || v != v2 {
+			println(fmt.Sprintf("validateAllKV: !ok: %v, %v != %v", !ok, v, v2))
 			return false
 		}
 	}
