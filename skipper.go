@@ -640,7 +640,6 @@ func Run(o Options) error {
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
 	registry := builtin.MakeRegistry()
-
 	for _, f := range o.CustomFilters {
 		registry.Register(f)
 	}

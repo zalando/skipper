@@ -33,7 +33,7 @@ check if it has at least one of the predefined scopes. If any of the
 expectations are not met, it doesn't forward the request to the target
 endpoint, but returns with status 401.
 
-As additional features, the package also supports audit logging.
+As additional feature, the package also supports audit logging.
 
 OAuth2 - Provider Configuration - Tokeninfo
 
@@ -51,7 +51,7 @@ Example json output of this tokeninfo could be:
     {
       "access_token": "<mytoken>",
       "client_id": "ztoken",
-      "cn": "John Doe",
+      "cn": "Jane Doe",
       "expires_in": "300",
       "grant_type": "password",
       "realm": "/employees",
@@ -100,7 +100,7 @@ Example json output of this tokeninfo:
     {
       "access_token": "<mytoken>",
       "client_id": "ztoken",
-      "cn": "John Doe",
+      "cn": "Jane Doe",
       "expires_in": "300",
       "grant_type": "password",
       "realm": "/employees",
@@ -135,6 +135,7 @@ Example json output of this information:
       "cn": "John Doe",
       "expires_in": "300",
       "grant_type": "password",
+      "foo": "bar",
       "realm": "/employees",
       "scope": [
         "uid",

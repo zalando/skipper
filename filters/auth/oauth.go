@@ -403,11 +403,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	uid, ok := authMap[uidKey].(string)
-	if !ok {
-		unauthorized(ctx, uid, "", f.authClient.url.Hostname())
-		return
-	}
+	uid, _ := authMap[uidKey].(string) // uid can be empty string, but if not we set the who for auditlogging
 
 	var allowed bool
 	switch f.typ {

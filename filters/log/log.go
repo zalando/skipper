@@ -1,5 +1,7 @@
 /*
-Package log provides a request logging filter, usable also for audit logging.
+Package log provides a request logging filter, usable also for
+audit logging. Audit logging is showing who did a request in case of
+OAuth2 provider returns a "uid" key and value.
 */
 package log
 
@@ -15,8 +17,15 @@ import (
 )
 
 const (
-	AuditLogName        = "auditLog"
-	AuthUserKey         = "auth-user"
+	// AuditLogName is the filter name seen by the user
+	AuditLogName = "auditLog"
+	// AuthUserKey is used by the auth package to set the user
+	// information into the state bag to pass the information to
+	// the auditLog filter.
+	AuthUserKey = "auth-user"
+	// AuthRejectReasonKey is used by the auth package to set the
+	// reject reason information into the state bag to pass the
+	// information to the auditLog filter.
 	AuthRejectReasonKey = "auth-reject-reason"
 )
 

@@ -91,8 +91,9 @@ To run the latest Docker container:
 
 #### Authentication Proxy
 
-Skipper can be used as an authentication proxy, to check incoming requests with a OAuth provider. See the
-documentation at:
+Skipper can be used as an authentication proxy, to check incoming
+requests with Basic auth or an OAuth2 provider including audit
+logging. See the documentation at:
 [https://godoc.org/github.com/zalando/skipper/filters/auth](https://godoc.org/github.com/zalando/skipper/filters/auth).
 
 
