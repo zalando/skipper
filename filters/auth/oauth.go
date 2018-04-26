@@ -20,10 +20,6 @@ const (
 	checkOAuthTokeninfoAllScopes
 	checkOAuthTokeninfoAnyKV
 	checkOAuthTokeninfoAllKV
-	checkOAuthTokeninfoRealmAnyScopes
-	checkOAuthTokeninfoRealmAllScopes
-	checkOAuthTokeninfoRealmAnyKV
-	checkOAuthTokeninfoRealmAllKV
 	checkUnknown
 )
 
@@ -33,37 +29,23 @@ const (
 	missingBearerToken rejectReason = "missing-bearer-token"
 	authServiceAccess  rejectReason = "auth-service-access"
 	invalidToken       rejectReason = "invalid-token"
-	invalidRealm       rejectReason = "invalid-realm"
 	invalidScope       rejectReason = "invalid-scope"
 )
 
 const (
-	OAuthTokeninfoAnyScopeName      = "oauthTokeninfoAnyScope"
-	OAuthTokeninfoAllScopeName      = "oauthTokeninfoAllScope"
-	OAuthTokeninfoAnyKVName         = "oauthTokeninfoAnyKV"
-	OAuthTokeninfoAllKVName         = "oauthTokeninfoAllKV"
-	OAuthTokeninfoRealmAnyScopeName = "oauthTokeninfoRealmAnyScope"
-	OAuthTokeninfoRealmAllScopeName = "oauthTokeninfoRealmAllScope"
-	OAuthTokeninfoRealmAnyKVName    = "oauthTokeninfoRealmAnyKV"
-	OAuthTokeninfoRealmAllKVName    = "oauthTokeninfoRealmAllKV"
-	AuthUnknown                     = "authUnknown"
+	OAuthTokeninfoAnyScopeName = "oauthTokeninfoAnyScope"
+	OAuthTokeninfoAllScopeName = "oauthTokeninfoAllScope"
+	OAuthTokeninfoAnyKVName    = "oauthTokeninfoAnyKV"
+	OAuthTokeninfoAllKVName    = "oauthTokeninfoAllKV"
+	AuthUnknown                = "authUnknown"
 
 	authHeaderName      = "Authorization"
 	accessTokenQueryKey = "access_token"
-	realmKey            = "realm" // TODO(sszuecs): should be a parameter to a filter
 	scopeKey            = "scope"
 	uidKey              = "uid"
 )
 
 type (
-	// TODO(sszuecs) cleanup comment
-	// We have to have 2 kind of URLs, based on tokeninfo vs. token_introspection
-	// tokeninfo (has to be set by ENV or CLI):
-	//    zalando: http://localhost:9021/oauth2/tokeninfo?access_token=accessToken
-	//    google : https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=accessToken
-	// token_introspction (needs an issue https://identity.zalando.com , which can then be called to /.well-known/openid-configuration, returning OPTIONAL the introspection_endpoint https://tools.ietf.org/html/draft-ietf-oauth-discovery-06
-	//    zalando: curl -X POST -d "token=$(ztoken)" localhost:9021/oauth2/introspect
-
 	authClient struct {
 		url *url.URL
 	}
@@ -77,7 +59,6 @@ type (
 	filter struct {
 		typ        roleCheckType
 		authClient *authClient
-		realm      string
 		scopes     []string
 		kv         kv
 	}
@@ -87,13 +68,6 @@ type (
 var (
 	errInvalidAuthorizationHeader = errors.New("invalid authorization header")
 	errInvalidToken               = errors.New("invalid token")
-
-	hasRealmCheck = map[roleCheckType]bool{
-		checkOAuthTokeninfoRealmAnyScopes: true,
-		checkOAuthTokeninfoRealmAllScopes: true,
-		checkOAuthTokeninfoRealmAnyKV:     true,
-		checkOAuthTokeninfoRealmAllKV:     true,
-	}
 )
 
 func getToken(r *http.Request) (string, error) {
@@ -244,38 +218,6 @@ func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string) filters.Spec {
 	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL}
 }
 
-// NewOAuthTokeninfoRealmAllScope creates a new auth filter specification
-// to validate authorization for requests. Current implementation uses
-// Bearer tokens to authorize requests and checks that the token
-// has the specified realm and contains all scopes.
-func NewOAuthTokeninfoRealmAllScope(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoRealmAllScopes, tokeninfoURL: OAuthTokeninfoURL}
-}
-
-// NewOAuthTokeninfoRealmAnyScope creates a new auth filter specification
-// to validate authorization for requests. Current implementation uses
-// Bearer tokens to authorize requests and checks that the token
-//  has the specified realm and contains at least one scope.
-func NewOAuthTokeninfoRealmAnyScope(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoRealmAnyScopes, tokeninfoURL: OAuthTokeninfoURL}
-}
-
-// NewOAuthTokeninfoRealmAllKV creates a new auth filter specification
-// to validate authorization for requests. Current implementation uses
-// Bearer tokens to authorize requests and checks that the token
-//  has the specified realm and contains all key value pairs provided.
-func NewOAuthTokeninfoRealmAllKV(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoRealmAllKV, tokeninfoURL: OAuthTokeninfoURL}
-}
-
-// NewOAuthTokeninfoRealmAnyKV creates a new auth filter specification
-// to validate authorization for requests. Current implementation uses
-// Bearer tokens to authorize requests and checks that the token
-//  has the specified realm and contains at least one key value pair provided.
-func NewOAuthTokeninfoRealmAnyKV(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoRealmAnyKV, tokeninfoURL: OAuthTokeninfoURL}
-}
-
 func (s *tokeninfoSpec) Name() string {
 	switch s.typ {
 	case checkOAuthTokeninfoAnyScopes:
@@ -286,27 +228,18 @@ func (s *tokeninfoSpec) Name() string {
 		return OAuthTokeninfoAnyKVName
 	case checkOAuthTokeninfoAllKV:
 		return OAuthTokeninfoAllKVName
-	case checkOAuthTokeninfoRealmAnyScopes:
-		return OAuthTokeninfoRealmAnyScopeName
-	case checkOAuthTokeninfoRealmAllScopes:
-		return OAuthTokeninfoRealmAllScopeName
-	case checkOAuthTokeninfoRealmAnyKV:
-		return OAuthTokeninfoRealmAnyKVName
-	case checkOAuthTokeninfoRealmAllKV:
-		return OAuthTokeninfoRealmAllKVName
 	}
 	return AuthUnknown
 }
 
 // CreateFilter creates an auth filter. All arguments have to be
-// strings. Dependend of the type the first argument is the realm or
-// not. The rest are given scopes or key value pairs to check. How
-// scopes or key value pairs are checked is based on the type. The
-// shown example for checkOAuthTokeninfoRealmAllScopes will grant
-// access only to tokens from myrealm, that have scopes read-x and
-// write-y:
+// strings. Dependend of the type given arguments are scopes or key
+// value pairs to check. How scopes or key value pairs are checked is
+// based on the type. The shown example for
+// checkOAuthTokeninfoAllScopes will grant access only to tokens,
+// that have scopes read-x and write-y:
 //
-//     s.CreateFilter("myrealm", "read-x", "write-y")
+//     s.CreateFilter(read-x", "write-y")
 //
 func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
@@ -330,27 +263,10 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 			fallthrough
 		case checkOAuthTokeninfoAnyScopes:
 			f.scopes = sargs[:]
-		// realm + scopes
-		case checkOAuthTokeninfoRealmAllScopes:
-			fallthrough
-		case checkOAuthTokeninfoRealmAnyScopes:
-			f.realm, f.scopes = sargs[0], sargs[1:]
 		// key value pairs
 		case checkOAuthTokeninfoAnyKV:
 			fallthrough
 		case checkOAuthTokeninfoAllKV:
-			for i := 0; i+1 < len(sargs); i += 2 {
-				f.kv[sargs[i]] = sargs[i+1]
-			}
-			if len(sargs) == 0 || len(sargs)%2 != 0 {
-				return nil, filters.ErrInvalidFilterParameters
-			}
-		// realm + key value pairs
-		case checkOAuthTokeninfoRealmAnyKV:
-			fallthrough
-		case checkOAuthTokeninfoRealmAllKV:
-			f.realm = sargs[0]
-			sargs = sargs[1:]
 			for i := 0; i+1 < len(sargs); i += 2 {
 				f.kv[sargs[i]] = sargs[i+1]
 			}
@@ -385,35 +301,8 @@ func (f *filter) String() string {
 		return fmt.Sprintf("%s(%s)", OAuthTokeninfoAnyKVName, f.kv)
 	case checkOAuthTokeninfoAllKV:
 		return fmt.Sprintf("%s(%s)", OAuthTokeninfoAllKVName, f.kv)
-	case checkOAuthTokeninfoRealmAnyScopes:
-		return fmt.Sprintf("%s(%s,%s)", OAuthTokeninfoRealmAnyScopeName, f.realm, strings.Join(f.scopes, ","))
-	case checkOAuthTokeninfoRealmAllScopes:
-		return fmt.Sprintf("%s(%s,%s)", OAuthTokeninfoRealmAllScopeName, f.realm, strings.Join(f.scopes, ","))
-	case checkOAuthTokeninfoRealmAnyKV:
-		return fmt.Sprintf("%s(%s,%s)", OAuthTokeninfoRealmAnyKVName, f.realm, f.kv)
-	case checkOAuthTokeninfoRealmAllKV:
-		return fmt.Sprintf("%s(%s,%s)", OAuthTokeninfoRealmAllKVName, f.realm, f.kv)
 	}
 	return AuthUnknown
-}
-
-func (f *filter) validateRealm(h map[string]interface{}) bool {
-	if f.realm == "" {
-		return true
-	}
-	if _, ok := hasRealmCheck[f.typ]; !ok {
-		return true
-	}
-
-	vI, ok := h[realmKey]
-	if !ok {
-		return false
-	}
-	v, ok := vI.(string)
-	if !ok {
-		return false
-	}
-	return v == f.realm
 }
 
 func (f *filter) validateAnyScopes(h map[string]interface{}) bool {
@@ -515,31 +404,19 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	}
 
 	uid, ok := authMap[uidKey].(string)
-	if !ok || !f.validateRealm(authMap) {
-		unauthorized(ctx, uid, invalidRealm, f.authClient.url.Hostname())
+	if !ok {
+		unauthorized(ctx, uid, "", f.authClient.url.Hostname())
 		return
 	}
 
 	var allowed bool
 	switch f.typ {
-	// AnyScopes
-	case checkOAuthTokeninfoRealmAnyScopes:
-		fallthrough
 	case checkOAuthTokeninfoAnyScopes:
 		allowed = f.validateAnyScopes(authMap)
-	// AllScopes
-	case checkOAuthTokeninfoRealmAllScopes:
-		fallthrough
 	case checkOAuthTokeninfoAllScopes:
 		allowed = f.validateAllScopes(authMap)
-	// AnyKV
-	case checkOAuthTokeninfoRealmAnyKV:
-		fallthrough
 	case checkOAuthTokeninfoAnyKV:
 		allowed = f.validateAnyKV(authMap)
-	// AllKV
-	case checkOAuthTokeninfoRealmAllKV:
-		fallthrough
 	case checkOAuthTokeninfoAllKV:
 		allowed = f.validateAllKV(authMap)
 

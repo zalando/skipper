@@ -634,10 +634,6 @@ func Run(o Options) error {
 		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyScope(o.OAuthTokeninfoURL))
 		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL))
 		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoRealmAllScope(o.OAuthTokeninfoURL))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoRealmAnyScope(o.OAuthTokeninfoURL))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoRealmAllKV(o.OAuthTokeninfoURL))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoRealmAnyKV(o.OAuthTokeninfoURL))
 	}
 	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
 
