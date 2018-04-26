@@ -97,6 +97,10 @@ var (
 )
 
 func getToken(r *http.Request) (string, error) {
+	if tok := r.URL.Query().Get(accessTokenQueryKey); tok != "" {
+		return tok, nil
+	}
+
 	const b = "Bearer "
 	h := r.Header.Get(authHeaderName)
 	if !strings.HasPrefix(h, b) {
@@ -474,15 +478,12 @@ func (f *filter) validateAnyKV(h map[string]interface{}) bool {
 }
 
 func (f *filter) validateAllKV(h map[string]interface{}) bool {
-	log.Infof("validateAllKV")
 	if len(h) < len(f.kv) {
-		println(fmt.Sprintf("validateAllKV: %d < %d", len(h), len(f.kv)))
 		return false
 	}
 	for k, v := range f.kv {
 		v2, ok := h[k].(string)
 		if !ok || v != v2 {
-			println(fmt.Sprintf("validateAllKV: !ok: %v, %v != %v", !ok, v, v2))
 			return false
 		}
 	}
@@ -498,14 +499,16 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
 		return
 	}
+	if token == "" {
+		unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
+		return
+	}
 
 	authMap, err := f.authClient.getTokeninfo(token)
 	if err != nil {
 		reason := authServiceAccess
 		if err == errInvalidToken {
 			reason = invalidToken
-		} else {
-			log.Errorf("Failed to get token: %v", err)
 		}
 		unauthorized(ctx, "", reason, f.authClient.url.Hostname())
 		return
