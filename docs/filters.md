@@ -5,6 +5,7 @@ The parameters can be strings, regex or float64 / int
 * `string` is a string surrounded by double quotes (`"`)
 * `regex` is a regular expression, surrounded by `/`, e.g. `/^www\.example\.org(:\d+)?$/`
 * `int` / `float64` are usual (decimal) numbers like `401` or `1.23456`
+* `time` is a string in double quotes, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
 
 ## setRequestHeader
 
@@ -69,6 +70,7 @@ Parameters:
 Creates an HTTP redirect response.
 
 Parameters:
+
 * redirect status code (int)
 * location (string)
 
@@ -87,6 +89,7 @@ Same as [redirectTo](#redirectTo), but replaces all strings to lower case.
 Serves static content from the filesystem.
 
 Parameters:
+
 * Request path to strip (string)
 * Target base path in the filesystem (string)
 
@@ -100,6 +103,7 @@ acme: Host(/./) && Method("GET") && Path("/.well-known/acme-challenge/*")
 ```
 
 Notes:
+
 * redirects to the directory when a file `index.html` exists and it is requested, i.e. `GET /foo/index.html` redirects to `/foo/` which serves then the `/foo/index.html`
 * serves the content of the `index.html` when a directory is requested
 * does a simple directory listing of files / directories when no `index.html` is present
@@ -121,6 +125,7 @@ route1: * -> preserveHost() -> "http://backend.example.org";
 Sets the response status code to the given value, with no regards to the backend response.
 
 Parameters:
+
 * status code (int)
 
 Example:
@@ -182,6 +187,7 @@ The compression happens in a streaming way, using only a small internal buffer.
 Set the query string `?k=v` in the request to the backend to a given value.
 
 Parameters:
+
 * key (string)
 * value (string)
 
@@ -197,6 +203,7 @@ Delete the query string `?k=v` in the request to the backend for a
 given key.
 
 Parameters:
+
 * key (string)
 
 Example:
@@ -210,12 +217,13 @@ dropQuery("k")
 Returns arbitrary content in the HTTP body.
 
 Parameters:
+
 * arbitrary (string)
 
 Example:
 
 ```
-'* -> inlineContent("<h1>Hello</h1>") -> <shunt>'
+* -> inlineContent("<h1>Hello</h1>") -> <shunt>
 ```
 
 ## flowId
@@ -225,6 +233,7 @@ This allows you to have a trace in your logs, that traces from
 the incoming request on the edge to all backend services.
 
 Paramters:
+
 * no parameter: resets always the X-Flow-Id header to a new value
 * "reuse": only create X-Flow-Id header if not set in the request
 
@@ -240,6 +249,7 @@ Example:
 Generate response with random text of specified length.
 
 Parameters:
+
 * length of data (int)
 
 Example:
@@ -253,6 +263,7 @@ Example:
 Enable adding artificial latency
 
 Parameters:
+
 * latency in milliseconds (int)
 
 Example:
@@ -266,6 +277,7 @@ Example:
 Enable bandwidth throttling.
 
 Parameters:
+
 * bandwidth in kb/s (int)
 
 Example:
@@ -281,6 +293,7 @@ artificial delays in between response chunks. To disable delays, set
 the second parameter to "0".
 
 Parameters:
+
 * byte length (int)
 * time duration (time.Duration)
 
@@ -365,6 +378,7 @@ basicAuth("/path/to/htpasswd", "My Website")
 Append a cookie to the request header.
 
 Parameters:
+
 * cookie name (string)
 * cookie value (string)
 
@@ -414,6 +428,7 @@ If any of the requests during the half-open state fails, the breaker goes back t
 open state. If all succeed, it goes to closed state again.
 
 Parameters:
+
 * number of consecutive failures to open (int)
 * timeout (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
 * half-open requests (int) - optional
@@ -430,6 +445,7 @@ of failures reaches N within the window. This way the sliding window is not time
 and allows the same breaker characteristics for low and high rate traffic.
 
 Parameters:
+
 * number of consecutive failures to open (int)
 * sliding window (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
 * half-open requests (int) - optional
@@ -463,6 +479,7 @@ Authorization header to put the request in the same client bucket,
 else  the X-Forwarded-For Header will be used.
 
 Parameters:
+
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
 * optional parameter can be set to: "auth" (string)
@@ -480,6 +497,7 @@ Per skipper instance calculated ratelimit, that allows number of
 requests to a backend.
 
 Parameters:
+
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
 
@@ -498,14 +516,14 @@ See [the scripts page](scripts.md)
 
 The filter accepts an optional variadic list of acceptable origin
 parameters. If the input argument list is empty, the header will
-always be set to '*' which means any origin is acceptable. Otherwise
+always be set to `*` which means any origin is acceptable. Otherwise
 the header is only set if the request contains an Origin header and
 its value matches one of the elements in the input list. The header is
 only set on the response.
 
 Parameters:
-*  url (variadic string)
 
+*  url (variadic string)
 
 Examples:
 

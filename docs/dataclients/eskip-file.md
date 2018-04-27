@@ -53,27 +53,27 @@ HTTP headers as you like:
 The former example shows 4 routes: hostHeaderMatch,
 baiduPathMatch, googleWildcardMatch and yandexWildcardIfCookie.
 
-- hostHeaderMatch:
-  - used if HTTP host header is exactly: "skipper.teapot.org",
-  - sets a Basic Authorization header and
-  - sends the modified request to https://target-to.auth-with.basic-auth.enterprise.com
-- baiduPathMatch:
-  - used in case the request patch matches /baidu
-  - it will set the Host header to the proxy request
-  - it will set the path from /baidu to /s
-  - it will set the querystring to "ws=godoc skipper" and
-  - sends the modified request to http://baidu.com
-- googleWildcardMatch:
-  - used as default if no other route matches
-  - it will set the path to /search
-  - it will set the querystring to "q=godoc skipper" and
-  - sends the modified request to https://www.google.com
-- yandexWildcardIfCookie:
-  - used as default if a Cookie named "yandex" has the value "true"
-  - it will set the path to /search/
-  - it will set the querystring to "text=godoc skipper"
-  - it will send a copy of the modified request to http://127.0.0.1:12345/ (similar to unix `tee`) and drop the response and
-  - sends the modified request to https://yandex.ru
+* hostHeaderMatch:
+    * used if HTTP host header is exactly: "skipper.teapot.org",
+    * sets a Basic Authorization header and
+    * sends the modified request to https://target-to.auth-with.basic-auth.enterprise.com
+* baiduPathMatch:
+    * used in case the request patch matches /baidu
+    * it will set the Host header to the proxy request
+    * it will set the path from /baidu to /s
+    * it will set the querystring to "ws=godoc skipper" and
+    * sends the modified request to http://baidu.com
+* googleWildcardMatch:
+    * used as default if no other route matches
+    * it will set the path to /search
+    * it will set the querystring to "q=godoc skipper" and
+    * sends the modified request to https://www.google.com
+* yandexWildcardIfCookie:
+    * used as default if a Cookie named "yandex" has the value "true"
+    * it will set the path to /search/
+    * it will set the querystring to "text=godoc skipper"
+    * it will send a copy of the modified request to http://127.0.0.1:12345/ (similar to unix `tee`) and drop the response and
+    * sends the modified request to https://yandex.ru
 
 More examples you find in [eskip file format](https://godoc.org/github.com/zalando/skipper/eskip)
 description, in [filters](https://godoc.org/github.com/zalando/skipper/filters)
