@@ -257,26 +257,24 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	f := &filter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
-	if len(sargs) > 0 {
-		switch f.typ {
-		// all scopes
-		case checkOAuthTokeninfoAllScopes:
-			fallthrough
-		case checkOAuthTokeninfoAnyScopes:
-			f.scopes = sargs[:]
-		// key value pairs
-		case checkOAuthTokeninfoAnyKV:
-			fallthrough
-		case checkOAuthTokeninfoAllKV:
-			for i := 0; i+1 < len(sargs); i += 2 {
-				f.kv[sargs[i]] = sargs[i+1]
-			}
-			if len(sargs) == 0 || len(sargs)%2 != 0 {
-				return nil, filters.ErrInvalidFilterParameters
-			}
-		default:
+	switch f.typ {
+	// all scopes
+	case checkOAuthTokeninfoAllScopes:
+		fallthrough
+	case checkOAuthTokeninfoAnyScopes:
+		f.scopes = sargs[:]
+	// key value pairs
+	case checkOAuthTokeninfoAnyKV:
+		fallthrough
+	case checkOAuthTokeninfoAllKV:
+		for i := 0; i+1 < len(sargs); i += 2 {
+			f.kv[sargs[i]] = sargs[i+1]
+		}
+		if len(sargs) == 0 || len(sargs)%2 != 0 {
 			return nil, filters.ErrInvalidFilterParameters
 		}
+	default:
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	return f, nil
