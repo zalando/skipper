@@ -89,6 +89,14 @@ To run the latest Docker container:
 
     docker run registry.opensource.zalan.do/pathfinder/skipper:latest
 
+#### Authentication Proxy
+
+Skipper can be used as an authentication proxy, to check incoming
+requests with Basic auth or an OAuth2 provider including audit
+logging. See the documentation at:
+[https://godoc.org/github.com/zalando/skipper/filters/auth](https://godoc.org/github.com/zalando/skipper/filters/auth).
+
+
 #### Working with the code
 
 Getting the code with the test dependencies (`-t` switch):

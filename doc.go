@@ -162,6 +162,13 @@ parser.)
 For further details, see the 'eskip' package documentation
 
 
+Authentication and Authorization
+
+Skipper has filter implementations of basic auth and OAuth2. It can be
+integrated with tokeninfo based OAuth2 providers. For details, see:
+https://godoc.org/github.com/zalando/skipper/filters/auth.
+
+
 Data Sources
 
 Skipper's route definitions of Skipper are loaded from one or more data

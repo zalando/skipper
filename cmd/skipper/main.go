@@ -50,6 +50,7 @@ const (
 	defaultTLSHandshakeTimeoutBackend      = 60 * time.Second
 	defaultMaxIdleConnsBackend             = 0
 	defaultLoadBalancerHealthCheckInterval = 0 // disabled
+	defaultMaxAuditBody                    = 1024
 
 	addressUsage                   = "network address that skipper should listen on"
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -125,6 +126,8 @@ const (
 	tlsHandshakeTimeoutBackendUsage      = "sets the TLS handshake timeout for backend connections"
 	maxIdleConnsBackendUsage             = "sets the maximum idle connections for all backend connections"
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
+	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
+	maxAuditBodyUsage                    = "sets the max body to read to log inthe audit log body"
 )
 
 var (
@@ -211,6 +214,8 @@ var (
 	filterPlugins                   pluginFlags
 	predicatePlugins                pluginFlags
 	dataclientPlugins               pluginFlags
+	oauth2TokeninfoURL              string
+	maxAuditBody                    int
 	multiPlugins                    pluginFlags
 )
 
@@ -296,6 +301,8 @@ func init() {
 	flag.Var(&filterPlugins, "filter-plugin", filterPluginUsage)
 	flag.Var(&predicatePlugins, "predicate-plugin", predicatePluginUsage)
 	flag.Var(&dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
+	flag.StringVar(&oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
+	flag.IntVar(&maxAuditBody, "max-audit-body", defaultMaxAuditBody, maxAuditBodyUsage)
 	flag.Var(&multiPlugins, "multi-plugin", multiPluginUsage)
 
 	flag.Parse()
@@ -420,6 +427,8 @@ func main() {
 		FilterPlugins:                       filterPlugins.Get(),
 		PredicatePlugins:                    predicatePlugins.Get(),
 		DataClientPlugins:                   dataclientPlugins.Get(),
+		OAuthTokeninfoURL:                   oauth2TokeninfoURL,
+		MaxAuditBody:                        maxAuditBody,
 		Plugins:                             multiPlugins.Get(),
 	}
 

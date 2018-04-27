@@ -18,7 +18,9 @@ import (
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
@@ -98,30 +100,30 @@ type Options struct {
 	// be loaded, too.
 	KubernetesIngressClass string
 
-	// API endpoint of the Innkeeper service, storing route definitions.
+	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
-	// Fixed token for innkeeper authentication. (Used mainly in
+	// *DEPRECATED* Fixed token for innkeeper authentication. (Used mainly in
 	// development environments.)
 	InnkeeperAuthToken string
 
-	// Filters to be prepended to each route loaded from Innkeeper.
+	// *DEPRECATED* Filters to be prepended to each route loaded from Innkeeper.
 	InnkeeperPreRouteFilters string
 
-	// Filters to be appended to each route loaded from Innkeeper.
+	// *DEPRECATED* Filters to be appended to each route loaded from Innkeeper.
 	InnkeeperPostRouteFilters string
 
-	// Skip TLS certificate check for Innkeeper connections.
+	// *DEPRECATED* Skip TLS certificate check for Innkeeper connections.
 	InnkeeperInsecure bool
 
-	// OAuth2 URL for Innkeeper authentication.
+	// *DEPRECATED* OAuth2 URL for Innkeeper authentication.
 	OAuthUrl string
 
-	// Directory where oauth credentials are stored, with file names:
+	// *DEPRECATED* Directory where oauth credentials are stored, with file names:
 	// client.json and user.json.
 	OAuthCredentialsDir string
 
-	// The whitespace separated list of OAuth2 scopes.
+	// *DEPRECATED* The whitespace separated list of OAuth2 scopes.
 	OAuthScope string
 
 	// File containing static route definitions.
@@ -407,6 +409,12 @@ type Options struct {
 	// the last item of the string list of the X-Forwarded-For
 	// header, in this case you want to set this to true.
 	ReverseSourcePredicate bool
+
+	// OAuthTokeninfoURL sets the OAuthTokeninfoURL similar to https://godoc.org/golang.org/x/oauth2#Endpoint
+	OAuthTokeninfoURL string
+
+	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
+	MaxAuditBody int
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -592,8 +600,8 @@ func Run(o Options) error {
 		return err
 	}
 
-	// create authentication for Innkeeper
-	auth := innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{
+	// *DEPRECATED* create authentication for Innkeeper
+	inkeeperAuth := innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{
 		InnkeeperAuthToken:  o.InnkeeperAuthToken,
 		OAuthCredentialsDir: o.OAuthCredentialsDir,
 		OAuthUrl:            o.OAuthUrl,
@@ -608,8 +616,8 @@ func Run(o Options) error {
 		return err
 	}
 
-	// create data clients
-	dataClients, err := createDataClients(o, auth)
+	// *DEPRECATED* inkeeper - create data clients
+	dataClients, err := createDataClients(o, inkeeperAuth)
 	if err != nil {
 		return err
 	}
@@ -620,6 +628,14 @@ func Run(o Options) error {
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
 	}
+
+	if o.OAuthTokeninfoURL != "" {
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllScope(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyScope(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL))
+	}
+	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
