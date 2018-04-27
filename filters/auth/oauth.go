@@ -234,11 +234,11 @@ func (s *tokeninfoSpec) Name() string {
 }
 
 // CreateFilter creates an auth filter. All arguments have to be
-// strings. Dependend of the type given arguments are scopes or key
-// value pairs to check. How scopes or key value pairs are checked is
-// based on the type. The shown example for
-// checkOAuthTokeninfoAllScopes will grant access only to tokens,
-// that have scopes read-x and write-y:
+// strings. Depending on the variant of the auth filter, the arguments
+// represent scopes or key-value pairs to be checked in the tokeninfo
+// response. How scopes or key value pairs are checked is based on the
+// type. The shown example for checkOAuthTokeninfoAllScopes will grant
+// access only to tokens, that have scopes read-x and write-y:
 //
 //     s.CreateFilter(read-x", "write-y")
 //
