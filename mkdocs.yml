@@ -3,6 +3,7 @@ pages:
     - Architecture: index.md
     - Basics:
         - Filters: filters.md
+        - Predicates: predicates.md
         - Scripts: scripts.md
         - Plugins: plugins.md
     - Deployments: deployments.md
