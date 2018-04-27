@@ -7,6 +7,15 @@ The parameters can be strings, regex or float64 / int
 * `int` / `float64` are usual (decimal) numbers like `401` or `1.23456`
 * `time` is a string in double quotes, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
 
+Filters are a generic tool and can change HTTP header and body in the request and response path.
+Filter can be chained using the arrow operator `->`.
+
+Example route with a match all, 2 filters and a backend:
+
+```
+all: * -> filter1 -> filter2 -> "http://127.0.0.1:1234/";
+```
+
 ## setRequestHeader
 
 Set headers for requests.
