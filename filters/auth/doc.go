@@ -108,7 +108,7 @@ Example json output of this tokeninfo response:
 
 OAuth - oauthTokeninfoAllKV() filter
 
-The filter oauthTokeninfoAnyKV allows access if the token information
+The filter oauthTokeninfoAllKV allows access if the token information
 returned by OAuthTokeninfoURL has the given key and the given value.
 
 The following route has a filter definition, that will check if all of
