@@ -250,3 +250,34 @@ something that configures your frontend loadbalancer, for example
 [kube-aws-ingress-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller),
 and your DNS, [external-dns](https://github.com/kubernetes-incubator/external-dns)
 automatically.
+
+## Multiple skipper deployments
+
+If you want to split for example `internal` and `public` traffic, it
+might be a good choice to split your ingress deployments. Skipper has
+the flag `--kubernetes-ingress-class=<string>` to only select ingress
+objects that have the annotation `kubernetes.io/ingress.class` set to
+`<string>`. Skipper will only create routes for ingress objects with
+it's annotation or ingress objects that do not have this annotation.
+
+The default ingress class is `skipper`, if not set. You have to create
+your ingress objects with the annotation
+`kubernetes.io/ingress.class: skipper` to make sure only skipper will
+serve the traffic.
+
+Example ingress:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        kubernetes.io/ingress.class: skipper
+      name: app
+    spec:
+      rules:
+      - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
