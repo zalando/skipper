@@ -18,11 +18,6 @@ Embedding the filter in routes:
 	  -> basicAuth("/path/to/htpasswd", "My Website")
 	  -> "https://my-internal.example.org";
 
-Set Basic - Outgoing Authentication Header
-
-	basicAuth("/path/to/htpasswd")
-	basicAuth("/path/to/htpasswd", "My Website")
-
 OAuth2 - Check Bearer Tokens
 
 The auth filter takes the incoming request, and tries to extract the
@@ -32,8 +27,6 @@ the owner of the token belongs to a specific OAuth2 realm, and it can
 check if it has at least one of the predefined scopes. If any of the
 expectations are not met, it doesn't forward the request to the target
 endpoint, but returns with status 401.
-
-As additional feature, the package also supports audit logging.
 
 OAuth2 - Provider Configuration - Tokeninfo
 
@@ -46,7 +39,7 @@ TokeninfoURL. The request from skipper to TokeninfoURL will use the
 query string to do the request:
 ?access_token=<access-token-from-authorization-header>.
 
-Example json output of this tokeninfo could be:
+Example json output of the tokeninfo response could be:
 
     {
       "access_token": "<mytoken>",
@@ -68,18 +61,18 @@ Example json output of this tokeninfo could be:
 OAuth2 - oauthTokeninfoAnyScope filter
 
 The filter oauthTokeninfoAnyScope allows access if one of the scopes
-are satisfied by the request.
+is satisfied by the request.
 
-    Path("/a") -> oauthTokeninfoAnyScope("uid") -> "https://internal.example.org/";
-    Path("/b") -> oauthTokeninfoAnyScope("uid", "bar") -> "https://internal.example.org/";
+    a: Path("/a") -> oauthTokeninfoAnyScope("uid") -> "https://internal.example.org/";
+    b: Path("/b") -> oauthTokeninfoAnyScope("uid", "bar") -> "https://internal.example.org/";
 
 OAuth - oauthTokeninfoAllScope() filter
 
 The filter oauthTokeninfoAllScope allows access if all of the scopes
 are satisfied by the request:
 
-    Path("/a") -> oauthTokeninfoAllScope("uid") -> "https://internal.example.org/";
-    Path("/b") -> oauthTokeninfoAllScope("uid", "bar") -> "https://internal.example.org/";
+    a: Path("/a") -> oauthTokeninfoAllScope("uid") -> "https://internal.example.org/";
+    b: Path("/b") -> oauthTokeninfoAllScope("uid", "bar") -> "https://internal.example.org/";
 
 OAuth - oauthTokeninfoAnyKV() filter
 
@@ -92,10 +85,10 @@ The following route has a filter definition, that one of the keys
 "uid" or "foo" has the value "jdoe" or "bar". Additionally the second
 will check if there is a "realm" "/employees":
 
-    Path("/") -> oauthTokeninfoAnyKV("uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
-    Path("/") -> oauthTokeninfoAnyKV("realm","/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+    a: Path("/") -> oauthTokeninfoAnyKV("uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+    b: Path("/") -> oauthTokeninfoAnyKV("realm","/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
 
-Example json output of this tokeninfo:
+Example json output of this tokeninfo response:
 
     {
       "access_token": "<mytoken>",
@@ -124,10 +117,10 @@ the key value pairs match. Here "uid" has to have the value "jdoe" and
 "foo" has to have the value "bar". Additionally the second will
 check if there is a "realm" "/employees":
 
-    Path("/") -> oauthTokeninfoAllKV("uid", jdoe", "foo", "bar") -> "https://internal.example.org/";
-    Path("/") -> oauthTokeninfoAllKV("realm", "/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+    a: Path("/") -> oauthTokeninfoAllKV("uid", jdoe", "foo", "bar") -> "https://internal.example.org/";
+    b: Path("/") -> oauthTokeninfoAllKV("realm", "/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
 
-Example json output of this information:
+Example json output of this information response:
 
     {
       "access_token": "<mytoken>",
@@ -155,8 +148,8 @@ requests. This filter should be always set, before checking with auth
 filters. To see only permitted access, you can set the auditLog()
 filter after the auth filter.
 
-    Path("/only-allowed-audit-log") -> oauthTokeninfoAnyScope("bar-w") -> auditLog() -> "https://internal.example.org/";
-    Path("/all-access-requests-audit-log") -> auditLog() -> oauthTokeninfoAnyScope("foo-r") -> "https://internal.example.org/";
+    a: Path("/only-allowed-audit-log") -> oauthTokeninfoAnyScope("bar-w") -> auditLog() -> "https://internal.example.org/";
+    b: Path("/all-access-requests-audit-log") -> auditLog() -> oauthTokeninfoAnyScope("foo-r") -> "https://internal.example.org/";
 
 */
 package auth
