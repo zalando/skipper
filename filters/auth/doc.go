@@ -78,8 +78,7 @@ OAuth - oauthTokeninfoAnyKV() filter
 
 The filter oauthTokeninfoAnyKV allows access if the token information
 returned by OAuthTokeninfoURL has the given key and the given
-value. Additionally the second will check if there is
-the correct "realm" set.
+value.
 
 The following route has a filter definition, that one of the keys
 "uid" or "foo" has the value "jdoe" or "bar". Additionally the second
