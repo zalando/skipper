@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	flowidFilter "github.com/zalando/skipper/filters/flowid"
+	logFilter "github.com/zalando/skipper/filters/log"
 )
 
 const (
@@ -17,8 +18,8 @@ const (
 	// format:
 	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
-	// We add the duration in ms, a requested host and a flow id
-	accessLogFormat = combinedLogFormat + " %d %s %s\n"
+	// We add the duration in ms, a requested host and a flow id and audit log
+	accessLogFormat = combinedLogFormat + " %d %s %s %s\n"
 )
 
 type accessLogFormatter struct {
@@ -80,7 +81,7 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	keys := []string{
 		"host", "timestamp", "method", "uri", "proto",
 		"status", "response-size", "referer", "user-agent",
-		"duration", "requested-host", "flow-id"}
+		"duration", "requested-host", "flow-id", "audit"}
 
 	values := make([]interface{}, len(keys))
 	for i, key := range keys {
@@ -106,6 +107,7 @@ func LogAccess(entry *AccessEntry) {
 	userAgent := ""
 	requestedHost := ""
 	flowId := ""
+	var auditHeader string
 
 	status := entry.StatusCode
 	responseSize := entry.ResponseSize
@@ -120,6 +122,7 @@ func LogAccess(entry *AccessEntry) {
 		userAgent = entry.Request.UserAgent()
 		requestedHost = entry.Request.Host
 		flowId = entry.Request.Header.Get(flowidFilter.HeaderName)
+		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
 	}
 
 	accessLog.WithFields(logrus.Fields{
@@ -135,5 +138,6 @@ func LogAccess(entry *AccessEntry) {
 		"requested-host": requestedHost,
 		"duration":       duration,
 		"flow-id":        flowId,
+		"audit":          auditHeader,
 	}).Infoln()
 }

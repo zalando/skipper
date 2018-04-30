@@ -32,9 +32,10 @@ const (
 	// UnverifiedAuditLogName is th filtername seend by the user
 	UnverifiedAuditLogName = "unverifiedAuditLog"
 
-	authHeaderName      = "Authorization"
-	authHeaderPrefix    = "Bearer "
-	accessTokenQueryKey = "access_token"
+	UnverifiedAuditHeader = "X-Unverified-Audit"
+	authHeaderName        = "Authorization"
+	authHeaderPrefix      = "Bearer "
+	accessTokenQueryKey   = "access_token"
 )
 
 type auditLog struct {
@@ -166,12 +167,10 @@ func (al *auditLog) Response(ctx filters.FilterContext) {
 	}
 }
 
-type unverifiedAuditLog struct {
-	writer io.Writer
-}
+type unverifiedAuditLog struct{}
 
 // NewUnverifiedAuditLog logs "Sub" of the middle part of a JWT Token.
-func NewUnverifiedAuditLog() filters.Spec { return &unverifiedAuditLog{writer: os.Stderr} }
+func NewUnverifiedAuditLog() filters.Spec { return &unverifiedAuditLog{} }
 
 func (ual *unverifiedAuditLog) Name() string { return UnverifiedAuditLogName }
 
@@ -209,7 +208,7 @@ func (ual *unverifiedAuditLog) Request(ctx filters.FilterContext) {
 		if err != nil {
 			return
 		}
-		ual.writer.Write([]byte("Audit sub: " + j.Sub + " "))
+		req.Header.Add(UnverifiedAuditHeader, j.Sub)
 	}
 }
 
