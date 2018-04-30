@@ -433,11 +433,25 @@ type Options struct {
 	// header, in this case you want to set this to true.
 	ReverseSourcePredicate bool
 
-	// OAuthTokeninfoURL sets the OAuthTokeninfoURL similar to https://godoc.org/golang.org/x/oauth2#Endpoint
+	// OAuthTokeninfoURL sets the the URL to be queried for
+	// information for all auth.NewOAuthTokeninfo*() filters.
 	OAuthTokeninfoURL string
 
 	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
 	OAuthTokeninfoTimeout time.Duration
+
+	// OAuthIssuerURL sets the the URL to be queried at
+	// /.well-known/openid-configuration for OpenID Connect
+	// information for all auth.NewOAuthTokenintrospection*()
+	// filters.
+	OAuthIssuerURL string
+
+	// OAuthTokenintrospectionURL sets the the URL to be queried for token
+	// introspection for all auth.NewOAuthTokenintrospection*()
+	// filters. If set to a non empty string value, it will
+	// override any token_introspection URL found by the dynamic
+	// OpenID Connect configuration URL.
+	OAuthTokenintrospectionURL string
 
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
@@ -667,6 +681,7 @@ func Run(o Options) error {
 		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
 	}
 	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
+	o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokenintrospectionAnyKV(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL))
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters

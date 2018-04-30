@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,10 @@ const (
 	checkOAuthTokeninfoAllScopes
 	checkOAuthTokeninfoAnyKV
 	checkOAuthTokeninfoAllKV
+	checkOAuthTokenintrospectionAnyClaims
+	checkOAuthTokenintrospectionAllClaims
+	checkOAuthTokenintrospectionAnyKV
+	checkOAuthTokenintrospectionAllKV
 	checkUnknown
 )
 
@@ -35,18 +40,23 @@ const (
 )
 
 const (
-	OAuthTokeninfoAnyScopeName = "oauthTokeninfoAnyScope"
-	OAuthTokeninfoAllScopeName = "oauthTokeninfoAllScope"
-	OAuthTokeninfoAnyKVName    = "oauthTokeninfoAnyKV"
-	OAuthTokeninfoAllKVName    = "oauthTokeninfoAllKV"
-	AuthUnknown                = "authUnknown"
+	OAuthTokeninfoAnyScopeName           = "oauthTokeninfoAnyScope"
+	OAuthTokeninfoAllScopeName           = "oauthTokeninfoAllScope"
+	OAuthTokeninfoAnyKVName              = "oauthTokeninfoAnyKV"
+	OAuthTokeninfoAllKVName              = "oauthTokeninfoAllKV"
+	OAuthTokenintrospectionAnyClaimsName = "oauthTokenintrospectionAnyClaims"
+	OAuthTokenintrospectionAllClaimsName = "oauthTokenintrospectionAllClaims"
+	OAuthTokenintrospectionAnyKVName     = "oauthTokenintrospectionAnyKV"
+	OAuthTokenintrospectionAllKVName     = "oauthTokenintrospectionAllKV"
+	AuthUnknown                          = "authUnknown"
 
-	authHeaderName      = "Authorization"
-	authHeaderPrefix    = "Bearer "
-	accessTokenQueryKey = "access_token"
-	scopeKey            = "scope"
-	uidKey              = "uid"
-	tokeninfoCacheKey   = "tokeninfo"
+	authHeaderName               = "Authorization"
+	accessTokenQueryKey          = "access_token"
+	scopeKey                     = "scope"
+	uidKey                       = "uid"
+	tokeninfoCacheKey            = "tokeninfo"
+	tokenintrospectionCacheKey   = "tokenintrospection"
+	tokenIntrospectionConfigPath = "/.well-known/openid-configuration"
 )
 
 type (
@@ -56,6 +66,8 @@ type (
 		quit   chan struct{}
 	}
 
+	kv map[string]string
+
 	tokeninfoSpec struct {
 		typ              roleCheckType
 		tokeninfoURL     string
@@ -63,19 +75,67 @@ type (
 		authClient       *authClient
 	}
 
-	filter struct {
+	tokeninfoFilter struct {
 		typ        roleCheckType
 		authClient *authClient
 		scopes     []string
 		kv         kv
 	}
-	kv map[string]string
+
+	tokenIntrospectionSpec struct {
+		typ              roleCheckType
+		issuerURL        string
+		introspectionURL string
+		config           *openIDConfig
+		authClient       *authClient // TODO(sszuecs): might be different
+	}
+
+	openIDConfig struct {
+		Issuer                            string   `json:"issuer"`
+		AuthorizationEndpoint             string   `json:"authorization_endpoint"`
+		TokenEndpoint                     string   `json:"token_endpoint"`
+		UserinfoEndpoint                  string   `json:"userinfo_endpoint"`
+		RevocationEndpoint                string   `json:"revocation_endpoint"`
+		JwksURI                           string   `json:"jwks_uri"`
+		RegistrationEndpoint              string   `json:"registration_endpoint"`
+		IntrospectionEndpoint             string   `json:"introspection_endpoint"`
+		ResponseTypesSupported            []string `json:"response_types_supported"`
+		SubjectTypesSupported             []string `json:"subject_types_supported"`
+		IDTokenSigningAlgValuesSupported  []string `json:"id_token_signing_alg_values_supported"`
+		TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported"`
+		ClaimsSupported                   []string `json:"claims_supported"`
+		ScopesSupported                   []string `json:"scopes_supported"`
+		CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported"`
+	}
+
+	tokenIntrospectionInfo map[string]interface{}
+	// // dynamic keys based on issuer URL
+	// managedID       string
+	// businessPartner string
+	// realm           string
+	// tokenType       string
+
+	tokenintrospectFilter struct {
+		typ        roleCheckType
+		authClient *authClient // TODO(sszuecs): might be different
+		claims     []string
+		kv         kv
+	}
 )
 
 var (
-	errInvalidAuthorizationHeader = errors.New("invalid authorization header")
-	errInvalidToken               = errors.New("invalid token")
+	errInvalidAuthorizationHeader    = errors.New("invalid authorization header")
+	errInvalidToken                  = errors.New("invalid token")
+	errInvalidTokenintrospectionData = errors.New("invalid tokenintrospection data")
 )
+
+func (kv kv) String() string {
+	var res []string
+	for k, v := range kv {
+		res = append(res, k, v)
+	}
+	return strings.Join(res, ",")
+}
 
 func getToken(r *http.Request) (string, error) {
 	if tok := r.URL.Query().Get(accessTokenQueryKey); tok != "" {
@@ -138,7 +198,7 @@ func all(left, right []string) bool {
 }
 
 // intersect checks that one string in the left is also in the right
-func intersect(left []string, right []string) bool {
+func intersect(left, right []string) bool {
 	for _, l := range left {
 		for _, r := range right {
 			if l == r {
@@ -201,6 +261,37 @@ func jsonGet(url *url.URL, auth string, doc interface{}, client *http.Client) er
 	return d.Decode(doc)
 }
 
+// jsonPost requests url with access token in the body, if auth was given and writes into doc.
+func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo) error {
+	if auth == "" {
+		return fmt.Errorf("invalid without auth")
+	}
+
+	body := url.Values{}
+	body.Add("token", auth)
+
+	rsp, err := http.PostForm(u.String(), body)
+	if err != nil {
+		return err
+	}
+
+	defer rsp.Body.Close()
+	if rsp.StatusCode != 200 {
+		return errInvalidToken
+	}
+	buf := make([]byte, rsp.ContentLength)
+	n, _ := rsp.Body.Read(buf)
+	if int64(n) != rsp.ContentLength {
+		log.Infof("content-length missmatch body read %d != %d", rsp.ContentLength, n)
+	}
+	err = json.Unmarshal(buf, &doc)
+	if err != nil {
+		log.Infof("Failed to unmarshal data: %v", err)
+		return err
+	}
+	return err
+}
+
 func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
@@ -219,6 +310,71 @@ func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error)
 	var a map[string]interface{}
 	err := jsonGet(ac.url, token, &a, ac.client)
 	return a, err
+}
+
+func (ac *authClient) getTokenintrospect(token string) (tokenIntrospectionInfo, error) {
+	info := make(tokenIntrospectionInfo)
+	err := jsonPost(ac.url, token, &info)
+	if err != nil {
+		return nil, err
+	}
+	return info, err
+}
+
+func (tii tokenIntrospectionInfo) Active() bool {
+	return tii.getBoolValue("active")
+}
+
+func (tii tokenIntrospectionInfo) AuthTime() (time.Time, error) {
+	return tii.getUNIXTimeValue("auth_time")
+}
+
+func (tii tokenIntrospectionInfo) Azp() (string, error) {
+	return tii.getStringValue("azp")
+}
+
+func (tii tokenIntrospectionInfo) Exp() (time.Time, error) {
+	return tii.getUNIXTimeValue("exp")
+}
+
+func (tii tokenIntrospectionInfo) Iat() (time.Time, error) {
+	return tii.getUNIXTimeValue("iat")
+}
+
+func (tii tokenIntrospectionInfo) Issuer() (string, error) {
+	return tii.getStringValue("iss")
+}
+
+func (tii tokenIntrospectionInfo) Sub() (string, error) {
+	return tii.getStringValue("sub")
+}
+
+func (tii tokenIntrospectionInfo) getBoolValue(k string) bool {
+	if active, ok := tii[k].(bool); ok {
+		return active
+	}
+	return false
+}
+
+func (tii tokenIntrospectionInfo) getStringValue(k string) (string, error) {
+	s, ok := tii[k].(string)
+	if !ok {
+		return "", errInvalidTokenintrospectionData
+	}
+	return s, nil
+}
+
+func (tii tokenIntrospectionInfo) getUNIXTimeValue(k string) (time.Time, error) {
+	ts, ok := tii[k].(string)
+	if !ok {
+		return time.Time{}, errInvalidTokenintrospectionData
+	}
+	ti, err := strconv.Atoi(ts)
+	if err != nil {
+		return time.Time{}, errInvalidTokenintrospectionData
+	}
+
+	return time.Unix(int64(ti), 0), nil
 }
 
 // NewOAuthTokeninfoAllScope creates a new auth filter specification
@@ -268,13 +424,13 @@ func (s *tokeninfoSpec) Name() string {
 }
 
 // CreateFilter creates an auth filter. All arguments have to be
-// strings. Depending on the variant of the auth filter, the arguments
+// strings. Depending on the variant of the auth tokeninfoFilter, the arguments
 // represent scopes or key-value pairs to be checked in the tokeninfo
 // response. How scopes or key value pairs are checked is based on the
 // type. The shown example for checkOAuthTokeninfoAllScopes will grant
 // access only to tokens, that have scopes read-x and write-y:
 //
-//     s.CreateFilter("read-x", "write-y")
+//     s.CreateFilter(read-x", "write-y")
 //
 func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
@@ -290,7 +446,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	f := &filter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
+	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
 	switch f.typ {
 	// all scopes
 	case checkOAuthTokeninfoAllScopes:
@@ -314,17 +470,9 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	return f, nil
 }
 
-func (kv kv) String() string {
-	var res []string
-	for k, v := range kv {
-		res = append(res, k, v)
-	}
-	return strings.Join(res, ",")
-}
-
-// String prints nicely the filter configuration based on the
+// String prints nicely the tokeninfoFilter configuration based on the
 // configuration and check used.
-func (f *filter) String() string {
+func (f *tokeninfoFilter) String() string {
 	switch f.typ {
 	case checkOAuthTokeninfoAnyScopes:
 		return fmt.Sprintf("%s(%s)", OAuthTokeninfoAnyScopeName, strings.Join(f.scopes, ","))
@@ -338,7 +486,7 @@ func (f *filter) String() string {
 	return AuthUnknown
 }
 
-func (f *filter) validateAnyScopes(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAnyScopes(h map[string]interface{}) bool {
 	if len(f.scopes) == 0 {
 		return true
 	}
@@ -363,7 +511,7 @@ func (f *filter) validateAnyScopes(h map[string]interface{}) bool {
 	return intersect(f.scopes, a)
 }
 
-func (f *filter) validateAllScopes(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAllScopes(h map[string]interface{}) bool {
 	if len(f.scopes) == 0 {
 		return true
 	}
@@ -388,7 +536,7 @@ func (f *filter) validateAllScopes(h map[string]interface{}) bool {
 	return all(f.scopes, a)
 }
 
-func (f *filter) validateAnyKV(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAnyKV(h map[string]interface{}) bool {
 	for k, v := range f.kv {
 		if v2, ok := h[k].(string); ok {
 			if v == v2 {
@@ -399,7 +547,7 @@ func (f *filter) validateAnyKV(h map[string]interface{}) bool {
 	return false
 }
 
-func (f *filter) validateAllKV(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAllKV(h map[string]interface{}) bool {
 	if len(h) < len(f.kv) {
 		return false
 	}
@@ -413,7 +561,7 @@ func (f *filter) validateAllKV(h map[string]interface{}) bool {
 }
 
 // Request handles authentication based on the defined auth type.
-func (f *filter) Request(ctx filters.FilterContext) {
+func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	r := ctx.Request()
 
 	var authMap map[string]interface{}
@@ -455,7 +603,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	case checkOAuthTokeninfoAllKV:
 		allowed = f.validateAllKV(authMap)
 	default:
-		log.Errorf("Wrong filter type: %s", f)
+		log.Errorf("Wrong tokeninfoFilter type: %s", f)
 	}
 
 	if !allowed {
@@ -466,11 +614,147 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	ctx.StateBag()[tokeninfoCacheKey] = authMap
 }
 
-func (f *filter) Response(filters.FilterContext) {}
-
 // Close cleans-up the quit channel used for this spec
-func (f *filter) Close() {
+func (f *tokeninfoFilter) Close() {
 	if f.authClient.quit != nil {
 		close(f.authClient.quit)
 	}
 }
+
+func (f *tokeninfoFilter) Response(filters.FilterContext) {}
+
+// NewOAuthTokenintrospectionAnyKV creates a new auth filter specification
+// to validate authorization for requests. Current implementation uses
+// Bearer tokens to authorize requests and checks that the token
+// contains at least one key value pair provided.
+//
+// This is implementing RFC 7662 compliant implementation. It uses
+// POST requests to call introspection_endpoint to get the information
+// of the token validity.
+//
+// It uses /.well-known/openid-configuration path to the passed
+// oauthIssuerURL to find introspection_endpoint as defined in draft
+// https://tools.ietf.org/html/draft-ietf-oauth-discovery-06, if
+// oauthIntrospectionURL is a non empty string, it will set
+// IntrospectionEndpoint to the given oauthIntrospectionURL.
+func NewOAuthTokenintrospectionAnyKV(oauthIssuerURL, oauthIntrospectionURL string) filters.Spec {
+	cfg, err := getOpenIDConfig(oauthIssuerURL)
+	if err != nil {
+		return &tokenIntrospectionSpec{
+			typ:              checkOAuthTokenintrospectionAnyKV,
+			issuerURL:        oauthIssuerURL,
+			introspectionURL: oauthIntrospectionURL,
+		}
+	}
+
+	if oauthIntrospectionURL != "" {
+		cfg.IntrospectionEndpoint = oauthIntrospectionURL
+	}
+	return &tokenIntrospectionSpec{
+		typ:              checkOAuthTokenintrospectionAnyKV,
+		issuerURL:        oauthIssuerURL,
+		introspectionURL: cfg.IntrospectionEndpoint,
+	}
+}
+
+func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
+	u, err := url.Parse(issuerURL + "/.well-known/openid-configuration")
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg openIDConfig
+	err = jsonGet(u, "", &cfg)
+	return &cfg, err
+}
+
+func (s *tokenIntrospectionSpec) Name() string {
+	switch s.typ {
+	case checkOAuthTokenintrospectionAnyClaims:
+		return OAuthTokenintrospectionAnyClaimsName
+	case checkOAuthTokenintrospectionAllClaims:
+		return OAuthTokenintrospectionAllClaimsName
+	case checkOAuthTokenintrospectionAnyKV:
+		return OAuthTokenintrospectionAnyKVName
+	case checkOAuthTokenintrospectionAllKV:
+		return OAuthTokenintrospectionAllKVName
+	}
+	return AuthUnknown
+}
+
+func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	sargs, err := getStrings(args)
+	if err != nil {
+		return nil, err
+	}
+	if len(sargs) == 0 || s.introspectionURL == "" {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	ac, err := newAuthClient(s.introspectionURL)
+	if err != nil {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	f := &tokenintrospectFilter{
+		typ:        s.typ,
+		authClient: ac,
+		kv:         make(map[string]string),
+	}
+	switch f.typ {
+	// all claims
+	case checkOAuthTokenintrospectionAllClaims:
+		fallthrough
+	case checkOAuthTokenintrospectionAnyClaims:
+		f.claims = sargs[:]
+	// key value pairs
+	case checkOAuthTokenintrospectionAllKV:
+		fallthrough
+	case checkOAuthTokenintrospectionAnyKV:
+		for i := 0; i+1 < len(sargs); i += 2 {
+			f.kv[sargs[i]] = sargs[i+1]
+		}
+		if len(sargs) == 0 || len(sargs)%2 != 0 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	default:
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return f, nil
+}
+
+func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
+	r := ctx.Request()
+
+	var info tokenIntrospectionInfo
+	authMapTemp, ok := ctx.StateBag()[tokenintrospectionCacheKey]
+	if !ok {
+		token, err := getToken(r)
+		if err != nil {
+			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
+			return
+		}
+		if token == "" {
+			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
+			return
+		}
+
+		info, err = f.authClient.getTokenintrospect(token)
+		if err != nil {
+			reason := authServiceAccess
+			if err == errInvalidToken {
+				reason = invalidToken
+			}
+			unauthorized(ctx, "", reason, f.authClient.url.Hostname())
+			return
+		}
+	} else {
+		info = authMapTemp.(tokenIntrospectionInfo)
+	}
+	log.Infof("info: %#v", info)
+	log.Infof("info.Active(): %v", info.Active())
+	s, err := info.Issuer()
+	log.Infof("info.Issuer(): %s %v", s, err)
+}
+func (f *tokenintrospectFilter) Response(filters.FilterContext) {}
