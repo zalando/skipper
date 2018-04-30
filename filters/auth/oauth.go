@@ -40,6 +40,7 @@ const (
 	AuthUnknown                = "authUnknown"
 
 	authHeaderName      = "Authorization"
+	authHeaderPrefix    = "Bearer "
 	accessTokenQueryKey = "access_token"
 	scopeKey            = "scope"
 	uidKey              = "uid"
@@ -76,13 +77,12 @@ func getToken(r *http.Request) (string, error) {
 		return tok, nil
 	}
 
-	const b = "Bearer "
 	h := r.Header.Get(authHeaderName)
-	if !strings.HasPrefix(h, b) {
+	if !strings.HasPrefix(h, authHeaderPrefix) {
 		return "", errInvalidAuthorizationHeader
 	}
 
-	return h[len(b):], nil
+	return h[len(authHeaderPrefix):], nil
 }
 
 func unauthorized(ctx filters.FilterContext, uname string, reason rejectReason, hostname string) {
