@@ -367,7 +367,7 @@ daemonset:
             application: skipper
         spec:
           hostNetwork: true
-          serviceAccountName: aws-ingress-controller
+          serviceAccountName: skipper-ingress 
           containers:
           - name: skipper-ingress
             image: registry.opensource.zalan.do/pathfinder/skipper:latest
@@ -387,6 +387,9 @@ daemonset:
               - "-enable-ratelimits"
               - "-experimental-upgrade"
               - "-metrics-exp-decay-sample"
+	      - "-lb-healthcheck-interval=3s"
+	      - "-metrics-flavour=codahale,prometheus"
+	      - "-enable-connection-metrics"
             resources:
               limits:
                 cpu: 200m
