@@ -146,9 +146,9 @@ traffic.
               - "-enable-ratelimits"
               - "-experimental-upgrade"
               - "-metrics-exp-decay-sample"
-	      - "-lb-healthcheck-interval=3s"
-	      - "-metrics-flavour=codahale,prometheus"
-	      - "-enable-connection-metrics"
+              - "-lb-healthcheck-interval=3s"
+              - "-metrics-flavour=codahale,prometheus"
+              - "-enable-connection-metrics"
             resources:
               limits:
                 cpu: 200m
@@ -390,9 +390,9 @@ daemonset:
               - "-enable-ratelimits"
               - "-experimental-upgrade"
               - "-metrics-exp-decay-sample"
-	      - "-lb-healthcheck-interval=3s"
-	      - "-metrics-flavour=codahale,prometheus"
-	      - "-enable-connection-metrics"
+              - "-lb-healthcheck-interval=3s"
+              - "-metrics-flavour=codahale,prometheus"
+              - "-enable-connection-metrics"
             resources:
               limits:
                 cpu: 200m
