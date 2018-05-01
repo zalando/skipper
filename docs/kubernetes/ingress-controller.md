@@ -297,7 +297,7 @@ First create a new `ServiceAccount` which will be assigned to the Skipper pods:
     apiVersion: v1
     kind: ServiceAccount
     metadata:
-      name:  aws-ingress-controller
+      name: skipper-ingress 
       namespace: kube-system
 
 the required permissions are defined within a `ClusterRole` resource.
