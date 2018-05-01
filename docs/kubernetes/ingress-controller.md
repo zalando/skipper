@@ -309,7 +309,7 @@ ClusterRole:
     apiVersion: rbac.authorization.k8s.io/v1beta1
     kind: ClusterRole
     metadata:
-      name: aws-ingress-controller
+      name: skipper-ingress 
     rules:
     - apiGroups: ["extensions"]
       resources: ["ingresses", ]
@@ -332,14 +332,14 @@ ClusterRoleBinding:
     apiVersion: rbac.authorization.k8s.io/v1beta1
     kind: ClusterRoleBinding
     metadata:
-      name: aws-ingress-controller
+      name: skipper-ingress 
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: aws-ingress-controller
+      name: skipper-ingress 
     subjects:
     - kind: ServiceAccount
-      name: aws-ingress-controller
+      name: skipper-ingress 
       namespace: kube-system
 
 Last but not least the `ServiceAccount` has to be assigned to the Skipper daemonset.
