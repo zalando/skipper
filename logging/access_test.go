@@ -8,7 +8,7 @@ import (
 )
 
 const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com `
-const logJSONOutput = `{"duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
+const logJSONOutput = `{"audit":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
 
 func testRequest() *http.Request {
 	r, _ := http.NewRequest("GET", "http://frank@example.com", nil)
@@ -74,7 +74,7 @@ func TestUseXForwarded(t *testing.T) {
 func TestUseXForwardedJSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3")
-	testAccessLog(t, entry, `{"duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
+	testAccessLog(t, entry, `{"audit":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
 }
 
 func TestStripPortFwd4(t *testing.T) {
@@ -86,7 +86,7 @@ func TestStripPortFwd4(t *testing.T) {
 func TestStripPortFwd4JSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
-	testAccessLog(t, entry, `{"duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
+	testAccessLog(t, entry, `{"audit":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
 }
 
 func TestStripPortNoFwd4(t *testing.T) {
@@ -104,7 +104,7 @@ func TestMissingHostFallback(t *testing.T) {
 func TestMissingHostFallbackJSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.RemoteAddr = ""
-	testAccessLog(t, entry, `{"duration":42,"flow-id":"","host":"-","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
+	testAccessLog(t, entry, `{"audit":"","duration":42,"flow-id":"","host":"-","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
 }
 
 func TestPresentFlowId(t *testing.T) {
@@ -116,5 +116,5 @@ func TestPresentFlowId(t *testing.T) {
 func TestPresentFlowIdJSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Flow-Id", "sometestflowid")
-	testAccessLog(t, entry, `{"duration":42,"flow-id":"sometestflowid","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
+	testAccessLog(t, entry, `{"audit":"","duration":42,"flow-id":"sometestflowid","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
 }

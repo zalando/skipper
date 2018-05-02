@@ -18,8 +18,8 @@ const (
 	// format:
 	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
-	// We add the duration in ms, a requested host and a flow id and audit log
-	accessLogFormat = combinedLogFormat + " %d %s %s %s\n"
+	// We add the duration in ms, a requested host and a flow id and optional audit log
+	accessLogFormat = combinedLogFormat + " %d %s %s%s\n"
 )
 
 type accessLogFormatter struct {
@@ -123,6 +123,9 @@ func LogAccess(entry *AccessEntry) {
 		requestedHost = entry.Request.Host
 		flowId = entry.Request.Header.Get(flowidFilter.HeaderName)
 		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
+		if auditHeader != "" {
+			auditHeader = " " + auditHeader
+		}
 	}
 
 	accessLog.WithFields(logrus.Fields{
