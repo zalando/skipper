@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	logFilter "github.com/zalando/skipper/filters/log"
 )
 
 const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "" "" 42 example.com `
@@ -117,4 +119,10 @@ func TestPresentFlowIdJSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Flow-Id", "sometestflowid")
 	testAccessLog(t, entry, `{"audit":"","duration":42,"flow-id":"sometestflowid","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
+}
+
+func TestPresentAuditJSON(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set(logFilter.UnverifiedAuditHeader, "c4ddfe9d-a0d3-4afb-bf26-24b9588731a0")
+	testAccessLog(t, entry, `{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`, true)
 }
