@@ -34,9 +34,13 @@ type rejectReason string
 
 const (
 	missingBearerToken rejectReason = "missing-bearer-token"
+	missingToken       rejectReason = "missing-token"
 	authServiceAccess  rejectReason = "auth-service-access"
+	invalidSub         rejectReason = "invalid-sub-in-token"
+	inactiveToken      rejectReason = "inactive-token"
 	invalidToken       rejectReason = "invalid-token"
 	invalidScope       rejectReason = "invalid-scope"
+	invalidClaim       rejectReason = "invalid-claim"
 )
 
 const (
@@ -109,11 +113,6 @@ type (
 	}
 
 	tokenIntrospectionInfo map[string]interface{}
-	// // dynamic keys based on issuer URL
-	// managedID       string
-	// businessPartner string
-	// realm           string
-	// tokenType       string
 
 	tokenintrospectFilter struct {
 		typ        roleCheckType
@@ -124,6 +123,7 @@ type (
 )
 
 var (
+	errUnsupportedClaimSpecified     = errors.New("unsupported claim specified in filter")
 	errInvalidAuthorizationHeader    = errors.New("invalid authorization header")
 	errInvalidToken                  = errors.New("invalid token")
 	errInvalidTokenintrospectionData = errors.New("invalid tokenintrospection data")
@@ -321,6 +321,9 @@ func (ac *authClient) getTokenintrospect(token string) (tokenIntrospectionInfo, 
 	return info, err
 }
 
+// Active returns token introspection response, which is true if token
+// is not revoked and in the time frame of
+// validity. https://tools.ietf.org/html/rfc7662#section-2.2
 func (tii tokenIntrospectionInfo) Active() bool {
 	return tii.getBoolValue("active")
 }
@@ -638,10 +641,39 @@ func (f *tokeninfoFilter) Response(filters.FilterContext) {}
 // oauthIntrospectionURL is a non empty string, it will set
 // IntrospectionEndpoint to the given oauthIntrospectionURL.
 func NewOAuthTokenintrospectionAnyKV(oauthIssuerURL, oauthIntrospectionURL string) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyKV, oauthIssuerURL, oauthIntrospectionURL)
+}
+
+// NewOAuthTokenintrospectionAllKV creates a new auth filter specification
+// to validate authorization for requests. Current implementation uses
+// Bearer tokens to authorize requests and checks that the token
+// contains at least one key value pair provided.
+//
+// This is implementing RFC 7662 compliant implementation. It uses
+// POST requests to call introspection_endpoint to get the information
+// of the token validity.
+//
+// It uses /.well-known/openid-configuration path to the passed
+// oauthIssuerURL to find introspection_endpoint as defined in draft
+// https://tools.ietf.org/html/draft-ietf-oauth-discovery-06, if
+// oauthIntrospectionURL is a non empty string, it will set
+// IntrospectionEndpoint to the given oauthIntrospectionURL.
+func NewOAuthTokenintrospectionAllKV(oauthIssuerURL, oauthIntrospectionURL string) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllKV, oauthIssuerURL, oauthIntrospectionURL)
+}
+
+func NewOAuthTokenintrospectionAnyClaims(oauthIssuerURL, oauthIntrospectionURL string) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyClaims, oauthIssuerURL, oauthIntrospectionURL)
+}
+func NewOAuthTokenintrospectionAllClaims(oauthIssuerURL, oauthIntrospectionURL string) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllClaims, oauthIssuerURL, oauthIntrospectionURL)
+}
+
+func newOAuthTokenintrospectionFilter(typ roleCheckType, oauthIssuerURL, oauthIntrospectionURL string) filters.Spec {
 	cfg, err := getOpenIDConfig(oauthIssuerURL)
 	if err != nil {
 		return &tokenIntrospectionSpec{
-			typ:              checkOAuthTokenintrospectionAnyKV,
+			typ:              typ,
 			issuerURL:        oauthIssuerURL,
 			introspectionURL: oauthIntrospectionURL,
 		}
@@ -651,9 +683,10 @@ func NewOAuthTokenintrospectionAnyKV(oauthIssuerURL, oauthIntrospectionURL strin
 		cfg.IntrospectionEndpoint = oauthIntrospectionURL
 	}
 	return &tokenIntrospectionSpec{
-		typ:              checkOAuthTokenintrospectionAnyKV,
+		typ:              typ,
 		issuerURL:        oauthIssuerURL,
 		introspectionURL: cfg.IntrospectionEndpoint,
+		config:           cfg,
 	}
 }
 
@@ -702,11 +735,15 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 		kv:         make(map[string]string),
 	}
 	switch f.typ {
-	// all claims
+	// similar to key value pairs but additionally checks claims to be supported before creating the filter
 	case checkOAuthTokenintrospectionAllClaims:
 		fallthrough
 	case checkOAuthTokenintrospectionAnyClaims:
 		f.claims = sargs[:]
+		if s.config != nil && !all(f.claims, s.config.ClaimsSupported) {
+			return nil, errUnsupportedClaimSpecified
+		}
+		fallthrough
 	// key value pairs
 	case checkOAuthTokenintrospectionAllKV:
 		fallthrough
@@ -724,19 +761,55 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	return f, nil
 }
 
+// String prints nicely the tokenintrospectFilter configuration based on the
+// configuration and check used.
+func (f *tokenintrospectFilter) String() string {
+	switch f.typ {
+	case checkOAuthTokenintrospectionAnyClaims:
+		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAnyClaimsName, f.kv)
+	case checkOAuthTokenintrospectionAllClaims:
+		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAllClaimsName, f.kv)
+	case checkOAuthTokenintrospectionAnyKV:
+		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAnyKVName, f.kv)
+	case checkOAuthTokenintrospectionAllKV:
+		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAllKVName, f.kv)
+	}
+	return AuthUnknown
+}
+
+func (f *tokenintrospectFilter) validateAllKV(info tokenIntrospectionInfo) bool {
+	for k, v := range f.kv {
+		v2, ok := info[k].(string)
+		if !ok || v != v2 {
+			return false
+		}
+	}
+	return true
+}
+
+func (f *tokenintrospectFilter) validateAnyKV(info tokenIntrospectionInfo) bool {
+	for k, v := range f.kv {
+		v2, ok := info[k].(string)
+		if ok && v == v2 {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 	r := ctx.Request()
 
 	var info tokenIntrospectionInfo
-	authMapTemp, ok := ctx.StateBag()[tokenintrospectionCacheKey]
+	infoTemp, ok := ctx.StateBag()[tokenintrospectionCacheKey]
 	if !ok {
 		token, err := getToken(r)
 		if err != nil {
-			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
+			unauthorized(ctx, "", missingToken, f.authClient.url.Hostname())
 			return
 		}
 		if token == "" {
-			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
+			unauthorized(ctx, "", missingToken, f.authClient.url.Hostname())
 			return
 		}
 
@@ -750,11 +823,39 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 	} else {
-		info = authMapTemp.(tokenIntrospectionInfo)
+		info = infoTemp.(tokenIntrospectionInfo)
 	}
-	log.Infof("info: %#v", info)
-	log.Infof("info.Active(): %v", info.Active())
-	s, err := info.Issuer()
-	log.Infof("info.Issuer(): %s %v", s, err)
+
+	log.Debugf("info: %#v", info)
+
+	sub, err := info.Sub()
+	if err != nil {
+		unauthorized(ctx, sub, invalidSub, f.authClient.url.Hostname())
+	}
+
+	if !info.Active() {
+		unauthorized(ctx, sub, inactiveToken, f.authClient.url.Hostname())
+	}
+
+	var allowed bool
+	switch f.typ {
+	case checkOAuthTokenintrospectionAnyClaims:
+		fallthrough
+	case checkOAuthTokenintrospectionAnyKV:
+		allowed = f.validateAnyKV(info)
+	case checkOAuthTokenintrospectionAllClaims:
+		fallthrough
+	case checkOAuthTokenintrospectionAllKV:
+		allowed = f.validateAllKV(info)
+	default:
+		log.Errorf("Wrong tokenintrospectionFilter type: %s", f)
+	}
+
+	if !allowed {
+		unauthorized(ctx, sub, invalidClaim, f.authClient.url.Hostname())
+	} else {
+		authorized(ctx, sub)
+	}
+	ctx.StateBag()[tokeninfoCacheKey] = info
 }
 func (f *tokenintrospectFilter) Response(filters.FilterContext) {}

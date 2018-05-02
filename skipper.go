@@ -681,7 +681,13 @@ func Run(o Options) error {
 		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
 	}
 	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
-	o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokenintrospectionAnyKV(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL))
+
+	if o.OAuthIssuerURL != "" {
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokenintrospectionAllClaims(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokenintrospectionAnyKV(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokenintrospectionAllKV(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL))
+	}
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
