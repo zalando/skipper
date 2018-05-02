@@ -70,10 +70,13 @@ func remoteAddr(r *http.Request) string {
 func remoteHost(r *http.Request) string {
 	a := remoteAddr(r)
 	h := stripPort(a)
+	return omitWhitespace(h)
+}
+
+func omitWhitespace(h string) string {
 	if h != "" {
 		return h
 	}
-
 	return "-"
 }
 
@@ -121,8 +124,8 @@ func LogAccess(entry *AccessEntry) {
 		referer = entry.Request.Referer()
 		userAgent = entry.Request.UserAgent()
 		requestedHost = entry.Request.Host
-		flowId = entry.Request.Header.Get(flowidFilter.HeaderName)
-		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
+		flowId = omitWhitespace(entry.Request.Header.Get(flowidFilter.HeaderName))
+		auditHeader = omitWhitespace(entry.Request.Header.Get(logFilter.UnverifiedAuditHeader))
 	}
 
 	accessLog.WithFields(logrus.Fields{
