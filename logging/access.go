@@ -69,8 +69,7 @@ func remoteAddr(r *http.Request) string {
 
 func remoteHost(r *http.Request) string {
 	a := remoteAddr(r)
-	h := stripPort(a)
-	return omitWhitespace(h)
+	return stripPort(a)
 }
 
 func omitWhitespace(h string) string {
@@ -88,7 +87,11 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 	values := make([]interface{}, len(keys))
 	for i, key := range keys {
-		values[i] = e.Data[key]
+		if s, ok := e.Data[key].(string); ok {
+			values[i] = omitWhitespace(s)
+		} else {
+			values[i] = e.Data[key]
+		}
 	}
 
 	return []byte(fmt.Sprintf(f.format, values...)), nil
@@ -124,8 +127,8 @@ func LogAccess(entry *AccessEntry) {
 		referer = entry.Request.Referer()
 		userAgent = entry.Request.UserAgent()
 		requestedHost = entry.Request.Host
-		flowId = omitWhitespace(entry.Request.Header.Get(flowidFilter.HeaderName))
-		auditHeader = omitWhitespace(entry.Request.Header.Get(logFilter.UnverifiedAuditHeader))
+		flowId = entry.Request.Header.Get(flowidFilter.HeaderName)
+		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
 	}
 
 	accessLog.WithFields(logrus.Fields{
