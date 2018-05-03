@@ -263,10 +263,6 @@ func jsonGet(url *url.URL, auth string, doc interface{}, client *http.Client) er
 
 // jsonPost requests url with access token in the body, if auth was given and writes into doc.
 func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo) error {
-	if auth == "" {
-		return fmt.Errorf("invalid without auth")
-	}
-
 	body := url.Values{}
 	body.Add("token", auth)
 
@@ -691,7 +687,7 @@ func newOAuthTokenintrospectionFilter(typ roleCheckType, oauthIssuerURL, oauthIn
 }
 
 func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
-	u, err := url.Parse(issuerURL + "/.well-known/openid-configuration")
+	u, err := url.Parse(issuerURL + tokenIntrospectionConfigPath)
 	if err != nil {
 		return nil, err
 	}
