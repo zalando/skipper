@@ -37,11 +37,11 @@ const (
 	authHeaderName        = "Authorization"
 	authHeaderPrefix      = "Bearer "
 	accessTokenQueryKey   = "access_token"
-	defaultSub            = "clean-sub-not-matched"
+	defaultSub            = "<invalid-sub>"
 )
 
 var (
-	re = regexp.MustCompile("^[a-zA-z0-9_-]*$")
+	re = regexp.MustCompile("^[a-zA-z0-9_/:?=&%@.#-]*$")
 )
 
 type auditLog struct {
