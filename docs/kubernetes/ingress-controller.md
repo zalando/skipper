@@ -300,7 +300,7 @@ First create a new `ServiceAccount` which will be assigned to the Skipper pods:
     apiVersion: v1
     kind: ServiceAccount
     metadata:
-      name: skipper-ingress 
+      name: skipper-ingress
       namespace: kube-system
 
 the required permissions are defined within a `ClusterRole` resource.
@@ -312,20 +312,16 @@ ClusterRole:
     apiVersion: rbac.authorization.k8s.io/v1beta1
     kind: ClusterRole
     metadata:
-      name: skipper-ingress 
+      name: skipper-ingress
     rules:
     - apiGroups: ["extensions"]
       resources: ["ingresses", ]
       verbs: ["get", "list"]
-    - apiGroups: ["extensions"]
-      resources: ["ingresses/status", ]
-      verbs: ["get", "list", "patch"]
     - apiGroups: [""]
       resources: ["namespaces", "services", "endpoints"]
       verbs: ["get", "list"]
 
 This `ClusterRole` defines access to `get` and `list` all created ingresses, namespaces, services and endpoints.
-Furthermore it enables Skipper to `patch` the state of an ingress (like updating the endpoint of an ingress).
 
 To assign the defined `ClusterRole` to the previously created `ServiceAccount`
 a `ClusterRoleBinding` has to be created:
@@ -335,14 +331,14 @@ ClusterRoleBinding:
     apiVersion: rbac.authorization.k8s.io/v1beta1
     kind: ClusterRoleBinding
     metadata:
-      name: skipper-ingress 
+      name: skipper-ingress
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: skipper-ingress 
+      name: skipper-ingress
     subjects:
     - kind: ServiceAccount
-      name: skipper-ingress 
+      name: skipper-ingress
       namespace: kube-system
 
 Last but not least the `ServiceAccount` has to be assigned to the Skipper daemonset.
@@ -370,7 +366,7 @@ daemonset:
             application: skipper
         spec:
           hostNetwork: true
-          serviceAccountName: skipper-ingress 
+          serviceAccountName: skipper-ingress
           containers:
           - name: skipper-ingress
             image: registry.opensource.zalan.do/pathfinder/skipper:latest
