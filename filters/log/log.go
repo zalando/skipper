@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -36,6 +37,11 @@ const (
 	authHeaderName        = "Authorization"
 	authHeaderPrefix      = "Bearer "
 	accessTokenQueryKey   = "access_token"
+	defaultSub            = "<invalid-sub>"
+)
+
+var (
+	re = regexp.MustCompile("^[a-zA-z0-9_/:?=&%@.#-]*$")
 )
 
 type auditLog struct {
@@ -208,8 +214,15 @@ func (ual *unverifiedAuditLog) Request(ctx filters.FilterContext) {
 		if err != nil {
 			return
 		}
-		req.Header.Add(UnverifiedAuditHeader, j.Sub)
+		req.Header.Add(UnverifiedAuditHeader, cleanSub(j.Sub))
 	}
 }
 
 func (*unverifiedAuditLog) Response(filters.FilterContext) {}
+
+func cleanSub(s string) string {
+	if re.MatchString(s) {
+		return s
+	}
+	return defaultSub
+}
