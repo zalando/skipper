@@ -146,6 +146,9 @@ traffic.
               - "-enable-ratelimits"
               - "-experimental-upgrade"
               - "-metrics-exp-decay-sample"
+              - "-lb-healthcheck-interval=3s"
+              - "-metrics-flavour=codahale,prometheus"
+              - "-enable-connection-metrics"
             resources:
               limits:
                 cpu: 200m
@@ -191,7 +194,7 @@ We deploy a service type ClusterIP that we will select from ingress:
     apiVersion: v1
     kind: Service
     metadata:
-      name: sszuecs-demo
+      name: skipper-demo
       labels:
         application: skipper-demo
     spec:
@@ -202,7 +205,7 @@ We deploy a service type ClusterIP that we will select from ingress:
           targetPort: 9090
           name: external
       selector:
-        application: sszuecs-demo
+        application: skipper-demo
 
 To deploy both, you have to run:
 
@@ -281,3 +284,118 @@ Example ingress:
           - backend:
               serviceName: app-svc
               servicePort: 80
+
+## Install Skipper with enabled RBAC
+
+If Role-Based Access Control ("RBAC") is enabled you have to create some additional
+resources to enable Skipper to query the Kubernetes API.
+
+This guide describes all necessary resources to get Skipper up and running in a
+Kubernetes cluster with RBAC enabled but it's highly recommended to read the
+[RBAC docs](https://kubernetes.io/docs/admin/authorization/rbac/) to get a better
+understanding which permissions are delegated to Skipper within your Kubernetes cluster.
+
+First create a new `ServiceAccount` which will be assigned to the Skipper pods:
+
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: skipper-ingress
+      namespace: kube-system
+
+the required permissions are defined within a `ClusterRole` resource.
+
+_Note: It's important to use a `ClusterRole` instead of normal `Role` because otherwise Skipper could only access resources in the namespace the `Role` was created!_
+
+ClusterRole:
+
+    apiVersion: rbac.authorization.k8s.io/v1beta1
+    kind: ClusterRole
+    metadata:
+      name: skipper-ingress
+    rules:
+    - apiGroups: ["extensions"]
+      resources: ["ingresses", ]
+      verbs: ["get", "list"]
+    - apiGroups: [""]
+      resources: ["namespaces", "services", "endpoints"]
+      verbs: ["get"]
+
+This `ClusterRole` defines access to `get` and `list` all created ingresses, namespaces, services and endpoints.
+
+To assign the defined `ClusterRole` to the previously created `ServiceAccount`
+a `ClusterRoleBinding` has to be created:
+
+ClusterRoleBinding:
+
+    apiVersion: rbac.authorization.k8s.io/v1beta1
+    kind: ClusterRoleBinding
+    metadata:
+      name: skipper-ingress
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: skipper-ingress
+    subjects:
+    - kind: ServiceAccount
+      name: skipper-ingress
+      namespace: kube-system
+
+Last but not least the `ServiceAccount` has to be assigned to the Skipper daemonset.
+
+daemonset:
+
+    apiVersion: extensions/v1beta1
+    kind: DaemonSet
+    metadata:
+      name: skipper-ingress
+      namespace: kube-system
+      labels:
+        component: ingress
+    spec:
+      selector:
+        matchLabels:
+          component: ingress
+      updateStrategy:
+        type: RollingUpdate
+      template:
+        metadata:
+          name: skipper-ingress
+          labels:
+            component: ingress
+            application: skipper
+        spec:
+          hostNetwork: true
+          serviceAccountName: skipper-ingress
+          containers:
+          - name: skipper-ingress
+            image: registry.opensource.zalan.do/pathfinder/skipper:latest
+            ports:
+            - name: ingress-port
+              containerPort: 9999
+              hostPort: 9999
+            - name: metrics-port
+              containerPort: 9911
+            args:
+              - "skipper"
+              - "-kubernetes"
+              - "-kubernetes-in-cluster"
+              - "-address=:9999"
+              - "-proxy-preserve-host"
+              - "-serve-host-metrics"
+              - "-enable-ratelimits"
+              - "-experimental-upgrade"
+              - "-metrics-exp-decay-sample"
+              - "-lb-healthcheck-interval=3s"
+              - "-metrics-flavour=codahale,prometheus"
+              - "-enable-connection-metrics"
+            resources:
+              limits:
+                cpu: 200m
+                memory: 200Mi
+            readinessProbe:
+              httpGet:
+                path: /kube-system/healthz
+                port: 9999
+              initialDelaySeconds: 5
+              timeoutSeconds: 5
