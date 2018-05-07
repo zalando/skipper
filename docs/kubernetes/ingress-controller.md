@@ -319,7 +319,7 @@ ClusterRole:
       verbs: ["get", "list"]
     - apiGroups: [""]
       resources: ["namespaces", "services", "endpoints"]
-      verbs: ["get", "list"]
+      verbs: ["get"]
 
 This `ClusterRole` defines access to `get` and `list` all created ingresses, namespaces, services and endpoints.
 
