@@ -194,7 +194,7 @@ We deploy a service type ClusterIP that we will select from ingress:
     apiVersion: v1
     kind: Service
     metadata:
-      name: sszuecs-demo
+      name: skipper-demo
       labels:
         application: skipper-demo
     spec:
@@ -205,7 +205,7 @@ We deploy a service type ClusterIP that we will select from ingress:
           targetPort: 9090
           name: external
       selector:
-        application: sszuecs-demo
+        application: skipper-demo
 
 To deploy both, you have to run:
 
