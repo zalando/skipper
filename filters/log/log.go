@@ -204,7 +204,7 @@ func (ual *unverifiedAuditLog) Request(ctx filters.FilterContext) {
 		return r == []rune(".")[0]
 	})
 	if len(fields) == 3 {
-		sDec, err := base64.URLEncoding.DecodeString(fields[1])
+		sDec, err := base64.RawURLEncoding.DecodeString(fields[1])
 		if err != nil {
 			return
 		}
