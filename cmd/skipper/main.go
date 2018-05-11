@@ -65,6 +65,7 @@ const (
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
 	innkeeperPostRouteFiltersUsage = "filters to be appended to each route loaded from Innkeeper"
+	ignoreTrailingSlashUsage       = "flag indicating to ignore trailing slashes in paths when routing"
 	oauthURLUsage                  = "OAuth2 URL for Innkeeper authentication"
 	oauthCredentialsDirUsage       = "directory where oauth credentials are stored: client.json and user.json"
 	oauthScopeUsage                = "the whitespace separated list of oauth scopes"
@@ -151,6 +152,7 @@ var (
 	sourcePollTimeout               int64
 	routesFile                      string
 	inlineRoutes                    string
+	ignoreTrailingSlash             bool
 	oauthURL                        string
 	oauthScope                      string
 	oauthCredentialsDir             string
@@ -238,6 +240,7 @@ func init() {
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.StringVar(&inlineRoutes, "inline-routes", "", inlineRoutesUsage)
+	flag.BoolVar(&ignoreTrailingSlash, "ignore-trailing-slash", false, ignoreTrailingSlashUsage)
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
 	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
 	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
@@ -370,7 +373,7 @@ func main() {
 		InlineRoutes:                        inlineRoutes,
 		IdleConnectionsPerHost:              idleConnsPerHost,
 		CloseIdleConnsPeriod:                time.Duration(clsic) * time.Second,
-		IgnoreTrailingSlash:                 false,
+		IgnoreTrailingSlash:                 ignoreTrailingSlash,
 		OAuthUrl:                            oauthURL,
 		OAuthScope:                          oauthScope,
 		OAuthCredentialsDir:                 oauthCredentialsDir,
