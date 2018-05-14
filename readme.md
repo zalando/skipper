@@ -197,7 +197,7 @@ To see the request that is made by the tee() filter you can use nc:
     [terminal1]% nc -l 12345
     [terminal2]% curl -v --cookie "yandex=true" localhost:9090/
 
-#### Kubernetes ingress controller
+#### 3 Minutes Skipper in Kubernetes introduction
 
 Please check out our [Kubernetes ingress controller docs](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/).
 
