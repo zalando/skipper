@@ -684,11 +684,16 @@ func Run(o Options) error {
 	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
 
 	if o.OAuthIssuerURL != "" {
-		o.CustomFilters = append(o.CustomFilters,
-			auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL),
-			auth.NewOAuthTokenintrospectionAllClaims(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL),
-			auth.NewOAuthTokenintrospectionAnyKV(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL),
-			auth.NewOAuthTokenintrospectionAllKV(o.OAuthIssuerURL, o.OAuthTokenintrospectionURL))
+		cfg, err := auth.GetOpenIDConfig(o.OAuthIssuerURL)
+		if err != nil {
+			log.Warningf("failed to get OpenIDC config: %v", err)
+		} else {
+			o.CustomFilters = append(o.CustomFilters,
+				auth.NewOAuthTokenintrospectionAnyClaims(cfg),
+				auth.NewOAuthTokenintrospectionAllClaims(cfg),
+				auth.NewOAuthTokenintrospectionAnyKV(cfg),
+				auth.NewOAuthTokenintrospectionAllKV(cfg))
+		}
 	}
 
 	// create a filter registry with the available filter specs registered,
