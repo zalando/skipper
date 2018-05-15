@@ -18,7 +18,7 @@ features, that you can use to enhance your environment. For example
 ratelimits, circuitbreakers, blue-green deployments, shadow traffic
 and [more](ingress-usage.md).
 
-## What is an Ingress-Controller
+## What is an Ingress-Controller?
 
 Ingress-controllers are serving http requests into a kubernetes
 cluster. Most of the time traffic will pass ingress got to a
@@ -36,13 +36,34 @@ You would point your DNS entries to the
 loadbalancer in front of skipper, for example automated using
 [external-dns](https://github.com/kubernetes-incubator/external-dns).
 
+## Why skipper uses endpoints and not services?
+
+Skipper does not use [Kubernetes
+Services](http://kubernetes.io/docs/user-guide/services) to route
+traffic to the pods. Instead it uses the Endpoints API to bypass
+kube-proxy created iptables to remove overhead like conntrack entries
+for iptables DNAT. Skipper can also reuse connections to PODs, such
+that you have no overhead in establishing connections all the time. To
+prevent errors on node failures, skipper also does automatically
+retries to another endpoint in case it gets a connection refused or
+TLS handshake error to the endpoint.  Other reasons are future support
+of features like session affinity, different loadbalancer
+algorithms or distributed loadbalancing also known as service mesh.
+
 ## AWS deployment
 
 In AWS, this could be an ALB with DNS pointing to the ALB. The ALB can
 then point to an ingress-controller running on an EC2 node and uses
 Kubernetes `hostnetwork` port specification in the POD spec.
 
-![ingress-traffic-flow](../img/ingress-traffic-flow-aws.svg)
+A logical overview of the traffic flow in AWS is shown in this picture:
+
+![logical ingress-traffic-flow](../img/ingress-traffic-flow-aws.svg)
+
+We described that skipper bypasses Kubernetes Service and use directly
+endpoints for [good reasons](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#why-skipper-uses-endpoints-and-not-services),
+therefore the real traffic flow is shown in the next picture.
+![technical ingress-traffic-flow](../img/ingress-traffic-flow-aws-technical.svg)
 
 ## Baremetal deployment
 
@@ -100,7 +121,7 @@ traffic.
       namespace: kube-system
       labels:
         application: skipper-ingress
-        version: v0.9.115
+        version: v0.10.5
         component: ingress
     spec:
       selector:
@@ -113,7 +134,7 @@ traffic.
           name: skipper-ingress
           labels:
             application: skipper-ingress
-            version: v0.9.115
+            version: v0.10.5
             component: ingress
           annotations:
             scheduler.alpha.kubernetes.io/critical-pod: ''
@@ -131,7 +152,7 @@ traffic.
           hostNetwork: true
           containers:
           - name: skipper-ingress
-            image: registry.opensource.zalan.do/pathfinder/skipper:v0.9.115
+            image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.5
             ports:
             - name: ingress-port
               containerPort: 9999
@@ -150,9 +171,6 @@ traffic.
               - "-metrics-flavour=codahale,prometheus"
               - "-enable-connection-metrics"
             resources:
-              limits:
-                cpu: 200m
-                memory: 200Mi
               requests:
                 cpu: 25m
                 memory: 25Mi
@@ -163,6 +181,9 @@ traffic.
               initialDelaySeconds: 5
               timeoutSeconds: 5
 
+Please check, that you are using the [latest
+release](https://github.com/zalando/skipper/releases/latest), we do
+not maintain the **latest** tag.
 
 We now deploy a simple demo application serving html:
 
@@ -180,7 +201,7 @@ We now deploy a simple demo application serving html:
         spec:
           containers:
           - name: skipper-demo
-            image: registry.opensource.zalan.do/pathfinder/skipper:v0.9.117
+            image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.5
             args:
               - "skipper"
               - "-inline-routes"
@@ -369,7 +390,7 @@ daemonset:
           serviceAccountName: skipper-ingress
           containers:
           - name: skipper-ingress
-            image: registry.opensource.zalan.do/pathfinder/skipper:latest
+            image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.5
             ports:
             - name: ingress-port
               containerPort: 9999
@@ -390,7 +411,7 @@ daemonset:
               - "-metrics-flavour=codahale,prometheus"
               - "-enable-connection-metrics"
             resources:
-              limits:
+              requests:
                 cpu: 200m
                 memory: 200Mi
             readinessProbe:
@@ -399,3 +420,7 @@ daemonset:
                 port: 9999
               initialDelaySeconds: 5
               timeoutSeconds: 5
+
+Please check, that you are using the [latest
+release](https://github.com/zalando/skipper/releases/latest), we do
+not maintain the **latest** tag.
