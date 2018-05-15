@@ -211,13 +211,22 @@ func buildHTTPClient(certFilePath string, inCluster bool) (*http.Client, error) 
 		return nil, errInvalidCertificate
 	}
 
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    certPool,
-	}
-
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		ExpectContinueTimeout: 10 * time.Second,
+		MaxIdleConns:          5,
+		MaxIdleConnsPerHost:   5,
+		IdleConnTimeout:       3 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    certPool,
+		},
 	}
 
 	return &http.Client{
