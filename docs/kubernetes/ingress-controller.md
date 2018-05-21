@@ -424,3 +424,48 @@ daemonset:
 Please check, that you are using the [latest
 release](https://github.com/zalando/skipper/releases/latest), we do
 not maintain the **latest** tag.
+
+## Helm-based deployment
+
+[Helm](https://helm.sh/) calls itself the package manager for Kubernetes and therefore take carex of the deployment of whole applications including resources like services, configurations and so on.
+
+Skipper is also available as comunnity contributed Helm chart in the public [quay.io](https://quay.io/repository/) registry.
+The latest packaged release can be found [here](https://quay.io/application/baez/skipper).
+The source code is available at [GitHub](https://github.com/baez90/skipper-helm).
+
+The chart includes resource definitions for the following use cases:
+
+- RBAC
+- CoreOS [Prometheus-Operator](https://github.com/coreos/prometheus-operator)
+
+As this chart is not maintained by the Skipper developers and is still under development only the basic deployment workflow is covered here.
+Check the GitHub repository for all details.
+
+To be able to deploy the chart you will need the following components:
+
+- `helm` CLI (Install guide [here](https://github.com/kubernetes/helm))
+- Helm registry plugin (available [here](https://github.com/app-registry/appr-helm-plugin))
+
+If your environment is setup correctly you should be able to run `helm version --client` and `helm registry version quay.io` and get some information about your tooling without any error.
+
+It is possible to deploy the chart without any further configuration like this:
+
+    helm registry upgrade quay.io/baez/skipper -- \
+        --install \
+        --wait \
+        "<your release name e.g. skipper>"
+
+The `--wait` switch can be omitted as it only takes care that Helm is waiting until the chart is completely deployt (meaning all resources are created).
+
+To update the deployment to a newer version the same command can be used.
+
+If you have RBAC enabled in your Kubernetes instance you don't have to create all the previously described resources on your own but you can let Helm create them by simply adding one more switch:
+
+    helm registry upgrade quay.io/baez/skipper -- \
+        --install \
+        --wait \
+        --set rbac.create=true \
+        "<your release name e.g. skipper>"
+
+There are some more options available for custimzation of the chart.
+Check the repository if you need more configuration possibilities.
