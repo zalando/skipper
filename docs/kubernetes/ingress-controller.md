@@ -427,9 +427,9 @@ not maintain the **latest** tag.
 
 ## Helm-based deployment
 
-[Helm](https://helm.sh/) calls itself the package manager for Kubernetes and therefore take carex of the deployment of whole applications including resources like services, configurations and so on.
+[Helm](https://helm.sh/) calls itself the package manager for Kubernetes and therefore take cares of the deployment of whole applications including resources like services, configurations and so on.
 
-Skipper is also available as comunnity contributed Helm chart in the public [quay.io](https://quay.io/repository/) registry.
+Skipper is also available as community contributed Helm chart in the public [quay.io](https://quay.io/repository/) registry.
 The latest packaged release can be found [here](https://quay.io/application/baez/skipper).
 The source code is available at [GitHub](https://github.com/baez90/skipper-helm).
 
