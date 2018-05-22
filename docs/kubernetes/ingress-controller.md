@@ -455,7 +455,7 @@ It is possible to deploy the chart without any further configuration like this:
         --wait \
         "<your release name e.g. skipper>"
 
-The `--wait` switch can be omitted as it only takes care that Helm is waiting until the chart is completely deployt (meaning all resources are created).
+The `--wait` switch can be omitted as it only takes care that Helm is waiting until the chart is completely deployed (meaning all resources are created).
 
 To update the deployment to a newer version the same command can be used.
 
@@ -467,5 +467,5 @@ If you have RBAC enabled in your Kubernetes instance you don't have to create al
         --set rbac.create=true \
         "<your release name e.g. skipper>"
 
-There are some more options available for custimzation of the chart.
+There are some more options available for customization of the chart.
 Check the repository if you need more configuration possibilities.
