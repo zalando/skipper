@@ -649,12 +649,11 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	} else {
 		proxySpan = p.openTracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
 	}
-	ext.SpanKind.Set(proxySpan, ext.SpanKindRPCClientEnum)
+	ext.SpanKindRPCClient.Set(proxySpan)
+	proxySpan.SetTag("skipper.route", ctx.route.String())
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
-	ext.HTTPUrl.Set(proxySpan, u.String())
-	ext.HTTPMethod.Set(proxySpan, req.Method)
-	proxySpan.SetTag("skipper.route", ctx.route.String())
+	p.setCommonSpanInfo(u, req, proxySpan)
 	defer proxySpan.Finish()
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
@@ -665,7 +664,10 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
 		ext.Error.Set(proxySpan, true)
-		proxySpan.LogKV(`error`, err.Error())
+		proxySpan.LogKV(
+			"event", "error",
+			"message", err.Error())
+
 		if perr, ok := err.(*proxyError); ok {
 			p.log.Errorf("Failed to do backend roundtrip to %s: %v", ctx.route.Backend, perr)
 			//p.lb.AddHealthcheck(ctx.route.Backend)
@@ -968,8 +970,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		span = p.openTracer.StartSpan("ingress")
 	}
-	ext.HTTPUrl.Set(span, r.URL.Path)
-	ext.HTTPMethod.Set(span, r.Method)
+	ext.SpanKindRPCServer.Set(span)
+	p.setCommonSpanInfo(r.URL, r, span)
 	defer span.Finish()
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
@@ -1008,4 +1010,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) Close() error {
 	close(p.quit)
 	return nil
+}
+
+func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
+	ext.Component.Set(s, "skipper")
+	ext.HTTPUrl.Set(s, u.String())
+	ext.HTTPMethod.Set(s, r.Method)
+	s.SetTag("http.remote_addr", r.RemoteAddr)
+	s.SetTag("http.path", u.Path)
+	s.SetTag("http.host", u.Host)
 }
