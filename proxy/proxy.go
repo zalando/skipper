@@ -649,12 +649,12 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	} else {
 		proxySpan = p.openTracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
 	}
+	defer proxySpan.Finish()
 	ext.SpanKindRPCClient.Set(proxySpan)
 	proxySpan.SetTag("skipper.route", ctx.route.String())
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
 	p.setCommonSpanInfo(u, req, proxySpan)
-	defer proxySpan.Finish()
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
 	p.openTracer.Inject(proxySpan.Context(), ot.HTTPHeaders, carrier)
@@ -970,9 +970,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		span = p.openTracer.StartSpan("ingress")
 	}
+	defer span.Finish()
 	ext.SpanKindRPCServer.Set(span)
 	p.setCommonSpanInfo(r.URL, r, span)
-	defer span.Finish()
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
 	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
@@ -1018,5 +1018,5 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 	ext.HTTPMethod.Set(s, r.Method)
 	s.SetTag("http.remote_addr", r.RemoteAddr)
 	s.SetTag("http.path", u.Path)
-	s.SetTag("http.host", u.Host)
+	s.SetTag("http.host", r.Host)
 }
