@@ -153,7 +153,7 @@ func TestConnectionRefused(t *testing.T) {
 		if msg, ok := requestEndpoint("/c", "group-C/BE-1"); !ok {
 			t.Errorf("failed to receive the right response for '/c': %s", msg)
 		}
-		if msg, ok := requestEndpoint("/d", "Internal Server Error"); !ok {
+		if msg, ok := requestEndpoint("/d", "Bad Gateway"); !ok {
 			t.Errorf("failed to receive the right response for '/d': %s", msg)
 		}
 	})
@@ -192,7 +192,7 @@ func TestConnectionRefused(t *testing.T) {
 			msg:          "Groups with only failing members should  fail on multiple calls d",
 			path:         "/d",
 			nTimes:       150,
-			expectedCode: 500,
+			expectedCode: http.StatusBadGateway,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
