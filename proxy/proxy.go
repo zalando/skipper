@@ -852,7 +852,7 @@ func (p *Proxy) do(ctx *context) error {
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
-					return perr2.err
+					return perr2
 				}
 				p.log.Infof("Successfully retry to %v, orig %v, code: %d", ctx.route.Backend, origRoute.Backend, rsp.StatusCode)
 			} else {
