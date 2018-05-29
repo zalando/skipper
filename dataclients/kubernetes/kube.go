@@ -219,15 +219,23 @@ func buildHTTPClient(certFilePath string, inCluster bool) (*http.Client, error) 
 		}).DialContext,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
-		ExpectContinueTimeout: 10 * time.Second,
+		ExpectContinueTimeout: 30 * time.Second,
 		MaxIdleConns:          5,
 		MaxIdleConnsPerHost:   5,
-		IdleConnTimeout:       3 * time.Second,
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			RootCAs:    certPool,
 		},
 	}
+	// failover connection
+	go func() {
+		for {
+			select {
+			case <-time.After(10 * time.Second):
+				transport.CloseIdleConnections()
+			}
+		}
+	}()
 
 	return &http.Client{
 		Transport: transport,
