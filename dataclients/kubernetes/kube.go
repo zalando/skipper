@@ -176,7 +176,7 @@ func New(o Options) (*Client, error) {
 
 	if len(o.WhitelistedHealthCheckCIDR) > 0 {
 		whitelistCIDRS := make([]interface{}, len(o.WhitelistedHealthCheckCIDR))
-		for i, v := range t {
+		for i, v := range o.WhitelistedHealthCheckCIDR {
 			whitelistCIDRS[i] = v
 		}
 		internalIPs = append(internalIPs , whitelistCIDRS...);
