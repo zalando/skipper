@@ -156,6 +156,8 @@ func testOrderingBug(t *testing.T, ingress string) {
 		return
 	}
 
+	defer c.Close()
+
 	r, err := c.LoadAll()
 	if err != nil {
 		t.Error(err)

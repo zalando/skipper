@@ -14,6 +14,8 @@ func TestUpdateOnlyChangedRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	defer k.Close()
+
 	r, err := k.LoadAll()
 	if err != nil {
 		t.Fatal(err)

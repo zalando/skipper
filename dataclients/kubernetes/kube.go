@@ -124,6 +124,7 @@ type Client struct {
 	sigs                   chan os.Signal
 	ingressClass           *regexp.Regexp
 	reverseSourcePredicate bool
+	quit                   chan struct{}
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -137,7 +138,8 @@ var (
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) (*Client, error) {
-	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster)
+	quit := make(chan struct{})
+	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster, quit)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +183,7 @@ func New(o Options) (*Client, error) {
 		sigs:                   sigs,
 		ingressClass:           ingClsRx,
 		reverseSourcePredicate: o.ReverseSourcePredicate,
+		quit: quit,
 	}, nil
 }
 
@@ -197,7 +200,7 @@ func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, erro
 	return string(bToken), nil
 }
 
-func buildHTTPClient(certFilePath string, inCluster bool) (*http.Client, error) {
+func buildHTTPClient(certFilePath string, inCluster bool, quit chan struct{}) (*http.Client, error) {
 	if !inCluster {
 		return http.DefaultClient, nil
 	}
@@ -227,12 +230,15 @@ func buildHTTPClient(certFilePath string, inCluster bool) (*http.Client, error) 
 			RootCAs:    certPool,
 		},
 	}
-	// failover connection
+
+	// regularly force closing idle connections
 	go func() {
 		for {
 			select {
 			case <-time.After(10 * time.Second):
 				transport.CloseIdleConnections()
+			case <-quit:
+				return
 			}
 		}
 	}()
@@ -1091,4 +1097,10 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 	c.current = next
 	return updatedRoutes, deletedIDs, nil
+}
+
+func (c *Client) Close() {
+	if c != nil && c.quit != nil {
+		close(c.quit)
+	}
 }

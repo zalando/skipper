@@ -645,6 +645,8 @@ func TestIngressData(t *testing.T) {
 				t.Error(err)
 			}
 
+			defer dc.Close()
+
 			r, err := dc.LoadAll()
 			if err != nil {
 				t.Error(err)
@@ -822,6 +824,8 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		if r, err := dc.LoadAll(); err != nil || len(r) != 0 {
 			t.Error("failed to load initial")
 		}
@@ -838,6 +842,8 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		if r, err := dc.LoadAll(); err != nil || len(r) != 0 {
 			t.Error("failed to load initial")
 		}
@@ -853,6 +859,8 @@ func TestIngress(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		if r, err2 := dc.LoadAll(); err2 != nil || len(r) != 0 {
 			t.Error("failed to load initial")
@@ -890,6 +898,8 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		r, err := dc.LoadAll()
 		if err != nil {
 			t.Error("failed to load initial routes", err)
@@ -915,6 +925,8 @@ func TestIngress(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		r, err := dc.LoadAll()
 		if err != nil {
@@ -946,6 +958,8 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		_, err = dc.LoadAll()
 		if err != nil {
 			t.Error("failed to load initial routes", err)
@@ -973,6 +987,8 @@ func TestIngress(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		_, err = dc.LoadAll()
 		if err != nil {
@@ -1002,6 +1018,8 @@ func TestIngress(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		_, err = dc.LoadAll()
 		if err != nil {
@@ -1041,6 +1059,8 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		_, err = dc.LoadAll()
 		if err != nil {
 			t.Error("failed to load initial routes", err)
@@ -1070,6 +1090,8 @@ func TestIngress(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		_, err = dc.LoadAll()
 		if err != nil {
@@ -1130,6 +1152,8 @@ func TestIngress(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		_, err = dc.LoadAll()
 		if err != nil {
@@ -1202,6 +1226,8 @@ func TestIngress(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		_, err = dc.LoadAll()
 		if err != nil {
 			t.Error("failed to load initial routes", err)
@@ -1266,6 +1292,8 @@ func TestConvertPathRule(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		r, err := dc.LoadAll()
 
@@ -1387,6 +1415,8 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				t.Error(err)
 			}
 
+			defer dc.Close()
+
 			_, err = dc.LoadAll()
 			if err != nil {
 				t.Error("failed to load initial routes", err)
@@ -1415,6 +1445,8 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		r, err := dc.LoadAll()
 		if err != nil {
 			t.Error(err)
@@ -1431,6 +1463,8 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		r, err := dc.LoadAll()
 		if err != nil {
 			t.Error(err)
@@ -1445,6 +1479,8 @@ func TestHealthcheckInitial(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		_, err = dc.LoadAll()
 		if err == nil {
@@ -1461,6 +1497,8 @@ func TestHealthcheckInitial(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		r, err := dc.LoadAll()
 		if err != nil {
@@ -1481,6 +1519,8 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		r, err := dc.LoadAll()
 		if err != nil {
 			t.Error(err)
@@ -1500,6 +1540,8 @@ func TestHealthcheckInitial(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		r, err := dc.LoadAll()
 		if err != nil {
@@ -1522,6 +1564,8 @@ func TestHealthcheckUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		dc.LoadAll()
 		api.failNext = true
@@ -1549,6 +1593,8 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		dc.LoadAll()
 		api.failNext = true
 
@@ -1568,6 +1614,8 @@ func TestHealthcheckUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		dc.LoadAll()
 
@@ -1593,6 +1641,8 @@ func TestHealthcheckUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		dc.LoadAll()
 
@@ -1624,6 +1674,8 @@ func TestHealthcheckReload(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		dc.LoadAll()
 		api.failNext = true
 
@@ -1646,6 +1698,8 @@ func TestHealthcheckReload(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		dc.LoadAll()
 
@@ -1772,7 +1826,10 @@ func TestBuildAPIURL(t *testing.T) {
 }
 
 func TestBuildHTTPClient(t *testing.T) {
-	httpClient, err := buildHTTPClient("", false)
+	quit := make(chan struct{})
+	defer func() { close(quit) }()
+
+	httpClient, err := buildHTTPClient("", false, quit)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1780,12 +1837,12 @@ func TestBuildHTTPClient(t *testing.T) {
 		t.Errorf("should return default client if outside the cluster``")
 	}
 
-	httpClient, err = buildHTTPClient("rumplestilzchen", true)
+	httpClient, err = buildHTTPClient("rumplestilzchen", true, quit)
 	if err == nil {
 		t.Errorf("expected to fail for non-existing file")
 	}
 
-	httpClient, err = buildHTTPClient("kube_test.go", true)
+	httpClient, err = buildHTTPClient("kube_test.go", true, quit)
 	if err != errInvalidCertificate {
 		t.Errorf("should return invalid certificate")
 	}
@@ -1796,7 +1853,7 @@ func TestBuildHTTPClient(t *testing.T) {
 	}
 	defer os.Remove("ca.empty.crt")
 
-	_, err = buildHTTPClient("ca.empty.crt", true)
+	_, err = buildHTTPClient("ca.empty.crt", true, quit)
 	if err != errInvalidCertificate {
 		t.Error("empty certificate is invalid certificate")
 	}
@@ -1808,7 +1865,7 @@ func TestBuildHTTPClient(t *testing.T) {
 	}
 	defer os.Remove("ca.temp.crt")
 
-	httpClient, err = buildHTTPClient("ca.temp.crt", true)
+	httpClient, err = buildHTTPClient("ca.temp.crt", true, quit)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1902,6 +1959,8 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
+		defer c.Close()
+
 		// send term only when the client is handling it:
 		select {
 		case c.sigs <- syscall.SIGTERM:
@@ -1927,6 +1986,8 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			return
 		}
 
+		defer c.Close()
+
 		// send term only when the client is handling it:
 		select {
 		case c.sigs <- syscall.SIGTERM:
@@ -1951,6 +2012,8 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			t.Error(err)
 			return
 		}
+
+		defer c.Close()
 
 		_, err = c.LoadAll()
 		if err != nil {
@@ -1982,6 +2045,8 @@ func TestHealthcheckOnTerm(t *testing.T) {
 			t.Error(err)
 			return
 		}
+
+		defer c.Close()
 
 		_, err = c.LoadAll()
 		if err != nil {
@@ -2393,6 +2458,8 @@ func TestRatelimits(t *testing.T) {
 			t.Error(err)
 		}
 
+		defer dc.Close()
+
 		r, err := dc.LoadAll()
 		if err != nil {
 			t.Error("failed to fail")
@@ -2434,6 +2501,8 @@ func TestSkipperFilter(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		r, err := dc.LoadAll()
 		if err != nil {
@@ -2479,6 +2548,8 @@ func TestSkipperPredicate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+
+		defer dc.Close()
 
 		r, err := dc.LoadAll()
 		if err != nil {

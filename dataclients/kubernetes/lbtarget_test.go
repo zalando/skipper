@@ -56,6 +56,8 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 		t.Fatal(err)
 	}
 
+	defer dc.Close()
+
 	r, err := dc.LoadAll()
 	if err != nil {
 		t.Fatal(err)

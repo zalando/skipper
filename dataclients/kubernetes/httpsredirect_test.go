@@ -62,6 +62,8 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 		return nil, err
 	}
 
+	defer dc.Close()
+
 	l := loggingtest.New()
 	router := routing.New(routing.Options{
 		FilterRegistry: builtin.MakeRegistry(),
