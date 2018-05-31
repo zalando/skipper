@@ -360,6 +360,8 @@ type Options struct {
 	// OpenTracing enables opentracing
 	OpenTracing []string
 
+	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
+	// Default: "ingress".
 	OpenTracingInitialSpan string
 
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs

@@ -143,6 +143,8 @@ type Params struct {
 	// OpenTracer holds the tracer enabled for this proxy instance
 	OpenTracer ot.Tracer
 
+	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
+	// Default: "ingress".
 	OpenTracingInitialSpan string
 
 	// Loadbalancer to report unhealthy or dead backends to

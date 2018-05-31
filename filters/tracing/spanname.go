@@ -1,3 +1,6 @@
+/*
+Package tracing provides filters to instrument distributed tracing.
+*/
 package tracing
 
 import (
@@ -5,7 +8,10 @@ import (
 )
 
 const (
-	SpanNameFilterName      = "tracingSpanName"
+	// SpanNameFilterName is the name of the filter in eskip.
+	SpanNameFilterName = "tracingSpanName"
+
+	// OpenTracingProxySpanKey is the key used in the state bag to pass the span name to the proxy.
 	OpenTracingProxySpanKey = "statebag:opentracing:proxy:span"
 )
 
@@ -15,6 +21,11 @@ type filter struct {
 	spanName string
 }
 
+// NewSpanName creates a filter spec for setting the name of the outgoing span. (By default "proxy".)
+//
+// 	tracingSpanName("example-operation")
+//
+// WARNING: this filter is experimental, and the name and the arguments can change until marked as stable.
 func NewSpanName() filters.Spec {
 	return &spec{}
 }
