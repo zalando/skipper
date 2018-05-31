@@ -172,6 +172,56 @@ func TestTracingSpanName(t *testing.T) {
 	t.Error("setting the span name failed")
 }
 
+func TestTracingInitialSpanName(t *testing.T) {
+	traceContent = fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
+	s := startTestServer(nil, 0, func(r *http.Request) {
+		th, ok := r.Header[traceHeader]
+		if !ok {
+			t.Errorf("missing %s request header", traceHeader)
+		} else {
+			if th[0] != traceContent {
+				t.Errorf("wrong X-Trace-Header content: %s", th[0])
+			}
+		}
+	})
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: make(http.Header),
+	}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	params := Params{
+		OpenTracer:             &tracer{},
+		OpenTracingInitialSpan: "test-initial-span",
+		Flags: FlagsNone,
+	}
+
+	tp, err := newTestProxyWithParams(doc, params)
+	if err != nil {
+		t.Fatal()
+	}
+
+	defer tp.close()
+
+	recordedSpan = nil
+	allRecordedSpans = nil
+
+	tp.proxy.ServeHTTP(w, r)
+
+	for _, s := range allRecordedSpans {
+		if s.operationName == "test-initial-span" {
+			return
+		}
+	}
+
+	t.Error("setting the span name failed")
+}
+
 type tracer struct {
 }
 
