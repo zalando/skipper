@@ -14,8 +14,6 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-const OpenTracingProxySpanKey = "statebag:opentracing:proxy:span"
-
 const unknownHost = "_unknownhost_"
 
 type context struct {

@@ -2,10 +2,12 @@ package tracing
 
 import (
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/proxy"
 )
 
-const SpanNameFilterName = "tracingSpanName"
+const (
+	SpanNameFilterName      = "tracingSpanName"
+	OpenTracingProxySpanKey = "statebag:opentracing:proxy:span"
+)
 
 type spec struct{}
 
@@ -13,7 +15,7 @@ type filter struct {
 	spanName string
 }
 
-func New() filters.Spec {
+func NewSpanName() filters.Spec {
 	return &spec{}
 }
 
@@ -34,7 +36,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 func (f *filter) Request(ctx filters.FilterContext) {
 	bag := ctx.StateBag()
-	bag[proxy.OpenTracingProxySpanKey] = f.spanName
+	bag[OpenTracingProxySpanKey] = f.spanName
 }
 
 func (f *filter) Response(filters.FilterContext) {}

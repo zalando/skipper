@@ -20,6 +20,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
+	tracingfilter "github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -644,10 +645,16 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	ingress := ot.SpanFromContext(req.Context())
 	var proxySpan ot.Span
+	bag := ctx.StateBag()
+	spanName, ok := bag[tracingfilter.OpenTracingProxySpanKey].(string)
+	if !ok {
+		spanName = "proxy"
+	}
+
 	if ingress == nil {
-		proxySpan = p.openTracer.StartSpan("proxy")
+		proxySpan = p.openTracer.StartSpan(spanName)
 	} else {
-		proxySpan = p.openTracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
+		proxySpan = p.openTracer.StartSpan(spanName, ot.ChildOf(ingress.Context()))
 	}
 	defer proxySpan.Finish()
 	ext.SpanKindRPCClient.Set(proxySpan)

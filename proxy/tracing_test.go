@@ -13,7 +13,10 @@ import (
 	log "github.com/opentracing/opentracing-go/log"
 )
 
-var recordedSpan *span
+var (
+	recordedSpan     *span
+	allRecordedSpans []*span
+)
 
 const traceHeader string = "X-Trace-Header"
 
@@ -55,6 +58,7 @@ func TestTracingFromWire(t *testing.T) {
 	}
 	defer tp.close()
 	recordedSpan = nil
+	allRecordedSpans = nil
 
 	tp.proxy.ServeHTTP(w, r)
 
@@ -104,6 +108,7 @@ func TestTracingRoot(t *testing.T) {
 	}
 	defer tp.close()
 	recordedSpan = nil
+	allRecordedSpans = nil
 
 	tp.proxy.ServeHTTP(w, r)
 
@@ -116,6 +121,55 @@ func TestTracingRoot(t *testing.T) {
 	if len(recordedSpan.refs) > 0 {
 		t.Errorf("references found, this is not a root span")
 	}
+}
+
+func TestTracingSpanName(t *testing.T) {
+	traceContent = fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
+	s := startTestServer(nil, 0, func(r *http.Request) {
+		th, ok := r.Header[traceHeader]
+		if !ok {
+			t.Errorf("missing %s request header", traceHeader)
+		} else {
+			if th[0] != traceContent {
+				t.Errorf("wrong X-Trace-Header content: %s", th[0])
+			}
+		}
+	})
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: make(http.Header),
+	}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> tracingSpanName("test-span") -> "%s"`, s.URL)
+	params := Params{
+		OpenTracer: &tracer{},
+		Flags:      FlagsNone,
+	}
+
+	tp, err := newTestProxyWithParams(doc, params)
+	if err != nil {
+		t.Fatal()
+	}
+
+	defer tp.close()
+
+	recordedSpan = nil
+	allRecordedSpans = nil
+
+	tp.proxy.ServeHTTP(w, r)
+
+	for _, s := range allRecordedSpans {
+		if s.operationName == "test-span" {
+			return
+		}
+	}
+
+	t.Error("setting the span name failed")
 }
 
 type tracer struct {
@@ -172,10 +226,12 @@ func (s *span) ForeachBaggageItem(func(k, v string) bool) {}
 // Span interface
 func (s *span) Finish() {
 	recordedSpan = s
+	allRecordedSpans = append(allRecordedSpans, s)
 }
 
 func (s *span) FinishWithOptions(opts ot.FinishOptions) {
 	recordedSpan = s
+	allRecordedSpans = append(allRecordedSpans, s)
 }
 
 func (s *span) Context() ot.SpanContext {
