@@ -107,7 +107,6 @@ const (
 	experimentalUpgradeUsage       = "enable experimental feature to handle upgrade protocol requests"
 	versionUsage                   = "print Skipper version"
 	maxLoopbacksUsage              = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
-	opentracingUsage               = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	defaultHTTPStatusUsage         = "default HTTP status used when no route is found for a request"
 	pluginDirUsage                 = "set the directory to load plugins from, default is ./"
 	suppressRouteUpdateLogsUsage   = "print only summaries on route updates/deletes"
@@ -129,6 +128,9 @@ const (
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	maxAuditBodyUsage                    = "sets the max body to read to log inthe audit log body"
+
+	opentracingUsage           = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
+	opentracingIngressSpanName = "set the name of the initial, pre-routing, tracing span"
 )
 
 var (
@@ -195,6 +197,7 @@ var (
 	enableRatelimiters              bool
 	ratelimits                      ratelimitFlags
 	openTracing                     string
+	openTracingInitialSpan          string
 	defaultHTTPStatus               int
 	pluginDir                       string
 	suppressRouteUpdateLogs         bool
@@ -283,6 +286,7 @@ func init() {
 	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
 	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
 	flag.StringVar(&openTracing, "opentracing", "noop", opentracingUsage)
+	flag.StringVar(&openTracingInitialSpan, "opentracing-initial-span", "ingress", opentracingIngressSpanName)
 	flag.StringVar(&pluginDir, "plugindir", "", pluginDirUsage)
 	flag.IntVar(&defaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
@@ -414,6 +418,7 @@ func main() {
 		EnableRatelimiters:                  enableRatelimiters,
 		RatelimitSettings:                   ratelimits,
 		OpenTracing:                         strings.Split(openTracing, " "),
+		OpenTracingInitialSpan:              openTracingInitialSpan,
 		PluginDirs:                          []string{skipper.DefaultPluginDir},
 		DefaultHTTPStatus:                   defaultHTTPStatus,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,

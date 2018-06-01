@@ -360,6 +360,10 @@ type Options struct {
 	// OpenTracing enables opentracing
 	OpenTracing []string
 
+	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
+	// Default: "ingress".
+	OpenTracingInitialSpan string
+
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
 	// PluginDirs defines the directories to load plugins from
@@ -792,10 +796,15 @@ func Run(o Options) error {
 			return err
 		}
 		proxyParams.OpenTracer = tracer
+		proxyParams.OpenTracingInitialSpan = o.OpenTracingInitialSpan
 	} else {
 		// always have a tracer available, so filter authors can rely on the
 		// existence of a tracer
 		proxyParams.OpenTracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	}
+
+	if proxyParams.OpenTracingInitialSpan != "" {
+		proxyParams.OpenTracingInitialSpan = o.OpenTracingInitialSpan
 	}
 
 	// create the proxy

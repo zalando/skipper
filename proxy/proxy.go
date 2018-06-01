@@ -20,6 +20,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
+	tracingfilter "github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -142,6 +143,10 @@ type Params struct {
 	// OpenTracer holds the tracer enabled for this proxy instance
 	OpenTracer ot.Tracer
 
+	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
+	// Default: "ingress".
+	OpenTracingInitialSpan string
+
 	// Loadbalancer to report unhealthy or dead backends to
 	LoadBalancer *loadbalancer.LB
 
@@ -218,21 +223,22 @@ type flusherWriter interface {
 // Proxy instances implement Skipper proxying functionality. For
 // initializing, see the WithParams the constructor and Params.
 type Proxy struct {
-	routing             *routing.Routing
-	roundTripper        *http.Transport
-	priorityRoutes      []PriorityRoute
-	flags               Flags
-	metrics             metrics.Metrics
-	quit                chan struct{}
-	flushInterval       time.Duration
-	experimentalUpgrade bool
-	maxLoops            int
-	breakers            *circuit.Registry
-	limiters            *ratelimit.Registry
-	log                 logging.Logger
-	defaultHTTPStatus   int
-	openTracer          ot.Tracer
-	lb                  *loadbalancer.LB
+	routing                *routing.Routing
+	roundTripper           *http.Transport
+	priorityRoutes         []PriorityRoute
+	flags                  Flags
+	metrics                metrics.Metrics
+	quit                   chan struct{}
+	flushInterval          time.Duration
+	experimentalUpgrade    bool
+	maxLoops               int
+	breakers               *circuit.Registry
+	limiters               *ratelimit.Registry
+	log                    logging.Logger
+	defaultHTTPStatus      int
+	openTracer             ot.Tracer
+	openTracingInitialSpan string
+	lb                     *loadbalancer.LB
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -482,22 +488,28 @@ func WithParams(p Params) *Proxy {
 		defaultHTTPStatus = p.DefaultHTTPStatus
 	}
 
+	openTracingInitialSpan := p.OpenTracingInitialSpan
+	if openTracingInitialSpan == "" {
+		openTracingInitialSpan = "ingress"
+	}
+
 	return &Proxy{
-		routing:             p.Routing,
-		roundTripper:        tr,
-		priorityRoutes:      p.PriorityRoutes,
-		flags:               p.Flags,
-		metrics:             m,
-		quit:                quit,
-		flushInterval:       p.FlushInterval,
-		experimentalUpgrade: p.ExperimentalUpgrade,
-		maxLoops:            p.MaxLoopbacks,
-		breakers:            p.CircuitBreakers,
-		limiters:            p.RateLimiters,
-		log:                 &logging.DefaultLog{},
-		defaultHTTPStatus:   defaultHTTPStatus,
-		openTracer:          p.OpenTracer,
-		lb:                  p.LoadBalancer,
+		routing:                p.Routing,
+		roundTripper:           tr,
+		priorityRoutes:         p.PriorityRoutes,
+		flags:                  p.Flags,
+		metrics:                m,
+		quit:                   quit,
+		flushInterval:          p.FlushInterval,
+		experimentalUpgrade:    p.ExperimentalUpgrade,
+		maxLoops:               p.MaxLoopbacks,
+		breakers:               p.CircuitBreakers,
+		limiters:               p.RateLimiters,
+		log:                    &logging.DefaultLog{},
+		defaultHTTPStatus:      defaultHTTPStatus,
+		openTracer:             p.OpenTracer,
+		openTracingInitialSpan: openTracingInitialSpan,
+		lb: p.LoadBalancer,
 	}
 }
 
@@ -644,10 +656,16 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	ingress := ot.SpanFromContext(req.Context())
 	var proxySpan ot.Span
+	bag := ctx.StateBag()
+	spanName, ok := bag[tracingfilter.OpenTracingProxySpanKey].(string)
+	if !ok {
+		spanName = "proxy"
+	}
+
 	if ingress == nil {
-		proxySpan = p.openTracer.StartSpan("proxy")
+		proxySpan = p.openTracer.StartSpan(spanName)
 	} else {
-		proxySpan = p.openTracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
+		proxySpan = p.openTracer.StartSpan(spanName, ot.ChildOf(ingress.Context()))
 	}
 	defer proxySpan.Finish()
 	ext.SpanKindRPCClient.Set(proxySpan)
@@ -966,9 +984,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var span ot.Span
 	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
 	if err == nil {
-		span = p.openTracer.StartSpan("ingress", ext.RPCServerOption(wireContext))
+		span = p.openTracer.StartSpan(p.openTracingInitialSpan, ext.RPCServerOption(wireContext))
 	} else {
-		span = p.openTracer.StartSpan("ingress")
+		span = p.openTracer.StartSpan(p.openTracingInitialSpan)
 	}
 	defer span.Finish()
 	ext.SpanKindRPCServer.Set(span)
