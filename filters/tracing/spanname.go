@@ -25,7 +25,7 @@ type filter struct {
 //
 // 	tracingSpanName("example-operation")
 //
-// WARNING: this filter is experimental, and the name and the arguments can change until marked as stable.
+// EXPERIMENTAL: this filter is experimental, and the name and the arguments can change until marked as stable.
 func NewSpanName() filters.Spec {
 	return &spec{}
 }
