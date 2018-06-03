@@ -109,6 +109,9 @@ type Options struct {
 
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
+
+	// WhitelistedHealthcheckCIDR to be appended to the default iprange
+	WhitelistedHealthCheckCIDR []string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -171,6 +174,15 @@ func New(o Options) (*Client, error) {
 		log.Info("register sigterm handler")
 		sigs = make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGTERM)
+	}
+
+	if len(o.WhitelistedHealthCheckCIDR) > 0 {
+		whitelistCIDRS := make([]interface{}, len(o.WhitelistedHealthCheckCIDR))
+		for i, v := range o.WhitelistedHealthCheckCIDR {
+			whitelistCIDRS[i] = v
+		}
+		internalIPs = append(internalIPs, whitelistCIDRS...)
+		log.Debugf("new internal ips are: %s", internalIPs)
 	}
 
 	return &Client{

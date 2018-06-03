@@ -128,6 +128,7 @@ const (
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	maxAuditBodyUsage                    = "sets the max body to read to log inthe audit log body"
+	whitelistedHealthCheckCIDRUsage      = "sets the iprange/CIDRS to be whitelisted during healthcheck"
 
 	opentracingUsage           = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	opentracingIngressSpanName = "set the name of the initial, pre-routing, tracing span"
@@ -222,6 +223,7 @@ var (
 	oauth2TokeninfoURL              string
 	maxAuditBody                    int
 	multiPlugins                    pluginFlags
+	whitelistedHealthCheckCIDR      string
 )
 
 func init() {
@@ -311,7 +313,7 @@ func init() {
 	flag.StringVar(&oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
 	flag.IntVar(&maxAuditBody, "max-audit-body", defaultMaxAuditBody, maxAuditBodyUsage)
 	flag.Var(&multiPlugins, "multi-plugin", multiPluginUsage)
-
+	flag.StringVar(&whitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", whitelistedHealthCheckCIDRUsage)
 	flag.Parse()
 
 	// check if arguments were correctly parsed.
@@ -361,7 +363,13 @@ func main() {
 		os.Exit(2)
 	}
 
+	var whitelistCIDRS []string
+	if len(whitelistedHealthCheckCIDR) > 0 {
+		whitelistCIDRS = strings.Split(whitelistedHealthCheckCIDR, ",")
+	}
+
 	options := skipper.Options{
+		WhitelistedHealthCheckCIDR:          whitelistCIDRS,
 		Address:                             address,
 		EtcdUrls:                            eus,
 		EtcdPrefix:                          etcdPrefix,
