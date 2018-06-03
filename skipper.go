@@ -46,6 +46,9 @@ const DefaultPluginDir = "./plugins"
 // Options to start skipper.
 type Options struct {
 
+	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
+	WhitelistedHealthCheckCIDR []string
+
 	// Network address that skipper should listen on.
 	Address string
 
@@ -480,7 +483,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 		clients = append(clients, etcdClient)
 	}
-
+    
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
 			KubernetesInCluster:    o.KubernetesInCluster,
@@ -489,6 +492,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			ProvideHTTPSRedirect:   o.KubernetesHTTPSRedirect,
 			IngressClass:           o.KubernetesIngressClass,
 			ReverseSourcePredicate: o.ReverseSourcePredicate,
+			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
 		})
 		if err != nil {
 			return nil, err
