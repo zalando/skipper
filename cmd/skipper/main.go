@@ -223,7 +223,7 @@ var (
 	oauth2TokeninfoURL              string
 	maxAuditBody                    int
 	multiPlugins                    pluginFlags
-	whitelistedHealthCheckCIDR  	string
+	whitelistedHealthCheckCIDR      string
 )
 
 func init() {
@@ -446,7 +446,6 @@ func main() {
 		OAuthTokeninfoURL:                   oauth2TokeninfoURL,
 		MaxAuditBody:                        maxAuditBody,
 		Plugins:                             multiPlugins.Get(),
-		
 	}
 
 	if pluginDir != "" {

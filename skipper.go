@@ -483,15 +483,15 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 		clients = append(clients, etcdClient)
 	}
-    
+
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			KubernetesInCluster:    o.KubernetesInCluster,
-			KubernetesURL:          o.KubernetesURL,
-			ProvideHealthcheck:     o.KubernetesHealthcheck,
-			ProvideHTTPSRedirect:   o.KubernetesHTTPSRedirect,
-			IngressClass:           o.KubernetesIngressClass,
-			ReverseSourcePredicate: o.ReverseSourcePredicate,
+			KubernetesInCluster:        o.KubernetesInCluster,
+			KubernetesURL:              o.KubernetesURL,
+			ProvideHealthcheck:         o.KubernetesHealthcheck,
+			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
+			IngressClass:               o.KubernetesIngressClass,
+			ReverseSourcePredicate:     o.ReverseSourcePredicate,
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
 		})
 		if err != nil {

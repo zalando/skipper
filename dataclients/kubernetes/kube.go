@@ -181,7 +181,7 @@ func New(o Options) (*Client, error) {
 		for i, v := range o.WhitelistedHealthCheckCIDR {
 			whitelistCIDRS[i] = v
 		}
-		internalIPs = append(internalIPs , whitelistCIDRS...);
+		internalIPs = append(internalIPs, whitelistCIDRS...)
 		log.Debugf("new internal ips are: %s", internalIPs)
 	}
 
