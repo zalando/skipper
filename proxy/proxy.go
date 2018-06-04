@@ -407,6 +407,12 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 			code:          -1,   // omit 0 handling in proxy.Error()
 			dialingFailed: true, // indicate error happened before http
 		}
+	} else if cerr := ctx.Err(); cerr != nil {
+		// deadline exceeded or canceled in stdlib
+		return nil, &proxyError{
+			err:  cerr,
+			code: http.StatusGatewayTimeout,
+		}
 	}
 	return con, nil
 }
