@@ -407,6 +407,12 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 			code:          -1,   // omit 0 handling in proxy.Error()
 			dialingFailed: true, // indicate error happened before http
 		}
+	} else if cerr := ctx.Err(); cerr != nil {
+		// deadline exceeded or canceled in stdlib
+		return nil, &proxyError{
+			err:  cerr,
+			code: http.StatusGatewayTimeout,
+		}
 	}
 	return con, nil
 }
@@ -715,6 +721,12 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			}
 		}
 		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
+
+		if cerr := req.Context().Err(); cerr != nil {
+			p.log.Errorf("Failed to do request, because of context: %v", cerr)
+			return nil, &proxyError{err: cerr, code: http.StatusGatewayTimeout}
+		}
+
 		return nil, &proxyError{err: err}
 	}
 	ext.HTTPStatusCode.Set(proxySpan, uint16(response.StatusCode))
