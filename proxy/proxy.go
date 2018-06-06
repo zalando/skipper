@@ -721,6 +721,12 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			}
 		}
 		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
+
+		if cerr := req.Context().Err(); cerr != nil {
+			p.log.Errorf("Failed to do request, because of context: %v", cerr)
+			return nil, &proxyError{err: cerr, code: http.StatusGatewayTimeout}
+		}
+
 		return nil, &proxyError{err: err}
 	}
 	ext.HTTPStatusCode.Set(proxySpan, uint16(response.StatusCode))
