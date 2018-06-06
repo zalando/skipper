@@ -24,8 +24,7 @@ An application that is target of an ingress can circumvent HTTP code
 
 1. use [Pod lifecycle hooks](#pod-lifecycle-hooks)
 2. use a SIGTERM handler to switch `readinessProbe` to unhealthy and
-teardown your application later, probably just waiting until SIGKILL
-will terminate your process.
+exit later, or just wait for SIGKILL terminating the process.
 
 ### Pod Lifecycle Hooks
 
@@ -57,14 +56,17 @@ terminate your application or you just wait until SIGKILL will cleanup
 the instance after 60s.
 
 ```go
-var sigs chan os.Signal
-sigs = make(chan os.Signal, 1)
-signal.Notify(sigs, syscall.SIGTERM)
-for {
-    select {
-        <-sigs:
-           healthCheck = unhealthy
+go func() {
+    var sigs chan os.Signal
+    sigs = make(chan os.Signal, 1)
+    signal.Notify(sigs, syscall.SIGTERM)
+    for {
+        select {
+            case <-sigs:
+               healthCheck = unhealthy
+               time.Sleep(20*time.Second)
+               os.Exit(0)
+        }
     }
-    doWork()
 }
 ```
