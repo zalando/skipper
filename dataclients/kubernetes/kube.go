@@ -56,7 +56,7 @@ const (
 type PathMode int
 
 const (
-	DefaultPathMode PathMode = iota
+	KubernetesIngressMode PathMode = iota
 	PathRegexp
 	PathPrefix
 	ExactPath
@@ -238,7 +238,7 @@ func (m PathMode) String() string {
 func ParsePathMode(s string) (PathMode, error) {
 	switch s {
 	case defaultPathModeString:
-		return DefaultPathMode, nil
+		return KubernetesIngressMode, nil
 	case pathRegexpString:
 		return PathRegexp, nil
 	case pathPrefixString:
@@ -622,7 +622,7 @@ func (c *Client) convertPathRule(
 	)
 
 	pathExpression := prule.Path
-	if pathExpression != "" && pathMode == DefaultPathMode {
+	if pathExpression != "" && pathMode == KubernetesIngressMode {
 		pathExpression = "^" + pathExpression
 	}
 

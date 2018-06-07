@@ -1416,7 +1416,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			route, err := dc.convertPathRule("namespace1", "", "", tc.rule, DefaultPathMode, map[string][]string{})
+			route, err := dc.convertPathRule("namespace1", "", "", tc.rule, KubernetesIngressMode, map[string][]string{})
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}

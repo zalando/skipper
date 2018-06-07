@@ -110,7 +110,7 @@ func TestPathMatchingModes(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		setIngressWithPath("/foo")
-		r, err := loadRoutes(DefaultPathMode)
+		r, err := loadRoutes(KubernetesIngressMode)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -195,7 +195,7 @@ func TestPathMatchingModes(t *testing.T) {
 	})
 
 	t.Run("additional exact path from annotation", func(t *testing.T) {
-		extendableModes := []PathMode{DefaultPathMode, PathRegexp}
+		extendableModes := []PathMode{KubernetesIngressMode, PathRegexp}
 
 		for _, mode := range extendableModes {
 			t.Run(mode.String(), func(t *testing.T) {
@@ -232,7 +232,7 @@ func TestPathMatchingModes(t *testing.T) {
 	})
 
 	t.Run("additional path prefix from annotation", func(t *testing.T) {
-		extendableModes := []PathMode{DefaultPathMode, PathRegexp}
+		extendableModes := []PathMode{KubernetesIngressMode, PathRegexp}
 
 		for _, mode := range extendableModes {
 			t.Run(mode.String(), func(t *testing.T) {
@@ -343,7 +343,7 @@ func TestPathModeParsing(t *testing.T) {
 		fail: true,
 	}, {
 		str:  defaultPathModeString,
-		mode: DefaultPathMode,
+		mode: KubernetesIngressMode,
 	}, {
 		str:  pathRegexpString,
 		mode: PathRegexp,
