@@ -108,28 +108,21 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 	}
 
 	meta := metadata{
-		Namespace: ns,
-		Name:      name,
+		Namespace:   ns,
+		Name:        name,
+		Annotations: make(map[string]string),
 	}
 	if ratelimitCfg != "" {
-		meta.Annotations = map[string]string{
-			ratelimitAnnotationKey: ratelimitCfg,
-		}
+		meta.Annotations[ratelimitAnnotationKey] = ratelimitCfg
 	}
 	if filterString != "" {
-		meta.Annotations = map[string]string{
-			skipperfilterAnnotationKey: filterString,
-		}
+		meta.Annotations[skipperfilterAnnotationKey] = filterString
 	}
 	if predicateString != "" {
-		meta.Annotations = map[string]string{
-			skipperpredicateAnnotationKey: predicateString,
-		}
+		meta.Annotations[skipperpredicateAnnotationKey] = predicateString
 	}
 	if routesString != "" {
-		meta.Annotations = map[string]string{
-			skipperRoutesAnnotationKey: routesString,
-		}
+		meta.Annotations[skipperRoutesAnnotationKey] = routesString
 	}
 	return &ingressItem{
 		Metadata: &meta,
