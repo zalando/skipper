@@ -598,8 +598,10 @@ func setPath(m PathMode, r *eskip.Route, p string) {
 			Name: "Path",
 			Args: []interface{}{p},
 		})
-	default:
+	case PathRegexp:
 		r.PathRegexps = []string{p}
+	default:
+		r.PathRegexps = []string{"^" + p}
 	}
 }
 
@@ -620,11 +622,6 @@ func (c *Client) convertPathRule(
 		routes []*eskip.Route
 		svc    *service
 	)
-
-	pathExpression := prule.Path
-	if pathExpression != "" && pathMode == KubernetesIngressMode {
-		pathExpression = "^" + pathExpression
-	}
 
 	svcPort := prule.Backend.ServicePort
 	svcName := prule.Backend.ServiceName
@@ -664,7 +661,7 @@ func (c *Client) convertPathRule(
 				Backend: address,
 			}
 
-			setPath(pathMode, r, pathExpression)
+			setPath(pathMode, r, prule.Path)
 
 			if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
 				r.Predicates = append([]*eskip.Predicate{{
@@ -691,7 +688,7 @@ func (c *Client) convertPathRule(
 			Backend: eps[0],
 		}
 
-		setPath(pathMode, r, pathExpression)
+		setPath(pathMode, r, prule.Path)
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
@@ -729,7 +726,7 @@ func (c *Client) convertPathRule(
 			}},
 		}
 
-		setPath(pathMode, r, pathExpression)
+		setPath(pathMode, r, prule.Path)
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
@@ -760,7 +757,7 @@ func (c *Client) convertPathRule(
 		}},
 	}
 
-	setPath(pathMode, decisionRoute, pathExpression)
+	setPath(pathMode, decisionRoute, prule.Path)
 
 	routes = append(routes, decisionRoute)
 	return routes, nil
