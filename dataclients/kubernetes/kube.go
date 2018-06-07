@@ -50,6 +50,7 @@ const (
 	skipperfilterAnnotationKey    = "zalando.org/skipper-filter"
 	skipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
 	skipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
+	pathModeAnnotationKey         = "zalando.org/skipper-ingress-path-mode"
 )
 
 type PathMode int
@@ -59,6 +60,13 @@ const (
 	PathRegexp
 	PathPrefix
 	ExactPath
+)
+
+const (
+	defaultPathModeString = "default"
+	pathRegexpString      = "path-regexp"
+	pathPrefixString      = "path-prefix"
+	exactPathString       = "exact-path"
 )
 
 var internalIPs = []interface{}{
@@ -217,13 +225,28 @@ func New(o Options) (*Client, error) {
 func (m PathMode) String() string {
 	switch m {
 	case PathRegexp:
-		return "path-regexp"
+		return pathRegexpString
 	case PathPrefix:
-		return "path-prefix"
+		return pathPrefixString
 	case ExactPath:
-		return "exact-path"
+		return exactPathString
 	default:
-		return "default"
+		return defaultPathModeString
+	}
+}
+
+func ParsePathMode(s string) (PathMode, error) {
+	switch s {
+	case defaultPathModeString:
+		return DefaultPathMode, nil
+	case pathRegexpString:
+		return PathRegexp, nil
+	case pathPrefixString:
+		return PathPrefix, nil
+	case exactPathString:
+		return ExactPath, nil
+	default:
+		return 0, fmt.Errorf("invalid path mode string: %s", s)
 	}
 }
 
@@ -580,7 +603,12 @@ func setPath(m PathMode, r *eskip.Route, p string) {
 	}
 }
 
-func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpointsURLs map[string][]string) ([]*eskip.Route, error) {
+func (c *Client) convertPathRule(
+	ns, name, host string,
+	prule *pathRule,
+	pathMode PathMode,
+	endpointsURLs map[string][]string,
+) ([]*eskip.Route, error) {
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
@@ -594,7 +622,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 	)
 
 	pathExpression := prule.Path
-	if pathExpression != "" && c.pathMode == DefaultPathMode {
+	if pathExpression != "" && pathMode == DefaultPathMode {
 		pathExpression = "^" + pathExpression
 	}
 
@@ -636,7 +664,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 				Backend: address,
 			}
 
-			setPath(c.pathMode, r, pathExpression)
+			setPath(pathMode, r, pathExpression)
 
 			if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
 				r.Predicates = append([]*eskip.Predicate{{
@@ -663,7 +691,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 			Backend: eps[0],
 		}
 
-		setPath(c.pathMode, r, pathExpression)
+		setPath(pathMode, r, pathExpression)
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
@@ -701,7 +729,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 			}},
 		}
 
-		setPath(c.pathMode, r, pathExpression)
+		setPath(pathMode, r, pathExpression)
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
@@ -732,7 +760,7 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		}},
 	}
 
-	setPath(c.pathMode, decisionRoute, pathExpression)
+	setPath(pathMode, decisionRoute, pathExpression)
 
 	routes = append(routes, decisionRoute)
 	return routes, nil
@@ -865,7 +893,23 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 			for _, prule := range rule.Http.Paths {
 				if prule.Backend.Traffic > 0 {
-					endpoints, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, endpointsURLs)
+					pathMode := c.pathMode
+					pathModeString := i.Metadata.Annotations[pathModeAnnotationKey]
+					if pathModeString != "" {
+						var err error
+						if pathMode, err = ParsePathMode(pathModeString); err != nil {
+							return nil, err
+						}
+					}
+
+					endpoints, err := c.convertPathRule(
+						i.Metadata.Namespace,
+						i.Metadata.Name,
+						rule.Host,
+						prule,
+						pathMode,
+						endpointsURLs,
+					)
 					if err != nil {
 						// if the service is not found the route should be removed
 						if err == errServiceNotFound {
@@ -889,7 +933,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 							}
 						}
 
-						err := applyAnnotationPredicates(c.pathMode, r, annotationPredicate)
+						err := applyAnnotationPredicates(pathMode, r, annotationPredicate)
 						if err != nil {
 							logger.Errorf("failed to apply annotation predicates: %v", err)
 						}

@@ -332,3 +332,106 @@ func TestPathMatchingModes(t *testing.T) {
 		}
 	})
 }
+
+func TestPathModeParsing(t *testing.T) {
+	for _, test := range []struct {
+		str  string
+		mode PathMode
+		fail bool
+	}{{
+		str:  "foo",
+		fail: true,
+	}, {
+		str:  defaultPathModeString,
+		mode: DefaultPathMode,
+	}, {
+		str:  pathRegexpString,
+		mode: PathRegexp,
+	}, {
+		str:  exactPathString,
+		mode: ExactPath,
+	}, {
+		str:  pathPrefixString,
+		mode: PathPrefix,
+	}} {
+		t.Run(test.str, func(t *testing.T) {
+			m, err := ParsePathMode(test.str)
+
+			if err == nil && test.fail {
+				t.Fatal("failed to fail")
+			} else if err != nil && !test.fail {
+				t.Fatal(err)
+			} else if err != nil {
+				return
+			}
+
+			if m != test.mode {
+				t.Errorf(
+					"failed to parse the right mode, got: %v, expected: %v",
+					m,
+					test.mode,
+				)
+			}
+		})
+	}
+}
+
+func TestIngressSpecificMode(t *testing.T) {
+	s := testServices()
+	api := newTestAPI(t, s, &ingressList{})
+	defer api.Close()
+
+	ingressWithDefault := testIngress(
+		"namespace1", "ingress1", "service1", "", "", "", "", backendPort{8080}, 1.0,
+		testRule("www.example.org", testPathRule("^/foo", "service1", backendPort{8080})),
+	)
+
+	ingressWithCustom := testIngress(
+		"namespace1", "ingress1", "service1", "", "", "", "", backendPort{8080}, 1.0,
+		testRule("www.example.org", testPathRule("/bar", "service1", backendPort{8080})),
+	)
+	ingressWithCustom.Metadata.Annotations[pathModeAnnotationKey] = pathPrefixString
+
+	api.ingresses.Items = []*ingressItem{ingressWithDefault, ingressWithCustom}
+
+	c, err := New(Options{
+		KubernetesURL: api.server.URL,
+		PathMode:      PathRegexp,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	r, err := c.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fooRoute := findRouteWithRx(r)
+	if fooRoute == nil {
+		t.Fatal("failed to receive route with path regexp")
+	}
+
+	if fooRoute.PathRegexps[0] != "^/foo" {
+		t.Error("failed to load route with regexp path")
+	}
+
+	barRoute, err := findRouteWithPathPrefix(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if barRoute == nil {
+		t.Fatal("failed to receive route with path prefix")
+	}
+
+	p, err := findPathPredicate(barRoute, "PathSubtree")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if p == nil || p.Args[0] != "/bar" {
+		t.Error("failed to load route with prefix path")
+	}
+}
