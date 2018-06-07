@@ -58,6 +58,9 @@ const (
 // rules using the zalando.org/skipper-ingress-path-mode annotation. When path mode is not
 // set, the Kubernetes ingress specification is used, accepting regular expressions with a
 // mandatory leading "/", automatically prepended by the "^" control character.
+//
+// When PathPrefix or ExactPath are used, the path matching becomes deterministic when
+// a request could match more than one ingress routes otherwise.
 type PathMode int
 
 const (
@@ -71,11 +74,17 @@ const (
 	PathRegexp
 
 	// PathPrefix is like the PathSubtree predicate. E.g. "/foo/bar" will match
-	// "/foo/bar" or "/foo/bar/baz", but won't match "/foo/baroo".
+	// "/foo/bar" or "/foo/bar/baz", but won't match "/foo/barooz".
+	//
+	// In this mode, when a Path or a PathSubtree predicate is set in an annotation,
+	// the value from the annotation has precedence over the standard ingress path.
 	PathPrefix
 
 	// ExactPath is like the Path predicate. E.g. "/foo/bar" will only match
 	// "/foo/bar".
+	//
+	// In this mode, when a Path or a PathSubtree predicate is set in an annotation,
+	// the value from the annotation has precedence over the standard ingress path.
 	ExactPath
 )
 
