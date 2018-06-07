@@ -5,6 +5,8 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/serve"
 	"net/http"
+	log "github.com/sirupsen/logrus"
+	"reflect"
 )
 
 type static struct {
@@ -35,11 +37,13 @@ func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 	webRoot, ok := config[0].(string)
 	if !ok {
+		log.Warn("Invalid parameter type for web root prefix. Expected string, got %s", reflect.TypeOf(config[0]))
 		return nil, fmt.Errorf("invalid parameter type, expected string for web root prefix")
 	}
 
 	root, ok := config[1].(string)
 	if !ok {
+
 		return nil, fmt.Errorf("invalid parameter type, expected string for path to root dir")
 	}
 
