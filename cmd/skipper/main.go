@@ -25,6 +25,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
+	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/proxy"
 )
 
@@ -122,6 +123,7 @@ const (
 	kubernetesHTTPSRedirectUsage    = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
 	kubernetesIngressClassUsage     = "ingress class regular expression used to filter ingress resources for kubernetes"
 	whitelistedHealthCheckCIDRUsage = "sets the iprange/CIDRS to be whitelisted during healthcheck"
+	kubernetesPathModeUsage         = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix/exact-path"
 
 	// OAuth2:
 	oauthURLUsage            = "OAuth2 URL for Innkeeper authentication"
@@ -219,13 +221,14 @@ var (
 	sourcePollTimeout         int64
 
 	// Kubernetes:
-	kubernetes                 bool
+	kubernetesIngress          bool
 	kubernetesInCluster        bool
 	kubernetesURL              string
 	kubernetesHealthcheck      bool
 	kubernetesHTTPSRedirect    bool
 	kubernetesIngressClass     string
 	whitelistedHealthCheckCIDR string
+	kubernetesPathModeString   string
 
 	// OAuth2:
 	oauthURL            string
@@ -321,13 +324,14 @@ func init() {
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 
 	// Kubernetes:
-	flag.BoolVar(&kubernetes, "kubernetes", false, kubernetesUsage)
+	flag.BoolVar(&kubernetesIngress, "kubernetes", false, kubernetesUsage)
 	flag.BoolVar(&kubernetesInCluster, "kubernetes-in-cluster", false, kubernetesInClusterUsage)
 	flag.StringVar(&kubernetesURL, "kubernetes-url", "", kubernetesURLUsage)
 	flag.BoolVar(&kubernetesHealthcheck, "kubernetes-healthcheck", true, kubernetesHealthcheckUsage)
 	flag.BoolVar(&kubernetesHTTPSRedirect, "kubernetes-https-redirect", true, kubernetesHTTPSRedirectUsage)
 	flag.StringVar(&kubernetesIngressClass, "kubernetes-ingress-class", "", kubernetesIngressClassUsage)
 	flag.StringVar(&whitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", whitelistedHealthCheckCIDRUsage)
+	flag.StringVar(&kubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
 
 	// OAuth2:
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
@@ -406,6 +410,12 @@ func main() {
 		whitelistCIDRS = strings.Split(whitelistedHealthCheckCIDR, ",")
 	}
 
+	kubernetesPathMode, err := kubernetes.ParsePathMode(kubernetesPathModeString)
+	if err != nil {
+		flag.PrintDefaults()
+		os.Exit(2)
+	}
+
 	options := skipper.Options{
 
 		// generic:
@@ -471,13 +481,14 @@ func main() {
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 
 		// Kubernetes:
-		Kubernetes:                 kubernetes,
+		Kubernetes:                 kubernetesIngress,
 		KubernetesInCluster:        kubernetesInCluster,
 		KubernetesURL:              kubernetesURL,
 		KubernetesHealthcheck:      kubernetesHealthcheck,
 		KubernetesHTTPSRedirect:    kubernetesHTTPSRedirect,
 		KubernetesIngressClass:     kubernetesIngressClass,
 		WhitelistedHealthCheckCIDR: whitelistCIDRS,
+		KubernetesPathMode:         kubernetesPathMode,
 
 		// OAuth2:
 		OAuthUrl:            oauthURL,

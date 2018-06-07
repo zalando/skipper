@@ -63,10 +63,10 @@ const (
 )
 
 const (
-	defaultPathModeString = "default"
-	pathRegexpString      = "path-regexp"
-	pathPrefixString      = "path-prefix"
-	exactPathString       = "exact-path"
+	kubernetesIngressModeString = "kubernetes-ingress"
+	pathRegexpString            = "path-regexp"
+	pathPrefixString            = "path-prefix"
+	exactPathString             = "exact-path"
 )
 
 var internalIPs = []interface{}{
@@ -231,13 +231,13 @@ func (m PathMode) String() string {
 	case ExactPath:
 		return exactPathString
 	default:
-		return defaultPathModeString
+		return kubernetesIngressModeString
 	}
 }
 
 func ParsePathMode(s string) (PathMode, error) {
 	switch s {
-	case defaultPathModeString:
+	case kubernetesIngressModeString:
 		return KubernetesIngressMode, nil
 	case pathRegexpString:
 		return PathRegexp, nil

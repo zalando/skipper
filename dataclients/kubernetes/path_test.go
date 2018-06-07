@@ -342,7 +342,7 @@ func TestPathModeParsing(t *testing.T) {
 		str:  "foo",
 		fail: true,
 	}, {
-		str:  defaultPathModeString,
+		str:  kubernetesIngressModeString,
 		mode: KubernetesIngressMode,
 	}, {
 		str:  pathRegexpString,

@@ -103,6 +103,8 @@ type Options struct {
 	// be loaded, too.
 	KubernetesIngressClass string
 
+	KubernetesPathMode kubernetes.PathMode
+
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -493,6 +495,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			IngressClass:               o.KubernetesIngressClass,
 			ReverseSourcePredicate:     o.ReverseSourcePredicate,
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
+			PathMode:                   o.KubernetesPathMode,
 		})
 		if err != nil {
 			return nil, err
