@@ -53,12 +53,29 @@ const (
 	pathModeAnnotationKey         = "zalando.org/skipper-ingress-path-mode"
 )
 
+// PathMode values are used to control the ingress path interpretation. The path mode can
+// be set globally for all ingress paths, and it can be overruled by the individual ingress
+// rules using the zalando.org/skipper-ingress-path-mode annotation. When path mode is not
+// set, the Kubernetes ingress specification is used, accepting regular expressions with a
+// mandatory leading "/", automatically prepended by the "^" control character.
 type PathMode int
 
 const (
+	// KubernetesIngressMode is the default path mode. Expects regular expressions
+	// with a mandatory leading "/". The expressions are automatically prepended by
+	// the "^" control character.
 	KubernetesIngressMode PathMode = iota
+
+	// PathRegexp is like KubernetesIngressMode but is not prepended by the "^"
+	// control character.
 	PathRegexp
+
+	// PathPrefix is like the PathSubtree predicate. E.g. "/foo/bar" will match
+	// "/foo/bar" or "/foo/bar/baz", but won't match "/foo/baroo".
 	PathPrefix
+
+	// ExactPath is like the Path predicate. E.g. "/foo/bar" will only match
+	// "/foo/bar".
 	ExactPath
 )
 
@@ -130,8 +147,8 @@ type Options struct {
 	// WhitelistedHealthcheckCIDR to be appended to the default iprange
 	WhitelistedHealthCheckCIDR []string
 
-	// PathMode controls the default handling of ingress paths in cases when the ingress doesn't specify it
-	// with an annotation.
+	// PathMode controls the default interpretation of ingress paths in cases when the ingress doesn't
+	// specify it with an annotation.
 	PathMode PathMode
 }
 
@@ -222,6 +239,8 @@ func New(o Options) (*Client, error) {
 	}, nil
 }
 
+// String returns the string representation of the path mode, the same
+// values that are used in the path mode annotation.
 func (m PathMode) String() string {
 	switch m {
 	case PathRegexp:
@@ -235,6 +254,8 @@ func (m PathMode) String() string {
 	}
 }
 
+// ParsePathMode parses the string representations of the different
+// path modes.
 func ParsePathMode(s string) (PathMode, error) {
 	switch s {
 	case kubernetesIngressModeString:
