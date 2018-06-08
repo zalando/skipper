@@ -108,28 +108,21 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 	}
 
 	meta := metadata{
-		Namespace: ns,
-		Name:      name,
+		Namespace:   ns,
+		Name:        name,
+		Annotations: make(map[string]string),
 	}
 	if ratelimitCfg != "" {
-		meta.Annotations = map[string]string{
-			ratelimitAnnotationKey: ratelimitCfg,
-		}
+		meta.Annotations[ratelimitAnnotationKey] = ratelimitCfg
 	}
 	if filterString != "" {
-		meta.Annotations = map[string]string{
-			skipperfilterAnnotationKey: filterString,
-		}
+		meta.Annotations[skipperfilterAnnotationKey] = filterString
 	}
 	if predicateString != "" {
-		meta.Annotations = map[string]string{
-			skipperpredicateAnnotationKey: predicateString,
-		}
+		meta.Annotations[skipperpredicateAnnotationKey] = predicateString
 	}
 	if routesString != "" {
-		meta.Annotations = map[string]string{
-			skipperRoutesAnnotationKey: routesString,
-		}
+		meta.Annotations[skipperRoutesAnnotationKey] = routesString
 	}
 	return &ingressItem{
 		Metadata: &meta,
@@ -1423,7 +1416,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			route, err := dc.convertPathRule("namespace1", "", "", tc.rule, map[string][]string{})
+			route, err := dc.convertPathRule("namespace1", "", "", tc.rule, KubernetesIngressMode, map[string][]string{})
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}

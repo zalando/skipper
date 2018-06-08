@@ -75,6 +75,47 @@ Cloud migration.
               serviceName: app-svc
               servicePort: 80
 
+## Ingress path handling
+
+Ingress paths can be interpreted in four different modes:
+
+1. based on the kubernetes ingress specification
+2. as plain regular expression
+3. as a path prefix
+
+The default is the kubernetes ingress mode. It can be changed by a startup option
+to any of the other modes, and the individual ingress rules can also override the
+default behavior with the zalando.org/skipper-ingress-path-mode annotation.
+
+E.g.:
+
+    zalando.org/skipper-ingress-path-mode: path-prefix
+
+### Kubernetes ingress specification base path
+
+By default, the ingress path is interpreted as a regular expression with a
+mandatory leading "/", and is automatically prepended by a "^" control character,
+enforcing that the path has to be at the start of the incoming request path.
+
+### Plain regular expression
+
+When the path mode is set to "path-regexp", the ingress path is interpreted similar
+to the default kubernetes ingress specification way, but is not prepended by the "^"
+control character.
+
+### Path prefix
+
+When the path mode is set to "path-prefix", the ingress path is not a regular
+expression. As an example, "/foo/bar" will match "/foo/bar" or "/foo/bar/baz", but
+won't match "/foo/barooz".
+
+When PathPrefix is used, the path matching becomes deterministic when
+a request could match more than one ingress routes otherwise.
+
+In PathPrefix mode, when a Path or PathSubtree predicate is set in an
+annotation, the predicate in the annotation takes precedence over the normal ingress
+path.
+
 ## Filters and Predicates
 
 - **Filters** can manipulate http data, which is not possible in the ingress spec.
