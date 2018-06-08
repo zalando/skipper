@@ -109,12 +109,8 @@ When the path mode is set to "path-prefix", the ingress path is not a regular
 expression. As an example, "/foo/bar" will match "/foo/bar" or "/foo/bar/baz", but
 won't match "/foo/barooz".
 
-### Path prefix behavior
-
 When PathPrefix is used, the path matching becomes deterministic when
 a request could match more than one ingress routes otherwise.
-
-### Path prefix with predicate annotations
 
 In PathPrefix mode, when a Path or PathSubtree predicate is set in an
 annotation, the predicate in the annotation takes precedence over the normal ingress
