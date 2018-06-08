@@ -123,7 +123,7 @@ const (
 	kubernetesHTTPSRedirectUsage    = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
 	kubernetesIngressClassUsage     = "ingress class regular expression used to filter ingress resources for kubernetes"
 	whitelistedHealthCheckCIDRUsage = "sets the iprange/CIDRS to be whitelisted during healthcheck"
-	kubernetesPathModeUsage         = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix/exact-path"
+	kubernetesPathModeUsage         = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
 
 	// OAuth2:
 	oauthURLUsage            = "OAuth2 URL for Innkeeper authentication"
