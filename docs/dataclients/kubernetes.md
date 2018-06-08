@@ -8,7 +8,7 @@ Detailed information you find in our [godoc for dataclient kubernetes](https://g
 
 ## Kubernetes Ingress Controller deployment
 
-How to [install skipper ingress-controller](../kubernetes/ingress-controller.md) for cluster operators.
+How to [install Skipper ingress-controller](../kubernetes/ingress-controller.md) for cluster operators.
 
 ## Kubernetes Ingress Usage
 
