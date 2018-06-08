@@ -3,12 +3,12 @@
 ## Kubernetes Race Condition problem
 
 As described in [#652](https://github.com/zalando/skipper/issues/652),
-there is a problem that exists in kubernetes, while terminating Pods.
+there is a problem that exists in Kubernetes, while terminating Pods.
 Terminating Pods could be graceful, but the nature of distributed
 environments will show failures, because not all components in the
 distributed system changed already their state. When a Pod terminates,
-the controller-manager has to update the `endpoints` of the kubernetes
-`service`.  Additionally skipper has to get this endpoints
+the controller-manager has to update the `endpoints` of the Kubernetes
+`service`.  Additionally Skipper has to get this endpoints
 list. Skipper polls the kube-apiserver every `-source-poll-timeout=<ms>`,
 which defaults to 3000.
 Reducing this interval or implementing watch will only reduce the
@@ -43,14 +43,14 @@ lifecycle:
 ```
 
 20 seconds should be enough to fade your Pod out of the endpoints list
-and skipper's routing table.
+and Skipper's routing table.
 
 ### SIGTERM handling in Containers
 
 An application can implement a SIGTERM handler, that changes the
 `readinessProbe` target to unhealthy for the application
 instance. This will make sure it will be deleted from the endpoints
-list and from skipper's routing table. Similar to [Pod Lifecycle
+list and from Skipper's routing table. Similar to [Pod Lifecycle
 Hooks](#pod-lifecycle-hooks) you could sleep 20 seconds and after that
 terminate your application or you just wait until SIGKILL will cleanup
 the instance after 60s.

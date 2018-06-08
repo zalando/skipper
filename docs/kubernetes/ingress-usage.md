@@ -24,7 +24,7 @@ Service type | supported | workaround
 ClusterIP | yes | ---
 NodePort | yes | ---
 ExternalName | no, [related issue](https://github.com/zalando/skipper/issues/549) | [use deployment with routestring](../dataclients/route-string/#proxy-to-a-given-url)
-LoadBalancer | no | it should not, because kubernetes cloud-controller-manager will maintain it
+LoadBalancer | no | it should not, because Kubernetes cloud-controller-manager will maintain it
 
 # Basics
 
@@ -49,7 +49,7 @@ endpoints selected by the Kubernetes service `app-svc` on port `80`.
 
 To have 2 routes with different `Host` headers serving the same
 backends, you have to specify 2 entries in the rules section, as
-kubernetes defined the ingress spec. This is often used in cases of
+Kubernetes defined the ingress spec. This is often used in cases of
 migrations from one domain to another one or migrations to or from
 bare metal datacenters to cloud providers or inter cloud or intra
 cloud providers migrations. Examples are AWS account migration, AWS to
@@ -337,7 +337,7 @@ you know how much calls per duration your backend is able to handle.
 Ratelimits are enforced per route.
 
 More details you will find in [ratelimit package](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
-and [kubernetes dataclient](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes) documentation.
+and [Kubernetes dataclient](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes) documentation.
 
 ### Client Ratelimits
 

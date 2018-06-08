@@ -8,7 +8,7 @@ Cluster.
 
 Baremetal loadbalancer perform really well, but the configuration is
 not updated frequently and most of these installations are not meant
-to rapidly change. With introducing kubernetes this will change and
+to rapidly change. With introducing Kubernetes this will change and
 there is a need of rapid changing http routers. Skipper is designed
 for rapidly changing it's routing tree.
 
@@ -20,10 +20,10 @@ and [more](ingress-usage.md).
 
 ## What is an Ingress-Controller?
 
-Ingress-controllers are serving http requests into a kubernetes
+Ingress-controllers are serving http requests into a Kubernetes
 cluster. Most of the time traffic will pass ingress got to a
-kubernetes service IP which will forward the packets to kubernetes Pods
-selected by the kubernetes service.
+Kubernetes service IP which will forward the packets to Kubernetes Pods
+selected by the Kubernetes service.
 For having a successful ingress, you need to have a DNS name pointing
 to some stable IP addresses that act as a loadbalancer.
 
