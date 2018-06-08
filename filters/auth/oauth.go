@@ -150,7 +150,7 @@ func intersect(left []string, right []string) bool {
 func jsonGet(url *url.URL, auth string, doc interface{}) error {
 	if auth != "" {
 		q := url.Query()
-		q.Add(accessTokenQueryKey, auth)
+		q.Set(accessTokenQueryKey, auth)
 		url.RawQuery = q.Encode()
 	}
 
