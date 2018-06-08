@@ -1,7 +1,7 @@
 # Skipper Ingress Controller
 
 This documentation is meant for for cluster operators and describes
-how to install skipper as Ingress-Controller into your Kubernetes
+how to install Skipper as Ingress-Controller into your Kubernetes
 Cluster.
 
 ## Why you should use skipper as ingress controller?
@@ -44,7 +44,7 @@ traffic to the pods. Instead it uses the Endpoints API to bypass
 kube-proxy created iptables to remove overhead like conntrack entries
 for iptables DNAT. Skipper can also reuse connections to Pods, such
 that you have no overhead in establishing connections all the time. To
-prevent errors on node failures, skipper also does automatically
+prevent errors on node failures, Skipper also does automatically
 retries to another endpoint in case it gets a connection refused or
 TLS handshake error to the endpoint.  Other reasons are future support
 of features like session affinity, different loadbalancer
@@ -60,7 +60,7 @@ A logical overview of the traffic flow in AWS is shown in this picture:
 
 ![logical ingress-traffic-flow](../img/ingress-traffic-flow-aws.svg)
 
-We described that skipper bypasses Kubernetes Service and use directly
+We described that Skipper bypasses Kubernetes Service and use directly
 endpoints for [good reasons](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#why-skipper-uses-endpoints-and-not-services),
 therefore the real traffic flow is shown in the next picture.
 ![technical ingress-traffic-flow](../img/ingress-traffic-flow-aws-technical.svg)
