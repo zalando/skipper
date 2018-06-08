@@ -164,32 +164,6 @@ func TestPathMatchingModes(t *testing.T) {
 		}
 	})
 
-	t.Run("exact path", func(t *testing.T) {
-		setIngressWithPath("/foo")
-		r, err := loadRoutes(ExactPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		routeWithExactPath, err := findRouteWithExactPath(r)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if routeWithExactPath == nil {
-			t.Fatal("route with path regexp not found")
-		}
-
-		p, err := findPathPredicate(routeWithExactPath, "Path")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if p == nil || p.Args[0] != "/foo" {
-			t.Error("invalid path prefix value", routeWithExactPath.Path)
-		}
-	})
-
 	t.Run("additional exact path from annotation", func(t *testing.T) {
 		extendableModes := []PathMode{KubernetesIngressMode, PathRegexp}
 
@@ -265,66 +239,54 @@ func TestPathMatchingModes(t *testing.T) {
 	})
 
 	t.Run("overriding with exact path from annotation", func(t *testing.T) {
-		overridableModes := []PathMode{PathPrefix, ExactPath}
+		setIngressWithPath("/foo", "Path(\"/bar\")")
+		r, err := loadRoutes(PathPrefix)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		for _, mode := range overridableModes {
-			t.Run(mode.String(), func(t *testing.T) {
-				setIngressWithPath("/foo", "Path(\"/bar\")")
-				r, err := loadRoutes(mode)
-				if err != nil {
-					t.Fatal(err)
-				}
+		routeWithExactPath, err := findRouteWithExactPath(r)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-				routeWithExactPath, err := findRouteWithExactPath(r)
-				if err != nil {
-					t.Fatal(err)
-				}
+		if routeWithExactPath == nil {
+			t.Fatal("route with path regexp not found")
+		}
 
-				if routeWithExactPath == nil {
-					t.Fatal("route with path regexp not found")
-				}
+		p, err := findPathPredicate(routeWithExactPath, "Path")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-				p, err := findPathPredicate(routeWithExactPath, "Path")
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if p == nil || p.Args[0] != "/bar" {
-					t.Error("missing or invalid exact path value")
-				}
-			})
+		if p == nil || p.Args[0] != "/bar" {
+			t.Error("missing or invalid exact path value")
 		}
 	})
 
 	t.Run("overriding with path prefix from annotation", func(t *testing.T) {
-		overridableModes := []PathMode{PathPrefix, ExactPath}
+		setIngressWithPath("/foo", "PathSubtree(\"/bar\")")
+		r, err := loadRoutes(PathPrefix)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		for _, mode := range overridableModes {
-			t.Run(mode.String(), func(t *testing.T) {
-				setIngressWithPath("/foo", "PathSubtree(\"/bar\")")
-				r, err := loadRoutes(mode)
-				if err != nil {
-					t.Fatal(err)
-				}
+		routeWithPathPrefix, err := findRouteWithPathPrefix(r)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-				routeWithPathPrefix, err := findRouteWithPathPrefix(r)
-				if err != nil {
-					t.Fatal(err)
-				}
+		if routeWithPathPrefix == nil {
+			t.Fatal("route with path regexp not found")
+		}
 
-				if routeWithPathPrefix == nil {
-					t.Fatal("route with path regexp not found")
-				}
+		p, err := findPathPredicate(routeWithPathPrefix, "PathSubtree")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-				p, err := findPathPredicate(routeWithPathPrefix, "PathSubtree")
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if p == nil || p.Args[0] != "/bar" {
-					t.Error("missing or invalid exact path value")
-				}
-			})
+		if p == nil || p.Args[0] != "/bar" {
+			t.Error("missing or invalid exact path value")
 		}
 	})
 }
@@ -343,9 +305,6 @@ func TestPathModeParsing(t *testing.T) {
 	}, {
 		str:  pathRegexpString,
 		mode: PathRegexp,
-	}, {
-		str:  exactPathString,
-		mode: ExactPath,
 	}, {
 		str:  pathPrefixString,
 		mode: PathPrefix,

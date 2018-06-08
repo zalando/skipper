@@ -82,7 +82,6 @@ Ingress paths can be interpreted in four different modes:
 1. based on the kubernetes ingress specification
 2. as plain regular expression
 3. as a path prefix
-4. as an exact path
 
 The default is the kubernetes ingress mode. It can be changed by a startup option
 to any of the other modes, and the individual ingress rules can also override the
@@ -110,19 +109,14 @@ When the path mode is set to "path-prefix", the ingress path is not a regular
 expression. As an example, "/foo/bar" will match "/foo/bar" or "/foo/bar/baz", but
 won't match "/foo/barooz".
 
-### Exact path
+### Path prefix behavior
 
-ExactPath is like the Path predicate. As an example "/foo/bar" will only match
-"/foo/bar".
-
-### Path prefix and exact path behavior
-
-When PathPrefix or ExactPath are used, the path matching becomes deterministic when
+When PathPrefix is used, the path matching becomes deterministic when
 a request could match more than one ingress routes otherwise.
 
-### Path prefix and exact path with predicate annotations
+### Path prefix with predicate annotations
 
-In PathPrefix or ExactPath mode, when a Path or PathSubtree predicate is set in an
+In PathPrefix mode, when a Path or PathSubtree predicate is set in an
 annotation, the predicate in the annotation takes precedence over the normal ingress
 path.
 

@@ -59,7 +59,7 @@ const (
 // set, the Kubernetes ingress specification is used, accepting regular expressions with a
 // mandatory leading "/", automatically prepended by the "^" control character.
 //
-// When PathPrefix or ExactPath are used, the path matching becomes deterministic when
+// When PathPrefix is used, the path matching becomes deterministic when
 // a request could match more than one ingress routes otherwise.
 type PathMode int
 
@@ -79,20 +79,12 @@ const (
 	// In this mode, when a Path or a PathSubtree predicate is set in an annotation,
 	// the value from the annotation has precedence over the standard ingress path.
 	PathPrefix
-
-	// ExactPath is like the Path predicate. E.g. "/foo/bar" will only match
-	// "/foo/bar".
-	//
-	// In this mode, when a Path or a PathSubtree predicate is set in an annotation,
-	// the value from the annotation has precedence over the standard ingress path.
-	ExactPath
 )
 
 const (
 	kubernetesIngressModeString = "kubernetes-ingress"
 	pathRegexpString            = "path-regexp"
 	pathPrefixString            = "path-prefix"
-	exactPathString             = "exact-path"
 )
 
 var internalIPs = []interface{}{
@@ -256,8 +248,6 @@ func (m PathMode) String() string {
 		return pathRegexpString
 	case PathPrefix:
 		return pathPrefixString
-	case ExactPath:
-		return exactPathString
 	default:
 		return kubernetesIngressModeString
 	}
@@ -273,8 +263,6 @@ func ParsePathMode(s string) (PathMode, error) {
 		return PathRegexp, nil
 	case pathPrefixString:
 		return PathPrefix, nil
-	case exactPathString:
-		return ExactPath, nil
 	default:
 		return 0, fmt.Errorf("invalid path mode string: %s", s)
 	}
@@ -623,11 +611,6 @@ func setPath(m PathMode, r *eskip.Route, p string) {
 			Name: "PathSubtree",
 			Args: []interface{}{p},
 		})
-	case ExactPath:
-		r.Predicates = append(r.Predicates, &eskip.Predicate{
-			Name: "Path",
-			Args: []interface{}{p},
-		})
 	case PathRegexp:
 		r.PathRegexps = []string{p}
 	default:
@@ -805,7 +788,7 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 
 	// to avoid conflict, give precedence for those predicates that come
 	// from annotations
-	if m == ExactPath || m == PathPrefix {
+	if m == PathPrefix {
 		for _, p := range predicates {
 			if p.Name != "Path" && p.Name != "PathSubtree" {
 				continue
