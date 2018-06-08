@@ -2,11 +2,11 @@ package builtin
 
 import (
 	"fmt"
+	"github.com/prometheus/common/log"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/serve"
 	"net/http"
 	"os"
-	"github.com/prometheus/common/log"
 )
 
 type static struct {
@@ -37,7 +37,6 @@ func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 	webRoot, ok := config[0].(string)
 
-
 	if !ok {
 		return nil, fmt.Errorf("invalid parameter type, expected string for web root prefix")
 	}
@@ -62,7 +61,7 @@ func (f *static) Request(ctx filters.FilterContext) {
 func (f *static) Response(filters.FilterContext) {}
 
 // Checks if the file does exist and is accessible
-func existsAndAccessible(path string) (bool){
+func existsAndAccessible(path string) bool {
 	_, err := os.Stat(path)
 	if err != nil {
 		return os.IsExist(err)
