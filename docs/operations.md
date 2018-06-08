@@ -353,7 +353,7 @@ are exposed from skipper to the metrics endpoint, default listener
 
 Dataclients poll some kind of data source for routes. To change the
 timeout for calls that polls a dataclient, which could be the
-kubernetes API, use the following option:
+Kubernetes API, use the following option:
 
     -source-poll-timeout int
         polling timeout of the routing data sources, in milliseconds (default 3000)
