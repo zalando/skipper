@@ -55,10 +55,6 @@ func findRouteWithPathPrefix(r []*eskip.Route) (*eskip.Route, error) {
 
 func findRouteWithExactPath(r []*eskip.Route) (*eskip.Route, error) {
 	for _, ri := range r {
-		if ri.Path != "" {
-			return ri, nil
-		}
-
 		p, err := findPathPredicate(ri, "Path")
 		if err != nil {
 			return nil, err
