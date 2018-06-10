@@ -740,15 +740,6 @@ func (c *Client) convertPathRule(
 		}
 
 		setPath(pathMode, r, prule.Path)
-
-		// add traffic predicate if traffic weight is between 0.0 and 1.0
-		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
-			r.Predicates = append([]*eskip.Predicate{{
-				Name: traffic.PredicateName,
-				Args: []interface{}{prule.Backend.Traffic},
-			}}, r.Predicates...)
-			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
-		}
 		routes = append(routes, r)
 	}
 
@@ -771,6 +762,15 @@ func (c *Client) convertPathRule(
 	}
 
 	setPath(pathMode, decisionRoute, prule.Path)
+
+	// add traffic predicate if traffic weight is between 0.0 and 1.0
+	if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+		decisionRoute.Predicates = append([]*eskip.Predicate{{
+			Name: traffic.PredicateName,
+			Args: []interface{}{prule.Backend.Traffic},
+		}}, decisionRoute.Predicates...)
+		log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+	}
 
 	routes = append(routes, decisionRoute)
 	return routes, nil
