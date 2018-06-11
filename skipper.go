@@ -446,13 +446,6 @@ type Options struct {
 	// filters.
 	OAuthIssuerURL string
 
-	// OAuthTokenintrospectionURL sets the the URL to be queried for token
-	// introspection for all auth.NewOAuthTokenintrospection*()
-	// filters. If set to a non empty string value, it will
-	// override any token_introspection URL found by the dynamic
-	// OpenID Connect configuration URL.
-	OAuthTokenintrospectionURL string
-
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
 }

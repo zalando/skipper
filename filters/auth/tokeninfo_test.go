@@ -342,36 +342,27 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
 			}
 
-			// test accessToken in querystring and header
-			for _, name := range []string{"query", "header"} {
-				if ti.hasAuth && name == "query" {
-					q := reqURL.Query()
-					q.Add(accessTokenQueryKey, ti.auth)
-					reqURL.RawQuery = q.Encode()
-				}
+			req, err := http.NewRequest("GET", reqURL.String(), nil)
+			if err != nil {
+				t.Error(err)
+				return
+			}
 
-				req, err := http.NewRequest("GET", reqURL.String(), nil)
-				if err != nil {
-					t.Error(err)
-					return
-				}
+			if ti.hasAuth {
+				req.Header.Set(authHeaderName, authHeaderPrefix+ti.auth)
+			}
 
-				if ti.hasAuth && name == "header" {
-					req.Header.Set(authHeaderName, "Bearer "+url.QueryEscape(ti.auth))
-				}
+			rsp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Error(err)
+			}
 
-				rsp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					t.Error(err)
-				}
+			defer rsp.Body.Close()
 
-				defer rsp.Body.Close()
-
-				if rsp.StatusCode != ti.expected {
-					t.Errorf("auth filter failed got=%d, expected=%d, route=%s", rsp.StatusCode, ti.expected, r)
-					buf := make([]byte, rsp.ContentLength)
-					rsp.Body.Read(buf)
-				}
+			if rsp.StatusCode != ti.expected {
+				t.Errorf("auth filter failed got=%d, expected=%d, route=%s", rsp.StatusCode, ti.expected, r)
+				buf := make([]byte, rsp.ContentLength)
+				rsp.Body.Read(buf)
 			}
 		})
 	}
