@@ -8,22 +8,12 @@ import (
 	"net/url"
 	"testing"
 	"time"
-
-	ot "github.com/opentracing/opentracing-go"
-	log "github.com/opentracing/opentracing-go/log"
 )
 
-var (
-	recordedSpan     *span
-	allRecordedSpans []*span
-)
-
-const traceHeader string = "X-Trace-Header"
-
-var traceContent string
+const traceHeader = "X-Trace-Header"
 
 func TestTracingFromWire(t *testing.T) {
-	traceContent = fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
+	traceContent := fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
 	s := startTestServer(nil, 0, func(r *http.Request) {
 		th, ok := r.Header[traceHeader]
 		if !ok {
@@ -46,8 +36,9 @@ func TestTracingFromWire(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	tracer := &tracer{}
 	params := Params{
-		OpenTracer: &tracer{},
+		OpenTracer: tracer,
 		Flags:      FlagsNone,
 	}
 
@@ -57,24 +48,22 @@ func TestTracingFromWire(t *testing.T) {
 		return
 	}
 	defer tp.close()
-	recordedSpan = nil
-	allRecordedSpans = nil
 
 	tp.proxy.ServeHTTP(w, r)
 
-	if recordedSpan == nil {
-		t.Errorf("no span recorded...")
+	if len(tracer.recordedSpans) == 0 {
+		t.Fatal("no span recorded...")
 	}
-	if recordedSpan.trace != traceContent {
-		t.Errorf("trace not found, got `%s` instead", recordedSpan.trace)
+	if tracer.recordedSpans[0].trace != traceContent {
+		t.Errorf("trace not found, got `%s` instead", tracer.recordedSpans[0].trace)
 	}
-	if len(recordedSpan.refs) == 0 {
+	if len(tracer.recordedSpans[0].refs) == 0 {
 		t.Errorf("no references found, this is a root span")
 	}
 }
 
 func TestTracingRoot(t *testing.T) {
-	traceContent = fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
+	traceContent := fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
 	s := startTestServer(nil, 0, func(r *http.Request) {
 		th, ok := r.Header[traceHeader]
 		if !ok {
@@ -96,8 +85,9 @@ func TestTracingRoot(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	tracer := &tracer{traceContent: traceContent}
 	params := Params{
-		OpenTracer: &tracer{},
+		OpenTracer: tracer,
 		Flags:      FlagsNone,
 	}
 
@@ -107,24 +97,28 @@ func TestTracingRoot(t *testing.T) {
 		return
 	}
 	defer tp.close()
-	recordedSpan = nil
-	allRecordedSpans = nil
 
 	tp.proxy.ServeHTTP(w, r)
 
-	if recordedSpan == nil {
-		t.Errorf("no span recorded...")
+	if len(tracer.recordedSpans) == 0 {
+		t.Fatal("no span recorded...")
 	}
-	if recordedSpan.trace != traceContent {
-		t.Errorf("trace not found, got `%s` instead", recordedSpan.trace)
+	if tracer.recordedSpans[0].trace != traceContent {
+		t.Errorf("trace not found, got `%s` instead", tracer.recordedSpans[0].trace)
 	}
-	if len(recordedSpan.refs) > 0 {
-		t.Errorf("references found, this is not a root span")
+
+	root, ok := tracer.findSpan("ingress")
+	if !ok {
+		t.Fatal("root span not found")
+	}
+
+	if len(root.refs) != 0 {
+		t.Error("root span cannot have references")
 	}
 }
 
 func TestTracingSpanName(t *testing.T) {
-	traceContent = fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
+	traceContent := fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
 	s := startTestServer(nil, 0, func(r *http.Request) {
 		th, ok := r.Header[traceHeader]
 		if !ok {
@@ -146,34 +140,29 @@ func TestTracingSpanName(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> tracingSpanName("test-span") -> "%s"`, s.URL)
+	tracer := &tracer{traceContent: traceContent}
 	params := Params{
-		OpenTracer: &tracer{},
+		OpenTracer: tracer,
 		Flags:      FlagsNone,
 	}
 
 	tp, err := newTestProxyWithParams(doc, params)
 	if err != nil {
-		t.Fatal()
+		t.Fatal(err)
 	}
 
 	defer tp.close()
 
-	recordedSpan = nil
-	allRecordedSpans = nil
-
 	tp.proxy.ServeHTTP(w, r)
 
-	for _, s := range allRecordedSpans {
-		if s.operationName == "test-span" {
-			return
-		}
+	_, ok := tracer.findSpan("test-span")
+	if !ok {
+		t.Error("setting the span name failed")
 	}
-
-	t.Error("setting the span name failed")
 }
 
 func TestTracingInitialSpanName(t *testing.T) {
-	traceContent = fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
+	traceContent := fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
 	s := startTestServer(nil, 0, func(r *http.Request) {
 		th, ok := r.Header[traceHeader]
 		if !ok {
@@ -195,127 +184,23 @@ func TestTracingInitialSpanName(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	tracer := &tracer{traceContent: traceContent}
 	params := Params{
-		OpenTracer:             &tracer{},
+		OpenTracer:             tracer,
 		OpenTracingInitialSpan: "test-initial-span",
 		Flags: FlagsNone,
 	}
 
 	tp, err := newTestProxyWithParams(doc, params)
 	if err != nil {
-		t.Fatal()
+		t.Fatal(err)
 	}
 
 	defer tp.close()
 
-	recordedSpan = nil
-	allRecordedSpans = nil
-
 	tp.proxy.ServeHTTP(w, r)
 
-	for _, s := range allRecordedSpans {
-		if s.operationName == "test-initial-span" {
-			return
-		}
-	}
-
-	t.Error("setting the span name failed")
-}
-
-type tracer struct {
-}
-
-type span struct {
-	trace         string
-	operationName string
-	tags          map[string]interface{}
-	tracer        ot.Tracer
-	refs          []ot.SpanReference
-}
-
-func (t *tracer) StartSpan(operationName string, opts ...ot.StartSpanOption) ot.Span {
-	sso := ot.StartSpanOptions{}
-	for _, o := range opts {
-		o.Apply(&sso)
-	}
-	return &span{
-		operationName: operationName,
-		tracer:        t,
-		tags:          make(map[string]interface{}),
-		trace:         traceContent,
-		refs:          sso.References,
+	if _, ok := tracer.findSpan("test-initial-span"); !ok {
+		t.Error("setting the span name failed")
 	}
 }
-
-func (t *tracer) Inject(sm ot.SpanContext, format interface{}, carrier interface{}) error {
-	http.Header(carrier.(ot.HTTPHeadersCarrier)).Set("X-Trace-Header", traceContent)
-	return nil
-}
-
-func (t *tracer) Extract(format interface{}, carrier interface{}) (ot.SpanContext, error) {
-	val := http.Header(carrier.(ot.HTTPHeadersCarrier)).Get("X-Trace-Header")
-	if val != "" {
-		return &span{
-			trace:  val,
-			tracer: t,
-			tags:   make(map[string]interface{}),
-			refs: []ot.SpanReference{
-				{
-					Type:              ot.ChildOfRef,
-					ReferencedContext: &span{trace: val},
-				},
-			},
-		}, nil
-	}
-	return nil, ot.ErrSpanContextNotFound
-}
-
-// SpanContext interface
-func (s *span) ForeachBaggageItem(func(k, v string) bool) {}
-
-// Span interface
-func (s *span) Finish() {
-	recordedSpan = s
-	allRecordedSpans = append(allRecordedSpans, s)
-}
-
-func (s *span) FinishWithOptions(opts ot.FinishOptions) {
-	recordedSpan = s
-	allRecordedSpans = append(allRecordedSpans, s)
-}
-
-func (s *span) Context() ot.SpanContext {
-	return s
-}
-
-func (s *span) SetOperationName(operationName string) ot.Span {
-	s.operationName = operationName
-	return s
-}
-
-func (s *span) SetTag(key string, value interface{}) ot.Span {
-	s.tags[key] = value
-	return s
-}
-
-func (*span) LogFields(...log.Field) {}
-
-func (*span) LogKV(...interface{}) {}
-
-func (s *span) SetBaggageItem(restrictedKey, value string) ot.Span {
-	return s
-}
-
-func (*span) BaggageItem(string) string {
-	return ""
-}
-
-func (s *span) Tracer() ot.Tracer {
-	return s.tracer
-}
-
-func (*span) LogEvent(string) {}
-
-func (*span) LogEventWithPayload(string, interface{}) {}
-
-func (*span) Log(ot.LogData) {}
