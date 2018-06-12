@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"net/http"
+	"time"
 
 	ot "github.com/opentracing/opentracing-go"
 	log "github.com/opentracing/opentracing-go/log"
@@ -18,6 +19,8 @@ type span struct {
 	tags          map[string]interface{}
 	tracer        *tracer
 	refs          []ot.SpanReference
+	start         time.Time
+	finish        time.Time
 }
 
 func (t *tracer) findAllSpans(operationName string) []*span {
@@ -40,11 +43,17 @@ func (t *tracer) findSpan(operationName string) (*span, bool) {
 	return nil, false
 }
 
+func (t *tracer) reset(traceContent string) {
+	t.traceContent = traceContent
+	t.recordedSpans = nil
+}
+
 func (t *tracer) createSpanBase() *span {
 	return &span{
 		tracer: t,
 		trace:  t.traceContent,
 		tags:   make(map[string]interface{}),
+		start:  time.Now(),
 	}
 }
 
@@ -89,6 +98,7 @@ func (s *span) Finish() {
 }
 
 func (s *span) FinishWithOptions(opts ot.FinishOptions) {
+	s.finish = time.Now()
 	s.tracer.recordedSpans = append(s.tracer.recordedSpans, s)
 }
 
