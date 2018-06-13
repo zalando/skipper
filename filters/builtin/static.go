@@ -41,12 +41,9 @@ func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 		return nil, fmt.Errorf("invalid parameter type, expected string for web root prefix")
 	}
 	root, ok := config[1].(string)
-	if !ok {
+	if ok, err := existsAndAccessible(root); !ok {
+		log.Errorf("Invalid parameter for root path. File %s does not exist or is not accessible: %v", root, err)
 		return nil, fmt.Errorf("invalid parameter type, expected string for path to root dir")
-	}
-
-	if !existsAndAccessible(root) {
-		log.Warn("Invalid parameter for root path. File %s does not exist or is not accessible.", root)
 	}
 
 	return &static{http.StripPrefix(webRoot, http.FileServer(http.Dir(root)))}, nil
@@ -61,11 +58,11 @@ func (f *static) Request(ctx filters.FilterContext) {
 func (f *static) Response(filters.FilterContext) {}
 
 // Checks if the file does exist and is accessible
-func existsAndAccessible(path string) bool {
+func existsAndAccessible(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err != nil {
-		return os.IsExist(err)
+		return os.IsExist(err), err
 	} else {
-		return true
+		return true, nil
 	}
 }
