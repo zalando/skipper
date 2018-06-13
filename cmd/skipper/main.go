@@ -497,16 +497,21 @@ func main() {
 		OAuthTokeninfoURL:   oauth2TokeninfoURL,
 
 		// connections, timeouts:
-		IdleConnectionsPerHost:  idleConnsPerHost,
-		CloseIdleConnsPeriod:    time.Duration(clsic) * time.Second,
-		BackendFlushInterval:    backendFlushInterval,
-		ExperimentalUpgrade:     experimentalUpgrade,
-		ReadTimeoutServer:       readTimeoutServer,
-		ReadHeaderTimeoutServer: readHeaderTimeoutServer,
-		WriteTimeoutServer:      writeTimeoutServer,
-		IdleTimeoutServer:       idleTimeoutServer,
-		MaxHeaderBytes:          maxHeaderBytes,
-		EnableConnMetricsServer: enableConnMetricsServer,
+		IdleConnectionsPerHost:     idleConnsPerHost,
+		CloseIdleConnsPeriod:       time.Duration(clsic) * time.Second,
+		BackendFlushInterval:       backendFlushInterval,
+		ExperimentalUpgrade:        experimentalUpgrade,
+		ReadTimeoutServer:          readTimeoutServer,
+		ReadHeaderTimeoutServer:    readHeaderTimeoutServer,
+		WriteTimeoutServer:         writeTimeoutServer,
+		IdleTimeoutServer:          idleTimeoutServer,
+		MaxHeaderBytes:             maxHeaderBytes,
+		EnableConnMetricsServer:    enableConnMetricsServer,
+		TimeoutBackend:             timeoutBackend,
+		KeepAliveBackend:           keepaliveBackend,
+		DualStackBackend:           enableDualstackBackend,
+		TLSHandshakeTimeoutBackend: tlsHandshakeTimeoutBackend,
+		MaxIdleConnsBackend:        maxIdleConnsBackend,
 	}
 
 	if pluginDir != "" {
