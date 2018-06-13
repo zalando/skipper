@@ -1107,12 +1107,19 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
 
 	sort.Slice(fItems, func(i, j int) bool {
-		nsI := fItems[i].Metadata.Namespace
-		nsJ := fItems[j].Metadata.Namespace
+		mI := fItems[i].Metadata
+		mJ := fItems[j].Metadata
+		if mI == nil && mJ != nil {
+			return true
+		} else if mJ == nil {
+			return false
+		}
+		nsI := mI.Namespace
+		nsJ := mJ.Namespace
 		if nsI != nsJ {
 			return nsI < nsJ
 		}
-		return fItems[i].Metadata.Name < fItems[j].Metadata.Name
+		return mI.Name < mJ.Name
 	})
 
 	r, err := c.ingressToRoutes(fItems)
