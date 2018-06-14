@@ -9,15 +9,13 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-const docWithTrafficControl = `
+const docWithEquivalentGroups = `
 // for reproducibility:
-// - we represent Traffic(1) here with a Host that always matches
-// - we don't define member routes, so that the randomness in the routing table doesn't
-//   prevent us from reproducing the problem with 100% chance. This way we expect 404
-//   instead of the 500 indicating the infinite loopback.
+// we don't define member routes, so that the randomness in the routing table doesn't
+// prevent us from reproducing the problem with the infinite looping. This way we expect
+// 404 instead of the 500, that would indicate the infinite loopback.
 
 group1:
-	Host(".*") &&
 	LBGroup("group1")
 	-> lbDecide("group1", 2)
 	-> <loopback>;
@@ -28,8 +26,8 @@ group2:
 	-> <loopback>;
 `
 
-func TestLoadBalancerWithTrafficControl(t *testing.T) {
-	r, err := eskip.Parse(docWithTrafficControl)
+func TestLoadBalancerWithEquivalentGroups(t *testing.T) {
+	r, err := eskip.Parse(docWithEquivalentGroups)
 	if err != nil {
 		t.Fatal(err)
 	}
