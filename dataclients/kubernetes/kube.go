@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -597,6 +598,7 @@ func (c *Client) getEndpoints(ns, name, servicePort, targetPort string) ([]strin
 	if len(targets) == 0 {
 		return nil, errEndpointNotFound
 	}
+	sort.Strings(targets)
 	return targets, nil
 }
 
@@ -1103,6 +1105,23 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	log.Debugf("all ingresses received: %d", len(il.Items))
 	fItems := c.filterIngressesByClass(il.Items)
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
+
+	sort.Slice(fItems, func(i, j int) bool {
+		mI := fItems[i].Metadata
+		mJ := fItems[j].Metadata
+		if mI == nil && mJ != nil {
+			return true
+		} else if mJ == nil {
+			return false
+		}
+		nsI := mI.Namespace
+		nsJ := mJ.Namespace
+		if nsI != nsJ {
+			return nsI < nsJ
+		}
+		return mI.Name < mJ.Name
+	})
+
 	r, err := c.ingressToRoutes(fItems)
 	if err != nil {
 		log.Debugf("converting ingresses to routes failed: %v", err)
