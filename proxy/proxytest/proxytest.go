@@ -9,6 +9,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -42,6 +43,7 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 		routingOptions.Predicates = []routing.PredicateSpec{
 			loadbalancer.NewGroup(),
 			loadbalancer.NewMember(),
+			traffic.New(),
 		}
 	}
 

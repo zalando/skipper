@@ -39,7 +39,7 @@ func getGroupDecision(h http.Header, group string) (string, bool) {
 		}
 	}
 
-	return "", false
+	return "", len(h[DecisionHeader]) > 0
 }
 
 // NewGroup creates a predicate spec identifying the entry route
