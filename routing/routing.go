@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -268,10 +267,6 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		return
 	}
-
-	sort.SliceStable(routes, func(i, j int) bool {
-		return routes[i].Id < routes[j].Id
-	})
 
 	w.Header().Set("Content-Type", "text/plain")
 	eskip.Fprint(w, extractPretty(req), routes...)
