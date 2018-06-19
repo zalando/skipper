@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -66,7 +67,15 @@ func Start() error {
 	e := exec.Command("etcd",
 		"-listen-client-urls", clientUrlsString,
 		"-advertise-client-urls", clientUrlsString)
-	err := e.Start()
+	stderr, err := e.StderrPipe()
+	if err != nil {
+		return err
+	}
+	stdout, err := e.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	err = e.Start()
 	if err != nil {
 		return err
 	}
@@ -90,7 +99,10 @@ func Start() error {
 		etcd = e
 		return nil
 	case <-time.After(6 * time.Second):
-		return errors.New("etcd timeout")
+		bout, _ := ioutil.ReadAll(stdout)
+		berr, _ := ioutil.ReadAll(stderr)
+		log.Panicf("ETCD timedout: Failed to start etcd\netcd log output\nSTDOUT: %s\nSTDERR: %s", string(bout), string(berr))
+		return fmt.Errorf("etcd timeout")
 	}
 }
 

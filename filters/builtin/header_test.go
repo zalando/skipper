@@ -62,7 +62,7 @@ func compareHeaders(left, right http.Header) bool {
 }
 
 func testHeaders(t *testing.T, msg string, got, expected http.Header) {
-	for n, _ := range got {
+	for n := range got {
 		if !strings.HasPrefix(n, "X-Test-") {
 			delete(got, n)
 		}

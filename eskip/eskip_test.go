@@ -1,20 +1,11 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package eskip
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+
+	"github.com/sanity-io/litter"
+)
 
 func checkItems(t *testing.T, message string, l, lenExpected int, checkItem func(int) bool) bool {
 	if l != lenExpected {
@@ -117,8 +108,8 @@ func TestParseRouteExpression(t *testing.T) {
 		`Custom1(3.14, "test value") && Custom2() -> "https://www.example.org"`,
 		&Route{
 			Predicates: []*Predicate{
-				&Predicate{"Custom1", []interface{}{float64(3.14), "test value"}},
-				&Predicate{"Custom2", nil}},
+				{"Custom1", []interface{}{float64(3.14), "test value"}},
+				{"Custom2", nil}},
 			Backend: "https://www.example.org"},
 		false,
 	}, {
@@ -136,7 +127,7 @@ func TestParseRouteExpression(t *testing.T) {
 		`* -> setRequestHeader("X-Foo", "bar") -> <shunt>`,
 		&Route{
 			Filters: []*Filter{
-				&Filter{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
+				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
 			},
 			BackendType: ShuntBackend,
 			Shunt:       true,
@@ -147,7 +138,7 @@ func TestParseRouteExpression(t *testing.T) {
 		`* -> setRequestHeader("X-Foo", "bar") -> <loopback>`,
 		&Route{
 			Filters: []*Filter{
-				&Filter{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
+				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
 			},
 			BackendType: LoopBackend,
 		},
@@ -156,7 +147,7 @@ func TestParseRouteExpression(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			stringMapKeys := func(m map[string]string) []string {
 				keys := make([]string, 0, len(m))
-				for k, _ := range m {
+				for k := range m {
 					keys = append(keys, k)
 				}
 
@@ -165,7 +156,7 @@ func TestParseRouteExpression(t *testing.T) {
 
 			stringsMapKeys := func(m map[string][]string) []string {
 				keys := make([]string, 0, len(m))
-				for k, _ := range m {
+				for k := range m {
 					keys = append(keys, k)
 				}
 
@@ -352,7 +343,7 @@ func TestRouteJSON(t *testing.T) {
 			Headers: map[string]string{
 				`ap"key`: `ap"value`},
 			HeaderRegexps: map[string][]string{
-				`ap"key`: []string{"slash/value0", "slash/value1"}},
+				`ap"key`: {"slash/value0", "slash/value1"}},
 			Predicates: []*Predicate{{"Test", []interface{}{3.14, "hello"}}},
 			Filters: []*Filter{
 				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
@@ -388,5 +379,53 @@ func TestRouteJSON(t *testing.T) {
 		if rstring != item.string {
 			t.Errorf("Wrong output:\n  %s\nexpected:\n  %s", rstring, item.string)
 		}
+	}
+}
+
+func TestPredicateParsing(t *testing.T) {
+	for _, test := range []struct {
+		title    string
+		input    string
+		expected []*Predicate
+		fail     bool
+	}{{
+		title: "empty",
+	}, {
+		title: "invalid",
+		input: "not predicates",
+		fail:  true,
+	}, {
+		title:    "single predicate",
+		input:    `Foo("bar")`,
+		expected: []*Predicate{{Name: "Foo", Args: []interface{}{"bar"}}},
+	}, {
+		title: "multiple predicates",
+		input: `Foo("bar") && Baz("qux") && Quux("quuz")`,
+		expected: []*Predicate{
+			{Name: "Foo", Args: []interface{}{"bar"}},
+			{Name: "Baz", Args: []interface{}{"qux"}},
+			{Name: "Quux", Args: []interface{}{"quuz"}},
+		},
+	}, {
+		title: "star notation",
+		input: `*`,
+	}} {
+		t.Run(test.title, func(t *testing.T) {
+			p, err := ParsePredicates(test.input)
+
+			if err == nil && test.fail {
+				t.Error("failed to fail")
+				return
+			} else if err != nil && !test.fail {
+				t.Error(err)
+				return
+			}
+
+			if !reflect.DeepEqual(p, test.expected) {
+				t.Error("invalid parse result")
+				t.Log("got:", litter.Sdump(p))
+				t.Log("expected:", litter.Sdump(test.expected))
+			}
+		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -110,6 +111,26 @@ func (tr *testRouting) checkGetRequest(url string) (*routing.Route, error) {
 func (tr *testRouting) close() {
 	tr.log.Close()
 	tr.routing.Close()
+}
+
+func stringsAreSame(xs, ys []string) bool {
+	if len(xs) != len(ys) {
+		return false
+	}
+	diff := make(map[string]int, len(xs))
+	for _, x := range xs {
+		diff[x]++
+	}
+	for _, y := range ys {
+		if _, ok := diff[y]; !ok {
+			return false
+		}
+		diff[y]--
+		if diff[y] == 0 {
+			delete(diff, y)
+		}
+	}
+	return len(diff) == 0
 }
 
 func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
@@ -409,7 +430,7 @@ func TestProcessesPredicates(t *testing.T) {
 	}
 }
 
-// TestNonMatchedStaticRoute for bug #116: non-matched static route supress wild-carded route
+// TestNonMatchedStaticRoute for bug #116: non-matched static route suppress wild-carded route
 func TestNonMatchedStaticRoute(t *testing.T) {
 	dc, err := testdataclient.NewDoc(`
 		a: Path("/foo/*_") -> "https://foo.org";
@@ -440,7 +461,7 @@ func TestNonMatchedStaticRoute(t *testing.T) {
 		t.Error(err)
 	} else {
 		if r.Backend != "https://foo.org" {
-			t.Error("non-matched static route supress wild-carded route")
+			t.Error("non-matched static route suppress wild-carded route")
 		}
 	}
 }
@@ -616,9 +637,11 @@ func TestRoutingHandlerFilterInvalidRoutes(t *testing.T) {
 
 func TestRoutingHandlerPagination(t *testing.T) {
 	dc, _ := testdataclient.NewDoc(`
-        route1: CustomPredicate("custom1") -> "https://route1.example.org";
-        route2: CustomPredicate("custom2") -> "https://route2.example.org";
-        catchAll: * -> "https://route.example.org"`)
+		route1: CustomPredicate("custom1") -> "https://route1.example.org";
+		route2: CustomPredicate("custom2") -> "https://route2.example.org";
+		catchAll: * -> "https://route.example.org"
+	`)
+
 	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
 	tr, _ := newTestRoutingWithPredicates(cps, dc)
 	defer tr.close()
@@ -640,11 +663,16 @@ func TestRoutingHandlerPagination(t *testing.T) {
 		{0, 3, 3},
 		{1, 3, 2},
 	}
+
 	for _, ti := range tests {
 		u := fmt.Sprintf("%s?offset=%d&limit=%d", server.URL, ti.offset, ti.limit)
 		req, _ := http.NewRequest("GET", u, nil)
 		req.Header.Set("accept", "application/json")
 		resp, _ := http.DefaultClient.Do(req)
+
+		if resp.Header.Get("X-Count") != "3" {
+			t.Error("invalid or missing route count header")
+		}
 
 		var routes []*eskip.Route
 		if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
@@ -657,25 +685,119 @@ func TestRoutingHandlerPagination(t *testing.T) {
 	}
 }
 
-func stringsAreSame(xs, ys []string) bool {
-	if len(xs) != len(ys) {
-		return false
+func TestRoutingHandlerHEAD(t *testing.T) {
+	dc, _ := testdataclient.NewDoc(`
+		route1: CustomPredicate("custom1") -> "https://route1.example.org";
+		route2: CustomPredicate("custom2") -> "https://route2.example.org";
+		catchAll: * -> "https://route.example.org"
+	`)
+
+	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	tr, err := newTestRoutingWithPredicates(cps, dc)
+	if err != nil {
+		t.Error(err)
+		return
 	}
-	diff := make(map[string]int, len(xs))
-	for _, x := range xs {
-		diff[x]++
+
+	defer tr.close()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", tr.routing)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	req, err := http.NewRequest("HEAD", server.URL+"/routes", nil)
+	if err != nil {
+		t.Error(err)
+		return
 	}
-	for _, y := range ys {
-		if _, ok := diff[y]; !ok {
-			return false
+
+	rsp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer rsp.Body.Close()
+
+	b, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(b) != 0 {
+		t.Error("unexpected payload in the response to a HEAD request")
+		return
+	}
+
+	if rsp.Header.Get("X-Count") != "3" {
+		t.Error("invalid count header")
+	}
+}
+
+func TestUpdateFailsRecovers(t *testing.T) {
+	l := loggingtest.New()
+	defer l.Close()
+
+	dc, err := testdataclient.NewDoc(`
+		foo: Path("/foo") -> setPath("/") -> "https://foo.example.org";
+		bar: Path("/bar") -> setPath("/") -> "https://bar.example.org";
+		baz: Path("/baz") -> setPath("/") -> "https://baz.example.org";
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients:    []routing.DataClient{dc},
+		PollTimeout:    12 * time.Millisecond,
+		Log:            l,
+	})
+	defer rt.Close()
+
+	check := func(id, path, backend string, match bool) {
+		if t.Failed() {
+			return
 		}
-		diff[y]--
-		if diff[y] == 0 {
-			delete(diff, y)
+
+		if r, _ := rt.Route(&http.Request{URL: &url.URL{Path: path}}); r == nil && match {
+			t.Error("route not found:", id)
+		} else if r == nil && !match {
+			return
+		} else if !match {
+			t.Error("unexpected route found:", id, path)
+		} else if r.Id != id || r.Backend != backend {
+			t.Error("invalid route matched")
+			t.Log("got:     ", r.Id, r.Backend)
+			t.Log("expected:", id, backend)
 		}
 	}
-	if len(diff) == 0 {
-		return true
+
+	if err := l.WaitFor("route settings applied", 120*time.Millisecond); err != nil {
+		t.Fatal(err)
 	}
-	return false
+
+	check("foo", "/foo", "https://foo.example.org", true)
+	check("bar", "/bar", "https://bar.example.org", true)
+	check("baz", "/baz", "https://baz.example.org", true)
+
+	l.Reset()
+	dc.FailNext()
+
+	if err := dc.UpdateDoc(`
+		foo: Path("/foo") -> setPath("/") -> "https://foo.example.org";
+		baz: Path("/baz") -> setPath("/") -> "https://baz-new.example.org";
+	`, []string{"bar"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := l.WaitFor("route settings applied", 120*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	check("foo", "/foo", "https://foo.example.org", true)
+	check("bar", "", "", false)
+	check("baz", "/baz", "https://baz-new.example.org", true)
 }

@@ -25,8 +25,9 @@ const (
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathSubtreeName = "PathSubtree"
 
-	routeTableTimestampHeaderName = "X-Skipper-Route-Table-Timestamp"
-	defaultRouteListingLimit      = 1024
+	routesTimestampName      = "X-Timestamp"
+	routesCountName          = "X-Count"
+	defaultRouteListingLimit = 1024
 )
 
 // MatchingOptions controls route matching.
@@ -111,6 +112,12 @@ type Options struct {
 
 	// Set a custom logger if necessary.
 	Log logging.Logger
+
+	// SuppressLogs indicates whether to log only a summary of the route changes.
+	SuppressLogs bool
+
+	// PostProcessrs contains custom route post-processors.
+	PostProcessors []PostProcessor
 }
 
 // RouteFilter contains extensions to generic filter
@@ -142,6 +149,40 @@ type Route struct {
 
 	// The preprocessed filter instances.
 	Filters []*RouteFilter
+
+	// TODO: would a circular list be better?
+
+	// Next is forming a linked to the next route of a
+	// loadbalanced group of routes. This is nil if the route is
+	// the last in the linked list or there is only one route. To
+	// find the Next in case of the last route of the list, you
+	// have to use the Head.
+	Next *Route
+
+	// Head is the pointer to the head of linked list that forms
+	// the loadbalancer group of Route. Every Route will point to
+	// the same Route for being Head.
+	Head *Route
+
+	// Me is a pointer to self, to workaround Go type missmatch
+	// check, because eskip.Route != routing.Route
+	Me *Route
+
+	// Group is equal for all routes, members, forming a loadbalancer pool.
+	Group string
+
+	// IsLoadBalanced tells the proxy that the current route
+	// is a member of a load balanced group.
+	IsLoadBalanced bool
+}
+
+// PostProcessor is an interface for custom post-processors applying changes
+// to the routes after they were created from their data representation and
+// before they were passed to the proxy.
+//
+// This feature is experimental.
+type PostProcessor interface {
+	Do([]*Route) []*Route
 }
 
 // Routing ('router') instance providing live
@@ -172,40 +213,62 @@ func New(o Options) *Routing {
 
 // ServeHTTP renders the list of current routes.
 func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method != "GET" && req.Method != "HEAD" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
 	rt := r.routeTable.Load().(*routeTable)
 	req.ParseForm()
 	createdUnix := strconv.FormatInt(rt.created.Unix(), 10)
 	ts := req.Form.Get("timestamp")
-	if ts != "" {
-		if createdUnix != ts {
-			http.Error(w, "invalid timestamp", http.StatusBadRequest)
-			return
-		}
+	if ts != "" && createdUnix != ts {
+		http.Error(w, "invalid timestamp", http.StatusBadRequest)
+		return
 	}
+
+	if req.Method == "HEAD" {
+		w.Header().Set(routesTimestampName, createdUnix)
+		w.Header().Set(routesCountName, strconv.Itoa(len(rt.validRoutes)))
+
+		if strings.Contains(req.Header.Get("Accept"), "application/json") {
+			w.Header().Set("Content-Type", "application/json")
+		} else {
+			w.Header().Set("Content-Type", "text/plain")
+		}
+
+		return
+	}
+
 	offset, err := extractParam(req, "offset", 0)
 	if err != nil {
 		http.Error(w, "invalid offset", http.StatusBadRequest)
 		return
 	}
+
 	limit, err := extractParam(req, "limit", defaultRouteListingLimit)
 	if err != nil {
 		http.Error(w, "invalid limit", http.StatusBadRequest)
 		return
 	}
-	routes := slice(rt.validRoutes, offset, limit)
-	accept := req.Header.Get("accept")
 
-	if strings.Contains(accept, "application/json") {
-		w.Header().Set(routeTableTimestampHeaderName, createdUnix)
-		w.Header().Set("content-type", "application/json")
+	w.Header().Set(routesTimestampName, createdUnix)
+	w.Header().Set(routesCountName, strconv.Itoa(len(rt.validRoutes)))
+
+	routes := slice(rt.validRoutes, offset, limit)
+	if strings.Contains(req.Header.Get("Accept"), "application/json") {
+		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(routes); err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			http.Error(
+				w,
+				http.StatusText(http.StatusInternalServerError),
+				http.StatusInternalServerError,
+			)
 		}
 		return
 	}
 
-	w.Header().Set(routeTableTimestampHeaderName, createdUnix)
-	w.Header().Set("content-type", "text/plain")
+	w.Header().Set("Content-Type", "text/plain")
 	eskip.Fprint(w, extractPretty(req), routes...)
 }
 
@@ -233,6 +296,33 @@ func (r *Routing) startReceivingUpdates(o Options) {
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	rt := r.routeTable.Load().(*routeTable)
 	return rt.m.match(req)
+}
+
+// RouteLookup captures a single generation of the lookup tree, allowing multiple
+// lookups to the same version of the lookup tree.
+//
+// Experimental feature. Using this solution potentially can cause large memory
+// consumption in extreme cases, typically when:
+// the total number routes is large, the backend responses to a subset of these
+// routes is slow, and there's a rapid burst of consecutive updates to the
+// routing table. This situation is considered an edge case, but until a protection
+// against is found, the feature is experimental and its exported interface may
+// change.
+type RouteLookup struct {
+	matcher *matcher
+}
+
+// Do executes the lookup against the captured routing table. Equivalent to
+// Routing.Route().
+func (rl *RouteLookup) Do(req *http.Request) (*Route, map[string]string) {
+	return rl.matcher.match(req)
+}
+
+// Get returns a captured generation of the lookup table. This feature is
+// experimental. See the description of the RouteLookup type.
+func (r *Routing) Get() *RouteLookup {
+	rt := r.routeTable.Load().(*routeTable)
+	return &RouteLookup{matcher: rt.m}
 }
 
 // Close closes routing, stops receiving routes.
@@ -270,14 +360,14 @@ func extractParam(r *http.Request, key string, defaultValue int) (int, error) {
 	return val, nil
 }
 
-func extractPretty(r *http.Request) bool {
+func extractPretty(r *http.Request) eskip.PrettyPrintInfo {
 	vals, ok := r.Form["nopretty"]
 	if !ok || len(vals) == 0 {
-		return true
+		return eskip.PrettyPrintInfo{Pretty: true, IndentStr: "  "}
 	}
 	val := vals[0]
 	if val == "0" || val == "false" {
-		return true
+		return eskip.PrettyPrintInfo{Pretty: true, IndentStr: "  "}
 	}
-	return false
+	return eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}
 }

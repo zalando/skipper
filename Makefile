@@ -1,12 +1,17 @@
-SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*")
+SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*" -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
 PACKAGES           = $(shell glide novendor || echo -n "./...")
-CURRENT_VERSION    = $(shell git tag | sort -V | tail -n1)
+CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
 VERSION           ?= $(CURRENT_VERSION)
 NEXT_MAJOR         = $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
 NEXT_MINOR         = $(shell go run packaging/version/version.go minor $(CURRENT_VERSION))
 NEXT_PATCH         = $(shell go run packaging/version/version.go patch $(CURRENT_VERSION))
 COMMIT_HASH        = $(shell git rev-parse --short HEAD)
 TEST_ETCD_VERSION ?= v2.3.8
+TEST_PLUGINS       = _test_plugins/filter_noop.so \
+		     _test_plugins/predicate_match_none.so \
+		     _test_plugins/dataclient_noop.so \
+		     _test_plugins/multitype_noop.so \
+		     _test_plugins_fail/fail.so
 
 default: build
 
@@ -24,27 +29,42 @@ eskip: $(SOURCES) bindir
 
 build: $(SOURCES) lib skipper eskip
 
+build.osx:
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
+build.windows:
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
 install: $(SOURCES)
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
-check: build
+check: build check-plugins
 	# go test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do go test $$p; done
+	for p in $(PACKAGES); do go test $$p || break; done
 
-shortcheck: build
+shortcheck: build check-plugins
 	# go test -test.short -run ^Test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do go test -test.short -run ^Test $$p; done
+	for p in $(PACKAGES); do go test -test.short -run ^Test $$p || break -1; done
 
-bench: build
+check-plugins: $(TEST_PLUGINS)
+	go test -run LoadPlugins
+
+_test_plugins/%.so: _test_plugins/%.go
+	go build -buildmode=plugin -o $@ $<
+
+_test_plugins_fail/%.so: _test_plugins_fail/%.go
+	go build -buildmode=plugin -o $@ $<
+
+bench: build $(TEST_PLUGINS)
 	# go test -bench . $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
@@ -52,14 +72,24 @@ bench: build
 	#
 	for p in $(PACKAGES); do go test -bench . $$p; done
 
+lint: build
+	gometalinter --enable-all --deadline=60s ./... | tee linter.log
+
 clean:
 	go clean -i ./...
+	rm -rf .coverprofile-all .cover
+	rm ./_test_plugins/*.so
+	rm ./_test_plugins_fail/*.so
 
 deps:
 	go get -t github.com/zalando/skipper/...
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	go get github.com/Masterminds/glide
 	glide install --strip-vendor
+	# get opentracing to the default GOPATH, so we can build plugins outside
+	# the main skipper repo
+	# * will be removed from vendor/ after the deps checks (workaround for glide list)
+	go get -t github.com/opentracing/opentracing-go
 	# fix vendored deps:
 	rm -rf vendor/github.com/sirupsen/logrus/examples # breaks go install ./...
 
@@ -67,7 +97,7 @@ vet: $(SOURCES)
 	go vet $(PACKAGES)
 
 fmt: $(SOURCES)
-	@gofmt -w $(SOURCES)
+	@gofmt -w -s $(SOURCES)
 
 check-fmt: $(SOURCES)
 	@if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi
@@ -76,12 +106,14 @@ check-imports:
 	@glide list && true || \
 	(echo "run make deps and check if any new dependencies were vendored with glide get" && \
 	false)
+	# workaround until glide list supports --ignore $$PACKAGE:
+	rm -rf vendor/github.com/opentracing/opentracing-go
 
 precommit: check-imports fmt build shortcheck vet
 
 check-precommit: check-imports check-fmt build shortcheck vet
 
-.coverprofile-all: $(SOURCES)
+.coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	# go list -f \
 	# 	'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
 	# 	$(PACKAGES) | xargs -i sh -c {}
@@ -140,5 +172,5 @@ else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
 else ifeq ($(TRAVIS_BRANCH), master)
 	make deps check-precommit
 else
-	make deps shortcheck
+	make deps shortcheck check-plugins
 endif

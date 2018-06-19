@@ -69,7 +69,7 @@ type Filter struct {
 	// name of the filter specification
 	Name string `json:"name"`
 
-	// filter args applied withing a particular route
+	// filter args applied within a particular route
 	Args []interface{} `json:"args"`
 }
 
@@ -292,14 +292,23 @@ func parse(code string) ([]*parsedRoute, error) {
 	return l.routes, l.err
 }
 
-// hacks a filter expression into a route expression for parsing.
-func filtersToRoute(f string) string {
-	f = strings.TrimSpace(f)
-	if f == "" {
+func partialRouteToRoute(format, p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
 		return ""
 	}
 
-	return fmt.Sprintf("* -> %s -> <shunt>", f)
+	return fmt.Sprintf(format, p)
+}
+
+// hacks a filter expression into a route expression for parsing.
+func filtersToRoute(f string) string {
+	return partialRouteToRoute("* -> %s -> <shunt>", f)
+}
+
+// hacks a predicate expression into a route expression for parsing.
+func predicatesToRoute(p string) string {
+	return partialRouteToRoute("%s -> <shunt>", p)
 }
 
 // Parses a route expression or a routing document to a set of route definitions.
@@ -322,9 +331,8 @@ func Parse(code string) ([]*Route, error) {
 	return routeDefinitions, nil
 }
 
-// Parses a filter chain into a list of parsed filter definitions.
-func ParseFilters(f string) ([]*Filter, error) {
-	rs, err := parse(filtersToRoute(f))
+func partialParse(f string, partialToRoute func(string) string) (*parsedRoute, error) {
+	rs, err := parse(partialToRoute(f))
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +341,38 @@ func ParseFilters(f string) ([]*Filter, error) {
 		return nil, nil
 	}
 
-	return rs[0].filters, nil
+	return rs[0], nil
+}
+
+// Parses a filter chain into a list of parsed filter definitions.
+func ParseFilters(f string) ([]*Filter, error) {
+	r, err := partialParse(f, filtersToRoute)
+	if r == nil || err != nil {
+		return nil, err
+	}
+
+	return r.filters, nil
+}
+
+// ParsePredicates parses a set of predicates (combined by '&&') into
+// a list of parsed predicate definitions.
+func ParsePredicates(p string) ([]*Predicate, error) {
+	r, err := partialParse(p, predicatesToRoute)
+	if r == nil || err != nil {
+		return nil, err
+	}
+
+	var ps []*Predicate
+	for i := range r.matchers {
+		if r.matchers[i].name != "*" {
+			ps = append(ps, &Predicate{
+				Name: r.matchers[i].name,
+				Args: r.matchers[i].args,
+			})
+		}
+	}
+
+	return ps, nil
 }
 
 const randomIdLength = 16

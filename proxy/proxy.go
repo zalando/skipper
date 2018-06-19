@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	stdlibcontext "context"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
@@ -10,13 +11,20 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"time"
 
+	ot "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
+	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
+	tracingfilter "github.com/zalando/skipper/filters/tracing"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -63,17 +71,22 @@ const (
 	// and with the approximate changes they would make to the
 	// response.
 	Debug
+
+	// HopeHeadersRemoval indicates whether the Hop Headers should be removed
+	// in compliance with RFC 2616
+	HopHeadersRemoval
 )
 
 // Options are deprecated alias for Flags.
 type Options Flags
 
 const (
-	OptionsNone             = Options(FlagsNone)
-	OptionsInsecure         = Options(Insecure)
-	OptionsPreserveOriginal = Options(PreserveOriginal)
-	OptionsPreserveHost     = Options(PreserveHost)
-	OptionsDebug            = Options(Debug)
+	OptionsNone              = Options(FlagsNone)
+	OptionsInsecure          = Options(Insecure)
+	OptionsPreserveOriginal  = Options(PreserveOriginal)
+	OptionsPreserveHost      = Options(PreserveHost)
+	OptionsDebug             = Options(Debug)
+	OptionsHopHeadersRemoval = Options(HopHeadersRemoval)
 )
 
 // Proxy initialization options.
@@ -104,7 +117,7 @@ type Params struct {
 	// The Flush interval for copying upgraded connections
 	FlushInterval time.Duration
 
-	// Enable the expiremental upgrade protocol feature
+	// Enable the experimental upgrade protocol feature
 	ExperimentalUpgrade bool
 
 	// MaxLoopbacks sets the maximum number of allowed loops. If 0
@@ -117,21 +130,68 @@ type Params struct {
 	// find the matching circuit breaker for backend requests. If not
 	// set, no circuit breakers are used.
 	CircuitBreakers *circuit.Registry
+
+	// DefaultHTTPStatus is the HTTP status used when no routes are found
+	// for a request.
+	DefaultHTTPStatus int
+
+	// RateLimiters provides a registry that skipper can use to
+	// find the matching ratelimiter for backend requests. If not
+	// set, no ratelimits are used.
+	RateLimiters *ratelimit.Registry
+
+	// OpenTracer holds the tracer enabled for this proxy instance
+	OpenTracer ot.Tracer
+
+	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
+	// Default: "ingress".
+	OpenTracingInitialSpan string
+
+	// Loadbalancer to report unhealthy or dead backends to
+	LoadBalancer *loadbalancer.LB
+
+	// Timeout sets the TCP client connection timeout for proxy http connections to the backend
+	Timeout time.Duration
+
+	// KeepAlive sets the TCP keepalive for proxy http connections to the backend
+	KeepAlive time.Duration
+
+	// DualStack sets if the proxy TCP connections to the backend should be dual stack
+	DualStack bool
+
+	// TLSHandshakeTimeout sets the TLS handshake timeout for proxy connections to the backend
+	TLSHandshakeTimeout time.Duration
+
+	// MaxIdleConns limits the number of idle connections to all backends, 0 means no limit
+	MaxIdleConns int
 }
 
 var (
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
-	errRouteLookupFailed   = &proxyError{code: http.StatusNotFound}
+	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
 	errCircuitBreakerOpen  = &proxyError{
-		err:  errors.New("circuit breaker open"),
-		code: http.StatusServiceUnavailable,
+		err:              errors.New("circuit breaker open"),
+		code:             http.StatusServiceUnavailable,
+		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
+	}
+	errRatelimitError = errors.New("ratelimited")
+	hopHeaders        = map[string]bool{
+		"Connection":          true,
+		"Proxy-Connection":    true,
+		"Keep-Alive":          true,
+		"Proxy-Authenticate":  true,
+		"Proxy-Authorization": true,
+		"Te":                true,
+		"Trailer":           true,
+		"Transfer-Encoding": true,
+		"Upgrade":           true,
 	}
 )
 
 // When set, the proxy will skip the TLS verification on outgoing requests.
 func (f Flags) Insecure() bool { return f&Insecure != 0 }
 
-// When set, the filters will recieve an unmodified clone of the original
+// When set, the filters will receive an unmodified clone of the original
 // incoming request and response.
 func (f Flags) PreserveOriginal() bool { return f&(PreserveOriginal|Debug) != 0 }
 
@@ -141,6 +201,9 @@ func (f Flags) PreserveHost() bool { return f&PreserveHost != 0 }
 
 // When set, the proxy runs in debug mode.
 func (f Flags) Debug() bool { return f&Debug != 0 }
+
+// When set, the proxy will remove the Hop Headers
+func (f Flags) HopHeadersRemoval() bool { return f&HopHeadersRemoval != 0 }
 
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
@@ -160,17 +223,22 @@ type flusherWriter interface {
 // Proxy instances implement Skipper proxying functionality. For
 // initializing, see the WithParams the constructor and Params.
 type Proxy struct {
-	routing             *routing.Routing
-	roundTripper        *http.Transport
-	priorityRoutes      []PriorityRoute
-	flags               Flags
-	metrics             *metrics.Metrics
-	quit                chan struct{}
-	flushInterval       time.Duration
-	experimentalUpgrade bool
-	maxLoops            int
-	breakers            *circuit.Registry
-	log                 logging.Logger
+	routing                *routing.Routing
+	roundTripper           *http.Transport
+	priorityRoutes         []PriorityRoute
+	flags                  Flags
+	metrics                metrics.Metrics
+	quit                   chan struct{}
+	flushInterval          time.Duration
+	experimentalUpgrade    bool
+	maxLoops               int
+	breakers               *circuit.Registry
+	limiters               *ratelimit.Registry
+	log                    logging.Logger
+	defaultHTTPStatus      int
+	openTracer             ot.Tracer
+	openTracingInitialSpan string
+	lb                     *loadbalancer.LB
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -179,14 +247,16 @@ type Proxy struct {
 // was already handled, e.g. in case of deprecated shunting or the
 // upgrade request.
 type proxyError struct {
-	err     error
-	code    int
-	handled bool
+	err              error
+	code             int
+	handled          bool
+	dialingFailed    bool
+	additionalHeader http.Header
 }
 
-func (e *proxyError) Error() string {
+func (e proxyError) Error() string {
 	if e.err != nil {
-		return e.err.Error()
+		return fmt.Sprintf("proxy error with code %d, dialing failed %v, unwrap: %v", e.code, e.DialError(), e.err.Error())
 	}
 
 	if e.handled {
@@ -201,15 +271,45 @@ func (e *proxyError) Error() string {
 	return fmt.Sprintf("proxy error: %d", code)
 }
 
+// DialError returns true if the error was caused while dialing TCP or
+// TLS connections, before HTTP data was sent. It is safe to retry
+// a call, if this returns true.
+func (e *proxyError) DialError() bool {
+	return e.dialingFailed
+}
+
+func (e *proxyError) NetError() net.Error {
+	if perr, ok := e.err.(net.Error); ok {
+		return perr
+	}
+	return nil
+}
+
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
 		to[http.CanonicalHeaderKey(k)] = v
 	}
 }
 
+func copyHeaderExcluding(to, from http.Header, excludeHeaders map[string]bool) {
+	for k, v := range from {
+		// The http package converts header names to their canonical version.
+		// Meaning that the lookup below will be done using the canonical version of the header.
+		if _, ok := excludeHeaders[k]; !ok {
+			to[http.CanonicalHeaderKey(k)] = v
+		}
+	}
+}
+
 func cloneHeader(h http.Header) http.Header {
 	hh := make(http.Header)
 	copyHeader(hh, h)
+	return hh
+}
+
+func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Header {
+	hh := make(http.Header)
+	copyHeaderExcluding(hh, h, excludeList)
 	return hh
 }
 
@@ -241,7 +341,7 @@ func copyStream(to flusherWriter, from io.Reader) error {
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request, error) {
+func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeaders bool) (*http.Request, error) {
 	u := r.URL
 	u.Scheme = rt.Scheme
 	u.Host = rt.Host
@@ -252,21 +352,69 @@ func mapRequest(r *http.Request, rt *routing.Route, host string) (*http.Request,
 	}
 
 	rr, err := http.NewRequest(r.Method, u.String(), body)
+	rr.ContentLength = r.ContentLength
 	if err != nil {
 		return nil, err
 	}
 
-	rr.Header = cloneHeader(r.Header)
+	if removeHopHeaders {
+		rr.Header = cloneHeaderExcluding(r.Header, hopHeaders)
+	} else {
+		rr.Header = cloneHeader(r.Header)
+	}
 	rr.Host = host
 
-	// If there is basic auth configured int the URL we add them as headers
+	// If there is basic auth configured in the URL we add them as headers
 	if u.User != nil {
 		up := u.User.String()
 		upBase64 := base64.StdEncoding.EncodeToString([]byte(up))
 		rr.Header.Add("Authorization", fmt.Sprintf("Basic %s", upBase64))
 	}
 
+	rr = rr.WithContext(r.Context())
+
 	return rr, nil
+}
+
+type skipperDialer struct {
+	net.Dialer
+	f func(ctx stdlibcontext.Context, network, addr string) (net.Conn, error)
+}
+
+func newSkipperDialer(d net.Dialer) *skipperDialer {
+	return &skipperDialer{
+		Dialer: d,
+		f:      d.DialContext,
+	}
+}
+
+// DialContext wraps net.Dialer's DialContext and returns an error,
+// that can be checked if it was a Transport (TCP/TLS handshake) error
+// or timeout, or a timeout from http, which is not in general
+// retrieable.
+func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr string) (net.Conn, error) {
+	span := ot.SpanFromContext(ctx)
+	if span != nil {
+		span.LogKV("dial_context", "start")
+	}
+	con, err := dc.f(ctx, network, addr)
+	if span != nil {
+		span.LogKV("dial_context", "done")
+	}
+	if err != nil {
+		return nil, &proxyError{
+			err:           err,
+			code:          -1,   // omit 0 handling in proxy.Error()
+			dialingFailed: true, // indicate error happened before http
+		}
+	} else if cerr := ctx.Err(); cerr != nil {
+		// deadline exceeded or canceled in stdlib
+		return nil, &proxyError{
+			err:  cerr,
+			code: http.StatusGatewayTimeout,
+		}
+	}
+	return con, nil
 }
 
 // New returns an initialized Proxy.
@@ -276,7 +424,8 @@ func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
 		Routing:              r,
 		Flags:                Flags(options),
 		PriorityRoutes:       pr,
-		CloseIdleConnsPeriod: -time.Second})
+		CloseIdleConnsPeriod: -time.Second,
+	})
 }
 
 // WithParams returns an initialized Proxy.
@@ -289,8 +438,28 @@ func WithParams(p Params) *Proxy {
 		p.CloseIdleConnsPeriod = DefaultCloseIdleConnsPeriod
 	}
 
-	tr := &http.Transport{MaxIdleConnsPerHost: p.IdleConnectionsPerHost}
+	if p.OpenTracer == nil {
+		p.OpenTracer = &ot.NoopTracer{}
+	}
+
+	tr := &http.Transport{
+		DialContext: newSkipperDialer(net.Dialer{
+			Timeout:   p.Timeout,
+			KeepAlive: p.KeepAlive,
+			DualStack: p.DualStack,
+		}).DialContext,
+		TLSHandshakeTimeout: p.TLSHandshakeTimeout,
+		//ResponseHeaderTimeout: 60 * time.Second,
+		//ExpectContinueTimeout: 30 * time.Second,
+		MaxIdleConns:        p.MaxIdleConns,
+		MaxIdleConnsPerHost: p.IdleConnectionsPerHost,
+		IdleConnTimeout:     p.CloseIdleConnsPeriod,
+	}
+
 	quit := make(chan struct{})
+	// We need this to reliably fade on DNS change, which is right
+	// now not fixed with IdleConnTimeout in the http.Transport.
+	// https://github.com/golang/go/issues/23427
 	if p.CloseIdleConnsPeriod > 0 {
 		go func() {
 			for {
@@ -319,18 +488,34 @@ func WithParams(p Params) *Proxy {
 		p.MaxLoopbacks = 0
 	}
 
+	defaultHTTPStatus := http.StatusNotFound
+
+	if p.DefaultHTTPStatus >= http.StatusContinue && p.DefaultHTTPStatus <= http.StatusNetworkAuthenticationRequired {
+		defaultHTTPStatus = p.DefaultHTTPStatus
+	}
+
+	openTracingInitialSpan := p.OpenTracingInitialSpan
+	if openTracingInitialSpan == "" {
+		openTracingInitialSpan = "ingress"
+	}
+
 	return &Proxy{
-		routing:             p.Routing,
-		roundTripper:        tr,
-		priorityRoutes:      p.PriorityRoutes,
-		flags:               p.Flags,
-		metrics:             m,
-		quit:                quit,
-		flushInterval:       p.FlushInterval,
-		experimentalUpgrade: p.ExperimentalUpgrade,
-		maxLoops:            p.MaxLoopbacks,
-		breakers:            p.CircuitBreakers,
-		log:                 &logging.DefaultLog{},
+		routing:                p.Routing,
+		roundTripper:           tr,
+		priorityRoutes:         p.PriorityRoutes,
+		flags:                  p.Flags,
+		metrics:                m,
+		quit:                   quit,
+		flushInterval:          p.FlushInterval,
+		experimentalUpgrade:    p.ExperimentalUpgrade,
+		maxLoops:               p.MaxLoopbacks,
+		breakers:               p.CircuitBreakers,
+		limiters:               p.RateLimiters,
+		log:                    &logging.DefaultLog{},
+		defaultHTTPStatus:      defaultHTTPStatus,
+		openTracer:             p.OpenTracer,
+		openTracingInitialSpan: openTracingInitialSpan,
+		lb: p.LoadBalancer,
 	}
 }
 
@@ -352,6 +537,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	for _, fi := range f {
 		start := time.Now()
 		tryCatch(func() {
+			ctx.setMetricsPrefix(fi.Name)
 			fi.Request(ctx)
 			p.metrics.MeasureFilterRequest(fi.Name, start)
 		}, func(err interface{}) {
@@ -384,6 +570,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 		fi := filters[count-1-i]
 		start := time.Now()
 		tryCatch(func() {
+			ctx.setMetricsPrefix(fi.Name)
 			fi.Response(ctx)
 			p.metrics.MeasureFilterResponse(fi.Name, start)
 		}, func(err interface{}) {
@@ -403,19 +590,20 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 
 // addBranding overwrites any existing `X-Powered-By` or `Server` header from headerMap
 func addBranding(headerMap http.Header) {
-	headerMap.Set("X-Powered-By", "Skipper")
-	headerMap.Set("Server", "Skipper")
+	if headerMap.Get("Server") == "" {
+		headerMap.Set("Server", "Skipper")
+	}
 }
 
-func (p *Proxy) lookupRoute(r *http.Request) (rt *routing.Route, params map[string]string) {
+func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]string) {
 	for _, prt := range p.priorityRoutes {
-		rt, params = prt.Match(r)
+		rt, params = prt.Match(ctx.request)
 		if rt != nil {
 			return rt, params
 		}
 	}
 
-	return p.routing.Route(r)
+	return ctx.routeLookup.Do(ctx.request)
 }
 
 // send a premature error response
@@ -456,36 +644,122 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 	return nil
 }
 
-func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, error) {
-	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
+func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
+	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval())
 	if err != nil {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
-		return nil, err
+		return nil, &proxyError{err: err}
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
 		if err := p.makeUpgradeRequest(ctx, ctx.route, req); err != nil {
-			return nil, err
+			return nil, &proxyError{err: err}
 		}
 
 		// We are not owner of the connection anymore.
 		return nil, &proxyError{handled: true}
 	}
 
-	response, err := p.roundTripper.RoundTrip(req)
-	if err != nil {
-		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
-		if _, ok := err.(net.Error); ok {
-			err = &proxyError{
-				err:  err,
-				code: http.StatusServiceUnavailable,
-			}
-		}
-
-		return nil, err
+	ingress := ot.SpanFromContext(req.Context())
+	bag := ctx.StateBag()
+	spanName, ok := bag[tracingfilter.OpenTracingProxySpanKey].(string)
+	if !ok {
+		spanName = "proxy"
 	}
 
+	if ingress == nil {
+		ctx.proxySpan = p.openTracer.StartSpan(spanName)
+	} else {
+		ctx.proxySpan = p.openTracer.StartSpan(spanName, ot.ChildOf(ingress.Context()))
+	}
+	ext.SpanKindRPCClient.Set(ctx.proxySpan)
+	ctx.proxySpan.SetTag("skipper.route", ctx.route.String())
+	u := cloneURL(req.URL)
+	u.RawQuery = ""
+	p.setCommonSpanInfo(u, req, ctx.proxySpan)
+
+	carrier := ot.HTTPHeadersCarrier(req.Header)
+	p.openTracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
+
+	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
+
+	response, err := p.roundTripper.RoundTrip(req)
+	if err != nil {
+		ext.Error.Set(ctx.proxySpan, true)
+		ctx.proxySpan.LogKV(
+			"event", "error",
+			"message", err.Error())
+
+		if perr, ok := err.(*proxyError); ok {
+			p.log.Errorf("Failed to do backend roundtrip to %s: %v", ctx.route.Backend, perr)
+			//p.lb.AddHealthcheck(ctx.route.Backend)
+			return nil, perr
+
+		} else if nerr, ok := err.(net.Error); ok {
+			p.log.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %v", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err)
+			//p.lb.AddHealthcheck(ctx.route.Backend)
+			if nerr.Timeout() {
+				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusGatewayTimeout))
+				return nil, &proxyError{
+					err:  err,
+					code: http.StatusGatewayTimeout,
+				}
+			} else if !nerr.Temporary() {
+				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusServiceUnavailable))
+				return nil, &proxyError{
+					err:  err,
+					code: http.StatusServiceUnavailable,
+				}
+			} else {
+				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusInternalServerError))
+				return nil, &proxyError{
+					err:  err,
+					code: http.StatusInternalServerError,
+				}
+			}
+		}
+		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
+
+		if cerr := req.Context().Err(); cerr != nil {
+			p.log.Errorf("Failed to do request, because of context: %v", cerr)
+			return nil, &proxyError{err: cerr, code: http.StatusGatewayTimeout}
+		}
+
+		return nil, &proxyError{err: err}
+	}
+	ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(response.StatusCode))
 	return response, nil
+}
+
+// checkRatelimit is used in case of a route ratelimit
+// configuration. It returns the used ratelimit.Settings and true if
+// the request passed in the context should be allowed.
+func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, bool) {
+	if p.limiters == nil {
+		return ratelimit.Settings{}, true
+	}
+
+	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].(ratelimit.Settings)
+	if !ok {
+		return ratelimit.Settings{}, true
+	}
+	settings.Host = ctx.outgoingHost
+
+	rl := p.limiters.Get(settings)
+	if rl == nil {
+		return settings, true
+	}
+
+	if settings.Lookuper == nil {
+		p.log.Error("lookuper is nil")
+		return settings, true
+	}
+	s := settings.Lookuper.Lookup(ctx.Request())
+
+	if s == "" {
+		return settings, true
+	}
+	return settings, rl.Allow(s)
 }
 
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
@@ -505,6 +779,16 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	return done, ok
 }
 
+func ratelimitError(settings ratelimit.Settings) error {
+	return &proxyError{
+		err:  errRatelimitError,
+		code: http.StatusTooManyRequests,
+		additionalHeader: http.Header{
+			ratelimit.Header: []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
+		},
+	}
+}
+
 func (p *Proxy) do(ctx *context) error {
 	if ctx.loopCounter > p.maxLoops {
 		return errMaxLoopbacksReached
@@ -512,8 +796,15 @@ func (p *Proxy) do(ctx *context) error {
 
 	ctx.loopCounter++
 
+	// proxy global setting
+	if settings, ok := p.limiters.Check(ctx.request); !ok {
+		p.log.Debugf("proxy.go limiter settings: %s", settings)
+		rerr := ratelimitError(settings)
+		return rerr
+	}
+
 	lookupStart := time.Now()
-	route, params := p.lookupRoute(ctx.request)
+	route, params := p.lookupRoute(ctx)
 	p.metrics.MeasureRouteLookup(lookupStart)
 
 	if route == nil {
@@ -528,6 +819,11 @@ func (p *Proxy) do(ctx *context) error {
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
+	// per route rate limit
+	if settings, allow := p.checkRatelimit(ctx); !allow {
+		rerr := ratelimitError(settings)
+		return rerr
+	}
 
 	if ctx.deprecatedShunted() {
 		p.log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
@@ -541,8 +837,9 @@ func (p *Proxy) do(ctx *context) error {
 		}
 
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
+		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
-		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost)
+		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval())
 		if err != nil {
 			return &proxyError{err: err}
 		}
@@ -552,18 +849,54 @@ func (p *Proxy) do(ctx *context) error {
 	} else {
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
+			if span := ot.SpanFromContext(ctx.Request().Context()); span != nil {
+				span.LogKV(`circuit_breaker`, `open`)
+			}
 			return errCircuitBreakerOpen
 		}
 
 		backendStart := time.Now()
-		rsp, err := p.makeBackendRequest(ctx)
-		if err != nil {
+		rsp, perr := p.makeBackendRequest(ctx)
+		if perr != nil {
 			if done != nil {
 				done(false)
 			}
 
 			p.metrics.IncErrorsBackend(ctx.route.Id)
-			return err
+
+			if perr.DialError() && ctx.route.IsLoadBalanced {
+				// here we do a transparent retry, because we know it's safe to do
+				origRoute := ctx.route.Me
+				if ctx.route.Next != nil && origRoute != ctx.route.Next {
+					ctx.route = ctx.route.Next
+				} else if ctx.route.Head != nil && origRoute != ctx.route.Head {
+					ctx.route = ctx.route.Head
+				}
+
+				if ctx.proxySpan != nil {
+					ctx.proxySpan.Finish()
+					ctx.proxySpan = nil
+				}
+
+				perr = nil
+				var perr2 *proxyError
+				rsp, perr2 = p.makeBackendRequest(ctx)
+				if perr2 != nil {
+					p.log.Errorf("Failed to do backend request to %s, retry failed to %s: %v", origRoute.Backend, ctx.route.Backend, perr2)
+					if perr2.code >= http.StatusInternalServerError {
+						p.metrics.MeasureBackend5xx(backendStart)
+					}
+					return perr2
+				}
+				p.log.Infof("successful retry to %v, orig %v, code: %d", ctx.route.Backend, origRoute.Backend, rsp.StatusCode)
+			} else {
+				p.log.Errorf("Failed to do backend request to %s: %v", ctx.route.Backend, perr)
+				return perr
+			}
+		}
+
+		if rsp.StatusCode >= http.StatusInternalServerError {
+			p.metrics.MeasureBackend5xx(backendStart)
 		}
 
 		if done != nil {
@@ -575,6 +908,7 @@ func (p *Proxy) do(ctx *context) error {
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
 	}
 
+	addBranding(ctx.response.Header)
 	p.applyFiltersToResponse(processedFilters, ctx)
 	return nil
 }
@@ -593,7 +927,6 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 
 	start := time.Now()
-	addBranding(ctx.response.Header)
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body)
@@ -618,7 +951,15 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 	code := http.StatusInternalServerError
 	if ok && perr.code != 0 {
-		code = perr.code
+		if perr.code == -1 { // -1 == dial connection refused
+			code = http.StatusBadGateway
+		} else {
+			code = perr.code
+		}
+	}
+
+	if span := ot.SpanFromContext(ctx.Request().Context()); span != nil {
+		ext.HTTPStatusCode.Set(span, uint16(code))
 	}
 
 	if p.flags.Debug() {
@@ -638,10 +979,15 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		return
 	}
 
+	if ok && len(perr.additionalHeader) > 0 {
+		copyHeader(ctx.responseWriter.Header(), perr.additionalHeader)
+
+	}
 	switch {
-	case err == errCircuitBreakerOpen:
-		ctx.responseWriter.Header().Set("X-Circuit-Open", "true")
 	case err == errRouteLookupFailed:
+		code = p.defaultHTTPStatus
+	case ok && perr.err == errRatelimitError:
+		code = perr.code
 	default:
 		p.log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
 	}
@@ -651,8 +997,29 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(w, r, p.flags.PreserveOriginal())
+	var ctx *context
+
+	var span ot.Span
+	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
+	if err == nil {
+		span = p.openTracer.StartSpan(p.openTracingInitialSpan, ext.RPCServerOption(wireContext))
+	} else {
+		span = p.openTracer.StartSpan(p.openTracingInitialSpan)
+	}
+	defer func() {
+		if ctx != nil && ctx.proxySpan != nil {
+			ctx.proxySpan.Finish()
+		}
+		span.Finish()
+	}()
+
+	ext.SpanKindRPCServer.Set(span)
+	p.setCommonSpanInfo(r.URL, r, span)
+	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
+
+	ctx = newContext(w, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
 	ctx.startServe = time.Now()
+	ctx.tracer = p.openTracer
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -663,7 +1030,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	err := p.do(ctx)
+	err = p.do(ctx)
 	if err != nil {
 		p.errorResponse(ctx, err)
 		return
@@ -685,4 +1052,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) Close() error {
 	close(p.quit)
 	return nil
+}
+
+func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
+	ext.Component.Set(s, "skipper")
+	ext.HTTPUrl.Set(s, u.String())
+	ext.HTTPMethod.Set(s, r.Method)
+	s.SetTag("http.remote_addr", r.RemoteAddr)
+	s.SetTag("http.path", u.Path)
+	s.SetTag("http.host", r.Host)
 }

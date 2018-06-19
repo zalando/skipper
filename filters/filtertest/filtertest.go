@@ -19,8 +19,10 @@ FilterContext interfaces used during tests.
 package filtertest
 
 import (
-	"github.com/zalando/skipper/filters"
 	"net/http"
+
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/filters"
 )
 
 // Noop filter, used to verify the filter name and the args in the route.
@@ -41,6 +43,8 @@ type Context struct {
 	FStateBag           map[string]interface{}
 	FBackendUrl         string
 	FOutgoingHost       string
+	FMetrics            filters.Metrics
+	FTracer             opentracing.Tracer
 }
 
 func (spec *Filter) Name() string                    { return spec.FilterName }
@@ -59,6 +63,13 @@ func (fc *Context) OriginalResponse() *http.Response    { return nil }
 func (fc *Context) BackendUrl() string                  { return fc.FBackendUrl }
 func (fc *Context) OutgoingHost() string                { return fc.FOutgoingHost }
 func (fc *Context) SetOutgoingHost(h string)            { fc.FOutgoingHost = h }
+func (fc *Context) Metrics() filters.Metrics            { return fc.FMetrics }
+func (fc *Context) Tracer() opentracing.Tracer {
+	if fc.FTracer != nil {
+		return fc.FTracer
+	}
+	return &opentracing.NoopTracer{}
+}
 func (fc *Context) Serve(resp *http.Response) {
 	fc.FServedWithResponse = true
 	fc.FResponse = resp

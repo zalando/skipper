@@ -1,34 +1,90 @@
-hash: b32ab68082d8773a25dc4ff8236d060a3680e5d4e7f322b248b8b4a06d52e334
-updated: 2017-07-17T18:21:39.526808142+02:00
+hash: ed4c9832f72de1aeb33488d81331aa379adc61ba07337c51e15bada9c8299b2d
+updated: 2018-01-04T08:00:57.348776525+01:00
 imports:
 - name: github.com/abbot/go-http-auth
   version: efc9484eee77263a11f158ef4f30fcc30298a942
+- name: github.com/beorn7/perks
+  version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
+  subpackages:
+  - quantile
+- name: github.com/cjoudrey/gluahttp
+  version: b4bfe0c50fea948dcbf3966e120996d6607bbd89
+- name: github.com/cjoudrey/gluaurl
+  version: 31cbb9bef199454415879f2e6d609d1136d60cad
 - name: github.com/dimfeld/httppath
-  version: c8e499c3ef3c3e272ed8bdcc1ccf39f73c88debc
+  version: ee938bf735983d53694d79138ad9820efff94c92
+- name: github.com/golang/protobuf
+  version: 6a1fa9404c0aebf36c879bc50152edcc953910d2
+  subpackages:
+  - proto
 - name: github.com/google/go-cmp
-  version: e6ff442c1751c5257df71dd2a42b9bcbbd6f01a6
+  version: d5735f74713c51f7450a43d0a98d41ce2c1db3cb
   subpackages:
   - cmp
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value
+- name: github.com/matttproud/golang_protobuf_extensions
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  subpackages:
+  - pbutil
 - name: github.com/oklog/ulid
   version: d311cb43c92434ec4072dfbbda3400741d0a6337
+- name: github.com/opentracing/opentracing-go
+  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
+  subpackages:
+  - ext
+  - log
+- name: github.com/prometheus/client_golang
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  subpackages:
+  - prometheus
+  - prometheus/promhttp
+- name: github.com/prometheus/client_model
+  version: 99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c
+  subpackages:
+  - go
+- name: github.com/prometheus/common
+  version: 2e54d0b93cba2fd133edc32211dcc32c06ef72ca
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/prometheus/procfs
+  version: a6e9df898b1336106c743392c48ee0b71f5c4efa
+  subpackages:
+  - xfs
 - name: github.com/rcrowley/go-metrics
   version: 1f30fe9094a513ce4c700b9a54458bbb0c96996c
 - name: github.com/sirupsen/logrus
-  version: a3f95b5c423586578a4e099b11a46c2479628cac
+  version: d682213848ed68c0a260ca37d6dd5ace8423f5ba
 - name: github.com/sony/gobreaker
   version: e9556a45379ef1da12e54847edb2fb3d7d566f36
-- name: github.com/zalando/pathmux
-  version: 90241ddcbc6161a874026d890f4bed831b5dfbb5
+- name: github.com/szuecs/rate-limit-buffer
+  version: 1a179ab26baf3b8450aaaa662e3120155fadb39d
+- name: github.com/yuin/gopher-lua
+  version: 478861c8ce6e8c2f16d5984d5ed30c4327c70437
+  subpackages:
+  - ast
+  - parse
+  - pm
 - name: golang.org/x/crypto
-  version: adbae1b6b6fb4b02448a0fc0dbbc9ba2b95b294d
+  version: faadfbdc035307d901e69eea569f5dda451a3ee3
   subpackages:
   - bcrypt
   - blowfish
   - ssh/terminal
+- name: golang.org/x/net
+  version: f5079bd7f6f74e23c4d65efa0f4ce14cbd6a3c0f
+  subpackages:
+  - context
 - name: golang.org/x/sys
-  version: f7928cfef4d09d1b080aa2b6fd3ca9ba1567c733
+  version: 739734461d1c916b6c72a63d7efda2b27edb369f
   subpackages:
   - unix
+  - windows
+- name: layeh.com/gopher-json
+  version: 1aab82196e3b418b56866938f28b6a693f2c6b18
 testImports:
 - name: github.com/davecgh/go-spew
   version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
@@ -38,6 +94,8 @@ testImports:
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
+- name: github.com/sanity-io/litter
+  version: f8fd6a57e929bb04bb6741cf264ea998f157aeea
 - name: github.com/stretchr/testify
   version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
   subpackages:

@@ -12,12 +12,14 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -134,7 +136,12 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},
-		Log:            tl})
+		Predicates: []routing.PredicateSpec{
+			loadbalancer.NewGroup(),
+			loadbalancer.NewMember(),
+		},
+		Log: tl,
+	})
 	params.Routing = rt
 	p := WithParams(params)
 	p.log = tl
@@ -148,6 +155,10 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 
 func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
 	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags, PriorityRoutes: pr})
+}
+
+func newTestProxyWithParams(doc string, params Params) (*testProxy, error) {
+	return newTestProxyWithFiltersAndParams(nil, doc, params)
 }
 
 func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
@@ -272,16 +283,12 @@ func TestGetRoundtrip(t *testing.T) {
 		t.Error("wrong content length")
 	}
 
-	if xpb, ok := w.Header()["X-Powered-By"]; !ok || xpb[0] != "Skipper" {
-		t.Error("Wrong X-Powered-By header value")
-	}
-
 	if xpb, ok := w.Header()["Server"]; !ok || xpb[0] != "Skipper" {
 		t.Error("Wrong Server header value")
 	}
 
 	if !bytes.Equal(w.Body.Bytes(), payload) {
-		t.Error("wrong content", string(w.Body.Bytes()))
+		t.Error("wrong content", w.Body.String())
 	}
 }
 
@@ -320,7 +327,7 @@ func TestPostRoundtrip(t *testing.T) {
 	}
 
 	if w.Body.Len() != 0 {
-		t.Error("wrong content", string(w.Body.Bytes()))
+		t.Error("wrong content", w.Body.String())
 	}
 }
 
@@ -461,11 +468,11 @@ func TestAppliesFilters(t *testing.T) {
 	fr.Register(builtin.NewRequestHeader())
 	fr.Register(builtin.NewResponseHeader())
 
-	doc := fmt.Sprintf(`hello:
-		Path("/hello") ->
-		requestHeader("X-Test-Request-Header", "request header value") ->
-		responseHeader("X-Test-Response-Header", "response header value") ->
-		"%s"`, s.URL)
+	doc := fmt.Sprintf(`hello: Path("/hello")
+		-> requestHeader("X-Test-Request-Header", "request header value")
+		-> responseHeader("X-Test-Response-Header", "response header value")
+		-> "%s"
+	`, s.URL)
 	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
 	if err != nil {
 		t.Error(err)
@@ -595,7 +602,7 @@ func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	}
 
 	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
-		return r == req
+		return r.URL.Host == req.URL.Host && r.URL.Scheme == req.URL.Scheme
 	}}
 
 	doc := `hello: Path("/hello") -> <shunt>`
@@ -639,7 +646,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	}
 
 	prt := &priorityRoute{&routing.Route{Scheme: u.Scheme, Host: u.Host}, nil, func(r *http.Request) bool {
-		return r == req
+		return r.URL.Host == req.URL.Host && r.URL.Scheme == req.URL.Scheme
 	}}
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s1.URL)
@@ -926,8 +933,8 @@ func TestBackendServiceUnavailable(t *testing.T) {
 
 	defer rsp.Body.Close()
 
-	if rsp.StatusCode != http.StatusServiceUnavailable {
-		t.Error("failed to return 503 Service Unavailable on failing backend connection")
+	if rsp.StatusCode != http.StatusBadGateway {
+		t.Error("failed to return 502 Bad Gateway on failing backend connection")
 	}
 }
 
@@ -995,32 +1002,120 @@ func TestRoundtripperRetry(t *testing.T) {
 }
 
 func TestBranding(t *testing.T) {
-	for path, code := range map[string]int{"/path/to/be/found": 200, "/path/not/to/be/found": 404} {
-		t.Run(path, func(t *testing.T) {
-			p, err := newTestProxy(fmt.Sprintf(`Path("/path/to/be/*") -> status(200) -> <shunt>`), FlagsNone)
+	routesTpl := `
+        shunt: Path("/shunt") -> status(200) -> <shunt>;
+
+        connectionError: Path("/connection-error") -> "${backend-down}";
+
+        default: Path("/default") -> "${backend-default}";
+
+        backendSet: Path("/backend-set") -> "${backend-set}";
+
+        shuntFilterSet: Path("/shunt-filter-set")
+            -> setResponseHeader("Server", "filter")
+            -> status(200)
+            -> <shunt>;
+
+        connectionErrorFilterSet: Path("/connection-error-filter-set")
+            -> setResponseHeader("Server", "filter")
+            -> "${backend-down}";
+
+        defaultFilterSet: Path("/default-filter-set")
+            -> setResponseHeader("Server", "filter")
+            -> "${backend-default}";
+
+        backendSetFilterSet: Path("/backend-set-filter-set")
+            -> setResponseHeader("Server", "filter")
+            -> "${backend-set}";
+
+        shuntFilterDrop: Path("/shunt-filter-drop")
+            -> dropResponseHeader("Server")
+            -> status(200)
+            -> <shunt>;
+
+        connectionErrorFilterDrop: Path("/connection-error-filter-drop")
+            -> dropResponseHeader("Server")
+            -> "${backend-down}";
+
+        defaultFilterDrop: Path("/default-filter-drop")
+            -> dropResponseHeader("Server")
+            -> "${backend-default}";
+
+        backendSetFilterDrop: Path("/backend-set-filter-drop")
+            -> dropResponseHeader("Server")
+            -> "${backend-set}";
+    `
+
+	backendDefault := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer backendDefault.Close()
+
+	backendSet := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", "backend")
+	}))
+	defer backendSet.Close()
+
+	backendDown := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	backendDown.Close()
+
+	routes := routesTpl
+	routes = strings.Replace(routes, "${backend-down}", backendDown.URL, -1)
+	routes = strings.Replace(routes, "${backend-default}", backendDefault.URL, -1)
+	routes = strings.Replace(routes, "${backend-set}", backendSet.URL, -1)
+
+	p, err := newTestProxy(routes, FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	for _, ti := range []struct {
+		uri    string
+		header string
+	}{
+		{"/shunt", "Skipper"},
+		{"/connection-error", "Skipper"},
+		{"/default", "Skipper"},
+		{"/backend-set", "backend"},
+		{"/shunt-filter-set", "filter"},
+
+		// filters are not executed on backend connection errors
+		{"/connection-error-filter-set", "Skipper"},
+
+		{"/default-filter-set", "filter"},
+		{"/backend-set-filter-set", "filter"},
+		{"/shunt-filter-drop", ""},
+
+		// filters are not executed on backend connection errors
+		{"/connection-error-filter-drop", "Skipper"},
+
+		{"/default-filter-drop", ""},
+		{"/backend-set-filter-drop", ""},
+	} {
+		t.Run(ti.uri, func(t *testing.T) {
+			rsp, err := http.Get(ps.URL + ti.uri)
 			if err != nil {
 				t.Error(err)
 				return
 			}
 
-			defer p.close()
+			defer rsp.Body.Close()
 
-			s := httptest.NewServer(p.proxy)
-			defer s.Close()
-
-			rsp, err := http.Get(s.URL + path)
-			if err != nil {
-				t.Error(err)
+			if rsp.StatusCode == http.StatusNotFound {
+				t.Error("not found")
 				return
 			}
 
-			if rsp.StatusCode != code {
-				t.Error("wrong status", rsp.StatusCode, code)
-				return
-			}
-
-			if rsp.Header.Get("X-Powered-By") != "Skipper" || rsp.Header.Get("Server") != "Skipper" {
-				t.Error("failed to add branding")
+			if rsp.Header.Get("Server") != ti.header {
+				t.Errorf(
+					"failed to set the right server header; got: %s; expected: %s",
+					rsp.Header.Get("Server"),
+					ti.header,
+				)
 			}
 		})
 	}
@@ -1054,5 +1149,182 @@ func TestFixNoAppLogFor404(t *testing.T) {
 		t.Error("unexpected log on route lookup failed")
 	} else if err != loggingtest.ErrWaitTimeout {
 		t.Error(err)
+	}
+}
+
+func TestRequestContentHeaders(t *testing.T) {
+	const contentLength = 1 << 15
+
+	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if len(b) != contentLength {
+			t.Error("failed to forward content")
+			return
+		}
+
+		if r.URL.Path == "/with-content-length" {
+			if r.ContentLength != contentLength {
+				t.Error("failed to forward content length")
+				return
+			}
+
+			if len(r.TransferEncoding) != 0 {
+				t.Error("unexpected transfer encoding")
+				return
+			}
+
+			return
+		}
+
+		if r.ContentLength > 0 {
+			t.Error("unexpected content length")
+		}
+
+		if len(r.TransferEncoding) != 1 || r.TransferEncoding[0] != "chunked" {
+			t.Error("failed to set chunked encoding")
+			return
+		}
+	}))
+
+	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, backend.URL), FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	req := func(withContentLength bool) {
+		path := "/without-content-length"
+		if withContentLength {
+			path = "/with-content-length"
+		}
+
+		req, err := http.NewRequest(
+			"GET",
+			ps.URL+path,
+			io.LimitReader(rand.New(rand.NewSource(42)), contentLength),
+		)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if withContentLength {
+			req.ContentLength = contentLength
+		}
+
+		rsp, err := (&http.Client{}).Do(req)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		rsp.Body.Close()
+	}
+
+	req(false)
+	req(true)
+}
+
+func TestSettingDefaultHTTPStatus(t *testing.T) {
+	params := Params{
+		DefaultHTTPStatus: http.StatusBadGateway,
+	}
+	p := WithParams(params)
+	if p.defaultHTTPStatus != http.StatusBadGateway {
+		t.Errorf("expected default HTTP status %d, got %d", http.StatusBadGateway, p.defaultHTTPStatus)
+	}
+
+	params.DefaultHTTPStatus = http.StatusNetworkAuthenticationRequired + 1
+	p = WithParams(params)
+	if p.defaultHTTPStatus != http.StatusNotFound {
+		t.Errorf("expected default HTTP status %d, got %d", http.StatusNotFound, p.defaultHTTPStatus)
+	}
+}
+
+func TestHopHeaderRemoval(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		if r.Method != "GET" {
+			t.Error("wrong request method")
+		}
+
+		if r.Header["Connection"] != nil {
+			t.Error("expected Connection header to be missing")
+		}
+	})
+
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+
+	tp, err := newTestProxy(doc, HopHeadersRemoval)
+	if err != nil {
+		t.Error()
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
+	}
+}
+
+func TestHopHeaderRemovalDisabled(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		if r.Method != "GET" {
+			t.Error("wrong request method")
+		}
+
+		if th, ok := r.Header["Connection"]; !ok || th[0] != "token" {
+			t.Error("wrong Connection header")
+		}
+	})
+
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+
+	tp, err := newTestProxy(doc, FlagsNone)
+	if err != nil {
+		t.Error()
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
 	}
 }

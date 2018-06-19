@@ -1,20 +1,28 @@
 package eskip
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 )
 
-func findDiffPos(left, right string) int {
-	pos := 0
+func findDiffPos(left, right string) (pos int, leftOut, rightOut string) {
 	for i := 0; i < len(left); i++ {
+		if len(right) <= i {
+			pos = i
+			break
+		}
+
 		if left[i:i+1] != right[i:i+1] {
 			pos = i
 			break
 		}
 	}
 
-	return pos
+	leftOut = left[0:pos]
+	rightOut = right[0:pos]
+
+	return
 }
 
 func testDoc(t *testing.T, doc string) string {
@@ -25,7 +33,8 @@ func testDoc(t *testing.T, doc string) string {
 
 	docBack := String(routes...)
 	if docBack != doc {
-		t.Error("failed to serialize doc", findDiffPos(docBack, doc))
+		pos, _, _ := findDiffPos(docBack, doc)
+		t.Error("failed to serialize doc", pos)
 		t.Log(docBack)
 		t.Log(doc)
 	}
@@ -52,7 +61,7 @@ func TestRouteString(t *testing.T) {
 			Headers: map[string]string{
 				`ap"key`: `ap"value`},
 			HeaderRegexps: map[string][]string{
-				`ap"key`: []string{"slash/value0", "slash/value1"}},
+				`ap"key`: {"slash/value0", "slash/value1"}},
 			Predicates: []*Predicate{{"Test", []interface{}{3.14, "hello"}}},
 			Filters: []*Filter{
 				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
@@ -89,8 +98,8 @@ func TestRouteString(t *testing.T) {
 	}} {
 		rstring := item.route.String()
 		if rstring != item.string {
-			pos := findDiffPos(rstring, item.string)
-			t.Error(rstring, item.string, i, pos, rstring[pos:pos+1], item.string[pos:pos+1])
+			pos, rstringOut, itemOut := findDiffPos(rstring, item.string)
+			t.Error(rstring, item.string, i, pos, rstringOut, itemOut)
 		}
 	}
 }
@@ -104,7 +113,7 @@ func TestRouteExpression(t *testing.T) {
 
 func TestDocString(t *testing.T) {
 	testDoc(t, `route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
-		`route2: Path("/some/path") -> "https://www.example.org"`)
+		`route2: Path("/some/path") -> "https://www.example.org";`)
 }
 
 func TestPrintNonPretty(t *testing.T) {
@@ -121,7 +130,7 @@ func TestPrintNonPretty(t *testing.T) {
 			`Path("/some/path") -> "https://www.example.org"`,
 		},
 	} {
-		testPrinting(item.route, item.expected, t, i, false, false)
+		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: false, IndentStr: ""}, false)
 	}
 }
 
@@ -139,7 +148,7 @@ func TestPrintPretty(t *testing.T) {
 			"Path(\"/some/path\")\n  -> \"https://www.example.org\"",
 		},
 	} {
-		testPrinting(item.route, item.expected, t, i, true, false)
+		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: true, IndentStr: "  "}, false)
 	}
 }
 
@@ -148,21 +157,21 @@ func TestPrintMultiRoutePretty(t *testing.T) {
 		`route2: Path("/some/path") -> "https://www.example.org"`,
 		`route1: Method("GET")`+"\n"+
 			`  -> filter("expression")`+"\n"+
-			`  -> <shunt>;`+"\n"+
+			`  -> <shunt>;`+"\n\n"+
 			`route2: Path("/some/path")`+"\n"+
-			`  -> "https://www.example.org"`,
-		t, 0, true, true)
+			`  -> "https://www.example.org";`,
+		t, 0, PrettyPrintInfo{Pretty: true, IndentStr: "  "}, true)
 }
 
 func TestPrintMultiRouteNonPretty(t *testing.T) {
 	testPrinting(`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
 		`route2: Path("/some/path") -> "https://www.example.org"`,
 		`route1: Method("GET") -> filter("expression") -> <shunt>;`+"\n"+
-			`route2: Path("/some/path") -> "https://www.example.org"`,
-		t, 0, false, true)
+			`route2: Path("/some/path") -> "https://www.example.org";`,
+		t, 0, PrettyPrintInfo{Pretty: false, IndentStr: ""}, true)
 }
 
-func testPrinting(routestr string, expected string, t *testing.T, i int, pretty bool, multi bool) {
+func testPrinting(routestr string, expected string, t *testing.T, i int, prettyPrintInfo PrettyPrintInfo, multi bool) {
 	routes, err := Parse(routestr)
 	if err != nil {
 		t.Error(err)
@@ -170,20 +179,20 @@ func testPrinting(routestr string, expected string, t *testing.T, i int, pretty 
 	var printedRoute string
 
 	if multi {
-		printedRoute = Print(pretty, routes...)
+		printedRoute = Print(prettyPrintInfo, routes...)
 	} else {
-		printedRoute = routes[0].Print(pretty)
+		printedRoute = routes[0].Print(prettyPrintInfo)
 	}
 
 	if printedRoute != expected {
-		pos := findDiffPos(printedRoute, expected)
-		t.Error(printedRoute, expected, i, pos, printedRoute[pos:pos+1], expected[pos:pos+1])
+		pos, printed, expected := findDiffPos(printedRoute, expected)
+		t.Error(printedRoute, expected, i, pos, printed, expected)
 	}
 }
 
 func TestParseAndStringAndParse(t *testing.T) {
 	doc := `route1: Method("GET") -> filter("expression") -> <shunt>;` + "\n" +
-		`route2: Path("/some/path") -> "https://www.example.org"`
+		`route2: Path("/some/path") -> "https://www.example.org";`
 	doc = testDoc(t, doc)
 	doc = testDoc(t, doc)
 	doc = testDoc(t, doc)
@@ -221,4 +230,239 @@ func TestNumberString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPrintLines(t *testing.T) {
+	check := func(t *testing.T, got, expected string) {
+		if got != expected {
+			t.Error("invalid string result")
+			t.Log("got:     ", got)
+			t.Log("expected:", expected)
+		}
+	}
+
+	t.Run("route method", func(t *testing.T) {
+		route := &Route{
+			Predicates: []*Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/foo",
+				},
+			}},
+			Filters: []*Filter{{
+				Name: "setPath",
+				Args: []interface{}{
+					"/",
+				},
+			}},
+			Backend: "https://www.example.org",
+		}
+
+		t.Run("String()", func(t *testing.T) {
+			expected := `Path("/foo") -> setPath("/") -> "https://www.example.org"`
+			got := route.String()
+			check(t, got, expected)
+		})
+
+		t.Run("Print()", func(t *testing.T) {
+			t.Run("not pretty", func(t *testing.T) {
+				expected := `Path("/foo") -> setPath("/") -> "https://www.example.org"`
+				got := route.Print(PrettyPrintInfo{Pretty: false, IndentStr: ""})
+				check(t, got, expected)
+			})
+
+			t.Run("pretty", func(t *testing.T) {
+				expected := `Path("/foo")
+  -> setPath("/")
+  -> "https://www.example.org"`
+				got := route.Print(PrettyPrintInfo{Pretty: true, IndentStr: "  "})
+				check(t, got, expected)
+			})
+		})
+	})
+
+	t.Run("package level", func(t *testing.T) {
+		type packageLevelTest struct {
+			title    string
+			routes   []*Route
+			expected string
+		}
+
+		testsBase := []packageLevelTest{{
+			title: "single expression (no ID)",
+			routes: []*Route{{
+				Predicates: []*Predicate{{
+					Name: "Path",
+					Args: []interface{}{
+						"/foo",
+					},
+				}},
+				Filters: []*Filter{{
+					Name: "setPath",
+					Args: []interface{}{
+						"/",
+					},
+				}},
+				Backend: "https://www.example.org",
+			}},
+		}, {
+			title: "single definition (with ID)",
+			routes: []*Route{{
+				Id: "testRoute1",
+				Predicates: []*Predicate{{
+					Name: "Path",
+					Args: []interface{}{
+						"/foo",
+					},
+				}},
+				Filters: []*Filter{{
+					Name: "setPath",
+					Args: []interface{}{
+						"/",
+					},
+				}},
+				Backend: "https://www.example.org",
+			}},
+		}, {
+			title: "empty",
+		}, {
+			title: "multiple routes",
+			routes: []*Route{{
+				Id: "testRoute1",
+				Predicates: []*Predicate{{
+					Name: "Path",
+					Args: []interface{}{
+						"/foo",
+					},
+				}},
+				Filters: []*Filter{{
+					Name: "setPath",
+					Args: []interface{}{
+						"/",
+					},
+				}},
+				Backend: "https://ww1.example.org",
+			}, {
+				Id: "testRoute2",
+				Predicates: []*Predicate{{
+					Name: "Path",
+					Args: []interface{}{
+						"/bar",
+					},
+				}},
+				Filters: []*Filter{{
+					Name: "setPath",
+					Args: []interface{}{
+						"/",
+					},
+				}},
+				Backend: "https://ww2.example.org",
+			}, {
+				Id: "testRoute3",
+				Predicates: []*Predicate{{
+					Name: "Path",
+					Args: []interface{}{
+						"/baz",
+					},
+				}},
+				Filters: []*Filter{{
+					Name: "setPath",
+					Args: []interface{}{
+						"/",
+					},
+				}},
+				Backend: "https://ww3.example.org",
+			}},
+		}}
+
+		expectedFlat := []string{
+			`Path("/foo") -> setPath("/") -> "https://www.example.org"`,
+			`testRoute1: Path("/foo") -> setPath("/") -> "https://www.example.org";`,
+			``,
+			`testRoute1: Path("/foo") -> setPath("/") -> "https://ww1.example.org";
+testRoute2: Path("/bar") -> setPath("/") -> "https://ww2.example.org";
+testRoute3: Path("/baz") -> setPath("/") -> "https://ww3.example.org";`,
+		}
+
+		expectedPretty := []string{
+			`Path("/foo")
+  -> setPath("/")
+  -> "https://www.example.org"`,
+			`testRoute1: Path("/foo")
+  -> setPath("/")
+  -> "https://www.example.org";`,
+			``,
+			`testRoute1: Path("/foo")
+  -> setPath("/")
+  -> "https://ww1.example.org";
+
+testRoute2: Path("/bar")
+  -> setPath("/")
+  -> "https://ww2.example.org";
+
+testRoute3: Path("/baz")
+  -> setPath("/")
+  -> "https://ww3.example.org";`,
+		}
+
+		makeTests := func(base []packageLevelTest, expected []string) []packageLevelTest {
+			tests := make([]packageLevelTest, len(base))
+			for i := range base {
+				tests[i] = base[i]
+				tests[i].expected = expected[i]
+			}
+
+			return tests
+		}
+
+		testsFlat := makeTests(testsBase, expectedFlat)
+		testsPretty := makeTests(testsBase, expectedPretty)
+
+		runTests := func(t *testing.T, tests []packageLevelTest, print func(packageLevelTest) string) {
+			for _, test := range tests {
+				t.Run(test.title, func(t *testing.T) {
+					got := print(test)
+					check(t, got, test.expected)
+				})
+			}
+		}
+
+		t.Run("String()", func(t *testing.T) {
+			runTests(t, testsFlat, func(test packageLevelTest) string { return String(test.routes...) })
+		})
+
+		t.Run("Print()", func(t *testing.T) {
+			t.Run("not pretty", func(t *testing.T) {
+				runTests(t, testsFlat, func(test packageLevelTest) string {
+					return Print(PrettyPrintInfo{Pretty: false, IndentStr: ""}, test.routes...)
+				})
+			})
+
+			t.Run("pretty", func(t *testing.T) {
+				runTests(t, testsPretty, func(test packageLevelTest) string {
+					return Print(PrettyPrintInfo{Pretty: true, IndentStr: "  "}, test.routes...)
+				})
+			})
+		})
+
+		t.Run("Fprint()", func(t *testing.T) {
+			fprint := func(pretty PrettyPrintInfo, routes []*Route) string {
+				var buf bytes.Buffer
+				Fprint(&buf, pretty, routes...)
+				return buf.String()
+			}
+
+			t.Run("not pretty", func(t *testing.T) {
+				runTests(t, testsFlat, func(test packageLevelTest) string {
+					return fprint(PrettyPrintInfo{Pretty: false, IndentStr: ""}, test.routes)
+				})
+			})
+
+			t.Run("pretty", func(t *testing.T) {
+				runTests(t, testsPretty, func(test packageLevelTest) string {
+					return fprint(PrettyPrintInfo{Pretty: true, IndentStr: "  "}, test.routes)
+				})
+			})
+		})
+	})
 }

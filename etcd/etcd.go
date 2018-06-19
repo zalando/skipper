@@ -31,6 +31,7 @@ package etcd
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -106,6 +107,15 @@ type Options struct {
 
 	// Skip TLS certificate check.
 	Insecure bool
+
+	// Optional OAuth-Token
+	OAuthToken string
+
+	// Optional username for basic auth
+	Username string
+
+	// Optional password for basic auth
+	Password string
 }
 
 // A Client is used to load the whole set of routes and the updates from an
@@ -115,6 +125,9 @@ type Client struct {
 	routesRoot string
 	client     *http.Client
 	etcdIndex  uint64
+	oauthToken string
+	username   string
+	password   string
 }
 
 var (
@@ -154,7 +167,10 @@ func New(o Options) (*Client, error) {
 		endpoints:  o.Endpoints,
 		routesRoot: o.Prefix + routesPath,
 		client:     httpClient,
-		etcdIndex:  0}, nil
+		etcdIndex:  0,
+		oauthToken: o.OAuthToken,
+		username:   o.Username,
+		password:   o.Password}, nil
 }
 
 func isTimeout(err error) bool {
@@ -262,6 +278,15 @@ func (c *Client) etcdRequest(method, path, data string) (*response, error) {
 		}
 
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		// Give oauth priority over basic auth
+		if c.oauthToken != "" {
+			r.Header.Set("Authorization", "Bearer "+c.oauthToken)
+		} else if c.username != "" && c.password != "" {
+			credentials := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
+			r.Header.Set("Authorization", "Basic "+credentials)
+		}
+
 		return r, nil
 	})
 
@@ -421,6 +446,9 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		} else if err != nil {
 			return nil, nil, err
 		} else if response.Node.Dir {
+			if response.Node.ModifiedIndex > c.etcdIndex {
+				c.etcdIndex = response.Node.ModifiedIndex
+			}
 			continue
 		}
 

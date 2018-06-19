@@ -8,16 +8,22 @@ import (
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/filters/cookie"
+	"github.com/zalando/skipper/filters/cors"
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
+	logfilter "github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/tee"
+	"github.com/zalando/skipper/filters/tracing"
+	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/script"
 )
 
 const (
 	// Deprecated: use setRequestHeader or appendRequestHeader
 	RequestHeaderName = "requestHeader"
 
-	// Deprecated: use setRequestHeader or appendRequestHeader
+	// Deprecated: use setResponseHeader or appendResponseHeader
 	ResponseHeaderName = "responseHeader"
 
 	// Deprecated: use redirectTo
@@ -30,17 +36,19 @@ const (
 	DropRequestHeaderName    = "dropRequestHeader"
 	DropResponseHeaderName   = "dropResponseHeader"
 
-	HealthCheckName  = "healthcheck"
-	ModPathName      = "modPath"
-	SetPathName      = "setPath"
-	RedirectToName   = "redirectTo"
-	StaticName       = "static"
-	StripQueryName   = "stripQuery"
-	PreserveHostName = "preserveHost"
-	StatusName       = "status"
-	CompressName     = "compress"
-	SetQueryName     = "setQuery"
-	DropQueryName    = "dropQuery"
+	HealthCheckName     = "healthcheck"
+	ModPathName         = "modPath"
+	SetPathName         = "setPath"
+	RedirectToName      = "redirectTo"
+	RedirectToLowerName = "redirectToLower"
+	StaticName          = "static"
+	StripQueryName      = "stripQuery"
+	PreserveHostName    = "preserveHost"
+	StatusName          = "status"
+	CompressName        = "compress"
+	SetQueryName        = "setQuery"
+	DropQueryName       = "dropQuery"
+	InlineContentName   = "inlineContent"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -65,11 +73,15 @@ func MakeRegistry() filters.Registry {
 		NewStatic(),
 		NewRedirect(),
 		NewRedirectTo(),
+		NewRedirectLower(),
 		NewStripQuery(),
+		NewInlineContent(),
 		flowid.New(),
 		PreserveHost(),
 		NewStatus(),
 		NewCompress(),
+		NewCopyRequestHeader(),
+		NewCopyResponseHeader(),
 		diag.NewRandom(),
 		diag.NewLatency(),
 		diag.NewBandwidth(),
@@ -87,6 +99,14 @@ func MakeRegistry() filters.Registry {
 		circuit.NewConsecutiveBreaker(),
 		circuit.NewRateBreaker(),
 		circuit.NewDisableBreaker(),
+		ratelimit.NewLocalRatelimit(),
+		ratelimit.NewRatelimit(),
+		ratelimit.NewDisableRatelimit(),
+		loadbalancer.NewDecide(),
+		script.NewLuaScript(),
+		cors.NewOrigin(),
+		logfilter.NewUnverifiedAuditLog(),
+		tracing.NewSpanName(),
 	} {
 		r.Register(s)
 	}

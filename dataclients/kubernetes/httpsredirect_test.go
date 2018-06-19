@@ -19,11 +19,39 @@ type redirectTest struct {
 	backend         string
 	fallbackBackend string
 	t               *testing.T
+	l               *loggingtest.Logger
 }
 
 func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) {
-	s := testServices()
-	i := &ingressList{Items: testIngresses()}
+	s := services{
+		"namespace1": map[string]*service{
+			"service1": testService("1.2.3.4", map[string]int{"port1": 8080}),
+		},
+	}
+	i := &ingressList{Items: []*ingressItem{
+		testIngress(
+			"namespace1",
+			"mega",
+			"service1",
+			"",
+			"",
+			"",
+			"",
+			backendPort{"port1"},
+			1.0,
+			testRule(
+				"foo.example.org",
+				testPathRule("/test1", "service1", backendPort{"port1"}),
+				testPathRule("/test2", "service2", backendPort{"port2"}),
+			),
+			testRule(
+				"bar.example.org",
+				testPathRule("/test1", "service1", backendPort{"port1"}),
+				testPathRule("/test2", "service2", backendPort{"port2"}),
+			),
+		),
+	}}
+
 	api := newTestAPI(t, s, i)
 
 	dc, err := New(Options{
@@ -34,6 +62,8 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 		return nil, err
 	}
 
+	defer dc.Close()
+
 	l := loggingtest.New()
 	router := routing.New(routing.Options{
 		FilterRegistry: builtin.MakeRegistry(),
@@ -42,15 +72,16 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 	})
 
 	const to = 120 * time.Millisecond
-	l.WaitFor("all ingresses received", to)
-	l.WaitFor("route settings applied", to)
+	if err := l.WaitFor("route settings applied", to); err != nil {
+		t.Fatal("waiting for route settings", err)
+	}
 
 	if err != nil {
 		t.Error(err)
 		return nil, err
 	}
 
-	ingress := i.Items[1]
+	ingress := i.Items[0]
 	rule := ingress.Spec.Rules[0]
 	service := s[ingress.Metadata.Namespace][rule.Http.Paths[0].Backend.ServiceName].Spec
 	fallbackService := s[i.Items[0].Metadata.Namespace][i.Items[0].Spec.DefaultBackend.ServiceName].Spec
@@ -64,20 +95,31 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 		backend:         backend,
 		fallbackBackend: fallbackBackend,
 		t:               t,
+		l:               l,
 	}, nil
 }
 
-func (rt *redirectTest) testRedirectRoute(req *http.Request, expectedID, expectedBackend string) bool {
+func (rt *redirectTest) testRedirectRoute(testCase string, req *http.Request, expectedID, expectedBackend string) {
+	if rt.t.Failed() {
+		return
+	}
+
 	route, _ := rt.router.Route(req)
-	switch {
-	case expectedID != "" && route.Id != expectedID:
-		return false
-	case expectedBackend != "" && route.Backend != expectedBackend:
-		return false
-	case expectedID == "" && expectedBackend == "" && route != nil:
-		return false
-	default:
-		return true
+	rt.t.Log("got:     ", route.Id, route.Backend)
+	if expectedID != "" && route.Id != expectedID {
+		rt.t.Error(testCase, "failed to match the id")
+		rt.t.Log("got:     ", route.Id, route.Backend)
+		rt.t.Log("expected:", expectedID, expectedBackend)
+	}
+
+	if expectedBackend != "" && route.Backend != expectedBackend {
+		rt.t.Error(testCase, "failed to match the backend")
+		rt.t.Log("got:     ", route.Id, route.Backend)
+		rt.t.Log("expected:", expectedID, expectedBackend)
+	}
+
+	if expectedID == "" && expectedBackend == "" && route != nil {
+		rt.t.Error(testCase, "unexpected route matched")
 	}
 }
 
@@ -90,9 +132,7 @@ func (rt *redirectTest) testNormalHTTPS(expectedID, expectedBackend string) {
 		},
 	}
 
-	if !rt.testRedirectRoute(httpsRequest, expectedID, expectedBackend) {
-		rt.t.Error("failed to match the right route when checking normal request")
-	}
+	rt.testRedirectRoute("normal", httpsRequest, expectedID, expectedBackend)
 }
 
 func (rt *redirectTest) testRedirectHTTP(expectedID, expectedBackend string) {
@@ -106,9 +146,7 @@ func (rt *redirectTest) testRedirectHTTP(expectedID, expectedBackend string) {
 		},
 	}
 
-	if !rt.testRedirectRoute(httpRequest, expectedID, expectedBackend) {
-		rt.t.Error("failed to match the right route when checking redirect request")
-	}
+	rt.testRedirectRoute("redirect", httpRequest, expectedID, expectedBackend)
 }
 
 func (rt *redirectTest) testRedirectNotFound(expectedID, expectedBackend string) {
@@ -122,14 +160,13 @@ func (rt *redirectTest) testRedirectNotFound(expectedID, expectedBackend string)
 		},
 	}
 
-	if !rt.testRedirectRoute(nonExistingHTTP, expectedID, expectedBackend) {
-		rt.t.Error("failed to match the right route when checking unmatched redirect")
-	}
+	rt.testRedirectRoute("unmatched", nonExistingHTTP, expectedID, expectedBackend)
 }
 
 func (rt *redirectTest) close() {
 	rt.router.Close()
 	rt.api.Close()
+	rt.l.Close()
 }
 
 func TestHTTPSRedirect(t *testing.T) {

@@ -151,8 +151,46 @@ func scanEscaped(delimiter byte, code string) ([]byte, string) {
 	return b, code
 }
 
+func scanRegexp(code string) ([]byte, string) {
+	var b []byte
+	escaped := false
+	var insideGroup = false
+	for len(code) > 0 {
+		c := code[0]
+		isDelimiter := c == '/'
+		isEscapeChar := c == escapeChar
+
+		//Check if starting [... or ending ...]. Ignore if group character is escaped i.e. \[ or \]
+		if !escaped && !insideGroup && c == '[' {
+			insideGroup = true
+		} else if !escaped && insideGroup && c == ']' {
+			insideGroup = false
+		}
+
+		if escaped {
+			//delimeter / is escaped in PathRegexp so that it means no end PathRegexp(/\//)
+			if !isDelimiter && !isEscapeChar {
+				b = append(b, escapeChar)
+			}
+			b = append(b, c)
+			escaped = false
+		} else {
+			if isDelimiter && !insideGroup {
+				return b, code
+			}
+			if isEscapeChar {
+				escaped = true
+			} else {
+				b = append(b, c)
+			}
+		}
+		code = code[1:]
+	}
+	return b, code
+}
+
 func scanRegexpLiteral(code string) (t token, rest string, err error) {
-	b, rest := scanEscaped('/', code[1:])
+	b, rest := scanRegexp(code[1:])
 	if len(rest) == 0 {
 		err = incompleteToken
 		return
@@ -234,7 +272,7 @@ func scanSymbol(code string) (t token, rest string, err error) {
 }
 
 func selectFixed(code string) scanner {
-	for fixed, _ := range fixedTokens {
+	for fixed := range fixedTokens {
 		if len(code) >= len(fixed) && strings.HasPrefix(code, string(fixed)) {
 			return fixed
 		}
@@ -318,7 +356,7 @@ func (l *eskipLex) Lex(lval *eskipSymType) int {
 }
 
 func (l *eskipLex) Error(err string) {
-	l.err = errors.New(fmt.Sprintf(
+	l.err = fmt.Errorf(
 		"parse failed after token %v, position %d: %s",
-		l.lastToken, l.initialLength-len(l.code), err))
+		l.lastToken, l.initialLength-len(l.code), err)
 }

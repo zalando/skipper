@@ -256,22 +256,22 @@ func TestParsingMultipleInnkeeperRoutes(t *testing.T) {
 
 func TestConvertDoc(t *testing.T) {
 	testData := []*routeData{
-		&routeData{
+		{
 			Name:      "route1",
 			Action:    createAction,
 			Timestamp: "2015-09-28T16:58:56.955",
 			Eskip:     `route1: Path("/") && Method("GET") -> "https://example.org:443"`,
-		}, &routeData{
+		}, {
 			Name:      "route2",
 			Action:    deleteAction,
 			Timestamp: "2015-09-28T16:58:56.956",
 			Eskip:     `route2: Path("/") && Method("GET") -> "https://example.org:443"`,
-		}, &routeData{
+		}, {
 			Name:      "route3",
 			Action:    deleteAction,
 			Timestamp: "2015-09-28T16:58:56.956",
 			Eskip:     `route3: Path("/") && Method("GET") -> "https://example.org:443"`,
-		}, &routeData{
+		}, {
 			Name:      "route4",
 			Action:    updateAction,
 			Timestamp: "2015-09-28T16:58:56.957",

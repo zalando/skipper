@@ -3,6 +3,7 @@ package routing
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/zalando/skipper/eskip"
@@ -16,6 +17,15 @@ type incomingType uint
 const (
 	incomingReset incomingType = iota
 	incomingUpdate
+)
+
+// legacy, non-tree predicate names:
+const (
+	hostRegexpName   = "Host"
+	pathRegexpName   = "PathRegexp"
+	methodName       = "Method"
+	headerName       = "Header"
+	headerRegexpName = "HeaderRegexp"
 )
 
 func (it incomingType) String() string {
@@ -38,7 +48,13 @@ type incomingData struct {
 	deletedIds     []string
 }
 
-func (d *incomingData) log(l logging.Logger) {
+func (d *incomingData) log(l logging.Logger, suppress bool) {
+	if suppress {
+		l.Infof("route settings, %v, upsert count: %v", d.typ, len(d.upsertedRoutes))
+		l.Infof("route settings, %v, delete count: %v", d.typ, len(d.deletedIds))
+		return
+	}
+
 	for _, r := range d.upsertedRoutes {
 		l.Infof("route settings, %v, route: %v: %v", d.typ, r.Id, r)
 	}
@@ -48,7 +64,7 @@ func (d *incomingData) log(l logging.Logger) {
 	}
 }
 
-// continously receives route definitions from a data client on the the output channel.
+// continuously receives route definitions from a data client on the the output channel.
 // The function does not return unless quit is closed. When started, it request for the
 // whole current set of routes, and continues polling for the subsequent updates. When a
 // communication error occurs, it re-requests the whole valid set, and continues polling.
@@ -79,8 +95,6 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 			initial = true
 			to = 0
 		case initial || len(routes) > 0 || len(deletedIDs) > 0:
-			initial = false
-
 			var incoming *incomingData
 			if initial {
 				incoming = &incomingData{incomingReset, c, routes, nil}
@@ -88,6 +102,7 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 				incoming = &incomingData{incomingUpdate, c, routes, deletedIDs}
 			}
 
+			initial = false
 			select {
 			case out <- incoming:
 			case <-quit:
@@ -166,7 +181,7 @@ func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan []*eskip.Route {
 				return
 			}
 
-			incoming.log(o.Log)
+			incoming.log(o.Log, o.SuppressLogs)
 			c := incoming.client
 			defsByClient[c] = applyIncoming(defsByClient[c], incoming)
 
@@ -233,6 +248,90 @@ func isTreePredicate(name string) bool {
 	default:
 		return false
 	}
+}
+
+func getFreeStringArgs(count int, p *eskip.Predicate) ([]string, error) {
+	if len(p.Args) != count {
+		return nil, fmt.Errorf(
+			"invalid length of predicate args in %s, %d instead of %d",
+			p.Name,
+			len(p.Args),
+			count,
+		)
+	}
+
+	var a []string
+	for i := range p.Args {
+		s, ok := p.Args[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("expected argument of type string, %s", p.Name)
+		}
+
+		a = append(a, s)
+	}
+
+	return a, nil
+}
+
+func mergeLegacyNonTreePredicates(r *eskip.Route) error {
+	var rest []*eskip.Predicate
+	for _, p := range r.Predicates {
+		if isTreePredicate(p.Name) {
+			rest = append(rest, p)
+			continue
+		}
+
+		switch p.Name {
+		case hostRegexpName:
+			a, err := getFreeStringArgs(1, p)
+			if err != nil {
+				return err
+			}
+
+			r.HostRegexps = append(r.HostRegexps, a[0])
+		case pathRegexpName:
+			a, err := getFreeStringArgs(1, p)
+			if err != nil {
+				return err
+			}
+
+			r.PathRegexps = append(r.PathRegexps, a[0])
+		case methodName:
+			a, err := getFreeStringArgs(1, p)
+			if err != nil {
+				return err
+			}
+
+			r.Method = a[0]
+		case headerName:
+			a, err := getFreeStringArgs(2, p)
+			if err != nil {
+				return err
+			}
+
+			if r.Headers == nil {
+				r.Headers = make(map[string]string)
+			}
+
+			r.Headers[a[0]] = a[1]
+		case headerRegexpName:
+			a, err := getFreeStringArgs(2, p)
+			if err != nil {
+				return err
+			}
+
+			if r.HeaderRegexps == nil {
+				r.HeaderRegexps = make(map[string][]string)
+			}
+
+			r.HeaderRegexps[a[0]] = append(r.HeaderRegexps[a[0]], a[1])
+		default:
+			rest = append(rest, p)
+		}
+	}
+
+	r.Predicates = rest
+	return nil
 }
 
 // initialize predicate instances from their spec with the concrete arguments
@@ -329,6 +428,10 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 		return nil, err
 	}
 
+	if err := mergeLegacyNonTreePredicates(def); err != nil {
+		return nil, err
+	}
+
 	cps, err := processPredicates(cpm, def.Predicates)
 	if err != nil {
 		return nil, err
@@ -361,7 +464,7 @@ func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (rout
 			routes = append(routes, route)
 		} else {
 			invalidDefs = append(invalidDefs, def)
-			o.Log.Error(err)
+			o.Log.Errorf("failed to process route (%v): %v", def.Id, err)
 		}
 	}
 	return
@@ -389,6 +492,13 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		case defs := <-updatesRelay:
 			o.Log.Info("route settings received")
 			routes, invalidRoutes := processRouteDefs(o, o.FilterRegistry, defs)
+
+			// TODO: consider if the fallbacks logic should be a post processor
+			routes = applyFallbackGroups(routes)
+			for i := range o.PostProcessors {
+				routes = o.PostProcessors[i].Do(routes)
+			}
+
 			m, errs := newMatcher(routes, o.MatchingOptions)
 
 			invalidRouteIds := make(map[string]struct{})
@@ -406,6 +516,10 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 					validRoutes = append(validRoutes, &r.Route)
 				}
 			}
+
+			sort.SliceStable(validRoutes, func(i, j int) bool {
+				return validRoutes[i].Id < validRoutes[j].Id
+			})
 
 			rt = &routeTable{
 				m:             m,

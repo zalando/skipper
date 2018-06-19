@@ -1,20 +1,28 @@
 package skipper
 
 import (
+	"crypto/tls"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/innkeeper"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates/cookie"
@@ -23,7 +31,9 @@ import (
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -31,8 +41,13 @@ const (
 	defaultRoutingUpdateBuffer = 1 << 5
 )
 
+const DefaultPluginDir = "./plugins"
+
 // Options to start skipper.
 type Options struct {
+
+	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
+	WhitelistedHealthCheckCIDR []string
 
 	// Network address that skipper should listen on.
 	Address string
@@ -88,34 +103,45 @@ type Options struct {
 	// be loaded, too.
 	KubernetesIngressClass string
 
-	// API endpoint of the Innkeeper service, storing route definitions.
+	// PathMode controls the default interpretation of ingress paths in cases
+	// when the ingress doesn't specify it with an annotation.
+	KubernetesPathMode kubernetes.PathMode
+
+	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
-	// Fixed token for innkeeper authentication. (Used mainly in
+	// *DEPRECATED* Fixed token for innkeeper authentication. (Used mainly in
 	// development environments.)
 	InnkeeperAuthToken string
 
-	// Filters to be prepended to each route loaded from Innkeeper.
+	// *DEPRECATED* Filters to be prepended to each route loaded from Innkeeper.
 	InnkeeperPreRouteFilters string
 
-	// Filters to be appended to each route loaded from Innkeeper.
+	// *DEPRECATED* Filters to be appended to each route loaded from Innkeeper.
 	InnkeeperPostRouteFilters string
 
-	// Skip TLS certificate check for Innkeeper connections.
+	// *DEPRECATED* Skip TLS certificate check for Innkeeper connections.
 	InnkeeperInsecure bool
 
-	// OAuth2 URL for Innkeeper authentication.
+	// *DEPRECATED* OAuth2 URL for Innkeeper authentication.
 	OAuthUrl string
 
-	// Directory where oauth credentials are stored, with file names:
+	// *DEPRECATED* Directory where oauth credentials are stored, with file names:
 	// client.json and user.json.
 	OAuthCredentialsDir string
 
-	// The whitespace separated list of OAuth2 scopes.
+	// *DEPRECATED* The whitespace separated list of OAuth2 scopes.
 	OAuthScope string
 
 	// File containing static route definitions.
 	RoutesFile string
+
+	// File containing route definitions with file watch enabled. (For the skipper
+	// command this option is used when starting it with the -routes-file flag.)
+	WatchRoutesFile string
+
+	// InlineRoutes can define routes as eskip text.
+	InlineRoutes string
 
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
@@ -135,6 +161,45 @@ type Options struct {
 	// by the proxy are closed.
 	CloseIdleConnsPeriod time.Duration
 
+	// Defines ReadTimeoutServer for server http connections.
+	ReadTimeoutServer time.Duration
+
+	// Defines ReadHeaderTimeout for server http connections.
+	ReadHeaderTimeoutServer time.Duration
+
+	// Defines WriteTimeout for server http connections.
+	WriteTimeoutServer time.Duration
+
+	// Defines IdleTimeout for server http connections.
+	IdleTimeoutServer time.Duration
+
+	// Defines MaxHeaderBytes for server http connections.
+	MaxHeaderBytes int
+
+	// Enable connection state metrics for server http connections.
+	EnableConnMetricsServer bool
+
+	// TimeoutBackend sets the TCP client connection timeout for
+	// proxy http connections to the backend.
+	TimeoutBackend time.Duration
+
+	// KeepAliveBackend sets the TCP keepalive for proxy http
+	// connections to the backend.
+	KeepAliveBackend time.Duration
+
+	// DualStackBackend sets if the proxy TCP connections to the
+	// backend should be dual stack.
+	DualStackBackend bool
+
+	// TLSHandshakeTimeoutBackend sets the TLS handshake timeout
+	// for proxy connections to the backend.
+	TLSHandshakeTimeoutBackend time.Duration
+
+	// MaxIdleConnsBackend sets MaxIdleConns, which limits the
+	// number of idle connections to all backends, 0 means no
+	// limit.
+	MaxIdleConnsBackend int
+
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
 	IgnoreTrailingSlash bool
@@ -148,6 +213,10 @@ type Options struct {
 
 	// Custom data clients to be used together with the default etcd and Innkeeper.
 	CustomDataClients []routing.DataClient
+
+	// SuppressRouteUpdateLogs indicates to log only summaries of the routing updates
+	// instead of full details of the updated/deleted routes.
+	SuppressRouteUpdateLogs bool
 
 	// Dev mode. Currently this flag disables prioritization of the
 	// consumer side over the feeding side during the routing updates to
@@ -186,6 +255,46 @@ type Options struct {
 	// for each backend host
 	EnableBackendHostMetrics bool
 
+	// EnableAllFiltersMetrics enables collecting combined filter
+	// metrics per each route. Without the DisableMetricsCompatibilityDefaults,
+	// it is enabled by default.
+	EnableAllFiltersMetrics bool
+
+	// EnableCombinedResponseMetrics enables collecting response time
+	// metrics combined for every route.
+	EnableCombinedResponseMetrics bool
+
+	// EnableRouteResponseMetrics enables collecting response time
+	// metrics per each route. Without the DisableMetricsCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteResponseMetrics bool
+
+	// EnableRouteBackendErrorsCounters enables counters for backend
+	// errors per each route. Without the DisableMetricsCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteBackendErrorsCounters bool
+
+	// EnableRouteStreamingErrorsCounters enables counters for streaming
+	// errors per each route. Without the DisableMetricsCompatibilityDefaults,
+	// it is enabled by default.
+	EnableRouteStreamingErrorsCounters bool
+
+	// EnableRouteBackendMetrics enables backend response time metrics
+	// per each route. Without the DisableMetricsCompatibilityDefaults, it is
+	// enabled by default.
+	EnableRouteBackendMetrics bool
+
+	// When set, makes the histograms use an exponentially decaying sample
+	// instead of the default uniform one.
+	MetricsUseExpDecaySample bool
+
+	// The following options, for backwards compatibility, are true
+	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
+	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
+	// EnableRouteBackendMetrics. With this compatibility flag, the default
+	// for these options can be set to false.
+	DisableMetricsCompatibilityDefaults bool
+
 	// Output file for the application log. Default value: /dev/stderr.
 	//
 	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
@@ -223,9 +332,10 @@ type Options struct {
 
 	DebugListener string
 
-	//Path of certificate when using TLS
+	// Path of certificate(s) when using TLS, mutiple may be given comma separated
 	CertPathTLS string
-	//Path of key when using TLS
+	// Path of key(s) when using TLS, multiple may be given comma separated. For
+	// multiple keys, the order must match the one given in CertPathTLS
 	KeyPathTLS string
 
 	// Flush interval for upgraded Proxy connections
@@ -247,6 +357,79 @@ type Options struct {
 
 	// BreakerSettings contain global and host specific settings for the circuit breakers.
 	BreakerSettings []circuit.BreakerSettings
+
+	// EnableRatelimiters enables the usage of the ratelimiter in the route definitions without initializing any
+	// by default. It is a shortcut for setting the RatelimitSettings to:
+	//
+	// 	[]ratelimit.Settings{{Type: DisableRatelimit}}
+	//
+	EnableRatelimiters bool
+
+	// RatelimitSettings contain global and host specific settings for the ratelimiters.
+	RatelimitSettings []ratelimit.Settings
+
+	// OpenTracing enables opentracing
+	OpenTracing []string
+
+	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
+	// Default: "ingress".
+	OpenTracingInitialSpan string
+
+	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
+	PluginDir string
+	// PluginDirs defines the directories to load plugins from
+	PluginDirs []string
+
+	// FilterPlugins loads additional filters from modules. The first value in each []string
+	// needs to be the plugin name (as on disk, without path, without ".so" suffix). The
+	// following values are passed as arguments to the plugin while loading, see also
+	// https://zalando.github.io/skipper/plugins/
+	FilterPlugins [][]string
+
+	// PredicatePlugins loads additional predicates from modules. See above for FilterPlugins
+	// what the []string should contain.
+	PredicatePlugins [][]string
+
+	// DataClientPlugins loads additional data clients from modules. See above for FilterPlugins
+	// what the []string should contain.
+	DataClientPlugins [][]string
+
+	// Plugins combine multiple types of the above plugin types in one plugin (where
+	// necessary because of shared data between e.g. a filter and a data client).
+	Plugins [][]string
+
+	// DefaultHTTPStatus is the HTTP status used when no routes are found
+	// for a request.
+	DefaultHTTPStatus int
+
+	// EnablePrometheusMetrics enables Prometheus format metrics.
+	//
+	// This option is *deprecated*. The recommended way to enable prometheus metrics is to
+	// use the MetricsFlavours option.
+	EnablePrometheusMetrics bool
+
+	// MetricsFlavours sets the metrics storage and exposed format
+	// of metrics endpoints.
+	MetricsFlavours []string
+
+	// LoadBalancerHealthCheckInterval enables and sets the
+	// interval when to schedule health checks for dead or
+	// unhealthy routes
+	LoadBalancerHealthCheckInterval time.Duration
+
+	// ReverseSourcePredicate enables the automatic use of IP
+	// whitelisting in different places to use the reversed way of
+	// identifying a client IP within the X-Forwarded-For
+	// header. Amazon's ALB for example writes the client IP to
+	// the last item of the string list of the X-Forwarded-For
+	// header, in this case you want to set this to true.
+	ReverseSourcePredicate bool
+
+	// OAuthTokeninfoURL sets the OAuthTokeninfoURL similar to https://godoc.org/golang.org/x/oauth2#Endpoint
+	OAuthTokeninfoURL string
+
+	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
+	MaxAuditBody int
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -260,6 +443,21 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 		}
 
 		clients = append(clients, f)
+	}
+
+	if o.WatchRoutesFile != "" {
+		f := eskipfile.Watch(o.WatchRoutesFile)
+		clients = append(clients, f)
+	}
+
+	if o.InlineRoutes != "" {
+		ir, err := routestring.New(o.InlineRoutes)
+		if err != nil {
+			log.Error("error while parsing inline routes", err)
+			return nil, err
+		}
+
+		clients = append(clients, ir)
 	}
 
 	if o.InnkeeperUrl != "" {
@@ -296,11 +494,14 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			KubernetesInCluster:  o.KubernetesInCluster,
-			KubernetesURL:        o.KubernetesURL,
-			ProvideHealthcheck:   o.KubernetesHealthcheck,
-			ProvideHTTPSRedirect: o.KubernetesHTTPSRedirect,
-			IngressClass:         o.KubernetesIngressClass,
+			KubernetesInCluster:        o.KubernetesInCluster,
+			KubernetesURL:              o.KubernetesURL,
+			ProvideHealthcheck:         o.KubernetesHealthcheck,
+			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
+			IngressClass:               o.KubernetesIngressClass,
+			ReverseSourcePredicate:     o.ReverseSourcePredicate,
+			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
+			PathMode:                   o.KubernetesPathMode,
 		})
 		if err != nil {
 			return nil, err
@@ -366,11 +567,48 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	// create the access log handler
 	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
+
+	srv := &http.Server{
+		Addr:              o.Address,
+		Handler:           loggingHandler,
+		ReadTimeout:       o.ReadTimeoutServer,
+		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
+		WriteTimeout:      o.WriteTimeoutServer,
+		IdleTimeout:       o.IdleTimeoutServer,
+		MaxHeaderBytes:    o.MaxHeaderBytes,
+	}
+
+	if o.EnableConnMetricsServer {
+		m := metrics.Default
+		srv.ConnState = func(conn net.Conn, state http.ConnState) {
+			m.IncCounter(fmt.Sprintf("lb-conn-%s", state))
+		}
+	}
+
 	if o.isHTTPS() {
-		return http.ListenAndServeTLS(o.Address, o.CertPathTLS, o.KeyPathTLS, loggingHandler)
+		if strings.Index(o.CertPathTLS, ",") > 0 && strings.Index(o.KeyPathTLS, ",") > 0 {
+			tlsCfg := &tls.Config{}
+			crts := strings.Split(o.CertPathTLS, ",")
+			keys := strings.Split(o.KeyPathTLS, ",")
+			if len(crts) != len(keys) {
+				log.Fatalf("number of certs does not match number of keys")
+			}
+			for i, crt := range crts {
+				kp, err := tls.LoadX509KeyPair(crt, keys[i])
+				if err != nil {
+					log.Fatalf("Failed to load X509 keypair from %s/%s: %v", crt, keys[i], err)
+				}
+				tlsCfg.Certificates = append(tlsCfg.Certificates, kp)
+			}
+			tlsCfg.BuildNameToCertificate()
+			o.CertPathTLS = ""
+			o.KeyPathTLS = ""
+			srv.TLSConfig = tlsCfg
+		}
+		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
 	}
 	log.Infof("certPathTLS or keyPathTLS not found, defaulting to HTTP")
-	return http.ListenAndServe(o.Address, loggingHandler)
+	return srv.ListenAndServe()
 }
 
 // Run skipper.
@@ -381,15 +619,24 @@ func Run(o Options) error {
 		return err
 	}
 
-	// create authentication for Innkeeper
-	auth := innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{
+	// *DEPRECATED* create authentication for Innkeeper
+	inkeeperAuth := innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{
 		InnkeeperAuthToken:  o.InnkeeperAuthToken,
 		OAuthCredentialsDir: o.OAuthCredentialsDir,
 		OAuthUrl:            o.OAuthUrl,
 		OAuthScope:          o.OAuthScope})
 
-	// create data clients
-	dataClients, err := createDataClients(o, auth)
+	var lbInstance *loadbalancer.LB
+	if o.LoadBalancerHealthCheckInterval != 0 {
+		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
+	}
+
+	if err := o.findAndLoadPlugins(); err != nil {
+		return err
+	}
+
+	// *DEPRECATED* inkeeper - create data clients
+	dataClients, err := createDataClients(o, inkeeperAuth)
 	if err != nil {
 		return err
 	}
@@ -400,6 +647,14 @@ func Run(o Options) error {
 	if len(dataClients) == 0 {
 		log.Warning("no route source specified")
 	}
+
+	if o.OAuthTokeninfoURL != "" {
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllScope(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyScope(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL))
+	}
+	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
@@ -429,12 +684,16 @@ func Run(o Options) error {
 	// include bundled custom predicates
 	o.CustomPredicates = append(o.CustomPredicates,
 		source.New(),
+		source.NewFromLast(),
 		interval.NewBetween(),
 		interval.NewBefore(),
 		interval.NewAfter(),
 		cookie.New(),
 		query.New(),
-		traffic.New())
+		traffic.New(),
+		loadbalancer.NewGroup(),
+		loadbalancer.NewMember(),
+	)
 
 	// create a routing engine
 	routing := routing.New(routing.Options{
@@ -443,7 +702,10 @@ func Run(o Options) error {
 		PollTimeout:     o.SourcePollTimeout,
 		DataClients:     dataClients,
 		Predicates:      o.CustomPredicates,
-		UpdateBuffer:    updateBuffer})
+		UpdateBuffer:    updateBuffer,
+		SuppressLogs:    o.SuppressRouteUpdateLogs,
+		PostProcessors:  []routing.PostProcessor{loadbalancer.HealthcheckPostProcessor{LB: lbInstance}},
+	})
 	defer routing.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
@@ -456,10 +718,22 @@ func Run(o Options) error {
 		FlushInterval:          o.BackendFlushInterval,
 		ExperimentalUpgrade:    o.ExperimentalUpgrade,
 		MaxLoopbacks:           o.MaxLoopbacks,
+		DefaultHTTPStatus:      o.DefaultHTTPStatus,
+		LoadBalancer:           lbInstance,
+		Timeout:                o.TimeoutBackend,
+		KeepAlive:              o.KeepAliveBackend,
+		DualStack:              o.DualStackBackend,
+		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:           o.MaxIdleConnsBackend,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
 		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
+	}
+
+	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
+		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
+		proxyParams.RateLimiters = ratelimit.NewRegistry(o.RatelimitSettings...)
 	}
 
 	if o.DebugListener != "" {
@@ -482,14 +756,42 @@ func Run(o Options) error {
 		mux := http.NewServeMux()
 		mux.Handle("/routes", routing)
 		mux.Handle("/routes/", routing)
-		metricsHandler := metrics.NewHandler(metrics.Options{
-			Prefix:                   o.MetricsPrefix,
-			EnableDebugGcMetrics:     o.EnableDebugGcMetrics,
-			EnableRuntimeMetrics:     o.EnableRuntimeMetrics,
-			EnableServeRouteMetrics:  o.EnableServeRouteMetrics,
-			EnableServeHostMetrics:   o.EnableServeHostMetrics,
-			EnableBackendHostMetrics: o.EnableBackendHostMetrics,
-			EnableProfile:            o.EnableProfile,
+
+		if o.EnablePrometheusMetrics {
+			o.MetricsFlavours = append(o.MetricsFlavours, "prometheus")
+		}
+		metricsKind := metrics.UnkownKind
+		for _, s := range o.MetricsFlavours {
+			switch s {
+			case "codahale":
+				metricsKind |= metrics.CodaHaleKind
+			case "prometheus":
+				metricsKind |= metrics.PrometheusKind
+			}
+		}
+		// set default if unset
+		if metricsKind == metrics.UnkownKind {
+			metricsKind = metrics.CodaHaleKind
+		}
+		log.Infof("Expose metrics in %s format", metricsKind)
+
+		metricsHandler := metrics.NewDefaultHandler(metrics.Options{
+			Format:                             metricsKind,
+			Prefix:                             o.MetricsPrefix,
+			EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
+			EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
+			EnableServeRouteMetrics:            o.EnableServeRouteMetrics,
+			EnableServeHostMetrics:             o.EnableServeHostMetrics,
+			EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
+			EnableProfile:                      o.EnableProfile,
+			EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
+			EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
+			EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
+			EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
+			EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
+			EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
+			UseExpDecaySample:                  o.MetricsUseExpDecaySample,
+			DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		})
 		mux.Handle("/metrics", metricsHandler)
 		mux.Handle("/metrics/", metricsHandler)
@@ -500,6 +802,24 @@ func Run(o Options) error {
 		go http.ListenAndServe(supportListener, mux)
 	} else {
 		log.Infoln("Metrics are disabled")
+	}
+
+	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
+	if len(o.OpenTracing) > 0 {
+		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, o.OpenTracing)
+		if err != nil {
+			return err
+		}
+		proxyParams.OpenTracer = tracer
+		proxyParams.OpenTracingInitialSpan = o.OpenTracingInitialSpan
+	} else {
+		// always have a tracer available, so filter authors can rely on the
+		// existence of a tracer
+		proxyParams.OpenTracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	}
+
+	if proxyParams.OpenTracingInitialSpan != "" {
+		proxyParams.OpenTracingInitialSpan = o.OpenTracingInitialSpan
 	}
 
 	// create the proxy

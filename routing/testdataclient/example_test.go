@@ -29,7 +29,7 @@ func Example() {
 	defer r.Close()
 
 	// wait for the route data being propagated:
-	tl.WaitFor("route settigns applied", time.Second)
+	tl.WaitFor("route settings applied", time.Second)
 
 	// test the router:
 	route, _ := r.Route(&http.Request{URL: &url.URL{Path: "/some/path"}})
