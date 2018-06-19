@@ -326,6 +326,10 @@ type Options struct {
 	// Enables logs in JSON format
 	AccessLogJSONEnabled bool
 
+	// AccessLogStripQuery, when set, causes the query strings stripped
+	// from the request URI in the access logs.
+	AccessLogStripQuery bool
+
 	DebugListener string
 
 	// Path of certificate(s) when using TLS, mutiple may be given comma separated
@@ -548,7 +552,9 @@ func initLog(o Options) error {
 		ApplicationLogOutput: logOutput,
 		AccessLogOutput:      accessLogOutput,
 		AccessLogDisabled:    o.AccessLogDisabled,
-		AccessLogJSONEnabled: o.AccessLogJSONEnabled})
+		AccessLogJSONEnabled: o.AccessLogJSONEnabled,
+		AccessLogStripQuery:  o.AccessLogStripQuery,
+	})
 
 	return nil
 }

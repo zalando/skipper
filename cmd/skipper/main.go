@@ -102,6 +102,7 @@ const (
 	accessLogUsage                  = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage          = "when this flag is set, no access log is printed"
 	accessLogJSONEnabledUsage       = "when this flag is set, log in JSON format is used"
+	accessLogStripQueryUsage        = "when this flag is set, the access log strips the query strings from the access log"
 	suppressRouteUpdateLogsUsage    = "print only summaries on route updates/deletes"
 
 	// route sources:
@@ -207,6 +208,7 @@ var (
 	accessLog                 string
 	accessLogDisabled         bool
 	accessLogJSONEnabled      bool
+	accessLogStripQuery       bool
 	suppressRouteUpdateLogs   bool
 
 	// route sources:
@@ -310,6 +312,7 @@ func init() {
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
 	flag.BoolVar(&accessLogJSONEnabled, "access-log-json-enabled", false, accessLogJSONEnabledUsage)
+	flag.BoolVar(&accessLogStripQuery, "access-log-strip-query", false, accessLogStripQueryUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 
 	// route sources:
@@ -467,6 +470,7 @@ func main() {
 		AccessLogOutput:                     accessLog,
 		AccessLogDisabled:                   accessLogDisabled,
 		AccessLogJSONEnabled:                accessLogJSONEnabled,
+		AccessLogStripQuery:                 accessLogStripQuery,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 
 		// route sources:
