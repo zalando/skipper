@@ -104,6 +104,8 @@ func (t *Tracer) Inject(sm tracing.SpanContext, format interface{}, carrier inte
 	return nil
 }
 
+// Extract() returns a SpanContext instance given `format` and `carrier`.
+//
 // It copies the X-Trace-Header value to the TraceContent field.
 func (t *Tracer) Extract(format interface{}, carrier interface{}) (tracing.SpanContext, error) {
 	val := http.Header(carrier.(tracing.HTTPHeadersCarrier)).Get("X-Trace-Header")
@@ -121,7 +123,8 @@ func (t *Tracer) Extract(format interface{}, carrier interface{}) (tracing.SpanC
 	return nil, tracing.ErrSpanContextNotFound
 }
 
-// SpanContext interface
+// ForeachBaggageItem grants access to all baggage items stored in the
+// SpanContext.
 func (s *Span) ForeachBaggageItem(func(k, v string) bool) {}
 
 // Sets the end timestamp and finalizes Span state.
