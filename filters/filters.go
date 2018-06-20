@@ -8,7 +8,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
-// FilterContext provides state and information that is unique to a request.
+// Context object providing provides state and information that is unique to a request.
 type FilterContext interface {
 
 	// The response writer object belonging to the incoming request. Used by
