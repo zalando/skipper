@@ -417,7 +417,7 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path == ingressesURI {
+	if r.URL.Path == ingressesClusterURI {
 		if err := respondJSON(w, api.ingresses); err != nil {
 			api.test.Error(err)
 		}
