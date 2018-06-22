@@ -306,6 +306,17 @@ Example ingress:
               serviceName: app-svc
               servicePort: 80
 
+## Scoping Skipper Deployments to a Single Namespace
+
+In some instances you might want skipper to only watch for ingress objects
+created in a single namespace. This can be achieved by using
+`kubernetes-namespace=<string>` where `<string>` is the Kubernetes namespace.
+Specifying this option forces Skipper to look at the namespace ingresses
+endpoint rather than the cluster-wide ingresses endpoint.
+
+By default this value is an empty string (`""`) and will scope the skipper
+instance to be cluster-wide, watching all `Ingress` objects across all namespaces.
+
 ## Install Skipper with enabled RBAC
 
 If Role-Based Access Control ("RBAC") is enabled you have to create some additional
