@@ -1900,14 +1900,14 @@ func TestIngressScoping(t *testing.T) {
 		namespace: "test",
 	}
 	expected := "/apis/extensions/v1beta1/namespaces/test/ingresses"
-	uri := client.getIngressURI()
+	uri := client.getIngressesURI()
 	if uri != expected {
 		t.Errorf("unexpected ingress uri returned: %s should be %s", uri, expected)
 	}
 
 	client.namespace = ""
 	expected = "/apis/extensions/v1beta1/ingresses"
-	uri = client.getIngressURI()
+	uri = client.getIngressesURI()
 	if uri != expected {
 		t.Errorf("unexpected ingress uri returned: %s should be %s", uri, expected)
 	}

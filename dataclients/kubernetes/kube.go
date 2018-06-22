@@ -1108,7 +1108,7 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 	return validIngs
 }
 
-func (c *Client) getIngressURI() string {
+func (c *Client) getIngressesURI() string {
 	if c.namespace == "" {
 		return ingressesClusterURI
 	}
@@ -1117,7 +1117,7 @@ func (c *Client) getIngressURI() string {
 
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
-	ingressesURI := c.getIngressURI()
+	ingressesURI := c.getIngressesURI()
 	if err := c.getJSON(ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err
