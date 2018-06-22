@@ -107,6 +107,11 @@ type Options struct {
 	// when the ingress doesn't specify it with an annotation.
 	KubernetesPathMode kubernetes.PathMode
 
+	// KubernetesNamespace is used to switch between monitoring ingresses in the cluster-scope or limit
+	// the ingresses to only those in the specified namespace. Defaults to "" which means monitor ingresses
+	// in the cluster-scope.
+	KubernetesNamespace string
+
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -502,6 +507,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			ReverseSourcePredicate:     o.ReverseSourcePredicate,
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
 			PathMode:                   o.KubernetesPathMode,
+			KubernetesNamespace:        o.KubernetesNamespace,
 		})
 		if err != nil {
 			return nil, err
