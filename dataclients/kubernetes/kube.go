@@ -1108,14 +1108,16 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 	return validIngs
 }
 
+func (c *Client) getIngressURI() string {
+	if c.namespace == "" {
+		return ingressesClusterURI
+	}
+	return fmt.Sprintf(ingressesNamespaceFmt, c.namespace)
+}
+
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
-	ingressesURI := ""
-	if c.namespace == "" {
-		ingressesURI = ingressesClusterURI
-	} else {
-		ingressesURI = fmt.Sprintf(ingressesNamespaceFmt, c.namespace)
-	}
+	ingressesURI := c.getIngressURI()
 	if err := c.getJSON(ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err

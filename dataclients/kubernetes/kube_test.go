@@ -1895,6 +1895,24 @@ func TestReadServiceAccountToken(t *testing.T) {
 	}
 }
 
+func TestIngressScoping(t *testing.T) {
+	client := &Client{
+		namespace: "test",
+	}
+	expected := "/apis/extensions/v1beta1/namespaces/test/ingresses"
+	uri := client.getIngressURI()
+	if uri != expected {
+		t.Errorf("unexpected ingress uri returned: %s should be %s", uri, expected)
+	}
+
+	client.namespace = ""
+	expected = "/apis/extensions/v1beta1/ingresses"
+	uri = client.getIngressURI()
+	if uri != expected {
+		t.Errorf("unexpected ingress uri returned: %s should be %s", uri, expected)
+	}
+}
+
 // generateSSCert only for testing purposes
 func generateSSCert() []byte {
 	//create root CA
