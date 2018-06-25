@@ -110,7 +110,7 @@ type Options struct {
 	// environment variables.)
 	KubernetesURL string
 
-	// KubernetesNamespace is used to switch between monitoring ingresses in the cluster-scope or limit
+	// KubernetesNamespace is used to switch between finding ingresses in the cluster-scope or limit
 	// the ingresses to only those in the specified namespace. Defaults to "" which means monitor ingresses
 	// in the cluster-scope.
 	KubernetesNamespace string
@@ -215,12 +215,10 @@ func New(o Options) (*Client, error) {
 		return nil, err
 	}
 
-	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls)
-	if o.KubernetesNamespace == "" {
-		log.Debugf("monitoring ingresses across the cluster")
-	} else {
-		log.Debugf(fmt.Sprintf("monitoring ingresses within the \"%s\" namespace", o.KubernetesNamespace))
-	}
+	log.Debugf(
+		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. namespace: %s",
+		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, o.KubernetesNamespace,
+	)
 
 	var sigs chan os.Signal
 	if o.ProvideHealthcheck {

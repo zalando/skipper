@@ -125,7 +125,7 @@ const (
 	kubernetesIngressClassUsage     = "ingress class regular expression used to filter ingress resources for kubernetes"
 	whitelistedHealthCheckCIDRUsage = "sets the iprange/CIDRS to be whitelisted during healthcheck"
 	kubernetesPathModeUsage         = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
-	kubernetesNamespaceUsage        = "limit ingress monitoring to this namespace"
+	kubernetesNamespaceUsage        = "watch only this namespace for ingresses"
 
 	// OAuth2:
 	oauthURLUsage            = "OAuth2 URL for Innkeeper authentication"
