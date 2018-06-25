@@ -33,7 +33,8 @@ import (
 
 const (
 	defaultKubernetesURL          = "http://localhost:8001"
-	ingressesURI                  = "/apis/extensions/v1beta1/ingresses"
+	ingressesClusterURI           = "/apis/extensions/v1beta1/ingresses"
+	ingressesNamespaceFmt         = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
 	ingressClassKey               = "kubernetes.io/ingress.class"
 	defaultIngressClass           = "skipper"
 	endpointURIFmt                = "/api/v1/namespaces/%s/endpoints/%s"
@@ -109,6 +110,11 @@ type Options struct {
 	// environment variables.)
 	KubernetesURL string
 
+	// KubernetesNamespace is used to switch between finding ingresses in the cluster-scope or limit
+	// the ingresses to only those in the specified namespace. Defaults to "" which means monitor ingresses
+	// in the cluster-scope.
+	KubernetesNamespace string
+
 	// ProvideHealthcheck, when set, tells the data client to append a healthcheck route to the ingress
 	// routes in case of successfully receiving the ingress items from the API (even if individual ingress
 	// items may be invalid), or a failing healthcheck route when the API communication fails. The
@@ -169,6 +175,7 @@ type Client struct {
 	reverseSourcePredicate bool
 	pathMode               PathMode
 	quit                   chan struct{}
+	namespace              string
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -208,7 +215,10 @@ func New(o Options) (*Client, error) {
 		return nil, err
 	}
 
-	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls)
+	log.Debugf(
+		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. namespace: %s",
+		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, o.KubernetesNamespace,
+	)
 
 	var sigs chan os.Signal
 	if o.ProvideHealthcheck {
@@ -238,6 +248,7 @@ func New(o Options) (*Client, error) {
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 		pathMode:               o.PathMode,
 		quit:                   quit,
+		namespace:              o.KubernetesNamespace,
 	}, nil
 }
 
@@ -1095,8 +1106,16 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 	return validIngs
 }
 
+func (c *Client) getIngressesURI() string {
+	if c.namespace == "" {
+		return ingressesClusterURI
+	}
+	return fmt.Sprintf(ingressesNamespaceFmt, c.namespace)
+}
+
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
+	ingressesURI := c.getIngressesURI()
 	if err := c.getJSON(ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err

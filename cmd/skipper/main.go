@@ -125,6 +125,7 @@ const (
 	kubernetesIngressClassUsage     = "ingress class regular expression used to filter ingress resources for kubernetes"
 	whitelistedHealthCheckCIDRUsage = "sets the iprange/CIDRS to be whitelisted during healthcheck"
 	kubernetesPathModeUsage         = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
+	kubernetesNamespaceUsage        = "watch only this namespace for ingresses"
 
 	// OAuth2:
 	oauthURLUsage            = "OAuth2 URL for Innkeeper authentication"
@@ -231,6 +232,7 @@ var (
 	kubernetesIngressClass     string
 	whitelistedHealthCheckCIDR string
 	kubernetesPathModeString   string
+	kubernetesNamespace        string
 
 	// OAuth2:
 	oauthURL            string
@@ -335,6 +337,7 @@ func init() {
 	flag.StringVar(&kubernetesIngressClass, "kubernetes-ingress-class", "", kubernetesIngressClassUsage)
 	flag.StringVar(&whitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", whitelistedHealthCheckCIDRUsage)
 	flag.StringVar(&kubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
+	flag.StringVar(&kubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
 
 	// OAuth2:
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
@@ -493,6 +496,7 @@ func main() {
 		KubernetesIngressClass:     kubernetesIngressClass,
 		WhitelistedHealthCheckCIDR: whitelistCIDRS,
 		KubernetesPathMode:         kubernetesPathMode,
+		KubernetesNamespace:        kubernetesNamespace,
 
 		// OAuth2:
 		OAuthUrl:            oauthURL,

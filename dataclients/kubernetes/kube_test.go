@@ -417,7 +417,7 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path == ingressesURI {
+	if r.URL.Path == ingressesClusterURI {
 		if err := respondJSON(w, api.ingresses); err != nil {
 			api.test.Error(err)
 		}
@@ -1892,6 +1892,24 @@ func TestReadServiceAccountToken(t *testing.T) {
 	}
 	if token != "" {
 		t.Errorf("token must be empty")
+	}
+}
+
+func TestIngressScoping(t *testing.T) {
+	client := &Client{
+		namespace: "test",
+	}
+	expected := "/apis/extensions/v1beta1/namespaces/test/ingresses"
+	uri := client.getIngressesURI()
+	if uri != expected {
+		t.Errorf("unexpected ingress uri returned: %s should be %s", uri, expected)
+	}
+
+	client.namespace = ""
+	expected = "/apis/extensions/v1beta1/ingresses"
+	uri = client.getIngressesURI()
+	if uri != expected {
+		t.Errorf("unexpected ingress uri returned: %s should be %s", uri, expected)
 	}
 }
 
