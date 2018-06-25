@@ -118,7 +118,7 @@ Examples:
 
 ```
 Header("X-Forwarded-For", "192.168.0.2")
-Header("Server", "skipper")
+Header("Accept", "application/json")
 ```
 
 ## HeaderRegexp
@@ -135,7 +135,7 @@ Examples:
 
 ```
 HeaderRegexp("X-Forwarded-For", "^192\.168\.0\.[0-2]?[0-9]?[0-9] ")
-HeaderRegexp("Server", "skipper")
+HeaderRegexp("Accept", "application/(json|xml)")
 ```
 
 ## Cookie
