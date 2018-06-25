@@ -134,8 +134,8 @@ Parameters:
 Examples:
 
 ```
-HeaderRegexp("X-Forwarded-For", "/^192\.168\.0\.[0-2]?[0-9]?[0-9] /")
-HeaderRegexp("Server", "/skipper/")
+HeaderRegexp("X-Forwarded-For", "^192\.168\.0\.[0-2]?[0-9]?[0-9] ")
+HeaderRegexp("Server", "skipper")
 ```
 
 ## Cookie
