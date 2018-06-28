@@ -944,9 +944,16 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 					for _, r := range endpoints {
 						r.HostRegexps = host
-						// TODO: only apply the filters from the annotations if it
-						// is not an LB decision route
-						if annotationFilter != "" {
+
+						var isLBDecisionRoute bool
+						for _, p := range r.Predicates {
+							if p.Name == loadbalancer.GroupPredicateName {
+								isLBDecisionRoute = true
+								break
+							}
+						}
+
+						if !isLBDecisionRoute && annotationFilter != "" {
 							annotationFilters, err := eskip.ParseFilters(annotationFilter)
 							if err != nil {
 								logger.Errorf("Can not parse annotation filters: %v", err)
