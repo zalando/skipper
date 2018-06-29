@@ -1205,7 +1205,7 @@ func httpRedirectRoute() *eskip.Route {
 		PathRegexps: []string{".*"},
 		Filters: []*eskip.Filter{{
 			Name: "redirectTo",
-			Args: []interface{}{float64(301), "https:"},
+			Args: []interface{}{float64(308), "https:"},
 		}},
 		Shunt: true,
 	}
