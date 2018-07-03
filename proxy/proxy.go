@@ -72,7 +72,7 @@ const (
 	// response.
 	Debug
 
-	// HopeHeadersRemoval indicates whether the Hop Headers should be removed
+	// HopHeadersRemoval indicates whether the Hop Headers should be removed
 	// in compliance with RFC 2616
 	HopHeadersRemoval
 )
