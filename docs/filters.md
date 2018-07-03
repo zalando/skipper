@@ -382,6 +382,72 @@ basicAuth("/path/to/htpasswd")
 basicAuth("/path/to/htpasswd", "My Website")
 ```
 
+## oauthTokeninfoAnyScope
+
+If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
+this filter.
+
+The filter accepts variable arguments of strings, which are used to
+validate the incoming token. If any of the configured scopes from the
+filter is found inside the tokeninfo result for the incoming token, it will allow
+the request to pass.
+
+Examples:
+
+```
+oauthTokeninfoAnyScope("s1", "s2", "s3")
+```
+
+## oauthTokeninfoAllScope
+
+If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
+this filter.
+
+The filter accepts variable arguments of strings, which are used to
+validate the incoming token. If all of the configured scopes from the
+filter are found inside the tokeninfo result for the incoming token,
+it will allow the request to pass.
+
+Examples:
+
+```
+oauthTokeninfoAllScope("s1", "s2", "s3")
+```
+
+## oauthTokeninfoAnyKV
+
+If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
+this filter.
+
+The filter accepts an even number of variable arguments of type
+string, which are used to validate the incoming token. If any of the
+configured key value pairs from the filter is found inside the
+tokeninfo result for the incoming token, it will allow the request to
+pass.
+
+Examples:
+
+```
+oauthTokeninfoAnyKV("k1", "v1", "k2", "v2")
+```
+
+## oauthTokeninfoAllKV
+
+If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
+this filter.
+
+The filter accepts an even number of variable arguments of type
+string, which are used to validate the incoming token. If all of the
+configured key value pairs from the filter are found inside the
+tokeninfo result for the incoming token, it will allow the request to
+pass.
+
+Examples:
+
+```
+oauthTokeninfoAllKV("k1", "v1", "k2", "v2")
+```
+
 ## requestCookie
 
 Append a cookie to the request header.
