@@ -684,6 +684,10 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
+	// handle Go issue https://github.com/golang/go/issues/23699
+	if req.Header.Get("Connection") == "Keep-Alive" {
+		req.Header.Set("Connection", "keep-alive")
+	}
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
 		ext.Error.Set(ctx.proxySpan, true)
