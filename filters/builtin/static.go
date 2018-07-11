@@ -66,8 +66,7 @@ func (f *static) Response(filters.FilterContext) {}
 
 // Checks if the file does exist and is accessible
 func existsAndAccessible(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err != nil {
+	if _, err := os.Stat(path); err != nil {
 		return os.IsExist(err), err
 	} else {
 		return true, nil
