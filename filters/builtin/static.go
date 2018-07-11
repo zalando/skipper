@@ -40,10 +40,17 @@ func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid parameter type, expected string for web root prefix")
 	}
+
 	root, ok := config[1].(string)
+
+	if !ok {
+		log.Errorf("Invalid parameter type, expected string for path to root dir")
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
 	if ok, err := existsAndAccessible(root); !ok {
 		log.Errorf("Invalid parameter for root path. File %s does not exist or is not accessible: %v", root, err)
-		return nil, fmt.Errorf("invalid parameter type, expected string for path to root dir")
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	return &static{http.StripPrefix(webRoot, http.FileServer(http.Dir(root)))}, nil
