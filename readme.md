@@ -100,15 +100,20 @@ logging. See the documentation at:
 
 Getting the code with the test dependencies (`-t` switch):
 
+1. Get skipper using `go get`
+```sh
     go get -t github.com/zalando/skipper/...
-
-Build and test all packages:
-
     cd src/github.com/zalando/skipper
-    make deps
-    make install
+```
+2. Install all dependencies using `glide`
+```sh
+glide install
+```
+3. To build the packages and skipper cli, run `make`
+4. To build and test all packages:
+```
     make shortcheck
-
+```
 
 #### Kubernetes Ingress
 

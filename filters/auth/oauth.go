@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -49,13 +50,15 @@ const (
 
 type (
 	authClient struct {
-		url *url.URL
+		url     *url.URL
+		timeout time.Duration
 	}
 
 	tokeninfoSpec struct {
-		typ          roleCheckType
-		tokeninfoURL string
-		authClient   *authClient
+		typ              roleCheckType
+		tokeninfoURL     string
+		tokenInfoTimeout time.Duration
+		authClient       *authClient
 	}
 
 	filter struct {
@@ -147,7 +150,7 @@ func intersect(left []string, right []string) bool {
 
 // jsonGet requests url with access token in the URL query specified
 // by accessTokenQueryKey, if auth was given and writes into doc.
-func jsonGet(url *url.URL, auth string, doc interface{}) error {
+func jsonGet(url *url.URL, auth string, doc interface{}, timeout time.Duration) error {
 	if auth != "" {
 		q := url.Query()
 		q.Set(accessTokenQueryKey, auth)
@@ -159,7 +162,14 @@ func jsonGet(url *url.URL, auth string, doc interface{}) error {
 		return err
 	}
 
-	rsp, err := http.DefaultClient.Do(req)
+	var client *http.Client
+	if timeout != 0 {
+		client = &http.Client{Timeout: timeout}
+	} else {
+		client = http.DefaultClient
+	}
+
+	rsp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -173,17 +183,17 @@ func jsonGet(url *url.URL, auth string, doc interface{}) error {
 	return d.Decode(doc)
 }
 
-func newAuthClient(baseURL string) (*authClient, error) {
+func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
-	return &authClient{url: u}, nil
+	return &authClient{url: u, timeout: timeout}, nil
 }
 
 func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
 	var a map[string]interface{}
-	err := jsonGet(ac.url, token, &a)
+	err := jsonGet(ac.url, token, &a, ac.timeout)
 	return a, err
 }
 
@@ -191,32 +201,32 @@ func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error)
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all scopes.
-func NewOAuthTokeninfoAllScope(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllScopes, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAllScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllScopes, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 // NewOAuthTokeninfoAnyScope creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one scope.
-func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyScopes, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyScopes, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 // NewOAuthTokeninfoAllKV creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all key value pairs provided.
-func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllKV, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllKV, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 // NewOAuthTokeninfoAnyKV creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one key value pair provided.
-func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 func (s *tokeninfoSpec) Name() string {
@@ -251,7 +261,9 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac, err := newAuthClient(s.tokeninfoURL)
+	log.Info("Log the timeout ", s.tokenInfoTimeout)
+
+	ac, err := newAuthClient(s.tokeninfoURL, s.tokenInfoTimeout)
 	if err != nil {
 		return nil, filters.ErrInvalidFilterParameters
 	}

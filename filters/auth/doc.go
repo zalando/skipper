@@ -116,7 +116,7 @@ the key value pairs match. Here "uid" has to have the value "jdoe" and
 "foo" has to have the value "bar". Additionally the second will
 check if there is a "realm" "/employees":
 
-    a: Path("/") -> oauthTokeninfoAllKV("uid", jdoe", "foo", "bar") -> "https://internal.example.org/";
+    a: Path("/") -> oauthTokeninfoAllKV("uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
     b: Path("/") -> oauthTokeninfoAllKV("realm", "/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
 
 Example json output of this information response:
