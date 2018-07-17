@@ -29,9 +29,10 @@ import (
 )
 
 const (
-	proxyBufferSize = 8192
-	proxyErrorFmt   = "proxy: %s"
-	unknownRouteID  = "_unknownroute_"
+	proxyBufferSize     = 8192
+	proxyErrorFmt       = "proxy: %s"
+	unknownRouteID      = "_unknownroute_"
+	unknownRouteBackend = "<unknown>"
 
 	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
@@ -256,7 +257,7 @@ type proxyError struct {
 
 func (e proxyError) Error() string {
 	if e.err != nil {
-		return fmt.Sprintf("proxy error with code %d, dialing failed %v, unwrap: %v", e.code, e.DialError(), e.err.Error())
+		return fmt.Sprintf("dialing failed %v: %v", e.DialError(), e.err.Error())
 	}
 
 	if e.handled {
@@ -408,9 +409,9 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 			dialingFailed: true, // indicate error happened before http
 		}
 	} else if cerr := ctx.Err(); cerr != nil {
-		// deadline exceeded or canceled in stdlib
+		// unclear when this is being triggered
 		return nil, &proxyError{
-			err:  cerr,
+			err:  fmt.Errorf("err from dial context: %v", cerr),
 			code: http.StatusGatewayTimeout,
 		}
 	}
@@ -723,11 +724,11 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 				}
 			}
 		}
-		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
 
 		if cerr := req.Context().Err(); cerr != nil {
-			p.log.Errorf("Failed to do request, because of context: %v", cerr)
-			return nil, &proxyError{err: cerr, code: http.StatusGatewayTimeout}
+			// deadline exceeded or canceled in stdlib, client closed request
+			// see https://github.com/zalando/skipper/issues/687#issuecomment-405557503
+			return nil, &proxyError{err: cerr, code: 499}
 		}
 
 		return nil, &proxyError{err: err}
@@ -895,7 +896,6 @@ func (p *Proxy) do(ctx *context) error {
 				}
 				p.log.Infof("successful retry to %v, orig %v, code: %d", ctx.route.Backend, origRoute.Backend, rsp.StatusCode)
 			} else {
-				p.log.Errorf("Failed to do backend request to %s: %v", ctx.route.Backend, perr)
 				return perr
 			}
 		}
@@ -950,8 +950,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	id := unknownRouteID
+	backend := unknownRouteBackend
 	if ctx.route != nil {
 		id = ctx.route.Id
+		backend = ctx.route.Backend
 	}
 
 	code := http.StatusInternalServerError
@@ -994,7 +996,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	case ok && perr.err == errRatelimitError:
 		code = perr.code
 	default:
-		p.log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
+		p.log.Errorf("error while proxying, route %s with backend %s, status code %d: %v", id, backend, code, err)
 	}
 
 	p.sendError(ctx, id, code)
