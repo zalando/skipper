@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -148,6 +149,32 @@ func intersect(left []string, right []string) bool {
 	return false
 }
 
+func createHttpClient(timeout time.Duration) *http.Client {
+	var client *http.Client
+	if timeout != 0 {
+		transport := &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: timeout,
+			}).DialContext,
+		}
+
+		client = &http.Client{Transport: transport}
+
+		go func() {
+			for {
+				select {
+				case <-time.After(10 * time.Second):
+					transport.CloseIdleConnections()
+				}
+			}
+		}()
+	} else {
+		client = http.DefaultClient
+	}
+
+	return client
+}
+
 // jsonGet requests url with access token in the URL query specified
 // by accessTokenQueryKey, if auth was given and writes into doc.
 func jsonGet(url *url.URL, auth string, doc interface{}, timeout time.Duration) error {
@@ -162,13 +189,7 @@ func jsonGet(url *url.URL, auth string, doc interface{}, timeout time.Duration) 
 		return err
 	}
 
-	var client *http.Client
-	if timeout != 0 {
-		client = &http.Client{Timeout: timeout}
-	} else {
-		client = http.DefaultClient
-	}
-
+	client := createHttpClient(timeout)
 	rsp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -260,8 +281,6 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if len(sargs) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
-
-	log.Info("Log the timeout ", s.tokenInfoTimeout)
 
 	ac, err := newAuthClient(s.tokeninfoURL, s.tokenInfoTimeout)
 	if err != nil {

@@ -433,7 +433,7 @@ type Options struct {
 	// OAuthTokeninfoURL sets the OAuthTokeninfoURL similar to https://godoc.org/golang.org/x/oauth2#Endpoint
 	OAuthTokeninfoURL string
 
-	// OAuthTokeninfoTimeout sets timwout duration while calling oauth token service
+	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
 	OAuthTokeninfoTimeout time.Duration
 
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter

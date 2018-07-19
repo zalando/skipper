@@ -57,6 +57,9 @@ const (
 	defaultTLSHandshakeTimeoutBackend = 60 * time.Second
 	defaultMaxIdleConnsBackend        = 0
 
+	// OAuth2:
+	defaultOAuthTokeninfoTimeout = 1500 * time.Millisecond // Not sure if this makes sense
+
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
 	ignoreTrailingSlashUsage             = "flag indicating to ignore trailing slashes in paths when routing"
@@ -128,12 +131,11 @@ const (
 	kubernetesNamespaceUsage        = "watch only this namespace for ingresses"
 
 	// OAuth2:
-	defaultOAuthTokeninfoTimeout = 100 * time.Millisecond // Not sure if this makes sense
-	oauthURLUsage                = "OAuth2 URL for Innkeeper authentication"
-	oauthCredentialsDirUsage     = "directory where oauth credentials are stored: client.json and user.json"
-	oauthScopeUsage              = "the whitespace separated list of oauth scopes"
-	oauth2TokeninfoURLUsage      = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
-	oauth2TokeninfoTimeoutUsage  = "sets the default tokeninfo request timeout duration"
+	oauthURLUsage               = "OAuth2 URL for Innkeeper authentication"
+	oauthCredentialsDirUsage    = "directory where oauth credentials are stored: client.json and user.json"
+	oauthScopeUsage             = "the whitespace separated list of oauth scopes"
+	oauth2TokeninfoURLUsage     = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
+	oauth2TokeninfoTimeoutUsage = "sets the default tokeninfo request timeout duration to 1500ms"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
