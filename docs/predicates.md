@@ -152,6 +152,44 @@ Examples:
 Cookie("alpha", /^enabled$/)
 ```
 
+## Auth
+
+Authorization header based match.
+
+### JWTPayloadAnyKV
+
+Match the route if at least one of the base64 decoded JWT content
+matches the key value configuration.
+
+Parameters:
+
+* Key-Value pairs (...string), odd index is the key of the JWT
+  content and even index is the value of the JWT content
+
+Examples:
+
+```
+JWTPayloadAnyKV("iss", "https://accounts.google.com")
+JWTPayloadAnyKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+```
+
+### JWTPayloadAllKV
+
+Match the route if all of the base64 decoded JWT content
+matches the key value configuration.
+
+Parameters:
+
+* Key-Value pairs (...string), odd index is the key of the JWT
+  content and even index is the value of the JWT content
+
+Examples:
+
+```
+JWTPayloadAllKV("iss", "https://accounts.google.com")
+JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+```
+
 ## Interval
 
 An interval implements custom predicates to match routes only during some period of time.

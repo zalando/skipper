@@ -25,6 +25,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/query"
@@ -699,6 +700,8 @@ func Run(o Options) error {
 		traffic.New(),
 		loadbalancer.NewGroup(),
 		loadbalancer.NewMember(),
+		pauth.NewJWTPayloadAllKV(),
+		pauth.NewJWTPayloadAnyKV(),
 	)
 
 	// create a routing engine
