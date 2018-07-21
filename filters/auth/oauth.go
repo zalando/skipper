@@ -51,8 +51,8 @@ const (
 
 type (
 	authClient struct {
-		url     *url.URL
-		timeout time.Duration
+		url    *url.URL
+		client *http.Client
 	}
 
 	tokeninfoSpec struct {
@@ -149,35 +149,32 @@ func intersect(left []string, right []string) bool {
 	return false
 }
 
-func createHttpClient(timeout time.Duration) *http.Client {
-	var client *http.Client
-	if timeout != 0 {
-		transport := &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout: timeout,
-			}).DialContext,
-		}
-
-		client = &http.Client{Transport: transport}
-
-		go func() {
-			for {
-				select {
-				case <-time.After(10 * time.Second):
-					transport.CloseIdleConnections()
-				}
-			}
-		}()
-	} else {
-		client = http.DefaultClient
+func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, error) {
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: timeout,
+		}).DialContext,
 	}
 
-	return client
+	go func() {
+		for {
+			select {
+			case <-time.After(10 * time.Second):
+				transport.CloseIdleConnections()
+			case <-quit:
+				return
+			}
+		}
+	}()
+
+	return &http.Client{
+		Transport: transport,
+	}, nil
 }
 
 // jsonGet requests url with access token in the URL query specified
 // by accessTokenQueryKey, if auth was given and writes into doc.
-func jsonGet(url *url.URL, auth string, doc interface{}, timeout time.Duration) error {
+func jsonGet(url *url.URL, auth string, doc interface{}, client *http.Client) error {
 	if auth != "" {
 		q := url.Query()
 		q.Set(accessTokenQueryKey, auth)
@@ -189,7 +186,6 @@ func jsonGet(url *url.URL, auth string, doc interface{}, timeout time.Duration) 
 		return err
 	}
 
-	client := createHttpClient(timeout)
 	rsp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -209,12 +205,18 @@ func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &authClient{url: u, timeout: timeout}, nil
+
+	quit := make(chan struct{})
+	client, err := createHTTPClient(timeout, quit)
+	if err != nil {
+		log.Error("Unable to create http client")
+	}
+	return &authClient{url: u, client: client}, nil
 }
 
 func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
 	var a map[string]interface{}
-	err := jsonGet(ac.url, token, &a, ac.timeout)
+	err := jsonGet(ac.url, token, &a, ac.client)
 	return a, err
 }
 
