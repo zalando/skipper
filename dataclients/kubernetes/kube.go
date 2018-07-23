@@ -641,7 +641,6 @@ func (c *Client) convertPathRule(
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
 
-	endpointKey := ns + prule.Backend.ServiceName
 	var (
 		eps    []string
 		err    error
@@ -651,6 +650,7 @@ func (c *Client) convertPathRule(
 
 	svcPort := prule.Backend.ServicePort
 	svcName := prule.Backend.ServiceName
+	endpointKey := ns + svcName + svcPort.String()
 
 	if val, ok := endpointsURLs[endpointKey]; !ok {
 		svc, err = c.getService(ns, svcName)

@@ -1340,6 +1340,102 @@ func TestConvertPathRule(t *testing.T) {
 			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.2.3.4:8080",
 		})
 	})
+
+	t.Run("has one ingress, with two rules with same service name, but two different ports", func(t *testing.T) {
+		dc, err := New(Options{KubernetesURL: api.server.URL})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		r, err := dc.LoadAll()
+
+		if err != nil {
+			t.Error("failed to load initial routes", err)
+			return
+		}
+
+		api.services = services{
+			"namespace1": map[string]*service{
+				"svcname1": &service{
+					Spec: &serviceSpec{
+						ClusterIP: "10.3.2.1",
+						Ports: []*servicePort{
+							&servicePort{
+								Name:       "svcname1",
+								Port:       8080,
+								TargetPort: &backendPort{value: 8080},
+							},
+							&servicePort{
+								Name:       "svcname1",
+								Port:       8181,
+								TargetPort: &backendPort{value: 8181},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		api.ingresses.Items = append(
+			api.ingresses.Items,
+			&ingressItem{
+				Metadata: &metadata{
+					Namespace: "namespace1",
+					Name:      "test1",
+				},
+				Spec: &ingressSpec{
+					DefaultBackend: &backend{
+						ServiceName: "svcname1",
+						ServicePort: backendPort{value: 8080},
+					},
+					Rules: []*rule{
+						&rule{
+							Host: "host1",
+							Http: &httpRule{
+								Paths: []*pathRule{
+									&pathRule{
+										Path: "/",
+										Backend: &backend{
+											ServiceName: "svcname1",
+											ServicePort: backendPort{value: 8080},
+										},
+									},
+								},
+							},
+						},
+						&rule{
+							Host: "host2",
+							Http: &httpRule{
+								Paths: []*pathRule{
+									&pathRule{
+										Path: "/",
+										Backend: &backend{
+											ServiceName: "svcname1",
+											ServicePort: backendPort{value: 8181},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		)
+
+		r, _, err = dc.LoadUpdate()
+		if err != nil {
+			t.Errorf("update failed: %v", err)
+		}
+
+		checkRoutes(t, r, map[string]string{
+			"kube_namespace1__test1__host1_____svcname1": "http://10.3.2.1:8080",
+			"kube_namespace1__test1__host2_____svcname1": "http://10.3.2.1:8181",
+			"kube_namespace1__test1______":               "http://10.3.2.1:8080",
+		})
+	})
+
 }
 
 func TestConvertPathRuleTraffic(t *testing.T) {
