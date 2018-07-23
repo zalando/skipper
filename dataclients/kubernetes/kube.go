@@ -851,9 +851,6 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			logger.Errorf("error while converting default backend: %v", err)
 		}
 
-		// TODO: only apply the filters from the annotations if it
-		// is not an LB decision route
-
 		// parse filter and ratelimit annotation
 		var annotationFilter string
 		if ratelimitAnnotationValue, ok := i.Metadata.Annotations[ratelimitAnnotationKey]; ok {
