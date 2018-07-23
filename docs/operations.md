@@ -379,7 +379,7 @@ of the last route table update `X-Timestamp`, using a HEAD request:
     Date: Sun, 04 Feb 2018 20:54:31 GMT
 
 The number of routes given is limited (1024 routes by default).
-In order to control this limits, there are two filters: `limit` and
+In order to control this limits, there are two parameters: `limit` and
 `offset`. The `limit` defines the number of routes to get and
 `offset` where to start the list. Thanks to this, it's possible
 to get the results paginated or getting all of them at the same time.
