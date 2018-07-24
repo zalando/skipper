@@ -40,6 +40,7 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 		"",
 		"",
 		"",
+		"",
 		backendPort{"port1"},
 		1.0,
 		testRule(

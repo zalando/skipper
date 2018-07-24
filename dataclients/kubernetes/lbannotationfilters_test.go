@@ -45,6 +45,7 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		`setPath("/foo")`,
 		"",
 		"",
+		"",
 		backendPort{"port1"},
 		1.0,
 		testRule(
