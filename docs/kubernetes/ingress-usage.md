@@ -141,8 +141,43 @@ This example shows how to add predicates and filters:
 
 ## Custom Routes
 
-Custom routes is a way of extending the default routes configured for an
-ingress resource.
+Custom routes is a way of extending the default routes configured for
+an ingress resource.
+
+Sometimes you just want to return a header, redirect or even static
+html content. You can return from skipper without doing a proxy call
+to a backend, if you end your filter chain with `<shunt>`. The use of
+`<shunt>` recommends the use in combination with `status()` filter, to
+not respond with the default http code, which defaults to 404.  To
+match your custom route with higher priority than your ingress you
+also have to add another predicate, for example the [Method("GET")
+predicate](/predicates/#method) to match the route with higher
+priority.
+
+Custom routes specified in ingress will always add the `Host()`
+[predicate](/predicates/#host) to match the host header specified in
+the ingress `rules:`. If there is a `path:` definition in your
+ingress, then it will be based on the skipper command line parameter
+`-kubernetes-path-mode` set one of theses predicates:
+
+- [Path()](https://opensource.zalando.com/skipper/predicates/#path)
+- [PathSubtree()](https://opensource.zalando.com/skipper/predicates/#pathsubtree)
+- [PathRegexp()](https://opensource.zalando.com/skipper/predicates/#pathregexp)
+
+### Return static content
+
+The following example sets a response header `X: bar`, a response body
+`<html><body>hello</body></html>` and respond from the ingress
+directly with a HTTP status code 200:
+
+    zalando.org/skipper-routes: |
+      Path("/") -> setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
+
+Keep in mind that you need a valid backend definition to backends
+which are available, otherwise Skipper would not accept the entire
+route definition from the ingress object for safety reasons.
+
+### CORS example
 
 This example shows how to add a custom route for handling `OPTIONS` requests.
 
@@ -177,6 +212,18 @@ Host(/^app-default[.]example[.]org$/) && Method("OPTIONS") ->
   setResponseHeader("Access-Control-Allow-Headers", "Authorization") ->
   status(200) -> <shunt>
 ```
+
+### Multiple routes
+
+You can also set multiple routes, but you have to set the names of the
+route as defined in eskip:
+
+    zalando.org/skipper-routes: |
+      routename1: Path("/") -> localRatelimit(2, "1h") -> inlineContent("A") -> status(200) -> <shunt>;
+      routename2: Path("/foo") -> localRatelimit(5, "1h") -> inlineContent("B") -> status(200) -> <shunt>;
+
+Make sure the `;` semicolon is used to terminate the routes, if you
+use multiple routes definitions.
 
 # Filters - Basic HTTP manipulations
 
@@ -259,7 +306,22 @@ shows how to use filters for authorization.
 
 ### Bearer Token (OAuth/JWT)
 
-TBD
+OAuth2/JWT tokens can be validated and allowed based on different
+content of the token. Please check the filter documentation for that:
+
+- [oauthTokeninfoAnyScope](/filters/#oauthtokeninfoanyscope)
+- [oauthTokeninfoAllScope](/filters/#oauthtokeninfoallscope)
+- [oauthTokeninfoAnyKV](/filters/#oauthtokeninfoanykv)
+- [oauthTokeninfoAllKV](/filters/#oauthtokeninfoallkv)
+
+There are also [auth predicates](/predicates/#auth), which will allow
+you to match a route based on the content of a token:
+
+- `JWTPayloadAnyKV()`
+- `JWTPayloadAllKV()`
+
+These are not validating the tokens, which should be done separately
+by the filters mentioned above.
 
 ## Diagnosis - Throttling Bandwidth - Latency
 
@@ -280,25 +342,6 @@ a unique value. Read more about this in our
 [flowid filter godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
 
      flowId("reuse")
-
-# Filters - return fast
-
-Sometimes you just want to return a header, redirect or even static
-html content. You can return from skipper without doing a proxy call
-to a backend, if you end your filter chain with `<shunt>`.
-
-## Return static content
-
-The following example sets a response header `X: bar`, a response body
-`<html><body>hello</body></html>` and a
-HTTP status code 200:
-
-    zalando.org/skipper-filter: |
-      setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
-
-Keep in mind you need a valid backend definition to backends which are
-available, otherwise Skipper would not accept the entire route
-definition from the ingress object for safety reasons.
 
 # Filters - reliability features
 
