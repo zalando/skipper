@@ -624,10 +624,20 @@ func TestIngressData(t *testing.T) {
 					backendPort{"baz"},
 				),
 			),
+			testRule(
+				"www2.example.org",
+				testPathRule(
+					"/",
+					"bar",
+					backendPort{"baz"},
+				),
+			),
 		)},
 		map[string]string{
-			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
-			"kube_foo__qux__0__www_example_org____":  "",
+			"kube_foo__qux__www_example_org_____bar":  "http://1.2.3.4:8181",
+			"kube_foo__qux__www2_example_org_____bar": "http://1.2.3.4:8181",
+			"kube_foo__qux__0__www_example_org____":   "",
+			"kube_foo__qux__0__www2_example_org____":  "",
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {

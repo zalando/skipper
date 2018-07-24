@@ -902,10 +902,11 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
 			// add extra routes from optional annotation
-			for idx, route := range extraRoutes {
+			for idx, r := range extraRoutes {
+				route := *r
 				route.HostRegexps = host
 				route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host, idx)
-				hostRoutes[rule.Host] = append(hostRoutes[rule.Host], route)
+				hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
 			}
 
 			// update Traffic field for each backend
