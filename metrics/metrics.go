@@ -133,6 +133,10 @@ type Options struct {
 	// decaying sample instead of the default uniform one.
 	UseExpDecaySample bool
 
+	// HistogramBuckets defines buckets into which the observations are counted for
+	// histogram metrics.
+	HistogramBuckets []float64
+
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
 	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,

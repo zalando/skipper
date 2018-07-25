@@ -19,10 +19,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -95,6 +97,7 @@ const (
 	routeStreamErrorCountersUsage   = "enables counting streaming errors for each route"
 	routeBackendMetricsUsage        = "enables reporting backend response time metrics for each route"
 	metricsUseExpDecaySampleUsage   = "use exponentially decaying sample in metrics"
+	histogramMetricBucketsUsage     = "use custom buckets for prometheus histograms, must be a comma-separated list of numbers"
 	disableMetricsCompatsUsage      = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
 	applicationLogUsage             = "output file for the application log. When not set, /dev/stderr is used"
 	applicationLogLevelUsage        = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
@@ -202,6 +205,7 @@ var (
 	routeStreamErrorCounters  bool
 	routeBackendMetrics       bool
 	metricsUseExpDecaySample  bool
+	histogramMetricBuckets    string
 	disableMetricsCompat      bool
 	applicationLog            string
 	applicationLogLevel       string
@@ -307,6 +311,7 @@ func init() {
 	flag.BoolVar(&routeStreamErrorCounters, "route-stream-error-counters", false, routeStreamErrorCountersUsage)
 	flag.BoolVar(&routeBackendMetrics, "route-backend-metrics", false, routeBackendMetricsUsage)
 	flag.BoolVar(&metricsUseExpDecaySample, "metrics-exp-decay-sample", false, metricsUseExpDecaySampleUsage)
+	flag.StringVar(&histogramMetricBuckets, "histogram-metric-buckets", "", histogramMetricBucketsUsage)
 	flag.BoolVar(&disableMetricsCompat, "disable-metrics-compat", false, disableMetricsCompatsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
 	flag.StringVar(&applicationLogLevel, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
@@ -384,6 +389,24 @@ func parseDurationFlag(ds string) (time.Duration, error) {
 	return 0, perr
 }
 
+func parseHistogramBuckets(buckets string) ([]float64, error) {
+	if buckets == "" {
+		return prometheus.DefBuckets, nil
+	}
+
+	var result []float64
+	thresholds := strings.Split(buckets, ",")
+	for _, v := range thresholds {
+		bucket, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse histogram-metric-buckets: %v", err)
+		}
+		result = append(result, bucket)
+	}
+	sort.Float64s(result)
+	return result, nil
+}
+
 func main() {
 	if printVersion {
 		fmt.Printf(
@@ -422,8 +445,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	options := skipper.Options{
+	histogramBuckets, err := parseHistogramBuckets(histogramMetricBuckets)
+	if err != nil {
+		log.Errorf("%v", err)
+		os.Exit(2)
+	}
 
+	options := skipper.Options{
 		// generic:
 		Address:                         address,
 		IgnoreTrailingSlash:             ignoreTrailingSlash,
@@ -467,6 +495,7 @@ func main() {
 		EnableRouteStreamingErrorsCounters:  routeStreamErrorCounters,
 		EnableRouteBackendMetrics:           routeBackendMetrics,
 		MetricsUseExpDecaySample:            metricsUseExpDecaySample,
+		HistogramMetricBuckets:              histogramBuckets,
 		DisableMetricsCompatibilityDefaults: disableMetricsCompat,
 		ApplicationLogOutput:                applicationLog,
 		ApplicationLogPrefix:                applicationLogPrefix,

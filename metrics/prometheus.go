@@ -61,6 +61,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promRouteSubsystem,
 		Name:      "lookup_duration_seconds",
 		Help:      "Duration in seconds of a route lookup.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{})
 
 	routeErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -75,6 +76,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promResponseSubsystem,
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of a response.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{"code", "method", "route"})
 
 	filterRequest := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -82,6 +84,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promFilterSubsystem,
 		Name:      "request_duration_seconds",
 		Help:      "Duration in seconds of a filter request.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{"filter"})
 
 	filterAllRequest := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -89,6 +92,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promFilterSubsystem,
 		Name:      "all_request_duration_seconds",
 		Help:      "Duration in seconds of a filter request by all filters.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{"route"})
 
 	filterAllCombinedRequest := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -96,6 +100,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promFilterSubsystem,
 		Name:      "all_combined_request_duration_seconds",
 		Help:      "Duration in seconds of a filter request combined by all filters.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{})
 
 	proxyBackend := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -103,6 +108,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promProxySubsystem,
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of a proxy backend.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{"route", "host"})
 
 	proxyBackendCombined := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -110,6 +116,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promProxySubsystem,
 		Name:      "combined_duration_seconds",
 		Help:      "Duration in seconds of a proxy backend combined.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{})
 
 	filterResponse := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -117,6 +124,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promFilterSubsystem,
 		Name:      "response_duration_seconds",
 		Help:      "Duration in seconds of a filter request.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{"filter"})
 
 	filterAllResponse := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -124,6 +132,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promFilterSubsystem,
 		Name:      "all_response_duration_seconds",
 		Help:      "Duration in seconds of a filter response by all filters.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{"route"})
 
 	filterAllCombinedResponse := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -131,6 +140,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promFilterSubsystem,
 		Name:      "all_combined_response_duration_seconds",
 		Help:      "Duration in seconds of a filter response combined by all filters.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{})
 
 	serveRoute := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -138,6 +148,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promServeSubsystem,
 		Name:      "route_duration_seconds",
 		Help:      "Duration in seconds of serving a route.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{"code", "method", "route"})
 
 	serveHost := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -145,6 +156,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promServeSubsystem,
 		Name:      "host_duration_seconds",
 		Help:      "Duration in seconds of serving a host.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{"code", "method", "host"})
 
 	proxyBackend5xx := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -152,6 +164,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promProxySubsystem,
 		Name:      "5xx_duration_seconds",
 		Help:      "Duration in seconds of backend 5xx.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{})
 	proxyBackendErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
@@ -177,6 +190,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promCustomSubsystem,
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of custom metrics.",
+		Buckets:   opts.HistogramBuckets,
 	}, []string{"key"})
 
 	p := &Prometheus{
