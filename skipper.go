@@ -46,7 +46,6 @@ const DefaultPluginDir = "./plugins"
 
 // Options to start skipper.
 type Options struct {
-
 	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
 
@@ -293,6 +292,9 @@ type Options struct {
 	// When set, makes the histograms use an exponentially decaying sample
 	// instead of the default uniform one.
 	MetricsUseExpDecaySample bool
+
+	// Use custom buckets for prometheus histograms.
+	HistogramMetricBuckets []float64
 
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
@@ -800,6 +802,7 @@ func Run(o Options) error {
 			EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
 			EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
 			UseExpDecaySample:                  o.MetricsUseExpDecaySample,
+			HistogramBuckets:                   o.HistogramMetricBuckets,
 			DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		})
 		mux.Handle("/metrics", metricsHandler)
