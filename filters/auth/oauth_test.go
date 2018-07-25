@@ -424,7 +424,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 			args := []interface{}{testScope}
 			u := authServer.URL + testAuthPath
 			f := NewOAuthTokeninfoAnyScope(u, ti.timeout)
-			f2, ok := f.(tokeninfoSpec)
+			f2, ok := f.(*tokeninfoSpec)
 			if !ok {
 				t.Error("Unable to assert to tokeninfoSpec type")
 				return
