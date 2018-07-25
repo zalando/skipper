@@ -53,6 +53,7 @@ type (
 	authClient struct {
 		url    *url.URL
 		client *http.Client
+		quit   chan struct{}
 	}
 
 	tokeninfoSpec struct {
@@ -211,7 +212,7 @@ func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
 	if err != nil {
 		log.Error("Unable to create http client")
 	}
-	return &authClient{url: u, client: client}, nil
+	return &authClient{url: u, client: client, quit: quit}, nil
 }
 
 func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
@@ -311,6 +312,13 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	return f, nil
+}
+
+// Close cleans-up the quit channel used for this spec
+func (s *tokeninfoSpec) Close() {
+	if s.authClient.quit != nil {
+		close(s.authClient.quit)
+	}
 }
 
 func (kv kv) String() string {

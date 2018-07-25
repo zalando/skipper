@@ -320,6 +320,12 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 			case OAuthTokeninfoAllKVName:
 				s = NewOAuthTokeninfoAllKV(u, testAuthTimeout)
 			}
+			s2, ok := s.(*tokeninfoSpec)
+			if !ok {
+				t.Error("Unable to assert to tokeninfoSpec type")
+				return
+			}
+			defer s2.Close()
 
 			args = append(args, ti.args...)
 			fr := make(filters.Registry)
@@ -418,6 +424,12 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 			args := []interface{}{testScope}
 			u := authServer.URL + testAuthPath
 			f := NewOAuthTokeninfoAnyScope(u, ti.timeout)
+			f2, ok := f.(tokeninfoSpec)
+			if !ok {
+				t.Error("Unable to assert to tokeninfoSpec type")
+				return
+			}
+			defer f2.Close()
 
 			fr := make(filters.Registry)
 			fr.Register(f)
