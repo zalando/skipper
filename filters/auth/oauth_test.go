@@ -320,16 +320,16 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 			case OAuthTokeninfoAllKVName:
 				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout)
 			}
-			scopes := []string{"read-x"}
-			s := make([]interface{}, len(scopes))
-			for i, v := range scopes {
-				s[i] = v
+
+			args = append(args, ti.args...)
+			f, err := spec.CreateFilter(args)
+			if err != nil {
+				t.Logf("error in creating filter")
+				return
 			}
-			f, _ := spec.CreateFilter(s)
 			f2 := f.(*filter)
 			defer f2.Close()
 
-			args = append(args, ti.args...)
 			fr := make(filters.Registry)
 			fr.Register(spec)
 			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
@@ -426,12 +426,13 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 			args := []interface{}{testScope}
 			u := authServer.URL + testAuthPath
 			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout)
-			scopes := []string{"read-x"}
-			s := make([]interface{}, len(scopes))
-			for i, v := range scopes {
-				s[i] = v
+
+			scopes := []interface{}{"read-x"}
+			f, err := spec.CreateFilter(scopes)
+			if err != nil {
+				t.Error(err)
+				return
 			}
-			f, _ := spec.CreateFilter(s)
 			f2 := f.(*filter)
 			defer f2.Close()
 
