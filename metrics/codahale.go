@@ -44,6 +44,7 @@ type CodaHale struct {
 	reg           metrics.Registry
 	createTimer   func() metrics.Timer
 	createCounter func() metrics.Counter
+	createGauge   func() metrics.GaugeFloat64
 	options       Options
 	handler       http.Handler
 }
@@ -64,6 +65,7 @@ func NewCodaHale(o Options) *CodaHale {
 	c.createTimer = func() metrics.Timer { return createTimer(createSample()) }
 
 	c.createCounter = metrics.NewCounter
+	c.createGauge = metrics.NewGaugeFloat64
 	c.options = o
 
 	if o.EnableDebugGcMetrics {
@@ -84,6 +86,7 @@ func NewVoid() *CodaHale {
 	c.reg = metrics.NewRegistry()
 	c.createTimer = func() metrics.Timer { return metrics.NilTimer{} }
 	c.createCounter = func() metrics.Counter { return metrics.NilCounter{} }
+	c.createGauge = func() metrics.GaugeFloat64 { return metrics.NilGaugeFloat64{} }
 	return c
 }
 
@@ -99,6 +102,16 @@ func (c *CodaHale) updateTimer(key string, d time.Duration) {
 
 func (c *CodaHale) MeasureSince(key string, start time.Time) {
 	c.measureSince(key, start)
+}
+
+func (c *CodaHale) getGauge(key string) metrics.GaugeFloat64 {
+	return c.reg.GetOrRegister(key, c.createGauge).(metrics.GaugeFloat64)
+}
+
+func (c *CodaHale) UpdateGauge(key string, v float64) {
+	if t := c.getGauge(key); t != nil {
+		t.Update(v)
+	}
 }
 
 func (c *CodaHale) IncCounter(key string) {
@@ -282,6 +295,13 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 		case metrics.Gauge:
 			metricsFamily = "gauges"
 			values["value"] = m.Value()
+		case metrics.Meter:
+			metricsFamily = "meters"
+			values["count"] = m.Count()
+			values["1m.rate"] = m.Rate1()
+			values["5m.rate"] = m.Rate5()
+			values["15m.rate"] = m.Rate15()
+			values["mean.rate"] = m.RateMean()
 		case metrics.Histogram:
 			metricsFamily = "histograms"
 			h := m.Snapshot()

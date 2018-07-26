@@ -28,6 +28,10 @@ func (a *All) IncCounter(key string) {
 	a.codaHale.IncCounter(key)
 
 }
+func (a *All) UpdateGauge(key string, v float64) {
+	a.prometheus.UpdateGauge(key, v)
+	a.codaHale.UpdateGauge(key, v)
+}
 func (a *All) MeasureRouteLookup(start time.Time) {
 	a.prometheus.MeasureRouteLookup(start)
 	a.codaHale.MeasureRouteLookup(start)

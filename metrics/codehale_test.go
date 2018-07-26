@@ -75,6 +75,14 @@ func TestCodaHaleMeasurement(t *testing.T) {
 	o := Options{}
 	c := NewCodaHale(o)
 
+	g1 := c.getGauge("TestGauge")
+	c.UpdateGauge("TestGauge", 1)
+	c.UpdateGauge("TestGauge", 2)
+	c.UpdateGauge("TestGauge", 3)
+	if g1.Value() < 3 {
+		t.Errorf("'TestGauge' metric should be 1. Got %f", g1.Value())
+	}
+
 	t1 := c.getTimer("TestMeasurement1")
 	if t1.Count() != 0 && t1.Max() != 0 {
 		t.Error("'TestMeasurement1' metric should only have zeroes")
