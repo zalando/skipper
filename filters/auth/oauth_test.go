@@ -307,30 +307,32 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 				}
 			}))
 
-			var s filters.Spec
+			var spec filters.Spec
 			args := []interface{}{}
 			u := authServer.URL + ti.authBaseURL
 			switch ti.authType {
 			case OAuthTokeninfoAnyScopeName:
-				s = NewOAuthTokeninfoAnyScope(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout)
 			case OAuthTokeninfoAllScopeName:
-				s = NewOAuthTokeninfoAllScope(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout)
 			case OAuthTokeninfoAnyKVName:
-				s = NewOAuthTokeninfoAnyKV(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout)
 			case OAuthTokeninfoAllKVName:
-				s = NewOAuthTokeninfoAllKV(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout)
 			}
-			s2, ok := s.(*tokeninfoSpec)
-			if !ok {
-				t.Error("Unable to assert to tokeninfoSpec type")
-				return
+			scopes := []string{"read-x"}
+			s := make([]interface{}, len(scopes))
+			for i, v := range scopes {
+				s[i] = v
 			}
-			defer s2.Close()
+			f, _ := spec.CreateFilter(s)
+			f2 := f.(*filter)
+			defer f2.Close()
 
 			args = append(args, ti.args...)
 			fr := make(filters.Registry)
-			fr.Register(s)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: s.Name(), Args: args}}, Backend: backend.URL}
+			fr.Register(spec)
+			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
 			reqURL, err := url.Parse(proxy.URL)
@@ -423,17 +425,19 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 
 			args := []interface{}{testScope}
 			u := authServer.URL + testAuthPath
-			f := NewOAuthTokeninfoAnyScope(u, ti.timeout)
-			f2, ok := f.(*tokeninfoSpec)
-			if !ok {
-				t.Error("Unable to assert to tokeninfoSpec type")
-				return
+			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout)
+			scopes := []string{"read-x"}
+			s := make([]interface{}, len(scopes))
+			for i, v := range scopes {
+				s[i] = v
 			}
+			f, _ := spec.CreateFilter(s)
+			f2 := f.(*filter)
 			defer f2.Close()
 
 			fr := make(filters.Registry)
-			fr.Register(f)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: f.Name(), Args: args}}, Backend: backend.URL}
+			fr.Register(spec)
+			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
 			reqURL, err := url.Parse(proxy.URL)

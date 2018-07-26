@@ -274,7 +274,7 @@ func (s *tokeninfoSpec) Name() string {
 // type. The shown example for checkOAuthTokeninfoAllScopes will grant
 // access only to tokens, that have scopes read-x and write-y:
 //
-//     s.CreateFilter(read-x", "write-y")
+//     s.CreateFilter("read-x", "write-y")
 //
 func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
@@ -312,13 +312,6 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	return f, nil
-}
-
-// Close cleans-up the quit channel used for this spec
-func (s *tokeninfoSpec) Close() {
-	if s.authClient.quit != nil {
-		close(s.authClient.quit)
-	}
 }
 
 func (kv kv) String() string {
@@ -474,3 +467,10 @@ func (f *filter) Request(ctx filters.FilterContext) {
 }
 
 func (f *filter) Response(filters.FilterContext) {}
+
+// Close cleans-up the quit channel used for this spec
+func (f *filter) Close() {
+	if f.authClient.quit != nil {
+		close(f.authClient.quit)
+	}
+}

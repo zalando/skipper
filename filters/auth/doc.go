@@ -39,6 +39,10 @@ TokeninfoURL. The request from skipper to TokeninfoURL will use the
 query string to do the request:
 ?access_token=<access-token-from-authorization-header>.
 
+Additionally, you can also pass CLI argument
+-oauth2-tokeninfo-timeout=<OAuthTokeninfoTimeout> to control the default
+timeout duration for OAuth validation request
+
 Example json output of the tokeninfo response could be:
 
     {
@@ -138,6 +142,11 @@ Example json output of this information response:
       "token_type": "Bearer",
       "uid": "jdoe"
     }
+
+
+In case you are using any of the above 4 filters in your custom build,
+you can call the `Close()` method to close the `quit` channel and
+free up goroutines, to avoid goroutine leak
 
 
 OAuth - auditLog() filter
