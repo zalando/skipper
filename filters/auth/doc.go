@@ -40,8 +40,9 @@ query string to do the request:
 ?access_token=<access-token-from-authorization-header>.
 
 Additionally, you can also pass CLI argument
--oauth2-tokeninfo-timeout=<OAuthTokeninfoTimeout> to control the default
-timeout duration for OAuth validation request
+-oauth2-tokeninfo-timeout=<OAuthTokeninfoTimeout> to control the
+default timeout duration for OAuth validation request. The default
+tokeninfo timeout is 2s.
 
 Example json output of the tokeninfo response could be:
 

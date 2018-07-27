@@ -119,6 +119,12 @@ size of the http header from your clients.
     -max-header-bytes int
         set MaxHeaderBytes for http server connections (default 1048576)
 
+## OAuth2 Tokeninfo
+
+OAuth2 filters integrate with external services and have their own
+connection handling. Outgoing calls to these services have a
+default timeout of 2s, which can be changed by the flag
+`-oauth2-tokeninfo-timeout=<OAuthTokeninfoTimeout>`.
 
 # Monitoring
 
