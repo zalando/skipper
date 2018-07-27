@@ -295,13 +295,6 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 		case metrics.Gauge:
 			metricsFamily = "gauges"
 			values["value"] = m.Value()
-		case metrics.Meter:
-			metricsFamily = "meters"
-			values["count"] = m.Count()
-			values["1m.rate"] = m.Rate1()
-			values["5m.rate"] = m.Rate5()
-			values["15m.rate"] = m.Rate15()
-			values["mean.rate"] = m.RateMean()
 		case metrics.Histogram:
 			metricsFamily = "histograms"
 			h := m.Snapshot()
