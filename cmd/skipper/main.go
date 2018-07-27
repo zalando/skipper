@@ -60,7 +60,7 @@ const (
 	defaultMaxIdleConnsBackend        = 0
 
 	// OAuth2:
-	defaultOAuthTokeninfoTimeout = 2 * time.Second // Not sure if this makes sense
+	defaultOAuthTokeninfoTimeout = 2 * time.Second
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
