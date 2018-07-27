@@ -59,6 +59,9 @@ const (
 	defaultTLSHandshakeTimeoutBackend = 60 * time.Second
 	defaultMaxIdleConnsBackend        = 0
 
+	// OAuth2:
+	defaultOAuthTokeninfoTimeout = 2 * time.Second // Not sure if this makes sense
+
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
 	ignoreTrailingSlashUsage             = "flag indicating to ignore trailing slashes in paths when routing"
@@ -131,10 +134,11 @@ const (
 	kubernetesNamespaceUsage        = "watch only this namespace for ingresses"
 
 	// OAuth2:
-	oauthURLUsage            = "OAuth2 URL for Innkeeper authentication"
-	oauthCredentialsDirUsage = "directory where oauth credentials are stored: client.json and user.json"
-	oauthScopeUsage          = "the whitespace separated list of oauth scopes"
-	oauth2TokeninfoURLUsage  = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
+	oauthURLUsage               = "OAuth2 URL for Innkeeper authentication"
+	oauthCredentialsDirUsage    = "directory where oauth credentials are stored: client.json and user.json"
+	oauthScopeUsage             = "the whitespace separated list of oauth scopes"
+	oauth2TokeninfoURLUsage     = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
+	oauth2TokeninfoTimeoutUsage = "sets the default tokeninfo request timeout duration to 1500ms"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -239,10 +243,11 @@ var (
 	kubernetesNamespace        string
 
 	// OAuth2:
-	oauthURL            string
-	oauthScope          string
-	oauthCredentialsDir string
-	oauth2TokeninfoURL  string
+	oauthURL               string
+	oauthScope             string
+	oauthCredentialsDir    string
+	oauth2TokeninfoURL     string
+	oauth2TokeninfoTimeout time.Duration
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -349,6 +354,7 @@ func init() {
 	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
 	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
 	flag.StringVar(&oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
+	flag.DurationVar(&oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -528,10 +534,11 @@ func main() {
 		KubernetesNamespace:        kubernetesNamespace,
 
 		// OAuth2:
-		OAuthUrl:            oauthURL,
-		OAuthScope:          oauthScope,
-		OAuthCredentialsDir: oauthCredentialsDir,
-		OAuthTokeninfoURL:   oauth2TokeninfoURL,
+		OAuthUrl:              oauthURL,
+		OAuthScope:            oauthScope,
+		OAuthCredentialsDir:   oauthCredentialsDir,
+		OAuthTokeninfoURL:     oauth2TokeninfoURL,
+		OAuthTokeninfoTimeout: oauth2TokeninfoTimeout,
 
 		// connections, timeouts:
 		IdleConnectionsPerHost:     idleConnsPerHost,

@@ -100,10 +100,10 @@ Getting the code with the test dependencies (`-t` switch):
 
 Build and test all packages:
 
-    cd src/github.com/zalando/skipper
-    make deps
-    make install
-    make shortcheck
+  cd src/github.com/zalando/skipper
+  make deps
+  make install
+  make shortcheck
 
 
 #### Kubernetes Ingress

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -14,16 +15,17 @@ import (
 )
 
 const (
-	testToken    = "test-token"
-	testUID      = "jdoe"
-	testScope    = "test-scope"
-	testScope2   = "test-scope2"
-	testScope3   = "test-scope3"
-	testRealmKey = "/realm"
-	testRealm    = "/immortals"
-	testKey      = "uid"
-	testValue    = "jdoe"
-	testAuthPath = "/test-auth"
+	testToken       = "test-token"
+	testUID         = "jdoe"
+	testScope       = "test-scope"
+	testScope2      = "test-scope2"
+	testScope3      = "test-scope3"
+	testRealmKey    = "/realm"
+	testRealm       = "/immortals"
+	testKey         = "uid"
+	testValue       = "jdoe"
+	testAuthPath    = "/test-auth"
+	testAuthTimeout = 100 * time.Millisecond
 )
 
 type testAuthDoc struct {
@@ -305,24 +307,32 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 				}
 			}))
 
-			var s filters.Spec
+			var spec filters.Spec
 			args := []interface{}{}
 			u := authServer.URL + ti.authBaseURL
 			switch ti.authType {
 			case OAuthTokeninfoAnyScopeName:
-				s = NewOAuthTokeninfoAnyScope(u)
+				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout)
 			case OAuthTokeninfoAllScopeName:
-				s = NewOAuthTokeninfoAllScope(u)
+				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout)
 			case OAuthTokeninfoAnyKVName:
-				s = NewOAuthTokeninfoAnyKV(u)
+				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout)
 			case OAuthTokeninfoAllKVName:
-				s = NewOAuthTokeninfoAllKV(u)
+				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout)
 			}
 
 			args = append(args, ti.args...)
+			f, err := spec.CreateFilter(args)
+			if err != nil {
+				t.Logf("error in creating filter")
+				return
+			}
+			f2 := f.(*filter)
+			defer f2.Close()
+
 			fr := make(filters.Registry)
-			fr.Register(s)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: s.Name(), Args: args}}, Backend: backend.URL}
+			fr.Register(spec)
+			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
 			reqURL, err := url.Parse(proxy.URL)
@@ -360,6 +370,106 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 					buf := make([]byte, rsp.ContentLength)
 					rsp.Body.Read(buf)
 				}
+			}
+		})
+	}
+}
+
+func TestOAuth2TokenTimeout(t *testing.T) {
+	for _, ti := range []struct {
+		msg      string
+		timeout  time.Duration
+		auth     string
+		authType string
+		expected int
+	}{{
+		msg:      "get token within specified timeout",
+		timeout:  2 * testAuthTimeout,
+		authType: OAuthTokeninfoAnyScopeName,
+		expected: http.StatusOK,
+	}, {
+		msg:      "get token request timeout",
+		timeout:  50 * time.Millisecond,
+		authType: OAuthTokeninfoAnyScopeName,
+		expected: http.StatusUnauthorized,
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
+
+			handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != testAuthPath {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+
+				token, err := getToken(r)
+				if err != nil || token != testToken {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+
+				d := map[string]interface{}{
+					"uid":        testUID,
+					testRealmKey: testRealm,
+					"scope":      []string{testScope},
+				}
+
+				time.Sleep(100 * time.Millisecond)
+				e := json.NewEncoder(w)
+				err = e.Encode(&d)
+				if err != nil {
+					t.Error(err)
+				}
+			})
+			authServer := httptest.NewServer(http.TimeoutHandler(handlerFunc, ti.timeout, "server unavailable"))
+
+			args := []interface{}{testScope}
+			u := authServer.URL + testAuthPath
+			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout)
+
+			scopes := []interface{}{"read-x"}
+			f, err := spec.CreateFilter(scopes)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			f2 := f.(*filter)
+			defer f2.Close()
+
+			fr := make(filters.Registry)
+			fr.Register(spec)
+			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+
+			proxy := proxytest.New(fr, r)
+			reqURL, err := url.Parse(proxy.URL)
+			if err != nil {
+				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
+			}
+
+			q := reqURL.Query()
+			q.Add(accessTokenQueryKey, testToken)
+			reqURL.RawQuery = q.Encode()
+
+			req, err := http.NewRequest("GET", reqURL.String(), nil)
+
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			resp, err := http.DefaultClient.Do(req)
+
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			defer resp.Body.Close()
+
+			if resp.StatusCode != ti.expected {
+				t.Errorf("auth filter failed got=%d, expected=%d, route=%s", resp.StatusCode, ti.expected, r)
+				buf := make([]byte, resp.ContentLength)
+				resp.Body.Read(buf)
 			}
 		})
 	}
