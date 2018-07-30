@@ -38,12 +38,12 @@ like nginx, haproxy or envoy.
 
 Read more about [Skipper's Kubernetes dataclient](dataclients/kubernetes.md).
 
-## Inkeeper Routes API
+## Innkeeper Routes API
 
 [Skipper](https://github.com/zalando/skipper) can read from an
-[Inkeeper API](https://github.com/zalando/innkeeper), if you like to
+[Innkeeper API](https://github.com/zalando/innkeeper), if you like to
 create routes via an API.
-Our [Inkeeper API dataclient](dataclients/inkeeper-api.md) can be used
+Our [Innkeeper API dataclient](dataclients/innkeeper-api.md) can be used
 as well. It was used in production in the past. (TODO: do we use it somewhere?)
 
 ## Demos / Talks
