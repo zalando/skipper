@@ -43,6 +43,7 @@ type Prometheus struct {
 	proxyStreamingErrorsM      *prometheus.CounterVec
 	customHistogramM           *prometheus.HistogramVec
 	customCounterM             *prometheus.CounterVec
+	customGaugeM               *prometheus.GaugeVec
 
 	opts     Options
 	registry *prometheus.Registry
@@ -185,6 +186,12 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "total",
 		Help:      "Total number of custom metrics.",
 	}, []string{"key"})
+	customGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: promCustomSubsystem,
+		Name:      "gauges",
+		Help:      "Gauges number of custom metrics.",
+	}, []string{"key"})
 	customHistogram := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promCustomSubsystem,
@@ -211,6 +218,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		proxyBackendErrorsM:        proxyBackendErrors,
 		proxyStreamingErrorsM:      proxyStreamingErrors,
 		customCounterM:             customCounter,
+		customGaugeM:               customGauge,
 		customHistogramM:           customHistogram,
 
 		opts:     opts,
@@ -246,6 +254,7 @@ func (p *Prometheus) registerMetrics() {
 	p.registry.MustRegister(p.proxyStreamingErrorsM)
 	p.registry.MustRegister(p.customCounterM)
 	p.registry.MustRegister(p.customHistogramM)
+	p.registry.MustRegister(p.customGaugeM)
 
 	// Register prometheus runtime collectors if required.
 	if p.opts.EnableRuntimeMetrics {
@@ -282,6 +291,11 @@ func (p *Prometheus) MeasureSince(key string, start time.Time) {
 // IncCounter satisfies Metrics interface.
 func (p *Prometheus) IncCounter(key string) {
 	p.customCounterM.WithLabelValues(key).Inc()
+}
+
+// UpdateGauge satisfies Metrics interface.
+func (p *Prometheus) UpdateGauge(key string, v float64) {
+	p.customGaugeM.WithLabelValues(key).Set(v)
 }
 
 // MeasureRouteLookup satisfies Metrics interface.
