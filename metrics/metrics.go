@@ -69,6 +69,7 @@ type Metrics interface {
 	MeasureBackend5xx(t time.Time)
 	IncErrorsStreaming(routeId string)
 	RegisterHandler(path string, handler *http.ServeMux)
+	UpdateGauge(key string, value float64)
 }
 
 // Options for initializing metrics collection.
