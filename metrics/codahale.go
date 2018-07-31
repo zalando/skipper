@@ -294,6 +294,8 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 
 		switch m := metric.(type) {
 		case metrics.Gauge:
+			metricsFamily = "gauges"
+			values["value"] = m.Value()
 		case metrics.GaugeFloat64:
 			t := m.Snapshot()
 			metricsFamily = "gauges"
