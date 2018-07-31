@@ -10,7 +10,7 @@ pages:
     - Data Clients:
         - Eskip: dataclients/eskip-file.md
         - Etcd: dataclients/etcd.md
-        - Inkeeper API: dataclients/inkeeper-api.md
+        - Innkeeper API: dataclients/innkeeper-api.md
         - Kubernetes: dataclients/kubernetes.md
         - Route String: dataclients/route-string.md
     - Kubernetes:

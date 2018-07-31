@@ -133,7 +133,7 @@ and detailed information on these topics:
 - [Filters](https://opensource.zalando.com/skipper/filters/) - Augmenting Requests and Responses
 - Service Backends
 - Route Definitions
-- Data Sources: [eskip file](https://godoc.org/github.com/zalando/skipper/eskipfile), [etcd](https://godoc.org/github.com/zalando/skipper/etcd), [Inkeeper API](https://godoc.org/github.com/zalando/skipper/innkeeper), [Kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://godoc.org/github.com/zalando/skipper/dataclients/routestring)
+- Data Sources: [eskip file](https://godoc.org/github.com/zalando/skipper/eskipfile), [etcd](https://godoc.org/github.com/zalando/skipper/etcd), [Innkeeper API](https://godoc.org/github.com/zalando/skipper/innkeeper), [Kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://godoc.org/github.com/zalando/skipper/dataclients/routestring)
 - [Circuit Breakers](https://godoc.org/github.com/zalando/skipper/filters/circuit)
 - Extending It with Customized [Predicates](https://opensource.zalando.com/skipper/predicates/), [Filters](https://opensource.zalando.com/skipper/filters/), can be done by [Plugins](https://opensource.zalando.com/skipper/plugins/) or [Lua Scripts](https://opensource.zalando.com/skipper/scripts/)
 - [Predicates](https://opensource.zalando.com/skipper/predicates/) - additional predicates to match a route

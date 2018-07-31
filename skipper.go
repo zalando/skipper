@@ -647,7 +647,7 @@ func Run(o Options) error {
 		return err
 	}
 
-	// *DEPRECATED* inkeeper - create data clients
+	// *DEPRECATED* innkeeper - create data clients
 	dataClients, err := createDataClients(o, inkeeperAuth)
 	if err != nil {
 		return err
