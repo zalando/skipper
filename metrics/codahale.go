@@ -291,10 +291,13 @@ func (sm skipperMetrics) MarshalJSON() ([]byte, error) {
 	for name, metric := range sm {
 		values := make(map[string]interface{})
 		var metricsFamily string
+
 		switch m := metric.(type) {
 		case metrics.Gauge:
+		case metrics.GaugeFloat64:
+			t := m.Snapshot()
 			metricsFamily = "gauges"
-			values["value"] = m.Value()
+			values["value"] = t.Value()
 		case metrics.Histogram:
 			metricsFamily = "histograms"
 			h := m.Snapshot()
