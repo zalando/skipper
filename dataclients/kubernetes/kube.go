@@ -837,7 +837,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 			i.Spec == nil {
-			log.Warn("invalid ingress item: missing metadata")
+			log.Error("invalid ingress item: missing metadata")
 			continue
 		}
 
@@ -879,12 +879,23 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			}
 		}
 
-		// parse backend-weihgts annotation if it exists
+		// parse backend-weights annotation if it exists
 		var backendWeights map[string]float64
 		if backends, ok := i.Metadata.Annotations[backendWeightsAnnotationKey]; ok {
 			err := json.Unmarshal([]byte(backends), &backendWeights)
 			if err != nil {
 				logger.Errorf("error while parsing backend-weights annotation: %v", err)
+			}
+		}
+
+		// parse pathmode from annotation or fallback to global default
+		var pathMode PathMode = c.pathMode
+		if pathModeString, ok := i.Metadata.Annotations[pathModeAnnotationKey]; ok {
+			if p, err := ParsePathMode(pathModeString); err != nil {
+				log.Errorf("Failed to get path mode for ingress %s/%s: %v", i.Metadata.Namespace, i.Metadata.Name, err)
+			} else {
+				log.Infof("Set pathMode to %s", p)
+				pathMode = p
 			}
 		}
 
@@ -901,27 +912,24 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			// currently handled as mandatory
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
-			// add extra routes from optional annotation
-			for idx, r := range extraRoutes {
-				route := *r
-				route.HostRegexps = host
-				route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host, idx)
-				hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
-			}
-
 			// update Traffic field for each backend
 			computeBackendWeights(backendWeights, rule)
 
 			for _, prule := range rule.Http.Paths {
-				if prule.Backend.Traffic > 0 {
-					pathMode := c.pathMode
-					pathModeString := i.Metadata.Annotations[pathModeAnnotationKey]
-					if pathModeString != "" {
-						var err error
-						if pathMode, err = ParsePathMode(pathModeString); err != nil {
-							return nil, err
-						}
+				// add extra routes from optional annotation
+				for idx, r := range extraRoutes {
+					route := *r
+					route.HostRegexps = host
+					route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host+strings.Replace(prule.Path, "/", "_", -1), idx)
+					setPath(pathMode, &route, prule.Path)
+					if i := countPathRoutes(&route); i <= 1 {
+						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
+					} else {
+						log.Errorf("Failed to add route having %d path routes: %v", i, r)
 					}
+				}
+
+				if prule.Backend.Traffic > 0 {
 
 					endpoints, err := c.convertPathRule(
 						i.Metadata.Namespace,
@@ -972,6 +980,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			}
 		}
 	}
+
 	for host, rs := range hostRoutes {
 		routes = append(routes, rs...)
 
@@ -988,6 +997,19 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	}
 
 	return routes, nil
+}
+
+func countPathRoutes(r *eskip.Route) int {
+	i := 0
+	for _, p := range r.Predicates {
+		if p.Name == "PathSubtree" || p.Name == "Path" {
+			i++
+		}
+	}
+	if r.Path != "" {
+		i++
+	}
+	return i
 }
 
 // catchAllRoutes returns true if one of the routes in the list has a catchAll
