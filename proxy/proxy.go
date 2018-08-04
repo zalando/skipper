@@ -689,6 +689,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	if req.Header.Get("Connection") == "Keep-Alive" {
 		req.Header.Set("Connection", "keep-alive")
 	}
+	p.metrics.IncCounter("outgoing." + req.Proto)
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
 		ext.Error.Set(ctx.proxySpan, true)
@@ -1004,6 +1005,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p.metrics.IncCounter("incoming." + r.Proto)
 	var ctx *context
 
 	var span ot.Span
