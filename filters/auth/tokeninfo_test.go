@@ -2,12 +2,9 @@ package auth
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -16,113 +13,7 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-const (
-	testToken       = "test-token"
-	testUID         = "jdoe"
-	testScope       = "test-scope"
-	testScope2      = "test-scope2"
-	testScope3      = "test-scope3"
-	testRealmKey    = "/realm"
-	testRealm       = "/immortals"
-	testKey         = "uid"
-	testValue       = "jdoe"
-	testAuthPath    = "/test-auth"
-	testAuthTimeout = 100 * time.Millisecond
-)
-
-type testAuthDoc struct {
-	authMap map[string]interface{}
-}
-
-func lastQueryValue(url string) string {
-	s := strings.Split(url, "=")
-	if len(s) == 0 {
-		return ""
-	}
-
-	return s[len(s)-1]
-}
-
-func Test_all(t *testing.T) {
-	for _, ti := range []struct {
-		msg      string
-		l        []string
-		r        []string
-		expected bool
-	}{{
-		msg:      "l and r nil",
-		l:        nil,
-		r:        nil,
-		expected: true,
-	}, {
-		msg:      "l is nil and r has one",
-		l:        nil,
-		r:        []string{"s1"},
-		expected: true,
-	}, {
-		msg:      "l has one and r has one, same",
-		l:        []string{"s1"},
-		r:        []string{"s1"},
-		expected: true,
-	}, {
-		msg:      "l has one and r has one, different",
-		l:        []string{"l"},
-		r:        []string{"r"},
-		expected: false,
-	}, {
-		msg:      "l has one and r has two, one same different 1",
-		l:        []string{"l"},
-		r:        []string{"l", "r"},
-		expected: true,
-	}, {
-		msg:      "l has one and r has two, one same different 2",
-		l:        []string{"l"},
-		r:        []string{"r", "l"},
-		expected: true,
-	}, {
-		msg:      "l has two and r has two, one different",
-		l:        []string{"l", "l2"},
-		r:        []string{"r", "l"},
-		expected: false,
-	}, {
-		msg:      "l has two and r has two, both same same 1",
-		l:        []string{"l", "r"},
-		r:        []string{"r", "l"},
-		expected: true,
-	}, {
-		msg:      "l has two and r has two, both same same 2",
-		l:        []string{"r", "l"},
-		r:        []string{"r", "l"},
-		expected: true,
-	}, {
-		msg:      "l has N and r has M, r has all of left",
-		l:        []string{"r1", "l"},
-		r:        []string{"r2", "l", "r1"},
-		expected: true,
-	}, {
-		msg:      "l has N and r has M, l has all of right",
-		l:        []string{"l1", "r1", "l2"},
-		r:        []string{"r1", "l1"},
-		expected: false,
-	}, {
-		msg:      "l has N and r has M, l is missing one of r",
-		l:        []string{"r1", "l1"},
-		r:        []string{"r1", "l1", "r2"},
-		expected: true,
-	}, {
-		msg:      "l has N and r has M, r is missing one of l",
-		l:        []string{"r1", "l1", "l2"},
-		r:        []string{"r1", "l1", "r2"},
-		expected: false,
-	}} {
-		t.Run(ti.msg, func(t *testing.T) {
-			if all(ti.l, ti.r) != ti.expected {
-				t.Errorf("Failed test: %s", ti.msg)
-			}
-		})
-
-	}
-}
+const testAuthTimeout = 100 * time.Millisecond
 
 func TestOAuth2Tokeninfo(t *testing.T) {
 	for _, ti := range []struct {
@@ -329,7 +220,7 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 				t.Logf("error in creating filter")
 				return
 			}
-			f2 := f.(*filter)
+			f2 := f.(*tokeninfoFilter)
 			defer f2.Close()
 
 			fr := make(filters.Registry)
@@ -426,7 +317,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			f2 := f.(*filter)
+			f2 := f.(*tokeninfoFilter)
 			defer f2.Close()
 
 			fr := make(filters.Registry)
@@ -439,16 +330,12 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
 			}
 
-			q := reqURL.Query()
-			q.Add(accessTokenQueryKey, testToken)
-			reqURL.RawQuery = q.Encode()
-
 			req, err := http.NewRequest("GET", reqURL.String(), nil)
-
 			if err != nil {
 				t.Error(err)
 				return
 			}
+			req.Header.Set(authHeaderName, authHeaderPrefix+testToken)
 
 			resp, err := http.DefaultClient.Do(req)
 
@@ -465,108 +352,5 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 				resp.Body.Read(buf)
 			}
 		})
-	}
-}
-
-func TestEncryptDecrypt(t *testing.T) {
-	aesgcm, err := getCiphersuite()
-	if err != nil {
-		t.Errorf("failed to create ciphersuite: %v", err)
-	}
-
-	f := &tokenOidcFilter{
-		typ:  checkOidcAnyClaims,
-		aead: aesgcm,
-	}
-
-	plaintext := "helloworld"
-	plain := []byte(plaintext)
-	b, err := f.encryptDataBlock(plain)
-	if err != nil {
-		t.Errorf("failed to encrypt data block: %v", err)
-	}
-	decenc, err := f.decryptDataBlock(b)
-	if err != nil {
-		t.Errorf("failed to decrypt data block: %v", err)
-	}
-	if string(decenc) != plaintext {
-		t.Errorf("decrypted plaintext is not the same as plaintext: %s", string(decenc))
-	}
-}
-
-func TestEncryptDecryptState(t *testing.T) {
-	aesgcm, err := getCiphersuite()
-	if err != nil {
-		t.Errorf("failed to create ciphersuite: %v", err)
-	}
-
-	f := &tokenOidcFilter{
-		typ:  checkOidcAnyClaims,
-		aead: aesgcm,
-	}
-
-	nonce, err := f.createNonce()
-	if err != nil {
-		t.Errorf("Failed to create nonce: %v", err)
-	}
-
-	// enc
-	statePlain := createState(fmt.Sprintf("%x", nonce))
-	stateEnc, err := f.encryptDataBlock([]byte(statePlain))
-	if err != nil {
-		t.Errorf("Failed to encrypt data block: %v", err)
-	}
-	stateEncHex := fmt.Sprintf("%x", stateEnc)
-
-	// dec
-	stateQueryEnc := make([]byte, len(stateEncHex))
-	if _, err := fmt.Sscanf(stateEncHex, "%x", &stateQueryEnc); err != nil && err != io.EOF {
-		t.Errorf("Failed to read hex string: %v", err)
-	}
-	stateQueryPlain, err := f.decryptDataBlock(stateQueryEnc)
-	if err != nil {
-		t.Errorf("token from state query is invalid: %v", err)
-	}
-
-	// test same
-	if string(stateQueryPlain) != statePlain {
-		t.Errorf("missmatch plain text")
-	}
-	nonceHex := fmt.Sprintf("%x", nonce)
-	ts := getTimestampFromState(stateQueryPlain, len(nonceHex))
-	if time.Now().After(ts) {
-		t.Errorf("now is after time from state but should be before: %s", ts)
-	}
-}
-
-func Test_getTimestampFromState(t *testing.T) {
-	aesgcm, err := getCiphersuite()
-	if err != nil {
-		t.Errorf("failed to create ciphersuite: %v", err)
-	}
-
-	f := &tokenOidcFilter{
-		typ:  checkOidcAnyClaims,
-		aead: aesgcm,
-	}
-	nonce, err := f.createNonce()
-	if err != nil {
-		t.Errorf("Failed to create nonce: %v", err)
-	}
-	nonceHex := fmt.Sprintf("%x", nonce)
-	statePlain := createState(nonceHex)
-
-	ts := getTimestampFromState([]byte(statePlain), len(nonceHex))
-	if time.Now().After(ts) {
-		t.Errorf("now is after time from state but should be before: %s", ts)
-	}
-}
-
-func Test_createState(t *testing.T) {
-	in := "foo"
-	out := createState(in)
-	ts := fmt.Sprintf("%d", time.Now().Add(1*time.Minute).Unix())
-	if len(out) != len(in)+len(ts)+secretSize {
-		t.Errorf("createState returned string size is wrong: %s", out)
 	}
 }

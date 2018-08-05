@@ -3,25 +3,37 @@ package auth
 import (
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type authClient struct {
-	url *url.URL
+	url    *url.URL
+	client *http.Client
+	quit   chan struct{}
 }
 
-func newAuthClient(baseURL string) (*authClient, error) {
+func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
-	return &authClient{url: u}, nil
+
+	quit := make(chan struct{})
+	client, err := createHTTPClient(timeout, quit)
+	if err != nil {
+		log.Error("Unable to create http client")
+	}
+	return &authClient{url: u, client: client, quit: quit}, nil
 }
 
 func (ac *authClient) getTokenintrospect(token string) (tokenIntrospectionInfo, error) {
 	info := make(tokenIntrospectionInfo)
-	err := jsonPost(ac.url, token, &info)
+	err := jsonPost(ac.url, token, &info, ac.client)
 	if err != nil {
 		return nil, err
 	}
@@ -30,20 +42,43 @@ func (ac *authClient) getTokenintrospect(token string) (tokenIntrospectionInfo, 
 
 func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
 	var a map[string]interface{}
-	err := jsonGet(ac.url, token, &a)
+	err := jsonGet(ac.url, token, &a, ac.client)
 	return a, err
+}
+
+func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, error) {
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: timeout,
+		}).DialContext,
+	}
+
+	go func() {
+		for {
+			select {
+			case <-time.After(10 * time.Second):
+				transport.CloseIdleConnections()
+			case <-quit:
+				return
+			}
+		}
+	}()
+
+	return &http.Client{
+		Transport: transport,
+	}, nil
 }
 
 // jsonGet requests url with access token in the URL query specified
 // by accessTokenKey, if auth was given and writes into doc.
-func jsonGet(url *url.URL, accessToken string, doc interface{}) error {
+func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Client) error {
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
 
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -58,11 +93,11 @@ func jsonGet(url *url.URL, accessToken string, doc interface{}) error {
 }
 
 // jsonPost requests url with access token in the body, if auth was given and writes into doc.
-func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo) error {
+func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http.Client) error {
 	body := url.Values{}
 	body.Add(accessTokenKey, auth)
 
-	rsp, err := http.PostForm(u.String(), body)
+	rsp, err := client.PostForm(u.String(), body)
 	if err != nil {
 		return err
 	}

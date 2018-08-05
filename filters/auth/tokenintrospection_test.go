@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -295,13 +296,13 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 
 			switch ti.authType {
 			case OAuthTokenintrospectionAnyClaimsName:
-				spec = NewOAuthTokenintrospectionAnyClaims(testOidcConfig)
+				spec = NewOAuthTokenintrospectionAnyClaims(testOidcConfig, time.Second)
 			case OAuthTokenintrospectionAllClaimsName:
-				spec = NewOAuthTokenintrospectionAllClaims(testOidcConfig)
+				spec = NewOAuthTokenintrospectionAllClaims(testOidcConfig, time.Second)
 			case OAuthTokenintrospectionAnyKVName:
-				spec = NewOAuthTokenintrospectionAnyKV(testOidcConfig)
+				spec = NewOAuthTokenintrospectionAnyKV(testOidcConfig, time.Second)
 			case OAuthTokenintrospectionAllKVName:
-				spec = NewOAuthTokenintrospectionAllKV(testOidcConfig)
+				spec = NewOAuthTokenintrospectionAllKV(testOidcConfig, time.Second)
 			default:
 				t.Fatalf("FATAL: authType '%s' not supported", ti.authType)
 			}
@@ -326,7 +327,7 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 			}
 
 			if ti.hasAuth {
-				req.Header.Set(authHeaderName, "Bearer "+url.QueryEscape(ti.auth))
+				req.Header.Set(authHeaderName, authHeaderPrefix+ti.auth)
 			}
 
 			rsp, err := http.DefaultClient.Do(req)

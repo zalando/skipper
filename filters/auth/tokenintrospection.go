@@ -2,8 +2,10 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -25,6 +27,7 @@ type (
 		issuerURL        string
 		introspectionURL string
 		config           *OpenIDConfig
+		timeout          time.Duration
 		authClient       *authClient
 	}
 
@@ -96,8 +99,8 @@ func (tii tokenIntrospectionInfo) getStringValue(k string) (string, error) {
 // https://tools.ietf.org/html/draft-ietf-oauth-discovery-06, if
 // oauthIntrospectionURL is a non empty string, it will set
 // IntrospectionEndpoint to the given oauthIntrospectionURL.
-func NewOAuthTokenintrospectionAnyKV(cfg *OpenIDConfig) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyKV, cfg)
+func NewOAuthTokenintrospectionAnyKV(cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyKV, cfg, timeout)
 }
 
 // NewOAuthTokenintrospectionAllKV creates a new auth filter specification
@@ -114,24 +117,25 @@ func NewOAuthTokenintrospectionAnyKV(cfg *OpenIDConfig) filters.Spec {
 // https://tools.ietf.org/html/draft-ietf-oauth-discovery-06, if
 // oauthIntrospectionURL is a non empty string, it will set
 // IntrospectionEndpoint to the given oauthIntrospectionURL.
-func NewOAuthTokenintrospectionAllKV(cfg *OpenIDConfig) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllKV, cfg)
+func NewOAuthTokenintrospectionAllKV(cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllKV, cfg, timeout)
 }
 
-func NewOAuthTokenintrospectionAnyClaims(cfg *OpenIDConfig) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyClaims, cfg)
+func NewOAuthTokenintrospectionAnyClaims(cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyClaims, cfg, timeout)
 }
 
-func NewOAuthTokenintrospectionAllClaims(cfg *OpenIDConfig) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllClaims, cfg)
+func NewOAuthTokenintrospectionAllClaims(cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllClaims, cfg, timeout)
 }
 
-func newOAuthTokenintrospectionFilter(typ roleCheckType, cfg *OpenIDConfig) filters.Spec {
+func newOAuthTokenintrospectionFilter(typ roleCheckType, cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
 	return &tokenIntrospectionSpec{
 		typ:              typ,
 		issuerURL:        cfg.Issuer,
 		introspectionURL: cfg.IntrospectionEndpoint,
 		config:           cfg,
+		timeout:          timeout,
 	}
 }
 
@@ -142,7 +146,7 @@ func GetOpenIDConfig(issuerURL string) (*OpenIDConfig, error) {
 	}
 
 	var cfg OpenIDConfig
-	err = jsonGet(u, "", &cfg)
+	err = jsonGet(u, "", &cfg, http.DefaultClient)
 	return &cfg, err
 }
 
@@ -169,7 +173,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac, err := newAuthClient(s.introspectionURL)
+	ac, err := newAuthClient(s.introspectionURL, s.timeout)
 	if err != nil {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -329,3 +333,10 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 }
 
 func (f *tokenintrospectFilter) Response(filters.FilterContext) {}
+
+// Close cleans-up the quit channel used for this spec
+func (f *tokenintrospectFilter) Close() {
+	if f.authClient.quit != nil {
+		close(f.authClient.quit)
+	}
+}

@@ -440,6 +440,9 @@ type Options struct {
 	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
 	OAuthTokeninfoTimeout time.Duration
 
+	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
+	OAuthTokenintrospectionTimeout time.Duration
+
 	// OAuthIssuerURL sets the the URL to be queried at
 	// /.well-known/openid-configuration for OpenID Connect
 	// information for all auth.NewOAuthTokenintrospection*()
@@ -682,10 +685,10 @@ func Run(o Options) error {
 			log.Warningf("failed to get OpenIDC config: %v", err)
 		} else {
 			o.CustomFilters = append(o.CustomFilters,
-				auth.NewOAuthTokenintrospectionAnyClaims(cfg),
-				auth.NewOAuthTokenintrospectionAllClaims(cfg),
-				auth.NewOAuthTokenintrospectionAnyKV(cfg),
-				auth.NewOAuthTokenintrospectionAllKV(cfg))
+				auth.NewOAuthTokenintrospectionAnyClaims(cfg, o.OAuthTokenintrospectionTimeout),
+				auth.NewOAuthTokenintrospectionAllClaims(cfg, o.OAuthTokenintrospectionTimeout),
+				auth.NewOAuthTokenintrospectionAnyKV(cfg, o.OAuthTokenintrospectionTimeout),
+				auth.NewOAuthTokenintrospectionAllKV(cfg, o.OAuthTokenintrospectionTimeout))
 		}
 	}
 

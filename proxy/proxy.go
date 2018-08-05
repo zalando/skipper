@@ -537,20 +537,20 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start := time.Now()
-		// tryCatch(func() {
-		ctx.setMetricsPrefix(fi.Name)
-		fi.Request(ctx)
-		p.metrics.MeasureFilterRequest(fi.Name, start)
-		// }, func(err interface{}) {
-		// 	if p.flags.Debug() {
-		// 		// these errors are collected for the debug mode to be able
-		// 		// to report in the response which filters failed.
-		// 		ctx.debugFilterPanics = append(ctx.debugFilterPanics, err)
-		// 		return
-		// 	}
+		tryCatch(func() {
+			ctx.setMetricsPrefix(fi.Name)
+			fi.Request(ctx)
+			p.metrics.MeasureFilterRequest(fi.Name, start)
+		}, func(err interface{}) {
+			if p.flags.Debug() {
+				// these errors are collected for the debug mode to be able
+				// to report in the response which filters failed.
+				ctx.debugFilterPanics = append(ctx.debugFilterPanics, err)
+				return
+			}
 
-		// 	p.log.Errorf("error while processing filter during request: %s: %v", fi.Name, err)
-		// })
+			p.log.Errorf("error while processing filter during request: %s: %v", fi.Name, err)
+		})
 
 		filters = append(filters, fi)
 		if ctx.deprecatedShunted() || ctx.shunted() {

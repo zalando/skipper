@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -18,9 +19,10 @@ const (
 
 type (
 	tokeninfoSpec struct {
-		typ          roleCheckType
-		tokeninfoURL string
-		authClient   *authClient
+		typ              roleCheckType
+		tokeninfoURL     string
+		tokenInfoTimeout time.Duration
+		authClient       *authClient
 	}
 
 	tokeninfoFilter struct {
@@ -35,32 +37,32 @@ type (
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all scopes.
-func NewOAuthTokeninfoAllScope(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllScopes, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAllScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllScopes, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 // NewOAuthTokeninfoAnyScope creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one scope.
-func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyScopes, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyScopes, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 // NewOAuthTokeninfoAllKV creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all key value pairs provided.
-func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllKV, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllKV, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 // NewOAuthTokeninfoAnyKV creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one key value pair provided.
-func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 func (s *tokeninfoSpec) Name() string {
@@ -84,7 +86,7 @@ func (s *tokeninfoSpec) Name() string {
 // type. The shown example for checkOAuthTokeninfoAllScopes will grant
 // access only to tokens, that have scopes read-x and write-y:
 //
-//     s.CreateFilter(read-x", "write-y")
+//     s.CreateFilter("read-x", "write-y")
 //
 func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
@@ -95,7 +97,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac, err := newAuthClient(s.tokeninfoURL)
+	ac, err := newAuthClient(s.tokeninfoURL, s.tokenInfoTimeout)
 	if err != nil {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -269,3 +271,10 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 }
 
 func (f *tokeninfoFilter) Response(filters.FilterContext) {}
+
+// Close cleans-up the quit channel used for this spec
+func (f *tokeninfoFilter) Close() {
+	if f.authClient.quit != nil {
+		close(f.authClient.quit)
+	}
+}

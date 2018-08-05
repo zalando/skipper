@@ -448,6 +448,74 @@ Examples:
 oauthTokeninfoAllKV("k1", "v1", "k2", "v2")
 ```
 
+## oauthTokenintrospectionAnyClaims
+
+If skipper is started with `-oauth2-issuer-url` flag, you can use this
+filter.
+
+The filter accepts variable arguments of strings, which are used to
+validate the incoming token. If one of the configured and supported
+claims from the filter are found inside the tokenintrospection
+(RFC7662) result for the incoming token, it will allow the request to
+pass.
+
+Examples:
+
+```
+oauthTokenintrospectionAnyClaims("c1", "c2", "c3")
+```
+
+## oauthTokenintrospectionAllClaims
+
+If skipper is started with `-oauth2-issuer-url` flag, you can use this
+filter.
+
+The filter accepts variable arguments of strings, which are used to
+validate the incoming token. If all of the configured and supported
+claims from the filter are found inside the tokenintrospection
+(RFC7662) result for the incoming token, it will allow the request to
+pass.
+
+Examples:
+
+```
+oauthTokenintrospectionAllClaims("c1", "c2", "c3")
+```
+
+## oauthTokenintrospectionAnyKV
+
+If skipper is started with `-oauth2-issuer-url` flag, you can use this
+filter.
+
+The filter accepts an even number of variable arguments of type
+string, which are used to validate the incoming token. If one of the
+configured key value pairs from the filter are found inside the
+tokenintrospection (RFC7662) result for the incoming token, it will
+allow the request to pass.
+
+Examples:
+
+```
+oauthTokenintrospectionAnyKV("k1", "v1", "k2", "v2")
+```
+
+## oauthTokenintrospectionAllKV
+
+If skipper is started with `-oauth2-issuer-url` flag, you can use this
+filter.
+
+The filter accepts an even number of variable arguments of type
+string, which are used to validate the incoming token. If all of the
+configured key value pairs from the filter are found inside the
+tokenintrospection (RFC7662) result for the incoming token, it will
+allow the request to pass.
+
+Examples:
+
+```
+oauthTokenintrospectionAllKV("k1", "v1", "k2", "v2")
+```
+
 ## requestCookie
 
 Append a cookie to the request header.
