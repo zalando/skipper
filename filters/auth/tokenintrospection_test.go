@@ -252,6 +252,7 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 				t.Fatalf("unknown ti: %+v", ti)
 			}
 			backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+			defer backend.Close()
 
 			authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != "POST" {
@@ -287,6 +288,7 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 					t.Errorf("Failed to json encode: %v", err)
 				}
 			}))
+			defer authServer.Close()
 
 			testOidcConfig.IntrospectionEndpoint = "http://" + authServer.Listener.Addr().String() + testAuthPath
 			defer authServer.Close()
@@ -313,6 +315,7 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
+			defer proxy.Close()
 
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {

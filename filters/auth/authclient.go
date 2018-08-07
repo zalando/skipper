@@ -111,9 +111,5 @@ func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http
 	if err != nil && err != io.EOF {
 		return err
 	}
-	err = json.Unmarshal(buf, &doc)
-	if err != nil {
-		return err
-	}
-	return err
+	return json.Unmarshal(buf, &doc)
 }

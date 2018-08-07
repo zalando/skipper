@@ -453,8 +453,8 @@ oauthTokeninfoAllKV("k1", "v1", "k2", "v2")
 If skipper is started with `-oauth2-issuer-url` flag, you can use this
 filter.
 
-The filter accepts variable arguments of strings, which are used to
-validate the incoming token. If one of the configured and supported
+The filter accepts variable number of string arguments, which are used
+to validate the incoming token. If one of the configured and supported
 claims from the filter are found inside the tokenintrospection
 (RFC7662) result for the incoming token, it will allow the request to
 pass.

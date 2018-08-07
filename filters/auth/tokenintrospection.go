@@ -28,7 +28,6 @@ type (
 		introspectionURL string
 		config           *OpenIDConfig
 		timeout          time.Duration
-		authClient       *authClient
 	}
 
 	tokenIntrospectionInfo map[string]interface{}
@@ -187,7 +186,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	case checkOAuthTokenintrospectionAllClaims:
 		fallthrough
 	case checkOAuthTokenintrospectionAnyClaims:
-		f.claims = sargs[:]
+		f.claims = sargs
 		if s.config != nil && !all(f.claims, s.config.ClaimsSupported) {
 			return nil, fmt.Errorf("%v: %s, supported Claims: %v", errUnsupportedClaimSpecified, strings.Join(f.claims, ","), s.config.ClaimsSupported)
 		}

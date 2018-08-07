@@ -279,6 +279,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
+			defer backend.Close()
 
 			handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path != testAuthPath {
@@ -306,6 +307,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 				}
 			})
 			authServer := httptest.NewServer(http.TimeoutHandler(handlerFunc, ti.timeout, "server unavailable"))
+			defer authServer.Close()
 
 			args := []interface{}{testScope}
 			u := authServer.URL + testAuthPath
@@ -325,6 +327,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
+			defer proxy.Close()
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
 				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
