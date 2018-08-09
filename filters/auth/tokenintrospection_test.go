@@ -14,7 +14,7 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-var testOidcConfig *OpenIDConfig = &OpenIDConfig{
+var testOidcConfig *openIDConfig = &openIDConfig{
 	Issuer:                            "https://identity.example.com",
 	AuthorizationEndpoint:             "https://identity.example.com/oauth2/authorize",
 	TokenEndpoint:                     "https://identity.example.com/oauth2/token",
@@ -39,6 +39,7 @@ var (
 	validClaim2Value           = "Jane Doe"
 	invalidSupportedClaim      = "sub"
 	invalidSupportedClaimValue = "x42"
+	invalidFilterExpected      = 999
 )
 
 func TestOAuth2Tokenintrospection(t *testing.T) {
@@ -51,16 +52,18 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 		auth        string
 		expected    int
 	}{{
+
 		msg:      "oauthTokenintrospectionAnyClaims: uninitialized filter, no authorization header, scope check",
 		authType: OAuthTokenintrospectionAnyClaimsName,
-		expected: http.StatusNotFound,
+		expected: invalidFilterExpected,
 	}, {
 		msg:         "oauthTokenintrospectionAnyClaims: invalid token",
 		authType:    OAuthTokenintrospectionAnyClaimsName,
 		authBaseURL: testAuthPath,
+		args:        []interface{}{validClaim1},
 		hasAuth:     true,
 		auth:        "invalid-token",
-		expected:    http.StatusNotFound,
+		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "oauthTokenintrospectionAnyClaims: unsupported claim",
 		authType:    OAuthTokenintrospectionAnyClaimsName,
@@ -68,7 +71,7 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 		args:        []interface{}{"unsupported-claim"},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusNotFound,
+		expected:    invalidFilterExpected,
 	}, {
 		msg:         "oauthTokenintrospectionAnyClaims: valid claim",
 		authType:    OAuthTokenintrospectionAnyClaimsName,
@@ -106,9 +109,10 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 		msg:         "oauthTokenintrospectionAllClaim: invalid token",
 		authType:    OAuthTokenintrospectionAllClaimsName,
 		authBaseURL: testAuthPath,
+		args:        []interface{}{validClaim1},
 		hasAuth:     true,
 		auth:        "invalid-token",
-		expected:    http.StatusNotFound,
+		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "oauthTokenintrospectionAllClaim: unsupported claim",
 		authType:    OAuthTokenintrospectionAllClaimsName,
@@ -116,7 +120,7 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 		args:        []interface{}{"unsupported-claim"},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusNotFound,
+		expected:    invalidFilterExpected,
 	}, {
 		msg:         "oauthTokenintrospectionAllClaim: valid claim",
 		authType:    OAuthTokenintrospectionAllClaimsName,
@@ -151,13 +155,13 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 		expected:    http.StatusUnauthorized,
 	}, {
 
-		msg:         "anyKV(): invalid key",
+		msg:         "anyKV(): invalid KV",
 		authType:    OAuthTokenintrospectionAnyKVName,
 		authBaseURL: testAuthPath,
-		args:        []interface{}{"not-matching-scope"},
+		args:        []interface{}{validClaim1},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusNotFound,
+		expected:    invalidFilterExpected,
 	}, {
 		msg:         "anyKV(): valid token, one valid key, wrong value",
 		authType:    OAuthTokenintrospectionAnyKVName,
@@ -191,13 +195,13 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
-		msg:         "allKV(): invalid key",
+		msg:         "allKV(): invalid KV",
 		authType:    OAuthTokenintrospectionAllKVName,
 		authBaseURL: testAuthPath,
-		args:        []interface{}{"not-matching-scope"},
+		args:        []interface{}{testKey},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusNotFound,
+		expected:    invalidFilterExpected,
 	}, {
 		msg:         "allKV(): valid token, one valid key, wrong value",
 		authType:    OAuthTokenintrospectionAllKVName,
@@ -290,26 +294,55 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 			}))
 			defer authServer.Close()
 
+			issuerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != TokenIntrospectionConfigPath {
+					w.WriteHeader(486)
+					return
+				}
+				e := json.NewEncoder(w)
+				err := e.Encode(testOidcConfig)
+				if err != nil {
+					t.Fatalf("Could not encode testOidcConfig: %v", err)
+				}
+
+			}))
+			defer issuerServer.Close()
+
+			// patch openIDConfig to the current testservers
+			testOidcConfig.Issuer = "http://" + issuerServer.Listener.Addr().String()
 			testOidcConfig.IntrospectionEndpoint = "http://" + authServer.Listener.Addr().String() + testAuthPath
-			defer authServer.Close()
 
 			var spec filters.Spec
-			args := []interface{}{}
+			args := []interface{}{
+				"http://" + issuerServer.Listener.Addr().String(),
+			}
 
 			switch ti.authType {
 			case OAuthTokenintrospectionAnyClaimsName:
-				spec = NewOAuthTokenintrospectionAnyClaims(testOidcConfig, time.Second)
+				spec = NewOAuthTokenintrospectionAnyClaims(time.Second)
 			case OAuthTokenintrospectionAllClaimsName:
-				spec = NewOAuthTokenintrospectionAllClaims(testOidcConfig, time.Second)
+				spec = NewOAuthTokenintrospectionAllClaims(time.Second)
 			case OAuthTokenintrospectionAnyKVName:
-				spec = NewOAuthTokenintrospectionAnyKV(testOidcConfig, time.Second)
+				spec = NewOAuthTokenintrospectionAnyKV(time.Second)
 			case OAuthTokenintrospectionAllKVName:
-				spec = NewOAuthTokenintrospectionAllKV(testOidcConfig, time.Second)
+				spec = NewOAuthTokenintrospectionAllKV(time.Second)
 			default:
 				t.Fatalf("FATAL: authType '%s' not supported", ti.authType)
 			}
 
 			args = append(args, ti.args...)
+			f, err := spec.CreateFilter(args)
+			if err != nil {
+				if ti.expected == invalidFilterExpected {
+					return
+				}
+				t.Errorf("error in creating filter for %s: %v", ti.msg, err)
+				return
+			}
+
+			f2 := f.(*tokenintrospectFilter)
+			defer f2.Close()
+
 			fr := make(filters.Registry)
 			fr.Register(spec)
 			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}

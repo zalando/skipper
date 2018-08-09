@@ -677,20 +677,13 @@ func Run(o Options) error {
 			auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
 			auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
 	}
-	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
 
-	if o.OAuthIssuerURL != "" {
-		cfg, err := auth.GetOpenIDConfig(o.OAuthIssuerURL)
-		if err != nil {
-			log.Warningf("failed to get OpenIDC config: %v", err)
-		} else {
-			o.CustomFilters = append(o.CustomFilters,
-				auth.NewOAuthTokenintrospectionAnyClaims(cfg, o.OAuthTokenintrospectionTimeout),
-				auth.NewOAuthTokenintrospectionAllClaims(cfg, o.OAuthTokenintrospectionTimeout),
-				auth.NewOAuthTokenintrospectionAnyKV(cfg, o.OAuthTokenintrospectionTimeout),
-				auth.NewOAuthTokenintrospectionAllKV(cfg, o.OAuthTokenintrospectionTimeout))
-		}
-	}
+	o.CustomFilters = append(o.CustomFilters,
+		logfilter.NewAuditLog(o.MaxAuditBody),
+		auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
+		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
+		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
+		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout))
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters

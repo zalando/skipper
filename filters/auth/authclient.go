@@ -2,18 +2,19 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type authClient struct {
 	url    *url.URL
 	client *http.Client
+	mu     sync.Mutex
 	quit   chan struct{}
 }
 
@@ -26,7 +27,7 @@ func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
 	quit := make(chan struct{})
 	client, err := createHTTPClient(timeout, quit)
 	if err != nil {
-		log.Error("Unable to create http client")
+		return nil, fmt.Errorf("Unable to create http client: %v", err)
 	}
 	return &authClient{url: u, client: client, quit: quit}, nil
 }

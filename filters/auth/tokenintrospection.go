@@ -23,11 +23,8 @@ const (
 
 type (
 	tokenIntrospectionSpec struct {
-		typ              roleCheckType
-		issuerURL        string
-		introspectionURL string
-		config           *OpenIDConfig
-		timeout          time.Duration
+		typ     roleCheckType
+		timeout time.Duration
 	}
 
 	tokenIntrospectionInfo map[string]interface{}
@@ -39,7 +36,7 @@ type (
 		kv         kv
 	}
 
-	OpenIDConfig struct {
+	openIDConfig struct {
 		Issuer                            string   `json:"issuer"`
 		AuthorizationEndpoint             string   `json:"authorization_endpoint"`
 		TokenEndpoint                     string   `json:"token_endpoint"`
@@ -57,6 +54,8 @@ type (
 		CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported"`
 	}
 )
+
+var issuerAuthClient map[string]*authClient = make(map[string]*authClient)
 
 // Active returns token introspection response, which is true if token
 // is not revoked and in the time frame of
@@ -98,8 +97,8 @@ func (tii tokenIntrospectionInfo) getStringValue(k string) (string, error) {
 // https://tools.ietf.org/html/draft-ietf-oauth-discovery-06, if
 // oauthIntrospectionURL is a non empty string, it will set
 // IntrospectionEndpoint to the given oauthIntrospectionURL.
-func NewOAuthTokenintrospectionAnyKV(cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyKV, cfg, timeout)
+func NewOAuthTokenintrospectionAnyKV(timeout time.Duration) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyKV, timeout)
 }
 
 // NewOAuthTokenintrospectionAllKV creates a new auth filter specification
@@ -116,35 +115,32 @@ func NewOAuthTokenintrospectionAnyKV(cfg *OpenIDConfig, timeout time.Duration) f
 // https://tools.ietf.org/html/draft-ietf-oauth-discovery-06, if
 // oauthIntrospectionURL is a non empty string, it will set
 // IntrospectionEndpoint to the given oauthIntrospectionURL.
-func NewOAuthTokenintrospectionAllKV(cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllKV, cfg, timeout)
+func NewOAuthTokenintrospectionAllKV(timeout time.Duration) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllKV, timeout)
 }
 
-func NewOAuthTokenintrospectionAnyClaims(cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyClaims, cfg, timeout)
+func NewOAuthTokenintrospectionAnyClaims(timeout time.Duration) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyClaims, timeout)
 }
 
-func NewOAuthTokenintrospectionAllClaims(cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllClaims, cfg, timeout)
+func NewOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllClaims, timeout)
 }
 
-func newOAuthTokenintrospectionFilter(typ roleCheckType, cfg *OpenIDConfig, timeout time.Duration) filters.Spec {
+func newOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) filters.Spec {
 	return &tokenIntrospectionSpec{
-		typ:              typ,
-		issuerURL:        cfg.Issuer,
-		introspectionURL: cfg.IntrospectionEndpoint,
-		config:           cfg,
-		timeout:          timeout,
+		typ:     typ,
+		timeout: timeout,
 	}
 }
 
-func GetOpenIDConfig(issuerURL string) (*OpenIDConfig, error) {
+func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
 	u, err := url.Parse(issuerURL + TokenIntrospectionConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var cfg OpenIDConfig
+	var cfg openIDConfig
 	err = jsonGet(u, "", &cfg, http.DefaultClient)
 	return &cfg, err
 }
@@ -168,13 +164,25 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	if err != nil {
 		return nil, err
 	}
-	if len(sargs) == 0 {
+	if len(sargs) < 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac, err := newAuthClient(s.introspectionURL, s.timeout)
+	issuerURL := sargs[0]
+	sargs = sargs[1:]
+	cfg, err := getOpenIDConfig(issuerURL)
 	if err != nil {
-		return nil, filters.ErrInvalidFilterParameters
+		return nil, err
+	}
+
+	var ac *authClient
+	var ok bool
+	if ac, ok = issuerAuthClient[issuerURL]; !ok {
+		ac, err = newAuthClient(cfg.IntrospectionEndpoint, s.timeout)
+		if err != nil {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		issuerAuthClient[issuerURL] = ac
 	}
 
 	f := &tokenintrospectFilter{
@@ -187,8 +195,8 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 		fallthrough
 	case checkOAuthTokenintrospectionAnyClaims:
 		f.claims = sargs
-		if s.config != nil && !all(f.claims, s.config.ClaimsSupported) {
-			return nil, fmt.Errorf("%v: %s, supported Claims: %v", errUnsupportedClaimSpecified, strings.Join(f.claims, ","), s.config.ClaimsSupported)
+		if !all(f.claims, cfg.ClaimsSupported) {
+			return nil, fmt.Errorf("%v: %s, supported Claims: %v", errUnsupportedClaimSpecified, strings.Join(f.claims, ","), cfg.ClaimsSupported)
 		}
 
 	// key value pairs
@@ -333,9 +341,12 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 
 func (f *tokenintrospectFilter) Response(filters.FilterContext) {}
 
-// Close cleans-up the quit channel used for this spec
+// Close cleans-up the quit channel used for this filter
 func (f *tokenintrospectFilter) Close() {
+	f.authClient.mu.Lock()
 	if f.authClient.quit != nil {
 		close(f.authClient.quit)
+		f.authClient.quit = nil
 	}
+	f.authClient.mu.Unlock()
 }
