@@ -16,6 +16,13 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
+func introspectionEndpointGetToken(r *http.Request) (string, error) {
+	if tok := r.FormValue(accessTokenKey); tok != "" {
+		return tok, nil
+	}
+	return "", errInvalidToken
+}
+
 var testOidcConfig *openIDConfig = &openIDConfig{
 	Issuer:                            "https://identity.example.com",
 	AuthorizationEndpoint:             "https://identity.example.com/oauth2/authorize",
@@ -271,7 +278,7 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 					return
 				}
 
-				token, err := getToken(r)
+				token, err := introspectionEndpointGetToken(r)
 				if err != nil || token != testToken {
 					w.WriteHeader(http.StatusUnauthorized)
 					return
