@@ -300,11 +300,14 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 				}
 
 				time.Sleep(100 * time.Millisecond)
-				e := json.NewEncoder(w)
-				err = e.Encode(&d)
+
+				b, err := json.Marshal(d)
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
+
+				// we ignore the potential write error because the client may not wait for it
+				w.Write(b)
 			})
 			authServer := httptest.NewServer(http.TimeoutHandler(handlerFunc, ti.timeout, "server unavailable"))
 			defer authServer.Close()

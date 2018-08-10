@@ -490,7 +490,6 @@ func Test_validateAllClaims(t *testing.T) {
 			if f.validateAllClaims(ti.info) != ti.expected {
 				t.Error("failed to validate all claims")
 			}
-
 		})
 	}
 }
