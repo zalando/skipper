@@ -1,13 +1,11 @@
 package auth
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -500,103 +498,5 @@ func Test_validateAllClaims(t *testing.T) {
 				t.Error("failed to validate all claims")
 			}
 		})
-	}
-}
-
-func TestPostContentAndIntrospection(t *testing.T) {
-	const (
-		token        = "foo:bar:baz"
-		claim        = "qux"
-		sub          = "sub"
-		contentKey   = "quux"
-		contentValue = "quz"
-	)
-
-	b := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		var buf bytes.Buffer
-		if _, err := io.Copy(&buf, r.Body); err != nil {
-			t.Fatal(err)
-		}
-
-		if r.PostFormValue(contentKey) != contentValue {
-			t.Error("invalid content received")
-		}
-	}))
-	defer b.Close()
-
-	var iURL string
-	i := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var response interface{}
-
-		if r.Method == "POST" {
-			if r.PostFormValue(accessTokenKey) != token {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-
-			response = map[string]interface{}{
-				"claims": map[string]interface{}{
-					claim: "true",
-				},
-				"sub":    sub,
-				"active": true,
-			}
-		} else {
-			response = map[string]interface{}{
-				"introspection_endpoint": iURL,
-				"claims_supported":       []string{claim},
-			}
-		}
-
-		b, err := json.Marshal(response)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		w.Write(b)
-	}))
-	defer i.Close()
-	iURL = i.URL
-
-	args := []interface{}{i.URL, claim}
-	spec := NewOAuthTokenintrospectionAnyClaims(time.Second)
-
-	cleanupInstance, err := spec.CreateFilter(args)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanupInstance.(*tokenintrospectFilter).Close()
-
-	fr := make(filters.Registry)
-	fr.Register(spec)
-	r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: b.URL}
-
-	p := proxytest.New(fr, r)
-	defer p.Close()
-
-	req, err := http.NewRequest(
-		"POST",
-		p.URL,
-		strings.NewReader(url.Values{
-			accessTokenKey: []string{token},
-			contentKey:     []string{contentValue},
-		}.Encode()),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// req.Header.Set(authHeaderName, authHeaderPrefix + token)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	rsp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer rsp.Body.Close()
-
-	if rsp.StatusCode != 200 {
-		t.Error("invalid status code received", rsp.StatusCode)
 	}
 }
