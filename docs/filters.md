@@ -387,10 +387,11 @@ basicAuth("/path/to/htpasswd", "My Website")
 If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
 this filter.
 
-The filter accepts variable arguments of strings, which are used to
-validate the incoming token. If any of the configured scopes from the
-filter is found inside the tokeninfo result for the incoming token, it will allow
-the request to pass.
+The filter accepts variable number of string arguments, which are used to
+validate the incoming token from the `Authorization: Bearer <token>`
+header. If any of the configured scopes from the filter is found
+inside the tokeninfo result for the incoming token, it will allow the
+request to pass.
 
 Examples:
 
@@ -403,10 +404,11 @@ oauthTokeninfoAnyScope("s1", "s2", "s3")
 If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
 this filter.
 
-The filter accepts variable arguments of strings, which are used to
-validate the incoming token. If all of the configured scopes from the
-filter are found inside the tokeninfo result for the incoming token,
-it will allow the request to pass.
+The filter accepts variable number of string arguments, which are used to
+validate the incoming token from the `Authorization: Bearer <token>`
+header. If all of the configured scopes from the filter are found
+inside the tokeninfo result for the incoming token, it will allow the
+request to pass.
 
 Examples:
 
@@ -420,10 +422,10 @@ If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
 this filter.
 
 The filter accepts an even number of variable arguments of type
-string, which are used to validate the incoming token. If any of the
-configured key value pairs from the filter is found inside the
-tokeninfo result for the incoming token, it will allow the request to
-pass.
+string, which are used to validate the incoming token from the
+`Authorization: Bearer <token>` header. If any of the configured key
+value pairs from the filter is found inside the tokeninfo result for
+the incoming token, it will allow the request to pass.
 
 Examples:
 
@@ -437,10 +439,10 @@ If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
 this filter.
 
 The filter accepts an even number of variable arguments of type
-string, which are used to validate the incoming token. If all of the
-configured key value pairs from the filter are found inside the
-tokeninfo result for the incoming token, it will allow the request to
-pass.
+string, which are used to validate the incoming token from the
+`Authorization: Bearer <token>` header. If all of the configured key
+value pairs from the filter are found inside the tokeninfo result for
+the incoming token, it will allow the request to pass.
 
 Examples:
 
@@ -450,14 +452,16 @@ oauthTokeninfoAllKV("k1", "v1", "k2", "v2")
 
 ## oauthTokenintrospectionAnyClaims
 
-If skipper is started with `-oauth2-issuer-url` flag, you can use this
-filter.
-
 The filter accepts variable number of string arguments, which are used
-to validate the incoming token. If one of the configured and supported
-claims from the filter are found inside the tokenintrospection
-(RFC7662) result for the incoming token, it will allow the request to
-pass.
+to validate the incoming token from the `Authorization: Bearer
+<token>` header. The first argument to the filter is the issuer URL,
+for example `https://accounts.google.com`, that will be used as
+described in [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
+to find the configuration and for example supported claims.
+
+If one of the configured and supported claims from the filter are
+found inside the tokenintrospection (RFC7662) result for the incoming
+token, it will allow the request to pass.
 
 Examples:
 
@@ -467,14 +471,16 @@ oauthTokenintrospectionAnyClaims("c1", "c2", "c3")
 
 ## oauthTokenintrospectionAllClaims
 
-If skipper is started with `-oauth2-issuer-url` flag, you can use this
-filter.
+The filter accepts variable number of string arguments, which are used
+to validate the incoming token from the `Authorization: Bearer
+<token>` header. The first argument to the filter is the issuer URL,
+for example `https://accounts.google.com`, that will be used as
+described in [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
+to find the configuration and for example supported claims.
 
-The filter accepts variable arguments of strings, which are used to
-validate the incoming token. If all of the configured and supported
-claims from the filter are found inside the tokenintrospection
-(RFC7662) result for the incoming token, it will allow the request to
-pass.
+If all of the configured and supported claims from the filter are
+found inside the tokenintrospection (RFC7662) result for the incoming
+token, it will allow the request to pass.
 
 Examples:
 
@@ -484,14 +490,17 @@ oauthTokenintrospectionAllClaims("c1", "c2", "c3")
 
 ## oauthTokenintrospectionAnyKV
 
-If skipper is started with `-oauth2-issuer-url` flag, you can use this
-filter.
-
 The filter accepts an even number of variable arguments of type
-string, which are used to validate the incoming token. If one of the
-configured key value pairs from the filter are found inside the
-tokenintrospection (RFC7662) result for the incoming token, it will
-allow the request to pass.
+string, which are used to validate the incoming token from the
+`Authorization: Bearer <token>` header.  The first argument to the
+filter is the issuer URL, for example `https://accounts.google.com`,
+that will be used as described in
+[RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
+to find the configuration and for example supported claims.
+
+If one of the configured key value pairs from the filter are found
+inside the tokenintrospection (RFC7662) result for the incoming token,
+it will allow the request to pass.
 
 Examples:
 
@@ -501,14 +510,17 @@ oauthTokenintrospectionAnyKV("k1", "v1", "k2", "v2")
 
 ## oauthTokenintrospectionAllKV
 
-If skipper is started with `-oauth2-issuer-url` flag, you can use this
-filter.
-
 The filter accepts an even number of variable arguments of type
-string, which are used to validate the incoming token. If all of the
-configured key value pairs from the filter are found inside the
-tokenintrospection (RFC7662) result for the incoming token, it will
-allow the request to pass.
+string, which are used to validate the incoming token from the
+`Authorization: Bearer <token>` header.  The first argument to the
+filter is the issuer URL, for example `https://accounts.google.com`,
+that will be used as described in
+[RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
+to find the configuration and for example supported claims.
+
+If all of the configured key value pairs from the filter are found
+inside the tokenintrospection (RFC7662) result for the incoming token,
+it will allow the request to pass.
 
 Examples:
 

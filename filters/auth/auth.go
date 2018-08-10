@@ -132,6 +132,5 @@ func intersect(left, right []string) bool {
 			}
 		}
 	}
-
 	return false
 }

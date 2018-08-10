@@ -443,12 +443,6 @@ type Options struct {
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
 
-	// OAuthIssuerURL sets the the URL to be queried at
-	// /.well-known/openid-configuration for OpenID Connect
-	// information for all auth.NewOAuthTokenintrospection*()
-	// filters.
-	OAuthIssuerURL string
-
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
 }

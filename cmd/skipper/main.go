@@ -140,7 +140,6 @@ const (
 	oauthScopeUsage                      = "the whitespace separated list of oauth scopes"
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
-	oauth2IssuerURLUsage                 = "sets the default token issuer URL to query OpenID Connect configuration for oauth2Tokenintrospection filters"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -250,7 +249,6 @@ var (
 	oauthCredentialsDir             string
 	oauth2TokeninfoURL              string
 	oauth2TokeninfoTimeout          time.Duration
-	oauth2IssuerURL                 string
 	oauth2TokenintrospectionTimeout time.Duration
 
 	// connections, timeouts:
@@ -359,7 +357,6 @@ func init() {
 	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
 	flag.StringVar(&oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
 	flag.DurationVar(&oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
-	flag.StringVar(&oauth2IssuerURL, "oauth2-issuer-url", "", oauth2IssuerURLUsage)
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
 
 	// connections, timeouts:
@@ -545,7 +542,6 @@ func main() {
 		OAuthCredentialsDir:            oauthCredentialsDir,
 		OAuthTokeninfoURL:              oauth2TokeninfoURL,
 		OAuthTokeninfoTimeout:          oauth2TokeninfoTimeout,
-		OAuthIssuerURL:                 oauth2IssuerURL,
 		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
 
 		// connections, timeouts:
