@@ -433,11 +433,15 @@ type Options struct {
 	// header, in this case you want to set this to true.
 	ReverseSourcePredicate bool
 
-	// OAuthTokeninfoURL sets the OAuthTokeninfoURL similar to https://godoc.org/golang.org/x/oauth2#Endpoint
+	// OAuthTokeninfoURL sets the the URL to be queried for
+	// information for all auth.NewOAuthTokeninfo*() filters.
 	OAuthTokeninfoURL string
 
 	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
 	OAuthTokeninfoTimeout time.Duration
+
+	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
+	OAuthTokenintrospectionTimeout time.Duration
 
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
@@ -661,12 +665,19 @@ func Run(o Options) error {
 	}
 
 	if o.OAuthTokeninfoURL != "" {
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllScope(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyScope(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
+		o.CustomFilters = append(o.CustomFilters,
+			auth.NewOAuthTokeninfoAllScope(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
+			auth.NewOAuthTokeninfoAnyScope(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
+			auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
+			auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
 	}
-	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
+
+	o.CustomFilters = append(o.CustomFilters,
+		logfilter.NewAuditLog(o.MaxAuditBody),
+		auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
+		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
+		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
+		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout))
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
