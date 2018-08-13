@@ -126,6 +126,13 @@ connection handling. Outgoing calls to these services have a
 default timeout of 2s, which can be changed by the flag
 `-oauth2-tokeninfo-timeout=<OAuthTokeninfoTimeout>`.
 
+## OAuth2 Tokenintrospection RFC7662
+
+OAuth2 filters integrate with external services and have their own
+connection handling. Outgoing calls to these services have a
+default timeout of 2s, which can be changed by the flag
+`-oauth2-tokenintrospect-timeout=<OAuthTokenintrospectionTimeout>`.
+
 # Monitoring
 
 Monitoring is one of the most important things you need to run in
