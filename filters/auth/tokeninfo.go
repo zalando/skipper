@@ -33,6 +33,8 @@ type (
 	}
 )
 
+var tokeninfoAuthClient map[string]*authClient = make(map[string]*authClient)
+
 // NewOAuthTokeninfoAllScope creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
@@ -97,9 +99,14 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac, err := newAuthClient(s.tokeninfoURL, s.tokenInfoTimeout)
-	if err != nil {
-		return nil, filters.ErrInvalidFilterParameters
+	var ac *authClient
+	var ok bool
+	if ac, ok = tokeninfoAuthClient[s.tokeninfoURL]; !ok {
+		ac, err = newAuthClient(s.tokeninfoURL, s.tokenInfoTimeout)
+		if err != nil {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		tokeninfoAuthClient[s.tokeninfoURL] = ac
 	}
 
 	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
@@ -274,7 +281,8 @@ func (f *tokeninfoFilter) Response(filters.FilterContext) {}
 
 // Close cleans-up the quit channel used for this spec
 func (f *tokeninfoFilter) Close() {
-	if f.authClient.quit != nil {
+	if f.authClient != nil && f.authClient.quit != nil {
 		close(f.authClient.quit)
+		f.authClient.quit = nil
 	}
 }
