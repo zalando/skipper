@@ -21,6 +21,9 @@ const (
 	checkOAuthTokenintrospectionAllClaims
 	checkOAuthTokenintrospectionAnyKV
 	checkOAuthTokenintrospectionAllKV
+	checkOidcUserInfos
+	checkOidcAnyClaims
+	checkOidcAllClaims
 	checkUnknown
 )
 
@@ -69,6 +72,9 @@ func (kv kv) String() string {
 func getToken(r *http.Request) (string, error) {
 	h := r.Header.Get(authHeaderName)
 	if !strings.HasPrefix(h, authHeaderPrefix) {
+		if tok := r.FormValue(accessTokenKey); tok != "" {
+			return tok, nil
+		}
 		return "", errInvalidAuthorizationHeader
 	}
 
@@ -132,5 +138,6 @@ func intersect(left, right []string) bool {
 			}
 		}
 	}
+
 	return false
 }
