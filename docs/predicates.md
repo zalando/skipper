@@ -68,10 +68,10 @@ Parameters:
 Examples:
 
 ```
-PathRegexp("/^foo\/bar/")
-PathRegexp("/foo\/bar$/")
-PathRegexp("/foo\/bar/")
-PathRegexp("/^foo\/(bar|qux)/")
+PathRegexp("^/foo/bar")
+PathRegexp("/foo/bar$")
+PathRegexp("/foo/bar/")
+PathRegexp("^/foo/(bar|qux)")
 ```
 
 ## Host
