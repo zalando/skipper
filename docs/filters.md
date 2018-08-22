@@ -382,6 +382,24 @@ basicAuth("/path/to/htpasswd")
 basicAuth("/path/to/htpasswd", "My Website")
 ```
 
+## webhook
+
+The `webhook` filter makes it possible to have your own authentication and
+authorization endpoint as a filter.
+
+Headers from the incoming request will be copied into the request that
+is being done to the webhook endpoint. Responses from the webhook with
+status code less than 300 will be authorized, rest unauthorized.
+
+Examples:
+
+```
+webhook("https://custom-webhook.example.org/auth")
+```
+
+The webhook timeout has a default of 2 seconds and can be globally
+changed, if skipper is started with `-webhook-timeout=2s` flag.
+
 ## oauthTokeninfoAnyScope
 
 If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
