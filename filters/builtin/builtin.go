@@ -17,6 +17,7 @@ import (
 	"github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/script"
+	"github.com/zalando/skipper/filters/accesslog"
 )
 
 const (
@@ -111,6 +112,7 @@ func MakeRegistry() filters.Registry {
 		cors.NewOrigin(),
 		logfilter.NewUnverifiedAuditLog(),
 		tracing.NewSpanName(),
+		accesslog.NewAccessLog(),
 	} {
 		r.Register(s)
 	}
