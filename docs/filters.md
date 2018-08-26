@@ -703,4 +703,5 @@ Examples:
 headerToQuery("X-Foo-Header", "foo-query-param")
 ```
 
-The above filter will add `foo-query-param` query param to respective by picking the value of `X-Foo-Header` header
+The above filter will set `foo-query-param` query param to respective by picking the value of `X-Foo-Header` header
+and will override the value if the queryparam exists already

@@ -19,14 +19,15 @@ type (
 //
 // 		headerToQuery("X-Foo-Header", "foo-query-param")
 //
-// The above filter will add respective "foo-query-param" query param
+// The above filter will set respective "foo-query-param" query param
 // with value of "X-Foo-Header" header, to the request
+// and will override the value if the queryparam exists already
 func NewHeaderToQuery() filters.Spec {
 	return &headerToQuerySpec{}
 }
 
 func (*headerToQuerySpec) Name() string {
-	return HeaderToQueryFilterName
+	return HeaderToQueryName
 }
 
 // CreateFilter creates a `headerToQuery` filter instance with below signature
