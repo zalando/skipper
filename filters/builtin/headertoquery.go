@@ -1,0 +1,62 @@
+package builtin
+
+import (
+	"github.com/zalando/skipper/filters"
+)
+
+type (
+	headerToQuerySpec struct {
+	}
+
+	headerToQueryFilter struct {
+		headerName     string
+		queryParamName string
+	}
+)
+
+// NewHeaderToQuery creates a filter which converts the headers
+// from the incoming Request to query params
+//
+// 		headerToQuery("X-Foo-Header", "foo-query-param")
+//
+// The above filter will add respective "foo-query-param" query param
+// with value of "X-Foo-Header" header, to the request
+func NewHeaderToQuery() filters.Spec {
+	return &headerToQuerySpec{}
+}
+
+func (*headerToQuerySpec) Name() string {
+	return HeaderToQueryFilterName
+}
+
+// CreateFilter creates a `headerToQuery` filter instance with below signature
+// s.CreateFilter("X-Foo-Header", "foo-query-param")
+func (*headerToQuerySpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if l := len(args); l != 2 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	h, ok := args[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	q, ok := args[1].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return &headerToQueryFilter{h, q}, nil
+}
+
+func (f *headerToQueryFilter) Request(ctx filters.FilterContext) {
+	req := ctx.Request()
+	params := req.URL.Query()
+
+	headerValue := req.Header.Get(f.headerName)
+	params.Set(f.queryParamName, headerValue)
+
+	req.URL.RawQuery = params.Encode()
+}
+
+func (*headerToQueryFilter) Response(ctx filters.FilterContext) {}
