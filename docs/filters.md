@@ -687,3 +687,21 @@ corsOrigin()
 corsOrigin("https://www.example.org")
 corsOrigin("https://www.example.org", "http://localhost:9001")
 ```
+
+## headerToQuery
+
+Filter which assigns the value of a given header from the incoming Request to a given query param
+
+Parameters:
+
+* The name of the header to pick from request
+* The name of the query param key to add to request
+
+Examples:
+
+```
+headerToQuery("X-Foo-Header", "foo-query-param")
+```
+
+The above filter will set `foo-query-param` query param respectively to the `X-Foo-Header` header
+and will override the value if the queryparam exists already
