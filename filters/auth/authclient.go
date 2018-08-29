@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,10 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
+	"github.com/zalando/skipper/filters"
 )
 
 type authClient struct {
@@ -41,9 +46,9 @@ func (ac *authClient) getTokenintrospect(token string) (tokenIntrospectionInfo, 
 	return info, err
 }
 
-func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
+func (ac *authClient) getTokeninfo(ctx filters.FilterContext, token string) (map[string]interface{}, error) {
 	var a map[string]interface{}
-	err := jsonGet(ac.url, token, &a, ac.client)
+	err := jsonGet(ctx.Request().Context(), ac.url, token, &a, ac.client)
 	return a, err
 }
 
@@ -72,7 +77,12 @@ func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, 
 
 // jsonGet requests url with access token in the URL query specified
 // by accessTokenKey, if auth was given and writes into doc.
-func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Client) error {
+func jsonGet(ctx context.Context, url *url.URL, accessToken string, doc interface{}, client *http.Client) error {
+	var span opentracing.Span
+	if ctx != nil {
+		span, _ = opentracing.StartSpanFromContext(ctx, "get_json", nil)
+		defer span.Finish()
+	}
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return err
@@ -81,7 +91,14 @@ func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Cli
 
 	rsp, err := client.Do(req)
 	if err != nil {
+		if span != nil {
+			ext.Error.Set(span, true)
+			span.LogKV("error", err.Error())
+		}
 		return err
+	}
+	if span != nil {
+		ext.HTTPStatusCode.Set(span, uint16(rsp.StatusCode))
 	}
 
 	defer rsp.Body.Close()

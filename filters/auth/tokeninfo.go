@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
@@ -225,8 +226,11 @@ func (f *tokeninfoFilter) validateAllKV(h map[string]interface{}) bool {
 
 // Request handles authentication based on the defined auth type.
 func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
-	r := ctx.Request()
+	span, stdlibctx := opentracing.StartSpanFromContext(ctx.Request().Context(), "tokeninfo_filter", nil)
+	defer span.Finish()
+	ctx.RequestContext(stdlibctx)
 
+	r := ctx.Request()
 	var authMap map[string]interface{}
 	authMapTemp, ok := ctx.StateBag()[tokeninfoCacheKey]
 	if !ok {
@@ -240,7 +244,7 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 
-		authMap, err = f.authClient.getTokeninfo(token)
+		authMap, err = f.authClient.getTokeninfo(ctx, token)
 		if err != nil {
 			reason := authServiceAccess
 			if err == errInvalidToken {
