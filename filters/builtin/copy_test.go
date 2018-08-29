@@ -181,7 +181,7 @@ func Test_copySpec_CreateFilter(t *testing.T) {
 	}
 }
 
-func buildfilterRequestContext() filters.FilterContext {
+func buildfilterSetRequestContext() filters.FilterContext {
 	r, _ := http.NewRequest("GET", "http://example.org/api/v3", nil)
 	r.Header.Add("X-Src", "header src content")
 	return &filtertest.Context{FRequest: r}
@@ -216,7 +216,7 @@ func Test_copyFilter_Request(t *testing.T) {
 				dst: "X-Dst",
 			},
 			args: args{
-				ctx: buildfilterRequestContext(),
+				ctx: buildfilterSetRequestContext(),
 			},
 			expect: "header src content",
 		},

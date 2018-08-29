@@ -53,7 +53,7 @@ func (l *luaContext) Request() *http.Request {
 	return l.request
 }
 
-func (l *luaContext) RequestContext(ctx context.Context) {
+func (l *luaContext) SetRequestContext(ctx context.Context) {
 	l.request = l.request.WithContext(ctx)
 }
 

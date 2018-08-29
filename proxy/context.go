@@ -184,7 +184,7 @@ func (c *context) setResponse(r *http.Response, preserveOriginal bool) {
 
 func (c *context) ResponseWriter() http.ResponseWriter  { return c.responseWriter }
 func (c *context) Request() *http.Request               { return c.request }
-func (c *context) RequestContext(ctx stdlibctx.Context) { c.request = c.request.WithContext(ctx) }
+func (c *context) SetRequestContext(ctx stdlibctx.Context) { c.request = c.request.WithContext(ctx) }
 func (c *context) Response() *http.Response             { return c.response }
 func (c *context) MarkServed()                          { c.deprecatedServed = true }
 func (c *context) Served() bool                         { return c.deprecatedServed || c.servedWithResponse }

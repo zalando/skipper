@@ -8,7 +8,7 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-func TestRequestContext(t *testing.T) {
+func TestSetRequestContext(t *testing.T) {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, "test", 1)
 	req, _ := http.NewRequest("GET", "http://localhost:9090", nil)
@@ -17,7 +17,7 @@ func TestRequestContext(t *testing.T) {
 
 	origVal := fc.Request().Context().Value("test").(int)
 
-	fc.RequestContext(context.WithValue(fc.Request().Context(), "test", 2))
+	fc.SetRequestContext(context.WithValue(fc.Request().Context(), "test", 2))
 
 	newVal := fc.Request().Context().Value("test").(int)
 	if newVal == origVal {

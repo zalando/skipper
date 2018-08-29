@@ -21,7 +21,7 @@ type FilterContext interface {
 	Request() *http.Request
 
 	// Updates the context in the Request
-	RequestContext(context.Context)
+	SetRequestContext(context.Context)
 
 	// The response object. It is returned to the client with its
 	// properties changed by the filters.

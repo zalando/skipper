@@ -228,7 +228,7 @@ func (f *tokeninfoFilter) validateAllKV(h map[string]interface{}) bool {
 func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	span, stdlibctx := opentracing.StartSpanFromContext(ctx.Request().Context(), "tokeninfo_filter", nil)
 	defer span.Finish()
-	ctx.RequestContext(stdlibctx)
+	ctx.SetRequestContext(stdlibctx)
 
 	r := ctx.Request()
 	var authMap map[string]interface{}
