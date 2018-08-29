@@ -120,13 +120,17 @@ Notes:
 ## stripQuery
 ## preserveHost
 
-Sets the incoming `Host: ` header also on the outgoing backend connection
+Sets the incoming `Host: ` header on the outgoing backend connection.
 
-Parameters: none
+It can be used to override the `proxyPreserveHost` behavior for individual routes.
+
+Parameters: "true" or "false"
+* "true" - use the Host header from the incoming request
+* "false" - use the host from the backend address
 
 Example:
 ```
-route1: * -> preserveHost() -> "http://backend.example.org";
+route1: * -> preserveHost("true") -> "http://backend.example.org";
 ```
 
 ## status
@@ -705,3 +709,21 @@ corsOrigin()
 corsOrigin("https://www.example.org")
 corsOrigin("https://www.example.org", "http://localhost:9001")
 ```
+
+## headerToQuery
+
+Filter which assigns the value of a given header from the incoming Request to a given query param
+
+Parameters:
+
+* The name of the header to pick from request
+* The name of the query param key to add to request
+
+Examples:
+
+```
+headerToQuery("X-Foo-Header", "foo-query-param")
+```
+
+The above filter will set `foo-query-param` query param respectively to the `X-Foo-Header` header
+and will override the value if the queryparam exists already
