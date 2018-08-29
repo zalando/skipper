@@ -31,7 +31,8 @@ pipeline:
         LIGHTSTEP_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-lightstep-test:${CDP_BUILD_VERSION}"
         IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-test:${CDP_BUILD_VERSION}"
       fi
+      export CGO_ENABLED=1
       export IMAGE
       export LIGHTSTEP_IMAGE
-      make deps shortcheck
+      make deps
       cd packaging && make docker-lightstep-build docker-lightstep-push

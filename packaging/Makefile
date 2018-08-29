@@ -4,14 +4,15 @@ VERSION         ?= $(shell git rev-parse HEAD)
 REGISTRY        ?= registry-write.opensource.zalan.do/pathfinder
 IMAGE           ?= $(REGISTRY)/skipper:$(VERSION)
 LIGHTSTEP_IMAGE ?= $(REGISTRY)/skipper-lightstep:$(VERSION)
+CGO_ENABLED     ?= 0
 
 default: docker-build
 
 skipper:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/skipper
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build github.com/zalando/skipper/cmd/skipper
 
 eskip:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/eskip
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build github.com/zalando/skipper/cmd/eskip
 
 clean:
 	rm -rf skipper eskip build/ *.so
