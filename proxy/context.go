@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	corectx "context"
+	stdlibctx "context"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
@@ -182,21 +182,21 @@ func (c *context) setResponse(r *http.Response, preserveOriginal bool) {
 	}
 }
 
-func (c *context) ResponseWriter() http.ResponseWriter { return c.responseWriter }
-func (c *context) Request() *http.Request              { return c.request }
-func (c *context) RequestContext(ctx corectx.Context)  { c.request = c.request.WithContext(ctx) }
-func (c *context) Response() *http.Response            { return c.response }
-func (c *context) MarkServed()                         { c.deprecatedServed = true }
-func (c *context) Served() bool                        { return c.deprecatedServed || c.servedWithResponse }
-func (c *context) PathParam(key string) string         { return c.pathParams[key] }
-func (c *context) StateBag() map[string]interface{}    { return c.stateBag }
-func (c *context) BackendUrl() string                  { return c.route.Backend }
-func (c *context) OriginalRequest() *http.Request      { return c.originalRequest }
-func (c *context) OriginalResponse() *http.Response    { return c.originalResponse }
-func (c *context) OutgoingHost() string                { return c.outgoingHost }
-func (c *context) SetOutgoingHost(h string)            { c.outgoingHost = h }
-func (c *context) Metrics() filters.Metrics            { return c.metrics }
-func (c *context) Tracer() opentracing.Tracer          { return c.tracer }
+func (c *context) ResponseWriter() http.ResponseWriter  { return c.responseWriter }
+func (c *context) Request() *http.Request               { return c.request }
+func (c *context) RequestContext(ctx stdlibctx.Context) { c.request = c.request.WithContext(ctx) }
+func (c *context) Response() *http.Response             { return c.response }
+func (c *context) MarkServed()                          { c.deprecatedServed = true }
+func (c *context) Served() bool                         { return c.deprecatedServed || c.servedWithResponse }
+func (c *context) PathParam(key string) string          { return c.pathParams[key] }
+func (c *context) StateBag() map[string]interface{}     { return c.stateBag }
+func (c *context) BackendUrl() string                   { return c.route.Backend }
+func (c *context) OriginalRequest() *http.Request       { return c.originalRequest }
+func (c *context) OriginalResponse() *http.Response     { return c.originalResponse }
+func (c *context) OutgoingHost() string                 { return c.outgoingHost }
+func (c *context) SetOutgoingHost(h string)             { c.outgoingHost = h }
+func (c *context) Metrics() filters.Metrics             { return c.metrics }
+func (c *context) Tracer() opentracing.Tracer           { return c.tracer }
 
 func (c *context) Serve(r *http.Response) {
 	r.Request = c.Request()
