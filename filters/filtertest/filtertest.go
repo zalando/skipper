@@ -19,6 +19,7 @@ FilterContext interfaces used during tests.
 package filtertest
 
 import (
+	"context"
 	"net/http"
 
 	opentracing "github.com/opentracing/opentracing-go"
@@ -53,6 +54,7 @@ func (f *Filter) Response(ctx filters.FilterContext) {}
 
 func (fc *Context) ResponseWriter() http.ResponseWriter { return fc.FResponseWriter }
 func (fc *Context) Request() *http.Request              { return fc.FRequest }
+func (fc *Context) RequestContext(ctx context.Context)  { fc.FRequest = fc.FRequest.WithContext(ctx) }
 func (fc *Context) Response() *http.Response            { return fc.FResponse }
 func (fc *Context) MarkServed()                         { fc.FServed = true }
 func (fc *Context) Served() bool                        { return fc.FServed }

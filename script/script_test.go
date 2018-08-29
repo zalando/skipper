@@ -1,6 +1,7 @@
 package script
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -50,6 +51,10 @@ func (l *luaContext) ResponseWriter() http.ResponseWriter {
 
 func (l *luaContext) Request() *http.Request {
 	return l.request
+}
+
+func (l *luaContext) RequestContext(ctx context.Context) {
+	l.request = l.request.WithContext(ctx)
 }
 
 func (l *luaContext) Response() *http.Response {

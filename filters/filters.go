@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -18,6 +19,9 @@ type FilterContext interface {
 	// The incoming request object. It is forwarded to the route endpoint
 	// with its properties changed by the filters.
 	Request() *http.Request
+
+	// Updates the context in the Request
+	RequestContext(context.Context)
 
 	// The response object. It is returned to the client with its
 	// properties changed by the filters.
