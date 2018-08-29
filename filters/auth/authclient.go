@@ -47,11 +47,17 @@ func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error)
 	return a, err
 }
 
+func (ac *authClient) getWebhook(r *http.Request) (int, error) {
+	return doClonedGet(ac.url, ac.client, r)
+}
+
 func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, error) {
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout: timeout,
 		}).DialContext,
+		ResponseHeaderTimeout: timeout,
+		TLSHandshakeTimeout:   timeout,
 	}
 
 	go func() {
@@ -113,4 +119,23 @@ func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http
 		return err
 	}
 	return json.Unmarshal(buf, &doc)
+}
+
+// doClonedGet requests url with the same headers and query as the
+// incoming request and returns with http statusCode and error.
+func doClonedGet(u *url.URL, client *http.Client, incoming *http.Request) (int, error) {
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return -1, err
+	}
+
+	copyHeader(req.Header, incoming.Header)
+
+	rsp, err := client.Do(req)
+	if err != nil {
+		return -1, err
+	}
+	defer rsp.Body.Close()
+
+	return rsp.StatusCode, nil
 }
