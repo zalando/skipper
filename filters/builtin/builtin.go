@@ -49,6 +49,7 @@ const (
 	SetQueryName        = "setQuery"
 	DropQueryName       = "dropQuery"
 	InlineContentName   = "inlineContent"
+	HeaderToQueryName   = "headerToQuery"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -82,6 +83,7 @@ func MakeRegistry() filters.Registry {
 		NewCompress(),
 		NewCopyRequestHeader(),
 		NewCopyResponseHeader(),
+		NewHeaderToQuery(),
 		diag.NewRandom(),
 		diag.NewLatency(),
 		diag.NewBandwidth(),
