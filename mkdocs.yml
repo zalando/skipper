@@ -18,4 +18,5 @@ pages:
         - Ingress Usage: kubernetes/ingress-usage.md
         - Ingress Backends: kubernetes/ingress-backends.md
     - Operations: operations.md
+    - Development: development.md
     - Videos: videos.md
