@@ -1,0 +1,6 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
+ADD skipper.sh /usr/bin/
+RUN mkdir -p /plugins
+ADD build/tracing_lightstep.so /plugins/
+ENTRYPOINT ["/usr/bin/skipper.sh"]

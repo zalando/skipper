@@ -1,8 +1,9 @@
 .PHONY: docker-push
 
-VERSION  ?= $(shell git rev-parse HEAD)
-REGISTRY ?= registry-write.opensource.zalan.do/pathfinder
-IMAGE    ?= $(REGISTRY)/skipper:$(VERSION)
+VERSION         ?= $(shell git rev-parse HEAD)
+REGISTRY        ?= registry-write.opensource.zalan.do/pathfinder
+IMAGE           ?= $(REGISTRY)/skipper:$(VERSION)
+LIGHTSTEP_IMAGE ?= $(REGISTRY)/skipper-lightstep:$(VERSION)
 
 default: docker-build
 
@@ -13,10 +14,23 @@ eskip:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/eskip
 
 clean:
-	rm -f skipper eskip
+	rm -rf skipper eskip build/ *.so
 
 docker-build: clean skipper eskip
 	docker build -t $(IMAGE) .
 
 docker-push:
 	docker push $(IMAGE)
+
+plugins:
+	CUR=$(shell pwd) ; GOPATH=$(shell pwd)/build ;\
+		go get -d github.com/skipper-plugins/opentracing ;\
+		cd build/src/github.com/skipper-plugins/opentracing ;\
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 make ;\
+		cp build/*.so $$CUR/build/
+
+docker-lightstep-build: clean docker-build plugins
+	docker build -t $(LIGHTSTEP_IMAGE) --build-arg BASE_IMAGE=$(IMAGE) -f Dockerfile.lightstep .
+
+docker-lightstep-push:
+	docker push $(LIGHTSTEP_IMAGE)
