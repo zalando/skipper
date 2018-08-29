@@ -52,20 +52,20 @@ func (spec *Filter) Name() string                    { return spec.FilterName }
 func (f *Filter) Request(ctx filters.FilterContext)  {}
 func (f *Filter) Response(ctx filters.FilterContext) {}
 
-func (fc *Context) ResponseWriter() http.ResponseWriter { return fc.FResponseWriter }
-func (fc *Context) Request() *http.Request              { return fc.FRequest }
-func (fc *Context) SetRequestContext(ctx context.Context)  { fc.FRequest = fc.FRequest.WithContext(ctx) }
-func (fc *Context) Response() *http.Response            { return fc.FResponse }
-func (fc *Context) MarkServed()                         { fc.FServed = true }
-func (fc *Context) Served() bool                        { return fc.FServed }
-func (fc *Context) PathParam(key string) string         { return fc.FParams[key] }
-func (fc *Context) StateBag() map[string]interface{}    { return fc.FStateBag }
-func (fc *Context) OriginalRequest() *http.Request      { return nil }
-func (fc *Context) OriginalResponse() *http.Response    { return nil }
-func (fc *Context) BackendUrl() string                  { return fc.FBackendUrl }
-func (fc *Context) OutgoingHost() string                { return fc.FOutgoingHost }
-func (fc *Context) SetOutgoingHost(h string)            { fc.FOutgoingHost = h }
-func (fc *Context) Metrics() filters.Metrics            { return fc.FMetrics }
+func (fc *Context) ResponseWriter() http.ResponseWriter   { return fc.FResponseWriter }
+func (fc *Context) Request() *http.Request                { return fc.FRequest }
+func (fc *Context) SetRequestContext(ctx context.Context) { fc.FRequest = fc.FRequest.WithContext(ctx) }
+func (fc *Context) Response() *http.Response              { return fc.FResponse }
+func (fc *Context) MarkServed()                           { fc.FServed = true }
+func (fc *Context) Served() bool                          { return fc.FServed }
+func (fc *Context) PathParam(key string) string           { return fc.FParams[key] }
+func (fc *Context) StateBag() map[string]interface{}      { return fc.FStateBag }
+func (fc *Context) OriginalRequest() *http.Request        { return nil }
+func (fc *Context) OriginalResponse() *http.Response      { return nil }
+func (fc *Context) BackendUrl() string                    { return fc.FBackendUrl }
+func (fc *Context) OutgoingHost() string                  { return fc.FOutgoingHost }
+func (fc *Context) SetOutgoingHost(h string)              { fc.FOutgoingHost = h }
+func (fc *Context) Metrics() filters.Metrics              { return fc.FMetrics }
 func (fc *Context) Tracer() opentracing.Tracer {
 	if fc.FTracer != nil {
 		return fc.FTracer
