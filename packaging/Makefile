@@ -15,7 +15,7 @@ eskip:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build github.com/zalando/skipper/cmd/eskip
 
 clean:
-	rm -rf skipper eskip build/ *.so
+	rm -rf skipper eskip build/
 
 docker-build: clean skipper eskip
 	docker build -t $(IMAGE) .
@@ -27,11 +27,12 @@ plugins:
 	CUR=$(shell pwd) ; GOPATH=$(shell pwd)/build ;\
 		go get -d github.com/skipper-plugins/opentracing ;\
 		cd build/src/github.com/skipper-plugins/opentracing ;\
+		glide install -v;\
 		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 make ;\
 		cp build/*.so $$CUR/build/
 
-docker-lightstep-build: clean docker-build plugins
-	docker build -t $(LIGHTSTEP_IMAGE) --build-arg BASE_IMAGE=$(IMAGE) -f Dockerfile.lightstep .
+docker-lightstep-build: skipper eskip plugins
+	docker build -t $(LIGHTSTEP_IMAGE) -f Dockerfile.lightstep .
 
 docker-lightstep-push:
 	docker push $(LIGHTSTEP_IMAGE)

@@ -1,5 +1,7 @@
-ARG BASE_IMAGE
-FROM $BASE_IMAGE
+FROM registry.opensource.zalan.do/stups/ubuntu:latest
+MAINTAINER Skipper Maintainers <team-pathfinder@zalando.de>
+ADD skipper eskip /usr/bin/
+EXPOSE 9090 9911
 RUN mkdir -p /plugins
 ADD build/tracing_lightstep.so /plugins/
 ENTRYPOINT ["/usr/bin/skipper", "-plugindir", "/plugins"]
