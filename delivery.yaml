@@ -26,13 +26,8 @@ pipeline:
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         RELEASE_VERSION="$(git describe --tags --always --dirty)"
         LIGHTSTEP_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-lightstep:${RELEASE_VERSION}"
-        IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION}"
       else
         LIGHTSTEP_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-lightstep-test:${CDP_BUILD_VERSION}"
-        IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-test:${CDP_BUILD_VERSION}"
       fi
-      export CGO_ENABLED=1
-      export IMAGE
       export LIGHTSTEP_IMAGE
-      make deps
       cd packaging && make docker-lightstep-build docker-lightstep-push
