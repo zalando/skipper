@@ -5,5 +5,4 @@ ENV GOOS linux
 ENV GOARCH amd64
 
 # add build deps
-RUN apk add -U git build-base && \
-    go get github.com/Masterminds/glide
+RUN apk add -U git build-base

@@ -3,7 +3,6 @@ pipeline:
 - id: build
   overlay: ci/golang
   type: script
-  working_dir: /go/src/github.com/zalando/skipper
   commands:
   - desc: build-push
     cmd: |

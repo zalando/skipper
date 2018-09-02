@@ -182,10 +182,10 @@ var (
 		"Keep-Alive":          true,
 		"Proxy-Authenticate":  true,
 		"Proxy-Authorization": true,
-		"Te":                true,
-		"Trailer":           true,
-		"Transfer-Encoding": true,
-		"Upgrade":           true,
+		"Te":                  true,
+		"Trailer":             true,
+		"Transfer-Encoding":   true,
+		"Upgrade":             true,
 	}
 )
 
@@ -516,7 +516,7 @@ func WithParams(p Params) *Proxy {
 		defaultHTTPStatus:      defaultHTTPStatus,
 		openTracer:             p.OpenTracer,
 		openTracingInitialSpan: openTracingInitialSpan,
-		lb: p.LoadBalancer,
+		lb:                     p.LoadBalancer,
 	}
 }
 
