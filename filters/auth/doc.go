@@ -318,5 +318,11 @@ filter after the auth filter.
     a: Path("/only-allowed-audit-log") -> oauthTokeninfoAnyScope("bar-w") -> auditLog() -> "https://internal.example.org/";
     b: Path("/all-access-requests-audit-log") -> auditLog() -> oauthTokeninfoAnyScope("foo-r") -> "https://internal.example.org/";
 
+Monitoring - monitoring() filter
+
+TODO: Document and provide example.
+
+	a: Path("/this-is-monitored") -> monitor() -> "https://example.org/";
+
 */
 package auth

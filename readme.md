@@ -100,11 +100,21 @@ Getting the code with the test dependencies (`-t` switch):
 
 Build and test all packages:
 
-  cd src/github.com/zalando/skipper
-  make deps
-  make install
-  make shortcheck
+    cd src/github.com/zalando/skipper
+    make deps
+    make install
+    make shortcheck
 
+##### Working from IntelliJ / GoLand
+
+To run or debug skipper from _IntelliJ IDEA_ or _GoLand_, you need to create this configuration:
+
+| Parameter         | Value                                    |
+|-------------------|------------------------------------------|
+| Template          | Go Build                                 |
+| Run kind          | Directory                                |
+| Directory         | skipper source dir + `/cmd/skipper`      |
+| Working directory | skipper source dir (usually the default) |
 
 #### Kubernetes Ingress
 

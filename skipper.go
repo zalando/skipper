@@ -35,6 +35,7 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/filters/monitoring"
 )
 
 const (
@@ -443,6 +444,9 @@ type Options struct {
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
 
+	// Monitoring Foo // todo: TEST
+	MonitoringFoo string
+
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
 }
@@ -677,7 +681,9 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
-		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout))
+		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
+		monitoring.NewMonitoring(o.MonitoringFoo),
+	)
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters

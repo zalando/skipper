@@ -709,3 +709,7 @@ headerToQuery("X-Foo-Header", "foo-query-param")
 
 The above filter will set `foo-query-param` query param respectively to the `X-Foo-Header` header
 and will override the value if the queryparam exists already
+
+## monitoring
+
+TODO: Document new filter.

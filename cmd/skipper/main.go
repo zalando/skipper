@@ -63,6 +63,9 @@ const (
 	defaultOAuthTokeninfoTimeout          = 2 * time.Second
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 
+	// Monitoring
+	defaultMonitoringFoo = "asd" // todo: TEST
+
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
 	ignoreTrailingSlashUsage             = "flag indicating to ignore trailing slashes in paths when routing"
@@ -141,6 +144,10 @@ const (
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
+
+	// Monitoring:
+	monitoringFooUsage = "temporary config flag for testing piping of filter development" // todo: TEST
+
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
 	closeIdleConnsPeriodUsage       = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
@@ -251,6 +258,9 @@ var (
 	oauth2TokeninfoTimeout          time.Duration
 	oauth2TokenintrospectionTimeout time.Duration
 
+	// Monitoring
+	monitoringFoo string // todo: TEST
+
 	// connections, timeouts:
 	idleConnsPerHost           int
 	closeIdleConnsPeriod       string
@@ -358,6 +368,9 @@ func init() {
 	flag.StringVar(&oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
 	flag.DurationVar(&oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
+
+	// Monitoring:
+	flag.StringVar(&monitoringFoo, "monitoring-foo", defaultMonitoringFoo, monitoringFooUsage) // todo: TEST
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -543,6 +556,9 @@ func main() {
 		OAuthTokeninfoURL:              oauth2TokeninfoURL,
 		OAuthTokeninfoTimeout:          oauth2TokeninfoTimeout,
 		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
+
+		// Monitoring:
+		MonitoringFoo: monitoringFoo, // todo: TEST
 
 		// connections, timeouts:
 		IdleConnectionsPerHost:     idleConnsPerHost,
