@@ -682,7 +682,7 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
-		monitoring.NewMonitoring(o.MonitoringFoo),
+		monitoring.New(o.MonitoringFoo),
 	)
 
 	// create a filter registry with the available filter specs registered,
