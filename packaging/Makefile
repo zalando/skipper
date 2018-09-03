@@ -26,16 +26,19 @@ docker-push:
 	docker push $(IMAGE)
 
 plugins:
-	mkdir -p build/; cd build ;\
-	git clone https://github.com/skipper-plugins/opentracing.git ;\
-		cd opentracing ;\
-		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 make ;\
-		cp build/*.so ../
+	GO111MODULE=on go build -buildmode=plugin -o build/tracing_lightstep.so ../opentracingplugin/tracers/lightstep/lightstep.go
+
+skipper111:
+	GO111MODULE=on go build -o skipper ../cmd/skipper/*.go
+
+eskip111:
+	GO111MODULE=on go build -o eskip ../cmd/eskip/*.go
 
 alpine.build: docker-alpine-build
-	docker run --rm -v $(shell pwd)/..:/build \
+	docker run --rm \
+		-v $(shell pwd)/..:/build \
 		-w /build/packaging $(ALPINE_BUILD_IMAGE) \
-		make skipper eskip
+		make skipper111 eskip111
 
 alpine.plugins: docker-alpine-build
 	docker run --rm -v $(shell pwd)/..:/build \
