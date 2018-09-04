@@ -4,6 +4,7 @@ VERSION            ?= $(shell git rev-parse HEAD)
 REGISTRY           ?= registry-write.opensource.zalan.do/pathfinder
 IMAGE              ?= $(REGISTRY)/skipper:$(VERSION)
 LIGHTSTEP_IMAGE    ?= $(REGISTRY)/skipper-lightstep:$(VERSION)
+OPENTRACING_IMAGE    ?= $(REGISTRY)/skipper-opentracing:$(VERSION)
 ALPINE_BUILD_IMAGE ?= $(REGISTRY)/skipper-alpine-build:latest
 PACKAGE            ?= github.com/zalando/skipper
 CGO_ENABLED        ?= 0
@@ -18,7 +19,7 @@ eskip:
 	GO111MODULE=$(GO111) GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build -o eskip ../cmd/eskip/*.go
 
 plugins:
-	GO111MODULE=$(GO111) go build -buildmode=plugin -o build/tracing_lightstep.so ../opentracingplugin/tracers/lightstep/lightstep.go
+	/bin/ls -1 ../opentracingplugin/tracers/ | grep -v basic | while read f; do GO111MODULE=$(GO111) go build -buildmode=plugin -o build/tracing_$$f.so ../opentracingplugin/tracers/$$f/*.go; done
 
 clean:
 	rm -rf skipper eskip build/
@@ -48,3 +49,9 @@ docker-lightstep-build: alpine.build alpine.plugins
 
 docker-lightstep-push:
 	docker push $(LIGHTSTEP_IMAGE)
+
+docker-opentracing-build: alpine.build alpine.plugins
+	docker build -t $(OPENTRACING_IMAGE) -f Dockerfile.opentracing .
+
+docker-opentracing-push:
+	docker push $(OPENTRACING_IMAGE)
