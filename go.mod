@@ -2,6 +2,7 @@ module github.com/zalando/skipper
 
 require (
 	github.com/abbot/go-http-auth v0.0.0-20150922224136-efc9484eee77
+	github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78 // indirect
 	github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a // indirect
 	github.com/cjoudrey/gluahttp v0.0.0-20161028104506-b4bfe0c50fea
 	github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199
@@ -13,11 +14,17 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/protobuf v1.2.0 // indirect
 	github.com/google/go-cmp v0.0.0-20170901214248-d5735f74713c
+	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
+	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
+	github.com/hashicorp/go-multierror v1.0.0 // indirect
+	github.com/hashicorp/go-sockaddr v0.0.0-20180320115054-6d291a969b86 // indirect
+	github.com/hashicorp/memberlist v0.1.0
 	github.com/hpcloud/tail v1.0.0 // indirect
 	github.com/instana/golang-sensor v0.0.0-20180725091122-493edb422283
 	github.com/lightstep/lightstep-tracer-go v0.15.4
 	github.com/looplab/fsm v0.0.0-20180515091235-f980bdb68a89 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
+	github.com/miekg/dns v1.0.8 // indirect
 	github.com/oklog/ulid v0.3.0
 	github.com/onsi/ginkgo v1.6.0 // indirect
 	github.com/onsi/gomega v1.4.1 // indirect
@@ -31,6 +38,7 @@ require (
 	github.com/prometheus/procfs v0.0.0-20171017214025-a6e9df898b13 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20161128210544-1f30fe9094a5
 	github.com/sanity-io/litter v1.1.0
+	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/sirupsen/logrus v1.0.4
 	github.com/sony/gobreaker v0.0.0-20170530031423-e9556a45379e
 	github.com/stretchr/testify v1.2.2
