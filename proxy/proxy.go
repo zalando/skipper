@@ -18,6 +18,7 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
@@ -26,7 +27,6 @@ import (
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/filters/accesslog"
 )
 
 const (
@@ -1062,13 +1062,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx.startServe,
 	)
 
-	accessLogEnabled, ok := ctx.stateBag[accesslog.AccessLogEnabledKey].(bool)
+	accessLogDisabled, ok := ctx.stateBag[accesslog.AccessLogDisabledKey].(bool)
 
 	if !ok {
-		accessLogEnabled = !p.accessLogDisabled
+		accessLogDisabled = p.accessLogDisabled
 	}
 
-	if accessLogEnabled {
+	if !accessLogDisabled {
 		entry := &logging.AccessEntry{
 			Request:      r,
 			ResponseSize: lw.GetBytes(),

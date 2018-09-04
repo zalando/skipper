@@ -1369,7 +1369,7 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 		Header: http.Header{"Connection": []string{"token"}}}
 	w := httptest.NewRecorder()
 
-	doc := fmt.Sprintf(`hello: Path("/hello") -> accessLog("false") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+	doc := fmt.Sprintf(`hello: Path("/hello") -> accessLogDisabled("true") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
 
 	tp, err := newTestProxyWithParams(doc, Params{
 		AccessLogDisabled: false,
@@ -1385,6 +1385,40 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 
 	if buf.Len() != 0 {
 		t.Error("failed to disable access log")
+	}
+}
+
+func TestEnableAccessLogWithFilter(t *testing.T) {
+	var buf bytes.Buffer
+	logging.Init(logging.Options{
+		AccessLogOutput: &buf})
+
+	response := "7 bytes"
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> accessLogDisabled("false") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+
+	tp, err := newTestProxyWithParams(doc, Params{
+		AccessLogDisabled: true,
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	output := buf.String()
+	if !strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-" 0 - - -`, r.Method, http.StatusTeapot, len(response))) {
+		t.Error("failed to log access", output)
 	}
 }
 

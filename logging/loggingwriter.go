@@ -42,6 +42,6 @@ func (lw *LoggingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return nil, nil, fmt.Errorf("could not hijack connection")
 }
 
-func (lw *LoggingWriter) GetBytes() int64{
+func (lw *LoggingWriter) GetBytes() int64 {
 	return lw.bytes
 }

@@ -752,7 +752,7 @@ func Run(o Options) error {
 		DualStack:              o.DualStackBackend,
 		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
 		MaxIdleConns:           o.MaxIdleConnsBackend,
-		AccessLogDisabled: 		o.AccessLogDisabled,
+		AccessLogDisabled:      o.AccessLogDisabled,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
