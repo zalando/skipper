@@ -9,9 +9,11 @@ To build [skipper](https://github.com/zalando/skipper) with
 
 ## Docker
 
-A dockerized [skipper](https://github.com/zalando/skipper) with [Opentracing](https://github.com/opentracing) you can get with:
+A dockerized [skipper](https://github.com/zalando/skipper) with
+[Opentracing](https://github.com/opentracing) you can get from our
+docker registry. Replace $version with the [skipper release version](https://github.com/zalando/skipper/releases):
 
-    % docker run registry.opensource.zalan.do/teapot/skipper-tracing:latest
+    % docker run registry.opensource.zalan.do/teapot/skipper-tracing:$version
 
 ## Problem with vendoring
 
