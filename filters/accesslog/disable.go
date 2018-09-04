@@ -23,10 +23,10 @@ func NewAccessLogDisabled() filters.Spec {
 	return &accessLogDisabled{}
 }
 
-func (al *accessLogDisabled) Name() string { return AccessLogDisabledName }
+func (*accessLogDisabled) Name() string { return AccessLogDisabledName }
 
-func (al *accessLogDisabled) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) < 1 {
+func (*accessLogDisabled) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -42,4 +42,4 @@ func (al *accessLogDisabled) Request(ctx filters.FilterContext) {
 	bag[AccessLogDisabledKey] = al.disabled
 }
 
-func (al *accessLogDisabled) Response(_ filters.FilterContext) {}
+func (*accessLogDisabled) Response(filters.FilterContext) {}

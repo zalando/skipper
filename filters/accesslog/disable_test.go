@@ -7,56 +7,64 @@ import (
 	"github.com/zalando/skipper/filters/filtertest"
 )
 
-func TestEnabled(t *testing.T) {
-	const state = "false"
+func TestAccessLogDisabled(t *testing.T) {
+	for _, ti := range []struct {
+		msg    string
+		state  []interface{}
+		result bool
+		err    error
+	}{
+		{
+			msg:    "false-value-enables-access-log",
+			state:  []interface{}{"false"},
+			result: false,
+			err:    nil,
+		},
+		{
+			msg:    "true-value-disables-access-log",
+			state:  []interface{}{"true"},
+			result: true,
+			err:    nil,
+		},
+		{
+			msg:    "unknown-argument-leads-to-error",
+			state:  []interface{}{"unknownValue"},
+			result: false,
+			err:    filters.ErrInvalidFilterParameters,
+		},
+		{
+			msg:    "no-arguments-lead-to-error",
+			state:  []interface{}{},
+			result: false,
+			err:    filters.ErrInvalidFilterParameters,
+		},
+		{
+			msg:    "multiple-arguments-lead-to-error",
+			state:  []interface{}{"true", "second"},
+			result: false,
+			err:    filters.ErrInvalidFilterParameters,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			f, err := NewAccessLogDisabled().CreateFilter(ti.state)
 
-	f, err := NewAccessLogDisabled().CreateFilter([]interface{}{state})
-	if err != nil {
-		t.Fatal(err)
-	}
+			if err != ti.err {
+				t.Errorf("error is not equal to expected '%v': %v", ti.err, err)
+				return
+			}
 
-	var ctx filtertest.Context
-	ctx.FStateBag = make(map[string]interface{})
+			if err != nil {
+				return
+			}
 
-	f.Request(&ctx)
-	bag := ctx.StateBag()
-	if bag[AccessLogDisabledKey] != false {
-		t.Error("failed to set access log state")
-	}
-}
+			var ctx filtertest.Context
+			ctx.FStateBag = make(map[string]interface{})
 
-func TestDisabled(t *testing.T) {
-	const state = "true"
-
-	f, err := NewAccessLogDisabled().CreateFilter([]interface{}{state})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var ctx filtertest.Context
-	ctx.FStateBag = make(map[string]interface{})
-
-	f.Request(&ctx)
-	bag := ctx.StateBag()
-	if bag[AccessLogDisabledKey] != true {
-		t.Error("failed to set access log state")
-	}
-}
-
-func TestUnknownValue(t *testing.T) {
-	const state = "unknownValue"
-
-	_, err := NewAccessLogDisabled().CreateFilter([]interface{}{state})
-
-	if err == nil || err != filters.ErrInvalidFilterParameters {
-		t.Error("should throw error on unknown value")
-	}
-}
-
-func TestMissingValue(t *testing.T) {
-	_, err := NewAccessLogDisabled().CreateFilter([]interface{}{})
-
-	if err == nil || err != filters.ErrInvalidFilterParameters {
-		t.Error("should throw error on missing value")
+			f.Request(&ctx)
+			bag := ctx.StateBag()
+			if bag[AccessLogDisabledKey] != ti.result {
+				t.Errorf("access log state is not equal to expected '%v': %v", ti.result, bag[AccessLogDisabledKey])
+			}
+		})
 	}
 }
