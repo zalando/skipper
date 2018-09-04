@@ -1,5 +1,5 @@
 SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*" -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
-PACKAGES           = $(shell go list ./...)
+PACKAGES           = $(shell go list ./... | grep -Ev 'opentracingplugin|cmd')
 CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
 VERSION           ?= $(CURRENT_VERSION)
 NEXT_MAJOR         = $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
@@ -12,20 +12,21 @@ TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/dataclient_noop.so \
 		     _test_plugins/multitype_noop.so \
 		     _test_plugins_fail/fail.so
+GO111             ?= on
 
 default: build
 
 lib: $(SOURCES)
-	go build $(PACKAGES)
+	GO111MODULE=$(GO111) go build $(PACKAGES)
 
 bindir:
 	mkdir -p bin
 
 skipper: $(SOURCES) bindir
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper
+	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper/*.go
 
 eskip: $(SOURCES) bindir
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip
+	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip/*.go
 
 build: $(SOURCES) lib skipper eskip
 
@@ -78,8 +79,8 @@ lint: build
 clean:
 	go clean -i ./...
 	rm -rf .coverprofile-all .cover
-	rm ./_test_plugins/*.so
-	rm ./_test_plugins_fail/*.so
+	rm -f ./_test_plugins/*.so
+	rm -f ./_test_plugins_fail/*.so
 
 deps:
 	./etcd/install.sh $(TEST_ETCD_VERSION)
