@@ -570,7 +570,6 @@ func initLog(o Options) error {
 		ApplicationLogPrefix: o.ApplicationLogPrefix,
 		ApplicationLogOutput: logOutput,
 		AccessLogOutput:      accessLogOutput,
-		AccessLogDisabled:    o.AccessLogDisabled,
 		AccessLogJSONEnabled: o.AccessLogJSONEnabled,
 		AccessLogStripQuery:  o.AccessLogStripQuery,
 	})
@@ -584,12 +583,11 @@ func (o *Options) isHTTPS() bool {
 
 func listenAndServe(proxy http.Handler, o *Options) error {
 	// create the access log handler
-	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
 
 	srv := &http.Server{
 		Addr:              o.Address,
-		Handler:           loggingHandler,
+		Handler:           proxy,
 		ReadTimeout:       o.ReadTimeoutServer,
 		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
 		WriteTimeout:      o.WriteTimeoutServer,
@@ -754,6 +752,7 @@ func Run(o Options) error {
 		DualStack:              o.DualStackBackend,
 		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
 		MaxIdleConns:           o.MaxIdleConnsBackend,
+		AccessLogDisabled:      o.AccessLogDisabled,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
