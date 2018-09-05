@@ -12,6 +12,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
@@ -181,12 +182,12 @@ var (
 	}
 	errRatelimitError = errors.New("ratelimited")
 	hopHeaders        = map[string]bool{
+		"Te":                  true,
 		"Connection":          true,
 		"Proxy-Connection":    true,
 		"Keep-Alive":          true,
 		"Proxy-Authenticate":  true,
 		"Proxy-Authorization": true,
-		"Te":                  true,
 		"Trailer":             true,
 		"Transfer-Encoding":   true,
 		"Upgrade":             true,
@@ -516,13 +517,13 @@ func WithParams(p Params) *Proxy {
 		experimentalUpgrade:    p.ExperimentalUpgrade,
 		maxLoops:               p.MaxLoopbacks,
 		breakers:               p.CircuitBreakers,
+		lb:                     p.LoadBalancer,
 		limiters:               p.RateLimiters,
 		log:                    &logging.DefaultLog{},
 		defaultHTTPStatus:      defaultHTTPStatus,
 		openTracer:             p.OpenTracer,
 		accessLogDisabled:      p.AccessLogDisabled,
 		openTracingInitialSpan: openTracingInitialSpan,
-		lb:                     p.LoadBalancer,
 	}
 }
 
@@ -722,6 +723,14 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusServiceUnavailable,
+				}
+			} else if !nerr.Timeout() && nerr.Temporary() && strings.Contains(err.Error(), "read: connection reset by peer") {
+				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusServiceUnavailable))
+				// retrieable case https://github.com/zalando/skipper/issues/768
+				return nil, &proxyError{
+					err:           err,
+					code:          http.StatusServiceUnavailable,
+					dialingFailed: true,
 				}
 			} else {
 				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusInternalServerError))
