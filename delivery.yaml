@@ -18,6 +18,7 @@ pipeline:
 
   - desc: build-push-lightstep
     cmd: |
+      git status
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         RELEASE_VERSION="$(git describe --tags --always --dirty)"
         LIGHTSTEP_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-lightstep:${RELEASE_VERSION}"
@@ -29,6 +30,7 @@ pipeline:
 
   - desc: build-push-opentracing
     cmd: |
+      git status
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         RELEASE_VERSION="$(git describe --tags --always --dirty)"
         OPENTRACING_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-opentracing:${RELEASE_VERSION}"
