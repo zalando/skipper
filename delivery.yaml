@@ -14,10 +14,14 @@ pipeline:
       fi
       export IMAGE
       make deps shortcheck
-      cd packaging && make docker-build docker-push
+      git status
+      git diff
+      cd packaging && make docker-build && git status && git diff && make docker-push
 
   - desc: build-push-lightstep
     cmd: |
+      git status
+      git diff
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         RELEASE_VERSION="$(git describe --tags --always --dirty)"
         LIGHTSTEP_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-lightstep:${RELEASE_VERSION}"
@@ -29,6 +33,8 @@ pipeline:
 
   - desc: build-push-opentracing
     cmd: |
+      git status
+      git diff
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         RELEASE_VERSION="$(git describe --tags --always --dirty)"
         OPENTRACING_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-opentracing:${RELEASE_VERSION}"
