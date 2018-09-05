@@ -84,7 +84,7 @@ func (c *ClusterLimit) Allow(s string) bool {
 			}
 		}
 	}
-	log.Debugf("SWARM clusterRatelimit: %d values: %d, rate: %0.2f", len(swarmValues), rate)
+	log.Debugf("SWARM clusterRatelimit: values: %d, rate: %0.2f", len(swarmValues), rate)
 	return rate < float64(c.maxHits)/float64(c.window)
 }
 
