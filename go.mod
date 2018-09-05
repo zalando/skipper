@@ -10,17 +10,18 @@ require (
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/gogo/protobuf v1.1.1 // indirect
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/protobuf v1.2.0 // indirect
 	github.com/google/go-cmp v0.0.0-20170901214248-d5735f74713c
 	github.com/hpcloud/tail v1.0.0 // indirect
-	github.com/instana/golang-sensor v0.0.0-20180725091122-493edb422283 // indirect
-	github.com/lightstep/lightstep-tracer-go v0.15.4 // indirect
+	github.com/instana/golang-sensor v0.0.0-20180725091122-493edb422283
+	github.com/lightstep/lightstep-tracer-go v0.15.4
 	github.com/looplab/fsm v0.0.0-20180515091235-f980bdb68a89 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/oklog/ulid v0.3.0
 	github.com/onsi/ginkgo v1.6.0 // indirect
 	github.com/onsi/gomega v1.4.1 // indirect
-	github.com/opentracing/basictracer-go v1.0.0 // indirect
+	github.com/opentracing/basictracer-go v1.0.0
 	github.com/opentracing/opentracing-go v1.0.2
 	github.com/pkg/errors v0.8.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -34,9 +35,11 @@ require (
 	github.com/sony/gobreaker v0.0.0-20170530031423-e9556a45379e
 	github.com/stretchr/testify v1.2.2
 	github.com/szuecs/rate-limit-buffer v0.2.0
-	github.com/uber/jaeger-client-go v2.14.0+incompatible // indirect
-	github.com/uber/jaeger-lib v1.5.0 // indirect
+	github.com/uber-go/atomic v1.3.2 // indirect
+	github.com/uber/jaeger-client-go v2.14.0+incompatible
+	github.com/uber/jaeger-lib v1.5.0
 	github.com/yuin/gopher-lua v0.0.0-20171229012508-478861c8ce6e
+	go.uber.org/atomic v1.3.2 // indirect
 	golang.org/x/crypto v0.0.0-20170912191825-faadfbdc0353
 	golang.org/x/net v0.0.0-20180826012351-8a410e7b638d // indirect
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect
