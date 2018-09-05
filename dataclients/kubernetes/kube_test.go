@@ -1397,16 +1397,16 @@ func TestConvertPathRule(t *testing.T) {
 
 		api.services = services{
 			"namespace1": map[string]*service{
-				"svcname1": &service{
+				"svcname1": {
 					Spec: &serviceSpec{
 						ClusterIP: "10.3.2.1",
 						Ports: []*servicePort{
-							&servicePort{
+							{
 								Name:       "svcname1",
 								Port:       8080,
 								TargetPort: &backendPort{value: 8080},
 							},
-							&servicePort{
+							{
 								Name:       "svcname1",
 								Port:       8181,
 								TargetPort: &backendPort{value: 8181},
@@ -1430,11 +1430,11 @@ func TestConvertPathRule(t *testing.T) {
 						ServicePort: backendPort{value: 8080},
 					},
 					Rules: []*rule{
-						&rule{
+						{
 							Host: "host1",
 							Http: &httpRule{
 								Paths: []*pathRule{
-									&pathRule{
+									{
 										Path: "/",
 										Backend: &backend{
 											ServiceName: "svcname1",
@@ -1444,11 +1444,11 @@ func TestConvertPathRule(t *testing.T) {
 								},
 							},
 						},
-						&rule{
+						{
 							Host: "host2",
 							Http: &httpRule{
 								Paths: []*pathRule{
-									&pathRule{
+									{
 										Path: "/",
 										Backend: &backend{
 											ServiceName: "svcname1",
