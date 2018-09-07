@@ -226,3 +226,13 @@ We do our proposals open in [Skipper's Google drive](https://drive.google.com/dr
 If you want to make a proposal feel free to create an
 [issue](https://github.com/zalando/skipper/issues) and if it is a
 bigger change we will invite you to a document, such that we can work together.
+
+### Users
+
+Zalando uses this project as shop frontend http router with 350000 routes, as
+Kubernetes ingress controller and runs several custom skipper
+instances that use skipper as library.
+
+Sergio Ballesteros from [spotahome](https://www.spotahome.com/)
+> We also runned tests with serveral ingress controllers options(istio not existed at that time) and skipper gave us the more reliable results. Currently we are running skipper since almost 2 years with like 20K Ingress rules.
+> Envoy is also a good candidate but the fact that skipper is written in go let us understand the code, add features and fix bugs since all of our infra stack is golang.
