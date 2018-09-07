@@ -64,6 +64,8 @@ github.com/sony/gobreaker v0.0.0-20170530031423-e9556a45379e h1:A7yRSd+7ZYlgFchh
 github.com/sony/gobreaker v0.0.0-20170530031423-e9556a45379e/go.mod h1:XvpJiTD8NibaH7z0NzyfhR1+NQDtR9F/x92xheTwC9k=
 github.com/stretchr/testify v1.2.2 h1:bSDNvY7ZPG5RlJ8otE/7V6gMiyenm9RtJ7IUVIAoJ1w=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
+github.com/szuecs/opentracing-go v1.0.3-0.20180907073729-e14b9d480998 h1:6gMvwlAChhPDSQv8GmkvCGYAnFc/F9tBcoO0wceK72g=
+github.com/szuecs/opentracing-go v1.0.3-0.20180907073729-e14b9d480998/go.mod h1:iBJLQ4nOa6nMSk8g1MmAKUzJUu5hXw8n+N37IgNzDx4=
 github.com/szuecs/rate-limit-buffer v0.2.0 h1:WlpMxLdzeUMr7DEW1nATjUorYr+siGwMoeLc7rKxMWE=
 github.com/szuecs/rate-limit-buffer v0.2.0/go.mod h1:BxqrsmnHsCnWcvbtdcaDLEBmjNEvRFU5LQ8edoZ9B0M=
 github.com/uber-go/atomic v1.3.2 h1:Azu9lPBWRNKzYXSIwRfgRuDuS0YKsK4NFhiQv98gkxo=
