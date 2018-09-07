@@ -234,5 +234,5 @@ Kubernetes ingress controller and runs several custom skipper
 instances that use skipper as library.
 
 Sergio Ballesteros from [spotahome](https://www.spotahome.com/)
-> We also runned tests with serveral ingress controllers and skipper gave us the more reliable results. Currently we are running skipper since almost 2 years with like 20K Ingress rules.
+> We also ran tests with serveral ingress controllers and skipper gave us the more reliable results. Currently we are running skipper since almost 2 years with like 20K Ingress rules.
 > The fact that skipper is written in go let us understand the code, add features and fix bugs since all of our infra stack is golang.
