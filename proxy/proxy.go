@@ -12,7 +12,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
@@ -724,13 +723,12 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 					err:  err,
 					code: http.StatusServiceUnavailable,
 				}
-			} else if !nerr.Timeout() && nerr.Temporary() && strings.Contains(err.Error(), "read: connection reset by peer") {
+			} else if !nerr.Timeout() && nerr.Temporary() {
+				p.log.Errorf("Backend error see https://github.com/zalando/skipper/issues/768: %v", err)
 				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusServiceUnavailable))
-				// retrieable case https://github.com/zalando/skipper/issues/768
 				return nil, &proxyError{
-					err:           err,
-					code:          http.StatusServiceUnavailable,
-					dialingFailed: true,
+					err:  err,
+					code: http.StatusServiceUnavailable,
 				}
 			} else {
 				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusInternalServerError))
