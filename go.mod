@@ -54,3 +54,5 @@ require (
 	gopkg.in/yaml.v2 v2.2.1 // indirect
 	layeh.com/gopher-json v0.0.0-20180103211521-1aab82196e3b
 )
+
+replace github.com/opentracing/opentracing-go => github.com/szuecs/opentracing-go v1.0.3-0.20180907073729-e14b9d480998
