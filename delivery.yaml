@@ -29,7 +29,7 @@ pipeline:
         LIGHTSTEP_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-lightstep-test:${CDP_BUILD_VERSION}"
       fi
       export LIGHTSTEP_IMAGE
-      cd packaging && make docker-lightstep-build docker-lightstep-push
+      cd packaging && make clean && make docker-lightstep-build docker-lightstep-push
 
   - desc: build-push-opentracing
     cmd: |
@@ -42,4 +42,4 @@ pipeline:
         OPENTRACING_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-opentracing-test:${CDP_BUILD_VERSION}"
       fi
       export OPENTRACING_IMAGE
-      cd packaging && make docker-opentracing-build docker-opentracing-push
+      cd packaging && make clean && make docker-opentracing-build docker-opentracing-push
