@@ -1,5 +1,5 @@
 SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*" -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
-PACKAGES           = $(shell go list ./... | grep -Ev 'opentracingplugin|cmd')
+PACKAGES           = $(shell go list ./...)
 CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
 VERSION           ?= $(CURRENT_VERSION)
 NEXT_MAJOR         = $(shell go run packaging/version/version.go major $(CURRENT_VERSION))

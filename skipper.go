@@ -835,7 +835,7 @@ func Run(o Options) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 	if len(o.OpenTracing) > 0 {
-		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, o.OpenTracing)
+		tracer, err := tracing.InitTracer(o.OpenTracing)
 		if err != nil {
 			return err
 		}
