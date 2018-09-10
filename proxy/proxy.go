@@ -213,7 +213,6 @@ func (f Flags) HopHeadersRemoval() bool { return f&HopHeadersRemoval != 0 }
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
 type PriorityRoute interface {
-
 	// If the request is matched, returns a route, otherwise nil.
 	// Additionally it may return a parameter map used by the filters
 	// in the route.
@@ -572,9 +571,9 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *context) {
 	filtersStart := time.Now()
 
-	count := len(filters)
+	last := len(filters) - 1
 	for i := range filters {
-		fi := filters[count-1-i]
+		fi := filters[last-i]
 		start := time.Now()
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
