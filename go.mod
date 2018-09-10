@@ -22,7 +22,7 @@ require (
 	github.com/onsi/ginkgo v1.6.0 // indirect
 	github.com/onsi/gomega v1.4.1 // indirect
 	github.com/opentracing/basictracer-go v1.0.0
-	github.com/opentracing/opentracing-go v1.0.2
+	github.com/opentracing/opentracing-go v1.0.3-0.20180908211932-6aa6febac7b9
 	github.com/pkg/errors v0.8.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v0.9.0-pre1.0.20180824101016-4eb539fa85a2
@@ -54,5 +54,3 @@ require (
 	gopkg.in/yaml.v2 v2.2.1 // indirect
 	layeh.com/gopher-json v0.0.0-20180103211521-1aab82196e3b
 )
-
-replace github.com/opentracing/opentracing-go => github.com/szuecs/opentracing-go v1.0.3-0.20180907073729-e14b9d480998
