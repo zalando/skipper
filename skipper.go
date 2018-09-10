@@ -447,6 +447,9 @@ type Options struct {
 	// Monitoring Foo // todo: TEST
 	MonitoringFoo string
 
+	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
+	WebhookTimeout time.Duration
+
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
 }
@@ -571,7 +574,6 @@ func initLog(o Options) error {
 		ApplicationLogPrefix: o.ApplicationLogPrefix,
 		ApplicationLogOutput: logOutput,
 		AccessLogOutput:      accessLogOutput,
-		AccessLogDisabled:    o.AccessLogDisabled,
 		AccessLogJSONEnabled: o.AccessLogJSONEnabled,
 		AccessLogStripQuery:  o.AccessLogStripQuery,
 	})
@@ -585,12 +587,11 @@ func (o *Options) isHTTPS() bool {
 
 func listenAndServe(proxy http.Handler, o *Options) error {
 	// create the access log handler
-	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
 
 	srv := &http.Server{
 		Addr:              o.Address,
-		Handler:           loggingHandler,
+		Handler:           proxy,
 		ReadTimeout:       o.ReadTimeoutServer,
 		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
 		WriteTimeout:      o.WriteTimeoutServer,
@@ -683,6 +684,7 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
 		monitoring.New(o.MonitoringFoo),
+		auth.NewWebhook(o.WebhookTimeout),
 	)
 
 	// create a filter registry with the available filter specs registered,
@@ -756,6 +758,7 @@ func Run(o Options) error {
 		DualStack:              o.DualStackBackend,
 		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
 		MaxIdleConns:           o.MaxIdleConnsBackend,
+		AccessLogDisabled:      o.AccessLogDisabled,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
@@ -838,7 +841,7 @@ func Run(o Options) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 	if len(o.OpenTracing) > 0 {
-		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, o.OpenTracing)
+		tracer, err := tracing.InitTracer(o.OpenTracing)
 		if err != nil {
 			return err
 		}

@@ -59,9 +59,10 @@ const (
 	defaultTLSHandshakeTimeoutBackend = 60 * time.Second
 	defaultMaxIdleConnsBackend        = 0
 
-	// OAuth2:
+	// Auth:
 	defaultOAuthTokeninfoTimeout          = 2 * time.Second
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
+	defaultWebhookTimeout                 = 2 * time.Second
 
 	// Monitoring
 	defaultMonitoringFoo = "asd" // todo: TEST
@@ -144,6 +145,7 @@ const (
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
+	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// Monitoring:
 	monitoringFooUsage = "temporary config flag for testing piping of filter development" // todo: TEST
@@ -250,13 +252,14 @@ var (
 	kubernetesPathModeString   string
 	kubernetesNamespace        string
 
-	// OAuth2:
+	// Auth:
 	oauthURL                        string
 	oauthScope                      string
 	oauthCredentialsDir             string
 	oauth2TokeninfoURL              string
 	oauth2TokeninfoTimeout          time.Duration
 	oauth2TokenintrospectionTimeout time.Duration
+	webhookTimeout                  time.Duration
 
 	// Monitoring
 	monitoringFoo string // todo: TEST
@@ -361,13 +364,14 @@ func init() {
 	flag.StringVar(&kubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
 	flag.StringVar(&kubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
 
-	// OAuth2:
+	// Auth:
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
 	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
 	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
 	flag.StringVar(&oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
 	flag.DurationVar(&oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
+	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 
 	// Monitoring:
 	flag.StringVar(&monitoringFoo, "monitoring-foo", defaultMonitoringFoo, monitoringFooUsage) // todo: TEST
@@ -549,13 +553,14 @@ func main() {
 		KubernetesPathMode:         kubernetesPathMode,
 		KubernetesNamespace:        kubernetesNamespace,
 
-		// OAuth2:
+		// Auth:
 		OAuthUrl:                       oauthURL,
 		OAuthScope:                     oauthScope,
 		OAuthCredentialsDir:            oauthCredentialsDir,
 		OAuthTokeninfoURL:              oauth2TokeninfoURL,
 		OAuthTokeninfoTimeout:          oauth2TokeninfoTimeout,
 		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
+		WebhookTimeout:                 webhookTimeout,
 
 		// Monitoring:
 		MonitoringFoo: monitoringFoo, // todo: TEST

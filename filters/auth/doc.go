@@ -318,6 +318,13 @@ filter after the auth filter.
     a: Path("/only-allowed-audit-log") -> oauthTokeninfoAnyScope("bar-w") -> auditLog() -> "https://internal.example.org/";
     b: Path("/all-access-requests-audit-log") -> auditLog() -> oauthTokeninfoAnyScope("foo-r") -> "https://internal.example.org/";
 
+Webhook - webhook() filter
+
+The filter webhook allows you to have a custom authentication and
+authorization endpoint for a route.
+
+    a: Path("/only-allowed-by-webhook") -> webhook("https://custom-webhook.example.org/auth") -> "https://protected-backend.example.org/";
+
 Monitoring - monitoring() filter
 
 TODO: Document and provide example.

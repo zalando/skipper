@@ -1,5 +1,5 @@
 SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*" -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
-PACKAGES           = $(shell glide novendor || echo -n "./...")
+PACKAGES           = $(shell go list ./...)
 CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
 VERSION           ?= $(CURRENT_VERSION)
 NEXT_MAJOR         = $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
@@ -12,20 +12,21 @@ TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/dataclient_noop.so \
 		     _test_plugins/multitype_noop.so \
 		     _test_plugins_fail/fail.so
+GO111             ?= on
 
 default: build
 
 lib: $(SOURCES)
-	go build $(PACKAGES)
+	GO111MODULE=$(GO111) go build $(PACKAGES)
 
 bindir:
 	mkdir -p bin
 
 skipper: $(SOURCES) bindir
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper
+	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper/*.go
 
 eskip: $(SOURCES) bindir
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip
+	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip/*.go
 
 build: $(SOURCES) lib skipper eskip
 
@@ -78,20 +79,11 @@ lint: build
 clean:
 	go clean -i ./...
 	rm -rf .coverprofile-all .cover
-	rm ./_test_plugins/*.so
-	rm ./_test_plugins_fail/*.so
+	rm -f ./_test_plugins/*.so
+	rm -f ./_test_plugins_fail/*.so
 
 deps:
-	go get -t github.com/zalando/skipper/...
 	./etcd/install.sh $(TEST_ETCD_VERSION)
-	go get github.com/Masterminds/glide
-	glide install --strip-vendor
-	# get opentracing to the default GOPATH, so we can build plugins outside
-	# the main skipper repo
-	# * will be removed from vendor/ after the deps checks (workaround for glide list)
-	go get -t github.com/opentracing/opentracing-go
-	# fix vendored deps:
-	rm -rf vendor/github.com/sirupsen/logrus/examples # breaks go install ./...
 
 vet: $(SOURCES)
 	go vet $(PACKAGES)
@@ -102,16 +94,9 @@ fmt: $(SOURCES)
 check-fmt: $(SOURCES)
 	@if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi
 
-check-imports:
-	@glide list && true || \
-	(echo "run make deps and check if any new dependencies were vendored with glide get" && \
-	false)
-	# workaround until glide list supports --ignore $$PACKAGE:
-	rm -rf vendor/github.com/opentracing/opentracing-go
+precommit: fmt build shortcheck vet
 
-precommit: check-imports fmt build shortcheck vet
-
-check-precommit: check-imports check-fmt build shortcheck vet
+check-precommit: check-fmt build shortcheck vet
 
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	# go list -f \
