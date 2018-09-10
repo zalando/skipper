@@ -17,29 +17,3 @@ pipeline:
       git status
       git diff
       cd packaging && make docker-build && git status && git diff && make docker-push
-
-  - desc: build-push-lightstep
-    cmd: |
-      git status
-      git diff
-      if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
-        RELEASE_VERSION="$(git describe --tags --always --dirty)"
-        LIGHTSTEP_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-lightstep:${RELEASE_VERSION}"
-      else
-        LIGHTSTEP_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-lightstep-test:${CDP_BUILD_VERSION}"
-      fi
-      export LIGHTSTEP_IMAGE
-      cd packaging && make clean && make docker-lightstep-build docker-lightstep-push
-
-  - desc: build-push-opentracing
-    cmd: |
-      git status
-      git diff
-      if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
-        RELEASE_VERSION="$(git describe --tags --always --dirty)"
-        OPENTRACING_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-opentracing:${RELEASE_VERSION}"
-      else
-        OPENTRACING_IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-opentracing-test:${CDP_BUILD_VERSION}"
-      fi
-      export OPENTRACING_IMAGE
-      cd packaging && make clean && make docker-opentracing-build docker-opentracing-push

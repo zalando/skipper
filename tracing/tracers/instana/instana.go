@@ -1,4 +1,4 @@
-package main
+package instana
 
 import (
 	"strings"
