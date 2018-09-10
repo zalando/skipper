@@ -25,7 +25,7 @@ require (
 	github.com/opentracing/opentracing-go v1.0.3-0.20180908211932-6aa6febac7b9
 	github.com/pkg/errors v0.8.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v0.9.0-pre1.0.20180824101016-4eb539fa85a2
+	github.com/prometheus/client_golang v0.9.0-pre1.0.20180907102542-7858729281ec
 	github.com/prometheus/client_model v0.0.0-20171117100541-99fa1f4be8e5 // indirect
 	github.com/prometheus/common v0.0.0-20171117163051-2e54d0b93cba // indirect
 	github.com/prometheus/procfs v0.0.0-20171017214025-a6e9df898b13 // indirect
