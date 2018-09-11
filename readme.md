@@ -94,7 +94,7 @@ logging. See the documentation at:
 
 #### Working with the code
 
-Getting the code with the test dependencies (`-t` switch):
+Working with the code requires Go1.11 or a higher version. Getting the code with the test dependencies (`-t` switch):
 
     go get -t github.com/zalando/skipper/...
 
