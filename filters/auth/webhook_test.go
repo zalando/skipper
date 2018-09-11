@@ -58,7 +58,7 @@ func TestWebhook(t *testing.T) {
 				}
 
 				tok := r.Header.Get(authHeaderName)
-				tok = tok[len(authHeaderPrefix):len(tok)]
+				tok = tok[len(authHeaderPrefix):]
 				switch tok {
 				case testToken:
 					w.WriteHeader(200)
