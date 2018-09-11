@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -32,7 +33,8 @@ import (
 
 const (
 	defaultKubernetesURL          = "http://localhost:8001"
-	ingressesURI                  = "/apis/extensions/v1beta1/ingresses"
+	ingressesClusterURI           = "/apis/extensions/v1beta1/ingresses"
+	ingressesNamespaceFmt         = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
 	ingressClassKey               = "kubernetes.io/ingress.class"
 	defaultIngressClass           = "skipper"
 	endpointURIFmt                = "/api/v1/namespaces/%s/endpoints/%s"
@@ -50,6 +52,41 @@ const (
 	skipperfilterAnnotationKey    = "zalando.org/skipper-filter"
 	skipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
 	skipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
+	pathModeAnnotationKey         = "zalando.org/skipper-ingress-path-mode"
+)
+
+// PathMode values are used to control the ingress path interpretation. The path mode can
+// be set globally for all ingress paths, and it can be overruled by the individual ingress
+// rules using the zalando.org/skipper-ingress-path-mode annotation. When path mode is not
+// set, the Kubernetes ingress specification is used, accepting regular expressions with a
+// mandatory leading "/", automatically prepended by the "^" control character.
+//
+// When PathPrefix is used, the path matching becomes deterministic when
+// a request could match more than one ingress routes otherwise.
+type PathMode int
+
+const (
+	// KubernetesIngressMode is the default path mode. Expects regular expressions
+	// with a mandatory leading "/". The expressions are automatically prepended by
+	// the "^" control character.
+	KubernetesIngressMode PathMode = iota
+
+	// PathRegexp is like KubernetesIngressMode but is not prepended by the "^"
+	// control character.
+	PathRegexp
+
+	// PathPrefix is like the PathSubtree predicate. E.g. "/foo/bar" will match
+	// "/foo/bar" or "/foo/bar/baz", but won't match "/foo/barooz".
+	//
+	// In this mode, when a Path or a PathSubtree predicate is set in an annotation,
+	// the value from the annotation has precedence over the standard ingress path.
+	PathPrefix
+)
+
+const (
+	kubernetesIngressModeString = "kubernetes-ingress"
+	pathRegexpString            = "path-regexp"
+	pathPrefixString            = "path-prefix"
 )
 
 var internalIPs = []interface{}{
@@ -72,6 +109,11 @@ type Options struct {
 	// (TBD: support in-cluster operation by taking the address and certificate from the standard Kubernetes
 	// environment variables.)
 	KubernetesURL string
+
+	// KubernetesNamespace is used to switch between finding ingresses in the cluster-scope or limit
+	// the ingresses to only those in the specified namespace. Defaults to "" which means monitor ingresses
+	// in the cluster-scope.
+	KubernetesNamespace string
 
 	// ProvideHealthcheck, when set, tells the data client to append a healthcheck route to the ingress
 	// routes in case of successfully receiving the ingress items from the API (even if individual ingress
@@ -109,6 +151,13 @@ type Options struct {
 
 	// Noop, WIP.
 	ForceFullUpdatePeriod time.Duration
+
+	// WhitelistedHealthcheckCIDR to be appended to the default iprange
+	WhitelistedHealthCheckCIDR []string
+
+	// PathMode controls the default interpretation of ingress paths in cases when the ingress doesn't
+	// specify it with an annotation.
+	PathMode PathMode
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -116,6 +165,7 @@ type Client struct {
 	httpClient             *http.Client
 	apiURL                 string
 	provideHealthcheck     bool
+	healthy                bool
 	provideHTTPSRedirect   bool
 	token                  string
 	current                map[string]*eskip.Route
@@ -123,6 +173,9 @@ type Client struct {
 	sigs                   chan os.Signal
 	ingressClass           *regexp.Regexp
 	reverseSourcePredicate bool
+	pathMode               PathMode
+	quit                   chan struct{}
+	namespace              string
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -136,7 +189,8 @@ var (
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) (*Client, error) {
-	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster)
+	quit := make(chan struct{})
+	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster, quit)
 	if err != nil {
 		return nil, err
 	}
@@ -161,13 +215,25 @@ func New(o Options) (*Client, error) {
 		return nil, err
 	}
 
-	log.Debugf("running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s", o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls)
+	log.Debugf(
+		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. namespace: %s",
+		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, o.KubernetesNamespace,
+	)
 
 	var sigs chan os.Signal
 	if o.ProvideHealthcheck {
 		log.Info("register sigterm handler")
 		sigs = make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGTERM)
+	}
+
+	if len(o.WhitelistedHealthCheckCIDR) > 0 {
+		whitelistCIDRS := make([]interface{}, len(o.WhitelistedHealthCheckCIDR))
+		for i, v := range o.WhitelistedHealthCheckCIDR {
+			whitelistCIDRS[i] = v
+		}
+		internalIPs = append(internalIPs, whitelistCIDRS...)
+		log.Debugf("new internal ips are: %s", internalIPs)
 	}
 
 	return &Client{
@@ -180,7 +246,38 @@ func New(o Options) (*Client, error) {
 		sigs:                   sigs,
 		ingressClass:           ingClsRx,
 		reverseSourcePredicate: o.ReverseSourcePredicate,
+		pathMode:               o.PathMode,
+		quit:                   quit,
+		namespace:              o.KubernetesNamespace,
 	}, nil
+}
+
+// String returns the string representation of the path mode, the same
+// values that are used in the path mode annotation.
+func (m PathMode) String() string {
+	switch m {
+	case PathRegexp:
+		return pathRegexpString
+	case PathPrefix:
+		return pathPrefixString
+	default:
+		return kubernetesIngressModeString
+	}
+}
+
+// ParsePathMode parses the string representations of the different
+// path modes.
+func ParsePathMode(s string) (PathMode, error) {
+	switch s {
+	case kubernetesIngressModeString:
+		return KubernetesIngressMode, nil
+	case pathRegexpString:
+		return PathRegexp, nil
+	case pathPrefixString:
+		return PathPrefix, nil
+	default:
+		return 0, fmt.Errorf("invalid path mode string: %s", s)
+	}
 }
 
 func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, error) {
@@ -196,7 +293,7 @@ func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, erro
 	return string(bToken), nil
 }
 
-func buildHTTPClient(certFilePath string, inCluster bool) (*http.Client, error) {
+func buildHTTPClient(certFilePath string, inCluster bool, quit chan struct{}) (*http.Client, error) {
 	if !inCluster {
 		return http.DefaultClient, nil
 	}
@@ -210,14 +307,34 @@ func buildHTTPClient(certFilePath string, inCluster bool) (*http.Client, error) 
 		return nil, errInvalidCertificate
 	}
 
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    certPool,
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		ExpectContinueTimeout: 30 * time.Second,
+		MaxIdleConns:          5,
+		MaxIdleConnsPerHost:   5,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    certPool,
+		},
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
-	}
+	// regularly force closing idle connections
+	go func() {
+		for {
+			select {
+			case <-time.After(10 * time.Second):
+				transport.CloseIdleConnections()
+			case <-quit:
+				return
+			}
+		}
+	}()
 
 	return &http.Client{
 		Transport: transport,
@@ -444,6 +561,12 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 					idx, // index within the group
 				},
 			}},
+			Filters: []*eskip.Filter{{
+				Name: builtin.DropRequestHeaderName,
+				Args: []interface{}{
+					loadbalancer.DecisionHeader,
+				},
+			}},
 		}
 		routes = append(routes, r)
 	}
@@ -486,15 +609,38 @@ func (c *Client) getEndpoints(ns, name, servicePort, targetPort string) ([]strin
 	if len(targets) == 0 {
 		return nil, errEndpointNotFound
 	}
+	sort.Strings(targets)
 	return targets, nil
 }
 
-func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpointsURLs map[string][]string) ([]*eskip.Route, error) {
+func setPath(m PathMode, r *eskip.Route, p string) {
+	if p == "" {
+		return
+	}
+
+	switch m {
+	case PathPrefix:
+		r.Predicates = append(r.Predicates, &eskip.Predicate{
+			Name: "PathSubtree",
+			Args: []interface{}{p},
+		})
+	case PathRegexp:
+		r.PathRegexps = []string{p}
+	default:
+		r.PathRegexps = []string{"^" + p}
+	}
+}
+
+func (c *Client) convertPathRule(
+	ns, name, host string,
+	prule *pathRule,
+	pathMode PathMode,
+	endpointsURLs map[string][]string,
+) ([]*eskip.Route, error) {
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
 
-	endpointKey := ns + prule.Backend.ServiceName
 	var (
 		eps    []string
 		err    error
@@ -502,13 +648,9 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		svc    *service
 	)
 
-	var pathExpressions []string
-	if prule.Path != "" {
-		pathExpressions = []string{"^" + prule.Path}
-	}
-
 	svcPort := prule.Backend.ServicePort
 	svcName := prule.Backend.ServiceName
+	endpointKey := ns + svcName + svcPort.String()
 
 	if val, ok := endpointsURLs[endpointKey]; !ok {
 		svc, err = c.getService(ns, svcName)
@@ -541,10 +683,12 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 				return nil, err2
 			}
 			r := &eskip.Route{
-				Id:          routeID(ns, name, host, prule.Path, svcName),
-				PathRegexps: pathExpressions,
-				Backend:     address,
+				Id:      routeID(ns, name, host, prule.Path, svcName),
+				Backend: address,
 			}
+
+			setPath(pathMode, r, prule.Path)
+
 			if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
 				r.Predicates = append([]*eskip.Predicate{{
 					Name: traffic.PredicateName,
@@ -566,10 +710,11 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 
 	if len(eps) == 1 {
 		r := &eskip.Route{
-			Id:          routeID(ns, name, host, prule.Path, svcName),
-			PathRegexps: pathExpressions,
-			Backend:     eps[0],
+			Id:      routeID(ns, name, host, prule.Path, svcName),
+			Backend: eps[0],
 		}
+
+		setPath(pathMode, r, prule.Path)
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
@@ -590,9 +735,8 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 	group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName)
 	for idx, ep := range eps {
 		r := &eskip.Route{
-			Id:          routeID(ns, name, host, prule.Path, svcName+fmt.Sprintf("_%d", idx)),
-			PathRegexps: pathExpressions,
-			Backend:     ep,
+			Id:      routeID(ns, name, host, prule.Path, svcName+fmt.Sprintf("_%d", idx)),
+			Backend: ep,
 			Predicates: []*eskip.Predicate{{
 				Name: loadbalancer.MemberPredicateName,
 				Args: []interface{}{
@@ -600,22 +744,20 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 					idx, // index within the group
 				},
 			}},
+			Filters: []*eskip.Filter{{
+				Name: builtin.DropRequestHeaderName,
+				Args: []interface{}{
+					loadbalancer.DecisionHeader,
+				},
+			}},
 		}
 
-		// add traffic predicate if traffic weight is between 0.0 and 1.0
-		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
-			r.Predicates = append([]*eskip.Predicate{{
-				Name: traffic.PredicateName,
-				Args: []interface{}{prule.Backend.Traffic},
-			}}, r.Predicates...)
-			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
-		}
+		setPath(pathMode, r, prule.Path)
 		routes = append(routes, r)
 	}
 
 	decisionRoute := &eskip.Route{
 		Id:          routeID(ns, name, host, prule.Path, svcName) + "__lb_group",
-		PathRegexps: pathExpressions,
 		BackendType: eskip.LoopBackend,
 		Predicates: []*eskip.Predicate{{
 			Name: loadbalancer.GroupPredicateName,
@@ -632,8 +774,55 @@ func (c *Client) convertPathRule(ns, name, host string, prule *pathRule, endpoin
 		}},
 	}
 
+	setPath(pathMode, decisionRoute, prule.Path)
+
+	// add traffic predicate if traffic weight is between 0.0 and 1.0
+	if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+		decisionRoute.Predicates = append([]*eskip.Predicate{{
+			Name: traffic.PredicateName,
+			Args: []interface{}{prule.Backend.Traffic},
+		}}, decisionRoute.Predicates...)
+		log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+	}
+
 	routes = append(routes, decisionRoute)
 	return routes, nil
+}
+
+func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) error {
+	if annotation == "" {
+		return nil
+	}
+
+	predicates, err := eskip.ParsePredicates(annotation)
+	if err != nil {
+		return err
+	}
+
+	// to avoid conflict, give precedence for those predicates that come
+	// from annotations
+	if m == PathPrefix {
+		for _, p := range predicates {
+			if p.Name != "Path" && p.Name != "PathSubtree" {
+				continue
+			}
+
+			r.Path = ""
+			for i, p := range r.Predicates {
+				if p.Name != "PathSubtree" && p.Name != "Path" {
+					continue
+				}
+
+				copy(r.Predicates[i:], r.Predicates[i+1:])
+				r.Predicates[len(r.Predicates)-1] = nil
+				r.Predicates = r.Predicates[:len(r.Predicates)-1]
+				break
+			}
+		}
+	}
+
+	r.Predicates = append(r.Predicates, predicates...)
+	return nil
 }
 
 // ingressToRoutes logs if an invalid found, but proceeds with the
@@ -648,7 +837,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 			i.Spec == nil {
-			log.Warn("invalid ingress item: missing metadata")
+			log.Error("invalid ingress item: missing metadata")
 			continue
 		}
 
@@ -661,9 +850,6 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		} else if err != nil {
 			logger.Errorf("error while converting default backend: %v", err)
 		}
-
-		// TODO: only apply the filters from the annotations if it
-		// is not an LB decision route
 
 		// parse filter and ratelimit annotation
 		var annotationFilter string
@@ -693,12 +879,23 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			}
 		}
 
-		// parse backend-weihgts annotation if it exists
+		// parse backend-weights annotation if it exists
 		var backendWeights map[string]float64
 		if backends, ok := i.Metadata.Annotations[backendWeightsAnnotationKey]; ok {
 			err := json.Unmarshal([]byte(backends), &backendWeights)
 			if err != nil {
 				logger.Errorf("error while parsing backend-weights annotation: %v", err)
+			}
+		}
+
+		// parse pathmode from annotation or fallback to global default
+		var pathMode PathMode = c.pathMode
+		if pathModeString, ok := i.Metadata.Annotations[pathModeAnnotationKey]; ok {
+			if p, err := ParsePathMode(pathModeString); err != nil {
+				log.Errorf("Failed to get path mode for ingress %s/%s: %v", i.Metadata.Namespace, i.Metadata.Name, err)
+			} else {
+				log.Infof("Set pathMode to %s", p)
+				pathMode = p
 			}
 		}
 
@@ -715,19 +912,33 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			// currently handled as mandatory
 			host := []string{"^" + strings.Replace(rule.Host, ".", "[.]", -1) + "$"}
 
-			// add extra routes from optional annotation
-			for idx, route := range extraRoutes {
-				route.HostRegexps = host
-				route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host, idx)
-				hostRoutes[rule.Host] = append(hostRoutes[rule.Host], route)
-			}
-
 			// update Traffic field for each backend
 			computeBackendWeights(backendWeights, rule)
 
 			for _, prule := range rule.Http.Paths {
+				// add extra routes from optional annotation
+				for idx, r := range extraRoutes {
+					route := *r
+					route.HostRegexps = host
+					route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host+strings.Replace(prule.Path, "/", "_", -1), idx)
+					setPath(pathMode, &route, prule.Path)
+					if i := countPathRoutes(&route); i <= 1 {
+						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
+					} else {
+						log.Errorf("Failed to add route having %d path routes: %v", i, r)
+					}
+				}
+
 				if prule.Backend.Traffic > 0 {
-					endpoints, err := c.convertPathRule(i.Metadata.Namespace, i.Metadata.Name, rule.Host, prule, endpointsURLs)
+
+					endpoints, err := c.convertPathRule(
+						i.Metadata.Namespace,
+						i.Metadata.Name,
+						rule.Host,
+						prule,
+						pathMode,
+						endpointsURLs,
+					)
 					if err != nil {
 						// if the service is not found the route should be removed
 						if err == errServiceNotFound {
@@ -739,9 +950,16 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 					for _, r := range endpoints {
 						r.HostRegexps = host
-						// TODO: only apply the filters from the annotations if it
-						// is not an LB decision route
-						if annotationFilter != "" {
+
+						var isLBDecisionRoute bool
+						for _, p := range r.Predicates {
+							if p.Name == loadbalancer.GroupPredicateName {
+								isLBDecisionRoute = true
+								break
+							}
+						}
+
+						if !isLBDecisionRoute && annotationFilter != "" {
 							annotationFilters, err := eskip.ParseFilters(annotationFilter)
 							if err != nil {
 								logger.Errorf("Can not parse annotation filters: %v", err)
@@ -751,20 +969,18 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 							}
 						}
 
-						if annotationPredicate != "" {
-							predicates, err := eskip.ParsePredicates(annotationPredicate)
-							if err != nil {
-								logger.Errorf("Can not parse annotation predicate: %v", err)
-							} else {
-								r.Predicates = append(r.Predicates, predicates...)
-							}
+						err := applyAnnotationPredicates(pathMode, r, annotationPredicate)
+						if err != nil {
+							logger.Errorf("failed to apply annotation predicates: %v", err)
 						}
+
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 					}
 				}
 			}
 		}
 	}
+
 	for host, rs := range hostRoutes {
 		routes = append(routes, rs...)
 
@@ -781,6 +997,19 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	}
 
 	return routes, nil
+}
+
+func countPathRoutes(r *eskip.Route) int {
+	i := 0
+	for _, p := range r.Predicates {
+		if p.Name == "PathSubtree" || p.Name == "Path" {
+			i++
+		}
+	}
+	if r.Path != "" {
+		i++
+	}
+	return i
 }
 
 // catchAllRoutes returns true if one of the routes in the list has a catchAll
@@ -904,8 +1133,16 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 	return validIngs
 }
 
+func (c *Client) getIngressesURI() string {
+	if c.namespace == "" {
+		return ingressesClusterURI
+	}
+	return fmt.Sprintf(ingressesNamespaceFmt, c.namespace)
+}
+
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	var il ingressList
+	ingressesURI := c.getIngressesURI()
 	if err := c.getJSON(ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err
@@ -914,6 +1151,23 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	log.Debugf("all ingresses received: %d", len(il.Items))
 	fItems := c.filterIngressesByClass(il.Items)
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
+
+	sort.Slice(fItems, func(i, j int) bool {
+		mI := fItems[i].Metadata
+		mJ := fItems[j].Metadata
+		if mI == nil && mJ != nil {
+			return true
+		} else if mJ == nil {
+			return false
+		}
+		nsI := mI.Namespace
+		nsJ := mJ.Namespace
+		if nsI != nsJ {
+			return nsI < nsJ
+		}
+		return mI.Name < mJ.Name
+	})
+
 	r, err := c.ingressToRoutes(fItems)
 	if err != nil {
 		log.Debugf("converting ingresses to routes failed: %v", err)
@@ -971,7 +1225,7 @@ func httpRedirectRoute() *eskip.Route {
 		PathRegexps: []string{".*"},
 		Filters: []*eskip.Filter{{
 			Name: "redirectTo",
-			Args: []interface{}{float64(301), "https:"},
+			Args: []interface{}{float64(308), "https:"},
 		}},
 		Shunt: true,
 	}
@@ -998,8 +1252,8 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
-		healthy := !c.hasReceivedTerm()
-		r = append(r, healthcheckRoute(healthy, c.reverseSourcePredicate))
+		c.healthy = !c.hasReceivedTerm()
+		r = append(r, healthcheckRoute(c.healthy, c.reverseSourcePredicate))
 	}
 
 	if c.provideHTTPSRedirect {
@@ -1051,11 +1305,20 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
 		healthy := !c.hasReceivedTerm()
-		hc := healthcheckRoute(healthy, c.reverseSourcePredicate)
-		next[healthcheckRouteID] = hc
-		updatedRoutes = append(updatedRoutes, hc)
+		if healthy != c.healthy {
+			c.healthy = healthy
+			hc := healthcheckRoute(c.healthy, c.reverseSourcePredicate)
+			next[healthcheckRouteID] = hc
+			updatedRoutes = append(updatedRoutes, hc)
+		}
 	}
 
 	c.current = next
 	return updatedRoutes, deletedIDs, nil
+}
+
+func (c *Client) Close() {
+	if c != nil && c.quit != nil {
+		close(c.quit)
+	}
 }

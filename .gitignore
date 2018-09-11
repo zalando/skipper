@@ -11,8 +11,14 @@ example.eskip
 Godeps/_workspace
 packaging/skipper
 packaging/eskip
+packaging/build
 .coverprofile
 .coverprofile-all
 vendor
 linter.log
 site/
+plugins/
+_test_plugins/*.so
+_test_plugins_fail/*.so
+opentracingplugin/build
+build/

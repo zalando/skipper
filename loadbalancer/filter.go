@@ -4,11 +4,13 @@ import (
 	"fmt"
 
 	"github.com/zalando/skipper/filters"
+	"math/rand"
 )
 
-const DecideFilterName = "lbDecide"
-
-const decisionHeader = "X-Load-Balancer-Member"
+const (
+	DecideFilterName = "lbDecide"
+	DecisionHeader   = "X-Load-Balancer-Member"
+)
 
 type counter chan int
 
@@ -20,9 +22,9 @@ type decideFilter struct {
 	counter counter
 }
 
-func newCounter() counter {
+func newCounter(size int) counter {
 	c := make(counter, 1)
-	c <- 0
+	c <- rand.Intn(size)
 	return c
 }
 
@@ -72,13 +74,13 @@ func (s *decideSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return &decideFilter{
 		group:   group,
 		size:    size,
-		counter: newCounter(),
+		counter: newCounter(size),
 	}, nil
 }
 
 func (f *decideFilter) Request(ctx filters.FilterContext) {
 	current := f.counter.inc(f.size)
-	ctx.Request().Header.Set(decisionHeader, fmt.Sprintf("%s=%d", f.group, current))
+	ctx.Request().Header.Set(DecisionHeader, fmt.Sprintf("%s=%d", f.group, current))
 }
 
 func (f *decideFilter) Response(filters.FilterContext) {}

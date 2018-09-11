@@ -8,6 +8,7 @@ current implementation supports [Lua 5.1](https://www.lua.org/manual/5.1/).
 The lua scripts can be added to a route description with the lua() filter,
 the first parameter for the filter is the script. This can be either a file
 name (ending with `.lua`) or inline code, e.g. as
+
 * file `lua("/path/to/file.lua")` - if a file path is not absolute, the path
  is relative to skipper's working directory.
 * inline `lua("function request(c, p); print(c.request.url); end")`
@@ -37,6 +38,7 @@ end
 Besides the [standard modules](https://www.lua.org/manual/5.1/manual.html#5) - except
 for `debug` - the following modules have been preloaded and can be used with e.g.
 `local http = require("http")`, see also the examples below
+
 * `http` [gluahttp](https://github.com/cjoudrey/gluahttp) - TODO: configurable
  with something different than `&http.Client{}`
 * `url`  [gluaurl](https://github.com/cjoudrey/gluaurl)
@@ -97,6 +99,7 @@ Response headers work the same way by accessing / assigning to
 ## Serving requests from lua
 Requests can be served with `ctx.serve(table)`, you must return after this
 call. Possible keys for the table:
+
   * `status_code` (number) - required (but currently not enforced)
   * `header` (table)
   * `body` (string)

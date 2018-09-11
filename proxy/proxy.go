@@ -18,8 +18,10 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
+	tracingfilter "github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -28,9 +30,10 @@ import (
 )
 
 const (
-	proxyBufferSize = 8192
-	proxyErrorFmt   = "proxy: %s"
-	unknownRouteID  = "_unknownroute_"
+	proxyBufferSize     = 8192
+	proxyErrorFmt       = "proxy: %s"
+	unknownRouteID      = "_unknownroute_"
+	unknownRouteBackend = "<unknown>"
 
 	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
@@ -71,7 +74,7 @@ const (
 	// response.
 	Debug
 
-	// HopeHeadersRemoval indicates whether the Hop Headers should be removed
+	// HopHeadersRemoval indicates whether the Hop Headers should be removed
 	// in compliance with RFC 2616
 	HopHeadersRemoval
 )
@@ -142,6 +145,13 @@ type Params struct {
 	// OpenTracer holds the tracer enabled for this proxy instance
 	OpenTracer ot.Tracer
 
+	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
+	// Default: "ingress".
+	OpenTracingInitialSpan string
+
+	// When set, no access log is printed.
+	AccessLogDisabled bool
+
 	// Loadbalancer to report unhealthy or dead backends to
 	LoadBalancer *loadbalancer.LB
 
@@ -171,15 +181,15 @@ var (
 	}
 	errRatelimitError = errors.New("ratelimited")
 	hopHeaders        = map[string]bool{
+		"Te":                  true,
 		"Connection":          true,
 		"Proxy-Connection":    true,
 		"Keep-Alive":          true,
 		"Proxy-Authenticate":  true,
 		"Proxy-Authorization": true,
-		"Te":                true,
-		"Trailer":           true,
-		"Transfer-Encoding": true,
-		"Upgrade":           true,
+		"Trailer":             true,
+		"Transfer-Encoding":   true,
+		"Upgrade":             true,
 	}
 )
 
@@ -203,7 +213,6 @@ func (f Flags) HopHeadersRemoval() bool { return f&HopHeadersRemoval != 0 }
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
 type PriorityRoute interface {
-
 	// If the request is matched, returns a route, otherwise nil.
 	// Additionally it may return a parameter map used by the filters
 	// in the route.
@@ -218,21 +227,23 @@ type flusherWriter interface {
 // Proxy instances implement Skipper proxying functionality. For
 // initializing, see the WithParams the constructor and Params.
 type Proxy struct {
-	routing             *routing.Routing
-	roundTripper        *http.Transport
-	priorityRoutes      []PriorityRoute
-	flags               Flags
-	metrics             metrics.Metrics
-	quit                chan struct{}
-	flushInterval       time.Duration
-	experimentalUpgrade bool
-	maxLoops            int
-	breakers            *circuit.Registry
-	limiters            *ratelimit.Registry
-	log                 logging.Logger
-	defaultHTTPStatus   int
-	openTracer          ot.Tracer
-	lb                  *loadbalancer.LB
+	routing                *routing.Routing
+	roundTripper           *http.Transport
+	priorityRoutes         []PriorityRoute
+	flags                  Flags
+	metrics                metrics.Metrics
+	quit                   chan struct{}
+	flushInterval          time.Duration
+	experimentalUpgrade    bool
+	maxLoops               int
+	breakers               *circuit.Registry
+	limiters               *ratelimit.Registry
+	log                    logging.Logger
+	defaultHTTPStatus      int
+	openTracer             ot.Tracer
+	openTracingInitialSpan string
+	lb                     *loadbalancer.LB
+	accessLogDisabled      bool
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -250,7 +261,7 @@ type proxyError struct {
 
 func (e proxyError) Error() string {
 	if e.err != nil {
-		return fmt.Sprintf("proxy error with code %d, dialing failed %v, unwrap: %v", e.code, e.DialError(), e.err.Error())
+		return fmt.Sprintf("dialing failed %v: %v", e.DialError(), e.err.Error())
 	}
 
 	if e.handled {
@@ -401,6 +412,12 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 			code:          -1,   // omit 0 handling in proxy.Error()
 			dialingFailed: true, // indicate error happened before http
 		}
+	} else if cerr := ctx.Err(); cerr != nil {
+		// unclear when this is being triggered
+		return nil, &proxyError{
+			err:  fmt.Errorf("err from dial context: %v", cerr),
+			code: http.StatusGatewayTimeout,
+		}
 	}
 	return con, nil
 }
@@ -482,22 +499,29 @@ func WithParams(p Params) *Proxy {
 		defaultHTTPStatus = p.DefaultHTTPStatus
 	}
 
+	openTracingInitialSpan := p.OpenTracingInitialSpan
+	if openTracingInitialSpan == "" {
+		openTracingInitialSpan = "ingress"
+	}
+
 	return &Proxy{
-		routing:             p.Routing,
-		roundTripper:        tr,
-		priorityRoutes:      p.PriorityRoutes,
-		flags:               p.Flags,
-		metrics:             m,
-		quit:                quit,
-		flushInterval:       p.FlushInterval,
-		experimentalUpgrade: p.ExperimentalUpgrade,
-		maxLoops:            p.MaxLoopbacks,
-		breakers:            p.CircuitBreakers,
-		limiters:            p.RateLimiters,
-		log:                 &logging.DefaultLog{},
-		defaultHTTPStatus:   defaultHTTPStatus,
-		openTracer:          p.OpenTracer,
-		lb:                  p.LoadBalancer,
+		routing:                p.Routing,
+		roundTripper:           tr,
+		priorityRoutes:         p.PriorityRoutes,
+		flags:                  p.Flags,
+		metrics:                m,
+		quit:                   quit,
+		flushInterval:          p.FlushInterval,
+		experimentalUpgrade:    p.ExperimentalUpgrade,
+		maxLoops:               p.MaxLoopbacks,
+		breakers:               p.CircuitBreakers,
+		lb:                     p.LoadBalancer,
+		limiters:               p.RateLimiters,
+		log:                    &logging.DefaultLog{},
+		defaultHTTPStatus:      defaultHTTPStatus,
+		openTracer:             p.OpenTracer,
+		accessLogDisabled:      p.AccessLogDisabled,
+		openTracingInitialSpan: openTracingInitialSpan,
 	}
 }
 
@@ -547,9 +571,9 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *context) {
 	filtersStart := time.Now()
 
-	count := len(filters)
+	last := len(filters) - 1
 	for i := range filters {
-		fi := filters[count-1-i]
+		fi := filters[last-i]
 		start := time.Now()
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
@@ -643,29 +667,41 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	}
 
 	ingress := ot.SpanFromContext(req.Context())
-	var proxySpan ot.Span
-	if ingress == nil {
-		proxySpan = p.openTracer.StartSpan("proxy")
-	} else {
-		proxySpan = p.openTracer.StartSpan("proxy", ot.ChildOf(ingress.Context()))
+	bag := ctx.StateBag()
+	spanName, ok := bag[tracingfilter.OpenTracingProxySpanKey].(string)
+	if !ok {
+		spanName = "proxy"
 	}
-	ext.SpanKind.Set(proxySpan, ext.SpanKindRPCClientEnum)
+
+	if ingress == nil {
+		ctx.proxySpan = p.openTracer.StartSpan(spanName)
+	} else {
+		ctx.proxySpan = p.openTracer.StartSpan(spanName, ot.ChildOf(ingress.Context()))
+	}
+	ext.SpanKindRPCClient.Set(ctx.proxySpan)
+	ctx.proxySpan.SetTag("skipper.route_id", ctx.route.Id)
+	ctx.proxySpan.SetTag("skipper.route", ctx.route.String())
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
-	ext.HTTPUrl.Set(proxySpan, u.String())
-	ext.HTTPMethod.Set(proxySpan, req.Method)
-	proxySpan.SetTag("skipper.route", ctx.route.String())
-	defer proxySpan.Finish()
+	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
-	p.openTracer.Inject(proxySpan.Context(), ot.HTTPHeaders, carrier)
+	p.openTracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
 
-	req = req.WithContext(ot.ContextWithSpan(req.Context(), proxySpan))
+	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
+	// handle Go issue https://github.com/golang/go/issues/23699
+	if req.Header.Get("Connection") == "Keep-Alive" {
+		req.Header.Set("Connection", "keep-alive")
+	}
+	p.metrics.IncCounter("outgoing." + req.Proto)
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
-		ext.Error.Set(proxySpan, true)
-		proxySpan.LogKV(`error`, err.Error())
+		ext.Error.Set(ctx.proxySpan, true)
+		ctx.proxySpan.LogKV(
+			"event", "error",
+			"message", err.Error())
+
 		if perr, ok := err.(*proxyError); ok {
 			p.log.Errorf("Failed to do backend roundtrip to %s: %v", ctx.route.Backend, perr)
 			//p.lb.AddHealthcheck(ctx.route.Backend)
@@ -675,29 +711,42 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			p.log.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %v", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err)
 			//p.lb.AddHealthcheck(ctx.route.Backend)
 			if nerr.Timeout() {
-				ext.HTTPStatusCode.Set(proxySpan, uint16(http.StatusGatewayTimeout))
+				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusGatewayTimeout))
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusGatewayTimeout,
 				}
 			} else if !nerr.Temporary() {
-				ext.HTTPStatusCode.Set(proxySpan, uint16(http.StatusServiceUnavailable))
+				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusServiceUnavailable))
+				return nil, &proxyError{
+					err:  err,
+					code: http.StatusServiceUnavailable,
+				}
+			} else if !nerr.Timeout() && nerr.Temporary() {
+				p.log.Errorf("Backend error see https://github.com/zalando/skipper/issues/768: %v", err)
+				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusServiceUnavailable))
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusServiceUnavailable,
 				}
 			} else {
-				ext.HTTPStatusCode.Set(proxySpan, uint16(http.StatusInternalServerError))
+				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusInternalServerError))
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusInternalServerError,
 				}
 			}
 		}
-		p.log.Errorf("error during backend roundtrip: %s: %v", ctx.route.Id, err)
+
+		if cerr := req.Context().Err(); cerr != nil {
+			// deadline exceeded or canceled in stdlib, client closed request
+			// see https://github.com/zalando/skipper/issues/687#issuecomment-405557503
+			return nil, &proxyError{err: cerr, code: 499}
+		}
+
 		return nil, &proxyError{err: err}
 	}
-	ext.HTTPStatusCode.Set(proxySpan, uint16(response.StatusCode))
+	ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(response.StatusCode))
 	return response, nil
 }
 
@@ -814,6 +863,7 @@ func (p *Proxy) do(ctx *context) error {
 		}
 
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
+		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
 		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval())
 		if err != nil {
@@ -849,6 +899,11 @@ func (p *Proxy) do(ctx *context) error {
 					ctx.route = ctx.route.Head
 				}
 
+				if ctx.proxySpan != nil {
+					ctx.proxySpan.Finish()
+					ctx.proxySpan = nil
+				}
+
 				perr = nil
 				var perr2 *proxyError
 				rsp, perr2 = p.makeBackendRequest(ctx)
@@ -857,11 +912,10 @@ func (p *Proxy) do(ctx *context) error {
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
-					return perr2.err
+					return perr2
 				}
-				p.log.Infof("Successfully retry to %v, orig %v, code: %d", ctx.route.Backend, origRoute.Backend, rsp.StatusCode)
+				p.log.Infof("successful retry to %v, orig %v, code: %d", ctx.route.Backend, origRoute.Backend, rsp.StatusCode)
 			} else {
-				p.log.Errorf("Failed to do backend request to %s: %v", ctx.route.Backend, perr)
 				return perr
 			}
 		}
@@ -916,8 +970,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	id := unknownRouteID
+	backend := unknownRouteBackend
 	if ctx.route != nil {
 		id = ctx.route.Id
+		backend = ctx.route.Backend
 	}
 
 	code := http.StatusInternalServerError
@@ -960,7 +1016,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	case ok && perr.err == errRatelimitError:
 		code = perr.code
 	default:
-		p.log.Errorf("error while proxying, route %s, status code %d: %v", id, code, err)
+		p.log.Errorf("error while proxying, route %s with backend %s, status code %d: %v", id, backend, code, err)
 	}
 
 	p.sendError(ctx, id, code)
@@ -968,24 +1024,32 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(w, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
+	lw := logging.NewLoggingWriter(w)
+
+	p.metrics.IncCounter("incoming." + r.Proto)
+	var ctx *context
+
+	var span ot.Span
+	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
+	if err == nil {
+		span = p.openTracer.StartSpan(p.openTracingInitialSpan, ext.RPCServerOption(wireContext))
+	} else {
+		span = p.openTracer.StartSpan(p.openTracingInitialSpan)
+	}
+	defer func() {
+		if ctx != nil && ctx.proxySpan != nil {
+			ctx.proxySpan.Finish()
+		}
+		span.Finish()
+	}()
+
+	ext.SpanKindRPCServer.Set(span)
+	p.setCommonSpanInfo(r.URL, r, span)
+	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
+
+	ctx = newContext(lw, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
 	ctx.startServe = time.Now()
 	ctx.tracer = p.openTracer
-
-	carrier := ot.HTTPHeadersCarrier(r.Header)
-	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, carrier)
-	var span ot.Span
-	if err == nil {
-		span = p.openTracer.StartSpan("ingress", ext.RPCServerOption(wireContext))
-	} else {
-		p.log.Debugf("extracting span from wire: %s", err)
-		span = p.openTracer.StartSpan("ingress")
-	}
-	ext.HTTPUrl.Set(span, r.URL.Path)
-	ext.HTTPMethod.Set(span, r.Method)
-	defer span.Finish()
-
-	ctx.request = ctx.request.WithContext(ot.ContextWithSpan(ctx.request.Context(), span))
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -1010,6 +1074,24 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx.response.StatusCode,
 		ctx.startServe,
 	)
+
+	accessLogDisabled, ok := ctx.stateBag[accesslog.AccessLogDisabledKey].(bool)
+
+	if !ok {
+		accessLogDisabled = p.accessLogDisabled
+	}
+
+	if !accessLogDisabled {
+		entry := &logging.AccessEntry{
+			Request:      r,
+			ResponseSize: lw.GetBytes(),
+			StatusCode:   ctx.response.StatusCode,
+			RequestTime:  ctx.startServe,
+			Duration:     time.Since(ctx.startServe),
+		}
+
+		logging.LogAccess(entry)
+	}
 }
 
 // Close causes the proxy to stop closing idle
@@ -1018,4 +1100,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) Close() error {
 	close(p.quit)
 	return nil
+}
+
+func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
+	ext.Component.Set(s, "skipper")
+	ext.HTTPUrl.Set(s, u.String())
+	ext.HTTPMethod.Set(s, r.Method)
+	s.SetTag("http.remote_addr", r.RemoteAddr)
+	s.SetTag("http.path", u.Path)
+	s.SetTag("http.host", r.Host)
 }

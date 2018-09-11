@@ -140,7 +140,7 @@ func TestFallbackGroupLB(t *testing.T) {
 
 		// group A responds two times with failure:
 		if !request("/", "non-grouped") ||
-			!request("/a", "Internal Server Error", "Internal Server Error") ||
+			!request("/a", "Bad Gateway", "Bad Gateway") ||
 			!request("/b", "group-B/BE-1", "group-B/BE-2") {
 			t.Error("failed to receive the right response")
 		}

@@ -1,16 +1,22 @@
 site_name: Skipper
 pages:
     - Architecture: index.md
+    - Basics:
+        - Filters: filters.md
+        - Predicates: predicates.md
+        - Scripts: scripts.md
+        - Plugins: plugins.md
     - Deployments: deployments.md
     - Data Clients:
         - Eskip: dataclients/eskip-file.md
         - Etcd: dataclients/etcd.md
-        - Inkeeper API: dataclients/inkeeper-api.md
+        - Innkeeper API: dataclients/innkeeper-api.md
         - Kubernetes: dataclients/kubernetes.md
         - Route String: dataclients/route-string.md
     - Kubernetes:
         - Ingress Controller Deployment: kubernetes/ingress-controller.md
         - Ingress Usage: kubernetes/ingress-usage.md
-    - Scripts: scripts.md
+        - Ingress Backends: kubernetes/ingress-backends.md
     - Operations: operations.md
+    - Development: development.md
     - Videos: videos.md

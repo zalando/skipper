@@ -11,7 +11,7 @@ Annotation | example data | usage
 zalando.org/backend-weights | `{"my-app-1": 80, "my-app-2": 20}` | blue-green deployments
 zalando.org/skipper-filter | `consecutiveBreaker(15)` | arbitrary filters
 zalando.org/skipper-predicate | `QueryParam("version", "^alpha$")` | arbitrary predicates
-zalando.org/skipper-routes | `Method("OPTIONS") -> stauts(200) -> <shunt>` | extra custom routes
+zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | extra custom routes
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
 
 ## Supported Service types
@@ -24,7 +24,7 @@ Service type | supported | workaround
 ClusterIP | yes | ---
 NodePort | yes | ---
 ExternalName | no, [related issue](https://github.com/zalando/skipper/issues/549) | [use deployment with routestring](../dataclients/route-string/#proxy-to-a-given-url)
-LoadBalancer | no | it should not, because kubernetes cloud-controller-manager will maintain it
+LoadBalancer | no | it should not, because Kubernetes cloud-controller-manager will maintain it
 
 # Basics
 
@@ -49,7 +49,7 @@ endpoints selected by the Kubernetes service `app-svc` on port `80`.
 
 To have 2 routes with different `Host` headers serving the same
 backends, you have to specify 2 entries in the rules section, as
-kubernetes defined the ingress spec. This is often used in cases of
+Kubernetes defined the ingress spec. This is often used in cases of
 migrations from one domain to another one or migrations to or from
 bare metal datacenters to cloud providers or inter cloud or intra
 cloud providers migrations. Examples are AWS account migration, AWS to
@@ -74,6 +74,47 @@ Cloud migration.
           - backend:
               serviceName: app-svc
               servicePort: 80
+
+## Ingress path handling
+
+Ingress paths can be interpreted in four different modes:
+
+1. based on the kubernetes ingress specification
+2. as plain regular expression
+3. as a path prefix
+
+The default is the kubernetes ingress mode. It can be changed by a startup option
+to any of the other modes, and the individual ingress rules can also override the
+default behavior with the zalando.org/skipper-ingress-path-mode annotation.
+
+E.g.:
+
+    zalando.org/skipper-ingress-path-mode: path-prefix
+
+### Kubernetes ingress specification base path
+
+By default, the ingress path is interpreted as a regular expression with a
+mandatory leading "/", and is automatically prepended by a "^" control character,
+enforcing that the path has to be at the start of the incoming request path.
+
+### Plain regular expression
+
+When the path mode is set to "path-regexp", the ingress path is interpreted similar
+to the default kubernetes ingress specification way, but is not prepended by the "^"
+control character.
+
+### Path prefix
+
+When the path mode is set to "path-prefix", the ingress path is not a regular
+expression. As an example, "/foo/bar" will match "/foo/bar" or "/foo/bar/baz", but
+won't match "/foo/barooz".
+
+When PathPrefix is used, the path matching becomes deterministic when
+a request could match more than one ingress routes otherwise.
+
+In PathPrefix mode, when a Path or PathSubtree predicate is set in an
+annotation, the predicate in the annotation takes precedence over the normal ingress
+path.
 
 ## Filters and Predicates
 
@@ -100,8 +141,43 @@ This example shows how to add predicates and filters:
 
 ## Custom Routes
 
-Custom routes is a way of extending the default routes configured for an
-ingress resource.
+Custom routes is a way of extending the default routes configured for
+an ingress resource.
+
+Sometimes you just want to return a header, redirect or even static
+html content. You can return from skipper without doing a proxy call
+to a backend, if you end your filter chain with `<shunt>`. The use of
+`<shunt>` recommends the use in combination with `status()` filter, to
+not respond with the default http code, which defaults to 404.  To
+match your custom route with higher priority than your ingress you
+also have to add another predicate, for example the [Method("GET")
+predicate](/predicates/#method) to match the route with higher
+priority.
+
+Custom routes specified in ingress will always add the `Host()`
+[predicate](/predicates/#host) to match the host header specified in
+the ingress `rules:`. If there is a `path:` definition in your
+ingress, then it will be based on the skipper command line parameter
+`-kubernetes-path-mode` set one of theses predicates:
+
+- [Path()](https://opensource.zalando.com/skipper/predicates/#path)
+- [PathSubtree()](https://opensource.zalando.com/skipper/predicates/#pathsubtree)
+- [PathRegexp()](https://opensource.zalando.com/skipper/predicates/#pathregexp)
+
+### Return static content
+
+The following example sets a response header `X: bar`, a response body
+`<html><body>hello</body></html>` and respond from the ingress
+directly with a HTTP status code 200:
+
+    zalando.org/skipper-routes: |
+      Path("/") -> setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
+
+Keep in mind that you need a valid backend definition to backends
+which are available, otherwise Skipper would not accept the entire
+route definition from the ingress object for safety reasons.
+
+### CORS example
 
 This example shows how to add a custom route for handling `OPTIONS` requests.
 
@@ -137,6 +213,18 @@ Host(/^app-default[.]example[.]org$/) && Method("OPTIONS") ->
   status(200) -> <shunt>
 ```
 
+### Multiple routes
+
+You can also set multiple routes, but you have to set the names of the
+route as defined in eskip:
+
+    zalando.org/skipper-routes: |
+      routename1: Path("/") -> localRatelimit(2, "1h") -> inlineContent("A") -> status(200) -> <shunt>;
+      routename2: Path("/foo") -> localRatelimit(5, "1h") -> inlineContent("B") -> status(200) -> <shunt>;
+
+Make sure the `;` semicolon is used to terminate the routes, if you
+use multiple routes definitions.
+
 # Filters - Basic HTTP manipulations
 
 HTTP manipulations are done by using skipper filters. Changes can be
@@ -157,6 +245,14 @@ Add a HTTP header in the request path to your backend.
 Add a HTTP header in the response path of your clients.
 
     setResponseHeader("X-Foo", "bar")
+
+## Enable gzip
+
+Compress responses with gzip.
+
+    compress() // compress all valid MIME types
+    compress("text/html") // only compress HTML files
+    compress(9, "text/html") // control the level of compression, 1 = fastest, 9 = best compression, 0 = no compression
 
 ## Set the Path
 
@@ -210,7 +306,22 @@ shows how to use filters for authorization.
 
 ### Bearer Token (OAuth/JWT)
 
-TBD
+OAuth2/JWT tokens can be validated and allowed based on different
+content of the token. Please check the filter documentation for that:
+
+- [oauthTokeninfoAnyScope](/filters/#oauthtokeninfoanyscope)
+- [oauthTokeninfoAllScope](/filters/#oauthtokeninfoallscope)
+- [oauthTokeninfoAnyKV](/filters/#oauthtokeninfoanykv)
+- [oauthTokeninfoAllKV](/filters/#oauthtokeninfoallkv)
+
+There are also [auth predicates](/predicates/#auth), which will allow
+you to match a route based on the content of a token:
+
+- `JWTPayloadAnyKV()`
+- `JWTPayloadAllKV()`
+
+These are not validating the tokens, which should be done separately
+by the filters mentioned above.
 
 ## Diagnosis - Throttling Bandwidth - Latency
 
@@ -310,7 +421,7 @@ you know how much calls per duration your backend is able to handle.
 Ratelimits are enforced per route.
 
 More details you will find in [ratelimit package](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
-and [kubernetes dataclient](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes) documentation.
+and [Kubernetes dataclient](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes) documentation.
 
 ### Client Ratelimits
 

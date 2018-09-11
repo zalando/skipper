@@ -37,6 +37,7 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 			"",
 			"",
 			"",
+			"",
 			backendPort{"port1"},
 			1.0,
 			testRule(
@@ -61,6 +62,8 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	defer dc.Close()
 
 	l := loggingtest.New()
 	router := routing.New(routing.Options{

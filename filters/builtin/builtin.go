@@ -5,13 +5,17 @@ package builtin
 
 import (
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/filters/cookie"
+	"github.com/zalando/skipper/filters/cors"
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
+	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/tee"
+	"github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/script"
 )
@@ -46,6 +50,8 @@ const (
 	SetQueryName        = "setQuery"
 	DropQueryName       = "dropQuery"
 	InlineContentName   = "inlineContent"
+	HeaderToQueryName   = "headerToQuery"
+	QueryToHeaderName   = "queryToHeader"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -79,6 +85,8 @@ func MakeRegistry() filters.Registry {
 		NewCompress(),
 		NewCopyRequestHeader(),
 		NewCopyResponseHeader(),
+		NewHeaderToQuery(),
+		NewQueryToHeader(),
 		diag.NewRandom(),
 		diag.NewLatency(),
 		diag.NewBandwidth(),
@@ -101,6 +109,10 @@ func MakeRegistry() filters.Registry {
 		ratelimit.NewDisableRatelimit(),
 		loadbalancer.NewDecide(),
 		script.NewLuaScript(),
+		cors.NewOrigin(),
+		logfilter.NewUnverifiedAuditLog(),
+		tracing.NewSpanName(),
+		accesslog.NewAccessLogDisabled(),
 	} {
 		r.Register(s)
 	}

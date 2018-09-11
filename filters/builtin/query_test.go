@@ -1,9 +1,10 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
 	"testing"
+
+	"github.com/zalando/skipper/filters/filtertest"
 )
 
 func TestDropQuery(t *testing.T) {
@@ -62,7 +63,26 @@ func TestSetQuery(t *testing.T) {
 	ctx := &filtertest.Context{FRequest: req}
 	f.Request(ctx)
 	if req.URL.String() != "https://www.example.org/path?foo=bar" {
-		t.Error("failed to replace path")
+		t.Error("failed to replace query")
+	}
+}
+
+func TestSetQueryKeyOnly(t *testing.T) {
+	spec := NewSetQuery()
+	f, err := spec.CreateFilter([]interface{}{"foo"})
+	if err != nil {
+		t.Error(err)
+	}
+
+	req, err := http.NewRequest("GET", "https://www.example.org/path?foo", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx := &filtertest.Context{FRequest: req}
+	f.Request(ctx)
+	if req.URL.String() != "https://www.example.org/path?foo" {
+		t.Error("failed to replace query")
 	}
 }
 

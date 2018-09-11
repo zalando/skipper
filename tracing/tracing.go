@@ -44,7 +44,7 @@
 //
 //    go build -buildmode=plugin -o basic.so ./basic/basic.go
 //
-// and copied to the directory given as -plugindir (by default, ".").
+// and copied to the given as -plugindir (by default, "./plugins").
 //
 // Then it can be loaded with -opentracing basic as parameter to skipper.
 package tracing
@@ -56,9 +56,49 @@ import (
 	"plugin"
 
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/tracing/tracers/basic"
+	"github.com/zalando/skipper/tracing/tracers/instana"
+	"github.com/zalando/skipper/tracing/tracers/jaeger"
+	"github.com/zalando/skipper/tracing/tracers/lightstep"
 )
 
+// InitTracer initializes an opentracing tracer. The first option item is the
+// tracer implementation name.
+func InitTracer(opts []string) (tracer ot.Tracer, err error) {
+	if len(opts) == 0 {
+		return nil, errors.New("opentracing: the implementation parameter is mandatory")
+	}
+	var impl string
+	impl, opts = opts[0], opts[1:]
+
+	switch impl {
+	case "noop":
+		return &ot.NoopTracer{}, nil
+	case "basic":
+		return basic.InitTracer(opts)
+	case "instana":
+		return instana.InitTracer(opts)
+	case "jaeger":
+		return jaeger.InitTracer(opts)
+	case "lightstep":
+		return lightstep.InitTracer(opts)
+	default:
+		return nil, fmt.Errorf("tracer '%s' not supported", impl)
+	}
+}
+
+func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer ot.Tracer, err error) {
+	for _, dir := range pluginDirs {
+		tracer, err = LoadPlugin(dir, opts)
+		if err == nil {
+			return tracer, nil
+		}
+	}
+	return nil, err
+}
+
 // LoadPlugin loads the given opentracing plugin and returns an opentracing.Tracer
+// DEPRECATED, use LoadTracingPlugin
 func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	if len(opts) == 0 {
 		return nil, errors.New("opentracing: the implementation parameter is mandatory")

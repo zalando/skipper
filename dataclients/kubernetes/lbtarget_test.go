@@ -40,6 +40,7 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 		"",
 		"",
 		"",
+		"",
 		backendPort{"port1"},
 		1.0,
 		testRule(
@@ -55,6 +56,8 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	defer dc.Close()
 
 	r, err := dc.LoadAll()
 	if err != nil {
@@ -93,11 +96,13 @@ func TestLBTargets(t *testing.T) {
 		// default backend, target 1:
 		kube_namespace1__ingress1______0:
 		  LBMember("kube_namespace1__ingress1______", 0)
+		  -> dropRequestHeader("X-Load-Balancer-Member")
 		  -> "http://42.0.1.2:8080";
 
 		// default backend, target 2:
 		kube_namespace1__ingress1______1:
 		  LBMember("kube_namespace1__ingress1______", 1)
+		  -> dropRequestHeader("X-Load-Balancer-Member")
 		  -> "http://42.0.1.3:8080";
 
 		// default group:
@@ -111,6 +116,7 @@ func TestLBTargets(t *testing.T) {
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
 		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1", 0)
+		  -> dropRequestHeader("X-Load-Balancer-Member")
 		  -> "http://42.0.1.2:8080";
 
 		// path rule, target 2:
@@ -118,6 +124,7 @@ func TestLBTargets(t *testing.T) {
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
 		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1", 1)
+		  -> dropRequestHeader("X-Load-Balancer-Member")
 		  -> "http://42.0.1.3:8080";
 
 		// path rule group:
