@@ -8,7 +8,6 @@ require (
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
-	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/gogo/protobuf v1.1.1 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/protobuf v1.2.0 // indirect
@@ -34,7 +33,7 @@ require (
 	github.com/sirupsen/logrus v1.0.4
 	github.com/sony/gobreaker v0.0.0-20170530031423-e9556a45379e
 	github.com/stretchr/testify v1.2.2
-	github.com/szuecs/rate-limit-buffer v0.2.0
+	github.com/szuecs/rate-limit-buffer v0.5.0
 	github.com/uber-go/atomic v1.3.2 // indirect
 	github.com/uber/jaeger-client-go v2.14.0+incompatible
 	github.com/uber/jaeger-lib v1.5.0
@@ -47,10 +46,5 @@ require (
 	golang.org/x/text v0.3.0 // indirect
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b // indirect
 	google.golang.org/grpc v1.14.0 // indirect
-	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
-	gopkg.in/fsnotify.v1 v1.4.7 // indirect
-	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
-	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	gopkg.in/yaml.v2 v2.2.1 // indirect
 	layeh.com/gopher-json v0.0.0-20180103211521-1aab82196e3b
 )
