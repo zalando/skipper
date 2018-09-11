@@ -12,30 +12,46 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type nodeInfoClient struct {
+type nodeInfoClient interface {
+	// GetNodeInfo returns a list of peers to join from an
+	// external service discovery source.
+	GetNodeInfo() ([]*NodeInfo, error)
+}
+
+func NewNodeInfoClient(o Options) nodeInfoClient {
+	switch o.swarm {
+	case swarmKubernetes:
+		return NewNodeInfoClientKubernetes(o)
+	default:
+		log.Errorf("unknown swarm type: %s", o.swarm)
+		return nil
+	}
+}
+
+type nodeInfoClientKubernetes struct {
 	kubernetesInCluster bool
 	kubeAPIBaseURL      string
-	client              *Client
+	client              *ClientKubernetes
 	namespace           string
 	labelKey            string
 	labelVal            string
 	port                int
 }
 
-func NewnodeInfoClient(o Options) *nodeInfoClient {
+func NewNodeInfoClientKubernetes(o Options) *nodeInfoClientKubernetes {
 	log.Debug("SWARM: NewnodeInfoClient")
-	cli, err := NewClient(o.KubernetesInCluster, o.KubernetesAPIBaseURL)
+	cli, err := NewClientKubernetes(o.KubernetesOptions.KubernetesInCluster, o.KubernetesOptions.KubernetesAPIBaseURL)
 	if err != nil {
 		log.Fatalf("SWARM: failed to create kubernetes client: %v", err)
 	}
 
-	return &nodeInfoClient{
+	return &nodeInfoClientKubernetes{
 		client:              cli,
-		kubernetesInCluster: o.KubernetesInCluster,
-		kubeAPIBaseURL:      o.KubernetesAPIBaseURL,
-		namespace:           o.Namespace,
-		labelKey:            o.LabelSelectorKey,
-		labelVal:            o.LabelSelectorValue,
+		kubernetesInCluster: o.KubernetesOptions.KubernetesInCluster,
+		kubeAPIBaseURL:      o.KubernetesOptions.KubernetesAPIBaseURL,
+		namespace:           o.KubernetesOptions.Namespace,
+		labelKey:            o.KubernetesOptions.LabelSelectorKey,
+		labelVal:            o.KubernetesOptions.LabelSelectorValue,
 		port:                o.SwarmPort,
 	}
 }
@@ -57,7 +73,7 @@ type itemList struct {
 	Items []*item `json:"items"`
 }
 
-func (c *nodeInfoClient) nodeInfoURL() (string, error) {
+func (c *nodeInfoClientKubernetes) nodeInfoURL() (string, error) {
 	u, err := url.Parse(c.kubeAPIBaseURL)
 	if err != nil {
 		return "", err
@@ -72,17 +88,16 @@ func (c *nodeInfoClient) nodeInfoURL() (string, error) {
 	return u.String(), nil
 }
 
-// GetNodeInfo returns a list of peers to join from an external
-// service discovery source. Right now, the only source is hardcoded
-// to be Kubernetes.
-func (c *nodeInfoClient) GetNodeInfo() ([]*NodeInfo, error) {
-	u, err := c.nodeInfoURL()
+// GetNodeInfo returns a list of peers to join from Kubernetes API
+// server.
+func (c *nodeInfoClientKubernetes) GetNodeInfo() ([]*NodeInfo, error) {
+	s, err := c.nodeInfoURL()
 	if err != nil {
 		log.Debugf("SWARM: failed to build request url for %s %s=%s: %s", c.namespace, c.labelKey, c.labelVal, err)
 		return nil, err
 	}
 
-	rsp, err := c.client.Get(u)
+	rsp, err := c.client.Get(s)
 	if err != nil {
 		log.Debugf("SWARM: request to %s %s=%s failed: %v", c.namespace, c.labelKey, c.labelVal, err)
 		return nil, err

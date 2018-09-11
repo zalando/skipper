@@ -8,13 +8,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func newFakeNodeInfoClient(url string) *nodeInfoClient {
-	cli, err := NewClient(false, url)
+func newFakeKubernetesNodeInfoClient(url string) nodeInfoClient {
+	cli, err := NewClientKubernetes(false, url)
 	if err != nil {
 		log.Fatalf("failed to create kubernetes client: %v", err)
 	}
 
-	return &nodeInfoClient{
+	return &nodeInfoClientKubernetes{
 		kubernetesInCluster: false,
 		kubeAPIBaseURL:      url,
 		client:              cli,
@@ -30,7 +30,7 @@ func TestGetKubeNodeInfo(t *testing.T) {
 		w.Write([]byte(content))
 	}))
 	defer s.Close()
-	c := newFakeNodeInfoClient(s.URL)
+	c := newFakeKubernetesNodeInfoClient(s.URL)
 	infos, err := c.GetNodeInfo()
 	if err != nil {
 		t.Errorf("Failed to get nodeinfos: %v", err)

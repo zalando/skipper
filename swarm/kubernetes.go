@@ -39,9 +39,15 @@ var (
 	errEndpointNotFound     = errors.New("endpoint not found")
 )
 
-// Client is the client to access kubernetes resources to find the
+// // Client is the client to access resources to find the peers to join
+// // a swarm.
+// type Client interface {
+// 	Get(s string) (*http.Response, error)
+// }
+
+// ClientKubernetes is the client to access kubernetes resources to find the
 // peers to join a swarm.
-type Client struct {
+type ClientKubernetes struct {
 	httpClient *http.Client
 	apiURL     string
 	token      string
@@ -49,7 +55,7 @@ type Client struct {
 
 // Get does the http GET call to kubernetes API to find the initial
 // peers of a swarm.
-func (c *Client) Get(s string) (*http.Response, error) {
+func (c *ClientKubernetes) Get(s string) (*http.Response, error) {
 	req, err := c.createRequest("GET", s, nil)
 	if err != nil {
 		return nil, err
@@ -63,8 +69,8 @@ func (c *Client) Get(s string) (*http.Response, error) {
 	return rsp, err
 }
 
-// NewClient creates and initializes a Kubernetes DataClient.
-func NewClient(kubernetesInCluster bool, kubernetesURL string) (*Client, error) {
+// NewClientKubernetes creates and initializes a Kubernetes DataClient
+func NewClientKubernetes(kubernetesInCluster bool, kubernetesURL string) (*ClientKubernetes, error) {
 	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, kubernetesInCluster)
 	if err != nil {
 		return nil, err
@@ -80,7 +86,7 @@ func NewClient(kubernetesInCluster bool, kubernetesURL string) (*Client, error) 
 		return nil, err
 	}
 
-	return &Client{
+	return &ClientKubernetes{
 		httpClient: httpClient,
 		apiURL:     apiURL,
 		token:      token,
@@ -144,7 +150,7 @@ func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, erro
 	return string(bToken), nil
 }
 
-func (c *Client) getEndpoints(ns, name string) ([]string, error) {
+func (c *ClientKubernetes) getEndpoints(ns, name string) ([]string, error) {
 	log.Debugf("SWARM: requesting endpoint: %s/%s", ns, name)
 	url := fmt.Sprintf(endpointURIFmt, ns, name)
 	var ep endpoint
@@ -163,7 +169,7 @@ func (c *Client) getEndpoints(ns, name string) ([]string, error) {
 	return targets, nil
 }
 
-func (c *Client) getJSON(uri string, a interface{}) error {
+func (c *ClientKubernetes) getJSON(uri string, a interface{}) error {
 	url := c.apiURL + uri
 	log.Debugf("SWARM: making request to: %s", url)
 
@@ -204,7 +210,7 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	return err
 }
 
-func (c *Client) createRequest(method, url string, body io.Reader) (*http.Request, error) {
+func (c *ClientKubernetes) createRequest(method, url string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err

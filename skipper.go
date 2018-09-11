@@ -767,10 +767,16 @@ func Run(o Options) error {
 
 	var theSwarm *swarm.Swarm
 	if o.EnableSwarm {
-		theSwarm, err = swarm.NewSwarm(o.KubernetesInCluster, o.KubernetesURL)
+		swops := swarm.Options{}
+		if o.Kubernetes {
+			swops.KubernetesOptions = &swarm.KubernetesOptions{
+				KubernetesInCluster:  o.KubernetesInCluster,
+				KubernetesAPIBaseURL: o.KubernetesURL,
+			}
+		}
+		theSwarm, err = swarm.NewSwarm(swops)
 		if err != nil {
-			log.Errorf("failed to init swarm: %s", err)
-			return err
+			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
 		}
 	}
 
@@ -780,7 +786,9 @@ func Run(o Options) error {
 
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		proxyParams.RateLimiters = ratelimit.NewRegistry(theSwarm, o.RatelimitSettings...)
+		if theSwarm != nil {
+			proxyParams.RateLimiters = ratelimit.NewRegistry(theSwarm, o.RatelimitSettings...)
+		}
 	}
 
 	if o.DebugListener != "" {
