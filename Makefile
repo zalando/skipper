@@ -31,14 +31,14 @@ eskip: $(SOURCES) bindir
 build: $(SOURCES) lib skipper eskip
 
 build.osx:
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.windows:
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 install: $(SOURCES)
-	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
-	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
+	GO111MODULE=on go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GO111MODULE=on go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
 check: build check-plugins
 	# go test $(PACKAGES)
@@ -46,7 +46,7 @@ check: build check-plugins
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do go test $$p || break; done
+	for p in $(PACKAGES); do GO111MODULE=on go test $$p || break; done
 
 shortcheck: build check-plugins
 	# go test -test.short -run ^Test $(PACKAGES)
@@ -54,16 +54,16 @@ shortcheck: build check-plugins
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do go test -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GO111MODULE=on go test -test.short -run ^Test $$p || break -1; done
 
 check-plugins: $(TEST_PLUGINS)
-	go test -run LoadPlugins
+	GO111MODULE=on go test -run LoadPlugins
 
 _test_plugins/%.so: _test_plugins/%.go
-	go build -buildmode=plugin -o $@ $<
+	GO111MODULE=on go build -buildmode=plugin -o $@ $<
 
 _test_plugins_fail/%.so: _test_plugins_fail/%.go
-	go build -buildmode=plugin -o $@ $<
+	GO111MODULE=on go build -buildmode=plugin -o $@ $<
 
 bench: build $(TEST_PLUGINS)
 	# go test -bench . $(PACKAGES)
@@ -71,7 +71,7 @@ bench: build $(TEST_PLUGINS)
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do go test -bench . $$p; done
+	for p in $(PACKAGES); do GO111MODULE=on go test -bench . $$p; done
 
 lint: build
 	gometalinter --enable-all --deadline=60s ./... | tee linter.log
@@ -86,7 +86,7 @@ deps:
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 
 vet: $(SOURCES)
-	go vet $(PACKAGES)
+	GO111MODULE=on go vet $(PACKAGES)
 
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)
@@ -108,7 +108,7 @@ check-precommit: check-fmt build shortcheck vet
 	#
 	for p in $(PACKAGES); do \
 		go list -f \
-			'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
+			'{{if len .TestGoFiles}}"GO111MODULE=on go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
 			$$p | xargs -i sh -c {}; \
 	done
 	go get github.com/modocache/gover
