@@ -3,7 +3,6 @@ package metrics
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -258,7 +257,7 @@ func (p *Prometheus) registerMetrics() {
 
 	// Register prometheus runtime collectors if required.
 	if p.opts.EnableRuntimeMetrics {
-		p.registry.MustRegister(prometheus.NewProcessCollector(os.Getpid(), ""))
+		p.registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 		p.registry.MustRegister(prometheus.NewGoCollector())
 	}
 }
