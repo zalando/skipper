@@ -3,8 +3,9 @@ package swarmtest
 import (
 	"errors"
 	"fmt"
-	"log"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/hashicorp/memberlist"
 )
@@ -16,6 +17,18 @@ const (
 	stateSuspect
 	exit
 )
+
+func (nst nodeStateType) String() string {
+	switch nst {
+	case alive:
+		return "alive"
+	case stateSuspect:
+		return "suspect"
+	case exit:
+		return "exit"
+	}
+	return "unknown"
+}
 
 type TestNode struct {
 	name          string
@@ -54,7 +67,7 @@ func (node *TestNode) Join(nodesToJoin []string) error {
 		return err
 	}
 	if len(nodesToJoin) != n {
-		log.Println("failed to join %d nodes from the given list", len(nodesToJoin)-n)
+		log.Infof("failed to join %d nodes from the given list", len(nodesToJoin)-n)
 	}
 	return nil
 }
@@ -65,7 +78,7 @@ func (node *TestNode) ListMembers() error {
 	}
 
 	for _, mem := range node.list.Members() {
-		log.Println(fmt.Sprintf("Node:%s Name: %s, IP:%s", node.name, mem.Name, mem.Addr))
+		log.Infof(fmt.Sprintf("Node:%s Name: %s, IP:%s", node.name, mem.Name, mem.Addr))
 	}
 	return nil
 }
