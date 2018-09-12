@@ -751,34 +751,39 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 }
 
 // checkRatelimit is used in case of a route ratelimit
-// configuration. It returns the used ratelimit.Settings and true if
+// configuration. It returns the used ratelimit.Settings and 0 if
 // the request passed in the context should be allowed.
-func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, bool) {
+// otherwise it returns the used ratelimit.Settings and the retry-after period.
+func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 	if p.limiters == nil {
-		return ratelimit.Settings{}, true
+		return ratelimit.Settings{}, 0
 	}
 
 	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].(ratelimit.Settings)
 	if !ok {
-		return ratelimit.Settings{}, true
+		return ratelimit.Settings{}, 0
 	}
 	settings.Host = ctx.outgoingHost
 
 	rl := p.limiters.Get(settings)
 	if rl == nil {
-		return settings, true
+		return settings, 0
 	}
 
 	if settings.Lookuper == nil {
 		p.log.Error("lookuper is nil")
-		return settings, true
+		return settings, 0
 	}
 	s := settings.Lookuper.Lookup(ctx.Request())
 
 	if s == "" {
-		return settings, true
+		return settings, 0
 	}
-	return settings, rl.Allow(s)
+
+	if rl.Allow(s) {
+		return settings, 0
+	}
+	return settings, rl.RetryAfter(s)
 }
 
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
@@ -798,12 +803,13 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	return done, ok
 }
 
-func ratelimitError(settings ratelimit.Settings) error {
+func ratelimitError(settings ratelimit.Settings, ctx *context, retryAfter int) error {
 	return &proxyError{
 		err:  errRatelimitError,
 		code: http.StatusTooManyRequests,
 		additionalHeader: http.Header{
-			ratelimit.Header: []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
+			ratelimit.Header:           []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
+			ratelimit.RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
 		},
 	}
 }
@@ -816,9 +822,8 @@ func (p *Proxy) do(ctx *context) error {
 	ctx.loopCounter++
 
 	// proxy global setting
-	if settings, ok := p.limiters.Check(ctx.request); !ok {
-		p.log.Debugf("proxy.go limiter settings: %s", settings)
-		rerr := ratelimitError(settings)
+	if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
+		rerr := ratelimitError(settings, ctx, retryAfter)
 		return rerr
 	}
 
@@ -839,8 +844,8 @@ func (p *Proxy) do(ctx *context) error {
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 	// per route rate limit
-	if settings, allow := p.checkRatelimit(ctx); !allow {
-		rerr := ratelimitError(settings)
+	if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
+		rerr := ratelimitError(settings, ctx, retryAfter)
 		return rerr
 	}
 
