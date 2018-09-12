@@ -1,12 +1,14 @@
-package monitoring
+package apimonitoring
 
 import (
 	"github.com/zalando/skipper/filters"
 	"time"
 )
 
+// monitoringFilterContext holds the information relevant for ONE round-trip
+// (one combination of "apiMonitoringFilter" and "filters.FilterContext")
 type monitoringFilterContext struct {
-	Filter        *monitoringFilter
+	Filter        *apiMonitoringFilter
 	FilterContext filters.FilterContext
 
 	DimensionsPrefix    string

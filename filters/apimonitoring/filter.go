@@ -1,4 +1,4 @@
-package monitoring
+package apimonitoring
 
 import (
 	"fmt"
@@ -25,19 +25,21 @@ const (
 
 // StateBag Keys
 const (
-	KeyPrefix = "filter.monitoring."
+	KeyPrefix = "filter.apimonitoring."
 	KeyState  = KeyPrefix + "state"
 )
 
-type monitoringFilter struct {
+type apiMonitoringFilter struct {
 	apiId string
 }
+
+var _ filters.Filter = new(apiMonitoringFilter)
 
 //
 // IMPLEMENTS filters.Filter
 //
 
-func (f *monitoringFilter) Request(c filters.FilterContext) {
+func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	log.WithField("op", "request").Infof("Filter: %p %+v", f, f)
 
 	//
@@ -60,7 +62,7 @@ func (f *monitoringFilter) Request(c filters.FilterContext) {
 	c.StateBag()[KeyState] = mfc
 }
 
-func (f *monitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefix string) {
+func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefix string) {
 	req := c.Request()
 
 	apiId := ""
@@ -76,7 +78,7 @@ func (f *monitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefix s
 	return
 }
 
-func (f *monitoringFilter) Response(c filters.FilterContext) {
+func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 	log.WithField("op", "response").Infof("Filter: %+v", f)
 
 	mfc, ok := c.StateBag()[KeyState].(*monitoringFilterContext)

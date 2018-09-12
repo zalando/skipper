@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/apimonitoring"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
 	logfilter "github.com/zalando/skipper/filters/log"
@@ -35,7 +36,6 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
-	"github.com/zalando/skipper/filters/monitoring"
 )
 
 const (
@@ -683,7 +683,7 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
-		monitoring.New(o.MonitoringFoo),
+		apimonitoring.New(o.MonitoringFoo),
 		auth.NewWebhook(o.WebhookTimeout),
 	)
 

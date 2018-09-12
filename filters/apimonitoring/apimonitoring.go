@@ -1,4 +1,4 @@
-package monitoring
+package apimonitoring
 
 import (
 	"github.com/sirupsen/logrus"
@@ -6,16 +6,16 @@ import (
 )
 
 const (
-	name = "monitor"
+	name = "apimonitoring"
 )
 
 var (
-	log = logrus.WithField("filter", "monitoring")
+	log = logrus.WithField("filter", name)
 )
 
 func New(foo string) filters.Spec {
 	log.Infof("Create new filter spec with `foo` %q", foo)
-	return &monitoringSpec{
+	return &apiMonitoringFilterSpec{
 		Foo: foo,
 	}
 }

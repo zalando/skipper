@@ -1,21 +1,21 @@
-package monitoring
+package apimonitoring
 
 import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
 )
 
-type monitoringSpec struct {
-	Foo string
+type apiMonitoringFilterSpec struct {
+	Foo string // todo: Delete (was just for learning)
 }
 
-var _ filters.Spec = &monitoringSpec{}
+var _ filters.Spec = new(apiMonitoringFilterSpec)
 
-func (s *monitoringSpec) Name() string {
+func (s *apiMonitoringFilterSpec) Name() string {
 	return name
 }
 
-func (s *monitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
+func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			switch x := r.(type) {
@@ -46,7 +46,7 @@ func (s *monitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter
 	}
 
 	// Create the filter
-	filter = &monitoringFilter{
+	filter = &apiMonitoringFilter{
 		apiId: apiId,
 	}
 	log.Infof("Created filter: %+v", filter)
