@@ -29,6 +29,7 @@ import (
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/swarm"
 )
 
 const (
@@ -82,7 +83,6 @@ const (
 	reverseSourcePredicateUsage          = "reverse the order of finding the client IP from X-Forwarded-For header"
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
 	maxAuditBodyUsage                    = "sets the max body to read to log inthe audit log body"
-	enableSwarmUsage                     = "enable swarm communication between nodes in a skipper fleet"
 
 	// logging, metrics, tracing:
 	enablePrometheusMetricsUsage    = "siwtch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
@@ -162,6 +162,15 @@ const (
 	enableDualstackBackendUsage     = "enables DualStack for backend connections"
 	tlsHandshakeTimeoutBackendUsage = "sets the TLS handshake timeout for backend connections"
 	maxIdleConnsBackendUsage        = "sets the maximum idle connections for all backend connections"
+
+	// swarm:
+	enableSwarmUsage                       = "enable swarm communication between nodes in a skipper fleet"
+	swarmKubernetesNamespaceUsage          = "Kubernetes namespace to find swarm peer instances"
+	swarmKubernetesLabelSelectorKeyUsage   = "Kubernetes labelselector key to find swarm peer instances"
+	swarmKubernetesLabelSelectorValueUsage = "Kubernetes labelselector value to find swarm peer instances"
+	swarmPortUsage                         = "swarm port to use to communicate with our peers"
+	swarmMaxMessageBufferUsage             = "swarm max message buffer size to use for member list messages"
+	swarmLeaveTimeoutUsage                 = "swarm leave timeout to use for leaving the memberlist on timeout"
 )
 
 var (
@@ -195,7 +204,6 @@ var (
 	predicatePlugins                pluginFlags
 	dataclientPlugins               pluginFlags
 	multiPlugins                    pluginFlags
-	enableSwarm                     bool
 
 	// logging, metrics, tracing:
 	enablePrometheusMetrics   bool
@@ -275,6 +283,15 @@ var (
 	enableDualstackBackend     bool
 	tlsHandshakeTimeoutBackend time.Duration
 	maxIdleConnsBackend        int
+
+	// swarm:
+	enableSwarm                       bool
+	swarmKubernetesNamespace          string
+	swarmKubernetesLabelSelectorKey   string
+	swarmKubernetesLabelSelectorValue string
+	swarmPort                         int
+	swarmMaxMessageBuffer             int
+	swarmLeaveTimeout                 time.Duration
 )
 
 func init() {
@@ -386,7 +403,12 @@ func init() {
 	flag.DurationVar(&tlsHandshakeTimeoutBackend, "tls-timeout-backend", defaultTLSHandshakeTimeoutBackend, tlsHandshakeTimeoutBackendUsage)
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
 	flag.BoolVar(&enableSwarm, "enable-swarm", false, enableSwarmUsage)
-
+	flag.StringVar(&swarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, swarmKubernetesNamespaceUsage)
+	flag.StringVar(&swarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, swarmKubernetesLabelSelectorKeyUsage)
+	flag.StringVar(&swarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, swarmKubernetesLabelSelectorValueUsage)
+	flag.IntVar(&swarmPort, "swarm-port", swarm.DefaultPort, swarmPortUsage)
+	flag.IntVar(&swarmMaxMessageBuffer, "swarm-max-msg-buffer", swarm.DefaultMaxMessageBuffer, swarmMaxMessageBufferUsage)
+	flag.DurationVar(&swarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, swarmLeaveTimeoutUsage)
 	flag.Parse()
 
 	// check if arguments were correctly parsed.
@@ -495,7 +517,6 @@ func main() {
 		DataClientPlugins:               dataclientPlugins.Get(),
 		Plugins:                         multiPlugins.Get(),
 		PluginDirs:                      []string{skipper.DefaultPluginDir},
-		EnableSwarm:                     enableSwarm,
 
 		// logging, metrics, tracing:
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
@@ -574,6 +595,13 @@ func main() {
 		DualStackBackend:           enableDualstackBackend,
 		TLSHandshakeTimeoutBackend: tlsHandshakeTimeoutBackend,
 		MaxIdleConnsBackend:        maxIdleConnsBackend,
+
+		// swarm:
+		EnableSwarm:                       enableSwarm,
+		SwarmKubernetesLabelSelectorKey:   swarmKubernetesLabelSelectorKey,
+		SwarmKubernetesLabelSelectorValue: swarmKubernetesLabelSelectorValue,
+		SwarmMaxMessageBuffer:             swarmMaxMessageBuffer,
+		SwarmLeaveTimeout:                 swarmLeaveTimeout,
 	}
 
 	if pluginDir != "" {

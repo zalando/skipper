@@ -21,7 +21,7 @@ func newFakeKubernetesNodeInfoClient(url string) nodeInfoClient {
 		namespace:           DefaultNamespace,
 		labelKey:            "application",
 		labelVal:            "skipper-ingress",
-		port:                DefaultSwarmPort,
+		port:                DefaultPort,
 	}
 }
 

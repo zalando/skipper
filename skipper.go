@@ -456,7 +456,13 @@ type Options struct {
 
 	// EnableSwarm enables skipper fleet communication, required by e.g.
 	// the cluster ratelimiter
-	EnableSwarm bool
+	EnableSwarm                       bool
+	SwarmKubernetesNamespace          string
+	SwarmKubernetesLabelSelectorKey   string
+	SwarmKubernetesLabelSelectorValue string
+	SwarmPort                         int
+	SwarmMaxMessageBuffer             int
+	SwarmLeaveTimeout                 time.Duration
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -767,11 +773,18 @@ func Run(o Options) error {
 
 	var theSwarm *swarm.Swarm
 	if o.EnableSwarm {
-		swops := swarm.Options{}
+		swops := swarm.Options{
+			SwarmPort:        o.SwarmPort,
+			MaxMessageBuffer: o.SwarmMaxMessageBuffer,
+			LeaveTimeout:     o.SwarmLeaveTimeout,
+		}
 		if o.Kubernetes {
 			swops.KubernetesOptions = &swarm.KubernetesOptions{
 				KubernetesInCluster:  o.KubernetesInCluster,
 				KubernetesAPIBaseURL: o.KubernetesURL,
+				Namespace:            o.SwarmKubernetesNamespace,
+				LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
+				LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
 			}
 		}
 		theSwarm, err = swarm.NewSwarm(swops)

@@ -36,9 +36,9 @@ const (
 	// DefaultMaxMessageBuffer is the default maximum size of the
 	// exchange packets send out to peers.
 	DefaultMaxMessageBuffer = 1 << 22
-	// DefaultSwarmPort is used as default to connect to other
+	// DefaultPort is used as default to connect to other
 	// known swarm peers.
-	DefaultSwarmPort = 9990
+	DefaultPort = 9990
 	// DefaultLeaveTimeout is the timeout to wait for responses
 	// for a leave message send by this instance to other peers.
 	DefaultLeaveTimeout = time.Duration(5 * time.Second)
@@ -106,13 +106,35 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 	o.Errors = make(chan<- error) // FIXME - do WE have to read this, or...?
 	o.KubernetesOptions.KubernetesAPIBaseURL = u
 
-	// TODO(sszuecs): use args to set defaults and use these defaults in opts parsing
-	o.MaxMessageBuffer = DefaultMaxMessageBuffer
-	o.LeaveTimeout = DefaultLeaveTimeout
-	o.SwarmPort = DefaultSwarmPort
-	o.KubernetesOptions.Namespace = DefaultNamespace
-	o.KubernetesOptions.LabelSelectorKey = DefaultLabelSelctorKey
-	o.KubernetesOptions.LabelSelectorValue = DefaultLabelSelctorValue
+	if o.SwarmPort <= 0 || o.SwarmPort >= 65535 {
+		log.Errorf("Wrong SwarmPort %d, set to default %d instead", o.SwarmPort, DefaultMaxMessageBuffer)
+		o.SwarmPort = DefaultPort
+	}
+
+	if o.KubernetesOptions.Namespace == "" {
+		log.Errorf("Namespace is empty set to default %s instead", DefaultNamespace)
+		o.KubernetesOptions.Namespace = DefaultNamespace
+	}
+
+	if o.KubernetesOptions.LabelSelectorKey == "" {
+		log.Errorf("LabelSelectorKey is empty, set to default %s instead", DefaultLabelSelectorKey)
+		o.KubernetesOptions.LabelSelectorKey = DefaultLabelSelectorKey
+	}
+
+	if o.KubernetesOptions.LabelSelectorValue == "" {
+		log.Errorf("LabelSelectorValue is empty, set to default %s instead", DefaultLabelSelectorValue)
+		o.KubernetesOptions.LabelSelectorValue = DefaultLabelSelectorValue
+	}
+
+	if o.MaxMessageBuffer <= 0 {
+		log.Errorf("MaxMessageBuffer <= 0, setting to default %d instead", DefaultMaxMessageBuffer)
+		o.MaxMessageBuffer = DefaultMaxMessageBuffer
+	}
+
+	if o.LeaveTimeout <= 0 {
+		log.Errorf("LeaveTimeout <= 0, setting to default %d instead", DefaultLeaveTimeout)
+		o.LeaveTimeout = DefaultLeaveTimeout
+	}
 
 	return Start(o)
 }
@@ -147,14 +169,6 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo) (*Swarm, error) {
 	} else {
 		c.BindPort = self.Port
 		c.AdvertisePort = c.BindPort
-	}
-
-	if o.MaxMessageBuffer <= 0 {
-		o.MaxMessageBuffer = DefaultMaxMessageBuffer
-	}
-
-	if o.LeaveTimeout <= 0 {
-		o.LeaveTimeout = DefaultLeaveTimeout
 	}
 
 	getOutgoing := make(chan reqOutgoing)

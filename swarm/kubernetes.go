@@ -19,10 +19,10 @@ import (
 const (
 	// DefaultNamespace is the default namespace where swarm searches for peer information
 	DefaultNamespace = "kube-system"
-	// DefaultLabelSelctorKey is the default label key to select PODs for peer information
-	DefaultLabelSelctorKey = "application"
-	// DefaultLabelSelctorValue is the default label value to select PODs for peer information
-	DefaultLabelSelctorValue = "skipper-ingress"
+	// DefaultLabelSelectorKey is the default label key to select PODs for peer information
+	DefaultLabelSelectorKey = "application"
+	// DefaultLabelSelectorValue is the default label value to select PODs for peer information
+	DefaultLabelSelectorValue = "skipper-ingress"
 
 	defaultKubernetesURL    = "http://localhost:8001"
 	endpointURIFmt          = "/api/v1/namespaces/%s/endpoints/%s"

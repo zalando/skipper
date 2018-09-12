@@ -8,6 +8,10 @@ import (
 )
 
 func TestInitializeSwarm(t *testing.T) {
+	o := Options{
+		MaxMessageBuffer: DefaultMaxMessageBuffer,
+		LeaveTimeout:     DefaultLeaveTimeout,
+	}
 	ep1 := &knownEntryPoint{
 		self: &NodeInfo{Name: "first", Port: 9933},
 	}
@@ -19,15 +23,15 @@ func TestInitializeSwarm(t *testing.T) {
 	}
 	all := []*NodeInfo{ep1.Node(), ep2.Node(), ep3.Node()}
 
-	first, err := Join(Options{}, ep1.Node(), all)
+	first, err := Join(o, ep1.Node(), all)
 	if err != nil {
 		t.Fatalf("Failed to start first: %v", err)
 	}
-	second, err := Join(Options{}, ep2.Node(), all)
+	second, err := Join(o, ep2.Node(), all)
 	if err != nil {
 		t.Fatalf("Failed to start second: %v", err)
 	}
-	third, err := Join(Options{}, ep3.Node(), all)
+	third, err := Join(o, ep3.Node(), all)
 	if err != nil {
 		t.Fatalf("Failed to start third: %v", err)
 	}
