@@ -804,14 +804,13 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 }
 
 func ratelimitError(settings ratelimit.Settings, ctx *context, retryAfter int) error {
-	headers := http.Header{
-		ratelimit.Header:           []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
-		ratelimit.RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
-	}
 	return &proxyError{
-		err:              errRatelimitError,
-		code:             http.StatusTooManyRequests,
-		additionalHeader: headers,
+		err:  errRatelimitError,
+		code: http.StatusTooManyRequests,
+		additionalHeader: http.Header{
+			ratelimit.Header:           []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
+			ratelimit.RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
+		},
 	}
 }
 
