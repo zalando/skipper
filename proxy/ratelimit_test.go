@@ -306,8 +306,8 @@ func TestRetryAfterHeader(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer backend.Close()
 	r := []*eskip.Route{{Backend: backend.URL}}
-	limit := 5
-	timeWindow := time.Duration(limit) * time.Second
+	const limit = 5
+	const timeWindow = time.Duration(limit) * time.Second
 	ratelimitSettings := ratelimit.Settings{
 		Type:       ratelimit.ServiceRatelimit,
 		MaxHits:    1,
