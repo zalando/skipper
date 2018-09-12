@@ -315,7 +315,7 @@ func TestRetryAfterHeader(t *testing.T) {
 	}
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
-		RateLimiters:         ratelimit.NewRegistry(ratelimitSettings),
+		RateLimiters:         ratelimit.NewRegistry(nil, ratelimitSettings),
 	}, r...)
 	defer p.Close()
 

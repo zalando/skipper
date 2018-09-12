@@ -101,3 +101,7 @@ func (c *ClusterLimit) Delta(s string) time.Duration {
 func (c *ClusterLimit) Resize(s string, n int) {
 	c.local.Resize(s, n)
 }
+
+func (c *ClusterLimit) RetryAfter(s string) int {
+	return c.local.RetryAfter(s)
+}
