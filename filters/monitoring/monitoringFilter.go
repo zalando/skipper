@@ -9,10 +9,11 @@ import (
 // Metric names
 const (
 	// Status Code counting
-	MetricStatus500s  = "Status500s"
-	MetricStatus400s  = "Status400s"
-	MetricStatus200s  = "Status200s"
-	MetricStatusOther = "StatusOther"
+	MetricCountAll  = "Count"
+	MetricCount500s = "Count500s"
+	MetricCount400s = "Count400s"
+	MetricCount300s = "Count300s"
+	MetricCount200s = "Count200s"
 
 	// Request & Response
 	MetricRequestSize  = "ReqSize"
@@ -22,82 +23,70 @@ const (
 	MetricLatency = "Latency"
 )
 
-type monitoringFilter struct {
-	dimensionsPrefix string
+// StateBag Keys
+const (
+	KeyPrefix = "filter.monitoring."
+	KeyState  = KeyPrefix + "state"
+)
 
-	// Metrics gathering helper
-	begin       time.Time // earliest point in time where the request is observed
-	requestSize int64     // size of the initial request (before filters are applied)
+type monitoringFilter struct {
+	apiId string
 }
 
+//
+// IMPLEMENTS filters.Filter
+//
+
 func (f *monitoringFilter) Request(c filters.FilterContext) {
-	log.Infof("Request! %+v", f)
+	log.WithField("op", "request").Infof("Filter: %p %+v", f, f)
 
 	//
 	// METRICS: Gathering from the initial request
 	//
 
-	f.begin = time.Now()
+	// Identify the dimensions "prefix" of the metrics.
+	dimensionsPrefix := f.getDimensionPrefix(c)
 
+	begin := time.Now()
+	originalRequestSize := c.Request().ContentLength
+
+	mfc := &monitoringFilterContext{
+		Filter:              f,
+		FilterContext:       c,
+		DimensionsPrefix:    dimensionsPrefix,
+		Begin:               begin,
+		OriginalRequestSize: originalRequestSize,
+	}
+	c.StateBag()[KeyState] = mfc
+}
+
+func (f *monitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefix string) {
 	req := c.Request()
 
-	// Identify the dimensions "prefix" of the metrics.
-	f.dimensionsPrefix = fmt.Sprintf(
-		"%s.%s.",
-		req.Host, // TODO: What could we consider the API ID...?
-		req.Method,
-	)
+	apiId := ""
+	if f.apiId == "" {
+		apiId = req.Host // no API ID set in the route. Using the host.
+	} else {
+		apiId = f.apiId // API ID configured in the route. Using it.
+	}
 
-	// Retain the initial requests' size, before it is modified by other filters.
-	f.requestSize = req.ContentLength
+	method := req.Method
+
+	prefix = fmt.Sprintf("%s.%s.", apiId, method)
+	return
 }
 
 func (f *monitoringFilter) Response(c filters.FilterContext) {
-	log.Infof("Response! %+v", f)
+	log.WithField("op", "response").Infof("Filter: %+v", f)
 
-	f.writeMetricNumberOfCalls(c)
-	f.writeMetricLatency(c)
-	f.writeMetricSizeOfRequest(c)
-	f.writeMetricSizeOfResponse(c)
-}
-
-func (f *monitoringFilter) writeMetricNumberOfCalls(c filters.FilterContext) {
-	st := c.Response().StatusCode
-	switch {
-	case /* 100s */ st < 200:
-		c.Metrics().IncCounter(f.dimensionsPrefix + MetricStatusOther)
-	case /* 200s */ st < 300:
-		c.Metrics().IncCounter(f.dimensionsPrefix + MetricStatus200s)
-	case /* 300s */ st < 400:
-		c.Metrics().IncCounter(f.dimensionsPrefix + MetricStatusOther)
-	case /* 400s */ st < 500:
-		c.Metrics().IncCounter(f.dimensionsPrefix + MetricStatus400s)
-	case /* 500s */ st < 600:
-		c.Metrics().IncCounter(f.dimensionsPrefix + MetricStatus500s)
-	default:
-		c.Metrics().IncCounter(f.dimensionsPrefix + MetricStatusOther)
+	mfc, ok := c.StateBag()[KeyState].(*monitoringFilterContext)
+	if !ok {
+		log.Errorf("monitoring filter state %q not found in FilterContext's StateBag or not of the expected type", KeyState)
+		return
 	}
-}
 
-func (f *monitoringFilter) writeMetricLatency(c filters.FilterContext) {
-	c.Metrics().MeasureSince(f.dimensionsPrefix+MetricLatency, f.begin)
-}
-
-func (f *monitoringFilter) writeMetricSizeOfRequest(c filters.FilterContext) {
-	if f.requestSize < 0 {
-		log.WithField("dimensions", f.dimensionsPrefix).
-			Infof("unknown request content length: %d", f.requestSize)
-	} else {
-		c.Metrics().IncCounterBy(f.dimensionsPrefix+MetricRequestSize, f.requestSize)
-	}
-}
-
-func (f *monitoringFilter) writeMetricSizeOfResponse(c filters.FilterContext) {
-	responseSize := c.Response().ContentLength
-	if responseSize < 0 {
-		log.WithField("dimensions", f.dimensionsPrefix).
-			Infof("unknown response content length: %d", responseSize)
-	} else {
-		c.Metrics().IncCounter(f.dimensionsPrefix + MetricResponseSize)
-	}
+	mfc.WriteMetricCount()
+	mfc.WriteMetricLatency()
+	mfc.WriteMetricSizeOfRequest()
+	mfc.WriteMetricSizeOfResponse()
 }
