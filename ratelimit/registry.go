@@ -68,11 +68,11 @@ func (r *Registry) Get(s Settings) *Ratelimit {
 	return r.get(s)
 }
 
-// Check returns Settings used,false and the retry-after duration in case of request is
-// ratelimitted and true otherwise.
-func (r *Registry) Check(req *http.Request) (Settings, bool, int) {
+// Check returns Settings used and the retry-after duration in case of request is
+// ratelimitted. Otherwise return the Settings and 0.
+func (r *Registry) Check(req *http.Request) (Settings, int) {
 	if r == nil {
-		return Settings{}, true, 0
+		return Settings{}, 0
 	}
 
 	s := r.global
@@ -80,16 +80,17 @@ func (r *Registry) Check(req *http.Request) (Settings, bool, int) {
 	registry := r.Get(s)
 	switch s.Type {
 	case ServiceRatelimit:
-		allow:= registry.Allow("")
-		after := registry.RetryAfter("")
-		return s, allow, after
+		if registry.Allow("") {
+			return s, 0
+		}
+		return s, registry.RetryAfter("")
 
 	case LocalRatelimit:
 		ip := net.RemoteHost(req)
 		if !registry.Allow(ip.String()) {
-			return s, false, registry.RetryAfter(ip.String())
+			return s, registry.RetryAfter(ip.String())
 		}
 	}
 
-	return Settings{}, true, 0
+	return Settings{}, 0
 }
