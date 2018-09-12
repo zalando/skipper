@@ -75,10 +75,18 @@ used to group client requests. It accepts the default
 HTTP Response
 
 In case of rate limiting, the HTTP response status will be 429 Too
-Many Requests, and a header will be set which shows the maximum
-requests per hour (based on RFC 6585):
+Many Requests and two headers will be set.
 
-     X-Rate-Limit: 6000
+One which shows the maximum requests per hour:
+
+	X-Rate-Limit: 6000
+
+And another indicating how long (in seconds) to wait before making a new
+request:
+
+	Retry-After: 3600
+
+Both are based on RFC 6585.
 
 Registry
 
