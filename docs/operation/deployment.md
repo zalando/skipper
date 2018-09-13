@@ -11,7 +11,7 @@ backends, which could be a microservice architecture.
 In this deployment mode you might have 100k HTTP routes, which are
 used in production and modified by many parties.
 
-To support this scenario we have the [etcd dataclient](dataclients/etcd.md).
+To support this scenario we have the [etcd dataclient](../data-clients/etcd.md).
 
 [Etcd](https://github.com/coreos/etcd) is a distributed database.
 
@@ -25,7 +25,7 @@ component responsible to route traffic into your
 As deployer you can define an ingress object and an ingress controller
 will make sure incoming traffic gets routed to her backend service as
 defined. Skipper supports this scenario with the
-[Kubernetes dataclient](dataclients/kubernetes.md) and is used in
+[Kubernetes dataclient](../data-clients/kubernetes.md) and is used in
 production since end of 2016.
 
 Skipper as ingress controller does not need to have any file
@@ -36,24 +36,24 @@ all traffic you want to serve with Kubernetes to a loadbalancer pool
 of Skippers. This is a clear advantage over other ingress controllers
 like nginx, haproxy or envoy.
 
-Read more about [Skipper's Kubernetes dataclient](dataclients/kubernetes.md).
+Read more about [Skipper's Kubernetes dataclient](../data-clients/kubernetes.md).
 
 ## Innkeeper Routes API
 
 [Skipper](https://github.com/zalando/skipper) can read from an
 [Innkeeper API](https://github.com/zalando/innkeeper), if you like to
 create routes via an API.
-Our [Innkeeper API dataclient](dataclients/innkeeper-api.md) can be used
+Our [Innkeeper API dataclient](../data-clients/innkeeper.md) can be used
 as well. It was used in production in the past. (TODO: do we use it somewhere?)
 
 ## Demos / Talks
 
 In demos you may want to show arbitrary hello world applications.
 You can easily describe html or json output on the command line with
-the [route-string dataclient](dataclients/route-string.md).
+the [route-string dataclient](../data-clients/route-string.md).
 
 ## Simple Routes File
 
 The most static deployment that is known from apache, nginx or haproxy
 is write your routes into a file and start your http server.
-This is what the [Eskip file dataclient](dataclients/eskip-file.md) is about.
+This is what the [Eskip file dataclient](../data-clients/eskip-file.md) is about.
