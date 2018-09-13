@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestInitializeSwarm(t *testing.T) {
+func TestSwarm(t *testing.T) {
 	o := Options{
 		MaxMessageBuffer: DefaultMaxMessageBuffer,
 		LeaveTimeout:     DefaultLeaveTimeout,
