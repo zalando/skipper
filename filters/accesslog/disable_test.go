@@ -17,13 +17,13 @@ func TestAccessLogDisabled(t *testing.T) {
 		{
 			msg:    "false-value-enables-access-log",
 			state:  []interface{}{"false"},
-			result: false,
+			result: true,
 			err:    nil,
 		},
 		{
 			msg:    "true-value-disables-access-log",
 			state:  []interface{}{"true"},
-			result: true,
+			result: false,
 			err:    nil,
 		},
 		{
@@ -62,8 +62,8 @@ func TestAccessLogDisabled(t *testing.T) {
 
 			f.Request(&ctx)
 			bag := ctx.StateBag()
-			if bag[AccessLogDisabledKey] != ti.result {
-				t.Errorf("access log state is not equal to expected '%v': %v", ti.result, bag[AccessLogDisabledKey])
+			if bag[AccessLogEnabledKey] != ti.result {
+				t.Errorf("access log state is not equal to expected '%v': %v", ti.result, bag[AccessLogEnabledKey])
 			}
 		})
 	}

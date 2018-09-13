@@ -113,6 +113,8 @@ func MakeRegistry() filters.Registry {
 		logfilter.NewUnverifiedAuditLog(),
 		tracing.NewSpanName(),
 		accesslog.NewAccessLogDisabled(),
+		accesslog.NewDisableAccessLog(),
+		accesslog.NewEnableAccessLog(),
 	} {
 		r.Register(s)
 	}
