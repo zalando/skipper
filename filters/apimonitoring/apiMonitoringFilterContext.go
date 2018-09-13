@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// monitoringFilterContext holds the information relevant for ONE round-trip
+// apiMonitoringFilterContext holds the information relevant for ONE round-trip
 // (one combination of "apiMonitoringFilter" and "filters.FilterContext")
-type monitoringFilterContext struct {
+type apiMonitoringFilterContext struct {
 	Filter        *apiMonitoringFilter
 	FilterContext filters.FilterContext
 
@@ -18,7 +18,7 @@ type monitoringFilterContext struct {
 	OriginalRequestSize int64     // initial requests' size, before it is modified by other filters.
 }
 
-func (c *monitoringFilterContext) WriteMetricCount() {
+func (c *apiMonitoringFilterContext) WriteMetricCount() {
 	// Count all calls
 	c.incCounter(MetricCountAll)
 	// Count by status class
@@ -37,11 +37,11 @@ func (c *monitoringFilterContext) WriteMetricCount() {
 	}
 }
 
-func (c *monitoringFilterContext) WriteMetricLatency() {
+func (c *apiMonitoringFilterContext) WriteMetricLatency() {
 	c.measureSince(MetricLatency, c.Begin)
 }
 
-func (c *monitoringFilterContext) WriteMetricSizeOfRequest() {
+func (c *apiMonitoringFilterContext) WriteMetricSizeOfRequest() {
 	requestSize := c.OriginalRequestSize
 	if requestSize < 0 {
 		log.WithField("dimensions", c.DimensionsPrefix).
@@ -51,7 +51,7 @@ func (c *monitoringFilterContext) WriteMetricSizeOfRequest() {
 	}
 }
 
-func (c *monitoringFilterContext) WriteMetricSizeOfResponse() {
+func (c *apiMonitoringFilterContext) WriteMetricSizeOfResponse() {
 	response := c.FilterContext.Response()
 	if response == nil {
 		return
@@ -69,19 +69,19 @@ func (c *monitoringFilterContext) WriteMetricSizeOfResponse() {
 // METRICS HELPERS
 //
 
-func (c *monitoringFilterContext) incCounter(key string) {
+func (c *apiMonitoringFilterContext) incCounter(key string) {
 	k := c.DimensionsPrefix + key
 	log.Infof("incrementing %q by 1", k)
 	c.FilterContext.Metrics().IncCounter(k)
 }
 
-func (c *monitoringFilterContext) incCounterBy(key string, value int64) {
+func (c *apiMonitoringFilterContext) incCounterBy(key string, value int64) {
 	k := c.DimensionsPrefix + key
 	log.Infof("incrementing %q by %d", k, value)
 	c.FilterContext.Metrics().IncCounterBy(k, value)
 }
 
-func (c *monitoringFilterContext) measureSince(key string, start time.Time) {
+func (c *apiMonitoringFilterContext) measureSince(key string, start time.Time) {
 	k := c.DimensionsPrefix + key
 	log.Infof("measuring for %q since %v", k, start)
 	c.FilterContext.Metrics().MeasureSince(k, start)

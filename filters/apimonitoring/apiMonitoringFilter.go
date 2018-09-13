@@ -52,7 +52,7 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	begin := time.Now()
 	originalRequestSize := c.Request().ContentLength
 
-	mfc := &monitoringFilterContext{
+	mfc := &apiMonitoringFilterContext{
 		Filter:              f,
 		FilterContext:       c,
 		DimensionsPrefix:    dimensionsPrefix,
@@ -81,7 +81,7 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefi
 func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 	log.WithField("op", "response").Infof("Filter: %+v", f)
 
-	mfc, ok := c.StateBag()[KeyState].(*monitoringFilterContext)
+	mfc, ok := c.StateBag()[KeyState].(*apiMonitoringFilterContext)
 	if !ok {
 		log.Errorf("monitoring filter state %q not found in FilterContext's StateBag or not of the expected type", KeyState)
 		return
