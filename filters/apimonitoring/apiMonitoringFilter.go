@@ -3,6 +3,7 @@ package apimonitoring
 import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
+	"regexp"
 	"time"
 )
 
@@ -30,7 +31,8 @@ const (
 )
 
 type apiMonitoringFilter struct {
-	apiId string
+	apiId        string
+	pathPatterns map[string]*regexp.Regexp
 }
 
 var _ filters.Filter = new(apiMonitoringFilter)
@@ -65,6 +67,9 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefix string) {
 	req := c.Request()
 
+	//
+	// API ID
+	//
 	apiId := ""
 	if f.apiId == "" {
 		apiId = req.Host // no API ID set in the route. Using the host.
@@ -72,9 +77,30 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefi
 		apiId = f.apiId // API ID configured in the route. Using it.
 	}
 
+	//
+	// PATH
+	//
+	path := ""
+	for pathPat, regex := range f.pathPatterns {
+		if regex.MatchString(req.RequestURI) {
+			path = pathPat
+			break
+		}
+	}
+	if path == "" {
+		// if no path pattern matches, use the path as it is
+		path = req.RequestURI
+	}
+
+	//
+	// METHOD
+	//
 	method := req.Method
 
-	prefix = fmt.Sprintf("%s.%s.", apiId, method)
+	//
+	// FINAL PREFIX
+	//
+	prefix = fmt.Sprintf("%s.%s.%s.", apiId, path, method)
 	return
 }
 

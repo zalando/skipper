@@ -11,7 +11,7 @@ type apiMonitoringFilterContext struct {
 	Filter        *apiMonitoringFilter
 	FilterContext filters.FilterContext
 
-	DimensionsPrefix    string
+	DimensionsPrefix string
 
 	// Metrics gathering helper
 	Begin               time.Time // earliest point in time where the request is observed
