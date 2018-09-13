@@ -27,7 +27,7 @@ Skipper
 - optionally acts as a final endpoint (shunt), e.g. as a static file server or a mock backend for diagnostics
 - updates routing rules without downtime, while supporting multiple types of data sources — including
   [etcd](https://github.com/coreos/etcd), [Kubernetes Ingress](https://opensource.zalando.com/skipper/data-clients/kubernetes/), [Innkeeper (deprecated)](https://github.com/zalando/innkeeper), [static files](https://opensource.zalando.com/skipper/data-clients/eskip-file/), [route string](https://opensource.zalando.com/skipper/data-clients/route-string/) and
-  [custom configuration sources](https://godoc.org/github.com/zalando/skipper/reference/predicates/#source)
+  [custom configuration sources](https://godoc.org/github.com/zalando/skipper/predicates/#source)
 - can serve as a
   [Kubernetes Ingress controller](https://zalando.github.io/skipper/data-clients/kubernetes/)
   without reloads. You can use it in combination with a controller that will route public traffic to
