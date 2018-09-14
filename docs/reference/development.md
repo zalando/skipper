@@ -418,3 +418,47 @@ index 0000000..d43c4ea
 +	}
 +}
 ```
+
+### Using a debugger
+Skipper supports plugins and to offer this support it uses the [`plugin`](https://golang.org/pkg/plugin/)
+library. Due to a bug the Go compiler as reported [here](https://github.com/golang/go/issues/23733) a
+debugger cannot be used. This issue will be fixed in Go 1.12 but until then the only workaround is to remove
+references to the `plugin` library. The following patch can be used for debugging.
+
+```
+diff --git a/plugins.go b/plugins.go
+index 837b6cf..aa69f09 100644
+--- a/plugins.go
++++ b/plugins.go
+@@ -1,5 +1,6 @@
+ package skipper
+
++/*
+ import (
+ 	"fmt"
+ 	"io/ioutil"
+@@ -13,8 +14,13 @@ import (
+ 	"github.com/zalando/skipper/filters"
+ 	"github.com/zalando/skipper/routing"
+ )
++*/
+
+ func (o *Options) findAndLoadPlugins() error {
++	return nil
++}
++
++/*
+ 	found := make(map[string]string)
+ 	done := make(map[string][]string)
+
+@@ -366,3 +372,4 @@ func readPluginConfig(plugin string) (conf []string, err error) {
+ 	}
+ 	return conf, nil
+ }
++*/
+
+```
+
+The patch can be applied with the `git apply $PATCH_FILE` command. Please do not commit the
+modified `plugins.go` along with your changes.
+
