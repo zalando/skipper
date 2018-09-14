@@ -1,4 +1,5 @@
 site_name: Skipper
+theme: cinder
 nav:
     - Introduction: index.md
     - Reference:
