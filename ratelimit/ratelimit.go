@@ -152,6 +152,7 @@ func (s Settings) String() string {
 type implementation interface {
 	// Allow is used to get a decision if you should allow the call to pass or to ratelimit
 	Allow(string) bool
+
 	// Close is used to clean up underlying implementations, if you want to stop a Ratelimiter
 	Close()
 
@@ -162,6 +163,7 @@ type implementation interface {
 	// Delta is used to get the duration until the next call is possible, negative durations allow
 	// immediate calls
 	Delta(string) time.Duration
+
 	// Resize is used to resize the buffer depending on the number of nodes available
 	Resize(string, int)
 }

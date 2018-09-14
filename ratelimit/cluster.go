@@ -40,7 +40,7 @@ func NewClusterRateLimiter(s Settings, sw Swarmer) implementation {
 		rl.local = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
 	}
 
-	// TODO(sszuecs): we might want to have on goroutine for all of these
+	// TODO(sszuecs): we might want to have one goroutine for all of these
 	go func() {
 		for {
 			select {
@@ -104,4 +104,8 @@ func (c *ClusterLimit) Resize(s string, n int) {
 
 func (c *ClusterLimit) RetryAfter(s string) int {
 	return c.local.RetryAfter(s)
+}
+
+func (c *ClusterLimit) Delta(s string) time.Duration {
+	return c.local.Delta(s)
 }
