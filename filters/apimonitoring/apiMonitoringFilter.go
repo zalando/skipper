@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -82,14 +83,21 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefi
 	//
 	path := ""
 	for pathPat, regex := range f.pathPatterns {
-		if regex.MatchString(req.RequestURI) {
+		if regex.MatchString(req.URL.Path) {
 			path = pathPat
 			break
 		}
 	}
 	if path == "" {
 		// if no path pattern matches, use the path as it is
-		path = req.RequestURI
+		path = req.URL.Path
+	}
+	// Ensure head and tail `/`
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	if !strings.HasSuffix(path, "/") {
+		path = path + "/"
 	}
 
 	//

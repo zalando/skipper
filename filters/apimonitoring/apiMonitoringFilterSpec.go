@@ -49,11 +49,9 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 			}
 
 		case "PathPat":
-			regex, err := pathPatternToRegEx(value)
-			if err != nil {
+			if err := addPathPattern(pathPatterns, value); err != nil {
 				return nil, fmt.Errorf("error parsing path pattern at index %d (%q): %s", i, value, err)
 			}
-			pathPatterns[value] = regex
 
 		default:
 			return nil, fmt.Errorf("parameter %q at index %d is not recognized", name, i)
@@ -110,23 +108,30 @@ func splitRawArg(raw interface{}) (name string, value string, err error) {
 }
 
 const (
-	RegexUrlPathPart             = `[^\/]+`
-	RegexOptionalTrailingSlashes = `[\/]*`
+	RegexUrlPathPart     = `[^\/]+`
+	RegexOptionalSlashes = `[\/]*`
 )
 
-// pathPatternToRegEx transforms a path pattern into a regular expression
+// addPathPattern transforms a path pattern into a regular expression and adds it to
+// the provided `pathPatterns` map.
 //
-// Example:		pathPattern = /orders/{orderId}/orderItem/{orderItemId}
+// Example:		 newPattern = /orders/{orderId}/orderItem/{orderItemId}
 //				      regex = \/orders\/[^\/]+\/orderItems\/[^\/]+[\/]*
 //
-func pathPatternToRegEx(pathPattern string) (regex *regexp.Regexp, err error) {
-	pathParts := strings.Split(pathPattern, "/")
+func addPathPattern(pathPatterns map[string]*regexp.Regexp, newPattern string) error {
+	newPattern = strings.Trim(newPattern, "/")
+	pathParts := strings.Split(newPattern, "/")
 	for i, p := range pathParts {
 		l := len(p)
 		if l > 2 && p[0] == '{' && p[l-1] == '}' {
 			pathParts[i] = RegexUrlPathPart
 		}
 	}
-	rawRegEx := strings.Join(pathParts, `\/`) + RegexOptionalTrailingSlashes
-	return regexp.Compile(rawRegEx)
+	rawRegEx := RegexOptionalSlashes + strings.Join(pathParts, `\/`) + RegexOptionalSlashes
+	regex, err := regexp.Compile(rawRegEx)
+	if err != nil {
+		return err
+	}
+	pathPatterns[newPattern] = regex
+	return nil
 }

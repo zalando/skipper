@@ -56,7 +56,7 @@ func (c *apiMonitoringFilterContext) WriteMetricSizeOfResponse() {
 	if response == nil {
 		return
 	}
-	responseSize := response.ContentLength
+	responseSize := response.ContentLength // todo: this always return 0, investigate why
 	if responseSize < 0 {
 		log.WithField("dimensions", c.DimensionsPrefix).
 			Infof("unknown response content length: %d", responseSize)

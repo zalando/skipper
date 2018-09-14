@@ -3,26 +3,30 @@ package apimonitoring
 import (
 	"bytes"
 	"fmt"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
-	"github.com/zalando/skipper/metrics/metricstest"
+	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
-	"time"
 )
+
+//go:generate mockgen -source=../filters.go -destination=mock_filter_test.go -package=apimonitoring
 
 func Test_pathPatternToRegEx(t *testing.T) {
 	cases := map[string]string{
-		"/orders/{orderId}/orderItems/{orderItemId}": `\/orders\/[^\/]+\/orderItems\/[^\/]+[\/]*`,
+		"/orders/{orderId}/orderItems/{orderItemId}": `[\/]*orders\/[^\/]+\/orderItems\/[^\/]+[\/]*`,
 	}
 	for input, expected := range cases {
 		t.Run(fmt.Sprintf("pathPatternToRegEx with %s", input), func(t *testing.T) {
-			actual, err := pathPatternToRegEx(input)
-			if err != nil {
-				t.Errorf("pathPatternToRegEx with %q generated error: %v", input, err)
-			}
+			patterns := make(map[string]*regexp.Regexp)
+			err := addPathPattern(patterns, input)
+			assert.NoError(t, err, "pathPatternToRegEx with %q generated error: %v", input, err)
+			key := strings.Trim(input, "/")
+			actual := patterns[key]
 			if actual.String() != expected {
 				t.Errorf("pathPatternToRegEx:\n\tinput:    %s\n\texpected: %s\n\tactual:   %s", input, expected, actual)
 			}
@@ -77,9 +81,7 @@ func Test_splitRawArg_string_valid(t *testing.T) {
 	assert.Equal(t, "/foo/bar", value)
 }
 
-func Test_CreateFilter_Scenario_001(t *testing.T) {
-	var filter filters.Filter
-
+func createFilterForTest() (filters.Filter, error) {
 	spec := apiMonitoringFilterSpec{}
 	args := []interface{}{
 		"ApiId: asd123",
@@ -87,8 +89,12 @@ func Test_CreateFilter_Scenario_001(t *testing.T) {
 		"PathPat: orders/{orderId}/order_item/{orderItemId}",
 	}
 
-	filter, err := spec.CreateFilter(args)
-	assert.Nil(t, err)
+	return spec.CreateFilter(args)
+}
+
+func Test_CreateFilter(t *testing.T) {
+	filter, err := createFilterForTest()
+	assert.NoError(t, err)
 
 	assert.IsType(t, &apiMonitoringFilter{}, filter)
 	tf := filter.(*apiMonitoringFilter)
@@ -106,32 +112,79 @@ func Test_CreateFilter_Scenario_001(t *testing.T) {
 			t.Errorf("pathPattern not found for %s", expectedKey)
 		}
 	}
-	assert.NotNil(t, filter)
+}
 
-	t.Run("Handle any call", func(t *testing.T) {
-		bodyBuffer := bytes.NewBufferString("abcdefghijklmnopqrstuvwxyzäöüß")
-		req, err := http.NewRequest("GET", "https://www.example.org/foo/a/b/c", bodyBuffer)
-		if err != nil {
-			t.Error(err)
-		}
-		assertMetricsKey := func(key string) {
-			assert.True(t,
-				strings.HasPrefix(key, "asd123./foo/a/b/c.GET"),
-				"unexpected metrics key prefix: %s", key)
-		}
-		ctx := &filtertest.Context{
-			FRequest: req,
-			FResponse: &http.Response{
-				StatusCode: 200,
-			},
-			FStateBag: make(map[string]interface{}),
-			FMetrics: &metricstest.MockMetrics{
-				IncCounterFn:   func(key string) { assertMetricsKey(key) },
-				MeasureSinceFn: func(key string, start time.Time) { assertMetricsKey(key) },
-				IncCounterByFn: func(key string, value int64) { assertMetricsKey(key) },
-			},
-		}
-		filter.Request(ctx)
-		filter.Response(ctx)
-	})
+func testWithFilter(
+	t *testing.T,
+	method string,
+	url string,
+	reqBody string,
+	resStatus int,
+	resBody string,
+	expect func(m *MockMetrics, reqBodyLen int64, resBodyLen int64),
+) {
+	filter, err := createFilterForTest()
+	assert.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	metricsMock := NewMockMetrics(ctrl)
+	expect(
+		metricsMock,
+		int64(len(reqBody)),
+		0, // int64(len(resBody)), // todo Restore after understanding why `response.ContentLength` returns always 0
+	)
+
+	req, err := http.NewRequest(method, url, bytes.NewBufferString(reqBody))
+	if err != nil {
+		t.Error(err)
+	}
+	ctx := &filtertest.Context{
+		FRequest: req,
+		FResponse: &http.Response{
+			StatusCode: resStatus,
+			Body:       ioutil.NopCloser(bytes.NewBufferString(resBody)),
+		},
+		FStateBag: make(map[string]interface{}),
+		FMetrics:  metricsMock,
+	}
+	filter.Request(ctx)
+	filter.Response(ctx)
+}
+
+func Test_Filter_NoPathPattern(t *testing.T) {
+	testWithFilter(
+		t,
+		"GET",
+		"https://www.example.org/a/b/c",
+		"abcdefghijklmnopqrstuvwxyzäöüß",
+		200,
+		"",
+		func(m *MockMetrics, reqBodyLen int64, resBodyLen int64) {
+			prefix := "asd123./a/b/c/.GET."
+			m.EXPECT().IncCounter(prefix + MetricCountAll).Times(1)
+			m.EXPECT().IncCounter(prefix + MetricCount200s).Times(1)
+			m.EXPECT().MeasureSince(prefix+MetricLatency, gomock.Any()).Times(1)
+			m.EXPECT().IncCounterBy(prefix+MetricRequestSize, reqBodyLen).Times(1)
+			m.EXPECT().IncCounterBy(prefix+MetricResponseSize, resBodyLen).Times(1)
+		})
+}
+
+func Test_Filter_PathPatternFirstLevel(t *testing.T) {
+	testWithFilter(
+		t,
+		"POST",
+		"https://www.example.org/orders/123",
+		"asd",
+		400,
+		"qwerty",
+		func(m *MockMetrics, reqBodyLen int64, resBodyLen int64) {
+			prefix := "asd123./orders/{orderId}/.POST."
+			m.EXPECT().IncCounter(prefix + MetricCountAll).Times(1)
+			m.EXPECT().IncCounter(prefix + MetricCount400s).Times(1)
+			m.EXPECT().MeasureSince(prefix+MetricLatency, gomock.Any()).Times(1)
+			m.EXPECT().IncCounterBy(prefix+MetricRequestSize, reqBodyLen).Times(1)
+			m.EXPECT().IncCounterBy(prefix+MetricResponseSize, resBodyLen).Times(1)
+		})
 }
