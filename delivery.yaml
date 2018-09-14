@@ -17,3 +17,19 @@ pipeline:
       git status
       git diff
       cd packaging && make docker-build && git status && git diff && make docker-push
+- id: build-docs
+  type: script
+  when:
+    event: pull_request
+  commands:
+    - desc: Install mkdocs dependecies
+      cmd: |
+        apt-get update && apt-get install python3-pip -y
+        pip3 install mkdocs mkdocs-cinder
+    - desc: Build the skipper docs
+      cmd: |
+        mkdocs build
+    - desc: Upload the docs
+      cmd: |
+        mkdocs gh-deploy
+
