@@ -44,18 +44,29 @@ func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error
 	return &forwardTokenFilter{HeaderName: headerName}, nil
 }
 
-func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
-	tokenInfo, ok := ctx.StateBag()[tokeninfoCacheKey]
+func getTokenPayload(ctx filters.FilterContext, cacheKey string) map[string]interface{} {
+	cachedValue, ok := ctx.StateBag()[cacheKey]
 	if !ok {
-		return
+		return nil
 	}
-	tokenInfoMap, ok := tokenInfo.(map[string]interface{})
+	tiMap, ok := cachedValue.(map[string]interface{})
 	if !ok {
+		return nil
+	}
+	return tiMap
+}
+
+func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
+	tiMap := getTokenPayload(ctx, tokeninfoCacheKey)
+	if tiMap == nil {
+		tiMap = getTokenPayload(ctx, tokenintrospectionCacheKey)
+	}
+	if tiMap == nil {
 		return
 	}
 	jsonBuffer := new(bytes.Buffer)
 	encoder := json.NewEncoder(jsonBuffer)
-	err := encoder.Encode(tokenInfoMap)
+	err := encoder.Encode(tiMap)
 	if err != nil {
 		return
 	}
