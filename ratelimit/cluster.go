@@ -105,7 +105,3 @@ func (c *ClusterLimit) Resize(s string, n int) {
 func (c *ClusterLimit) RetryAfter(s string) int {
 	return c.local.RetryAfter(s)
 }
-
-func (c *ClusterLimit) Delta(s string) time.Duration {
-	return c.local.Delta(s)
-}
