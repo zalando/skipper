@@ -44,16 +44,12 @@ func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error
 	return &forwardTokenFilter{HeaderName: headerName}, nil
 }
 
-func getTokenPayload(ctx filters.FilterContext, cacheKey string) map[string]interface{} {
+func getTokenPayload(ctx filters.FilterContext, cacheKey string) interface{} {
 	cachedValue, ok := ctx.StateBag()[cacheKey]
 	if !ok {
 		return nil
 	}
-	tiMap, ok := cachedValue.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	return tiMap
+	return cachedValue
 }
 
 func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
