@@ -3,18 +3,16 @@ package apimonitoring
 import (
 	"bytes"
 	"fmt"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strings"
 	"testing"
 )
-
-//go:generate mockgen -source=../filters.go -destination=mock_filter_test.go -package=apimonitoring
 
 func Test_pathPatternToRegEx(t *testing.T) {
 	cases := map[string]string{
@@ -116,25 +114,18 @@ func Test_CreateFilter(t *testing.T) {
 
 func testWithFilter(
 	t *testing.T,
+	filterCreate func() (filters.Filter, error),
 	method string,
 	url string,
 	reqBody string,
 	resStatus int,
 	resBody string,
-	expect func(m *MockMetrics, reqBodyLen int64, resBodyLen int64),
+	expect func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64),
 ) {
-	filter, err := createFilterForTest()
+	filter, err := filterCreate()
 	assert.NoError(t, err)
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	metricsMock := NewMockMetrics(ctrl)
-	expect(
-		metricsMock,
-		int64(len(reqBody)),
-		0, // int64(len(resBody)), // todo Restore after understanding why `response.ContentLength` returns always 0
-	)
+	metricsMock := new(metricstest.MockMetrics)
 
 	req, err := http.NewRequest(method, url, bytes.NewBufferString(reqBody))
 	if err != nil {
@@ -151,40 +142,92 @@ func testWithFilter(
 	}
 	filter.Request(ctx)
 	filter.Response(ctx)
+
+	expect(
+		metricsMock,
+		int64(len(reqBody)),
+		0, // int64(len(resBody)), // todo Restore after understanding why `response.ContentLength` returns always 0
+	)
 }
 
 func Test_Filter_NoPathPattern(t *testing.T) {
 	testWithFilter(
 		t,
+		createFilterForTest,
 		"GET",
 		"https://www.example.org/a/b/c",
 		"abcdefghijklmnopqrstuvwxyzäöüß",
 		200,
 		"",
-		func(m *MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			prefix := "asd123./a/b/c/.GET."
-			m.EXPECT().IncCounter(prefix + MetricCountAll).Times(1)
-			m.EXPECT().IncCounter(prefix + MetricCount200s).Times(1)
-			m.EXPECT().MeasureSince(prefix+MetricLatency, gomock.Any()).Times(1)
-			m.EXPECT().IncCounterBy(prefix+MetricRequestSize, reqBodyLen).Times(1)
-			m.EXPECT().IncCounterBy(prefix+MetricResponseSize, resBodyLen).Times(1)
+			assert.Equal(t,
+				map[string]int64{
+					prefix + MetricCountAll:     1,
+					prefix + MetricCount200s:    1,
+					prefix + MetricRequestSize:  reqBodyLen,
+					prefix + MetricResponseSize: resBodyLen,
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, prefix+MetricLatency)
 		})
 }
 
 func Test_Filter_PathPatternFirstLevel(t *testing.T) {
 	testWithFilter(
 		t,
+		createFilterForTest,
 		"POST",
 		"https://www.example.org/orders/123",
 		"asd",
 		400,
 		"qwerty",
-		func(m *MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			prefix := "asd123./orders/{orderId}/.POST."
-			m.EXPECT().IncCounter(prefix + MetricCountAll).Times(1)
-			m.EXPECT().IncCounter(prefix + MetricCount400s).Times(1)
-			m.EXPECT().MeasureSince(prefix+MetricLatency, gomock.Any()).Times(1)
-			m.EXPECT().IncCounterBy(prefix+MetricRequestSize, reqBodyLen).Times(1)
-			m.EXPECT().IncCounterBy(prefix+MetricResponseSize, resBodyLen).Times(1)
+			assert.Equal(t,
+				map[string]int64{
+					prefix + MetricCountAll:     1,
+					prefix + MetricCount400s:    1,
+					prefix + MetricRequestSize:  reqBodyLen,
+					prefix + MetricResponseSize: resBodyLen,
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, prefix+MetricLatency)
+		})
+}
+
+func Test_Filter_NoPath(t *testing.T) {
+	testWithFilter(
+		t,
+		func() (filters.Filter, error) {
+			spec := apiMonitoringFilterSpec{}
+			args := []interface{}{
+				"ApiId: asd123",
+				"PathPat: orders/{orderId}",
+				"PathPat: orders/{orderId}/order_item/{orderItemId}",
+				"IncludePath: false",
+			}
+
+			return spec.CreateFilter(args)
+		},
+		"POST",
+		"https://www.example.org/orders/123",
+		"asd",
+		400,
+		"qwerty",
+		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+			prefix := "asd123.POST."
+			assert.Equal(t,
+				map[string]int64{
+					prefix + MetricCountAll:     1,
+					prefix + MetricCount400s:    1,
+					prefix + MetricRequestSize:  reqBodyLen,
+					prefix + MetricResponseSize: resBodyLen,
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, prefix+MetricLatency)
 		})
 }

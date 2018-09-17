@@ -9,60 +9,45 @@ import (
 type MockMetrics struct {
 	strictMock bool
 
-	// Functions external implementation
-	MeasureSinceFn func(key string, start time.Time)
-	IncCounterFn   func(key string)
-	IncCounterByFn func(key string, value int64)
-
 	// Metrics gathering
-	counters map[string]int64
-	measures map[string][]int64
+	Counters map[string]int64
+	Measures map[string][]time.Duration
 }
 
 var _ metrics.Metrics = new(MockMetrics)
 
 func (m *MockMetrics) MeasureSince(key string, start time.Time) {
-	if m.MeasureSinceFn == nil {
-		if m.strictMock {
-			panic("mock me")
-		}
-	} else {
-		m.MeasureSinceFn(key, start)
+	if m.Measures == nil {
+		m.Measures = make(map[string][]time.Duration)
 	}
-
-
+	duration := time.Since(start)
+	measure, ok := m.Measures[key]
+	if !ok {
+		measure = make([]time.Duration, 1)
+	}
+	m.Measures[key] = append(measure, duration)
 }
 
 func (m *MockMetrics) IncCounter(key string) {
-	if m.IncCounterFn == nil {
-		if m.strictMock {
-			panic("mock me")
-		}
-	} else {
-		m.IncCounterFn(key)
+	if m.Counters == nil {
+		m.Counters = make(map[string]int64)
 	}
-
-	counter, ok := m.counters[key]
+	counter, ok := m.Counters[key]
 	if !ok {
 		counter = 0
 	}
-	m.counters[key] = counter + 1
+	m.Counters[key] = counter + 1
 }
 
 func (m *MockMetrics) IncCounterBy(key string, value int64) {
-	if m.IncCounterByFn == nil {
-		if m.strictMock {
-			panic("mock me")
-		}
-	} else {
-		m.IncCounterByFn(key, value)
+	if m.Counters == nil {
+		m.Counters = make(map[string]int64)
 	}
-
-	counter, ok := m.counters[key]
+	counter, ok := m.Counters[key]
 	if !ok {
 		counter = 0
 	}
-	m.counters[key] = counter + value
+	m.Counters[key] = counter + value
 }
 
 func (*MockMetrics) MeasureRouteLookup(start time.Time) {

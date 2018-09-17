@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -31,6 +32,7 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 
 	// initial values
 	apiId := ""
+	includePath := true
 	pathPatterns := make(map[string]*regexp.Regexp)
 
 	// parse dynamic parameters
@@ -53,6 +55,11 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 				return nil, fmt.Errorf("error parsing path pattern at index %d (%q): %s", i, value, err)
 			}
 
+		case "IncludePath":
+			includePath, err = strconv.ParseBool(value)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing `IncludePath` parameter at index %d (%q): %s", i, value, err)
+			}
 		default:
 			return nil, fmt.Errorf("parameter %q at index %d is not recognized", name, i)
 		}
@@ -61,6 +68,7 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 	// Create the filter
 	filter = &apiMonitoringFilter{
 		apiId:        apiId,
+		includePath:  includePath,
 		pathPatterns: pathPatterns,
 	}
 	log.Infof("Created filter: %+v", filter)

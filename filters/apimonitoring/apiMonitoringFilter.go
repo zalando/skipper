@@ -1,7 +1,6 @@
 package apimonitoring
 
 import (
-	"fmt"
 	"github.com/zalando/skipper/filters"
 	"regexp"
 	"strings"
@@ -33,6 +32,7 @@ const (
 
 type apiMonitoringFilter struct {
 	apiId        string
+	includePath  bool
 	pathPatterns map[string]*regexp.Regexp
 }
 
@@ -67,6 +67,7 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 
 func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefix string) {
 	req := c.Request()
+	parts := make([]string, 0, 3)
 
 	//
 	// API ID
@@ -77,38 +78,43 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefi
 	} else {
 		apiId = f.apiId // API ID configured in the route. Using it.
 	}
+	parts = append(parts, apiId)
 
 	//
 	// PATH
 	//
-	path := ""
-	for pathPat, regex := range f.pathPatterns {
-		if regex.MatchString(req.URL.Path) {
-			path = pathPat
-			break
+	if f.includePath {
+		path := ""
+		for pathPat, regex := range f.pathPatterns {
+			if regex.MatchString(req.URL.Path) {
+				path = pathPat
+				break
+			}
 		}
-	}
-	if path == "" {
-		// if no path pattern matches, use the path as it is
-		path = req.URL.Path
-	}
-	// Ensure head and tail `/`
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	if !strings.HasSuffix(path, "/") {
-		path = path + "/"
+		if path == "" {
+			// if no path pattern matches, use the path as it is
+			path = req.URL.Path
+		}
+		// Ensure head and tail `/`
+		if !strings.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		if !strings.HasSuffix(path, "/") {
+			path = path + "/"
+		}
+		parts = append(parts, path)
 	}
 
 	//
 	// METHOD
 	//
 	method := req.Method
+	parts = append(parts, method)
 
 	//
 	// FINAL PREFIX
 	//
-	prefix = fmt.Sprintf("%s.%s.%s.", apiId, path, method)
+	prefix = strings.Join(parts, ".") + "."
 	return
 }
 
