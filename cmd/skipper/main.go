@@ -562,9 +562,6 @@ func main() {
 		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
 		WebhookTimeout:                 webhookTimeout,
 
-		// Monitoring:
-		MonitoringFoo: monitoringFoo, // todo: TEST
-
 		// connections, timeouts:
 		IdleConnectionsPerHost:     idleConnsPerHost,
 		CloseIdleConnsPeriod:       time.Duration(clsic) * time.Second,

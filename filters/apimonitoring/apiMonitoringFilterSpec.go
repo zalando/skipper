@@ -36,7 +36,7 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 
 	// initial values
 	apiId := ""
-	includePath := false
+	includePath := true
 	includePathIsSet := false
 	pathPatterns := make(map[string]*regexp.Regexp)
 
