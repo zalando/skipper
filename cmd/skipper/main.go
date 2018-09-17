@@ -553,6 +553,9 @@ func main() {
 		KubernetesPathMode:         kubernetesPathMode,
 		KubernetesNamespace:        kubernetesNamespace,
 
+		// API Monitoring:
+		ApiMonitoringActive: apimonitoringActive,
+
 		// Auth:
 		OAuthUrl:                       oauthURL,
 		OAuthScope:                     oauthScope,

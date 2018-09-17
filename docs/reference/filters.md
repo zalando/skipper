@@ -765,6 +765,33 @@ Example:
 accessLogDisabled("false")
 ```
 
-## monitoring
+## apimonitoring
 
-TODO: Document new filter.
+The `apimonitoring` filter adds metrics to the existing monitoring.
+
+WARNING: This is an experimental filter and needs to be activated explicitly at `skipper` startup.
+
+```bash
+skipper -apimonitoring-active
+```
+
+Endpoints can be monitored using the `apimonitoring` function in the route. It accepts an array
+of string containing `name: value`. Possible parameters are:
+
+* `ApiId` (default: empty): The identifier of the API. For the moment, free text (is not yet used to fetch the API specification
+  in the API Repository). If not provided, the host name will be used to identify the API.
+* `PathPat`: An endpoint path _pattern_, given in the OpenAPI format. Serves for grouping parametrized paths
+  together. Example: `/foo/1` and `/foo/2` should be monitored as the same endpoint, then provide: `PathPat: /foo/{fooId}`.
+* `IncludePath` (default: `true`): Indicates if the path should be monitored. If `false`, the granularity will be only to the API
+  and the method.
+
+Example:
+
+```
+apimonitoring("ApiId: OrdersAPI", "PathPat: orders/{orderId}", "PathPat: orders/{orderId}/order_items/{orderItemId}")
+```
+
+That would monitor metrics like:
+* `OrdersAPI./orders/{orderId}/.GET`
+* `OrdersAPI./orders/.POST`
+* `OrdersAPI./orders/{orderId}/order_items/{orderItemId}.GET`

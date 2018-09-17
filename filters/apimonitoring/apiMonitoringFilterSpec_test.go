@@ -84,7 +84,7 @@ func createFilterForTest() (filters.Filter, error) {
 	args := []interface{}{
 		"ApiId: asd123",
 		"PathPat: orders/{orderId}",
-		"PathPat: orders/{orderId}/order_item/{orderItemId}",
+		"PathPat: orders/{orderId}/order_items/{orderItemId}",
 	}
 
 	return spec.CreateFilter(args)
@@ -101,7 +101,7 @@ func Test_CreateFilter(t *testing.T) {
 
 	expectedPathPattersKeys := []string{
 		"orders/{orderId}",
-		"orders/{orderId}/order_item/{orderItemId}",
+		"orders/{orderId}/order_items/{orderItemId}",
 	}
 	assert.Len(t, tf.pathPatterns, len(expectedPathPattersKeys))
 	for _, expectedKey := range expectedPathPattersKeys {
@@ -206,7 +206,7 @@ func Test_Filter_NoPath(t *testing.T) {
 			args := []interface{}{
 				"ApiId: asd123",
 				"PathPat: orders/{orderId}",
-				"PathPat: orders/{orderId}/order_item/{orderItemId}",
+				"PathPat: orders/{orderId}/order_items/{orderItemId}",
 				"IncludePath: false",
 			}
 
