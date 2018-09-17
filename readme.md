@@ -1,20 +1,22 @@
 [![Build Status](https://travis-ci.org/zalando/skipper.svg)](https://travis-ci.org/zalando/skipper)
+[![Doc](https://img.shields.io/badge/-userdocs-darkblue.svg)](https://opensource.zalando.com/skipper)
 [![GoDoc](https://godoc.org/github.com/zalando/skipper?status.svg)](https://godoc.org/github.com/zalando/skipper)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/zalando/skipper)](https://goreportcard.com/report/zalando/skipper)
 [![codecov](https://codecov.io/gh/zalando/skipper/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando/skipper)
+[![GitHub release](https://img.shields.io/github/release/zalando/skipper.svg)](https://github.com/zalando/skipper/releases)
 
 <p><img height="180" alt="Skipper" src="https://raw.githubusercontent.com/zalando/skipper/master/img/skipper-h180.png"></p>
 
 # Skipper
 
-Skipper is an HTTP router and reverse proxy for service composition. It's designed to handle >100k HTTP route
+Skipper is an HTTP router and reverse proxy for service composition. It's designed to handle >300k HTTP route
 definitions with detailed lookup conditions, and flexible augmentation of the request flow with filters. It can be
 used out of the box or extended with custom lookup, filter logic and configuration sources.
 
 ## Main features:
 
-An overview of [deployments and data-clients](https://opensource.zalando.com/skipper/deployments/)
+An overview of [deployments and data-clients](https://opensource.zalando.com/skipper/operation/deployment/)
 shows some use cases to run skipper.
 
 Skipper
@@ -24,10 +26,10 @@ Skipper
 - simultaneously streams incoming requests and backend responses
 - optionally acts as a final endpoint (shunt), e.g. as a static file server or a mock backend for diagnostics
 - updates routing rules without downtime, while supporting multiple types of data sources — including
-  [etcd](https://github.com/coreos/etcd), [Kubernetes Ingress](https://opensource.zalando.com/skipper/dataclients/kubernetes/), [Innkeeper (deprecated)](https://github.com/zalando/innkeeper), [static files](https://opensource.zalando.com/skipper/dataclients/eskip-file/), [route string](https://opensource.zalando.com/skipper/dataclients/route-string/) and
-  [custom configuration sources](https://godoc.org/github.com/zalando/skipper/predicates/source)
+  [etcd](https://github.com/coreos/etcd), [Kubernetes Ingress](https://opensource.zalando.com/skipper/data-clients/kubernetes/), [Innkeeper (deprecated)](https://github.com/zalando/innkeeper), [static files](https://opensource.zalando.com/skipper/data-clients/eskip-file/), [route string](https://opensource.zalando.com/skipper/data-clients/route-string/) and
+  [custom configuration sources](https://godoc.org/github.com/zalando/skipper/predicates/#source)
 - can serve as a
-  [Kubernetes Ingress controller](https://zalando.github.io/skipper/dataclients/kubernetes/)
+  [Kubernetes Ingress controller](https://zalando.github.io/skipper/data-clients/kubernetes/)
   without reloads. You can use it in combination with a controller that will route public traffic to
   your skipper fleet; [see AWS example](https://github.com/zalando-incubator/kube-ingress-aws-controller)
 - shipped with eskip: a descriptive configuration language designed for routing rules
@@ -38,7 +40,7 @@ be extended with custom filters, predicates or data sources. [Go here for additi
 A few examples for extending Skipper:
 
 - Image server https://github.com/zalando-stups/skrop
-- Plugins repository https://github.com/skipper-plugins/, [plugin docs](https://opensource.zalando.com/skipper/plugins/)
+- Plugins repository https://github.com/skipper-plugins/, [plugin docs](https://opensource.zalando.com/skipper/reference/plugins/)
 
 ### Getting Started
 
@@ -119,9 +121,9 @@ To run or debug skipper from _IntelliJ IDEA_ or _GoLand_, you need to create thi
 #### Kubernetes Ingress
 
 Skipper can be used to run as an Kubernetes Ingress controller.
-[Details with examples](https://opensource.zalando.com/skipper/dataclients/kubernetes)
-of [Skipper's capabilities](https://opensource.zalando.com/skipper/dataclients/kubernetes/#skipper-features) and an
-[overview](https://opensource.zalando.com/skipper/deployments/#kubernetes-ingress)
+[Details with examples](https://opensource.zalando.com/skipper/data-clients/kubernetes)
+of [Skipper's capabilities](https://opensource.zalando.com/skipper/data-clients/kubernetes/#why-to-choose-skipper) and an
+[overview](https://opensource.zalando.com/skipper/operation/deployment/#kubernetes-ingress)
 you will can be found in our [ingress-controller deployment docs](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/).
 
 For AWS integration, we provide an ingress controller
@@ -135,23 +137,23 @@ can be found in our Kubernetes configuration https://github.com/zalando-incubato
 
 [Skipper's Documentation](https://opensource.zalando.com/skipper) and
 [Godoc developer documentation](https://godoc.org/github.com/zalando/skipper),
-includes information about [deployment use cases](https://opensource.zalando.com/skipper/deployments/)
+includes information about [deployment use cases](https://opensource.zalando.com/skipper/operation/deployment/)
 and detailed information on these topics:
 
 - The [Routing](https://godoc.org/github.com/zalando/skipper/routing) Mechanism
 - Matching Requests
-- [Filters](https://opensource.zalando.com/skipper/filters/) - Augmenting Requests and Responses
+- [Filters](https://opensource.zalando.com/skipper/reference/filters/) - Augmenting Requests and Responses
 - Service Backends
 - Route Definitions
-- Data Sources: [eskip file](https://godoc.org/github.com/zalando/skipper/eskipfile), [etcd](https://godoc.org/github.com/zalando/skipper/etcd), [Innkeeper API](https://godoc.org/github.com/zalando/skipper/innkeeper), [Kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://godoc.org/github.com/zalando/skipper/dataclients/routestring)
+- Data Sources: [eskip file](https://godoc.org/github.com/zalando/skipper/eskipfile), [etcd](https://godoc.org/github.com/zalando/skipper/etcd), [Kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://godoc.org/github.com/zalando/skipper/dataclients/routestring)
 - [Circuit Breakers](https://godoc.org/github.com/zalando/skipper/filters/circuit)
-- Extending It with Customized [Predicates](https://opensource.zalando.com/skipper/predicates/), [Filters](https://opensource.zalando.com/skipper/filters/), can be done by [Plugins](https://opensource.zalando.com/skipper/plugins/) or [Lua Scripts](https://opensource.zalando.com/skipper/scripts/)
-- [Predicates](https://opensource.zalando.com/skipper/predicates/) - additional predicates to match a route
+- Extending It with Customized [Predicates](https://opensource.zalando.com/skipper/reference/predicates/), [Filters](https://opensource.zalando.com/skipper/reference/filters/), can be done by [Plugins](https://opensource.zalando.com/skipper/reference/plugins/) or [Lua Scripts](https://opensource.zalando.com/skipper/reference/scripts/)
+- [Predicates](https://opensource.zalando.com/skipper/reference/predicates/) - additional predicates to match a route
 - [Proxy Packages](https://godoc.org/github.com/zalando/skipper/proxy)
 - [Logging](https://godoc.org/github.com/zalando/skipper/logging) and [Metrics](https://godoc.org/github.com/zalando/skipper/metrics)
 - Performance Considerations
-- [Rate Limiters](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
-- [Opentracing plugin](https://github.com/skipper-plugins/opentracing/) or extend [create your own](https://opensource.zalando.com/skipper/plugins/#opentracing-plugins)
+- [Rate Limiters](https://godoc.org/github.com/zalando/skipper/reference/filters/#ratelimit)
+- [Opentracing plugin](https://github.com/skipper-plugins/opentracing/) or extend [create your own](https://opensource.zalando.com/skipper/reference/plugins/#opentracing-plugins)
 
 #### 1 Minute Skipper introduction
 
