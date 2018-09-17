@@ -1,9 +1,7 @@
 package auth
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/zalando/skipper/filters"
 	"golang.org/x/net/http/httpguts"
@@ -41,7 +39,7 @@ func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error
 	}
 	valid := httpguts.ValidHeaderFieldName(headerName)
 	if !valid {
-		return nil, errors.New(fmt.Sprintf("header name %s in invalid", headerName))
+		return nil, fmt.Errorf("header name %s in invalid", headerName)
 	}
 	return &forwardTokenFilter{HeaderName: headerName}, nil
 }
@@ -62,14 +60,13 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 	if tiMap == nil {
 		return
 	}
-	jsonBuffer := new(bytes.Buffer)
-	encoder := json.NewEncoder(jsonBuffer)
-	err := encoder.Encode(tiMap)
+
+	payload, err := json.Marshal(tiMap)
 	if err != nil {
 		return
 	}
 	request := ctx.Request()
-	jsonHeader := strings.TrimRight(jsonBuffer.String(), "\n")
+	jsonHeader := strings.TrimSpace(string(payload))
 	request.Header.Add(f.HeaderName, jsonHeader)
 }
 
