@@ -550,6 +550,21 @@ Examples:
 oauthTokenintrospectionAllKV("k1", "v1", "k2", "v2")
 ```
 
+## forwardToken
+
+The filter accepts a single string as an argument. The argument is the header 
+name where the result of token info or token introspection is added when the
+request is passed to the backend.
+
+If this filter is used when there is no token introspection or token info data
+then it does not have any effect.
+
+Examples:
+
+```
+forwardToken("X-Tokeninfo-Zalando")
+```
+
 ## requestCookie
 
 Append a cookie to the request header.

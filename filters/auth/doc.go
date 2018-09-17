@@ -325,5 +325,12 @@ authorization endpoint for a route.
 
     a: Path("/only-allowed-by-webhook") -> webhook("https://custom-webhook.example.org/auth") -> "https://protected-backend.example.org/";
 
+Forward Token - forwardToken() filter
+
+The filter is used to forward the result of token introspection or token info to the backend.
+
+	a: Path("/tokeninfo-protected") -> oauthTokeninfoAnyScope("uid") -> forwardToken("X-Tokeninfo-Zalando") -> "https://internal.example.org";
+	b: Path("tokenintrospection-protected") -> oauthTokenintrospectionAnyKV("uid") -> forwardToken("X-Tokenintrospection-Zalando") -> "http://internal.example.org";
+
 */
 package auth

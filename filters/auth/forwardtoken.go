@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	ForwardTokenName = "forwardtoken"
+	ForwardTokenName = "forwardToken"
 )
 
 type (
@@ -22,6 +22,8 @@ type (
 	}
 )
 
+// NewForwardToken creates a filter to forward the result of token info or
+// token introspection to the backend server.
 func NewForwardToken() filters.Spec {
 	return &forwardTokenSpec{}
 }
