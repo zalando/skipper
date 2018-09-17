@@ -13,9 +13,6 @@ var (
 	log = logrus.WithField("filter", name)
 )
 
-func New(foo string) filters.Spec {
-	log.Infof("Create new filter spec with `foo` %q", foo)
-	return &apiMonitoringFilterSpec{
-		Foo: foo,
-	}
+func New() filters.Spec {
+	return &apiMonitoringFilterSpec{}
 }

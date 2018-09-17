@@ -64,8 +64,8 @@ const (
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 	defaultWebhookTimeout                 = 2 * time.Second
 
-	// Monitoring
-	defaultMonitoringFoo = "asd" // todo: TEST
+	// API Monitoring
+	defaultApimonitoringActive = false
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -147,8 +147,8 @@ const (
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
-	// Monitoring:
-	monitoringFooUsage = "temporary config flag for testing piping of filter development" // todo: TEST
+	// API Monitoring:
+	apimonitoringActiveUsage = "activate support for experimental filter `apimonitoring`"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -261,8 +261,8 @@ var (
 	oauth2TokenintrospectionTimeout time.Duration
 	webhookTimeout                  time.Duration
 
-	// Monitoring
-	monitoringFoo string // todo: TEST
+	// API Monitoring
+	apimonitoringActive bool
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -373,8 +373,8 @@ func init() {
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
 	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 
-	// Monitoring:
-	flag.StringVar(&monitoringFoo, "monitoring-foo", defaultMonitoringFoo, monitoringFooUsage) // todo: TEST
+	// API Monitoring:
+	flag.BoolVar(&apimonitoringActive, "apimonitoring-active", defaultApimonitoringActive, apimonitoringActiveUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)

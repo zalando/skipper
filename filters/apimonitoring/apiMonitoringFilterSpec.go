@@ -9,11 +9,15 @@ import (
 	"strings"
 )
 
-type apiMonitoringFilterSpec struct {
-	Foo string // todo: Delete (was just for learning)
-}
+type apiMonitoringFilterSpec struct{}
 
 var _ filters.Spec = new(apiMonitoringFilterSpec)
+
+const (
+	ParamApiId       = "ApiId"
+	ParamPathPat     = "PathPat"
+	ParamIncludePath = "IncludePath"
+)
 
 func (s *apiMonitoringFilterSpec) Name() string {
 	return name
@@ -32,7 +36,8 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 
 	// initial values
 	apiId := ""
-	includePath := true
+	includePath := false
+	includePathIsSet := false
 	pathPatterns := make(map[string]*regexp.Regexp)
 
 	// parse dynamic parameters
@@ -43,23 +48,28 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 		}
 		switch name {
 
-		case "ApiId":
+		case ParamApiId:
 			if len(apiId) == 0 {
 				apiId = value
 			} else {
-				return nil, fmt.Errorf("apiId can only be specified once (is set again at index %d)", i)
+				return nil, fmt.Errorf("%q` can only be specified once (is set again at index %d)", ParamApiId, i)
 			}
 
-		case "PathPat":
+		case ParamPathPat:
 			if err := addPathPattern(pathPatterns, value); err != nil {
-				return nil, fmt.Errorf("error parsing path pattern at index %d (%q): %s", i, value, err)
+				return nil, fmt.Errorf("error parsing %q at index %d (%q): %s", ParamPathPat, i, value, err)
 			}
 
-		case "IncludePath":
+		case ParamIncludePath:
+			if includePathIsSet {
+				return nil, fmt.Errorf("%q can only be specified once (is set again at index %d)", ParamIncludePath, i)
+			}
+			includePathIsSet = true
 			includePath, err = strconv.ParseBool(value)
 			if err != nil {
-				return nil, fmt.Errorf("error parsing `IncludePath` parameter at index %d (%q): %s", i, value, err)
+				return nil, fmt.Errorf("error parsing %q parameter at index %d (%q): %s", ParamIncludePath, i, value, err)
 			}
+
 		default:
 			return nil, fmt.Errorf("parameter %q at index %d is not recognized", name, i)
 		}

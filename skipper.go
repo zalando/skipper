@@ -444,8 +444,8 @@ type Options struct {
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
 
-	// Monitoring Foo // todo: TEST
-	MonitoringFoo string
+	// API Monitoring feature is active (feature toggle)
+	ApiMonitoringActive bool
 
 	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
 	WebhookTimeout time.Duration
@@ -683,9 +683,15 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
-		apimonitoring.New(o.MonitoringFoo),
 		auth.NewWebhook(o.WebhookTimeout),
 	)
+
+	if o.ApiMonitoringActive {
+		log.Info("Experimental filter \"apimonitoring\" is available")
+		o.CustomFilters = append(o.CustomFilters, apimonitoring.New())
+	} else {
+		log.Info("Experimental filter \"apimonitoring\" is by default disabled")
+	}
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
