@@ -102,7 +102,7 @@ func TestForwardTokenInfo(t *testing.T) {
 				}
 				f1 := oauthFilter.(*tokeninfoFilter)
 				defer f1.Close()
-				routeFilters = append(routeFilters, &eskip.Filter{Name: oauthTokenSpec.Name(), Args: oauthFilterArgs,})
+				routeFilters = append(routeFilters, &eskip.Filter{Name: oauthTokenSpec.Name(), Args: oauthFilterArgs})
 				fr.Register(oauthTokenSpec)
 			}
 
@@ -224,7 +224,7 @@ func TestForwardTokenIntrospection(t *testing.T) {
 				}
 				f1 := oauthFilter.(*tokenintrospectFilter)
 				defer f1.Close()
-				routeFilters = append(routeFilters, &eskip.Filter{Name: oauthTokenSpec.Name(), Args: oauthFilterArgs,})
+				routeFilters = append(routeFilters, &eskip.Filter{Name: oauthTokenSpec.Name(), Args: oauthFilterArgs})
 				fr.Register(oauthTokenSpec)
 			}
 
