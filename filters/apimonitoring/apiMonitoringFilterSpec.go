@@ -1,7 +1,6 @@
 package apimonitoring
 
 import (
-	"errors"
 	"fmt"
 	"github.com/zalando/skipper/filters"
 	"regexp"
@@ -102,22 +101,17 @@ func splitRawArg(raw interface{}) (name string, value string, err error) {
 		err = fmt.Errorf("expecting string parameters, received %#v", raw)
 		return
 	}
-	if len(rawString) == 0 {
-		err = errors.New("expecting non empty string")
-		return
-	}
-	indexOfSplitter := strings.Index(rawString, ":")
-	if indexOfSplitter < 0 {
+	parts := strings.SplitN(rawString, ":", 2)
+	if len(parts) < 2 {
 		err = fmt.Errorf("expecting ':' to split the name from the value: %s", rawString)
 		return
 	}
-	if indexOfSplitter == 0 {
+	name = strings.TrimSpace(parts[0])
+	value = strings.TrimSpace(parts[1])
+	if len(name) == 0 {
 		err = fmt.Errorf("parameter with no name (starts with splitter ':'): %s", rawString)
 		return
 	}
-
-	name = rawString[:indexOfSplitter]
-	value = strings.TrimSpace(rawString[indexOfSplitter+1:])
 	if len(value) == 0 {
 		err = fmt.Errorf("parameter %q does not have any value: %s", name, rawString)
 		return

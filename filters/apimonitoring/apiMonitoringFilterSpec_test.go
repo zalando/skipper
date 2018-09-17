@@ -43,7 +43,7 @@ func Test_splitRawArg_integer(t *testing.T) {
 func Test_splitRawArg_string_empty(t *testing.T) {
 	name, value, err := splitRawArg("")
 	assert.NotNil(t, err)
-	assert.Equal(t, "expecting non empty string", err.Error())
+	assert.Equal(t, "expecting ':' to split the name from the value: ", err.Error())
 	assert.Equal(t, "", name)
 	assert.Equal(t, "", value)
 }
@@ -61,7 +61,7 @@ func Test_splitRawArg_string_emptyName(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Equal(t, "parameter with no name (starts with splitter ':'): :/foo/bar", err.Error())
 	assert.Equal(t, "", name)
-	assert.Equal(t, "", value)
+	assert.Equal(t, "/foo/bar", value)
 }
 
 func Test_splitRawArg_string_emptyValue(t *testing.T) {
