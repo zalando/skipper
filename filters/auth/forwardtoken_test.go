@@ -22,6 +22,7 @@ const (
 	authorizationHeaderValue   = "Bearer %s"
 	authorizationToken         = "testtoken"
 	uidScope                   = "uid"
+	emailClaim                 = "email"
 )
 
 type testTokeninfo struct {
@@ -142,10 +143,6 @@ func TestForwardTokenInfo(t *testing.T) {
 		})
 	}
 }
-
-const (
-	emailClaim = "email"
-)
 
 func TestForwardTokenIntrospection(t *testing.T) {
 	for _, ti := range []struct {

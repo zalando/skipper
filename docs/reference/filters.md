@@ -562,7 +562,7 @@ then it does not have any effect.
 Examples:
 
 ```
-forwardToken("X-Tokeninfo-Zalando")
+forwardToken("X-Tokeninfo-Forward")
 ```
 
 ## requestCookie
