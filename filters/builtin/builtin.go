@@ -115,6 +115,7 @@ func MakeRegistry() filters.Registry {
 		accesslog.NewAccessLogDisabled(),
 		accesslog.NewDisableAccessLog(),
 		accesslog.NewEnableAccessLog(),
+		auth.NewForwardToken(),
 	} {
 		r.Register(s)
 	}
