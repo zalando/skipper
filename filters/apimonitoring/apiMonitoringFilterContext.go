@@ -71,18 +71,24 @@ func (c *apiMonitoringFilterContext) WriteMetricSizeOfResponse() {
 
 func (c *apiMonitoringFilterContext) incCounter(key string) {
 	k := c.DimensionsPrefix + key
-	log.Infof("incrementing %q by 1", k)
+	if c.Filter.verbose {
+		log.Infof("incrementing %q by 1", k)
+	}
 	c.FilterContext.Metrics().IncCounter(k)
 }
 
 func (c *apiMonitoringFilterContext) incCounterBy(key string, value int64) {
 	k := c.DimensionsPrefix + key
-	log.Infof("incrementing %q by %d", k, value)
+	if c.Filter.verbose {
+		log.Infof("incrementing %q by %d", k, value)
+	}
 	c.FilterContext.Metrics().IncCounterBy(k, value)
 }
 
 func (c *apiMonitoringFilterContext) measureSince(key string, start time.Time) {
 	k := c.DimensionsPrefix + key
-	log.Infof("measuring for %q since %v", k, start)
+	if c.Filter.verbose {
+		log.Infof("measuring for %q since %v", k, start)
+	}
 	c.FilterContext.Metrics().MeasureSince(k, start)
 }

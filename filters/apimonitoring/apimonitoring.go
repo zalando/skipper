@@ -13,6 +13,12 @@ var (
 	log = logrus.WithField("filter", name)
 )
 
-func New() filters.Spec {
-	return &apiMonitoringFilterSpec{}
+func New(verbose bool) filters.Spec {
+	spec := &apiMonitoringFilterSpec{
+		verbose: verbose,
+	}
+	if verbose {
+		log.Infof("Created filter spec: %+v", spec)
+	}
+	return spec
 }

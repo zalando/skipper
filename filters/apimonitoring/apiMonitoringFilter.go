@@ -1,6 +1,7 @@
 package apimonitoring
 
 import (
+	"encoding/json"
 	"github.com/zalando/skipper/filters"
 	"regexp"
 	"strings"
@@ -31,6 +32,7 @@ const (
 )
 
 type apiMonitoringFilter struct {
+	verbose      bool
 	apiId        string
 	includePath  bool
 	pathPatterns map[string]*regexp.Regexp
@@ -43,7 +45,13 @@ var _ filters.Filter = new(apiMonitoringFilter)
 //
 
 func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
-	log.WithField("op", "request").Infof("Filter: %p %+v", f, f)
+	log := log.WithField("op", "request")
+	if f.verbose {
+		log.Infof("Filter: %#v", f)
+		log.Infof("FilterContext: %#v", c)
+		jsStateBag, _ := json.MarshalIndent(c.StateBag(), "", "  ")
+		log.Infof("StateBag:\n%s", jsStateBag)
+	}
 
 	//
 	// METRICS: Gathering from the initial request
@@ -119,7 +127,13 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefi
 }
 
 func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
-	log.WithField("op", "response").Infof("Filter: %+v", f)
+	log := log.WithField("op", "response")
+	if f.verbose {
+		log.Infof("Filter: %#v", f)
+		log.Infof("FilterContext: %#v", c)
+		jsStateBag, _ := json.MarshalIndent(c.StateBag(), "", "  ")
+		log.Infof("StateBag:\n%s", jsStateBag)
+	}
 
 	mfc, ok := c.StateBag()[KeyState].(*apiMonitoringFilterContext)
 	if !ok {

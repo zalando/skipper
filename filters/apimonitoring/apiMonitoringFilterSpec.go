@@ -8,7 +8,9 @@ import (
 	"strings"
 )
 
-type apiMonitoringFilterSpec struct{}
+type apiMonitoringFilterSpec struct {
+	verbose bool
+}
 
 var _ filters.Spec = new(apiMonitoringFilterSpec)
 
@@ -76,11 +78,14 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 
 	// Create the filter
 	filter = &apiMonitoringFilter{
+		verbose:      s.verbose,
 		apiId:        apiId,
 		includePath:  includePath,
 		pathPatterns: pathPatterns,
 	}
-	log.Infof("Created filter: %+v", filter)
+	if s.verbose {
+		log.Infof("Created filter: %+v", filter)
+	}
 	return
 }
 

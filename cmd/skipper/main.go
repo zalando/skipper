@@ -66,6 +66,7 @@ const (
 
 	// API Monitoring
 	defaultApimonitoringEnable = false
+	defaultApimonitoringVerbose = false
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -149,6 +150,7 @@ const (
 
 	// API Monitoring:
 	apimonitoringEnableUsage = "enables the experimental filter `apimonitoring`"
+	apimonitoringVerboseUsage = "causes the `apimonitoring` filter to log detailed information about its operations"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -262,7 +264,8 @@ var (
 	webhookTimeout                  time.Duration
 
 	// API Monitoring
-	apimonitoringEnable bool
+	apimonitoringEnable  bool
+	apimonitoringVerbose bool
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -375,6 +378,7 @@ func init() {
 
 	// API Monitoring:
 	flag.BoolVar(&apimonitoringEnable, "enable-apimonitoring", defaultApimonitoringEnable, apimonitoringEnableUsage)
+	flag.BoolVar(&apimonitoringVerbose, "apimonitoring-verbose", defaultApimonitoringVerbose, apimonitoringVerboseUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -554,7 +558,8 @@ func main() {
 		KubernetesNamespace:        kubernetesNamespace,
 
 		// API Monitoring:
-		ApiMonitoringActive: apimonitoringEnable,
+		ApiMonitoringActive:  apimonitoringEnable,
+		ApiMonitoringVerbose: apimonitoringVerbose,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,
