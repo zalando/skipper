@@ -550,6 +550,21 @@ Examples:
 oauthTokenintrospectionAllKV("k1", "v1", "k2", "v2")
 ```
 
+## forwardToken
+
+The filter accepts a single string as an argument. The argument is the header 
+name where the result of token info or token introspection is added when the
+request is passed to the backend.
+
+If this filter is used when there is no token introspection or token info data
+then it does not have any effect.
+
+Examples:
+
+```
+forwardToken("X-Tokeninfo-Forward")
+```
+
 ## requestCookie
 
 Append a cookie to the request header.
@@ -754,7 +769,9 @@ The second filter will set `Authorization` header to the
 `access_token` query param with a prefix value `Bearer ` and will
 not override the value if the header exists already.
 
-## accessLogDisabled
+## ~~accessLogDisabled~~
+
+**Deprecated:** use [disableAccessLog](#disableaccesslog) or [enableAccessLog](#enableaccesslog)
 
 The `accessLogDisabled` filter overrides global Skipper `AccessLogDisabled` setting for a specific route, which allows to either turn-off
 the access log for specific route while access log, in general, is enabled or vice versa.
@@ -765,9 +782,32 @@ Example:
 accessLogDisabled("false")
 ```
 
+## disableAccessLog
+
+Filter overrides global Skipper `AccessLogDisabled` setting and allows to turn-off the access log for specific route
+while access log, in general, is enabled.
+
+Example:
+
+```
+disableAccessLog()
+```
+
+## enableAccessLog
+
+Filter overrides global Skipper `AccessLogDisabled` setting and allows to turn-on the access log for specific route
+while access log, in general, is disabled.
+
+Example:
+
+```
+enableAccessLog()
+```
+
+
 ## apimonitoring
 
-The `apimonitoring` filter adds metrics to the existing monitoring.
+The `apimonitoring` filter adds API related metrics to the monitoring.
 
 WARNING: This is an experimental filter and needs to be enabled explicitly at `skipper` startup.
 WARNING: Make sure that the Prometheus Metrics are also enabled.

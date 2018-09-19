@@ -7,9 +7,6 @@ import (
 const (
 	// AccessLogDisabledName is the filter name seen by the user
 	AccessLogDisabledName = "accessLogDisabled"
-
-	// AccessLogDisabledKey is the key used in the state bag to pass the access log state to the proxy.
-	AccessLogDisabledKey = "statebag:access_log:proxy:disabled"
 )
 
 type accessLogDisabled struct {
@@ -19,6 +16,7 @@ type accessLogDisabled struct {
 // NewAccessLogDisabled creates a filter spec for overriding the state of the AccessLogDisabled setting. (By default global setting is used.)
 //
 // 	accessLogDisabled("false")
+// Deprecated: use disableAccessLog or enableAccessLog
 func NewAccessLogDisabled() filters.Spec {
 	return &accessLogDisabled{}
 }
@@ -39,7 +37,7 @@ func (*accessLogDisabled) CreateFilter(args []interface{}) (filters.Filter, erro
 
 func (al *accessLogDisabled) Request(ctx filters.FilterContext) {
 	bag := ctx.StateBag()
-	bag[AccessLogDisabledKey] = al.disabled
+	bag[AccessLogEnabledKey] = !al.disabled
 }
 
 func (*accessLogDisabled) Response(filters.FilterContext) {}

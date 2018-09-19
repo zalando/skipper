@@ -1073,13 +1073,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx.startServe,
 	)
 
-	accessLogDisabled, ok := ctx.stateBag[accesslog.AccessLogDisabledKey].(bool)
+	accessLogEnabled, ok := ctx.stateBag[accesslog.AccessLogEnabledKey].(bool)
 
 	if !ok {
-		accessLogDisabled = p.accessLogDisabled
+		accessLogEnabled = !p.accessLogDisabled
 	}
 
-	if !accessLogDisabled {
+	if accessLogEnabled {
 		entry := &logging.AccessEntry{
 			Request:      r,
 			ResponseSize: lw.GetBytes(),

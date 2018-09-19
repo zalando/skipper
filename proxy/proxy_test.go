@@ -1369,7 +1369,7 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 		Header: http.Header{"Connection": []string{"token"}}}
 	w := httptest.NewRecorder()
 
-	doc := fmt.Sprintf(`hello: Path("/hello") -> accessLogDisabled("true") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+	doc := fmt.Sprintf(`hello: Path("/hello") -> disableAccessLog() -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
 
 	tp, err := newTestProxyWithParams(doc, Params{
 		AccessLogDisabled: false,
@@ -1402,7 +1402,7 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 		Header: http.Header{"Connection": []string{"token"}}}
 	w := httptest.NewRecorder()
 
-	doc := fmt.Sprintf(`hello: Path("/hello") -> accessLogDisabled("false") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+	doc := fmt.Sprintf(`hello: Path("/hello") -> enableAccessLog() -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
 
 	tp, err := newTestProxyWithParams(doc, Params{
 		AccessLogDisabled: true,

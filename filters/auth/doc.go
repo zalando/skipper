@@ -325,11 +325,24 @@ authorization endpoint for a route.
 
     a: Path("/only-allowed-by-webhook") -> webhook("https://custom-webhook.example.org/auth") -> "https://protected-backend.example.org/";
 
-Monitoring - monitoring() filter
+Forward Token - forwardToken() filter
 
-TODO: Document and provide example.
+The filter is used to forward the result of token introspection or token info to the backend.
 
-	a: Path("/this-is-monitored") -> monitor() -> "https://example.org/";
+	a: Path("/tokeninfo-protected") -> oauthTokeninfoAnyScope("uid") -> forwardToken("X-Tokeninfo-Forward") -> "https://internal.example.org";
+	b: Path("tokenintrospection-protected") -> oauthTokenintrospectionAnyKV("uid") -> forwardToken("X-Tokenintrospection-Forward") -> "http://internal.example.org";
+
+
+API Monitoring - apimonitoring() filter
+
+The `apimonitoring` filter adds API related metrics to the monitoring.
+
+	a: Path("/this-is-monitored")
+		-> apimonitoring(
+			"ApiId: asd123",
+			"PathPat: foo/orders/{orderId}",
+			"PathPat: foo/orders/{orderId}/order_item/{orderItemId}")
+		-> "https://example.org/";
 
 */
 package auth
