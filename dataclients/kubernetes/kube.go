@@ -134,6 +134,10 @@ type Options struct {
 	// https://github.com/zalando-incubator/kubernetes-on-aws project.)
 	ProvideHTTPSRedirect bool
 
+	// HTTPSRedirectCode, when set defines which redirect code to use for redirecting from HTTP to HTTPS.
+	// By default, 308 StatusPermanentRedirect is used.
+	HTTPSRedirectCode int
+
 	// IngressClass is a regular expression to filter only those ingresses that match. If an ingress does
 	// not have a class annotation or the annotation is an empty string, skipper will load it. The default
 	// value for the ingress class is 'skipper'.
@@ -167,6 +171,7 @@ type Client struct {
 	provideHealthcheck     bool
 	healthy                bool
 	provideHTTPSRedirect   bool
+	httpsRedirectCode      int
 	token                  string
 	current                map[string]*eskip.Route
 	termReceived           bool
@@ -236,11 +241,17 @@ func New(o Options) (*Client, error) {
 		log.Debugf("new internal ips are: %s", internalIPs)
 	}
 
+	httpsRedirectCode := http.StatusPermanentRedirect
+	if o.HTTPSRedirectCode != 0 {
+		httpsRedirectCode = o.HTTPSRedirectCode
+	}
+
 	return &Client{
 		httpClient:             httpClient,
 		apiURL:                 apiURL,
 		provideHealthcheck:     o.ProvideHealthcheck,
 		provideHTTPSRedirect:   o.ProvideHTTPSRedirect,
+		httpsRedirectCode:      httpsRedirectCode,
 		current:                make(map[string]*eskip.Route),
 		token:                  token,
 		sigs:                   sigs,
@@ -1209,7 +1220,7 @@ func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 	}
 }
 
-func httpRedirectRoute() *eskip.Route {
+func httpRedirectRoute(code int) *eskip.Route {
 	// the forwarded port and any-path (.*) is set to make sure that
 	// the redirect route has a higher priority during matching than
 	// the normal routes that may have max 2 predicates: path regexp
@@ -1225,7 +1236,7 @@ func httpRedirectRoute() *eskip.Route {
 		PathRegexps: []string{".*"},
 		Filters: []*eskip.Filter{{
 			Name: "redirectTo",
-			Args: []interface{}{float64(308), "https:"},
+			Args: []interface{}{float64(code), "https:"},
 		}},
 		Shunt: true,
 	}
@@ -1257,7 +1268,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	}
 
 	if c.provideHTTPSRedirect {
-		r = append(r, httpRedirectRoute())
+		r = append(r, httpRedirectRoute(c.httpsRedirectCode))
 	}
 
 	c.current = mapRoutes(r)

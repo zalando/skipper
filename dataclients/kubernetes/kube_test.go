@@ -2958,3 +2958,61 @@ func checkPrettyRoutes(t *testing.T, r []*eskip.Route, expected map[string]strin
 		}
 	}
 }
+
+func TestLegacyHTTPSRedirect(t *testing.T) {
+	testCode := func(config, expect int) {
+		t.Run(http.StatusText(config), func(t *testing.T) {
+			var o Options
+			o.ProvideHTTPSRedirect = true
+			o.HTTPSRedirectCode = config
+
+			api := newTestAPI(t, nil, &ingressList{})
+			defer api.Close()
+			o.KubernetesURL = api.server.URL
+
+			c, err := New(o)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			r, err := c.LoadAll()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var rr *eskip.Route
+			for i := range r {
+				if r[i].Id == httpRedirectRouteID {
+					rr = r[i]
+					break
+				}
+			}
+
+			if rr == nil {
+				t.Error("redirect route not found")
+				return
+			}
+
+			var rf *eskip.Filter
+			for i := range rr.Filters {
+				if rr.Filters[i].Name == "redirectTo" {
+					rf = rr.Filters[i]
+					break
+				}
+			}
+
+			if rf == nil {
+				t.Error("redirect filter not found")
+				return
+			}
+
+			if len(rf.Args) == 0 || int(rf.Args[0].(float64)) != expect {
+				t.Error("expected redirect status code not set")
+			}
+		})
+	}
+
+	testCode(0, http.StatusPermanentRedirect)
+	testCode(http.StatusPermanentRedirect, http.StatusPermanentRedirect)
+	testCode(http.StatusMovedPermanently, http.StatusMovedPermanently)
+}
