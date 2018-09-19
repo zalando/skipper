@@ -769,10 +769,11 @@ accessLogDisabled("false")
 
 The `apimonitoring` filter adds metrics to the existing monitoring.
 
-WARNING: This is an experimental filter and needs to be activated explicitly at `skipper` startup.
+WARNING: This is an experimental filter and needs to be enabled explicitly at `skipper` startup.
+WARNING: Make sure that the Prometheus Metrics are also enabled.
 
 ```bash
-skipper -apimonitoring-active
+skipper -enable-apimonitoring -enable-prometheus-metrics
 ```
 
 Endpoints can be monitored using the `apimonitoring` function in the route. It accepts an array
