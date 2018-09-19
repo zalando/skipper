@@ -39,6 +39,15 @@ var (
 	errEndpointNotFound     = errors.New("endpoint not found")
 )
 
+// KubernetesOptions specific swarm options
+type KubernetesOptions struct {
+	KubernetesInCluster  bool
+	KubernetesAPIBaseURL string
+	Namespace            string
+	LabelSelectorKey     string
+	LabelSelectorValue   string
+}
+
 // // Client is the client to access resources to find the peers to join
 // // a swarm.
 // type Client interface {

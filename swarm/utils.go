@@ -28,6 +28,7 @@ func getSelf(nodes []*NodeInfo) *NodeInfo {
 				log.Errorf("SWARM: could not parse cidr: %v", err)
 				continue
 			}
+			log.Infof("getSelf: ip: %v, ni: %s", ip, ni.Addr)
 			if ip.Equal(ni.Addr) {
 				return ni
 			}

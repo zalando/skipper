@@ -19,12 +19,41 @@ type nodeInfoClient interface {
 }
 
 func NewNodeInfoClient(o Options) nodeInfoClient {
+	log.Infof("swarm type: %s", o.swarm)
 	switch o.swarm {
 	case swarmKubernetes:
 		return NewNodeInfoClientKubernetes(o)
+	case swarmFake:
+		return NewNodeInfoClientFake(o)
 	default:
 		log.Errorf("unknown swarm type: %s", o.swarm)
 		return nil
+	}
+}
+
+type nodeInfoClientFake struct{}
+
+func NewNodeInfoClientFake(o Options) *nodeInfoClientFake {
+	return &nodeInfoClientFake{}
+}
+
+var i int
+
+// TODO(sszuecs): make this somehow working as a non hack
+func (*nodeInfoClientFake) GetNodeInfo() ([]*NodeInfo, error) {
+	i++
+	if i%2 == 1 {
+		return []*NodeInfo{
+			NewFakeNodeInfo("n1", []byte{127, 0, 0, 1}, 10000),
+			NewFakeNodeInfo("n2", []byte{127, 0, 0, 1}, 10001),
+			//NewFakeNodeInfo("n2", []byte{127, 0, 0, 2}, 10000),
+			//NewFakeNodeInfo("n2", []byte{10, 169, 130, 27}, 10000),
+		}, nil
+	} else {
+		return []*NodeInfo{
+			NewFakeNodeInfo("n2", []byte{127, 0, 0, 1}, 10001),
+			NewFakeNodeInfo("n1", []byte{127, 0, 0, 1}, 10000),
+		}, nil
 	}
 }
 

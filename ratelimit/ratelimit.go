@@ -149,6 +149,7 @@ func (s Settings) String() string {
 	}
 }
 
+// TODO(sszuecs): better name
 type implementation interface {
 	// Allow is used to get a decision if you should allow the call to pass or to ratelimit
 	Allow(string) bool

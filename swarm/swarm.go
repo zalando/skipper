@@ -14,6 +14,7 @@ type swarmType int
 
 const (
 	swarmKubernetes swarmType = iota
+	swarmFake
 	swarmUnknown
 )
 
@@ -21,12 +22,17 @@ func (st swarmType) String() string {
 	switch st {
 	case swarmKubernetes:
 		return "kubernetes Swarm"
+	case swarmFake:
+		return "fake Swarm"
 	}
 	return "unkwown Swarm"
 }
 
 func getSwarmType(o Options) swarmType {
-	if o.KubernetesOptions.KubernetesInCluster && o.KubernetesOptions.KubernetesAPIBaseURL != "" {
+	if o.FakeSwarm {
+		return swarmFake
+	}
+	if o.KubernetesOptions != nil && o.KubernetesOptions.KubernetesInCluster && o.KubernetesOptions.KubernetesAPIBaseURL != "" {
 		return swarmKubernetes
 	}
 	return swarmUnknown
@@ -48,15 +54,6 @@ var (
 	ErrUnknownSwarm = errors.New("unknown swarm type")
 )
 
-// KubernetesOptions specific swarm options
-type KubernetesOptions struct {
-	KubernetesInCluster  bool
-	KubernetesAPIBaseURL string
-	Namespace            string
-	LabelSelectorKey     string
-	LabelSelectorValue   string
-}
-
 // Options for swarm objects.
 type Options struct {
 	swarm swarmType
@@ -65,7 +62,8 @@ type Options struct {
 	MaxMessageBuffer  int
 	LeaveTimeout      time.Duration
 	SwarmPort         int
-	KubernetesOptions *KubernetesOptions
+	KubernetesOptions *KubernetesOptions // nil if not kubernetes
+	FakeSwarm         bool
 }
 
 // Swarm is the main type for exchanging low latency, weakly
@@ -92,12 +90,21 @@ func NewSwarm(o Options) (*Swarm, error) {
 	switch getSwarmType(o) {
 	case swarmKubernetes:
 		return newKubernetesSwarm(o)
+	case swarmFake:
+		return newFakeSwarm(o)
 	default:
 		return nil, ErrUnknownSwarm
 	}
 }
 
+func newFakeSwarm(o Options) (*Swarm, error) {
+	o.swarm = swarmFake
+	return Start(o)
+}
+
 func newKubernetesSwarm(o Options) (*Swarm, error) {
+	o.swarm = swarmKubernetes
+
 	u, err := buildAPIURL(o.KubernetesOptions.KubernetesInCluster, o.KubernetesOptions.KubernetesAPIBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build kubernetes API url from url %s running in cluster %v: %v", o.KubernetesOptions.KubernetesAPIBaseURL, o.KubernetesOptions.KubernetesInCluster, err)
@@ -142,6 +149,7 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 // Start will find Swarm peers and join them.
 func Start(o Options) (*Swarm, error) {
 	knownEntryPoint := newKnownEntryPoint(o)
+	log.Debugf("knownEntryPoint: %s, %v", knownEntryPoint.Node(), knownEntryPoint.Nodes())
 	return Join(o, knownEntryPoint.Node(), knownEntryPoint.Nodes())
 }
 
@@ -229,19 +237,17 @@ func (s *Swarm) control() {
 		select {
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
-			if len(s.messages) > 0 {
-				log.Infof("SWARM: getOutgoing %d messages", len(s.messages))
-			} else {
+			if len(s.messages) <= 0 {
 				// XXX(sszuecs): does this happen?
-				log.Debug("SWARM: getOutgoing with 0 messages")
+				log.Debug("SWARM: getOutgoing with 0 messages <<<----- CHECK")
 			}
 			req.ret <- s.messages
 		case m := <-s.outgoing:
 			s.messages = append(s.messages, m.encoded)
 			s.messages = takeMaxLatest(s.messages, 0, s.maxMessageBuffer)
-			log.Infof("SWARM: outgoing %d messages", len(s.messages))
+			log.Debugf("SWARM: outgoing having %d messages", len(s.messages))
 			if m.message.Type == sharedValue {
-				log.Infof("SWARM: share value: %s %s: %v", s.local.Name, m.message.Key, m.message.Value)
+				log.Debugf("SWARM: %s shares value: %s: %v", s.local.Name, m.message.Key, m.message.Value)
 				s.shared.set(s.local.Name, m.message.Key, m.message.Value)
 			}
 		case b := <-s.incoming:
@@ -253,10 +259,10 @@ func (s *Swarm) control() {
 				default:
 				}
 			} else if m.Type == sharedValue {
-				log.Infof("SWARM: got shared value: %s %s: %v", m.Source, m.Key, m.Value)
+				log.Debugf("SWARM: %s got shared value from %s: %s: %v", s.local.Name, m.Source, m.Key, m.Value)
 				s.shared.set(m.Source, m.Key, m.Value)
 			} else if m.Type == broadcast {
-				log.Infof("SWARM: got broadcast value: %s %s: %v", m.Source, m.Key, m.Value)
+				log.Debugf("SWARM: got broadcast value: %s %s: %v", m.Source, m.Key, m.Value)
 				for k, l := range s.listeners {
 					if k == m.Key {
 						// assuming buffered listener channels
@@ -271,10 +277,14 @@ func (s *Swarm) control() {
 				}
 			}
 		case req := <-s.getValues:
-			log.Infof("SWARM: getValues for key: %s", req.key)
+			log.Debugf("SWARM: getValues for key: %s", req.key)
 			req.ret <- s.shared[req.key]
 		case <-s.leave:
 			log.Infof("SWARM: leaving %s", s.local)
+			if s.mlist == nil {
+				log.Errorf("mlist nil")
+				return
+			}
 			// TODO: call shutdown
 			if err := s.mlist.Leave(s.leaveTimeout); err != nil {
 				select {
@@ -290,7 +300,13 @@ func (s *Swarm) control() {
 
 // Local is a getter to the local member of a swarm.
 // TODO: memberlist has support for this, less redundant to use that
-func (s *Swarm) Local() *NodeInfo { return s.local }
+func (s *Swarm) Local() *NodeInfo {
+	if s == nil {
+		log.Errorf("swarm is nil")
+		return nil
+	}
+	return s.local
+}
 
 func (s *Swarm) broadcast(m *message) error {
 	m.Source = s.Local().Name

@@ -25,6 +25,15 @@ type NodeInfo struct {
 	Port int
 }
 
+// NewFakeNodeInfo used to create a FakeSwarm
+func NewFakeNodeInfo(name string, addr net.IP, port int) *NodeInfo {
+	return &NodeInfo{
+		Name: name,
+		Addr: addr,
+		Port: port,
+	}
+}
+
 func (ni NodeInfo) String() string {
 	return fmt.Sprintf("NodeInfo{%s, %s, %d}", ni.Name, ni.Addr, ni.Port)
 }
