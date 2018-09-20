@@ -53,8 +53,6 @@ const (
 	skipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
 	skipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
 	pathModeAnnotationKey         = "zalando.org/skipper-ingress-path-mode"
-	redirectAnnotationKey         = "zalando.org/skipper-ingress-redirect"
-	redirectCodeAnnotationKey     = "zalando.org/skipper-ingress-redirect-code"
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -856,8 +854,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
-	setHostRoutesRedirect := make(map[string]int)
-	disableHostRoutesRedirect := make(map[string]bool)
+	redirect := createRedirectInfo(c.provideHTTPSRedirect, c.httpsRedirectCode)
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 			i.Spec == nil {
@@ -869,28 +866,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			"ingress": fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name),
 		})
 
-		ingressEnableHTTPSRedirect := !c.provideHTTPSRedirect &&
-			i.Metadata.Annotations[redirectAnnotationKey] == "true"
-		ingressDisableHTTPSRedirect := c.provideHTTPSRedirect &&
-			i.Metadata.Annotations[redirectAnnotationKey] == "false"
-		redirectCode := c.httpsRedirectCode
-		if annotationCode, ok := i.Metadata.Annotations[redirectCodeAnnotationKey]; ok {
-			var err interface{}
-			if redirectCode, err = strconv.Atoi(annotationCode); err != nil ||
-				redirectCode < http.StatusMultipleChoices ||
-				redirectCode >= http.StatusBadRequest {
-
-				if err == nil {
-					err = redirectCode
-				}
-
-				log.Error("invalid redirect code annoation:", err)
-				redirectCode = c.httpsRedirectCode
-			}
-		}
-		overrideRedirectCode := c.provideHTTPSRedirect &&
-			!ingressDisableHTTPSRedirect &&
-			redirectCode != c.httpsRedirectCode
+		redirect.initCurrent(i.Metadata)
 
 		if r, ok, err := c.convertDefaultBackend(i); ok {
 			routes = append(routes, r...)
@@ -982,11 +958,11 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 					setPath(pathMode, &route, prule.Path)
 					if i := countPathRoutes(&route); i <= 1 {
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
-						if ingressEnableHTTPSRedirect || overrideRedirectCode {
-							setHostRoutesRedirect[rule.Host] = redirectCode
+						if redirect.enable || redirect.override {
+							redirect.setHost(rule.Host)
 						}
-						if ingressDisableHTTPSRedirect {
-							disableHostRoutesRedirect[rule.Host] = true
+						if redirect.disable {
+							redirect.setHostDisabled(rule.Host)
 						}
 					} else {
 						log.Errorf("Failed to add route having %d path routes: %v", i, r)
@@ -1041,25 +1017,25 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 					}
 
-					if (ingressEnableHTTPSRedirect || overrideRedirectCode) && len(endpoints) > 0 {
+					if (redirect.enable || redirect.override) && len(endpoints) > 0 {
 						hostRoutes[rule.Host] = append(
 							hostRoutes[rule.Host],
 							createIngressEnableHTTPSRedirect(
 								endpoints[0],
-								redirectCode,
+								redirect.code,
 							),
 						)
-						setHostRoutesRedirect[rule.Host] = redirectCode
+						redirect.setHost(rule.Host)
 					}
 
-					if ingressDisableHTTPSRedirect && len(endpoints) > 0 {
+					if redirect.disable && len(endpoints) > 0 {
 						hostRoutes[rule.Host] = append(
 							hostRoutes[rule.Host],
 							createIngressDisableHTTPSRedirect(
 								endpoints[0],
 							),
 						)
-						disableHostRoutesRedirect[rule.Host] = true
+						redirect.setHostDisabled(rule.Host)
 					}
 				}
 			}
@@ -1082,10 +1058,10 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 				BackendType: eskip.ShuntBackend,
 			}
 			routes = append(routes, catchAll)
-			if code, ok := setHostRoutesRedirect[host]; ok {
+			if code, ok := redirect.setHostCode[host]; ok {
 				routes = append(routes, createIngressEnableHTTPSRedirect(catchAll, code))
 			}
-			if disableHostRoutesRedirect[host] {
+			if redirect.disableHost[host] {
 				routes = append(routes, createIngressDisableHTTPSRedirect(catchAll))
 			}
 		}
@@ -1304,78 +1280,6 @@ func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 	}
 }
 
-func initRedirectRoute(r *eskip.Route, code int) {
-	// the forwarded port and any-path (.*) is set to make sure that
-	// the redirect route has a higher priority during matching than
-	// the normal routes that may have max 2 predicates: path regexp
-	// and host.
-
-	if r.Headers == nil {
-		r.Headers = make(map[string]string)
-	}
-	r.Headers["X-Forwarded-Proto"] = "http"
-
-	if r.HeaderRegexps == nil {
-		r.HeaderRegexps = make(map[string][]string)
-	}
-	r.HeaderRegexps["X-Forwarded-Port"] = append(
-		r.HeaderRegexps["X-Forwarded-Port"],
-		".*",
-	)
-
-	r.PathRegexps = append(r.PathRegexps, ".*")
-
-	r.Filters = append(r.Filters, &eskip.Filter{
-		Name: "redirectTo",
-		Args: []interface{}{float64(code), "https:"},
-	})
-
-	r.BackendType = eskip.ShuntBackend
-	r.Backend = ""
-}
-
-func initDisableRedirectRoute(r *eskip.Route) {
-	// the forwarded port and any-path (.*) is set to make sure that
-	// the redirect route has a higher priority during matching than
-	// the normal routes that may have max 2 predicates: path regexp
-	// and host.
-
-	if r.Headers == nil {
-		r.Headers = make(map[string]string)
-	}
-	r.Headers["X-Forwarded-Proto"] = "http"
-
-	if r.HeaderRegexps == nil {
-		r.HeaderRegexps = make(map[string][]string)
-	}
-	r.HeaderRegexps["X-Forwarded-Port"] = append(
-		r.HeaderRegexps["X-Forwarded-Port"],
-		".*",
-	)
-
-	r.PathRegexps = append(r.PathRegexps, ".*")
-}
-
-func httpRedirectRoute(code int) *eskip.Route {
-	r := &eskip.Route{Id: httpRedirectRouteID}
-	initRedirectRoute(r, code)
-	return r
-}
-
-func createIngressEnableHTTPSRedirect(r *eskip.Route, code int) *eskip.Route {
-	rr := *r
-	rr.Id = routeIDForRedirectRoute(rr.Id, true)
-	initRedirectRoute(&rr, code)
-	return &rr
-}
-
-func createIngressDisableHTTPSRedirect(r *eskip.Route) *eskip.Route {
-	rr := *r
-	rr.Id = routeIDForRedirectRoute(rr.Id, false)
-	initDisableRedirectRoute(&rr)
-	return &rr
-}
-
 func (c *Client) hasReceivedTerm() bool {
 	select {
 	case s := <-c.sigs:
@@ -1402,7 +1306,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	}
 
 	if c.provideHTTPSRedirect {
-		r = append(r, httpRedirectRoute(c.httpsRedirectCode))
+		r = append(r, globalRedirectRoute(c.httpsRedirectCode))
 	}
 
 	c.current = mapRoutes(r)
