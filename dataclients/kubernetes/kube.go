@@ -54,6 +54,7 @@ const (
 	skipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
 	pathModeAnnotationKey         = "zalando.org/skipper-ingress-path-mode"
 	redirectAnnotationKey         = "zalando.org/skipper-ingress-redirect"
+	redirectCodeAnnotationKey     = "zalando.org/skipper-ingress-redirect-code"
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -855,7 +856,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
-	enableHostRoutesRedirect := make(map[string]bool)
+	setHostRoutesRedirect := make(map[string]int)
 	disableHostRoutesRedirect := make(map[string]bool)
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
@@ -872,6 +873,24 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			i.Metadata.Annotations[redirectAnnotationKey] == "true"
 		ingressDisableHTTPSRedirect := c.provideHTTPSRedirect &&
 			i.Metadata.Annotations[redirectAnnotationKey] == "false"
+		redirectCode := c.httpsRedirectCode
+		if annotationCode, ok := i.Metadata.Annotations[redirectCodeAnnotationKey]; ok {
+			var err interface{}
+			if redirectCode, err = strconv.Atoi(annotationCode); err != nil ||
+				redirectCode < http.StatusMultipleChoices ||
+				redirectCode >= http.StatusBadRequest {
+
+				if err == nil {
+					err = redirectCode
+				}
+
+				log.Error("invalid redirect code annoation:", err)
+				redirectCode = c.httpsRedirectCode
+			}
+		}
+		overrideRedirectCode := c.provideHTTPSRedirect &&
+			!ingressDisableHTTPSRedirect &&
+			redirectCode != c.httpsRedirectCode
 
 		if r, ok, err := c.convertDefaultBackend(i); ok {
 			routes = append(routes, r...)
@@ -879,8 +898,8 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			// we cannot control the redirect for the default backends, because
 			// it would conflict with the default behavior
 			//
-			// if ingressEnableHTTPSRedirect && len(r) > 0 {
-			// 	routes = append(routes, createIngressEnableHTTPSRedirect(r[0], c.httpsRedirectCode))
+			// if (ingressEnableHTTPSRedirect || overrideRedirectCode) && len(r) > 0 {
+			// 	routes = append(routes, createIngressEnableHTTPSRedirect(r[0], redirectCode))
 			// }
 			//
 			// if ingressDisableHTTPSRedirect && len(r) > 0 {
@@ -963,8 +982,8 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 					setPath(pathMode, &route, prule.Path)
 					if i := countPathRoutes(&route); i <= 1 {
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
-						if ingressEnableHTTPSRedirect {
-							enableHostRoutesRedirect[rule.Host] = true
+						if ingressEnableHTTPSRedirect || overrideRedirectCode {
+							setHostRoutesRedirect[rule.Host] = redirectCode
 						}
 						if ingressDisableHTTPSRedirect {
 							disableHostRoutesRedirect[rule.Host] = true
@@ -1022,15 +1041,15 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 					}
 
-					if ingressEnableHTTPSRedirect && len(endpoints) > 0 {
+					if (ingressEnableHTTPSRedirect || overrideRedirectCode) && len(endpoints) > 0 {
 						hostRoutes[rule.Host] = append(
 							hostRoutes[rule.Host],
 							createIngressEnableHTTPSRedirect(
 								endpoints[0],
-								c.httpsRedirectCode,
+								redirectCode,
 							),
 						)
-						enableHostRoutesRedirect[rule.Host] = true
+						setHostRoutesRedirect[rule.Host] = redirectCode
 					}
 
 					if ingressDisableHTTPSRedirect && len(endpoints) > 0 {
@@ -1063,8 +1082,8 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 				BackendType: eskip.ShuntBackend,
 			}
 			routes = append(routes, catchAll)
-			if enableHostRoutesRedirect[host] {
-				routes = append(routes, createIngressEnableHTTPSRedirect(catchAll, c.httpsRedirectCode))
+			if code, ok := setHostRoutesRedirect[host]; ok {
+				routes = append(routes, createIngressEnableHTTPSRedirect(catchAll, code))
 			}
 			if disableHostRoutesRedirect[host] {
 				routes = append(routes, createIngressDisableHTTPSRedirect(catchAll))
