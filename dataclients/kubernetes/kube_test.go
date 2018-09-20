@@ -97,6 +97,18 @@ func testRule(host string, paths ...*pathRule) *rule {
 	}
 }
 
+func setAnnotation(i *ingressItem, key, value string) {
+	if i.Metadata == nil {
+		i.Metadata = &metadata{}
+	}
+
+	if i.Metadata.Annotations == nil {
+		i.Metadata.Annotations = make(map[string]string)
+	}
+
+	i.Metadata.Annotations[key] = value
+}
+
 func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
 	var defaultBackend *backend
 	if len(defaultService) != 0 {
@@ -112,28 +124,46 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 		Name:        name,
 		Annotations: make(map[string]string),
 	}
-	if ratelimitCfg != "" {
-		meta.Annotations[ratelimitAnnotationKey] = ratelimitCfg
-	}
-	if filterString != "" {
-		meta.Annotations[skipperfilterAnnotationKey] = filterString
-	}
-	if predicateString != "" {
-		meta.Annotations[skipperpredicateAnnotationKey] = predicateString
-	}
-	if routesString != "" {
-		meta.Annotations[skipperRoutesAnnotationKey] = routesString
-	}
-	if pathModeString != "" {
-		meta.Annotations[pathModeAnnotationKey] = pathModeString
-	}
-	return &ingressItem{
+	i := &ingressItem{
 		Metadata: &meta,
 		Spec: &ingressSpec{
 			DefaultBackend: defaultBackend,
 			Rules:          rules,
 		},
 	}
+	if ratelimitCfg != "" {
+		setAnnotation(i, ratelimitAnnotationKey, ratelimitCfg)
+	}
+	if filterString != "" {
+		setAnnotation(i, skipperfilterAnnotationKey, filterString)
+	}
+	if predicateString != "" {
+		setAnnotation(i, skipperpredicateAnnotationKey, predicateString)
+	}
+	if routesString != "" {
+		setAnnotation(i, skipperRoutesAnnotationKey, routesString)
+	}
+	if pathModeString != "" {
+		setAnnotation(i, pathModeAnnotationKey, pathModeString)
+	}
+
+	return i
+}
+
+func testIngressSimple(ns, name, defaultService string, defaultPort backendPort, rules ...*rule) *ingressItem {
+	return testIngress(
+		ns,
+		name,
+		defaultService,
+		"",
+		"",
+		"",
+		"",
+		"",
+		defaultPort,
+		0,
+		rules...,
+	)
 }
 
 func testServices() services {
@@ -2975,6 +3005,8 @@ func TestLegacyHTTPSRedirect(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			defer c.Close()
+
 			r, err := c.LoadAll()
 			if err != nil {
 				t.Fatal(err)
@@ -3015,4 +3047,152 @@ func TestLegacyHTTPSRedirect(t *testing.T) {
 	testCode(0, http.StatusPermanentRedirect)
 	testCode(http.StatusPermanentRedirect, http.StatusPermanentRedirect)
 	testCode(http.StatusMovedPermanently, http.StatusMovedPermanently)
+}
+
+func TestControlHTTPSRedirectFromIngress(t *testing.T) {
+	var o Options
+
+	ingressWithRedirect := testIngressSimple(
+		"namespace1",
+		"ingress1",
+		"service1",
+		backendPort{"port1"},
+		testRule(
+			"www.example.org",
+			testPathRule("/foo", "service1", backendPort{"port1"}),
+		),
+	)
+	setAnnotation(ingressWithRedirect, redirectAnnotationKey, "true")
+
+	ingressWithoutRedirect := testIngressSimple(
+		"namespace1",
+		"ingress2",
+		"service2",
+		backendPort{"port2"},
+		testRule(
+			"api.example.org",
+			testPathRule("/bar", "service2", backendPort{"port2"}),
+		),
+	)
+
+	api := newTestAPI(t, testServices(), &ingressList{Items: []*ingressItem{
+		ingressWithRedirect,
+		ingressWithoutRedirect,
+	}})
+	defer api.server.Close()
+	o.KubernetesURL = api.server.URL
+
+	c, err := New(o)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer c.Close()
+
+	r, err := c.LoadAll()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	expect := []*eskip.Route{
+		{
+			Id:      "kube_namespace1__ingress1______",
+			Backend: "http://1.2.3.4:8080",
+		},
+		{
+			Id:          "kube_namespace1__ingress1_______https_redirect",
+			PathRegexps: []string{".*"},
+			Headers: map[string]string{
+				"X-Forwarded-Proto": "http",
+			},
+			HeaderRegexps: map[string][]string{
+				"X-Forwarded-Port": {".*"},
+			},
+			Filters: []*eskip.Filter{{
+				Name: "redirectTo",
+				Args: []interface{}{float64(http.StatusPermanentRedirect), "https:"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		},
+		{
+			Id:      "kube_namespace1__ingress2______",
+			Backend: "http://5.6.7.8:8181",
+		},
+		{
+			Id: "kube_namespace1__ingress1__www_example_org___foo__service1",
+			HostRegexps: []string{
+				"^www[.]example[.]org$",
+			},
+			PathRegexps: []string{
+				"^/foo",
+			},
+			Backend: "http://1.2.3.4:8080",
+		},
+		{
+			Id:          "kube___catchall__www_example_org____",
+			HostRegexps: []string{"^www[.]example[.]org$"},
+			BackendType: 1,
+		},
+		{
+			Id:          "kube___catchall__www_example_org_____https_redirect",
+			PathRegexps: []string{".*"},
+			Headers: map[string]string{
+				"X-Forwarded-Proto": "http",
+			},
+			HeaderRegexps: map[string][]string{
+				"X-Forwarded-Port": {".*"},
+			},
+			HostRegexps: []string{"^www[.]example[.]org$"},
+			Filters: []*eskip.Filter{{
+				Name: "redirectTo",
+				Args: []interface{}{float64(http.StatusPermanentRedirect), "https:"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		},
+		{
+			Id: "kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect",
+			Headers: map[string]string{
+				"X-Forwarded-Proto": "http",
+			},
+			HeaderRegexps: map[string][]string{
+				"X-Forwarded-Port": {".*"},
+			},
+			HostRegexps: []string{
+				"^www[.]example[.]org$",
+			},
+			PathRegexps: []string{
+				"^/foo",
+				".*",
+			},
+			Filters: []*eskip.Filter{{
+				Name: "redirectTo",
+				Args: []interface{}{float64(http.StatusPermanentRedirect), "https:"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		},
+		{
+			Id: "kube_namespace1__ingress2__api_example_org___bar__service2",
+			HostRegexps: []string{
+				"^api[.]example[.]org$",
+			},
+			PathRegexps: []string{
+				"^/bar",
+			},
+			Backend: "http://5.6.7.8:8181",
+		},
+		{
+			Id:          "kube___catchall__api_example_org____",
+			HostRegexps: []string{"^api[.]example[.]org$"},
+			BackendType: 1,
+		},
+	}
+
+	diff := cmp.Diff(r, expect)
+	if diff != "" {
+		t.Error(diff)
+
+		t.Log(eskip.String(r...))
+		t.Log(eskip.String(expect...))
+		t.Log(len(r), len(expect))
+	}
 }
