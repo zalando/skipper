@@ -13,6 +13,8 @@ zalando.org/skipper-filter | `consecutiveBreaker(15)` | arbitrary filters
 zalando.org/skipper-predicate | `QueryParam("version", "^alpha$")` | arbitrary predicates
 zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | extra custom routes
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
+zalando.org/skipper-ingress-redirect | `true` | change the default HTTPS redirect behavior for specific ingresses (true/false)
+zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
 
 ## Supported Service types
 
@@ -719,6 +721,39 @@ You can set multiple filters in a chain similar to the [eskip format](https://go
     spec:
       rules:
       - host: app-default.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+# Controlling HTTPS redirect
+
+Skipper Ingress can provide HTTP->HTTPS redirection. Enabling it and setting the status code used by default can
+be done with the command line options: -kubernetes-https-redirect and -kubernetes-https-redirect-code. By using
+annotations, this behavior can be overridden from the individual ingress specs for the scope of routes generated
+based on these ingresses specs.
+
+Annotations:
+
+- zalando.org/skipper-ingress-redirect: the possible values are true or false. When the global HTTPS redirect is
+  disabled, the value true enables it for the current ingress. When the global redirect is enabled, the value
+  false disables it for the current ingress.
+- zalando.org/skipper-ingress-redirect-code: the possible values are integers 300 <= x < 400. Sets the redirect
+  status code for the current ingress.
+
+Example:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-ingress-redirect: true
+        zalando.org/skipper-ingress-redirect-code: 301
+      name: app
+    spec:
+      rules:
+      - host: mobile-api.example.org
         http:
           paths:
           - backend:

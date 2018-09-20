@@ -99,6 +99,7 @@ TLS example:
 * same as before, but you would terminate TLS on your layer 4 loadbalancer
 * layer 4 loadbalancer has `1.2.3.4:443` as socket for a virtual server
 * you can use an automated redirect for all port 80 requests to https with `-kubernetes-https-redirect`
+and change the default redirect code with `-kubernetes-https-redirect-code`
 
 # Install Skipper as ingress-controller
 
