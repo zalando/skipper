@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -44,7 +45,7 @@ func (r *redirectInfo) initCurrent(m *metadata) {
 				err = annotationCode
 			}
 
-			log.Error("invalid redirect code annoation:", err)
+			log.Error("invalid redirect code annotation:", err)
 			r.code = r.defaultCode
 		}
 	}
@@ -58,6 +59,25 @@ func (r *redirectInfo) setHost(host string) {
 
 func (r *redirectInfo) setHostDisabled(host string) {
 	r.disableHost[host] = true
+}
+
+func (r *redirectInfo) updateHost(host string) {
+	if r.enable || r.override {
+		r.setHost(host)
+	}
+
+	if r.disable {
+		r.setHostDisabled(host)
+	}
+}
+
+func routeIDForRedirectRoute(baseID string, enable bool) string {
+	f := "%s_https_redirect"
+	if !enable {
+		f = "%s_disable_https_redirect"
+	}
+
+	return fmt.Sprintf(f, baseID)
 }
 
 func initRedirectRoute(r *eskip.Route, code int) {
