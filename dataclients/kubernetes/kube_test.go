@@ -3094,105 +3094,58 @@ func TestControlHTTPSRedirectFromIngress(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	expect := []*eskip.Route{
-		{
-			Id:      "kube_namespace1__ingress1______",
-			Backend: "http://1.2.3.4:8080",
-		},
-		{
-			Id:          "kube_namespace1__ingress1_______https_redirect",
-			PathRegexps: []string{".*"},
-			Headers: map[string]string{
-				"X-Forwarded-Proto": "http",
-			},
-			HeaderRegexps: map[string][]string{
-				"X-Forwarded-Port": {".*"},
-			},
-			Filters: []*eskip.Filter{{
-				Name: "redirectTo",
-				Args: []interface{}{float64(http.StatusPermanentRedirect), "https:"},
-			}},
-			BackendType: eskip.ShuntBackend,
-		},
-		{
-			Id:      "kube_namespace1__ingress2______",
-			Backend: "http://5.6.7.8:8181",
-		},
-		{
-			Id: "kube_namespace1__ingress1__www_example_org___foo__service1",
-			HostRegexps: []string{
-				"^www[.]example[.]org$",
-			},
-			PathRegexps: []string{
-				"^/foo",
-			},
-			Backend: "http://1.2.3.4:8080",
-		},
-		{
-			Id:          "kube___catchall__www_example_org____",
-			HostRegexps: []string{"^www[.]example[.]org$"},
-			BackendType: 1,
-		},
-		{
-			Id:          "kube___catchall__www_example_org_____https_redirect",
-			PathRegexps: []string{".*"},
-			Headers: map[string]string{
-				"X-Forwarded-Proto": "http",
-			},
-			HeaderRegexps: map[string][]string{
-				"X-Forwarded-Port": {".*"},
-			},
-			HostRegexps: []string{"^www[.]example[.]org$"},
-			Filters: []*eskip.Filter{{
-				Name: "redirectTo",
-				Args: []interface{}{float64(http.StatusPermanentRedirect), "https:"},
-			}},
-			BackendType: eskip.ShuntBackend,
-		},
-		{
-			Id: "kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect",
-			Headers: map[string]string{
-				"X-Forwarded-Proto": "http",
-			},
-			HeaderRegexps: map[string][]string{
-				"X-Forwarded-Port": {".*"},
-			},
-			HostRegexps: []string{
-				"^www[.]example[.]org$",
-			},
-			PathRegexps: []string{
-				"^/foo",
-				".*",
-			},
-			Filters: []*eskip.Filter{{
-				Name: "redirectTo",
-				Args: []interface{}{float64(http.StatusPermanentRedirect), "https:"},
-			}},
-			BackendType: eskip.ShuntBackend,
-		},
-		{
-			Id: "kube_namespace1__ingress2__api_example_org___bar__service2",
-			HostRegexps: []string{
-				"^api[.]example[.]org$",
-			},
-			PathRegexps: []string{
-				"^/bar",
-			},
-			Backend: "http://5.6.7.8:8181",
-		},
-		{
-			Id:          "kube___catchall__api_example_org____",
-			HostRegexps: []string{"^api[.]example[.]org$"},
-			BackendType: 1,
-		},
+	const expectEskip = `
+		kube_namespace1__ingress1______: * -> "http://1.2.3.4:8080";
+		kube_namespace1__ingress1_______https_redirect:
+			PathRegexp(".*") &&
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*")
+			-> redirectTo(308, "https:")
+			-> <shunt>;
+		kube_namespace1__ingress2______: *-> "http://5.6.7.8:8181";
+		kube_namespace1__ingress1__www_example_org___foo__service1:
+			Host("^www[.]example[.]org$") &&
+			PathRegexp("^/foo")
+			-> "http://1.2.3.4:8080";
+		kube___catchall__www_example_org____:
+			Host("^www[.]example[.]org$")
+			-> <shunt>;
+		kube___catchall__www_example_org_____https_redirect:
+			PathRegexp(".*") &&
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*") &&
+			Host("^www[.]example[.]org$")
+			-> redirectTo(308, "https:")
+			-> <shunt>;
+		kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect:
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*") &&
+			Host("^www[.]example[.]org$") &&
+			PathRegexp("^/foo") &&
+			PathRegexp(".*")
+			-> redirectTo(308, "https:")
+			-> <shunt>;
+		kube_namespace1__ingress2__api_example_org___bar__service2:
+			Host("^api[.]example[.]org$") &&
+			PathRegexp("^/bar")
+			-> "http://5.6.7.8:8181";
+		kube___catchall__api_example_org____:
+			Host("^api[.]example[.]org$")
+			-> <shunt>;
+	`
+
+	expect, err := eskip.Parse(expectEskip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// discard deprecated shunt parsing:
+	for _, i := range []int{1, 4, 5, 6, 8} {
+		expect[i].Shunt = false
 	}
 
 	diff := cmp.Diff(r, expect)
 	if diff != "" {
 		t.Error(diff)
-
-		t.Log(eskip.String(r...))
-		t.Log(eskip.String(expect...))
-		t.Log(len(r), len(expect))
 	}
 }
