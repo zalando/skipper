@@ -768,14 +768,3 @@ and will not override the value if the header exists already.
 The second filter will set `Authorization` header to the
 `access_token` query param with a prefix value `Bearer ` and will
 not override the value if the header exists already.
-
-## accessLogDisabled
-
-The `accessLogDisabled` filter overrides global Skipper `AccessLogDisabled` setting for a specific route, which allows to either turn-off
-the access log for specific route while access log, in general, is enabled or vice versa.
-
-Example:
-
-```
-accessLogDisabled("false")
-```
