@@ -18,7 +18,6 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
@@ -149,9 +148,6 @@ type Params struct {
 	// Default: "ingress".
 	OpenTracingInitialSpan string
 
-	// When set, no access log is printed.
-	AccessLogDisabled bool
-
 	// Loadbalancer to report unhealthy or dead backends to
 	LoadBalancer *loadbalancer.LB
 
@@ -243,7 +239,6 @@ type Proxy struct {
 	openTracer             ot.Tracer
 	openTracingInitialSpan string
 	lb                     *loadbalancer.LB
-	accessLogDisabled      bool
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -520,7 +515,6 @@ func WithParams(p Params) *Proxy {
 		log:                    &logging.DefaultLog{},
 		defaultHTTPStatus:      defaultHTTPStatus,
 		openTracer:             p.OpenTracer,
-		accessLogDisabled:      p.AccessLogDisabled,
 		openTracingInitialSpan: openTracingInitialSpan,
 	}
 }
@@ -1022,8 +1016,6 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	lw := logging.NewLoggingWriter(w)
-
 	p.metrics.IncCounter("incoming." + r.Proto)
 	var ctx *context
 
@@ -1045,7 +1037,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
-	ctx = newContext(lw, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
+	ctx = newContext(w, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
 	ctx.startServe = time.Now()
 	ctx.tracer = p.openTracer
 
@@ -1072,24 +1064,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx.response.StatusCode,
 		ctx.startServe,
 	)
-
-	accessLogEnabled, ok := ctx.stateBag[accesslog.AccessLogEnabledKey].(bool)
-
-	if !ok {
-		accessLogEnabled = !p.accessLogDisabled
-	}
-
-	if accessLogEnabled {
-		entry := &logging.AccessEntry{
-			Request:      r,
-			ResponseSize: lw.GetBytes(),
-			StatusCode:   ctx.response.StatusCode,
-			RequestTime:  ctx.startServe,
-			Duration:     time.Since(ctx.startServe),
-		}
-
-		logging.LogAccess(entry)
-	}
 }
 
 // Close causes the proxy to stop closing idle

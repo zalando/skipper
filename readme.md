@@ -102,10 +102,10 @@ Working with the code requires Go1.11 or a higher version. Getting the code with
 
 Build and test all packages:
 
-    cd src/github.com/zalando/skipper
-    make deps
-    make install
-    make shortcheck
+  cd src/github.com/zalando/skipper
+  make deps
+  make install
+  make shortcheck
 
 
 #### Kubernetes Ingress
