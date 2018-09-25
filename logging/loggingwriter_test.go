@@ -31,6 +31,10 @@ func TestWritesAndStoresStatusCode(t *testing.T) {
 	if rr.Code != http.StatusTeapot {
 		t.Error("failed to write status code")
 	}
+
+	if w.GetCode() != http.StatusTeapot {
+		t.Error("failed to get status code")
+	}
 }
 
 func TestReturnsUnderlyingHeader(t *testing.T) {
