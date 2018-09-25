@@ -1422,6 +1422,51 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 	}
 }
 
+func TestAccessLogOnFailedRequest(t *testing.T) {
+	var buf bytes.Buffer
+	logging.Init(logging.Options{
+		AccessLogOutput: &buf})
+
+	s := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	s.Close()
+
+	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, s.URL), 0)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	rsp, err := http.Get(ps.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusBadGateway {
+		t.Error("failed to return 502 Bad Gateway on failing backend connection")
+	}
+
+	output := buf.String()
+
+	proxyURL, err := url.Parse(ps.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1" 0 %s - -`, http.StatusBadGateway, rsp.ContentLength, proxyURL.Host)
+	if !strings.Contains(output, expected) {
+		t.Error("failed to log access", output, expected)
+	}
+}
+
 func TestHopHeaderRemovalDisabled(t *testing.T) {
 	payload := []byte("Hello World!")
 

@@ -1041,6 +1041,26 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		span.Finish()
 	}()
 
+	defer func() {
+		accessLogEnabled, ok := ctx.stateBag[accesslog.AccessLogEnabledKey].(bool)
+
+		if !ok {
+			accessLogEnabled = !p.accessLogDisabled
+		}
+
+		if accessLogEnabled {
+			entry := &logging.AccessEntry{
+				Request:      r,
+				ResponseSize: lw.GetBytes(),
+				StatusCode:   lw.GetCode(),
+				RequestTime:  ctx.startServe,
+				Duration:     time.Since(ctx.startServe),
+			}
+
+			logging.LogAccess(entry)
+		}
+	}()
+
 	ext.SpanKindRPCServer.Set(span)
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
@@ -1072,24 +1092,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx.response.StatusCode,
 		ctx.startServe,
 	)
-
-	accessLogEnabled, ok := ctx.stateBag[accesslog.AccessLogEnabledKey].(bool)
-
-	if !ok {
-		accessLogEnabled = !p.accessLogDisabled
-	}
-
-	if accessLogEnabled {
-		entry := &logging.AccessEntry{
-			Request:      r,
-			ResponseSize: lw.GetBytes(),
-			StatusCode:   ctx.response.StatusCode,
-			RequestTime:  ctx.startServe,
-			Duration:     time.Since(ctx.startServe),
-		}
-
-		logging.LogAccess(entry)
-	}
 }
 
 // Close causes the proxy to stop closing idle
