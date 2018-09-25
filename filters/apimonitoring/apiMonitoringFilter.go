@@ -2,6 +2,7 @@ package apimonitoring
 
 import (
 	"encoding/json"
+	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
 	"strings"
@@ -34,7 +35,6 @@ const (
 type apiMonitoringFilter struct {
 	verbose      bool
 	apiId        string
-	includePath  bool
 	pathPatterns map[string]*regexp.Regexp
 }
 
@@ -44,6 +44,7 @@ var _ filters.Filter = new(apiMonitoringFilter)
 // IMPLEMENTS filters.Filter
 //
 
+// Request fulfills the Filter interface.
 func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	log := log.WithField("op", "request")
 	if f.verbose {
@@ -58,7 +59,10 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	//
 
 	// Identify the dimensions "prefix" of the metrics.
-	dimensionsPrefix := f.getDimensionPrefix(c)
+	dimensionsPrefix, track := f.getDimensionPrefix(c, log)
+	if !track {
+		return
+	}
 
 	begin := time.Now()
 	originalRequestSize := c.Request().ContentLength
@@ -73,59 +77,7 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	c.StateBag()[KeyState] = mfc
 }
 
-func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext) (prefix string) {
-	req := c.Request()
-	parts := make([]string, 0, 3)
-
-	//
-	// API ID
-	//
-	apiId := ""
-	if f.apiId == "" {
-		apiId = req.Host // no API ID set in the route. Using the host.
-	} else {
-		apiId = f.apiId // API ID configured in the route. Using it.
-	}
-	parts = append(parts, apiId)
-
-	//
-	// PATH
-	//
-	if f.includePath {
-		path := ""
-		for pathPat, regex := range f.pathPatterns {
-			if regex.MatchString(req.URL.Path) {
-				path = pathPat
-				break
-			}
-		}
-		if path == "" {
-			// if no path pattern matches, use the path as it is
-			path = req.URL.Path
-		}
-		// Ensure head and tail `/`
-		if !strings.HasPrefix(path, "/") {
-			path = "/" + path
-		}
-		if !strings.HasSuffix(path, "/") {
-			path = path + "/"
-		}
-		parts = append(parts, path)
-	}
-
-	//
-	// METHOD
-	//
-	method := req.Method
-	parts = append(parts, method)
-
-	//
-	// FINAL PREFIX
-	//
-	prefix = strings.Join(parts, ".") + "."
-	return
-}
-
+// Response fulfills the Filter interface.
 func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 	log := log.WithField("op", "response")
 	if f.verbose {
@@ -137,7 +89,9 @@ func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 
 	mfc, ok := c.StateBag()[KeyState].(*apiMonitoringFilterContext)
 	if !ok {
-		log.Errorf("monitoring filter state %q not found in FilterContext's StateBag or not of the expected type", KeyState)
+		if f.verbose {
+			log.Info("Call not tracked")
+		}
 		return
 	}
 
@@ -145,4 +99,54 @@ func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 	mfc.WriteMetricLatency()
 	mfc.WriteMetricSizeOfRequest()
 	mfc.WriteMetricSizeOfResponse()
+}
+
+// getDimensionPrefix generates the dimension part of the metrics key (before the name
+// of the metric itself).
+// Returns:
+//   prefix:	the metric key prefix
+//   track:		if this call should be tracked or not
+func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *logrus.Entry) (prefix string, track bool) {
+	req := c.Request()
+
+	//
+	// PATH
+	//
+	path := ""
+	for pathPat, regex := range f.pathPatterns {
+		if regex.MatchString(req.URL.Path) {
+			path = pathPat
+			break
+		}
+	}
+	if path == "" {
+		// if no path pattern matches, do not track.
+		if f.verbose {
+			log.Info("Matching no path pattern. Not tracking this call.")
+		}
+		return
+	}
+
+	//
+	// API ID
+	//
+	apiId := ""
+	if f.apiId == "" {
+		apiId = req.Host // no API ID set in the route. Using the host.
+	} else {
+		apiId = f.apiId // API ID configured in the route. Using it.
+	}
+
+	//
+	// METHOD
+	//
+	method := req.Method
+
+	//
+	// FINAL PREFIX
+	//
+	dimensions := []string{apiId, method, path}
+	prefix = strings.Join(dimensions, ".") + "."
+	track = true
+	return
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/zalando/skipper/filters"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -15,9 +14,8 @@ type apiMonitoringFilterSpec struct {
 var _ filters.Spec = new(apiMonitoringFilterSpec)
 
 const (
-	ParamApiId       = "ApiId"
-	ParamPathPat     = "PathPat"
-	ParamIncludePath = "IncludePath"
+	ParamApiId   = "ApiId"
+	ParamPathPat = "PathPat"
 )
 
 func (s *apiMonitoringFilterSpec) Name() string {
@@ -37,8 +35,6 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 
 	// initial values
 	apiId := ""
-	includePath := true
-	includePathIsSet := false
 	pathPatterns := make(map[string]*regexp.Regexp)
 
 	// parse dynamic parameters
@@ -61,16 +57,6 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 				return nil, fmt.Errorf("error parsing %q at index %d (%q): %s", ParamPathPat, i, value, err)
 			}
 
-		case ParamIncludePath:
-			if includePathIsSet {
-				return nil, fmt.Errorf("%q can only be specified once (is set again at index %d)", ParamIncludePath, i)
-			}
-			includePathIsSet = true
-			includePath, err = strconv.ParseBool(value)
-			if err != nil {
-				return nil, fmt.Errorf("error parsing %q parameter at index %d (%q): %s", ParamIncludePath, i, value, err)
-			}
-
 		default:
 			return nil, fmt.Errorf("parameter %q at index %d is not recognized", name, i)
 		}
@@ -80,7 +66,6 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 	filter = &apiMonitoringFilter{
 		verbose:      s.verbose,
 		apiId:        apiId,
-		includePath:  includePath,
 		pathPatterns: pathPatterns,
 	}
 	if s.verbose {
@@ -132,23 +117,33 @@ const (
 // addPathPattern transforms a path pattern into a regular expression and adds it to
 // the provided `pathPatterns` map.
 //
-// Example:		 newPattern = /orders/{orderId}/orderItem/{orderItemId}
-//				      regex = \/orders\/[^\/]+\/orderItems\/[^\/]+[\/]*
+// Example:		 newPattern = /orders/{order-id}/order-items/{order-item-id}
+//				      regex = ^\/orders\/[^\/]+\/order-items\/[^\/]+[\/]*$
 //
 func addPathPattern(pathPatterns map[string]*regexp.Regexp, newPattern string) error {
-	newPattern = strings.Trim(newPattern, "/")
-	pathParts := strings.Split(newPattern, "/")
+	normalizedPattern := strings.Trim(newPattern, "/")
+	if _, ok := pathPatterns[normalizedPattern]; ok {
+		return fmt.Errorf("pattern already registed: %q (normalized from %q)", newPattern, normalizedPattern)
+	}
+
+	pathParts := strings.Split(normalizedPattern, "/")
 	for i, p := range pathParts {
 		l := len(p)
 		if l > 2 && p[0] == '{' && p[l-1] == '}' {
 			pathParts[i] = RegexUrlPathPart
 		}
 	}
-	rawRegEx := RegexOptionalSlashes + strings.Join(pathParts, `\/`) + RegexOptionalSlashes
-	regex, err := regexp.Compile(rawRegEx)
+	rawRegEx := &strings.Builder{}
+	rawRegEx.WriteString("^")
+	rawRegEx.WriteString(RegexOptionalSlashes)
+	rawRegEx.WriteString(strings.Join(pathParts, `\/`))
+	rawRegEx.WriteString(RegexOptionalSlashes)
+	rawRegEx.WriteString("$")
+
+	regex, err := regexp.Compile(rawRegEx.String())
 	if err != nil {
 		return err
 	}
-	pathPatterns[newPattern] = regex
+	pathPatterns[normalizedPattern] = regex
 	return nil
 }

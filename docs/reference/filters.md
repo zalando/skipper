@@ -823,8 +823,6 @@ of string containing `name: value`. Possible parameters are:
   in the API Repository). If not provided, the host name will be used to identify the API.
 * `PathPat`: An endpoint path _pattern_, given in the OpenAPI format. Serves for grouping parametrized paths
   together. Example: `/foo/1` and `/foo/2` should be monitored as the same endpoint, then provide: `PathPat: /foo/{fooId}`.
-* `IncludePath` (default: `true`): Indicates if the path should be monitored. If `false`, the granularity will be only to the API
-  and the method.
 
 Example:
 

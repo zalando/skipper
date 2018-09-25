@@ -2,7 +2,6 @@ package apimonitoring
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -10,26 +9,53 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
-	"strings"
 	"testing"
 )
 
-func Test_pathPatternToRegEx(t *testing.T) {
-	cases := map[string]string{
-		"/orders/{orderId}/orderItems/{orderItemId}": `[\/]*orders\/[^\/]+\/orderItems\/[^\/]+[\/]*`,
+func testablePatterns(source map[string]*regexp.Regexp) map[string]string {
+	result := make(map[string]string, len(source))
+	for k, v := range source {
+		result[k] = v.String()
 	}
-	for input, expected := range cases {
-		t.Run(fmt.Sprintf("pathPatternToRegEx with %s", input), func(t *testing.T) {
-			patterns := make(map[string]*regexp.Regexp)
-			err := addPathPattern(patterns, input)
-			assert.NoError(t, err, "pathPatternToRegEx with %q generated error: %v", input, err)
-			key := strings.Trim(input, "/")
-			actual := patterns[key]
-			if actual.String() != expected {
-				t.Errorf("pathPatternToRegEx:\n\tinput:    %s\n\texpected: %s\n\tactual:   %s", input, expected, actual)
-			}
-		})
-	}
+	return result
+}
+
+func Test_pathPattern_NormalCase(t *testing.T) {
+	patterns := make(map[string]*regexp.Regexp)
+	input := "orders/{orderId}/orderItems/{orderItemId}"
+	err := addPathPattern(patterns, input)
+	assert.NoError(t, err, "pathPatternToRegEx with %q generated error: %v", input, err)
+	assert.Equal(t,
+		map[string]string{
+			"orders/{orderId}/orderItems/{orderItemId}": `^[\/]*orders\/[^\/]+\/orderItems\/[^\/]+[\/]*$`,
+		},
+		testablePatterns(patterns))
+}
+
+func Test_pathPattern_SlashesAreTrimmedFromKeys(t *testing.T) {
+	patterns := make(map[string]*regexp.Regexp)
+	input := "/orders/{orderId}/orderItems/{orderItemId}/"
+	err := addPathPattern(patterns, input)
+	assert.NoError(t, err, "pathPatternToRegEx with %q generated error: %v", input, err)
+	assert.Equal(t,
+		map[string]string{
+			"orders/{orderId}/orderItems/{orderItemId}": `^[\/]*orders\/[^\/]+\/orderItems\/[^\/]+[\/]*$`,
+		},
+		testablePatterns(patterns))
+}
+
+func Test_pathPattern_EquivalentReinsertionCausesError(t *testing.T) {
+	patterns := make(map[string]*regexp.Regexp)
+
+	input := "orders/{orderId}/orderItems/{orderItemId}"
+	err := addPathPattern(patterns, input)
+	assert.NoError(t, err, "pathPatternToRegEx with %q generated error: %v", input, err)
+	assert.Len(t, patterns, 1)
+
+	input = "/orders/{orderId}/orderItems/{orderItemId}/"
+	err = addPathPattern(patterns, input)
+	assert.Error(t, err)
+	assert.Len(t, patterns, 1)
 }
 
 func Test_splitRawArg_integer(t *testing.T) {
@@ -82,7 +108,7 @@ func Test_splitRawArg_string_valid(t *testing.T) {
 func createFilterForTest() (filters.Filter, error) {
 	spec := apiMonitoringFilterSpec{}
 	args := []interface{}{
-		"ApiId: asd123",
+		"ApiId: my_api",
 		"PathPat: orders/{orderId}",
 		"PathPat: orders/{orderId}/order_items/{orderItemId}",
 	}
@@ -97,7 +123,7 @@ func Test_CreateFilter(t *testing.T) {
 	assert.IsType(t, &apiMonitoringFilter{}, filter)
 	tf := filter.(*apiMonitoringFilter)
 
-	assert.Equal(t, "asd123", tf.apiId)
+	assert.Equal(t, "my_api", tf.apiId)
 
 	expectedPathPattersKeys := []string{
 		"orders/{orderId}",
@@ -156,21 +182,13 @@ func Test_Filter_NoPathPattern(t *testing.T) {
 		createFilterForTest,
 		"GET",
 		"https://www.example.org/a/b/c",
-		"abcdefghijklmnopqrstuvwxyzäöüß",
+		"",
 		200,
 		"",
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
-			prefix := "asd123./a/b/c/.GET."
-			assert.Equal(t,
-				map[string]int64{
-					prefix + MetricCountAll:     1,
-					prefix + MetricCount200s:    1,
-					prefix + MetricRequestSize:  reqBodyLen,
-					prefix + MetricResponseSize: resBodyLen,
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, prefix+MetricLatency)
+			// no path matching: no tracking
+			assert.Empty(t, m.Counters)
+			assert.Empty(t, m.Measures)
 		})
 }
 
@@ -184,41 +202,7 @@ func Test_Filter_PathPatternFirstLevel(t *testing.T) {
 		400,
 		"qwerty",
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
-			prefix := "asd123./orders/{orderId}/.POST."
-			assert.Equal(t,
-				map[string]int64{
-					prefix + MetricCountAll:     1,
-					prefix + MetricCount400s:    1,
-					prefix + MetricRequestSize:  reqBodyLen,
-					prefix + MetricResponseSize: resBodyLen,
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, prefix+MetricLatency)
-		})
-}
-
-func Test_Filter_NoPath(t *testing.T) {
-	testWithFilter(
-		t,
-		func() (filters.Filter, error) {
-			spec := apiMonitoringFilterSpec{}
-			args := []interface{}{
-				"ApiId: asd123",
-				"PathPat: orders/{orderId}",
-				"PathPat: orders/{orderId}/order_items/{orderItemId}",
-				"IncludePath: false",
-			}
-
-			return spec.CreateFilter(args)
-		},
-		"POST",
-		"https://www.example.org/orders/123",
-		"asd",
-		400,
-		"qwerty",
-		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
-			prefix := "asd123.POST."
+			prefix := "my_api.POST.orders/{orderId}."
 			assert.Equal(t,
 				map[string]int64{
 					prefix + MetricCountAll:     1,
