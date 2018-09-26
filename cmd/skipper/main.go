@@ -129,15 +129,16 @@ const (
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 
 	// Kubernetes:
-	kubernetesUsage                 = "enables skipper to generate routes for ingress resources in kubernetes cluster"
-	kubernetesInClusterUsage        = "specify if skipper is running inside kubernetes cluster"
-	kubernetesURLUsage              = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
-	kubernetesHealthcheckUsage      = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
-	kubernetesHTTPSRedirectUsage    = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
-	kubernetesIngressClassUsage     = "ingress class regular expression used to filter ingress resources for kubernetes"
-	whitelistedHealthCheckCIDRUsage = "sets the iprange/CIDRS to be whitelisted during healthcheck"
-	kubernetesPathModeUsage         = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
-	kubernetesNamespaceUsage        = "watch only this namespace for ingresses"
+	kubernetesUsage                  = "enables skipper to generate routes for ingress resources in kubernetes cluster"
+	kubernetesInClusterUsage         = "specify if skipper is running inside kubernetes cluster"
+	kubernetesURLUsage               = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
+	kubernetesHealthcheckUsage       = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
+	kubernetesHTTPSRedirectUsage     = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
+	kubernetesHTTPSRedirectCodeUsage = "overrides the default redirect code (308) when used together with -kubernetes-https-redirect"
+	kubernetesIngressClassUsage      = "ingress class regular expression used to filter ingress resources for kubernetes"
+	whitelistedHealthCheckCIDRUsage  = "sets the iprange/CIDRS to be whitelisted during healthcheck"
+	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
+	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
 
 	// OAuth2:
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
@@ -244,15 +245,16 @@ var (
 	sourcePollTimeout         int64
 
 	// Kubernetes:
-	kubernetesIngress          bool
-	kubernetesInCluster        bool
-	kubernetesURL              string
-	kubernetesHealthcheck      bool
-	kubernetesHTTPSRedirect    bool
-	kubernetesIngressClass     string
-	whitelistedHealthCheckCIDR string
-	kubernetesPathModeString   string
-	kubernetesNamespace        string
+	kubernetesIngress           bool
+	kubernetesInCluster         bool
+	kubernetesURL               string
+	kubernetesHealthcheck       bool
+	kubernetesHTTPSRedirect     bool
+	kubernetesHTTPSRedirectCode int
+	kubernetesIngressClass      string
+	whitelistedHealthCheckCIDR  string
+	kubernetesPathModeString    string
+	kubernetesNamespace         string
 
 	// Auth:
 	oauthURL                        string
@@ -362,6 +364,7 @@ func init() {
 	flag.StringVar(&kubernetesURL, "kubernetes-url", "", kubernetesURLUsage)
 	flag.BoolVar(&kubernetesHealthcheck, "kubernetes-healthcheck", true, kubernetesHealthcheckUsage)
 	flag.BoolVar(&kubernetesHTTPSRedirect, "kubernetes-https-redirect", true, kubernetesHTTPSRedirectUsage)
+	flag.IntVar(&kubernetesHTTPSRedirectCode, "kubernetes-https-redirect-code", 308, kubernetesHTTPSRedirectCodeUsage)
 	flag.StringVar(&kubernetesIngressClass, "kubernetes-ingress-class", "", kubernetesIngressClassUsage)
 	flag.StringVar(&whitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", whitelistedHealthCheckCIDRUsage)
 	flag.StringVar(&kubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
@@ -547,15 +550,16 @@ func main() {
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 
 		// Kubernetes:
-		Kubernetes:                 kubernetesIngress,
-		KubernetesInCluster:        kubernetesInCluster,
-		KubernetesURL:              kubernetesURL,
-		KubernetesHealthcheck:      kubernetesHealthcheck,
-		KubernetesHTTPSRedirect:    kubernetesHTTPSRedirect,
-		KubernetesIngressClass:     kubernetesIngressClass,
-		WhitelistedHealthCheckCIDR: whitelistCIDRS,
-		KubernetesPathMode:         kubernetesPathMode,
-		KubernetesNamespace:        kubernetesNamespace,
+		Kubernetes:                  kubernetesIngress,
+		KubernetesInCluster:         kubernetesInCluster,
+		KubernetesURL:               kubernetesURL,
+		KubernetesHealthcheck:       kubernetesHealthcheck,
+		KubernetesHTTPSRedirect:     kubernetesHTTPSRedirect,
+		KubernetesHTTPSRedirectCode: kubernetesHTTPSRedirectCode,
+		KubernetesIngressClass:      kubernetesIngressClass,
+		WhitelistedHealthCheckCIDR:  whitelistCIDRS,
+		KubernetesPathMode:          kubernetesPathMode,
+		KubernetesNamespace:         kubernetesNamespace,
 
 		// API Monitoring:
 		ApiMonitoringActive:  apimonitoringEnable,

@@ -134,6 +134,10 @@ type Options struct {
 	// https://github.com/zalando-incubator/kubernetes-on-aws project.)
 	ProvideHTTPSRedirect bool
 
+	// HTTPSRedirectCode, when set defines which redirect code to use for redirecting from HTTP to HTTPS.
+	// By default, 308 StatusPermanentRedirect is used.
+	HTTPSRedirectCode int
+
 	// IngressClass is a regular expression to filter only those ingresses that match. If an ingress does
 	// not have a class annotation or the annotation is an empty string, skipper will load it. The default
 	// value for the ingress class is 'skipper'.
@@ -167,6 +171,7 @@ type Client struct {
 	provideHealthcheck     bool
 	healthy                bool
 	provideHTTPSRedirect   bool
+	httpsRedirectCode      int
 	token                  string
 	current                map[string]*eskip.Route
 	termReceived           bool
@@ -236,11 +241,17 @@ func New(o Options) (*Client, error) {
 		log.Debugf("new internal ips are: %s", internalIPs)
 	}
 
+	httpsRedirectCode := http.StatusPermanentRedirect
+	if o.HTTPSRedirectCode != 0 {
+		httpsRedirectCode = o.HTTPSRedirectCode
+	}
+
 	return &Client{
 		httpClient:             httpClient,
 		apiURL:                 apiURL,
 		provideHealthcheck:     o.ProvideHealthcheck,
 		provideHTTPSRedirect:   o.ProvideHTTPSRedirect,
+		httpsRedirectCode:      httpsRedirectCode,
 		current:                make(map[string]*eskip.Route),
 		token:                  token,
 		sigs:                   sigs,
@@ -834,6 +845,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
+	redirect := createRedirectInfo(c.provideHTTPSRedirect, c.httpsRedirectCode)
 	for _, i := range items {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 			i.Spec == nil {
@@ -845,8 +857,21 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			"ingress": fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name),
 		})
 
+		redirect.initCurrent(i.Metadata)
+
 		if r, ok, err := c.convertDefaultBackend(i); ok {
 			routes = append(routes, r...)
+
+			// we cannot control the redirect for the default backends, because
+			// it would conflict with the default behavior
+
+			// if (redirect.enable || redirect.override) && len(r) > 0 {
+			// 	routes = append(routes, createIngressEnableHTTPSRedirect(r[0], redirect.code))
+			// }
+			//
+			// if redirect.disable && len(r) > 0 {
+			// 	routes = append(routes, createIngressDisableHTTPSRedirect(r[0]))
+			// }
 		} else if err != nil {
 			logger.Errorf("error while converting default backend: %v", err)
 		}
@@ -924,6 +949,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 					setPath(pathMode, &route, prule.Path)
 					if i := countPathRoutes(&route); i <= 1 {
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
+						redirect.updateHost(rule.Host)
 					} else {
 						log.Errorf("Failed to add route having %d path routes: %v", i, r)
 					}
@@ -976,23 +1002,54 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 					}
+
+					if (redirect.enable || redirect.override) && len(endpoints) > 0 {
+						hostRoutes[rule.Host] = append(
+							hostRoutes[rule.Host],
+							createIngressEnableHTTPSRedirect(
+								endpoints[0],
+								redirect.code,
+							),
+						)
+						redirect.setHost(rule.Host)
+					}
+
+					if redirect.disable && len(endpoints) > 0 {
+						hostRoutes[rule.Host] = append(
+							hostRoutes[rule.Host],
+							createIngressDisableHTTPSRedirect(
+								endpoints[0],
+							),
+						)
+						redirect.setHostDisabled(rule.Host)
+					}
 				}
 			}
 		}
 	}
 
 	for host, rs := range hostRoutes {
+		if len(rs) == 0 {
+			continue
+		}
+
 		routes = append(routes, rs...)
 
 		// if routes were configured, but there is no catchall route
 		// defined for the host name, create a route which returns 404
-		if len(rs) > 0 && !catchAllRoutes(rs) {
+		if !catchAllRoutes(rs) {
 			catchAll := &eskip.Route{
 				Id:          routeID("", "catchall", host, "", ""),
 				HostRegexps: rs[0].HostRegexps,
 				BackendType: eskip.ShuntBackend,
 			}
 			routes = append(routes, catchAll)
+			if code, ok := redirect.setHostCode[host]; ok {
+				routes = append(routes, createIngressEnableHTTPSRedirect(catchAll, code))
+			}
+			if redirect.disableHost[host] {
+				routes = append(routes, createIngressDisableHTTPSRedirect(catchAll))
+			}
 		}
 	}
 
@@ -1209,28 +1266,6 @@ func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 	}
 }
 
-func httpRedirectRoute() *eskip.Route {
-	// the forwarded port and any-path (.*) is set to make sure that
-	// the redirect route has a higher priority during matching than
-	// the normal routes that may have max 2 predicates: path regexp
-	// and host.
-	return &eskip.Route{
-		Id: httpRedirectRouteID,
-		Headers: map[string]string{
-			"X-Forwarded-Proto": "http",
-		},
-		HeaderRegexps: map[string][]string{
-			"X-Forwarded-Port": {".*"},
-		},
-		PathRegexps: []string{".*"},
-		Filters: []*eskip.Filter{{
-			Name: "redirectTo",
-			Args: []interface{}{float64(308), "https:"},
-		}},
-		Shunt: true,
-	}
-}
-
 func (c *Client) hasReceivedTerm() bool {
 	select {
 	case s := <-c.sigs:
@@ -1257,7 +1292,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	}
 
 	if c.provideHTTPSRedirect {
-		r = append(r, httpRedirectRoute())
+		r = append(r, globalRedirectRoute(c.httpsRedirectCode))
 	}
 
 	c.current = mapRoutes(r)

@@ -97,6 +97,10 @@ type Options struct {
 	// expected to be set by the load-balancer.
 	KubernetesHTTPSRedirect bool
 
+	// KubernetesHTTPSRedirectCode overrides the default redirect code (308)
+	// when used together with -kubernetes-https-redirect.
+	KubernetesHTTPSRedirectCode int
+
 	// KubernetesIngressClass is a regular expression, that will make
 	// skipper load only the ingress resources that that have a matching
 	// kubernetes.io/ingress.class annotation. For backwards compatibility,
@@ -521,6 +525,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			KubernetesURL:              o.KubernetesURL,
 			ProvideHealthcheck:         o.KubernetesHealthcheck,
 			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
+			HTTPSRedirectCode:          o.KubernetesHTTPSRedirectCode,
 			IngressClass:               o.KubernetesIngressClass,
 			ReverseSourcePredicate:     o.ReverseSourcePredicate,
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,

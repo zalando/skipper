@@ -10,6 +10,7 @@ import (
 type LoggingWriter struct {
 	writer http.ResponseWriter
 	bytes  int64
+	code   int
 }
 
 func NewLoggingWriter(writer http.ResponseWriter) *LoggingWriter {
@@ -24,6 +25,10 @@ func (lw *LoggingWriter) Write(data []byte) (count int, err error) {
 
 func (lw *LoggingWriter) WriteHeader(code int) {
 	lw.writer.WriteHeader(code)
+	if code == 0 {
+		code = 200
+	}
+	lw.code = code
 }
 
 func (lw *LoggingWriter) Header() http.Header {
@@ -44,4 +49,8 @@ func (lw *LoggingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 func (lw *LoggingWriter) GetBytes() int64 {
 	return lw.bytes
+}
+
+func (lw *LoggingWriter) GetCode() int {
+	return lw.code
 }
