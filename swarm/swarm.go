@@ -58,12 +58,13 @@ var (
 type Options struct {
 	swarm swarmType
 	// leaky, expected to be buffered, or errors are lost
-	Errors            chan<- error // TODO(sszuecs): should probably be hidden as implemetnation detail
-	MaxMessageBuffer  int
-	LeaveTimeout      time.Duration
-	SwarmPort         int
-	KubernetesOptions *KubernetesOptions // nil if not kubernetes
-	FakeSwarm         bool
+	Errors             chan<- error // TODO(sszuecs): should probably be hidden as implemetnation detail
+	MaxMessageBuffer   int
+	LeaveTimeout       time.Duration
+	SwarmPort          uint16
+	KubernetesOptions  *KubernetesOptions // nil if not kubernetes
+	FakeSwarm          bool
+	FakeSwarmLocalNode string
 }
 
 // Swarm is the main type for exchanging low latency, weakly
@@ -157,7 +158,7 @@ func Start(o Options) (*Swarm, error) {
 // object if successful.
 // TODO(sszuecs): check the options elsewhere
 func Join(o Options, self *NodeInfo, nodes []*NodeInfo) (*Swarm, error) {
-	log.Infof("SWARM: Going to join swarm of %d nodes, self=%s", len(nodes), self)
+	log.Infof("SWARM: %s is going to join swarm of %d nodes (%v)", self, len(nodes), nodes)
 	c := memberlist.DefaultLocalConfig()
 
 	if self.Name == "" {
@@ -173,9 +174,9 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo) (*Swarm, error) {
 		c.AdvertiseAddr = c.BindAddr
 	}
 	if self.Port == 0 {
-		self.Port = c.BindPort
+		self.Port = uint16(c.BindPort)
 	} else {
-		c.BindPort = self.Port
+		c.BindPort = int(self.Port)
 		c.AdvertisePort = c.BindPort
 	}
 
@@ -197,6 +198,7 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo) (*Swarm, error) {
 		log.Errorf("SWARM: failed to create memberlist: %v", err)
 		return nil, err
 	}
+	log.Debugf("new memberlist created: %v", ml)
 
 	c.Delegate.(*mlDelegate).meta = ml.LocalNode().Meta
 
@@ -247,8 +249,8 @@ func (s *Swarm) control() {
 			s.messages = takeMaxLatest(s.messages, 0, s.maxMessageBuffer)
 			log.Debugf("SWARM: outgoing having %d messages", len(s.messages))
 			if m.message.Type == sharedValue {
-				log.Debugf("SWARM: %s shares value: %s: %v", s.local.Name, m.message.Key, m.message.Value)
-				s.shared.set(s.local.Name, m.message.Key, m.message.Value)
+				log.Debugf("SWARM: %s shares value: %s: %v", s.Local().Name, m.message.Key, m.message.Value)
+				s.shared.set(s.Local().Name, m.message.Key, m.message.Value)
 			}
 		case b := <-s.incoming:
 			m, err := decodeMessage(b)
@@ -259,7 +261,7 @@ func (s *Swarm) control() {
 				default:
 				}
 			} else if m.Type == sharedValue {
-				log.Debugf("SWARM: %s got shared value from %s: %s: %v", s.local.Name, m.Source, m.Key, m.Value)
+				log.Debugf("SWARM: %s got shared value from %s: %s: %v", s.Local().Name, m.Source, m.Key, m.Value)
 				s.shared.set(m.Source, m.Key, m.Value)
 			} else if m.Type == broadcast {
 				log.Debugf("SWARM: got broadcast value: %s %s: %v", m.Source, m.Key, m.Value)
@@ -280,7 +282,7 @@ func (s *Swarm) control() {
 			log.Debugf("SWARM: getValues for key: %s", req.key)
 			req.ret <- s.shared[req.key]
 		case <-s.leave:
-			log.Infof("SWARM: leaving %s", s.local)
+			log.Infof("SWARM: leaving %s", s.Local())
 			if s.mlist == nil {
 				log.Errorf("mlist nil")
 				return
@@ -299,13 +301,22 @@ func (s *Swarm) control() {
 }
 
 // Local is a getter to the local member of a swarm.
-// TODO: memberlist has support for this, less redundant to use that
 func (s *Swarm) Local() *NodeInfo {
 	if s == nil {
 		log.Errorf("swarm is nil")
 		return nil
 	}
-	return s.local
+	if s.mlist == nil {
+		//TODO(sszuecs): this needs to be fixed
+		//log.Warningf("deprecated way of getting local node")
+		return s.local
+	}
+	mlNode := s.mlist.LocalNode()
+	return &NodeInfo{
+		Name: mlNode.Name,
+		Addr: mlNode.Addr,
+		Port: mlNode.Port,
+	}
 }
 
 func (s *Swarm) broadcast(m *message) error {

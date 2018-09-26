@@ -16,6 +16,8 @@ type nodeInfoClient interface {
 	// GetNodeInfo returns a list of peers to join from an
 	// external service discovery source.
 	GetNodeInfo() ([]*NodeInfo, error)
+	// Self returns NodeInfo about itself
+	Self() *NodeInfo
 }
 
 func NewNodeInfoClient(o Options) nodeInfoClient {
@@ -31,30 +33,38 @@ func NewNodeInfoClient(o Options) nodeInfoClient {
 	}
 }
 
-type nodeInfoClientFake struct{}
+var fakePeers []*NodeInfo = make([]*NodeInfo, 0)
 
-func NewNodeInfoClientFake(o Options) *nodeInfoClientFake {
-	return &nodeInfoClientFake{}
+type nodeInfoClientFake struct {
+	self  *NodeInfo
+	peers map[string]*NodeInfo
 }
 
-var i int
-
-// TODO(sszuecs): make this somehow working as a non hack
-func (*nodeInfoClientFake) GetNodeInfo() ([]*NodeInfo, error) {
-	i++
-	if i%2 == 1 {
-		return []*NodeInfo{
-			NewFakeNodeInfo("n1", []byte{127, 0, 0, 1}, 10000),
-			NewFakeNodeInfo("n2", []byte{127, 0, 0, 1}, 10001),
-			//NewFakeNodeInfo("n2", []byte{127, 0, 0, 2}, 10000),
-			//NewFakeNodeInfo("n2", []byte{10, 169, 130, 27}, 10000),
-		}, nil
-	} else {
-		return []*NodeInfo{
-			NewFakeNodeInfo("n2", []byte{127, 0, 0, 1}, 10001),
-			NewFakeNodeInfo("n1", []byte{127, 0, 0, 1}, 10000),
-		}, nil
+func NewNodeInfoClientFake(o Options) *nodeInfoClientFake {
+	ni := NewFakeNodeInfo(o.FakeSwarmLocalNode, []byte{127, 0, 0, 1}, o.SwarmPort)
+	nic := &nodeInfoClientFake{
+		self: ni,
+		peers: map[string]*NodeInfo{
+			o.FakeSwarmLocalNode: ni,
+		},
 	}
+	for _, peer := range fakePeers {
+		nic.peers[peer.Name] = peer
+	}
+	fakePeers = append(fakePeers, ni)
+	return nic
+}
+
+func (nic *nodeInfoClientFake) GetNodeInfo() ([]*NodeInfo, error) {
+	allKnown := []*NodeInfo{}
+	for _, v := range nic.peers {
+		allKnown = append(allKnown, v)
+	}
+	return allKnown, nil
+}
+
+func (nic *nodeInfoClientFake) Self() *NodeInfo {
+	return nic.self
 }
 
 type nodeInfoClientKubernetes struct {
@@ -64,7 +74,7 @@ type nodeInfoClientKubernetes struct {
 	namespace           string
 	labelKey            string
 	labelVal            string
-	port                int
+	port                uint16
 }
 
 func NewNodeInfoClientKubernetes(o Options) *nodeInfoClientKubernetes {
@@ -85,36 +95,13 @@ func NewNodeInfoClientKubernetes(o Options) *nodeInfoClientKubernetes {
 	}
 }
 
-type metadata struct {
-	Name string `json:"name"`
-}
-
-type status struct {
-	PodIP string `json:"podIP"`
-}
-
-type item struct {
-	Metadata metadata `json:"metadata"`
-	Status   status   `json:"status"`
-}
-
-type itemList struct {
-	Items []*item `json:"items"`
-}
-
-func (c *nodeInfoClientKubernetes) nodeInfoURL() (string, error) {
-	u, err := url.Parse(c.kubeAPIBaseURL)
+func (c *nodeInfoClientKubernetes) Self() *NodeInfo {
+	nodes, err := c.GetNodeInfo()
 	if err != nil {
-		return "", err
+		log.Errorf("Failed to get self: %v", err)
+		return nil
 	}
-	u.Path = "/api/v1/namespaces/" + url.PathEscape(c.namespace) + "/pods"
-	a := make(url.Values)
-	a.Add(c.labelKey, c.labelVal)
-	ls := make(url.Values)
-	ls.Add("labelSelector", a.Encode())
-	u.RawQuery = ls.Encode()
-
-	return u.String(), nil
+	return getSelf(nodes)
 }
 
 // GetNodeInfo returns a list of peers to join from Kubernetes API
@@ -161,4 +148,36 @@ func (c *nodeInfoClientKubernetes) GetNodeInfo() ([]*NodeInfo, error) {
 	}
 	log.Debugf("SWARM: got nodeinfo %d", len(nodes))
 	return nodes, nil
+}
+
+type metadata struct {
+	Name string `json:"name"`
+}
+
+type status struct {
+	PodIP string `json:"podIP"`
+}
+
+type item struct {
+	Metadata metadata `json:"metadata"`
+	Status   status   `json:"status"`
+}
+
+type itemList struct {
+	Items []*item `json:"items"`
+}
+
+func (c *nodeInfoClientKubernetes) nodeInfoURL() (string, error) {
+	u, err := url.Parse(c.kubeAPIBaseURL)
+	if err != nil {
+		return "", err
+	}
+	u.Path = "/api/v1/namespaces/" + url.PathEscape(c.namespace) + "/pods"
+	a := make(url.Values)
+	a.Add(c.labelKey, c.labelVal)
+	ls := make(url.Values)
+	ls.Add("labelSelector", a.Encode())
+	u.RawQuery = ls.Encode()
+
+	return u.String(), nil
 }

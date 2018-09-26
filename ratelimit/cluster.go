@@ -13,6 +13,7 @@ type Swarmer interface {
 }
 
 type ClusterLimit struct {
+	name    string
 	local   implementation
 	maxHits float64
 	window  time.Duration
@@ -26,8 +27,9 @@ type resizeLimit struct {
 	n int
 }
 
-func NewClusterRateLimiter(s Settings, sw Swarmer) implementation {
+func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit { //implementation {
 	rl := &ClusterLimit{
+		name:    name,
 		swarm:   sw,
 		maxHits: float64(s.MaxHits),
 		window:  s.TimeWindow,
@@ -47,9 +49,12 @@ func NewClusterRateLimiter(s Settings, sw Swarmer) implementation {
 		for {
 			select {
 			case size := <-rl.resize:
+				log.Infof("resize clusterRatelimit")
 				// call with "go" ?
 				rl.local.Resize(size.s, int(rl.maxHits)/size.n)
 			case <-rl.quit:
+				log.Infof("quit clusterRatelimit")
+				close(rl.resize)
 				return
 			}
 		}
@@ -60,6 +65,8 @@ func NewClusterRateLimiter(s Settings, sw Swarmer) implementation {
 
 const swarmPrefix string = `ratelimit.`
 
+// Allow returns true if the request calculated across the cluster of
+// skippers should be allowed else false.
 func (c *ClusterLimit) Allow(s string) bool {
 	_ = c.local.Allow(s) // update local rate limit
 	d := c.local.Delta(s)
@@ -68,28 +75,45 @@ func (c *ClusterLimit) Allow(s string) bool {
 		log.Errorf("clusterRatelimit failed to share value: %v", err)
 	}
 
-	var rate float64
 	swarmValues := c.swarm.Values(swarmPrefix + s)
-	log.Debugf("clusterRatelimit swarmValues for '%s': %v", swarmPrefix+s, swarmValues)
+	log.Infof("%s: d: %v, swarmValues: %d", c.name, d, len(swarmValues))
+	log.Debugf("%s: clusterRatelimit swarmValues for '%s': %v", c.name, swarmPrefix+s, swarmValues)
+
 	c.resize <- resizeLimit{s: s, n: len(swarmValues)}
 
+	rate := c.calculateSharedKnowledge(swarmValues)
+	result := rate < float64(c.maxHits)/float64(c.window)
+	log.Infof("clusterRatelimit %s: Allow=%v, %v < %v/%v", c.name, result, rate, float64(c.maxHits), float64(c.window))
+	return result
+}
+
+func (c *ClusterLimit) calculateSharedKnowledge(swarmValues map[string]interface{}) float64 {
+	var rate float64 = 0
 	nodeHits := c.maxHits / float64(len(swarmValues)) // hits per node within the window from the global rate limit
+	log.Infof("%s: %v := %v / %v   (swarmValues=%v)", c.name, nodeHits, c.maxHits, float64(len(swarmValues)), swarmValues)
 	for _, val := range swarmValues {
 		if deltaI, ok := val.(int64); ok {
 			delta := time.Duration(deltaI)
+			log.Debugf("%s: nodeHits: %v, delta: %v", c.name, nodeHits, delta)
 			switch {
 			case delta == 0:
+				log.Infof("%s: delta==0", c.name)
 				// initially all are set to time.Time{}, so we get 0 delta
 			case delta < 0:
+				log.Infof("%s: delta<0", c.name)
 				// should not happen... but anyway, we set to global rate
 				rate += c.maxHits / float64(c.window)
 			default:
-				rate += nodeHits / float64(delta)
+				log.Infof("%s: %v += %v / %v  %v", c.name, rate, nodeHits, delta, float64(delta))
+				//rate += nodeHits / float64(delta)
+				rate += nodeHits / float64((c.window / delta))
+				log.Infof("%s: rate %v", c.name, rate)
 			}
+		} else {
+			log.Warningf("%s: val is not int64: %v", c.name, val)
 		}
 	}
-	log.Debugf("clusterRatelimit: values(%d): %v, rate: %0.2f", len(swarmValues), swarmValues, rate)
-	return rate < float64(c.maxHits)/float64(c.window)
+	return rate
 }
 
 func (c *ClusterLimit) Close() {

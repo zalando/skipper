@@ -774,7 +774,7 @@ func Run(o Options) error {
 	var theSwarm *swarm.Swarm
 	if o.EnableSwarm {
 		swops := swarm.Options{
-			SwarmPort:        o.SwarmPort,
+			SwarmPort:        uint16(o.SwarmPort),
 			MaxMessageBuffer: o.SwarmMaxMessageBuffer,
 			LeaveTimeout:     o.SwarmLeaveTimeout,
 		}

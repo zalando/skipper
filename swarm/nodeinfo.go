@@ -22,11 +22,11 @@ type EntryPoint interface {
 type NodeInfo struct {
 	Name string
 	Addr net.IP
-	Port int
+	Port uint16
 }
 
 // NewFakeNodeInfo used to create a FakeSwarm
-func NewFakeNodeInfo(name string, addr net.IP, port int) *NodeInfo {
+func NewFakeNodeInfo(name string, addr net.IP, port uint16) *NodeInfo {
 	return &NodeInfo{
 		Name: name,
 		Addr: addr,
@@ -34,18 +34,16 @@ func NewFakeNodeInfo(name string, addr net.IP, port int) *NodeInfo {
 	}
 }
 
+// String will only show initial peers when created this peer
 func (ni NodeInfo) String() string {
 	return fmt.Sprintf("NodeInfo{%s, %s, %d}", ni.Name, ni.Addr, ni.Port)
 }
 
-// knownEntryPoint is the Kubernetes based implementation of the
-// interfaces Self and Entrypoint. It stores an initial list of peers
-// to connect to at the start.
-//
-// TODO(sszuecs): is this really Kubernetes related?
+// initial peers when created this peer, only nic is up to date
 type knownEntryPoint struct {
 	self  *NodeInfo
 	nodes []*NodeInfo
+	nic   nodeInfoClient
 }
 
 // newKnownEntryPoint returns a new knownEntryPoint that knows all
@@ -57,23 +55,23 @@ func newKnownEntryPoint(o Options) *knownEntryPoint {
 	if err != nil {
 		log.Fatalf("SWARM: Failed to get nodeinfo: %v", err)
 	}
-	self := getSelf(nodes)
-	log.Infof("SWARM: Join swarm self=%s, nodes=%v", self, nodes)
-	return &knownEntryPoint{self: self, nodes: nodes}
+
+	self := nic.Self()
+	return &knownEntryPoint{self: self, nodes: nodes, nic: nic}
 }
 
 // Node return its self
 func (e *knownEntryPoint) Node() *NodeInfo {
-	if e == nil {
-		return nil
-	}
-	return e.self
+	return e.nic.Self()
 }
 
 // Nodes return the list of known peers including self
 func (e *knownEntryPoint) Nodes() []*NodeInfo {
-	if e == nil {
+	nodes, err := e.nic.GetNodeInfo()
+	if err != nil {
+		log.Errorf("Failed to get nodeinfo: %v", err)
 		return nil
 	}
-	return e.nodes
+
+	return nodes
 }

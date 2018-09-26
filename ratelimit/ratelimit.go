@@ -199,6 +199,14 @@ func (l *Ratelimit) RetryAfter(s string) int {
 	return l.impl.RetryAfter(s)
 }
 
+func (l *Ratelimit) Delta(s string) time.Duration {
+	return l.impl.Delta(s)
+}
+
+func (l *Ratelimit) Resize(s string, i int) {
+	l.impl.Resize(s, i)
+}
+
 type voidRatelimit struct{}
 
 // Allow always returns true, not ratelimited
@@ -230,7 +238,7 @@ func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {
 	case ClusterRatelimit:
 		logrus.Infof("SWARM: cluster ratelimit found, try to create..")
 		if sw != nil {
-			impl = NewClusterRateLimiter(s, sw)
+			impl = NewClusterRateLimiter(s, sw, "foo")
 		} else {
 			fmt.Fprintf(os.Stderr, "ERROR: no -enable-swarm, falling back to no ratelimit for %q\n", s)
 			impl = voidRatelimit{}
