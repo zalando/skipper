@@ -2,21 +2,32 @@ package auth
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"testing"
 	"time"
 )
 
-func TestEncryptDecrypt(t *testing.T) {
-	aesgcm, err := getCiphersuite()
-	if err != nil {
-		t.Errorf("failed to create ciphersuite: %v", err)
-	}
+type testingSecretSource struct {
+	secretKey string
+}
 
+func makeTestingFilter() (*tokenOidcFilter, error) {
 	f := &tokenOidcFilter{
-		typ:  checkOidcAnyClaims,
-		aead: aesgcm,
+		typ:          checkOidcAnyClaims,
+		secretSource: &testingSecretSource{secretKey: "abc"},
 	}
+	err := f.refreshCiphers()
+	return f, err
+}
+
+func (s *testingSecretSource) GetSecret() ([][]byte, error) {
+	return [][]byte{[]byte(s.secretKey)}, nil
+}
+
+func TestEncryptDecrypt(t *testing.T) {
+	f, err := makeTestingFilter()
+	assert.NoError(t, err, "could not refresh ciphers")
 
 	plaintext := "helloworld"
 	plain := []byte(plaintext)
@@ -34,15 +45,8 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestEncryptDecryptState(t *testing.T) {
-	aesgcm, err := getCiphersuite()
-	if err != nil {
-		t.Errorf("failed to create ciphersuite: %v", err)
-	}
-
-	f := &tokenOidcFilter{
-		typ:  checkOidcAnyClaims,
-		aead: aesgcm,
-	}
+	f, err := makeTestingFilter()
+	assert.NoError(t, err, "could not refresh ciphers")
 
 	nonce, err := f.createNonce()
 	if err != nil {
@@ -79,15 +83,8 @@ func TestEncryptDecryptState(t *testing.T) {
 }
 
 func Test_getTimestampFromState(t *testing.T) {
-	aesgcm, err := getCiphersuite()
-	if err != nil {
-		t.Errorf("failed to create ciphersuite: %v", err)
-	}
-
-	f := &tokenOidcFilter{
-		typ:  checkOidcAnyClaims,
-		aead: aesgcm,
-	}
+	f, err := makeTestingFilter()
+	assert.NoError(t, err, "could not refresh ciphers")
 	nonce, err := f.createNonce()
 	if err != nil {
 		t.Errorf("Failed to create nonce: %v", err)

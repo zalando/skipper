@@ -447,6 +447,9 @@ type Options struct {
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
 
+	// OidcSecretsFile path to the file containing key to encrypt OpenID token
+	OidcSecretsFile string
+
 	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
 	WebhookTimeout time.Duration
 
@@ -684,7 +687,11 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
-		auth.NewWebhook(o.WebhookTimeout))
+		auth.NewWebhook(o.WebhookTimeout),
+		auth.NewOAuthOidcUserInfos(o.OidcSecretsFile),
+		auth.NewOAuthOidcAnyClaims(o.OidcSecretsFile),
+		auth.NewOAuthOidcAllClaims(o.OidcSecretsFile),
+	)
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
