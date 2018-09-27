@@ -33,12 +33,18 @@ const (
 )
 
 type apiMonitoringFilter struct {
-	verbose      bool
-	apiId        string
-	pathPatterns map[string]*regexp.Regexp
+	paths   []*pathInfo
+	verbose bool
 }
 
 var _ filters.Filter = new(apiMonitoringFilter)
+
+type pathInfo struct {
+	ApplicationId string
+	ApiId         string
+	PathPattern   string
+	Matcher       *regexp.Regexp
+}
 
 //
 // IMPLEMENTS filters.Filter
@@ -106,47 +112,27 @@ func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 // Returns:
 //   prefix:	the metric key prefix
 //   track:		if this call should be tracked or not
-func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *logrus.Entry) (prefix string, track bool) {
+func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *logrus.Entry) (string, bool) {
 	req := c.Request()
-
-	//
-	// PATH
-	//
-	path := ""
-	for pathPat, regex := range f.pathPatterns {
-		if regex.MatchString(req.URL.Path) {
-			path = pathPat
+	var path *pathInfo = nil
+	for _, p := range f.paths {
+		if p.Matcher.MatchString(req.URL.Path) {
+			path = p
 			break
 		}
 	}
-	if path == "" {
-		// if no path pattern matches, do not track.
+	if path == nil {
 		if f.verbose {
 			log.Info("Matching no path pattern. Not tracking this call.")
 		}
-		return
+		return "", false
 	}
-
-	//
-	// API ID
-	//
-	apiId := ""
-	if f.apiId == "" {
-		apiId = req.Host // no API ID set in the route. Using the host.
-	} else {
-		apiId = f.apiId // API ID configured in the route. Using it.
+	dimensions := []string{
+		path.ApplicationId,
+		path.ApiId,
+		req.Method,
+		path.PathPattern,
 	}
-
-	//
-	// METHOD
-	//
-	method := req.Method
-
-	//
-	// FINAL PREFIX
-	//
-	dimensions := []string{apiId, method, path}
-	prefix = strings.Join(dimensions, ".") + "."
-	track = true
-	return
+	prefix := strings.Join(dimensions, ".") + "."
+	return prefix, true
 }

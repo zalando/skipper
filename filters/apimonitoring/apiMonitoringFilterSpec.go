@@ -1,10 +1,22 @@
 package apimonitoring
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/zalando/skipper/filters"
 	"regexp"
 	"strings"
+)
+
+const (
+	RegexUrlPathPart     = `[^\/]+`
+	RegexOptionalSlashes = `[\/]*`
+)
+
+var (
+	regexVarPathPartCurlyBraces = regexp.MustCompile("^:[^:{}]+$")
+	regexVarPathPartColon       = regexp.MustCompile("^{[^:{}]+}$")
 )
 
 type apiMonitoringFilterSpec struct {
@@ -12,11 +24,6 @@ type apiMonitoringFilterSpec struct {
 }
 
 var _ filters.Spec = new(apiMonitoringFilterSpec)
-
-const (
-	ParamApiId   = "ApiId"
-	ParamPathPat = "PathPat"
-)
 
 func (s *apiMonitoringFilterSpec) Name() string {
 	return name
@@ -29,107 +36,145 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 		}
 	}()
 
-	//
-	// Parse Parameters
-	//
+	if err = logAndCheckArgs(args, s.verbose); err != nil {
+		return nil, err
+	}
+	config, err := parseJsonConfiguration(args, s.verbose)
+	if err != nil {
+		return nil, err
+	}
+	paths, err := buildPathInfoListFromConfiguration(config)
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, errors.New("no path to monitor")
+	}
 
-	// initial values
-	apiId := ""
-	pathPatterns := make(map[string]*regexp.Regexp)
-
-	// parse dynamic parameters
-	for i, raw := range args {
-		name, value, err := splitRawArg(raw)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing parameter at index %d: %s", i, err)
-		}
-		switch name {
-
-		case ParamApiId:
-			if len(apiId) == 0 {
-				apiId = value
-			} else {
-				return nil, fmt.Errorf("%q` can only be specified once (is set again at index %d)", ParamApiId, i)
-			}
-
-		case ParamPathPat:
-			if err := addPathPattern(pathPatterns, value); err != nil {
-				return nil, fmt.Errorf("error parsing %q at index %d (%q): %s", ParamPathPat, i, value, err)
-			}
-
-		default:
-			return nil, fmt.Errorf("parameter %q at index %d is not recognized", name, i)
-		}
+	verbose := config.Verbose
+	if s.verbose && !verbose {
+		log.Info("Forcing filter verbosity (global filter configuration is set to verbose)")
 	}
 
 	// Create the filter
 	filter = &apiMonitoringFilter{
-		verbose:      s.verbose,
-		apiId:        apiId,
-		pathPatterns: pathPatterns,
+		verbose: verbose,
+		paths:   paths,
 	}
-	if s.verbose {
+	if verbose {
 		log.Infof("Created filter: %+v", filter)
 	}
 	return
 }
 
-// splitRawArg takes the raw parameter and determine its key and value
-//
-// Example:		raw = "pathpat: /foo/{id}"
-//
-//				yields	name =  "pathpat"
-//						value = "/foo/{id}"
-// Fails when:
-//   - raw is not a string
-//   - name is empty
-//   - value is empty
-//
-func splitRawArg(raw interface{}) (name string, value string, err error) {
-	rawString, ok := raw.(string)
-	if !ok {
-		err = fmt.Errorf("expecting string parameters, received %#v", raw)
-		return
+func logAndCheckArgs(args []interface{}, verbose bool) error {
+	if verbose {
+		log.Infof("Creating filter with %d argument(s)", len(args))
+		for i, v := range args {
+			log.Infof("  args[%d] %#v", i, v)
+		}
 	}
-	parts := strings.SplitN(rawString, ":", 2)
-	if len(parts) < 2 {
-		err = fmt.Errorf("expecting ':' to split the name from the value: %s", rawString)
-		return
+	if len(args) < 1 {
+		return errors.New("expecting one parameter (JSON configuration of the filter)")
 	}
-	name = strings.TrimSpace(parts[0])
-	value = strings.TrimSpace(parts[1])
-	if len(name) == 0 {
-		err = fmt.Errorf("parameter with no name (starts with splitter ':'): %s", rawString)
-		return
+	if len(args) > 1 {
+		log.Warnf("Only the first parameter is considered. The others are ignored.")
 	}
-	if len(value) == 0 {
-		err = fmt.Errorf("parameter %q does not have any value: %s", name, rawString)
-		return
-	}
-	return
+	return nil
 }
 
-const (
-	RegexUrlPathPart     = `[^\/]+`
-	RegexOptionalSlashes = `[\/]*`
-)
+func parseJsonConfiguration(args []interface{}, verbose bool) (*filterConfig, error) {
+	rawJsonConfiguration, ok := args[0].(string)
+	if !ok {
+		return nil, fmt.Errorf("expecting first parameter to be a string, was %t", args[0])
+	}
+	config := new(filterConfig)
+	err := json.Unmarshal([]byte(rawJsonConfiguration), config)
+	if err != nil {
+		return nil, fmt.Errorf("error reading JSON configuration: %s", err)
+	}
+	if verbose {
+		log.Infof("Filter configuration: %+v", config)
+	}
+	return config, nil
+}
 
-// addPathPattern transforms a path pattern into a regular expression and adds it to
-// the provided `pathPatterns` map.
-//
-// Example:		 newPattern = /orders/{order-id}/order-items/{order-item-id}
-//				      regex = ^\/orders\/[^\/]+\/order-items\/[^\/]+[\/]*$
-//
-func addPathPattern(pathPatterns map[string]*regexp.Regexp, newPattern string) error {
-	normalizedPattern := strings.Trim(newPattern, "/")
-	if _, ok := pathPatterns[normalizedPattern]; ok {
-		return fmt.Errorf("pattern already registed: %q (normalized from %q)", newPattern, normalizedPattern)
+func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, error) {
+	paths := make([]*pathInfo, 0, 32)
+	existingPathPatterns := make(map[string]*pathInfo)
+	existingRegExps := make(map[string]*pathInfo)
+
+	for apiIndex, apiValue := range config.Apis {
+
+		// API validation
+		if apiValue.Id == "" {
+			return nil, fmt.Errorf("API at index %d has no (or empty) `id`", apiIndex)
+		}
+		if apiValue.ApplicationId == "" {
+			return nil, fmt.Errorf("API at index %d has no (or empty) `application_id`", apiIndex)
+		}
+
+		for pathIndex, pathValue := range apiValue.PathPatterns {
+
+			// Path Pattern validation
+			if pathValue == "" {
+				return nil, fmt.Errorf("API at index %d has empty path at index %d", apiIndex, pathIndex)
+			}
+
+			// Create new `pathInfo` with normalized PathPattern
+			info := &pathInfo{
+				ApiId:         apiValue.Id,
+				ApplicationId: apiValue.ApplicationId,
+				PathPattern:   normalizePathPattern(pathValue),
+			}
+
+			// Detect path pattern duplicates
+			if existingPathPattern, ok := existingPathPatterns[info.PathPattern]; ok {
+				return nil, fmt.Errorf(
+					"duplicate path pattern %q detected: %+v and %+v",
+					info.PathPattern, existingPathPattern, info)
+			}
+			existingPathPatterns[info.PathPattern] = info
+
+			// Generate the regular expression for this path pattern and detect duplicates
+			regExStr := generateRegExpStringForPathPattern(info.PathPattern)
+			if existingRegEx, ok := existingRegExps[regExStr]; ok {
+				return nil, fmt.Errorf(
+					"two path patterns yielded the same regular expression %q: %+v and %+v",
+					regExStr, existingRegEx, info)
+			}
+			existingRegExps[regExStr] = info
+
+			// Compile the regular expression
+			regEx, err := regexp.Compile(regExStr)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"error compiling regular expression %s for path %+v: %s",
+					regExStr, info, err)
+			}
+			info.Matcher = regEx
+
+			// Add valid entry to the results
+			paths = append(paths, info)
+		}
 	}
 
-	pathParts := strings.Split(normalizedPattern, "/")
+	return paths, nil
+}
+
+func normalizePathPattern(pathPattern string) string {
+	return strings.Trim(pathPattern, "/")
+}
+
+// generateRegExpForPathPattern creates a regular expression from a path pattern.
+//
+// Example:     pathPattern = /orders/{order-id}/order-items/{order-item-id}
+//				      regex = ^\/orders\/[^\/]+\/order-items\/[^\/]+[\/]*$
+//
+func generateRegExpStringForPathPattern(pathPattern string) (string) {
+	pathParts := strings.Split(pathPattern, "/")
 	for i, p := range pathParts {
-		l := len(p)
-		if l > 2 && p[0] == '{' && p[l-1] == '}' {
+		if regexVarPathPartCurlyBraces.MatchString(p) || regexVarPathPartColon.MatchString(p) {
 			pathParts[i] = RegexUrlPathPart
 		}
 	}
@@ -139,11 +184,5 @@ func addPathPattern(pathPatterns map[string]*regexp.Regexp, newPattern string) e
 	rawRegEx.WriteString(strings.Join(pathParts, `\/`))
 	rawRegEx.WriteString(RegexOptionalSlashes)
 	rawRegEx.WriteString("$")
-
-	regex, err := regexp.Compile(rawRegEx.String())
-	if err != nil {
-		return err
-	}
-	pathPatterns[normalizedPattern] = regex
-	return nil
+	return rawRegEx.String()
 }
