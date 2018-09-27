@@ -9,24 +9,27 @@ import (
 )
 
 type testingSecretSource struct {
+	getCount  int
 	secretKey string
 }
 
-func makeTestingFilter() (*tokenOidcFilter, error) {
+func makeTestingFilter(claims []string) (*tokenOidcFilter, error) {
 	f := &tokenOidcFilter{
 		typ:          checkOidcAnyClaims,
 		secretSource: &testingSecretSource{secretKey: "abc"},
+		claims:       claims,
 	}
 	err := f.refreshCiphers()
 	return f, err
 }
 
 func (s *testingSecretSource) GetSecret() ([][]byte, error) {
+	s.getCount += 1
 	return [][]byte{[]byte(s.secretKey)}, nil
 }
 
 func TestEncryptDecrypt(t *testing.T) {
-	f, err := makeTestingFilter()
+	f, err := makeTestingFilter([]string{})
 	assert.NoError(t, err, "could not refresh ciphers")
 
 	plaintext := "helloworld"
@@ -45,7 +48,7 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestEncryptDecryptState(t *testing.T) {
-	f, err := makeTestingFilter()
+	f, err := makeTestingFilter([]string{})
 	assert.NoError(t, err, "could not refresh ciphers")
 
 	nonce, err := f.createNonce()
@@ -83,7 +86,7 @@ func TestEncryptDecryptState(t *testing.T) {
 }
 
 func Test_getTimestampFromState(t *testing.T) {
-	f, err := makeTestingFilter()
+	f, err := makeTestingFilter([]string{})
 	assert.NoError(t, err, "could not refresh ciphers")
 	nonce, err := f.createNonce()
 	if err != nil {
@@ -105,4 +108,48 @@ func Test_createState(t *testing.T) {
 	if len(out) != len(in)+len(ts)+secretSize {
 		t.Errorf("createState returned string size is wrong: %s", out)
 	}
+}
+
+func TestOidcValidateAllClaims(t *testing.T) {
+	oidcFilter, err := makeTestingFilter([]string{"uid", "email", "hd"})
+	assert.NoError(t, err, "error creating test filter")
+	assert.True(t, oidcFilter.validateAllClaims(
+		map[string]interface{}{"uid": "test", "email": "test@example.org", "hd": "example.org"}),
+		"claims should be valid but filter returned false.")
+	assert.False(t, oidcFilter.validateAllClaims(
+		map[string]interface{}{}), "claims are invalid but filter returned true.")
+	assert.False(t, oidcFilter.validateAllClaims(
+		map[string]interface{}{"uid": "test", "email": "test@example.org"}),
+		"claims are invalid but filter returned true.")
+	assert.True(t, oidcFilter.validateAllClaims(
+		map[string]interface{}{"uid": "test", "email": "test@example.org", "hd": "something.com", "empty": ""}),
+		"claims are valid but filter returned false.")
+}
+
+func TestOidcValidateAnyClaims(t *testing.T) {
+	oidcFilter, err := makeTestingFilter([]string{"uid", "email", "hd"})
+	assert.NoError(t, err, "error creating test filter")
+	assert.True(t, oidcFilter.validateAnyClaims(
+		map[string]interface{}{"uid": "test", "email": "test@example.org", "hd": "example.org"}),
+		"claims should be valid but filter returned false.")
+	assert.False(t, oidcFilter.validateAnyClaims(
+		map[string]interface{}{}), "claims are invalid but filter returned true.")
+	assert.True(t, oidcFilter.validateAnyClaims(
+		map[string]interface{}{"uid": "test", "email": "test@example.org"}),
+		"claims are invalid but filter returned true.")
+	assert.True(t, oidcFilter.validateAnyClaims(
+		map[string]interface{}{"uid": "test", "email": "test@example.org", "hd": "something.com", "empty": ""}),
+		"claims are valid but filter returned false.")
+}
+
+func TestCipherRefreshing(t *testing.T) {
+	oidcFilter, err := makeTestingFilter([]string{})
+	secretSource := &testingSecretSource{secretKey: "abc"}
+	assert.NoError(t, err, "error creating filter")
+	oidcFilter.closer = make(chan int)
+	oidcFilter.secretSource = secretSource
+	oidcFilter.runCipherRefresher(5 * time.Second)
+	time.Sleep(15 * time.Second)
+	oidcFilter.Close()
+	assert.True(t, secretSource.getCount >= 3, "secret fetched less than 3 time in 15 seconds")
 }
