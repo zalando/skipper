@@ -96,6 +96,10 @@ type Options struct {
 	// expected to be set by the load-balancer.
 	KubernetesHTTPSRedirect bool
 
+	// KubernetesHTTPSRedirectCode overrides the default redirect code (308)
+	// when used together with -kubernetes-https-redirect.
+	KubernetesHTTPSRedirectCode int
+
 	// KubernetesIngressClass is a regular expression, that will make
 	// skipper load only the ingress resources that that have a matching
 	// kubernetes.io/ingress.class annotation. For backwards compatibility,
@@ -443,6 +447,9 @@ type Options struct {
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
 
+	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
+	WebhookTimeout time.Duration
+
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
 }
@@ -513,6 +520,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			KubernetesURL:              o.KubernetesURL,
 			ProvideHealthcheck:         o.KubernetesHealthcheck,
 			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
+			HTTPSRedirectCode:          o.KubernetesHTTPSRedirectCode,
 			IngressClass:               o.KubernetesIngressClass,
 			ReverseSourcePredicate:     o.ReverseSourcePredicate,
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
@@ -567,7 +575,6 @@ func initLog(o Options) error {
 		ApplicationLogPrefix: o.ApplicationLogPrefix,
 		ApplicationLogOutput: logOutput,
 		AccessLogOutput:      accessLogOutput,
-		AccessLogDisabled:    o.AccessLogDisabled,
 		AccessLogJSONEnabled: o.AccessLogJSONEnabled,
 		AccessLogStripQuery:  o.AccessLogStripQuery,
 	})
@@ -581,12 +588,11 @@ func (o *Options) isHTTPS() bool {
 
 func listenAndServe(proxy http.Handler, o *Options) error {
 	// create the access log handler
-	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
 
 	srv := &http.Server{
 		Addr:              o.Address,
-		Handler:           loggingHandler,
+		Handler:           proxy,
 		ReadTimeout:       o.ReadTimeoutServer,
 		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
 		WriteTimeout:      o.WriteTimeoutServer,
@@ -677,7 +683,8 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
-		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout))
+		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
+		auth.NewWebhook(o.WebhookTimeout))
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
@@ -750,6 +757,7 @@ func Run(o Options) error {
 		DualStack:              o.DualStackBackend,
 		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
 		MaxIdleConns:           o.MaxIdleConnsBackend,
+		AccessLogDisabled:      o.AccessLogDisabled,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
@@ -832,7 +840,7 @@ func Run(o Options) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 	if len(o.OpenTracing) > 0 {
-		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, o.OpenTracing)
+		tracer, err := tracing.InitTracer(o.OpenTracing)
 		if err != nil {
 			return err
 		}

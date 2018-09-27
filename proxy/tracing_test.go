@@ -192,7 +192,7 @@ func TestTracingInitialSpanName(t *testing.T) {
 	params := Params{
 		OpenTracer:             tracer,
 		OpenTracingInitialSpan: "test-initial-span",
-		Flags: FlagsNone,
+		Flags:                  FlagsNone,
 	}
 
 	tp, err := newTestProxyWithParams(doc, params)

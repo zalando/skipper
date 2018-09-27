@@ -59,9 +59,10 @@ const (
 	defaultTLSHandshakeTimeoutBackend = 60 * time.Second
 	defaultMaxIdleConnsBackend        = 0
 
-	// OAuth2:
+	// Auth:
 	defaultOAuthTokeninfoTimeout          = 2 * time.Second
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
+	defaultWebhookTimeout                 = 2 * time.Second
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -124,15 +125,16 @@ const (
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 
 	// Kubernetes:
-	kubernetesUsage                 = "enables skipper to generate routes for ingress resources in kubernetes cluster"
-	kubernetesInClusterUsage        = "specify if skipper is running inside kubernetes cluster"
-	kubernetesURLUsage              = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
-	kubernetesHealthcheckUsage      = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
-	kubernetesHTTPSRedirectUsage    = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
-	kubernetesIngressClassUsage     = "ingress class regular expression used to filter ingress resources for kubernetes"
-	whitelistedHealthCheckCIDRUsage = "sets the iprange/CIDRS to be whitelisted during healthcheck"
-	kubernetesPathModeUsage         = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
-	kubernetesNamespaceUsage        = "watch only this namespace for ingresses"
+	kubernetesUsage                  = "enables skipper to generate routes for ingress resources in kubernetes cluster"
+	kubernetesInClusterUsage         = "specify if skipper is running inside kubernetes cluster"
+	kubernetesURLUsage               = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
+	kubernetesHealthcheckUsage       = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
+	kubernetesHTTPSRedirectUsage     = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
+	kubernetesHTTPSRedirectCodeUsage = "overrides the default redirect code (308) when used together with -kubernetes-https-redirect"
+	kubernetesIngressClassUsage      = "ingress class regular expression used to filter ingress resources for kubernetes"
+	whitelistedHealthCheckCIDRUsage  = "sets the iprange/CIDRS to be whitelisted during healthcheck"
+	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
+	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
 
 	// OAuth2:
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
@@ -141,6 +143,8 @@ const (
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
+	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
+
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
 	closeIdleConnsPeriodUsage       = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
@@ -233,23 +237,25 @@ var (
 	sourcePollTimeout         int64
 
 	// Kubernetes:
-	kubernetesIngress          bool
-	kubernetesInCluster        bool
-	kubernetesURL              string
-	kubernetesHealthcheck      bool
-	kubernetesHTTPSRedirect    bool
-	kubernetesIngressClass     string
-	whitelistedHealthCheckCIDR string
-	kubernetesPathModeString   string
-	kubernetesNamespace        string
+	kubernetesIngress           bool
+	kubernetesInCluster         bool
+	kubernetesURL               string
+	kubernetesHealthcheck       bool
+	kubernetesHTTPSRedirect     bool
+	kubernetesHTTPSRedirectCode int
+	kubernetesIngressClass      string
+	whitelistedHealthCheckCIDR  string
+	kubernetesPathModeString    string
+	kubernetesNamespace         string
 
-	// OAuth2:
+	// Auth:
 	oauthURL                        string
 	oauthScope                      string
 	oauthCredentialsDir             string
 	oauth2TokeninfoURL              string
 	oauth2TokeninfoTimeout          time.Duration
 	oauth2TokenintrospectionTimeout time.Duration
+	webhookTimeout                  time.Duration
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -346,18 +352,20 @@ func init() {
 	flag.StringVar(&kubernetesURL, "kubernetes-url", "", kubernetesURLUsage)
 	flag.BoolVar(&kubernetesHealthcheck, "kubernetes-healthcheck", true, kubernetesHealthcheckUsage)
 	flag.BoolVar(&kubernetesHTTPSRedirect, "kubernetes-https-redirect", true, kubernetesHTTPSRedirectUsage)
+	flag.IntVar(&kubernetesHTTPSRedirectCode, "kubernetes-https-redirect-code", 308, kubernetesHTTPSRedirectCodeUsage)
 	flag.StringVar(&kubernetesIngressClass, "kubernetes-ingress-class", "", kubernetesIngressClassUsage)
 	flag.StringVar(&whitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", whitelistedHealthCheckCIDRUsage)
 	flag.StringVar(&kubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
 	flag.StringVar(&kubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
 
-	// OAuth2:
+	// Auth:
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
 	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
 	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
 	flag.StringVar(&oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
 	flag.DurationVar(&oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
+	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -526,23 +534,25 @@ func main() {
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 
 		// Kubernetes:
-		Kubernetes:                 kubernetesIngress,
-		KubernetesInCluster:        kubernetesInCluster,
-		KubernetesURL:              kubernetesURL,
-		KubernetesHealthcheck:      kubernetesHealthcheck,
-		KubernetesHTTPSRedirect:    kubernetesHTTPSRedirect,
-		KubernetesIngressClass:     kubernetesIngressClass,
-		WhitelistedHealthCheckCIDR: whitelistCIDRS,
-		KubernetesPathMode:         kubernetesPathMode,
-		KubernetesNamespace:        kubernetesNamespace,
+		Kubernetes:                  kubernetesIngress,
+		KubernetesInCluster:         kubernetesInCluster,
+		KubernetesURL:               kubernetesURL,
+		KubernetesHealthcheck:       kubernetesHealthcheck,
+		KubernetesHTTPSRedirect:     kubernetesHTTPSRedirect,
+		KubernetesHTTPSRedirectCode: kubernetesHTTPSRedirectCode,
+		KubernetesIngressClass:      kubernetesIngressClass,
+		WhitelistedHealthCheckCIDR:  whitelistCIDRS,
+		KubernetesPathMode:          kubernetesPathMode,
+		KubernetesNamespace:         kubernetesNamespace,
 
-		// OAuth2:
+		// Auth:
 		OAuthUrl:                       oauthURL,
 		OAuthScope:                     oauthScope,
 		OAuthCredentialsDir:            oauthCredentialsDir,
 		OAuthTokeninfoURL:              oauth2TokeninfoURL,
 		OAuthTokeninfoTimeout:          oauth2TokeninfoTimeout,
 		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
+		WebhookTimeout:                 webhookTimeout,
 
 		// connections, timeouts:
 		IdleConnectionsPerHost:     idleConnsPerHost,

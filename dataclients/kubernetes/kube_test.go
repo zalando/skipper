@@ -21,9 +21,8 @@ import (
 	"sort"
 	"syscall"
 	"testing"
-	"time"
-
 	"testing/quick"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
@@ -97,6 +96,18 @@ func testRule(host string, paths ...*pathRule) *rule {
 	}
 }
 
+func setAnnotation(i *ingressItem, key, value string) {
+	if i.Metadata == nil {
+		i.Metadata = &metadata{}
+	}
+
+	if i.Metadata.Annotations == nil {
+		i.Metadata.Annotations = make(map[string]string)
+	}
+
+	i.Metadata.Annotations[key] = value
+}
+
 func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
 	var defaultBackend *backend
 	if len(defaultService) != 0 {
@@ -112,28 +123,46 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 		Name:        name,
 		Annotations: make(map[string]string),
 	}
-	if ratelimitCfg != "" {
-		meta.Annotations[ratelimitAnnotationKey] = ratelimitCfg
-	}
-	if filterString != "" {
-		meta.Annotations[skipperfilterAnnotationKey] = filterString
-	}
-	if predicateString != "" {
-		meta.Annotations[skipperpredicateAnnotationKey] = predicateString
-	}
-	if routesString != "" {
-		meta.Annotations[skipperRoutesAnnotationKey] = routesString
-	}
-	if pathModeString != "" {
-		meta.Annotations[pathModeAnnotationKey] = pathModeString
-	}
-	return &ingressItem{
+	i := &ingressItem{
 		Metadata: &meta,
 		Spec: &ingressSpec{
 			DefaultBackend: defaultBackend,
 			Rules:          rules,
 		},
 	}
+	if ratelimitCfg != "" {
+		setAnnotation(i, ratelimitAnnotationKey, ratelimitCfg)
+	}
+	if filterString != "" {
+		setAnnotation(i, skipperfilterAnnotationKey, filterString)
+	}
+	if predicateString != "" {
+		setAnnotation(i, skipperpredicateAnnotationKey, predicateString)
+	}
+	if routesString != "" {
+		setAnnotation(i, skipperRoutesAnnotationKey, routesString)
+	}
+	if pathModeString != "" {
+		setAnnotation(i, pathModeAnnotationKey, pathModeString)
+	}
+
+	return i
+}
+
+func testIngressSimple(ns, name, defaultService string, defaultPort backendPort, rules ...*rule) *ingressItem {
+	return testIngress(
+		ns,
+		name,
+		defaultService,
+		"",
+		"",
+		"",
+		"",
+		"",
+		defaultPort,
+		0,
+		rules...,
+	)
 }
 
 func testServices() services {
@@ -1397,16 +1426,16 @@ func TestConvertPathRule(t *testing.T) {
 
 		api.services = services{
 			"namespace1": map[string]*service{
-				"svcname1": &service{
+				"svcname1": {
 					Spec: &serviceSpec{
 						ClusterIP: "10.3.2.1",
 						Ports: []*servicePort{
-							&servicePort{
+							{
 								Name:       "svcname1",
 								Port:       8080,
 								TargetPort: &backendPort{value: 8080},
 							},
-							&servicePort{
+							{
 								Name:       "svcname1",
 								Port:       8181,
 								TargetPort: &backendPort{value: 8181},
@@ -1430,11 +1459,11 @@ func TestConvertPathRule(t *testing.T) {
 						ServicePort: backendPort{value: 8080},
 					},
 					Rules: []*rule{
-						&rule{
+						{
 							Host: "host1",
 							Http: &httpRule{
 								Paths: []*pathRule{
-									&pathRule{
+									{
 										Path: "/",
 										Backend: &backend{
 											ServiceName: "svcname1",
@@ -1444,11 +1473,11 @@ func TestConvertPathRule(t *testing.T) {
 								},
 							},
 						},
-						&rule{
+						{
 							Host: "host2",
 							Http: &httpRule{
 								Paths: []*pathRule{
-									&pathRule{
+									{
 										Path: "/",
 										Backend: &backend{
 											ServiceName: "svcname1",

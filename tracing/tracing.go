@@ -56,7 +56,36 @@ import (
 	"plugin"
 
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/tracing/tracers/basic"
+	"github.com/zalando/skipper/tracing/tracers/instana"
+	"github.com/zalando/skipper/tracing/tracers/jaeger"
+	"github.com/zalando/skipper/tracing/tracers/lightstep"
 )
+
+// InitTracer initializes an opentracing tracer. The first option item is the
+// tracer implementation name.
+func InitTracer(opts []string) (tracer ot.Tracer, err error) {
+	if len(opts) == 0 {
+		return nil, errors.New("opentracing: the implementation parameter is mandatory")
+	}
+	var impl string
+	impl, opts = opts[0], opts[1:]
+
+	switch impl {
+	case "noop":
+		return &ot.NoopTracer{}, nil
+	case "basic":
+		return basic.InitTracer(opts)
+	case "instana":
+		return instana.InitTracer(opts)
+	case "jaeger":
+		return jaeger.InitTracer(opts)
+	case "lightstep":
+		return lightstep.InitTracer(opts)
+	default:
+		return nil, fmt.Errorf("tracer '%s' not supported", impl)
+	}
+}
 
 func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer ot.Tracer, err error) {
 	for _, dir := range pluginDirs {

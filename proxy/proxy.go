@@ -18,6 +18,7 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
@@ -148,6 +149,9 @@ type Params struct {
 	// Default: "ingress".
 	OpenTracingInitialSpan string
 
+	// When set, no access log is printed.
+	AccessLogDisabled bool
+
 	// Loadbalancer to report unhealthy or dead backends to
 	LoadBalancer *loadbalancer.LB
 
@@ -177,15 +181,15 @@ var (
 	}
 	errRatelimitError = errors.New("ratelimited")
 	hopHeaders        = map[string]bool{
+		"Te":                  true,
 		"Connection":          true,
 		"Proxy-Connection":    true,
 		"Keep-Alive":          true,
 		"Proxy-Authenticate":  true,
 		"Proxy-Authorization": true,
-		"Te":                true,
-		"Trailer":           true,
-		"Transfer-Encoding": true,
-		"Upgrade":           true,
+		"Trailer":             true,
+		"Transfer-Encoding":   true,
+		"Upgrade":             true,
 	}
 )
 
@@ -209,7 +213,6 @@ func (f Flags) HopHeadersRemoval() bool { return f&HopHeadersRemoval != 0 }
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
 type PriorityRoute interface {
-
 	// If the request is matched, returns a route, otherwise nil.
 	// Additionally it may return a parameter map used by the filters
 	// in the route.
@@ -240,6 +243,7 @@ type Proxy struct {
 	openTracer             ot.Tracer
 	openTracingInitialSpan string
 	lb                     *loadbalancer.LB
+	accessLogDisabled      bool
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -511,12 +515,13 @@ func WithParams(p Params) *Proxy {
 		experimentalUpgrade:    p.ExperimentalUpgrade,
 		maxLoops:               p.MaxLoopbacks,
 		breakers:               p.CircuitBreakers,
+		lb:                     p.LoadBalancer,
 		limiters:               p.RateLimiters,
 		log:                    &logging.DefaultLog{},
 		defaultHTTPStatus:      defaultHTTPStatus,
 		openTracer:             p.OpenTracer,
+		accessLogDisabled:      p.AccessLogDisabled,
 		openTracingInitialSpan: openTracingInitialSpan,
-		lb: p.LoadBalancer,
 	}
 }
 
@@ -566,9 +571,9 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *context) {
 	filtersStart := time.Now()
 
-	count := len(filters)
+	last := len(filters) - 1
 	for i := range filters {
-		fi := filters[count-1-i]
+		fi := filters[last-i]
 		start := time.Now()
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
@@ -717,6 +722,13 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 					err:  err,
 					code: http.StatusServiceUnavailable,
 				}
+			} else if !nerr.Timeout() && nerr.Temporary() {
+				p.log.Errorf("Backend error see https://github.com/zalando/skipper/issues/768: %v", err)
+				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusServiceUnavailable))
+				return nil, &proxyError{
+					err:  err,
+					code: http.StatusServiceUnavailable,
+				}
 			} else {
 				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusInternalServerError))
 				return nil, &proxyError{
@@ -739,34 +751,39 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 }
 
 // checkRatelimit is used in case of a route ratelimit
-// configuration. It returns the used ratelimit.Settings and true if
+// configuration. It returns the used ratelimit.Settings and 0 if
 // the request passed in the context should be allowed.
-func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, bool) {
+// otherwise it returns the used ratelimit.Settings and the retry-after period.
+func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 	if p.limiters == nil {
-		return ratelimit.Settings{}, true
+		return ratelimit.Settings{}, 0
 	}
 
 	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].(ratelimit.Settings)
 	if !ok {
-		return ratelimit.Settings{}, true
+		return ratelimit.Settings{}, 0
 	}
 	settings.Host = ctx.outgoingHost
 
 	rl := p.limiters.Get(settings)
 	if rl == nil {
-		return settings, true
+		return settings, 0
 	}
 
 	if settings.Lookuper == nil {
 		p.log.Error("lookuper is nil")
-		return settings, true
+		return settings, 0
 	}
 	s := settings.Lookuper.Lookup(ctx.Request())
 
 	if s == "" {
-		return settings, true
+		return settings, 0
 	}
-	return settings, rl.Allow(s)
+
+	if rl.Allow(s) {
+		return settings, 0
+	}
+	return settings, rl.RetryAfter(s)
 }
 
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
@@ -786,12 +803,13 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	return done, ok
 }
 
-func ratelimitError(settings ratelimit.Settings) error {
+func ratelimitError(settings ratelimit.Settings, ctx *context, retryAfter int) error {
 	return &proxyError{
 		err:  errRatelimitError,
 		code: http.StatusTooManyRequests,
 		additionalHeader: http.Header{
-			ratelimit.Header: []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
+			ratelimit.Header:           []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
+			ratelimit.RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
 		},
 	}
 }
@@ -804,9 +822,8 @@ func (p *Proxy) do(ctx *context) error {
 	ctx.loopCounter++
 
 	// proxy global setting
-	if settings, ok := p.limiters.Check(ctx.request); !ok {
-		p.log.Debugf("proxy.go limiter settings: %s", settings)
-		rerr := ratelimitError(settings)
+	if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
+		rerr := ratelimitError(settings, ctx, retryAfter)
 		return rerr
 	}
 
@@ -827,8 +844,8 @@ func (p *Proxy) do(ctx *context) error {
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 	// per route rate limit
-	if settings, allow := p.checkRatelimit(ctx); !allow {
-		rerr := ratelimitError(settings)
+	if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
+		rerr := ratelimitError(settings, ctx, retryAfter)
 		return rerr
 	}
 
@@ -1005,6 +1022,8 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	lw := logging.NewLoggingWriter(w)
+
 	p.metrics.IncCounter("incoming." + r.Proto)
 	var ctx *context
 
@@ -1022,11 +1041,31 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		span.Finish()
 	}()
 
+	defer func() {
+		accessLogEnabled, ok := ctx.stateBag[accesslog.AccessLogEnabledKey].(bool)
+
+		if !ok {
+			accessLogEnabled = !p.accessLogDisabled
+		}
+
+		if accessLogEnabled {
+			entry := &logging.AccessEntry{
+				Request:      r,
+				ResponseSize: lw.GetBytes(),
+				StatusCode:   lw.GetCode(),
+				RequestTime:  ctx.startServe,
+				Duration:     time.Since(ctx.startServe),
+			}
+
+			logging.LogAccess(entry)
+		}
+	}()
+
 	ext.SpanKindRPCServer.Set(span)
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
-	ctx = newContext(w, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
+	ctx = newContext(lw, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
 	ctx.startServe = time.Now()
 	ctx.tracer = p.openTracer
 

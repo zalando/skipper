@@ -12,6 +12,9 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 )
 
+// RetryAfterKey is used as key in the context state bag
+const RetryAfterKey = "#ratelimitretryafter"
+
 // RouteSettingsKey is used as key in the context state bag
 const RouteSettingsKey = "#ratelimitsettings"
 

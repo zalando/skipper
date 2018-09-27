@@ -39,6 +39,7 @@ const (
 	invalidScope       rejectReason = "invalid-scope"
 	invalidClaim       rejectReason = "invalid-claim"
 	invalidFilter      rejectReason = "invalid-filter"
+	invalidAccess      rejectReason = "invalid-access"
 )
 
 const (

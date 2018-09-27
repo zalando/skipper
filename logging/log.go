@@ -27,9 +27,6 @@ type Options struct {
 	// used.
 	AccessLogOutput io.Writer
 
-	// When set, no access log is printed.
-	AccessLogDisabled bool
-
 	// When set, log in JSON format is used
 	AccessLogJSONEnabled bool
 
@@ -77,11 +74,9 @@ func Init(o Options) {
 		initApplicationLog(o.ApplicationLogPrefix, o.ApplicationLogOutput)
 	}
 
-	if !o.AccessLogDisabled {
-		if o.AccessLogOutput == nil {
-			o.AccessLogOutput = os.Stderr
-		}
-
-		initAccessLog(o)
+	if o.AccessLogOutput == nil {
+		o.AccessLogOutput = os.Stderr
 	}
+
+	initAccessLog(o)
 }

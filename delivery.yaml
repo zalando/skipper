@@ -3,7 +3,6 @@ pipeline:
 - id: build
   overlay: ci/golang
   type: script
-  working_dir: /go/src/github.com/zalando/skipper
   commands:
   - desc: build-push
     cmd: |
@@ -15,4 +14,6 @@ pipeline:
       fi
       export IMAGE
       make deps shortcheck
-      cd packaging && make docker-build docker-push
+      git status
+      git diff
+      cd packaging && make docker-build && git status && git diff && make docker-push

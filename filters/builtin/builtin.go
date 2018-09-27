@@ -5,6 +5,7 @@ package builtin
 
 import (
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/filters/cookie"
@@ -49,6 +50,8 @@ const (
 	SetQueryName        = "setQuery"
 	DropQueryName       = "dropQuery"
 	InlineContentName   = "inlineContent"
+	HeaderToQueryName   = "headerToQuery"
+	QueryToHeaderName   = "queryToHeader"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -82,6 +85,8 @@ func MakeRegistry() filters.Registry {
 		NewCompress(),
 		NewCopyRequestHeader(),
 		NewCopyResponseHeader(),
+		NewHeaderToQuery(),
+		NewQueryToHeader(),
 		diag.NewRandom(),
 		diag.NewLatency(),
 		diag.NewBandwidth(),
@@ -110,6 +115,10 @@ func MakeRegistry() filters.Registry {
 		cors.NewOrigin(),
 		logfilter.NewUnverifiedAuditLog(),
 		tracing.NewSpanName(),
+		accesslog.NewAccessLogDisabled(),
+		accesslog.NewDisableAccessLog(),
+		accesslog.NewEnableAccessLog(),
+		auth.NewForwardToken(),
 	} {
 		r.Register(s)
 	}

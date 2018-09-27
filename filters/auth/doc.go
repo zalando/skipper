@@ -318,5 +318,19 @@ filter after the auth filter.
     a: Path("/only-allowed-audit-log") -> oauthTokeninfoAnyScope("bar-w") -> auditLog() -> "https://internal.example.org/";
     b: Path("/all-access-requests-audit-log") -> auditLog() -> oauthTokeninfoAnyScope("foo-r") -> "https://internal.example.org/";
 
+Webhook - webhook() filter
+
+The filter webhook allows you to have a custom authentication and
+authorization endpoint for a route.
+
+    a: Path("/only-allowed-by-webhook") -> webhook("https://custom-webhook.example.org/auth") -> "https://protected-backend.example.org/";
+
+Forward Token - forwardToken() filter
+
+The filter is used to forward the result of token introspection or token info to the backend.
+
+	a: Path("/tokeninfo-protected") -> oauthTokeninfoAnyScope("uid") -> forwardToken("X-Tokeninfo-Forward") -> "https://internal.example.org";
+	b: Path("tokenintrospection-protected") -> oauthTokenintrospectionAnyKV("uid") -> forwardToken("X-Tokenintrospection-Forward") -> "http://internal.example.org";
+
 */
 package auth
