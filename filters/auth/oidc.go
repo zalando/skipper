@@ -58,14 +58,19 @@ type (
 	}
 )
 
+// NewOAuthOidcUserInfos creates filter spec which tests user info.
 func NewOAuthOidcUserInfos(secretsFile string) filters.Spec {
 	return &tokenOidcSpec{typ: checkOidcUserInfos, SecretsFile: secretsFile}
 }
 
+// NewOAuthOidcAnyClaims creates a filter spec which verifies that the token
+// has one of the claims specified
 func NewOAuthOidcAnyClaims(secretsFile string) filters.Spec {
 	return &tokenOidcSpec{typ: checkOidcAnyClaims, SecretsFile: secretsFile}
 }
 
+// NewOAuthOidcAllClaims creates a filter spec which verifies that the token
+// has all the claims specified
 func NewOAuthOidcAllClaims(secretsFile string) filters.Spec {
 	return &tokenOidcSpec{typ: checkOidcAllClaims, SecretsFile: secretsFile}
 }
@@ -165,7 +170,7 @@ func (f *tokenOidcFilter) validateAnyClaims(h map[string]interface{}) bool {
 	}
 
 	var a []string
-	for k, _ := range h {
+	for k := range h {
 		a = append(a, k)
 	}
 
@@ -179,7 +184,7 @@ func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
 	}
 
 	var a []string
-	for k, _ := range h {
+	for k := range h {
 		a = append(a, k)
 	}
 
@@ -343,7 +348,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 
 	if ok {
 		log.Debugf("got valid cookie: %d", len(cValueHex))
-		atoken, err = f.getTokenFromCookie(ctx, cValueHex)
+		atoken, err := f.getTokenFromCookie(ctx, cValueHex)
 		if err != nil {
 			f.doRedirect(ctx)
 		}
