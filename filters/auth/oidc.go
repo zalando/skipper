@@ -270,7 +270,8 @@ func getTimestampFromState(b []byte, nonceLength int) time.Time {
 }
 
 func createState(nonce string) string {
-	return randString(secretSize) + fmt.Sprintf("%d", time.Now().Add(stateValidity).Unix()) + nonce
+	validUntil := time.Now().Add(stateValidity).Unix()
+	return randString(secretSize) + fmt.Sprintf("%d", validUntil) + nonce
 }
 
 func (f *tokenOidcFilter) doRedirect(ctx filters.FilterContext) {
@@ -300,23 +301,30 @@ func (f *tokenOidcFilter) doRedirect(ctx filters.FilterContext) {
 // Response saves our state bag in a cookie, such that we can get it
 // back in subsequent requests to handle the requests.
 func (f *tokenOidcFilter) Response(ctx filters.FilterContext) {
-	//host := ctx.Request().Host
-	//ctx.Request().URL.Hostname()
+	_, err := ctx.Request().Cookie(f.cookiename)
+	if err == nil {
+		return
+	}
 	if v, ok := ctx.StateBag()[oidcStatebagKey]; ok {
-		cookie := &http.Cookie{
-			Name:  f.cookiename,
-			Value: fmt.Sprintf("%x", v),
-			//Secure:   true,  // https only
-			Secure:   false, // for development
-			HttpOnly: false,
-			Path:     "/",
-			Domain:   "127.0.0.1",
-			MaxAge:   int(f.validity.Seconds()),
-			Expires:  time.Now().Add(f.validity),
-		}
+		cookie := f.createCookie(v)
 		log.Debugf("Response SetCookie: %s", cookie)
 		http.SetCookie(ctx.ResponseWriter(), cookie)
 	}
+}
+
+func (f *tokenOidcFilter) createCookie(v interface{}) *http.Cookie {
+	cookie := &http.Cookie{
+		Name:  f.cookiename,
+		Value: fmt.Sprintf("%x", v),
+		//Secure:   true,  // https only
+		Secure:   false, // for development
+		HttpOnly: false,
+		Path:     "/",
+		Domain:   "127.0.0.1",
+		MaxAge:   int(f.validity.Seconds()),
+		Expires:  time.Now().Add(f.validity),
+	}
+	return cookie
 }
 
 func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) (string, bool) {

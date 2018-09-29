@@ -1,3 +1,5 @@
+cloud.google.com/go v0.28.0 h1:KZ/88LWSw8NxMkjdQyX7LQSGR9PkHr4PaVuNm8zgFq0=
+cloud.google.com/go v0.28.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/abbot/go-http-auth v0.0.0-20150922224136-efc9484eee77 h1:kFQ6l9ku7o6WrNGith41hxpsa2ss+FJ62WR/1A/VSg4=
 github.com/abbot/go-http-auth v0.0.0-20150922224136-efc9484eee77/go.mod h1:Cz6ARTIzApMJDzh5bRMSUou6UMSp0IEXg9km/ci7TJM=
 github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a h1:BtpsbiV638WQZwhA98cEZw2BsbnQJrbd0BI7tsy0W1c=
