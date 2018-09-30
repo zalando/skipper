@@ -269,6 +269,13 @@ func getTimestampFromState(b []byte, nonceLength int) time.Time {
 
 }
 
+type OauthState struct {
+	Rand        string `json:"rand"`
+	Validity    int64  `json:"validity"`
+	Nonce       string `json:"none"`
+	RedirectUrl string `json:"redirectUrl"`
+}
+
 func createState(nonce string) string {
 	validUntil := time.Now().Add(stateValidity).Unix()
 	return randString(secretSize) + fmt.Sprintf("%d", validUntil) + nonce
@@ -356,9 +363,10 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 
 	if ok {
 		log.Debugf("got valid cookie: %d", len(cValueHex))
-		atoken, err := f.getTokenFromCookie(ctx, cValueHex)
+		atoken, err = f.getTokenFromCookie(ctx, cValueHex)
 		if err != nil {
 			f.doRedirect(ctx)
+			return
 		}
 		oauth2Token = atoken.OAuth2Token
 
