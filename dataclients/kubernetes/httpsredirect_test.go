@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
@@ -22,6 +25,12 @@ type redirectTest struct {
 	l               *loggingtest.Logger
 }
 
+type sortRoutes []*eskip.Route
+
+func (s sortRoutes) Len() int           { return len(s) }
+func (s sortRoutes) Less(i, j int) bool { return s[i].Id < s[j].Id }
+func (s sortRoutes) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
 func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) {
 	s := services{
 		"namespace1": map[string]*service{
@@ -33,6 +42,7 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 			"namespace1",
 			"mega",
 			"service1",
+			"",
 			"",
 			"",
 			"",
@@ -195,4 +205,469 @@ func TestNoHTTPSRedirect(t *testing.T) {
 	rt.testNormalHTTPS("", rt.backend)
 	rt.testRedirectHTTP("", rt.backend)
 	rt.testRedirectNotFound("", rt.fallbackBackend)
+}
+
+func TestCustomGlobalHTTPSRedirectCode(t *testing.T) {
+	testCode := func(config, expect int) {
+		t.Run(http.StatusText(config), func(t *testing.T) {
+			var o Options
+			o.ProvideHTTPSRedirect = true
+			o.HTTPSRedirectCode = config
+
+			api := newTestAPI(t, nil, &ingressList{})
+			defer api.Close()
+			o.KubernetesURL = api.server.URL
+
+			c, err := New(o)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer c.Close()
+
+			r, err := c.LoadAll()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var rr *eskip.Route
+			for i := range r {
+				if r[i].Id == httpRedirectRouteID {
+					rr = r[i]
+					break
+				}
+			}
+
+			if rr == nil {
+				t.Error("redirect route not found")
+				return
+			}
+
+			var rf *eskip.Filter
+			for i := range rr.Filters {
+				if rr.Filters[i].Name == "redirectTo" {
+					rf = rr.Filters[i]
+					break
+				}
+			}
+
+			if rf == nil {
+				t.Error("redirect filter not found")
+				return
+			}
+
+			if len(rf.Args) == 0 || int(rf.Args[0].(float64)) != expect {
+				t.Error("expected redirect status code not set")
+			}
+		})
+	}
+
+	testCode(0, http.StatusPermanentRedirect)
+	testCode(http.StatusPermanentRedirect, http.StatusPermanentRedirect)
+	testCode(http.StatusMovedPermanently, http.StatusMovedPermanently)
+}
+
+func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
+	var o Options
+
+	ingressWithRedirect := testIngressSimple(
+		"namespace1",
+		"ingress1",
+		"service1",
+		backendPort{"port1"},
+		testRule(
+			"www.example.org",
+			testPathRule("/foo", "service1", backendPort{"port1"}),
+		),
+	)
+	setAnnotation(ingressWithRedirect, redirectAnnotationKey, "true")
+
+	ingressWithoutRedirect := testIngressSimple(
+		"namespace1",
+		"ingress2",
+		"service2",
+		backendPort{"port2"},
+		testRule(
+			"api.example.org",
+			testPathRule("/bar", "service2", backendPort{"port2"}),
+		),
+	)
+
+	api := newTestAPI(t, testServices(), &ingressList{Items: []*ingressItem{
+		ingressWithRedirect,
+		ingressWithoutRedirect,
+	}})
+	defer api.server.Close()
+	o.KubernetesURL = api.server.URL
+
+	c, err := New(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer c.Close()
+
+	r, err := c.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const expectEskip = `
+		kube_namespace1__ingress1______: * -> "http://1.2.3.4:8080";
+		kube_namespace1__ingress2______: *-> "http://5.6.7.8:8181";
+		kube_namespace1__ingress1__www_example_org___foo__service1:
+			Host("^www[.]example[.]org$") &&
+			PathRegexp("^/foo")
+			-> "http://1.2.3.4:8080";
+		kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect:
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*") &&
+			Host("^www[.]example[.]org$") &&
+			PathRegexp("^/foo") &&
+			PathRegexp(".*")
+			-> redirectTo(308, "https:")
+			-> <shunt>;
+		kube___catchall__www_example_org____:
+			Host("^www[.]example[.]org$")
+			-> <shunt>;
+		kube___catchall__www_example_org_____https_redirect:
+			PathRegexp(".*") &&
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*") &&
+			Host("^www[.]example[.]org$")
+			-> redirectTo(308, "https:")
+			-> <shunt>;
+		kube_namespace1__ingress2__api_example_org___bar__service2:
+			Host("^api[.]example[.]org$") &&
+			PathRegexp("^/bar")
+			-> "http://5.6.7.8:8181";
+		kube___catchall__api_example_org____:
+			Host("^api[.]example[.]org$")
+			-> <shunt>;
+	`
+
+	expect, err := eskip.Parse(expectEskip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// discard deprecated shunt parsing:
+	for _, i := range []int{3, 4, 5, 7} {
+		expect[i].Shunt = false
+	}
+
+	sort.Sort(sortRoutes(r))
+	sort.Sort(sortRoutes(expect))
+
+	diff := cmp.Diff(r, expect)
+	if diff != "" {
+		t.Error(diff)
+	}
+}
+
+func TestDisableHTTPSRedirectFromIngress(t *testing.T) {
+	var o Options
+	o.ProvideHTTPSRedirect = true
+
+	ingressWithRedirect := testIngressSimple(
+		"namespace1",
+		"ingress1",
+		"service1",
+		backendPort{"port1"},
+		testRule(
+			"www.example.org",
+			testPathRule("/foo", "service1", backendPort{"port1"}),
+		),
+	)
+
+	ingressWithoutRedirect := testIngressSimple(
+		"namespace1",
+		"ingress2",
+		"service2",
+		backendPort{"port2"},
+		testRule(
+			"api.example.org",
+			testPathRule("/bar", "service2", backendPort{"port2"}),
+		),
+	)
+	setAnnotation(ingressWithoutRedirect, redirectAnnotationKey, "false")
+
+	api := newTestAPI(t, testServices(), &ingressList{Items: []*ingressItem{
+		ingressWithRedirect,
+		ingressWithoutRedirect,
+	}})
+	defer api.server.Close()
+	o.KubernetesURL = api.server.URL
+
+	c, err := New(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer c.Close()
+
+	r, err := c.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const expectEskip = `
+		kube_namespace1__ingress1______: * -> "http://1.2.3.4:8080";
+		kube_namespace1__ingress2______: * -> "http://5.6.7.8:8181";
+		kube_namespace1__ingress1__www_example_org___foo__service1:
+			Host("^www[.]example[.]org$") &&
+			PathRegexp("^/foo")
+			-> "http://1.2.3.4:8080";
+		kube___catchall__www_example_org____:
+			Host("^www[.]example[.]org$")
+			-> <shunt>;
+		kube_namespace1__ingress2__api_example_org___bar__service2:
+			Host("^api[.]example[.]org$") &&
+			PathRegexp("^/bar")
+			-> "http://5.6.7.8:8181";
+		kube_namespace1__ingress2__api_example_org___bar__service2_disable_https_redirect:
+			Host("^api[.]example[.]org$") &&
+			PathRegexp("^/bar") &&
+			PathRegexp(".*") &&
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*")
+			-> "http://5.6.7.8:8181";
+		kube___catchall__api_example_org____:
+			Host("^api[.]example[.]org$")
+			-> <shunt>;
+		kube___catchall__api_example_org_____disable_https_redirect:
+			Host("^api[.]example[.]org$") &&
+			PathRegexp(".*") &&
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*")
+			-> <shunt>;
+		kube__redirect:
+			PathRegexp(/.*/) &&
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", /.*/)
+			-> redirectTo(308, "https:")
+			-> <shunt>;
+	`
+
+	expect, err := eskip.Parse(expectEskip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// discard deprecated shunt parsing:
+	for _, i := range []int{3, 6, 7, 8} {
+		expect[i].Shunt = false
+	}
+
+	sort.Sort(sortRoutes(r))
+	sort.Sort(sortRoutes(expect))
+
+	diff := cmp.Diff(r, expect)
+	if diff != "" {
+		t.Error(diff)
+	}
+}
+
+func TestChangeRedirectCodeFromIngress(t *testing.T) {
+	var o Options
+	o.ProvideHTTPSRedirect = true
+
+	ingressWithCustomRedirectCode := testIngressSimple(
+		"namespace1",
+		"ingress1",
+		"service1",
+		backendPort{"port1"},
+		testRule(
+			"www.example.org",
+			testPathRule("/foo", "service1", backendPort{"port1"}),
+		),
+	)
+	setAnnotation(ingressWithCustomRedirectCode, redirectCodeAnnotationKey, "301")
+
+	ingressWithoutCustomRedirectCode := testIngressSimple(
+		"namespace1",
+		"ingress2",
+		"service2",
+		backendPort{"port2"},
+		testRule(
+			"api.example.org",
+			testPathRule("/bar", "service2", backendPort{"port2"}),
+		),
+	)
+
+	api := newTestAPI(t, testServices(), &ingressList{Items: []*ingressItem{
+		ingressWithCustomRedirectCode,
+		ingressWithoutCustomRedirectCode,
+	}})
+	defer api.server.Close()
+	o.KubernetesURL = api.server.URL
+
+	c, err := New(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer c.Close()
+
+	r, err := c.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const expectEskip = `
+		kube_namespace1__ingress1______: * -> "http://1.2.3.4:8080";
+		kube_namespace1__ingress2______: *-> "http://5.6.7.8:8181";
+		kube_namespace1__ingress1__www_example_org___foo__service1:
+			Host("^www[.]example[.]org$") &&
+			PathRegexp("^/foo")
+			-> "http://1.2.3.4:8080";
+		kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect:
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*") &&
+			Host("^www[.]example[.]org$") &&
+			PathRegexp("^/foo") &&
+			PathRegexp(".*")
+			-> redirectTo(301, "https:")
+			-> <shunt>;
+		kube___catchall__www_example_org____:
+			Host("^www[.]example[.]org$")
+			-> <shunt>;
+		kube___catchall__www_example_org_____https_redirect:
+			PathRegexp(".*") &&
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*") &&
+			Host("^www[.]example[.]org$")
+			-> redirectTo(301, "https:")
+			-> <shunt>;
+		kube_namespace1__ingress2__api_example_org___bar__service2:
+			Host("^api[.]example[.]org$") &&
+			PathRegexp("^/bar")
+			-> "http://5.6.7.8:8181";
+		kube___catchall__api_example_org____:
+			Host("^api[.]example[.]org$")
+			-> <shunt>;
+		kube__redirect:
+			PathRegexp(/.*/) &&
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", /.*/)
+			-> redirectTo(308, "https:")
+			-> <shunt>;
+	`
+
+	expect, err := eskip.Parse(expectEskip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// discard deprecated shunt parsing:
+	for _, i := range []int{3, 4, 5, 7, 8} {
+		expect[i].Shunt = false
+	}
+
+	sort.Sort(sortRoutes(r))
+	sort.Sort(sortRoutes(expect))
+
+	diff := cmp.Diff(r, expect)
+	if diff != "" {
+		t.Error(diff)
+	}
+}
+
+func TestEnableRedirectWithCustomCode(t *testing.T) {
+	var o Options
+
+	ingressWithRedirect := testIngressSimple(
+		"namespace1",
+		"ingress1",
+		"service1",
+		backendPort{"port1"},
+		testRule(
+			"www.example.org",
+			testPathRule("/foo", "service1", backendPort{"port1"}),
+		),
+	)
+	setAnnotation(ingressWithRedirect, redirectAnnotationKey, "true")
+	setAnnotation(ingressWithRedirect, redirectCodeAnnotationKey, "301")
+
+	ingressWithoutRedirect := testIngressSimple(
+		"namespace1",
+		"ingress2",
+		"service2",
+		backendPort{"port2"},
+		testRule(
+			"api.example.org",
+			testPathRule("/bar", "service2", backendPort{"port2"}),
+		),
+	)
+
+	api := newTestAPI(t, testServices(), &ingressList{Items: []*ingressItem{
+		ingressWithRedirect,
+		ingressWithoutRedirect,
+	}})
+	defer api.server.Close()
+	o.KubernetesURL = api.server.URL
+
+	c, err := New(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer c.Close()
+
+	r, err := c.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const expectEskip = `
+		kube_namespace1__ingress1______: * -> "http://1.2.3.4:8080";
+		kube_namespace1__ingress2______: *-> "http://5.6.7.8:8181";
+		kube_namespace1__ingress1__www_example_org___foo__service1:
+			Host("^www[.]example[.]org$") &&
+			PathRegexp("^/foo")
+			-> "http://1.2.3.4:8080";
+		kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect:
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*") &&
+			Host("^www[.]example[.]org$") &&
+			PathRegexp("^/foo") &&
+			PathRegexp(".*")
+			-> redirectTo(301, "https:")
+			-> <shunt>;
+		kube___catchall__www_example_org____:
+			Host("^www[.]example[.]org$")
+			-> <shunt>;
+		kube___catchall__www_example_org_____https_redirect:
+			PathRegexp(".*") &&
+			Header("X-Forwarded-Proto", "http") &&
+			HeaderRegexp("X-Forwarded-Port", ".*") &&
+			Host("^www[.]example[.]org$")
+			-> redirectTo(301, "https:")
+			-> <shunt>;
+		kube_namespace1__ingress2__api_example_org___bar__service2:
+			Host("^api[.]example[.]org$") &&
+			PathRegexp("^/bar")
+			-> "http://5.6.7.8:8181";
+		kube___catchall__api_example_org____:
+			Host("^api[.]example[.]org$")
+			-> <shunt>;
+	`
+
+	expect, err := eskip.Parse(expectEskip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// discard deprecated shunt parsing:
+	for _, i := range []int{3, 4, 5, 7} {
+		expect[i].Shunt = false
+	}
+
+	sort.Sort(sortRoutes(r))
+	sort.Sort(sortRoutes(expect))
+
+	diff := cmp.Diff(r, expect)
+	if diff != "" {
+		t.Error(diff)
+	}
 }

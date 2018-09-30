@@ -1,19 +1,25 @@
 .PHONY: docker-push
 
-VERSION  ?= $(shell git rev-parse HEAD)
-REGISTRY ?= registry-write.opensource.zalan.do/pathfinder
-IMAGE    ?= $(REGISTRY)/skipper:$(VERSION)
+VERSION            ?= $(shell git rev-parse HEAD)
+REGISTRY           ?= registry-write.opensource.zalan.do/pathfinder
+IMAGE              ?= $(REGISTRY)/skipper:$(VERSION)
+LIGHTSTEP_IMAGE    ?= $(REGISTRY)/skipper-lightstep:$(VERSION)
+OPENTRACING_IMAGE    ?= $(REGISTRY)/skipper-opentracing:$(VERSION)
+ALPINE_BUILD_IMAGE ?= $(REGISTRY)/skipper-alpine-build:latest
+PACKAGE            ?= github.com/zalando/skipper
+CGO_ENABLED        ?= 0
+GO111              ?= on
 
 default: docker-build
 
 skipper:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/skipper
+	GO111MODULE=$(GO111) GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build -o skipper ../cmd/skipper/*.go
 
 eskip:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build github.com/zalando/skipper/cmd/eskip
+	GO111MODULE=$(GO111) GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build -o eskip ../cmd/eskip/*.go
 
 clean:
-	rm -f skipper eskip
+	rm -rf skipper eskip build/
 
 docker-build: clean skipper eskip
 	docker build -t $(IMAGE) .

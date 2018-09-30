@@ -9,6 +9,11 @@ Note the warning from Go's plugin.go:
     // The plugin support is currently incomplete, only supports Linux,
     // and has known bugs. Please report any issues.
 
+Note the known problem of using plugins together with vendoring, best
+described here:
+
+https://github.com/golang/go/issues/20481
+
 ## Plugin directories
 
 Plugins are loaded from sub directories of the plugin directories. By default

@@ -119,6 +119,19 @@ size of the http header from your clients.
     -max-header-bytes int
         set MaxHeaderBytes for http server connections (default 1048576)
 
+## OAuth2 Tokeninfo
+
+OAuth2 filters integrate with external services and have their own
+connection handling. Outgoing calls to these services have a
+default timeout of 2s, which can be changed by the flag
+`-oauth2-tokeninfo-timeout=<OAuthTokeninfoTimeout>`.
+
+## OAuth2 Tokenintrospection RFC7662
+
+OAuth2 filters integrate with external services and have their own
+connection handling. Outgoing calls to these services have a
+default timeout of 2s, which can be changed by the flag
+`-oauth2-tokenintrospect-timeout=<OAuthTokenintrospectionTimeout>`.
 
 # Monitoring
 
@@ -353,7 +366,7 @@ are exposed from skipper to the metrics endpoint, default listener
 
 Dataclients poll some kind of data source for routes. To change the
 timeout for calls that polls a dataclient, which could be the
-kubernetes API, use the following option:
+Kubernetes API, use the following option:
 
     -source-poll-timeout int
         polling timeout of the routing data sources, in milliseconds (default 3000)
@@ -377,3 +390,11 @@ of the last route table update `X-Timestamp`, using a HEAD request:
     X-Count: 1
     X-Timestamp: 1517777628
     Date: Sun, 04 Feb 2018 20:54:31 GMT
+
+The number of routes given is limited (1024 routes by default).
+In order to control this limits, there are two parameters: `limit` and
+`offset`. The `limit` defines the number of routes to get and
+`offset` where to start the list. Thanks to this, it's possible
+to get the results paginated or getting all of them at the same time.
+
+    % curl localhost:9911/routes?offset=200&limit=100

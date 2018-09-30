@@ -691,6 +691,19 @@ func TestPrometheusMetrics(t *testing.T) {
 			},
 			expCode: http.StatusOK,
 		},
+		{
+			name: "Updating custom gauges should update custom gauges in the gauges custom metrics",
+			addMetrics: func(pm *metrics.Prometheus) {
+				pm.UpdateGauge("key1", 1)
+				pm.UpdateGauge("key2", 2)
+				pm.UpdateGauge("key1", 3)
+			},
+			expMetrics: []string{
+				`skipper_custom_gauges{key="key1"} 3`,
+				`skipper_custom_gauges{key="key2"} 2`,
+			},
+			expCode: http.StatusOK,
+		},
 	}
 
 	for _, test := range tests {

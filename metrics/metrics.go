@@ -69,6 +69,7 @@ type Metrics interface {
 	MeasureBackend5xx(t time.Time)
 	IncErrorsStreaming(routeId string)
 	RegisterHandler(path string, handler *http.ServeMux)
+	UpdateGauge(key string, value float64)
 }
 
 // Options for initializing metrics collection.
@@ -132,6 +133,10 @@ type Options struct {
 	// UseExpDecaySample, when set, makes the histograms use an exponentially
 	// decaying sample instead of the default uniform one.
 	UseExpDecaySample bool
+
+	// HistogramBuckets defines buckets into which the observations are counted for
+	// histogram metrics.
+	HistogramBuckets []float64
 
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,

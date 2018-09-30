@@ -7,7 +7,7 @@ shows your route definitions in a clear way:
     % cat example.eskip
     hello: Path("/hello") -> "https://www.example.org"'
 
-The [skipper project](https://github.com/zalando/skipper) has two
+The [Skipper project](https://github.com/zalando/skipper) has two
 binaries, one is `skipper`, the other is `eskip`.
 [Eskip](https://godoc.org/github.com/zalando/skipper/cmd/eskip)
 can be used to validate the syntax of your routes file before
@@ -15,7 +15,7 @@ reloading a production server:
 
     % eskip check example.eskip
 
-To run skipper serving routes from an `eskip` file you have to use
+To run Skipper serving routes from an `eskip` file you have to use
 `-routes-file <file>` parameter:
 
     % skipper -routes-file example.eskip

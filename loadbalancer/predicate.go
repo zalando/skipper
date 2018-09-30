@@ -27,7 +27,7 @@ type memberPredicate struct {
 	indexString string
 }
 
-func getGroupDecision(h http.Header, group string) (string, bool) {
+func getGroupDecision(h http.Header, group string) string {
 	for _, header := range h[DecisionHeader] {
 		decision := strings.Split(header, "=")
 		if len(decision) != 2 {
@@ -35,11 +35,15 @@ func getGroupDecision(h http.Header, group string) (string, bool) {
 		}
 
 		if decision[0] == group {
-			return decision[1], true
+			return decision[1]
 		}
 	}
 
-	return "", false
+	return ""
+}
+
+func hasGroupDecision(h http.Header) bool {
+	return len(h[DecisionHeader]) > 0
 }
 
 // NewGroup creates a predicate spec identifying the entry route
@@ -74,8 +78,7 @@ func (s *groupSpec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *groupPredicate) Match(req *http.Request) bool {
-	_, has := getGroupDecision(req.Header, p.group)
-	return !has
+	return !hasGroupDecision(req.Header)
 }
 
 // NewMember creates a predicate spec identifying a member route
@@ -118,6 +121,5 @@ func (s *memberSpec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *memberPredicate) Match(req *http.Request) bool {
-	member, _ := getGroupDecision(req.Header, p.group)
-	return member == p.indexString
+	return getGroupDecision(req.Header, p.group) == p.indexString
 }

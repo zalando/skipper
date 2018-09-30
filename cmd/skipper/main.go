@@ -19,12 +19,15 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
+	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/proxy"
 )
 
@@ -55,6 +58,11 @@ const (
 	defaultKeepaliveBackend           = 30 * time.Second
 	defaultTLSHandshakeTimeoutBackend = 60 * time.Second
 	defaultMaxIdleConnsBackend        = 0
+
+	// Auth:
+	defaultOAuthTokeninfoTimeout          = 2 * time.Second
+	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
+	defaultWebhookTimeout                 = 2 * time.Second
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -94,6 +102,7 @@ const (
 	routeStreamErrorCountersUsage   = "enables counting streaming errors for each route"
 	routeBackendMetricsUsage        = "enables reporting backend response time metrics for each route"
 	metricsUseExpDecaySampleUsage   = "use exponentially decaying sample in metrics"
+	histogramMetricBucketsUsage     = "use custom buckets for prometheus histograms, must be a comma-separated list of numbers"
 	disableMetricsCompatsUsage      = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
 	applicationLogUsage             = "output file for the application log. When not set, /dev/stderr is used"
 	applicationLogLevelUsage        = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
@@ -101,6 +110,7 @@ const (
 	accessLogUsage                  = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage          = "when this flag is set, no access log is printed"
 	accessLogJSONEnabledUsage       = "when this flag is set, log in JSON format is used"
+	accessLogStripQueryUsage        = "when this flag is set, the access log strips the query strings from the access log"
 	suppressRouteUpdateLogsUsage    = "print only summaries on route updates/deletes"
 
 	// route sources:
@@ -115,19 +125,25 @@ const (
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 
 	// Kubernetes:
-	kubernetesUsage                 = "enables skipper to generate routes for ingress resources in kubernetes cluster"
-	kubernetesInClusterUsage        = "specify if skipper is running inside kubernetes cluster"
-	kubernetesURLUsage              = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
-	kubernetesHealthcheckUsage      = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
-	kubernetesHTTPSRedirectUsage    = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
-	kubernetesIngressClassUsage     = "ingress class regular expression used to filter ingress resources for kubernetes"
-	whitelistedHealthCheckCIDRUsage = "sets the iprange/CIDRS to be whitelisted during healthcheck"
+	kubernetesUsage                  = "enables skipper to generate routes for ingress resources in kubernetes cluster"
+	kubernetesInClusterUsage         = "specify if skipper is running inside kubernetes cluster"
+	kubernetesURLUsage               = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
+	kubernetesHealthcheckUsage       = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
+	kubernetesHTTPSRedirectUsage     = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
+	kubernetesHTTPSRedirectCodeUsage = "overrides the default redirect code (308) when used together with -kubernetes-https-redirect"
+	kubernetesIngressClassUsage      = "ingress class regular expression used to filter ingress resources for kubernetes"
+	whitelistedHealthCheckCIDRUsage  = "sets the iprange/CIDRS to be whitelisted during healthcheck"
+	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
+	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
 
 	// OAuth2:
-	oauthURLUsage            = "OAuth2 URL for Innkeeper authentication"
-	oauthCredentialsDirUsage = "directory where oauth credentials are stored: client.json and user.json"
-	oauthScopeUsage          = "the whitespace separated list of oauth scopes"
-	oauth2TokeninfoURLUsage  = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
+	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
+	oauthCredentialsDirUsage             = "directory where oauth credentials are stored: client.json and user.json"
+	oauthScopeUsage                      = "the whitespace separated list of oauth scopes"
+	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
+	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
+	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
+	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -198,6 +214,7 @@ var (
 	routeStreamErrorCounters  bool
 	routeBackendMetrics       bool
 	metricsUseExpDecaySample  bool
+	histogramMetricBuckets    string
 	disableMetricsCompat      bool
 	applicationLog            string
 	applicationLogLevel       string
@@ -205,6 +222,7 @@ var (
 	accessLog                 string
 	accessLogDisabled         bool
 	accessLogJSONEnabled      bool
+	accessLogStripQuery       bool
 	suppressRouteUpdateLogs   bool
 
 	// route sources:
@@ -219,19 +237,25 @@ var (
 	sourcePollTimeout         int64
 
 	// Kubernetes:
-	kubernetes                 bool
-	kubernetesInCluster        bool
-	kubernetesURL              string
-	kubernetesHealthcheck      bool
-	kubernetesHTTPSRedirect    bool
-	kubernetesIngressClass     string
-	whitelistedHealthCheckCIDR string
+	kubernetesIngress           bool
+	kubernetesInCluster         bool
+	kubernetesURL               string
+	kubernetesHealthcheck       bool
+	kubernetesHTTPSRedirect     bool
+	kubernetesHTTPSRedirectCode int
+	kubernetesIngressClass      string
+	whitelistedHealthCheckCIDR  string
+	kubernetesPathModeString    string
+	kubernetesNamespace         string
 
-	// OAuth2:
-	oauthURL            string
-	oauthScope          string
-	oauthCredentialsDir string
-	oauth2TokeninfoURL  string
+	// Auth:
+	oauthURL                        string
+	oauthScope                      string
+	oauthCredentialsDir             string
+	oauth2TokeninfoURL              string
+	oauth2TokeninfoTimeout          time.Duration
+	oauth2TokenintrospectionTimeout time.Duration
+	webhookTimeout                  time.Duration
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -300,6 +324,7 @@ func init() {
 	flag.BoolVar(&routeStreamErrorCounters, "route-stream-error-counters", false, routeStreamErrorCountersUsage)
 	flag.BoolVar(&routeBackendMetrics, "route-backend-metrics", false, routeBackendMetricsUsage)
 	flag.BoolVar(&metricsUseExpDecaySample, "metrics-exp-decay-sample", false, metricsUseExpDecaySampleUsage)
+	flag.StringVar(&histogramMetricBuckets, "histogram-metric-buckets", "", histogramMetricBucketsUsage)
 	flag.BoolVar(&disableMetricsCompat, "disable-metrics-compat", false, disableMetricsCompatsUsage)
 	flag.StringVar(&applicationLog, "application-log", "", applicationLogUsage)
 	flag.StringVar(&applicationLogLevel, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
@@ -307,6 +332,7 @@ func init() {
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
 	flag.BoolVar(&accessLogJSONEnabled, "access-log-json-enabled", false, accessLogJSONEnabledUsage)
+	flag.BoolVar(&accessLogStripQuery, "access-log-strip-query", false, accessLogStripQueryUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
 
 	// route sources:
@@ -321,19 +347,25 @@ func init() {
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 
 	// Kubernetes:
-	flag.BoolVar(&kubernetes, "kubernetes", false, kubernetesUsage)
+	flag.BoolVar(&kubernetesIngress, "kubernetes", false, kubernetesUsage)
 	flag.BoolVar(&kubernetesInCluster, "kubernetes-in-cluster", false, kubernetesInClusterUsage)
 	flag.StringVar(&kubernetesURL, "kubernetes-url", "", kubernetesURLUsage)
 	flag.BoolVar(&kubernetesHealthcheck, "kubernetes-healthcheck", true, kubernetesHealthcheckUsage)
 	flag.BoolVar(&kubernetesHTTPSRedirect, "kubernetes-https-redirect", true, kubernetesHTTPSRedirectUsage)
+	flag.IntVar(&kubernetesHTTPSRedirectCode, "kubernetes-https-redirect-code", 308, kubernetesHTTPSRedirectCodeUsage)
 	flag.StringVar(&kubernetesIngressClass, "kubernetes-ingress-class", "", kubernetesIngressClassUsage)
 	flag.StringVar(&whitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", whitelistedHealthCheckCIDRUsage)
+	flag.StringVar(&kubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
+	flag.StringVar(&kubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
 
-	// OAuth2:
+	// Auth:
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
 	flag.StringVar(&oauthScope, "oauth-scope", "", oauthScopeUsage)
 	flag.StringVar(&oauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
 	flag.StringVar(&oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
+	flag.DurationVar(&oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
+	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
+	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -374,6 +406,24 @@ func parseDurationFlag(ds string) (time.Duration, error) {
 	return 0, perr
 }
 
+func parseHistogramBuckets(buckets string) ([]float64, error) {
+	if buckets == "" {
+		return prometheus.DefBuckets, nil
+	}
+
+	var result []float64
+	thresholds := strings.Split(buckets, ",")
+	for _, v := range thresholds {
+		bucket, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse histogram-metric-buckets: %v", err)
+		}
+		result = append(result, bucket)
+	}
+	sort.Float64s(result)
+	return result, nil
+}
+
 func main() {
 	if printVersion {
 		fmt.Printf(
@@ -406,8 +456,19 @@ func main() {
 		whitelistCIDRS = strings.Split(whitelistedHealthCheckCIDR, ",")
 	}
 
-	options := skipper.Options{
+	kubernetesPathMode, err := kubernetes.ParsePathMode(kubernetesPathModeString)
+	if err != nil {
+		flag.PrintDefaults()
+		os.Exit(2)
+	}
 
+	histogramBuckets, err := parseHistogramBuckets(histogramMetricBuckets)
+	if err != nil {
+		log.Errorf("%v", err)
+		os.Exit(2)
+	}
+
+	options := skipper.Options{
 		// generic:
 		Address:                         address,
 		IgnoreTrailingSlash:             ignoreTrailingSlash,
@@ -451,12 +512,14 @@ func main() {
 		EnableRouteStreamingErrorsCounters:  routeStreamErrorCounters,
 		EnableRouteBackendMetrics:           routeBackendMetrics,
 		MetricsUseExpDecaySample:            metricsUseExpDecaySample,
+		HistogramMetricBuckets:              histogramBuckets,
 		DisableMetricsCompatibilityDefaults: disableMetricsCompat,
 		ApplicationLogOutput:                applicationLog,
 		ApplicationLogPrefix:                applicationLogPrefix,
 		AccessLogOutput:                     accessLog,
 		AccessLogDisabled:                   accessLogDisabled,
 		AccessLogJSONEnabled:                accessLogJSONEnabled,
+		AccessLogStripQuery:                 accessLogStripQuery,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
 
 		// route sources:
@@ -471,31 +534,42 @@ func main() {
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 
 		// Kubernetes:
-		Kubernetes:                 kubernetes,
-		KubernetesInCluster:        kubernetesInCluster,
-		KubernetesURL:              kubernetesURL,
-		KubernetesHealthcheck:      kubernetesHealthcheck,
-		KubernetesHTTPSRedirect:    kubernetesHTTPSRedirect,
-		KubernetesIngressClass:     kubernetesIngressClass,
-		WhitelistedHealthCheckCIDR: whitelistCIDRS,
+		Kubernetes:                  kubernetesIngress,
+		KubernetesInCluster:         kubernetesInCluster,
+		KubernetesURL:               kubernetesURL,
+		KubernetesHealthcheck:       kubernetesHealthcheck,
+		KubernetesHTTPSRedirect:     kubernetesHTTPSRedirect,
+		KubernetesHTTPSRedirectCode: kubernetesHTTPSRedirectCode,
+		KubernetesIngressClass:      kubernetesIngressClass,
+		WhitelistedHealthCheckCIDR:  whitelistCIDRS,
+		KubernetesPathMode:          kubernetesPathMode,
+		KubernetesNamespace:         kubernetesNamespace,
 
-		// OAuth2:
-		OAuthUrl:            oauthURL,
-		OAuthScope:          oauthScope,
-		OAuthCredentialsDir: oauthCredentialsDir,
-		OAuthTokeninfoURL:   oauth2TokeninfoURL,
+		// Auth:
+		OAuthUrl:                       oauthURL,
+		OAuthScope:                     oauthScope,
+		OAuthCredentialsDir:            oauthCredentialsDir,
+		OAuthTokeninfoURL:              oauth2TokeninfoURL,
+		OAuthTokeninfoTimeout:          oauth2TokeninfoTimeout,
+		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
+		WebhookTimeout:                 webhookTimeout,
 
 		// connections, timeouts:
-		IdleConnectionsPerHost:  idleConnsPerHost,
-		CloseIdleConnsPeriod:    time.Duration(clsic) * time.Second,
-		BackendFlushInterval:    backendFlushInterval,
-		ExperimentalUpgrade:     experimentalUpgrade,
-		ReadTimeoutServer:       readTimeoutServer,
-		ReadHeaderTimeoutServer: readHeaderTimeoutServer,
-		WriteTimeoutServer:      writeTimeoutServer,
-		IdleTimeoutServer:       idleTimeoutServer,
-		MaxHeaderBytes:          maxHeaderBytes,
-		EnableConnMetricsServer: enableConnMetricsServer,
+		IdleConnectionsPerHost:     idleConnsPerHost,
+		CloseIdleConnsPeriod:       time.Duration(clsic) * time.Second,
+		BackendFlushInterval:       backendFlushInterval,
+		ExperimentalUpgrade:        experimentalUpgrade,
+		ReadTimeoutServer:          readTimeoutServer,
+		ReadHeaderTimeoutServer:    readHeaderTimeoutServer,
+		WriteTimeoutServer:         writeTimeoutServer,
+		IdleTimeoutServer:          idleTimeoutServer,
+		MaxHeaderBytes:             maxHeaderBytes,
+		EnableConnMetricsServer:    enableConnMetricsServer,
+		TimeoutBackend:             timeoutBackend,
+		KeepAliveBackend:           keepaliveBackend,
+		DualStackBackend:           enableDualstackBackend,
+		TLSHandshakeTimeoutBackend: tlsHandshakeTimeoutBackend,
+		MaxIdleConnsBackend:        maxIdleConnsBackend,
 	}
 
 	if pluginDir != "" {

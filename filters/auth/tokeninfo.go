@@ -1,35 +1,12 @@
 package auth
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
-	logfilter "github.com/zalando/skipper/filters/log"
-)
-
-type roleCheckType int
-
-const (
-	checkOAuthTokeninfoAnyScopes roleCheckType = iota
-	checkOAuthTokeninfoAllScopes
-	checkOAuthTokeninfoAnyKV
-	checkOAuthTokeninfoAllKV
-	checkUnknown
-)
-
-type rejectReason string
-
-const (
-	missingBearerToken rejectReason = "missing-bearer-token"
-	authServiceAccess  rejectReason = "auth-service-access"
-	invalidToken       rejectReason = "invalid-token"
-	invalidScope       rejectReason = "invalid-scope"
 )
 
 const (
@@ -37,186 +14,57 @@ const (
 	OAuthTokeninfoAllScopeName = "oauthTokeninfoAllScope"
 	OAuthTokeninfoAnyKVName    = "oauthTokeninfoAnyKV"
 	OAuthTokeninfoAllKVName    = "oauthTokeninfoAllKV"
-	AuthUnknown                = "authUnknown"
-
-	authHeaderName      = "Authorization"
-	authHeaderPrefix    = "Bearer "
-	accessTokenQueryKey = "access_token"
-	scopeKey            = "scope"
-	uidKey              = "uid"
-	tokeninfoCacheKey   = "tokeninfo"
+	tokeninfoCacheKey          = "tokeninfo"
 )
 
 type (
-	authClient struct {
-		url *url.URL
-	}
-
 	tokeninfoSpec struct {
-		typ          roleCheckType
-		tokeninfoURL string
-		authClient   *authClient
+		typ              roleCheckType
+		tokeninfoURL     string
+		tokenInfoTimeout time.Duration
+		authClient       *authClient
 	}
 
-	filter struct {
+	tokeninfoFilter struct {
 		typ        roleCheckType
 		authClient *authClient
 		scopes     []string
 		kv         kv
 	}
-	kv map[string]string
 )
 
-var (
-	errInvalidAuthorizationHeader = errors.New("invalid authorization header")
-	errInvalidToken               = errors.New("invalid token")
-)
-
-func getToken(r *http.Request) (string, error) {
-	if tok := r.URL.Query().Get(accessTokenQueryKey); tok != "" {
-		return tok, nil
-	}
-
-	h := r.Header.Get(authHeaderName)
-	if !strings.HasPrefix(h, authHeaderPrefix) {
-		return "", errInvalidAuthorizationHeader
-	}
-
-	return h[len(authHeaderPrefix):], nil
-}
-
-func unauthorized(ctx filters.FilterContext, uname string, reason rejectReason, hostname string) {
-	ctx.StateBag()[logfilter.AuthUserKey] = uname
-	ctx.StateBag()[logfilter.AuthRejectReasonKey] = string(reason)
-	rsp := &http.Response{
-		StatusCode: http.StatusUnauthorized,
-		Header:     make(map[string][]string),
-	}
-	// https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.4.2
-	rsp.Header.Add("WWW-Authenticate", hostname)
-	ctx.Serve(rsp)
-}
-
-func authorized(ctx filters.FilterContext, uname string) {
-	ctx.StateBag()[logfilter.AuthUserKey] = uname
-}
-
-func getStrings(args []interface{}) ([]string, error) {
-	s := make([]string, len(args))
-	var ok bool
-	for i, a := range args {
-		s[i], ok = a.(string)
-		if !ok {
-			return nil, filters.ErrInvalidFilterParameters
-		}
-	}
-
-	return s, nil
-}
-
-// all checks that all strings in the left are also in the
-// right. Right can be a superset of left.
-func all(left, right []string) bool {
-	for _, l := range left {
-		var found bool
-		for _, r := range right {
-			if l == r {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	return true
-}
-
-// intersect checks that one string in the left is also in the right
-func intersect(left []string, right []string) bool {
-	for _, l := range left {
-		for _, r := range right {
-			if l == r {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// jsonGet requests url with access token in the URL query specified
-// by accessTokenQueryKey, if auth was given and writes into doc.
-func jsonGet(url *url.URL, auth string, doc interface{}) error {
-	if auth != "" {
-		q := url.Query()
-		q.Add(accessTokenQueryKey, auth)
-		url.RawQuery = q.Encode()
-	}
-
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		return err
-	}
-
-	rsp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer rsp.Body.Close()
-	if rsp.StatusCode != 200 {
-		return errInvalidToken
-	}
-
-	d := json.NewDecoder(rsp.Body)
-	return d.Decode(doc)
-}
-
-func newAuthClient(baseURL string) (*authClient, error) {
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		return nil, err
-	}
-	return &authClient{url: u}, nil
-}
-
-func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
-	var a map[string]interface{}
-	err := jsonGet(ac.url, token, &a)
-	return a, err
-}
+var tokeninfoAuthClient map[string]*authClient = make(map[string]*authClient)
 
 // NewOAuthTokeninfoAllScope creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all scopes.
-func NewOAuthTokeninfoAllScope(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllScopes, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAllScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllScopes, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 // NewOAuthTokeninfoAnyScope creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one scope.
-func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyScopes, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyScopes, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 // NewOAuthTokeninfoAllKV creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all key value pairs provided.
-func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllKV, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllKV, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 // NewOAuthTokeninfoAnyKV creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one key value pair provided.
-func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL}
+func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
 }
 
 func (s *tokeninfoSpec) Name() string {
@@ -234,13 +82,13 @@ func (s *tokeninfoSpec) Name() string {
 }
 
 // CreateFilter creates an auth filter. All arguments have to be
-// strings. Depending on the variant of the auth filter, the arguments
+// strings. Depending on the variant of the auth tokeninfoFilter, the arguments
 // represent scopes or key-value pairs to be checked in the tokeninfo
 // response. How scopes or key value pairs are checked is based on the
 // type. The shown example for checkOAuthTokeninfoAllScopes will grant
 // access only to tokens, that have scopes read-x and write-y:
 //
-//     s.CreateFilter(read-x", "write-y")
+//     s.CreateFilter("read-x", "write-y")
 //
 func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
@@ -251,12 +99,17 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac, err := newAuthClient(s.tokeninfoURL)
-	if err != nil {
-		return nil, filters.ErrInvalidFilterParameters
+	var ac *authClient
+	var ok bool
+	if ac, ok = tokeninfoAuthClient[s.tokeninfoURL]; !ok {
+		ac, err = newAuthClient(s.tokeninfoURL, s.tokenInfoTimeout)
+		if err != nil {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		tokeninfoAuthClient[s.tokeninfoURL] = ac
 	}
 
-	f := &filter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
+	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
 	switch f.typ {
 	// all scopes
 	case checkOAuthTokeninfoAllScopes:
@@ -280,17 +133,9 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	return f, nil
 }
 
-func (kv kv) String() string {
-	var res []string
-	for k, v := range kv {
-		res = append(res, k, v)
-	}
-	return strings.Join(res, ",")
-}
-
-// String prints nicely the filter configuration based on the
+// String prints nicely the tokeninfoFilter configuration based on the
 // configuration and check used.
-func (f *filter) String() string {
+func (f *tokeninfoFilter) String() string {
 	switch f.typ {
 	case checkOAuthTokeninfoAnyScopes:
 		return fmt.Sprintf("%s(%s)", OAuthTokeninfoAnyScopeName, strings.Join(f.scopes, ","))
@@ -304,7 +149,7 @@ func (f *filter) String() string {
 	return AuthUnknown
 }
 
-func (f *filter) validateAnyScopes(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAnyScopes(h map[string]interface{}) bool {
 	if len(f.scopes) == 0 {
 		return true
 	}
@@ -329,7 +174,7 @@ func (f *filter) validateAnyScopes(h map[string]interface{}) bool {
 	return intersect(f.scopes, a)
 }
 
-func (f *filter) validateAllScopes(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAllScopes(h map[string]interface{}) bool {
 	if len(f.scopes) == 0 {
 		return true
 	}
@@ -354,7 +199,7 @@ func (f *filter) validateAllScopes(h map[string]interface{}) bool {
 	return all(f.scopes, a)
 }
 
-func (f *filter) validateAnyKV(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAnyKV(h map[string]interface{}) bool {
 	for k, v := range f.kv {
 		if v2, ok := h[k].(string); ok {
 			if v == v2 {
@@ -365,7 +210,7 @@ func (f *filter) validateAnyKV(h map[string]interface{}) bool {
 	return false
 }
 
-func (f *filter) validateAllKV(h map[string]interface{}) bool {
+func (f *tokeninfoFilter) validateAllKV(h map[string]interface{}) bool {
 	if len(h) < len(f.kv) {
 		return false
 	}
@@ -379,7 +224,7 @@ func (f *filter) validateAllKV(h map[string]interface{}) bool {
 }
 
 // Request handles authentication based on the defined auth type.
-func (f *filter) Request(ctx filters.FilterContext) {
+func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	r := ctx.Request()
 
 	var authMap map[string]interface{}
@@ -421,15 +266,23 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	case checkOAuthTokeninfoAllKV:
 		allowed = f.validateAllKV(authMap)
 	default:
-		log.Errorf("Wrong filter type: %s", f)
+		log.Errorf("Wrong tokeninfoFilter type: %s", f)
 	}
 
 	if !allowed {
 		unauthorized(ctx, uid, invalidScope, f.authClient.url.Hostname())
-	} else {
-		authorized(ctx, uid)
+		return
 	}
+	authorized(ctx, uid)
 	ctx.StateBag()[tokeninfoCacheKey] = authMap
 }
 
-func (f *filter) Response(filters.FilterContext) {}
+func (f *tokeninfoFilter) Response(filters.FilterContext) {}
+
+// Close cleans-up the quit channel used for this spec
+func (f *tokeninfoFilter) Close() {
+	if f.authClient != nil && f.authClient.quit != nil {
+		close(f.authClient.quit)
+		f.authClient.quit = nil
+	}
+}

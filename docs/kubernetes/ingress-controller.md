@@ -1,18 +1,18 @@
 # Skipper Ingress Controller
 
 This documentation is meant for for cluster operators and describes
-how to install skipper as Ingress-Controller into your Kubernetes
+how to install Skipper as Ingress-Controller into your Kubernetes
 Cluster.
 
 ## Why you should use skipper as ingress controller?
 
 Baremetal loadbalancer perform really well, but the configuration is
 not updated frequently and most of these installations are not meant
-to rapidly change. With introducing kubernetes this will change and
+to rapidly change. With introducing Kubernetes this will change and
 there is a need of rapid changing http routers. Skipper is designed
 for rapidly changing it's routing tree.
 
-Cloud loadbalancers are fine to scale and to change, but does not
+Cloud loadbalancers are fine to scale and to change, but do not
 provide many features. Skipper has advanced resiliency and deployment
 features, that you can use to enhance your environment. For example
 ratelimits, circuitbreakers, blue-green deployments, shadow traffic
@@ -20,10 +20,9 @@ and [more](ingress-usage.md).
 
 ## What is an Ingress-Controller?
 
-Ingress-controllers are serving http requests into a kubernetes
-cluster. Most of the time traffic will pass ingress got to a
-kubernetes service IP which will forward the packets to kubernetes Pods
-selected by the kubernetes service.
+Ingress-controllers are serving http requests into a Kubernetes
+cluster. Most of the time traffic will pass ingress and go to a
+Kubernetes endpoints of the respective pods.
 For having a successful ingress, you need to have a DNS name pointing
 to some stable IP addresses that act as a loadbalancer.
 
@@ -44,7 +43,7 @@ traffic to the pods. Instead it uses the Endpoints API to bypass
 kube-proxy created iptables to remove overhead like conntrack entries
 for iptables DNAT. Skipper can also reuse connections to Pods, such
 that you have no overhead in establishing connections all the time. To
-prevent errors on node failures, skipper also does automatically
+prevent errors on node failures, Skipper also does automatically
 retries to another endpoint in case it gets a connection refused or
 TLS handshake error to the endpoint.  Other reasons are future support
 of features like session affinity, different loadbalancer
@@ -60,7 +59,7 @@ A logical overview of the traffic flow in AWS is shown in this picture:
 
 ![logical ingress-traffic-flow](../img/ingress-traffic-flow-aws.svg)
 
-We described that skipper bypasses Kubernetes Service and use directly
+We described that Skipper bypasses Kubernetes Service and use directly
 endpoints for [good reasons](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#why-skipper-uses-endpoints-and-not-services),
 therefore the real traffic flow is shown in the next picture.
 ![technical ingress-traffic-flow](../img/ingress-traffic-flow-aws-technical.svg)
@@ -100,6 +99,7 @@ TLS example:
 * same as before, but you would terminate TLS on your layer 4 loadbalancer
 * layer 4 loadbalancer has `1.2.3.4:443` as socket for a virtual server
 * you can use an automated redirect for all port 80 requests to https with `-kubernetes-https-redirect`
+and change the default redirect code with `-kubernetes-https-redirect-code`
 
 # Install Skipper as ingress-controller
 
@@ -305,6 +305,17 @@ Example ingress:
           - backend:
               serviceName: app-svc
               servicePort: 80
+
+## Scoping Skipper Deployments to a Single Namespace
+
+In some instances you might want skipper to only watch for ingress objects
+created in a single namespace. This can be achieved by using
+`kubernetes-namespace=<string>` where `<string>` is the Kubernetes namespace.
+Specifying this option forces Skipper to look at the namespace ingresses
+endpoint rather than the cluster-wide ingresses endpoint.
+
+By default this value is an empty string (`""`) and will scope the skipper
+instance to be cluster-wide, watching all `Ingress` objects across all namespaces.
 
 ## Install Skipper with enabled RBAC
 
