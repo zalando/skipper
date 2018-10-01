@@ -8,5 +8,5 @@ type filterConfig struct {
 type filterConfigApi struct {
 	Id            string   `json:"id"`
 	ApplicationId string   `json:"application_id"`
-	PathPatterns  []string `json:"path_patterns"`
+	PathTemplates []string `json:"path_templates"`
 }

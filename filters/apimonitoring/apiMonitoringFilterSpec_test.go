@@ -63,7 +63,7 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 	    {
 	      "application_id": "my_app",
 	      "id": "orders_api",
-	      "path_patterns": [
+	      "path_templates": [
 	        "foo/orders",
 	        "foo/orders/:orderId",
 	        "foo/orders/:orderId/order_item/{orderItemId}"
@@ -72,7 +72,7 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 	    {
 	      "id": "customers_api",
 	      "application_id": "my_app",
-	      "path_patterns": [
+	      "path_templates": [
 	        "/foo/customers/",
 	        "/foo/customers/{customer-id}/"
 	      ]
@@ -90,32 +90,32 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 
 	assert.Equal(t, actual.paths[0].ApplicationId, "my_app")
 	assert.Equal(t, actual.paths[0].ApiId, "orders_api")
-	assert.Equal(t, actual.paths[0].PathPattern, "foo/orders")
+	assert.Equal(t, actual.paths[0].PathTemplate, "foo/orders")
 	assert.Equal(t, actual.paths[0].Matcher.String(), "^[\\/]*foo\\/orders[\\/]*$")
 
 	assert.Equal(t, actual.paths[1].ApplicationId, "my_app")
 	assert.Equal(t, actual.paths[1].ApiId, "orders_api")
-	assert.Equal(t, actual.paths[1].PathPattern, "foo/orders/:orderId")
+	assert.Equal(t, actual.paths[1].PathTemplate, "foo/orders/:orderId")
 	assert.Equal(t, actual.paths[1].Matcher.String(), "^[\\/]*foo\\/orders\\/[^\\/]+[\\/]*$")
 
 	assert.Equal(t, actual.paths[2].ApplicationId, "my_app")
 	assert.Equal(t, actual.paths[2].ApiId, "orders_api")
-	assert.Equal(t, actual.paths[2].PathPattern, "foo/orders/:orderId/order_item/{orderItemId}")
+	assert.Equal(t, actual.paths[2].PathTemplate, "foo/orders/:orderId/order_item/{orderItemId}")
 	assert.Equal(t, actual.paths[2].Matcher.String(), "^[\\/]*foo\\/orders\\/[^\\/]+\\/order_item\\/[^\\/]+[\\/]*$")
 
 	assert.Equal(t, actual.paths[3].ApplicationId, "my_app")
 	assert.Equal(t, actual.paths[3].ApiId, "customers_api")
-	assert.Equal(t, actual.paths[3].PathPattern, "foo/customers") // without the head/tail slashes
+	assert.Equal(t, actual.paths[3].PathTemplate, "foo/customers") // without the head/tail slashes
 	assert.Equal(t, actual.paths[3].Matcher.String(), "^[\\/]*foo\\/customers[\\/]*$")
 
 	assert.Equal(t, actual.paths[4].ApplicationId, "my_app")
 	assert.Equal(t, actual.paths[4].ApiId, "customers_api")
-	assert.Equal(t, actual.paths[4].PathPattern, "foo/customers/{customer-id}") // without the head/tail slashes
+	assert.Equal(t, actual.paths[4].PathTemplate, "foo/customers/{customer-id}") // without the head/tail slashes
 	assert.Equal(t, actual.paths[4].Matcher.String(), "^[\\/]*foo\\/customers\\/[^\\/]+[\\/]*$")
 }
 
 func Test_CreateFilter_DuplicatePathPatternCausesError(t *testing.T) {
-	// PathPattern "foo" and "/foo/" after normalising are the same.
+	// PathTemplate "foo" and "/foo/" after normalising are the same.
 	// That causes an error, even if under different application or API IDs.
 	spec := &apiMonitoringFilterSpec{}
 	filter, err := spec.CreateFilter([]interface{}{`{
@@ -123,14 +123,14 @@ func Test_CreateFilter_DuplicatePathPatternCausesError(t *testing.T) {
 	    {
 	      "application_id": "my_app",
 	      "id": "orders_api",
-	      "path_patterns": [
+	      "path_templates": [
 	        "foo"
 	      ]
 	    },
 	    {
 	      "id": "customers_api",
 	      "application_id": "my_app",
-	      "path_patterns": [
+	      "path_templates": [
 	        "/foo/"
 	      ]
 	    }
@@ -148,7 +148,7 @@ func Test_CreateFilter_DuplicateMatchersCausesError(t *testing.T) {
 	    {
 	      "application_id": "my_app",
 	      "id": "orders_api",
-	      "path_patterns": [
+	      "path_templates": [
 	        "clients/:clientId",
             "clients/{clientId}"
 	      ]
@@ -167,7 +167,7 @@ func createFilterForTest() (filters.Filter, error) {
 	    {
 	      "application_id": "my_app",
 	      "id": "orders_api",
-	      "path_patterns": [
+	      "path_templates": [
 	        "foo/orders",
 	        "foo/orders/:order-id",
 	        "foo/orders/:order-id/order-items/{order-item-id}"
@@ -176,7 +176,7 @@ func createFilterForTest() (filters.Filter, error) {
 	    {
 	      "id": "customers_api",
 	      "application_id": "my_app",
-	      "path_patterns": [
+	      "path_templates": [
 	        "/foo/customers/",
 	        "/foo/customers/{customer-id}/"
 	      ]

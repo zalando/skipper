@@ -114,30 +114,30 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 			return nil, fmt.Errorf("API at index %d has no (or empty) `application_id`", apiIndex)
 		}
 
-		for pathIndex, pathValue := range apiValue.PathPatterns {
+		for pathIndex, pathValue := range apiValue.PathTemplates {
 
 			// Path Pattern validation
 			if pathValue == "" {
 				return nil, fmt.Errorf("API at index %d has empty path at index %d", apiIndex, pathIndex)
 			}
 
-			// Create new `pathInfo` with normalized PathPattern
+			// Create new `pathInfo` with normalized PathTemplate
 			info := &pathInfo{
 				ApiId:         apiValue.Id,
 				ApplicationId: apiValue.ApplicationId,
-				PathPattern:   normalizePathPattern(pathValue),
+				PathTemplate:  normalizePathPattern(pathValue),
 			}
 
 			// Detect path pattern duplicates
-			if existingPathPattern, ok := existingPathPatterns[info.PathPattern]; ok {
+			if existingPathPattern, ok := existingPathPatterns[info.PathTemplate]; ok {
 				return nil, fmt.Errorf(
 					"duplicate path pattern %q detected: %+v and %+v",
-					info.PathPattern, existingPathPattern, info)
+					info.PathTemplate, existingPathPattern, info)
 			}
-			existingPathPatterns[info.PathPattern] = info
+			existingPathPatterns[info.PathTemplate] = info
 
 			// Generate the regular expression for this path pattern and detect duplicates
-			regExStr := generateRegExpStringForPathPattern(info.PathPattern)
+			regExStr := generateRegExpStringForPathPattern(info.PathTemplate)
 			if existingRegEx, ok := existingRegExps[regExStr]; ok {
 				return nil, fmt.Errorf(
 					"two path patterns yielded the same regular expression %q: %+v and %+v",

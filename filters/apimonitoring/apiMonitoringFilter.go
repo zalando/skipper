@@ -42,7 +42,7 @@ var _ filters.Filter = new(apiMonitoringFilter)
 type pathInfo struct {
 	ApplicationId string
 	ApiId         string
-	PathPattern   string
+	PathTemplate  string
 	Matcher       *regexp.Regexp
 }
 
@@ -131,7 +131,7 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 		path.ApplicationId,
 		path.ApiId,
 		req.Method,
-		path.PathPattern,
+		path.PathTemplate,
 	}
 	prefix := strings.Join(dimensions, ".") + "."
 	return prefix, true

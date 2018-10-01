@@ -816,21 +816,46 @@ WARNING: Make sure that the Prometheus Metrics are also enabled.
 skipper -enable-apimonitoring -enable-prometheus-metrics
 ```
 
-Endpoints can be monitored using the `apimonitoring` function in the route. It accepts an array
-of string containing `name: value`. Possible parameters are:
-
-* `ApiId` (default: empty): The identifier of the API. For the moment, free text (is not yet used to fetch the API specification
-  in the API Repository). If not provided, the host name will be used to identify the API.
-* `PathPat`: An endpoint path _pattern_, given in the OpenAPI format. Serves for grouping parametrized paths
-  together. Example: `/foo/1` and `/foo/2` should be monitored as the same endpoint, then provide: `PathPat: /foo/{fooId}`.
+Endpoints can be monitored using the `apimonitoring` function in the route. It accepts a JSON object.
+* `apis`: A list of API being monitored by the filter.
+    * `application_id`: An application could be offering more than one API. Specify the application's ID here.
+    * `id`: The identifier of the API. For the moment, free text (is not yet used to fetch the API specification
+      in the API Repository). If not provided, the host name will be used to identify the API.
+    * `path_templates`: An endpoint path _template_, given in the OpenAPI format. Serves for grouping parametrized paths
+      together. Example: `/foo/1` and `/foo/2` should be monitored as the same endpoint, then provide: `PathPat: /foo/{fooId}`.
+      It accepts both `{fooId}` and `:fooId` formats for the variable parts.
+* `verbose` (default: `false`): An optional parameter making the filter log more detail about its operation.
+  It is bypassed by the `--apimonitoring-verbose` switch when specified.
 
 Example:
 
 ```
-apimonitoring("ApiId: OrdersAPI", "PathPat: orders/{orderId}", "PathPat: orders/{orderId}/order_items/{orderItemId}")
+apimonitoring(`{
+  "apis": [
+    {
+      "application_id": "my_app",
+      "id": "orders_api",
+      "path_templates": [
+        "foo/orders",
+        "foo/orders/:order-id",
+        "foo/orders/:order-id/order-items/{order-item-id}"
+      ]
+    },
+    {
+      "id": "customers_api",
+      "application_id": "my_app",
+      "path_templates": [
+        "/foo/customers/",
+        "/foo/customers/{customer-id}/"
+      ]
+    }
+  ]
+}`)
 ```
 
 That would monitor metrics like:
-* `OrdersAPI./orders/{orderId}/.GET`
-* `OrdersAPI./orders/.POST`
-* `OrdersAPI./orders/{orderId}/order_items/{orderItemId}.GET`
+* `my_app.orders_api.GET.foo/orders/:order-id`
+* `my_app.orders_api.POST.foo/orders`
+* `my_app.orders_api.GET.foo/orders/:order-id/order-items/{order-item-id}`
+* `my_app.customers_api.POST.foo/customers`
+* `my_app.customers_api.DELETE.foo/customers/{customer-id}`
