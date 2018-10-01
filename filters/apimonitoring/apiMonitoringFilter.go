@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -49,6 +50,14 @@ type pathInfo struct {
 	Matcher       *regexp.Regexp
 }
 
+type apiMonitoringFilterContext struct {
+	DimensionsPrefix string
+
+	// Information that is read at `request` time and needed at `response` time
+	Begin               time.Time // earliest point in time where the request is observed
+	OriginalRequestSize int64     // initial requests' size, before it is modified by other filters.
+}
+
 //
 // IMPLEMENTS filters.Filter
 //
@@ -77,8 +86,6 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	originalRequestSize := c.Request().ContentLength
 
 	mfc := &apiMonitoringFilterContext{
-		Filter:              f,
-		FilterContext:       c,
 		DimensionsPrefix:    dimensionsPrefix,
 		Begin:               begin,
 		OriginalRequestSize: originalRequestSize,
@@ -104,10 +111,14 @@ func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 		return
 	}
 
-	mfc.WriteMetricCount()
-	mfc.WriteMetricLatency()
-	mfc.WriteMetricSizeOfRequest()
-	mfc.WriteMetricSizeOfResponse()
+	metrics := c.Metrics()
+	response := c.Response()
+
+	f.writeMetricCount(metrics, mfc)
+	f.writeMetricResponseStatusClassCount(metrics, mfc, response)
+	f.writeMetricLatency(metrics, mfc)
+	f.writeMetricSizeOfRequest(metrics, mfc)
+	f.writeMetricSizeOfResponse(metrics, mfc, response)
 }
 
 // getDimensionPrefix generates the dimension part of the metrics key (before the name
@@ -139,4 +150,77 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 	}
 	prefix := strings.Join(dimensions, ".") + "."
 	return prefix, true
+}
+
+func (f *apiMonitoringFilter) writeMetricCount(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
+	key := mfc.DimensionsPrefix + MetricCountAll
+	if f.verbose {
+		log.Infof("incrementing %q by 1", key)
+	}
+	metrics.IncCounter(key)
+}
+
+func (f *apiMonitoringFilter) writeMetricResponseStatusClassCount(metrics filters.Metrics, mfc *apiMonitoringFilterContext, response *http.Response) {
+	var classMetricName string
+	st := response.StatusCode
+	switch {
+	case st < 200:
+		return
+	case st < 300:
+		classMetricName = MetricCount200s
+	case st < 400:
+		classMetricName = MetricCount300s
+	case st < 500:
+		classMetricName = MetricCount400s
+	case st < 600:
+		classMetricName = MetricCount500s
+	default:
+		return
+	}
+
+	key := mfc.DimensionsPrefix + classMetricName
+	if f.verbose {
+		log.Infof("incrementing %q by 1", key)
+	}
+	metrics.IncCounter(key)
+}
+
+func (f *apiMonitoringFilter) writeMetricLatency(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
+	key := mfc.DimensionsPrefix+MetricLatency
+	if f.verbose {
+		log.Infof("measuring for %q since %v", key, mfc.Begin)
+	}
+	metrics.MeasureSince(key, mfc.Begin)
+}
+
+func (f *apiMonitoringFilter) writeMetricSizeOfRequest(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
+	requestSize := mfc.OriginalRequestSize
+	if requestSize < 0 {
+		log.WithField("dimensions", mfc.DimensionsPrefix).
+			Infof("unknown request content length: %d", requestSize)
+		return
+	}
+
+	key := mfc.DimensionsPrefix + MetricRequestSize
+	if f.verbose {
+		log.Infof("incrementing %q by %d", key, requestSize)
+	}
+	metrics.IncCounterBy(key, requestSize)
+}
+
+func (f *apiMonitoringFilter) writeMetricSizeOfResponse(metrics filters.Metrics, mfc *apiMonitoringFilterContext, response *http.Response) {
+	if response == nil {
+		return
+	}
+	responseSize := response.ContentLength // todo: this always return 0, investigate why
+	if responseSize < 0 {
+		log.WithField("dimensions", mfc.DimensionsPrefix).Infof("unknown response content length: %d", responseSize)
+		return
+	}
+
+	key := mfc.DimensionsPrefix + MetricResponseSize
+	if f.verbose {
+		log.Infof("incrementing %q by %d", key, responseSize)
+	}
+	metrics.IncCounterBy(key, responseSize)
 }
