@@ -65,8 +65,8 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 	      "id": "orders_api",
 	      "path_templates": [
 	        "foo/orders",
-	        "foo/orders/:orderId",
-	        "foo/orders/:orderId/order_item/{orderItemId}"
+	        "foo/orders/:order-id",
+	        "foo/orders/:order-id/order_item/{order-item-id}"
 	      ]
 	    },
 	    {
@@ -95,12 +95,12 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 
 	assert.Equal(t, actual.paths[1].ApplicationId, "my_app")
 	assert.Equal(t, actual.paths[1].ApiId, "orders_api")
-	assert.Equal(t, actual.paths[1].PathTemplate, "foo/orders/:orderId")
+	assert.Equal(t, actual.paths[1].PathTemplate, "foo/orders/:order-id")
 	assert.Equal(t, actual.paths[1].Matcher.String(), "^[\\/]*foo\\/orders\\/[^\\/]+[\\/]*$")
 
 	assert.Equal(t, actual.paths[2].ApplicationId, "my_app")
 	assert.Equal(t, actual.paths[2].ApiId, "orders_api")
-	assert.Equal(t, actual.paths[2].PathTemplate, "foo/orders/:orderId/order_item/:orderItemId") // normalized to `:id`
+	assert.Equal(t, actual.paths[2].PathTemplate, "foo/orders/:order-id/order_item/:order-item-id") // normalized to `:id`
 	assert.Equal(t, actual.paths[2].Matcher.String(), "^[\\/]*foo\\/orders\\/[^\\/]+\\/order_item\\/[^\\/]+[\\/]*$")
 
 	assert.Equal(t, actual.paths[3].ApplicationId, "my_app")
@@ -252,14 +252,14 @@ func Test_Filter_PathPatternNoVariablePart(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"my_app.orders_api.POST.foo/orders.http_count":    1,
-					"my_app.orders_api.POST.foo/orders.http400_count": 1,
-					"my_app.orders_api.POST.foo/orders.req_size_sum":  reqBodyLen,
-					"my_app.orders_api.POST.foo/orders.resp_size_sum": resBodyLen,
+					"api-mon.my_app.orders_api.POST.foo/orders.http_count":    1,
+					"api-mon.my_app.orders_api.POST.foo/orders.http400_count": 1,
+					"api-mon.my_app.orders_api.POST.foo/orders.req_size_sum":  reqBodyLen,
+					"api-mon.my_app.orders_api.POST.foo/orders.resp_size_sum": resBodyLen,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "my_app.orders_api.POST.foo/orders.latency")
+			assert.Contains(t, m.Measures, "api-mon.my_app.orders_api.POST.foo/orders.latency")
 		})
 }
 
@@ -275,14 +275,14 @@ func Test_Filter_PathPatternWithVariablePart(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"my_app.orders_api.POST.foo/orders/:order-id.http_count":    1,
-					"my_app.orders_api.POST.foo/orders/:order-id.http400_count": 1,
-					"my_app.orders_api.POST.foo/orders/:order-id.req_size_sum":  reqBodyLen,
-					"my_app.orders_api.POST.foo/orders/:order-id.resp_size_sum": resBodyLen,
+					"api-mon.my_app.orders_api.POST.foo/orders/:order-id.http_count":    1,
+					"api-mon.my_app.orders_api.POST.foo/orders/:order-id.http400_count": 1,
+					"api-mon.my_app.orders_api.POST.foo/orders/:order-id.req_size_sum":  reqBodyLen,
+					"api-mon.my_app.orders_api.POST.foo/orders/:order-id.resp_size_sum": resBodyLen,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "my_app.orders_api.POST.foo/orders/:order-id.latency")
+			assert.Contains(t, m.Measures, "api-mon.my_app.orders_api.POST.foo/orders/:order-id.latency")
 		})
 }
 
@@ -298,14 +298,14 @@ func Test_Filter_PathPatternWithMultipleVariablePart(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.http_count":    1,
-					"my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.http400_count": 1,
-					"my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.req_size_sum":  reqBodyLen,
-					"my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.resp_size_sum": resBodyLen,
+					"api-mon.my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.http_count":    1,
+					"api-mon.my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.http400_count": 1,
+					"api-mon.my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.req_size_sum":  reqBodyLen,
+					"api-mon.my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.resp_size_sum": resBodyLen,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.latency")
+			assert.Contains(t, m.Measures, "api-mon.my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id.latency")
 		})
 }
 
@@ -321,13 +321,13 @@ func Test_Filter_PathPatternFromSecondConfiguredApi(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"my_app.customers_api.POST.foo/customers/:customer-id.http_count":    1,
-					"my_app.customers_api.POST.foo/customers/:customer-id.http400_count": 1,
-					"my_app.customers_api.POST.foo/customers/:customer-id.req_size_sum":  reqBodyLen,
-					"my_app.customers_api.POST.foo/customers/:customer-id.resp_size_sum": resBodyLen,
+					"api-mon.my_app.customers_api.POST.foo/customers/:customer-id.http_count":    1,
+					"api-mon.my_app.customers_api.POST.foo/customers/:customer-id.http400_count": 1,
+					"api-mon.my_app.customers_api.POST.foo/customers/:customer-id.req_size_sum":  reqBodyLen,
+					"api-mon.my_app.customers_api.POST.foo/customers/:customer-id.resp_size_sum": resBodyLen,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "my_app.customers_api.POST.foo/customers/:customer-id.latency")
+			assert.Contains(t, m.Measures, "api-mon.my_app.customers_api.POST.foo/customers/:customer-id.latency")
 		})
 }

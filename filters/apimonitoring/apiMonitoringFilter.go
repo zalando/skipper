@@ -11,6 +11,9 @@ import (
 
 // Metric names
 const (
+	// Prefix
+	MetricPrefix = "api-mon"
+
 	// Status Code counting
 	MetricCountAll  = "http_count"
 	MetricCount500s = "http500_count"
@@ -28,8 +31,8 @@ const (
 
 // StateBag Keys
 const (
-	KeyPrefix = "filter.apimonitoring."
-	KeyState  = KeyPrefix + "state"
+	StateBagKeyPrefix = "filter.apimonitoring."
+	StateBagKeyState  = StateBagKeyPrefix + "state"
 )
 
 type apiMonitoringFilter struct {
@@ -80,7 +83,7 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 		Begin:               begin,
 		OriginalRequestSize: originalRequestSize,
 	}
-	c.StateBag()[KeyState] = mfc
+	c.StateBag()[StateBagKeyState] = mfc
 }
 
 // Response fulfills the Filter interface.
@@ -93,7 +96,7 @@ func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 		log.Infof("StateBag:\n%s", jsStateBag)
 	}
 
-	mfc, ok := c.StateBag()[KeyState].(*apiMonitoringFilterContext)
+	mfc, ok := c.StateBag()[StateBagKeyState].(*apiMonitoringFilterContext)
 	if !ok {
 		if f.verbose {
 			log.Info("Call not tracked")
@@ -128,6 +131,7 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 		return "", false
 	}
 	dimensions := []string{
+		MetricPrefix,
 		path.ApplicationId,
 		path.ApiId,
 		req.Method,
