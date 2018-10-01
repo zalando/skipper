@@ -100,7 +100,7 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 
 	assert.Equal(t, actual.paths[2].ApplicationId, "my_app")
 	assert.Equal(t, actual.paths[2].ApiId, "orders_api")
-	assert.Equal(t, actual.paths[2].PathTemplate, "foo/orders/:orderId/order_item/{orderItemId}")
+	assert.Equal(t, actual.paths[2].PathTemplate, "foo/orders/:orderId/order_item/:orderItemId") // normalized to `:id`
 	assert.Equal(t, actual.paths[2].Matcher.String(), "^[\\/]*foo\\/orders\\/[^\\/]+\\/order_item\\/[^\\/]+[\\/]*$")
 
 	assert.Equal(t, actual.paths[3].ApplicationId, "my_app")
@@ -110,7 +110,7 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 
 	assert.Equal(t, actual.paths[4].ApplicationId, "my_app")
 	assert.Equal(t, actual.paths[4].ApiId, "customers_api")
-	assert.Equal(t, actual.paths[4].PathTemplate, "foo/customers/{customer-id}") // without the head/tail slashes
+	assert.Equal(t, actual.paths[4].PathTemplate, "foo/customers/:customer-id") // without the head/tail slashes, normalized to `:id`
 	assert.Equal(t, actual.paths[4].Matcher.String(), "^[\\/]*foo\\/customers\\/[^\\/]+[\\/]*$")
 }
 
@@ -156,7 +156,7 @@ func Test_CreateFilter_DuplicateMatchersCausesError(t *testing.T) {
 	  ]
 	}`})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "two path patterns yielded the same regular expression")
+	assert.Contains(t, err.Error(), "duplicate path pattern")
 	assert.Nil(t, filter)
 }
 
@@ -298,7 +298,7 @@ func Test_Filter_PathPatternWithMultipleVariablePart(t *testing.T) {
 		400,
 		"qwerty",
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
-			prefix := "my_app.orders_api.POST.foo/orders/:order-id/order-items/{order-item-id}."
+			prefix := "my_app.orders_api.POST.foo/orders/:order-id/order-items/:order-item-id."
 			assert.Equal(t,
 				map[string]int64{
 					prefix + MetricCountAll:     1,
@@ -322,7 +322,7 @@ func Test_Filter_PathPatternFromSecondConfiguredApi(t *testing.T) {
 		400,
 		"qwerty",
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
-			prefix := "my_app.customers_api.POST.foo/customers/{customer-id}."
+			prefix := "my_app.customers_api.POST.foo/customers/:customer-id."
 			assert.Equal(t,
 				map[string]int64{
 					prefix + MetricCountAll:     1,

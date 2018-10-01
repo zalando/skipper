@@ -15,8 +15,8 @@ const (
 )
 
 var (
-	regexVarPathPartCurlyBraces = regexp.MustCompile("^:[^:{}]+$")
-	regexVarPathPartColon       = regexp.MustCompile("^{[^:{}]+}$")
+	regexVarPathPartCurlyBraces = regexp.MustCompile("^{([^:{}]+)}$")
+	regexVarPathPartColon       = regexp.MustCompile("^:([^:{}]+)$")
 )
 
 type apiMonitoringFilterSpec struct {
@@ -114,18 +114,21 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 			return nil, fmt.Errorf("API at index %d has no (or empty) `application_id`", apiIndex)
 		}
 
-		for pathIndex, pathValue := range apiValue.PathTemplates {
+		for templateIndex, template := range apiValue.PathTemplates {
 
 			// Path Pattern validation
-			if pathValue == "" {
-				return nil, fmt.Errorf("API at index %d has empty path at index %d", apiIndex, pathIndex)
+			if template == "" {
+				return nil, fmt.Errorf("API at index %d has empty path at index %d", apiIndex, templateIndex)
 			}
+
+			// Normalize path template and get regular expression from it
+			normalisedPathTemplate, regExStr := generateRegExpStringForPathPattern(template)
 
 			// Create new `pathInfo` with normalized PathTemplate
 			info := &pathInfo{
 				ApiId:         apiValue.Id,
 				ApplicationId: apiValue.ApplicationId,
-				PathTemplate:  normalizePathPattern(pathValue),
+				PathTemplate:  normalisedPathTemplate,
 			}
 
 			// Detect path pattern duplicates
@@ -137,7 +140,6 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 			existingPathPatterns[info.PathTemplate] = info
 
 			// Generate the regular expression for this path pattern and detect duplicates
-			regExStr := generateRegExpStringForPathPattern(info.PathTemplate)
 			if existingRegEx, ok := existingRegExps[regExStr]; ok {
 				return nil, fmt.Errorf(
 					"two path patterns yielded the same regular expression %q: %+v and %+v",
@@ -162,27 +164,53 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 	return paths, nil
 }
 
-func normalizePathPattern(pathPattern string) string {
-	return strings.Trim(pathPattern, "/")
-}
-
 // generateRegExpForPathPattern creates a regular expression from a path pattern.
 //
-// Example:     pathPattern = /orders/{order-id}/order-items/{order-item-id}
+// Example:    pathTemplate = /orders/{order-id}/order-items/{order-item-id}
 //				      regex = ^\/orders\/[^\/]+\/order-items\/[^\/]+[\/]*$
 //
-func generateRegExpStringForPathPattern(pathPattern string) (string) {
-	pathParts := strings.Split(pathPattern, "/")
-	for i, p := range pathParts {
-		if regexVarPathPartCurlyBraces.MatchString(p) || regexVarPathPartColon.MatchString(p) {
-			pathParts[i] = RegexUrlPathPart
+func generateRegExpStringForPathPattern(pathTemplate string) (normalizedPathTemplate, matcher string) {
+	pathParts := strings.Split(pathTemplate, "/")
+	matcherPathParts := make([]string, 0, len(pathParts))
+	normalizedPathTemplateParts := make([]string, 0, len(pathParts))
+	for _, p := range pathParts {
+		if p == "" {
+			continue
+		}
+		placeholderName := getVarPathPartName(p)
+		if placeholderName != "" {
+			matcherPathParts = append(matcherPathParts, RegexUrlPathPart)
+			normalizedPathTemplateParts = append(normalizedPathTemplateParts, ":" + placeholderName)
+		} else {
+			matcherPathParts = append(matcherPathParts, p)
+			normalizedPathTemplateParts = append(normalizedPathTemplateParts, p)
 		}
 	}
 	rawRegEx := &strings.Builder{}
 	rawRegEx.WriteString("^")
 	rawRegEx.WriteString(RegexOptionalSlashes)
-	rawRegEx.WriteString(strings.Join(pathParts, `\/`))
+	rawRegEx.WriteString(strings.Join(matcherPathParts, `\/`))
 	rawRegEx.WriteString(RegexOptionalSlashes)
 	rawRegEx.WriteString("$")
-	return rawRegEx.String()
+
+	matcher = rawRegEx.String()
+	normalizedPathTemplate = strings.Join(normalizedPathTemplateParts, "/")
+	return
+}
+
+// getVarPathPartName detects if a path template part represents a variadic placeholder.
+// Returns "" when it is not or its name when it is.
+func getVarPathPartName(pathTemplatePart string) string {
+	// check if it is `:id`
+	matches := regexVarPathPartColon.FindStringSubmatch(pathTemplatePart)
+	if len(matches) == 2 {
+		return matches[1]
+	}
+	// check if it is `{id}`
+	matches = regexVarPathPartCurlyBraces.FindStringSubmatch(pathTemplatePart)
+	if len(matches) == 2 {
+		return matches[1]
+	}
+	// it is not a placeholder
+	return ""
 }

@@ -822,8 +822,8 @@ Endpoints can be monitored using the `apimonitoring` function in the route. It a
     * `id`: The identifier of the API. For the moment, free text (is not yet used to fetch the API specification
       in the API Repository). If not provided, the host name will be used to identify the API.
     * `path_templates`: An endpoint path _template_, given in the OpenAPI format. Serves for grouping parametrized paths
-      together. Example: `/foo/1` and `/foo/2` should be monitored as the same endpoint, then provide: `PathPat: /foo/{fooId}`.
-      It accepts both `{fooId}` and `:fooId` formats for the variable parts.
+      together. Example: `/foo/1` and `/foo/2` should be monitored as the same endpoint, then provide: `PathPat: /foo/{foo-id}`.
+      It accepts both `{foo-id}` and `:foo-id` formats for the variable parts, but are all normalized to `:foo-id`.
 * `verbose` (default: `false`): An optional parameter making the filter log more detail about its operation.
   It is bypassed by the `--apimonitoring-verbose` switch when specified.
 
@@ -856,6 +856,6 @@ apimonitoring(`{
 That would monitor metrics like:
 * `my_app.orders_api.GET.foo/orders/:order-id`
 * `my_app.orders_api.POST.foo/orders`
-* `my_app.orders_api.GET.foo/orders/:order-id/order-items/{order-item-id}`
+* `my_app.orders_api.GET.foo/orders/:order-id/order-items/:order-item-id`
 * `my_app.customers_api.POST.foo/customers`
-* `my_app.customers_api.DELETE.foo/customers/{customer-id}`
+* `my_app.customers_api.DELETE.foo/customers/:customer-id`
