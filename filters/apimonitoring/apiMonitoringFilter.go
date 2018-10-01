@@ -12,18 +12,18 @@ import (
 // Metric names
 const (
 	// Status Code counting
-	MetricCountAll  = "Count"
-	MetricCount500s = "Count500s"
-	MetricCount400s = "Count400s"
-	MetricCount300s = "Count300s"
-	MetricCount200s = "Count200s"
+	MetricCountAll  = "http_count"
+	MetricCount500s = "http500_count"
+	MetricCount400s = "http400_count"
+	MetricCount300s = "http300_count"
+	MetricCount200s = "http200_count"
 
 	// Request & Response
-	MetricRequestSize  = "ReqSize"
-	MetricResponseSize = "ResSize"
+	MetricRequestSize  = "req_size_sum"
+	MetricResponseSize = "resp_size_sum"
 
 	// Timings
-	MetricLatency = "Latency"
+	MetricLatency = "latency"
 )
 
 // StateBag Keys
