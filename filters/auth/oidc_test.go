@@ -16,6 +16,10 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const (
+	testRedirectUrl = "http://redirect-somewhere.com/some-path?arg=param"
+)
+
 type testingSecretSource struct {
 	getCount  int
 	secretKey string
@@ -69,8 +73,9 @@ func TestEncryptDecryptState(t *testing.T) {
 	}
 
 	// enc
-	statePlain := createState(fmt.Sprintf("%x", nonce))
-	stateEnc, err := f.encryptDataBlock([]byte(statePlain))
+	state, err := createState(nonce, testRedirectUrl)
+	assert.NoError(t, err, "failed to create state")
+	stateEnc, err := f.encryptDataBlock(state)
 	if err != nil {
 		t.Errorf("Failed to encrypt data block: %v", err)
 	}
@@ -87,38 +92,26 @@ func TestEncryptDecryptState(t *testing.T) {
 	}
 
 	// test same
-	if string(stateQueryPlain) != statePlain {
-		t.Errorf("missmatch plain text")
+	if len(stateQueryPlain) != len(state) {
+		t.Errorf("encoded and decoded states do no match")
 	}
-	nonceHex := fmt.Sprintf("%x", nonce)
-	ts := getTimestampFromState(stateQueryPlain, len(nonceHex))
-	if time.Now().After(ts) {
-		t.Errorf("now is after time from state but should be before: %s", ts)
+	for i, b := range stateQueryPlain {
+		if b != state[i] {
+			t.Errorf("encoded and decoded states do no match")
+			break
+		}
 	}
-}
-
-func Test_getTimestampFromState(t *testing.T) {
-	f, err := makeTestingFilter([]string{})
-	assert.NoError(t, err, "could not refresh ciphers")
-	nonce, err := f.createNonce()
+	decOauthState, err := makeState(stateQueryPlain)
 	if err != nil {
-		t.Errorf("Failed to create nonce: %v", err)
+		t.Errorf("failed to recreate state from decrypted byte array.")
 	}
-	nonceHex := fmt.Sprintf("%x", nonce)
-	statePlain := createState(nonceHex)
-
-	ts := getTimestampFromState([]byte(statePlain), len(nonceHex))
+	ts := time.Unix(decOauthState.Validity, 0)
 	if time.Now().After(ts) {
 		t.Errorf("now is after time from state but should be before: %s", ts)
 	}
-}
 
-func Test_createState(t *testing.T) {
-	in := "foo"
-	out := createState(in)
-	ts := fmt.Sprintf("%d", time.Now().Add(1*time.Minute).Unix())
-	if len(out) != len(in)+len(ts)+secretSize {
-		t.Errorf("createState returned string size is wrong: %s", out)
+	if decOauthState.RedirectUrl != testRedirectUrl {
+		t.Errorf("Decrypted Redirect Url %s does not match input %s", decOauthState.RedirectUrl, testRedirectUrl)
 	}
 }
 
@@ -168,14 +161,6 @@ func TestCipherRefreshing(t *testing.T) {
 
 type TestContext struct {
 	requestUrl *url.URL
-}
-
-func NewTestContext(requestUrl string) (filters.FilterContext, error) {
-	rUrl, err := url.Parse(requestUrl)
-	if err != nil {
-		return nil, err
-	}
-	return &TestContext{requestUrl: rUrl}, nil
 }
 
 func (t *TestContext) ResponseWriter() http.ResponseWriter {

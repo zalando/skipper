@@ -13,7 +13,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
@@ -30,6 +29,7 @@ const (
 	OidcAllClaimsName = "oauthOidcAllClaims"
 
 	oidcStatebagKey     = "oauthOidcKey"
+	redirectURLKey      = "redirectURLKey"
 	oauthOidcCookieName = "skipperOauthOidc"
 	refreshInterval     = 30 * time.Minute
 	stateValidity       = 1 * time.Minute
@@ -253,22 +253,6 @@ func (f *tokenOidcFilter) refreshCiphers() error {
 	return nil
 }
 
-func getTimestampFromState(b []byte, nonceLength int) time.Time {
-	log.Debugf("getTimestampFromState b: %s", b)
-	if len(b) <= secretSize+nonceLength || secretSize >= len(b)-nonceLength {
-		log.Debugf("wrong b: %d, %d, %d, b[%d : %d], %v %v", len(b), secretSize, nonceLength, secretSize, len(b)-nonceLength, len(b) <= secretSize+nonceLength, secretSize >= len(b)-nonceLength)
-		return time.Time{}.Add(1 * time.Second)
-	}
-	ts := string(b[secretSize : len(b)-nonceLength])
-	i, err := strconv.Atoi(ts)
-	if err != nil {
-		log.Errorf("Atoi failed: %v", err)
-		return time.Time{}
-	}
-	return time.Unix(int64(i), 0)
-
-}
-
 type OauthState struct {
 	Rand        string `json:"rand"`
 	Validity    int64  `json:"validity"`
@@ -276,22 +260,43 @@ type OauthState struct {
 	RedirectUrl string `json:"redirectUrl"`
 }
 
-func createState(nonce string) string {
-	validUntil := time.Now().Add(stateValidity).Unix()
-	return randString(secretSize) + fmt.Sprintf("%d", validUntil) + nonce
+func createState(nonce []byte, redirectUrl string) ([]byte, error) {
+	state := &OauthState{
+		Rand:        randString(secretSize),
+		Validity:    time.Now().Add(stateValidity).Unix(),
+		Nonce:       fmt.Sprintf("%x", nonce),
+		RedirectUrl: redirectUrl,
+	}
+	return json.Marshal(state)
 }
 
-func (f *tokenOidcFilter) doRedirect(ctx filters.FilterContext) {
+func makeState(encState []byte) (*OauthState, error) {
+	var state OauthState
+	err := json.Unmarshal(encState, &state)
+	if err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 	nonce, err := f.createNonce()
 	if err != nil {
 		log.Errorf("Failed to create nonce: %v", err)
 		return
 	}
 
-	statePlain := createState(fmt.Sprintf("%x", nonce))
-	stateEnc, err := f.encryptDataBlock([]byte(statePlain))
+	redirectUrl := ctx.Request().URL.String()
+
+	statePlain, err := createState(nonce, redirectUrl)
+	if err != nil {
+		log.Errorf("failed to create oauth2 state: %v", err)
+		return
+	}
+	stateEnc, err := f.encryptDataBlock(statePlain)
 	if err != nil {
 		log.Errorf("Failed to encrypt data block: %v", err)
+		return
 	}
 
 	rsp := &http.Response{
@@ -305,17 +310,35 @@ func (f *tokenOidcFilter) doRedirect(ctx filters.FilterContext) {
 	ctx.Serve(rsp)
 }
 
+func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, redirectUrl string) {
+	rsp := &http.Response{
+		Header: http.Header{
+			"Location": []string{redirectUrl},
+		},
+		StatusCode: http.StatusFound,
+		Status:     "Moved Temporarily",
+	}
+	log.Infof("serve redirect to Location: %s", rsp.Header.Get("Location"))
+	ctx.Serve(rsp)
+}
+
 // Response saves our state bag in a cookie, such that we can get it
 // back in subsequent requests to handle the requests.
 func (f *tokenOidcFilter) Response(ctx filters.FilterContext) {
 	_, err := ctx.Request().Cookie(f.cookiename)
+	// if cookie is set do not set again
 	if err == nil {
 		return
 	}
+
 	if v, ok := ctx.StateBag()[oidcStatebagKey]; ok {
 		cookie := f.createCookie(v)
 		log.Debugf("Response SetCookie: %s", cookie)
 		http.SetCookie(ctx.ResponseWriter(), cookie)
+	}
+
+	if v, ok := ctx.StateBag()[redirectURLKey]; ok {
+		http.Redirect(ctx.ResponseWriter(), ctx.Request(), v.(string), http.StatusFound)
 	}
 }
 
@@ -365,18 +388,23 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		log.Debugf("got valid cookie: %d", len(cValueHex))
 		atoken, err = f.getTokenFromCookie(ctx, cValueHex)
 		if err != nil {
-			f.doRedirect(ctx)
+			f.doOauthRedirect(ctx)
 			return
 		}
 		oauth2Token = atoken.OAuth2Token
 
 	} else {
-		oauth2Token, err = f.getTokenWithExchange(ctx)
+		oauthState, err := f.getCallbackState(ctx)
 		if err != nil {
-			f.doRedirect(ctx)
+			f.doOauthRedirect(ctx)
 			return
 		}
-
+		oauth2Token, err = f.getTokenWithExchange(oauthState, ctx)
+		if err != nil {
+			unauthorized(ctx, "Failed to get token in callback: "+err.Error(), invalidToken, r.Host)
+			return
+		}
+		ctx.StateBag()[redirectURLKey] = oauthState.RedirectUrl
 	}
 
 	if !oauth2Token.Valid() {
@@ -569,7 +597,7 @@ func (f *tokenOidcFilter) getTokenFromCookie(ctx filters.FilterContext, cValueHe
 	return atoken, err
 }
 
-func (f *tokenOidcFilter) getTokenWithExchange(ctx filters.FilterContext) (*oauth2.Token, error) {
+func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthState, error) {
 	// CSRF protection using similar to
 	// https://www.owasp.org/index.php/Cross-Site_Request_Forgery_(CSRF)_Prevention_Cheat_Sheet#Encrypted_Token_Pattern,
 	// because of https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
@@ -592,17 +620,20 @@ func (f *tokenOidcFilter) getTokenWithExchange(ctx filters.FilterContext) (*oaut
 	}
 	log.Debugf("len(stateQueryPlain): %d, stateQueryEnc: %d, stateQueryEncHex: %d", len(stateQueryPlain), len(stateQueryEnc), len(stateQueryEncHex))
 
-	nonce, err := f.createNonce()
+	state, err := makeState(stateQueryPlain)
 	if err != nil {
-		log.Errorf("Failed to create nonce: %v", err)
+		log.Errorf("Failed to deserialize state")
 		return nil, err
 	}
-	nonceHex := fmt.Sprintf("%x", nonce)
-	ts := getTimestampFromState(stateQueryPlain, len(nonceHex))
-	if time.Now().After(ts) {
-		// state query is older than allowed -> enforce login
-		return nil, fmt.Errorf("token from state query is too old: %s", ts)
+	return state, nil
+}
 
+func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.FilterContext) (*oauth2.Token, error) {
+	r := ctx.Request()
+	log.Debug(state)
+	if state.Validity < time.Now().Unix() {
+		log.Errorf("state is no longer valid. %v", state.Validity)
+		return nil, fmt.Errorf("validity of state expired")
 	}
 
 	// authcode flow
@@ -612,7 +643,6 @@ func (f *tokenOidcFilter) getTokenWithExchange(ctx filters.FilterContext) (*oaut
 		unauthorized(ctx, "Failed to exchange token: "+err.Error(), invalidClaim, r.Host)
 		return nil, err
 	}
-
 	return oauth2Token, err
 }
 
