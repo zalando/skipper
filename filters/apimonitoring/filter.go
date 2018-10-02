@@ -36,6 +36,16 @@ const (
 	StateBagKeyState  = StateBagKeyPrefix + "state"
 )
 
+func New(verbose bool) filters.Spec {
+	spec := &apiMonitoringFilterSpec{
+		verbose: verbose,
+	}
+	if verbose {
+		log.Infof("Created filter spec: %+v", spec)
+	}
+	return spec
+}
+
 type apiMonitoringFilter struct {
 	paths   []*pathInfo
 	verbose bool
@@ -57,10 +67,6 @@ type apiMonitoringFilterContext struct {
 	Begin               time.Time // earliest point in time where the request is observed
 	OriginalRequestSize int64     // initial requests' size, before it is modified by other filters.
 }
-
-//
-// IMPLEMENTS filters.Filter
-//
 
 // Request fulfills the Filter interface.
 func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
@@ -186,7 +192,7 @@ func (f *apiMonitoringFilter) writeMetricResponseStatusClassCount(metrics filter
 }
 
 func (f *apiMonitoringFilter) writeMetricLatency(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
-	key := mfc.DimensionsPrefix+MetricLatency
+	key := mfc.DimensionsPrefix + MetricLatency
 	if f.verbose {
 		log.Infof("measuring for %q since %v", key, mfc.Begin)
 	}

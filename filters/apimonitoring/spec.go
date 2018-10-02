@@ -4,17 +4,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
 	"strings"
 )
 
 const (
+	name = "apimonitoring"
+
 	RegexUrlPathPart     = `[^\/]+`
 	RegexOptionalSlashes = `[\/]*`
 )
 
 var (
+	log = logrus.WithField("filter", name)
 	regexVarPathPartCurlyBraces = regexp.MustCompile("^{([^:{}]+)}$")
 	regexVarPathPartColon       = regexp.MustCompile("^:([^:{}]+)$")
 )
