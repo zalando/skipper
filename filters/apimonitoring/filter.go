@@ -1,7 +1,6 @@
 package apimonitoring
 
 import (
-	"encoding/json"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"net/http"
@@ -71,10 +70,7 @@ type apiMonitoringFilterContext struct {
 func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	log := log.WithField("op", "request")
 	if f.verbose {
-		log.Infof("Filter: %#v", f)
-		log.Infof("FilterContext: %#v", c)
-		jsStateBag, _ := json.MarshalIndent(c.StateBag(), "", "  ")
-		log.Infof("StateBag:\n%s", jsStateBag)
+		log.Info("REQUEST CONTEXT: " + formatFilterContext(c))
 	}
 
 	//
@@ -102,10 +98,7 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 	log := log.WithField("op", "response")
 	if f.verbose {
-		log.Infof("Filter: %#v", f)
-		log.Infof("FilterContext: %#v", c)
-		jsStateBag, _ := json.MarshalIndent(c.StateBag(), "", "  ")
-		log.Infof("StateBag:\n%s", jsStateBag)
+		log.Info("RESPONSE CONTEXT: " + formatFilterContext(c))
 	}
 
 	mfc, ok := c.StateBag()[StateBagKeyState].(*apiMonitoringFilterContext)
