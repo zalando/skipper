@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"math"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -27,7 +28,7 @@ type resizeLimit struct {
 	n int
 }
 
-func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit { //implementation {
+func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
 	rl := &ClusterLimit{
 		name:    name,
 		swarm:   sw,
@@ -69,7 +70,12 @@ const swarmPrefix string = `ratelimit.`
 // skippers should be allowed else false.
 func (c *ClusterLimit) Allow(s string) bool {
 	_ = c.local.Allow(s) // update local rate limit
-	d := c.local.Delta(s)
+
+	// t0 is the oldest entry in the local circularbuffer
+	// [ t3, t4, t0, t1, t2]
+	//           ^- current pointer to oldest
+	// now - t0
+	d := time.Now().Sub(c.local.Current(s))
 	dTransfer := int64(d)
 	if err := c.swarm.ShareValue(swarmPrefix+s, dTransfer); err != nil {
 		log.Errorf("clusterRatelimit failed to share value: %v", err)
@@ -89,30 +95,30 @@ func (c *ClusterLimit) Allow(s string) bool {
 
 func (c *ClusterLimit) calculateSharedKnowledge(swarmValues map[string]interface{}) float64 {
 	var rate float64 = 0
-	nodeHits := c.maxHits / float64(len(swarmValues)) // hits per node within the window from the global rate limit
-	log.Infof("%s: %v := %v / %v   (swarmValues=%v)", c.name, nodeHits, c.maxHits, float64(len(swarmValues)), swarmValues)
+	swarmValuesSize := math.Max(1.0, float64(len(swarmValues)))
+	maxNodeHits := c.maxHits / swarmValuesSize
+
 	for _, val := range swarmValues {
 		if deltaI, ok := val.(int64); ok {
 			delta := time.Duration(deltaI)
-			log.Debugf("%s: nodeHits: %v, delta: %v", c.name, nodeHits, delta)
+			rateV := float64(c.window) / float64(delta)
+			if c.window < delta {
+				rateV = float64(0)
+			}
+			log.Debugf("rate %v, deltaI: %d, delta: %v, rateV: %v, c.window: %v", rate, deltaI, delta, rateV, c.window)
 			switch {
 			case delta == 0:
-				log.Infof("%s: delta==0", c.name)
-				// initially all are set to time.Time{}, so we get 0 delta
-			case delta < 0:
-				log.Infof("%s: delta<0", c.name)
-				// should not happen... but anyway, we set to global rate
-				rate += c.maxHits / float64(c.window)
+			case delta > 0:
+				rate += rateV
 			default:
-				log.Infof("%s: %v += %v / %v  %v", c.name, rate, nodeHits, delta, float64(delta))
-				//rate += nodeHits / float64(delta)
-				rate += nodeHits / float64((c.window / delta))
-				log.Infof("%s: rate %v", c.name, rate)
+				log.Errorf("Should not happen: %v, add maxNodeHits to rate", delta)
+				rate += maxNodeHits
 			}
 		} else {
 			log.Warningf("%s: val is not int64: %v", c.name, val)
 		}
 	}
+	log.Debugf("returning rate: %0.2f/%v", rate, c.window)
 	return rate
 }
 
@@ -121,14 +127,7 @@ func (c *ClusterLimit) Close() {
 	c.local.Close()
 }
 
-func (c *ClusterLimit) Delta(s string) time.Duration {
-	return c.local.Delta(s)
-}
-
-func (c *ClusterLimit) Resize(s string, n int) {
-	c.local.Resize(s, n)
-}
-
-func (c *ClusterLimit) RetryAfter(s string) int {
-	return c.local.RetryAfter(s)
-}
+func (c *ClusterLimit) Current(string) time.Time     { return time.Time{} }
+func (c *ClusterLimit) Delta(s string) time.Duration { return c.local.Delta(s) }
+func (c *ClusterLimit) Resize(s string, n int)       { c.local.Resize(s, n) }
+func (c *ClusterLimit) RetryAfter(s string) int      { return c.local.RetryAfter(s) }

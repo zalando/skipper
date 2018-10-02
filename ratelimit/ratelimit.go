@@ -157,6 +157,9 @@ type implementation interface {
 	// Close is used to clean up underlying implementations, if you want to stop a Ratelimiter
 	Close()
 
+	// Current returns the oldest timestamp for string
+	Current(string) time.Time
+
 	// RetryAfter is used to inform the client how many seconds it should wait
 	// before making a new request
 	RetryAfter(string) int
@@ -210,23 +213,12 @@ func (l *Ratelimit) Resize(s string, i int) {
 type voidRatelimit struct{}
 
 // Allow always returns true, not ratelimited
-func (l voidRatelimit) Allow(string) bool {
-	return true
-}
-
-func (l voidRatelimit) Close() {
-}
-
-func (l voidRatelimit) RetryAfter(string) int {
-	return 0
-}
-
-func (l voidRatelimit) Delta(string) time.Duration {
-	return -1 * time.Second
-}
-
-func (l voidRatelimit) Resize(string, int) {
-}
+func (voidRatelimit) Allow(string) bool          { return true }
+func (voidRatelimit) Close()                     {}
+func (voidRatelimit) Current(string) time.Time   { return time.Time{} }
+func (voidRatelimit) RetryAfter(string) int      { return 0 }
+func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
+func (voidRatelimit) Resize(string, int)         {}
 
 func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {
 	var impl implementation

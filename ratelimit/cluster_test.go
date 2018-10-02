@@ -9,6 +9,14 @@ import (
 	"github.com/zalando/skipper/swarm"
 )
 
+var fakeRand *rand.Rand = rand.New(rand.NewSource(23))
+
+func newFakeSwarm(nodeName string, leaveTimeout time.Duration) (*swarm.Swarm, error) {
+	// create port >= 1025 and < 40000
+	port := uint16((fakeRand.Int() % (40000 - 1025)) + 1025)
+	return swarm.NewSwarm(swarm.Options{FakeSwarm: true, FakeSwarmLocalNode: nodeName, LeaveTimeout: leaveTimeout, MaxMessageBuffer: 1024, Errors: make(chan<- error), SwarmPort: port})
+}
+
 func TestSingleSwarm(t *testing.T) {
 	s := Settings{
 		Type:       ClusterRatelimit,
@@ -83,14 +91,6 @@ func TestSingleSwarm(t *testing.T) {
 
 }
 
-var fakeRand *rand.Rand = rand.New(rand.NewSource(23))
-
-func newFakeSwarm(nodeName string, leaveTimeout time.Duration) (*swarm.Swarm, error) {
-	// create port >= 1025 and < 40000
-	port := uint16((fakeRand.Int() % (40000 - 1025)) + 1025)
-	return swarm.NewSwarm(swarm.Options{FakeSwarm: true, FakeSwarmLocalNode: nodeName, LeaveTimeout: leaveTimeout, MaxMessageBuffer: 1024, Errors: make(chan<- error), SwarmPort: port})
-}
-
 func Test_calculateShareKnowlege(t *testing.T) {
 	log.SetLevel(log.InfoLevel)
 	s := Settings{
@@ -115,18 +115,91 @@ func Test_calculateShareKnowlege(t *testing.T) {
 		epsilon     float64
 		expected    float64
 	}{{
+		name:     "no swarmValues",
+		expected: 0,
+		epsilon:  0.1,
+	}, {
+		name: "both have swarmValues, one has a hit, the other no hit, but should not be counted",
 		swarmValues: map[string]interface{}{
 			"n1": int64(now.Sub(now.Add(-2 * time.Second))),
 			"n2": int64(0),
 		},
-		expected: 10.0,
+		// 1 req 2s ago --> 2req/s shared state, but should not be calculated because out of s.TimeWindow
+		// global: 3req/s
+		expected: 0.0,
 		epsilon:  0.1,
 	}, {
+		name: "both have swarmValues, both have one hit, but should not be counted",
 		swarmValues: map[string]interface{}{
 			"n1": int64(now.Sub(now.Add(-2 * time.Second))),
 			"n2": int64(now.Sub(now.Add(-2 * time.Second))),
 		},
-		expected: 20.0,
+		// 2 req 2s ago --> 4req/s shared state, but should not be calculated because out of s.TimeWindow
+		// global: 3req/s
+		expected: 0.0,
+		epsilon:  0.1,
+	}, {
+		name: "both have swarmValues, one should be counted and has a too high rate",
+		swarmValues: map[string]interface{}{
+			"n1": int64(now.Sub(now.Add(-200 * time.Millisecond))),
+			"n2": int64(0),
+		},
+		// 1 req 200ms ago --> 5req/s shared state
+		// global: 3req/s
+		expected: 5.0,
+		epsilon:  0.1,
+	}, {
+		name: "one has swarmValue, one should be counted and has a too high rate",
+		swarmValues: map[string]interface{}{
+			"n1": int64(now.Sub(now.Add(-200 * time.Millisecond))),
+		},
+		// 1 req 200ms ago --> 5req/s shared state
+		// global: 3req/s
+		expected: 5.0,
+		epsilon:  0.1,
+	}, {
+		name: "one has swarmValue, one should be counted and has a ok rate",
+		swarmValues: map[string]interface{}{
+			"n1": int64(now.Sub(now.Add(-800 * time.Millisecond))),
+		},
+		// 1 req 800ms ago --> 1.25req/s shared state
+		// global: 3req/s
+		expected: 1.25,
+		epsilon:  0.1,
+	}, {
+		name: "one has swarmValue, one should be counted and has a ok rate",
+		swarmValues: map[string]interface{}{
+			"n1": int64(now.Sub(now.Add(-900 * time.Millisecond))),
+		},
+		// 1 req 900ms ago --> 1.111req/s shared state
+		// global: 3req/s
+		expected: 1.1,
+		epsilon:  0.1,
+	}, {
+		name: "both have swarmValues, one should be counted and has a ok rate",
+		swarmValues: map[string]interface{}{
+			"n1": int64(now.Sub(now.Add(-900 * time.Millisecond))),
+			"n2": int64(now.Sub(now.Add(-1900 * time.Millisecond))),
+		},
+		// 1 req 900ms ago --> 1.111req/s shared state
+		// global: 3req/s
+		expected: 1.1,
+		epsilon:  0.1,
+	}, {
+		name: "both have swarmValues, both should be counted and has a ok rate",
+		swarmValues: map[string]interface{}{
+			"n1": int64(now.Sub(now.Add(-900 * time.Millisecond))),
+			"n2": int64(now.Sub(now.Add(-800 * time.Millisecond))),
+		},
+		expected: 1.25 + 1.1,
+		epsilon:  0.1,
+	}, {
+		name: "both have swarmValues, both should be counted and together they are not ok",
+		swarmValues: map[string]interface{}{
+			"n1": int64(now.Sub(now.Add(-500 * time.Millisecond))),
+			"n2": int64(now.Sub(now.Add(-400 * time.Millisecond))),
+		},
+		expected: 2.0 + 2.5,
 		epsilon:  0.1,
 	}} {
 		t.Run(ti.name, func(t *testing.T) {
