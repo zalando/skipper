@@ -6,26 +6,15 @@ The `apimonitoring` filter adds API related metrics to the monitoring.
 
 	a: Path("/this-is-monitored")
 		-> apimonitoring(`{
-	         "apis": [
-	           {
-	             "application_id": "my_app",
-	             "id": "orders_api",
-	             "path_templates": [
-	               "foo/orders",
-	               "foo/orders/:order-id",
-	               "foo/orders/:order-id/order-items/{order-item-id}"
-	             ]
-	           },
-	           {
-	             "id": "customers_api",
-	             "application_id": "my_app",
-	             "path_templates": [
-	               "/foo/customers/",
-	               "/foo/customers/{customer-id}/"
-	             ]
-	           }
-	         ]
-	       }`)
+			"application_id": "my_app",
+			"path_templates": [
+				"foo/orders",
+				"foo/orders/:order-id",
+				"foo/orders/:order-id/order-items/{order-item-id}"
+				"/foo/customers/",
+				"/foo/customers/{customer-id}/"
+			]
+		}`)
 		-> "https://example.org/";
 
 

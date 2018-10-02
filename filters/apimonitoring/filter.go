@@ -55,7 +55,6 @@ var _ filters.Filter = new(apiMonitoringFilter)
 
 type pathInfo struct {
 	ApplicationId string
-	ApiId         string
 	PathTemplate  string
 	Matcher       *regexp.Regexp
 }
@@ -150,7 +149,6 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 	dimensions := []string{
 		MetricPrefix,
 		path.ApplicationId,
-		path.ApiId,
 		req.Method,
 		path.PathTemplate,
 	}
