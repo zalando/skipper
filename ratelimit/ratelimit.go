@@ -160,6 +160,9 @@ type implementation interface {
 	// Current returns the oldest timestamp for string
 	Current(string) time.Time
 
+	// Oldest returns the oldest timestamp for string
+	Oldest(string) time.Time
+
 	// RetryAfter is used to inform the client how many seconds it should wait
 	// before making a new request
 	RetryAfter(string) int
@@ -216,6 +219,7 @@ type voidRatelimit struct{}
 func (voidRatelimit) Allow(string) bool          { return true }
 func (voidRatelimit) Close()                     {}
 func (voidRatelimit) Current(string) time.Time   { return time.Time{} }
+func (voidRatelimit) Oldest(string) time.Time    { return time.Time{} }
 func (voidRatelimit) RetryAfter(string) int      { return 0 }
 func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
