@@ -77,7 +77,7 @@ func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, 
 }
 
 // jsonGet requests url with access token in the URL query specified
-// by accessTokenKey, if auth was given and writes into doc.
+// by tokenKey, if auth was given and writes into doc.
 func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Client) error {
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
@@ -102,7 +102,7 @@ func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Cli
 // jsonPost requests url with access token in the body, if auth was given and writes into doc.
 func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http.Client) error {
 	body := url.Values{}
-	body.Add(accessTokenKey, auth)
+	body.Add(tokenKey, auth)
 
 	rsp, err := client.PostForm(u.String(), body)
 	if err != nil {
