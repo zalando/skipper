@@ -552,7 +552,7 @@ oauthTokenintrospectionAllKV("k1", "v1", "k2", "v2")
 
 ## forwardToken
 
-The filter accepts a single string as an argument. The argument is the header 
+The filter accepts a single string as an argument. The argument is the header
 name where the result of token info or token introspection is added when the
 request is passed to the backend.
 
@@ -802,4 +802,16 @@ Example:
 
 ```
 enableAccessLog()
+```
+
+## auditLog
+
+Filter `auditLog()` logs the request and N bytes of the body into the
+log file. N defaults to 1024 and can be overidden with
+`--max-audit-body=<int>`. `N=0` omits logging the body.
+
+Example:
+
+```
+auditLog()
 ```
