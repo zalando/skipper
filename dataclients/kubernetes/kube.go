@@ -841,7 +841,7 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 // because Ingress status field is v1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
 func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
-	// TODO: apply the laod balancing by using the loadbalancer.BalanceRoute() function
+	// TODO: apply the load balancing by using the loadbalancer.BalanceRoute() function
 
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
@@ -985,13 +985,13 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 							}
 						}
 
+						// only apply filters to member routes
 						if !isLBDecisionRoute && annotationFilter != "" {
 							annotationFilters, err := eskip.ParseFilters(annotationFilter)
 							if err != nil {
 								logger.Errorf("Can not parse annotation filters: %v", err)
 							} else {
-								sav := r.Filters[:]
-								r.Filters = append(annotationFilters, sav...)
+								r.Filters = append(r.Filters, annotationFilters...)
 							}
 						}
 
