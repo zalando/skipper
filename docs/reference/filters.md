@@ -808,7 +808,7 @@ enableAccessLog()
 
 Filter `auditLog()` logs the request and N bytes of the body into the
 log file. N defaults to 1024 and can be overidden with
-`--max-audit-body=<int>`. `N=0` omits logging the body.
+`-max-audit-body=<int>`. `N=0` omits logging the body.
 
 Example:
 
