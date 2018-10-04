@@ -65,70 +65,61 @@ func TestSingleSwarm(t *testing.T) {
 		MaxHits:    3,
 		TimeWindow: 1 * time.Second,
 	}
-
-	sw1, err := newFakeSwarm("n1", 5*time.Second)
-	if err != nil {
-		t.Errorf("Failed to start swarm1: %v", err)
-	}
-	defer sw1.Leave()
-
-	crl1sw1 := NewClusterRateLimiter(s, sw1, "cr1")
-	crl2sw1 := NewClusterRateLimiter(s, sw1, "cr2")
 	backend1 := "foo"
 	backend2 := "bar"
-	waitClean := func() {
-		time.Sleep(s.TimeWindow)
-	}
 
 	t.Run("single swarm peer, single ratelimit", func(t *testing.T) {
-		if !crl1sw1.Allow(backend1) {
-			t.Errorf("%s not allowed but should", backend1)
+		sw1, err := newFakeSwarm("n1", 5*time.Second)
+		if err != nil {
+			t.Errorf("Failed to start swarm1: %v", err)
 		}
-		if !crl1sw1.Allow(backend1) {
-			t.Errorf("%s not allowed but should", backend1)
+		defer sw1.Leave()
+		crl1sw1 := NewClusterRateLimiter(s, sw1, "cr1")
+
+		for i := 1; i <= s.MaxHits; i++ {
+			if !crl1sw1.Allow(backend1) {
+				t.Errorf("%s not allowed but should in %d iteration", backend1, i)
+			}
 		}
-		if crl1sw1.Allow(backend1) {
-			t.Errorf("%s allowed but should not", backend1)
-		}
-		if crl1sw1.Allow(backend2) {
-			t.Errorf("%s not allowed but should", backend2)
-		}
-		waitClean()
-		if !crl1sw1.Allow(backend2) {
-			t.Errorf("after wait clean %s not allowed but should", backend2)
-		}
-		if !crl1sw1.Allow(backend1) {
-			t.Errorf("after wait clean %s not allowed but should", backend1)
-		}
-		if crl1sw1.Allow(backend1) {
-			t.Errorf("%s allowed but should not", backend1)
-		}
+
 		if crl1sw1.Allow(backend2) {
 			t.Errorf("%s allowed but should not", backend2)
 		}
-		waitClean()
 	})
 
 	t.Run("single swarm peer, multiple ratelimiters", func(t *testing.T) {
-		if !crl1sw1.Allow(backend1) {
-			t.Errorf("%s not allowed but should", backend1)
+		sw1, err := newFakeSwarm("n1", 5*time.Second)
+		if err != nil {
+			t.Errorf("Failed to start swarm1: %v", err)
 		}
-		if !crl1sw1.Allow(backend2) {
-			t.Errorf("%s not allowed but should", backend2)
+		defer sw1.Leave()
+		crl1sw1 := NewClusterRateLimiter(s, sw1, "cr1")
+		crl2sw1 := NewClusterRateLimiter(s, sw1, "cr2")
+
+		for i := 0; i < s.MaxHits; i++ {
+			if !crl1sw1.Allow(backend1) {
+				t.Errorf("%s not allowed but should, iteration %d", backend1, i)
+			}
 		}
-		if !crl2sw1.Allow(backend1) {
-			t.Errorf("%s not allowed but should", backend1)
+		if crl1sw1.Allow(backend1) {
+			t.Errorf("%s allowed but should not", backend1)
 		}
 		if !crl2sw1.Allow(backend2) {
 			t.Errorf("%s not allowed but should", backend2)
+		}
+
+		// one is already tested
+		for i := 1; i < s.MaxHits; i++ {
+			if !crl2sw1.Allow(backend2) {
+				t.Errorf("%s not allowed but should, iteration %d", backend2, i)
+			}
 		}
 		if crl1sw1.Allow(backend1) {
 			t.Errorf("%s allowed but should not", backend1)
 		}
 		if crl2sw1.Allow(backend2) {
-			t.Errorf("%s not allowed but should", backend2)
+			t.Errorf("%s allowed but should not", backend2)
 		}
-		waitClean()
 	})
 
 }
@@ -265,10 +256,10 @@ func Test_calcTotalRequestRate(t *testing.T) {
 				t.Errorf("Failed to calcTotalRequestRate: rate=%v expected=%v", rate, ti.expected)
 			}
 
-			// check that it times out
+			// check that it times out, rate should be always 0
 			rate = crl1sw1.calcTotalRequestRate(now+int64(s.TimeWindow), ti.swarmValues)
-			if !((0.0-ti.epsilon) <= rate && rate <= (0.0+ti.epsilon)) {
-				t.Errorf("Failed to calcTotalRequestRate: rate=%v expected=%v", rate, ti.expected)
+			if !((-ti.epsilon) <= rate && rate <= (ti.epsilon)) {
+				t.Errorf("Failed to zero out calcTotalRequestRate: rate=%v but should 0+-%v", rate, ti.epsilon)
 			}
 		})
 
@@ -311,63 +302,56 @@ func TestTwoSwarms(t *testing.T) {
 		if !crl1sw1.Allow(backend1) {
 			t.Errorf("1.1 %s not allowed but should", backend1)
 		}
-		println("============")
 
 		time.Sleep(100 * time.Millisecond)
 		if !crl1sw2.Allow(backend1) {
 			t.Errorf("2.1 %s not allowed but should", backend1)
 		}
-		println("============")
 
 		time.Sleep(100 * time.Millisecond)
 		if crl1sw2.Allow(backend1) {
 			t.Errorf("2.2 %s allowed but should not", backend1)
 		}
-		println("============")
 
 		time.Sleep(100 * time.Millisecond)
 		if crl1sw1.Allow(backend1) {
 			t.Errorf("1.2 %s allowed but should not", backend1)
 		}
-		println("============")
 
 		waitClean()
 		crl1sw2.Allow(backend2)
-		println("============")
 		if !crl1sw1.Allow(backend1) {
 			t.Errorf("1.3 %s not allowed but should", backend1)
 		}
-		println("============")
 
-		// time.Sleep(100 * time.Millisecond)
-		// if !crl1sw1.Allow(backend1) {
-		// 	t.Errorf("1.4 %s allowed but should not", backend1)
-		// }
-		// println("============")
+		time.Sleep(100 * time.Millisecond)
+		if crl1sw1.Allow(backend1) {
+			t.Errorf("1.4 %s allowed but should not", backend1)
+		}
 
-		// time.Sleep(100 * time.Millisecond)
-		// if !crl1sw2.Allow(backend1) {
-		// 	t.Errorf("2.3 %s allowed but should not", backend1)
-		// }
+		time.Sleep(100 * time.Millisecond)
+		if crl1sw2.Allow(backend1) {
+			t.Errorf("2.3 %s allowed but should not", backend1)
+		}
 		waitClean()
 
-		// if !crl1sw1.Allow(backend2) {
-		// 	t.Errorf("2 1.1 %s not allowed but should", backend2)
-		// }
-		// if !crl1sw2.Allow(backend2) {
-		// 	t.Errorf("2 2.1 %s not allowed but should", backend2)
-		// }
-		// if !crl1sw2.Allow(backend2) {
-		// 	t.Errorf("2 2.2 %s not allowed but should", backend2)
-		// }
+		if !crl1sw1.Allow(backend2) {
+			t.Errorf("2 1.1 %s not allowed but should", backend2)
+		}
+		if !crl1sw2.Allow(backend2) {
+			t.Errorf("2 2.1 %s not allowed but should", backend2)
+		}
+		if crl1sw2.Allow(backend2) {
+			t.Errorf("2 2.2 %s not allowed but should", backend2)
+		}
 
-		// time.Sleep(100 * time.Millisecond)
-		// if crl1sw2.Allow(backend2) {
-		// 	t.Errorf("2 2.3 %s allowed but should not", backend2)
-		// }
-		// if crl1sw1.Allow(backend2) {
-		// 	t.Errorf("2 1.2 %s allowed but should not", backend2)
-		// }
-		// waitClean()
+		time.Sleep(100 * time.Millisecond)
+		if crl1sw2.Allow(backend2) {
+			t.Errorf("2 2.3 %s allowed but should not", backend2)
+		}
+		if crl1sw1.Allow(backend2) {
+			t.Errorf("2 1.2 %s allowed but should not", backend2)
+		}
+		waitClean()
 	})
 }

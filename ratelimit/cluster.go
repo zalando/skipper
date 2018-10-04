@@ -1,7 +1,6 @@
 package ratelimit
 
 import (
-	"math"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -97,6 +96,8 @@ func (c *ClusterLimit) Allow(s string) bool {
 
 func (c *ClusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {
 	var requestRate float64
+	//maxNodeHits := c.maxHits / float64(len(swarmValues))
+
 	for _, v := range swarmValues {
 		t0, ok := v.(int64)
 		if !ok || t0 == 0 {
@@ -104,46 +105,24 @@ func (c *ClusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]in
 		}
 		deltaI := now - t0
 		delta := time.Duration(deltaI)
-		log.Infof("deltaI: %v, delta: %v, win: %v", deltaI, delta, c.window)
 		if delta > c.window {
 			continue
 		}
-		requestRate += float64(c.window) / float64(delta)
+
 		log.Infof("%0.2f += %0.2f / %0.2f", requestRate, float64(c.window), float64(delta))
+		requestRate += float64(c.window) / float64(delta)
+
+		// tempRate := float64(c.window) / float64(delta)
+		// if tempRate > 10*maxNodeHits {
+		// 	tempRate = maxNodeHits
+		// }
+		// requestRate += tempRate
+
+		//requestRate += math.Min(maxNodeHits, float64(c.window)/float64(delta))
+		//requestRate += math.Max(maxNodeHits, float64(c.window)/float64(delta))
 	}
 	log.Infof("requestRate: %0.2f", requestRate)
 	return requestRate
-}
-
-func (c *ClusterLimit) calculateSharedKnowledge(now time.Time, swarmValues map[string]interface{}) float64 {
-	var rate float64 = 0
-	swarmValuesSize := math.Max(1.0, float64(len(swarmValues)))
-	maxNodeHits := c.maxHits / swarmValuesSize
-
-	for _, val := range swarmValues {
-		if deltaI, ok := val.(int64); ok {
-			//delta := time.Duration(deltaI)
-			t := time.Unix(deltaI, 0)
-			delta := now.Sub(t)
-			rateV := float64(c.window) / float64(delta)
-			if c.window < delta {
-				rateV = float64(0)
-			}
-			log.Infof("rate %v, deltaI: %d, delta: %v, rateV: %v, c.window: %v, val: %v", rate, deltaI, delta, rateV, c.window, val)
-			switch {
-			case delta == 0:
-			case delta > 0:
-				rate += rateV
-			default:
-				log.Errorf("Should not happen: %v, add maxNodeHits to rate", delta)
-				rate += maxNodeHits
-			}
-		} else {
-			log.Warningf("%s: val is not int64: %v", c.name, val)
-		}
-	}
-	log.Infof("returning rate: %0.2f/%v", rate, c.window)
-	return rate
 }
 
 func (c *ClusterLimit) Close() {
