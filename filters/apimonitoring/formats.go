@@ -74,7 +74,7 @@ func mapHttpRequest(r *http.Request) JSValue {
 		"Proto":            r.Proto,
 		"ProtoMajor":       r.ProtoMajor,
 		"ProtoMinor":       r.ProtoMinor,
-		"Header":           r.Header,
+		"Header":           mapHeader(r.Header),
 		"Body":             mapPointer(r.Body),
 		"ContentLength":    r.ContentLength,
 		"TransferEncoding": r.TransferEncoding,
@@ -88,6 +88,31 @@ func mapHttpRequest(r *http.Request) JSValue {
 		"TLS":              mapConnectionState(r.TLS),
 		"Response":         mapPointer(r.Response),
 	}
+}
+
+var headerBlackList = []string{
+	"Authorization",
+	"Cookie",
+	"Set-Cookie",
+}
+
+func headerIsNotBlacklisted(headerName string) bool {
+	for _, blackListed := range headerBlackList {
+		if headerName == blackListed {
+			return false
+		}
+	}
+	return true
+}
+
+func mapHeader(h http.Header) JSValue {
+	result := make(JSObject)
+	for k, v := range h {
+		if headerIsNotBlacklisted(k) {
+			result[k] = v
+		}
+	}
+	return result
 }
 
 func mapPointer(p interface{}) JSValue {
@@ -124,7 +149,7 @@ func mapHttpResponse(r *http.Response) JSValue {
 		"Proto":            r.Proto,
 		"ProtoMajor":       r.ProtoMajor,
 		"ProtoMinor":       r.ProtoMinor,
-		"Header":           r.Header,
+		"Header":           mapHeader(r.Header),
 		"Body":             mapPointer(r.Body),
 		"ContentLength":    r.ContentLength,
 		"TransferEncoding": r.TransferEncoding,
