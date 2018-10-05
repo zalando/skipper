@@ -44,10 +44,10 @@ const (
 
 	authHeaderName   = "Authorization"
 	authHeaderPrefix = "Bearer "
-	// accessTokenKey defined at https://tools.ietf.org/html/rfc7662#section-2.1
-	accessTokenKey = "access_token"
-	scopeKey       = "scope"
-	uidKey         = "uid"
+	// tokenKey defined at https://tools.ietf.org/html/rfc7662#section-2.1
+	tokenKey = "token"
+	scopeKey = "scope"
+	uidKey   = "uid"
 )
 
 type kv map[string]string
