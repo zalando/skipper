@@ -11,9 +11,6 @@ import (
 
 // Metric names
 const (
-	// Prefix
-	MetricPrefix = "api-mon"
-
 	// Status Code counting
 	MetricCountAll  = "http_count"
 	MetricCount500s = "http500_count"
@@ -140,7 +137,6 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 		return "", false
 	}
 	dimensions := []string{
-		MetricPrefix,
 		path.ApplicationId,
 		req.Method,
 		path.PathTemplate,

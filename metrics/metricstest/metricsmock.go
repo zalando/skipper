@@ -7,7 +7,7 @@ import (
 )
 
 type MockMetrics struct {
-	strictMock bool
+	Prefix string
 
 	// Metrics gathering
 	Counters map[string]int64
@@ -17,6 +17,7 @@ type MockMetrics struct {
 var _ metrics.Metrics = new(MockMetrics)
 
 func (m *MockMetrics) MeasureSince(key string, start time.Time) {
+	key = m.Prefix + key
 	if m.Measures == nil {
 		m.Measures = make(map[string][]time.Duration)
 	}
@@ -29,6 +30,7 @@ func (m *MockMetrics) MeasureSince(key string, start time.Time) {
 }
 
 func (m *MockMetrics) IncCounter(key string) {
+	key = m.Prefix + key
 	if m.Counters == nil {
 		m.Counters = make(map[string]int64)
 	}
@@ -40,6 +42,7 @@ func (m *MockMetrics) IncCounter(key string) {
 }
 
 func (m *MockMetrics) IncCounterBy(key string, value int64) {
+	key = m.Prefix + key
 	if m.Counters == nil {
 		m.Counters = make(map[string]int64)
 	}
