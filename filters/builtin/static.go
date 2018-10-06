@@ -2,7 +2,7 @@ package builtin
 
 import (
 	"fmt"
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/serve"
 	"net/http"
@@ -36,13 +36,11 @@ func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 	}
 
 	webRoot, ok := config[0].(string)
-
 	if !ok {
 		return nil, fmt.Errorf("invalid parameter type, expected string for web root prefix")
 	}
 
 	root, ok := config[1].(string)
-
 	if !ok {
 		log.Errorf("Invalid parameter type, expected string for path to root dir")
 		return nil, filters.ErrInvalidFilterParameters
@@ -68,7 +66,6 @@ func (f *static) Response(filters.FilterContext) {}
 func existsAndAccessible(path string) (bool, error) {
 	if _, err := os.Stat(path); err != nil {
 		return os.IsExist(err), err
-	} else {
-		return true, nil
 	}
+	return true, nil
 }
