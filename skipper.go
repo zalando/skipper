@@ -25,6 +25,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/query"
@@ -45,7 +46,6 @@ const DefaultPluginDir = "./plugins"
 
 // Options to start skipper.
 type Options struct {
-
 	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
 
@@ -96,12 +96,25 @@ type Options struct {
 	// expected to be set by the load-balancer.
 	KubernetesHTTPSRedirect bool
 
+	// KubernetesHTTPSRedirectCode overrides the default redirect code (308)
+	// when used together with -kubernetes-https-redirect.
+	KubernetesHTTPSRedirectCode int
+
 	// KubernetesIngressClass is a regular expression, that will make
 	// skipper load only the ingress resources that that have a matching
 	// kubernetes.io/ingress.class annotation. For backwards compatibility,
 	// the ingresses without an annotation, or an empty annotation, will
 	// be loaded, too.
 	KubernetesIngressClass string
+
+	// PathMode controls the default interpretation of ingress paths in cases
+	// when the ingress doesn't specify it with an annotation.
+	KubernetesPathMode kubernetes.PathMode
+
+	// KubernetesNamespace is used to switch between monitoring ingresses in the cluster-scope or limit
+	// the ingresses to only those in the specified namespace. Defaults to "" which means monitor ingresses
+	// in the cluster-scope.
+	KubernetesNamespace string
 
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -284,6 +297,9 @@ type Options struct {
 	// instead of the default uniform one.
 	MetricsUseExpDecaySample bool
 
+	// Use custom buckets for prometheus histograms.
+	HistogramMetricBuckets []float64
+
 	// The following options, for backwards compatibility, are true
 	// by default: EnableAllFiltersMetrics, EnableRouteResponseMetrics,
 	// EnableRouteBackendErrorsCounters, EnableRouteStreamingErrorsCounters,
@@ -321,6 +337,10 @@ type Options struct {
 
 	// Enables logs in JSON format
 	AccessLogJSONEnabled bool
+
+	// AccessLogStripQuery, when set, causes the query strings stripped
+	// from the request URI in the access logs.
+	AccessLogStripQuery bool
 
 	DebugListener string
 
@@ -417,8 +437,18 @@ type Options struct {
 	// header, in this case you want to set this to true.
 	ReverseSourcePredicate bool
 
-	// OAuthTokeninfoURL sets the OAuthTokeninfoURL similar to https://godoc.org/golang.org/x/oauth2#Endpoint
+	// OAuthTokeninfoURL sets the the URL to be queried for
+	// information for all auth.NewOAuthTokeninfo*() filters.
 	OAuthTokeninfoURL string
+
+	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
+	OAuthTokeninfoTimeout time.Duration
+
+	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
+	OAuthTokenintrospectionTimeout time.Duration
+
+	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
+	WebhookTimeout time.Duration
 
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
@@ -490,9 +520,12 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			KubernetesURL:              o.KubernetesURL,
 			ProvideHealthcheck:         o.KubernetesHealthcheck,
 			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
+			HTTPSRedirectCode:          o.KubernetesHTTPSRedirectCode,
 			IngressClass:               o.KubernetesIngressClass,
 			ReverseSourcePredicate:     o.ReverseSourcePredicate,
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
+			PathMode:                   o.KubernetesPathMode,
+			KubernetesNamespace:        o.KubernetesNamespace,
 		})
 		if err != nil {
 			return nil, err
@@ -542,8 +575,9 @@ func initLog(o Options) error {
 		ApplicationLogPrefix: o.ApplicationLogPrefix,
 		ApplicationLogOutput: logOutput,
 		AccessLogOutput:      accessLogOutput,
-		AccessLogDisabled:    o.AccessLogDisabled,
-		AccessLogJSONEnabled: o.AccessLogJSONEnabled})
+		AccessLogJSONEnabled: o.AccessLogJSONEnabled,
+		AccessLogStripQuery:  o.AccessLogStripQuery,
+	})
 
 	return nil
 }
@@ -554,12 +588,11 @@ func (o *Options) isHTTPS() bool {
 
 func listenAndServe(proxy http.Handler, o *Options) error {
 	// create the access log handler
-	loggingHandler := logging.NewHandler(proxy)
 	log.Infof("proxy listener on %v", o.Address)
 
 	srv := &http.Server{
 		Addr:              o.Address,
-		Handler:           loggingHandler,
+		Handler:           proxy,
 		ReadTimeout:       o.ReadTimeoutServer,
 		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
 		WriteTimeout:      o.WriteTimeoutServer,
@@ -624,7 +657,7 @@ func Run(o Options) error {
 		return err
 	}
 
-	// *DEPRECATED* inkeeper - create data clients
+	// *DEPRECATED* innkeeper - create data clients
 	dataClients, err := createDataClients(o, inkeeperAuth)
 	if err != nil {
 		return err
@@ -638,12 +671,20 @@ func Run(o Options) error {
 	}
 
 	if o.OAuthTokeninfoURL != "" {
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllScope(o.OAuthTokeninfoURL))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyScope(o.OAuthTokeninfoURL))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL))
-		o.CustomFilters = append(o.CustomFilters, auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL))
+		o.CustomFilters = append(o.CustomFilters,
+			auth.NewOAuthTokeninfoAllScope(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
+			auth.NewOAuthTokeninfoAnyScope(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
+			auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
+			auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
 	}
-	o.CustomFilters = append(o.CustomFilters, logfilter.NewAuditLog(o.MaxAuditBody))
+
+	o.CustomFilters = append(o.CustomFilters,
+		logfilter.NewAuditLog(o.MaxAuditBody),
+		auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
+		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
+		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
+		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
+		auth.NewWebhook(o.WebhookTimeout))
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
@@ -682,6 +723,8 @@ func Run(o Options) error {
 		traffic.New(),
 		loadbalancer.NewGroup(),
 		loadbalancer.NewMember(),
+		pauth.NewJWTPayloadAllKV(),
+		pauth.NewJWTPayloadAnyKV(),
 	)
 
 	// create a routing engine
@@ -714,6 +757,7 @@ func Run(o Options) error {
 		DualStack:              o.DualStackBackend,
 		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
 		MaxIdleConns:           o.MaxIdleConnsBackend,
+		AccessLogDisabled:      o.AccessLogDisabled,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
@@ -780,6 +824,7 @@ func Run(o Options) error {
 			EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
 			EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
 			UseExpDecaySample:                  o.MetricsUseExpDecaySample,
+			HistogramBuckets:                   o.HistogramMetricBuckets,
 			DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		})
 		mux.Handle("/metrics", metricsHandler)
@@ -795,7 +840,7 @@ func Run(o Options) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 	if len(o.OpenTracing) > 0 {
-		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, o.OpenTracing)
+		tracer, err := tracing.InitTracer(o.OpenTracing)
 		if err != nil {
 			return err
 		}

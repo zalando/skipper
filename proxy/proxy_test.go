@@ -19,6 +19,8 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -135,7 +137,12 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},
-		Log:            tl})
+		Predicates: []routing.PredicateSpec{
+			loadbalancer.NewGroup(),
+			loadbalancer.NewMember(),
+		},
+		Log: tl,
+	})
 	params.Routing = rt
 	p := WithParams(params)
 	p.log = tl
@@ -1281,6 +1288,182 @@ func TestHopHeaderRemoval(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Error("wrong status", w.Code)
+	}
+}
+
+func TestLogsAccess(t *testing.T) {
+	var accessLog bytes.Buffer
+	logging.Init(logging.Options{AccessLogOutput: &accessLog})
+
+	response := "7 bytes"
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+
+	tp, err := newTestProxy(doc, FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	output := accessLog.String()
+	if !strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-" 0 - - -`, r.Method, http.StatusTeapot, len(response))) {
+		t.Error("failed to log access", output)
+	}
+}
+
+func TestDisableAccessLog(t *testing.T) {
+	var buf bytes.Buffer
+	logging.Init(logging.Options{
+		AccessLogOutput: &buf})
+
+	response := "7 bytes"
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+
+	tp, err := newTestProxyWithParams(doc, Params{
+		AccessLogDisabled: true,
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	if buf.Len() != 0 {
+		t.Error("failed to disable access log")
+	}
+}
+
+func TestDisableAccessLogWithFilter(t *testing.T) {
+	var buf bytes.Buffer
+	logging.Init(logging.Options{
+		AccessLogOutput: &buf})
+
+	response := "7 bytes"
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> disableAccessLog() -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+
+	tp, err := newTestProxyWithParams(doc, Params{
+		AccessLogDisabled: false,
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	if buf.Len() != 0 {
+		t.Error("failed to disable access log")
+	}
+}
+
+func TestEnableAccessLogWithFilter(t *testing.T) {
+	var buf bytes.Buffer
+	logging.Init(logging.Options{
+		AccessLogOutput: &buf})
+
+	response := "7 bytes"
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> enableAccessLog() -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+
+	tp, err := newTestProxyWithParams(doc, Params{
+		AccessLogDisabled: true,
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	output := buf.String()
+	if !strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-" 0 - - -`, r.Method, http.StatusTeapot, len(response))) {
+		t.Error("failed to log access", output)
+	}
+}
+
+func TestAccessLogOnFailedRequest(t *testing.T) {
+	var buf bytes.Buffer
+	logging.Init(logging.Options{
+		AccessLogOutput: &buf})
+
+	s := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	s.Close()
+
+	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, s.URL), 0)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	rsp, err := http.Get(ps.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusBadGateway {
+		t.Error("failed to return 502 Bad Gateway on failing backend connection")
+	}
+
+	output := buf.String()
+
+	proxyURL, err := url.Parse(ps.URL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1" 0 %s - -`, http.StatusBadGateway, rsp.ContentLength, proxyURL.Host)
+	if !strings.Contains(output, expected) {
+		t.Error("failed to log access", output, expected)
 	}
 }
 

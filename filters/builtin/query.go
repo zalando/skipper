@@ -82,7 +82,8 @@ func createDropQuery(config []interface{}) (filters.Filter, error) {
 }
 
 func createSetQuery(config []interface{}) (filters.Filter, error) {
-	if len(config) != 2 {
+	l := len(config)
+	if l < 1 || l > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -90,12 +91,14 @@ func createSetQuery(config []interface{}) (filters.Filter, error) {
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
+	if l == 1 {
+		return &modQuery{behavior: set, name: eskip.NewTemplate(name)}, nil
+	}
 
 	value, ok := config[1].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
-
 	return &modQuery{behavior: set, name: eskip.NewTemplate(name), value: eskip.NewTemplate(value)}, nil
 }
 
@@ -120,7 +123,13 @@ func (f *modQuery) Request(ctx filters.FilterContext) {
 	case drop:
 		params.Del(f.name.Apply(ctx.PathParam))
 	case set:
-		params.Set(f.name.Apply(ctx.PathParam), f.value.Apply(ctx.PathParam))
+		if f.value == nil {
+			req.URL.RawQuery = f.name.Apply(ctx.PathParam)
+			return
+		} else {
+			params.Set(f.name.Apply(ctx.PathParam), f.value.Apply(ctx.PathParam))
+
+		}
 	default:
 		panic("unspecified behavior")
 	}

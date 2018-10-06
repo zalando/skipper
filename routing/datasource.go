@@ -3,6 +3,7 @@ package routing
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/zalando/skipper/eskip"
@@ -515,6 +516,10 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 					validRoutes = append(validRoutes, &r.Route)
 				}
 			}
+
+			sort.SliceStable(validRoutes, func(i, j int) bool {
+				return validRoutes[i].Id < validRoutes[j].Id
+			})
 
 			rt = &routeTable{
 				m:             m,

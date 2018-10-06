@@ -35,6 +35,7 @@ type context struct {
 	startServe            time.Time
 	metrics               *filterMetrics
 	tracer                opentracing.Tracer
+	proxySpan             opentracing.Span
 
 	routeLookup *routing.RouteLookup
 }

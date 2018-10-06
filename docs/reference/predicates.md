@@ -68,10 +68,10 @@ Parameters:
 Examples:
 
 ```
-PathRegexp("/^foo\/bar/")
-PathRegexp("/foo\/bar$/")
-PathRegexp("/foo\/bar/")
-PathRegexp("/^foo\/(bar|qux)/")
+PathRegexp("^/foo/bar")
+PathRegexp("/foo/bar$")
+PathRegexp("/foo/bar/")
+PathRegexp("^/foo/(bar|qux)")
 ```
 
 ## Host
@@ -118,7 +118,7 @@ Examples:
 
 ```
 Header("X-Forwarded-For", "192.168.0.2")
-Header("Server", "skipper")
+Header("Accept", "application/json")
 ```
 
 ## HeaderRegexp
@@ -134,8 +134,8 @@ Parameters:
 Examples:
 
 ```
-HeaderRegexp("X-Forwarded-For", "/^192\.168\.0\.[0-2]?[0-9]?[0-9] /")
-HeaderRegexp("Server", "/skipper/")
+HeaderRegexp("X-Forwarded-For", "^192\.168\.0\.[0-2]?[0-9]?[0-9] ")
+HeaderRegexp("Accept", "application/(json|xml)")
 ```
 
 ## Cookie
@@ -150,6 +150,44 @@ Examples:
 
 ```
 Cookie("alpha", /^enabled$/)
+```
+
+## Auth
+
+Authorization header based match.
+
+### JWTPayloadAnyKV
+
+Match the route if at least one of the base64 decoded JWT content
+matches the key value configuration.
+
+Parameters:
+
+* Key-Value pairs (...string), odd index is the key of the JWT
+  content and even index is the value of the JWT content
+
+Examples:
+
+```
+JWTPayloadAnyKV("iss", "https://accounts.google.com")
+JWTPayloadAnyKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+```
+
+### JWTPayloadAllKV
+
+Match the route if all of the base64 decoded JWT content
+matches the key value configuration.
+
+Parameters:
+
+* Key-Value pairs (...string), odd index is the key of the JWT
+  content and even index is the value of the JWT content
+
+Examples:
+
+```
+JWTPayloadAllKV("iss", "https://accounts.google.com")
+JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
 ```
 
 ## Interval

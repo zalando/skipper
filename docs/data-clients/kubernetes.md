@@ -1,6 +1,6 @@
 # Kubernetes
 
-Skipper's Kubernetes dataclient can be used, if you want to run skipper as
+Skipper's Kubernetes dataclient can be used, if you want to run Skipper as
 [kubernetes-ingress-controller](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-controllers).
 It will get it's route information from provisioned
 [Ingress Objects](https://kubernetes.io/docs/concepts/services-networking/ingress).
@@ -8,11 +8,11 @@ Detailed information you find in our [godoc for dataclient kubernetes](https://g
 
 ## Kubernetes Ingress Controller deployment
 
-How to [install skipper ingress-controller](../kubernetes/ingress-controller.md) for cluster operators.
+How to [install Skipper ingress-controller](../kubernetes/ingress-controller.md) for cluster operators.
 
 ## Kubernetes Ingress Usage
 
-Find out more [how to use skipper ingress features](../kubernetes/ingress-usage.md) for deployers.
+Find out more [how to use Skipper ingress features](../kubernetes/ingress-usage.md) for deployers.
 
 ## Why to choose Skipper?
 
