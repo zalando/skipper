@@ -6,7 +6,6 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
-	"io/ioutil"
 	"net/http"
 	"testing"
 )
@@ -14,6 +13,7 @@ import (
 func createFilterForTest() (filters.Filter, error) {
 	spec := apiMonitoringFilterSpec{}
 	args := []interface{}{`{
+		"verbose": true,
 		"application_id": "my_app",
 		"path_templates": [
 			"foo/orders",
@@ -32,8 +32,9 @@ func testWithFilter(
 	method string,
 	url string,
 	reqBody string,
+	bypassReqContentLength *int64,
 	resStatus int,
-	resBody string,
+	responseContentLength int64,
 	expect func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64),
 ) {
 	filter, err := filterCreate()
@@ -47,11 +48,14 @@ func testWithFilter(
 	if err != nil {
 		t.Error(err)
 	}
+	if bypassReqContentLength != nil {
+		req.ContentLength = *bypassReqContentLength
+	}
 	ctx := &filtertest.Context{
 		FRequest: req,
 		FResponse: &http.Response{
 			StatusCode: resStatus,
-			Body:       ioutil.NopCloser(bytes.NewBufferString(resBody)),
+			ContentLength: responseContentLength,
 		},
 		FStateBag: make(map[string]interface{}),
 		FMetrics:  metricsMock,
@@ -62,7 +66,7 @@ func testWithFilter(
 	expect(
 		metricsMock,
 		int64(len(reqBody)),
-		0, // int64(len(resBody)), // todo Restore after understanding why `response.ContentLength` returns always 0
+		responseContentLength,
 	)
 }
 
@@ -73,8 +77,9 @@ func Test_Filter_NoPathPattern(t *testing.T) {
 		"GET",
 		"https://www.example.org/a/b/c",
 		"",
+		nil,
 		200,
-		"",
+		0,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			// no path matching: no tracking
 			assert.Empty(t, m.Counters)
@@ -89,13 +94,14 @@ func Test_Filter_PathPatternNoVariablePart(t *testing.T) {
 		"POST",
 		"https://www.example.org/foo/orders",
 		"asd",
+		nil,
 		400,
-		"qwerty",
+		6,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
 					"apimonitoring.custom.my_app.POST.foo/orders.http_count":    1,
-					"apimonitoring.custom.my_app.POST.foo/orders.http400_count": 1,
+					"apimonitoring.custom.my_app.POST.foo/orders.http4xx_count": 1,
 					"apimonitoring.custom.my_app.POST.foo/orders.req_size_sum":  reqBodyLen,
 					"apimonitoring.custom.my_app.POST.foo/orders.resp_size_sum": resBodyLen,
 				},
@@ -112,13 +118,14 @@ func Test_Filter_PathPatternWithVariablePart(t *testing.T) {
 		"POST",
 		"https://www.example.org/foo/orders/1234",
 		"asd",
-		400,
-		"qwerty",
+		nil,
+		200,
+		6,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
 					"apimonitoring.custom.my_app.POST.foo/orders/:order-id.http_count":    1,
-					"apimonitoring.custom.my_app.POST.foo/orders/:order-id.http400_count": 1,
+					"apimonitoring.custom.my_app.POST.foo/orders/:order-id.http2xx_count": 1,
 					"apimonitoring.custom.my_app.POST.foo/orders/:order-id.req_size_sum":  reqBodyLen,
 					"apimonitoring.custom.my_app.POST.foo/orders/:order-id.resp_size_sum": resBodyLen,
 				},
@@ -135,13 +142,14 @@ func Test_Filter_PathPatternWithMultipleVariablePart(t *testing.T) {
 		"POST",
 		"https://www.example.org/foo/orders/1234/order-items/123",
 		"asd",
-		400,
-		"qwerty",
+		nil,
+		300,
+		6,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
 					"apimonitoring.custom.my_app.POST.foo/orders/:order-id/order-items/:order-item-id.http_count":    1,
-					"apimonitoring.custom.my_app.POST.foo/orders/:order-id/order-items/:order-item-id.http400_count": 1,
+					"apimonitoring.custom.my_app.POST.foo/orders/:order-id/order-items/:order-item-id.http3xx_count": 1,
 					"apimonitoring.custom.my_app.POST.foo/orders/:order-id/order-items/:order-item-id.req_size_sum":  reqBodyLen,
 					"apimonitoring.custom.my_app.POST.foo/orders/:order-id/order-items/:order-item-id.resp_size_sum": resBodyLen,
 				},
@@ -158,18 +166,116 @@ func Test_Filter_PathPatternFromSecondConfiguredApi(t *testing.T) {
 		"POST",
 		"https://www.example.org/foo/customers/loremipsum",
 		"asd",
-		400,
-		"qwerty",
+		nil,
+		500,
+		6,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
 					"apimonitoring.custom.my_app.POST.foo/customers/:customer-id.http_count":    1,
-					"apimonitoring.custom.my_app.POST.foo/customers/:customer-id.http400_count": 1,
+					"apimonitoring.custom.my_app.POST.foo/customers/:customer-id.http5xx_count": 1,
 					"apimonitoring.custom.my_app.POST.foo/customers/:customer-id.req_size_sum":  reqBodyLen,
 					"apimonitoring.custom.my_app.POST.foo/customers/:customer-id.resp_size_sum": resBodyLen,
 				},
 				m.Counters,
 			)
 			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.POST.foo/customers/:customer-id.latency")
+		})
+}
+
+func Test_Filter_StatusCodeUnder200IsMonitored(t *testing.T) {
+	testWithFilter(
+		t,
+		createFilterForTest,
+		"POST",
+		"https://www.example.org/foo/orders",
+		"asd",
+		nil,
+		100,
+		6,
+		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+			assert.Equal(t,
+				map[string]int64{
+					"apimonitoring.custom.my_app.POST.foo/orders.http_count": 1,
+					//"apimonitoring.custom.my_app.POST.foo/orders.http*xx_count" <--- no code group tracked
+					"apimonitoring.custom.my_app.POST.foo/orders.req_size_sum":  reqBodyLen,
+					"apimonitoring.custom.my_app.POST.foo/orders.resp_size_sum": resBodyLen,
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.POST.foo/orders.latency")
+		})
+}
+
+func Test_Filter_StatusCodeOver599IsMonitored(t *testing.T) {
+	testWithFilter(
+		t,
+		createFilterForTest,
+		"POST",
+		"https://www.example.org/foo/orders",
+		"asd",
+		nil,
+		600,
+		6,
+		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+			assert.Equal(t,
+				map[string]int64{
+					"apimonitoring.custom.my_app.POST.foo/orders.http_count": 1,
+					//"apimonitoring.custom.my_app.POST.foo/orders.http*xx_count" <--- no code group tracked
+					"apimonitoring.custom.my_app.POST.foo/orders.req_size_sum":  reqBodyLen,
+					"apimonitoring.custom.my_app.POST.foo/orders.resp_size_sum": resBodyLen,
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.POST.foo/orders.latency")
+		})
+}
+
+func Test_Filter_RequestContentLengthNotTrackedWhenLowerThan0(t *testing.T) {
+	reqContentLength := int64(-1)
+	testWithFilter(
+		t,
+		createFilterForTest,
+		"POST",
+		"https://www.example.org/foo/orders",
+		"",
+		&reqContentLength,
+		200,
+		123,
+		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+			assert.Equal(t,
+				map[string]int64{
+					"apimonitoring.custom.my_app.POST.foo/orders.http_count": 1,
+					"apimonitoring.custom.my_app.POST.foo/orders.http2xx_count": 1,
+					//"apimonitoring.custom.my_app.POST.foo/orders.req_size_sum":  reqBodyLen, // <-- not present because < 0
+					"apimonitoring.custom.my_app.POST.foo/orders.resp_size_sum": resBodyLen,
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.POST.foo/orders.latency")
+		})
+}
+
+func Test_Filter_ResponseContentLengthNotTrackedWhenLowerThan0(t *testing.T) {
+	testWithFilter(
+		t,
+		createFilterForTest,
+		"POST",
+		"https://www.example.org/foo/orders",
+		"asd",
+		nil,
+		200,
+		-1,
+		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+			assert.Equal(t,
+				map[string]int64{
+					"apimonitoring.custom.my_app.POST.foo/orders.http_count": 1,
+					"apimonitoring.custom.my_app.POST.foo/orders.http2xx_count": 1,
+					"apimonitoring.custom.my_app.POST.foo/orders.req_size_sum":  reqBodyLen,
+					//"apimonitoring.custom.my_app.POST.foo/orders.resp_size_sum": resBodyLen, // <-- not present because < 0
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.POST.foo/orders.latency")
 		})
 }

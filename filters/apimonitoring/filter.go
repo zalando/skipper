@@ -13,10 +13,10 @@ import (
 const (
 	// Status Code counting
 	MetricCountAll  = "http_count"
-	MetricCount500s = "http500_count"
-	MetricCount400s = "http400_count"
-	MetricCount300s = "http300_count"
-	MetricCount200s = "http200_count"
+	MetricCount500s = "http5xx_count"
+	MetricCount400s = "http4xx_count"
+	MetricCount300s = "http3xx_count"
+	MetricCount200s = "http2xx_count"
 
 	// Request & Response
 	MetricRequestSize  = "req_size_sum"
@@ -66,9 +66,6 @@ type apiMonitoringFilterContext struct {
 // Request fulfills the Filter interface.
 func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	log := log.WithField("op", "request")
-	if f.verbose {
-		log.Info("REQUEST CONTEXT: " + formatFilterContext(c))
-	}
 
 	//
 	// METRICS: Gathering from the initial request
@@ -190,7 +187,7 @@ func (f *apiMonitoringFilter) writeMetricSizeOfRequest(metrics filters.Metrics, 
 	requestSize := mfc.OriginalRequestSize
 	if requestSize < 0 {
 		log.WithField("dimensions", mfc.DimensionsPrefix).
-			Infof("unknown request content length: %d", requestSize)
+			Infof("unknown original request content length: %d", requestSize)
 		return
 	}
 
@@ -202,9 +199,6 @@ func (f *apiMonitoringFilter) writeMetricSizeOfRequest(metrics filters.Metrics, 
 }
 
 func (f *apiMonitoringFilter) writeMetricSizeOfResponse(metrics filters.Metrics, mfc *apiMonitoringFilterContext, response *http.Response) {
-	if response == nil {
-		return
-	}
 	responseSize := response.ContentLength // todo: this always return 0, investigate why
 	if responseSize < 0 {
 		log.WithField("dimensions", mfc.DimensionsPrefix).Infof("unknown response content length: %d", responseSize)
