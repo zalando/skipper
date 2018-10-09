@@ -21,6 +21,7 @@ all: * -> filter1 -> filter2 -> "http://127.0.0.1:1234/";
 Set headers for requests.
 
 Parameters:
+
 * header name (string)
 * header value (string)
 
@@ -47,6 +48,7 @@ Same as [appendRequestHeader](#appendrequestheader), only for responses
 Removes a header from the request
 
 Parameters:
+
 * header name (string)
 
 Example:
@@ -64,6 +66,7 @@ Same as [dropRequestHeader](#droprequestheader) but for responses from the backe
 Replace all matched regex expressions in the path.
 
 Parameters:
+
 * the expression to match (regex)
 * the replacement (string)
 
@@ -72,6 +75,7 @@ Parameters:
 Replace the path of the original request to the replacement.
 
 Parameters:
+
 * the replacement (string)
 
 ## redirectTo
@@ -125,6 +129,7 @@ Sets the incoming `Host: ` header on the outgoing backend connection.
 It can be used to override the `proxyPreserveHost` behavior for individual routes.
 
 Parameters: "true" or "false"
+
 * "true" - use the Host header from the incoming request
 * "false" - use the host from the backend address
 
