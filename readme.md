@@ -238,3 +238,7 @@ instances that use skipper as library.
 Sergio Ballesteros from [spotahome](https://www.spotahome.com/)
 > We also ran tests with serveral ingress controllers and skipper gave us the more reliable results. Currently we are running skipper since almost 2 years with like 20K Ingress rules.
 > The fact that skipper is written in go let us understand the code, add features and fix bugs since all of our infra stack is golang.
+
+#### In the media
+
+[Building our own open source http routing solution](https://jobs.zalando.com/tech/blog/building-our-own-open-source-http-routing-solution/): Giving some context about why Skipper was created in the first place.
