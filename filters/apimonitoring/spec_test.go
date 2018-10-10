@@ -95,9 +95,9 @@ func Test_CreateFilter_ExtraParametersAreIgnored(t *testing.T) {
 
 	assert.Len(t, actual.paths, 1)
 
-	assert.Equal(t, actual.paths[0].ApplicationId, "my_app")
-	assert.Equal(t, actual.paths[0].PathTemplate, "test")
-	assert.Equal(t, actual.paths[0].Matcher.String(), "^[\\/]*test[\\/]*$")
+	assert.Equal(t, "my_app", actual.paths[0].ApplicationId)
+	assert.Equal(t, "test", actual.paths[0].PathTemplate)
+	assert.Equal(t, "^[\\/]*test[\\/]*$", actual.paths[0].Matcher.String())
 }
 
 func Test_CreateFilter_VerboseIsFalseIfNotSpecified(t *testing.T) {
@@ -117,14 +117,14 @@ func Test_CreateFilter_VerboseIsFalseIfNotSpecified(t *testing.T) {
 
 	assert.Len(t, actual.paths, 1)
 
-	assert.Equal(t, actual.paths[0].ApplicationId, "my_app")
-	assert.Equal(t, actual.paths[0].PathTemplate, "test")
-	assert.Equal(t, actual.paths[0].Matcher.String(), "^[\\/]*test[\\/]*$")
+	assert.Equal(t, "my_app", actual.paths[0].ApplicationId)
+	assert.Equal(t, "test", actual.paths[0].PathTemplate)
+	assert.Equal(t, "^[\\/]*test[\\/]*$", actual.paths[0].Matcher.String())
 }
 
 func Test_CreateFilter_VerboseIsForcedByGlobalFilterConfiguration(t *testing.T) {
-	spec := New(true) 	// <---	this parameter forces all filters to be verbose, even if they
-						//		are explicitly configured not to.
+	spec := New(true) // <---	this parameter forces all filters to be verbose, even if they
+	//							are explicitly configured not to.
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"verbose": false,
 		"application_id": "my_app",
@@ -141,9 +141,9 @@ func Test_CreateFilter_VerboseIsForcedByGlobalFilterConfiguration(t *testing.T) 
 
 	assert.Len(t, actual.paths, 1)
 
-	assert.Equal(t, actual.paths[0].ApplicationId, "my_app")
-	assert.Equal(t, actual.paths[0].PathTemplate, "test")
-	assert.Equal(t, actual.paths[0].Matcher.String(), "^[\\/]*test[\\/]*$")
+	assert.Equal(t, "my_app", actual.paths[0].ApplicationId)
+	assert.Equal(t, "test", actual.paths[0].PathTemplate)
+	assert.Equal(t, "^[\\/]*test[\\/]*$", actual.paths[0].Matcher.String())
 }
 
 func Test_CreateFilter_FullConfig(t *testing.T) {
@@ -173,25 +173,25 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 
 	assert.Len(t, actual.paths, 5)
 
-	assert.Equal(t, actual.paths[0].ApplicationId, "my_app")
-	assert.Equal(t, actual.paths[0].PathTemplate, "foo/orders")
-	assert.Equal(t, actual.paths[0].Matcher.String(), "^[\\/]*foo\\/orders[\\/]*$")
+	assert.Equal(t, "my_app", actual.paths[0].ApplicationId)
+	assert.Equal(t, "foo/orders", actual.paths[0].PathTemplate)
+	assert.Equal(t, "^[\\/]*foo\\/orders[\\/]*$", actual.paths[0].Matcher.String())
 
-	assert.Equal(t, actual.paths[1].ApplicationId, "my_app")
-	assert.Equal(t, actual.paths[1].PathTemplate, "foo/orders/:order-id")
-	assert.Equal(t, actual.paths[1].Matcher.String(), "^[\\/]*foo\\/orders\\/[^\\/]+[\\/]*$")
+	assert.Equal(t, "my_app", actual.paths[1].ApplicationId)
+	assert.Equal(t, "foo/orders/:order-id", actual.paths[1].PathTemplate)
+	assert.Equal(t, "^[\\/]*foo\\/orders\\/[^\\/]+[\\/]*$", actual.paths[1].Matcher.String())
 
-	assert.Equal(t, actual.paths[2].ApplicationId, "my_app")
-	assert.Equal(t, actual.paths[2].PathTemplate, "foo/orders/:order-id/order_item/:order-item-id") // normalized to `:id`
-	assert.Equal(t, actual.paths[2].Matcher.String(), "^[\\/]*foo\\/orders\\/[^\\/]+\\/order_item\\/[^\\/]+[\\/]*$")
+	assert.Equal(t, "my_app", actual.paths[2].ApplicationId)
+	assert.Equal(t, "foo/orders/:order-id/order_item/:order-item-id", actual.paths[2].PathTemplate) // normalized to `:id`
+	assert.Equal(t, "^[\\/]*foo\\/orders\\/[^\\/]+\\/order_item\\/[^\\/]+[\\/]*$", actual.paths[2].Matcher.String())
 
-	assert.Equal(t, actual.paths[3].ApplicationId, "my_app")
-	assert.Equal(t, actual.paths[3].PathTemplate, "foo/customers") // without the head/tail slashes
-	assert.Equal(t, actual.paths[3].Matcher.String(), "^[\\/]*foo\\/customers[\\/]*$")
+	assert.Equal(t, "my_app", actual.paths[3].ApplicationId)
+	assert.Equal(t, "foo/customers", actual.paths[3].PathTemplate) // without the head/tail slashes
+	assert.Equal(t, "^[\\/]*foo\\/customers[\\/]*$", actual.paths[3].Matcher.String())
 
-	assert.Equal(t, actual.paths[4].ApplicationId, "my_app")
-	assert.Equal(t, actual.paths[4].PathTemplate, "foo/customers/:customer-id") // without the head/tail slashes, normalized to `:id`
-	assert.Equal(t, actual.paths[4].Matcher.String(), "^[\\/]*foo\\/customers\\/[^\\/]+[\\/]*$")
+	assert.Equal(t, "my_app", actual.paths[4].ApplicationId)
+	assert.Equal(t, "foo/customers/:customer-id", actual.paths[4].PathTemplate) // without the head/tail slashes, normalized to `:id`
+	assert.Equal(t, "^[\\/]*foo\\/customers\\/[^\\/]+[\\/]*$", actual.paths[4].Matcher.String())
 }
 
 func Test_CreateFilter_DuplicatePathPatternCausesError(t *testing.T) {
