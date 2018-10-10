@@ -334,7 +334,7 @@ func TestTwoSwarms(t *testing.T) {
 		l.Unlock()
 	}
 
-	t.Run("two swarms, one backend", func(t *testing.T) {
+	t.Run("two swarms, few maxhits", func(t *testing.T) {
 		l.Lock()
 		defer leaveFunction()
 
@@ -348,127 +348,117 @@ func TestTwoSwarms(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to start swarm1: %v", err)
 		}
+		defer sw1.Leave()
 		sw2, err := newFakeSwarm("n2", leaveTimeout)
 		if err != nil {
 			t.Fatalf("Failed to start swarm2: %v", err)
 		}
-
-		log.Infof("sw1.Local(): %s", sw1.Local())
-		log.Infof("sw2.Local(): %s", sw2.Local())
-		defer sw1.Leave()
 		defer sw2.Leave()
 
 		crl1sw1 := NewClusterRateLimiter(s, sw1, "cr1")
 		defer crl1sw1.Close()
 		crl1sw2 := NewClusterRateLimiter(s, sw2, "cr2")
 		defer crl1sw2.Close()
-		backend1 := "TestTwoSwarms backend1"
-		backend2 := "TestTwoSwarms backend2"
+		backend := "TestTwoSwarmsFewMaxHits backend"
 
 		for i := 0; i <= s.MaxHits; i++ {
-			if i%2 == 0 && !crl1sw1.Allow(backend1) {
-				t.Errorf("1.1 %s not allowed but should", backend1)
+			if i%2 == 0 && !crl1sw1.Allow(backend) {
+				t.Errorf("1.1 %s not allowed but should", backend)
 			}
 
-			if i%2 != 0 && !crl1sw2.Allow(backend1) {
-				t.Errorf("2.1 %s not allowed but should", backend1)
+			if i%2 != 0 && !crl1sw2.Allow(backend) {
+				t.Errorf("2.1 %s not allowed but should", backend)
 			}
 		}
 
 		time.Sleep(100 * time.Millisecond)
-		crl1sw2.Allow(backend1)
-		crl1sw1.Allow(backend1)
+		crl1sw2.Allow(backend)
+		crl1sw1.Allow(backend)
 
 		time.Sleep(100 * time.Millisecond)
-		if crl1sw2.Allow(backend1) {
-			t.Errorf("2.2 %s allowed but should not", backend1)
+		if crl1sw2.Allow(backend) {
+			t.Errorf("2.2 %s allowed but should not", backend)
 		}
 
 		time.Sleep(100 * time.Millisecond)
-		if crl1sw1.Allow(backend1) {
-			t.Errorf("1.2 %s allowed but should not", backend1)
-		}
-
-		if !crl1sw2.Allow(backend2) {
-			t.Errorf("%s should not interfere with %s", backend1, backend2)
+		if crl1sw1.Allow(backend) {
+			t.Errorf("1.2 %s allowed but should not", backend)
 		}
 	})
 
 	//func TestTwoSwarms2(t *testing.T) {
 	//log.SetLevel(log.DebugLevel)
-	t.Run("two swarms, two backends", func(t *testing.T) {
-		l.Lock()
-		defer leaveFunction()
+	// t.Run("two swarms, two backends", func(t *testing.T) {
+	// 	l.Lock()
+	// 	defer leaveFunction()
 
-		s := Settings{
-			Type:       ClusterRatelimit,
-			MaxHits:    4,
-			TimeWindow: 1 * time.Second,
-		}
+	// 	s := Settings{
+	// 		Type:       ClusterRatelimit,
+	// 		MaxHits:    4,
+	// 		TimeWindow: 1 * time.Second,
+	// 	}
 
-		sw1, err := newFakeSwarm("n1", leaveTimeout)
-		if err != nil {
-			t.Fatalf("Failed to start swarm1: %v", err)
-		}
-		sw2, err := newFakeSwarm("n2", leaveTimeout)
-		if err != nil {
-			t.Fatalf("Failed to start swarm2: %v", err)
-		}
+	// 	sw1, err := newFakeSwarm("n1", leaveTimeout)
+	// 	if err != nil {
+	// 		t.Fatalf("Failed to start swarm1: %v", err)
+	// 	}
+	// 	sw2, err := newFakeSwarm("n2", leaveTimeout)
+	// 	if err != nil {
+	// 		t.Fatalf("Failed to start swarm2: %v", err)
+	// 	}
 
-		log.Infof("sw1.Local(): %s", sw1.Local())
-		log.Infof("sw2.Local(): %s", sw2.Local())
-		defer sw1.Leave()
-		defer sw2.Leave()
+	// 	log.Infof("sw1.Local(): %s", sw1.Local())
+	// 	log.Infof("sw2.Local(): %s", sw2.Local())
+	// 	defer sw1.Leave()
+	// 	defer sw2.Leave()
 
-		crl1sw1 := NewClusterRateLimiter(s, sw1, "cr1")
-		defer crl1sw1.Close()
-		crl1sw2 := NewClusterRateLimiter(s, sw2, "cr2")
-		defer crl1sw2.Close()
-		backend1 := "TestTwoSwarms2 backend1"
-		backend2 := "TestTwoSwarms2 backend2"
+	// 	crl1sw1 := NewClusterRateLimiter(s, sw1, "cr1")
+	// 	defer crl1sw1.Close()
+	// 	crl1sw2 := NewClusterRateLimiter(s, sw2, "cr2")
+	// 	defer crl1sw2.Close()
+	// 	backend1 := "TestTwoSwarms2 backend1"
+	// 	backend2 := "TestTwoSwarms2 backend2"
 
-		for i := 0; i <= s.MaxHits; i++ {
-			if i%2 == 0 {
-				if !crl1sw1.Allow(backend1) {
-					t.Errorf("1.1 %d %s not allowed but should", i, backend1)
-				}
-				if !crl1sw1.Allow(backend2) {
-					t.Errorf("1.2 %d %s not allowed but should", i, backend2)
-				}
-			} else {
-				if !crl1sw2.Allow(backend1) {
-					t.Errorf("2.1 %d %s not allowed but should", i, backend1)
-				}
-				if !crl1sw2.Allow(backend2) {
-					t.Errorf("2.2 %d %s not allowed but should", i, backend2)
-				}
-			}
-		}
+	// 	for i := 0; i <= s.MaxHits; i++ {
+	// 		if i%2 == 0 {
+	// 			if !crl1sw1.Allow(backend1) {
+	// 				t.Errorf("1.1 %d %s not allowed but should", i, backend1)
+	// 			}
+	// 			if !crl1sw1.Allow(backend2) {
+	// 				t.Errorf("1.2 %d %s not allowed but should", i, backend2)
+	// 			}
+	// 		} else {
+	// 			if !crl1sw2.Allow(backend1) {
+	// 				t.Errorf("2.1 %d %s not allowed but should", i, backend1)
+	// 			}
+	// 			if !crl1sw2.Allow(backend2) {
+	// 				t.Errorf("2.2 %d %s not allowed but should", i, backend2)
+	// 			}
+	// 		}
+	// 	}
 
-		time.Sleep(100 * time.Millisecond)
-		crl1sw2.Allow(backend1)
-		crl1sw1.Allow(backend1)
-		time.Sleep(100 * time.Millisecond)
-		crl1sw1.Allow(backend2)
-		crl1sw2.Allow(backend2)
+	// 	time.Sleep(100 * time.Millisecond)
+	// 	crl1sw2.Allow(backend1)
+	// 	crl1sw1.Allow(backend1)
+	// 	time.Sleep(100 * time.Millisecond)
+	// 	crl1sw1.Allow(backend2)
+	// 	crl1sw2.Allow(backend2)
 
-		if crl1sw1.Allow(backend1) {
-			t.Errorf("1.2 1 %s not allowed but should", backend1)
-		}
-		if crl1sw1.Allow(backend2) {
-			t.Errorf("1.2 2 %s allowed but should not", backend2)
-		}
-		if crl1sw2.Allow(backend1) {
-			t.Errorf("2.1 1 %s allowed but should not", backend1)
-		}
-		if crl1sw2.Allow(backend2) {
-			t.Errorf("2.1 2 %s allowed but should not", backend2)
-		}
-	})
+	// 	if crl1sw1.Allow(backend1) {
+	// 		t.Errorf("1.2 1 %s not allowed but should", backend1)
+	// 	}
+	// 	if crl1sw1.Allow(backend2) {
+	// 		t.Errorf("1.2 2 %s allowed but should not", backend2)
+	// 	}
+	// 	if crl1sw2.Allow(backend1) {
+	// 		t.Errorf("2.1 1 %s allowed but should not", backend1)
+	// 	}
+	// 	if crl1sw2.Allow(backend2) {
+	// 		t.Errorf("2.1 2 %s allowed but should not", backend2)
+	// 	}
+	// })
 
-	//func TestTwoSwarmsMaze(t *testing.T) {
-	//log.SetLevel(log.DebugLevel)
-	t.Run("two swarms, one backend, maze", func(t *testing.T) {
+	t.Run("two swarms, maze", func(t *testing.T) {
 		l.Lock()
 		defer leaveFunction()
 
@@ -482,46 +472,43 @@ func TestTwoSwarms(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to start swarm1: %v", err)
 		}
+		defer sw1.Leave()
 		sw2, err := newFakeSwarm("n2", leaveTimeout)
 		if err != nil {
 			t.Fatalf("Failed to start swarm2: %v", err)
 		}
-
-		log.Infof("sw1.Local(): %s", sw1.Local())
-		log.Infof("sw2.Local(): %s", sw2.Local())
-		defer sw1.Leave()
 		defer sw2.Leave()
 
 		crl1sw1 := NewClusterRateLimiter(s, sw1, "cr1")
 		defer crl1sw1.Close()
 		crl1sw2 := NewClusterRateLimiter(s, sw2, "cr2")
 		defer crl1sw2.Close()
-		backend1 := "TestTwoSwarmsMaze backend1"
+		backend := "TestTwoSwarmsMaze backend"
 
 		//t.Run("two swarm peers, single ratelimit backend", func(t *testing.T) {
 		for i := 0; i <= s.MaxHits; i++ {
-			if i%2 == 0 && !crl1sw1.Allow(backend1) {
-				t.Errorf("1.%d %s not allowed but should", i, backend1)
+			if i%2 == 0 && !crl1sw1.Allow(backend) {
+				t.Errorf("1.%d %s not allowed but should", i, backend)
 			}
 
-			if i%2 != 0 && !crl1sw2.Allow(backend1) {
-				t.Errorf("2.%d %s not allowed but should", i, backend1)
+			if i%2 != 0 && !crl1sw2.Allow(backend) {
+				t.Errorf("2.%d %s not allowed but should", i, backend)
 			}
 		}
 		// update swarm once again to be predictable
 		time.Sleep(150 * time.Millisecond)
-		crl1sw1.Allow(backend1)
-		crl1sw2.Allow(backend1)
+		crl1sw1.Allow(backend)
+		crl1sw2.Allow(backend)
 		time.Sleep(150 * time.Millisecond)
-		crl1sw1.Allow(backend1)
-		crl1sw2.Allow(backend1)
+		crl1sw1.Allow(backend)
+		crl1sw2.Allow(backend)
 		time.Sleep(150 * time.Millisecond)
 
-		if crl1sw1.Allow(backend1) {
-			t.Errorf("1 %s allowed but should not", backend1)
+		if crl1sw1.Allow(backend) {
+			t.Errorf("1 %s allowed but should not", backend)
 		}
-		if crl1sw2.Allow(backend1) {
-			t.Errorf("2 %s allowed but should not", backend1)
+		if crl1sw2.Allow(backend) {
+			t.Errorf("2 %s allowed but should not", backend)
 		}
 
 	})

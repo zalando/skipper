@@ -53,7 +53,7 @@ func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
 				// call with "go" ?
 				rl.local.Resize(size.s, int(rl.maxHits)/size.n)
 			case <-rl.quit:
-				log.Infof("quit clusterRatelimit")
+				log.Debugf("quit clusterRatelimit")
 				close(rl.resize)
 				return
 			}
@@ -73,11 +73,11 @@ func (c *ClusterLimit) Allow(s string) bool {
 	// [ t3, t4, t0, t1, t2]
 	//           ^- current pointer to oldest
 	// now - t0
-	dTransfer := c.local.Oldest(s).UTC().UnixNano()
+	t0 := c.Oldest(s).UTC().UnixNano()
 
 	_ = c.local.Allow(s) // update local rate limit
 
-	if err := c.swarm.ShareValue(swarmPrefix+s, dTransfer); err != nil {
+	if err := c.swarm.ShareValue(swarmPrefix+s, t0); err != nil {
 		log.Errorf("clusterRatelimit failed to share value: %v", err)
 	}
 
@@ -102,8 +102,7 @@ func (c *ClusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]in
 		if !ok || t0 == 0 {
 			continue
 		}
-		deltaI := now - t0
-		delta := time.Duration(deltaI)
+		delta := time.Duration(now - t0)
 		adjusted := float64(delta) / float64(c.window)
 		log.Debugf("%0.2f += %0.2f / %0.2f", requestRate, maxNodeHits, adjusted)
 		requestRate += maxNodeHits / adjusted
@@ -117,8 +116,7 @@ func (c *ClusterLimit) Close() {
 	c.local.Close()
 }
 
-func (c *ClusterLimit) Current(string) time.Time     { return time.Time{} }
-func (c *ClusterLimit) Oldest(string) time.Time      { return time.Time{} }
 func (c *ClusterLimit) Delta(s string) time.Duration { return c.local.Delta(s) }
+func (c *ClusterLimit) Oldest(s string) time.Time    { return c.local.Oldest(s) }
 func (c *ClusterLimit) Resize(s string, n int)       { c.local.Resize(s, n) }
 func (c *ClusterLimit) RetryAfter(s string) int      { return c.local.RetryAfter(s) }

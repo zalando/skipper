@@ -36,7 +36,7 @@ func NewFakeNodeInfo(name string, addr net.IP, port uint16) *NodeInfo {
 
 // String will only show initial peers when created this peer
 func (ni NodeInfo) String() string {
-	return fmt.Sprintf("NodeInfo{%s, %s, %d}", ni.Name, ni.Addr, ni.Port)
+	return fmt.Sprintf("NodeInfo{name: %s, %s:%d}", ni.Name, ni.Addr, ni.Port)
 }
 
 // initial peers when created this peer, only nic is up to date

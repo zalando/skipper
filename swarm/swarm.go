@@ -200,7 +200,6 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm
 		log.Errorf("SWARM: failed to create memberlist: %v", err)
 		return nil, err
 	}
-	log.Debugf("new memberlist created: %v", ml)
 
 	c.Delegate.(*mlDelegate).meta = ml.LocalNode().Meta
 
@@ -238,14 +237,12 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm
 // control is the control loop of a Swarm member.
 func (s *Swarm) control() {
 	for {
-		// TODO: regularly check the available instances <- Do we need this?
-
 		select {
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
 			if len(s.messages) <= 0 {
 				// XXX(sszuecs): does this happen?
-				log.Debug("SWARM: getOutgoing with 0 messages <<<----- CHECK")
+				log.Warning("SWARM: getOutgoing with 0 messages, should not happen")
 			}
 			req.ret <- s.messages
 		case m := <-s.outgoing:
@@ -286,21 +283,20 @@ func (s *Swarm) control() {
 			log.Debugf("SWARM: getValues for key: %s", req.key)
 			req.ret <- s.shared[req.key]
 		case <-s.leave:
-			log.Infof("SWARM: %s leaving", s.Local())
+			log.Debugf("SWARM: %s got leave signal", s.Local())
 			if s.mlist == nil {
-				log.Errorf("mlist nil")
+				log.Warning("SWARM: Leave called, but mlist is already nil")
 				return
 			}
-			// TODO: call shutdown
 			if err := s.mlist.Leave(s.leaveTimeout); err != nil {
-				log.Errorf("Err mlist.Leave: %v", err)
+				log.Errorf("SWARM: Failed to leave mlist: %v", err)
 				select {
 				case s.errors <- err:
 				default:
 				}
 			}
 			if err := s.mlist.Shutdown(); err != nil {
-				log.Errorf("Err mlist.Shutdown: %v", err)
+				log.Errorf("SWARM: Failed to shutdown mlist: %v", err)
 				select {
 				case s.errors <- err:
 				default:
@@ -319,7 +315,6 @@ func (s *Swarm) Local() *NodeInfo {
 		return nil
 	}
 	if s.mlist == nil {
-		//TODO(sszuecs): this needs to be fixed
 		log.Warningf("deprecated way of getting local node")
 		return s.local
 	}
@@ -380,5 +375,4 @@ func (s *Swarm) Listen(key string, c chan<- *Message) {}
 func (s *Swarm) Leave() {
 	close(s.leave)
 	s.cleanupF()
-	log.Warningf("%s left swarm", s.Local())
 }
