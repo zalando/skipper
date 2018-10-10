@@ -14,9 +14,17 @@ import (
 var fakeRand *rand.Rand = rand.New(rand.NewSource(23))
 
 func newFakeSwarm(nodeName string, leaveTimeout time.Duration) (*swarm.Swarm, error) {
-	// create port >= 1025 and < 40000
-	port := uint16((fakeRand.Int() % (40000 - 1025)) + 1025)
-	return swarm.NewSwarm(swarm.Options{FakeSwarm: true, FakeSwarmLocalNode: fmt.Sprintf("%s-%d", nodeName, port), LeaveTimeout: leaveTimeout, MaxMessageBuffer: 1024, SwarmPort: port})
+	var sw *swarm.Swarm
+	var err error
+	for i := 0; i < 3; i++ {
+		// create port >= 1025 and < 40000
+		port := uint16((fakeRand.Int() % (40000 - 1025)) + 1025)
+		sw, err = swarm.NewSwarm(swarm.Options{FakeSwarm: true, FakeSwarmLocalNode: fmt.Sprintf("%s-%d", nodeName, port), LeaveTimeout: leaveTimeout, MaxMessageBuffer: 1024, SwarmPort: port})
+		if err == nil {
+			return sw, nil
+		}
+	}
+	return sw, err
 }
 
 func TestSingleSwarmSingleRatelimit(t *testing.T) {

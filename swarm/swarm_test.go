@@ -22,16 +22,17 @@ func TestSwarm(t *testing.T) {
 		self: &NodeInfo{Name: "third", Port: 9935},
 	}
 	all := []*NodeInfo{ep1.Node(), ep2.Node(), ep3.Node()}
+	cleanupF := func() {}
 
-	first, err := Join(o, ep1.Node(), all)
+	first, err := Join(o, ep1.Node(), all, cleanupF)
 	if err != nil {
 		t.Fatalf("Failed to start first: %v", err)
 	}
-	second, err := Join(o, ep2.Node(), all)
+	second, err := Join(o, ep2.Node(), all, cleanupF)
 	if err != nil {
 		t.Fatalf("Failed to start second: %v", err)
 	}
-	third, err := Join(o, ep3.Node(), all)
+	third, err := Join(o, ep3.Node(), all, cleanupF)
 	if err != nil {
 		t.Fatalf("Failed to start third: %v", err)
 	}

@@ -62,11 +62,18 @@ func newKnownEntryPoint(o Options) (*knownEntryPoint, func()) {
 
 // Node return its self
 func (e *knownEntryPoint) Node() *NodeInfo {
+	if e.nic == nil {
+		return e.self
+	}
 	return e.nic.Self()
 }
 
 // Nodes return the list of known peers including self
 func (e *knownEntryPoint) Nodes() []*NodeInfo {
+	if e.nic == nil {
+		return e.nodes
+	}
+
 	nodes, err := e.nic.GetNodeInfo()
 	if err != nil {
 		log.Errorf("Failed to get nodeinfo: %v", err)

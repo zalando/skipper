@@ -11,19 +11,19 @@ func TestNodeInfo_String(t *testing.T) {
 		msg      string
 		name     string
 		addr     net.IP
-		port     int
+		port     uint16
 		expected string
 	}{{
 		msg:      "all values set",
 		name:     "host1",
 		addr:     net.IPv4(127, 0, 0, 1),
 		port:     8080,
-		expected: "NodeInfo{host1, 127.0.0.1, 8080}",
+		expected: "NodeInfo{name: host1, 127.0.0.1:8080}",
 	}, {
 		msg:      "no port",
 		name:     "host1",
 		addr:     net.IPv4(127, 0, 0, 1),
-		expected: "NodeInfo{host1, 127.0.0.1, 0}",
+		expected: "NodeInfo{name: host1, 127.0.0.1:0}",
 	}} {
 
 		t.Run(tt.msg, func(t *testing.T) {
