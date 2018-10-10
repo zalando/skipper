@@ -194,7 +194,7 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 	assert.Equal(t, "^[\\/]*foo\\/customers\\/[^\\/]+[\\/]*$", actual.paths[4].Matcher.String())
 }
 
-func Test_CreateFilter_DuplicatePathPatternCausesError(t *testing.T) {
+func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 	// PathTemplate "foo" and "/foo/" after normalising are the same.
 	// That causes an error, even if under different application or API IDs.
 	spec := New(false)
@@ -205,23 +205,38 @@ func Test_CreateFilter_DuplicatePathPatternCausesError(t *testing.T) {
 			"/foo/"
 		]
 	}`})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), `duplicate path pattern "foo" detected`)
-	assert.Nil(t, filter)
+	assert.NoError(t, err)
+	assert.NotNil(t, filter)
+	actual, ok := filter.(*apiMonitoringFilter)
+	assert.True(t, ok)
+
+	assert.Len(t, actual.paths, 1)
+
+	assert.Equal(t, actual.paths[0].ApplicationId, "my_app")
+	assert.Equal(t, actual.paths[0].PathTemplate, "foo")
+	assert.Equal(t, actual.paths[0].Matcher.String(), "^[\\/]*foo[\\/]*$")
 }
 
-func Test_CreateFilter_DuplicateMatchersCausesError(t *testing.T) {
-	spec := &apiMonitoringFilterSpec{}
+func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
+	// PathTemplate "/foo/:a" and "/foo/:b" yield the same RegExp
+	spec := New(false)
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"path_templates": [
-			"clients/:clientId",
-			"clients/{clientId}"
+			"foo/:a",
+			"foo/:b"
 		]
 	}`})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "duplicate path pattern")
-	assert.Nil(t, filter)
+	assert.NoError(t, err)
+	assert.NotNil(t, filter)
+	actual, ok := filter.(*apiMonitoringFilter)
+	assert.True(t, ok)
+
+	assert.Len(t, actual.paths, 1)
+
+	assert.Equal(t, "my_app", actual.paths[0].ApplicationId)
+	assert.Equal(t, "foo/:a", actual.paths[0].PathTemplate)
+	assert.Equal(t, "^[\\/]*foo\\/[^\\/]+[\\/]*$", actual.paths[0].Matcher.String())
 }
 
 func Test_CreateFilter_RegExCompileFailureCausesError(t *testing.T) {

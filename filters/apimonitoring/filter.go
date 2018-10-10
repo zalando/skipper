@@ -123,7 +123,7 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 	}
 	if path == nil {
 		if f.verbose {
-			log.Info("Matching no path pattern. Not tracking this call.")
+			log.Info("Matching no path template. Not tracking this call.")
 		}
 		return "", false
 	}

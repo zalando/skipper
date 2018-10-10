@@ -106,7 +106,7 @@ func parseJsonConfiguration(args []interface{}, verbose bool) (*filterConfig, er
 
 func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, error) {
 	paths := make([]*pathInfo, 0, 32)
-	existingPathPatterns := make(map[string]*pathInfo)
+	existingPathTemplates := make(map[string]*pathInfo)
 	existingRegEx := make(map[string]*pathInfo)
 
 	if config.ApplicationId == "" {
@@ -115,13 +115,13 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 
 	for templateIndex, template := range config.PathTemplates {
 
-		// Path Pattern validation
+		// Path Template validation
 		if template == "" {
 			return nil, fmt.Errorf("empty path at index %d", templateIndex)
 		}
 
 		// Normalize path template and get regular expression from it
-		normalisedPathTemplate, regExStr := generateRegExpStringForPathPattern(template)
+		normalisedPathTemplate, regExStr := generateRegExpStringForPathTemplate(template)
 
 		// Create new `pathInfo` with normalized PathTemplate
 		info := &pathInfo{
@@ -129,19 +129,22 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 			PathTemplate:  normalisedPathTemplate,
 		}
 
-		// Detect path pattern duplicates
-		if existingPathPattern, ok := existingPathPatterns[info.PathTemplate]; ok {
-			return nil, fmt.Errorf(
-				"duplicate path pattern %q detected: %+v and %+v",
-				info.PathTemplate, existingPathPattern, info)
+		// Detect path template duplicates
+		existingPathTemplate, ok := existingPathTemplates[info.PathTemplate]
+		if ok {
+			log.Infof(
+				"duplicate path template %q, ignoring this template",
+				info.PathTemplate)
+			continue
 		}
-		existingPathPatterns[info.PathTemplate] = info
+		existingPathTemplates[info.PathTemplate] = info
 
-		// Generate the regular expression for this path pattern and detect duplicates
-		if existingRegEx, ok := existingRegEx[regExStr]; ok {
-			return nil, fmt.Errorf(
-				"two path patterns yielded the same regular expression %q: %+v and %+v",
-				regExStr, existingRegEx, info)
+		// Generate the regular expression for this path template and detect duplicates
+		if _, ok := existingRegEx[regExStr]; ok {
+			log.Warnf(
+				"two path templates yielded the same regular expression %q (%q and %q) ignoring this template",
+				regExStr, info.PathTemplate, existingPathTemplate)
+			continue
 		}
 		existingRegEx[regExStr] = info
 
@@ -161,12 +164,12 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 	return paths, nil
 }
 
-// generateRegExpForPathPattern creates a regular expression from a path pattern.
+// generateRegExpStringForPathTemplate creates a regular expression from a path template.
 //
 // Example:    pathTemplate = /orders/{order-id}/order-items/{order-item-id}
 //				      regex = ^\/orders\/[^\/]+\/order-items\/[^\/]+[\/]*$
 //
-func generateRegExpStringForPathPattern(pathTemplate string) (normalizedPathTemplate, matcher string) {
+func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTemplate, matcher string) {
 	pathParts := strings.Split(pathTemplate, "/")
 	matcherPathParts := make([]string, 0, len(pathParts))
 	normalizedPathTemplateParts := make([]string, 0, len(pathParts))

@@ -54,7 +54,7 @@ func testWithFilter(
 	ctx := &filtertest.Context{
 		FRequest: req,
 		FResponse: &http.Response{
-			StatusCode: resStatus,
+			StatusCode:    resStatus,
 			ContentLength: responseContentLength,
 		},
 		FStateBag: make(map[string]interface{}),
@@ -70,7 +70,7 @@ func testWithFilter(
 	)
 }
 
-func Test_Filter_NoPathPattern(t *testing.T) {
+func Test_Filter_NoPathTemplate(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
@@ -87,7 +87,7 @@ func Test_Filter_NoPathPattern(t *testing.T) {
 		})
 }
 
-func Test_Filter_PathPatternNoVariablePart(t *testing.T) {
+func Test_Filter_PathTemplateNoVariablePart(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
@@ -109,7 +109,7 @@ func Test_Filter_PathPatternNoVariablePart(t *testing.T) {
 		})
 }
 
-func Test_Filter_PathPatternWithVariablePart(t *testing.T) {
+func Test_Filter_PathTemplateWithVariablePart(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
@@ -131,7 +131,7 @@ func Test_Filter_PathPatternWithVariablePart(t *testing.T) {
 		})
 }
 
-func Test_Filter_PathPatternWithMultipleVariablePart(t *testing.T) {
+func Test_Filter_PathTemplateWithMultipleVariablePart(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
@@ -153,7 +153,7 @@ func Test_Filter_PathPatternWithMultipleVariablePart(t *testing.T) {
 		})
 }
 
-func Test_Filter_PathPatternFromSecondConfiguredApi(t *testing.T) {
+func Test_Filter_PathTemplateFromSecondConfiguredApi(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
