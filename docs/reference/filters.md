@@ -832,13 +832,32 @@ WARNING: Make sure that the Prometheus Metrics are also enabled.
 skipper -enable-apimonitoring -enable-prometheus-metrics
 ```
 
-Endpoints can be monitored using the `apimonitoring` function in the route. It accepts a JSON object.
-* `application_id`: An application could be offering more than one API. Specify the application's ID here.
-* `path_templates`: An endpoint path _template_, given in the OpenAPI format. Serves for grouping parametrized paths
-  together. Example: `/foo/1` and `/foo/2` should be monitored as the same endpoint, then provide: `PathPat: /foo/{foo-id}`.
-  It accepts both `{foo-id}` and `:foo-id` formats for the variable parts, but are all normalized to `:foo-id`.
-* `verbose` (default: `false`): An optional parameter making the filter log more detail about its operation.
-  It is bypassed by the `--apimonitoring-verbose` switch when specified.
+Endpoints can be monitored using the `apimonitoring` function in the route. It accepts a JSON object
+of the following format.
+
+```yaml
+apimonitoring-configuration:
+  type: object
+  required:
+    - application_id
+    - path_templates
+  properties:
+    application_id:
+      type: string
+      description: the id of the application
+      example: order-service
+    path_templates:
+      description: endpoints to be monitored
+      type: array
+      items:
+        type: string
+        description: path template in /articles/{article-id} (OpenAPI 3 ) or in /articles/:article-id format
+        example: /orders/{order-id}
+    verbose:
+      type: boolean
+      description: verbose output
+      default: false
+```
 
 Example:
 
