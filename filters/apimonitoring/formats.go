@@ -17,7 +17,6 @@ type JSObject map[string]JSValue
 func formatFilterContext(c filters.FilterContext) string {
 	jsMap := mapFilterContext(c)
 	jsStr, err := json.Marshal(jsMap)
-	//jsStr, err := json.MarshalIndent(jsMap, "  ", "  ")
 	if err != nil {
 		panic(err)
 	}
