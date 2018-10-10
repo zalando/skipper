@@ -1,7 +1,6 @@
 package metricstest
 
 import (
-	"github.com/zalando/skipper/metrics"
 	"net/http"
 	"time"
 )
@@ -13,8 +12,6 @@ type MockMetrics struct {
 	Counters map[string]int64
 	Measures map[string][]time.Duration
 }
-
-var _ metrics.Metrics = new(MockMetrics)
 
 func (m *MockMetrics) MeasureSince(key string, start time.Time) {
 	key = m.Prefix + key

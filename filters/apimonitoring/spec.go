@@ -27,8 +27,6 @@ type apiMonitoringFilterSpec struct {
 	verbose bool
 }
 
-var _ filters.Spec = new(apiMonitoringFilterSpec)
-
 func (s *apiMonitoringFilterSpec) Name() string {
 	return name
 }
@@ -61,7 +59,6 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 		verbose = true
 	}
 
-	// Create the filter
 	filter = &apiMonitoringFilter{
 		verbose: verbose,
 		paths:   paths,
@@ -130,7 +127,7 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 		}
 
 		// Detect path template duplicates
-		existingPathTemplate, ok := existingPathTemplates[info.PathTemplate]
+		_, ok := existingPathTemplates[info.PathTemplate]
 		if ok {
 			log.Infof(
 				"duplicate path template %q, ignoring this template",
@@ -139,11 +136,11 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 		}
 		existingPathTemplates[info.PathTemplate] = info
 
-		// Generate the regular expression for this path template and detect duplicates
-		if _, ok := existingRegEx[regExStr]; ok {
-			log.Warnf(
+		// Detect regular expression duplicates
+		if existingMatcher, ok := existingRegEx[regExStr]; ok {
+			log.Infof(
 				"two path templates yielded the same regular expression %q (%q and %q) ignoring this template",
-				regExStr, info.PathTemplate, existingPathTemplate)
+				regExStr, info.PathTemplate, existingMatcher.PathTemplate)
 			continue
 		}
 		existingRegEx[regExStr] = info
@@ -152,8 +149,8 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 		regEx, err := regexp.Compile(regExStr)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"error compiling regular expression %s for path %+v: %s",
-				regExStr, info, err)
+				"error compiling regular expression %q for path %q: %s",
+				regExStr, info.PathTemplate, err)
 		}
 		info.Matcher = regEx
 
@@ -164,10 +161,12 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 	return paths, nil
 }
 
-// generateRegExpStringForPathTemplate creates a regular expression from a path template.
+// generateRegExpStringForPathTemplate normalizes the given path template and
+// creates a regular expression from it.
 //
-// Example:    pathTemplate = /orders/{order-id}/order-items/{order-item-id}
-//				      regex = ^\/orders\/[^\/]+\/order-items\/[^\/]+[\/]*$
+// Example:    pathTemplate = /orders/{order-id}/order-items/{order-item-id}/
+//   normalizedPathTemplate = orders/:order-id/order-items/:order-item-id
+//				    matcher = ^\/orders\/[^\/]+\/order-items\/[^\/]+[\/]*$
 //
 func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTemplate, matcher string) {
 	pathParts := strings.Split(pathTemplate, "/")
@@ -178,12 +177,14 @@ func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTem
 			continue
 		}
 		placeholderName := getVarPathPartName(p)
-		if placeholderName != "" {
-			matcherPathParts = append(matcherPathParts, RegexUrlPathPart)
-			normalizedPathTemplateParts = append(normalizedPathTemplateParts, ":"+placeholderName)
-		} else {
+		if placeholderName == "" {
+			// this part is not a placeholder: match it exactly
 			matcherPathParts = append(matcherPathParts, p)
 			normalizedPathTemplateParts = append(normalizedPathTemplateParts, p)
+		} else {
+			// this part is a placeholder: match a wildcard for it
+			matcherPathParts = append(matcherPathParts, RegexUrlPathPart)
+			normalizedPathTemplateParts = append(normalizedPathTemplateParts, ":"+placeholderName)
 		}
 	}
 	rawRegEx := &strings.Builder{}

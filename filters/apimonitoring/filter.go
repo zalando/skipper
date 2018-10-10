@@ -43,15 +43,17 @@ type apiMonitoringFilter struct {
 	verbose bool
 }
 
-var _ filters.Filter = new(apiMonitoringFilter)
-
 type pathInfo struct {
 	ApplicationId string
 	PathTemplate  string
 	Matcher       *regexp.Regexp
 }
 
+// apiMonitoringFilterContext contains information about the metrics tracking
+// for one HTTP exchange (one routing). It serves to pass information from
+// the `Request` call to the `Response` call (stored in the context's `StateBag`).
 type apiMonitoringFilterContext struct {
+	// Prefix to all metrics tracked during this exchange (generated only once)
 	DimensionsPrefix string
 
 	// Information that is read at `request` time and needed at `response` time
@@ -63,19 +65,17 @@ type apiMonitoringFilterContext struct {
 func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	log := log.WithField("op", "request")
 
-	//
-	// METRICS: Gathering from the initial request
-	//
-
 	// Identify the dimensions "prefix" of the metrics.
 	dimensionsPrefix, track := f.getDimensionPrefix(c, log)
 	if !track {
 		return
 	}
 
+	// Gathering information from the initial request for further metrics calculation
 	begin := time.Now()
 	originalRequestSize := c.Request().ContentLength
 
+	// Store that information in the FilterContext's state.
 	mfc := &apiMonitoringFilterContext{
 		DimensionsPrefix:    dimensionsPrefix,
 		Begin:               begin,
@@ -110,8 +110,8 @@ func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 // getDimensionPrefix generates the dimension part of the metrics key (before the name
 // of the metric itself).
 // Returns:
-//   prefix:	the metric key prefix
-//   track:		if this call should be tracked or not
+//   prefix:    the metric key prefix
+//   track:     if this call should be tracked or not
 func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *logrus.Entry) (string, bool) {
 	req := c.Request()
 	var path *pathInfo = nil

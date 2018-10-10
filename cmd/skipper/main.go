@@ -65,7 +65,7 @@ const (
 	defaultWebhookTimeout                 = 2 * time.Second
 
 	// API Monitoring
-	defaultApimonitoringEnable = false
+	defaultApimonitoringEnable  = false
 	defaultApimonitoringVerbose = false
 
 	// generic:
@@ -150,7 +150,7 @@ const (
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// API Monitoring:
-	apimonitoringEnableUsage = "enables the experimental filter `apimonitoring`"
+	apimonitoringEnableUsage  = "enables the experimental filter `apimonitoring`"
 	apimonitoringVerboseUsage = "causes the `apimonitoring` filter to log detailed information about its operations"
 
 	// connections, timeouts:
