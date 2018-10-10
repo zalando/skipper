@@ -50,8 +50,8 @@ func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
 			select {
 			case size := <-rl.resize:
 				log.Debugf("resize clusterRatelimit: %v", size)
-				// call with "go" ?
-				rl.local.Resize(size.s, int(rl.maxHits)/size.n)
+				// TODO(sszuecs): call with "go" ?
+				rl.Resize(size.s, int(rl.maxHits)/size.n)
 			case <-rl.quit:
 				log.Debugf("quit clusterRatelimit")
 				close(rl.resize)

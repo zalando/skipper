@@ -63,7 +63,7 @@ func NewRatelimit() filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, filterName: ratelimit.ServiceRatelimitName}
 }
 
-// NewClusterRatelimit creates a rate limiting that is aware of the other
+// NewClusterServiceRatelimit creates a rate limiting that is aware of the other
 // instances. The value given here should be the combined rate of all instances.
 //
 // Example:
@@ -83,7 +83,7 @@ func NewRatelimit() filters.Spec {
 //    -> "https://foo.backend.net";
 //
 func NewClusterRateLimit() filters.Spec {
-	return &spec{typ: ratelimit.ClusterRatelimit, filterName: ratelimit.ClusterRatelimitName}
+	return &spec{typ: ratelimit.ClusterServiceRatelimit, filterName: ratelimit.ClusterServiceRatelimitName}
 }
 
 // NewDisableRatelimit disables rate limiting
@@ -155,7 +155,7 @@ func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 	s := ratelimit.Settings{
-		Type:       ratelimit.ClusterRatelimit,
+		Type:       ratelimit.ClusterServiceRatelimit,
 		MaxHits:    maxHits,
 		TimeWindow: timeWindow,
 	}
@@ -245,7 +245,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return serviceRatelimitFilter(args)
 	case ratelimit.LocalRatelimit:
 		return localRatelimitFilter(args)
-	case ratelimit.ClusterRatelimit:
+	case ratelimit.ClusterServiceRatelimit:
 		log.Debugf("SWARM: create cluster ratelimit: %v", args)
 		return clusterRatelimitFilter(args)
 	default:

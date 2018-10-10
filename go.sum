@@ -81,8 +81,8 @@ github.com/sony/gobreaker v0.0.0-20170530031423-e9556a45379e h1:A7yRSd+7ZYlgFchh
 github.com/sony/gobreaker v0.0.0-20170530031423-e9556a45379e/go.mod h1:XvpJiTD8NibaH7z0NzyfhR1+NQDtR9F/x92xheTwC9k=
 github.com/stretchr/testify v1.2.2 h1:bSDNvY7ZPG5RlJ8otE/7V6gMiyenm9RtJ7IUVIAoJ1w=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
-github.com/szuecs/rate-limit-buffer v0.5.0 h1:sdlD1FgagECJWKTPIlWJjxSid9aB0oWU6zS7TYHA6KU=
-github.com/szuecs/rate-limit-buffer v0.5.0/go.mod h1:BxqrsmnHsCnWcvbtdcaDLEBmjNEvRFU5LQ8edoZ9B0M=
+github.com/szuecs/rate-limit-buffer v0.7.0 h1:/CPaOt1oLElQFnOAOYXxrN/kDMyCSp6iKSna2sYZ6X0=
+github.com/szuecs/rate-limit-buffer v0.7.0/go.mod h1:BxqrsmnHsCnWcvbtdcaDLEBmjNEvRFU5LQ8edoZ9B0M=
 github.com/uber-go/atomic v1.3.2 h1:Azu9lPBWRNKzYXSIwRfgRuDuS0YKsK4NFhiQv98gkxo=
 github.com/uber-go/atomic v1.3.2/go.mod h1:/Ct5t2lcmbJ4OSe/waGBoaVvVqtO0bmtfVNex1PFV8g=
 github.com/uber/jaeger-client-go v2.14.0+incompatible h1:1KGTNRby0tDiVDDhvzL0pz0N26M9DobVCfSqz4Z/UPc=

@@ -777,6 +777,7 @@ func Run(o Options) error {
 			SwarmPort:        uint16(o.SwarmPort),
 			MaxMessageBuffer: o.SwarmMaxMessageBuffer,
 			LeaveTimeout:     o.SwarmLeaveTimeout,
+			Debug:            log.GetLevel() == log.DebugLevel,
 		}
 		if o.Kubernetes {
 			swops.KubernetesOptions = &swarm.KubernetesOptions{

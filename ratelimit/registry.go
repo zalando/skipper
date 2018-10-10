@@ -80,18 +80,24 @@ func (r *Registry) Check(req *http.Request) (Settings, int) {
 
 	s := r.global
 
-	registry := r.Get(s)
+	rlimit := r.Get(s)
 	switch s.Type {
+	case ClusterServiceRatelimit:
+		fallthrough
 	case ServiceRatelimit:
-		if registry.Allow("") {
+		if rlimit.Allow("") {
 			return s, 0
 		}
-		return s, registry.RetryAfter("")
+		return s, rlimit.RetryAfter("")
 
-	case LocalRatelimit:
+	case ClusterClientRatelimit:
+		fallthrough
+	case LocalRatelimit: // TODO(sszuecs): name should be dropped if we do a breaking change
+		fallthrough
+	case ClientRatelimit:
 		ip := net.RemoteHost(req)
-		if !registry.Allow(ip.String()) {
-			return s, registry.RetryAfter(ip.String())
+		if !rlimit.Allow(ip.String()) {
+			return s, rlimit.RetryAfter(ip.String())
 		}
 	}
 

@@ -21,7 +21,7 @@ func newFakeSwarm(nodeName string, leaveTimeout time.Duration) (*swarm.Swarm, er
 
 func TestSingleSwarmSingleRatelimit(t *testing.T) {
 	s := Settings{
-		Type:       ClusterRatelimit,
+		Type:       ClusterServiceRatelimit,
 		MaxHits:    3,
 		TimeWindow: 1 * time.Second,
 	}
@@ -60,7 +60,7 @@ func TestSingleSwarmSingleRatelimit(t *testing.T) {
 
 func TestSingleSwarm(t *testing.T) {
 	s := Settings{
-		Type:       ClusterRatelimit,
+		Type:       ClusterServiceRatelimit,
 		MaxHits:    3,
 		TimeWindow: 1 * time.Second,
 	}
@@ -125,7 +125,7 @@ func TestSingleSwarm(t *testing.T) {
 func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
 	log.SetLevel(log.InfoLevel)
 	s := Settings{
-		Type:       ClusterRatelimit,
+		Type:       ClusterServiceRatelimit,
 		MaxHits:    100,
 		TimeWindow: 1 * time.Second,
 	}
@@ -205,7 +205,7 @@ func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
 func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 	log.SetLevel(log.InfoLevel)
 	s := Settings{
-		Type:       ClusterRatelimit,
+		Type:       ClusterServiceRatelimit,
 		MaxHits:    10,
 		TimeWindow: 1 * time.Hour,
 	}
@@ -334,7 +334,7 @@ func TestTwoSwarms(t *testing.T) {
 		defer leaveFunction()
 
 		s := Settings{
-			Type:       ClusterRatelimit,
+			Type:       ClusterServiceRatelimit,
 			MaxHits:    4,
 			TimeWindow: 1 * time.Second,
 		}
@@ -386,7 +386,7 @@ func TestTwoSwarms(t *testing.T) {
 		defer leaveFunction()
 
 		s := Settings{
-			Type:       ClusterRatelimit,
+			Type:       ClusterServiceRatelimit,
 			MaxHits:    100,
 			TimeWindow: 1 * time.Second,
 		}

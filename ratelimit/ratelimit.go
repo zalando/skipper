@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/swarm"
@@ -26,8 +25,10 @@ const (
 	ServiceRatelimitName = "ratelimit"
 	// LocalRatelimitName is the name of the LocalRatelimit filter, which will be shown in log
 	LocalRatelimitName = "localRatelimit"
-	// ClusterRatelimitName is the name of the ClusterRatelimit filter, which will be shown in log
-	ClusterRatelimitName = "clusterRatelimit"
+	// ClusterServiceRatelimitName is the name of the ClusterServiceRatelimit filter, which will be shown in log
+	ClusterServiceRatelimitName = "clusterRatelimit"
+	// ClusterClientRatelimitName is the name of the ClusterClientRatelimit filter, which will be shown in log
+	ClusterClientRatelimitName = "clusterClientRatelimit"
 	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
 	DisableRatelimitName = "disableRatelimit"
 )
@@ -39,13 +40,20 @@ const (
 	// backend service, which is calculated and measured within
 	// each instance
 	ServiceRatelimit
-	// LocalRatelimit is used to have a simple local rate limit
+	// LocalRatelimit *deprecated* will be replaced by ClientRatelimit
+	LocalRatelimit
+	// ClientRatelimit is used to have a simple local rate limit
 	// per user for a backend, which is calculated and measured
 	// within each instance
-	LocalRatelimit
-	// ClusterRatelimit is used to calculate a rate limit for a
-	// whole skipper fleet, needs swarm to be enabled
-	ClusterRatelimit
+	ClientRatelimit
+	// ClusterServiceRatelimit is used to calculate a rate limit
+	// for a whole skipper fleet for a backend service, needs
+	// swarm to be enabled
+	ClusterServiceRatelimit
+	// ClusterClientRatelimit is used to calculate a rate limit
+	// for a whole skipper fleet per user for a backend, needs
+	// swarm to be enabled
+	ClusterClientRatelimit
 	// DisableRatelimit is used to disable rate limit
 	DisableRatelimit
 )
@@ -142,8 +150,12 @@ func (s Settings) String() string {
 		return fmt.Sprintf("ratelimit(type=service,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
 		return fmt.Sprintf("ratelimit(type=local,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
-	case ClusterRatelimit:
-		return fmt.Sprintf("ratelimit(type=cluster,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+	case ClientRatelimit:
+		return fmt.Sprintf("ratelimit(type=client,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+	case ClusterServiceRatelimit:
+		return fmt.Sprintf("ratelimit(type=clusterService,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+	case ClusterClientRatelimit:
+		return fmt.Sprintf("ratelimit(type=clusterClient,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	default:
 		return "non"
 	}
@@ -157,22 +169,19 @@ type implementation interface {
 	// Close is used to clean up underlying implementations, if you want to stop a Ratelimiter
 	Close()
 
-	// Current returns the oldest timestamp for string
-	//Current(string) time.Time
-
-	// Oldest returns the oldest timestamp for string
-	Oldest(string) time.Time
-
-	// RetryAfter is used to inform the client how many seconds it should wait
-	// before making a new request
-	RetryAfter(string) int
-
 	// Delta is used to get the duration until the next call is possible, negative durations allow
 	// immediate calls
 	Delta(string) time.Duration
 
+	// Oldest returns the oldest timestamp for string
+	Oldest(string) time.Time
+
 	// Resize is used to resize the buffer depending on the number of nodes available
 	Resize(string, int)
+
+	// RetryAfter is used to inform the client how many seconds it should wait
+	// before making a new request
+	RetryAfter(string) int
 }
 
 // Ratelimit is a proxy objects that delegates to implemetations and
@@ -218,7 +227,6 @@ type voidRatelimit struct{}
 // Allow always returns true, not ratelimited
 func (voidRatelimit) Allow(string) bool          { return true }
 func (voidRatelimit) Close()                     {}
-func (voidRatelimit) Current(string) time.Time   { return time.Time{} }
 func (voidRatelimit) Oldest(string) time.Time    { return time.Time{} }
 func (voidRatelimit) RetryAfter(string) int      { return 0 }
 func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
@@ -231,10 +239,12 @@ func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {
 		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
 		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
-	case ClusterRatelimit:
-		logrus.Infof("SWARM: cluster ratelimit found, try to create..")
+	case ClusterServiceRatelimit:
+		s.CleanInterval = 0
+		fallthrough
+	case ClusterClientRatelimit:
 		if sw != nil {
-			impl = NewClusterRateLimiter(s, sw, "foo")
+			impl = NewClusterRateLimiter(s, sw, "CRL")
 		} else {
 			fmt.Fprintf(os.Stderr, "ERROR: no -enable-swarm, falling back to no ratelimit for %q\n", s)
 			impl = voidRatelimit{}

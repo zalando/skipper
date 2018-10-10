@@ -3,6 +3,7 @@ package swarm
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"time"
 
@@ -57,14 +58,14 @@ var (
 // Options for swarm objects.
 type Options struct {
 	swarm swarmType
-	// leaky, expected to be buffered, or errors are lost
-	Errors             chan<- error // TODO(sszuecs): should probably be hidden as implemetnation detail
+
 	MaxMessageBuffer   int
 	LeaveTimeout       time.Duration
 	SwarmPort          uint16
 	KubernetesOptions  *KubernetesOptions // nil if not kubernetes
 	FakeSwarm          bool
 	FakeSwarmLocalNode string
+	Debug              bool
 }
 
 // Swarm is the main type for exchanging low latency, weakly
@@ -112,8 +113,6 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to build kubernetes API url from url %s running in cluster %v: %v", o.KubernetesOptions.KubernetesAPIBaseURL, o.KubernetesOptions.KubernetesInCluster, err)
 	}
-
-	o.Errors = make(chan<- error) // FIXME - do WE have to read this, or...?
 	o.KubernetesOptions.KubernetesAPIBaseURL = u
 
 	if o.SwarmPort <= 0 || o.SwarmPort >= 65535 {
@@ -158,28 +157,29 @@ func Start(o Options) (*Swarm, error) {
 
 // Join will join given Swarm peers and return an initialiazed Swarm
 // object if successful.
-// TODO(sszuecs): check the options elsewhere
 func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm, error) {
 	log.Infof("SWARM: %s is going to join swarm of %d nodes (%v)", self, len(nodes), nodes)
-	c := memberlist.DefaultLocalConfig()
+	cfg := memberlist.DefaultLocalConfig()
+	if !o.Debug {
+		cfg.LogOutput = ioutil.Discard
+	}
 
 	if self.Name == "" {
-		self.Name = c.Name
+		self.Name = cfg.Name
 	} else {
-		c.Name = self.Name
+		cfg.Name = self.Name
 	}
-
 	if self.Addr == nil {
-		self.Addr = net.ParseIP(c.BindAddr)
+		self.Addr = net.ParseIP(cfg.BindAddr)
 	} else {
-		c.BindAddr = self.Addr.String()
-		c.AdvertiseAddr = c.BindAddr
+		cfg.BindAddr = self.Addr.String()
+		cfg.AdvertiseAddr = cfg.BindAddr
 	}
 	if self.Port == 0 {
-		self.Port = uint16(c.BindPort)
+		self.Port = uint16(cfg.BindPort)
 	} else {
-		c.BindPort = int(self.Port)
-		c.AdvertisePort = c.BindPort
+		cfg.BindPort = int(self.Port)
+		cfg.AdvertisePort = cfg.BindPort
 	}
 
 	getOutgoing := make(chan reqOutgoing)
@@ -190,18 +190,16 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm
 	leave := make(chan struct{})
 	shared := make(sharedValues)
 
-	c.Delegate = &mlDelegate{
+	cfg.Delegate = &mlDelegate{
 		outgoing: getOutgoing,
 		incoming: incoming,
 	}
-
-	ml, err := memberlist.Create(c)
+	ml, err := memberlist.Create(cfg)
 	if err != nil {
 		log.Errorf("SWARM: failed to create memberlist: %v", err)
 		return nil, err
 	}
-
-	c.Delegate.(*mlDelegate).meta = ml.LocalNode().Meta
+	cfg.Delegate.(*mlDelegate).meta = ml.LocalNode().Meta
 
 	if len(nodes) > 0 {
 		addresses := mapNodesToAddresses(nodes)
@@ -214,7 +212,6 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm
 
 	s := &Swarm{
 		local:            self,
-		errors:           o.Errors,
 		maxMessageBuffer: o.MaxMessageBuffer,
 		leaveTimeout:     o.LeaveTimeout,
 		getOutgoing:      getOutgoing,
@@ -241,7 +238,6 @@ func (s *Swarm) control() {
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
 			if len(s.messages) <= 0 {
-				// XXX(sszuecs): does this happen?
 				log.Warning("SWARM: getOutgoing with 0 messages, should not happen")
 			}
 			req.ret <- s.messages
@@ -256,11 +252,7 @@ func (s *Swarm) control() {
 		case b := <-s.incoming:
 			m, err := decodeMessage(b)
 			if err != nil {
-				// assuming buffered error channels
-				select {
-				case s.errors <- err:
-				default:
-				}
+				log.Errorf("SWARM: Failed to decode message: %v", err)
 			} else if m.Type == sharedValue {
 				log.Debugf("SWARM: %s got shared value from %s: %s: %v", s.Local().Name, m.Source, m.Key, m.Value)
 				s.shared.set(m.Source, m.Key, m.Value)
@@ -285,22 +277,14 @@ func (s *Swarm) control() {
 		case <-s.leave:
 			log.Debugf("SWARM: %s got leave signal", s.Local())
 			if s.mlist == nil {
-				log.Warning("SWARM: Leave called, but mlist is already nil")
+				log.Warningf("SWARM: Leave called, but %s already seem to be left", s.Local())
 				return
 			}
 			if err := s.mlist.Leave(s.leaveTimeout); err != nil {
 				log.Errorf("SWARM: Failed to leave mlist: %v", err)
-				select {
-				case s.errors <- err:
-				default:
-				}
 			}
 			if err := s.mlist.Shutdown(); err != nil {
 				log.Errorf("SWARM: Failed to shutdown mlist: %v", err)
-				select {
-				case s.errors <- err:
-				default:
-				}
 			}
 			log.Infof("SWARM: %s left", s.Local())
 			return
@@ -350,9 +334,6 @@ func (s *Swarm) ShareValue(key string, value interface{}) error {
 	return s.broadcast(&message{Type: sharedValue, Key: key, Value: value})
 }
 
-// DeleteValue does nothing, but implements an interface.
-func (s *Swarm) DeleteValue(string) error { return nil }
-
 // Values implements an interface to send a request and wait blocking
 // for a response.
 func (s *Swarm) Values(key string) map[string]interface{} {
@@ -363,14 +344,6 @@ func (s *Swarm) Values(key string) map[string]interface{} {
 	s.getValues <- req
 	return <-req.ret
 }
-
-// XXX(sszuecs): required? seems not
-// func (s *Swarm) Members() []*NodeInfo            { return nil }
-// func (s *Swarm) State() NodeState                { return Initial }
-// func (s *Swarm) Instances() map[string]NodeState { return nil }
-
-// assumed to buffered or may drop
-func (s *Swarm) Listen(key string, c chan<- *Message) {}
 
 func (s *Swarm) Leave() {
 	close(s.leave)
