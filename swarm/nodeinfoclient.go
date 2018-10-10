@@ -20,16 +20,19 @@ type nodeInfoClient interface {
 	Self() *NodeInfo
 }
 
-func NewNodeInfoClient(o Options) nodeInfoClient {
+func NewNodeInfoClient(o Options) (nodeInfoClient, func()) {
 	log.Infof("swarm type: %s", o.swarm)
 	switch o.swarm {
 	case swarmKubernetes:
-		return NewNodeInfoClientKubernetes(o)
+		return NewNodeInfoClientKubernetes(o), func() {}
 	case swarmFake:
-		return NewNodeInfoClientFake(o)
+		return NewNodeInfoClientFake(o), func() {
+			// reset fakePeers to cleanup swarm nodes for tests
+			fakePeers = make([]*NodeInfo, 0)
+		}
 	default:
 		log.Errorf("unknown swarm type: %s", o.swarm)
-		return nil
+		return nil, func() {}
 	}
 }
 

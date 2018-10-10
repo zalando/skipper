@@ -158,7 +158,7 @@ type implementation interface {
 	Close()
 
 	// Current returns the oldest timestamp for string
-	Current(string) time.Time
+	//Current(string) time.Time
 
 	// Oldest returns the oldest timestamp for string
 	Oldest(string) time.Time

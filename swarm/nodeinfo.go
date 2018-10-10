@@ -49,15 +49,15 @@ type knownEntryPoint struct {
 // newKnownEntryPoint returns a new knownEntryPoint that knows all
 // initial peers and itself. If it can not get a list of peers it will
 // fail fast.
-func newKnownEntryPoint(o Options) *knownEntryPoint {
-	nic := NewNodeInfoClient(o)
+func newKnownEntryPoint(o Options) (*knownEntryPoint, func()) {
+	nic, cleanupF := NewNodeInfoClient(o)
 	nodes, err := nic.GetNodeInfo()
 	if err != nil {
 		log.Fatalf("SWARM: Failed to get nodeinfo: %v", err)
 	}
 
 	self := nic.Self()
-	return &knownEntryPoint{self: self, nodes: nodes, nic: nic}
+	return &knownEntryPoint{self: self, nodes: nodes, nic: nic}, cleanupF
 }
 
 // Node return its self

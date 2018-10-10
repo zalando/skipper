@@ -74,29 +74,28 @@ func (c *ClusterLimit) Allow(s string) bool {
 	//           ^- current pointer to oldest
 	// now - t0
 	dTransfer := c.local.Oldest(s).UTC().UnixNano()
+
 	_ = c.local.Allow(s) // update local rate limit
 
-	//dTransfer := int64(d)
 	if err := c.swarm.ShareValue(swarmPrefix+s, dTransfer); err != nil {
 		log.Errorf("clusterRatelimit failed to share value: %v", err)
 	}
 
 	swarmValues := c.swarm.Values(swarmPrefix + s)
-	log.Debugf("%s: swarmValues: %d", c.name, len(swarmValues))
-	log.Infof("%s: clusterRatelimit swarmValues for '%s': %v", c.name, swarmPrefix+s, swarmValues)
+	log.Debugf("%s: clusterRatelimit swarmValues(%d) for '%s': %v", c.name, len(swarmValues), swarmPrefix+s, swarmValues)
 
 	c.resize <- resizeLimit{s: s, n: len(swarmValues)}
 
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, swarmValues)
-	result := rate < c.maxHits //*float64(c.window)
-	log.Infof("clusterRatelimit %s: Allow=%v, %v < %v", c.name, result, rate, c.maxHits)
+	result := rate < c.maxHits
+	log.Debugf("clusterRatelimit %s: Allow=%v, %v < %v", c.name, result, rate, c.maxHits)
 	return result
 }
 
 func (c *ClusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {
 	var requestRate float64
-	//maxNodeHits := c.maxHits / float64(len(swarmValues))
+	maxNodeHits := c.maxHits / float64(len(swarmValues))
 
 	for _, v := range swarmValues {
 		t0, ok := v.(int64)
@@ -105,23 +104,11 @@ func (c *ClusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]in
 		}
 		deltaI := now - t0
 		delta := time.Duration(deltaI)
-		if delta > c.window {
-			continue
-		}
-
-		log.Infof("%0.2f += %0.2f / %0.2f", requestRate, float64(c.window), float64(delta))
-		requestRate += float64(c.window) / float64(delta)
-
-		// tempRate := float64(c.window) / float64(delta)
-		// if tempRate > 10*maxNodeHits {
-		// 	tempRate = maxNodeHits
-		// }
-		// requestRate += tempRate
-
-		//requestRate += math.Min(maxNodeHits, float64(c.window)/float64(delta))
-		//requestRate += math.Max(maxNodeHits, float64(c.window)/float64(delta))
+		adjusted := float64(delta) / float64(c.window)
+		log.Debugf("%0.2f += %0.2f / %0.2f", requestRate, maxNodeHits, adjusted)
+		requestRate += maxNodeHits / adjusted
 	}
-	log.Infof("requestRate: %0.2f", requestRate)
+	log.Debugf("requestRate: %0.2f", requestRate)
 	return requestRate
 }
 

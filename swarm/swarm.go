@@ -85,6 +85,8 @@ type Swarm struct {
 	messages [][]byte
 	shared   sharedValues
 	mlist    *memberlist.Memberlist
+
+	cleanupF func()
 }
 
 func NewSwarm(o Options) (*Swarm, error) {
@@ -149,15 +151,15 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 
 // Start will find Swarm peers and join them.
 func Start(o Options) (*Swarm, error) {
-	knownEntryPoint := newKnownEntryPoint(o)
+	knownEntryPoint, cleanupF := newKnownEntryPoint(o)
 	log.Debugf("knownEntryPoint: %s, %v", knownEntryPoint.Node(), knownEntryPoint.Nodes())
-	return Join(o, knownEntryPoint.Node(), knownEntryPoint.Nodes())
+	return Join(o, knownEntryPoint.Node(), knownEntryPoint.Nodes(), cleanupF)
 }
 
 // Join will join given Swarm peers and return an initialiazed Swarm
 // object if successful.
 // TODO(sszuecs): check the options elsewhere
-func Join(o Options, self *NodeInfo, nodes []*NodeInfo) (*Swarm, error) {
+func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm, error) {
 	log.Infof("SWARM: %s is going to join swarm of %d nodes (%v)", self, len(nodes), nodes)
 	c := memberlist.DefaultLocalConfig()
 
@@ -223,6 +225,8 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo) (*Swarm, error) {
 		listeners:        listeners,
 		leave:            leave,
 		shared:           shared,
+		mlist:            ml,
+		cleanupF:         cleanupF,
 	}
 
 	// TODO(sszuecs): maybe we should wrap it in a recover for panic, but we need to close the channels
@@ -282,19 +286,27 @@ func (s *Swarm) control() {
 			log.Debugf("SWARM: getValues for key: %s", req.key)
 			req.ret <- s.shared[req.key]
 		case <-s.leave:
-			log.Infof("SWARM: leaving %s", s.Local())
+			log.Infof("SWARM: %s leaving", s.Local())
 			if s.mlist == nil {
 				log.Errorf("mlist nil")
 				return
 			}
 			// TODO: call shutdown
 			if err := s.mlist.Leave(s.leaveTimeout); err != nil {
+				log.Errorf("Err mlist.Leave: %v", err)
 				select {
 				case s.errors <- err:
 				default:
 				}
 			}
-
+			if err := s.mlist.Shutdown(); err != nil {
+				log.Errorf("Err mlist.Shutdown: %v", err)
+				select {
+				case s.errors <- err:
+				default:
+				}
+			}
+			log.Infof("SWARM: %s left", s.Local())
 			return
 		}
 	}
@@ -308,7 +320,7 @@ func (s *Swarm) Local() *NodeInfo {
 	}
 	if s.mlist == nil {
 		//TODO(sszuecs): this needs to be fixed
-		//log.Warningf("deprecated way of getting local node")
+		log.Warningf("deprecated way of getting local node")
 		return s.local
 	}
 	mlNode := s.mlist.LocalNode()
@@ -367,4 +379,6 @@ func (s *Swarm) Listen(key string, c chan<- *Message) {}
 
 func (s *Swarm) Leave() {
 	close(s.leave)
+	s.cleanupF()
+	log.Warningf("%s left swarm", s.Local())
 }
