@@ -2,9 +2,11 @@ package builtin
 
 import (
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/serve"
 	"net/http"
+	"os"
 )
 
 type static struct {
@@ -40,7 +42,13 @@ func (spec *static) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 	root, ok := config[1].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid parameter type, expected string for path to root dir")
+		log.Errorf("Invalid parameter type, expected string for path to root dir")
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	if ok, err := existsAndAccessible(root); !ok {
+		log.Errorf("Invalid parameter for root path. File %s does not exist or is not accessible: %v", root, err)
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	return &static{http.StripPrefix(webRoot, http.FileServer(http.Dir(root)))}, nil
@@ -53,3 +61,11 @@ func (f *static) Request(ctx filters.FilterContext) {
 
 // Noop.
 func (f *static) Response(filters.FilterContext) {}
+
+// Checks if the file does exist and is accessible
+func existsAndAccessible(path string) (bool, error) {
+	if _, err := os.Stat(path); err != nil {
+		return os.IsExist(err), err
+	}
+	return true, nil
+}
