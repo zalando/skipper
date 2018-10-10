@@ -18,10 +18,6 @@ const (
 	MetricCount300s = "http3xx_count"
 	MetricCount200s = "http2xx_count"
 
-	// Request & Response
-	MetricRequestSize  = "req_size_sum"
-	MetricResponseSize = "resp_size_sum"
-
 	// Timings
 	MetricLatency = "latency"
 )
@@ -109,8 +105,6 @@ func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 	f.writeMetricCount(metrics, mfc)
 	f.writeMetricResponseStatusClassCount(metrics, mfc, response)
 	f.writeMetricLatency(metrics, mfc)
-	f.writeMetricSizeOfRequest(metrics, mfc)
-	f.writeMetricSizeOfResponse(metrics, mfc, response)
 }
 
 // getDimensionPrefix generates the dimension part of the metrics key (before the name
@@ -181,33 +175,4 @@ func (f *apiMonitoringFilter) writeMetricLatency(metrics filters.Metrics, mfc *a
 		log.Infof("measuring for %q since %v", key, mfc.Begin)
 	}
 	metrics.MeasureSince(key, mfc.Begin)
-}
-
-func (f *apiMonitoringFilter) writeMetricSizeOfRequest(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
-	requestSize := mfc.OriginalRequestSize
-	if requestSize < 0 {
-		log.WithField("dimensions", mfc.DimensionsPrefix).
-			Infof("unknown original request content length: %d", requestSize)
-		return
-	}
-
-	key := mfc.DimensionsPrefix + MetricRequestSize
-	if f.verbose {
-		log.Infof("incrementing %q by %d", key, requestSize)
-	}
-	metrics.IncCounterBy(key, requestSize)
-}
-
-func (f *apiMonitoringFilter) writeMetricSizeOfResponse(metrics filters.Metrics, mfc *apiMonitoringFilterContext, response *http.Response) {
-	responseSize := response.ContentLength // todo: this always return 0, investigate why
-	if responseSize < 0 {
-		log.WithField("dimensions", mfc.DimensionsPrefix).Infof("unknown response content length: %d", responseSize)
-		return
-	}
-
-	key := mfc.DimensionsPrefix + MetricResponseSize
-	if f.verbose {
-		log.Infof("incrementing %q by %d", key, responseSize)
-	}
-	metrics.IncCounterBy(key, responseSize)
 }

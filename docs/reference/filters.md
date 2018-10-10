@@ -856,8 +856,9 @@ apimonitoring(`{
 ```
 
 That would monitor metrics like:
-* `apimonitoring.custom.my_app.GET.foo/orders/:order-id`
-* `apimonitoring.custom.my_app.POST.foo/orders`
-* `apimonitoring.custom.my_app.GET.foo/orders/:order-id/order-items/:order-item-id`
-* `apimonitoring.custom.my_app.POST.foo/customers`
-* `apimonitoring.custom.my_app.DELETE.foo/customers/:customer-id`
+* `apimonitoring.custom.my_app.GET.foo/orders/:order-id.http_count`
+* `apimonitoring.custom.my_app.GET.foo/orders/:order-id.http2xx_count`
+* `apimonitoring.custom.my_app.POST.foo/orders.latency`
+* `apimonitoring.custom.my_app.GET.foo/orders/:order-id/order-items/:order-item-id.latency`
+* `apimonitoring.custom.my_app.POST.foo/customers.http_count`
+* `apimonitoring.custom.my_app.DELETE.foo/customers/:customer-id.http5xx_count`
