@@ -65,7 +65,7 @@ const (
 	defaultWebhookTimeout                 = 2 * time.Second
 
 	// API Monitoring
-	defaultApimonitoringEnable  = false
+	defaultEnableApimonitoring  = false
 	defaultApimonitoringVerbose = false
 
 	// generic:
@@ -150,7 +150,7 @@ const (
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// API Monitoring:
-	apimonitoringEnableUsage  = "enables the experimental filter `apimonitoring`"
+	enableApimonitoringUsage  = "enables the experimental filter `apimonitoring`"
 	apimonitoringVerboseUsage = "causes the `apimonitoring` filter to log detailed information about its operations"
 
 	// connections, timeouts:
@@ -266,7 +266,7 @@ var (
 	webhookTimeout                  time.Duration
 
 	// API Monitoring
-	apimonitoringEnable  bool
+	enableApimonitoring  bool
 	apimonitoringVerbose bool
 
 	// connections, timeouts:
@@ -380,7 +380,7 @@ func init() {
 	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 
 	// API Monitoring:
-	flag.BoolVar(&apimonitoringEnable, "enable-apimonitoring", defaultApimonitoringEnable, apimonitoringEnableUsage)
+	flag.BoolVar(&enableApimonitoring, "enable-apimonitoring", defaultEnableApimonitoring, enableApimonitoringUsage)
 	flag.BoolVar(&apimonitoringVerbose, "apimonitoring-verbose", defaultApimonitoringVerbose, apimonitoringVerboseUsage)
 
 	// connections, timeouts:
@@ -562,7 +562,7 @@ func main() {
 		KubernetesNamespace:         kubernetesNamespace,
 
 		// API Monitoring:
-		ApiMonitoringActive:  apimonitoringEnable,
+		EnableApiMonitoring:  enableApimonitoring,
 		ApiMonitoringVerbose: apimonitoringVerbose,
 
 		// Auth:
