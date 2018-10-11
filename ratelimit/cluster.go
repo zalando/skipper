@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"math"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -15,7 +16,7 @@ type Swarmer interface {
 type ClusterLimit struct {
 	name    string
 	local   implementation
-	maxHits float64
+	maxHits int
 	window  time.Duration
 	swarm   Swarmer
 	resize  chan resizeLimit
@@ -31,7 +32,7 @@ func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
 	rl := &ClusterLimit{
 		name:    name,
 		swarm:   sw,
-		maxHits: float64(s.MaxHits),
+		maxHits: s.MaxHits,
 		window:  s.TimeWindow,
 		resize:  make(chan resizeLimit),
 		quit:    make(chan struct{}),
@@ -51,7 +52,7 @@ func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
 			case size := <-rl.resize:
 				log.Debugf("resize clusterRatelimit: %v", size)
 				// TODO(sszuecs): call with "go" ?
-				rl.Resize(size.s, int(rl.maxHits)/size.n)
+				rl.Resize(size.s, rl.maxHits/size.n)
 			case <-rl.quit:
 				log.Debugf("quit clusterRatelimit")
 				close(rl.resize)
@@ -88,14 +89,14 @@ func (c *ClusterLimit) Allow(s string) bool {
 
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, swarmValues)
-	result := rate < c.maxHits
-	log.Debugf("clusterRatelimit %s: Allow=%v, %v < %v", c.name, result, rate, c.maxHits)
+	result := rate < float64(c.maxHits)
+	log.Debugf("clusterRatelimit %s: Allow=%v, %v < %d", c.name, result, rate, c.maxHits)
 	return result
 }
 
 func (c *ClusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {
 	var requestRate float64
-	maxNodeHits := c.maxHits / float64(len(swarmValues))
+	maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(len(swarmValues))))
 
 	for _, v := range swarmValues {
 		t0, ok := v.(int64)

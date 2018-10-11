@@ -106,21 +106,14 @@ func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	var err error
-	var maxHits int
-	if len(args) > 0 {
-		maxHits, err = getIntArg(args[0])
-		if err != nil {
-			return nil, err
-		}
+	maxHits, err := getIntArg(args[0])
+	if err != nil {
+		return nil, err
 	}
 
-	var timeWindow time.Duration
-	if len(args) > 1 {
-		timeWindow, err = getDurationArg(args[1])
-		if err != nil {
-			return nil, err
-		}
+	timeWindow, err := getDurationArg(args[1])
+	if err != nil {
+		return nil, err
 	}
 
 	return &filter{
@@ -138,22 +131,16 @@ func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	var err error
-	var maxHits int
-	if len(args) > 0 {
-		maxHits, err = getIntArg(args[0])
-		if err != nil {
-			return nil, err
-		}
+	maxHits, err := getIntArg(args[0])
+	if err != nil {
+		return nil, err
 	}
 
-	var timeWindow time.Duration
-	if len(args) > 1 {
-		timeWindow, err = getDurationArg(args[1])
-		if err != nil {
-			return nil, err
-		}
+	timeWindow, err := getDurationArg(args[1])
+	if err != nil {
+		return nil, err
 	}
+
 	s := ratelimit.Settings{
 		Type:       ratelimit.ClusterServiceRatelimit,
 		MaxHits:    maxHits,
@@ -187,21 +174,14 @@ func localRatelimitFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	var err error
-	var maxHits int
-	if len(args) > 0 {
-		maxHits, err = getIntArg(args[0])
-		if err != nil {
-			return nil, err
-		}
+	maxHits, err := getIntArg(args[0])
+	if err != nil {
+		return nil, err
 	}
 
-	var timeWindow time.Duration
-	if len(args) > 1 {
-		timeWindow, err = getDurationArg(args[1])
-		if err != nil {
-			return nil, err
-		}
+	timeWindow, err := getDurationArg(args[1])
+	if err != nil {
+		return nil, err
 	}
 
 	var lookuper ratelimit.Lookuper
