@@ -666,14 +666,21 @@ backendHealthcheck: Path("/healthcheck")
 
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
 
-## localRatelimit
+## ~~localRatelimit~~
+
+**DEPRECATED** use [clientRatelimit](#clientRatelimit) with the same
+  settings instead.
+
+## clientRatelimit
 
 Per skipper instance calculated ratelimit, that allows number of
 requests by client. The definition of the same client is based on data
 of the http header and can be changed with an optional third
 parameter. If the third parameter is set skipper will use the
 Authorization header to put the request in the same client bucket,
-else  the X-Forwarded-For Header will be used.
+else the X-Forwarded-For Header will be used. You need to run skipper
+with command line flag `-enable-ratelimits`. Skipper will consume
+roughly 15 MB per filter for 100.000 clients.
 
 Parameters:
 
@@ -682,8 +689,8 @@ Parameters:
 * optional parameter can be set to: "auth" (string)
 
 ```
-localRatelimit(3, "1m")
-localRatelimit(3, "1m", "auth")
+clientRatelimit(3, "1m")
+clientRatelimit(3, "1m", "auth")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -691,7 +698,8 @@ See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratel
 ## ratelimit
 
 Per skipper instance calculated ratelimit, that allows number of
-requests to a backend.
+requests to a backend. You need to run skipper
+with command line flag `-enable-ratelimits`.
 
 Parameters:
 
@@ -701,6 +709,49 @@ Parameters:
 ```
 ratelimit(20, "1m")
 ratelimit(300, "1h")
+```
+
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+
+## clusterClientRatelimit
+
+This ratelimit is calculated across all skipper peers and allows the
+given number of requests by client. The definition of the same client
+is based on data of the http header and can be changed with an
+optional third parameter. If the third parameter is set skipper will
+use the Authorization header to put the request in the same client
+bucket, else the X-Forwarded-For Header will be used.  You need to run
+skipper with command line flags `-enable-swarm` and
+`-enable-ratelimits`. Skipper will consume roughly 15 MB per filter
+for 100.000 clients and 1000 skipper peers.
+
+Parameters:
+
+* number of allowed requests per time period (int)
+* time period for requests being counted (time.Duration)
+* optional parameter can be set to: "auth" (string)
+
+```
+clusterClientRatelimit(10, "1h")
+clusterClientRatelimit(10, "1h", "auth")
+```
+
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+
+## clusterRatelimit
+
+This ratelimit is calculated across all skipper peers and allows the
+given number of requests to a backend. You need to have run skipper
+with command line flags `-enable-swarm` and `-enable-ratelimits`.
+
+Parameters:
+
+* number of allowed requests per time period (int)
+* time period for requests being counted (time.Duration)
+
+```
+clusterRatelimit(20, "1m")
+clusterRatelimit(300, "1h")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).

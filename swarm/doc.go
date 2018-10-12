@@ -9,9 +9,8 @@ the swarm data exchange to have a global state of current requests.
 
 A swarm instance needs to find some of it's peers before joining the
 cluster. Current implementations to find peers are swarmKubernetes to
-find skipper instances running in Kubernetes and swarmFake for
-testing.
-
+find skipper instances running in a Kubernetes cluster and swarmFake
+for testing.
 
 Background information:
 

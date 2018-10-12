@@ -44,24 +44,48 @@ type RatelimitType int
 const (
 	// NoRatelimit is not used
 	NoRatelimit RatelimitType = iota
+
 	// ServiceRatelimit is used to have a simple rate limit for a
 	// backend service, which is calculated and measured within
 	// each instance
 	ServiceRatelimit
+
 	// LocalRatelimit *deprecated* will be replaced by ClientRatelimit
 	LocalRatelimit
+
 	// ClientRatelimit is used to have a simple local rate limit
 	// per user for a backend, which is calculated and measured
-	// within each instance
+	// within each instance. One filter consumes memory calculated
+	// by the following formular, where N is the number of
+	// individual clients put into the same bucket, M the maximum
+	// number of requests allowed:
+	//
+	//    memory = N * M * 15 byte
+	//
+	// For example /login protection 100.000 attacker, 10 requests
+	// for 1 hour will use roughly 14.6 MB.
 	ClientRatelimit
+
 	// ClusterServiceRatelimit is used to calculate a rate limit
 	// for a whole skipper fleet for a backend service, needs
-	// swarm to be enabled
+	// swarm to be enabled with -enable-swarm.
 	ClusterServiceRatelimit
+
 	// ClusterClientRatelimit is used to calculate a rate limit
 	// for a whole skipper fleet per user for a backend, needs
-	// swarm to be enabled
+	// swarm to be enabled with -enable-swarm.
+	// One filter consumes memory calculated
+	// by the following formular, where N is the number of
+	// individual clients put into the same bucket, M the maximum
+	// number of requests allowed, S the number of skipper peers:
+	//
+	//    memory = N * M * 15 + S * len(peername)
+	//
+	// For example /login protection 100.000 attacker, 10 requests
+	// for 1 hour, 100 skipper peers with each a name of 8
+	// characters will use roughly 14.7 MB.
 	ClusterClientRatelimit
+
 	// DisableRatelimit is used to disable rate limit
 	DisableRatelimit
 )
@@ -169,7 +193,7 @@ func (s Settings) String() string {
 	case ServiceRatelimit:
 		return fmt.Sprintf("ratelimit(type=service,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
-		return fmt.Sprintf("ratelimit(type=local,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+		fallthrough
 	case ClientRatelimit:
 		return fmt.Sprintf("ratelimit(type=client,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	case ClusterServiceRatelimit:
@@ -260,6 +284,8 @@ func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {
 	case ServiceRatelimit:
 		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
+		fallthrough
+	case ClientRatelimit:
 		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
 	case ClusterServiceRatelimit:
 		s.CleanInterval = 0

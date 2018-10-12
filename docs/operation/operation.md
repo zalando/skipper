@@ -3,8 +3,8 @@
 This is the work in progress operations guide for showing information,
 which are relevant for production use.
 
-Skipper is proven to scale with number of routes beyond 200.000 routes
-per instance. Skipper is running with peaks to 45.000 http requests
+Skipper is proven to scale with number of routes beyond 300.000 routes
+per instance. Skipper is running with peaks to 65.000 http requests
 per second using multiple instances.
 
 # Connection Options
@@ -151,6 +151,21 @@ option to enable it:
 
 It will return [Prometheus](https://prometheus.io/) metrics on the
 common metrics endpoint :9911/metrics.
+
+To monitor skipper we recommend the following queries:
+
+- P99 backend latency: `histogram_quantile(0.99, sum(rate(skipper_serve_host_duration_seconds_bucket{}[1m])) by (le))`
+- HTTP 2xx rate: `histogram_quantile(0.99, sum(rate(skipper_serve_host_duration_seconds_bucket{code =~ "2.*"}[1m])) by (le) )`
+- HTTP 4xx rate: `histogram_quantile(0.99, sum(rate(skipper_serve_host_duration_seconds_bucket{code =~ "4.*"}[1m])) by (le) )`
+- HTTP 5xx rate: `histogram_quantile(0.99, sum(rate(skipper_serve_host_duration_seconds_bucket{code =~ "52.*"}[1m])) by (le) )`
+- Max goroutines (depends on label selector): `max(go_goroutines{application="skipper-ingress"})`
+- Max threads (depends on label selector): `max(go_threads{application="skipper-ingress"})`
+- max heap memory in use in MB (depends on label selector): `max(go_memstats_heap_inuse_bytes{application="skipper-ingress"}) / 1024 / 1000`
+- Max number of heap objects (depends on label selector): `max(go_memstats_heap_objects{application="skipper-ingress"})`
+- Max of P75 Go GC runtime in ms (depends on label selector): `max(go_gc_duration_seconds{application="skipper-ingress",quantile="0.75"}) * 1000 * 1000`
+- P99 request filter duration (depends on label selector): `histogram_quantile(0.99, sum(rate(skipper_filter_request_duration_seconds_bucket{application="skipper-ingress"}[1m])) by (le) )`
+- P99 response filter duration (depends on label selector): `histogram_quantile(0.99, sum(rate(skipper_filter_response_duration_seconds_bucket{application="skipper-ingress"}[1m])) by (le) )`
+- If you use Kubernetes limits or Linux cgroup CFS quotas (depends on label selector): `sum(rate(container_cpu_cfs_throttled_periods_total{container_name="skipper-ingress"}[1m]))`
 
 ## Connection metrics
 
@@ -398,3 +413,53 @@ In order to control this limits, there are two parameters: `limit` and
 to get the results paginated or getting all of them at the same time.
 
     % curl localhost:9911/routes?offset=200&limit=100
+
+# Memory consumption
+
+Memory consumption is in general no problem, but some features can if
+not carefully used create more memory consumption that you might
+thought.
+
+Heavy memory consumers:
+
+- Metrics
+- Filters
+- Slow Backends and chatty clients
+
+Make sure you monitor backend latency, request and error rates.
+Additionally use Go metrics number of goroutines and threads, GC pause
+times should be less than 1ms in general, route lookup time, request
+and response filter times and heap memory.
+
+## Metrics
+
+Memory consumption of metrics are dependent on enabled command line
+flags. Make sure to monitor Go metrics.
+
+If you use `-metrics-flavour=codahale,prometheus` you enable both
+storage backends.
+
+If you use the Prometheus histogram buckets `-histogram-metric-buckets`.
+
+If you enable route based `-route-backend-metrics`
+`-route-response-metrics` `-serve-route-metrics`, error codes
+`-route-response-metrics` and host `-serve-host-metrics` based metrics
+it can count up. Please check the support listener endpoint (default
+9911) to understand the usage:
+
+    % curl localhost:9911/metrics
+
+## Filters
+
+Ratelimit filters `clientRatelimit` and `clusterClientRatelimit`, both consume
+roughly 15MB per filter for 100.000 individual clients and 10 maximum
+hits. Make sure you monitor Go metrics.
+
+## Slow Backends
+
+Skipper has to keep track of all active connections and http
+Requests. Slow Backends can pile up in number of connections, that
+will consume each a little memory per request. If you have high
+traffic per instance and a backend times out it can start to increase
+your memory consumption. Make sure you monitor backend latency,
+request and error rates.
