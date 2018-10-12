@@ -20,7 +20,7 @@ const RetryAfterKey = "#ratelimitretryafter"
 const RouteSettingsKey = "#ratelimitsettings"
 
 type spec struct {
-	typ        ratelimit.Type
+	typ        ratelimit.RatelimitType
 	filterName string
 }
 

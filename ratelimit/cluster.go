@@ -8,14 +8,21 @@ import (
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 )
 
+// Swarmer interface defines the requirement for a Swarm, for use as
+// an exchange method for cluster ratelimits:
+// ratelimit.ClusterServiceRatelimit and
+// ratelimit.ClusterClientRatelimit.
 type Swarmer interface {
+	// ShareValue is used to share the local information with its peers.
 	ShareValue(string, interface{}) error
+	// Values is used to get global information about current rates.
 	Values(string) map[string]interface{}
 }
 
+// ClusterLimit stores all data required for the cluster ratelimit.
 type ClusterLimit struct {
 	name    string
-	local   implementation
+	local   limiter
 	maxHits int
 	window  time.Duration
 	swarm   Swarmer
@@ -28,6 +35,9 @@ type resizeLimit struct {
 	n int
 }
 
+// NewClusterRateLimiter creates a new ClusterLimit for given Settings
+// and use the given Swarmer. Name is used in log messages to identify
+// the ratelimit instance.
 func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
 	rl := &ClusterLimit{
 		name:    name,
@@ -67,7 +77,9 @@ func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
 const swarmPrefix string = `ratelimit.`
 
 // Allow returns true if the request calculated across the cluster of
-// skippers should be allowed else false.
+// skippers should be allowed else false. It will share it's own data
+// and use the current cluster information to calculate global rates
+// to decide to allow or not.
 func (c *ClusterLimit) Allow(s string) bool {
 
 	// t0 is the oldest entry in the local circularbuffer
@@ -112,6 +124,7 @@ func (c *ClusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]in
 	return requestRate
 }
 
+// Close should be called to teardown the ClusterLimit.
 func (c *ClusterLimit) Close() {
 	close(c.quit)
 	c.local.Close()

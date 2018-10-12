@@ -19,9 +19,9 @@ import (
 const (
 	// DefaultNamespace is the default namespace where swarm searches for peer information
 	DefaultNamespace = "kube-system"
-	// DefaultLabelSelectorKey is the default label key to select PODs for peer information
+	// DefaultLabelSelectorKey is the default label key to select Pods for peer information
 	DefaultLabelSelectorKey = "application"
-	// DefaultLabelSelectorValue is the default label value to select PODs for peer information
+	// DefaultLabelSelectorValue is the default label value to select Pods for peer information
 	DefaultLabelSelectorValue = "skipper-ingress"
 
 	defaultKubernetesURL    = "http://localhost:8001"
@@ -39,7 +39,8 @@ var (
 	errEndpointNotFound     = errors.New("endpoint not found")
 )
 
-// KubernetesOptions specific swarm options
+// KubernetesOptions are Kubernetes specific swarm options, that are
+// needed to find peers.
 type KubernetesOptions struct {
 	KubernetesInCluster  bool
 	KubernetesAPIBaseURL string
@@ -47,12 +48,6 @@ type KubernetesOptions struct {
 	LabelSelectorKey     string
 	LabelSelectorValue   string
 }
-
-// // Client is the client to access resources to find the peers to join
-// // a swarm.
-// type Client interface {
-// 	Get(s string) (*http.Response, error)
-// }
 
 // ClientKubernetes is the client to access kubernetes resources to find the
 // peers to join a swarm.
@@ -78,7 +73,8 @@ func (c *ClientKubernetes) Get(s string) (*http.Response, error) {
 	return rsp, err
 }
 
-// NewClientKubernetes creates and initializes a Kubernetes DataClient
+// NewClientKubernetes creates and initializes a Kubernetes client to
+// find peers. A partial copy of the Kubernetes dataclient.
 func NewClientKubernetes(kubernetesInCluster bool, kubernetesURL string) (*ClientKubernetes, error) {
 	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, kubernetesInCluster)
 	if err != nil {

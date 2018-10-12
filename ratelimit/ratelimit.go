@@ -11,31 +11,39 @@ import (
 	"github.com/zalando/skipper/swarm"
 )
 
-// Type defines the type of the used breaker: consecutive, rate or
-// disabled.
-type Type int
-
 const (
 	// Header is
 	Header = "X-Rate-Limit"
+
 	// RetryHeader is name of the header which will be used to indicate how
 	// long a client should wait before making a new request
 	RetryAfterHeader = "Retry-After"
+
 	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
 	ServiceRatelimitName = "ratelimit"
-	// LocalRatelimitName is the name of the LocalRatelimit filter, which will be shown in log
+
+	// LocalRatelimitName *deprecated*, use ClientRatelimitName instead
 	LocalRatelimitName = "localRatelimit"
+
+	// ClientRatelimitName is the name of the ClientRatelimit filter, which will be shown in log
+	ClientRatelimitName = "clientRatelimit"
+
 	// ClusterServiceRatelimitName is the name of the ClusterServiceRatelimit filter, which will be shown in log
 	ClusterServiceRatelimitName = "clusterRatelimit"
+
 	// ClusterClientRatelimitName is the name of the ClusterClientRatelimit filter, which will be shown in log
 	ClusterClientRatelimitName = "clusterClientRatelimit"
+
 	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
 	DisableRatelimitName = "disableRatelimit"
 )
 
+// RatelimitType defines the type of  the used ratelimit
+type RatelimitType int
+
 const (
 	// NoRatelimit is not used
-	NoRatelimit Type = iota
+	NoRatelimit RatelimitType = iota
 	// ServiceRatelimit is used to have a simple rate limit for a
 	// backend service, which is calculated and measured within
 	// each instance
@@ -114,11 +122,23 @@ func (AuthLookuper) Lookup(req *http.Request) string {
 
 // Settings configures the chosen rate limiter
 type Settings struct {
-	Type          Type
-	Lookuper      Lookuper
-	Host          string
-	MaxHits       int
-	TimeWindow    time.Duration
+	// Type of the chosen rate limiter
+	Type RatelimitType
+
+	// Lookuper to decide which data to use to identify the same
+	// bucket (for example how to lookup the client identifier)
+	Lookuper Lookuper
+
+	// MaxHits the maximum number of hits for a time duration
+	// allowed in the same bucket.
+	MaxHits int
+
+	// TimeWindow is the time duration that is valid for hits to
+	// be counted in the rate limit.
+	TimeWindow time.Duration
+
+	// CleanInterval is the duration old data can expire, because
+	// need to cleanup data in for example client ratelimits.
 	CleanInterval time.Duration
 }
 
@@ -161,35 +181,38 @@ func (s Settings) String() string {
 	}
 }
 
-// TODO(sszuecs): better name
-type implementation interface {
-	// Allow is used to get a decision if you should allow the call to pass or to ratelimit
+// limiter defines the requirement to be used as a ratelimit implmentation.
+type limiter interface {
+	// Allow is used to get a decision if you should allow the
+	// call to pass or to ratelimit
 	Allow(string) bool
 
-	// Close is used to clean up underlying implementations, if you want to stop a Ratelimiter
+	// Close is used to clean up underlying limiter
+	// implementations, if you want to stop a Ratelimiter
 	Close()
 
-	// Delta is used to get the duration until the next call is possible, negative durations allow
-	// immediate calls
+	// Delta is used to get the duration until the next call is
+	// possible, negative durations allow immediate calls
 	Delta(string) time.Duration
 
 	// Oldest returns the oldest timestamp for string
 	Oldest(string) time.Time
 
-	// Resize is used to resize the buffer depending on the number of nodes available
+	// Resize is used to resize the buffer depending on the number
+	// of nodes available
 	Resize(string, int)
 
-	// RetryAfter is used to inform the client how many seconds it should wait
-	// before making a new request
+	// RetryAfter is used to inform the client how many seconds it
+	// should wait before making a new request
 	RetryAfter(string) int
 }
 
-// Ratelimit is a proxy objects that delegates to implemetations and
-// stores settings for the ratelimiter
+// Ratelimit is a proxy objects that delegates to limiter
+// implemetations and stores settings for the ratelimiter
 type Ratelimit struct {
 	settings Settings
 	ts       time.Time
-	impl     implementation
+	impl     limiter
 }
 
 // Allow returns true if the s is not ratelimited, false if it is
@@ -201,7 +224,7 @@ func (l *Ratelimit) Allow(s string) bool {
 	return l.impl.Allow(s)
 }
 
-// Close will stop a cleanup goroutines in underlying implementation.
+// Close will stop a cleanup goroutines in underlying limiter implementation.
 func (l *Ratelimit) Close() {
 	l.impl.Close()
 }
@@ -224,7 +247,6 @@ func (l *Ratelimit) Resize(s string, i int) {
 
 type voidRatelimit struct{}
 
-// Allow always returns true, not ratelimited
 func (voidRatelimit) Allow(string) bool          { return true }
 func (voidRatelimit) Close()                     {}
 func (voidRatelimit) Oldest(string) time.Time    { return time.Time{} }
@@ -233,7 +255,7 @@ func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
 
 func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {
-	var impl implementation
+	var impl limiter
 	switch s.Type {
 	case ServiceRatelimit:
 		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)

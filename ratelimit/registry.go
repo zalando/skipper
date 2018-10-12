@@ -22,9 +22,8 @@ type Registry struct {
 	sync.Mutex
 	defaults Settings
 	global   Settings
-	//routeSettings map[string]Settings
-	lookup map[Settings]*Ratelimit
-	swarm  *swarm.Swarm
+	lookup   map[Settings]*Ratelimit
+	swarm    *swarm.Swarm
 }
 
 // NewRegistry initializes a registry with the provided default settings.
@@ -34,7 +33,7 @@ func NewRegistry(settings ...Settings) *Registry {
 
 // NewSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
-// will be replaced by voidRatelimit, which is a noop implementation.
+// will be replaced by voidRatelimit, which is a noop limiter implementation.
 func NewSwarmRegistry(swarm *swarm.Swarm, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,

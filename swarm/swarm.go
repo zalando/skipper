@@ -46,7 +46,7 @@ const (
 	// DefaultPort is used as default to connect to other
 	// known swarm peers.
 	DefaultPort = 9990
-	// DefaultLeaveTimeout is the timeout to wait for responses
+	// DefaultLeaveTimeout is the default timeout to wait for responses
 	// for a leave message send by this instance to other peers.
 	DefaultLeaveTimeout = time.Duration(5 * time.Second)
 )
@@ -55,21 +55,37 @@ var (
 	ErrUnknownSwarm = errors.New("unknown swarm type")
 )
 
-// Options for swarm objects.
+// Options configure swarm objects.
 type Options struct {
 	swarm swarmType
 
-	MaxMessageBuffer   int
-	LeaveTimeout       time.Duration
-	SwarmPort          uint16
-	KubernetesOptions  *KubernetesOptions // nil if not kubernetes
-	FakeSwarm          bool
+	// MaxMessageBuffer is the maximum size of the exchange
+	// packets send out to peers.
+	MaxMessageBuffer int
+
+	// LeaveTimeout is the timeout to wait for responses for a
+	// leave message send by this instance to other peers.
+	LeaveTimeout time.Duration
+
+	// SwarmPort port to listen for incoming swarm packets.
+	SwarmPort uint16
+
+	// KubernetesOptions are options required to find your peers in Kubernetes
+	KubernetesOptions *KubernetesOptions
+
+	// FakeSwarm enable a test swarm
+	FakeSwarm bool
+
+	// FakeSwarmLocalNode is the node name of the local node
+	// joining a fakeSwarm to have better log output
 	FakeSwarmLocalNode string
-	Debug              bool
+
+	// Debug enables swarm debug logs and also enables memberlist logs
+	Debug bool
 }
 
 // Swarm is the main type for exchanging low latency, weakly
-// consistent information.
+// consistent information with other skipper peers.
 type Swarm struct {
 	local            *NodeInfo
 	errors           chan<- error
@@ -90,6 +106,7 @@ type Swarm struct {
 	cleanupF func()
 }
 
+// NewSwarm creates a Swarm for given Options.
 func NewSwarm(o Options) (*Swarm, error) {
 	switch getSwarmType(o) {
 	case swarmKubernetes:
@@ -148,7 +165,8 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 	return Start(o)
 }
 
-// Start will find Swarm peers and join them.
+// Start will find Swarm peers based on the chosen swarm type and join
+// the Swarm.
 func Start(o Options) (*Swarm, error) {
 	knownEntryPoint, cleanupF := newKnownEntryPoint(o)
 	log.Debugf("knownEntryPoint: %s, %v", knownEntryPoint.Node(), knownEntryPoint.Nodes())
@@ -329,13 +347,14 @@ func (s *Swarm) Broadcast(m interface{}) error {
 	return s.broadcast(&message{Type: broadcast, Value: m})
 }
 
-// ShareValue sends a broadcast message with a sharedValue to all peers.
+// ShareValue sends a broadcast message with a sharedValue to all
+// peers. It implements the ratelimit.Swarmer interface.
 func (s *Swarm) ShareValue(key string, value interface{}) error {
 	return s.broadcast(&message{Type: sharedValue, Key: key, Value: value})
 }
 
-// Values implements an interface to send a request and wait blocking
-// for a response.
+// Values sends a request and wait blocking for a response. It
+// implements the ratelimit.Swarmer interface.
 func (s *Swarm) Values(key string) map[string]interface{} {
 	req := &valueReq{
 		key: key,
@@ -345,6 +364,7 @@ func (s *Swarm) Values(key string) map[string]interface{} {
 	return <-req.ret
 }
 
+// Leave sends a signal for the local node to leave the Swarm.
 func (s *Swarm) Leave() {
 	close(s.leave)
 	s.cleanupF()

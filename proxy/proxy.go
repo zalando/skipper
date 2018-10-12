@@ -763,7 +763,6 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 	if !ok {
 		return ratelimit.Settings{}, 0
 	}
-	settings.Host = ctx.outgoingHost
 
 	rl := p.limiters.Get(settings)
 	if rl == nil {
