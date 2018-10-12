@@ -28,7 +28,14 @@ type Registry struct {
 }
 
 // NewRegistry initializes a registry with the provided default settings.
-func NewRegistry(sw *swarm.Swarm, settings ...Settings) *Registry {
+func NewRegistry(settings ...Settings) *Registry {
+	return NewSwarmRegistry(nil, settings...)
+}
+
+// NewSwarmRegistry initializes a registry with an optional swarm and
+// the provided default settings. If swarm is nil, clusterRatelimits
+// will be replaced by voidRatelimit, which is a noop implementation.
+func NewSwarmRegistry(swarm *swarm.Swarm, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -40,7 +47,7 @@ func NewRegistry(sw *swarm.Swarm, settings ...Settings) *Registry {
 		defaults: defaults,
 		global:   defaults,
 		lookup:   make(map[Settings]*Ratelimit),
-		swarm:    sw,
+		swarm:    swarm,
 	}
 
 	if len(settings) > 0 {
