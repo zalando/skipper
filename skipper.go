@@ -794,15 +794,13 @@ func Run(o Options) error {
 		}
 	}
 
-	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
-		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
-	}
-
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		if theSwarm != nil {
-			proxyParams.RateLimiters = ratelimit.NewRegistry(theSwarm, o.RatelimitSettings...)
-		}
+		proxyParams.RateLimiters = ratelimit.NewSwarmRegistry(theSwarm, o.RatelimitSettings...)
+	}
+
+	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
+		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
 	}
 
 	if o.DebugListener != "" {
