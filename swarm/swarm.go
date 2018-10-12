@@ -7,6 +7,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/zalando/skipper/metrics"
+
 	"github.com/hashicorp/memberlist"
 	log "github.com/sirupsen/logrus"
 )
@@ -49,6 +51,8 @@ const (
 	// DefaultLeaveTimeout is the default timeout to wait for responses
 	// for a leave message send by this instance to other peers.
 	DefaultLeaveTimeout = time.Duration(5 * time.Second)
+
+	metricsPrefix = "swarm.messages."
 )
 
 var (
@@ -102,6 +106,8 @@ type Swarm struct {
 	messages [][]byte
 	shared   sharedValues
 	mlist    *memberlist.Memberlist
+
+	metrics metrics.Metrics
 
 	cleanupF func()
 }
@@ -241,6 +247,7 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm
 		shared:           shared,
 		mlist:            ml,
 		cleanupF:         cleanupF,
+		metrics:          metrics.Default,
 	}
 
 	// TODO(sszuecs): maybe we should wrap it in a recover for panic, but we need to close the channels
@@ -261,20 +268,24 @@ func (s *Swarm) control() {
 			req.ret <- s.messages
 		case m := <-s.outgoing:
 			s.messages = append(s.messages, m.encoded)
+			s.metrics.UpdateGauge(metricsPrefix+"outgoing.queue", float64(len(s.messages)))
 			s.messages = takeMaxLatest(s.messages, 0, s.maxMessageBuffer)
-			log.Debugf("SWARM: outgoing having %d messages", len(s.messages))
 			if m.message.Type == sharedValue {
 				log.Debugf("SWARM: %s shares value: %s: %v", s.Local().Name, m.message.Key, m.message.Value)
 				s.shared.set(s.Local().Name, m.message.Key, m.message.Value)
+				s.metrics.IncCounter(metricsPrefix + "outgoing.shared")
 			}
 		case b := <-s.incoming:
+			s.metrics.IncCounter(metricsPrefix + "incoming.all")
 			m, err := decodeMessage(b)
 			if err != nil {
 				log.Errorf("SWARM: Failed to decode message: %v", err)
 			} else if m.Type == sharedValue {
+				s.metrics.IncCounter(metricsPrefix + "incoming.shared")
 				log.Debugf("SWARM: %s got shared value from %s: %s: %v", s.Local().Name, m.Source, m.Key, m.Value)
 				s.shared.set(m.Source, m.Key, m.Value)
 			} else if m.Type == broadcast {
+				s.metrics.IncCounter(metricsPrefix + "incoming.broadcast")
 				log.Debugf("SWARM: got broadcast value: %s %s: %v", m.Source, m.Key, m.Value)
 				for k, l := range s.listeners {
 					if k == m.Key {
