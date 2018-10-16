@@ -172,8 +172,8 @@ func mapPath(info *pathInfo) jsValue {
 		return nil
 	}
 	return jsObject{
-		"path_template": info.PathTemplate,
-		"matcher": info.Matcher.String(),
+		"path_template":  info.PathTemplate,
+		"matcher":        info.Matcher.String(),
 		"application_id": info.ApplicationId,
 	}
 }

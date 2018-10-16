@@ -449,7 +449,7 @@ type Options struct {
 	OAuthTokenintrospectionTimeout time.Duration
 
 	// API Monitoring feature is active (feature toggle)
-	EnableApiMonitoring  bool
+	EnableApiMonitoring bool
 
 	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
 	WebhookTimeout time.Duration

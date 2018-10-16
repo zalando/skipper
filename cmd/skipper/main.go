@@ -65,7 +65,7 @@ const (
 	defaultWebhookTimeout                 = 2 * time.Second
 
 	// API Monitoring
-	defaultEnableApimonitoring  = false
+	defaultEnableApimonitoring = false
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -149,7 +149,7 @@ const (
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// API Monitoring:
-	enableApimonitoringUsage  = "enables the experimental filter `apimonitoring`"
+	enableApimonitoringUsage = "enables the experimental filter `apimonitoring`"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -264,7 +264,7 @@ var (
 	webhookTimeout                  time.Duration
 
 	// API Monitoring
-	enableApimonitoring  bool
+	enableApimonitoring bool
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -559,7 +559,7 @@ func main() {
 		KubernetesNamespace:         kubernetesNamespace,
 
 		// API Monitoring:
-		EnableApiMonitoring:  enableApimonitoring,
+		EnableApiMonitoring: enableApimonitoring,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,
