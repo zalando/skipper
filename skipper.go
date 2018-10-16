@@ -695,8 +695,6 @@ func Run(o Options) error {
 	if o.EnableApiMonitoring {
 		log.Info("Experimental filter \"apimonitoring\" is available")
 		o.CustomFilters = append(o.CustomFilters, apimonitoring.New(o.ApiMonitoringVerbose))
-	} else {
-		log.Info("Experimental filter \"apimonitoring\" is by default disabled")
 	}
 
 	// create a filter registry with the available filter specs registered,

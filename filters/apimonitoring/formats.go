@@ -11,23 +11,23 @@ import (
 	"net/url"
 )
 
-type JSValue interface{}
-type JSObject map[string]JSValue
+type jsValue interface{}
+type jsObject map[string]jsValue
 
 func formatFilterContext(c filters.FilterContext) string {
 	jsMap := mapFilterContext(c)
 	jsStr, err := json.Marshal(jsMap)
 	if err != nil {
-		panic(err)
+		return err.Error()
 	}
 	return string(jsStr)
 }
 
-func mapFilterContext(c filters.FilterContext) JSValue {
+func mapFilterContext(c filters.FilterContext) jsValue {
 	if c == nil {
 		return nil
 	}
-	return JSObject{
+	return jsObject{
 		"ResponseWriter":   mapResponseWriter(c.ResponseWriter()),
 		"Request":          mapHttpRequest(c.Request()),
 		"Response":         mapHttpResponse(c.Response()),
@@ -42,32 +42,23 @@ func mapFilterContext(c filters.FilterContext) JSValue {
 	}
 }
 
-func mapTracer(t opentracing.Tracer) JSValue {
-	if t == nil {
-		return nil
-	}
+func mapTracer(t opentracing.Tracer) jsValue {
 	return fmt.Sprintf("%#v", t)
 }
 
-func mapMetrics(m filters.Metrics) JSValue {
-	if m == nil {
-		return nil
-	}
+func mapMetrics(m filters.Metrics) jsValue {
 	return fmt.Sprintf("%#v", m)
 }
 
-func mapResponseWriter(w http.ResponseWriter) JSValue {
-	if w == nil {
-		return nil
-	}
+func mapResponseWriter(w http.ResponseWriter) jsValue {
 	return fmt.Sprintf("%#v", w)
 }
 
-func mapHttpRequest(r *http.Request) JSValue {
+func mapHttpRequest(r *http.Request) jsValue {
 	if r == nil {
 		return nil
 	}
-	return JSObject{
+	return jsObject{
 		"Method":           r.Method,
 		"URL":              mapUrl(r.URL),
 		"Proto":            r.Proto,
@@ -104,8 +95,8 @@ func headerIsNotBlacklisted(headerName string) bool {
 	return true
 }
 
-func mapHeader(h http.Header) JSValue {
-	result := make(JSObject)
+func mapHeader(h http.Header) jsValue {
+	result := make(jsObject)
 	for k, v := range h {
 		if headerIsNotBlacklisted(k) {
 			result[k] = v
@@ -114,35 +105,29 @@ func mapHeader(h http.Header) JSValue {
 	return result
 }
 
-func mapPointer(p interface{}) JSValue {
-	if p == nil {
-		return nil
-	}
+func mapPointer(p interface{}) jsValue {
 	return fmt.Sprintf("Pointer: %p", p)
 }
 
-func mapConnectionState(s *tls.ConnectionState) JSValue {
-	if s == nil {
-		return nil
-	}
+func mapConnectionState(s *tls.ConnectionState) jsValue {
 	return fmt.Sprintf("%#v", s)
 }
 
-func mapForm(f *multipart.Form) JSValue {
+func mapForm(f *multipart.Form) jsValue {
 	if f == nil {
 		return nil
 	}
-	return JSObject{
+	return jsObject{
 		"Value": f.Value,
 		"File":  f.File,
 	}
 }
 
-func mapHttpResponse(r *http.Response) JSValue {
+func mapHttpResponse(r *http.Response) jsValue {
 	if r == nil {
 		return nil
 	}
-	return JSObject{
+	return jsObject{
 		"Status":           r.Status,
 		"StatusCode":       r.StatusCode,
 		"Proto":            r.Proto,
@@ -159,7 +144,7 @@ func mapHttpResponse(r *http.Response) JSValue {
 	}
 }
 
-func mapUrl(url *url.URL) JSValue {
+func mapUrl(url *url.URL) jsValue {
 	if url == nil {
 		return nil
 	}

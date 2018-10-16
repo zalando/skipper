@@ -9,25 +9,26 @@ import (
 	"time"
 )
 
-// Metric names
 const (
-	// Status Code counting
-	MetricCountAll  = "http_count"
-	MetricCount500s = "http5xx_count"
-	MetricCount400s = "http4xx_count"
-	MetricCount300s = "http3xx_count"
-	MetricCount200s = "http2xx_count"
-
-	// Timings
-	MetricLatency = "latency"
+	metricCountAll  = "http_count"
+	metricCount500s = "http5xx_count"
+	metricCount400s = "http4xx_count"
+	metricCount300s = "http3xx_count"
+	metricCount200s = "http2xx_count"
+	metricLatency   = "latency"
 )
 
-// StateBag Keys
 const (
-	StateBagKeyPrefix = "filter.apimonitoring."
-	StateBagKeyState  = StateBagKeyPrefix + "state"
+	stateBagKeyPrefix = "filter.apimonitoring."
+	stateBagKeyState  = stateBagKeyPrefix + "state"
 )
 
+// New creates a new instance of the API Monitoring filter
+// specification (its factory).
+//
+// Parameter verbose indicates
+// if all instances of the filter should be forced to activate
+// their verbose mode, disregarding their JSON configuration.
 func New(verbose bool) filters.Spec {
 	spec := &apiMonitoringFilterSpec{
 		verbose: verbose,
@@ -53,15 +54,14 @@ type pathInfo struct {
 // for one HTTP exchange (one routing). It serves to pass information from
 // the `Request` call to the `Response` call (stored in the context's `StateBag`).
 type apiMonitoringFilterContext struct {
-	// Prefix to all metrics tracked during this exchange (generated only once)
+	// DimensionPrefix is the prefix to all metrics tracked during this exchange (generated only once)
 	DimensionsPrefix string
-
-	// Information that is read at `request` time and needed at `response` time
-	Begin               time.Time // earliest point in time where the request is observed
-	OriginalRequestSize int64     // initial requests' size, before it is modified by other filters.
+	// Begin is the earliest point in time where the request is observed
+	Begin time.Time
+	// OriginalRequestSize is the initial requests' size, before it is modified by other filters.
+	OriginalRequestSize int64
 }
 
-// Request fulfills the Filter interface.
 func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	log := log.WithField("op", "request")
 
@@ -81,17 +81,16 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 		Begin:               begin,
 		OriginalRequestSize: originalRequestSize,
 	}
-	c.StateBag()[StateBagKeyState] = mfc
+	c.StateBag()[stateBagKeyState] = mfc
 }
 
-// Response fulfills the Filter interface.
 func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 	log := log.WithField("op", "response")
 	if f.verbose {
 		log.Info("RESPONSE CONTEXT: " + formatFilterContext(c))
 	}
 
-	mfc, ok := c.StateBag()[StateBagKeyState].(*apiMonitoringFilterContext)
+	mfc, ok := c.StateBag()[stateBagKeyState].(*apiMonitoringFilterContext)
 	if !ok {
 		if f.verbose {
 			log.Info("Call not tracked")
@@ -137,7 +136,7 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 }
 
 func (f *apiMonitoringFilter) writeMetricCount(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
-	key := mfc.DimensionsPrefix + MetricCountAll
+	key := mfc.DimensionsPrefix + metricCountAll
 	if f.verbose {
 		log.Infof("incrementing %q by 1", key)
 	}
@@ -151,13 +150,13 @@ func (f *apiMonitoringFilter) writeMetricResponseStatusClassCount(metrics filter
 	case st < 200:
 		return
 	case st < 300:
-		classMetricName = MetricCount200s
+		classMetricName = metricCount200s
 	case st < 400:
-		classMetricName = MetricCount300s
+		classMetricName = metricCount300s
 	case st < 500:
-		classMetricName = MetricCount400s
+		classMetricName = metricCount400s
 	case st < 600:
-		classMetricName = MetricCount500s
+		classMetricName = metricCount500s
 	default:
 		return
 	}
@@ -170,7 +169,7 @@ func (f *apiMonitoringFilter) writeMetricResponseStatusClassCount(metrics filter
 }
 
 func (f *apiMonitoringFilter) writeMetricLatency(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
-	key := mfc.DimensionsPrefix + MetricLatency
+	key := mfc.DimensionsPrefix + metricLatency
 	if f.verbose {
 		log.Infof("measuring for %q since %v", key, mfc.Begin)
 	}

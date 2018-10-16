@@ -13,8 +13,8 @@ import (
 const (
 	name = "apimonitoring"
 
-	RegexUrlPathPart     = `[^\/]+`
-	RegexOptionalSlashes = `[\/]*`
+	regexUrlPathPart     = `[^\/]+`
+	regexOptionalSlashes = `[\/]*`
 )
 
 var (
@@ -163,11 +163,6 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 
 // generateRegExpStringForPathTemplate normalizes the given path template and
 // creates a regular expression from it.
-//
-// Example:    pathTemplate = /orders/{order-id}/order-items/{order-item-id}/
-//   normalizedPathTemplate = orders/:order-id/order-items/:order-item-id
-//				    matcher = ^\/orders\/[^\/]+\/order-items\/[^\/]+[\/]*$
-//
 func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTemplate, matcher string) {
 	pathParts := strings.Split(pathTemplate, "/")
 	matcherPathParts := make([]string, 0, len(pathParts))
@@ -183,15 +178,15 @@ func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTem
 			normalizedPathTemplateParts = append(normalizedPathTemplateParts, p)
 		} else {
 			// this part is a placeholder: match a wildcard for it
-			matcherPathParts = append(matcherPathParts, RegexUrlPathPart)
+			matcherPathParts = append(matcherPathParts, regexUrlPathPart)
 			normalizedPathTemplateParts = append(normalizedPathTemplateParts, ":"+placeholderName)
 		}
 	}
 	rawRegEx := &strings.Builder{}
 	rawRegEx.WriteString("^")
-	rawRegEx.WriteString(RegexOptionalSlashes)
+	rawRegEx.WriteString(regexOptionalSlashes)
 	rawRegEx.WriteString(strings.Join(matcherPathParts, `\/`))
-	rawRegEx.WriteString(RegexOptionalSlashes)
+	rawRegEx.WriteString(regexOptionalSlashes)
 	rawRegEx.WriteString("$")
 
 	matcher = rawRegEx.String()

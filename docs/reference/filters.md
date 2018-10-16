@@ -851,7 +851,7 @@ apimonitoring-configuration:
       type: array
       items:
         type: string
-        description: path template in /articles/{article-id} (OpenAPI 3 ) or in /articles/:article-id format
+        description: path template in /articles/{article-id} (OpenAPI 3) or in /articles/:article-id format
         example: /orders/{order-id}
     verbose:
       type: boolean
@@ -863,14 +863,14 @@ Example:
 
 ```
 apimonitoring(`{
-  "application_id": "my_app",
-  "path_templates": [
-    "foo/orders",
-    "foo/orders/:order-id",
-    "foo/orders/:order-id/order-items/{order-item-id}"
-    "/foo/customers/",
-    "/foo/customers/{customer-id}/"
-  ]
+    "application_id": "my_app",
+    "path_templates": [
+        "foo/orders",
+        "foo/orders/:order-id",
+        "foo/orders/:order-id/order-items/{order-item-id}"
+        "/foo/customers/",
+        "/foo/customers/{customer-id}/"
+    ]
 }`)
 ```
 
