@@ -66,7 +66,6 @@ const (
 
 	// API Monitoring
 	defaultEnableApimonitoring  = false
-	defaultApimonitoringVerbose = false
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -151,7 +150,6 @@ const (
 
 	// API Monitoring:
 	enableApimonitoringUsage  = "enables the experimental filter `apimonitoring`"
-	apimonitoringVerboseUsage = "causes the `apimonitoring` filter to log detailed information about its operations"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -267,7 +265,6 @@ var (
 
 	// API Monitoring
 	enableApimonitoring  bool
-	apimonitoringVerbose bool
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -381,7 +378,6 @@ func init() {
 
 	// API Monitoring:
 	flag.BoolVar(&enableApimonitoring, "enable-apimonitoring", defaultEnableApimonitoring, enableApimonitoringUsage)
-	flag.BoolVar(&apimonitoringVerbose, "apimonitoring-verbose", defaultApimonitoringVerbose, apimonitoringVerboseUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -454,6 +450,7 @@ func main() {
 		log.Fatal(err)
 	} else {
 		log.SetLevel(logLevel)
+		fmt.Printf("set log level to %q\n", logLevel)
 	}
 
 	var eus []string
@@ -563,7 +560,6 @@ func main() {
 
 		// API Monitoring:
 		EnableApiMonitoring:  enableApimonitoring,
-		ApiMonitoringVerbose: apimonitoringVerbose,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,

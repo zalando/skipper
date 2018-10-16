@@ -23,9 +23,15 @@ var (
 	regexVarPathPartColon       = regexp.MustCompile("^:([^:{}]+)$")
 )
 
-type apiMonitoringFilterSpec struct {
-	verbose bool
+// NewApiMonitoring creates a new instance of the API Monitoring filter
+// specification (its factory).
+func NewApiMonitoring() filters.Spec {
+	spec := new(apiMonitoringFilterSpec)
+	log.Debugf("Created filter spec: %+v", spec)
+	return spec
 }
+
+type apiMonitoringFilterSpec struct{}
 
 func (s *apiMonitoringFilterSpec) Name() string {
 	return name
@@ -38,10 +44,10 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 		}
 	}()
 
-	if err = logAndCheckArgs(args, s.verbose); err != nil {
+	if err = logAndCheckArgs(args); err != nil {
 		return nil, err
 	}
-	config, err := parseJsonConfiguration(args, s.verbose)
+	config, err := parseJsonConfiguration(args)
 	if err != nil {
 		return nil, err
 	}
@@ -53,29 +59,15 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 		return nil, errors.New("no path to monitor")
 	}
 
-	verbose := config.Verbose
-	if s.verbose && !verbose {
-		log.Info("Forcing filter verbosity (global filter configuration is set to verbose)")
-		verbose = true
-	}
-
 	filter = &apiMonitoringFilter{
-		verbose: verbose,
-		paths:   paths,
+		paths: paths,
 	}
-	if verbose {
-		log.Infof("Created filter: %+v", filter)
-	}
+	log.Debugf("Created filter: %s", filter)
 	return
 }
 
-func logAndCheckArgs(args []interface{}, verbose bool) error {
-	if verbose {
-		log.Infof("Creating filter with %d argument(s)", len(args))
-		for i, v := range args {
-			log.Infof("  args[%d] %#v", i, v)
-		}
-	}
+func logAndCheckArgs(args []interface{}) error {
+	log.Debugf("Creating filter with %d argument(s): %v", len(args), args)
 	if len(args) < 1 {
 		return errors.New("expecting one parameter (JSON configuration of the filter)")
 	}
@@ -85,7 +77,7 @@ func logAndCheckArgs(args []interface{}, verbose bool) error {
 	return nil
 }
 
-func parseJsonConfiguration(args []interface{}, verbose bool) (*filterConfig, error) {
+func parseJsonConfiguration(args []interface{}) (*filterConfig, error) {
 	rawJsonConfiguration, ok := args[0].(string)
 	if !ok {
 		return nil, fmt.Errorf("expecting first parameter to be a string, was %t", args[0])
@@ -95,9 +87,7 @@ func parseJsonConfiguration(args []interface{}, verbose bool) (*filterConfig, er
 	if err != nil {
 		return nil, fmt.Errorf("error reading JSON configuration: %s", err)
 	}
-	if verbose {
-		log.Infof("Filter configuration: %+v", config)
-	}
+	log.Debugf("Filter configuration: %+v", config)
 	return config, nil
 }
 

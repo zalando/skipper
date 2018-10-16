@@ -23,25 +23,8 @@ const (
 	stateBagKeyState  = stateBagKeyPrefix + "state"
 )
 
-// New creates a new instance of the API Monitoring filter
-// specification (its factory).
-//
-// Parameter verbose indicates
-// if all instances of the filter should be forced to activate
-// their verbose mode, disregarding their JSON configuration.
-func New(verbose bool) filters.Spec {
-	spec := &apiMonitoringFilterSpec{
-		verbose: verbose,
-	}
-	if verbose {
-		log.Infof("Created filter spec: %+v", spec)
-	}
-	return spec
-}
-
 type apiMonitoringFilter struct {
-	paths   []*pathInfo
-	verbose bool
+	paths []*pathInfo
 }
 
 type pathInfo struct {
@@ -60,6 +43,10 @@ type apiMonitoringFilterContext struct {
 	Begin time.Time
 	// OriginalRequestSize is the initial requests' size, before it is modified by other filters.
 	OriginalRequestSize int64
+}
+
+func (f *apiMonitoringFilter) String() string {
+	return toJsonStringOrError(mapApiMonitoringFilter(f))
 }
 
 func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
@@ -86,15 +73,11 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 
 func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 	log := log.WithField("op", "response")
-	if f.verbose {
-		log.Info("RESPONSE CONTEXT: " + formatFilterContext(c))
-	}
+	log.Debugf("RESPONSE CONTEXT: %s", c)
 
 	mfc, ok := c.StateBag()[stateBagKeyState].(*apiMonitoringFilterContext)
 	if !ok {
-		if f.verbose {
-			log.Info("Call not tracked")
-		}
+		log.Debugf("Call not tracked")
 		return
 	}
 
@@ -121,9 +104,7 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 		}
 	}
 	if path == nil {
-		if f.verbose {
-			log.Info("Matching no path template. Not tracking this call.")
-		}
+		log.Debugf("Matching no path template. Not tracking this call.")
 		return "", false
 	}
 	dimensions := []string{
@@ -137,9 +118,7 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 
 func (f *apiMonitoringFilter) writeMetricCount(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
 	key := mfc.DimensionsPrefix + metricCountAll
-	if f.verbose {
-		log.Infof("incrementing %q by 1", key)
-	}
+	log.Debugf("incrementing %q by 1", key)
 	metrics.IncCounter(key)
 }
 
@@ -162,16 +141,12 @@ func (f *apiMonitoringFilter) writeMetricResponseStatusClassCount(metrics filter
 	}
 
 	key := mfc.DimensionsPrefix + classMetricName
-	if f.verbose {
-		log.Infof("incrementing %q by 1", key)
-	}
+	log.Debugf("incrementing %q by 1", key)
 	metrics.IncCounter(key)
 }
 
 func (f *apiMonitoringFilter) writeMetricLatency(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
 	key := mfc.DimensionsPrefix + metricLatency
-	if f.verbose {
-		log.Infof("measuring for %q since %v", key, mfc.Begin)
-	}
+	log.Debugf("measuring for %q since %v", key, mfc.Begin)
 	metrics.MeasureSince(key, mfc.Begin)
 }

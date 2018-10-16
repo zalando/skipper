@@ -14,9 +14,8 @@ import (
 type jsValue interface{}
 type jsObject map[string]jsValue
 
-func formatFilterContext(c filters.FilterContext) string {
-	jsMap := mapFilterContext(c)
-	jsStr, err := json.Marshal(jsMap)
+func toJsonStringOrError(jso jsObject) string {
+	jsStr, err := json.Marshal(jso)
 	if err != nil {
 		return err.Error()
 	}
@@ -149,4 +148,32 @@ func mapUrl(url *url.URL) jsValue {
 		return nil
 	}
 	return url.String()
+}
+
+func mapApiMonitoringFilter(f *apiMonitoringFilter) jsObject {
+	if f == nil {
+		return nil
+	}
+	return jsObject{
+		"paths": mapPaths(f.paths),
+	}
+}
+
+func mapPaths(infos []*pathInfo) []jsValue {
+	result := make([]jsValue, len(infos))
+	for i, p := range infos {
+		result[i] = mapPath(p)
+	}
+	return result
+}
+
+func mapPath(info *pathInfo) jsValue {
+	if info == nil {
+		return nil
+	}
+	return jsObject{
+		"path_template": info.PathTemplate,
+		"matcher": info.Matcher.String(),
+		"application_id": info.ApplicationId,
+	}
 }

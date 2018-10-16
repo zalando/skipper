@@ -6,12 +6,12 @@ import (
 )
 
 func Test_Name(t *testing.T) {
-	spec := New(false)
+	spec := NewApiMonitoring()
 	assert.Equal(t, "apimonitoring", spec.Name())
 }
 
 func Test_CreateFilter_NoParam(t *testing.T) {
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "expecting one parameter (JSON configuration of the filter)")
@@ -19,7 +19,7 @@ func Test_CreateFilter_NoParam(t *testing.T) {
 }
 
 func Test_CreateFilter_EmptyString(t *testing.T) {
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{""})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "error reading JSON configuration")
@@ -27,7 +27,7 @@ func Test_CreateFilter_EmptyString(t *testing.T) {
 }
 
 func Test_CreateFilter_NotAString(t *testing.T) {
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{1234})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "expecting first parameter to be a string")
@@ -35,7 +35,7 @@ func Test_CreateFilter_NotAString(t *testing.T) {
 }
 
 func Test_CreateFilter_NotJson(t *testing.T) {
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{"I am not JSON"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "error reading JSON configuration")
@@ -43,7 +43,7 @@ func Test_CreateFilter_NotJson(t *testing.T) {
 }
 
 func Test_CreateFilter_EmptyJson(t *testing.T) {
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{"{}"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no `application_id` provided")
@@ -51,7 +51,7 @@ func Test_CreateFilter_EmptyJson(t *testing.T) {
 }
 
 func Test_CreateFilter_NoPathTemplate(t *testing.T) {
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app"
 	}`})
@@ -61,7 +61,7 @@ func Test_CreateFilter_NoPathTemplate(t *testing.T) {
 }
 
 func Test_CreateFilter_EmptyPathTemplate(t *testing.T) {
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"path_templates": [
@@ -74,7 +74,7 @@ func Test_CreateFilter_EmptyPathTemplate(t *testing.T) {
 }
 
 func Test_CreateFilter_ExtraParametersAreIgnored(t *testing.T) {
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{
 		`{
 			"application_id": "my_app",
@@ -91,54 +91,6 @@ func Test_CreateFilter_ExtraParametersAreIgnored(t *testing.T) {
 	actual, ok := filter.(*apiMonitoringFilter)
 	assert.True(t, ok)
 
-	assert.False(t, actual.verbose)
-
-	assert.Len(t, actual.paths, 1)
-
-	assert.Equal(t, "my_app", actual.paths[0].ApplicationId)
-	assert.Equal(t, "test", actual.paths[0].PathTemplate)
-	assert.Equal(t, "^[\\/]*test[\\/]*$", actual.paths[0].Matcher.String())
-}
-
-func Test_CreateFilter_VerboseIsFalseIfNotSpecified(t *testing.T) {
-	spec := New(false)
-	filter, err := spec.CreateFilter([]interface{}{`{
-		"application_id": "my_app",
-	  	"path_templates": [
-			"test"
-		]
-	}`})
-	assert.NoError(t, err)
-	assert.NotNil(t, filter)
-	actual, ok := filter.(*apiMonitoringFilter)
-	assert.True(t, ok)
-
-	assert.False(t, actual.verbose)
-
-	assert.Len(t, actual.paths, 1)
-
-	assert.Equal(t, "my_app", actual.paths[0].ApplicationId)
-	assert.Equal(t, "test", actual.paths[0].PathTemplate)
-	assert.Equal(t, "^[\\/]*test[\\/]*$", actual.paths[0].Matcher.String())
-}
-
-func Test_CreateFilter_VerboseIsForcedByGlobalFilterConfiguration(t *testing.T) {
-	spec := New(true) // <---	this parameter forces all filters to be verbose, even if they
-	//							are explicitly configured not to.
-	filter, err := spec.CreateFilter([]interface{}{`{
-		"verbose": false,
-		"application_id": "my_app",
-	  	"path_templates": [
-			"test"
-		]
-	}`})
-	assert.NoError(t, err)
-	assert.NotNil(t, filter)
-	actual, ok := filter.(*apiMonitoringFilter)
-	assert.True(t, ok)
-
-	assert.True(t, actual.verbose)
-
 	assert.Len(t, actual.paths, 1)
 
 	assert.Equal(t, "my_app", actual.paths[0].ApplicationId)
@@ -152,9 +104,8 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 	//   - with {name} variable paths
 	//   - with :name variable paths
 	//   - with/without head/trailing slash
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{`{
-		"verbose": true,
 		"application_id": "my_app",
 	  	"path_templates": [
 			"foo/orders",
@@ -168,8 +119,6 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 	assert.NotNil(t, filter)
 	actual, ok := filter.(*apiMonitoringFilter)
 	assert.True(t, ok)
-
-	assert.True(t, actual.verbose)
 
 	assert.Len(t, actual.paths, 5)
 
@@ -197,7 +146,7 @@ func Test_CreateFilter_FullConfig(t *testing.T) {
 func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 	// PathTemplate "foo" and "/foo/" after normalising are the same.
 	// That causes an error, even if under different application or API IDs.
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"path_templates": [
@@ -219,7 +168,7 @@ func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 
 func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 	// PathTemplate "/foo/:a" and "/foo/:b" yield the same RegExp
-	spec := New(false)
+	spec := NewApiMonitoring()
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"path_templates": [

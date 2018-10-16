@@ -13,7 +13,6 @@ import (
 func createFilterForTest() (filters.Filter, error) {
 	spec := apiMonitoringFilterSpec{}
 	args := []interface{}{`{
-		"verbose": true,
 		"application_id": "my_app",
 		"path_templates": [
 			"foo/orders",

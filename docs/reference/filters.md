@@ -853,10 +853,6 @@ apimonitoring-configuration:
         type: string
         description: path template in /articles/{article-id} (OpenAPI 3) or in /articles/:article-id format
         example: /orders/{order-id}
-    verbose:
-      type: boolean
-      description: verbose output
-      default: false
 ```
 
 Example:
