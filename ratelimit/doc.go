@@ -51,7 +51,7 @@ The following configuration will rate limit requests to /login after 10 requests
 summed across all skipper peers within one hour from the same requester.
 
     % cat ratelimit.eskip
-    foo: Path("/login") -> clientClientRatelimit(10,"1h") -> "http://www.example.org/login"
+    foo: Path("/login") -> clientRatelimit(10,"1h") -> "http://www.example.org/login"
     rest: * -> "http://www.example.net/"
     % skipper -enable-ratelimits -routes-file=ratelimit.eskip -enable-swarm
 
