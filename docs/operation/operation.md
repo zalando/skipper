@@ -416,18 +416,17 @@ to get the results paginated or getting all of them at the same time.
 
 # Memory consumption
 
-Memory consumption is in general no problem, but some features can if
-not carefully used create more memory consumption that you might
-thought.
+While Skipper is generally not memory bound, some features may require
+some attention and planning regarding the memory consumption.
 
-Heavy memory consumers:
+Potentially high memory consumers:
 
 - Metrics
 - Filters
 - Slow Backends and chatty clients
 
 Make sure you monitor backend latency, request and error rates.
-Additionally use Go metrics number of goroutines and threads, GC pause
+Additionally use Go metrics for the number of goroutines and threads, GC pause
 times should be less than 1ms in general, route lookup time, request
 and response filter times and heap memory.
 
