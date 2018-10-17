@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/net"
-	"github.com/zalando/skipper/swarm"
 )
 
 const (
@@ -23,7 +22,7 @@ type Registry struct {
 	defaults Settings
 	global   Settings
 	lookup   map[Settings]*Ratelimit
-	swarm    *swarm.Swarm
+	swarm    Swarmer
 }
 
 // NewRegistry initializes a registry with the provided default settings.
@@ -34,7 +33,7 @@ func NewRegistry(settings ...Settings) *Registry {
 // NewSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewSwarmRegistry(swarm *swarm.Swarm, settings ...Settings) *Registry {
+func NewSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,

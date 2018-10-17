@@ -8,7 +8,6 @@ import (
 
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
-	"github.com/zalando/skipper/swarm"
 )
 
 const (
@@ -278,7 +277,7 @@ func (voidRatelimit) RetryAfter(string) int      { return 0 }
 func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
 
-func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {
+func newRatelimit(s Settings, sw Swarmer) *Ratelimit {
 	var impl limiter
 	switch s.Type {
 	case ServiceRatelimit:
