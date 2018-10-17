@@ -35,10 +35,10 @@ type resizeLimit struct {
 	n int
 }
 
-// NewClusterRateLimiter creates a new ClusterLimit for given Settings
+// newClusterRateLimiter creates a new ClusterLimit for given Settings
 // and use the given Swarmer. Name is used in log messages to identify
 // the ratelimit instance.
-func NewClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
+func newClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
 	rl := &ClusterLimit{
 		name:    name,
 		swarm:   sw,

@@ -292,7 +292,7 @@ func newRatelimit(s Settings, sw *swarm.Swarm) *Ratelimit {
 		fallthrough
 	case ClusterClientRatelimit:
 		if sw != nil {
-			impl = NewClusterRateLimiter(s, sw, "CRL")
+			impl = newClusterRateLimiter(s, sw, "CRL")
 		} else {
 			fmt.Fprintf(os.Stderr, "ERROR: no -enable-swarm, falling back to no ratelimit for %q\n", s)
 			impl = voidRatelimit{}
