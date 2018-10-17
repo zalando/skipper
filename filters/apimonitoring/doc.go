@@ -26,15 +26,26 @@ Example:
 
 	Path("/this-is-monitored")
 		-> apimonitoring(`{
-				"application_id": "my_app",
+			"apis": [
+				{
+					"application_id": "my_app",
+					"api_id": "orders_api",
 				"path_templates": [
-					"foo/orders",
-					"foo/orders/:order-id",
-					"foo/orders/:order-id/order-items/{order-item-id}"
-					"/foo/customers/",
-					"/foo/customers/{customer-id}/"
-				]
-			}`)
+						"foo/orders",
+						"foo/orders/:order-id",
+						"foo/orders/:order-id/order_item/{order-item-id}"
+					]
+				},
+				{
+					"application_id": "my_app",
+					"api_id": "customers_api",
+					"path_templates": [
+						"/foo/customers/",
+						"/foo/customers/{customer-id}/"
+					]
+				}
+			]
+		}`)
 		-> "https://example.org/";
 
 

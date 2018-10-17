@@ -13,6 +13,8 @@ import (
 const (
 	name = "apimonitoring"
 
+	unknownElementPlaceholder = "<unknown>"
+
 	regexUrlPathPart     = `[^\/]+`
 	regexOptionalSlashes = `[\/]*`
 )
@@ -82,8 +84,12 @@ func parseJsonConfiguration(args []interface{}) (*filterConfig, error) {
 	if !ok {
 		return nil, fmt.Errorf("expecting first parameter to be a string, was %t", args[0])
 	}
+
+	decoder := json.NewDecoder(strings.NewReader(rawJsonConfiguration))
+	decoder.DisallowUnknownFields()
+
 	config := new(filterConfig)
-	err := json.Unmarshal([]byte(rawJsonConfiguration), config)
+	err := decoder.Decode(config)
 	if err != nil {
 		return nil, fmt.Errorf("error reading JSON configuration: %s", err)
 	}
@@ -96,56 +102,72 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 	existingPathTemplates := make(map[string]*pathInfo)
 	existingRegEx := make(map[string]*pathInfo)
 
-	if config.ApplicationId == "" {
-		return nil, errors.New("no `application_id` provided")
-	}
+	for apiIndex, api := range config.Apis {
 
-	for templateIndex, template := range config.PathTemplates {
-
-		// Path Template validation
-		if template == "" {
-			return nil, fmt.Errorf("empty path at index %d", templateIndex)
+		applicationId := api.ApplicationId
+		if applicationId == "" {
+			log.Debugf(
+				"API at index %d does not specify an application ID, defaulting to %q",
+				apiIndex, unknownElementPlaceholder)
+			applicationId = unknownElementPlaceholder
 		}
 
-		// Normalize path template and get regular expression from it
-		normalisedPathTemplate, regExStr := generateRegExpStringForPathTemplate(template)
-
-		// Create new `pathInfo` with normalized PathTemplate
-		info := &pathInfo{
-			ApplicationId: config.ApplicationId,
-			PathTemplate:  normalisedPathTemplate,
+		apiId := api.ApiId
+		if apiId == "" {
+			log.Debugf(
+				"API at index %d does not specify an API ID, defaulting to %q",
+				apiIndex, unknownElementPlaceholder)
+			apiId = unknownElementPlaceholder
 		}
 
-		// Detect path template duplicates
-		_, ok := existingPathTemplates[info.PathTemplate]
-		if ok {
-			log.Infof(
-				"duplicate path template %q, ignoring this template",
-				info.PathTemplate)
-			continue
-		}
-		existingPathTemplates[info.PathTemplate] = info
+		for templateIndex, template := range api.PathTemplates {
 
-		// Detect regular expression duplicates
-		if existingMatcher, ok := existingRegEx[regExStr]; ok {
-			log.Infof(
-				"two path templates yielded the same regular expression %q (%q and %q) ignoring this template",
-				regExStr, info.PathTemplate, existingMatcher.PathTemplate)
-			continue
-		}
-		existingRegEx[regExStr] = info
+			// Path Template validation
+			if template == "" {
+				return nil, fmt.Errorf("empty path at API index %d, template index %d", apiIndex, templateIndex)
+			}
 
-		// Compile the regular expression
-		regEx, err := regexp.Compile(regExStr)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"error compiling regular expression %q for path %q: %s",
-				regExStr, info.PathTemplate, err)
-		}
-		info.Matcher = regEx
+			// Normalize path template and get regular expression from it
+			normalisedPathTemplate, regExStr := generateRegExpStringForPathTemplate(template)
 
-		// Add valid entry to the results
-		paths = append(paths, info)
+			// Create new `pathInfo` with normalized PathTemplate
+			info := &pathInfo{
+				ApplicationId: applicationId,
+				ApiId:         apiId,
+				PathTemplate:  normalisedPathTemplate,
+			}
+
+			// Detect path template duplicates
+			_, ok := existingPathTemplates[info.PathTemplate]
+			if ok {
+				log.Infof(
+					"duplicate path template %q, ignoring this template",
+					info.PathTemplate)
+				continue
+			}
+			existingPathTemplates[info.PathTemplate] = info
+
+			// Detect regular expression duplicates
+			if existingMatcher, ok := existingRegEx[regExStr]; ok {
+				log.Infof(
+					"two path templates yielded the same regular expression %q (%q and %q) ignoring this template",
+					regExStr, info.PathTemplate, existingMatcher.PathTemplate)
+				continue
+			}
+			existingRegEx[regExStr] = info
+
+			// Compile the regular expression
+			regEx, err := regexp.Compile(regExStr)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"error compiling regular expression %q for path %q: %s",
+					regExStr, info.PathTemplate, err)
+			}
+			info.Matcher = regEx
+
+			// Add valid entry to the results
+			paths = append(paths, info)
+		}
 	}
 
 	return paths, nil

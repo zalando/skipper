@@ -839,34 +839,59 @@ of the following format.
 apimonitoring-configuration:
   type: object
   required:
-    - application_id
-    - path_templates
+    - apis
   properties:
-    application_id:
-      type: string
-      description: the id of the application
-      example: order-service
-    path_templates:
-      description: endpoints to be monitored
+    apis:
       type: array
       items:
-        type: string
-        description: path template in /articles/{article-id} (OpenAPI 3) or in /articles/:article-id format
-        example: /orders/{order-id}
+        type: object
+        required:
+          - application_id
+          - api_id
+          - path_templates
+        properties:
+          application_id:
+            type: string
+            description: ID of the application
+            example: order-service
+          api_id:
+            type: string
+            description: ID of the API
+            example: customers-api
+          path_templates:
+            description: Endpoints to be monitored.
+            type: array
+            items:
+              type: string
+              description: >
+                Path template in /articles/{article-id} (OpenAPI 3) or in /articles/:article-id format.
+                NOTE: They will be normalized to the :this format for metrics naming.
+              example: /orders/{order-id}
 ```
 
 Example:
 
 ```
 apimonitoring(`{
-    "application_id": "my_app",
-    "path_templates": [
-        "foo/orders",
-        "foo/orders/:order-id",
-        "foo/orders/:order-id/order-items/{order-item-id}"
-        "/foo/customers/",
-        "/foo/customers/{customer-id}/"
-    ]
+	"apis": [
+		{
+			"application_id": "my_app",
+			"api_id": "orders_api",
+			"path_templates": [
+				"foo/orders",
+				"foo/orders/:order-id",
+				"foo/orders/:order-id/order_item/{order-item-id}"
+			]
+		},
+		{
+			"application_id": "my_app",
+			"api_id": "customers_api",
+			"path_templates": [
+				"/foo/customers/",
+				"/foo/customers/{customer-id}/"
+			]
+		}
+	]
 }`)
 ```
 
