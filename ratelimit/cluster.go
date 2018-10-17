@@ -19,8 +19,8 @@ type Swarmer interface {
 	Values(string) map[string]interface{}
 }
 
-// ClusterLimit stores all data required for the cluster ratelimit.
-type ClusterLimit struct {
+// clusterLimit stores all data required for the cluster ratelimit.
+type clusterLimit struct {
 	name    string
 	local   limiter
 	maxHits int
@@ -35,11 +35,11 @@ type resizeLimit struct {
 	n int
 }
 
-// newClusterRateLimiter creates a new ClusterLimit for given Settings
+// newClusterRateLimiter creates a new clusterLimit for given Settings
 // and use the given Swarmer. Name is used in log messages to identify
 // the ratelimit instance.
-func newClusterRateLimiter(s Settings, sw Swarmer, name string) *ClusterLimit {
-	rl := &ClusterLimit{
+func newClusterRateLimiter(s Settings, sw Swarmer, name string) *clusterLimit {
+	rl := &clusterLimit{
 		name:    name,
 		swarm:   sw,
 		maxHits: s.MaxHits,
@@ -80,7 +80,7 @@ const swarmPrefix string = `ratelimit.`
 // skippers should be allowed else false. It will share it's own data
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
-func (c *ClusterLimit) Allow(s string) bool {
+func (c *clusterLimit) Allow(s string) bool {
 
 	// t0 is the oldest entry in the local circularbuffer
 	// [ t3, t4, t0, t1, t2]
@@ -106,7 +106,7 @@ func (c *ClusterLimit) Allow(s string) bool {
 	return result
 }
 
-func (c *ClusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {
+func (c *clusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {
 	var requestRate float64
 	maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(len(swarmValues))))
 
@@ -124,13 +124,13 @@ func (c *ClusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]in
 	return requestRate
 }
 
-// Close should be called to teardown the ClusterLimit.
-func (c *ClusterLimit) Close() {
+// Close should be called to teardown the clusterLimit.
+func (c *clusterLimit) Close() {
 	close(c.quit)
 	c.local.Close()
 }
 
-func (c *ClusterLimit) Delta(s string) time.Duration { return c.local.Delta(s) }
-func (c *ClusterLimit) Oldest(s string) time.Time    { return c.local.Oldest(s) }
-func (c *ClusterLimit) Resize(s string, n int)       { c.local.Resize(s, n) }
-func (c *ClusterLimit) RetryAfter(s string) int      { return c.local.RetryAfter(s) }
+func (c *clusterLimit) Delta(s string) time.Duration { return c.local.Delta(s) }
+func (c *clusterLimit) Oldest(s string) time.Time    { return c.local.Oldest(s) }
+func (c *clusterLimit) Resize(s string, n int)       { c.local.Resize(s, n) }
+func (c *clusterLimit) RetryAfter(s string) int      { return c.local.RetryAfter(s) }
