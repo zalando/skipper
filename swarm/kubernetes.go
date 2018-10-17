@@ -155,25 +155,6 @@ func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, erro
 	return string(bToken), nil
 }
 
-func (c *ClientKubernetes) getEndpoints(ns, name string) ([]string, error) {
-	log.Debugf("SWARM: requesting endpoint: %s/%s", ns, name)
-	url := fmt.Sprintf(endpointURIFmt, ns, name)
-	var ep endpoint
-	if err := c.getJSON(url, &ep); err != nil {
-		return nil, err
-	}
-
-	if ep.Subsets == nil {
-		return nil, errEndpointNotFound
-	}
-
-	targets := ep.Targets()
-	if len(targets) == 0 {
-		return nil, errEndpointNotFound
-	}
-	return targets, nil
-}
-
 func (c *ClientKubernetes) getJSON(uri string, a interface{}) error {
 	url := c.apiURL + uri
 	log.Debugf("SWARM: making request to: %s", url)
