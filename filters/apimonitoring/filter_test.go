@@ -85,9 +85,15 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 		200,
 		0,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
-			// no path matching: no tracking
-			assert.Empty(t, m.Counters)
-			assert.Empty(t, m.Measures)
+			// no path matching: tracked as unknown
+			assert.Equal(t,
+				map[string]int64{
+					"apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count":    1,
+					"apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http2xx_count": 1,
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, "apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
 		})
 }
 
@@ -220,5 +226,27 @@ func Test_Filter_StatusCodeOver599IsMonitored(t *testing.T) {
 				m.Counters,
 			)
 			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.my_api.POST.foo/orders.latency")
+		})
+}
+
+func Test_Filter_NonConfiguredPathTrackedUnderUnknown(t *testing.T) {
+	testWithFilter(
+		t,
+		createFilterForTest,
+		"GET",
+		"https://www.example.org/lapin/malin",
+		"asd",
+		nil,
+		200,
+		6,
+		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+			assert.Equal(t,
+				map[string]int64{
+					"apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count":    1,
+					"apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http2xx_count": 1,
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, "apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
 		})
 }

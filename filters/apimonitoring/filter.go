@@ -10,17 +10,26 @@ import (
 )
 
 const (
-	metricCountAll  = "http_count"
-	metricCount500s = "http5xx_count"
-	metricCount400s = "http4xx_count"
-	metricCount300s = "http3xx_count"
-	metricCount200s = "http2xx_count"
-	metricLatency   = "latency"
+	metricsSeparator = "."
+	metricCountAll   = "http_count"
+	metricCount500s  = "http5xx_count"
+	metricCount400s  = "http4xx_count"
+	metricCount300s  = "http3xx_count"
+	metricCount200s  = "http2xx_count"
+	metricLatency    = "latency"
 )
 
 const (
 	stateBagKeyPrefix = "filter.apimonitoring."
 	stateBagKeyState  = stateBagKeyPrefix + "state"
+)
+
+var (
+	unknownPath = &pathInfo{
+		ApplicationId: unknownElementPlaceholder,
+		ApiId:         unknownElementPlaceholder,
+		PathTemplate:  unknownElementPlaceholder,
+	}
 )
 
 type apiMonitoringFilter struct {
@@ -54,10 +63,7 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	log := log.WithField("op", "request")
 
 	// Identify the dimensions "prefix" of the metrics.
-	dimensionsPrefix, track := f.getDimensionPrefix(c, log)
-	if !track {
-		return
-	}
+	dimensionsPrefix := f.getDimensionPrefix(c, log)
 
 	// Gathering information from the initial request for further metrics calculation
 	begin := time.Now()
@@ -92,10 +98,7 @@ func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 
 // getDimensionPrefix generates the dimension part of the metrics key (before the name
 // of the metric itself).
-// Returns:
-//   prefix:    the metric key prefix
-//   track:     if this call should be tracked or not
-func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *logrus.Entry) (string, bool) {
+func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *logrus.Entry) string {
 	req := c.Request()
 	var path *pathInfo = nil
 	for _, p := range f.paths {
@@ -105,17 +108,18 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 		}
 	}
 	if path == nil {
-		log.Debugf("Matching no path template. Not tracking this call.")
-		return "", false
+		log.Debugf("Matching no path template. Tracking as unknown.")
+		path = unknownPath
 	}
 	dimensions := []string{
 		path.ApplicationId,
 		path.ApiId,
 		req.Method,
 		path.PathTemplate,
+		"",
 	}
-	prefix := strings.Join(dimensions, ".") + "."
-	return prefix, true
+	prefix := strings.Join(dimensions, metricsSeparator)
+	return prefix
 }
 
 func (f *apiMonitoringFilter) writeMetricCount(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
