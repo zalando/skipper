@@ -792,6 +792,7 @@ func Run(o Options) error {
 		if err != nil {
 			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
 		}
+		defer theSwarm.Leave()
 	}
 
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
