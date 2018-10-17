@@ -231,7 +231,7 @@ type limiter interface {
 	RetryAfter(string) int
 }
 
-// Ratelimit is a proxy objects that delegates to limiter
+// Ratelimit is a proxy object that delegates to limiter
 // implemetations and stores settings for the ratelimiter
 type Ratelimit struct {
 	settings Settings
