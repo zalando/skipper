@@ -248,7 +248,7 @@ func (l *Ratelimit) Allow(s string) bool {
 	return l.impl.Allow(s)
 }
 
-// Close will stop a cleanup goroutines in underlying limiter implementation.
+// Close will stop any cleanup goroutines in underlying limiter implementation.
 func (l *Ratelimit) Close() {
 	l.impl.Close()
 }
