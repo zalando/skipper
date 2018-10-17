@@ -1,6 +1,6 @@
 /*
 Package swarm implements the exchange of information between
-Skipper instances using a gossip protocol with name swim.  This
+Skipper instances using a gossip protocol called SWIM.  This
 aims at a solution that can work in a context of multiple readers
 and writers, with the guarantee of low latency, weakly consistent
 data, from which derives the decision to use such protocol. As an
