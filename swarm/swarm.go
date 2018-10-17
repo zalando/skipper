@@ -250,7 +250,6 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm
 		metrics:          metrics.Default,
 	}
 
-	// TODO(sszuecs): maybe we should wrap it in a recover for panic, but we need to close the channels
 	go s.control()
 
 	return s, nil
