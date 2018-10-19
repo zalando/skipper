@@ -57,7 +57,7 @@ is desirable for debugging usage of the filter.
 Command line example for executing locally:
 
 	make skipper && ./bin/skipper \
-		-routes-file "/Users/foo/temp/test.eskip" \
+		-routes-file "$HOME/temp/test.eskip" \
 		-enable-apimonitoring \
 		-enable-prometheus-metrics \
 		-histogram-metric-buckets=".01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600" \
