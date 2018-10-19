@@ -450,7 +450,6 @@ func main() {
 		log.Fatal(err)
 	} else {
 		log.SetLevel(logLevel)
-		fmt.Printf("set log level to %q\n", logLevel)
 	}
 
 	var eus []string
