@@ -821,22 +821,22 @@ Example:
 auditLog()
 ```
 
-## apimonitoring
+## apiUsageMonitoring
 
-The `apimonitoring` filter adds API related metrics to the monitoring.
+The `apiUsageMonitoring` filter adds API related metrics to the monitoring.
 
 WARNING: This is an experimental filter and needs to be enabled explicitly at `skipper` startup.
 WARNING: Make sure that the Prometheus Metrics are also enabled.
 
 ```bash
-skipper -enable-apimonitoring -enable-prometheus-metrics
+skipper -enable-api-usage-monitoring -enable-prometheus-metrics
 ```
 
-Endpoints can be monitored using the `apimonitoring` function in the route. It accepts a JSON object
+Endpoints can be monitored using the `apiUsageMonitoring` function in the route. It accepts a JSON object
 of the following format.
 
 ```yaml
-apimonitoring-configuration:
+api-usage-monitoring-configuration:
   type: object
   required:
     - apis
@@ -872,7 +872,7 @@ apimonitoring-configuration:
 Example:
 
 ```
-apimonitoring(`{
+apiUsageMonitoring(`{
 	"apis": [
 		{
 			"application_id": "my_app",
@@ -896,9 +896,9 @@ apimonitoring(`{
 ```
 
 That would monitor metrics like:
-* `apimonitoring.custom.my_app.GET.foo/orders/:order-id.http_count`
-* `apimonitoring.custom.my_app.GET.foo/orders/:order-id.http2xx_count`
-* `apimonitoring.custom.my_app.POST.foo/orders.latency`
-* `apimonitoring.custom.my_app.GET.foo/orders/:order-id/order-items/:order-item-id.latency`
-* `apimonitoring.custom.my_app.POST.foo/customers.http_count`
-* `apimonitoring.custom.my_app.DELETE.foo/customers/:customer-id.http5xx_count`
+* `apiUsageMonitoring.custom.my_app.GET.foo/orders/:order-id.http_count`
+* `apiUsageMonitoring.custom.my_app.GET.foo/orders/:order-id.http2xx_count`
+* `apiUsageMonitoring.custom.my_app.POST.foo/orders.latency`
+* `apiUsageMonitoring.custom.my_app.GET.foo/orders/:order-id/order-items/:order-item-id.latency`
+* `apiUsageMonitoring.custom.my_app.POST.foo/customers.http_count`
+* `apiUsageMonitoring.custom.my_app.DELETE.foo/customers/:customer-id.http5xx_count`

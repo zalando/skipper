@@ -1,4 +1,4 @@
-package apimonitoring
+package apiusagemonitoring
 
 // filterConfig is the structure of the filter parameter (the JSON object)
 // describing the configuration of one API Monitoring filter.

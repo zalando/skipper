@@ -1,4 +1,4 @@
-package apimonitoring
+package apiusagemonitoring
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 )
 
 func createFilterForTest() (filters.Filter, error) {
-	spec := apiMonitoringFilterSpec{}
+	spec := apiUsageMonitoringSpec{}
 	args := []interface{}{`{
 		"apis": [
 			{
@@ -45,7 +45,7 @@ func testWithFilter(
 	assert.NoError(t, err)
 
 	metricsMock := &metricstest.MockMetrics{
-		Prefix: "apimonitoring.custom.",
+		Prefix: "apiUsageMonitoring.custom.",
 	}
 
 	req, err := http.NewRequest(method, url, bytes.NewBufferString(reqBody))
@@ -88,12 +88,12 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 			// no path matching: tracked as unknown
 			assert.Equal(t,
 				map[string]int64{
-					"apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count":    1,
-					"apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http2xx_count": 1,
+					"apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count":    1,
+					"apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http2xx_count": 1,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
+			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
 		})
 }
 
@@ -110,12 +110,12 @@ func Test_Filter_PathTemplateNoVariablePart(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"apimonitoring.custom.my_app.my_api.POST.foo/orders.http_count":    1,
-					"apimonitoring.custom.my_app.my_api.POST.foo/orders.http4xx_count": 1,
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http_count":    1,
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http4xx_count": 1,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.my_api.POST.foo/orders.latency")
+			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.latency")
 		})
 }
 
@@ -132,12 +132,12 @@ func Test_Filter_PathTemplateWithVariablePart(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"apimonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.http_count":    1,
-					"apimonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.http2xx_count": 1,
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.http_count":    1,
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.http2xx_count": 1,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.latency")
+			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.latency")
 		})
 }
 
@@ -154,12 +154,12 @@ func Test_Filter_PathTemplateWithMultipleVariablePart(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"apimonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.http_count":    1,
-					"apimonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.http3xx_count": 1,
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.http_count":    1,
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.http3xx_count": 1,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.latency")
+			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.latency")
 		})
 }
 
@@ -176,12 +176,12 @@ func Test_Filter_PathTemplateFromSecondConfiguredApi(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"apimonitoring.custom.my_app.my_api.POST.foo/customers/:customer-id.http_count":    1,
-					"apimonitoring.custom.my_app.my_api.POST.foo/customers/:customer-id.http5xx_count": 1,
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/customers/:customer-id.http_count":    1,
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/customers/:customer-id.http5xx_count": 1,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.my_api.POST.foo/customers/:customer-id.latency")
+			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.my_app.my_api.POST.foo/customers/:customer-id.latency")
 		})
 }
 
@@ -198,12 +198,12 @@ func Test_Filter_StatusCodeUnder200IsMonitored(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"apimonitoring.custom.my_app.my_api.POST.foo/orders.http_count": 1,
-					//"apimonitoring.custom.my_app.my_api.POST.foo/orders.http*xx_count" <--- no code group tracked
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http_count": 1,
+					//"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http*xx_count" <--- no code group tracked
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.my_api.POST.foo/orders.latency")
+			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.latency")
 		})
 }
 
@@ -220,12 +220,12 @@ func Test_Filter_StatusCodeOver599IsMonitored(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"apimonitoring.custom.my_app.my_api.POST.foo/orders.http_count": 1,
-					//"apimonitoring.custom.my_app.my_api.POST.foo/orders.http*xx_count" <--- no code group tracked
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http_count": 1,
+					//"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http*xx_count" <--- no code group tracked
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "apimonitoring.custom.my_app.my_api.POST.foo/orders.latency")
+			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.latency")
 		})
 }
 
@@ -242,11 +242,11 @@ func Test_Filter_NonConfiguredPathTrackedUnderUnknown(t *testing.T) {
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
 				map[string]int64{
-					"apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count":    1,
-					"apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http2xx_count": 1,
+					"apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count":    1,
+					"apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http2xx_count": 1,
 				},
 				m.Counters,
 			)
-			assert.Contains(t, m.Measures, "apimonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
+			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
 		})
 }

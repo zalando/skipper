@@ -1,4 +1,4 @@
-package apimonitoring
+package apiusagemonitoring
 
 import (
 	"github.com/sirupsen/logrus"
@@ -20,7 +20,7 @@ const (
 )
 
 const (
-	stateBagKeyPrefix = "filter.apimonitoring."
+	stateBagKeyPrefix = "filter.apiUsageMonitoring."
 	stateBagKeyState  = stateBagKeyPrefix + "state"
 )
 
@@ -32,7 +32,7 @@ var (
 	}
 )
 
-type apiMonitoringFilter struct {
+type apiUsageMonitoringFilter struct {
 	paths []*pathInfo
 }
 
@@ -43,10 +43,10 @@ type pathInfo struct {
 	Matcher       *regexp.Regexp
 }
 
-// apiMonitoringFilterContext contains information about the metrics tracking
+// apiUsageMonitoringFilterContext contains information about the metrics tracking
 // for one HTTP exchange (one routing). It serves to pass information from
 // the `Request` call to the `Response` call (stored in the context's `StateBag`).
-type apiMonitoringFilterContext struct {
+type apiUsageMonitoringFilterContext struct {
 	// DimensionPrefix is the prefix to all metrics tracked during this exchange (generated only once)
 	DimensionsPrefix string
 	// Begin is the earliest point in time where the request is observed
@@ -55,11 +55,11 @@ type apiMonitoringFilterContext struct {
 	OriginalRequestSize int64
 }
 
-func (f *apiMonitoringFilter) String() string {
-	return toJsonStringOrError(mapApiMonitoringFilter(f))
+func (f *apiUsageMonitoringFilter) String() string {
+	return toJsonStringOrError(mapApiUsageMonitoringFilter(f))
 }
 
-func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
+func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 	log := log.WithField("op", "request")
 
 	// Identify the dimensions "prefix" of the metrics.
@@ -70,7 +70,7 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	originalRequestSize := c.Request().ContentLength
 
 	// Store that information in the FilterContext's state.
-	mfc := &apiMonitoringFilterContext{
+	mfc := &apiUsageMonitoringFilterContext{
 		DimensionsPrefix:    dimensionsPrefix,
 		Begin:               begin,
 		OriginalRequestSize: originalRequestSize,
@@ -78,11 +78,11 @@ func (f *apiMonitoringFilter) Request(c filters.FilterContext) {
 	c.StateBag()[stateBagKeyState] = mfc
 }
 
-func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
+func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	log := log.WithField("op", "response")
 	log.Debugf("RESPONSE CONTEXT: %s", c)
 
-	mfc, ok := c.StateBag()[stateBagKeyState].(*apiMonitoringFilterContext)
+	mfc, ok := c.StateBag()[stateBagKeyState].(*apiUsageMonitoringFilterContext)
 	if !ok {
 		log.Debugf("Call not tracked")
 		return
@@ -98,7 +98,7 @@ func (f *apiMonitoringFilter) Response(c filters.FilterContext) {
 
 // getDimensionPrefix generates the dimension part of the metrics key (before the name
 // of the metric itself).
-func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *logrus.Entry) string {
+func (f *apiUsageMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *logrus.Entry) string {
 	req := c.Request()
 	var path *pathInfo = nil
 	for _, p := range f.paths {
@@ -122,13 +122,13 @@ func (f *apiMonitoringFilter) getDimensionPrefix(c filters.FilterContext, log *l
 	return prefix
 }
 
-func (f *apiMonitoringFilter) writeMetricCount(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
+func (f *apiUsageMonitoringFilter) writeMetricCount(metrics filters.Metrics, mfc *apiUsageMonitoringFilterContext) {
 	key := mfc.DimensionsPrefix + metricCountAll
 	log.Debugf("incrementing %q by 1", key)
 	metrics.IncCounter(key)
 }
 
-func (f *apiMonitoringFilter) writeMetricResponseStatusClassCount(metrics filters.Metrics, mfc *apiMonitoringFilterContext, response *http.Response) {
+func (f *apiUsageMonitoringFilter) writeMetricResponseStatusClassCount(metrics filters.Metrics, mfc *apiUsageMonitoringFilterContext, response *http.Response) {
 	var classMetricName string
 	st := response.StatusCode
 	switch {
@@ -151,7 +151,7 @@ func (f *apiMonitoringFilter) writeMetricResponseStatusClassCount(metrics filter
 	metrics.IncCounter(key)
 }
 
-func (f *apiMonitoringFilter) writeMetricLatency(metrics filters.Metrics, mfc *apiMonitoringFilterContext) {
+func (f *apiUsageMonitoringFilter) writeMetricLatency(metrics filters.Metrics, mfc *apiUsageMonitoringFilterContext) {
 	key := mfc.DimensionsPrefix + metricLatency
 	log.Debugf("measuring for %q since %v", key, mfc.Begin)
 	metrics.MeasureSince(key, mfc.Begin)

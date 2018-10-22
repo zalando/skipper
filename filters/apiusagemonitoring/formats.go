@@ -1,4 +1,4 @@
-package apimonitoring
+package apiusagemonitoring
 
 import (
 	"crypto/tls"
@@ -150,7 +150,7 @@ func mapUrl(url *url.URL) jsValue {
 	return url.String()
 }
 
-func mapApiMonitoringFilter(f *apiMonitoringFilter) jsObject {
+func mapApiUsageMonitoringFilter(f *apiUsageMonitoringFilter) jsObject {
 	if f == nil {
 		return nil
 	}

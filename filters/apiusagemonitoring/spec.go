@@ -1,4 +1,4 @@
-package apimonitoring
+package apiusagemonitoring
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	name = "apimonitoring"
+	Name = "apiUsageMonitoring"
 
 	unknownElementPlaceholder = "<unknown>"
 
@@ -20,26 +20,26 @@ const (
 )
 
 var (
-	log                         = logrus.WithField("filter", name)
+	log                         = logrus.WithField("filter", Name)
 	regexVarPathPartCurlyBraces = regexp.MustCompile("^{([^:{}]+)}$")
 	regexVarPathPartColon       = regexp.MustCompile("^:([^:{}]+)$")
 )
 
-// NewApiMonitoring creates a new instance of the API Monitoring filter
+// NewApiUsageMonitoring creates a new instance of the API Monitoring filter
 // specification (its factory).
-func NewApiMonitoring() filters.Spec {
-	spec := new(apiMonitoringFilterSpec)
+func NewApiUsageMonitoring() filters.Spec {
+	spec := new(apiUsageMonitoringSpec)
 	log.Debugf("Created filter spec: %+v", spec)
 	return spec
 }
 
-type apiMonitoringFilterSpec struct{}
+type apiUsageMonitoringSpec struct{}
 
-func (s *apiMonitoringFilterSpec) Name() string {
-	return name
+func (s *apiUsageMonitoringSpec) Name() string {
+	return Name
 }
 
-func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
+func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)
@@ -61,7 +61,7 @@ func (s *apiMonitoringFilterSpec) CreateFilter(args []interface{}) (filter filte
 		return nil, errors.New("no path to monitor")
 	}
 
-	filter = &apiMonitoringFilter{
+	filter = &apiUsageMonitoringFilter{
 		paths: paths,
 	}
 	log.Debugf("Created filter: %s", filter)
