@@ -2,7 +2,6 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -46,68 +45,55 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 		}
 	}()
 
-	if err = logAndCheckArgs(args); err != nil {
-		return nil, err
-	}
-	config, err := parseJsonConfiguration(args)
-	if err != nil {
-		return nil, err
-	}
-	paths, err := buildPathInfoListFromConfiguration(config)
-	if err != nil {
-		return nil, err
-	}
+	apis := parseJsonConfiguration(args)
+	paths := buildPathInfoListFromConfiguration(apis)
+
 	if len(paths) == 0 {
-		return nil, errors.New("no path to monitor")
+		log.Warn("No path to monitor.")
+		filter = &noopFilter{reason: "Configuration yielded no path to monitor"}
+	} else {
+		filter = &apiUsageMonitoringFilter{paths: paths}
 	}
 
-	filter = &apiUsageMonitoringFilter{
-		paths: paths,
-	}
 	log.Debugf("Created filter: %s", filter)
 	return
 }
 
-func logAndCheckArgs(args []interface{}) error {
-	log.Debugf("Creating filter with %d argument(s): %v", len(args), args)
-	if len(args) < 1 {
-		return errors.New("expecting one parameter (JSON configuration of the filter)")
+func parseJsonConfiguration(args []interface{}) []*apiConfig {
+	apis := make([]*apiConfig, 0, len(args))
+	for i, a := range args {
+		rawJsonConfiguration, ok := a.(string)
+		if !ok {
+			log.Warnf("args[%d] ignored: expecting a string, was %t", i, a)
+			continue
+		}
+
+		config := new(apiConfig)
+		decoder := json.NewDecoder(strings.NewReader(rawJsonConfiguration))
+		decoder.DisallowUnknownFields()
+		err := decoder.Decode(config)
+		if err != nil {
+			log.Warnf("args[%d] ignored: error reading JSON configuration: %s", i, err)
+			continue
+		}
+		log.Debugf("Filter configuration: %+v", config)
+
+		apis = append(apis, config)
 	}
-	if len(args) > 1 {
-		log.Warnf("Only the first parameter is considered. The others are ignored.")
-	}
-	return nil
+	return apis
 }
 
-func parseJsonConfiguration(args []interface{}) (*filterConfig, error) {
-	rawJsonConfiguration, ok := args[0].(string)
-	if !ok {
-		return nil, fmt.Errorf("expecting first parameter to be a string, was %t", args[0])
-	}
-
-	decoder := json.NewDecoder(strings.NewReader(rawJsonConfiguration))
-	decoder.DisallowUnknownFields()
-
-	config := new(filterConfig)
-	err := decoder.Decode(config)
-	if err != nil {
-		return nil, fmt.Errorf("error reading JSON configuration: %s", err)
-	}
-	log.Debugf("Filter configuration: %+v", config)
-	return config, nil
-}
-
-func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, error) {
-	paths := make([]*pathInfo, 0, 32)
+func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
+	paths := make([]*pathInfo, 0)
 	existingPathTemplates := make(map[string]*pathInfo)
 	existingRegEx := make(map[string]*pathInfo)
 
-	for apiIndex, api := range config.Apis {
+	for apiIndex, api := range apis {
 
 		applicationId := api.ApplicationId
 		if applicationId == "" {
 			log.Debugf(
-				"API at index %d does not specify an application ID, defaulting to %q",
+				"args[%d] does not specify an application ID, defaulting to %q",
 				apiIndex, unknownElementPlaceholder)
 			applicationId = unknownElementPlaceholder
 		}
@@ -115,7 +101,7 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 		apiId := api.ApiId
 		if apiId == "" {
 			log.Debugf(
-				"API at index %d does not specify an API ID, defaulting to %q",
+				"args[%d] does not specify an API ID, defaulting to %q",
 				apiIndex, unknownElementPlaceholder)
 			apiId = unknownElementPlaceholder
 		}
@@ -124,7 +110,10 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 
 			// Path Template validation
 			if template == "" {
-				return nil, fmt.Errorf("empty path at API index %d, template index %d", apiIndex, templateIndex)
+				log.Warnf(
+					"args[%d].path_templates[%d] ignored: empty",
+					apiIndex, templateIndex)
+				continue
 			}
 
 			// Normalize path template and get regular expression from it
@@ -140,9 +129,9 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 			// Detect path template duplicates
 			_, ok := existingPathTemplates[info.PathTemplate]
 			if ok {
-				log.Infof(
-					"duplicate path template %q, ignoring this template",
-					info.PathTemplate)
+				log.Warnf(
+					"args[%d].path_templates[%d] ignored: duplicate path template %q",
+					apiIndex, templateIndex, info.PathTemplate)
 				continue
 			}
 			existingPathTemplates[info.PathTemplate] = info
@@ -150,8 +139,8 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 			// Detect regular expression duplicates
 			if existingMatcher, ok := existingRegEx[regExStr]; ok {
 				log.Infof(
-					"two path templates yielded the same regular expression %q (%q and %q) ignoring this template",
-					regExStr, info.PathTemplate, existingMatcher.PathTemplate)
+					"args[%d].path_templates[%d] ignored: two path templates yielded the same regular expression %q (%q and %q) ignoring this template",
+					apiIndex, templateIndex, regExStr, info.PathTemplate, existingMatcher.PathTemplate)
 				continue
 			}
 			existingRegEx[regExStr] = info
@@ -159,9 +148,10 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 			// Compile the regular expression
 			regEx, err := regexp.Compile(regExStr)
 			if err != nil {
-				return nil, fmt.Errorf(
-					"error compiling regular expression %q for path %q: %s",
-					regExStr, info.PathTemplate, err)
+				log.Warnf(
+					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %s",
+					apiIndex, templateIndex, regExStr, info.PathTemplate, err)
+				continue
 			}
 			info.Matcher = regEx
 
@@ -170,7 +160,7 @@ func buildPathInfoListFromConfiguration(config *filterConfig) ([]*pathInfo, erro
 		}
 	}
 
-	return paths, nil
+	return paths
 }
 
 // generateRegExpStringForPathTemplate normalizes the given path template and

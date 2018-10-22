@@ -832,6 +832,21 @@ WARNING: Make sure that the Prometheus Metrics are also enabled.
 skipper -enable-api-usage-monitoring -enable-prometheus-metrics
 ```
 
+The structure of the metrics is:
+
+    apiUsageMonitoring.custom.<Application Name>.<HTTP Verb>.<Path>.<Metric Name>
+
+The available metrics are:
+
+* HTTP exchanges counting:
+    * **http_count**: the number of HTTP exchanges
+    * **http5xx_count**: number of HTTP exchanges resulting in a server error (HTTP status in the 500s)
+    * **http4xx_count**: number of HTTP exchanges resulting in a client error (HTTP status in the 400s)
+    * **http3xx_count**: number of HTTP exchanges resulting in a redirect (HTTP status in the 300s)
+    * **http2xx_count**: number of HTTP exchanges resulting in success (HTTP status in the 200s)
+* Timing:
+    * **latency**: time between the first observable moment (a call to the filter's `Request`) until the last (a call to the filter's `Response`) 
+
 Endpoints can be monitored using the `apiUsageMonitoring` function in the route. It accepts a JSON object
 of the following format.
 
@@ -869,7 +884,7 @@ api-usage-monitoring-configuration:
               example: /orders/{order-id}
 ```
 
-Example:
+Configuration Example:
 
 ```
 apiUsageMonitoring(`{
@@ -895,7 +910,8 @@ apiUsageMonitoring(`{
 }`)
 ```
 
-That would monitor metrics like:
+Metrics Examples (based on the previous configuration example):
+
 * `apiUsageMonitoring.custom.my_app.GET.foo/orders/:order-id.http_count`
 * `apiUsageMonitoring.custom.my_app.GET.foo/orders/:order-id.http2xx_count`
 * `apiUsageMonitoring.custom.my_app.POST.foo/orders.latency`

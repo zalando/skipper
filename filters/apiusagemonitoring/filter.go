@@ -32,6 +32,8 @@ var (
 	}
 )
 
+// apiUsageMonitoringFilter implements filters.Filter interface and is the structure
+// created for every route invocation of the `apiUsageMonitoring` filter.
 type apiUsageMonitoringFilter struct {
 	paths []*pathInfo
 }

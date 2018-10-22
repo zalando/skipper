@@ -1,11 +1,6 @@
 package apiusagemonitoring
 
-// filterConfig is the structure of the filter parameter (the JSON object)
-// describing the configuration of one API Monitoring filter.
-type filterConfig struct {
-	Apis []*apiConfig `json:"apis"`
-}
-
+// apiConfig is the structure used to parse the parameters of the filter.
 type apiConfig struct {
 	ApplicationId string   `json:"application_id"`
 	ApiId         string   `json:"api_id"`
