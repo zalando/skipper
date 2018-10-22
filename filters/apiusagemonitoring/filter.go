@@ -30,6 +30,15 @@ var (
 		ApiId:         unknownElementPlaceholder,
 		PathTemplate:  unknownElementPlaceholder,
 	}
+
+	classMetricsNames = [...]string{
+		metricCount200s,
+		metricCount300s,
+		metricCount400s,
+		metricCount500s,
+	}
+
+	classMetricsNamesMax = len(classMetricsNames) - 1
 )
 
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
@@ -70,8 +79,8 @@ func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 
 	// Store that information in the FilterContext's state.
 	mfc := &apiUsageMonitoringFilterContext{
-		DimensionsPrefix:    dimensionsPrefix,
-		Begin:               begin,
+		DimensionsPrefix: dimensionsPrefix,
+		Begin:            begin,
 	}
 	c.StateBag()[stateBagKeyState] = mfc
 }
@@ -130,24 +139,11 @@ func (f *apiUsageMonitoringFilter) writeMetricCount(metrics filters.Metrics, mfc
 }
 
 func (f *apiUsageMonitoringFilter) writeMetricResponseStatusClassCount(metrics filters.Metrics, mfc *apiUsageMonitoringFilterContext, response *http.Response) {
-	var classMetricName string
-	st := response.StatusCode
-	switch {
-	case st < 200:
-		return
-	case st < 300:
-		classMetricName = metricCount200s
-	case st < 400:
-		classMetricName = metricCount300s
-	case st < 500:
-		classMetricName = metricCount400s
-	case st < 600:
-		classMetricName = metricCount500s
-	default:
+	classMetricsIndex := (response.StatusCode / 100) - 2
+	if classMetricsIndex < 0 || classMetricsIndex > classMetricsNamesMax {
 		return
 	}
-
-	key := mfc.DimensionsPrefix + classMetricName
+	key := mfc.DimensionsPrefix + classMetricsNames[classMetricsIndex]
 	log.Debugf("incrementing %q by 1", key)
 	metrics.IncCounter(key)
 }

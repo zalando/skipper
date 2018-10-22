@@ -78,7 +78,7 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 		"https://www.example.org/a/b/c",
 		"",
 		nil,
-		200,
+		299,
 		0,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			// no path matching: tracked as unknown
@@ -123,7 +123,7 @@ func Test_Filter_PathTemplateWithVariablePart(t *testing.T) {
 		"https://www.example.org/foo/orders/1234",
 		"asd",
 		nil,
-		200,
+		204,
 		6,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
@@ -145,7 +145,7 @@ func Test_Filter_PathTemplateWithMultipleVariablePart(t *testing.T) {
 		"https://www.example.org/foo/orders/1234/order-items/123",
 		"asd",
 		nil,
-		300,
+		301,
 		6,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
@@ -167,7 +167,7 @@ func Test_Filter_PathTemplateFromSecondConfiguredApi(t *testing.T) {
 		"https://www.example.org/foo/customers/loremipsum",
 		"asd",
 		nil,
-		500,
+		502,
 		6,
 		func(m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
 			assert.Equal(t,
