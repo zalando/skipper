@@ -53,8 +53,6 @@ type apiUsageMonitoringFilterContext struct {
 	DimensionsPrefix string
 	// Begin is the earliest point in time where the request is observed
 	Begin time.Time
-	// OriginalRequestSize is the initial requests' size, before it is modified by other filters.
-	OriginalRequestSize int64
 }
 
 func (f *apiUsageMonitoringFilter) String() string {
@@ -69,13 +67,11 @@ func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 
 	// Gathering information from the initial request for further metrics calculation
 	begin := time.Now()
-	originalRequestSize := c.Request().ContentLength
 
 	// Store that information in the FilterContext's state.
 	mfc := &apiUsageMonitoringFilterContext{
 		DimensionsPrefix:    dimensionsPrefix,
 		Begin:               begin,
-		OriginalRequestSize: originalRequestSize,
 	}
 	c.StateBag()[stateBagKeyState] = mfc
 }

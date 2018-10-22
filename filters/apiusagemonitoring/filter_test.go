@@ -13,18 +13,14 @@ import (
 func createFilterForTest() (filters.Filter, error) {
 	spec := apiUsageMonitoringSpec{}
 	args := []interface{}{`{
-		"apis": [
-			{
-				"application_id": "my_app",
-				"api_id": "my_api",
-	  			"path_templates": [
-					"foo/orders",
-					"foo/orders/:order-id",
-					"foo/orders/:order-id/order-items/{order-item-id}",
-					"/foo/customers/",
-					"/foo/customers/{customer-id}/"
-				]
-			}
+		"application_id": "my_app",
+		"api_id": "my_api",
+	  	"path_templates": [
+			"foo/orders",
+			"foo/orders/:order-id",
+			"foo/orders/:order-id/order-items/{order-item-id}",
+			"/foo/customers/",
+			"/foo/customers/{customer-id}/"
 		]
 	}`}
 	return spec.CreateFilter(args)
