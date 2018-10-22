@@ -2,6 +2,7 @@
 
 Package apiusagemonitoring provides filters gathering metrics around API calls
 
+
 Feature switch & Dependencies
 
 This feature is considered experimental and should only be activated explicitly. To
@@ -19,34 +20,8 @@ Configuration
 Due to its structured configuration, the filter accepts one parameter of type string
 containing a JSON object.
 
-Details can be found at https://opensource.zalando.com/skipper/reference/filters/#apiUsageMonitoring
+Details and examples can be found at https://opensource.zalando.com/skipper/reference/filters/#apiUsageMonitoring
 (or in this project, under `docs/reference/filters.md`).
-
-Example:
-
-	Path("/this-is-monitored")
-		-> apiUsageMonitoring(`{
-			"apis": [
-				{
-					"application_id": "my_app",
-					"api_id": "orders_api",
-				"path_templates": [
-						"foo/orders",
-						"foo/orders/:order-id",
-						"foo/orders/:order-id/order_item/{order-item-id}"
-					]
-				},
-				{
-					"application_id": "my_app",
-					"api_id": "customers_api",
-					"path_templates": [
-						"/foo/customers/",
-						"/foo/customers/{customer-id}/"
-					]
-				}
-			]
-		}`)
-		-> "https://example.org/";
 
 
 Development Helpers
