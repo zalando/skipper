@@ -80,11 +80,14 @@ func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	log := log.WithField("op", "response")
-	log.Debugf("RESPONSE CONTEXT: %s", c)
+	if log.Logger.Level >= logrus.DebugLevel {
+		contextAsJson := toJsonStringOrError(mapFilterContext(c))
+		log.Debugf("RESPONSE CONTEXT: %s", contextAsJson)
+	}
 
 	mfc, ok := c.StateBag()[stateBagKeyState].(*apiUsageMonitoringFilterContext)
 	if !ok {
-		log.Debugf("Call not tracked")
+		log.Debugf("Call not tracked (key %q not found in StateBag)", stateBagKeyState)
 		return
 	}
 

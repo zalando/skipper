@@ -14,7 +14,7 @@ import (
 type jsValue interface{}
 type jsObject map[string]jsValue
 
-func toJsonStringOrError(jso jsObject) string {
+func toJsonStringOrError(jso jsValue) string {
 	jsStr, err := json.Marshal(jso)
 	if err != nil {
 		return err.Error()
