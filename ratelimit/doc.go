@@ -29,32 +29,49 @@ The following command starts skipper with default X-Forwarded-For
 Lookuper, that will start to rate limit after 5 requests within 60s
 from the same client
 
-    % skipper -ratelimits type=local,max-hits=5,time-window=60s
+    % skipper -ratelimits type=client,max-hits=5,time-window=60s
 
 The following configuration will rate limit /foo after 2 requests
 within 90s from the same requester and all other requests after 20
 requests within 60s from the same client
 
     % cat ratelimit.eskip
-    foo: Path("/foo") -> localRatelimit(2,"1m30s") -> "http://www.example.org/foo"
-    rest: Path("/") -> localRatelimit(20,"1m") -> "http://www.example.net/"
+    foo: Path("/foo") -> clientRatelimit(2,"1m30s") -> "http://www.example.org/foo"
+    rest: * -> clientRatelimit(20,"1m") -> "http://www.example.net/"
     % skipper -enable-ratelimits -routes-file=ratelimit.eskip
 
 The following configuration will rate limit requests after 100
 requests within 1 minute with the same Authorization Header
 
     % cat ratelimit-auth.eskip
-    all: Path("/") -> localRatelimit(100,"1m","auth") -> "http://www.example.org/"
+    all: * -> clientRatelimit(100,"1m","auth") -> "http://www.example.org/"
     % skipper -enable-ratelimits -routes-file=ratelimit-auth.eskip
+
+The following configuration will rate limit requests to /login after 10 requests
+summed across all skipper peers within one hour from the same requester.
+
+    % cat ratelimit.eskip
+    foo: Path("/login") -> clientRatelimit(10,"1h") -> "http://www.example.org/login"
+    rest: * -> "http://www.example.net/"
+    % skipper -enable-ratelimits -routes-file=ratelimit.eskip -enable-swarm
+
 
 Rate limiter settings can be applied globally via command line flags
 or within routing settings.
 
 Settings - Type
 
-Defines the type of the rate limiter, which right now only allows to
-be "local". In case of a skipper swarm or service mesh this would be
-an interesting configuration option, for example "global" or "dc".
+Defines the type of the rate limiter. There are types that only use
+local state information and others that use cluster information using
+swarm.Swarm to exchange information. Types that use instance local
+information are ServiceRatelimit to be used to protect backends and
+ClientRatelimit to protect from too chatty clients. Types that use
+cluster information are ClusterServiceRatelimit to be used to protect
+backends and and ClusterClientRatelimit to protect from too chatty
+clients. ClusterClientRatelimit should be carefully tested with your
+current memory settings (about 15MB for 100.000 attackers per filter),
+but the use cases are to protect from login attacks, user enumeration
+or DDoS attacks.
 
 Settings - MaxHits
 

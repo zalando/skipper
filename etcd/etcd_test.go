@@ -15,6 +15,7 @@
 package etcd
 
 import (
+	"encoding/base64"
 	"errors"
 	"log"
 	"net"
@@ -25,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"encoding/base64"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/etcd/etcdtest"
 )
