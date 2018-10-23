@@ -16,6 +16,7 @@ const (
 	metricCount400s  = "http4xx_count"
 	metricCount300s  = "http3xx_count"
 	metricCount200s  = "http2xx_count"
+	metricCount100s  = "http1xx_count"
 	metricLatency    = "latency"
 )
 
@@ -32,13 +33,12 @@ var (
 	}
 
 	classMetricsNames = [...]string{
+		metricCount100s,
 		metricCount200s,
 		metricCount300s,
 		metricCount400s,
 		metricCount500s,
 	}
-
-	classMetricsNamesMax = len(classMetricsNames) - 1
 )
 
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
@@ -139,8 +139,8 @@ func (f *apiUsageMonitoringFilter) writeMetricCount(metrics filters.Metrics, mfc
 }
 
 func (f *apiUsageMonitoringFilter) writeMetricResponseStatusClassCount(metrics filters.Metrics, mfc *apiUsageMonitoringFilterContext, response *http.Response) {
-	classMetricsIndex := (response.StatusCode / 100) - 2
-	if classMetricsIndex < 0 || classMetricsIndex > classMetricsNamesMax {
+	classMetricsIndex := (response.StatusCode / 100) - 1
+	if classMetricsIndex < 0 || classMetricsIndex > 5 {
 		return
 	}
 	key := mfc.DimensionsPrefix + classMetricsNames[classMetricsIndex]
