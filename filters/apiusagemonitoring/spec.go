@@ -52,7 +52,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 		log.Warn("No path to monitor.")
 		filter = &noopFilter{reason: "Configuration yielded no path to monitor"}
 	} else {
-		filter = &apiUsageMonitoringFilter{paths: paths}
+		filter = &apiUsageMonitoringFilter{Paths: paths}
 	}
 
 	log.Debugf("Created filter: %s", filter)
@@ -67,7 +67,6 @@ func parseJsonConfiguration(args []interface{}) []*apiConfig {
 			log.Warnf("args[%d] ignored: expecting a string, was %t", i, a)
 			continue
 		}
-
 		config := new(apiConfig)
 		decoder := json.NewDecoder(strings.NewReader(rawJsonConfiguration))
 		decoder.DisallowUnknownFields()
@@ -76,8 +75,6 @@ func parseJsonConfiguration(args []interface{}) []*apiConfig {
 			log.Warnf("args[%d] ignored: error reading JSON configuration: %s", i, err)
 			continue
 		}
-		log.Debugf("Filter configuration: %+v", config)
-
 		apis = append(apis, config)
 	}
 	return apis
@@ -90,9 +87,16 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 
 	for apiIndex, api := range apis {
 
+		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
+			log.Warnf(
+				"args[%d] ignored: does not specify any path template",
+				apiIndex)
+			continue
+		}
+
 		applicationId := api.ApplicationId
 		if applicationId == "" {
-			log.Debugf(
+			log.Warnf(
 				"args[%d] does not specify an application ID, defaulting to %q",
 				apiIndex, unknownElementPlaceholder)
 			applicationId = unknownElementPlaceholder
@@ -100,7 +104,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 
 		apiId := api.ApiId
 		if apiId == "" {
-			log.Debugf(
+			log.Warnf(
 				"args[%d] does not specify an API ID, defaulting to %q",
 				apiIndex, unknownElementPlaceholder)
 			apiId = unknownElementPlaceholder
@@ -121,9 +125,10 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 
 			// Create new `pathInfo` with normalized PathTemplate
 			info := &pathInfo{
-				ApplicationId: applicationId,
-				ApiId:         apiId,
-				PathTemplate:  normalisedPathTemplate,
+				ApplicationId:           applicationId,
+				ApiId:                   apiId,
+				PathTemplate:            normalisedPathTemplate,
+				metricPrefixesPerMethod: make(map[string]*specificMetricsName),
 			}
 
 			// Detect path template duplicates
@@ -138,8 +143,8 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 
 			// Detect regular expression duplicates
 			if existingMatcher, ok := existingRegEx[regExStr]; ok {
-				log.Infof(
-					"args[%d].path_templates[%d] ignored: two path templates yielded the same regular expression %q (%q and %q) ignoring this template",
+				log.Warnf(
+					"args[%d].path_templates[%d] ignored: two path templates yielded the same regular expression %q (%q and %q)",
 					apiIndex, templateIndex, regExStr, info.PathTemplate, existingMatcher.PathTemplate)
 				continue
 			}
