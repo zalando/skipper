@@ -29,7 +29,7 @@ func TestRegistry(t *testing.T) {
 	}
 
 	t.Run("no settings", func(t *testing.T) {
-		r := NewRegistry()
+		r := NewRegistry(Settings{})
 
 		rl := r.Get(Settings{})
 		checkNil(t, rl)

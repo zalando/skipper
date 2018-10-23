@@ -3,41 +3,88 @@ package ratelimit
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
 )
 
-// Type defines the type of the used breaker: consecutive, rate or
-// disabled.
-type Type int
-
 const (
 	// Header is
 	Header = "X-Rate-Limit"
+
 	// RetryHeader is name of the header which will be used to indicate how
 	// long a client should wait before making a new request
 	RetryAfterHeader = "Retry-After"
+
 	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
 	ServiceRatelimitName = "ratelimit"
-	// LocalRatelimitName is the name of the LocalRatelimit filter, which will be shown in log
+
+	// LocalRatelimitName *deprecated*, use ClientRatelimitName instead
 	LocalRatelimitName = "localRatelimit"
+
+	// ClientRatelimitName is the name of the ClientRatelimit filter, which will be shown in log
+	ClientRatelimitName = "clientRatelimit"
+
+	// ClusterServiceRatelimitName is the name of the ClusterServiceRatelimit filter, which will be shown in log
+	ClusterServiceRatelimitName = "clusterRatelimit"
+
+	// ClusterClientRatelimitName is the name of the ClusterClientRatelimit filter, which will be shown in log
+	ClusterClientRatelimitName = "clusterClientRatelimit"
+
 	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
 	DisableRatelimitName = "disableRatelimit"
 )
 
+// RatelimitType defines the type of  the used ratelimit
+type RatelimitType int
+
 const (
 	// NoRatelimit is not used
-	NoRatelimit Type = iota
+	NoRatelimit RatelimitType = iota
+
 	// ServiceRatelimit is used to have a simple rate limit for a
 	// backend service, which is calculated and measured within
 	// each instance
 	ServiceRatelimit
-	// LocalRatelimit is used to have a simple local rate limit
-	// per user for a backend, which is calculated and measured
-	// within each instance
+
+	// LocalRatelimit *deprecated* will be replaced by ClientRatelimit
 	LocalRatelimit
+
+	// ClientRatelimit is used to have a simple local rate limit
+	// per user for a backend, which is calculated and measured
+	// within each instance. One filter consumes memory calculated
+	// by the following formular, where N is the number of
+	// individual clients put into the same bucket, M the maximum
+	// number of requests allowed:
+	//
+	//    memory = N * M * 15 byte
+	//
+	// For example /login protection 100.000 attacker, 10 requests
+	// for 1 hour will use roughly 14.6 MB.
+	ClientRatelimit
+
+	// ClusterServiceRatelimit is used to calculate a rate limit
+	// for a whole skipper fleet for a backend service, needs
+	// swarm to be enabled with -enable-swarm.
+	ClusterServiceRatelimit
+
+	// ClusterClientRatelimit is used to calculate a rate limit
+	// for a whole skipper fleet per user for a backend, needs
+	// swarm to be enabled with -enable-swarm.
+	// One filter consumes memory calculated
+	// by the following formular, where N is the number of
+	// individual clients put into the same bucket, M the maximum
+	// number of requests allowed, S the number of skipper peers:
+	//
+	//    memory = N * M * 15 + S * len(peername)
+	//
+	// For example /login protection 100.000 attacker, 10 requests
+	// for 1 hour, 100 skipper peers with each a name of 8
+	// characters will use roughly 14.7 MB.
+	ClusterClientRatelimit
+
 	// DisableRatelimit is used to disable rate limit
 	DisableRatelimit
 )
@@ -98,11 +145,23 @@ func (AuthLookuper) Lookup(req *http.Request) string {
 
 // Settings configures the chosen rate limiter
 type Settings struct {
-	Type          Type
-	Lookuper      Lookuper
-	Host          string
-	MaxHits       int
-	TimeWindow    time.Duration
+	// Type of the chosen rate limiter
+	Type RatelimitType
+
+	// Lookuper to decide which data to use to identify the same
+	// bucket (for example how to lookup the client identifier)
+	Lookuper Lookuper
+
+	// MaxHits the maximum number of hits for a time duration
+	// allowed in the same bucket.
+	MaxHits int
+
+	// TimeWindow is the time duration that is valid for hits to
+	// be counted in the rate limit.
+	TimeWindow time.Duration
+
+	// CleanInterval is the duration old data can expire, because
+	// need to cleanup data in for example client ratelimits.
 	CleanInterval time.Duration
 }
 
@@ -133,28 +192,50 @@ func (s Settings) String() string {
 	case ServiceRatelimit:
 		return fmt.Sprintf("ratelimit(type=service,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
-		return fmt.Sprintf("ratelimit(type=local,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+		fallthrough
+	case ClientRatelimit:
+		return fmt.Sprintf("ratelimit(type=client,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+	case ClusterServiceRatelimit:
+		return fmt.Sprintf("ratelimit(type=clusterService,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+	case ClusterClientRatelimit:
+		return fmt.Sprintf("ratelimit(type=clusterClient,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	default:
 		return "non"
 	}
 }
 
-type implementation interface {
-	// Allow is used to get a decision if you should allow the call to pass or to ratelimit
+// limiter defines the requirement to be used as a ratelimit implmentation.
+type limiter interface {
+	// Allow is used to get a decision if you should allow the
+	// call to pass or to ratelimit
 	Allow(string) bool
-	// Close is used to clean up underlying implementations, if you want to stop a Ratelimiter
+
+	// Close is used to clean up underlying limiter
+	// implementations, if you want to stop a Ratelimiter
 	Close()
-	// RetryAfter is used to inform the client how many seconds it should wait
-	// before making a new request
+
+	// Delta is used to get the duration until the next call is
+	// possible, negative durations allow immediate calls
+	Delta(string) time.Duration
+
+	// Oldest returns the oldest timestamp for string
+	Oldest(string) time.Time
+
+	// Resize is used to resize the buffer depending on the number
+	// of nodes available
+	Resize(string, int)
+
+	// RetryAfter is used to inform the client how many seconds it
+	// should wait before making a new request
 	RetryAfter(string) int
 }
 
-// Ratelimit is a proxy objects that delegates to implemetations and
-// stores settings for the ratelimiter
+// Ratelimit is a proxy object that delegates to limiter
+// implemetations and stores settings for the ratelimiter
 type Ratelimit struct {
 	settings Settings
 	ts       time.Time
-	impl     implementation
+	impl     limiter
 }
 
 // Allow returns true if the s is not ratelimited, false if it is
@@ -166,7 +247,7 @@ func (l *Ratelimit) Allow(s string) bool {
 	return l.impl.Allow(s)
 }
 
-// Close will stop a cleanup goroutines in underlying implementation.
+// Close will stop any cleanup goroutines in underlying limiter implementation.
 func (l *Ratelimit) Close() {
 	l.impl.Close()
 }
@@ -179,27 +260,42 @@ func (l *Ratelimit) RetryAfter(s string) int {
 	return l.impl.RetryAfter(s)
 }
 
+func (l *Ratelimit) Delta(s string) time.Duration {
+	return l.impl.Delta(s)
+}
+
+func (l *Ratelimit) Resize(s string, i int) {
+	l.impl.Resize(s, i)
+}
+
 type voidRatelimit struct{}
 
-// Allow always returns true, not ratelimited
-func (l voidRatelimit) Allow(string) bool {
-	return true
-}
+func (voidRatelimit) Allow(string) bool          { return true }
+func (voidRatelimit) Close()                     {}
+func (voidRatelimit) Oldest(string) time.Time    { return time.Time{} }
+func (voidRatelimit) RetryAfter(string) int      { return 0 }
+func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
+func (voidRatelimit) Resize(string, int)         {}
 
-func (l voidRatelimit) Close() {
-}
-
-func (l voidRatelimit) RetryAfter(string) int {
-	return 0
-}
-
-func newRatelimit(s Settings) *Ratelimit {
-	var impl implementation
+func newRatelimit(s Settings, sw Swarmer) *Ratelimit {
+	var impl limiter
 	switch s.Type {
 	case ServiceRatelimit:
 		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
+		fallthrough
+	case ClientRatelimit:
 		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
+	case ClusterServiceRatelimit:
+		s.CleanInterval = 0
+		fallthrough
+	case ClusterClientRatelimit:
+		if sw != nil {
+			impl = newClusterRateLimiter(s, sw, "CRL")
+		} else {
+			fmt.Fprintf(os.Stderr, "ERROR: no -enable-swarm, falling back to no ratelimit for %q\n", s)
+			impl = voidRatelimit{}
+		}
 	default:
 		impl = voidRatelimit{}
 	}
