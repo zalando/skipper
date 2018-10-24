@@ -60,7 +60,7 @@ func testWithFilter(
 		t.Run(fmt.Sprintf("pass %d", pass), func(t *testing.T) {
 			req, err := http.NewRequest(method, url, bytes.NewBufferString(reqBody))
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 			}
 			if bypassReqContentLength != nil {
 				req.ContentLength = *bypassReqContentLength
@@ -92,7 +92,7 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
-		"GET",
+		http.MethodGet,
 		"https://www.example.org/a/b/c",
 		"",
 		nil,
@@ -115,7 +115,7 @@ func Test_Filter_PathTemplateNoVariablePart(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
-		"POST",
+		http.MethodPost,
 		"https://www.example.org/foo/orders",
 		"asd",
 		nil,
@@ -137,7 +137,7 @@ func Test_Filter_PathTemplateWithVariablePart(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
-		"POST",
+		http.MethodPost,
 		"https://www.example.org/foo/orders/1234",
 		"asd",
 		nil,
@@ -159,7 +159,7 @@ func Test_Filter_PathTemplateWithMultipleVariablePart(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
-		"POST",
+		http.MethodPost,
 		"https://www.example.org/foo/orders/1234/order-items/123",
 		"asd",
 		nil,
@@ -181,7 +181,7 @@ func Test_Filter_PathTemplateFromSecondConfiguredApi(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
-		"POST",
+		http.MethodPost,
 		"https://www.example.org/foo/customers/loremipsum",
 		"asd",
 		nil,
@@ -203,7 +203,7 @@ func Test_Filter_StatusCodes1xxAreMonitored(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
-		"POST",
+		http.MethodPost,
 		"https://www.example.org/foo/orders",
 		"asd",
 		nil,
@@ -225,7 +225,7 @@ func Test_Filter_StatusCodeOver599IsMonitored(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
-		"POST",
+		http.MethodPost,
 		"https://www.example.org/foo/orders",
 		"asd",
 		nil,
@@ -247,7 +247,7 @@ func Test_Filter_StatusCodeUnder100IsMonitoredWithoutHttpStatusCount(t *testing.
 	testWithFilter(
 		t,
 		createFilterForTest,
-		"POST",
+		http.MethodPost,
 		"https://www.example.org/foo/orders",
 		"asd",
 		nil,
@@ -269,7 +269,7 @@ func Test_Filter_NonConfiguredPathTrackedUnderUnknown(t *testing.T) {
 	testWithFilter(
 		t,
 		createFilterForTest,
-		"GET",
+		http.MethodGet,
 		"https://www.example.org/lapin/malin",
 		"asd",
 		nil,
@@ -285,4 +285,60 @@ func Test_Filter_NonConfiguredPathTrackedUnderUnknown(t *testing.T) {
 			)
 			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
 		})
+}
+
+func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
+	for _, testCase := range []struct {
+		method                 string
+		expectedMethodInMetric string
+	}{
+		{http.MethodGet, "GET"},
+		{http.MethodHead, "HEAD"},
+		{http.MethodPost, "POST"},
+		{http.MethodPut, "PUT"},
+		{http.MethodPatch, "PATCH"},
+		{http.MethodDelete, "DELETE"},
+		{http.MethodConnect, "CONNECT"},
+		{http.MethodOptions, "OPTIONS"},
+		{http.MethodTrace, "TRACE"},
+		//{"", "<unknown>"}, // not tested because `http.NewRequest` default to `GET` when method is empty
+		{"foo", "<unknown>"},
+		{"this_does_not_make_any_sense", "<unknown>"},
+	} {
+		t.Run(testCase.method, func(t *testing.T) {
+			testWithFilter(
+				t,
+				createFilterForTest,
+				testCase.method,
+				"https://www.example.org/lapin/malin",
+				"asd",
+				nil,
+				200,
+				6,
+				func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+
+					httpCountMetricKey := fmt.Sprintf(
+						"apiUsageMonitoring.custom.<unknown>.<unknown>.%s.<unknown>.http_count",
+						testCase.expectedMethodInMetric)
+					httpStatusClassCountMetricKey := fmt.Sprintf(
+						"apiUsageMonitoring.custom.<unknown>.<unknown>.%s.<unknown>.http2xx_count",
+						testCase.expectedMethodInMetric)
+
+					assert.Equal(t,
+						map[string]int64{
+							httpCountMetricKey:            int64(pass),
+							httpStatusClassCountMetricKey: int64(pass),
+						},
+						m.Counters,
+					)
+
+					latencyMetricKey := fmt.Sprintf(
+						"apiUsageMonitoring.custom.<unknown>.<unknown>.%s.<unknown>.latency",
+						testCase.expectedMethodInMetric)
+
+					assert.Contains(t, m.Measures, latencyMetricKey)
+				})
+		})
+	}
+
 }

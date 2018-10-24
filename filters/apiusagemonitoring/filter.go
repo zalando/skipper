@@ -87,14 +87,20 @@ func (f *apiUsageMonitoringFilter) getMetricsName(req *http.Request) *specificMe
 	}
 
 	// Get the cached prefixes for this path and verb
-	prefixes, ok := path.metricPrefixesPerMethod[req.Method]
-	if ok {
+	method := req.Method
+	methodIndex, ok := methodToIndex[method]
+	if !ok {
+		methodIndex = MethodIndexUnknown
+		method = unknownElementPlaceholder
+	}
+
+	prefixes := path.metricPrefixesPerMethod[methodIndex]
+	if prefixes != nil {
 		return prefixes
 	}
 
-	// Prefixes were not cached for this path and verb
-	// Generate and cache prefixes
-	globalPrefix := path.ApplicationId + "." + path.ApiId + "." + req.Method + "." + path.PathTemplate + "."
+	// Prefixes were not cached for this path and method. Generate and cache.
+	globalPrefix := path.ApplicationId + "." + path.ApiId + "." + method + "." + path.PathTemplate + "."
 	prefixes = &specificMetricsName{
 		GlobalPrefix: globalPrefix,
 		CountAll:     globalPrefix + metricCountAll,
@@ -107,6 +113,6 @@ func (f *apiUsageMonitoringFilter) getMetricsName(req *http.Request) *specificMe
 		},
 		Latency: globalPrefix + metricLatency,
 	}
-	path.metricPrefixesPerMethod[req.Method] = prefixes
+	path.metricPrefixesPerMethod[methodIndex] = prefixes
 	return prefixes
 }

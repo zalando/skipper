@@ -138,7 +138,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 				ApplicationId:           applicationId,
 				ApiId:                   apiId,
 				PathTemplate:            normalisedPathTemplate,
-				metricPrefixesPerMethod: make(map[string]*specificMetricsName),
+				metricPrefixesPerMethod: [MethodIndexLength]*specificMetricsName{},
 			}
 
 			// Detect path template duplicates
