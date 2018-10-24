@@ -20,7 +20,7 @@ const (
 
 const (
 	stateBagKeyPrefix = "filter." + Name + "."
-	stateBagKeyState  = stateBagKeyPrefix + "state"
+	stateBagKeyBegin  = stateBagKeyPrefix + "begin"
 )
 
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
@@ -29,28 +29,12 @@ type apiUsageMonitoringFilter struct {
 	Paths []*pathInfo
 }
 
-// apiUsageMonitoringFilterContext contains information about the metrics tracking
-// for one HTTP exchange (one routing). It serves to pass information from
-// the `Request` call to the `Response` call (stored in the context's `StateBag`).
-type apiUsageMonitoringFilterContext struct {
-	// Begin is the earliest point in time where the request is observed
-	Begin time.Time
-}
-
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 	// Gathering information from the initial request for further metrics calculation
-	c.StateBag()[stateBagKeyState] = &apiUsageMonitoringFilterContext{
-		Begin: time.Now(),
-	}
+	c.StateBag()[stateBagKeyBegin] = time.Now()
 }
 
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
-	mfc, ok := c.StateBag()[stateBagKeyState].(*apiUsageMonitoringFilterContext)
-	if !ok {
-		log.Debugf("Call not tracked (key %q not found in StateBag)", stateBagKeyState)
-		return
-	}
-
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
 	metricsName := f.getMetricsName(request)
 
@@ -68,7 +52,9 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	}
 
 	// METRIC: Latency
-	metrics.MeasureSince(metricsName.Latency, mfc.Begin)
+	if begin, ok := c.StateBag()[stateBagKeyBegin].(time.Time); ok {
+		metrics.MeasureSince(metricsName.Latency, begin)
+	}
 
 	log.Debugf("Pushed metrics prefixed by %q", metricsName.GlobalPrefix)
 }
