@@ -311,12 +311,12 @@ shows how to use filters for authorization.
 OAuth2/JWT tokens can be validated and allowed based on different
 content of the token. Please check the filter documentation for that:
 
-- [oauthTokeninfoAnyScope](/filters/#oauthtokeninfoanyscope)
-- [oauthTokeninfoAllScope](/filters/#oauthtokeninfoallscope)
-- [oauthTokeninfoAnyKV](/filters/#oauthtokeninfoanykv)
-- [oauthTokeninfoAllKV](/filters/#oauthtokeninfoallkv)
+- [oauthTokeninfoAnyScope](/skipper/reference/filters/#oauthtokeninfoanyscope)
+- [oauthTokeninfoAllScope](/skipper/reference/filters/#oauthtokeninfoallscope)
+- [oauthTokeninfoAnyKV](/skipper/reference/filters/#oauthtokeninfoanykv)
+- [oauthTokeninfoAllKV](/skipper/reference/filters/#oauthtokeninfoallkv)
 
-There are also [auth predicates](/predicates/#auth), which will allow
+There are also [auth predicates](/skipper/reference/predicates/#auth), which will allow
 you to match a route based on the content of a token:
 
 - `JWTPayloadAnyKV()`
