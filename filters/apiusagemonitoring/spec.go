@@ -2,7 +2,6 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
@@ -47,23 +46,9 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	if !s.Enabled {
 		return nil, nil
 	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
-
 	apis := parseJsonConfiguration(args)
 	paths := buildPathInfoListFromConfiguration(apis)
-
-	// todo: Test that no path to monitor ==> monitored under <unknown>
-	if len(paths) == 0 {
-		log.Warn("No path to monitor.")
-		filter = nil
-	} else {
-		filter = &apiUsageMonitoringFilter{Paths: paths}
-	}
+	filter = &apiUsageMonitoringFilter{Paths: paths}
 	log.Debugf("Created filter: %s", filter)
 	return
 }

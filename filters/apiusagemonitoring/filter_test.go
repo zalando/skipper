@@ -1,7 +1,6 @@
 package apiusagemonitoring
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -40,11 +39,8 @@ func testWithFilter(
 	filterCreate func() (filters.Filter, error),
 	method string,
 	url string,
-	reqBody string,
-	bypassReqContentLength *int64,
 	resStatus int,
-	responseContentLength int64,
-	expect func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64),
+	expect func(t *testing.T, pass int, m *metricstest.MockMetrics),
 ) {
 	filter, err := filterCreate()
 	assert.NoError(t, err)
@@ -58,18 +54,14 @@ func testWithFilter(
 	// does not fail.
 	for pass := 1; pass <= 3; pass++ {
 		t.Run(fmt.Sprintf("pass %d", pass), func(t *testing.T) {
-			req, err := http.NewRequest(method, url, bytes.NewBufferString(reqBody))
+			req, err := http.NewRequest(method, url, nil)
 			if err != nil {
 				t.Fatal(err)
-			}
-			if bypassReqContentLength != nil {
-				req.ContentLength = *bypassReqContentLength
 			}
 			ctx := &filtertest.Context{
 				FRequest: req,
 				FResponse: &http.Response{
-					StatusCode:    resStatus,
-					ContentLength: responseContentLength,
+					StatusCode: resStatus,
 				},
 				FStateBag: make(map[string]interface{}),
 				FMetrics:  metricsMock,
@@ -81,8 +73,6 @@ func testWithFilter(
 				t,
 				pass,
 				metricsMock,
-				int64(len(reqBody)),
-				responseContentLength,
 			)
 		})
 	}
@@ -94,11 +84,31 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 		createFilterForTest,
 		http.MethodGet,
 		"https://www.example.org/a/b/c",
-		"",
-		nil,
 		299,
-		0,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+			// no path matching: tracked as unknown
+			assert.Equal(t,
+				map[string]int64{
+					"apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count":    int64(pass),
+					"apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http2xx_count": int64(pass),
+				},
+				m.Counters,
+			)
+			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
+		})
+}
+
+func Test_Filter_NoConfiguration(t *testing.T) {
+	testWithFilter(
+		t,
+		func() (filters.Filter, error) {
+			spec := NewApiUsageMonitoring(true)
+			return spec.CreateFilter([]interface{}{})
+		},
+		http.MethodGet,
+		"https://www.example.org/a/b/c",
+		200,
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			// no path matching: tracked as unknown
 			assert.Equal(t,
 				map[string]int64{
@@ -117,11 +127,8 @@ func Test_Filter_PathTemplateNoVariablePart(t *testing.T) {
 		createFilterForTest,
 		http.MethodPost,
 		"https://www.example.org/foo/orders",
-		"asd",
-		nil,
 		400,
-		6,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			assert.Equal(t,
 				map[string]int64{
 					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http_count":    int64(pass),
@@ -139,11 +146,8 @@ func Test_Filter_PathTemplateWithVariablePart(t *testing.T) {
 		createFilterForTest,
 		http.MethodPost,
 		"https://www.example.org/foo/orders/1234",
-		"asd",
-		nil,
 		204,
-		6,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			assert.Equal(t,
 				map[string]int64{
 					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.http_count":    int64(pass),
@@ -161,11 +165,8 @@ func Test_Filter_PathTemplateWithMultipleVariablePart(t *testing.T) {
 		createFilterForTest,
 		http.MethodPost,
 		"https://www.example.org/foo/orders/1234/order-items/123",
-		"asd",
-		nil,
 		301,
-		6,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			assert.Equal(t,
 				map[string]int64{
 					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.http_count":    int64(pass),
@@ -183,11 +184,8 @@ func Test_Filter_PathTemplateFromSecondConfiguredApi(t *testing.T) {
 		createFilterForTest,
 		http.MethodPost,
 		"https://www.example.org/foo/customers/loremipsum",
-		"asd",
-		nil,
 		502,
-		6,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			assert.Equal(t,
 				map[string]int64{
 					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/customers/:customer-id.http_count":    int64(pass),
@@ -205,11 +203,8 @@ func Test_Filter_StatusCodes1xxAreMonitored(t *testing.T) {
 		createFilterForTest,
 		http.MethodPost,
 		"https://www.example.org/foo/orders",
-		"asd",
-		nil,
 		100,
-		6,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			assert.Equal(t,
 				map[string]int64{
 					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http_count":    int64(pass),
@@ -227,11 +222,8 @@ func Test_Filter_StatusCodeOver599IsMonitored(t *testing.T) {
 		createFilterForTest,
 		http.MethodPost,
 		"https://www.example.org/foo/orders",
-		"asd",
-		nil,
 		600,
-		6,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			assert.Equal(t,
 				map[string]int64{
 					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http_count": int64(pass),
@@ -249,11 +241,8 @@ func Test_Filter_StatusCodeUnder100IsMonitoredWithoutHttpStatusCount(t *testing.
 		createFilterForTest,
 		http.MethodPost,
 		"https://www.example.org/foo/orders",
-		"asd",
-		nil,
 		99,
-		6,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			assert.Equal(t,
 				map[string]int64{
 					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.http_count": int64(pass),
@@ -271,11 +260,8 @@ func Test_Filter_NonConfiguredPathTrackedUnderUnknown(t *testing.T) {
 		createFilterForTest,
 		http.MethodGet,
 		"https://www.example.org/lapin/malin",
-		"asd",
-		nil,
 		200,
-		6,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			assert.Equal(t,
 				map[string]int64{
 					"apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count":    int64(pass),
@@ -311,11 +297,8 @@ func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
 				createFilterForTest,
 				testCase.method,
 				"https://www.example.org/lapin/malin",
-				"asd",
-				nil,
 				200,
-				6,
-				func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+				func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 
 					httpCountMetricKey := fmt.Sprintf(
 						"apiUsageMonitoring.custom.<unknown>.<unknown>.%s.<unknown>.http_count",
@@ -340,5 +323,4 @@ func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
 				})
 		})
 	}
-
 }

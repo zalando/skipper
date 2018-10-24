@@ -44,35 +44,45 @@ func Test_CreateFilter_NoParam(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }
 
 func Test_CreateFilter_EmptyString(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{""})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }
 
 func Test_CreateFilter_NotAString(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{1234})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }
 
 func Test_CreateFilter_NotJson(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{"I am not JSON"})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }
 
 func Test_CreateFilter_EmptyJson(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{"{}"})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }
 
 func Test_CreateFilter_NoPathTemplate(t *testing.T) {
@@ -81,7 +91,9 @@ func Test_CreateFilter_NoPathTemplate(t *testing.T) {
 		"path_templates": []
 	}`})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }
 
 func Test_CreateFilter_EmptyPathTemplate(t *testing.T) {
@@ -94,7 +106,9 @@ func Test_CreateFilter_EmptyPathTemplate(t *testing.T) {
 		]
 	}`})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }
 
 func Test_CreateFilter_TypoInPropertyNamesFail(t *testing.T) {
@@ -108,7 +122,9 @@ func Test_CreateFilter_TypoInPropertyNamesFail(t *testing.T) {
 		]
 	}`})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }
 
 func Test_CreateFilter_NonParseableParametersShouldBeLoggedAndIgnored(t *testing.T) {
