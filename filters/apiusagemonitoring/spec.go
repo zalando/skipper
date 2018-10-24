@@ -26,10 +26,20 @@ var (
 
 // NewApiUsageMonitoring creates a new instance of the API Monitoring filter
 // specification (its factory).
-func NewApiUsageMonitoring() filters.Spec {
-	spec := new(apiUsageMonitoringSpec)
-	log.Debugf("Created filter spec: %+v", spec)
-	return spec
+func NewApiUsageMonitoring(enable bool) filters.Spec {
+	if enable {
+		spec := &apiUsageMonitoringSpec{}
+		log.Debugf("Filter %q is enabled. Using %T.", Name, spec)
+		return spec
+	} else {
+		spec := &noopSpec{
+			filter: &noopFilter{
+				reason: "Feature is not enabled",
+			},
+		}
+		log.Debugf("Filter %q is not enabled. Using %T.", Name, spec)
+		return spec
+	}
 }
 
 type apiUsageMonitoringSpec struct{}

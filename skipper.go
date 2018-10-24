@@ -700,12 +700,8 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewWebhook(o.WebhookTimeout),
+		apiusagemonitoring.NewApiUsageMonitoring(o.ApiUsageMonitoringEnable),
 	)
-
-	if o.ApiUsageMonitoringEnable {
-		log.Infof("Experimental filter %q is available", apiusagemonitoring.Name)
-		o.CustomFilters = append(o.CustomFilters, apiusagemonitoring.NewApiUsageMonitoring())
-	}
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters

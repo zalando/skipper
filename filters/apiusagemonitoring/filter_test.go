@@ -16,9 +16,8 @@ func init() {
 	log.Logger.SetLevel(logrus.DebugLevel)
 }
 
-func createFilterForTest() (filters.Filter, error) {
-	spec := apiUsageMonitoringSpec{}
-	args := []interface{}{`{
+var (
+	args = []interface{}{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
 	  	"path_templates": [
@@ -29,6 +28,15 @@ func createFilterForTest() (filters.Filter, error) {
 			"/foo/customers/{customer-id}/"
 		]
 	}`}
+)
+
+func createFilterForNoopTest() (filters.Filter, error) {
+	spec := NewApiUsageMonitoring(false)
+	return spec.CreateFilter(args)
+}
+
+func createFilterForTest() (filters.Filter, error) {
+	spec := NewApiUsageMonitoring(true)
 	return spec.CreateFilter(args)
 }
 
@@ -280,5 +288,21 @@ func Test_Filter_NonConfiguredPathTrackedUnderUnknown(t *testing.T) {
 				m.Counters,
 			)
 			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
+		})
+}
+
+func Test_Filter_NoopDoesNotTrackAnyMetric(t *testing.T) {
+	testWithFilter(
+		t,
+		createFilterForNoopTest,
+		"GET",
+		"https://www.example.org/lapin/malin",
+		"asd",
+		nil,
+		200,
+		6,
+		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
+			assert.Empty(t, m.Counters)
+			assert.Empty(t, m.Measures)
 		})
 }

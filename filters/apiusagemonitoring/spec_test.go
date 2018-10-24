@@ -11,8 +11,9 @@ func init() {
 	log.Logger.SetLevel(logrus.DebugLevel)
 }
 
-func Test_Name(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+func Test_TypeAndName(t *testing.T) {
+	spec := NewApiUsageMonitoring(true)
+	assert.IsType(t, &apiUsageMonitoringSpec{}, spec)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 }
 
@@ -30,8 +31,19 @@ func assertNoopFilter(t *testing.T, filter filters.Filter, asserter func(t *test
 	}
 }
 
+func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
+	spec := NewApiUsageMonitoring(false)
+	assert.IsType(t, &noopSpec{}, spec)
+	assert.Equal(t, "apiUsageMonitoring", spec.Name())
+	filter, err := spec.CreateFilter([]interface{}{})
+	assert.NoError(t, err)
+	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
+		assert.Contains(t, filter.reason, "Feature is not enabled")
+	})
+}
+
 func Test_CreateFilter_NoParam(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
 	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
@@ -40,7 +52,7 @@ func Test_CreateFilter_NoParam(t *testing.T) {
 }
 
 func Test_CreateFilter_EmptyString(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{""})
 	assert.NoError(t, err)
 	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
@@ -49,7 +61,7 @@ func Test_CreateFilter_EmptyString(t *testing.T) {
 }
 
 func Test_CreateFilter_NotAString(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{1234})
 	assert.NoError(t, err)
 	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
@@ -58,7 +70,7 @@ func Test_CreateFilter_NotAString(t *testing.T) {
 }
 
 func Test_CreateFilter_NotJson(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{"I am not JSON"})
 	assert.NoError(t, err)
 	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
@@ -67,7 +79,7 @@ func Test_CreateFilter_NotJson(t *testing.T) {
 }
 
 func Test_CreateFilter_EmptyJson(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{"{}"})
 	assert.NoError(t, err)
 	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
@@ -76,7 +88,7 @@ func Test_CreateFilter_EmptyJson(t *testing.T) {
 }
 
 func Test_CreateFilter_NoPathTemplate(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"path_templates": []
 	}`})
@@ -87,7 +99,7 @@ func Test_CreateFilter_NoPathTemplate(t *testing.T) {
 }
 
 func Test_CreateFilter_EmptyPathTemplate(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
@@ -102,7 +114,7 @@ func Test_CreateFilter_EmptyPathTemplate(t *testing.T) {
 }
 
 func Test_CreateFilter_TypoInPropertyNamesFail(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	// path_template has no `s` and should cause a JSON decoding error.
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
@@ -118,7 +130,7 @@ func Test_CreateFilter_TypoInPropertyNamesFail(t *testing.T) {
 }
 
 func Test_CreateFilter_NonParseableParametersShouldBeLoggedAndIgnored(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{
 		`{
 			"application_id": "my_app",
@@ -149,7 +161,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 	//   - with {name} variable paths
 	//   - with :name variable paths
 	//   - with/without head/trailing slash
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
@@ -194,7 +206,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 }
 
 func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{`{
 			"application_id": "my_app",
 			"api_id": "orders_api",
@@ -243,7 +255,7 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 }
 
 func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	// There is a valid object for the 2nd api (customers_api), but no path_templates.
 	// Since the end result is that there are a total to observable paths > 0, it should
 	// be accepted.
@@ -283,7 +295,7 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 	// PathTemplate "foo" and "/foo/" after normalising are the same.
 	// That causes an error, even if under different application or API IDs.
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"api_id": "orders_api",
@@ -305,7 +317,7 @@ func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 
 func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 	// PathTemplate "/foo/:a" and "/foo/:b" yield the same RegExp
-	spec := NewApiUsageMonitoring()
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"api_id": "orders_api",
