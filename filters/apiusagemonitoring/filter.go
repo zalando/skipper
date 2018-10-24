@@ -1,6 +1,8 @@
 package apiusagemonitoring
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/zalando/skipper/filters"
 	"net/http"
 	"time"
@@ -71,8 +73,15 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	log.Debugf("Pushed metrics prefixed by %q", metricsName.GlobalPrefix)
 }
 
+// String returns a JSON representation of the filter prefixed by its type.
 func (f *apiUsageMonitoringFilter) String() string {
-	return toTypedJsonOrErr(f)
+	var js string
+	if jsBytes, err := json.Marshal(f); err == nil {
+		js = string(jsBytes)
+	} else {
+		js = fmt.Sprintf("<%s>", err)
+	}
+	return fmt.Sprintf("%T %s", f, js)
 }
 
 // getMetricsName returns the structure with names of the metrics for this specific context.
