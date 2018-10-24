@@ -226,13 +226,16 @@ func createFilter(fr filters.Registry, def *eskip.Filter) (filters.Filter, error
 // and the filter registry.
 func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]*RouteFilter, error) {
 	var fs []*RouteFilter
-	for i, def := range defs {
+	index := 0
+	for defIndex, def := range defs {
 		f, err := createFilter(fr, def)
 		if err != nil {
 			return nil, err
 		}
-
-		fs = append(fs, &RouteFilter{f, def.Name, i})
+		if f != nil {
+			fs = append(fs, &RouteFilter{f, def.Name, index, defIndex})
+			index++
+		}
 	}
 
 	return fs, nil

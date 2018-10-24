@@ -26,29 +26,28 @@ var (
 
 // NewApiUsageMonitoring creates a new instance of the API Monitoring filter
 // specification (its factory).
-func NewApiUsageMonitoring(enable bool) filters.Spec {
-	if enable {
-		spec := &apiUsageMonitoringSpec{}
-		log.Debugf("Filter %q is enabled. Using %T.", Name, spec)
-		return spec
-	} else {
-		spec := &noopSpec{
-			filter: &noopFilter{
-				reason: "Feature is not enabled",
-			},
-		}
-		log.Debugf("Filter %q is not enabled. Using %T.", Name, spec)
-		return spec
+func NewApiUsageMonitoring(enabled bool) filters.Spec {
+	if !enabled {
+		log.Debugf("Filter %q is not enabled. No filter will be created (spec returns `nil`).", Name)
 	}
+	spec := &apiUsageMonitoringSpec{enabled}
+	log.Debugf("Created filter spec: %+v", spec)
+	return spec
 }
 
-type apiUsageMonitoringSpec struct{}
+type apiUsageMonitoringSpec struct {
+	Enabled bool
+}
 
 func (s *apiUsageMonitoringSpec) Name() string {
 	return Name
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
+	if !s.Enabled {
+		return nil, nil
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)
@@ -58,18 +57,19 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	apis := parseJsonConfiguration(args)
 	paths := buildPathInfoListFromConfiguration(apis)
 
+	// todo: Test that no path to monitor ==> monitored under <unknown>
 	if len(paths) == 0 {
 		log.Warn("No path to monitor.")
-		filter = &noopFilter{reason: "Configuration yielded no path to monitor"}
+		filter = nil
 	} else {
 		filter = &apiUsageMonitoringFilter{Paths: paths}
 	}
-
 	log.Debugf("Created filter: %s", filter)
 	return
 }
 
-func parseJsonConfiguration(args []interface{}) []*apiConfig {
+func
+parseJsonConfiguration(args []interface{}) []*apiConfig {
 	apis := make([]*apiConfig, 0, len(args))
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)

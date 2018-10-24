@@ -113,11 +113,12 @@ type Filter interface {
 // the Filter instances are created using the Spec objects found in the
 // registry.
 type Spec interface {
-	// The name of the Spec is used to identify filters in a route definition.
+	// Name gives the name of the Spec. It is used to identify filters in a route definition.
 	Name() string
 
-	// Creates a Filter instance. Called with the parameters in the route
-	// definition while initializing a route.
+	// CreateFilter creates a Filter instance. Called with the parameters in the route
+	// definition while initializing a route. It may return a nil Filter if for a given
+	// config, no filter is to be applied.
 	CreateFilter(config []interface{}) (Filter, error)
 }
 

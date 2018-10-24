@@ -30,11 +30,6 @@ var (
 	}`}
 )
 
-func createFilterForNoopTest() (filters.Filter, error) {
-	spec := NewApiUsageMonitoring(false)
-	return spec.CreateFilter(args)
-}
-
 func createFilterForTest() (filters.Filter, error) {
 	spec := NewApiUsageMonitoring(true)
 	return spec.CreateFilter(args)
@@ -53,6 +48,7 @@ func testWithFilter(
 ) {
 	filter, err := filterCreate()
 	assert.NoError(t, err)
+	assert.NotNil(t, filter)
 
 	metricsMock := &metricstest.MockMetrics{
 		Prefix: "apiUsageMonitoring.custom.",
@@ -288,21 +284,5 @@ func Test_Filter_NonConfiguredPathTrackedUnderUnknown(t *testing.T) {
 				m.Counters,
 			)
 			assert.Contains(t, m.Measures, "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.latency")
-		})
-}
-
-func Test_Filter_NoopDoesNotTrackAnyMetric(t *testing.T) {
-	testWithFilter(
-		t,
-		createFilterForNoopTest,
-		"GET",
-		"https://www.example.org/lapin/malin",
-		"asd",
-		nil,
-		200,
-		6,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics, reqBodyLen int64, resBodyLen int64) {
-			assert.Empty(t, m.Counters)
-			assert.Empty(t, m.Measures)
 		})
 }

@@ -127,6 +127,7 @@ type RouteFilter struct {
 	filters.Filter
 	Name  string
 	Index int
+	DefIndex int
 }
 
 // Route object with preprocessed filter instances.

@@ -13,8 +13,16 @@ func init() {
 
 func Test_TypeAndName(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
-	assert.IsType(t, &apiUsageMonitoringSpec{}, spec)
+	assert.Equal(t, &apiUsageMonitoringSpec{true}, spec)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
+}
+
+func Test_FeatureDisableCreateNilFilters(t *testing.T) {
+	spec := NewApiUsageMonitoring(false)
+	assert.Equal(t, &apiUsageMonitoringSpec{false}, spec)
+	filter, err := spec.CreateFilter([]interface{}{})
+	assert.NoError(t, err)
+	assert.Nil(t, filter)
 }
 
 func assertApiUsageMonitoringFilter(t *testing.T, filter filters.Filter, asserter func(t *testing.T, filter *apiUsageMonitoringFilter)) {
@@ -24,67 +32,47 @@ func assertApiUsageMonitoringFilter(t *testing.T, filter filters.Filter, asserte
 	}
 }
 
-func assertNoopFilter(t *testing.T, filter filters.Filter, asserter func(t *testing.T, filter *noopFilter)) {
-	assert.NotNil(t, filter)
-	if assert.IsType(t, &noopFilter{}, filter) {
-		asserter(t, filter.(*noopFilter))
-	}
-}
-
 func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
 	spec := NewApiUsageMonitoring(false)
-	assert.IsType(t, &noopSpec{}, spec)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Feature is not enabled")
-	})
+	assert.Nil(t, filter)
 }
 
 func Test_CreateFilter_NoParam(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Configuration yielded no path to monitor")
-	})
+	assert.Nil(t, filter)
 }
 
 func Test_CreateFilter_EmptyString(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{""})
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Configuration yielded no path to monitor")
-	})
+	assert.Nil(t, filter)
 }
 
 func Test_CreateFilter_NotAString(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{1234})
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Configuration yielded no path to monitor")
-	})
+	assert.Nil(t, filter)
 }
 
 func Test_CreateFilter_NotJson(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{"I am not JSON"})
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Configuration yielded no path to monitor")
-	})
+	assert.Nil(t, filter)
 }
 
 func Test_CreateFilter_EmptyJson(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{"{}"})
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Configuration yielded no path to monitor")
-	})
+	assert.Nil(t, filter)
 }
 
 func Test_CreateFilter_NoPathTemplate(t *testing.T) {
@@ -93,9 +81,7 @@ func Test_CreateFilter_NoPathTemplate(t *testing.T) {
 		"path_templates": []
 	}`})
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Configuration yielded no path to monitor")
-	})
+	assert.Nil(t, filter)
 }
 
 func Test_CreateFilter_EmptyPathTemplate(t *testing.T) {
@@ -108,9 +94,7 @@ func Test_CreateFilter_EmptyPathTemplate(t *testing.T) {
 		]
 	}`})
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Configuration yielded no path to monitor")
-	})
+	assert.Nil(t, filter)
 }
 
 func Test_CreateFilter_TypoInPropertyNamesFail(t *testing.T) {
@@ -124,9 +108,7 @@ func Test_CreateFilter_TypoInPropertyNamesFail(t *testing.T) {
 		]
 	}`})
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Configuration yielded no path to monitor")
-	})
+	assert.Nil(t, filter)
 }
 
 func Test_CreateFilter_NonParseableParametersShouldBeLoggedAndIgnored(t *testing.T) {
@@ -348,7 +330,5 @@ func Test_CreateFilter_RegExCompileFailureCausesError(t *testing.T) {
 	}`})
 	assert.NoError(t, err)
 	assert.NoError(t, err)
-	assertNoopFilter(t, filter, func(t *testing.T, filter *noopFilter) {
-		assert.Contains(t, filter.reason, "Configuration yielded no path to monitor")
-	})
+	assert.Nil(t, filter)
 }
