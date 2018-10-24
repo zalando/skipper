@@ -10,7 +10,7 @@ enable it, the flag `-enable-api-usage-monitoring` must be set when Skipper is l
 it does not make sense if none of the metrics implementation is enabled. To use this
 filter, start skipper enabling both. Per instance:
 
-	skipper -enable-api-usage-monitoring -enable-prometheus-metrics
+	skipper -enable-api-usage-monitoring -metrics-flavour prometheus
 
 This will enable the API monitoring filter through Prometheus metrics.
 
@@ -33,7 +33,7 @@ Command line example for executing locally:
 
 	make skipper && ./bin/skipper \
 		-routes-file "$HOME/temp/test.eskip" \
-		-enable-api-usage-monitoring \
+		-metrics-flavour prometheus \
 		-enable-prometheus-metrics \
 		-histogram-metric-buckets=".01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600" \
 		-application-log-level=DEBUG

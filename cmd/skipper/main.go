@@ -17,7 +17,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/zalando/skipper/filters/apiusagemonitoring"
 	"net/http"
 	"os"
 	"sort"
@@ -89,7 +88,7 @@ const (
 	maxAuditBodyUsage                    = "sets the max body to read to log inthe audit log body"
 
 	// logging, metrics, tracing:
-	enablePrometheusMetricsUsage    = "siwtch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
+	enablePrometheusMetricsUsage    = "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
 	opentracingUsage                = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	opentracingIngressSpanNameUsage = "set the name of the initial, pre-routing, tracing span"
 	metricsListenerUsage            = "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty."
@@ -151,7 +150,7 @@ const (
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// API Monitoring:
-	apiUsageMonitoringEnableUsage = "enables the experimental filter `" + apiusagemonitoring.Name + "`"
+	apiUsageMonitoringEnableUsage = "enables the experimental filter apiUsageMonitoring"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
