@@ -68,8 +68,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	return
 }
 
-func
-parseJsonConfiguration(args []interface{}) []*apiConfig {
+func parseJsonConfiguration(args []interface{}) []*apiConfig {
 	apis := make([]*apiConfig, 0, len(args))
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)
