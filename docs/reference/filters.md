@@ -877,10 +877,12 @@ auditLog()
 The `apiUsageMonitoring` filter adds API related metrics to the monitoring.
 
 WARNING: This is an experimental filter and needs to be enabled explicitly at `skipper` startup.
-WARNING: Make sure that the Prometheus Metrics are also enabled.
 
+NOTE: Make sure to activate the metrics flavour proper to your environment in order to get those metrics.
+
+Example:
 ```bash
-skipper -enable-api-usage-monitoring -enable-prometheus-metrics
+skipper -enable-api-usage-monitoring -metrics-flavour prometheus
 ```
 
 The structure of the metrics is:
@@ -898,67 +900,57 @@ The available metrics are:
 * Timing:
     * **latency**: time between the first observable moment (a call to the filter's `Request`) until the last (a call to the filter's `Response`) 
 
-Endpoints can be monitored using the `apiUsageMonitoring` function in the route. It accepts a JSON object
+Endpoints can be monitored using the `apiUsageMonitoring` function in the route. It accepts JSON objects (as strings)
 of the following format.
 
 ```yaml
 api-usage-monitoring-configuration:
   type: object
   required:
-    - apis
+    - application_id
+    - api_id
+    - path_templates
   properties:
-    apis:
+    application_id:
+      type: string
+      description: ID of the application
+      example: order-service
+    api_id:
+      type: string
+      description: ID of the API
+      example: 48aa0090-25ef-11e8-b467-0ed5f89f718b
+    path_templates:
+      description: Endpoints to be monitored.
       type: array
       items:
-        type: object
-        required:
-          - application_id
-          - api_id
-          - path_templates
-        properties:
-          application_id:
-            type: string
-            description: ID of the application
-            example: order-service
-          api_id:
-            type: string
-            description: ID of the API
-            example: customers-api
-          path_templates:
-            description: Endpoints to be monitored.
-            type: array
-            items:
-              type: string
-              description: >
-                Path template in /articles/{article-id} (OpenAPI 3) or in /articles/:article-id format.
-                NOTE: They will be normalized to the :this format for metrics naming.
-              example: /orders/{order-id}
+        type: string
+        description: >
+          Path template in /articles/{article-id} (OpenAPI 3) or in /articles/:article-id format.
+          NOTE: They will be normalized to the :this format for metrics naming.
+        example: /orders/{order-id}
 ```
 
 Configuration Example:
 
 ```
-apiUsageMonitoring(`{
-	"apis": [
-		{
-			"application_id": "my_app",
-			"api_id": "orders_api",
-			"path_templates": [
-				"foo/orders",
-				"foo/orders/:order-id",
-				"foo/orders/:order-id/order_item/{order-item-id}"
-			]
-		},
-		{
-			"application_id": "my_app",
-			"api_id": "customers_api",
-			"path_templates": [
-				"/foo/customers/",
-				"/foo/customers/{customer-id}/"
-			]
-		}
-	]
-}`)
+apiUsageMonitoring(`
+    {
+        "application_id": "my_app",
+        "api_id": "orders_api",
+        "path_templates": [
+            "foo/orders",
+            "foo/orders/:order-id",
+            "foo/orders/:order-id/order_item/{order-item-id}"
+        ]
+    }`,`{
+        "application_id": "my_app",
+        "api_id": "customers_api",
+        "path_templates": [
+            "/foo/customers/",
+            "/foo/customers/{customer-id}/"
+        ]
+    }
+`)
 ```
 
 Metrics Examples (based on the previous configuration example):
