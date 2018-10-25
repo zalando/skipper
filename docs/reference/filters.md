@@ -874,11 +874,14 @@ auditLog()
 
 ## apiUsageMonitoring
 
-The `apiUsageMonitoring` filter adds API related metrics to the monitoring.
+The `apiUsageMonitoring` filter adds API related metrics to the Skipper monitoring. It is by default not activated. Activate
+it by providing the `-enable-api-usage-monitoring` flag at Skipper startup. In its deactivated state, it is still
+registered as a valid filter (allowing route configurations to specify it), but will perform no operation. That allows,
+per instance, production environments to use it and testing environments not to while keeping the same route configuration
+for all environments.
 
-WARNING: This is an experimental filter and needs to be enabled explicitly at `skipper` startup.
-
-NOTE: Make sure to activate the metrics flavour proper to your environment in order to get those metrics.
+NOTE: Make sure to activate the metrics flavour proper to your environment using the `metrics-flavour`
+flag in order to get those metrics.
 
 Example:
 ```bash
@@ -887,7 +890,7 @@ skipper -enable-api-usage-monitoring -metrics-flavour prometheus
 
 The structure of the metrics is:
 
-    apiUsageMonitoring.custom.<Application Name>.<HTTP Verb>.<Path>.<Metric Name>
+    apiUsageMonitoring.custom.<Application ID>.<API ID>.<HTTP Verb>.<Path Template>.<Metric Name>
 
 The available metrics are:
 
@@ -900,7 +903,7 @@ The available metrics are:
 * Timing:
     * **latency**: time between the first observable moment (a call to the filter's `Request`) until the last (a call to the filter's `Response`) 
 
-Endpoints can be monitored using the `apiUsageMonitoring` function in the route. It accepts JSON objects (as strings)
+Endpoints can be monitored using the `apiUsageMonitoring` filter in the route. It accepts JSON objects (as strings)
 of the following format.
 
 ```yaml
@@ -918,7 +921,7 @@ api-usage-monitoring-configuration:
     api_id:
       type: string
       description: ID of the API
-      example: 48aa0090-25ef-11e8-b467-0ed5f89f718b
+      example: orders-api
     path_templates:
       description: Endpoints to be monitored.
       type: array
@@ -935,16 +938,16 @@ Configuration Example:
 ```
 apiUsageMonitoring(`
     {
-        "application_id": "my_app",
-        "api_id": "orders_api",
+        "application_id": "my-app",
+        "api_id": "orders-api",
         "path_templates": [
             "foo/orders",
             "foo/orders/:order-id",
             "foo/orders/:order-id/order_item/{order-item-id}"
         ]
     }`,`{
-        "application_id": "my_app",
-        "api_id": "customers_api",
+        "application_id": "my-app",
+        "api_id": "customers-api",
         "path_templates": [
             "/foo/customers/",
             "/foo/customers/{customer-id}/"
@@ -953,11 +956,23 @@ apiUsageMonitoring(`
 `)
 ```
 
-Metrics Examples (based on the previous configuration example):
+NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
+and path template.
 
-* `apiUsageMonitoring.custom.my_app.GET.foo/orders/:order-id.http_count`
-* `apiUsageMonitoring.custom.my_app.GET.foo/orders/:order-id.http2xx_count`
-* `apiUsageMonitoring.custom.my_app.POST.foo/orders.latency`
-* `apiUsageMonitoring.custom.my_app.GET.foo/orders/:order-id/order-items/:order-item-id.latency`
-* `apiUsageMonitoring.custom.my_app.POST.foo/customers.http_count`
-* `apiUsageMonitoring.custom.my_app.DELETE.foo/customers/:customer-id.http5xx_count`
+    apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count
+
+Based on the previous configuration, here is an example of a counter metric.
+
+    apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.http_count
+
+Here is the _Prometheus_ query to obtain it.
+
+    sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.http_count"}[60s])) by (key)
+
+Here is an example of a histogram metric.
+
+    apiUsageMonitoring.custom.my_app.orders-api.POST.foo/orders.latency
+
+Here is the _Prometheus_ query to obtain it.
+
+    histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.latency"}[60s])) by (le, key))
