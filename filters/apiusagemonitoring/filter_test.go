@@ -55,6 +55,9 @@ func testWithFilter(
 	for pass := 1; pass <= 3; pass++ {
 		t.Run(fmt.Sprintf("pass %d", pass), func(t *testing.T) {
 			req, err := http.NewRequest(method, url, nil)
+			if method == "" {
+				req.Method = ""
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -274,6 +277,7 @@ func Test_Filter_NonConfiguredPathTrackedUnderUnknown(t *testing.T) {
 }
 
 func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
+	t.Parallel()
 	for _, testCase := range []struct {
 		method                 string
 		expectedMethodInMetric string
@@ -287,9 +291,8 @@ func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
 		{http.MethodConnect, "CONNECT"},
 		{http.MethodOptions, "OPTIONS"},
 		{http.MethodTrace, "TRACE"},
-		//{"", "<unknown>"}, // not tested because `http.NewRequest` default to `GET` when method is empty
+		{"", "<unknown>"},
 		{"foo", "<unknown>"},
-		{"this_does_not_make_any_sense", "<unknown>"},
 	} {
 		t.Run(testCase.method, func(t *testing.T) {
 			testWithFilter(

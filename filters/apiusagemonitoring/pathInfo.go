@@ -11,7 +11,7 @@ var (
 		ApplicationId:           unknownElementPlaceholder,
 		ApiId:                   unknownElementPlaceholder,
 		PathTemplate:            unknownElementPlaceholder,
-		metricPrefixesPerMethod: [MethodIndexLength]*specificMetricsName{},
+		metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
 	}
 )
 
@@ -20,7 +20,7 @@ type pathInfo struct {
 	ApiId                   string
 	PathTemplate            string
 	Matcher                 *regexp.Regexp
-	metricPrefixesPerMethod [MethodIndexLength]*specificMetricsName
+	metricPrefixesPerMethod [MethodIndexLength]*metricNames
 }
 
 func (p *pathInfo) MarshalJSON() ([]byte, error) {
@@ -37,7 +37,7 @@ func (p *pathInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type specificMetricsName struct {
+type metricNames struct {
 	GlobalPrefix            string
 	CountAll                string
 	CountPerStatusCodeRange [5]string

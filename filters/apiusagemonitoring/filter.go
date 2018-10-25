@@ -36,7 +36,7 @@ func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
-	metricsName := f.getMetricsName(request)
+	metricsName := f.getMetricNames(request)
 
 	// METRIC: Count
 	metrics.IncCounter(metricsName.CountAll)
@@ -70,9 +70,9 @@ func (f *apiUsageMonitoringFilter) String() string {
 	return fmt.Sprintf("%T %s", f, js)
 }
 
-// getMetricsName returns the structure with names of the metrics for this specific context.
+// getMetricNames returns the structure with names of the metrics for this specific context.
 // If it is not already cached, it is generated and cached to speed up next calls.
-func (f *apiUsageMonitoringFilter) getMetricsName(req *http.Request) *specificMetricsName {
+func (f *apiUsageMonitoringFilter) getMetricNames(req *http.Request) *metricNames {
 
 	// Match the path to a known template
 	var path *pathInfo = nil
@@ -101,7 +101,7 @@ func (f *apiUsageMonitoringFilter) getMetricsName(req *http.Request) *specificMe
 
 	// Prefixes were not cached for this path and method. Generate and cache.
 	globalPrefix := path.ApplicationId + "." + path.ApiId + "." + method + "." + path.PathTemplate + "."
-	prefixes = &specificMetricsName{
+	prefixes = &metricNames{
 		GlobalPrefix: globalPrefix,
 		CountAll:     globalPrefix + metricCountAll,
 		CountPerStatusCodeRange: [5]string{
