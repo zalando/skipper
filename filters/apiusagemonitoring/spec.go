@@ -35,7 +35,7 @@ func NewApiUsageMonitoring(enabled bool) filters.Spec {
 }
 
 type apiUsageMonitoringSpec struct {
-	Enabled bool
+	enabled bool
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
@@ -43,7 +43,7 @@ func (s *apiUsageMonitoringSpec) Name() string {
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
-	if !s.Enabled {
+	if !s.enabled {
 		return nil, nil
 	}
 	apis := parseJsonConfiguration(args)
