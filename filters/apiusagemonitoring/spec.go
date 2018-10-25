@@ -126,8 +126,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 			}
 
 			// Detect path template duplicates
-			_, ok := existingPathTemplates[info.PathTemplate]
-			if ok {
+			if _, ok := existingPathTemplates[info.PathTemplate]; ok {
 				log.Warnf(
 					"args[%d].path_templates[%d] ignored: duplicate path template %q",
 					apiIndex, templateIndex, info.PathTemplate)
