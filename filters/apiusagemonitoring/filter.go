@@ -65,7 +65,7 @@ func (f *apiUsageMonitoringFilter) String() string {
 	if jsBytes, err := json.Marshal(f); err == nil {
 		js = string(jsBytes)
 	} else {
-		js = fmt.Sprintf("<%s>", err)
+		js = fmt.Sprintf("<%v>", err)
 	}
 	return fmt.Sprintf("%T %s", f, js)
 }
