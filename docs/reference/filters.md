@@ -565,6 +565,12 @@ Examples:
 forwardToken("X-Tokeninfo-Forward")
 ```
 
+### oauthOidcUserInfo
+
+### oauthOidcAnyClaims
+
+### oauthOidcAllClaims
+
 ## requestCookie
 
 Append a cookie to the request header.

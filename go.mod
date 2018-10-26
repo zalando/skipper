@@ -3,6 +3,8 @@ module github.com/zalando/skipper
 require (
 	cloud.google.com/go v0.28.0 // indirect
 	github.com/abbot/go-http-auth v0.0.0-20150922224136-efc9484eee77
+	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
+	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
 	github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a // indirect
 	github.com/cjoudrey/gluahttp v0.0.0-20161028104506-b4bfe0c50fea
 	github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199
@@ -29,7 +31,7 @@ require (
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/prometheus/client_golang v0.9.0-pre1.0.20180907102542-7858729281ec
 	github.com/prometheus/client_model v0.0.0-20171117100541-99fa1f4be8e5 // indirect
-	github.com/prometheus/common v0.0.0-20171117163051-2e54d0b93cba // indirect
+	github.com/prometheus/common v0.0.0-20171117163051-2e54d0b93cba
 	github.com/prometheus/procfs v0.0.0-20171017214025-a6e9df898b13 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20161128210544-1f30fe9094a5
 	github.com/sanity-io/litter v1.1.0
@@ -51,6 +53,7 @@ require (
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b // indirect
 	google.golang.org/grpc v1.14.0 // indirect
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
+	gopkg.in/alecthomas/kingpin.v2 v2.2.6 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
 	gopkg.in/square/go-jose.v2 v2.1.9 // indirect

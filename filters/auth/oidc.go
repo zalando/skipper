@@ -2,24 +2,19 @@ package auth
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
-	"golang.org/x/crypto/scrypt"
 	"golang.org/x/oauth2"
 )
 
@@ -31,7 +26,6 @@ const (
 	oidcStatebagKey     = "oauthOidcKey"
 	redirectURLKey      = "redirectURLKey"
 	oauthOidcCookieName = "skipperOauthOidc"
-	refreshInterval     = 30 * time.Minute
 	stateValidity       = 1 * time.Minute
 )
 
@@ -50,11 +44,22 @@ type (
 		validity        time.Duration
 		secretsFile     string
 		cookiename      string
-		secretSource    SecretSource
-		mux             sync.RWMutex
-		cipherSuites    []cipher.AEAD
 		refreshInterval time.Duration
 		closer          chan int
+		redirectPath    string
+		encrypter       *encrypter
+	}
+
+	userInfoContainer struct {
+		OAuth2Token *oauth2.Token
+		UserInfo    *oidc.UserInfo
+		Subject     string
+	}
+
+	claimsContainer struct {
+		OAuth2Token *oauth2.Token
+		Claims      map[string]interface{}
+		Subject     string
 	}
 )
 
@@ -82,7 +87,7 @@ func NewOAuthOidcAllClaims(secretsFile string) filters.Spec {
 //
 // Example:
 //
-//     tokenOidcSpec("https://accounts.google.com", "255788903420-c68l9ustnfqkvukessbn46d92tirvh6s.apps.googleusercontent.com", "hjY8LHp9bPe97hS0aqXGh_zL", "http://127.0.0.1:5556/auth/google/callback")
+//     tokenOidcSpec(""https://identity-provider.example.com", "client-id", "clent-secret", "https://callback-url")  -> "https://internal.example.org";
 func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
@@ -110,12 +115,16 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		h.Write([]byte(s))
 	}
 	byteSlice := h.Sum(nil)
-	sargsHash := fmt.Sprintf("%x", byteSlice)[:8]
+	_ = fmt.Sprintf("%x", byteSlice)[:8]
 
-	secretSource := NewFileSecretSource(s.SecretsFile)
+	redirectURL, err := url.Parse(sargs[3])
+	if err != nil {
+		return nil, fmt.Errorf("the redirect url %s is not valid: %v", sargs[3], err)
+	}
 
 	f := &tokenOidcFilter{
-		typ: s.typ,
+		typ:          s.typ,
+		redirectPath: redirectURL.Path,
 		config: &oauth2.Config{
 			ClientID:     sargs[1],
 			ClientSecret: sargs[2],
@@ -126,10 +135,13 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		verifier: provider.Verifier(&oidc.Config{
 			ClientID: sargs[1],
 		}),
-		validity:        1 * time.Hour,
-		cookiename:      oauthOidcCookieName + sargsHash,
-		secretSource:    secretSource,
-		refreshInterval: refreshInterval,
+		validity:   1 * time.Hour,
+		cookiename: oauthOidcCookieName,
+		encrypter:  NewEncrypter(s.SecretsFile),
+	}
+	err = f.encrypter.runCipherRefresher(1 * time.Minute)
+	if err != nil {
+		return nil, err
 	}
 	f.config.Scopes = []string{oidc.ScopeOpenID}
 
@@ -138,17 +150,18 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		if len(sargs) > 4 { // google IAM needs a scope to be sent
 			f.config.Scopes = append(f.config.Scopes, sargs[4:]...)
 		} else {
+			log.Debug("fewer than 4 arguments")
 			// Scope check is required for auth code flow
 			return nil, filters.ErrInvalidFilterParameters
+
 		}
 	case checkOidcAnyClaims:
 		fallthrough
 	case checkOidcAllClaims:
-		f.config.Scopes = append(f.config.Scopes, sargs[4:]...)
-		f.claims = sargs[4:]
+		additionScopes := sargs[4]
+		f.config.Scopes = append(f.config.Scopes, additionScopes)
+		f.claims = sargs[5:]
 	}
-	f.closer = make(chan int)
-	f.runCipherRefresher(refreshInterval)
 	return f, nil
 }
 
@@ -224,35 +237,6 @@ func randString(n int) string {
 	return string(b)
 }
 
-func (f *tokenOidcFilter) refreshCiphers() error {
-	secrets, err := f.secretSource.GetSecret()
-	if err != nil {
-		return err
-	}
-	suites := make([]cipher.AEAD, len(secrets))
-	for i, s := range secrets {
-
-		key, err := scrypt.Key(s, []byte{}, 1<<15, 8, 1, 32)
-		if err != nil {
-			return fmt.Errorf("failed to create key: %v", err)
-		}
-		//key has to be 16 or 32 byte
-		block, err := aes.NewCipher(key)
-		if err != nil {
-			return fmt.Errorf("failed to create new cipher: %v", err)
-		}
-		aesgcm, err := cipher.NewGCM(block)
-		if err != nil {
-			return fmt.Errorf("failed to create new GCM: %v", err)
-		}
-		suites[i] = aesgcm
-	}
-	f.mux.Lock()
-	defer f.mux.Unlock()
-	f.cipherSuites = suites
-	return nil
-}
-
 type OauthState struct {
 	Rand        string `json:"rand"`
 	Validity    int64  `json:"validity"`
@@ -270,7 +254,7 @@ func createState(nonce []byte, redirectUrl string) ([]byte, error) {
 	return json.Marshal(state)
 }
 
-func makeState(encState []byte) (*OauthState, error) {
+func extractState(encState []byte) (*OauthState, error) {
 	var state OauthState
 	err := json.Unmarshal(encState, &state)
 	if err != nil {
@@ -280,7 +264,7 @@ func makeState(encState []byte) (*OauthState, error) {
 }
 
 func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
-	nonce, err := f.createNonce()
+	nonce, err := f.encrypter.createNonce()
 	if err != nil {
 		log.Errorf("Failed to create nonce: %v", err)
 		return
@@ -293,7 +277,7 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 		log.Errorf("failed to create oauth2 state: %v", err)
 		return
 	}
-	stateEnc, err := f.encryptDataBlock(statePlain)
+	stateEnc, err := f.encrypter.encryptDataBlock(statePlain)
 	if err != nil {
 		log.Errorf("Failed to encrypt data block: %v", err)
 		return
@@ -310,18 +294,6 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 	ctx.Serve(rsp)
 }
 
-func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, redirectUrl string) {
-	rsp := &http.Response{
-		Header: http.Header{
-			"Location": []string{redirectUrl},
-		},
-		StatusCode: http.StatusFound,
-		Status:     "Moved Temporarily",
-	}
-	log.Infof("serve redirect to Location: %s", rsp.Header.Get("Location"))
-	ctx.Serve(rsp)
-}
-
 // Response saves our state bag in a cookie, such that we can get it
 // back in subsequent requests to handle the requests.
 func (f *tokenOidcFilter) Response(ctx filters.FilterContext) {
@@ -332,7 +304,7 @@ func (f *tokenOidcFilter) Response(ctx filters.FilterContext) {
 	}
 
 	if v, ok := ctx.StateBag()[oidcStatebagKey]; ok {
-		cookie := f.createCookie(v)
+		cookie := f.createCookie(v, false, "127.0.0.1")
 		log.Debugf("Response SetCookie: %s", cookie)
 		http.SetCookie(ctx.ResponseWriter(), cookie)
 	}
@@ -342,15 +314,14 @@ func (f *tokenOidcFilter) Response(ctx filters.FilterContext) {
 	}
 }
 
-func (f *tokenOidcFilter) createCookie(v interface{}) *http.Cookie {
+func (f *tokenOidcFilter) createCookie(v interface{}, secure bool, domain string) *http.Cookie {
 	cookie := &http.Cookie{
-		Name:  f.cookiename,
-		Value: fmt.Sprintf("%x", v),
-		//Secure:   true,  // https only
-		Secure:   false, // for development
+		Name:     f.cookiename,
+		Value:    fmt.Sprintf("%x", v),
+		Secure:   secure, // for development
 		HttpOnly: false,
 		Path:     "/",
-		Domain:   "127.0.0.1",
+		Domain:   domain,
 		MaxAge:   int(f.validity.Seconds()),
 		Expires:  time.Now().Add(f.validity),
 	}
@@ -362,100 +333,112 @@ func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) (string, bool) {
 		return "", false
 	}
 	log.Debugf("validate cookie name: %s", f.cookiename)
-
+	var cookieStr string
+	fmt.Sscanf(cookie.Value, "%x", &cookieStr)
 	// TODO check validity
-
-	return cookie.Value, true
-}
-
-type tokenContainer struct {
-	OAuth2Token *oauth2.Token          `json:"OAuth2Token"`
-	TokenMap    map[string]interface{} `json:"TokenMap"`
+	return cookieStr, true
 }
 
 func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	var (
 		oauth2Token *oauth2.Token
-		atoken      *tokenContainer
-		err         error
 	)
 
 	r := ctx.Request()
 	sessionCookie, _ := r.Cookie(f.cookiename)
-	cValueHex, ok := f.validateCookie(sessionCookie)
+	cookie, ok := f.validateCookie(sessionCookie)
+	var (
+		data []byte
+	)
 
-	if ok {
-		log.Debugf("got valid cookie: %d", len(cValueHex))
-		atoken, err = f.getTokenFromCookie(ctx, cValueHex)
-		if err != nil {
-			f.doOauthRedirect(ctx)
+	if !ok {
+		if strings.Contains(ctx.Request().URL.Path, f.redirectPath) {
+			oauthState, err := f.getCallbackState(ctx)
+			if err != nil {
+				unauthorized(ctx, "failed to get state from callback: "+err.Error(), invalidToken, r.Host)
+				return
+			}
+			oauth2Token, err = f.getTokenWithExchange(oauthState, ctx)
+			if err != nil {
+				unauthorized(ctx, "Failed to get token in callback: "+err.Error(), invalidToken, r.Host)
+				return
+			}
+
+			switch f.typ {
+			case checkOidcUserInfos:
+				userInfo, err := f.provider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
+				if err != nil {
+					unauthorized(ctx, "Failed to get userinfo: "+err.Error(), invalidToken, r.Host)
+					return
+				}
+				sub := userInfo.Subject
+				resp := userInfoContainer{oauth2Token, userInfo, sub}
+				data, err = json.Marshal(resp)
+				if err != nil {
+					unauthorized(ctx, fmt.Sprintf("Failed to marshal userinfo backend data for sub=%s: %v", sub, err), invalidToken, r.Host)
+					return
+				}
+			case checkOidcAnyClaims:
+				fallthrough
+			case checkOidcAllClaims:
+				tokenMap, sub, err := f.tokenClaims(ctx, oauth2Token)
+				if err != nil {
+					return
+				}
+				resp := claimsContainer{OAuth2Token: oauth2Token, Claims: tokenMap, Subject: sub}
+				data, err = json.Marshal(resp)
+				if err != nil {
+					unauthorized(ctx, "failed to serialize claims", invalidSub, r.Host)
+					return
+				}
+			}
+
+			ctx.StateBag()[redirectURLKey] = oauthState.RedirectUrl
+			ctx.StateBag()[oidcStatebagKey] = data
 			return
 		}
-		oauth2Token = atoken.OAuth2Token
-
-	} else {
-		oauthState, err := f.getCallbackState(ctx)
-		if err != nil {
-			f.doOauthRedirect(ctx)
-			return
-		}
-		oauth2Token, err = f.getTokenWithExchange(oauthState, ctx)
-		if err != nil {
-			unauthorized(ctx, "Failed to get token in callback: "+err.Error(), invalidToken, r.Host)
-			return
-		}
-		ctx.StateBag()[redirectURLKey] = oauthState.RedirectUrl
-	}
-
-	if !oauth2Token.Valid() {
-		unauthorized(ctx, "invalid token", invalidToken, r.Host)
+		f.doOauthRedirect(ctx)
 		return
 	}
 
 	var (
-		allowed  bool
-		data     []byte
-		sub      string
-		tokenMap map[string]interface{}
+		allowed bool
+		sub     string
 	)
+
 	// filter specific checks
 	switch f.typ {
 	case checkOidcUserInfos:
-		userInfo, err := f.provider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
+		var container userInfoContainer
+		err := json.Unmarshal([]byte(cookie), &container)
 		if err != nil {
-			unauthorized(ctx, "Failed to get userinfo: "+err.Error(), invalidToken, r.Host)
+			unauthorized(ctx, "failed to deserialize cookie: "+err.Error(), invalidToken, r.Host)
 			return
 		}
-		sub = userInfo.Subject
-
-		resp := struct {
-			OAuth2Token *oauth2.Token
-			UserInfo    *oidc.UserInfo
-		}{oauth2Token, userInfo}
-		data, err = json.Marshal(resp)
-		if err != nil {
-			unauthorized(ctx, fmt.Sprintf("Failed to marshal userinfo backend data for sub=%s: %v", sub, err), invalidToken, r.Host)
-			return
+		if container.OAuth2Token.Valid() && container.UserInfo != nil {
+			allowed = true
 		}
-
-		allowed = true
-
+		sub = container.Subject
 	case checkOidcAnyClaims:
-		tokenMap, data, err = f.oidcClaimsHandling(ctx, oauth2Token, atoken)
+		var container claimsContainer
+		err := json.Unmarshal([]byte(cookie), &container)
 		if err != nil {
+			unauthorized(ctx, "failed to deserialize cookie: "+err.Error(), invalidToken, r.Host)
 			return
 		}
-		allowed = f.validateAnyClaims(tokenMap)
+		allowed = f.validateAnyClaims(container.Claims)
 		log.Infof("validateAnyClaims: %v", allowed)
-
+		sub = container.Subject
 	case checkOidcAllClaims:
-		tokenMap, data, err = f.oidcClaimsHandling(ctx, oauth2Token, atoken)
+		var container claimsContainer
+		err := json.Unmarshal([]byte(cookie), &container)
 		if err != nil {
+			unauthorized(ctx, "failed to deserialize cookie: "+err.Error(), invalidToken, r.Host)
 			return
 		}
-		allowed = f.validateAllClaims(tokenMap)
+		allowed = f.validateAllClaims(container.Claims)
 		log.Infof("validateAllClaims: %v", allowed)
-
+		sub = container.Subject
 	default:
 		unauthorized(ctx, "unknown", invalidFilter, r.Host)
 		return
@@ -463,138 +446,37 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 
 	if !allowed {
 		log.Infof("unauthorized")
-		// TODO(sszuecs) review error handling
-		unauthorized(ctx, sub, invalidClaim, r.Host)
+		unauthorized(ctx, "insufficient permissions :"+sub, invalidClaim, r.Host)
 		return
-	}
-
-	encryptedData, err := f.encryptDataBlock(data)
-	if err != nil {
-		log.Errorf("Failed to encrypt: %v", err)
-	}
-
-	// if we do not have a session cookie, set one in the response
-	if sessionCookie == nil {
-		ctx.StateBag()[oidcStatebagKey] = encryptedData
 	}
 
 	log.Infof("send authorized")
 	authorized(ctx, sub)
 }
 
-func (f *tokenOidcFilter) createNonce() ([]byte, error) {
-	if len(f.cipherSuites) > 0 {
-		nonce := make([]byte, f.cipherSuites[0].NonceSize())
-		if _, err := io.ReadFull(crand.Reader, nonce); err != nil {
-			return nil, err
-		}
-		return nonce, nil
-	}
-	return nil, fmt.Errorf("no ciphers which can be used")
-}
-
-// encryptDataBlock encrypts given plaintext
-func (f *tokenOidcFilter) encryptDataBlock(plaintext []byte) ([]byte, error) {
-	if len(f.cipherSuites) > 0 {
-		nonce, err := f.createNonce()
-		if err != nil {
-			return nil, err
-		}
-		f.mux.RLock()
-		defer f.mux.RUnlock()
-		return f.cipherSuites[0].Seal(nonce, nonce, plaintext, nil), nil
-	}
-	return nil, fmt.Errorf("no ciphers which can be used")
-}
-
-// decryptDataBlock decrypts given cipher text
-func (f *tokenOidcFilter) decryptDataBlock(cipherText []byte) ([]byte, error) {
-	f.mux.RLock()
-	defer f.mux.RUnlock()
-	for _, c := range f.cipherSuites {
-		nonceSize := c.NonceSize()
-		if len(cipherText) < nonceSize {
-			return nil, errors.New("failed to decrypt, ciphertext too short")
-		}
-		nonce, input := cipherText[:nonceSize], cipherText[nonceSize:]
-		data, err := c.Open(nil, nonce, input, nil)
-		if err == nil {
-			return data, nil
-		}
-	}
-	return nil, fmt.Errorf("none of the ciphers can decrypt the data")
-}
-
-// TODO think about naming or splitting
-func (f *tokenOidcFilter) oidcClaimsHandling(ctx filters.FilterContext, oauth2Token *oauth2.Token, atoken *tokenContainer) (tokenMap map[string]interface{}, data []byte, err error) {
-
-	if atoken == nil {
-		r := ctx.Request()
-		rawIDToken, ok := oauth2Token.Extra("id_token").(string)
-		if !ok {
-			unauthorized(ctx, "No id_token field in oauth2 token", invalidToken, r.Host)
-			err = fmt.Errorf("invalid token, no id_token field in oauth2 token")
-			return
-		}
-
-		var idToken *oidc.IDToken
-		idToken, err = f.verifier.Verify(r.Context(), rawIDToken)
-		if err != nil {
-			unauthorized(ctx, "Failed to verify ID Token: "+err.Error(), invalidToken, r.Host)
-			return
-		}
-
-		tokenMap = make(map[string]interface{})
-		if err = idToken.Claims(&tokenMap); err != nil {
-			unauthorized(ctx, "Failed to get claims: "+err.Error(), invalidToken, r.Host)
-			return
-		}
-
-		sub, ok := tokenMap["sub"].(string)
-		if !ok {
-			unauthorized(ctx, "Failed to get sub", invalidToken, r.Host)
-			return
-		}
-
-		resp := struct {
-			OAuth2Token *oauth2.Token
-			TokenMap    map[string]interface{}
-		}{oauth2Token, tokenMap}
-		data, err = json.Marshal(resp)
-		if err != nil {
-			unauthorized(ctx, fmt.Sprintf("Failed to prepare data for backend with sub=%s: %v", sub, err), invalidToken, r.Host)
-			return
-		}
-
-	} else {
-		// token from cookie restored
-		// TODO check validity
-		tokenMap = atoken.TokenMap
+func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oauth2.Token) (map[string]interface{}, string, error) {
+	r := ctx.Request()
+	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
+	if !ok {
+		return nil, "", fmt.Errorf("invalid token, no id_token field in oauth2 token")
 	}
 
-	return
-}
-
-func (f *tokenOidcFilter) getTokenFromCookie(ctx filters.FilterContext, cValueHex string) (*tokenContainer, error) {
-	cValue := make([]byte, len(cValueHex))
-	if _, err := fmt.Sscanf(cValueHex, "%x", &cValue); err != nil && err != io.EOF {
-		log.Errorf("Failed to read hex string: %v", err)
-		return nil, err
-	}
-
-	cValuePlain, err := f.decryptDataBlock(cValue)
+	var idToken *oidc.IDToken
+	idToken, err := f.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
-		log.Errorf("token from Cookie is invalid: %v", err)
-		return nil, err
+		return nil, "", err
 	}
 
-	atoken := &tokenContainer{}
-	err = json.Unmarshal(cValuePlain, atoken)
-	if err != nil {
-		log.Errorf("Failed to unmarshal decrypted cookie: %v", err)
+	tokenMap := make(map[string]interface{})
+	if err = idToken.Claims(&tokenMap); err != nil {
+		return nil, "", err
 	}
 
-	return atoken, err
+	sub, ok := tokenMap["sub"].(string)
+	if !ok {
+		return nil, "", fmt.Errorf("claims does not contain sub")
+	}
+	return tokenMap, sub, nil
 }
 
 func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthState, error) {
@@ -604,7 +486,7 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 	r := ctx.Request()
 	stateQueryEncHex := r.URL.Query().Get("state")
 	if stateQueryEncHex == "" {
-		return nil, fmt.Errorf("no state query")
+		return nil, fmt.Errorf("no state parameter")
 	}
 
 	stateQueryEnc := make([]byte, len(stateQueryEncHex))
@@ -613,14 +495,14 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 		return nil, err
 	}
 
-	stateQueryPlain, err := f.decryptDataBlock(stateQueryEnc)
+	stateQueryPlain, err := f.encrypter.decryptDataBlock(stateQueryEnc)
 	if err != nil {
 		log.Errorf("token from state query is invalid: %v", err)
 		return nil, err
 	}
 	log.Debugf("len(stateQueryPlain): %d, stateQueryEnc: %d, stateQueryEncHex: %d", len(stateQueryPlain), len(stateQueryEnc), len(stateQueryEncHex))
 
-	state, err := makeState(stateQueryPlain)
+	state, err := extractState(stateQueryPlain)
 	if err != nil {
 		log.Errorf("Failed to deserialize state")
 		return nil, err
@@ -644,33 +526,4 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 		return nil, err
 	}
 	return oauth2Token, err
-}
-
-func (f *tokenOidcFilter) runCipherRefresher(refreshInterval time.Duration) error {
-	err := f.refreshCiphers()
-	if err != nil {
-		return err
-	}
-	go func() {
-		ticker := time.NewTicker(refreshInterval)
-		for {
-			select {
-			case <-f.closer:
-				return
-			case <-ticker.C:
-				log.Debug("started refresh of ciphers")
-				err := f.refreshCiphers()
-				if err != nil {
-					log.Error("failed to refresh the ciphers")
-				}
-				log.Debug("finished refresh of ciphers")
-			}
-		}
-	}()
-	return nil
-}
-
-func (f *tokenOidcFilter) Close() {
-	f.closer <- 1
-	close(f.closer)
 }
