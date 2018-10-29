@@ -541,6 +541,9 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
+		if fi.Filter == nil {
+			continue
+		}
 		start := time.Now()
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
