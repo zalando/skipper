@@ -9,13 +9,14 @@ import (
 )
 
 const (
-	metricCountAll  = "http_count"
-	metricCount500s = "http5xx_count"
-	metricCount400s = "http4xx_count"
-	metricCount300s = "http3xx_count"
-	metricCount200s = "http2xx_count"
-	metricCount100s = "http1xx_count"
-	metricLatency   = "latency"
+	metricCountAll   = "http_count"
+	metricCount500s  = "http5xx_count"
+	metricCount400s  = "http4xx_count"
+	metricCount300s  = "http3xx_count"
+	metricCount200s  = "http2xx_count"
+	metricCount100s  = "http1xx_count"
+	metricLatency    = "latency"
+	metricLatencySum = "latency_sum"
 )
 
 const (
@@ -99,8 +100,17 @@ func (f *apiUsageMonitoringFilter) getMetricNames(req *http.Request) *metricName
 		return prefixes
 	}
 
+	authRealm := "*" // todo
+	authClientId := "*" // todo
+
 	// Prefixes were not cached for this path and method. Generate and cache.
-	globalPrefix := path.ApplicationId + "." + path.ApiId + "." + method + "." + path.PathTemplate + "."
+	globalPrefix := path.ApplicationId + "." +
+		path.ApiId + "." +
+		method + "." +
+		path.PathTemplate + "." +
+		authRealm + "." +
+		authClientId + "."
+
 	prefixes = &metricNames{
 		GlobalPrefix: globalPrefix,
 		CountAll:     globalPrefix + metricCountAll,

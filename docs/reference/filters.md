@@ -888,9 +888,17 @@ Example:
 skipper -enable-api-usage-monitoring -metrics-flavour prometheus
 ```
 
-The structure of the metrics is:
+The structure of the metrics is all of those elements, separated by `.` dots:
 
-    apiUsageMonitoring.custom.<Application ID>.<API ID>.<HTTP Verb>.<Path Template>.<Metric Name>
+| Part                        | Description                                                                                           |
+|-----------------------------|-------------------------------------------------------------------------------------------------------|
+| `apiUsageMonitoring.custom` | Every filter metrics starts with the name of the filter followed by `custom`. This part is constant.  |
+| Application ID              | Identifier of the application, configured in the filter under `app_id`.                               |
+| API ID                      | Identifier of the API, configured in the filter under `api_id`.                                       |
+| Method                      | The request's method (verb), capitalized (ex: `GET`, `POST`, `PUT`, `DELETE`).                        |
+| Path                        | The request's path, in the form of the path template configured in the filter under `path_templates`. |
+| Realm                       | The realm in which the client is authenticated.                                                       |
+| Client ID                   | Identifier under which the client is authenticated.                                                   |
 
 The available metrics are:
 
@@ -902,6 +910,8 @@ The available metrics are:
     * **http2xx_count**: number of HTTP exchanges resulting in success (HTTP status in the 200s)
 * Timing:
     * **latency**: time between the first observable moment (a call to the filter's `Request`) until the last (a call to the filter's `Response`) 
+
+### Filter Configuration
 
 Endpoints can be monitored using the `apiUsageMonitoring` filter in the route. It accepts JSON objects (as strings)
 of the following format.

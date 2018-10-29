@@ -25,17 +25,31 @@ var (
 
 // NewApiUsageMonitoring creates a new instance of the API Monitoring filter
 // specification (its factory).
-func NewApiUsageMonitoring(enabled bool) filters.Spec {
+func NewApiUsageMonitoring(
+	enabled bool,
+	realmAndClientIdMatcher string,
+	realmKeyName string,
+	clientIdKeyName string,
+) filters.Spec {
 	if !enabled {
 		log.Debugf("Filter %q is not enabled. No filter will be created (spec returns `nil`).", Name)
 	}
-	spec := &apiUsageMonitoringSpec{enabled}
+	spec := &apiUsageMonitoringSpec{
+		enabled:                 enabled,
+		realmAndClientIdMatcher: realmAndClientIdMatcher,
+		realmKeyName:            realmKeyName,
+		clientIdKeyName:         clientIdKeyName,
+	}
 	log.Debugf("Created filter spec: %+v", spec)
 	return spec
 }
 
 type apiUsageMonitoringSpec struct {
-	enabled bool
+	enabled                 bool
+	realmAndClientIdMatcher string
+	realmAndClientIdRegExp  *regexp.Regexp
+	realmKeyName            string
+	clientIdKeyName         string
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {

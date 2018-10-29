@@ -66,7 +66,10 @@ const (
 	defaultWebhookTimeout                 = 2 * time.Second
 
 	// API Monitoring
-	defaultApiUsageMonitoringEnable = false
+	defaultApiUsageMonitoringEnable                  = false
+	defaultApiUsageMonitoringRealmAndClientIdMatcher = ""
+	defaultApiUsageMonitoringRealmKey                = ""
+	defaultApiUsageMonitoringClientIdKey             = ""
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -150,7 +153,10 @@ const (
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// API Monitoring:
-	apiUsageMonitoringEnableUsage = "enables the experimental filter apiUsageMonitoring"
+	apiUsageMonitoringEnableUsage                  = "enables the experimental filter apiUsageMonitoring"
+	apiUsageMonitoringRealmAndClientIdMatcherUsage = "regular expression to match against '<realm>.<client_id>' for an individual client ID to be tracked in the metrics"
+	apiUsageMonitoringRealmKeyUsage                = "name of the property in the JWT body that contains the authority realm"
+	apiUsageMonitoringClientIdKeyUsage             = "name of the property in the JWT body that contains the client ID"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -274,7 +280,10 @@ var (
 	webhookTimeout                  time.Duration
 
 	// API Monitoring
-	apiUsageMonitoringEnable bool
+	apiUsageMonitoringEnable                  bool
+	apiUsageMonitoringRealmAndClientIdMatcher string
+	apiUsageMonitoringRealmKey                string
+	apiUsageMonitoringClientIdKeyName         string
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -397,6 +406,9 @@ func init() {
 
 	// API Monitoring:
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
+	flag.StringVar(&apiUsageMonitoringRealmAndClientIdMatcher, "api-usage-monitoring-realm-and-client-id-matcher", defaultApiUsageMonitoringRealmAndClientIdMatcher, apiUsageMonitoringRealmAndClientIdMatcherUsage)
+	flag.StringVar(&apiUsageMonitoringRealmKey, "api-usage-monitoring-realm-key", defaultApiUsageMonitoringRealmKey, apiUsageMonitoringRealmKeyUsage)
+	flag.StringVar(&apiUsageMonitoringClientIdKeyName, "api-usage-monitoring-client-id-key", defaultApiUsageMonitoringClientIdKey, apiUsageMonitoringClientIdKeyUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -583,7 +595,10 @@ func main() {
 		KubernetesNamespace:         kubernetesNamespace,
 
 		// API Monitoring:
-		ApiUsageMonitoringEnable: apiUsageMonitoringEnable,
+		ApiUsageMonitoringEnable:                  apiUsageMonitoringEnable,
+		ApiUsageMonitoringRealmAndClientIdMatcher: apiUsageMonitoringRealmAndClientIdMatcher,
+		ApiUsageMonitoringRealmKey:                apiUsageMonitoringRealmKey,
+		ApiUsageMonitoringClientIdKeyName:         apiUsageMonitoringClientIdKeyName,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,

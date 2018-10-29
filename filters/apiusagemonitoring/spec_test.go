@@ -3,7 +3,6 @@ package apiusagemonitoring
 import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/zalando/skipper/filters"
 	"testing"
 )
 
@@ -12,20 +11,35 @@ func init() {
 }
 
 func Test_TypeAndName(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	assert.Equal(t, &apiUsageMonitoringSpec{true}, spec)
+	spec := NewApiUsageMonitoring(true, "", "", "")
+	assert.Equal(t, &apiUsageMonitoringSpec{
+		enabled:                 true,
+		clientIdKeyName:         "",
+		realmKeyName:            "",
+		realmAndClientIdMatcher: "",
+		realmAndClientIdRegExp:  nil,
+	}, spec)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 }
 
 func Test_FeatureDisableCreateNilFilters(t *testing.T) {
-	spec := NewApiUsageMonitoring(false)
-	assert.Equal(t, &apiUsageMonitoringSpec{false}, spec)
+	spec := NewApiUsageMonitoring(false, "", "", "")
+	assert.Equal(t, &apiUsageMonitoringSpec{
+		enabled:                 false,
+		clientIdKeyName:         "",
+		realmKeyName:            "",
+		realmAndClientIdMatcher: "",
+		realmAndClientIdRegExp:  nil,
+	}, spec)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
 	assert.Nil(t, filter)
 }
 
-func assertApiUsageMonitoringFilter(t *testing.T, filter filters.Filter, asserter func(t *testing.T, filter *apiUsageMonitoringFilter)) {
+func assertApiUsageMonitoringFilter(t *testing.T, filterArgs []interface{}, asserter func(t *testing.T, filter *apiUsageMonitoringFilter)) {
+	spec := NewApiUsageMonitoring(true, "", "", "")
+	filter, err := spec.CreateFilter(filterArgs)
+	assert.NoError(t, err)
 	assert.NotNil(t, filter)
 	if assert.IsType(t, &apiUsageMonitoringFilter{}, filter) {
 		asserter(t, filter.(*apiUsageMonitoringFilter))
@@ -33,7 +47,7 @@ func assertApiUsageMonitoringFilter(t *testing.T, filter filters.Filter, asserte
 }
 
 func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
-	spec := NewApiUsageMonitoring(false)
+	spec := NewApiUsageMonitoring(false, "", "", "")
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
@@ -41,95 +55,78 @@ func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
 }
 
 func Test_CreateFilter_NoParam(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	var args []interface{}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Empty(t, filter.Paths)
 	})
 }
 
 func Test_CreateFilter_EmptyString(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{""})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	args := []interface{}{""}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Empty(t, filter.Paths)
 	})
 }
 
 func Test_CreateFilter_NotAString(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{1234})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	args := []interface{}{1234}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Empty(t, filter.Paths)
 	})
 }
 
 func Test_CreateFilter_NotJson(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{"I am not JSON"})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	args := []interface{}{"I am not JSON"}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Empty(t, filter.Paths)
 	})
 }
 
 func Test_CreateFilter_EmptyJson(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{"{}"})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	args := []interface{}{"{}"}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Empty(t, filter.Paths)
 	})
 }
 
 func Test_CreateFilter_NoPathTemplate(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{`{
+	args := []interface{}{`{
 		"path_templates": []
-	}`})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Empty(t, filter.Paths)
 	})
 }
 
 func Test_CreateFilter_EmptyPathTemplate(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{`{
+	args := []interface{}{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
 		"path_templates": [
 			""
 		]
-	}`})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Empty(t, filter.Paths)
 	})
 }
 
 func Test_CreateFilter_TypoInPropertyNamesFail(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
 	// path_template has no `s` and should cause a JSON decoding error.
-	filter, err := spec.CreateFilter([]interface{}{`{
+	args := []interface{}{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
 		"path_template": [
 			""
 		]
-	}`})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Empty(t, filter.Paths)
 	})
 }
 
 func Test_CreateFilter_NonParseableParametersShouldBeLoggedAndIgnored(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{
+	args := []interface{}{
 		`{
 			"application_id": "my_app",
 			"api_id": "my_api",
@@ -140,9 +137,8 @@ func Test_CreateFilter_NonParseableParametersShouldBeLoggedAndIgnored(t *testing
 		123456,
 		123.456,
 		"I am useless...", // poor little depressed parameter :'(
-	})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 
 		assert.Len(t, filter.Paths, 1)
 
@@ -159,8 +155,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 	//   - with {name} variable paths
 	//   - with :name variable paths
 	//   - with/without head/trailing slash
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{`{
+	args := []interface{}{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
 		"path_templates": [
@@ -170,9 +165,8 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 			"/foo/customers/",
 			"/foo/customers/{customer-id}/"
 		]
-	}`})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 
 		assert.Len(t, filter.Paths, 5)
 
@@ -204,8 +198,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 }
 
 func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{`{
+	args := []interface{}{`{
 			"application_id": "my_app",
 			"api_id": "orders_api",
 			"path_templates": [
@@ -220,9 +213,8 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 				"/foo/customers/",
 				"/foo/customers/{customer-id}/"
 			]
-		}`})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Len(t, filter.Paths, 5)
 
 		assert.Equal(t, "my_app", filter.Paths[0].ApplicationId)
@@ -253,11 +245,10 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 }
 
 func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
-	spec := NewApiUsageMonitoring(true)
 	// There is a valid object for the 2nd api (customers_api), but no path_templates.
 	// Since the end result is that there are a total to observable paths > 0, it should
 	// be accepted.
-	filter, err := spec.CreateFilter([]interface{}{`{
+	args := []interface{}{`{
 			"application_id": "my_app",
 			"api_id": "orders_api",
 			"path_templates": [
@@ -270,9 +261,8 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 			"api_id": "customers_api",
 			"path_templates": [
 			]
-		}`})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 
 		assert.Len(t, filter.Paths, 3)
 
@@ -293,17 +283,15 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 	// PathTemplate "foo" and "/foo/" after normalising are the same.
 	// That causes an error, even if under different application or API IDs.
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{`{
+	args := []interface{}{`{
 		"application_id": "my_app",
 		"api_id": "orders_api",
 		"path_templates": [
 			"foo",
 			"/foo/"
 		]
-	}`})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 
 		assert.Len(t, filter.Paths, 1)
 
@@ -315,17 +303,15 @@ func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 
 func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 	// PathTemplate "/foo/:a" and "/foo/:b" yield the same RegExp
-	spec := NewApiUsageMonitoring(true)
-	filter, err := spec.CreateFilter([]interface{}{`{
+	args := []interface{}{`{
 		"application_id": "my_app",
 		"api_id": "orders_api",
 		"path_templates": [
 			"foo/:a",
 			"foo/:b"
 		]
-	}`})
-	assert.NoError(t, err)
-	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 
 		assert.Len(t, filter.Paths, 1)
 
