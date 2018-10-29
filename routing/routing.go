@@ -125,9 +125,8 @@ type Options struct {
 // purpose.
 type RouteFilter struct {
 	filters.Filter
-	Name     string
-	Index    int
-	DefIndex int
+	Name  string
+	Index int
 }
 
 // Route object with preprocessed filter instances.

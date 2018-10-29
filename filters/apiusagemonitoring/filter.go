@@ -44,7 +44,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	// METRIC: Response Status Range Count
 	classMetricsIndex := (response.StatusCode / 100) - 1
 	if classMetricsIndex < 0 || classMetricsIndex >= 5 {
-		log.Warnf(
+		log.Errorf(
 			"Response HTTP Status Code %d is invalid. Response status code metric not tracked for this call.",
 			response.StatusCode)
 	} else {

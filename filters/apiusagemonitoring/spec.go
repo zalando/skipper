@@ -58,7 +58,7 @@ func parseJsonConfiguration(args []interface{}) []*apiConfig {
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)
 		if !ok {
-			log.Warnf("args[%d] ignored: expecting a string, was %t", i, a)
+			log.Errorf("args[%d] ignored: expecting a string, was %t", i, a)
 			continue
 		}
 		config := new(apiConfig)
@@ -66,7 +66,7 @@ func parseJsonConfiguration(args []interface{}) []*apiConfig {
 		decoder.DisallowUnknownFields()
 		err := decoder.Decode(config)
 		if err != nil {
-			log.Warnf("args[%d] ignored: error reading JSON configuration: %s", i, err)
+			log.Errorf("args[%d] ignored: error reading JSON configuration: %s", i, err)
 			continue
 		}
 		apis = append(apis, config)
@@ -82,7 +82,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 	for apiIndex, api := range apis {
 
 		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
-			log.Warnf(
+			log.Errorf(
 				"args[%d] ignored: does not specify any path template",
 				apiIndex)
 			continue
@@ -90,7 +90,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 
 		applicationId := api.ApplicationId
 		if applicationId == "" {
-			log.Warnf(
+			log.Errorf(
 				"args[%d] does not specify an application ID, defaulting to %q",
 				apiIndex, unknownElementPlaceholder)
 			applicationId = unknownElementPlaceholder
@@ -98,7 +98,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 
 		apiId := api.ApiId
 		if apiId == "" {
-			log.Warnf(
+			log.Errorf(
 				"args[%d] does not specify an API ID, defaulting to %q",
 				apiIndex, unknownElementPlaceholder)
 			apiId = unknownElementPlaceholder
@@ -108,7 +108,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 
 			// Path Template validation
 			if template == "" {
-				log.Warnf(
+				log.Errorf(
 					"args[%d].path_templates[%d] ignored: empty",
 					apiIndex, templateIndex)
 				continue
@@ -127,7 +127,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {
-				log.Warnf(
+				log.Errorf(
 					"args[%d].path_templates[%d] ignored: duplicate path template %q",
 					apiIndex, templateIndex, info.PathTemplate)
 				continue
@@ -136,7 +136,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 
 			// Detect regular expression duplicates
 			if existingMatcher, ok := existingRegEx[regExStr]; ok {
-				log.Warnf(
+				log.Errorf(
 					"args[%d].path_templates[%d] ignored: two path templates yielded the same regular expression %q (%q and %q)",
 					apiIndex, templateIndex, regExStr, info.PathTemplate, existingMatcher.PathTemplate)
 				continue
@@ -146,7 +146,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 			// Compile the regular expression
 			regEx, err := regexp.Compile(regExStr)
 			if err != nil {
-				log.Warnf(
+				log.Errorf(
 					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %s",
 					apiIndex, templateIndex, regExStr, info.PathTemplate, err)
 				continue

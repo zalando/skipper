@@ -396,7 +396,7 @@ func newSkipperDialer(d net.Dialer) *skipperDialer {
 // DialContext wraps net.Dialer's DialContext and returns an error,
 // that can be checked if it was a Transport (TCP/TLS handshake) error
 // or timeout, or a timeout from http, which is not in general
-// retrieable.
+// not possible to retry.
 func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr string) (net.Conn, error) {
 	span := ot.SpanFromContext(ctx)
 	if span != nil {
@@ -541,6 +541,9 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
+		if fi.Filter == nil {
+			continue
+		}
 		start := time.Now()
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
