@@ -11,8 +11,7 @@ func Test_parseJwtBody_NoHeader(t *testing.T) {
 	assert.NoError(t, err)
 	req.Header = http.Header{}
 
-	body, ok := parseJwtBody(req)
-	assert.False(t, ok)
+	body := parseJwtBody(req)
 	assert.Nil(t, body)
 }
 
@@ -23,8 +22,7 @@ func Test_parseJwtBody_HeadersButNoAuthorization(t *testing.T) {
 		"foo": []string{"first_foo", "second_foo", "that_was_enough_foo"},
 	}
 
-	body, ok := parseJwtBody(req)
-	assert.False(t, ok)
+	body := parseJwtBody(req)
 	assert.Nil(t, body)
 }
 
@@ -35,8 +33,7 @@ func Test_parseJwtBody_AuthorizationHeaderEmpty(t *testing.T) {
 		authorizationHeaderName: []string{""},
 	}
 
-	body, ok := parseJwtBody(req)
-	assert.False(t, ok)
+	body := parseJwtBody(req)
 	assert.Nil(t, body)
 }
 
@@ -47,8 +44,7 @@ func Test_parseJwtBody_AuthorizationHeaderNotValidJwt(t *testing.T) {
 		authorizationHeaderName: []string{"Bearer foo.bar"},
 	}
 
-	body, ok := parseJwtBody(req)
-	assert.False(t, ok)
+	body := parseJwtBody(req)
 	assert.Nil(t, body)
 }
 
@@ -59,8 +55,7 @@ func Test_parseJwtBody_AuthorizationHeader3PartsNotBase64Encoded(t *testing.T) {
 		authorizationHeaderName: []string{"Bearer foo.bar.moo"},
 	}
 
-	body, ok := parseJwtBody(req)
-	assert.False(t, ok)
+	body := parseJwtBody(req)
 	assert.Nil(t, body)
 }
 
@@ -71,8 +66,7 @@ func Test_parseJwtBody_AuthorizationHeader3PartsBase64EncodedNotJson(t *testing.
 		authorizationHeaderName: []string{"Bearer Zm9v.YmFy.bW9v"},
 	}
 
-	body, ok := parseJwtBody(req)
-	assert.False(t, ok)
+	body := parseJwtBody(req)
 	assert.Nil(t, body)
 }
 
@@ -83,7 +77,6 @@ func Test_parseJwtBody_AuthorizationHeaderWithValidJwtBody(t *testing.T) {
 		authorizationHeaderName: []string{"Bearer Zm9v.eyJmb28iOiJiYXIifQ.bW9v"},
 	}
 
-	body, ok := parseJwtBody(req)
-	assert.True(t, ok)
+	body := parseJwtBody(req)
 	assert.Equal(t, map[string]interface{}{"foo": "bar"}, body)
 }
