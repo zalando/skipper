@@ -51,6 +51,8 @@ type Prometheus struct {
 
 // NewPrometheus returns a new Prometheus metric backend.
 func NewPrometheus(opts Options) *Prometheus {
+	opts = applyCompatibilityDefaults(opts)
+
 	namespace := promNamespace
 	if opts.Prefix != "" {
 		namespace = strings.TrimSuffix(opts.Prefix, ".")
