@@ -2,7 +2,7 @@ package apiusagemonitoring
 
 import "github.com/zalando/skipper/filters"
 
-type noopSpec struct{
+type noopSpec struct {
 	filter filters.Filter
 }
 
