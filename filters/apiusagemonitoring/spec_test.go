@@ -8,16 +8,16 @@ import (
 
 func Test_TypeAndName(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
-	assert.Equal(t, &apiUsageMonitoringSpec{true}, spec)
+	assert.Equal(t, &apiUsageMonitoringSpec{}, spec)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 }
 
 func Test_FeatureDisableCreateNilFilters(t *testing.T) {
 	spec := NewApiUsageMonitoring(false)
-	assert.Equal(t, &apiUsageMonitoringSpec{false}, spec)
+	assert.IsType(t, &noopSpec{}, spec)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assert.Equal(t, filter, &noopFilter{})
 }
 
 func assertApiUsageMonitoringFilter(t *testing.T, filter filters.Filter, asserter func(t *testing.T, filter *apiUsageMonitoringFilter)) {
@@ -32,7 +32,7 @@ func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assert.Equal(t, filter, &noopFilter{})
 }
 
 func Test_CreateFilter_NoParam(t *testing.T) {
@@ -330,8 +330,8 @@ func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 	})
 }
 
-func Test_CreateFilter_RegExCompileFailureCausesError(t *testing.T) {
-	spec := &apiUsageMonitoringSpec{}
+func Test_CreateFilter_RegExCompileFailureIgnoresPath(t *testing.T) {
+	spec := NewApiUsageMonitoring(true)
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"api_id": "orders_api",
@@ -340,6 +340,7 @@ func Test_CreateFilter_RegExCompileFailureCausesError(t *testing.T) {
 		]
 	}`})
 	assert.NoError(t, err)
-	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }

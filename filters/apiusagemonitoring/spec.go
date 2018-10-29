@@ -27,25 +27,21 @@ var (
 // specification (its factory).
 func NewApiUsageMonitoring(enabled bool) filters.Spec {
 	if !enabled {
-		log.Debugf("Filter %q is not enabled. No filter will be created (spec returns `nil`).", Name)
+		log.Debugf("Filter %q is not enabled. Spec returns `noop` filters.", Name)
+		return &noopSpec{&noopFilter{}}
 	}
-	spec := &apiUsageMonitoringSpec{enabled}
+	spec := &apiUsageMonitoringSpec{}
 	log.Debugf("Created filter spec: %+v", spec)
 	return spec
 }
 
-type apiUsageMonitoringSpec struct {
-	enabled bool
-}
+type apiUsageMonitoringSpec struct{}
 
 func (s *apiUsageMonitoringSpec) Name() string {
 	return Name
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
-	if !s.enabled {
-		return nil, nil
-	}
 	apis := parseJsonConfiguration(args)
 	paths := buildPathInfoListFromConfiguration(apis)
 	filter = &apiUsageMonitoringFilter{Paths: paths}
