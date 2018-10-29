@@ -2,7 +2,6 @@ package apiusagemonitoring
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -10,10 +9,6 @@ import (
 	"net/http"
 	"testing"
 )
-
-func init() {
-	log.Logger.SetLevel(logrus.DebugLevel)
-}
 
 var (
 	args = []interface{}{`{

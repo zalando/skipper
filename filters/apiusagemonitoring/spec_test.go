@@ -1,15 +1,10 @@
 package apiusagemonitoring
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
 	"testing"
 )
-
-func init() {
-	log.Logger.SetLevel(logrus.DebugLevel)
-}
 
 func Test_TypeAndName(t *testing.T) {
 	spec := NewApiUsageMonitoring(true)
