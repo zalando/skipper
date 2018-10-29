@@ -14,10 +14,10 @@ func Test_TypeAndName(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 	assert.Equal(t, &apiUsageMonitoringSpec{
 		enabled:                 true,
-		clientIdKeyName:         "",
-		realmKeyName:            "",
-		realmAndClientIdMatcher: "",
-		realmAndClientIdRegExp:  nil,
+		clientIdKey:             "",
+		realmKey:                "",
+		realmAndClientIdRegEx:   "",
+		realmAndClientIdMatcher: nil,
 	}, spec)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 }
@@ -26,10 +26,10 @@ func Test_FeatureDisableCreateNilFilters(t *testing.T) {
 	spec := NewApiUsageMonitoring(false, "", "", "")
 	assert.Equal(t, &apiUsageMonitoringSpec{
 		enabled:                 false,
-		clientIdKeyName:         "",
-		realmKeyName:            "",
-		realmAndClientIdMatcher: "",
-		realmAndClientIdRegExp:  nil,
+		clientIdKey:             "",
+		realmKey:                "",
+		realmAndClientIdRegEx:   "",
+		realmAndClientIdMatcher: nil,
 	}, spec)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)

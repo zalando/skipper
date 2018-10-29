@@ -280,10 +280,10 @@ var (
 	webhookTimeout                  time.Duration
 
 	// API Monitoring
-	apiUsageMonitoringEnable                  bool
-	apiUsageMonitoringRealmAndClientIdMatcher string
-	apiUsageMonitoringRealmKey                string
-	apiUsageMonitoringClientIdKeyName         string
+	apiUsageMonitoringEnable                bool
+	apiUsageMonitoringRealmAndClientIdRegEx string
+	apiUsageMonitoringRealmKey              string
+	apiUsageMonitoringClientIdKeyName       string
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -406,7 +406,7 @@ func init() {
 
 	// API Monitoring:
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
-	flag.StringVar(&apiUsageMonitoringRealmAndClientIdMatcher, "api-usage-monitoring-realm-and-client-id-matcher", defaultApiUsageMonitoringRealmAndClientIdMatcher, apiUsageMonitoringRealmAndClientIdMatcherUsage)
+	flag.StringVar(&apiUsageMonitoringRealmAndClientIdRegEx, "api-usage-monitoring-realm-and-client-id-matcher", defaultApiUsageMonitoringRealmAndClientIdMatcher, apiUsageMonitoringRealmAndClientIdMatcherUsage)
 	flag.StringVar(&apiUsageMonitoringRealmKey, "api-usage-monitoring-realm-key", defaultApiUsageMonitoringRealmKey, apiUsageMonitoringRealmKeyUsage)
 	flag.StringVar(&apiUsageMonitoringClientIdKeyName, "api-usage-monitoring-client-id-key", defaultApiUsageMonitoringClientIdKey, apiUsageMonitoringClientIdKeyUsage)
 
@@ -595,10 +595,10 @@ func main() {
 		KubernetesNamespace:         kubernetesNamespace,
 
 		// API Monitoring:
-		ApiUsageMonitoringEnable:                  apiUsageMonitoringEnable,
-		ApiUsageMonitoringRealmAndClientIdMatcher: apiUsageMonitoringRealmAndClientIdMatcher,
-		ApiUsageMonitoringRealmKey:                apiUsageMonitoringRealmKey,
-		ApiUsageMonitoringClientIdKeyName:         apiUsageMonitoringClientIdKeyName,
+		ApiUsageMonitoringEnable:                apiUsageMonitoringEnable,
+		ApiUsageMonitoringRealmAndClientIdRegEx: apiUsageMonitoringRealmAndClientIdRegEx,
+		ApiUsageMonitoringRealmKey:              apiUsageMonitoringRealmKey,
+		ApiUsageMonitoringClientIdKeyName:       apiUsageMonitoringClientIdKeyName,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,

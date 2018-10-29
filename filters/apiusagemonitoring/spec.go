@@ -2,6 +2,7 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
@@ -27,7 +28,7 @@ var (
 // specification (its factory).
 func NewApiUsageMonitoring(
 	enabled bool,
-	realmAndClientIdMatcher string,
+	realmAndClientIdRegEx string,
 	realmKeyName string,
 	clientIdKeyName string,
 ) filters.Spec {
@@ -35,10 +36,10 @@ func NewApiUsageMonitoring(
 		log.Debugf("Filter %q is not enabled. No filter will be created (spec returns `nil`).", Name)
 	}
 	spec := &apiUsageMonitoringSpec{
-		enabled:                 enabled,
-		realmAndClientIdMatcher: realmAndClientIdMatcher,
-		realmKeyName:            realmKeyName,
-		clientIdKeyName:         clientIdKeyName,
+		enabled:               enabled,
+		realmAndClientIdRegEx: realmAndClientIdRegEx,
+		realmKey:              realmKeyName,
+		clientIdKey:           clientIdKeyName,
 	}
 	log.Debugf("Created filter spec: %+v", spec)
 	return spec
@@ -46,10 +47,10 @@ func NewApiUsageMonitoring(
 
 type apiUsageMonitoringSpec struct {
 	enabled                 bool
-	realmAndClientIdMatcher string
-	realmAndClientIdRegExp  *regexp.Regexp
-	realmKeyName            string
-	clientIdKeyName         string
+	realmAndClientIdRegEx   string
+	realmAndClientIdMatcher *regexp.Regexp
+	realmKey                string
+	clientIdKey             string
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
@@ -60,9 +61,22 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	if !s.enabled {
 		return nil, nil
 	}
+
+	if s.realmAndClientIdMatcher == nil {
+		r, err := regexp.Compile(s.realmAndClientIdRegEx)
+		if err != nil {
+			return nil, fmt.Errorf("cannot compile regular expression realm-and-client-id-matcher: %v", err)
+		}
+		s.realmAndClientIdMatcher = r
+	}
+
 	apis := parseJsonConfiguration(args)
-	paths := buildPathInfoListFromConfiguration(apis)
-	filter = &apiUsageMonitoringFilter{Paths: paths}
+	paths := s.buildPathInfoListFromConfiguration(apis)
+
+	filter = &apiUsageMonitoringFilter{
+		Spec:  s,
+		Paths: paths,
+	}
 	log.Debugf("Created filter: %s", filter)
 	return
 }
@@ -88,7 +102,7 @@ func parseJsonConfiguration(args []interface{}) []*apiConfig {
 	return apis
 }
 
-func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
+func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 	paths := make([]*pathInfo, 0)
 	existingPathTemplates := make(map[string]*pathInfo)
 	existingRegEx := make(map[string]*pathInfo)
@@ -118,6 +132,8 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 			apiId = unknownElementPlaceholder
 		}
 
+		clientTrackingInfo := s.buildClientTrackingInfo(apiIndex, api)
+
 		for templateIndex, template := range api.PathTemplates {
 
 			// Path Template validation
@@ -137,6 +153,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 				ApiId:                   apiId,
 				PathTemplate:            normalisedPathTemplate,
 				metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
+				ClientTracking:          clientTrackingInfo,
 			}
 
 			// Detect path template duplicates
@@ -161,7 +178,7 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 			regEx, err := regexp.Compile(regExStr)
 			if err != nil {
 				log.Errorf(
-					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %s",
+					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %v",
 					apiIndex, templateIndex, regExStr, info.PathTemplate, err)
 				continue
 			}
@@ -173,6 +190,35 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 	}
 
 	return paths
+}
+
+func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig) *clientTrackingInfo {
+	if s.realmKey == "" {
+		log.Errorf(
+			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-key" not provided, not tracking client metrics`,
+			apiIndex)
+		return nil
+	}
+	if s.clientIdKey == "" {
+		log.Errorf(
+			`args[%d]: skipper wide configuration "api-usage-monitoring-client-id-key" not provided, not tracking client metrics`,
+			apiIndex)
+		return nil
+	}
+
+	clientTrackingMatcher, err := regexp.Compile(api.ClientTrackingPattern)
+	if err != nil {
+		log.Errorf(
+			"args[%d].client_tracking_pattern ignored (no client tracking): error compiling regular expression %q: %v",
+			apiIndex, api.ClientTrackingPattern, err)
+	}
+
+	return &clientTrackingInfo{
+		RealmKey:                s.realmKey,
+		ClientIdKey:             s.clientIdKey,
+		RealmAndClientIdMatcher: s.realmAndClientIdMatcher,
+		ClientTrackingMatcher:   clientTrackingMatcher,
+	}
 }
 
 // generateRegExpStringForPathTemplate normalizes the given path template and

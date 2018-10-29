@@ -27,6 +27,7 @@ const (
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
 // created for every route invocation of the `apiUsageMonitoring` filter.
 type apiUsageMonitoringFilter struct {
+	Spec  *apiUsageMonitoringSpec
 	Paths []*pathInfo
 }
 
@@ -100,7 +101,7 @@ func (f *apiUsageMonitoringFilter) getMetricNames(req *http.Request) *metricName
 		return prefixes
 	}
 
-	authRealm := "*" // todo
+	authRealm := "*"    // todo
 	authClientId := "*" // todo
 
 	// Prefixes were not cached for this path and method. Generate and cache.
