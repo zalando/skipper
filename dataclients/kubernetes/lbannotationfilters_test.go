@@ -94,8 +94,8 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
 		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1", 0)
-		  -> setPath("/foo")
 		  -> dropRequestHeader("X-Load-Balancer-Member")
+		  -> setPath("/foo")
 		  -> "http://42.0.1.0:8080";
 
 		// path rule, target 2:
@@ -103,8 +103,8 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
 		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1", 1)
-		  -> setPath("/foo")
 		  -> dropRequestHeader("X-Load-Balancer-Member")
+		  -> setPath("/foo")
 		  -> "http://42.1.0.1:8080";
 
 		// path rule group:

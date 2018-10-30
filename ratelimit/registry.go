@@ -21,12 +21,19 @@ type Registry struct {
 	sync.Mutex
 	defaults Settings
 	global   Settings
-	//routeSettings map[string]Settings
-	lookup map[Settings]*Ratelimit
+	lookup   map[Settings]*Ratelimit
+	swarm    Swarmer
 }
 
 // NewRegistry initializes a registry with the provided default settings.
 func NewRegistry(settings ...Settings) *Registry {
+	return NewSwarmRegistry(nil, settings...)
+}
+
+// NewSwarmRegistry initializes a registry with an optional swarm and
+// the provided default settings. If swarm is nil, clusterRatelimits
+// will be replaced by voidRatelimit, which is a noop limiter implementation.
+func NewSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -38,6 +45,7 @@ func NewRegistry(settings ...Settings) *Registry {
 		defaults: defaults,
 		global:   defaults,
 		lookup:   make(map[Settings]*Ratelimit),
+		swarm:    swarm,
 	}
 
 	if len(settings) > 0 {
@@ -53,7 +61,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s)
+		rl = newRatelimit(s, r.swarm)
 		r.lookup[s] = rl
 	}
 
@@ -77,18 +85,24 @@ func (r *Registry) Check(req *http.Request) (Settings, int) {
 
 	s := r.global
 
-	registry := r.Get(s)
+	rlimit := r.Get(s)
 	switch s.Type {
+	case ClusterServiceRatelimit:
+		fallthrough
 	case ServiceRatelimit:
-		if registry.Allow("") {
+		if rlimit.Allow("") {
 			return s, 0
 		}
-		return s, registry.RetryAfter("")
+		return s, rlimit.RetryAfter("")
 
-	case LocalRatelimit:
+	case ClusterClientRatelimit:
+		fallthrough
+	case LocalRatelimit: // TODO(sszuecs): name should be dropped if we do a breaking change
+		fallthrough
+	case ClientRatelimit:
 		ip := net.RemoteHost(req)
-		if !registry.Allow(ip.String()) {
-			return s, registry.RetryAfter(ip.String())
+		if !rlimit.Allow(ip.String()) {
+			return s, rlimit.RetryAfter(ip.String())
 		}
 	}
 

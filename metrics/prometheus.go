@@ -51,6 +51,8 @@ type Prometheus struct {
 
 // NewPrometheus returns a new Prometheus metric backend.
 func NewPrometheus(opts Options) *Prometheus {
+	opts = applyCompatibilityDefaults(opts)
+
 	namespace := promNamespace
 	if opts.Prefix != "" {
 		namespace = strings.TrimSuffix(opts.Prefix, ".")
@@ -290,6 +292,12 @@ func (p *Prometheus) MeasureSince(key string, start time.Time) {
 // IncCounter satisfies Metrics interface.
 func (p *Prometheus) IncCounter(key string) {
 	p.customCounterM.WithLabelValues(key).Inc()
+}
+
+// IncCounterBy satisfies Metrics interface.
+func (p *Prometheus) IncCounterBy(key string, value int64) {
+	f := float64(value)
+	p.customCounterM.WithLabelValues(key).Add(f)
 }
 
 // UpdateGauge satisfies Metrics interface.

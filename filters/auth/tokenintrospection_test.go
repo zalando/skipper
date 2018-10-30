@@ -15,7 +15,7 @@ import (
 )
 
 func introspectionEndpointGetToken(r *http.Request) (string, error) {
-	if tok := r.FormValue(accessTokenKey); tok != "" {
+	if tok := r.FormValue(tokenKey); tok != "" {
 		return tok, nil
 	}
 	return "", errInvalidToken

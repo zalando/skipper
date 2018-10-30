@@ -5,12 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 // Context object providing state and information that is unique to a request.
 type FilterContext interface {
-
 	// The response writer object belonging to the incoming request. Used by
 	// filters that handle the requests themselves.
 	ResponseWriter() http.ResponseWriter
@@ -86,12 +85,14 @@ type FilterContext interface {
 // be exposed by the common metrics endpoint exposed by the proxy, where they can be accessed by the custom
 // key prefixed by the filter name and the string 'custom'. E.g: <filtername>.custom.<customkey>.
 type Metrics interface {
-
 	// MeasureSince adds values to a timer with a custom key.
 	MeasureSince(key string, start time.Time)
 
 	// IncCounter increments a custom counter identified by its key.
 	IncCounter(key string)
+
+	// IncCounterBy increments a custom counter identified by its key by a certain value.
+	IncCounterBy(key string, value int64)
 }
 
 // Filters are created by the Spec components, optionally using filter
@@ -100,7 +101,6 @@ type Metrics interface {
 // request specific, so any state stored with a filter is shared between
 // all requests for the same route and can cause concurrency issues.
 type Filter interface {
-
 	// The Request method is called while processing the incoming request.
 	Request(FilterContext)
 
@@ -113,11 +113,10 @@ type Filter interface {
 // the Filter instances are created using the Spec objects found in the
 // registry.
 type Spec interface {
-
-	// The name of the Spec is used to identify filters in a route definition.
+	// Name gives the name of the Spec. It is used to identify filters in a route definition.
 	Name() string
 
-	// Creates a Filter instance. Called with the parameters in the route
+	// CreateFilter creates a Filter instance. Called with the parameters in the route
 	// definition while initializing a route.
 	CreateFilter(config []interface{}) (Filter, error)
 }

@@ -86,6 +86,22 @@ To run the latest Docker container:
 
     docker run registry.opensource.zalan.do/pathfinder/skipper:latest
 
+To run `eskip` you first mount the `.eskip` file, into the container, and run the command
+
+    docker run \
+      -v $(PWD)/doc-docker-intro.eskip:/doc-docker-intro.eskip \
+      registry.opensource.zalan.do/pathfinder/skipper:latest eskip print doc-docker-intro.eskip
+
+To run `skipper` you first mount the `.eskip` file, into the container, expose the ports and run the command
+
+    docker run -it \
+        -v $(PWD)/doc-docker-intro.eskip:/doc-docker-intro.eskip \
+        -p 9090:9090 \
+        -p 9911:9911 \
+        registry.opensource.zalan.do/pathfinder/skipper:latest skipper doc-docker-intro.eskip
+
+Skipper will then be available on http://localhost:9090
+
 #### Authentication Proxy
 
 Skipper can be used as an authentication proxy, to check incoming
@@ -107,6 +123,16 @@ Build and test all packages:
     make install
     make shortcheck
 
+##### Working from IntelliJ / GoLand
+
+To run or debug skipper from _IntelliJ IDEA_ or _GoLand_, you need to create this configuration:
+
+| Parameter         | Value                                    |
+|-------------------|------------------------------------------|
+| Template          | Go Build                                 |
+| Run kind          | Directory                                |
+| Directory         | skipper source dir + `/cmd/skipper`      |
+| Working directory | skipper source dir (usually the default) |
 
 #### Kubernetes Ingress
 
@@ -238,3 +264,7 @@ instances that use skipper as library.
 Sergio Ballesteros from [spotahome](https://www.spotahome.com/)
 > We also ran tests with serveral ingress controllers and skipper gave us the more reliable results. Currently we are running skipper since almost 2 years with like 20K Ingress rules.
 > The fact that skipper is written in go let us understand the code, add features and fix bugs since all of our infra stack is golang.
+
+#### In the media
+
+[Building our own open source http routing solution](https://jobs.zalando.com/tech/blog/building-our-own-open-source-http-routing-solution/): Giving some context about why Skipper was created in the first place.

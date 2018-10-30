@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/apiusagemonitoring"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
 	logfilter "github.com/zalando/skipper/filters/log"
@@ -34,6 +35,7 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -450,11 +452,24 @@ type Options struct {
 	// OidcSecretsFile path to the file containing key to encrypt OpenID token
 	OidcSecretsFile string
 
+	// API Monitoring feature is active (feature toggle)
+	ApiUsageMonitoringEnable bool
+
 	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
 	WebhookTimeout time.Duration
 
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
+
+	// EnableSwarm enables skipper fleet communication, required by e.g.
+	// the cluster ratelimiter
+	EnableSwarm                       bool
+	SwarmKubernetesNamespace          string
+	SwarmKubernetesLabelSelectorKey   string
+	SwarmKubernetesLabelSelectorValue string
+	SwarmPort                         int
+	SwarmMaxMessageBuffer             int
+	SwarmLeaveTimeout                 time.Duration
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -691,6 +706,7 @@ func Run(o Options) error {
 		auth.NewOAuthOidcUserInfos(o.OidcSecretsFile),
 		auth.NewOAuthOidcAnyClaims(o.OidcSecretsFile),
 		auth.NewOAuthOidcAllClaims(o.OidcSecretsFile),
+		apiusagemonitoring.NewApiUsageMonitoring(o.ApiUsageMonitoringEnable),
 	)
 
 	// create a filter registry with the available filter specs registered,
@@ -767,13 +783,37 @@ func Run(o Options) error {
 		AccessLogDisabled:      o.AccessLogDisabled,
 	}
 
-	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
-		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
+	var theSwarm *swarm.Swarm
+	if o.EnableSwarm {
+		swops := swarm.Options{
+			SwarmPort:        uint16(o.SwarmPort),
+			MaxMessageBuffer: o.SwarmMaxMessageBuffer,
+			LeaveTimeout:     o.SwarmLeaveTimeout,
+			Debug:            log.GetLevel() == log.DebugLevel,
+		}
+		if o.Kubernetes {
+			swops.KubernetesOptions = &swarm.KubernetesOptions{
+				KubernetesInCluster:  o.KubernetesInCluster,
+				KubernetesAPIBaseURL: o.KubernetesURL,
+				Namespace:            o.SwarmKubernetesNamespace,
+				LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
+				LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
+			}
+		}
+		theSwarm, err = swarm.NewSwarm(swops)
+		if err != nil {
+			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
+		}
+		defer theSwarm.Leave()
 	}
 
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		proxyParams.RateLimiters = ratelimit.NewRegistry(o.RatelimitSettings...)
+		proxyParams.RateLimiters = ratelimit.NewSwarmRegistry(theSwarm, o.RatelimitSettings...)
+	}
+
+	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
+		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
 	}
 
 	if o.DebugListener != "" {

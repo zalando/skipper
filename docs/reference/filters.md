@@ -21,6 +21,7 @@ all: * -> filter1 -> filter2 -> "http://127.0.0.1:1234/";
 Set headers for requests.
 
 Parameters:
+
 * header name (string)
 * header value (string)
 
@@ -47,6 +48,7 @@ Same as [appendRequestHeader](#appendrequestheader), only for responses
 Removes a header from the request
 
 Parameters:
+
 * header name (string)
 
 Example:
@@ -64,6 +66,7 @@ Same as [dropRequestHeader](#droprequestheader) but for responses from the backe
 Replace all matched regex expressions in the path.
 
 Parameters:
+
 * the expression to match (regex)
 * the replacement (string)
 
@@ -72,6 +75,7 @@ Parameters:
 Replace the path of the original request to the replacement.
 
 Parameters:
+
 * the replacement (string)
 
 ## redirectTo
@@ -125,6 +129,7 @@ Sets the incoming `Host: ` header on the outgoing backend connection.
 It can be used to override the `proxyPreserveHost` behavior for individual routes.
 
 Parameters: "true" or "false"
+
 * "true" - use the Host header from the incoming request
 * "false" - use the host from the backend address
 
@@ -552,7 +557,7 @@ oauthTokenintrospectionAllKV("k1", "v1", "k2", "v2")
 
 ## forwardToken
 
-The filter accepts a single string as an argument. The argument is the header 
+The filter accepts a single string as an argument. The argument is the header
 name where the result of token info or token introspection is added when the
 request is passed to the backend.
 
@@ -667,14 +672,21 @@ backendHealthcheck: Path("/healthcheck")
 
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
 
-## localRatelimit
+## ~~localRatelimit~~
+
+**DEPRECATED** use [clientRatelimit](#clientRatelimit) with the same
+  settings instead.
+
+## clientRatelimit
 
 Per skipper instance calculated ratelimit, that allows number of
 requests by client. The definition of the same client is based on data
 of the http header and can be changed with an optional third
 parameter. If the third parameter is set skipper will use the
 Authorization header to put the request in the same client bucket,
-else  the X-Forwarded-For Header will be used.
+else the X-Forwarded-For Header will be used. You need to run skipper
+with command line flag `-enable-ratelimits`. Skipper will consume
+roughly 15 MB per filter for 100.000 clients.
 
 Parameters:
 
@@ -683,8 +695,8 @@ Parameters:
 * optional parameter can be set to: "auth" (string)
 
 ```
-localRatelimit(3, "1m")
-localRatelimit(3, "1m", "auth")
+clientRatelimit(3, "1m")
+clientRatelimit(3, "1m", "auth")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -692,7 +704,8 @@ See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratel
 ## ratelimit
 
 Per skipper instance calculated ratelimit, that allows number of
-requests to a backend.
+requests to a backend. You need to run skipper
+with command line flag `-enable-ratelimits`.
 
 Parameters:
 
@@ -702,6 +715,49 @@ Parameters:
 ```
 ratelimit(20, "1m")
 ratelimit(300, "1h")
+```
+
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+
+## clusterClientRatelimit
+
+This ratelimit is calculated across all skipper peers and allows the
+given number of requests by client. The definition of the same client
+is based on data of the http header and can be changed with an
+optional third parameter. If the third parameter is set skipper will
+use the Authorization header to put the request in the same client
+bucket, else the X-Forwarded-For Header will be used.  You need to run
+skipper with command line flags `-enable-swarm` and
+`-enable-ratelimits`. Skipper will consume roughly 15 MB per filter
+for 100.000 clients and 1000 skipper peers.
+
+Parameters:
+
+* number of allowed requests per time period (int)
+* time period for requests being counted (time.Duration)
+* optional parameter can be set to: "auth" (string)
+
+```
+clusterClientRatelimit(10, "1h")
+clusterClientRatelimit(10, "1h", "auth")
+```
+
+See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+
+## clusterRatelimit
+
+This ratelimit is calculated across all skipper peers and allows the
+given number of requests to a backend. You need to have run skipper
+with command line flags `-enable-swarm` and `-enable-ratelimits`.
+
+Parameters:
+
+* number of allowed requests per time period (int)
+* time period for requests being counted (time.Duration)
+
+```
+clusterRatelimit(20, "1m")
+clusterRatelimit(300, "1h")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -809,3 +865,120 @@ Example:
 ```
 enableAccessLog()
 ```
+
+## auditLog
+
+Filter `auditLog()` logs the request and N bytes of the body into the
+log file. N defaults to 1024 and can be overidden with
+`-max-audit-body=<int>`. `N=0` omits logging the body.
+
+Example:
+
+```
+auditLog()
+```
+
+## apiUsageMonitoring
+
+The `apiUsageMonitoring` filter adds API related metrics to the Skipper monitoring. It is by default not activated. Activate
+it by providing the `-enable-api-usage-monitoring` flag at Skipper startup. In its deactivated state, it is still
+registered as a valid filter (allowing route configurations to specify it), but will perform no operation. That allows,
+per instance, production environments to use it and testing environments not to while keeping the same route configuration
+for all environments.
+
+NOTE: Make sure to activate the metrics flavour proper to your environment using the `metrics-flavour`
+flag in order to get those metrics.
+
+Example:
+```bash
+skipper -enable-api-usage-monitoring -metrics-flavour prometheus
+```
+
+The structure of the metrics is:
+
+    apiUsageMonitoring.custom.<Application ID>.<API ID>.<HTTP Verb>.<Path Template>.<Metric Name>
+
+The available metrics are:
+
+* HTTP exchanges counting:
+    * **http_count**: the number of HTTP exchanges
+    * **http5xx_count**: number of HTTP exchanges resulting in a server error (HTTP status in the 500s)
+    * **http4xx_count**: number of HTTP exchanges resulting in a client error (HTTP status in the 400s)
+    * **http3xx_count**: number of HTTP exchanges resulting in a redirect (HTTP status in the 300s)
+    * **http2xx_count**: number of HTTP exchanges resulting in success (HTTP status in the 200s)
+* Timing:
+    * **latency**: time between the first observable moment (a call to the filter's `Request`) until the last (a call to the filter's `Response`) 
+
+Endpoints can be monitored using the `apiUsageMonitoring` filter in the route. It accepts JSON objects (as strings)
+of the following format.
+
+```yaml
+api-usage-monitoring-configuration:
+  type: object
+  required:
+    - application_id
+    - api_id
+    - path_templates
+  properties:
+    application_id:
+      type: string
+      description: ID of the application
+      example: order-service
+    api_id:
+      type: string
+      description: ID of the API
+      example: orders-api
+    path_templates:
+      description: Endpoints to be monitored.
+      type: array
+      items:
+        type: string
+        description: >
+          Path template in /articles/{article-id} (OpenAPI 3) or in /articles/:article-id format.
+          NOTE: They will be normalized to the :this format for metrics naming.
+        example: /orders/{order-id}
+```
+
+Configuration Example:
+
+```
+apiUsageMonitoring(`
+    {
+        "application_id": "my-app",
+        "api_id": "orders-api",
+        "path_templates": [
+            "foo/orders",
+            "foo/orders/:order-id",
+            "foo/orders/:order-id/order_item/{order-item-id}"
+        ]
+    }`,`{
+        "application_id": "my-app",
+        "api_id": "customers-api",
+        "path_templates": [
+            "/foo/customers/",
+            "/foo/customers/{customer-id}/"
+        ]
+    }
+`)
+```
+
+NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
+and path template.
+
+    apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count
+
+Based on the previous configuration, here is an example of a counter metric.
+
+    apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.http_count
+
+Here is the _Prometheus_ query to obtain it.
+
+    sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.http_count"}[60s])) by (key)
+
+Here is an example of a histogram metric.
+
+    apiUsageMonitoring.custom.my_app.orders-api.POST.foo/orders.latency
+
+Here is the _Prometheus_ query to obtain it.
+
+    histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.latency"}[60s])) by (le, key))

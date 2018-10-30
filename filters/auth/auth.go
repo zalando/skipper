@@ -50,10 +50,10 @@ const (
 
 	authHeaderName   = "Authorization"
 	authHeaderPrefix = "Bearer "
-	// accessTokenKey defined at https://tools.ietf.org/html/rfc7662#section-2.1
-	accessTokenKey = "access_token"
-	scopeKey       = "scope"
-	uidKey         = "uid"
+	// tokenKey defined at https://tools.ietf.org/html/rfc7662#section-2.1
+	tokenKey = "token"
+	scopeKey = "scope"
+	uidKey   = "uid"
 )
 
 type kv map[string]string
@@ -76,7 +76,7 @@ func (kv kv) String() string {
 func getToken(r *http.Request) (string, error) {
 	h := r.Header.Get(authHeaderName)
 	if !strings.HasPrefix(h, authHeaderPrefix) {
-		if tok := r.FormValue(accessTokenKey); tok != "" {
+		if tok := r.FormValue(tokenKey); tok != "" {
 			return tok, nil
 		}
 		return "", errInvalidAuthorizationHeader

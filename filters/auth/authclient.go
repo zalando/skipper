@@ -76,8 +76,7 @@ func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, 
 	}, nil
 }
 
-// jsonGet requests url with access token in the URL query specified
-// by accessTokenKey, if auth was given and writes into doc.
+// jsonGet does a get to the url with accessToken as the bearer token in the authorization header. Writes response body into doc.
 func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Client) error {
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
@@ -99,10 +98,10 @@ func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Cli
 	return d.Decode(doc)
 }
 
-// jsonPost requests url with access token in the body, if auth was given and writes into doc.
+// jsonPost does a form post to the url with auth in the body if auth was provided. Writes response body into doc.
 func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http.Client) error {
 	body := url.Values{}
-	body.Add(accessTokenKey, auth)
+	body.Add(tokenKey, auth)
 
 	rsp, err := client.PostForm(u.String(), body)
 	if err != nil {

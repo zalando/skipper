@@ -396,7 +396,7 @@ func newSkipperDialer(d net.Dialer) *skipperDialer {
 // DialContext wraps net.Dialer's DialContext and returns an error,
 // that can be checked if it was a Transport (TCP/TLS handshake) error
 // or timeout, or a timeout from http, which is not in general
-// retrieable.
+// not possible to retry.
 func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr string) (net.Conn, error) {
 	span := ot.SpanFromContext(ctx)
 	if span != nil {
@@ -763,7 +763,6 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 	if !ok {
 		return ratelimit.Settings{}, 0
 	}
-	settings.Host = ctx.outgoingHost
 
 	rl := p.limiters.Get(settings)
 	if rl == nil {
