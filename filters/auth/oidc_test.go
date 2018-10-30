@@ -28,7 +28,7 @@ func makeTestingFilter(claims []string) (*tokenOidcFilter, error) {
 			ClientID: "test",
 			Endpoint: google.Endpoint,
 		},
-		encrypter: &encrypter{
+		encrypter: &Encrypter{
 			sSource: &testingSecretSource{secretKey: "key"},
 			closer:  make(chan int),
 		},
@@ -192,10 +192,10 @@ func (t *TestContext) Tracer() opentracing.Tracer {
 //	oidcFilter, err := makeTestingFilter([]string{})
 //	assert.NoError(t, err, "error creating filter")
 //	ctx := &TestContext{}
-//	encrypted, err := oidcFilter.encrypter.encryptDataBlock([]byte("{\"Oauth2Token\": {}, \"TokenMap\": {}}"))
+//	encrypted, err := oidcFilter.Encrypter.encryptDataBlock([]byte("{\"Oauth2Token\": {}, \"TokenMap\": {}}"))
 //	assert.NoError(t, err, "failed to encrypt data")
 //	cookie := oidcFilter.createCookie(encrypted)
-//	token, err := oidcFilter.encrypter.getTokenFromCookie(ctx, cookie.Value)
+//	token, err := oidcFilter.Encrypter.getTokenFromCookie(ctx, cookie.Value)
 //	assert.NoError(t, err, "failed to get token from cookie")
 //	assert.NotNil(t, token.OAuth2Token, "retrieved oauth token is nil")
 //	assert.NotNil(t, token.TokenMap, "retrieved tokenmap is nil")

@@ -17,7 +17,7 @@ func (s *testingSecretSource) GetSecret() ([][]byte, error) {
 }
 
 func TestEncryptDecrypt(t *testing.T) {
-	enc := &encrypter{
+	enc := &Encrypter{
 		sSource: &testingSecretSource{secretKey: "abc"},
 	}
 	enc.refreshCiphers()
@@ -38,7 +38,7 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 func TestCipherRefreshing(t *testing.T) {
 	sSource := &testingSecretSource{secretKey: "abc"}
-	enc := &encrypter{
+	enc := &Encrypter{
 		sSource: sSource,
 		closer:  make(chan int),
 	}

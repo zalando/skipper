@@ -47,7 +47,7 @@ type (
 		refreshInterval time.Duration
 		closer          chan int
 		redirectPath    string
-		encrypter       *encrypter
+		encrypter       *Encrypter
 	}
 
 	userInfoContainer struct {
@@ -121,7 +121,10 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if err != nil {
 		return nil, fmt.Errorf("the redirect url %s is not valid: %v", sargs[3], err)
 	}
-
+	encrypter, err := NewEncrypter(s.SecretsFile)
+	if err != nil {
+		return nil, err
+	}
 	f := &tokenOidcFilter{
 		typ:          s.typ,
 		redirectPath: redirectURL.Path,
@@ -137,7 +140,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		}),
 		validity:   1 * time.Hour,
 		cookiename: oauthOidcCookieName,
-		encrypter:  NewEncrypter(s.SecretsFile),
+		encrypter:  encrypter,
 	}
 	err = f.encrypter.runCipherRefresher(1 * time.Minute)
 	if err != nil {
@@ -297,12 +300,6 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 // Response saves our state bag in a cookie, such that we can get it
 // back in subsequent requests to handle the requests.
 func (f *tokenOidcFilter) Response(ctx filters.FilterContext) {
-	_, err := ctx.Request().Cookie(f.cookiename)
-	// if cookie is set do not set again
-	if err == nil {
-		return
-	}
-
 	if v, ok := ctx.StateBag()[oidcStatebagKey]; ok {
 		cookie := f.createCookie(v, false, "127.0.0.1")
 		log.Debugf("Response SetCookie: %s", cookie)
@@ -328,15 +325,25 @@ func (f *tokenOidcFilter) createCookie(v interface{}, secure bool, domain string
 	return cookie
 }
 
-func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) (string, bool) {
+func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) ([]byte, bool) {
 	if cookie == nil {
-		return "", false
+		return nil, false
 	}
 	log.Debugf("validate cookie name: %s", f.cookiename)
 	var cookieStr string
 	fmt.Sscanf(cookie.Value, "%x", &cookieStr)
-	// TODO check validity
-	return cookieStr, true
+
+	if cookie.Expires.Before(time.Now()){
+		log.Debugf("cookie expired")
+		return nil, false
+	}
+
+	decryptedCookie, err := f.encrypter.decryptDataBlock([]byte(cookieStr))
+	if err != nil {
+		log.Debugf("Decrypting the cookie failed: %v", err)
+		return nil, false
+	}
+	return []byte(decryptedCookie), true
 }
 
 func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
@@ -350,7 +357,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	var (
 		data []byte
 	)
-
+	log.Debugf("Cookie Validation: %v", ok)
 	if !ok {
 		if strings.Contains(ctx.Request().URL.Path, f.redirectPath) {
 			oauthState, err := f.getCallbackState(ctx)
@@ -394,7 +401,13 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 			}
 
 			ctx.StateBag()[redirectURLKey] = oauthState.RedirectUrl
-			ctx.StateBag()[oidcStatebagKey] = data
+
+			encryptedData, err := f.encrypter.encryptDataBlock(data)
+			if err != nil {
+				unauthorized(ctx, "failed to encrypt the returned oidc data", invalidSub, r.Host)
+				return
+			}
+			ctx.StateBag()[oidcStatebagKey] = encryptedData
 			return
 		}
 		f.doOauthRedirect(ctx)
