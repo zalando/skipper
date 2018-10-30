@@ -33,10 +33,10 @@ func NewApiUsageMonitoring(
 	clientIdKeyName string,
 ) filters.Spec {
 	if !enabled {
-		log.Debugf("Filter %q is not enabled. No filter will be created (spec returns `nil`).", Name)
+		log.Debugf("Filter %q is not enabled. Spec returns `noop` filters.", Name)
+		return &noopSpec{&noopFilter{}}
 	}
 	spec := &apiUsageMonitoringSpec{
-		enabled:               enabled,
 		realmAndClientIdRegEx: realmAndClientIdRegEx,
 		realmKey:              realmKeyName,
 		clientIdKey:           clientIdKeyName,
@@ -46,7 +46,6 @@ func NewApiUsageMonitoring(
 }
 
 type apiUsageMonitoringSpec struct {
-	enabled                 bool
 	realmAndClientIdRegEx   string
 	realmAndClientIdMatcher *regexp.Regexp
 	realmKey                string
@@ -58,10 +57,6 @@ func (s *apiUsageMonitoringSpec) Name() string {
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
-	if !s.enabled {
-		return nil, nil
-	}
-
 	if s.realmAndClientIdMatcher == nil {
 		r, err := regexp.Compile(s.realmAndClientIdRegEx)
 		if err != nil {

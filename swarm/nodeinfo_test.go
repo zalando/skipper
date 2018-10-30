@@ -71,7 +71,7 @@ func Test_knownEntryPoint_Node(t *testing.T) {
 			Port: 9292,
 		},
 		nodes: []*NodeInfo{
-			&NodeInfo{
+			{
 				Name: "friend",
 				Addr: net.IPv4(172, 32, 2, 5),
 				Port: 9292,
@@ -90,15 +90,15 @@ func Test_knownEntryPoint_Node(t *testing.T) {
 			Port: 9292,
 		},
 		nodes: []*NodeInfo{
-			&NodeInfo{
+			{
 				Name: "friend1",
 				Addr: net.IPv4(172, 32, 2, 5),
 				Port: 9292,
-			}, &NodeInfo{
+			}, {
 				Name: "friend2",
 				Addr: net.IPv4(172, 32, 2, 6),
 				Port: 9292,
-			}, &NodeInfo{
+			}, {
 				Name: "friend3",
 				Addr: net.IPv4(172, 32, 2, 7),
 				Port: 9292,
@@ -150,14 +150,14 @@ func Test_knownEntryPoint_Nodes(t *testing.T) {
 			Port: 9292,
 		},
 		nodes: []*NodeInfo{
-			&NodeInfo{
+			{
 				Name: "friend",
 				Addr: net.IPv4(172, 32, 2, 5),
 				Port: 9292,
 			},
 		},
 		expected: []*NodeInfo{
-			&NodeInfo{
+			{
 				Name: "friend",
 				Addr: net.IPv4(172, 32, 2, 5),
 				Port: 9292,
@@ -171,30 +171,30 @@ func Test_knownEntryPoint_Nodes(t *testing.T) {
 			Port: 9292,
 		},
 		nodes: []*NodeInfo{
-			&NodeInfo{
+			{
 				Name: "friend1",
 				Addr: net.IPv4(172, 32, 2, 5),
 				Port: 9292,
-			}, &NodeInfo{
+			}, {
 				Name: "friend2",
 				Addr: net.IPv4(172, 32, 2, 6),
 				Port: 9292,
-			}, &NodeInfo{
+			}, {
 				Name: "friend3",
 				Addr: net.IPv4(172, 32, 2, 7),
 				Port: 9292,
 			},
 		},
 		expected: []*NodeInfo{
-			&NodeInfo{
+			{
 				Name: "friend1",
 				Addr: net.IPv4(172, 32, 2, 5),
 				Port: 9292,
-			}, &NodeInfo{
+			}, {
 				Name: "friend2",
 				Addr: net.IPv4(172, 32, 2, 6),
 				Port: 9292,
-			}, &NodeInfo{
+			}, {
 				Name: "friend3",
 				Addr: net.IPv4(172, 32, 2, 7),
 				Port: 9292,

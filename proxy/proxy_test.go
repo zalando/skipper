@@ -41,7 +41,7 @@ type priorityRoute struct {
 }
 
 type (
-	preserveOriginalSpec struct{}
+	preserveOriginalSpec   struct{}
 	preserveOriginalFilter struct{}
 )
 

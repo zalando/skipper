@@ -64,30 +64,29 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 }
 
 func (f *apiUsageMonitoringFilter) trackClientMetrics(c filters.FilterContext, path *pathInfo) {
-	if path.ClientTracking == nil {
-		log.Debug("No ClientTracking")
-		return
-	}
-
-	jwt := parseJwtBody(c.Request())
-	if jwt == nil {
-		log.Debug("JWT body not parsed")
-		return
-	}
-
-	realm, ok := jwt[path.ClientTracking.RealmKey]
-	if !ok {
-		log.Debugf("JWT does not has a %q value for realm", path.ClientTracking.RealmKey)
-		return
-	}
-
-	clientId, ok := jwt[path.ClientTracking.ClientIdKey]
-	if !ok {
-		log.Debugf("JWT does not has a %q value for client ID", path.ClientTracking.ClientIdKey)
-		return
-	}
-
-	
+	//if path.ClientTracking == nil {
+	//	log.Debug("No ClientTracking")
+	//	return
+	//}
+	//
+	//jwt := parseJwtBody(c.Request())
+	//if jwt == nil {
+	//	log.Debug("JWT body not parsed")
+	//	return
+	//}
+	//
+	//realm, ok := jwt[path.ClientTracking.RealmKey]
+	//if !ok {
+	//	log.Debugf("JWT does not has a %q value for realm", path.ClientTracking.RealmKey)
+	//	return
+	//}
+	//
+	//clientId, ok := jwt[path.ClientTracking.ClientIdKey]
+	//if !ok {
+	//	log.Debugf("JWT does not has a %q value for client ID", path.ClientTracking.ClientIdKey)
+	//	return
+	//}
+	// TODO
 }
 
 // String returns a JSON representation of the filter prefixed by its type.

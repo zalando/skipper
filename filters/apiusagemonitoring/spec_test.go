@@ -1,19 +1,13 @@
 package apiusagemonitoring
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func init() {
-	log.Logger.SetLevel(logrus.DebugLevel)
-}
-
 func Test_TypeAndName(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 	assert.Equal(t, &apiUsageMonitoringSpec{
-		enabled:                 true,
 		clientIdKey:             "",
 		realmKey:                "",
 		realmAndClientIdRegEx:   "",
@@ -25,7 +19,6 @@ func Test_TypeAndName(t *testing.T) {
 func Test_FeatureDisableCreateNilFilters(t *testing.T) {
 	spec := NewApiUsageMonitoring(false, "", "", "")
 	assert.Equal(t, &apiUsageMonitoringSpec{
-		enabled:                 false,
 		clientIdKey:             "",
 		realmKey:                "",
 		realmAndClientIdRegEx:   "",
@@ -33,7 +26,7 @@ func Test_FeatureDisableCreateNilFilters(t *testing.T) {
 	}, spec)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assert.Equal(t, filter, &noopFilter{})
 }
 
 func assertApiUsageMonitoringFilter(t *testing.T, filterArgs []interface{}, asserter func(t *testing.T, filter *apiUsageMonitoringFilter)) {
@@ -51,7 +44,7 @@ func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	assert.Equal(t, filter, &noopFilter{})
 }
 
 func Test_CreateFilter_NoParam(t *testing.T) {
@@ -321,16 +314,15 @@ func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 	})
 }
 
-func Test_CreateFilter_RegExCompileFailureCausesError(t *testing.T) {
-	spec := &apiUsageMonitoringSpec{}
-	filter, err := spec.CreateFilter([]interface{}{`{
+func Test_CreateFilter_RegExCompileFailureIgnoresPath(t *testing.T) {
+	args := []interface{}{`{
 		"application_id": "my_app",
 		"api_id": "orders_api",
 		"path_templates": [
 			"(["
 		]
-	}`})
-	assert.NoError(t, err)
-	assert.NoError(t, err)
-	assert.Nil(t, filter)
+	}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assert.Empty(t, filter.Paths)
+	})
 }

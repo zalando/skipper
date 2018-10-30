@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/filters"
 	"net/http"
 	"net/http/pprof"
 	"strings"
@@ -54,7 +53,9 @@ func ParseMetricsKind(t string) Kind {
 // Metrics is the generic interface that all the required backends
 // should implement to be an skipper metrics compatible backend.
 type Metrics interface {
-	filters.Metrics
+	MeasureSince(key string, start time.Time)
+	IncCounter(key string)
+	IncCounterBy(key string, value int64)
 	MeasureRouteLookup(start time.Time)
 	MeasureFilterRequest(filterName string, start time.Time)
 	MeasureAllFiltersRequest(routeId string, start time.Time)

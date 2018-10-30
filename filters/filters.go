@@ -117,8 +117,7 @@ type Spec interface {
 	Name() string
 
 	// CreateFilter creates a Filter instance. Called with the parameters in the route
-	// definition while initializing a route. It may return a nil Filter if for a given
-	// config, no filter is to be applied.
+	// definition while initializing a route.
 	CreateFilter(config []interface{}) (Filter, error)
 }
 
