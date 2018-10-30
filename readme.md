@@ -86,6 +86,22 @@ To run the latest Docker container:
 
     docker run registry.opensource.zalan.do/pathfinder/skipper:latest
 
+To run `eskip` you first mount the `.eskip` file, into the container, and run the command
+
+    docker run \
+      -v $(PWD)/doc-docker-intro.eskip:/doc-docker-intro.eskip \
+      registry.opensource.zalan.do/pathfinder/skipper:latest eskip print doc-docker-intro.eskip
+
+To run `skipper` you first mount the `.eskip` file, into the container, expose the ports and run the command
+
+    docker run -it \
+        -v $(PWD)/doc-docker-intro.eskip:/doc-docker-intro.eskip \
+        -p 9090:9090 \
+        -p 9911:9911 \
+        registry.opensource.zalan.do/pathfinder/skipper:latest skipper doc-docker-intro.eskip
+
+Skipper will then be available on http://localhost:9090
+
 #### Authentication Proxy
 
 Skipper can be used as an authentication proxy, to check incoming
