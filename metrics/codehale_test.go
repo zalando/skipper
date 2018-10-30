@@ -112,7 +112,7 @@ func TestCodaHaleMeasurement(t *testing.T) {
 	if c1.Count() != 0 {
 		t.Error("'TestCounter1' metric should be zero")
 	}
-	c.incCounter("TestCounter1")
+	c.incCounter("TestCounter1", 1)
 	time.Sleep(20 * time.Millisecond)
 	if c1.Count() != 1 {
 		t.Errorf("'TestCounter1' metric should be 1. Got %d", c1.Count())

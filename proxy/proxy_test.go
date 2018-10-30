@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -553,6 +554,65 @@ func TestBreakFilterChain(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized && w.Body.String() != "Impossible body" {
 		t.Errorf("Wrong status code/body. Expected 401 - Impossible body but got %d - %s", w.Code, w.Body.String())
+	}
+}
+
+type nilFilterSpec struct{}
+
+func (*nilFilterSpec) Name() string                                              { return "nilFilter" }
+func (*nilFilterSpec) CreateFilter(config []interface{}) (filters.Filter, error) { return nil, nil }
+
+func TestNilFilterIsNotCalledAndDoesNotBreakFilterChain(t *testing.T) {
+	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {})
+	defer s.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewAppendRequestHeader())
+	fr.Register(builtin.NewAppendResponseHeader())
+	fr.Register(new(nilFilterSpec))
+
+	doc := fmt.Sprintf(`test:
+		Path("/foo") ->
+		appendRequestHeader("X-Expected", "before") ->
+		appendResponseHeader("X-Expected", "before") ->
+		nilFilter() ->
+		appendRequestHeader("X-Expected", "after") ->
+		appendResponseHeader("X-Expected", "after") ->
+		"%s"`, s.URL)
+	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	r, _ := http.NewRequest("GET", "https://www.example.org/foo", nil)
+	w := httptest.NewRecorder()
+	tp.proxy.ServeHTTP(w, r)
+
+	if requestExpectedHeader, has := r.Header["X-Expected"]; has {
+		assert.Contains(t, requestExpectedHeader, "before",
+			"request header was not added before nil filter")
+		assert.Contains(t, requestExpectedHeader, "after",
+			"request header was not added after nil filter (nil filter broke the filter chain)")
+	} else {
+		t.Error("Request is missing the expected header (added during filter chain winding)")
+		return
+	}
+
+	if responseExpectedHeader, has := w.Header()["X-Expected"]; has {
+		assert.Contains(t, responseExpectedHeader, "before",
+			"response header was not added before nil filter")
+		assert.Contains(t, responseExpectedHeader, "after",
+			"response header was not added after nil filter (nil filter broke the filter chain)")
+	} else {
+		t.Error("Response is missing the expected header (added during filter chain unwinding)")
+		return
+	}
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Wrong status code. Expected 200 but got %d", w.Code)
 	}
 }
 

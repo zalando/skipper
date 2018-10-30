@@ -871,3 +871,108 @@ Example:
 ```
 auditLog()
 ```
+
+## apiUsageMonitoring
+
+The `apiUsageMonitoring` filter adds API related metrics to the Skipper monitoring. It is by default not activated. Activate
+it by providing the `-enable-api-usage-monitoring` flag at Skipper startup. In its deactivated state, it is still
+registered as a valid filter (allowing route configurations to specify it), but will perform no operation. That allows,
+per instance, production environments to use it and testing environments not to while keeping the same route configuration
+for all environments.
+
+NOTE: Make sure to activate the metrics flavour proper to your environment using the `metrics-flavour`
+flag in order to get those metrics.
+
+Example:
+```bash
+skipper -enable-api-usage-monitoring -metrics-flavour prometheus
+```
+
+The structure of the metrics is:
+
+    apiUsageMonitoring.custom.<Application ID>.<API ID>.<HTTP Verb>.<Path Template>.<Metric Name>
+
+The available metrics are:
+
+* HTTP exchanges counting:
+    * **http_count**: the number of HTTP exchanges
+    * **http5xx_count**: number of HTTP exchanges resulting in a server error (HTTP status in the 500s)
+    * **http4xx_count**: number of HTTP exchanges resulting in a client error (HTTP status in the 400s)
+    * **http3xx_count**: number of HTTP exchanges resulting in a redirect (HTTP status in the 300s)
+    * **http2xx_count**: number of HTTP exchanges resulting in success (HTTP status in the 200s)
+* Timing:
+    * **latency**: time between the first observable moment (a call to the filter's `Request`) until the last (a call to the filter's `Response`) 
+
+Endpoints can be monitored using the `apiUsageMonitoring` filter in the route. It accepts JSON objects (as strings)
+of the following format.
+
+```yaml
+api-usage-monitoring-configuration:
+  type: object
+  required:
+    - application_id
+    - api_id
+    - path_templates
+  properties:
+    application_id:
+      type: string
+      description: ID of the application
+      example: order-service
+    api_id:
+      type: string
+      description: ID of the API
+      example: orders-api
+    path_templates:
+      description: Endpoints to be monitored.
+      type: array
+      items:
+        type: string
+        description: >
+          Path template in /articles/{article-id} (OpenAPI 3) or in /articles/:article-id format.
+          NOTE: They will be normalized to the :this format for metrics naming.
+        example: /orders/{order-id}
+```
+
+Configuration Example:
+
+```
+apiUsageMonitoring(`
+    {
+        "application_id": "my-app",
+        "api_id": "orders-api",
+        "path_templates": [
+            "foo/orders",
+            "foo/orders/:order-id",
+            "foo/orders/:order-id/order_item/{order-item-id}"
+        ]
+    }`,`{
+        "application_id": "my-app",
+        "api_id": "customers-api",
+        "path_templates": [
+            "/foo/customers/",
+            "/foo/customers/{customer-id}/"
+        ]
+    }
+`)
+```
+
+NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
+and path template.
+
+    apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count
+
+Based on the previous configuration, here is an example of a counter metric.
+
+    apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.http_count
+
+Here is the _Prometheus_ query to obtain it.
+
+    sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.http_count"}[60s])) by (key)
+
+Here is an example of a histogram metric.
+
+    apiUsageMonitoring.custom.my_app.orders-api.POST.foo/orders.latency
+
+Here is the _Prometheus_ query to obtain it.
+
+    histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.latency"}[60s])) by (le, key))

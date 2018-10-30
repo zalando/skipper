@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	metrics "github.com/rcrowley/go-metrics"
+	"github.com/rcrowley/go-metrics"
 )
 
 const (
@@ -115,7 +115,11 @@ func (c *CodaHale) UpdateGauge(key string, v float64) {
 }
 
 func (c *CodaHale) IncCounter(key string) {
-	c.incCounter(key)
+	c.incCounter(key, 1)
+}
+
+func (c *CodaHale) IncCounterBy(key string, value int64) {
+	c.incCounter(key, value)
 }
 
 func (c *CodaHale) measureSince(key string, start time.Time) {
@@ -189,21 +193,21 @@ func (c *CodaHale) getCounter(key string) metrics.Counter {
 	return c.reg.GetOrRegister(key, c.createCounter).(metrics.Counter)
 }
 
-func (c *CodaHale) incCounter(key string) {
+func (c *CodaHale) incCounter(key string, value int64) {
 	go func() {
 		if c := c.getCounter(key); c != nil {
-			c.Inc(1)
+			c.Inc(value)
 		}
 	}()
 }
 
 func (c *CodaHale) IncRoutingFailures() {
-	c.incCounter(KeyRouteFailure)
+	c.incCounter(KeyRouteFailure, 1)
 }
 
 func (c *CodaHale) IncErrorsBackend(routeId string) {
 	if c.options.EnableRouteBackendErrorsCounters {
-		c.incCounter(fmt.Sprintf(KeyErrorsBackend, routeId))
+		c.incCounter(fmt.Sprintf(KeyErrorsBackend, routeId), 1)
 	}
 }
 
@@ -213,7 +217,7 @@ func (c *CodaHale) MeasureBackend5xx(t time.Time) {
 
 func (c *CodaHale) IncErrorsStreaming(routeId string) {
 	if c.options.EnableRouteStreamingErrorsCounters {
-		c.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId))
+		c.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId), 1)
 	}
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/apiusagemonitoring"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
 	logfilter "github.com/zalando/skipper/filters/log"
@@ -448,6 +449,9 @@ type Options struct {
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
 
+	// API Monitoring feature is active (feature toggle)
+	ApiUsageMonitoringEnable bool
+
 	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
 	WebhookTimeout time.Duration
 
@@ -695,7 +699,9 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
-		auth.NewWebhook(o.WebhookTimeout))
+		auth.NewWebhook(o.WebhookTimeout),
+		apiusagemonitoring.NewApiUsageMonitoring(o.ApiUsageMonitoringEnable),
+	)
 
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters

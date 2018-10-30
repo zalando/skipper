@@ -55,6 +55,7 @@ func ParseMetricsKind(t string) Kind {
 type Metrics interface {
 	MeasureSince(key string, start time.Time)
 	IncCounter(key string)
+	IncCounterBy(key string, value int64)
 	MeasureRouteLookup(start time.Time)
 	MeasureFilterRequest(filterName string, start time.Time)
 	MeasureAllFiltersRequest(routeId string, start time.Time)

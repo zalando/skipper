@@ -294,6 +294,12 @@ func (p *Prometheus) IncCounter(key string) {
 	p.customCounterM.WithLabelValues(key).Inc()
 }
 
+// IncCounterBy satisfies Metrics interface.
+func (p *Prometheus) IncCounterBy(key string, value int64) {
+	f := float64(value)
+	p.customCounterM.WithLabelValues(key).Add(f)
+}
+
 // UpdateGauge satisfies Metrics interface.
 func (p *Prometheus) UpdateGauge(key string, v float64) {
 	p.customGaugeM.WithLabelValues(key).Set(v)
