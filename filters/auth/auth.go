@@ -1,10 +1,7 @@
 package auth
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -86,17 +83,15 @@ func getToken(r *http.Request) (string, error) {
 }
 
 func unauthorized(ctx filters.FilterContext, uname string, reason rejectReason, hostname string) {
-	l := fmt.Sprintf("uname: %s, reason: %s", uname, reason)
-	log.Debugf(l)
+	log.Debugf("uname: %s, reason: %s", uname, reason)
 	ctx.StateBag()[logfilter.AuthUserKey] = uname
 	ctx.StateBag()[logfilter.AuthRejectReasonKey] = string(reason)
 	rsp := &http.Response{
 		StatusCode: http.StatusUnauthorized,
 		Header:     make(map[string][]string),
-		Body:       ioutil.NopCloser(bytes.NewBufferString(l)),
 	}
 	// https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.4.2
-	//rsp.Header.Add("WWW-Authenticate", hostname)
+	rsp.Header.Add("WWW-Authenticate", hostname)
 	ctx.Serve(rsp)
 }
 

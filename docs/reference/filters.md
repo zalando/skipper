@@ -572,9 +572,52 @@ forwardToken("X-Tokeninfo-Forward")
 
 ### oauthOidcUserInfo
 
+```
+oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secret", 
+    "http://target.example.com/subpath/callback", "email profile", "name", "email", "picture")
+```
+
+The filter needs the following following parameters:
+
+* **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
+* **Client ID** This value is obtained from the provider upon registration of the application.
+* **Client Secret**  Also obtained from the provider
+* **Callback URL** The entire path to the callback from the provider on which the token will be received.
+    It can be any value which is a subpath on which the filter is applied.
+* **Scopes** The OpenID scopes which need to be specified when requesting the token from the provider.
+* **Claims** The claims which should be present in the token returned by the provider.
+
 ### oauthOidcAnyClaims
 
+```
+oauthOidcAnyClaims("https://oidc-provider.example.com", "client_id", "client_secret", 
+    "http://target.example.com/subpath/callback", "email profile", "name", "email", "picture")
+```
+The filter needs the following following parameters:
+
+* **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
+* **Client ID** This value is obtained from the provider upon registration of the application.
+* **Client Secret**  Also obtained from the provider
+* **Callback URL** The entire path to the callback from the provider on which the token will be received.
+    It can be any value which is a subpath on which the filter is applied.
+* **Scopes** The OpenID scopes which need to be specified when requesting the token from the provider.
+* **Claims** Several claims can be specified and the request is allowed as long as at least one of them is present.
+
 ### oauthOidcAllClaims
+
+```
+oauthOidcAllClaims("https://oidc-provider.example.com", "client_id", "client_secret", 
+    "http://target.example.com/subpath/callback", "email profile", "name", "email", "picture")
+```
+The filter needs the following following parameters:
+
+* **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
+* **Client ID** This value is obtained from the provider upon registration of the application.
+* **Client Secret**  Also obtained from the provider
+* **Callback URL** The entire path to the callback from the provider on which the token will be received.
+    It can be any value which is a subpath on which the filter is applied.
+* **Scopes** The OpenID scopes which need to be specified when requesting the token from the provider.
+* **Claims** Several claims can be specified and the request is allowed only when all claims are present.
 
 ## requestCookie
 
