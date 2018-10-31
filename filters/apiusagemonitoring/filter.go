@@ -32,11 +32,13 @@ type apiUsageMonitoringFilter struct {
 
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 	// Gathering information from the initial request for further metrics calculation
-	c.StateBag()[stateBagKeyBegin] = time.Now()
+	now := time.Now()
+	c.StateBag()[stateBagKeyBegin] = &now
 }
 
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
+	begin, _ := c.StateBag()[stateBagKeyBegin].(*time.Time)
 	path, metricsName := f.resolvePath(request)
 
 	// METRIC: Count
@@ -53,29 +55,50 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	}
 
 	// METRIC: Latency
-	if begin, ok := c.StateBag()[stateBagKeyBegin].(time.Time); ok {
-		metrics.MeasureSince(metricsName.Latency, begin)
+	if begin != nil {
+		metrics.MeasureSince(metricsName.Latency, *begin)
 	}
 
-	trackClientMetrics(c, path)
+	// Client Based Metrics
+	if path.ClientTracking != nil {
+		clientMetricsPart := determineClientMetricPart(c, path)
+		clientMetricsPrefix := metricsName.GlobalPrefix + clientMetricsPart
+
+		// METRIC: Latency Sum
+		if begin != nil {
+			latencyMillis := time.Since(*begin).Nanoseconds() / 1000000
+			c.Metrics().IncCounterBy(clientMetricsPrefix+metricLatencySum, latencyMillis)
+			// todo: Test that this metric is tracked.
+		}
+	}
 
 	log.Debugf("Pushed metrics prefixed by %q", metricsName.GlobalPrefix)
 }
 
-func trackClientMetrics(c filters.FilterContext, path *pathInfo) {
-	if path.ClientTracking == nil {
-		log.Debug("No ClientTracking")
-		return
-	}
-}
-
-func getRealmAndClientFromContext(c filters.FilterContext, path *pathInfo) (realm, clientId string) {
+// determineClientMetricPart generates the proper <Realm>.<Client ID> part of the
+// client metrics name.
+func determineClientMetricPart(c filters.FilterContext, path *pathInfo) string {
 	jwt := parseJwtBody(c.Request())
-	if jwt != nil {
-		realm, _ = jwt[path.ClientTracking.RealmKey].(string)
-		clientId, _ = jwt[path.ClientTracking.ClientIdKey].(string)
+	if jwt == nil {
+		return unknownElementPlaceholder + "." + unknownElementPlaceholder
 	}
-	return
+
+	realm, ok := jwt[path.ClientTracking.RealmKey].(string)
+	if !ok {
+		return unknownElementPlaceholder + "." + unknownElementPlaceholder
+	}
+
+	clientId, ok := jwt[path.ClientTracking.ClientIdKey].(string)
+	if !ok {
+		return realm + "." + unknownElementPlaceholder
+	}
+
+	realmAndClient := realm + "." + clientId
+	if !path.ClientTracking.ClientTrackingMatcher.MatchString(realmAndClient) {
+		return realm + "." + unknownElementPlaceholder
+	}
+
+	return realmAndClient
 }
 
 // String returns a JSON representation of the filter prefixed by its type.

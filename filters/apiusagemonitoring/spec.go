@@ -2,7 +2,6 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
@@ -29,7 +28,6 @@ var (
 // specification (its factory).
 func NewApiUsageMonitoring(
 	enabled bool,
-	realmAndClientIdRegEx string,
 	realmKeyName string,
 	clientIdKeyName string,
 ) filters.Spec {
@@ -38,7 +36,6 @@ func NewApiUsageMonitoring(
 		return &noopSpec{&noopFilter{}}
 	}
 	spec := &apiUsageMonitoringSpec{
-		realmAndClientIdRegEx: realmAndClientIdRegEx,
 		realmKey:              realmKeyName,
 		clientIdKey:           clientIdKeyName,
 	}
@@ -47,8 +44,6 @@ func NewApiUsageMonitoring(
 }
 
 type apiUsageMonitoringSpec struct {
-	realmAndClientIdRegEx   string
-	realmAndClientIdMatcher *regexp.Regexp
 	realmKey                string
 	clientIdKey             string
 }
@@ -58,14 +53,6 @@ func (s *apiUsageMonitoringSpec) Name() string {
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
-	if s.realmAndClientIdMatcher == nil {
-		r, err := regexp.Compile(s.realmAndClientIdRegEx)
-		if err != nil {
-			return nil, fmt.Errorf("cannot compile regular expression realm-and-client-id-matcher: %v", err)
-		}
-		s.realmAndClientIdMatcher = r
-	}
-
 	apis := parseJsonConfiguration(args)
 	paths := s.buildPathInfoListFromConfiguration(apis)
 
@@ -214,7 +201,6 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 	return &clientTrackingInfo{
 		RealmKey:                s.realmKey,
 		ClientIdKey:             s.clientIdKey,
-		RealmAndClientIdMatcher: s.realmAndClientIdMatcher,
 		ClientTrackingMatcher:   clientTrackingMatcher,
 	}
 }

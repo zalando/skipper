@@ -67,7 +67,6 @@ const (
 
 	// API Monitoring
 	defaultApiUsageMonitoringEnable                  = false
-	defaultApiUsageMonitoringRealmAndClientIdMatcher = ""
 	defaultApiUsageMonitoringRealmKey                = ""
 	defaultApiUsageMonitoringClientIdKey             = ""
 
@@ -154,7 +153,6 @@ const (
 
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage                  = "enables the experimental filter apiUsageMonitoring"
-	apiUsageMonitoringRealmAndClientIdMatcherUsage = "regular expression to match against '<realm>.<client_id>' for an individual client ID to be tracked in the metrics"
 	apiUsageMonitoringRealmKeyUsage                = "name of the property in the JWT body that contains the authority realm"
 	apiUsageMonitoringClientIdKeyUsage             = "name of the property in the JWT body that contains the client ID"
 
@@ -281,7 +279,6 @@ var (
 
 	// API Monitoring
 	apiUsageMonitoringEnable                bool
-	apiUsageMonitoringRealmAndClientIdRegEx string
 	apiUsageMonitoringRealmKey              string
 	apiUsageMonitoringClientIdKeyName       string
 
@@ -406,7 +403,6 @@ func init() {
 
 	// API Monitoring:
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
-	flag.StringVar(&apiUsageMonitoringRealmAndClientIdRegEx, "api-usage-monitoring-realm-and-client-id-matcher", defaultApiUsageMonitoringRealmAndClientIdMatcher, apiUsageMonitoringRealmAndClientIdMatcherUsage)
 	flag.StringVar(&apiUsageMonitoringRealmKey, "api-usage-monitoring-realm-key", defaultApiUsageMonitoringRealmKey, apiUsageMonitoringRealmKeyUsage)
 	flag.StringVar(&apiUsageMonitoringClientIdKeyName, "api-usage-monitoring-client-id-key", defaultApiUsageMonitoringClientIdKey, apiUsageMonitoringClientIdKeyUsage)
 
@@ -596,7 +592,6 @@ func main() {
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                apiUsageMonitoringEnable,
-		ApiUsageMonitoringRealmAndClientIdRegEx: apiUsageMonitoringRealmAndClientIdRegEx,
 		ApiUsageMonitoringRealmKey:              apiUsageMonitoringRealmKey,
 		ApiUsageMonitoringClientIdKeyName:       apiUsageMonitoringClientIdKeyName,
 

@@ -451,7 +451,6 @@ type Options struct {
 
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
-	ApiUsageMonitoringRealmAndClientIdRegEx string
 	ApiUsageMonitoringRealmKey              string
 	ApiUsageMonitoringClientIdKeyName       string
 
@@ -705,7 +704,6 @@ func Run(o Options) error {
 		auth.NewWebhook(o.WebhookTimeout),
 		apiusagemonitoring.NewApiUsageMonitoring(
 			o.ApiUsageMonitoringEnable,
-			o.ApiUsageMonitoringRealmAndClientIdRegEx,
 			o.ApiUsageMonitoringRealmKey,
 			o.ApiUsageMonitoringClientIdKeyName,
 		),
