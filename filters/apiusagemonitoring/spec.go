@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -14,8 +15,8 @@ const (
 
 	unknownElementPlaceholder = "<unknown>"
 
-	regexUrlPathPart     = `[^\/]+`
-	regexOptionalSlashes = `[\/]*`
+	regexUrlPathPart     = `.+`
+	regexOptionalSlashes = `\/*`
 )
 
 var (
@@ -183,6 +184,9 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			paths = append(paths, info)
 		}
 	}
+
+	// Sort the paths by their matcher's RegEx
+	sort.Sort(pathInfoByRegExRev(paths))
 
 	return paths
 }
