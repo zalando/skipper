@@ -354,7 +354,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 		args = []interface{}{`{
 				"application_id": "my_app",
 				"api_id": "my_api",
-			  	"path_templates": [
+				"path_templates": [
 					"foo/:a",
 					"foo/:a/:b",
 					"foo/:a/:b/:c"
