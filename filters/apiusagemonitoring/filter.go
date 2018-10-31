@@ -27,7 +27,6 @@ const (
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
 // created for every route invocation of the `apiUsageMonitoring` filter.
 type apiUsageMonitoringFilter struct {
-	Spec  *apiUsageMonitoringSpec
 	Paths []*pathInfo
 }
 
@@ -58,35 +57,25 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 		metrics.MeasureSince(metricsName.Latency, begin)
 	}
 
-	f.trackClientMetrics(c, path)
+	trackClientMetrics(c, path)
 
 	log.Debugf("Pushed metrics prefixed by %q", metricsName.GlobalPrefix)
 }
 
-func (f *apiUsageMonitoringFilter) trackClientMetrics(c filters.FilterContext, path *pathInfo) {
-	//if path.ClientTracking == nil {
-	//	log.Debug("No ClientTracking")
-	//	return
-	//}
-	//
-	//jwt := parseJwtBody(c.Request())
-	//if jwt == nil {
-	//	log.Debug("JWT body not parsed")
-	//	return
-	//}
-	//
-	//realm, ok := jwt[path.ClientTracking.RealmKey]
-	//if !ok {
-	//	log.Debugf("JWT does not has a %q value for realm", path.ClientTracking.RealmKey)
-	//	return
-	//}
-	//
-	//clientId, ok := jwt[path.ClientTracking.ClientIdKey]
-	//if !ok {
-	//	log.Debugf("JWT does not has a %q value for client ID", path.ClientTracking.ClientIdKey)
-	//	return
-	//}
-	// TODO
+func trackClientMetrics(c filters.FilterContext, path *pathInfo) {
+	if path.ClientTracking == nil {
+		log.Debug("No ClientTracking")
+		return
+	}
+}
+
+func getRealmAndClientFromContext(c filters.FilterContext, path *pathInfo) (realm, clientId string) {
+	jwt := parseJwtBody(c.Request())
+	if jwt != nil {
+		realm, _ = jwt[path.ClientTracking.RealmKey].(string)
+		clientId, _ = jwt[path.ClientTracking.ClientIdKey].(string)
+	}
+	return
 }
 
 // String returns a JSON representation of the filter prefixed by its type.

@@ -70,7 +70,6 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	paths := s.buildPathInfoListFromConfiguration(apis)
 
 	filter = &apiUsageMonitoringFilter{
-		Spec:  s,
 		Paths: paths,
 	}
 	log.Debugf("Created filter: %s", filter)

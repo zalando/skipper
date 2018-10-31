@@ -395,3 +395,68 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 		})
 	}
 }
+
+func Test_getRealmAndClientFromContext(t *testing.T) {
+	for _, testCase := range []struct {
+		jwt              string
+		expectedRealm    string
+		expectedClientId string
+	}{
+		// use https://jwt.io/ to decode/encore JWT base64 strings
+		{
+			// {	"foo": "abc",
+			// 		"bar": "xyz"	}
+			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJhYmMiLCJiYXIiOiJ4eXoifQ.mvySdTnLnbBAL__hDrk9Q7t9l1vCwrc1U5wttyqu1Ng",
+			expectedRealm:    "",
+			expectedClientId: "",
+		},
+		{
+			// {	"realm": "abc",
+			// 		"bar":   "xyz"	}
+			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6ImFiYyIsImJhciI6Inh5eiJ9.8IkCEEFeJ3SqOwEQ27ru5uwck6GjWttbI7RSCiu_T2E",
+			expectedRealm:    "abc",
+			expectedClientId: "",
+		},
+		{
+			// {	"realm":   "abc",
+			// 		"user_id": "me/myself/I"	}
+			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6ImFiYyIsInVzZXJfaWQiOiJtZS9teXNlbGYvSSJ9.jA2HojPdk5etOskayRmmI-GRw_Rqge_unoW6lpUqHBE",
+			expectedRealm:    "abc",
+			expectedClientId: "me/myself/I",
+		},
+		{
+			// {	"foo":     "abc",
+			// 		"user_id": "me/myself/I"	}
+			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJhYmMiLCJ1c2VyX2lkIjoibWUvbXlzZWxmL0kifQ.Ii8cpBP8l3evKEtbRl_RRsi23aF7l1MjfahPGTOh81I",
+			expectedRealm:    "",
+			expectedClientId: "me/myself/I",
+		},
+		{
+			// {	"realm":   42,
+			// 		"user_id": true	}
+			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6NDIsInVzZXJfaWQiOnRydWV9.SM2Ym9kD9j7dMkc-hOj90bnAtGQaRKz-2GDDKva4O5A",
+			expectedRealm:    "",
+			expectedClientId: "",
+		},
+	} {
+		path := &pathInfo{
+			ClientTracking: &clientTrackingInfo{
+				RealmKey:    "realm",
+				ClientIdKey: "user_id",
+			},
+		}
+		request, err := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+		if !assert.NoError(t, err) {
+			return
+		}
+		request.Header.Add(authorizationHeaderName, authorizationHeaderPrefix+testCase.jwt)
+
+		filterContext := &filtertest.Context{
+			FRequest: request,
+		}
+		realm, clientId := getRealmAndClientFromContext(filterContext, path)
+
+		assert.Equal(t, testCase.expectedRealm, realm)
+		assert.Equal(t, testCase.expectedClientId, clientId)
+	}
+}
