@@ -355,9 +355,9 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 				"application_id": "my_app",
 				"api_id": "my_api",
 			  	"path_templates": [
-                  "foo/:a",
-                  "foo/:a/:b",
-                  "foo/:a/:b/:c"
+					"foo/:a",
+					"foo/:a/:b",
+					"foo/:a/:b/:c"
 				]
 			}`}
 		spec := NewApiUsageMonitoring(true)
