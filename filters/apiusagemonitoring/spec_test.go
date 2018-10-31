@@ -1,6 +1,7 @@
 package apiusagemonitoring
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
 	"testing"
@@ -24,6 +25,28 @@ func assertApiUsageMonitoringFilter(t *testing.T, filter filters.Filter, asserte
 	assert.NotNil(t, filter)
 	if assert.IsType(t, &apiUsageMonitoringFilter{}, filter) {
 		asserter(t, filter.(*apiUsageMonitoringFilter))
+	}
+}
+
+type pathMatcher struct {
+	ApplicationId string
+	ApiId         string
+	PathTemplate  string
+	Matcher       string
+}
+
+func assertPaths(t *testing.T, paths []*pathInfo, expectedPaths []pathMatcher) {
+	if !assert.Len(t, paths, len(expectedPaths)) {
+		return
+	}
+	for i, actual := range paths {
+		expected := expectedPaths[i]
+		if !assert.Equal(t, expected.PathTemplate, actual.PathTemplate, fmt.Sprintf("Index %d", i)) {
+			continue // don't test this one further, it's an ordering problem and the template in results is enough
+		}
+		assert.Equal(t, expected.ApplicationId, actual.ApplicationId, fmt.Sprintf("Index %d", i))
+		assert.Equal(t, expected.ApiId, actual.ApiId, fmt.Sprintf("Index %d", i))
+		assert.Equal(t, expected.Matcher, actual.Matcher.String(), fmt.Sprintf("Index %d", i))
 	}
 }
 
@@ -138,13 +161,14 @@ func Test_CreateFilter_NonParseableParametersShouldBeLoggedAndIgnored(t *testing
 	})
 	assert.NoError(t, err)
 	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-
-		assert.Len(t, filter.Paths, 1)
-
-		assert.Equal(t, "my_app", filter.Paths[0].ApplicationId)
-		assert.Equal(t, "my_api", filter.Paths[0].ApiId)
-		assert.Equal(t, "test", filter.Paths[0].PathTemplate)
-		assert.Equal(t, "^[\\/]*test[\\/]*$", filter.Paths[0].Matcher.String())
+		assertPaths(t, filter.Paths, []pathMatcher{
+			{
+				PathTemplate:  "test",
+				ApplicationId: "my_app",
+				ApiId:         "my_api",
+				Matcher:       "^\\/*test\\/*$",
+			},
+		})
 	})
 }
 
@@ -168,33 +192,38 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 	}`})
 	assert.NoError(t, err)
 	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-
-		assert.Len(t, filter.Paths, 5)
-
-		assert.Equal(t, "my_app", filter.Paths[0].ApplicationId)
-		assert.Equal(t, "my_api", filter.Paths[0].ApiId)
-		assert.Equal(t, "foo/orders", filter.Paths[0].PathTemplate)
-		assert.Equal(t, "^[\\/]*foo\\/orders[\\/]*$", filter.Paths[0].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[1].ApplicationId)
-		assert.Equal(t, "my_api", filter.Paths[1].ApiId)
-		assert.Equal(t, "foo/orders/:order-id", filter.Paths[1].PathTemplate)
-		assert.Equal(t, "^[\\/]*foo\\/orders\\/[^\\/]+[\\/]*$", filter.Paths[1].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[2].ApplicationId)
-		assert.Equal(t, "my_api", filter.Paths[2].ApiId)
-		assert.Equal(t, "foo/orders/:order-id/order_item/:order-item-id", filter.Paths[2].PathTemplate) // normalized to `:id`
-		assert.Equal(t, "^[\\/]*foo\\/orders\\/[^\\/]+\\/order_item\\/[^\\/]+[\\/]*$", filter.Paths[2].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[3].ApplicationId)
-		assert.Equal(t, "my_api", filter.Paths[3].ApiId)
-		assert.Equal(t, "foo/customers", filter.Paths[3].PathTemplate) // without the head/tail slashes
-		assert.Equal(t, "^[\\/]*foo\\/customers[\\/]*$", filter.Paths[3].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[4].ApplicationId)
-		assert.Equal(t, "my_api", filter.Paths[4].ApiId)
-		assert.Equal(t, "foo/customers/:customer-id", filter.Paths[4].PathTemplate) // without the head/tail slashes, normalized to `:id`
-		assert.Equal(t, "^[\\/]*foo\\/customers\\/[^\\/]+[\\/]*$", filter.Paths[4].Matcher.String())
+		assertPaths(t, filter.Paths, []pathMatcher{
+			{
+				PathTemplate:  "foo/orders/:order-id/order_item/:order-item-id",
+				ApplicationId: "my_app",
+				ApiId:         "my_api",
+				Matcher:       "^\\/*foo\\/orders\\/.+\\/order_item\\/.+\\/*$",
+			},
+			{
+				PathTemplate:  "foo/orders/:order-id",
+				ApplicationId: "my_app",
+				ApiId:         "my_api",
+				Matcher:       "^\\/*foo\\/orders\\/.+\\/*$",
+			},
+			{
+				PathTemplate:  "foo/orders",
+				ApplicationId: "my_app",
+				ApiId:         "my_api",
+				Matcher:       "^\\/*foo\\/orders\\/*$",
+			},
+			{
+				PathTemplate:  "foo/customers/:customer-id",
+				ApplicationId: "my_app",
+				ApiId:         "my_api",
+				Matcher:       "^\\/*foo\\/customers\\/.+\\/*$",
+			},
+			{
+				PathTemplate:  "foo/customers",
+				ApplicationId: "my_app",
+				ApiId:         "my_api",
+				Matcher:       "^\\/*foo\\/customers\\/*$",
+			},
+		})
 	})
 }
 
@@ -218,32 +247,38 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 		}`})
 	assert.NoError(t, err)
 	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-		assert.Len(t, filter.Paths, 5)
-
-		assert.Equal(t, "my_app", filter.Paths[0].ApplicationId)
-		assert.Equal(t, "orders_api", filter.Paths[0].ApiId)
-		assert.Equal(t, "foo/orders", filter.Paths[0].PathTemplate)
-		assert.Equal(t, "^[\\/]*foo\\/orders[\\/]*$", filter.Paths[0].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[1].ApplicationId)
-		assert.Equal(t, "orders_api", filter.Paths[1].ApiId)
-		assert.Equal(t, "foo/orders/:order-id", filter.Paths[1].PathTemplate)
-		assert.Equal(t, "^[\\/]*foo\\/orders\\/[^\\/]+[\\/]*$", filter.Paths[1].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[2].ApplicationId)
-		assert.Equal(t, "orders_api", filter.Paths[2].ApiId)
-		assert.Equal(t, "foo/orders/:order-id/order_item/:order-item-id", filter.Paths[2].PathTemplate) // normalized to `:id`
-		assert.Equal(t, "^[\\/]*foo\\/orders\\/[^\\/]+\\/order_item\\/[^\\/]+[\\/]*$", filter.Paths[2].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[3].ApplicationId)
-		assert.Equal(t, "customers_api", filter.Paths[3].ApiId)
-		assert.Equal(t, "foo/customers", filter.Paths[3].PathTemplate) // without the head/tail slashes
-		assert.Equal(t, "^[\\/]*foo\\/customers[\\/]*$", filter.Paths[3].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[4].ApplicationId)
-		assert.Equal(t, "customers_api", filter.Paths[4].ApiId)
-		assert.Equal(t, "foo/customers/:customer-id", filter.Paths[4].PathTemplate) // without the head/tail slashes, normalized to `:id`
-		assert.Equal(t, "^[\\/]*foo\\/customers\\/[^\\/]+[\\/]*$", filter.Paths[4].Matcher.String())
+		assertPaths(t, filter.Paths, []pathMatcher{
+			{
+				PathTemplate:  "foo/orders/:order-id/order_item/:order-item-id",
+				ApplicationId: "my_app",
+				ApiId:         "orders_api",
+				Matcher:       "^\\/*foo\\/orders\\/.+\\/order_item\\/.+\\/*$",
+			},
+			{
+				PathTemplate:  "foo/orders/:order-id",
+				ApplicationId: "my_app",
+				ApiId:         "orders_api",
+				Matcher:       "^\\/*foo\\/orders\\/.+\\/*$",
+			},
+			{
+				PathTemplate:  "foo/orders",
+				ApplicationId: "my_app",
+				ApiId:         "orders_api",
+				Matcher:       "^\\/*foo\\/orders\\/*$",
+			},
+			{
+				PathTemplate:  "foo/customers/:customer-id",
+				ApplicationId: "my_app",
+				ApiId:         "customers_api",
+				Matcher:       "^\\/*foo\\/customers\\/.+\\/*$",
+			},
+			{
+				PathTemplate:  "foo/customers",
+				ApplicationId: "my_app",
+				ApiId:         "customers_api",
+				Matcher:       "^\\/*foo\\/customers\\/*$",
+			},
+		})
 	})
 }
 
@@ -268,20 +303,26 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 		}`})
 	assert.NoError(t, err)
 	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-
-		assert.Len(t, filter.Paths, 3)
-
-		assert.Equal(t, "my_app", filter.Paths[0].ApplicationId)
-		assert.Equal(t, "foo/orders", filter.Paths[0].PathTemplate)
-		assert.Equal(t, "^[\\/]*foo\\/orders[\\/]*$", filter.Paths[0].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[1].ApplicationId)
-		assert.Equal(t, "foo/orders/:order-id", filter.Paths[1].PathTemplate)
-		assert.Equal(t, "^[\\/]*foo\\/orders\\/[^\\/]+[\\/]*$", filter.Paths[1].Matcher.String())
-
-		assert.Equal(t, "my_app", filter.Paths[2].ApplicationId)
-		assert.Equal(t, "foo/orders/:order-id/order_item/:order-item-id", filter.Paths[2].PathTemplate) // normalized to `:id`
-		assert.Equal(t, "^[\\/]*foo\\/orders\\/[^\\/]+\\/order_item\\/[^\\/]+[\\/]*$", filter.Paths[2].Matcher.String())
+		assertPaths(t, filter.Paths, []pathMatcher{
+			{
+				PathTemplate:  "foo/orders/:order-id/order_item/:order-item-id",
+				ApplicationId: "my_app",
+				ApiId:         "orders_api",
+				Matcher:       "^\\/*foo\\/orders\\/.+\\/order_item\\/.+\\/*$",
+			},
+			{
+				PathTemplate:  "foo/orders/:order-id",
+				ApplicationId: "my_app",
+				ApiId:         "orders_api",
+				Matcher:       "^\\/*foo\\/orders\\/.+\\/*$",
+			},
+			{
+				PathTemplate:  "foo/orders",
+				ApplicationId: "my_app",
+				ApiId:         "orders_api",
+				Matcher:       "^\\/*foo\\/orders\\/*$",
+			},
+		})
 	})
 }
 
@@ -299,12 +340,14 @@ func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 	}`})
 	assert.NoError(t, err)
 	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-
-		assert.Len(t, filter.Paths, 1)
-
-		assert.Equal(t, filter.Paths[0].ApplicationId, "my_app")
-		assert.Equal(t, filter.Paths[0].PathTemplate, "foo")
-		assert.Equal(t, filter.Paths[0].Matcher.String(), "^[\\/]*foo[\\/]*$")
+		assertPaths(t, filter.Paths, []pathMatcher{
+			{
+				PathTemplate:  "foo",
+				ApplicationId: "my_app",
+				ApiId:         "orders_api",
+				Matcher:       "^\\/*foo\\/*$",
+			},
+		})
 	})
 }
 
@@ -321,12 +364,14 @@ func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 	}`})
 	assert.NoError(t, err)
 	assertApiUsageMonitoringFilter(t, filter, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-
-		assert.Len(t, filter.Paths, 1)
-
-		assert.Equal(t, "my_app", filter.Paths[0].ApplicationId)
-		assert.Equal(t, "foo/:a", filter.Paths[0].PathTemplate)
-		assert.Equal(t, "^[\\/]*foo\\/[^\\/]+[\\/]*$", filter.Paths[0].Matcher.String())
+		assertPaths(t, filter.Paths, []pathMatcher{
+			{
+				PathTemplate:  "foo/:a",
+				ApplicationId: "my_app",
+				ApiId:         "orders_api",
+				Matcher:       "^\\/*foo\\/.+\\/*$",
+			},
+		})
 	})
 }
 

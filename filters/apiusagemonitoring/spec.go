@@ -5,6 +5,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -13,8 +14,8 @@ const (
 
 	unknownElementPlaceholder = "<unknown>"
 
-	regexUrlPathPart     = `[^\/]+`
-	regexOptionalSlashes = `[\/]*`
+	regexUrlPathPart     = `.+`
+	regexOptionalSlashes = `\/*`
 )
 
 var (
@@ -154,8 +155,17 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 		}
 	}
 
+	// Sort the paths by their matcher's RegEx
+	sort.Sort(pathInfoByRegExRev(paths))
+
 	return paths
 }
+
+type pathInfoByRegExRev []*pathInfo
+
+func (s pathInfoByRegExRev) Len() int           { return len(s) }
+func (s pathInfoByRegExRev) Less(i, j int) bool { return s[i].Matcher.String() > s[j].Matcher.String() }
+func (s pathInfoByRegExRev) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // generateRegExpStringForPathTemplate normalizes the given path template and
 // creates a regular expression from it.
