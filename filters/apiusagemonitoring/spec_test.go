@@ -150,13 +150,14 @@ func Test_CreateFilter_NonParseableParametersShouldBeLoggedAndIgnored(t *testing
 		"I am useless...", // poor little depressed parameter :'(
 	}
 	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-
-		assert.Len(t, filter.Paths, 1)
-
-		assert.Equal(t, "my_app", filter.Paths[0].ApplicationId)
-		assert.Equal(t, "my_api", filter.Paths[0].ApiId)
-		assert.Equal(t, "test", filter.Paths[0].PathTemplate)
-		assert.Equal(t, "^\\/*test\\/*$", filter.Paths[0].Matcher.String())
+		assertPaths(t, filter.Paths, []pathMatcher{
+			{
+				PathTemplate:  "test",
+				ApplicationId: "my_app",
+				ApiId:         "my_api",
+				Matcher:       "^\\/*test\\/*$",
+			},
+		})
 	})
 }
 

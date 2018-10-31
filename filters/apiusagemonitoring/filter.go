@@ -130,18 +130,19 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 	}
 
 	// Prefixes were not cached for this path and method. Generate and cache.
-	globalPrefix := path.ApplicationId + "." + path.ApiId + "." + method + "." + path.PathTemplate + "."
+	prefix := path.ApplicationId + "." + path.ApiId + "." + method + "." + path.PathTemplate + "."
+	prefixNoClient := prefix + "*.*."
 	prefixes = &metricNames{
-		GlobalPrefix: globalPrefix,
-		CountAll:     globalPrefix + metricCountAll,
+		GlobalPrefix: prefix,
+		CountAll:     prefixNoClient + metricCountAll,
 		CountPerStatusCodeRange: [5]string{
-			globalPrefix + metricCount100s,
-			globalPrefix + metricCount200s,
-			globalPrefix + metricCount300s,
-			globalPrefix + metricCount400s,
-			globalPrefix + metricCount500s,
+			prefixNoClient + metricCount100s,
+			prefixNoClient + metricCount200s,
+			prefixNoClient + metricCount300s,
+			prefixNoClient + metricCount400s,
+			prefixNoClient + metricCount500s,
 		},
-		Latency: globalPrefix + metricLatency,
+		Latency: prefixNoClient + metricLatency,
 	}
 	path.metricPrefixesPerMethod[methodIndex] = prefixes
 	return path, prefixes
