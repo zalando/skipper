@@ -161,12 +161,6 @@ func buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
 	return paths
 }
 
-type pathInfoByRegExRev []*pathInfo
-
-func (s pathInfoByRegExRev) Len() int           { return len(s) }
-func (s pathInfoByRegExRev) Less(i, j int) bool { return s[i].Matcher.String() > s[j].Matcher.String() }
-func (s pathInfoByRegExRev) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-
 // generateRegExpStringForPathTemplate normalizes the given path template and
 // creates a regular expression from it.
 func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTemplate, matcher string) {
