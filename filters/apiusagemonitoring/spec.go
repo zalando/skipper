@@ -36,16 +36,16 @@ func NewApiUsageMonitoring(
 		return &noopSpec{&noopFilter{}}
 	}
 	spec := &apiUsageMonitoringSpec{
-		realmKey:              realmKeyName,
-		clientIdKey:           clientIdKeyName,
+		realmKey:    realmKeyName,
+		clientIdKey: clientIdKeyName,
 	}
 	log.Debugf("Created filter spec: %+v", spec)
 	return spec
 }
 
 type apiUsageMonitoringSpec struct {
-	realmKey                string
-	clientIdKey             string
+	realmKey    string
+	clientIdKey string
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
@@ -199,9 +199,9 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 	}
 
 	return &clientTrackingInfo{
-		RealmKey:                s.realmKey,
-		ClientIdKey:             s.clientIdKey,
-		ClientTrackingMatcher:   clientTrackingMatcher,
+		RealmKey:              s.realmKey,
+		ClientIdKey:           s.clientIdKey,
+		ClientTrackingMatcher: clientTrackingMatcher,
 	}
 }
 

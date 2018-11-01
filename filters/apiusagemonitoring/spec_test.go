@@ -9,8 +9,8 @@ import (
 func Test_TypeAndName(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "")
 	assert.Equal(t, &apiUsageMonitoringSpec{
-		clientIdKey:             "",
-		realmKey:                "",
+		clientIdKey: "",
+		realmKey:    "",
 	}, spec)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 }

@@ -1,8 +1,6 @@
 package apiusagemonitoring
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
@@ -332,144 +330,6 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 	}
 }
 
-func Test_Filter_ClientMetrics(t *testing.T) {
-	for testName, testCase := range map[string]struct {
-		realmKeyName          string
-		clientIdKeyName       string
-		clientTrackingPattern string
-		jwtBodyJson           map[string]interface{}
-		expectedRealm         string // "" means not expecting client metrics
-		expectedClientId      string
-	}{
-		"Realm and user matches": {
-			realmKeyName:          "realm",
-			clientIdKeyName:       "client-id",
-			clientTrackingPattern: ".*",
-			jwtBodyJson:           map[string]interface{}{"realm": "users", "client-id": "joe"},
-			expectedRealm:         "users",
-			expectedClientId:      "joe",
-		},
-	} {
-		t.Run(testName, func(t *testing.T) {
-			jwt, ok := buildFakeJwtWithBody(t, testCase.jwtBodyJson)
-			if !ok {
-				return
-			}
-			conf := testWithFilterConf{
-				header: map[string][]string{
-					authorizationHeaderName: {"Bearer " + jwt},
-				},
-				filterCreate: func() (filters.Filter, error) {
-					args := []interface{}{`{
-					"application_id": "my_app",
-					"api_id": "my_api",
-				  	"path_templates": [
-						"foo/orders"
-					],
-					"client_tracking_pattern": "` + testCase.clientTrackingPattern + `"
-				}`}
-					spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientIdKeyName)
-					return spec.CreateFilter(args)
-				},
-			}
-			previousLatencySum := float64(0)
-			testWithFilterC(t, conf, func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-				pre := fmt.Sprintf(
-					"apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.%s.%s.",
-					testCase.expectedRealm,
-					testCase.expectedClientId)
-				if testCase.expectedRealm == "" {
-					assertNoMetricsWithSuffixes(t, clientMetricsSuffix, m)
-					return
-				}
-				if assert.Contains(t, m.FloatCounters, pre+"latency_sum") {
-					currentLatencySum := m.FloatCounters[pre+"latency_sum"]
-					assert.Conditionf(t,
-						func() (success bool) { return currentLatencySum > previousLatencySum },
-						"Current latency sum is not higher than the previous recorded one (%d to %d)",
-						previousLatencySum, currentLatencySum)
-				}
-			})
-		})
-	}
-}
-
-func buildFakeJwtWithBody(t *testing.T, jwtBodyJson map[string]interface{}) (string, bool) {
-	jwtBodyBytes, err := json.Marshal(jwtBodyJson)
-	if !assert.NoError(t, err) {
-		return "", false
-	}
-	jwtBody := base64.RawURLEncoding.EncodeToString(jwtBodyBytes)
-	jwt := fmt.Sprintf("<No Header>.%s.< No Verify Signature>", jwtBody)
-	return jwt, true
-}
-
-// todo: Fix test or remove
-//func Test_getRealmAndClientFromContext(t *testing.T) {
-//	for _, testCase := range []struct {
-//		jwt              string
-//		expectedRealm    string
-//		expectedClientId string
-//	}{
-//		// use https://jwt.io/ to decode/encore JWT base64 strings
-//		{
-//			// {	"foo": "abc",
-//			// 		"bar": "xyz"	}
-//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJhYmMiLCJiYXIiOiJ4eXoifQ.mvySdTnLnbBAL__hDrk9Q7t9l1vCwrc1U5wttyqu1Ng",
-//			expectedRealm:    "",
-//			expectedClientId: "",
-//		},
-//		{
-//			// {	"realm": "abc",
-//			// 		"bar":   "xyz"	}
-//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6ImFiYyIsImJhciI6Inh5eiJ9.8IkCEEFeJ3SqOwEQ27ru5uwck6GjWttbI7RSCiu_T2E",
-//			expectedRealm:    "abc",
-//			expectedClientId: "",
-//		},
-//		{
-//			// {	"realm":   "abc",
-//			// 		"user_id": "me/myself/I"	}
-//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6ImFiYyIsInVzZXJfaWQiOiJtZS9teXNlbGYvSSJ9.jA2HojPdk5etOskayRmmI-GRw_Rqge_unoW6lpUqHBE",
-//			expectedRealm:    "abc",
-//			expectedClientId: "me/myself/I",
-//		},
-//		{
-//			// {	"foo":     "abc",
-//			// 		"user_id": "me/myself/I"	}
-//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJhYmMiLCJ1c2VyX2lkIjoibWUvbXlzZWxmL0kifQ.Ii8cpBP8l3evKEtbRl_RRsi23aF7l1MjfahPGTOh81I",
-//			expectedRealm:    "",
-//			expectedClientId: "me/myself/I",
-//		},
-//		{
-//			// {	"realm":   42,
-//			// 		"user_id": true	}
-//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6NDIsInVzZXJfaWQiOnRydWV9.SM2Ym9kD9j7dMkc-hOj90bnAtGQaRKz-2GDDKva4O5A",
-//			expectedRealm:    "",
-//			expectedClientId: "",
-//		},
-//	} {
-//		path := &pathInfo{
-//			ClientTracking: &clientTrackingInfo{
-//				RealmKey:    "realm",
-//				ClientIdKey: "user_id",
-//			},
-//		}
-//		request, err := http.NewRequest(http.MethodGet, "http://example.com/", nil)
-//		if !assert.NoError(t, err) {
-//			return
-//		}
-//		request.Header.Add(authorizationHeaderName, authorizationHeaderPrefix+testCase.jwt)
-//
-//		filterContext := &filtertest.Context{
-//			FRequest: request,
-//		}
-//		realm, clientId := getRealmAndClientFromContext(filterContext, path)
-//
-//		assert.Equal(t, testCase.expectedRealm, realm)
-//		assert.Equal(t, testCase.expectedClientId, clientId)
-//	}
-//}
-
 var defaultArgs = []interface{}{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
@@ -575,6 +435,11 @@ func testWithFilterC(
 	} else {
 		url = *conf.url
 	}
+	if conf.resStatus == nil {
+		resStatus = http.StatusOK
+	} else {
+		resStatus = *conf.resStatus
+	}
 
 	// Create Filter
 	filter, err := filterCreate()
@@ -629,19 +494,19 @@ func assertNoMetricsWithSuffixes(t *testing.T, unexpectedSuffixes []string, metr
 	for _, suffix := range unexpectedSuffixes {
 		for key := range metrics.Counters {
 			if strings.HasSuffix(key, "."+suffix) {
-				assert.Failf(t, "Counter with key %q is not expected", key)
+				assert.Failf(t, "Unexpected metric", "Counter with key %q is not expected", key)
 				success = false
 			}
 		}
 		for key := range metrics.FloatCounters {
 			if strings.HasSuffix(key, "."+suffix) {
-				assert.Failf(t, "FloatCounter with key %q is not expected", key)
+				assert.Failf(t, "Unexpected metric", "FloatCounter with key %q is not expected", key)
 				success = false
 			}
 		}
 		for key := range metrics.Measures {
 			if strings.HasSuffix(key, "."+suffix) {
-				assert.Failf(t, "Measure with key %q is not expected", key)
+				assert.Failf(t, "Unexpected metric", "Measure with key %q is not expected", key)
 				success = false
 			}
 		}

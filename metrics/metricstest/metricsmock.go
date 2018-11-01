@@ -9,9 +9,9 @@ type MockMetrics struct {
 	Prefix string
 
 	// Metrics gathering
-	Counters map[string]int64
+	Counters      map[string]int64
 	FloatCounters map[string]float64
-	Measures map[string][]time.Duration
+	Measures      map[string][]time.Duration
 }
 
 func (m *MockMetrics) MeasureSince(key string, start time.Time) {

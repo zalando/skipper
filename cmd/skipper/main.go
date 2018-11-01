@@ -66,9 +66,9 @@ const (
 	defaultWebhookTimeout                 = 2 * time.Second
 
 	// API Monitoring
-	defaultApiUsageMonitoringEnable                  = false
-	defaultApiUsageMonitoringRealmKey                = ""
-	defaultApiUsageMonitoringClientIdKey             = ""
+	defaultApiUsageMonitoringEnable      = false
+	defaultApiUsageMonitoringRealmKey    = ""
+	defaultApiUsageMonitoringClientIdKey = ""
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -152,9 +152,9 @@ const (
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// API Monitoring:
-	apiUsageMonitoringEnableUsage                  = "enables the experimental filter apiUsageMonitoring"
-	apiUsageMonitoringRealmKeyUsage                = "name of the property in the JWT body that contains the authority realm"
-	apiUsageMonitoringClientIdKeyUsage             = "name of the property in the JWT body that contains the client ID"
+	apiUsageMonitoringEnableUsage      = "enables the experimental filter apiUsageMonitoring"
+	apiUsageMonitoringRealmKeyUsage    = "name of the property in the JWT body that contains the authority realm"
+	apiUsageMonitoringClientIdKeyUsage = "name of the property in the JWT body that contains the client ID"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -278,9 +278,9 @@ var (
 	webhookTimeout                  time.Duration
 
 	// API Monitoring
-	apiUsageMonitoringEnable                bool
-	apiUsageMonitoringRealmKey              string
-	apiUsageMonitoringClientIdKeyName       string
+	apiUsageMonitoringEnable          bool
+	apiUsageMonitoringRealmKey        string
+	apiUsageMonitoringClientIdKeyName string
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -591,9 +591,9 @@ func main() {
 		KubernetesNamespace:         kubernetesNamespace,
 
 		// API Monitoring:
-		ApiUsageMonitoringEnable:                apiUsageMonitoringEnable,
-		ApiUsageMonitoringRealmKey:              apiUsageMonitoringRealmKey,
-		ApiUsageMonitoringClientIdKeyName:       apiUsageMonitoringClientIdKeyName,
+		ApiUsageMonitoringEnable:          apiUsageMonitoringEnable,
+		ApiUsageMonitoringRealmKey:        apiUsageMonitoringRealmKey,
+		ApiUsageMonitoringClientIdKeyName: apiUsageMonitoringClientIdKeyName,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,
