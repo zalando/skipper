@@ -27,17 +27,17 @@ func parseJwtBody(req *http.Request) map[string]interface{} {
 	}
 
 	// base64-decode the JWT body part
-	sDec, err := base64.RawURLEncoding.DecodeString(fields[1])
+	bodyJson, err := base64.RawURLEncoding.DecodeString(fields[1])
 	if err != nil {
 		return nil
 	}
 
 	// un-marshall the JWT body from JSON
-	var h map[string]interface{}
-	err = json.Unmarshal(sDec, &h)
+	var bodyObject map[string]interface{}
+	err = json.Unmarshal(bodyJson, &bodyObject)
 	if err != nil {
 		return nil
 	}
 
-	return h
+	return bodyObject
 }

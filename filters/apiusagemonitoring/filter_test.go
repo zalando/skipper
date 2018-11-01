@@ -1,6 +1,8 @@
 package apiusagemonitoring
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
@@ -10,72 +12,6 @@ import (
 	"strings"
 	"testing"
 )
-
-var (
-	args = []interface{}{`{
-		"application_id": "my_app",
-		"api_id": "my_api",
-	  	"path_templates": [
-			"foo/orders",
-			"foo/orders/:order-id",
-			"foo/orders/:order-id/order-items/{order-item-id}",
-			"/foo/customers/",
-			"/foo/customers/{customer-id}/"
-		]
-	}`}
-)
-
-func createFilterForTest() (filters.Filter, error) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
-	return spec.CreateFilter(args)
-}
-
-func testWithFilter(
-	t *testing.T,
-	filterCreate func() (filters.Filter, error),
-	method string,
-	url string,
-	resStatus int,
-	expect func(t *testing.T, pass int, m *metricstest.MockMetrics),
-) {
-	filter, err := filterCreate()
-	assert.NoError(t, err)
-	assert.NotNil(t, filter)
-
-	metricsMock := &metricstest.MockMetrics{
-		Prefix: "apiUsageMonitoring.custom.",
-	}
-
-	// performing multiple passes to make sure that the caching of metrics keys
-	// does not fail.
-	for pass := 1; pass <= 3; pass++ {
-		t.Run(fmt.Sprintf("pass %d", pass), func(t *testing.T) {
-			req, err := http.NewRequest(method, url, nil)
-			if method == "" {
-				req.Method = ""
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			ctx := &filtertest.Context{
-				FRequest: req,
-				FResponse: &http.Response{
-					StatusCode: resStatus,
-				},
-				FStateBag: make(map[string]interface{}),
-				FMetrics:  metricsMock,
-			}
-			filter.Request(ctx)
-			filter.Response(ctx)
-
-			expect(
-				t,
-				pass,
-				metricsMock,
-			)
-		})
-	}
-}
 
 func Test_Filter_NoPathTemplate(t *testing.T) {
 	testWithFilter(
@@ -102,7 +38,7 @@ func Test_Filter_NoConfiguration(t *testing.T) {
 	testWithFilter(
 		t,
 		func() (filters.Filter, error) {
-			spec := NewApiUsageMonitoring(true, "", "", "")
+			spec := NewApiUsageMonitoring(true, "", "")
 			return spec.CreateFilter([]interface{}{})
 		},
 		http.MethodGet,
@@ -351,7 +287,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashes(t *testing.T) {
 
 func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testing.T) {
 	filterCreate := func() (filters.Filter, error) {
-		args = []interface{}{`{
+		args := []interface{}{`{
 				"application_id": "my_app",
 				"api_id": "my_api",
 				"path_templates": [
@@ -360,7 +296,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 					"foo/:a/:b/:c"
 				]
 			}`}
-		spec := NewApiUsageMonitoring(true, "", "", "")
+		spec := NewApiUsageMonitoring(true, "", "")
 		return spec.CreateFilter(args)
 	}
 	for _, c := range []struct {
@@ -396,67 +332,319 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 	}
 }
 
-func Test_getRealmAndClientFromContext(t *testing.T) {
-	for _, testCase := range []struct {
-		jwt              string
-		expectedRealm    string
-		expectedClientId string
+func Test_Filter_ClientMetrics(t *testing.T) {
+	for testName, testCase := range map[string]struct {
+		realmKeyName          string
+		clientIdKeyName       string
+		clientTrackingPattern string
+		jwtBodyJson           map[string]interface{}
+		expectedRealm         string // "" means not expecting client metrics
+		expectedClientId      string
 	}{
-		// use https://jwt.io/ to decode/encore JWT base64 strings
-		{
-			// {	"foo": "abc",
-			// 		"bar": "xyz"	}
-			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJhYmMiLCJiYXIiOiJ4eXoifQ.mvySdTnLnbBAL__hDrk9Q7t9l1vCwrc1U5wttyqu1Ng",
-			expectedRealm:    "",
-			expectedClientId: "",
-		},
-		{
-			// {	"realm": "abc",
-			// 		"bar":   "xyz"	}
-			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6ImFiYyIsImJhciI6Inh5eiJ9.8IkCEEFeJ3SqOwEQ27ru5uwck6GjWttbI7RSCiu_T2E",
-			expectedRealm:    "abc",
-			expectedClientId: "",
-		},
-		{
-			// {	"realm":   "abc",
-			// 		"user_id": "me/myself/I"	}
-			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6ImFiYyIsInVzZXJfaWQiOiJtZS9teXNlbGYvSSJ9.jA2HojPdk5etOskayRmmI-GRw_Rqge_unoW6lpUqHBE",
-			expectedRealm:    "abc",
-			expectedClientId: "me/myself/I",
-		},
-		{
-			// {	"foo":     "abc",
-			// 		"user_id": "me/myself/I"	}
-			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJhYmMiLCJ1c2VyX2lkIjoibWUvbXlzZWxmL0kifQ.Ii8cpBP8l3evKEtbRl_RRsi23aF7l1MjfahPGTOh81I",
-			expectedRealm:    "",
-			expectedClientId: "me/myself/I",
-		},
-		{
-			// {	"realm":   42,
-			// 		"user_id": true	}
-			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6NDIsInVzZXJfaWQiOnRydWV9.SM2Ym9kD9j7dMkc-hOj90bnAtGQaRKz-2GDDKva4O5A",
-			expectedRealm:    "",
-			expectedClientId: "",
+		"Realm and user matches": {
+			realmKeyName:          "realm",
+			clientIdKeyName:       "client-id",
+			clientTrackingPattern: ".*",
+			jwtBodyJson:           map[string]interface{}{"realm": "users", "client-id": "joe"},
+			expectedRealm:         "users",
+			expectedClientId:      "joe",
 		},
 	} {
-		path := &pathInfo{
-			ClientTracking: &clientTrackingInfo{
-				RealmKey:    "realm",
-				ClientIdKey: "user_id",
-			},
-		}
-		request, err := http.NewRequest(http.MethodGet, "http://example.com/", nil)
-		if !assert.NoError(t, err) {
+		t.Run(testName, func(t *testing.T) {
+			jwt, ok := buildFakeJwtWithBody(t, testCase.jwtBodyJson)
+			if !ok {
+				return
+			}
+			conf := testWithFilterConf{
+				header: map[string][]string{
+					authorizationHeaderName: {"Bearer " + jwt},
+				},
+				filterCreate: func() (filters.Filter, error) {
+					args := []interface{}{`{
+					"application_id": "my_app",
+					"api_id": "my_api",
+				  	"path_templates": [
+						"foo/orders"
+					],
+					"client_tracking_pattern": "` + testCase.clientTrackingPattern + `"
+				}`}
+					spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientIdKeyName)
+					return spec.CreateFilter(args)
+				},
+			}
+			previousLatencySum := float64(0)
+			testWithFilterC(t, conf, func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+				pre := fmt.Sprintf(
+					"apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.%s.%s.",
+					testCase.expectedRealm,
+					testCase.expectedClientId)
+				if testCase.expectedRealm == "" {
+					assertNoMetricsWithSuffixes(t, clientMetricsSuffix, m)
+					return
+				}
+				if assert.Contains(t, m.FloatCounters, pre+"latency_sum") {
+					currentLatencySum := m.FloatCounters[pre+"latency_sum"]
+					assert.Conditionf(t,
+						func() (success bool) { return currentLatencySum > previousLatencySum },
+						"Current latency sum is not higher than the previous recorded one (%d to %d)",
+						previousLatencySum, currentLatencySum)
+				}
+			})
+		})
+	}
+}
+
+func buildFakeJwtWithBody(t *testing.T, jwtBodyJson map[string]interface{}) (string, bool) {
+	jwtBodyBytes, err := json.Marshal(jwtBodyJson)
+	if !assert.NoError(t, err) {
+		return "", false
+	}
+	jwtBody := base64.RawURLEncoding.EncodeToString(jwtBodyBytes)
+	jwt := fmt.Sprintf("<No Header>.%s.< No Verify Signature>", jwtBody)
+	return jwt, true
+}
+
+// todo: Fix test or remove
+//func Test_getRealmAndClientFromContext(t *testing.T) {
+//	for _, testCase := range []struct {
+//		jwt              string
+//		expectedRealm    string
+//		expectedClientId string
+//	}{
+//		// use https://jwt.io/ to decode/encore JWT base64 strings
+//		{
+//			// {	"foo": "abc",
+//			// 		"bar": "xyz"	}
+//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJhYmMiLCJiYXIiOiJ4eXoifQ.mvySdTnLnbBAL__hDrk9Q7t9l1vCwrc1U5wttyqu1Ng",
+//			expectedRealm:    "",
+//			expectedClientId: "",
+//		},
+//		{
+//			// {	"realm": "abc",
+//			// 		"bar":   "xyz"	}
+//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6ImFiYyIsImJhciI6Inh5eiJ9.8IkCEEFeJ3SqOwEQ27ru5uwck6GjWttbI7RSCiu_T2E",
+//			expectedRealm:    "abc",
+//			expectedClientId: "",
+//		},
+//		{
+//			// {	"realm":   "abc",
+//			// 		"user_id": "me/myself/I"	}
+//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6ImFiYyIsInVzZXJfaWQiOiJtZS9teXNlbGYvSSJ9.jA2HojPdk5etOskayRmmI-GRw_Rqge_unoW6lpUqHBE",
+//			expectedRealm:    "abc",
+//			expectedClientId: "me/myself/I",
+//		},
+//		{
+//			// {	"foo":     "abc",
+//			// 		"user_id": "me/myself/I"	}
+//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJhYmMiLCJ1c2VyX2lkIjoibWUvbXlzZWxmL0kifQ.Ii8cpBP8l3evKEtbRl_RRsi23aF7l1MjfahPGTOh81I",
+//			expectedRealm:    "",
+//			expectedClientId: "me/myself/I",
+//		},
+//		{
+//			// {	"realm":   42,
+//			// 		"user_id": true	}
+//			jwt:              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbSI6NDIsInVzZXJfaWQiOnRydWV9.SM2Ym9kD9j7dMkc-hOj90bnAtGQaRKz-2GDDKva4O5A",
+//			expectedRealm:    "",
+//			expectedClientId: "",
+//		},
+//	} {
+//		path := &pathInfo{
+//			ClientTracking: &clientTrackingInfo{
+//				RealmKey:    "realm",
+//				ClientIdKey: "user_id",
+//			},
+//		}
+//		request, err := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+//		if !assert.NoError(t, err) {
+//			return
+//		}
+//		request.Header.Add(authorizationHeaderName, authorizationHeaderPrefix+testCase.jwt)
+//
+//		filterContext := &filtertest.Context{
+//			FRequest: request,
+//		}
+//		realm, clientId := getRealmAndClientFromContext(filterContext, path)
+//
+//		assert.Equal(t, testCase.expectedRealm, realm)
+//		assert.Equal(t, testCase.expectedClientId, clientId)
+//	}
+//}
+
+var defaultArgs = []interface{}{`{
+		"application_id": "my_app",
+		"api_id": "my_api",
+	  	"path_templates": [
+			"foo/orders",
+			"foo/orders/:order-id",
+			"foo/orders/:order-id/order-items/{order-item-id}",
+			"/foo/customers/",
+			"/foo/customers/{customer-id}/"
+		]
+	}`}
+
+func createFilterForTest() (filters.Filter, error) {
+	spec := NewApiUsageMonitoring(true, "", "")
+	return spec.CreateFilter(defaultArgs)
+}
+
+func testWithFilter(
+	t *testing.T,
+	filterCreate func() (filters.Filter, error),
+	method string,
+	url string,
+	resStatus int,
+	expect func(t *testing.T, pass int, m *metricstest.MockMetrics),
+) {
+	filter, err := filterCreate()
+	assert.NoError(t, err)
+	assert.NotNil(t, filter)
+
+	metricsMock := &metricstest.MockMetrics{
+		Prefix: "apiUsageMonitoring.custom.",
+	}
+
+	// performing multiple passes to make sure that the caching of metrics keys
+	// does not fail.
+	for pass := 1; pass <= 3; pass++ {
+		t.Run(fmt.Sprintf("pass %d", pass), func(t *testing.T) {
+			req, err := http.NewRequest(method, url, nil)
+			if method == "" {
+				req.Method = ""
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := &filtertest.Context{
+				FRequest: req,
+				FResponse: &http.Response{
+					StatusCode: resStatus,
+				},
+				FStateBag: make(map[string]interface{}),
+				FMetrics:  metricsMock,
+			}
+			filter.Request(ctx)
+			filter.Response(ctx)
+
+			expect(
+				t,
+				pass,
+				metricsMock,
+			)
+		})
+	}
+}
+
+type testWithFilterConf struct {
+	passCount    *int
+	filterCreate func() (filters.Filter, error)
+	method       *string
+	url          *string
+	resStatus    *int
+	header       http.Header
+}
+
+func testWithFilterC(
+	t *testing.T,
+	conf testWithFilterConf,
+	expect func(t *testing.T, pass int, m *metricstest.MockMetrics),
+) {
+	var (
+		passCount    int
+		filterCreate func() (filters.Filter, error)
+		method       string
+		url          string
+		resStatus    int
+	)
+	if conf.passCount == nil {
+		passCount = 3
+	} else {
+		passCount = *conf.passCount
+	}
+	if conf.filterCreate == nil {
+		filterCreate = createFilterForTest
+	} else {
+		filterCreate = conf.filterCreate
+	}
+	if conf.method == nil {
+		method = http.MethodGet
+	} else {
+		method = *conf.method
+	}
+	if conf.url == nil {
+		url = "https://www.example.com/foo/orders"
+	} else {
+		url = *conf.url
+	}
+
+	// Create Filter
+	filter, err := filterCreate()
+	assert.NoError(t, err)
+	assert.NotNil(t, filter)
+
+	// Create Metrics Mock
+	metricsMock := &metricstest.MockMetrics{
+		Prefix: "apiUsageMonitoring.custom.",
+	}
+
+	// Performing multiple passes to make sure that the caching of metrics keys
+	// does not fail.
+	for pass := 1; pass <= passCount; pass++ {
+		t.Run(fmt.Sprintf("pass %d", pass), func(t *testing.T) {
+			//t.Parallel() // todo: Try this (potentially increment the default pass count to test parallelism)
+			req, err := http.NewRequest(method, url, nil)
+			if !assert.NoError(t, err) {
+				return
+			}
+			if method == "" {
+				req.Method = ""
+			}
+			req.Header = conf.header
+			ctx := &filtertest.Context{
+				FRequest: req,
+				FResponse: &http.Response{
+					StatusCode: resStatus,
+				},
+				FStateBag: make(map[string]interface{}),
+				FMetrics:  metricsMock,
+			}
+			filter.Request(ctx)
+			filter.Response(ctx)
+
+			expect(
+				t,
+				pass,
+				metricsMock,
+			)
+		})
+		if t.Failed() {
 			return
 		}
-		request.Header.Add(authorizationHeaderName, authorizationHeaderPrefix+testCase.jwt)
-
-		filterContext := &filtertest.Context{
-			FRequest: request,
-		}
-		realm, clientId := getRealmAndClientFromContext(filterContext, path)
-
-		assert.Equal(t, testCase.expectedRealm, realm)
-		assert.Equal(t, testCase.expectedClientId, clientId)
 	}
+}
+
+var clientMetricsSuffix = []string{metricLatencySum}
+
+func assertNoMetricsWithSuffixes(t *testing.T, unexpectedSuffixes []string, metrics *metricstest.MockMetrics) bool {
+	success := true
+	for _, suffix := range unexpectedSuffixes {
+		for key := range metrics.Counters {
+			if strings.HasSuffix(key, "."+suffix) {
+				assert.Failf(t, "Counter with key %q is not expected", key)
+				success = false
+			}
+		}
+		for key := range metrics.FloatCounters {
+			if strings.HasSuffix(key, "."+suffix) {
+				assert.Failf(t, "FloatCounter with key %q is not expected", key)
+				success = false
+			}
+		}
+		for key := range metrics.Measures {
+			if strings.HasSuffix(key, "."+suffix) {
+				assert.Failf(t, "Measure with key %q is not expected", key)
+				success = false
+			}
+		}
+	}
+	return success
 }

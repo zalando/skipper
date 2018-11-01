@@ -33,12 +33,12 @@ type apiUsageMonitoringFilter struct {
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 	// Gathering information from the initial request for further metrics calculation
 	now := time.Now()
-	c.StateBag()[stateBagKeyBegin] = &now
+	c.StateBag()[stateBagKeyBegin] = now
 }
 
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
-	begin, _ := c.StateBag()[stateBagKeyBegin].(*time.Time)
+	begin, beginPresent := c.StateBag()[stateBagKeyBegin].(time.Time)
 	path, metricsName := f.resolvePath(request)
 
 	// METRIC: Count
@@ -55,20 +55,18 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	}
 
 	// METRIC: Latency
-	if begin != nil {
-		metrics.MeasureSince(metricsName.Latency, *begin)
+	if beginPresent {
+		metrics.MeasureSince(metricsName.Latency, begin)
 	}
 
 	// Client Based Metrics
 	if path.ClientTracking != nil {
-		clientMetricsPart := determineClientMetricPart(c, path)
-		clientMetricsPrefix := metricsName.GlobalPrefix + clientMetricsPart
+		cmPre := metricsName.GlobalPrefix + determineClientMetricPart(c, path) + "."
 
-		// METRIC: Latency Sum
-		if begin != nil {
-			latencyMillis := time.Since(*begin).Nanoseconds() / 1000000
-			c.Metrics().IncCounterBy(clientMetricsPrefix+metricLatencySum, latencyMillis)
-			// todo: Test that this metric is tracked.
+		// METRIC: Latency Sum (in decimal seconds)
+		if beginPresent {
+			latency := time.Since(begin).Seconds()
+			c.Metrics().IncFloatCounterBy(cmPre+metricLatencySum, latency)
 		}
 	}
 

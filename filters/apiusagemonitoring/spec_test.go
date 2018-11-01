@@ -7,18 +7,16 @@ import (
 )
 
 func Test_TypeAndName(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "")
 	assert.Equal(t, &apiUsageMonitoringSpec{
 		clientIdKey:             "",
 		realmKey:                "",
-		realmAndClientIdRegEx:   "",
-		realmAndClientIdMatcher: nil,
 	}, spec)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 }
 
 func Test_FeatureDisableCreateNilFilters(t *testing.T) {
-	spec := NewApiUsageMonitoring(false, "", "", "")
+	spec := NewApiUsageMonitoring(false, "", "")
 	assert.IsType(t, &noopSpec{}, spec)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
@@ -26,7 +24,7 @@ func Test_FeatureDisableCreateNilFilters(t *testing.T) {
 }
 
 func assertApiUsageMonitoringFilter(t *testing.T, filterArgs []interface{}, asserter func(t *testing.T, filter *apiUsageMonitoringFilter)) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "")
 	filter, err := spec.CreateFilter(filterArgs)
 	assert.NoError(t, err)
 	assert.NotNil(t, filter)
@@ -58,7 +56,7 @@ func assertPaths(t *testing.T, paths []*pathInfo, expectedPaths []pathMatcher) {
 }
 
 func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
-	spec := NewApiUsageMonitoring(false, "", "", "")
+	spec := NewApiUsageMonitoring(false, "", "")
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)

@@ -179,13 +179,13 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig) *clientTrackingInfo {
 	if s.realmKey == "" {
-		log.Errorf(
+		log.Infof(
 			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-key" not provided, not tracking client metrics`,
 			apiIndex)
 		return nil
 	}
 	if s.clientIdKey == "" {
-		log.Errorf(
+		log.Infof(
 			`args[%d]: skipper wide configuration "api-usage-monitoring-client-id-key" not provided, not tracking client metrics`,
 			apiIndex)
 		return nil

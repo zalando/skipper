@@ -10,6 +10,7 @@ type MockMetrics struct {
 
 	// Metrics gathering
 	Counters map[string]int64
+	FloatCounters map[string]float64
 	Measures map[string][]time.Duration
 }
 
@@ -48,6 +49,18 @@ func (m *MockMetrics) IncCounterBy(key string, value int64) {
 		counter = 0
 	}
 	m.Counters[key] = counter + value
+}
+
+func (m *MockMetrics) IncFloatCounterBy(key string, value float64) {
+	key = m.Prefix + key
+	if m.FloatCounters == nil {
+		m.FloatCounters = make(map[string]float64)
+	}
+	counter, ok := m.FloatCounters[key]
+	if !ok {
+		counter = 0
+	}
+	m.FloatCounters[key] = counter + value
 }
 
 func (*MockMetrics) MeasureRouteLookup(start time.Time) {

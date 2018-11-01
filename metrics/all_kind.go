@@ -32,6 +32,10 @@ func (a *All) IncCounterBy(key string, value int64) {
 	a.prometheus.IncCounterBy(key, value)
 	a.codaHale.IncCounterBy(key, value)
 }
+func (a *All) IncFloatCounterBy(key string, value float64) {
+	a.prometheus.IncFloatCounterBy(key, value)
+	a.codaHale.IncFloatCounterBy(key, value)
+}
 func (a *All) UpdateGauge(key string, v float64) {
 	a.prometheus.UpdateGauge(key, v)
 	a.codaHale.UpdateGauge(key, v)
