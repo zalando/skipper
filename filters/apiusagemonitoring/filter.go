@@ -40,6 +40,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
 	begin, beginPresent := c.StateBag()[stateBagKeyBegin].(time.Time)
 	path, metricsName := f.resolvePath(request)
+	metricsPrefixToLog := metricsName.GlobalPrefix
 
 	// METRIC: Count
 	metrics.IncCounter(metricsName.CountAll)
@@ -62,6 +63,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	// Client Based Metrics
 	if path.ClientTracking != nil {
 		cmPre := metricsName.GlobalPrefix + determineClientMetricPart(c, path) + "."
+		metricsPrefixToLog = cmPre
 
 		// METRIC: Latency Sum (in decimal seconds)
 		if beginPresent {
@@ -70,7 +72,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 		}
 	}
 
-	log.Debugf("Pushed metrics prefixed by %q", metricsName.GlobalPrefix)
+	log.Debugf("Pushed metrics prefixed by %q", metricsPrefixToLog)
 }
 
 // determineClientMetricPart generates the proper <Realm>.<Client ID> part of the
