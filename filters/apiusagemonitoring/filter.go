@@ -61,19 +61,18 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 
 	// Client Based Metrics
 	if path.ClientTracking != nil {
-		cmPre := metricsName.ClientMetricsPrefix + determineClientMetricPart(c, path) + "."
+		cmPre := metricsName.ConsumerPrefix + determineClientMetricPart(c, path) + "."
 
 		// METRIC: Latency Sum (in decimal seconds)
 		if beginPresent {
 			latency := time.Since(begin).Seconds()
 			c.Metrics().IncFloatCounterBy(cmPre+metricLatencySum, latency)
 		}
+
+		log.Debugf("Pushed consumer metrics with prefix `%s`", metricsName.ConsumerPrefix)
 	}
 
-	log.Debugf(
-		"Pushed metrics // Non client: %s // Client: %s",
-		metricsName.NonClientMetricsPrefix,
-		metricsName.ClientMetricsPrefix)
+	log.Debugf("Pushed endpoint metrics with prefix `%s`", metricsName.EndpointPrefix)
 }
 
 // determineClientMetricPart generates the proper <Realm>.<Client ID> part of the
@@ -144,20 +143,20 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 
 	// Prefixes were not cached for this path and method. Generate and cache.
 	prefixCommon := path.ApplicationId + "." + path.ApiId + "."
-	prefixNoClient := prefixCommon + method + "." + path.PathTemplate + ".*.*."
-	prefixWithClient := prefixCommon + "*.*."
+	endpointPrefix := prefixCommon + method + "." + path.PathTemplate + ".*.*."
+	consumerPrefix := prefixCommon + "*.*."
 	prefixes = &metricNames{
-		NonClientMetricsPrefix: prefixNoClient,
-		ClientMetricsPrefix:    prefixWithClient,
-		CountAll:               prefixNoClient + metricCountAll,
+		EndpointPrefix: endpointPrefix,
+		ConsumerPrefix: consumerPrefix,
+		CountAll:       endpointPrefix + metricCountAll,
 		CountPerStatusCodeRange: [5]string{
-			prefixNoClient + metricCount100s,
-			prefixNoClient + metricCount200s,
-			prefixNoClient + metricCount300s,
-			prefixNoClient + metricCount400s,
-			prefixNoClient + metricCount500s,
+			endpointPrefix + metricCount100s,
+			endpointPrefix + metricCount200s,
+			endpointPrefix + metricCount300s,
+			endpointPrefix + metricCount400s,
+			endpointPrefix + metricCount500s,
 		},
-		Latency: prefixNoClient + metricLatency,
+		Latency: endpointPrefix + metricLatency,
 	}
 	path.metricPrefixesPerMethod[methodIndex] = prefixes
 	return path, prefixes

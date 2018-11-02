@@ -48,8 +48,8 @@ func (s pathInfoByRegExRev) Less(i, j int) bool { return s[i].Matcher.String() >
 func (s pathInfoByRegExRev) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 type metricNames struct {
-	NonClientMetricsPrefix  string
-	ClientMetricsPrefix     string
+	EndpointPrefix          string
+	ConsumerPrefix          string
 	CountAll                string
 	CountPerStatusCodeRange [5]string
 	Latency                 string
