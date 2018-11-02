@@ -122,12 +122,17 @@ You have to implement `routing.DataClient`, which is an interface that defines
 function signatures `LoadAll() ([]*eskip.Route, error)` and
 `LoadUpdate() ([]*eskip.Route, []string, error)`.
 
+The `LoadUpdate()` method can be implemented either in a way that
+returns immediately, or blocks until there is a change. The routing
+package will regularly call the `LoadUpdate()` method with a small
+delay between the calls.
+
 A complete example is the [routestring implementation](https://github.com/zalando/skipper/blob/master/dataclients/routestring/string.go), which fits in
 less than 50 lines of code.
 
 ## Opentracing
 
-Your custom Opentracing implementations needs to satisfy the `opentracing.Tracer` interface from
+Your custom Opentracing implementations need to satisfy the `opentracing.Tracer` interface from
 https://github.com/opentracing/opentracing-go and need to be loaded as
 a plugin, which might change in the future.
 Please check the [tracing package](https://github.com/zalando/skipper/blob/master/tracing)

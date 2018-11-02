@@ -10,7 +10,7 @@ package management vendor how to install `htpasswd`:
 % apt-get install apache2-utils
 ```
 
-Create a htpasswd file `foo.passwd` and a use `catpain` with password `apassword`:
+Create a htpasswd file `foo.passwd` and use `catpain` with password `apassword`:
 
 ```
 % htpasswd -bcB foo.passwd captain apassword
@@ -44,7 +44,7 @@ A client request without login credentials or wrong credentials:
 
 ```
 
-A client request with correct specifying credentials:
+A client request with the correct credentials:
 
 ```
 % curl captain:apassword@localhost:8080/ -v
@@ -84,7 +84,7 @@ Bearer tokens in the Authorization header.
 In most cases you would have to have your own OAuth2 token
 infrastructure, that can return JWT or OAuth2 access tokens to authenticated parties
 and validate tokens with their custom tokeninfo endpoint. In case of
-JWT the access token is signed and can be validated without central
+JWT the access token is signed and can be validated without a central
 tokeninfo endpoint.
 
 Example route:
@@ -99,7 +99,7 @@ all: Path("/")
 The access token should be passed from the client as Bearer token in
 the Authorization header. Skipper will send this token unchanged as
 Bearer token in the Authorization header to the Tokeninfo endpoint.
-Skipper with Tokeninfo setup, request flow is shown in the following
+The request flow with a Tokeninfo setup is shown in the following
 picture:
 
 ![Skipper with Tokeninfo](/skipper/img/svc-to-svc-tokeninfo.svg)
@@ -126,7 +126,7 @@ the Authorization header. Skipper will send this token as
 defined in [RFC7662](https://tools.ietf.org/html/rfc7662#section-2.1)
 in a POST request "application/x-www-form-urlencoded" as value for key
 `token` to the Tokenintrospection endpoint.
-Skipper with Tokenintrospection setup, request flow is shown in the
+The request flow with Tokenintrospection setup is shown in the
 following picture:
 
 ![Skipper with Tokenintrospection](/skipper/img/svc-to-svc-tokenintrospection.svg)

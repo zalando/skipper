@@ -11,7 +11,7 @@ Skipper routes.
 
 Skipper's internal architecture is split into different packages. The
 `skipper` package has connections to multiple `dataclient`, that pull
-information from different sources, for example static routes from an
+information from different sources, for example local routes from an
 eskip file or dynamic routes from Kubernetes ingress objects.
 
 The `proxy` package gets the routes populated by skipper and has
@@ -80,9 +80,9 @@ yandex:
 A Predicate adds a matching rule to a route.
 For example the Cookie predicate, `Cookie("yandex", "true")`, matched
 if there is a cookie in the request with name "yandex" and the value
-is "true", else the route processing will go one and try to find
+is "true", else the route processing will go on and try to find
 another matching route for the given request. Multiple predicates can
-be concatenated by `&&` which means a logical **AND**. If you need a
+be combined by `&&` which means a logical **AND**. If you need a
 logical **OR**, you have to create another route.
 
 Special Predicates:
@@ -327,6 +327,13 @@ Date: Fri, 02 Nov 2018 00:30:43 GMT
 For skipper operators the number of routes can be interesting for
 statistics and the timestamp to detect skipper instances that have not
 updated its routing table.
+
+If there is more than 1024 routes used, then the paging the results is
+possible with the `offset` and `limit` query parameters:
+
+```
+curl locahost:9911/routes?offset=2048&limit=512
+```
 
 ### Route IDs
 
