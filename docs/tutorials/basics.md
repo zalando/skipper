@@ -1,7 +1,7 @@
 ## Architecture
 
 The core business of skipper is routing based on HTTP. It performs and
-scales well, for example it handles more than 300000 routes in
+scales well, for example it handles more than 800000 routes in
 production with 60000 requests per second.
 
 Skipper is written as a library and is also a multi binary project with
@@ -27,11 +27,11 @@ matched against the routing table again after filters have modified
 it.
 
 [Opentracing API](http://opentracing.io/) is supported via
-[skipper-plugins](https://github.com/skipper-plugins/opentracing). For
+`tracers` and you can find all of them in `./tracing/tracers/`. For
 example [Jaeger](https://github.com/jaegertracing/jaeger) is supported.
 
-Skipper has a rich set of metrics that are exposed as json, but can be
-exported in [Prometheus](https://prometheus.io) format.
+Skipper has a rich set of metrics that are exposed as json, but can
+also be exported in [Prometheus](https://prometheus.io) format.
 
 ![Skipper's architecture ](/skipper/img/architecture.svg)
 
@@ -81,23 +81,26 @@ A Predicate adds a matching rule to a route.
 For example the Cookie predicate, `Cookie("yandex", "true")`, matched
 if there is a cookie in the request with name "yandex" and the value
 is "true", else the route processing will go one and try to find
-another matching route for the given request.
+another matching route for the given request. Multiple predicates can
+be concatenated by `&&` which means a logical **AND**. If you need a
+logical **OR**, you have to create another route.
 
 Special Predicates:
 
 - `*` catch all is always true
-- `Path()` reduces the number of routes
-- `PathSubtree()` reduces the number of routes
+- `Path()` reduces the number of routes in O(log n) time to scan afterwards a subset in linear time
+- `PathSubtree()` reduces the number of routes O(log n) time to scan afterwards a subset in linear time
 
 ### Filter
 
-A filter changes a HTTP request or response or both.
+A filter changes a HTTP request or response or both. Multiple filters
+can be concatenated by `->`.
 
 Some special filters are:
 
-- `inlineContent` sets the HTTP response body, should be used with status() filter and  <shunt> backend
-- `static` serves static files and should be used with <shunt> backend
-- `status` sets HTTP status code to a given value, should be used with <shunt> backend
+- `inlineContent()` sets the HTTP response body, should be used with status() filter and  <shunt> backend
+- `static()` serves static files and should be used with <shunt> backend
+- `status()` sets HTTP status code to a given value, should be used with <shunt> backend
 - `tee()` clones request to given target
 
 
@@ -114,7 +117,7 @@ Special backends:
 
 ### Dataclient
 
-A dataclient is used to pull route information from a data source. The
+Dataclients are used to pull route information from a data source. The
 data will be used to create routes according to the dataclient. As a
 special case, for example kubernetes dataclient automatically adds
 HTTP->HTTPS redirects if skipper is started with `-kubernetes-https-redirect`.
@@ -150,7 +153,8 @@ backend. When the route is shunted (`<shunt>`), skipper serves the
 request alone, by using only the filters. When the route is a
 `<loopback>`, the request is passed to the routing table for finding
 another route, based on the changes that the filters made to the
-request.
+request. In case it will always find a `<loopback>` route it will stop
+after maximum number of loopbacks is reached and logs an error.
 
 ![Skipper's request and response processing ](/skipper/img/req-and-resp-processing.svg)
 
@@ -210,3 +214,99 @@ The route matching logic can be summed up as follows:
 
 3. _If_ #2 results in multiple matching routes, then one route will be
    selected. It is unspecified which one.
+
+## Building skipper
+
+We use Go modules to build skipper, therefore you need [Go](https://golang.org/dl) version `>= 1.11`.
+
+### Local build
+
+To get a local build of skipper for your CPU architecture, you can run
+`make skipper`. To cross compile to non Linux platforms you can use:
+
+- `make build.osx` for Mac OS X (amd64)
+- `make build.windows` for Windows (amd64)
+
+The local build will write into `./bin/` directory.
+
+### CI build
+
+The current used CI flow to build the official docker container, you
+can see in [delivery.yaml](https://github.com/zalando/skipper/blob/master/delivery.yaml).
+Official release versions you will find at
+`registry.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION}`,
+where `${RELEASE_VERSION}` is the git tag got by `$(git describe --tags --always --dirty)`.
+
+Test versions are released at
+`registry.opensource.zalan.do/pathfinder/skipper-test:${CDP_BUILD_VERSION}`
+for every pull request, limited to only repository members, because of
+compliance and security reasons.
+
+## Testing routes
+
+To test routes you can use a local build of skipper and pass arguments
+`-inline-routes=<route string>` or for more complex ones
+use a local `eskip` file on disk and use `-routes-file=<filepath>`.
+
+Example:
+
+```
+./bin/skipper -address :9999 -inline-routes 'r: * -> setQuery("lang", "pt") -> "http://127.0.0.1:8080/"'
+```
+
+Now you have a proxy running that will set a query to your request URL
+and call `http://127.0.0.1:8080/?lang=pt`
+
+The simplest way of testing a proxy is using a local backend and a
+local browser.
+
+Local backend example:
+
+```
+./bin/skipper -address :8080 -inline-routes 'r: * -> inlineContent("Hello world!") -> status(200) -> <shunt>'
+```
+
+If you want to do the request and see the response in detail, you can
+use `curl` as a browser, which should be installed on most Linux and
+Mac OS X computers.
+
+Example client call to our defined proxy:
+
+```
+% curl localhost:8080 -v
+* Rebuilt URL to: localhost:8080/
+*   Trying ::1...
+* Connected to localhost (::1) port 8080 (#0)
+> GET / HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/7.49.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< Content-Length: 12
+< Content-Type: text/plain; charset=utf-8
+< Server: Skipper
+< Date: Thu, 01 Nov 2018 15:54:13 GMT
+<
+* Connection #0 to host localhost left intact
+Hello world!
+```
+
+## Current routing table
+
+To investigate the current routing table skipper has loaded into its
+memory, you can use the `-support-listener` endpoint, which defaults to
+port 9911.
+
+Example:
+
+```
+% curl localhost:9911/routes
+r: *
+  -> setQuery("lang", "pt")
+  -> "http://127.0.0.1:8000";
+```
+
+If you do not see your route, then you have most probably a syntax
+error in your route definition, such that the route was not loaded
+into memory.
