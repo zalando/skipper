@@ -2,13 +2,23 @@ package proxy
 
 import (
 	"bytes"
+	"io"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
+	"golang.org/x/net/websocket"
 )
 
 func getEmptyUpgradeRequest() *http.Request {
@@ -138,4 +148,87 @@ func TestCopyAsync(t *testing.T) {
 	if res != s {
 		t.Errorf("%s != %s after copy", res, s)
 	}
+}
+
+func TestAuditLogging(t *testing.T) {
+	message := strconv.Itoa(rand.Int())
+	test := func(enabled bool, check func(*testing.T, *bytes.Buffer, *bytes.Buffer)) func(t *testing.T) {
+		return func(t *testing.T) {
+			wss := httptest.NewServer(websocket.Handler(func(ws *websocket.Conn) {
+				if _, err := io.Copy(ws, ws); err != nil {
+					t.Fatal(err)
+				}
+			}))
+
+			defer wss.Close()
+
+			// only used as poor man's sync, the audit log in questoin goes stdout and stderr,
+			// see below
+			tl := loggingtest.New()
+			rt := routing.New(routing.Options{
+				DataClients: []routing.DataClient{
+					testdataclient.New([]*eskip.Route{{Backend: wss.URL}}),
+				},
+				Log: tl,
+			})
+			defer rt.Close()
+
+			if err := tl.WaitFor("route settings applied", 120*time.Millisecond); err != nil {
+				t.Fatal(err)
+			}
+
+			p := WithParams(Params{
+				Routing:                  rt,
+				ExperimentalUpgrade:      true,
+				ExperimentalUpgradeAudit: enabled,
+			})
+			defer p.Close()
+
+			ps := httptest.NewServer(p)
+			defer ps.Close()
+
+			sout := bytes.NewBuffer(nil)
+			serr := bytes.NewBuffer(nil)
+			p.upgradeAuditLogOut = sout
+			p.upgradeAuditLogErr = serr
+
+			wsc, err := websocket.Dial(
+				strings.Replace(ps.URL, "http:", "ws:", 1),
+				"",
+				"http://[::1]",
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer wsc.Close()
+
+			if _, err := wsc.Write([]byte(message)); err != nil {
+				t.Fatal(err)
+			}
+
+			receive := make([]byte, len(message))
+			if _, err := wsc.Read(receive); err != nil {
+				t.Fatal(err)
+			}
+
+			if string(receive) != message {
+				t.Error("send/receive failed")
+			}
+
+			check(t, sout, serr)
+		}
+	}
+
+	t.Run("off", test(false, func(t *testing.T, sout, serr *bytes.Buffer) {
+		if sout.Len() != 0 || serr.Len() != 0 {
+			t.Error("failed to disable audit log")
+		}
+	}))
+
+	t.Run("on", test(true, func(t *testing.T, sout, serr *bytes.Buffer) {
+		if !strings.Contains(sout.String(), message) || serr.Len() == 0 {
+			t.Error("failed to enable audit log")
+		}
+	}))
 }
