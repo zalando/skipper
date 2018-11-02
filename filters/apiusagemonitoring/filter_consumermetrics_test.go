@@ -1,5 +1,12 @@
 package apiusagemonitoring
 
+//
+// THIS SHOULD NOT APPEAR ON THE PULL REQUEST
+//
+// todo: What happens when service-to-service tokens are used? Is the `client-id` at the same JWT property or do we need a 2nd config?
+// todo: Clarify what realm and user to track when the path is not in the configured template (actually: extract and log real realm and ID)?
+//
+
 import (
 	"encoding/base64"
 	"encoding/json"
