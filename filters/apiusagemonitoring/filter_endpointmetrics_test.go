@@ -487,7 +487,18 @@ func testWithFilterC(
 	}
 }
 
-var clientMetricsSuffix = []string{metricLatencySum}
+var endpointMetricsSuffix = []string{
+	metricCountAll,
+	metricCount100s,
+	metricCount200s,
+	metricCount300s,
+	metricCount400s,
+	metricCount500s,
+	metricLatency,
+}
+var consumerMetricsSuffix = []string{
+	metricLatencySum,
+}
 
 func assertNoMetricsWithSuffixes(t *testing.T, unexpectedSuffixes []string, metrics *metricstest.MockMetrics) bool {
 	success := true
