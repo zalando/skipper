@@ -128,6 +128,23 @@ type Route struct {
 	Backend string
 }
 
+func (r Route) Clone() Route {
+	return Route{
+		Id:            r.Id,
+		Path:          r.Path,
+		HostRegexps:   r.HostRegexps[:],
+		PathRegexps:   r.PathRegexps[:],
+		Method:        r.Method,
+		Headers:       r.Headers,       // reference type will be overwritten
+		HeaderRegexps: r.HeaderRegexps, // reference type will be overwritten
+		Predicates:    r.Predicates[:],
+		Filters:       r.Filters[:],
+		Shunt:         r.Shunt,
+		BackendType:   r.BackendType,
+		Backend:       r.Backend,
+	}
+}
+
 type RoutePredicate func(*Route) bool
 
 // RouteInfo contains a route id, plus the loaded and parsed route or

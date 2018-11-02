@@ -118,6 +118,9 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
+	// KubernetesEnableEastWest
+	KubernetesEnableEastWest bool
+
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -549,6 +552,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
 			PathMode:                   o.KubernetesPathMode,
 			KubernetesNamespace:        o.KubernetesNamespace,
+			KubernetesEnableEastWest:   o.KubernetesEnableEastWest,
 		})
 		if err != nil {
 			return nil, err

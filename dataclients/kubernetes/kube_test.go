@@ -2987,3 +2987,44 @@ func checkPrettyRoutes(t *testing.T, r []*eskip.Route, expected map[string]strin
 		}
 	}
 }
+
+func TestCreateEastWestRoute(t *testing.T) {
+	for _, ti := range []struct {
+		msg        string
+		name       string
+		namespace  string
+		route      *eskip.Route
+		expectedID string
+	}{{
+		msg:       "valid kube route id",
+		name:      "foo",
+		namespace: "qux",
+		route: &eskip.Route{
+			Id:          "kube_foo__qux_a_0__www2_example_org_____",
+			HostRegexps: []string{"www2[.]example[.]org"},
+		},
+		expectedID: "kubeew_foo__qux_a_0__www2_example_org_____",
+	}, {
+		msg:       "valid kube route id with path",
+		name:      "foo",
+		namespace: "qux",
+		route: &eskip.Route{
+			Id:          "kube_foo__qux__www3_example_org___a_path__bar",
+			HostRegexps: []string{"www3[.]example[.]org"},
+		},
+		expectedID: "kubeew_foo__qux__www3_example_org___a_path__bar",
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			ewrs := createEastWestRoutes("foo", "qux", []*eskip.Route{ti.route})
+			ewr := ewrs[0]
+			if ewr.Id != ti.expectedID {
+				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
+			}
+			hostRegexp := ewr.HostRegexps[0]
+			reg := regexp.MustCompile(hostRegexp)
+			if !reg.MatchString("foo.qux.skipper.cluster.local") {
+				t.Errorf("Failed to create correct east west hostregexp, got %s, expected to match %s", ewr.HostRegexps, "foo.qux.skipper.cluster.local")
+			}
+		})
+	}
+}
