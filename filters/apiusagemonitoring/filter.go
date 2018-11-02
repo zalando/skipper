@@ -69,7 +69,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 			c.Metrics().IncFloatCounterBy(cmPre+metricLatencySum, latency)
 		}
 
-		log.Debugf("Pushed consumer metrics with prefix `%s`", metricsName.ConsumerPrefix)
+		log.Debugf("Pushed consumer metrics with prefix `%s`", cmPre)
 	}
 
 	log.Debugf("Pushed endpoint metrics with prefix `%s`", metricsName.EndpointPrefix)
