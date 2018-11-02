@@ -8,7 +8,6 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"net/http"
-	"strings"
 	"testing"
 )
 
@@ -22,11 +21,26 @@ type clientMetricsTest struct {
 	expectedClientId              string
 }
 
-var clientTrackingPatternJustSomeUsers = strings.Replace(
-	`^users\.(?:joe|sabine)$`,
-	`\`, `\\`, -1)
+var clientTrackingPatternJustSomeUsers = `users\.(?:joe|sabine)`
 
-// todo: FIX THIS TEST :'(
+func Test_Filter_ClientMetrics_MatchAll(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "client-id",
+		clientTrackingPattern: ".*",
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+					"realm":     "users",
+					"client-id": "joe",
+				}),
+			},
+		},
+		expectedRealm:    "users",
+		expectedClientId: "joe",
+	})
+}
+
 func Test_Filter_ClientMetrics_Realm1User1(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
@@ -292,21 +306,41 @@ func testClientMetrics(
 	}
 	previousLatencySum := float64(0)
 	testWithFilterC(t, conf, func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-		pre := fmt.Sprintf(
+
+		//
+		// Assert consumer metrics
+		//
+
+		consumerMetricsPrefix := fmt.Sprintf(
 			"apiUsageMonitoring.custom.my_app.my_api.*.*.%s.%s.",
 			testCase.expectedRealm,
 			testCase.expectedClientId)
 		if testCase.expectingNoClientBasedMetrics {
 			assertNoMetricsWithSuffixes(t, clientMetricsSuffix, m)
 			return
+		} else {
+			if assert.Contains(t, m.FloatCounters, consumerMetricsPrefix+"latency_sum") {
+				currentLatencySum := m.FloatCounters[consumerMetricsPrefix+"latency_sum"]
+				assert.Conditionf(t,
+					func() (success bool) { return currentLatencySum > previousLatencySum },
+					"Current latency sum is not higher than the previous recorded one (%d to %d)",
+					previousLatencySum, currentLatencySum)
+			}
 		}
-		if assert.Contains(t, m.FloatCounters, pre+"latency_sum") {
-			currentLatencySum := m.FloatCounters[pre+"latency_sum"]
-			assert.Conditionf(t,
-				func() (success bool) { return currentLatencySum > previousLatencySum },
-				"Current latency sum is not higher than the previous recorded one (%d to %d)",
-				previousLatencySum, currentLatencySum)
-		}
+
+		//
+		// Assert endpoint metrics
+		//
+
+		endpointMetricsPrefix := "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*."
+		assert.Equal(t,
+			map[string]int64{
+				endpointMetricsPrefix + "http_count":    int64(pass),
+				endpointMetricsPrefix + "http2xx_count": int64(pass),
+			},
+			m.Counters,
+		)
+		assert.Contains(t, m.Measures, endpointMetricsPrefix+"latency")
 	})
 }
 
