@@ -358,6 +358,10 @@ type Options struct {
 	// Experimental feature to handle protocol Upgrades for Websockets, SPDY, etc.
 	ExperimentalUpgrade bool
 
+	// ExperimentalUpgradeAudit enables audit log of both the request line
+	// and the response messages during web socket upgrades.
+	ExperimentalUpgradeAudit bool
+
 	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
 	// contains loop backends (<loopback>).
 	MaxLoopbacks int
@@ -759,22 +763,23 @@ func Run(o Options) error {
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
-		Routing:                routing,
-		Flags:                  proxyFlags,
-		PriorityRoutes:         o.PriorityRoutes,
-		IdleConnectionsPerHost: o.IdleConnectionsPerHost,
-		CloseIdleConnsPeriod:   o.CloseIdleConnsPeriod,
-		FlushInterval:          o.BackendFlushInterval,
-		ExperimentalUpgrade:    o.ExperimentalUpgrade,
-		MaxLoopbacks:           o.MaxLoopbacks,
-		DefaultHTTPStatus:      o.DefaultHTTPStatus,
-		LoadBalancer:           lbInstance,
-		Timeout:                o.TimeoutBackend,
-		KeepAlive:              o.KeepAliveBackend,
-		DualStack:              o.DualStackBackend,
-		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
-		MaxIdleConns:           o.MaxIdleConnsBackend,
-		AccessLogDisabled:      o.AccessLogDisabled,
+		Routing:                  routing,
+		Flags:                    proxyFlags,
+		PriorityRoutes:           o.PriorityRoutes,
+		IdleConnectionsPerHost:   o.IdleConnectionsPerHost,
+		CloseIdleConnsPeriod:     o.CloseIdleConnsPeriod,
+		FlushInterval:            o.BackendFlushInterval,
+		ExperimentalUpgrade:      o.ExperimentalUpgrade,
+		ExperimentalUpgradeAudit: o.ExperimentalUpgradeAudit,
+		MaxLoopbacks:             o.MaxLoopbacks,
+		DefaultHTTPStatus:        o.DefaultHTTPStatus,
+		LoadBalancer:             lbInstance,
+		Timeout:                  o.TimeoutBackend,
+		KeepAlive:                o.KeepAliveBackend,
+		DualStack:                o.DualStackBackend,
+		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:             o.MaxIdleConnsBackend,
+		AccessLogDisabled:        o.AccessLogDisabled,
 	}
 
 	var theSwarm *swarm.Swarm

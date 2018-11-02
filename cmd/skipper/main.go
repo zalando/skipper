@@ -157,6 +157,7 @@ const (
 	closeIdleConnsPeriodUsage       = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
 	backendFlushIntervalUsage       = "flush interval for upgraded proxy connections"
 	experimentalUpgradeUsage        = "enable experimental feature to handle upgrade protocol requests"
+	experimentalUpgradeAuditUsage   = "enable audit logging of the request line and the messages during the experimental web socket upgrades"
 	readTimeoutServerUsage          = "set ReadTimeout for http server connections"
 	readHeaderTimeoutServerUsage    = "set ReadHeaderTimeout for http server connections"
 	writeTimeoutServerUsage         = "set WriteTimeout for http server connections"
@@ -281,6 +282,7 @@ var (
 	closeIdleConnsPeriod       string
 	backendFlushInterval       time.Duration
 	experimentalUpgrade        bool
+	experimentalUpgradeAudit   bool
 	readTimeoutServer          time.Duration
 	readHeaderTimeoutServer    time.Duration
 	writeTimeoutServer         time.Duration
@@ -403,6 +405,7 @@ func init() {
 	flag.StringVar(&closeIdleConnsPeriod, "close-idle-conns-period", strconv.Itoa(int(proxy.DefaultCloseIdleConnsPeriod/time.Second)), closeIdleConnsPeriodUsage)
 	flag.DurationVar(&backendFlushInterval, "backend-flush-interval", defaultBackendFlushInterval, backendFlushIntervalUsage)
 	flag.BoolVar(&experimentalUpgrade, "experimental-upgrade", defaultExperimentalUpgrade, experimentalUpgradeUsage)
+	flag.BoolVar(&experimentalUpgradeAudit, "experimental-upgrade-audit", false, experimentalUpgradeAuditUsage)
 	flag.DurationVar(&readTimeoutServer, "read-timeout-server", defaultReadTimeoutServer, readTimeoutServerUsage)
 	flag.DurationVar(&readHeaderTimeoutServer, "read-header-timeout-server", defaultReadHeaderTimeoutServer, readHeaderTimeoutServerUsage)
 	flag.DurationVar(&writeTimeoutServer, "write-timeout-server", defaultWriteTimeoutServer, writeTimeoutServerUsage)
@@ -599,6 +602,7 @@ func main() {
 		CloseIdleConnsPeriod:       time.Duration(clsic) * time.Second,
 		BackendFlushInterval:       backendFlushInterval,
 		ExperimentalUpgrade:        experimentalUpgrade,
+		ExperimentalUpgradeAudit:   experimentalUpgradeAudit,
 		ReadTimeoutServer:          readTimeoutServer,
 		ReadHeaderTimeoutServer:    readHeaderTimeoutServer,
 		WriteTimeoutServer:         writeTimeoutServer,
