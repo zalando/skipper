@@ -162,7 +162,7 @@ func TestAuditLogging(t *testing.T) {
 
 			defer wss.Close()
 
-			// only used as poor man's sync, the audit log in questoin goes stdout and stderr,
+			// only used as poor man's sync, the audit log in question goes stdout and stderr,
 			// see below
 			tl := loggingtest.New()
 			rt := routing.New(routing.Options{
@@ -213,7 +213,7 @@ func TestAuditLogging(t *testing.T) {
 			}
 
 			if string(receive) != message {
-				t.Error("send/receive failed")
+				t.Fatal("send/receive failed")
 			}
 
 			check(t, sout, serr)
