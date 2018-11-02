@@ -293,7 +293,7 @@ func testClientMetrics(
 	previousLatencySum := float64(0)
 	testWithFilterC(t, conf, func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 		pre := fmt.Sprintf(
-			"apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.%s.%s.",
+			"apiUsageMonitoring.custom.my_app.my_api.*.*.%s.%s.",
 			testCase.expectedRealm,
 			testCase.expectedClientId)
 		if testCase.expectingNoClientBasedMetrics {

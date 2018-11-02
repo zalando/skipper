@@ -48,7 +48,8 @@ func (s pathInfoByRegExRev) Less(i, j int) bool { return s[i].Matcher.String() >
 func (s pathInfoByRegExRev) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 type metricNames struct {
-	GlobalPrefix            string
+	NonClientMetricsPrefix  string
+	ClientMetricsPrefix     string
 	CountAll                string
 	CountPerStatusCodeRange [5]string
 	Latency                 string
@@ -65,8 +66,8 @@ const (
 	MethodIndexOptions        // OPTIONS
 	MethodIndexTrace          // TRACE
 
-	MethodIndexUnknown // Value when the HTTP Method is not in the known list
-	MethodIndexLength  // Gives the constant size of the `metricPrefixesPerMethod` array.
+	MethodIndexUnknown  // Value when the HTTP Method is not in the known list
+	MethodIndexLength   // Gives the constant size of the `metricPrefixesPerMethod` array.
 )
 
 var (

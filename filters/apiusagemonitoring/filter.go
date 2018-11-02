@@ -40,7 +40,6 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
 	begin, beginPresent := c.StateBag()[stateBagKeyBegin].(time.Time)
 	path, metricsName := f.resolvePath(request)
-	metricsPrefixToLog := metricsName.GlobalPrefix
 
 	// METRIC: Count
 	metrics.IncCounter(metricsName.CountAll)
@@ -62,8 +61,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 
 	// Client Based Metrics
 	if path.ClientTracking != nil {
-		cmPre := metricsName.GlobalPrefix + determineClientMetricPart(c, path) + "."
-		metricsPrefixToLog = cmPre
+		cmPre := metricsName.ClientMetricsPrefix + determineClientMetricPart(c, path) + "."
 
 		// METRIC: Latency Sum (in decimal seconds)
 		if beginPresent {
@@ -72,7 +70,10 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 		}
 	}
 
-	log.Debugf("Pushed metrics prefixed by %q", metricsPrefixToLog)
+	log.Debugf(
+		"Pushed metrics // Non client: %s // Client: %s",
+		metricsName.NonClientMetricsPrefix,
+		metricsName.ClientMetricsPrefix)
 }
 
 // determineClientMetricPart generates the proper <Realm>.<Client ID> part of the
@@ -142,11 +143,13 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 	}
 
 	// Prefixes were not cached for this path and method. Generate and cache.
-	prefix := path.ApplicationId + "." + path.ApiId + "." + method + "." + path.PathTemplate + "."
-	prefixNoClient := prefix + "*.*."
+	prefixCommon := path.ApplicationId + "." + path.ApiId + "."
+	prefixNoClient := prefixCommon + method + "." + path.PathTemplate + ".*.*."
+	prefixWithClient := prefixCommon + "*.*."
 	prefixes = &metricNames{
-		GlobalPrefix: prefix,
-		CountAll:     prefixNoClient + metricCountAll,
+		NonClientMetricsPrefix: prefixNoClient,
+		ClientMetricsPrefix:    prefixWithClient,
+		CountAll:               prefixNoClient + metricCountAll,
 		CountPerStatusCodeRange: [5]string{
 			prefixNoClient + metricCount100s,
 			prefixNoClient + metricCount200s,
