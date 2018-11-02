@@ -13,19 +13,20 @@ import (
 )
 
 type clientMetricsTest struct {
-	realmKeyName          string
-	clientIdKeyName       string
-	clientTrackingPattern string
-	header                http.Header
-	expectingNoMetrics    bool
-	expectedRealm         string
-	expectedClientId      string
+	realmKeyName                  string
+	clientIdKeyName               string
+	clientTrackingPattern         string
+	header                        http.Header
+	expectingNoClientBasedMetrics bool
+	expectedRealm                 string
+	expectedClientId              string
 }
 
 var clientTrackingPatternJustSomeUsers = strings.Replace(
 	`^users\.(?:joe|sabine)$`,
 	`\`, `\\`, -1)
 
+// todo: FIX THIS TEST :'(
 func Test_Filter_ClientMetrics_Realm1User1(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
@@ -116,13 +117,152 @@ func Test_Filter_ClientMetrics_AuthDoesNotHaveBearerPrefix(t *testing.T) {
 	})
 }
 
-// todo: No Authorization header ==> <unknown>.<unknown>
-// todo: JWT is not parsable ==> <unknown>.<unknown>
-// todo: JWT has no realm ==> <unknown>.<unknown>
-// todo: JWT has no user_id ==> realm.<unknown>
-// todo: 1st CLI flag not provided ==> No tracking
-// todo: 2nd CLI flag not provided ==> No tracking
-// todo: No client_tracking_pattern set (or empty) in filter param JSON ==> No tracking
+func Test_Filter_ClientMetrics_NoAuthHeader(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "client-id",
+		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
+		header: http.Header{
+			/* no Authorization header */
+		},
+		expectedRealm:    unknownElementPlaceholder,
+		expectedClientId: unknownElementPlaceholder,
+	})
+}
+
+func Test_Filter_ClientMetrics_JWTIsNot3DotSeparatedString(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "client-id",
+		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + "foo",
+			},
+		},
+		expectedRealm:    unknownElementPlaceholder,
+		expectedClientId: unknownElementPlaceholder,
+	})
+}
+
+func Test_Filter_ClientMetrics_JWTIsNotBase64Encoded(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "client-id",
+		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + "there&is.no&way.this&is&base64",
+			},
+		},
+		expectedRealm:    unknownElementPlaceholder,
+		expectedClientId: unknownElementPlaceholder,
+	})
+}
+
+func Test_Filter_ClientMetrics_JWTBodyIsNoJSON(t *testing.T) {
+	body := base64.RawURLEncoding.EncodeToString([]byte("I am sadly no JSON :'("))
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "client-id",
+		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + "header." + body + ".signature",
+			},
+		},
+		expectedRealm:    unknownElementPlaceholder,
+		expectedClientId: unknownElementPlaceholder,
+	})
+}
+
+func Test_Filter_ClientMetrics_JWTBodyHasNoRealm(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "client-id",
+		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+					// no realm
+					"client-id": "david",
+				}),
+			},
+		},
+		expectedRealm:    unknownElementPlaceholder,
+		expectedClientId: unknownElementPlaceholder,
+	})
+}
+
+func Test_Filter_ClientMetrics_JWTBodyHasNoClientId_ShouldTrackRealm(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "client-id",
+		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+					"realm": "users",
+					// no client ID
+				}),
+			},
+		},
+		expectedRealm:    "users",
+		expectedClientId: unknownElementPlaceholder,
+	})
+}
+
+func Test_Filter_ClientMetrics_NoFlagRealmKeyName(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "", // no realm key name CLI flag
+		clientIdKeyName:       "client-id",
+		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+					"realm":     "users",
+					"client-id": "joe",
+				}),
+			},
+		},
+		expectingNoClientBasedMetrics: true,
+	})
+}
+
+func Test_Filter_ClientMetrics_NoFlagClientIdKeyName(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "", // no client ID key name CLI flag
+		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+					"realm":     "users",
+					"client-id": "joe",
+				}),
+			},
+		},
+		expectingNoClientBasedMetrics: true,
+	})
+}
+
+// todo: Confirm the behaviour in this case
+//func Test_Filter_ClientMetrics_NoClientTrackingPatternInRouteFilterJSON(t *testing.T) {
+//	testClientMetrics(t, clientMetricsTest{
+//		realmKeyName:          "realm",
+//		clientIdKeyName:       "client-id",
+//		clientTrackingPattern: "", // no client tracking in route's filter configuration
+//		header: http.Header{
+//			authorizationHeaderName: {
+//				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+//					"realm":     "users",
+//					"client-id": "joe",
+//				}),
+//			},
+//		},
+//		expectingNoClientBasedMetrics: true,
+//	})
+//}
 
 func testClientMetrics(
 	t *testing.T,
@@ -131,14 +271,21 @@ func testClientMetrics(
 	conf := testWithFilterConf{
 		header: testCase.header,
 		filterCreate: func() (filters.Filter, error) {
-			args := []interface{}{`{
-					"application_id": "my_app",
-					"api_id": "my_api",
-				  	"path_templates": [
-						"foo/orders"
-					],
-					"client_tracking_pattern": "` + testCase.clientTrackingPattern + `"
-				}`}
+			filterConf := map[string]interface{}{
+				"application_id": "my_app",
+				"api_id":         "my_api",
+				"path_templates": []string{
+					"foo/orders",
+				},
+			}
+			if testCase.clientTrackingPattern != "" {
+				filterConf["client_tracking_pattern"] = testCase.clientTrackingPattern
+			}
+			js, err := json.Marshal(filterConf)
+			if !assert.NoError(t, err) {
+				t.FailNow()
+			}
+			args := []interface{}{string(js)}
 			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientIdKeyName)
 			return spec.CreateFilter(args)
 		},
@@ -149,7 +296,7 @@ func testClientMetrics(
 			"apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.%s.%s.",
 			testCase.expectedRealm,
 			testCase.expectedClientId)
-		if testCase.expectingNoMetrics {
+		if testCase.expectingNoClientBasedMetrics {
 			assertNoMetricsWithSuffixes(t, clientMetricsSuffix, m)
 			return
 		}
