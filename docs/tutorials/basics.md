@@ -295,8 +295,8 @@ Hello world!
 ## Current routing table
 
 To investigate the current routing table skipper has loaded into its
-memory, you can use the `-support-listener` endpoint, which defaults to
-port 9911.
+memory, you can use the `-support-listener`, which defaults to port
+9911 and you have to do a GET request to the `/routes` endpoint.
 
 Example:
 
@@ -310,3 +310,20 @@ r: *
 If you do not see your route, then you have most probably a syntax
 error in your route definition, such that the route was not loaded
 into memory.
+
+To print the number of routes, `X-Count` header, and the last update
+timestamp, `X-Timestamp` header, you can use a HEAD request to the
+support listener `/routes` endpoint:
+
+```bash
+% curl -I localhost:9911/routes
+HTTP/1.1 200 OK
+Content-Type: text/plain
+X-Count: 1
+X-Timestamp: 1541086036
+Date: Fri, 02 Nov 2018 00:30:43 GMT
+```
+
+For skipper operators the number of routes can be interesting for
+statistics and the timestamp to detect skipper instances that have not
+updated its routing table.
