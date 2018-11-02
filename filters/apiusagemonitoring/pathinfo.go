@@ -6,15 +6,6 @@ import (
 	"regexp"
 )
 
-var (
-	unknownPath = &pathInfo{
-		ApplicationId:           unknownElementPlaceholder,
-		ApiId:                   unknownElementPlaceholder,
-		PathTemplate:            unknownElementPlaceholder,
-		metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
-	}
-)
-
 type pathInfo struct {
 	ApplicationId           string
 	ApiId                   string
@@ -83,3 +74,24 @@ var (
 		http.MethodTrace:   MethodIndexTrace,
 	}
 )
+
+var (
+	unknownPath *pathInfo
+)
+
+func initializeUnknownPath(realmKeyName, clientIdKeyName string) {
+	if unknownPath != nil {
+		return
+	}
+	unknownPath = &pathInfo{
+		ApplicationId:           unknownElementPlaceholder,
+		ApiId:                   unknownElementPlaceholder,
+		PathTemplate:            unknownElementPlaceholder,
+		metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
+		ClientTracking: &clientTrackingInfo{ // todo: Check if that is really the behaviour we want
+			ClientTrackingMatcher: regexp.MustCompile(`.*`), // todo: do we really match everything? this conf is on a filter JSON basis
+			RealmKey:              realmKeyName,             // todo: Is it relevant to save this in the `unknownPath`
+			ClientIdKey:           clientIdKeyName,          // todo: Is it relevant to save this in the `unknownPath`
+		},
+	}
+}

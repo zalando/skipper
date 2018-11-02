@@ -35,6 +35,7 @@ func NewApiUsageMonitoring(
 		log.Debugf("Filter %q is not enabled. Spec returns `noop` filters.", Name)
 		return &noopSpec{&noopFilter{}}
 	}
+	initializeUnknownPath(realmKeyName, clientIdKeyName)
 	spec := &apiUsageMonitoringSpec{
 		realmKey:    realmKeyName,
 		clientIdKey: clientIdKeyName,

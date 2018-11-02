@@ -398,7 +398,7 @@ type testWithFilterConf struct {
 	passCount    *int
 	filterCreate func() (filters.Filter, error)
 	method       *string
-	url          *string
+	url          string
 	resStatus    *int
 	header       http.Header
 }
@@ -430,10 +430,10 @@ func testWithFilterC(
 	} else {
 		method = *conf.method
 	}
-	if conf.url == nil {
+	if conf.url == "" {
 		url = "https://www.example.com/foo/orders"
 	} else {
-		url = *conf.url
+		url = conf.url
 	}
 	if conf.resStatus == nil {
 		resStatus = http.StatusOK
