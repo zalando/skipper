@@ -26,7 +26,6 @@ func (a *All) MeasureSince(key string, start time.Time) {
 func (a *All) IncCounter(key string) {
 	a.prometheus.IncCounter(key)
 	a.codaHale.IncCounter(key)
-
 }
 func (a *All) IncCounterBy(key string, value int64) {
 	a.prometheus.IncCounterBy(key, value)

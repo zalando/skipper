@@ -244,5 +244,5 @@ func (m *filterMetrics) MeasureSince(key string, start time.Time) {
 }
 
 func (m *filterMetrics) IncFloatCounterBy(key string, value float64) {
-	m.impl.IncFloatCounterBy(key, value)
+	m.impl.IncFloatCounterBy(m.prefix+key, value)
 }
