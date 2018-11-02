@@ -327,3 +327,20 @@ Date: Fri, 02 Nov 2018 00:30:43 GMT
 For skipper operators the number of routes can be interesting for
 statistics and the timestamp to detect skipper instances that have not
 updated its routing table.
+
+### Route IDs
+
+In the following example **rid** is the route ID:
+
+```
+% curl localhost:9911/routes
+rid: *
+  -> setQuery("lang", "pt")
+  -> "http://127.0.0.1:8000";
+```
+
+If the route ID has a prefix `kube_`, then it is a route created by
+the Kubernetes dataclient. We do not disallow that you create manually
+routes with `kube_` prefix, but most of the time you should not use it
+in other routes to differentiate the routes created by other
+dataclients, in case you use multiple at the same time.
