@@ -65,6 +65,9 @@ const (
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 	defaultWebhookTimeout                 = 2 * time.Second
 
+	// API Monitoring
+	defaultApiUsageMonitoringEnable = false
+
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
 	ignoreTrailingSlashUsage             = "flag indicating to ignore trailing slashes in paths when routing"
@@ -85,7 +88,7 @@ const (
 	maxAuditBodyUsage                    = "sets the max body to read to log inthe audit log body"
 
 	// logging, metrics, tracing:
-	enablePrometheusMetricsUsage    = "siwtch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
+	enablePrometheusMetricsUsage    = "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
 	opentracingUsage                = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
 	opentracingIngressSpanNameUsage = "set the name of the initial, pre-routing, tracing span"
 	metricsListenerUsage            = "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty."
@@ -145,6 +148,9 @@ const (
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
+
+	// API Monitoring:
+	apiUsageMonitoringEnableUsage = "enables the experimental filter apiUsageMonitoring"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -267,6 +273,9 @@ var (
 	oauth2TokenintrospectionTimeout time.Duration
 	webhookTimeout                  time.Duration
 
+	// API Monitoring
+	apiUsageMonitoringEnable bool
+
 	// connections, timeouts:
 	idleConnsPerHost           int
 	closeIdleConnsPeriod       string
@@ -385,6 +394,9 @@ func init() {
 	flag.DurationVar(&oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
 	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
+
+	// API Monitoring:
+	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -569,6 +581,9 @@ func main() {
 		WhitelistedHealthCheckCIDR:  whitelistCIDRS,
 		KubernetesPathMode:          kubernetesPathMode,
 		KubernetesNamespace:         kubernetesNamespace,
+
+		// API Monitoring:
+		ApiUsageMonitoringEnable: apiUsageMonitoringEnable,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,

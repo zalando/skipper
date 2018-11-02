@@ -231,7 +231,6 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]*RouteFilter, e
 		if err != nil {
 			return nil, err
 		}
-
 		fs = append(fs, &RouteFilter{f, def.Name, i})
 	}
 

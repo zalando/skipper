@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
@@ -233,6 +233,10 @@ func (c *context) setMetricsPrefix(prefix string) {
 
 func (m *filterMetrics) IncCounter(key string) {
 	m.impl.IncCounter(m.prefix + key)
+}
+
+func (m *filterMetrics) IncCounterBy(key string, value int64) {
+	m.impl.IncCounterBy(m.prefix+key, value)
 }
 
 func (m *filterMetrics) MeasureSince(key string, start time.Time) {
