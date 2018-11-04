@@ -10,7 +10,7 @@ package management vendor how to install `htpasswd`:
 % apt-get install apache2-utils
 ```
 
-Create a htpasswd file `foo.passwd` and use `catpain` with password `apassword`:
+Create a htpasswd file `foo.passwd` and use `captain` with password `apassword`:
 
 ```
 % htpasswd -bcB foo.passwd captain apassword
