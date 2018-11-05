@@ -46,6 +46,12 @@ func NewApiUsageMonitoring(
 	}
 
 	// Create the filter Spec
+	var unknownPath *clientTrackingInfo = nil // consumer metrics feature is disabled
+	if realmKeyName != "" {
+		unknownPath = &clientTrackingInfo{
+			ClientTrackingMatcher: nil, // do not match anything (track `realm.<unknown>`)
+		}
+	}
 	spec := &apiUsageMonitoringSpec{
 		realmKey:    realmKeyName,
 		clientIdKey: clientIdKeys,
@@ -54,9 +60,7 @@ func NewApiUsageMonitoring(
 			ApiId:                   unknownElementPlaceholder,
 			PathTemplate:            unknownElementPlaceholder,
 			metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
-			ClientTracking: &clientTrackingInfo{
-				ClientTrackingMatcher: nil, // do not match anything (track `realm.<unknown>`)
-			},
+			ClientTracking:          unknownPath,
 		},
 	}
 	log.Debugf("Created filter spec: %+v", spec)

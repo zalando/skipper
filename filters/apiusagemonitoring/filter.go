@@ -10,13 +10,23 @@ import (
 
 const (
 	metricCountAll   = "http_count"
-	metricCount500s  = "http5xx_count"
-	metricCount400s  = "http4xx_count"
-	metricCount300s  = "http3xx_count"
-	metricCount200s  = "http2xx_count"
 	metricCount100s  = "http1xx_count"
+	metricCount200s  = "http2xx_count"
+	metricCount300s  = "http3xx_count"
+	metricCount400s  = "http4xx_count"
+	metricCount500s  = "http5xx_count"
 	metricLatency    = "latency"
 	metricLatencySum = "latency_sum"
+)
+
+var (
+	metricCountPerClass = [5]string{
+		metricCount100s,
+		metricCount200s,
+		metricCount300s,
+		metricCount400s,
+		metricCount500s,
+	}
 )
 
 const (
@@ -64,10 +74,16 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	if path.ClientTracking != nil {
 		cmPre := metricsName.ConsumerPrefix + f.determineClientMetricPart(c, path) + "."
 
+		// METRIC: Count for consumer
+		metrics.IncCounter(cmPre + metricCountAll)
+
+		// METRIC: Response Status Range Count for consumer
+		metrics.IncCounter(cmPre + metricCountPerClass[classMetricsIndex])
+
 		// METRIC: Latency Sum (in decimal seconds)
 		if beginPresent {
 			latency := time.Since(begin).Seconds()
-			c.Metrics().IncFloatCounterBy(cmPre+metricLatencySum, latency)
+			metrics.IncFloatCounterBy(cmPre+metricLatencySum, latency)
 		}
 
 		log.Debugf("Pushed consumer metrics with prefix `%s`", cmPre)

@@ -47,7 +47,7 @@ func Test_Filter_ClientMetrics_ClientTrackingPatternDoesNotCompile(t *testing.T)
 		clientIdKeyName:              "client-id",
 		clientTrackingPattern:        "([",
 		header:                       headerUsersJoe,
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
 		expectedConsumerMetricPrefix: "", // expecting no metrics
 	})
 }
@@ -371,36 +371,85 @@ func testClientMetrics(
 	}
 	previousLatencySum := float64(0)
 	testWithFilterC(t, conf, func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+
+		expectedCounters := make([]string, 0)
+		expectedFloatCounters := make([]string, 0)
+		expectedMeasures := make([]string, 0)
+
 		//
 		// Assert consumer metrics
 		//
-		if testCase.expectedConsumerMetricPrefix == "" {
-			assertNoMetricsWithSuffixes(t, consumerMetricsSuffix, m)
-			return
-		} else {
-			if assert.Contains(t, m.FloatCounters, testCase.expectedConsumerMetricPrefix+"latency_sum") {
-				currentLatencySum := m.FloatCounters[testCase.expectedConsumerMetricPrefix+"latency_sum"]
-				assert.Conditionf(t,
-					func() (success bool) { return currentLatencySum > previousLatencySum },
-					"Current latency sum is not higher than the previous recorded one (%d to %d)",
-					previousLatencySum, currentLatencySum)
+		if testCase.expectedConsumerMetricPrefix != "" {
+
+			httpCountKey := testCase.expectedConsumerMetricPrefix + "http_count"
+			expectedCounters = append(expectedCounters, httpCountKey)
+			if assert.Contains(t, m.Counters, httpCountKey) {
+				v := m.Counters[httpCountKey]
+				assert.Equal(t, int64(pass), v)
 			}
+
+			httpClassCountKey := testCase.expectedConsumerMetricPrefix + "http2xx_count"
+			expectedCounters = append(expectedCounters, httpClassCountKey)
+			if assert.Contains(t, m.Counters, httpClassCountKey) {
+				v := m.Counters[httpClassCountKey]
+				assert.Equal(t, int64(pass), v)
+			}
+
+			latencySumKey := testCase.expectedConsumerMetricPrefix + "latency_sum"
+			expectedFloatCounters = append(expectedFloatCounters, latencySumKey)
+			if assert.Contains(t, m.FloatCounters, latencySumKey) {
+				v := m.FloatCounters[latencySumKey]
+				assert.Conditionf(t,
+					func() bool {
+						return v > previousLatencySum
+					}, "current consumer latency sum is not higher than the previous recorded one (%f to %f)",
+					previousLatencySum, v)
+			}
+
 		}
+
 		//
 		// Assert endpoint metrics
 		//
-		if testCase.expectedEndpointMetricPrefix == "" {
-			assertNoMetricsWithSuffixes(t, endpointMetricsSuffix, m)
-		} else {
-			assert.Equal(t,
-				map[string]int64{
-					testCase.expectedEndpointMetricPrefix + "http_count":    int64(pass),
-					testCase.expectedEndpointMetricPrefix + "http2xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, testCase.expectedEndpointMetricPrefix+"latency")
+		if testCase.expectedEndpointMetricPrefix != "" {
+
+			httpCountKey := testCase.expectedEndpointMetricPrefix + "http_count"
+			expectedCounters = append(expectedCounters, httpCountKey)
+			if assert.Contains(t, m.Counters, httpCountKey) {
+				v := m.Counters[httpCountKey]
+				assert.Equal(t, int64(pass), v)
+			}
+
+			httpCountClassKey :=testCase.expectedEndpointMetricPrefix+"http2xx_count"
+			expectedCounters = append(expectedCounters, httpCountClassKey)
+			if assert.Contains(t,  m.Counters, httpCountClassKey) {
+				v := m.Counters[httpCountClassKey]
+				assert.Equal(t, int64(pass), v)
+			}
+
+			latencyKey := testCase.expectedEndpointMetricPrefix + "latency"
+			expectedMeasures = append(expectedMeasures, latencyKey)
+			assert.Contains(t, m.Measures, latencyKey)
 		}
+
+		actualCounters := make([]string, 0, len(m.Counters))
+		for k := range m.Counters {
+			actualCounters = append(actualCounters, k)
+		}
+		assert.ElementsMatch(t, expectedCounters, actualCounters)
+
+		actualFloatCounters := make([]string, 0, len(m.FloatCounters))
+		for k := range m.FloatCounters {
+			actualFloatCounters = append(actualFloatCounters, k)
+		}
+		assert.ElementsMatch(t, expectedFloatCounters, actualFloatCounters)
+
+		actualMeasures := make([]string, 0, len(m.Measures))
+		for k := range m.Measures {
+			actualMeasures = append(actualMeasures, k)
+		}
+		assert.ElementsMatch(t, expectedMeasures, actualMeasures)
+
 	})
 }
 
