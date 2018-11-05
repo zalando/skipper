@@ -154,7 +154,7 @@ const (
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage      = "enables the experimental filter apiUsageMonitoring"
 	apiUsageMonitoringRealmKeyUsage    = "name of the property in the JWT body that contains the authority realm"
-	apiUsageMonitoringClientIdKeyUsage = "name of the property in the JWT body that contains the client ID"
+	apiUsageMonitoringClientIdKeyUsage = "comma separated list of names of the properties in the JWT body that contains the client ID"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"

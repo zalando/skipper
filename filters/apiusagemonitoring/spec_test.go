@@ -6,13 +6,13 @@ import (
 	"testing"
 )
 
-func Test_TypeAndName(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "")
+func Test_CreateSpec(t *testing.T) {
+	spec := NewApiUsageMonitoring(true, "realm", "    abc,def, ,ghi,xyz   ")
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	if assert.IsType(t, new(apiUsageMonitoringSpec), spec) {
 		s := spec.(*apiUsageMonitoringSpec)
-		assert.Equal(t, "", s.clientIdKey)
-		assert.Equal(t, "", s.realmKey)
+		assert.Equal(t, []string{"abc", "def", "ghi", "xyz"}, s.clientIdKey)
+		assert.Equal(t, "realm", s.realmKey)
 		assert.NotNil(t, s.unknownPath)
 	}
 }

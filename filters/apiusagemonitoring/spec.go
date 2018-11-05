@@ -35,9 +35,20 @@ func NewApiUsageMonitoring(
 		log.Debugf("Filter %q is not enabled. Spec returns `noop` filters.", Name)
 		return &noopSpec{&noopFilter{}}
 	}
+
+	// Parse client ID keys comma separated list
+	clientIdKeys := make([]string, 0)
+	for _, key := range strings.Split(clientIdKeyName, ",") {
+		strippedKey := strings.TrimSpace(key)
+		if strippedKey != "" {
+			clientIdKeys = append(clientIdKeys, strippedKey)
+		}
+	}
+
+	// Create the filter Spec
 	spec := &apiUsageMonitoringSpec{
 		realmKey:    realmKeyName,
-		clientIdKey: clientIdKeyName,
+		clientIdKey: clientIdKeys,
 		unknownPath: &pathInfo{
 			ApplicationId:           unknownElementPlaceholder,
 			ApiId:                   unknownElementPlaceholder,
@@ -54,7 +65,7 @@ func NewApiUsageMonitoring(
 
 type apiUsageMonitoringSpec struct {
 	realmKey    string
-	clientIdKey string
+	clientIdKey []string
 	unknownPath *pathInfo
 }
 
@@ -195,7 +206,7 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 			apiIndex)
 		return nil
 	}
-	if s.clientIdKey == "" {
+	if len(s.clientIdKey) == 0 {
 		log.Infof(
 			`args[%d]: skipper wide configuration "api-usage-monitoring-client-id-key" not provided, not tracking client metrics`,
 			apiIndex)

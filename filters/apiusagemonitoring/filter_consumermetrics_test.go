@@ -87,6 +87,43 @@ func Test_Filter_ClientMetrics_MatchAll(t *testing.T) {
 	})
 }
 
+func Test_Filter_ClientMetrics_MatchOneOfClientIdKeyName(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "client-id,sub",
+		clientTrackingPattern: ".*",
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+					"realm": "services",
+					"sub":   "payments",
+				}),
+			},
+		},
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
+		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.services.payments.",
+	})
+}
+
+func Test_Filter_ClientMetrics_MatchOneOfClientIdKeyName_UseFirstMatching(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:          "realm",
+		clientIdKeyName:       "client-id,sub",
+		clientTrackingPattern: ".*",
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+					"realm":     "services",
+					"sub":       "payments",
+					"client-id": "but_I_should_come_first",
+				}),
+			},
+		},
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
+		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.services.but_I_should_come_first.",
+	})
+}
+
 func Test_Filter_ClientMetrics_Realm1User1(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:                 "realm",

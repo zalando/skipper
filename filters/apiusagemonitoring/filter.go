@@ -27,8 +27,8 @@ const (
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
 // created for every route invocation of the `apiUsageMonitoring` filter.
 type apiUsageMonitoringFilter struct {
-	Spec        *apiUsageMonitoringSpec
-	Paths       []*pathInfo
+	Spec  *apiUsageMonitoringSpec
+	Paths []*pathInfo
 }
 
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
@@ -97,7 +97,12 @@ func (f *apiUsageMonitoringFilter) determineClientMetricPart(c filters.FilterCon
 	}
 
 	// if no client ID in JWT: track realm.<unknown>
-	clientId, ok := jwt[f.Spec.clientIdKey].(string)
+	var clientId string
+	for _, k := range f.Spec.clientIdKey {
+		if clientId, ok = jwt[k].(string); ok {
+			break
+		}
+	}
 	if !ok {
 		return realm + "." + unknownElementPlaceholder
 	}
