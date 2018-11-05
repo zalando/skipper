@@ -27,7 +27,8 @@ const (
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
 // created for every route invocation of the `apiUsageMonitoring` filter.
 type apiUsageMonitoringFilter struct {
-	Paths []*pathInfo
+	Spec        *apiUsageMonitoringSpec
+	Paths       []*pathInfo
 }
 
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
@@ -61,7 +62,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 
 	// Client Based Metrics
 	if path.ClientTracking != nil {
-		cmPre := metricsName.ConsumerPrefix + determineClientMetricPart(c, path) + "."
+		cmPre := metricsName.ConsumerPrefix + f.determineClientMetricPart(c, path) + "."
 
 		// METRIC: Latency Sum (in decimal seconds)
 		if beginPresent {
@@ -77,27 +78,37 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 
 // determineClientMetricPart generates the proper <Realm>.<Client ID> part of the
 // client metrics name.
-func determineClientMetricPart(c filters.FilterContext, path *pathInfo) string {
+func (f *apiUsageMonitoringFilter) determineClientMetricPart(c filters.FilterContext, path *pathInfo) string {
+	// if no JWT: track <unknown>.<unknown>
 	jwt := parseJwtBody(c.Request())
 	if jwt == nil {
 		return unknownElementPlaceholder + "." + unknownElementPlaceholder
 	}
 
-	realm, ok := jwt[path.ClientTracking.RealmKey].(string)
+	// if no realm in JWT: track <unknown>.<unknown>
+	realm, ok := jwt[f.Spec.realmKey].(string)
 	if !ok {
 		return unknownElementPlaceholder + "." + unknownElementPlaceholder
 	}
 
-	clientId, ok := jwt[path.ClientTracking.ClientIdKey].(string)
+	// if not matcher: track realm.<unknown>
+	if path.ClientTracking.ClientTrackingMatcher == nil {
+		return realm + "." + unknownElementPlaceholder
+	}
+
+	// if no client ID in JWT: track realm.<unknown>
+	clientId, ok := jwt[f.Spec.clientIdKey].(string)
 	if !ok {
 		return realm + "." + unknownElementPlaceholder
 	}
 
+	// if no realm.client does not match, track realm.<unknown>
 	realmAndClient := realm + "." + clientId
 	if !path.ClientTracking.ClientTrackingMatcher.MatchString(realmAndClient) {
 		return realm + "." + unknownElementPlaceholder
 	}
 
+	// all matched: track realm.client_id
 	return realmAndClient
 }
 
@@ -125,7 +136,7 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 		}
 	}
 	if path == nil {
-		path = unknownPath
+		path = f.Spec.unknownPath
 	}
 
 	// Get the cached prefixes for this path and verb

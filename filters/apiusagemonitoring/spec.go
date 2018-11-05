@@ -35,10 +35,18 @@ func NewApiUsageMonitoring(
 		log.Debugf("Filter %q is not enabled. Spec returns `noop` filters.", Name)
 		return &noopSpec{&noopFilter{}}
 	}
-	initializeUnknownPath(realmKeyName, clientIdKeyName)
 	spec := &apiUsageMonitoringSpec{
 		realmKey:    realmKeyName,
 		clientIdKey: clientIdKeyName,
+		unknownPath: &pathInfo{
+			ApplicationId:           unknownElementPlaceholder,
+			ApiId:                   unknownElementPlaceholder,
+			PathTemplate:            unknownElementPlaceholder,
+			metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
+			ClientTracking: &clientTrackingInfo{
+				ClientTrackingMatcher: nil, // do not match anything (track `realm.<unknown>`)
+			},
+		},
 	}
 	log.Debugf("Created filter spec: %+v", spec)
 	return spec
@@ -47,6 +55,7 @@ func NewApiUsageMonitoring(
 type apiUsageMonitoringSpec struct {
 	realmKey    string
 	clientIdKey string
+	unknownPath *pathInfo
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
@@ -58,6 +67,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	paths := s.buildPathInfoListFromConfiguration(apis)
 
 	filter = &apiUsageMonitoringFilter{
+		Spec:  s,
 		Paths: paths,
 	}
 	log.Debugf("Created filter: %s", filter)
@@ -197,11 +207,10 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 		log.Errorf(
 			"args[%d].client_tracking_pattern ignored (no client tracking): error compiling regular expression %q: %v",
 			apiIndex, api.ClientTrackingPattern, err)
+		return nil
 	}
 
 	return &clientTrackingInfo{
-		RealmKey:              s.realmKey,
-		ClientIdKey:           s.clientIdKey,
 		ClientTrackingMatcher: clientTrackingMatcher,
 	}
 }

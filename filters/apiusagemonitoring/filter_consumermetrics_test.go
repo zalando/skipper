@@ -4,7 +4,7 @@ package apiusagemonitoring
 // THIS SHOULD NOT APPEAR ON THE PULL REQUEST
 //
 // todo: What happens when service-to-service tokens are used? Is the `client-id` at the same JWT property or do we need a 2nd config?
-// todo: Clarify what realm and user to track when the path is not in the configured template (actually: extract and log real realm and ID)?
+// todo: Rename `client` stuff to `consumer`
 //
 
 import (
@@ -41,7 +41,18 @@ var (
 	}
 )
 
-func Test_Filter_ClientMetrics_NonConfiguredPath(t *testing.T) {
+func Test_Filter_ClientMetrics_ClientTrackingPatternDoesNotCompile(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:                 "realm",
+		clientIdKeyName:              "client-id",
+		clientTrackingPattern:        "([",
+		header:                       headerUsersJoe,
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.",
+		expectedConsumerMetricPrefix: "", // expecting no metrics
+	})
+}
+
+func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsKnown(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:                 "realm",
 		clientIdKeyName:              "client-id",
@@ -49,7 +60,19 @@ func Test_Filter_ClientMetrics_NonConfiguredPath(t *testing.T) {
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.*.*.users.joe.",
+		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.*.*.users.<unknown>.",
+	})
+}
+
+func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsUnknown(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:                 "will not match",
+		clientIdKeyName:              "client-id",
+		clientTrackingPattern:        ".*",
+		header:                       headerUsersJoe,
+		url:                          "https://www.example.com/non/configured/path/template",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.",
+		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.*.*.<unknown>.<unknown>.",
 	})
 }
 
