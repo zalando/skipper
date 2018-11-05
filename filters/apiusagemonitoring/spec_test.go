@@ -8,11 +8,13 @@ import (
 
 func Test_TypeAndName(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "")
-	assert.Equal(t, &apiUsageMonitoringSpec{
-		clientIdKey: "",
-		realmKey:    "",
-	}, spec)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
+	if assert.IsType(t, new(apiUsageMonitoringSpec), spec) {
+		s := spec.(*apiUsageMonitoringSpec)
+		assert.Equal(t, "", s.clientIdKey)
+		assert.Equal(t, "", s.realmKey)
+		assert.NotNil(t, s.unknownPath)
+	}
 }
 
 func Test_FeatureDisableCreateNilFilters(t *testing.T) {
