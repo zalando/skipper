@@ -107,7 +107,7 @@ func Test_Filter_PathTemplateWithVariablePart(t *testing.T) {
 				)
 			})
 			m.WithMeasures(func(measures map[string][]time.Duration) {
-			assert.Contains(t, measures, pre+"latency")
+				assert.Contains(t, measures, pre+"latency")
 			})
 		})
 }

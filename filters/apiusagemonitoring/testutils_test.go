@@ -174,8 +174,8 @@ func testClientMetrics(
 	testCase clientMetricsTest,
 ) {
 	conf := testWithFilterConf{
-		url:       testCase.url,
-		header:    testCase.header,
+		url:    testCase.url,
+		header: testCase.header,
 		filterCreate: func() (filters.Filter, error) {
 			filterConf := map[string]interface{}{
 				"application_id": "my_app",
@@ -273,7 +273,7 @@ func testClientMetrics(
 			for k := range counters {
 				actualCounters = append(actualCounters, k)
 			}
-			assert.ElementsMatch(t, expectedCounters, actualCounters)
+			assert.ElementsMatchf(t, expectedCounters, actualCounters, "expected: %v\nactual:   %v", expectedMeasures, actualCounters)
 		})
 
 		m.WithFloatCounters(func(floatCounters map[string]float64) {
@@ -281,7 +281,7 @@ func testClientMetrics(
 			for k := range floatCounters {
 				actualFloatCounters = append(actualFloatCounters, k)
 			}
-			assert.ElementsMatch(t, expectedFloatCounters, actualFloatCounters)
+			assert.ElementsMatchf(t, expectedFloatCounters, actualFloatCounters, "expected: %v\nactual:   %v", expectedMeasures, actualFloatCounters)
 		})
 
 		m.WithMeasures(func(measures map[string][]time.Duration) {
@@ -289,7 +289,7 @@ func testClientMetrics(
 			for k := range measures {
 				actualMeasures = append(actualMeasures, k)
 			}
-			assert.ElementsMatch(t, expectedMeasures, actualMeasures)
+			assert.ElementsMatchf(t, expectedMeasures, actualMeasures, "expected: %v\nactual:   %v", expectedMeasures, actualMeasures)
 		})
 	})
 }

@@ -57,8 +57,8 @@ const (
 	MethodIndexOptions        // OPTIONS
 	MethodIndexTrace          // TRACE
 
-	MethodIndexUnknown  // Value when the HTTP Method is not in the known list
-	MethodIndexLength   // Gives the constant size of the `metricPrefixesPerMethod` array.
+	MethodIndexUnknown // Value when the HTTP Method is not in the known list
+	MethodIndexLength  // Gives the constant size of the `metricPrefixesPerMethod` array.
 )
 
 var (

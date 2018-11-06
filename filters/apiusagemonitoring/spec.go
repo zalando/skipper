@@ -216,6 +216,12 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 			apiIndex)
 		return nil
 	}
+	if api.ClientTrackingPattern == "" {
+		log.Debugf(
+			`args[%d]: empty client_tracking_pattern disables the client metrics for its endpoints`,
+			apiIndex)
+		return nil
+	}
 
 	clientTrackingMatcher, err := regexp.Compile(api.ClientTrackingPattern)
 	if err != nil {
