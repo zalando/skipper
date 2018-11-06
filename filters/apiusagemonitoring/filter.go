@@ -1,10 +1,12 @@
 package apiusagemonitoring
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/zalando/skipper/filters"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -32,6 +34,11 @@ var (
 const (
 	stateBagKeyPrefix = "filter." + Name + "."
 	stateBagKeyBegin  = stateBagKeyPrefix + "begin"
+)
+
+const (
+	authorizationHeaderName   = "Authorization"
+	authorizationHeaderPrefix = "Bearer "
 )
 
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
@@ -192,4 +199,34 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 	}
 	path.metricPrefixesPerMethod[methodIndex] = prefixes
 	return path, prefixes
+}
+
+// parseJwtBody parses the JWT token from a HTTP request.
+// It returns `nil` if it was not possible to parse the JWT body.
+func parseJwtBody(req *http.Request) map[string]interface{} {
+	ahead := req.Header.Get(authorizationHeaderName)
+	if !strings.HasPrefix(ahead, authorizationHeaderPrefix) {
+		return nil
+	}
+
+	// split the header into the 3 JWT parts
+	fields := strings.Split(ahead, ".")
+	if len(fields) != 3 {
+		return nil
+	}
+
+	// base64-decode the JWT body part
+	bodyJson, err := base64.RawURLEncoding.DecodeString(fields[1])
+	if err != nil {
+		return nil
+	}
+
+	// un-marshall the JWT body from JSON
+	var bodyObject map[string]interface{}
+	err = json.Unmarshal(bodyJson, &bodyObject)
+	if err != nil {
+		return nil
+	}
+
+	return bodyObject
 }
