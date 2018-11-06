@@ -900,16 +900,59 @@ The structure of the metrics is all of those elements, separated by `.` dots:
 | Realm                       | The realm in which the client is authenticated.                                                       |
 | Client ID                   | Identifier under which the client is authenticated.                                                   |
 
+### Available Metrics
+
+#### Endpoint Related Metrics
+
+Those metrics are not identifying the realm and client. They always have `*` in their place.
+
+Example:
+
+                                                                                 + Realm
+                                                                                 |
+    apiUsageMonitoring.custom.orders-backend.orders-api.GET.foo/orders/:order-id.*.*.http_count
+                                                                                   | |
+                                                                                   | + Metric Name
+                                                                                   + Client ID
+    
+
 The available metrics are:
 
-* HTTP exchanges counting:
-    * **http_count**: the number of HTTP exchanges
-    * **http5xx_count**: number of HTTP exchanges resulting in a server error (HTTP status in the 500s)
-    * **http4xx_count**: number of HTTP exchanges resulting in a client error (HTTP status in the 400s)
-    * **http3xx_count**: number of HTTP exchanges resulting in a redirect (HTTP status in the 300s)
-    * **http2xx_count**: number of HTTP exchanges resulting in success (HTTP status in the 200s)
-* Timing:
-    * **latency**: time between the first observable moment (a call to the filter's `Request`) until the last (a call to the filter's `Response`) 
+| Type      | Metric Name     | Description                                                                                                                    |
+|-----------|-----------------|--------------------------------------------------------------------------------------------------------------------------------|
+| Counter   | `http_count`    | number of HTTP exchanges                                                                                                       |
+| Counter   | `http1xx_count` | number of HTTP exchanges resulting in information (HTTP status in the 100s)                                                    |
+| Counter   | `http2xx_count` | number of HTTP exchanges resulting in success (HTTP status in the 200s)                                                        |
+| Counter   | `http3xx_count` | number of HTTP exchanges resulting in a redirect (HTTP status in the 300s)                                                     |
+| Counter   | `http4xx_count` | number of HTTP exchanges resulting in a client error (HTTP status in the 400s)                                                 |
+| Counter   | `http5xx_count` | number of HTTP exchanges resulting in a server error (HTTP status in the 500s)                                                 |
+| Histogram | `latency`       | time between the first observable moment (a call to the filter's `Request`) until the last (a call to the filter's `Response`) |
+
+#### Client Related Metrics
+
+Those metrics are not identifying endpoint (path) and HTTP verb. They always have `*` as their place.
+
+Example:
+
+                                                        + HTTP Verb
+                                                        | + Path Template     + Metric Name
+                                                        | |                   |
+    apiUsageMonitoring.custom.orders-backend.orders-api.*.*.users.mmustermann.http_count
+                                                            |     |
+                                                            |     + Client ID
+                                                            + Realm
+
+The available metrics are:
+
+| Type    | Metric Name     | Description                                                                                                                                                |
+|---------|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Counter | `http_count`    | number of HTTP exchanges                                                                                                                                   |
+| Counter | `http1xx_count` | number of HTTP exchanges resulting in information (HTTP status in the 100s)                                                                                |
+| Counter | `http2xx_count` | number of HTTP exchanges resulting in success (HTTP status in the 200s)                                                                                    |
+| Counter | `http3xx_count` | number of HTTP exchanges resulting in a redirect (HTTP status in the 300s)                                                                                 |
+| Counter | `http4xx_count` | number of HTTP exchanges resulting in a client error (HTTP status in the 400s)                                                                             |
+| Counter | `http5xx_count` | number of HTTP exchanges resulting in a server error (HTTP status in the 500s)                                                                             |
+| Counter | `latency_sum`   | sum of seconds (in decimal form) between the first observable moment (a call to the filter's `Request`) until the last (a call to the filter's `Response`) |
 
 ### Filter Configuration
 
@@ -941,6 +984,22 @@ api-usage-monitoring-configuration:
           Path template in /articles/{article-id} (OpenAPI 3) or in /articles/:article-id format.
           NOTE: They will be normalized to the :this format for metrics naming.
         example: /orders/{order-id}
+    client_tracking_pattern:
+        description: >
+            The pattern that the combination `realm.clientId` must match in order for the client
+            based metrics to be tracked, in form of a regular expression. If it is not provided
+            or is empty, no client metric is be tracked.
+        type: string
+        examples:
+            disable:
+                summary: No client metric is tracked.
+                value: ""
+            everything:
+                summary: All realms and all client ID are tracked.
+                value: ".*"
+            just_some_users:
+                summary: Only users Joe and and Sabine from realm users are tracked.
+                value: "users\\.(?:joe|sabine)"
 ```
 
 Configuration Example:
@@ -954,7 +1013,8 @@ apiUsageMonitoring(`
             "foo/orders",
             "foo/orders/:order-id",
             "foo/orders/:order-id/order_item/{order-item-id}"
-        ]
+        ],
+        "client_tracking_pattern": "users\\.(?:joe|sabine)"
     }`,`{
         "application_id": "my-app",
         "api_id": "customers-api",
@@ -969,15 +1029,15 @@ apiUsageMonitoring(`
 NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
 and path template.
 
-    apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count
+    apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.http_count
 
 Based on the previous configuration, here is an example of a counter metric.
 
-    apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.http_count
+    apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.*.*.http_count
 
 Here is the _Prometheus_ query to obtain it.
 
-    sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.http_count"}[60s])) by (key)
+    sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.*.*.http_count"}[60s])) by (key)
 
 Here is an example of a histogram metric.
 
@@ -985,4 +1045,4 @@ Here is an example of a histogram metric.
 
 Here is the _Prometheus_ query to obtain it.
 
-    histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.latency"}[60s])) by (le, key))
+    histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.*.*.latency"}[60s])) by (le, key))
