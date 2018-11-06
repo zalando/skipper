@@ -483,18 +483,6 @@ func routeIDForCustom(namespace, name, id, host string, index int) string {
 	return routeID(namespace, name, host, "", "")
 }
 
-// func routeIDEastWest(namespace, name, host, path, backend string) string {
-// 	rid := routeID(namespace, name, host, path, backend)
-// 	rid = append("kubeew", rid[4:]) // TODO(sszuecs): check index not off by one
-// 	return rid
-// }
-
-// func routeIDEastWestForCustom(namespace, name, id, host string, index int) string {
-// 	rid := routeIDForCustom(namespace, name, id, host, index)
-// 	rid = append("kubeew", rid[4:]) // TODO(sszuecs): check index not off by one
-// 	return rid
-// }
-
 func patchRouteID(rid string) string {
 	return "kubeew" + rid[len(ingressRouteIDPrefix):]
 }
