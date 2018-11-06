@@ -22,3 +22,9 @@ nav:
         - Ingress Controller Deployment: kubernetes/ingress-controller.md
         - Ingress Usage: kubernetes/ingress-usage.md
         - Ingress Backends: kubernetes/ingress-backends.md
+    - Tutorials:
+        - Basis: tutorials/basics.md
+        - Common Use Cases: tutorials/common-use-cases.md
+        - Development: tutorials/development.md
+        - Authentication and Autorization: tutorials/auth.md
+        - Ratelimits: tutorials/ratelimit.md

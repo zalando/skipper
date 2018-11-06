@@ -37,6 +37,15 @@ func (p *pathInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// pathInfoByRegExRev allows sort.Sort to reorder a slice of `pathInfo` in
+// reverse alphabetical order of their matcher (Regular Expression). That way,
+// the more complex RegEx will end up first in the slice.
+type pathInfoByRegExRev []*pathInfo
+
+func (s pathInfoByRegExRev) Len() int           { return len(s) }
+func (s pathInfoByRegExRev) Less(i, j int) bool { return s[i].Matcher.String() > s[j].Matcher.String() }
+func (s pathInfoByRegExRev) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
 type metricNames struct {
 	GlobalPrefix            string
 	CountAll                string
