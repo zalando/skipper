@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func Test_Filter_NoPathTemplate(t *testing.T) {
@@ -21,14 +21,18 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*."
 			// no path matching: tracked as unknown
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count":    int64(pass),
-					pre + "http2xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count":    int64(pass),
+						pre + "http2xx_count": int64(pass),
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -45,14 +49,18 @@ func Test_Filter_NoConfiguration(t *testing.T) {
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*."
 			// no path matching: tracked as unknown
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count":    int64(pass),
-					pre + "http2xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count":    int64(pass),
+						pre + "http2xx_count": int64(pass),
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -65,14 +73,18 @@ func Test_Filter_PathTemplateNoVariablePart(t *testing.T) {
 		400,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.*.*."
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count":    int64(pass),
-					pre + "http4xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count":    int64(pass),
+						pre + "http4xx_count": int64(pass),
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -85,14 +97,18 @@ func Test_Filter_PathTemplateWithVariablePart(t *testing.T) {
 		204,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.*.*."
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count":    int64(pass),
-					pre + "http2xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count":    int64(pass),
+						pre + "http2xx_count": int64(pass),
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+			assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -105,19 +121,23 @@ func Test_Filter_PathTemplateWithMultipleVariablePart(t *testing.T) {
 		301,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.*.*."
-			if !assert.NotContains(
-				t, m.Counters,
-				"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.http_count",
-				"Matched `foo/orders/:order-id` instead of `foo/orders/:order-id`/order-items/:order-item-id") {
-			}
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count":    int64(pass),
-					pre + "http3xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				if !assert.NotContains(
+					t, counters,
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.http_count",
+					"Matched `foo/orders/:order-id` instead of `foo/orders/:order-id`/order-items/:order-item-id") {
+				}
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count":    int64(pass),
+						pre + "http3xx_count": int64(pass),
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -130,14 +150,18 @@ func Test_Filter_PathTemplateFromSecondConfiguredApi(t *testing.T) {
 		502,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/customers/:customer-id.*.*."
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count":    int64(pass),
-					pre + "http5xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count":    int64(pass),
+						pre + "http5xx_count": int64(pass),
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -150,14 +174,18 @@ func Test_Filter_StatusCodes1xxAreMonitored(t *testing.T) {
 		100,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.*.*."
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count":    int64(pass),
-					pre + "http1xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count":    int64(pass),
+						pre + "http1xx_count": int64(pass),
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -170,14 +198,18 @@ func Test_Filter_StatusCodeOver599IsMonitored(t *testing.T) {
 		600,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.*.*."
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count": int64(pass),
-					//pre + "http*xx_count" <--- no code group tracked
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count": int64(pass),
+						//pre + "http*xx_count" <--- no code group tracked
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -190,14 +222,18 @@ func Test_Filter_StatusCodeUnder100IsMonitoredWithoutHttpStatusCount(t *testing.
 		99,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.*.*."
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count": int64(pass),
-					//pre + "http*xx_count" <--- no code group tracked
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count": int64(pass),
+						//pre + "http*xx_count" <--- no code group tracked
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -210,19 +246,22 @@ func Test_Filter_NonConfiguredPathTrackedUnderUnknown(t *testing.T) {
 		200,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*."
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count":    int64(pass),
-					pre + "http2xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count":    int64(pass),
+						pre + "http2xx_count": int64(pass),
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
 func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
-	t.Parallel()
 	for _, testCase := range []struct {
 		method                 string
 		expectedMethodInMetric string
@@ -250,14 +289,18 @@ func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
 					pre := fmt.Sprintf(
 						"apiUsageMonitoring.custom.<unknown>.<unknown>.%s.<unknown>.*.*.",
 						testCase.expectedMethodInMetric)
-					assert.Equal(t,
-						map[string]int64{
-							pre + "http_count":    int64(pass),
-							pre + "http2xx_count": int64(pass),
-						},
-						m.Counters,
-					)
-					assert.Contains(t, m.Measures, pre+"latency")
+					m.WithCounters(func(counters map[string]int64) {
+						assert.Equal(t,
+							map[string]int64{
+								pre + "http_count":    int64(pass),
+								pre + "http2xx_count": int64(pass),
+							},
+							counters,
+						)
+					})
+					m.WithMeasures(func(measures map[string][]time.Duration) {
+						assert.Contains(t, measures, pre+"latency")
+					})
 				})
 		})
 	}
@@ -272,14 +315,18 @@ func Test_Filter_PathTemplateMatchesInternalSlashes(t *testing.T) {
 		204,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.*.*."
-			assert.Equal(t,
-				map[string]int64{
-					pre + "http_count":    int64(pass),
-					pre + "http2xx_count": int64(pass),
-				},
-				m.Counters,
-			)
-			assert.Contains(t, m.Measures, pre+"latency")
+			m.WithCounters(func(counters map[string]int64) {
+				assert.Equal(t,
+					map[string]int64{
+						pre + "http_count":    int64(pass),
+						pre + "http2xx_count": int64(pass),
+					},
+					counters,
+				)
+			})
+			m.WithMeasures(func(measures map[string][]time.Duration) {
+				assert.Contains(t, measures, pre+"latency")
+			})
 		})
 }
 
@@ -317,172 +364,19 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 				204,
 				func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 					pre := "apiUsageMonitoring.custom.my_app.my_api.GET." + c.expectedMatchedPathTemplate + ".*.*."
-					assert.Equal(t,
-						map[string]int64{
-							pre + "http_count":    int64(pass),
-							pre + "http2xx_count": int64(pass),
-						},
-						m.Counters,
-					)
-					assert.Contains(t, m.Measures, pre+"latency")
+					m.WithCounters(func(counters map[string]int64) {
+						assert.Equal(t,
+							map[string]int64{
+								pre + "http_count":    int64(pass),
+								pre + "http2xx_count": int64(pass),
+							},
+							counters,
+						)
+					})
+					m.WithMeasures(func(measures map[string][]time.Duration) {
+						assert.Contains(t, measures, pre+"latency")
+					})
 				})
 		})
-	}
-}
-
-var defaultArgs = []interface{}{`{
-		"application_id": "my_app",
-		"api_id": "my_api",
-	  	"path_templates": [
-			"foo/orders",
-			"foo/orders/:order-id",
-			"foo/orders/:order-id/order-items/{order-item-id}",
-			"/foo/customers/",
-			"/foo/customers/{customer-id}/"
-		]
-	}`}
-
-func createFilterForTest() (filters.Filter, error) {
-	spec := NewApiUsageMonitoring(true, "", "")
-	return spec.CreateFilter(defaultArgs)
-}
-
-func testWithFilter(
-	t *testing.T,
-	filterCreate func() (filters.Filter, error),
-	method string,
-	url string,
-	resStatus int,
-	expect func(t *testing.T, pass int, m *metricstest.MockMetrics),
-) {
-	filter, err := filterCreate()
-	assert.NoError(t, err)
-	assert.NotNil(t, filter)
-
-	metricsMock := &metricstest.MockMetrics{
-		Prefix: "apiUsageMonitoring.custom.",
-	}
-
-	// performing multiple passes to make sure that the caching of metrics keys
-	// does not fail.
-	for pass := 1; pass <= 3; pass++ {
-		t.Run(fmt.Sprintf("pass %d", pass), func(t *testing.T) {
-			req, err := http.NewRequest(method, url, nil)
-			if method == "" {
-				req.Method = ""
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			ctx := &filtertest.Context{
-				FRequest: req,
-				FResponse: &http.Response{
-					StatusCode: resStatus,
-				},
-				FStateBag: make(map[string]interface{}),
-				FMetrics:  metricsMock,
-			}
-			filter.Request(ctx)
-			filter.Response(ctx)
-
-			expect(
-				t,
-				pass,
-				metricsMock,
-			)
-		})
-	}
-}
-
-type testWithFilterConf struct {
-	passCount    *int
-	filterCreate func() (filters.Filter, error)
-	method       *string
-	url          string
-	resStatus    *int
-	header       http.Header
-}
-
-func testWithFilterC(
-	t *testing.T,
-	conf testWithFilterConf,
-	expect func(t *testing.T, pass int, m *metricstest.MockMetrics),
-) {
-	var (
-		passCount    int
-		filterCreate func() (filters.Filter, error)
-		method       string
-		url          string
-		resStatus    int
-	)
-	if conf.passCount == nil {
-		passCount = 3
-	} else {
-		passCount = *conf.passCount
-	}
-	if conf.filterCreate == nil {
-		filterCreate = createFilterForTest
-	} else {
-		filterCreate = conf.filterCreate
-	}
-	if conf.method == nil {
-		method = http.MethodGet
-	} else {
-		method = *conf.method
-	}
-	if conf.url == "" {
-		url = "https://www.example.com/foo/orders"
-	} else {
-		url = conf.url
-	}
-	if conf.resStatus == nil {
-		resStatus = http.StatusOK
-	} else {
-		resStatus = *conf.resStatus
-	}
-
-	// Create Filter
-	filter, err := filterCreate()
-	assert.NoError(t, err)
-	assert.NotNil(t, filter)
-
-	// Create Metrics Mock
-	metricsMock := &metricstest.MockMetrics{
-		Prefix: "apiUsageMonitoring.custom.",
-	}
-
-	// Performing multiple passes to make sure that the caching of metrics keys
-	// does not fail.
-	for pass := 1; pass <= passCount; pass++ {
-		t.Run(fmt.Sprintf("pass %d", pass), func(t *testing.T) {
-			//t.Parallel() // todo: Try this (potentially increment the default pass count to test parallelism)
-			req, err := http.NewRequest(method, url, nil)
-			if !assert.NoError(t, err) {
-				return
-			}
-			if method == "" {
-				req.Method = ""
-			}
-			req.Header = conf.header
-			ctx := &filtertest.Context{
-				FRequest: req,
-				FResponse: &http.Response{
-					StatusCode: resStatus,
-				},
-				FStateBag: make(map[string]interface{}),
-				FMetrics:  metricsMock,
-			}
-			filter.Request(ctx)
-			filter.Response(ctx)
-
-			expect(
-				t,
-				pass,
-				metricsMock,
-			)
-		})
-		if t.Failed() {
-			return
-		}
 	}
 }

@@ -2,65 +2,99 @@ package metricstest
 
 import (
 	"net/http"
+	"sync"
 	"time"
 )
 
 type MockMetrics struct {
 	Prefix string
 
+	mu sync.Mutex
+
 	// Metrics gathering
-	Counters      map[string]int64
-	FloatCounters map[string]float64
-	Measures      map[string][]time.Duration
+	counters      map[string]int64
+	floatCounters map[string]float64
+	measures      map[string][]time.Duration
 }
+
+//
+// Public thread safe access to metrics
+//
+
+func (m *MockMetrics) WithCounters(f func(counters map[string]int64)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.counters == nil {
+		m.counters = make(map[string]int64)
+	}
+	f(m.counters)
+}
+
+func (m *MockMetrics) WithFloatCounters(f func(floatCounters map[string]float64)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.floatCounters == nil {
+		m.floatCounters = make(map[string]float64)
+	}
+	f(m.floatCounters)
+}
+
+func (m *MockMetrics) WithMeasures(f func(measures map[string][]time.Duration)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.measures == nil {
+		m.measures = make(map[string][]time.Duration)
+	}
+	f(m.measures)
+}
+
+//
+// Interface Metrics
+//
 
 func (m *MockMetrics) MeasureSince(key string, start time.Time) {
 	key = m.Prefix + key
-	if m.Measures == nil {
-		m.Measures = make(map[string][]time.Duration)
-	}
 	duration := time.Since(start)
-	measure, ok := m.Measures[key]
-	if !ok {
-		measure = make([]time.Duration, 1)
-	}
-	m.Measures[key] = append(measure, duration)
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measure, ok := m.measures[key]
+		if !ok {
+			measure = make([]time.Duration, 0)
+		}
+		measures[key] = append(measure, duration)
+	})
 }
 
 func (m *MockMetrics) IncCounter(key string) {
 	key = m.Prefix + key
-	if m.Counters == nil {
-		m.Counters = make(map[string]int64)
-	}
-	counter, ok := m.Counters[key]
-	if !ok {
-		counter = 0
-	}
-	m.Counters[key] = counter + 1
+	m.WithCounters(func(counters map[string]int64) {
+		counter, ok := counters[key]
+		if !ok {
+			counter = 0
+		}
+		counters[key] = counter + 1
+	})
 }
 
 func (m *MockMetrics) IncCounterBy(key string, value int64) {
 	key = m.Prefix + key
-	if m.Counters == nil {
-		m.Counters = make(map[string]int64)
-	}
-	counter, ok := m.Counters[key]
-	if !ok {
-		counter = 0
-	}
-	m.Counters[key] = counter + value
+	m.WithCounters(func(counters map[string]int64) {
+		counter, ok := counters[key]
+		if !ok {
+			counter = 0
+		}
+		counters[key] = counter + value
+	})
 }
 
 func (m *MockMetrics) IncFloatCounterBy(key string, value float64) {
 	key = m.Prefix + key
-	if m.FloatCounters == nil {
-		m.FloatCounters = make(map[string]float64)
-	}
-	counter, ok := m.FloatCounters[key]
-	if !ok {
-		counter = 0
-	}
-	m.FloatCounters[key] = counter + value
+	m.WithFloatCounters(func(floatCounters map[string]float64) {
+		counter, ok := floatCounters[key]
+		if !ok {
+			counter = 0
+		}
+		floatCounters[key] = counter + value
+	})
 }
 
 func (*MockMetrics) MeasureRouteLookup(start time.Time) {
