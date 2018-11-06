@@ -1101,8 +1101,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 }
 
 func createEastWestRoutes(name, ns string, routes []*eskip.Route) []*eskip.Route {
-	ewroutes := make([]*eskip.Route, len(routes))
-
+	var ewroutes []*eskip.Route
 	for i, r := range routes {
 		if strings.HasPrefix(r.Id, "kubeew") {
 			continue
@@ -1115,7 +1114,7 @@ func createEastWestRoutes(name, ns string, routes []*eskip.Route) []*eskip.Route
 		ewR := *r // TODO(sszuecs): check how to clone a route, maybe .Clone() needed
 		ewR.HostRegexps = []string{newHostHeaderRegex}
 		ewR.Id = patchRouteID(r.Id)
-		ewroutes[i] = &ewR
+		ewroutes = append(ewroutes, &ewR)
 	}
 	log.Infof("from %d routes, created %d east west routes: %v", len(routes), len(ewroutes), ewroutes)
 	return ewroutes
