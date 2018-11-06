@@ -72,12 +72,12 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 
 	// Client Based Metrics
 	if path.ClientTracking != nil {
-		cmPre := metricsName.ConsumerPrefix + f.determineClientMetricPart(c, path) + "."
+		cmPre := metricsName.ClientPrefix + f.determineClientMetricPart(c, path) + "."
 
-		// METRIC: Count for consumer
+		// METRIC: Count for client
 		metrics.IncCounter(cmPre + metricCountAll)
 
-		// METRIC: Response Status Range Count for consumer
+		// METRIC: Response Status Range Count for client
 		metrics.IncCounter(cmPre + metricCountPerClass[classMetricsIndex])
 
 		// METRIC: Latency Sum (in decimal seconds)
@@ -86,7 +86,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 			metrics.IncFloatCounterBy(cmPre+metricLatencySum, latency)
 		}
 
-		log.Debugf("Pushed consumer metrics with prefix `%s`", cmPre)
+		log.Debugf("Pushed client metrics with prefix `%s`", cmPre)
 	}
 
 	log.Debugf("Pushed endpoint metrics with prefix `%s`", metricsName.EndpointPrefix)
@@ -176,10 +176,10 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 	// Prefixes were not cached for this path and method. Generate and cache.
 	prefixCommon := path.ApplicationId + "." + path.ApiId + "."
 	endpointPrefix := prefixCommon + method + "." + path.PathTemplate + ".*.*."
-	consumerPrefix := prefixCommon + "*.*."
+	clientPrefix := prefixCommon + "*.*."
 	prefixes = &metricNames{
 		EndpointPrefix: endpointPrefix,
-		ConsumerPrefix: consumerPrefix,
+		ClientPrefix:   clientPrefix,
 		CountAll:       endpointPrefix + metricCountAll,
 		CountPerStatusCodeRange: [5]string{
 			endpointPrefix + metricCount100s,

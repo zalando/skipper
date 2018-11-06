@@ -40,7 +40,7 @@ func (s pathInfoByRegExRev) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 type metricNames struct {
 	EndpointPrefix          string
-	ConsumerPrefix          string
+	ClientPrefix            string
 	CountAll                string
 	CountPerStatusCodeRange [5]string
 	Latency                 string

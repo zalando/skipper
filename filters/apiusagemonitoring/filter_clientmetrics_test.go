@@ -1,12 +1,5 @@
 package apiusagemonitoring
 
-//
-// THIS SHOULD NOT APPEAR ON THE PULL REQUEST
-//
-// todo: What happens when service-to-service tokens are used? Is the `client-id` at the same JWT property or do we need a 2nd config?
-// todo: Rename `client` stuff to `consumer`
-//
-
 import (
 	"encoding/base64"
 	"net/http"
@@ -21,7 +14,7 @@ type clientMetricsTest struct {
 	header                http.Header
 
 	expectedEndpointMetricPrefix string
-	expectedConsumerMetricPrefix string
+	expectedClientMetricPrefix   string
 }
 
 var (
@@ -43,7 +36,7 @@ func Test_Filter_ClientMetrics_ClientTrackingPatternDoesNotCompile(t *testing.T)
 		clientTrackingPattern:        "([",
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "", // expecting no metrics
+		expectedClientMetricPrefix:   "", // expecting no metrics
 	})
 }
 
@@ -55,7 +48,7 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsKnown(t *testing.T) {
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.*.*.users.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.<unknown>.<unknown>.*.*.users.<unknown>.",
 	})
 }
 
@@ -67,7 +60,7 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsUnknown(t *testing.T) {
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.*.*.<unknown>.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.<unknown>.<unknown>.*.*.<unknown>.<unknown>.",
 	})
 }
 
@@ -78,7 +71,7 @@ func Test_Filter_ClientMetrics_MatchAll(t *testing.T) {
 		clientTrackingPattern:        ".*",
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.users.joe.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.joe.",
 	})
 }
 
@@ -96,7 +89,7 @@ func Test_Filter_ClientMetrics_MatchOneOfClientIdKeyName(t *testing.T) {
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.services.payments.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.services.payments.",
 	})
 }
 
@@ -115,7 +108,7 @@ func Test_Filter_ClientMetrics_MatchOneOfClientIdKeyName_UseFirstMatching(t *tes
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.services.but_I_should_come_first.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.services.but_I_should_come_first.",
 	})
 }
 
@@ -126,7 +119,7 @@ func Test_Filter_ClientMetrics_Realm1User1(t *testing.T) {
 		clientTrackingPattern:        clientTrackingPatternJustSomeUsers,
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.users.joe.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.joe.",
 	})
 }
 
@@ -144,7 +137,7 @@ func Test_Filter_ClientMetrics_Realm1User0(t *testing.T) {
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.users.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.<unknown>.",
 	})
 }
 
@@ -162,7 +155,7 @@ func Test_Filter_ClientMetrics_Realm0User1(t *testing.T) {
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.nobodies.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.nobodies.<unknown>.",
 	})
 }
 
@@ -180,7 +173,7 @@ func Test_Filter_ClientMetrics_Realm0User0(t *testing.T) {
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.nobodies.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.nobodies.<unknown>.",
 	})
 }
 
@@ -198,7 +191,7 @@ func Test_Filter_ClientMetrics_AuthDoesNotHaveBearerPrefix(t *testing.T) {
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
 	})
 }
 
@@ -211,7 +204,7 @@ func Test_Filter_ClientMetrics_NoAuthHeader(t *testing.T) {
 			/* no Authorization header */
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
 	})
 }
 
@@ -226,7 +219,7 @@ func Test_Filter_ClientMetrics_JWTIsNot3DotSeparatedString(t *testing.T) {
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
 	})
 }
 
@@ -241,7 +234,7 @@ func Test_Filter_ClientMetrics_JWTIsNotBase64Encoded(t *testing.T) {
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
 	})
 }
 
@@ -257,7 +250,7 @@ func Test_Filter_ClientMetrics_JWTBodyIsNoJSON(t *testing.T) {
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
 	})
 }
 
@@ -275,7 +268,7 @@ func Test_Filter_ClientMetrics_JWTBodyHasNoRealm(t *testing.T) {
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.<unknown>.<unknown>.",
 	})
 }
 
@@ -293,7 +286,7 @@ func Test_Filter_ClientMetrics_JWTBodyHasNoClientId_ShouldTrackRealm(t *testing.
 			},
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.*.*.users.<unknown>.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.<unknown>.",
 	})
 }
 
@@ -304,7 +297,7 @@ func Test_Filter_ClientMetrics_NoFlagRealmKeyName(t *testing.T) {
 		clientTrackingPattern:        clientTrackingPatternJustSomeUsers,
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "", // expecting no metrics
+		expectedClientMetricPrefix:   "", // expecting no metrics
 	})
 }
 
@@ -315,7 +308,7 @@ func Test_Filter_ClientMetrics_NoFlagClientIdKeyName(t *testing.T) {
 		clientTrackingPattern:        clientTrackingPatternJustSomeUsers,
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedConsumerMetricPrefix: "", // expecting no metrics
+		expectedClientMetricPrefix:   "", // expecting no metrics
 	})
 }
 

@@ -205,19 +205,19 @@ func testClientMetrics(
 		expectedMeasures := make([]string, 0)
 
 		//
-		// Assert consumer metrics
+		// Assert client metrics
 		//
-		if testCase.expectedConsumerMetricPrefix != "" {
+		if testCase.expectedClientMetricPrefix != "" {
 
 			m.WithCounters(func(counters map[string]int64) {
-				httpCountKey := testCase.expectedConsumerMetricPrefix + "http_count"
+				httpCountKey := testCase.expectedClientMetricPrefix + "http_count"
 				expectedCounters = append(expectedCounters, httpCountKey)
 				if assert.Contains(t, counters, httpCountKey) {
 					v := counters[httpCountKey]
 					assert.Equal(t, int64(pass), v)
 				}
 
-				httpClassCountKey := testCase.expectedConsumerMetricPrefix + "http2xx_count"
+				httpClassCountKey := testCase.expectedClientMetricPrefix + "http2xx_count"
 				expectedCounters = append(expectedCounters, httpClassCountKey)
 				if assert.Contains(t, counters, httpClassCountKey) {
 					v := counters[httpClassCountKey]
@@ -226,14 +226,14 @@ func testClientMetrics(
 			})
 
 			m.WithFloatCounters(func(floatCounters map[string]float64) {
-				latencySumKey := testCase.expectedConsumerMetricPrefix + "latency_sum"
+				latencySumKey := testCase.expectedClientMetricPrefix + "latency_sum"
 				expectedFloatCounters = append(expectedFloatCounters, latencySumKey)
 				if assert.Contains(t, floatCounters, latencySumKey) {
 					v := floatCounters[latencySumKey]
 					assert.Conditionf(t,
 						func() bool {
 							return v > previousLatencySum
-						}, "current consumer latency sum is not higher than the previous recorded one (%f to %f)",
+						}, "current client latency sum is not higher than the previous recorded one (%f to %f)",
 						previousLatencySum, v)
 				}
 			})

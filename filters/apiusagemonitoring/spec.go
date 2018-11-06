@@ -46,7 +46,7 @@ func NewApiUsageMonitoring(
 	}
 
 	// Create the filter Spec
-	var unknownPath *clientTrackingInfo = nil // consumer metrics feature is disabled
+	var unknownPath *clientTrackingInfo = nil // client metrics feature is disabled
 	if realmKeyName != "" {
 		unknownPath = &clientTrackingInfo{
 			ClientTrackingMatcher: nil, // do not match anything (track `realm.<unknown>`)
