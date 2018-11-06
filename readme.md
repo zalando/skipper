@@ -267,4 +267,12 @@ Sergio Ballesteros from [spotahome](https://www.spotahome.com/)
 
 #### In the media
 
-[Building our own open source http routing solution](https://jobs.zalando.com/tech/blog/building-our-own-open-source-http-routing-solution/): Giving some context about why Skipper was created in the first place.
+Blog posts:
+
+- [Building our own open source http routing
+  solution](https://jobs.zalando.com/tech/blog/building-our-own-open-source-http-routing-solution/):
+  Giving some context about why Skipper was created in the first place.
+
+Conference/Meetups talks
+
+- [LISA 2018 - modern HTTP routing](https://www.usenix.org/conference/lisa18/presentation/szucs)
