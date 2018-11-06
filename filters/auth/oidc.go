@@ -274,7 +274,6 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 	}
 
 	redirectUrl := ctx.Request().URL.String()
-
 	statePlain, err := createState(nonce, redirectUrl)
 	if err != nil {
 		log.Errorf("failed to create oauth2 state: %v", err)
@@ -302,11 +301,11 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 func (f *tokenOidcFilter) Response(ctx filters.FilterContext) {
 	if v, ok := ctx.StateBag()[oidcStatebagKey]; ok {
 		cookie := f.createCookie(v, false, "127.0.0.1")
-		log.Debugf("Response SetCookie: %s", cookie)
 		http.SetCookie(ctx.ResponseWriter(), cookie)
 	}
 
 	if v, ok := ctx.StateBag()[redirectURLKey]; ok {
+		log.Debugf("Response: Redirecting to: %s", v)
 		http.Redirect(ctx.ResponseWriter(), ctx.Request(), v.(string), http.StatusFound)
 	}
 }
@@ -332,11 +331,6 @@ func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) ([]byte, bool) {
 	log.Debugf("validate cookie name: %s", f.cookiename)
 	var cookieStr string
 	fmt.Sscanf(cookie.Value, "%x", &cookieStr)
-
-	if cookie.Expires.Before(time.Now()){
-		log.Debugf("cookie expired")
-		return nil, false
-	}
 
 	decryptedCookie, err := f.encrypter.decryptDataBlock([]byte(cookieStr))
 	if err != nil {
@@ -400,13 +394,13 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 				}
 			}
 
-			ctx.StateBag()[redirectURLKey] = oauthState.RedirectUrl
-
 			encryptedData, err := f.encrypter.encryptDataBlock(data)
 			if err != nil {
 				unauthorized(ctx, "failed to encrypt the returned oidc data", invalidSub, r.Host)
 				return
 			}
+
+			ctx.StateBag()[redirectURLKey] = oauthState.RedirectUrl
 			ctx.StateBag()[oidcStatebagKey] = encryptedData
 			return
 		}
@@ -513,6 +507,7 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 		log.Errorf("token from state query is invalid: %v", err)
 		return nil, err
 	}
+
 	log.Debugf("len(stateQueryPlain): %d, stateQueryEnc: %d, stateQueryEncHex: %d", len(stateQueryPlain), len(stateQueryEnc), len(stateQueryEncHex))
 
 	state, err := extractState(stateQueryPlain)
@@ -525,7 +520,7 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 
 func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.FilterContext) (*oauth2.Token, error) {
 	r := ctx.Request()
-	log.Debug(state)
+
 	if state.Validity < time.Now().Unix() {
 		log.Errorf("state is no longer valid. %v", state.Validity)
 		return nil, fmt.Errorf("validity of state expired")

@@ -188,15 +188,3 @@ func (t *TestContext) Tracer() opentracing.Tracer {
 	panic("not implemented")
 }
 
-//func Test_getTokenFromCookie(t *testing.T) {
-//	oidcFilter, err := makeTestingFilter([]string{})
-//	assert.NoError(t, err, "error creating filter")
-//	ctx := &TestContext{}
-//	encrypted, err := oidcFilter.Encrypter.encryptDataBlock([]byte("{\"Oauth2Token\": {}, \"TokenMap\": {}}"))
-//	assert.NoError(t, err, "failed to encrypt data")
-//	cookie := oidcFilter.createCookie(encrypted)
-//	token, err := oidcFilter.Encrypter.getTokenFromCookie(ctx, cookie.Value)
-//	assert.NoError(t, err, "failed to get token from cookie")
-//	assert.NotNil(t, token.OAuth2Token, "retrieved oauth token is nil")
-//	assert.NotNil(t, token.TokenMap, "retrieved tokenmap is nil")
-//}

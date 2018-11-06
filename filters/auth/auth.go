@@ -73,9 +73,6 @@ func (kv kv) String() string {
 func getToken(r *http.Request) (string, error) {
 	h := r.Header.Get(authHeaderName)
 	if !strings.HasPrefix(h, authHeaderPrefix) {
-		if tok := r.FormValue(tokenKey); tok != "" {
-			return tok, nil
-		}
 		return "", errInvalidAuthorizationHeader
 	}
 
