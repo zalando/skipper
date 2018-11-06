@@ -1006,6 +1006,9 @@ api-usage-monitoring-configuration:
             everything:
                 summary: All realms and all client ID are tracked.
                 value: ".*"
+            all_services:
+                summary: Only log the services.
+                value: "services\\..*"
             just_some_users:
                 summary: Only users Joe and and Sabine from realm users are tracked.
                 value: "users\\.(?:joe|sabine)"
