@@ -127,6 +127,7 @@ const (
 	routesFileUsage                = "file containing route definitions"
 	inlineRoutesUsage              = "inline routes in eskip format"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
+	waitFirstRouteLoadUsage        = "prevent starting the listener before the first batch of routes were loaded"
 
 	// Kubernetes:
 	kubernetesUsage                  = "enables skipper to generate routes for ingress resources in kubernetes cluster"
@@ -252,6 +253,7 @@ var (
 	routesFile                string
 	inlineRoutes              string
 	sourcePollTimeout         int64
+	waitFirstRouteLoad        bool
 
 	// Kubernetes:
 	kubernetesIngress           bool
@@ -375,6 +377,7 @@ func init() {
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.StringVar(&inlineRoutes, "inline-routes", "", inlineRoutesUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
+	flag.BoolVar(&waitFirstRouteLoad, "wait-first-route-load", false, waitFirstRouteLoadUsage)
 
 	// Kubernetes:
 	flag.BoolVar(&kubernetesIngress, "kubernetes", false, kubernetesUsage)
@@ -572,6 +575,7 @@ func main() {
 		WatchRoutesFile:           routesFile,
 		InlineRoutes:              inlineRoutes,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
+		WaitFirstRouteLoad:        waitFirstRouteLoad,
 
 		// Kubernetes:
 		Kubernetes:                  kubernetesIngress,
