@@ -1102,7 +1102,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 func createEastWestRoutes(name, ns string, routes []*eskip.Route) []*eskip.Route {
 	var ewroutes []*eskip.Route
-	for i, r := range routes {
+	for _, r := range routes {
 		if strings.HasPrefix(r.Id, "kubeew") {
 			continue
 		}
@@ -1112,7 +1112,7 @@ func createEastWestRoutes(name, ns string, routes []*eskip.Route) []*eskip.Route
 
 		newHostHeaderRegex := strings.Join(strings.Split(newHostHeader, "."), "[.]")
 		ewR := *r // TODO(sszuecs): check how to clone a route, maybe .Clone() needed
-		ewR.HostRegexps = []string{newHostHeaderRegex}
+		ewR.HostRegexps = []string{"^" + newHostHeaderRegex + "$"}
 		ewR.Id = patchRouteID(r.Id)
 		ewroutes = append(ewroutes, &ewR)
 	}
