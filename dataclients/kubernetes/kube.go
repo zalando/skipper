@@ -1038,28 +1038,18 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 				}
 			}
 		}
-		// TODO(sszuecs) patch eastwest routes here?
+
 		if c.kubernetesEnableEastWest {
 			for _, rule := range i.Spec.Rules {
 				if rs, ok := hostRoutes[rule.Host]; ok {
 					rs = append(rs, createEastWestRoutes(i.Metadata.Name, i.Metadata.Namespace, rs)...)
-					fmt.Println("foo:", rs)
 					hostRoutes[rule.Host] = rs
-					for j := range rs {
-						if rs[j] == nil {
-							log.Info("** ", i.Metadata.Name, " ", i.Metadata.Namespace, " ", len(i.Spec.Rules[0].Http.Paths))
-							continue
-						}
-						log.Infof("rs.Id: %s", rs[j].Id)
-					}
 				}
 			}
 		}
 	}
 
-	log.Infof("*** convertPathrule: %d", len(routes))
 	for host, rs := range hostRoutes {
-		log.Infof("*** in hostRoutes rs: %d", len(rs))
 		if len(rs) == 0 {
 			continue
 		}
@@ -1083,7 +1073,6 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			}
 		}
 	}
-	log.Infof("*** END convertPathrule: %d", len(routes))
 
 	return routes, nil
 }
@@ -1094,17 +1083,13 @@ func createEastWestRoutes(name, ns string, routes []*eskip.Route) []*eskip.Route
 		if strings.HasPrefix(r.Id, "kubeew") {
 			continue
 		}
-		// TODO(sszuecs): check how to add patched Host header routes best
-		// patch with domain with defaultEastWestDomainFmt
 		newHostHeader := fmt.Sprintf(defaultEastWestDomainFmt, name, ns)
-
 		newHostHeaderRegex := strings.Join(strings.Split(newHostHeader, "."), "[.]")
-		ewR := *r // TODO(sszuecs): check how to clone a route, maybe .Clone() needed
+		ewR := *r
 		ewR.HostRegexps = []string{"^" + newHostHeaderRegex + "$"}
 		ewR.Id = patchRouteID(r.Id)
 		ewroutes = append(ewroutes, &ewR)
 	}
-	log.Infof("from %d routes, created %d east west routes: %v", len(routes), len(ewroutes), ewroutes)
 	return ewroutes
 }
 
@@ -1125,9 +1110,6 @@ func countPathRoutes(r *eskip.Route) int {
 // path expression.
 func catchAllRoutes(routes []*eskip.Route) bool {
 	for _, route := range routes {
-		if route == nil {
-			panic(fmt.Sprintf("route is nil, %d", len(routes)))
-		}
 		if len(route.PathRegexps) == 0 {
 			return true
 		}
