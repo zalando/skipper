@@ -37,6 +37,7 @@ const (
 	ingressesNamespaceFmt         = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
 	ingressClassKey               = "kubernetes.io/ingress.class"
 	defaultIngressClass           = "skipper"
+	ingressRouteIDPrefix          = "kube"
 	defaultEastWestDomainFmt      = "%s.%s.skipper.cluster.local"
 	endpointURIFmt                = "/api/v1/namespaces/%s/endpoints/%s"
 	serviceURIFmt                 = "/api/v1/namespaces/%s/services/%s"
@@ -472,7 +473,7 @@ func routeID(namespace, name, host, path, backend string) string {
 	host = nonWord.ReplaceAllString(host, "_")
 	path = nonWord.ReplaceAllString(path, "_")
 	backend = nonWord.ReplaceAllString(backend, "_")
-	return fmt.Sprintf("kube_%s__%s__%s__%s__%s", namespace, name, host, path, backend)
+	return fmt.Sprintf("%s_%s__%s__%s__%s__%s", ingressRouteIDPrefix, namespace, name, host, path, backend)
 }
 
 // routeIDForCustom generates a route id for a custom route of an ingress
@@ -495,8 +496,7 @@ func routeIDForCustom(namespace, name, id, host string, index int) string {
 // }
 
 func patchRouteID(rid string) string {
-	rid = "kubeew" + rid[4:] // TODO(sszuecs): check index not off by one
-	return rid
+	return "kubeew" + rid[len(ingressRouteIDPrefix):]
 }
 
 // converts the default backend if any
@@ -1055,12 +1055,23 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			for _, rule := range i.Spec.Rules {
 				if rs, ok := hostRoutes[rule.Host]; ok {
 					rs = append(rs, createEastWestRoutes(i.Metadata.Name, i.Metadata.Namespace, rs)...)
+					fmt.Println("foo:", rs)
+					hostRoutes[rule.Host] = rs
+					for j := range rs {
+						if rs[j] == nil {
+							log.Info("** ", i.Metadata.Name, " ", i.Metadata.Namespace, " ", len(i.Spec.Rules[0].Http.Paths))
+							continue
+						}
+						log.Infof("rs.Id: %s", rs[j].Id)
+					}
 				}
 			}
 		}
 	}
 
+	log.Infof("*** convertPathrule: %d", len(routes))
 	for host, rs := range hostRoutes {
+		log.Infof("*** in hostRoutes rs: %d", len(rs))
 		if len(rs) == 0 {
 			continue
 		}
@@ -1084,6 +1095,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			}
 		}
 	}
+	log.Infof("*** END convertPathrule: %d", len(routes))
 
 	return routes, nil
 }
@@ -1092,15 +1104,20 @@ func createEastWestRoutes(name, ns string, routes []*eskip.Route) []*eskip.Route
 	ewroutes := make([]*eskip.Route, len(routes))
 
 	for i, r := range routes {
+		if strings.HasPrefix(r.Id, "kubeew") {
+			continue
+		}
 		// TODO(sszuecs): check how to add patched Host header routes best
 		// patch with domain with defaultEastWestDomainFmt
 		newHostHeader := fmt.Sprintf(defaultEastWestDomainFmt, name, ns)
+
 		newHostHeaderRegex := strings.Join(strings.Split(newHostHeader, "."), "[.]")
-		ewR := r.Clone() // TODO(sszuecs): check how to clone a route
+		ewR := *r // TODO(sszuecs): check how to clone a route, maybe .Clone() needed
 		ewR.HostRegexps = []string{newHostHeaderRegex}
 		ewR.Id = patchRouteID(r.Id)
 		ewroutes[i] = &ewR
 	}
+	log.Infof("from %d routes, created %d east west routes: %v", len(routes), len(ewroutes), ewroutes)
 	return ewroutes
 }
 
@@ -1121,6 +1138,9 @@ func countPathRoutes(r *eskip.Route) int {
 // path expression.
 func catchAllRoutes(routes []*eskip.Route) bool {
 	for _, route := range routes {
+		if route == nil {
+			panic(fmt.Sprintf("route is nil, %d", len(routes)))
+		}
 		if len(route.PathRegexps) == 0 {
 			return true
 		}

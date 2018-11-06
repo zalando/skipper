@@ -267,7 +267,7 @@ var (
 	whitelistedHealthCheckCIDR  string
 	kubernetesPathModeString    string
 	kubernetesNamespace         string
-	kubernetesEnableEastWest    string
+	kubernetesEnableEastWest    bool
 
 	// Auth:
 	oauthURL                        string

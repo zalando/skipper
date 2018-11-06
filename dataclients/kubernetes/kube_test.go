@@ -258,6 +258,7 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 
 		if !found {
 			t.Error("expected route not found", id, backend)
+			t.Errorf("routes %v", r)
 			return
 		}
 	}
@@ -1406,6 +1407,235 @@ func TestConvertPathRule(t *testing.T) {
 			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
 			"kube___catchall__new1_example_org____":                     "",
 			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.2.3.4:8080",
+		})
+	})
+
+	t.Run("has one ingress, with two rules with same service name, but two different ports", func(t *testing.T) {
+		dc, err := New(Options{KubernetesURL: api.server.URL})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		r, err := dc.LoadAll()
+
+		if err != nil {
+			t.Error("failed to load initial routes", err)
+			return
+		}
+
+		api.services = services{
+			"namespace1": map[string]*service{
+				"svcname1": {
+					Spec: &serviceSpec{
+						ClusterIP: "10.3.2.1",
+						Ports: []*servicePort{
+							{
+								Name:       "svcname1",
+								Port:       8080,
+								TargetPort: &backendPort{value: 8080},
+							},
+							{
+								Name:       "svcname1",
+								Port:       8181,
+								TargetPort: &backendPort{value: 8181},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		api.ingresses.Items = append(
+			api.ingresses.Items,
+			&ingressItem{
+				Metadata: &metadata{
+					Namespace: "namespace1",
+					Name:      "test1",
+				},
+				Spec: &ingressSpec{
+					DefaultBackend: &backend{
+						ServiceName: "svcname1",
+						ServicePort: backendPort{value: 8080},
+					},
+					Rules: []*rule{
+						{
+							Host: "host1",
+							Http: &httpRule{
+								Paths: []*pathRule{
+									{
+										Path: "/",
+										Backend: &backend{
+											ServiceName: "svcname1",
+											ServicePort: backendPort{value: 8080},
+										},
+									},
+								},
+							},
+						},
+						{
+							Host: "host2",
+							Http: &httpRule{
+								Paths: []*pathRule{
+									{
+										Path: "/",
+										Backend: &backend{
+											ServiceName: "svcname1",
+											ServicePort: backendPort{value: 8181},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		)
+
+		r, _, err = dc.LoadUpdate()
+		if err != nil {
+			t.Errorf("update failed: %v", err)
+		}
+
+		checkRoutes(t, r, map[string]string{
+			"kube_namespace1__test1__host1_____svcname1": "http://10.3.2.1:8080",
+			"kube_namespace1__test1__host2_____svcname1": "http://10.3.2.1:8181",
+			"kube_namespace1__test1______":               "http://10.3.2.1:8080",
+		})
+	})
+
+}
+
+func TestConvertPathRuleEastWestEnabled(t *testing.T) {
+	api := newTestAPI(t, nil, &ingressList{})
+	defer api.Close()
+	t.Run("has one ingress, receive two backends pointing to the same backend", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		dc, err := New(Options{
+			KubernetesURL:            api.server.URL,
+			KubernetesEnableEastWest: true,
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		r, err := dc.LoadAll()
+		for i := range r {
+			t.Logf("rid: %s", r[i].Id)
+		}
+
+		// if len(r) != 14 {
+		// 	t.Fatalf("unexpected number of routes %d, expected %d", len(r), 14)
+		// }
+
+		if err != nil {
+			t.Error("failed to load initial routes", err)
+			return
+		}
+
+		api.ingresses.Items = append(
+			api.ingresses.Items,
+			testIngress(
+				"namespace1",
+				"new1",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				backendPort{""},
+				1.0,
+				testRule(
+					"new1.example.org",
+					testPathRule("/test1", "service1", backendPort{"port1"}),
+				),
+			),
+		)
+
+		r, d, err := dc.LoadUpdate()
+		if err != nil || len(d) != 0 {
+			t.Error("update failed")
+		}
+
+		checkRoutes(t, r, map[string]string{
+			"kube___catchall__new1_example_org____":                       "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.2.3.4:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
+		})
+	})
+
+	t.Run("has ingresses, receive two equal backends", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		dc, err := New(Options{
+			KubernetesURL:            api.server.URL,
+			KubernetesEnableEastWest: true,
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		r, err := dc.LoadAll()
+
+		if err != nil {
+			t.Error("failed to load initial routes", err)
+			return
+		}
+
+		api.ingresses.Items = append(
+			api.ingresses.Items,
+			testIngress(
+				"namespace1",
+				"new1",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				backendPort{""},
+				1.0,
+				testRule(
+					"new1.example.org",
+					testPathRule("/test1", "service1", backendPort{"port1"}),
+				),
+			),
+			testIngress(
+				"namespace1",
+				"new1",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				backendPort{""},
+				1.0,
+				testRule(
+					"new1.example.org",
+					testPathRule("/test2", "service1", backendPort{"port1"}),
+				),
+			),
+		)
+
+		r, d, err := dc.LoadUpdate()
+		if err != nil || len(d) != 0 {
+			t.Error("update failed")
+		}
+
+		checkRoutes(t, r, map[string]string{
+			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.2.3.4:8080",
+			"kube___catchall__new1_example_org____":                       "",
+			"kube_namespace1__new1__new1_example_org___test2__service1":   "http://1.2.3.4:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
+			"kubeew_namespace1__new1__new1_example_org___test2__service1": "http://1.2.3.4:8080",
 		})
 	})
 
