@@ -880,12 +880,20 @@ registered as a valid filter (allowing route configurations to specify it), but 
 per instance, production environments to use it and testing environments not to while keeping the same route configuration
 for all environments.
 
+For the client based metrics, additional flags need to be specified.
+
+| Flag                                 | Description                                                                          |
+|--------------------------------------|--------------------------------------------------------------------------------------|
+| `api-usage-monitoring-realm-key`     | Name of the property in the JWT JSON body that contains the name of the _realm_.     |
+| `api-usage-monitoring-client-id-key` | Name of the property in the JWT JSON body that contains the name of the _client ID_. |
+
 NOTE: Make sure to activate the metrics flavour proper to your environment using the `metrics-flavour`
 flag in order to get those metrics.
 
 Example:
+
 ```bash
-skipper -enable-api-usage-monitoring -metrics-flavour prometheus
+skipper -metrics-flavour prometheus -enable-api-usage-monitoring -api-usage-monitoring-realm-key="realm" -api-usage-monitoring-client-id-key="managed-id"
 ```
 
 The structure of the metrics is all of those elements, separated by `.` dots:
@@ -899,6 +907,7 @@ The structure of the metrics is all of those elements, separated by `.` dots:
 | Path                        | The request's path, in the form of the path template configured in the filter under `path_templates`. |
 | Realm                       | The realm in which the client is authenticated.                                                       |
 | Client ID                   | Identifier under which the client is authenticated.                                                   |
+| Metric Name                 | Name (or key) of the metric being tracked.                                                            |
 
 ### Available Metrics
 
