@@ -291,11 +291,11 @@ func (r *Routing) startReceivingUpdates(o Options) {
 			select {
 			case rt := <-c:
 				r.routeTable.Store(rt)
-				r.log.Info("route settings applied")
 				if !r.firstLoadSignaled {
 					close(r.firstLoad)
 					r.firstLoadSignaled = true
 				}
+				r.log.Info("route settings applied")
 			case <-r.quit:
 				return
 			}
