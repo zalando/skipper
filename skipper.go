@@ -225,6 +225,10 @@ type Options struct {
 	// Custom data clients to be used together with the default etcd and Innkeeper.
 	CustomDataClients []routing.DataClient
 
+	// WaitFirstRouteLoad prevents starting the listener before the first batch
+	// of routes were applied.
+	WaitFirstRouteLoad bool
+
 	// SuppressRouteUpdateLogs indicates to log only summaries of the routing updates
 	// instead of full details of the updated/deleted routes.
 	SuppressRouteUpdateLogs bool
@@ -758,6 +762,7 @@ func Run(o Options) error {
 		UpdateBuffer:    updateBuffer,
 		SuppressLogs:    o.SuppressRouteUpdateLogs,
 		PostProcessors:  []routing.PostProcessor{loadbalancer.HealthcheckPostProcessor{LB: lbInstance}},
+		SignalFirstLoad: o.WaitFirstRouteLoad,
 	})
 	defer routing.Close()
 
@@ -905,6 +910,9 @@ func Run(o Options) error {
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)
 	defer proxy.Close()
+
+	// wait for the first route configuration to be loaded if enabled:
+	<-routing.FirstLoad()
 
 	return listenAndServe(proxy, &o)
 }

@@ -118,6 +118,10 @@ type Options struct {
 
 	// PostProcessrs contains custom route post-processors.
 	PostProcessors []PostProcessor
+
+	// SignalFirstLoad enables signalling on the first load
+	// of the routing configuration during the startup.
+	SignalFirstLoad bool
 }
 
 // RouteFilter contains extensions to generic filter
@@ -188,9 +192,11 @@ type PostProcessor interface {
 // Routing ('router') instance providing live
 // updatable request matching.
 type Routing struct {
-	routeTable atomic.Value // of struct routeTable
-	log        logging.Logger
-	quit       chan struct{}
+	routeTable        atomic.Value // of struct routeTable
+	log               logging.Logger
+	firstLoad         chan struct{}
+	firstLoadSignaled bool
+	quit              chan struct{}
 }
 
 // New initializes a routing instance, and starts listening for route
@@ -200,7 +206,12 @@ func New(o Options) *Routing {
 		o.Log = &logging.DefaultLog{}
 	}
 
-	r := &Routing{log: o.Log, quit: make(chan struct{})}
+	r := &Routing{log: o.Log, firstLoad: make(chan struct{}), quit: make(chan struct{})}
+	if !o.SignalFirstLoad {
+		close(r.firstLoad)
+		r.firstLoadSignaled = true
+	}
+
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
 	rt := &routeTable{
 		m:       initialMatcher,
@@ -281,6 +292,10 @@ func (r *Routing) startReceivingUpdates(o Options) {
 			case rt := <-c:
 				r.routeTable.Store(rt)
 				r.log.Info("route settings applied")
+				if !r.firstLoadSignaled {
+					close(r.firstLoad)
+					r.firstLoadSignaled = true
+				}
 			case <-r.quit:
 				return
 			}
@@ -296,6 +311,12 @@ func (r *Routing) startReceivingUpdates(o Options) {
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
 	rt := r.routeTable.Load().(*routeTable)
 	return rt.m.match(req)
+}
+
+// FirstLoad, when enabled, blocks until the first routing configuration was received
+// by the routing during the startup. When disabled, it doesn't block.
+func (r *Routing) FirstLoad() <-chan struct{} {
+	return r.firstLoad
 }
 
 // RouteLookup captures a single generation of the lookup tree, allowing multiple
