@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 
@@ -44,6 +43,9 @@ type upgradeProxy struct {
 	reverseProxy    *httputil.ReverseProxy
 	insecure        bool
 	tlsClientConfig *tls.Config
+	useAuditLog     bool
+	auditLogOut     io.Writer
+	auditLogErr     io.Writer
 }
 
 // TODO: add user here
@@ -77,14 +79,16 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Audit-Log
-	auditlog := &auditLog{req.Method, req.URL.Path, req.URL.RawQuery, req.URL.Fragment}
-	auditJSON, err := json.Marshal(auditlog)
-	_, err = os.Stderr.Write(auditJSON)
-	if err != nil {
-		log.Errorf("Could not write audit-log, caused by: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-		return
+	if p.useAuditLog {
+		auditlog := &auditLog{req.Method, req.URL.Path, req.URL.RawQuery, req.URL.Fragment}
+		auditJSON, err := json.Marshal(auditlog)
+		_, err = p.auditLogErr.Write(auditJSON)
+		if err != nil {
+			log.Errorf("Could not write audit-log, caused by: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
+			return
+		}
 	}
 
 	resp, err := http.ReadResponse(bufio.NewReader(backendConn), req)
@@ -121,7 +125,13 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	copyAsync(&wg, backendConn, requestHijackedConn, os.Stdout)
+
+	if p.useAuditLog {
+		copyAsync(&wg, backendConn, requestHijackedConn, p.auditLogOut)
+	} else {
+		copyAsync(&wg, backendConn, requestHijackedConn)
+	}
+
 	copyAsync(&wg, requestHijackedConn, backendConn)
 	log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(req))
 	// Wait for goroutine to finish, such that the established connection does not break.

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -122,6 +123,10 @@ type Params struct {
 	// Enable the experimental upgrade protocol feature
 	ExperimentalUpgrade bool
 
+	// ExperimentalUpgradeAudit enables audit log of both the request line
+	// and the response messages during web socket upgrades.
+	ExperimentalUpgradeAudit bool
+
 	// MaxLoopbacks sets the maximum number of allowed loops. If 0
 	// the default (9) is applied. To disable looping, set it to
 	// -1. Note, that disabling looping by this option, may result
@@ -227,23 +232,26 @@ type flusherWriter interface {
 // Proxy instances implement Skipper proxying functionality. For
 // initializing, see the WithParams the constructor and Params.
 type Proxy struct {
-	routing                *routing.Routing
-	roundTripper           *http.Transport
-	priorityRoutes         []PriorityRoute
-	flags                  Flags
-	metrics                metrics.Metrics
-	quit                   chan struct{}
-	flushInterval          time.Duration
-	experimentalUpgrade    bool
-	maxLoops               int
-	breakers               *circuit.Registry
-	limiters               *ratelimit.Registry
-	log                    logging.Logger
-	defaultHTTPStatus      int
-	openTracer             ot.Tracer
-	openTracingInitialSpan string
-	lb                     *loadbalancer.LB
-	accessLogDisabled      bool
+	routing                  *routing.Routing
+	roundTripper             *http.Transport
+	priorityRoutes           []PriorityRoute
+	flags                    Flags
+	metrics                  metrics.Metrics
+	quit                     chan struct{}
+	flushInterval            time.Duration
+	experimentalUpgrade      bool
+	experimentalUpgradeAudit bool
+	maxLoops                 int
+	breakers                 *circuit.Registry
+	limiters                 *ratelimit.Registry
+	log                      logging.Logger
+	defaultHTTPStatus        int
+	openTracer               ot.Tracer
+	openTracingInitialSpan   string
+	lb                       *loadbalancer.LB
+	accessLogDisabled        bool
+	upgradeAuditLogOut       io.Writer
+	upgradeAuditLogErr       io.Writer
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -505,23 +513,26 @@ func WithParams(p Params) *Proxy {
 	}
 
 	return &Proxy{
-		routing:                p.Routing,
-		roundTripper:           tr,
-		priorityRoutes:         p.PriorityRoutes,
-		flags:                  p.Flags,
-		metrics:                m,
-		quit:                   quit,
-		flushInterval:          p.FlushInterval,
-		experimentalUpgrade:    p.ExperimentalUpgrade,
-		maxLoops:               p.MaxLoopbacks,
-		breakers:               p.CircuitBreakers,
-		lb:                     p.LoadBalancer,
-		limiters:               p.RateLimiters,
-		log:                    &logging.DefaultLog{},
-		defaultHTTPStatus:      defaultHTTPStatus,
-		openTracer:             p.OpenTracer,
-		accessLogDisabled:      p.AccessLogDisabled,
-		openTracingInitialSpan: openTracingInitialSpan,
+		routing:                  p.Routing,
+		roundTripper:             tr,
+		priorityRoutes:           p.PriorityRoutes,
+		flags:                    p.Flags,
+		metrics:                  m,
+		quit:                     quit,
+		flushInterval:            p.FlushInterval,
+		experimentalUpgrade:      p.ExperimentalUpgrade,
+		experimentalUpgradeAudit: p.ExperimentalUpgradeAudit,
+		maxLoops:                 p.MaxLoopbacks,
+		breakers:                 p.CircuitBreakers,
+		lb:                       p.LoadBalancer,
+		limiters:                 p.RateLimiters,
+		log:                      &logging.DefaultLog{},
+		defaultHTTPStatus:        defaultHTTPStatus,
+		openTracer:               p.OpenTracer,
+		accessLogDisabled:        p.AccessLogDisabled,
+		openTracingInitialSpan:   openTracingInitialSpan,
+		upgradeAuditLogOut:       os.Stdout,
+		upgradeAuditLogErr:       os.Stderr,
 	}
 }
 
@@ -643,6 +654,9 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 		reverseProxy:    reverseProxy,
 		insecure:        p.flags.Insecure(),
 		tlsClientConfig: p.roundTripper.TLSClientConfig,
+		useAuditLog:     p.experimentalUpgradeAudit,
+		auditLogOut:     p.upgradeAuditLogOut,
+		auditLogErr:     p.upgradeAuditLogErr,
 	}
 
 	upgradeProxy.serveHTTP(ctx.responseWriter, req)

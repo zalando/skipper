@@ -801,3 +801,91 @@ func TestUpdateFailsRecovers(t *testing.T) {
 	check("bar", "", "", false)
 	check("baz", "/baz", "https://baz-new.example.org", true)
 }
+
+func TestSignalFirstLoad(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		dc := testdataclient.New([]*eskip.Route{{}})
+
+		l := loggingtest.New()
+		defer l.Close()
+
+		rt := routing.New(routing.Options{
+			FilterRegistry: builtin.MakeRegistry(),
+			DataClients:    []routing.DataClient{dc},
+			PollTimeout:    12 * time.Millisecond,
+			Log:            l,
+		})
+
+		select {
+		case <-rt.FirstLoad():
+		default:
+			t.Error("the first load signal was blocking")
+		}
+
+		if err := l.WaitFor("route settings applied", 12*time.Millisecond); err != nil {
+			t.Error("failed to receive route settings", err)
+		}
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		dc := testdataclient.New([]*eskip.Route{{}})
+
+		l := loggingtest.New()
+		defer l.Close()
+
+		rt := routing.New(routing.Options{
+			SignalFirstLoad: true,
+			FilterRegistry:  builtin.MakeRegistry(),
+			DataClients:     []routing.DataClient{dc},
+			PollTimeout:     12 * time.Millisecond,
+			Log:             l,
+		})
+
+		select {
+		case <-rt.FirstLoad():
+			t.Error("the first load signal was not blocking")
+		default:
+		}
+
+		if err := l.WaitFor("route settings applied", 12*time.Millisecond); err != nil {
+			t.Error("failed to receive route settings", err)
+		}
+
+		select {
+		case <-rt.FirstLoad():
+		default:
+			t.Error("the first load signal was blocking")
+		}
+	})
+
+	t.Run("enabled, empty", func(t *testing.T) {
+		dc := testdataclient.New(nil)
+
+		l := loggingtest.New()
+		defer l.Close()
+
+		rt := routing.New(routing.Options{
+			SignalFirstLoad: true,
+			FilterRegistry:  builtin.MakeRegistry(),
+			DataClients:     []routing.DataClient{dc},
+			PollTimeout:     12 * time.Millisecond,
+			Log:             l,
+		})
+
+		select {
+		case <-rt.FirstLoad():
+			t.Error("the first load signal was not blocking")
+		default:
+		}
+
+		if err := l.WaitFor("route settings applied", 12*time.Millisecond); err != nil {
+			t.Error("failed to receive route settings", err)
+		}
+
+		select {
+		case <-rt.FirstLoad():
+		default:
+			t.Error("the first load signal was blocking")
+		}
+	})
+}

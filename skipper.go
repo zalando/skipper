@@ -225,6 +225,10 @@ type Options struct {
 	// Custom data clients to be used together with the default etcd and Innkeeper.
 	CustomDataClients []routing.DataClient
 
+	// WaitFirstRouteLoad prevents starting the listener before the first batch
+	// of routes were applied.
+	WaitFirstRouteLoad bool
+
 	// SuppressRouteUpdateLogs indicates to log only summaries of the routing updates
 	// instead of full details of the updated/deleted routes.
 	SuppressRouteUpdateLogs bool
@@ -357,6 +361,10 @@ type Options struct {
 
 	// Experimental feature to handle protocol Upgrades for Websockets, SPDY, etc.
 	ExperimentalUpgrade bool
+
+	// ExperimentalUpgradeAudit enables audit log of both the request line
+	// and the response messages during web socket upgrades.
+	ExperimentalUpgradeAudit bool
 
 	// MaxLoopbacks defines the maximum number of loops that the proxy can execute when the routing table
 	// contains loop backends (<loopback>).
@@ -760,27 +768,29 @@ func Run(o Options) error {
 		UpdateBuffer:    updateBuffer,
 		SuppressLogs:    o.SuppressRouteUpdateLogs,
 		PostProcessors:  []routing.PostProcessor{loadbalancer.HealthcheckPostProcessor{LB: lbInstance}},
+		SignalFirstLoad: o.WaitFirstRouteLoad,
 	})
 	defer routing.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
-		Routing:                routing,
-		Flags:                  proxyFlags,
-		PriorityRoutes:         o.PriorityRoutes,
-		IdleConnectionsPerHost: o.IdleConnectionsPerHost,
-		CloseIdleConnsPeriod:   o.CloseIdleConnsPeriod,
-		FlushInterval:          o.BackendFlushInterval,
-		ExperimentalUpgrade:    o.ExperimentalUpgrade,
-		MaxLoopbacks:           o.MaxLoopbacks,
-		DefaultHTTPStatus:      o.DefaultHTTPStatus,
-		LoadBalancer:           lbInstance,
-		Timeout:                o.TimeoutBackend,
-		KeepAlive:              o.KeepAliveBackend,
-		DualStack:              o.DualStackBackend,
-		TLSHandshakeTimeout:    o.TLSHandshakeTimeoutBackend,
-		MaxIdleConns:           o.MaxIdleConnsBackend,
-		AccessLogDisabled:      o.AccessLogDisabled,
+		Routing:                  routing,
+		Flags:                    proxyFlags,
+		PriorityRoutes:           o.PriorityRoutes,
+		IdleConnectionsPerHost:   o.IdleConnectionsPerHost,
+		CloseIdleConnsPeriod:     o.CloseIdleConnsPeriod,
+		FlushInterval:            o.BackendFlushInterval,
+		ExperimentalUpgrade:      o.ExperimentalUpgrade,
+		ExperimentalUpgradeAudit: o.ExperimentalUpgradeAudit,
+		MaxLoopbacks:             o.MaxLoopbacks,
+		DefaultHTTPStatus:        o.DefaultHTTPStatus,
+		LoadBalancer:             lbInstance,
+		Timeout:                  o.TimeoutBackend,
+		KeepAlive:                o.KeepAliveBackend,
+		DualStack:                o.DualStackBackend,
+		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:             o.MaxIdleConnsBackend,
+		AccessLogDisabled:        o.AccessLogDisabled,
 	}
 
 	var theSwarm *swarm.Swarm
@@ -906,6 +916,9 @@ func Run(o Options) error {
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)
 	defer proxy.Close()
+
+	// wait for the first route configuration to be loaded if enabled:
+	<-routing.FirstLoad()
 
 	return listenAndServe(proxy, &o)
 }
