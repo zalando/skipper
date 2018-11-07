@@ -13,6 +13,8 @@ type pathInfo struct {
 	Matcher                 *regexp.Regexp
 	metricPrefixesPerMethod [MethodIndexLength]*metricNames
 	ClientTracking          *clientTrackingInfo
+	CommonPrefix            string
+	ClientPrefix            string
 }
 
 func (p *pathInfo) MarshalJSON() ([]byte, error) {
@@ -29,6 +31,11 @@ func (p *pathInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (p *pathInfo) preRenderPrefixes() {
+	p.CommonPrefix = p.ApplicationId + "." + p.ApiId + "."
+	p.ClientPrefix = p.CommonPrefix + "*.*."
+}
+
 // pathInfoByRegExRev allows sort.Sort to reorder a slice of `pathInfo` in
 // reverse alphabetical order of their matcher (Regular Expression). That way,
 // the more complex RegEx will end up first in the slice.
@@ -40,7 +47,6 @@ func (s pathInfoByRegExRev) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 type metricNames struct {
 	EndpointPrefix          string
-	ClientPrefix            string
 	CountAll                string
 	CountPerStatusCodeRange [6]string
 	Latency                 string

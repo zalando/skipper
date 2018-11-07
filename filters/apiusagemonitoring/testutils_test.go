@@ -212,14 +212,14 @@ func testClientMetrics(
 			m.WithCounters(func(counters map[string]int64) {
 				httpCountKey := testCase.expectedClientMetricPrefix + "http_count"
 				expectedCounters = append(expectedCounters, httpCountKey)
-				if assert.Contains(t, counters, httpCountKey) {
+				if assert.Containsf(t, counters, httpCountKey, "counter metrics do not contain %q", httpCountKey) {
 					v := counters[httpCountKey]
 					assert.Equal(t, int64(pass), v)
 				}
 
 				httpClassCountKey := testCase.expectedClientMetricPrefix + "http2xx_count"
 				expectedCounters = append(expectedCounters, httpClassCountKey)
-				if assert.Contains(t, counters, httpClassCountKey) {
+				if assert.Containsf(t, counters, httpClassCountKey, "counter metrics do not contain %q", httpClassCountKey) {
 					v := counters[httpClassCountKey]
 					assert.Equal(t, int64(pass), v)
 				}
@@ -228,7 +228,7 @@ func testClientMetrics(
 			m.WithFloatCounters(func(floatCounters map[string]float64) {
 				latencySumKey := testCase.expectedClientMetricPrefix + "latency_sum"
 				expectedFloatCounters = append(expectedFloatCounters, latencySumKey)
-				if assert.Contains(t, floatCounters, latencySumKey) {
+				if assert.Containsf(t, floatCounters, latencySumKey, "float counter metrics do not contain %q", latencySumKey) {
 					v := floatCounters[latencySumKey]
 					assert.Conditionf(t,
 						func() bool {
@@ -248,14 +248,13 @@ func testClientMetrics(
 			m.WithCounters(func(counters map[string]int64) {
 				httpCountKey := testCase.expectedEndpointMetricPrefix + "http_count"
 				expectedCounters = append(expectedCounters, httpCountKey)
-				if assert.Contains(t, counters, httpCountKey) {
+				if assert.Containsf(t, counters, httpCountKey, "counter metrics do not contain %q", httpCountKey) {
 					v := counters[httpCountKey]
 					assert.Equal(t, int64(pass), v)
 				}
-
 				httpCountClassKey := testCase.expectedEndpointMetricPrefix + "http2xx_count"
 				expectedCounters = append(expectedCounters, httpCountClassKey)
-				if assert.Contains(t, counters, httpCountClassKey) {
+				if assert.Containsf(t, counters, httpCountClassKey, "counter metrics do not contain %q", httpCountClassKey) {
 					v := counters[httpCountClassKey]
 					assert.Equal(t, int64(pass), v)
 				}
@@ -264,7 +263,7 @@ func testClientMetrics(
 			m.WithMeasures(func(measures map[string][]time.Duration) {
 				latencyKey := testCase.expectedEndpointMetricPrefix + "latency"
 				expectedMeasures = append(expectedMeasures, latencyKey)
-				assert.Contains(t, measures, latencyKey)
+				assert.Containsf(t, measures, latencyKey, "measure metrics do not contain %q", latencyKey)
 			})
 		}
 

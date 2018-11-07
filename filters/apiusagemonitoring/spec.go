@@ -63,6 +63,8 @@ func NewApiUsageMonitoring(
 			ClientTracking:          unknownPath,
 		},
 	}
+	spec.unknownPath.preRenderPrefixes()
+
 	log.Debugf("Created filter spec: %+v", spec)
 	return spec
 }
@@ -171,6 +173,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 				metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
 				ClientTracking:          clientTrackingInfo,
 			}
+			info.preRenderPrefixes()
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {

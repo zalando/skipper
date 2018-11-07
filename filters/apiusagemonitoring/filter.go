@@ -82,7 +82,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 
 	// Client Based Metrics
 	if path.ClientTracking != nil {
-		cmPre := metricsName.ClientPrefix + f.getRealmClientKey(request, path) + "."
+		cmPre := path.ClientPrefix + f.getRealmClientKey(request, path) + "."
 
 		// METRIC: Count for client
 		metrics.IncCounter(cmPre + metricCountAll)
@@ -184,12 +184,9 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 	}
 
 	// Prefixes were not cached for this path and method. Generate and cache.
-	prefixCommon := path.ApplicationId + "." + path.ApiId + "."
-	endpointPrefix := prefixCommon + method + "." + path.PathTemplate + ".*.*."
-	clientPrefix := prefixCommon + "*.*."
+	endpointPrefix := path.CommonPrefix + method + "." + path.PathTemplate + ".*.*."
 	prefixes = &metricNames{
 		EndpointPrefix: endpointPrefix,
-		ClientPrefix:   clientPrefix,
 		CountAll:       endpointPrefix + metricCountAll,
 		CountPerStatusCodeRange: [6]string{
 			endpointPrefix + metricCountUnknownClass,
