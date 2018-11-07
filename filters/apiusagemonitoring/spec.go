@@ -46,25 +46,23 @@ func NewApiUsageMonitoring(
 	}
 
 	// Create the filter Spec
-	var unknownPath *clientTrackingInfo = nil // client metrics feature is disabled
+	var unknownPathClientTracking *clientTrackingInfo = nil // client metrics feature is disabled
 	if realmKeyName != "" {
-		unknownPath = &clientTrackingInfo{
+		unknownPathClientTracking = &clientTrackingInfo{
 			ClientTrackingMatcher: nil, // do not match anything (track `realm.<unknown>`)
 		}
 	}
+	unknownPath := newPathInfo(
+		unknownElementPlaceholder,
+		unknownElementPlaceholder,
+		unknownElementPlaceholder,
+		unknownPathClientTracking,
+	)
 	spec := &apiUsageMonitoringSpec{
 		realmKey:    realmKeyName,
 		clientIdKey: clientIdKeys,
-		unknownPath: &pathInfo{
-			ApplicationId:           unknownElementPlaceholder,
-			ApiId:                   unknownElementPlaceholder,
-			PathTemplate:            unknownElementPlaceholder,
-			metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
-			ClientTracking:          unknownPath,
-		},
+		unknownPath: unknownPath,
 	}
-	spec.unknownPath.preRenderPrefixes()
-
 	log.Debugf("Created filter spec: %+v", spec)
 	return spec
 }
@@ -166,14 +164,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			normalisedPathTemplate, regExStr := generateRegExpStringForPathTemplate(template)
 
 			// Create new `pathInfo` with normalized PathTemplate
-			info := &pathInfo{
-				ApplicationId:           applicationId,
-				ApiId:                   apiId,
-				PathTemplate:            normalisedPathTemplate,
-				metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
-				ClientTracking:          clientTrackingInfo,
-			}
-			info.preRenderPrefixes()
+			info := newPathInfo(applicationId, apiId, normalisedPathTemplate, clientTrackingInfo)
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {

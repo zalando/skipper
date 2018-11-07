@@ -59,7 +59,8 @@ func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
 	begin, beginPresent := c.StateBag()[stateBagKeyBegin].(time.Time)
-	path, metricsName := f.resolvePath(request)
+	path := f.resolvePath(request)
+	metricsName := getMetricsNames(request, path)
 
 	classMetricsIndex := response.StatusCode / 100
 	if classMetricsIndex < 1 || classMetricsIndex > 5 {
@@ -154,23 +155,20 @@ func (f *apiUsageMonitoringFilter) String() string {
 	return fmt.Sprintf("%T %s", f, js)
 }
 
-// resolvePath returns the structure with names of the metrics for this specific context.
-// If it is not already cached, it is generated and cached to speed up next calls.
-func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *metricNames) {
-
-	// Match the path to a known template
-	var path *pathInfo = nil
+// resolvePath tries to match the request's path with one of the configured path template.
+func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) *pathInfo {
 	for _, p := range f.Paths {
 		if p.Matcher.MatchString(req.URL.Path) {
-			path = p
-			break
+			return p
 		}
 	}
-	if path == nil {
-		path = f.Spec.unknownPath
-	}
+	return f.Spec.unknownPath
+}
 
-	// Get the cached prefixes for this path and verb
+// getMetricsNames returns the structure with names of the metrics for this specific context.
+// It tries first from the path's cache. If it is not already cached, it is generated and
+// caches it to speed up next calls.
+func getMetricsNames(req *http.Request, path *pathInfo) *metricNames {
 	method := req.Method
 	methodIndex, ok := methodToIndex[method]
 	if !ok {
@@ -179,13 +177,17 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 	}
 
 	prefixes := path.metricPrefixesPerMethod[methodIndex]
-	if prefixes != nil {
-		return path, prefixes
+	if prefixes == nil {
+		return createAndCacheMetricsNames(path, method, methodIndex)
+	} else {
+		return prefixes
 	}
+}
 
-	// Prefixes were not cached for this path and method. Generate and cache.
+// createAndCacheMetricsNames generates metrics names and cache them.
+func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) *metricNames {
 	endpointPrefix := path.CommonPrefix + method + "." + path.PathTemplate + ".*.*."
-	prefixes = &metricNames{
+	prefixes := &metricNames{
 		EndpointPrefix: endpointPrefix,
 		CountAll:       endpointPrefix + metricCountAll,
 		CountPerStatusCodeRange: [6]string{
@@ -199,7 +201,7 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 		Latency: endpointPrefix + metricLatency,
 	}
 	path.metricPrefixesPerMethod[methodIndex] = prefixes
-	return path, prefixes
+	return prefixes
 }
 
 // parseJwtBody parses the JWT token from a HTTP request.

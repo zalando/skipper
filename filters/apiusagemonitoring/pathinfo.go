@@ -17,6 +17,18 @@ type pathInfo struct {
 	ClientPrefix            string
 }
 
+func newPathInfo(applicationId, apiId, pathTemplate string, clientTracking *clientTrackingInfo) *pathInfo {
+	commonPrefix := applicationId + "." + apiId + "."
+	return &pathInfo{
+		ApplicationId:  applicationId,
+		ApiId:          apiId,
+		PathTemplate:   pathTemplate,
+		ClientTracking: clientTracking,
+		CommonPrefix:   commonPrefix,
+		ClientPrefix:   commonPrefix + "*.*.",
+	}
+}
+
 func (p *pathInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		ApplicationId string
@@ -29,11 +41,6 @@ func (p *pathInfo) MarshalJSON() ([]byte, error) {
 		PathTemplate:  p.PathTemplate,
 		Matcher:       p.Matcher.String(),
 	})
-}
-
-func (p *pathInfo) preRenderPrefixes() {
-	p.CommonPrefix = p.ApplicationId + "." + p.ApiId + "."
-	p.ClientPrefix = p.CommonPrefix + "*.*."
 }
 
 // pathInfoByRegExRev allows sort.Sort to reorder a slice of `pathInfo` in
