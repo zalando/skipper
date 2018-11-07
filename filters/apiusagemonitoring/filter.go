@@ -51,9 +51,7 @@ type apiUsageMonitoringFilter struct {
 }
 
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
-	// Gathering information from the initial request for further metrics calculation
-	now := time.Now()
-	c.StateBag()[stateBagKeyBegin] = now
+	c.StateBag()[stateBagKeyBegin] = time.Now()
 }
 
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
