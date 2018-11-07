@@ -68,7 +68,7 @@ const (
 	// API Monitoring
 	defaultApiUsageMonitoringEnable     = false
 	defaultApiUsageMonitoringRealmKeys  = ""
-	defaultApiUsageMonitoringClientKeys = ""
+	defaultApiUsageMonitoringClientKeys = "sub"
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
