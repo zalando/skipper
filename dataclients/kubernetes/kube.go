@@ -1065,6 +1065,13 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 				BackendType: eskip.ShuntBackend,
 			}
 			routes = append(routes, catchAll)
+
+			if c.kubernetesEnableEastWest {
+				if r := createEastWestRoute(rs[0].Name, rs[0].Namespace, catchAll); r != nil {
+					routes = append(routes, r)
+				}
+			}
+
 			if code, ok := redirect.setHostCode[host]; ok {
 				routes = append(routes, createIngressEnableHTTPSRedirect(catchAll, code))
 			}
@@ -1077,12 +1084,27 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	return routes, nil
 }
 
+func createEastWestRoute(name, ns string, r *eskip.Route) *eskip.Route {
+	if strings.HasPrefix(r.Id, "kubeew") || ns == "" || name == "" {
+		return nil
+	}
+	newHostHeader := fmt.Sprintf(defaultEastWestDomainFmt, name, ns)
+	newHostHeaderRegex := strings.Join(strings.Split(newHostHeader, "."), "[.]")
+	ewR := *r
+	ewR.HostRegexps = []string{"^" + newHostHeaderRegex + "$"}
+	ewR.Id = patchRouteID(r.Id)
+	log.Infof("*** ewR: %s: %s", ewR.Id, ewR.String())
+	return &ewR
+}
+
 func createEastWestRoutes(name, ns string, routes []*eskip.Route) []*eskip.Route {
 	var ewroutes []*eskip.Route
 	for _, r := range routes {
 		if strings.HasPrefix(r.Id, "kubeew") {
 			continue
 		}
+		r.Namespace = ns // store namespace
+		r.Name = name    // store name
 		newHostHeader := fmt.Sprintf(defaultEastWestDomainFmt, name, ns)
 		newHostHeaderRegex := strings.Join(strings.Split(newHostHeader, "."), "[.]")
 		ewR := *r
