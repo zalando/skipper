@@ -82,7 +82,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 
 	// Client Based Metrics
 	if path.ClientTracking != nil {
-		cmPre := metricsName.ClientPrefix + f.determineClientMetricPart(c, path) + "."
+		cmPre := metricsName.ClientPrefix + f.getRealmClientKey(request, path) + "."
 
 		// METRIC: Count for client
 		metrics.IncCounter(cmPre + metricCountAll)
@@ -102,11 +102,11 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	log.Debugf("Pushed endpoint metrics with prefix `%s`", metricsName.EndpointPrefix)
 }
 
-// determineClientMetricPart generates the proper <Realm>.<Client ID> part of the
+// getRealmClientKey generates the proper <Realm>.<Client ID> part of the
 // client metrics name.
-func (f *apiUsageMonitoringFilter) determineClientMetricPart(c filters.FilterContext, path *pathInfo) string {
+func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *pathInfo) string {
 	// if no JWT: track <unknown>.<unknown>
-	jwt := parseJwtBody(c.Request())
+	jwt := parseJwtBody(r)
 	if jwt == nil {
 		return unknownElementPlaceholder + "." + unknownElementPlaceholder
 	}
