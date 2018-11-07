@@ -18,7 +18,7 @@ type clientMetricsTest struct {
 }
 
 var (
-	clientTrackingPatternJustSomeUsers = `users\.(?:joe|sabine)`
+	clientTrackingPatternJustSomeUsers = `users\.(joe|sabine)`
 	headerUsersJoe                     = http.Header{
 		authorizationHeaderName: {
 			"Bearer " + buildFakeJwtWithBody(map[string]interface{}{

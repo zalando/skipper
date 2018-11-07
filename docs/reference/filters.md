@@ -1011,7 +1011,7 @@ api-usage-monitoring-configuration:
                 value: "services\\..*"
             just_some_users:
                 summary: Only client ID `Joe` and `Sabine` from realm `users` are tracked.
-                value: "users\\.(?:joe|sabine)"
+                value: "users\\.(joe|sabine)"
 ```
 
 Configuration Example:
@@ -1026,7 +1026,7 @@ apiUsageMonitoring(`
             "foo/orders/:order-id",
             "foo/orders/:order-id/order_item/{order-item-id}"
         ],
-        "client_tracking_pattern": "users\\.(?:joe|sabine)"
+        "client_tracking_pattern": "users\\.(joe|sabine)"
     }`,`{
         "application_id": "my-app",
         "api_id": "customers-api",
