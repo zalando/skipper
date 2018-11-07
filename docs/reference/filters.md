@@ -1004,13 +1004,13 @@ api-usage-monitoring-configuration:
                 summary: No client metric is tracked.
                 value: ""
             everything:
-                summary: All realms and all client ID are tracked.
+                summary: All client ID of all realms are tracked.
                 value: ".*"
             all_services:
-                summary: Only log the services.
+                summary: All client ID of only the reslm `services` are tracked.
                 value: "services\\..*"
             just_some_users:
-                summary: Only users Joe and and Sabine from realm users are tracked.
+                summary: Only client ID `Joe` and `Sabine` from realm `users` are tracked.
                 value: "users\\.(?:joe|sabine)"
 ```
 
