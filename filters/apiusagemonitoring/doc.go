@@ -34,8 +34,8 @@ Command line example for executing locally:
 	make skipper && ./bin/skipper \
 		-routes-file "$HOME/temp/test.eskip" \
 		-enable-api-usage-monitoring \
-		-api-usage-monitoring-realm-key="https://identity.zalando.com/realm" \
-		-api-usage-monitoring-client-id-key="https://identity.zalando.com/managed-id" \
+		-api-usage-monitoring-realm-keys="https://identity.zalando.com/realm" \
+		-api-usage-monitoring-client-keys="https://identity.zalando.com/managed-id" \
 		-metrics-flavour prometheus \
 		-histogram-metric-buckets=.01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600 \
 		-application-log-level=DEBUG

@@ -169,10 +169,7 @@ func testWithFilterC(
 	}
 }
 
-func testClientMetrics(
-	t *testing.T,
-	testCase clientMetricsTest,
-) {
+func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 	conf := testWithFilterConf{
 		url:    testCase.url,
 		header: testCase.header,
@@ -192,7 +189,7 @@ func testClientMetrics(
 				t.FailNow()
 			}
 			args := []interface{}{string(js)}
-			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientIdKeyName)
+			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientKeyName)
 			return spec.CreateFilter(args)
 		},
 	}
@@ -200,9 +197,9 @@ func testClientMetrics(
 
 	testWithFilterC(t, conf, func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 
-		expectedCounters := make([]string, 0)
-		expectedFloatCounters := make([]string, 0)
-		expectedMeasures := make([]string, 0)
+		var expectedCounters []string
+		var expectedFloatCounters []string
+		var expectedMeasures []string
 
 		//
 		// Assert client metrics

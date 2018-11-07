@@ -11,8 +11,8 @@ func Test_CreateSpec(t *testing.T) {
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	if assert.IsType(t, new(apiUsageMonitoringSpec), spec) {
 		s := spec.(*apiUsageMonitoringSpec)
-		assert.Equal(t, []string{"abc", "def", "ghi", "xyz"}, s.clientIdKey)
-		assert.Equal(t, "realm", s.realmKey)
+		assert.Equal(t, []string{"abc", "def", "ghi", "xyz"}, s.clientKeys)
+		assert.Equal(t, []string{"realm"}, s.realmKeys)
 		assert.NotNil(t, s.unknownPath)
 	}
 }

@@ -78,5 +78,5 @@ func Test_parseJwtBody_AuthorizationHeaderWithValidJwtBody(t *testing.T) {
 	}
 
 	body := parseJwtBody(req)
-	assert.Equal(t, map[string]interface{}{"foo": "bar"}, body)
+	assert.Equal(t, jwtTokenPayload{"foo": "bar"}, body)
 }

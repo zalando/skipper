@@ -882,10 +882,10 @@ for all environments.
 
 For the client based metrics, additional flags need to be specified.
 
-| Flag                                 | Description                                                                          |
-|--------------------------------------|--------------------------------------------------------------------------------------|
-| `api-usage-monitoring-realm-key`     | Name of the property in the JWT JSON body that contains the name of the _realm_.     |
-| `api-usage-monitoring-client-id-key` | Name of the property in the JWT JSON body that contains the name of the _client ID_. |
+| Flag                               | Description                                                                       |
+|------------------------------------|-----------------------------------------------------------------------------------|
+| `api-usage-monitoring-realm-keys`  | Name of the property in the JWT JSON body that contains the name of the _realm_.  |
+| `api-usage-monitoring-client-keys` | Name of the property in the JWT JSON body that contains the name of the _client_. |
 
 NOTE: Make sure to activate the metrics flavour proper to your environment using the `metrics-flavour`
 flag in order to get those metrics.
@@ -893,7 +893,7 @@ flag in order to get those metrics.
 Example:
 
 ```bash
-skipper -metrics-flavour prometheus -enable-api-usage-monitoring -api-usage-monitoring-realm-key="realm" -api-usage-monitoring-client-id-key="managed-id"
+skipper -metrics-flavour prometheus -enable-api-usage-monitoring -api-usage-monitoring-realm-keys="realm" -api-usage-monitoring-client-keys="managed-id"
 ```
 
 The structure of the metrics is all of those elements, separated by `.` dots:
@@ -906,7 +906,7 @@ The structure of the metrics is all of those elements, separated by `.` dots:
 | Method                      | The request's method (verb), capitalized (ex: `GET`, `POST`, `PUT`, `DELETE`).                        |
 | Path                        | The request's path, in the form of the path template configured in the filter under `path_templates`. |
 | Realm                       | The realm in which the client is authenticated.                                                       |
-| Client ID                   | Identifier under which the client is authenticated.                                                   |
+| Client                      | Identifier under which the client is authenticated.                                                   |
 | Metric Name                 | Name (or key) of the metric being tracked.                                                            |
 
 ### Available Metrics
@@ -922,7 +922,7 @@ Example:
     apiUsageMonitoring.custom.orders-backend.orders-api.GET.foo/orders/:order-id.*.*.http_count
                                                                                    | |
                                                                                    | + Metric Name
-                                                                                   + Client ID
+                                                                                   + Client
     
 
 The available metrics are:
@@ -948,7 +948,7 @@ Example:
                                                         | |                   |
     apiUsageMonitoring.custom.orders-backend.orders-api.*.*.users.mmustermann.http_count
                                                             |     |
-                                                            |     + Client ID
+                                                            |     + Client
                                                             + Realm
 
 The available metrics are:
@@ -995,7 +995,7 @@ api-usage-monitoring-configuration:
         example: /orders/{order-id}
     client_tracking_pattern:
         description: >
-            The pattern that the combination `realm.clientId` must match in order for the client
+            The pattern that the combination `realm.client` must match in order for the client
             based metrics to be tracked, in form of a regular expression. If it is not provided
             or is empty, no client metric is be tracked.
         type: string
@@ -1004,13 +1004,13 @@ api-usage-monitoring-configuration:
                 summary: No client metric is tracked.
                 value: ""
             everything:
-                summary: All client ID of all realms are tracked.
+                summary: All clients of all realms are tracked.
                 value: ".*"
             all_services:
-                summary: All client ID of only the reslm `services` are tracked.
+                summary: All clients of only the realm `services` are tracked.
                 value: "services\\..*"
             just_some_users:
-                summary: Only client ID `Joe` and `Sabine` from realm `users` are tracked.
+                summary: Only clients `Joe` and `Sabine` of realm `users` are tracked.
                 value: "users\\.(joe|sabine)"
 ```
 

@@ -28,26 +28,34 @@ var (
 // specification (its factory).
 func NewApiUsageMonitoring(
 	enabled bool,
-	realmKeyName string,
-	clientIdKeyName string,
+	realmKeys string,
+	clientKeys string,
 ) filters.Spec {
 	if !enabled {
 		log.Debugf("Filter %q is not enabled. Spec returns `noop` filters.", Name)
 		return &noopSpec{&noopFilter{}}
 	}
 
-	// Parse client ID keys comma separated list
-	clientIdKeys := make([]string, 0)
-	for _, key := range strings.Split(clientIdKeyName, ",") {
+	// Parse realm keys comma separated list
+	var realmKeyList []string
+	for _, key := range strings.Split(realmKeys, ",") {
 		strippedKey := strings.TrimSpace(key)
 		if strippedKey != "" {
-			clientIdKeys = append(clientIdKeys, strippedKey)
+			realmKeyList = append(realmKeyList, strippedKey)
+		}
+	}
+	// Parse client keys comma separated list
+	var clientKeyList []string
+	for _, key := range strings.Split(clientKeys, ",") {
+		strippedKey := strings.TrimSpace(key)
+		if strippedKey != "" {
+			clientKeyList = append(clientKeyList, strippedKey)
 		}
 	}
 
 	// Create the filter Spec
 	var unknownPathClientTracking *clientTrackingInfo = nil // client metrics feature is disabled
-	if realmKeyName != "" {
+	if realmKeys != "" {
 		unknownPathClientTracking = &clientTrackingInfo{
 			ClientTrackingMatcher: nil, // do not match anything (track `realm.<unknown>`)
 		}
@@ -59,8 +67,8 @@ func NewApiUsageMonitoring(
 		unknownPathClientTracking,
 	)
 	spec := &apiUsageMonitoringSpec{
-		realmKey:    realmKeyName,
-		clientIdKey: clientIdKeys,
+		realmKeys:   realmKeyList,
+		clientKeys:  clientKeyList,
 		unknownPath: unknownPath,
 	}
 	log.Debugf("Created filter spec: %+v", spec)
@@ -76,8 +84,8 @@ type apiConfig struct {
 }
 
 type apiUsageMonitoringSpec struct {
-	realmKey    string
-	clientIdKey []string
+	realmKeys   []string
+	clientKeys  []string
 	unknownPath *pathInfo
 }
 
@@ -119,10 +127,9 @@ func parseJsonConfiguration(args []interface{}) []*apiConfig {
 }
 
 func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
-	paths := make([]*pathInfo, 0)
+	var paths []*pathInfo
 	existingPathTemplates := make(map[string]*pathInfo)
 	existingRegEx := make(map[string]*pathInfo)
-
 	for apiIndex, api := range apis {
 
 		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
@@ -206,15 +213,15 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 }
 
 func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig) *clientTrackingInfo {
-	if s.realmKey == "" {
+	if len(s.realmKeys) == 0 {
 		log.Infof(
-			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-key" not provided, not tracking client metrics`,
+			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-keys" not provided, not tracking client metrics`,
 			apiIndex)
 		return nil
 	}
-	if len(s.clientIdKey) == 0 {
+	if len(s.clientKeys) == 0 {
 		log.Infof(
-			`args[%d]: skipper wide configuration "api-usage-monitoring-client-id-key" not provided, not tracking client metrics`,
+			`args[%d]: skipper wide configuration "api-usage-monitoring-client-keys" not provided, not tracking client metrics`,
 			apiIndex)
 		return nil
 	}

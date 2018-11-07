@@ -104,41 +104,41 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 // getRealmClientKey generates the proper <Realm>.<Client ID> part of the
 // client metrics name.
 func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *pathInfo) string {
-	// if no JWT: track <unknown>.<unknown>
+	const (
+		unknownRealmClient           = unknownElementPlaceholder + "." + unknownElementPlaceholder
+		unknownClientAfterKnownRealm = "." + unknownElementPlaceholder
+	)
+
+	// no JWT ==>  <unknown>.<unknown>
 	jwt := parseJwtBody(r)
 	if jwt == nil {
-		return unknownElementPlaceholder + "." + unknownElementPlaceholder
+		return unknownRealmClient
 	}
 
-	// if no realm in JWT: track <unknown>.<unknown>
-	realm, ok := jwt[f.Spec.realmKey].(string)
+	// no realm in JWT ==>  <unknown>.<unknown>
+	realm, ok := jwt.getOneOfString(f.Spec.realmKeys)
 	if !ok {
-		return unknownElementPlaceholder + "." + unknownElementPlaceholder
+		return unknownRealmClient
 	}
 
-	// if not matcher: track realm.<unknown>
+	// no matcher ==>  realm.<unknown>
 	if path.ClientTracking.ClientTrackingMatcher == nil {
-		return realm + "." + unknownElementPlaceholder
+		return realm + unknownClientAfterKnownRealm
 	}
 
-	// if no client ID in JWT: track realm.<unknown>
-	var clientId string
-	for _, k := range f.Spec.clientIdKey {
-		if clientId, ok = jwt[k].(string); ok {
-			break
-		}
-	}
+	// no client in JWT ==>  realm.<unknown>
+	client, ok := jwt.getOneOfString(f.Spec.clientKeys)
 	if !ok {
-		return realm + "." + unknownElementPlaceholder
+		return realm + unknownClientAfterKnownRealm
 	}
 
-	// if no realm.client does not match, track realm.<unknown>
-	realmAndClient := realm + "." + clientId
+	// if `realm.client` does not match ==>  realm.<unknown>
+	realmAndClient := realm + "." + client
 	if !path.ClientTracking.ClientTrackingMatcher.MatchString(realmAndClient) {
-		return realm + "." + unknownElementPlaceholder
+		return realm + unknownClientAfterKnownRealm
 	}
 
-	// all matched: track realm.client_id
+	// all matched ==>  realm.client
 	return realmAndClient
 }
 
@@ -204,7 +204,7 @@ func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) 
 
 // parseJwtBody parses the JWT token from a HTTP request.
 // It returns `nil` if it was not possible to parse the JWT body.
-func parseJwtBody(req *http.Request) map[string]interface{} {
+func parseJwtBody(req *http.Request) jwtTokenPayload {
 	ahead := req.Header.Get(authorizationHeaderName)
 	if !strings.HasPrefix(ahead, authorizationHeaderPrefix) {
 		return nil
@@ -230,4 +230,17 @@ func parseJwtBody(req *http.Request) map[string]interface{} {
 	}
 
 	return bodyObject
+}
+
+type jwtTokenPayload map[string]interface{}
+
+func (j jwtTokenPayload) getOneOfString(properties []string) (value string, ok bool) {
+	var rawValue interface{}
+	for _, p := range properties {
+		if rawValue, ok = j[p]; ok {
+			value = fmt.Sprint(rawValue)
+			return
+		}
+	}
+	return
 }
