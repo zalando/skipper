@@ -81,24 +81,20 @@ func routeIDForRedirectRoute(baseID string, enable bool) string {
 }
 
 func initRedirectRoute(r *eskip.Route, code int) {
-	// the forwarded port and any-path (.*) is set to make sure that
-	// the redirect route has a higher priority during matching than
-	// the normal routes that may have max 2 predicates: path regexp
-	// and host.
-
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
 	r.Headers["X-Forwarded-Proto"] = "http"
 
-	if r.HeaderRegexps == nil {
-		r.HeaderRegexps = make(map[string][]string)
-	}
-	r.HeaderRegexps["X-Forwarded-Port"] = append(
-		r.HeaderRegexps["X-Forwarded-Port"],
-		".*",
-	)
-
+	// the below duplicate any-path (.*) is set to make sure that
+	// the redirect route has a higher priority during matching than
+	// the normal routes that may have max 2 predicates: path regexp
+	// and host.
+	//
+	// A better solution might be to implement a Weight() predicate
+	// and apply it here.
+	//
+	r.PathRegexps = append(r.PathRegexps, ".*")
 	r.PathRegexps = append(r.PathRegexps, ".*")
 
 	r.Filters = append(r.Filters, &eskip.Filter{
@@ -111,24 +107,20 @@ func initRedirectRoute(r *eskip.Route, code int) {
 }
 
 func initDisableRedirectRoute(r *eskip.Route) {
-	// the forwarded port and any-path (.*) is set to make sure that
-	// the redirect route has a higher priority during matching than
-	// the normal routes that may have max 2 predicates: path regexp
-	// and host.
-
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
 	r.Headers["X-Forwarded-Proto"] = "http"
 
-	if r.HeaderRegexps == nil {
-		r.HeaderRegexps = make(map[string][]string)
-	}
-	r.HeaderRegexps["X-Forwarded-Port"] = append(
-		r.HeaderRegexps["X-Forwarded-Port"],
-		".*",
-	)
-
+	// the below duplicate any-path (.*) is set to make sure that
+	// the redirect route has a higher priority during matching than
+	// the normal routes that may have max 2 predicates: path regexp
+	// and host.
+	//
+	// A better solution might be to implement a Weight() predicate
+	// and apply it here.
+	//
+	r.PathRegexps = append(r.PathRegexps, ".*")
 	r.PathRegexps = append(r.PathRegexps, ".*")
 }
 
