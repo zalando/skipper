@@ -153,7 +153,7 @@ const (
 
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage      = "enables the experimental filter apiUsageMonitoring"
-	apiUsageMonitoringRealmKeyUsage    = "name of the property in the JWT body that contains the authority realm"
+	apiUsageMonitoringRealmKeyUsage    = "name of the property in the JWT payload that contains the authority realm"
 	apiUsageMonitoringClientIdKeyUsage = "comma separated list of names of the properties in the JWT body that contains the client ID"
 
 	// connections, timeouts:
