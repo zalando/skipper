@@ -42,7 +42,7 @@ type metricNames struct {
 	EndpointPrefix          string
 	ClientPrefix            string
 	CountAll                string
-	CountPerStatusCodeRange [5]string
+	CountPerStatusCodeRange [6]string
 	Latency                 string
 }
 

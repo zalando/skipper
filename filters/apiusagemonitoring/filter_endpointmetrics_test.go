@@ -201,8 +201,8 @@ func Test_Filter_StatusCodeOver599IsMonitored(t *testing.T) {
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
 					map[string]int64{
-						pre + "http_count": int64(pass),
-						//pre + "http*xx_count" <--- no code group tracked
+						pre + "http_count":    int64(pass),
+						pre + "httpxxx_count": int64(pass),
 					},
 					counters,
 				)
@@ -225,8 +225,8 @@ func Test_Filter_StatusCodeUnder100IsMonitoredWithoutHttpStatusCount(t *testing.
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
 					map[string]int64{
-						pre + "http_count": int64(pass),
-						//pre + "http*xx_count" <--- no code group tracked
+						pre + "http_count":    int64(pass),
+						pre + "httpxxx_count": int64(pass),
 					},
 					counters,
 				)

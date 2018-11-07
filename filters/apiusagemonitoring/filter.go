@@ -11,18 +11,20 @@ import (
 )
 
 const (
-	metricCountAll   = "http_count"
-	metricCount100s  = "http1xx_count"
-	metricCount200s  = "http2xx_count"
-	metricCount300s  = "http3xx_count"
-	metricCount400s  = "http4xx_count"
-	metricCount500s  = "http5xx_count"
-	metricLatency    = "latency"
-	metricLatencySum = "latency_sum"
+	metricCountAll          = "http_count"
+	metricCountUnknownClass = "httpxxx_count"
+	metricCount100s         = "http1xx_count"
+	metricCount200s         = "http2xx_count"
+	metricCount300s         = "http3xx_count"
+	metricCount400s         = "http4xx_count"
+	metricCount500s         = "http5xx_count"
+	metricLatency           = "latency"
+	metricLatencySum        = "latency_sum"
 )
 
 var (
-	metricCountPerClass = [5]string{
+	metricCountPerClass = [6]string{
+		metricCountUnknownClass,
 		metricCount100s,
 		metricCount200s,
 		metricCount300s,
@@ -59,18 +61,19 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	begin, beginPresent := c.StateBag()[stateBagKeyBegin].(time.Time)
 	path, metricsName := f.resolvePath(request)
 
+	classMetricsIndex := response.StatusCode / 100
+	if classMetricsIndex < 1 || classMetricsIndex > 5 {
+		log.Errorf(
+			"Response HTTP Status Code %d is invalid. Response status code metric will be %q.",
+			response.StatusCode, metricCountUnknownClass)
+		classMetricsIndex = 0
+	}
+
 	// METRIC: Count
 	metrics.IncCounter(metricsName.CountAll)
 
 	// METRIC: Response Status Range Count
-	classMetricsIndex := (response.StatusCode / 100) - 1
-	if classMetricsIndex < 0 || classMetricsIndex >= 5 {
-		log.Errorf(
-			"Response HTTP Status Code %d is invalid. Response status code metric not tracked for this call.",
-			response.StatusCode)
-	} else {
-		metrics.IncCounter(metricsName.CountPerStatusCodeRange[classMetricsIndex])
-	}
+	metrics.IncCounter(metricsName.CountPerStatusCodeRange[classMetricsIndex])
 
 	// METRIC: Latency
 	if beginPresent {
@@ -188,7 +191,8 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) (*pathInfo, *m
 		EndpointPrefix: endpointPrefix,
 		ClientPrefix:   clientPrefix,
 		CountAll:       endpointPrefix + metricCountAll,
-		CountPerStatusCodeRange: [5]string{
+		CountPerStatusCodeRange: [6]string{
+			endpointPrefix + metricCountUnknownClass,
 			endpointPrefix + metricCount100s,
 			endpointPrefix + metricCount200s,
 			endpointPrefix + metricCount300s,
