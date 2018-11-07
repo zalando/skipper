@@ -152,7 +152,7 @@ const (
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// API Monitoring:
-	apiUsageMonitoringEnableUsage      = "enables the experimental filter apiUsageMonitoring"
+	apiUsageMonitoringEnableUsage      = "enables the apiUsageMonitoring filter"
 	apiUsageMonitoringRealmKeyUsage    = "name of the property in the JWT payload that contains the authority realm"
 	apiUsageMonitoringClientIdKeyUsage = "comma separated list of names of the properties in the JWT body that contains the client ID"
 

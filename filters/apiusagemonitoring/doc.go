@@ -5,10 +5,10 @@ Package apiusagemonitoring provides filters gathering metrics around API calls
 
 Feature switch & Dependencies
 
-This feature is considered experimental and should only be activated explicitly. To
-enable it, the flag `-enable-api-usage-monitoring` must be set when Skipper is launched. Also,
-it does not make sense if none of the metrics implementation is enabled. To use this
-filter, start skipper enabling at least one metrics flavour. Per instance:
+This feature is by default not enabled. To enable it, the flag `-enable-api-usage-monitoring`
+must be set when Skipper is launched. Also, it does not make sense if none of the metrics
+implementation is enabled. To use this filter, start skipper enabling at least one metrics
+flavour. Per instance:
 
 	skipper -enable-api-usage-monitoring -metrics-flavour prometheus
 
