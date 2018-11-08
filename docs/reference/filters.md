@@ -997,22 +997,22 @@ api-usage-monitoring-configuration:
     client_tracking_pattern:
         description: >
             The pattern that the combination `realm.client` must match in order for the client
-            based metrics to be tracked, in form of a regular expression. If it is not provided
-            or is empty, no client metric is be tracked.
+            based metrics to be tracked, in form of a regular expression.
+            
+            By default (if undefined), it is set to `services\\..*`.
+
+            An empty string disables the client metrics completely.
+
+            IMPORTANT: Avoid patterns that would match too many different values like `.*` or `users\\..*`. Too
+            many different metric keys would badly affect the performances of the metric systems (e.g.: Prometheus).
         type: string
         examples:
-            disable:
-                summary: No client metric is tracked.
-                value: ""
-            everything:
-                summary: All clients of all realms are tracked.
-                value: ".*"
             all_services:
-                summary: All clients of only the realm `services` are tracked.
+                summary: All services are tracked (clients of the realm `services`).
                 value: "services\\..*"
-            just_some_users:
-                summary: Only clients `Joe` and `Sabine` of realm `users` are tracked.
-                value: "users\\.(joe|sabine)"
+            just_some_services:
+                summary: Only services `orders` and `shipment` are tracked.
+                value: "services\\.(orders|shipment)"
 ```
 
 Configuration Example:
