@@ -6,12 +6,14 @@ import (
 	"regexp"
 )
 
+// pathInfo contains the tracking information for a specific path.
 type pathInfo struct {
 	ApplicationId           string
 	ApiId                   string
 	PathTemplate            string
 	Matcher                 *regexp.Regexp
-	metricPrefixesPerMethod [MethodIndexLength]*metricNames
+	metricPrefixesPerMethod [MethodIndexLength]*endpointMetricNames
+	metricPrefixedPerClient map[string]*clientMetricNames
 	ClientTracking          *clientTrackingInfo
 	CommonPrefix            string
 	ClientPrefix            string
@@ -19,13 +21,18 @@ type pathInfo struct {
 
 func newPathInfo(applicationId, apiId, pathTemplate string, clientTracking *clientTrackingInfo) *pathInfo {
 	commonPrefix := applicationId + "." + apiId + "."
+	var metricPrefixedPerClient map[string]*clientMetricNames
+	if clientTracking != nil {
+		metricPrefixedPerClient = make(map[string]*clientMetricNames)
+	}
 	return &pathInfo{
-		ApplicationId:  applicationId,
-		ApiId:          apiId,
-		PathTemplate:   pathTemplate,
-		ClientTracking: clientTracking,
-		CommonPrefix:   commonPrefix,
-		ClientPrefix:   commonPrefix + "*.*.",
+		ApplicationId:           applicationId,
+		ApiId:                   apiId,
+		PathTemplate:            pathTemplate,
+		metricPrefixedPerClient: metricPrefixedPerClient,
+		ClientTracking:          clientTracking,
+		CommonPrefix:            commonPrefix,
+		ClientPrefix:            commonPrefix + "*.*.",
 	}
 }
 
@@ -52,11 +59,17 @@ func (s pathInfoByRegExRev) Len() int           { return len(s) }
 func (s pathInfoByRegExRev) Less(i, j int) bool { return s[i].Matcher.String() > s[j].Matcher.String() }
 func (s pathInfoByRegExRev) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-type metricNames struct {
+type endpointMetricNames struct {
 	EndpointPrefix          string
 	CountAll                string
 	CountPerStatusCodeRange [6]string
 	Latency                 string
+}
+
+type clientMetricNames struct {
+	CountAll                string
+	CountPerStatusCodeRange [6]string
+	LatencySum              string
 }
 
 const (

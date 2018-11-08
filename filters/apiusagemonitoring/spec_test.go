@@ -213,6 +213,24 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 	})
 }
 
+func Test_CreateFilter_NoApplicationOrApiId(t *testing.T) {
+	args := []interface{}{`{
+		"path_templates": [
+			"foo/orders"
+		]
+	}`}
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+		assertPaths(t, filter.Paths, []pathMatcher{
+			{
+				PathTemplate:  "foo/orders",
+				ApplicationId: "<unknown>",
+				ApiId:         "<unknown>",
+				Matcher:       "^\\/*foo\\/orders\\/*$",
+			},
+		})
+	})
+}
+
 func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 	args := []interface{}{`{
 			"application_id": "my_app",
