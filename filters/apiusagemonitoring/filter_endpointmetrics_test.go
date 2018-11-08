@@ -40,7 +40,7 @@ func Test_Filter_NoConfiguration(t *testing.T) {
 	testWithFilter(
 		t,
 		func() (filters.Filter, error) {
-			spec := NewApiUsageMonitoring(true, "", "")
+			spec := NewApiUsageMonitoring(true, "", "", "")
 			return spec.CreateFilter([]interface{}{})
 		},
 		http.MethodGet,
@@ -341,7 +341,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 					"foo/:a/:b/:c"
 				]
 			}`}
-		spec := NewApiUsageMonitoring(true, "", "")
+		spec := NewApiUsageMonitoring(true, "", "", "")
 		return spec.CreateFilter(args)
 	}
 	for _, c := range []struct {

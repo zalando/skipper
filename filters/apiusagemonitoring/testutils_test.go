@@ -9,6 +9,7 @@ import (
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -26,7 +27,7 @@ var defaultArgs = []interface{}{`{
 	}`}
 
 func createFilterForTest() (filters.Filter, error) {
-	spec := NewApiUsageMonitoring(true, "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "")
 	return spec.CreateFilter(defaultArgs)
 }
 
@@ -181,15 +182,15 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 					"foo/orders",
 				},
 			}
-			if testCase.clientTrackingPattern != "" {
-				filterConf["client_tracking_pattern"] = testCase.clientTrackingPattern
+			if testCase.clientTrackingPattern != nil {
+				filterConf["client_tracking_pattern"] = *testCase.clientTrackingPattern
 			}
 			js, err := json.Marshal(filterConf)
 			if !assert.NoError(t, err) {
 				t.FailNow()
 			}
 			args := []interface{}{string(js)}
-			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientKeyName)
+			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientKeyName, testCase.defaultClientTrackingPattern)
 			return spec.CreateFilter(args)
 		},
 	}
@@ -197,9 +198,9 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 
 	testWithFilterC(t, conf, func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 
-		var expectedCounters []string
-		var expectedFloatCounters []string
-		var expectedMeasures []string
+		var expectedCounters expectedActualStringList
+		var expectedFloatCounters expectedActualStringList
+		var expectedMeasures expectedActualStringList
 
 		//
 		// Assert client metrics
@@ -265,23 +266,23 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 		}
 
 		m.WithCounters(func(counters map[string]int64) {
-			actualCounters := make([]string, 0, len(counters))
+			var actualCounters expectedActualStringList
 			for k := range counters {
 				actualCounters = append(actualCounters, k)
 			}
-			assert.ElementsMatchf(t, expectedCounters, actualCounters, "expected: %v\nactual:   %v", expectedMeasures, actualCounters)
+			assert.ElementsMatchf(t, expectedCounters, actualCounters, "expected: %v\nactual:   %v", expectedCounters, actualCounters)
 		})
 
 		m.WithFloatCounters(func(floatCounters map[string]float64) {
-			actualFloatCounters := make([]string, 0, len(floatCounters))
+			var actualFloatCounters expectedActualStringList
 			for k := range floatCounters {
 				actualFloatCounters = append(actualFloatCounters, k)
 			}
-			assert.ElementsMatchf(t, expectedFloatCounters, actualFloatCounters, "expected: %v\nactual:   %v", expectedMeasures, actualFloatCounters)
+			assert.ElementsMatchf(t, expectedFloatCounters, actualFloatCounters, "expected: %v\nactual:   %v", expectedFloatCounters, actualFloatCounters)
 		})
 
 		m.WithMeasures(func(measures map[string][]time.Duration) {
-			actualMeasures := make([]string, 0, len(measures))
+			var actualMeasures expectedActualStringList
 			for k := range measures {
 				actualMeasures = append(actualMeasures, k)
 			}
@@ -298,4 +299,10 @@ func buildFakeJwtWithBody(jwtBodyJson map[string]interface{}) string {
 	jwtBody := base64.RawURLEncoding.EncodeToString(jwtBodyBytes)
 	jwt := fmt.Sprintf("<No Header>.%s.< No Verify Signature>", jwtBody)
 	return jwt
+}
+
+type expectedActualStringList []string
+
+func (l expectedActualStringList) String() string {
+	return strings.Join(l, "\n          ")
 }

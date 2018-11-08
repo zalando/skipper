@@ -882,10 +882,11 @@ for all environments.
 
 For the client based metrics, additional flags need to be specified.
 
-| Flag                               | Description                                                                       |
-|------------------------------------|-----------------------------------------------------------------------------------|
-| `api-usage-monitoring-realm-keys`  | Name of the property in the JWT JSON body that contains the name of the _realm_.  |
-| `api-usage-monitoring-client-keys` | Name of the property in the JWT JSON body that contains the name of the _client_. |
+| Flag                                                   | Description                                                                                                                                                                                                              |
+|--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api-usage-monitoring-realm-keys`                      | Name of the property in the JWT JSON body that contains the name of the _realm_.                                                                                                                                         |
+| `api-usage-monitoring-client-keys`                     | Name of the property in the JWT JSON body that contains the name of the _client_.                                                                                                                                        |
+| `api-usage-monitoring-default-client-tracking-pattern` | Optional. Default is empty. Allows to deploy Skipper with a default client tracking pattern. When `apiUsageMonitoring` configuration does not specify one, this default is used instead of disabling the client metrics. |
 
 NOTE: Make sure to activate the metrics flavour proper to your environment using the `metrics-flavour`
 flag in order to get those metrics.

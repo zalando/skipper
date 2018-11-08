@@ -30,6 +30,7 @@ func NewApiUsageMonitoring(
 	enabled bool,
 	realmKeys string,
 	clientKeys string,
+	defaultClientTrackingPattern string,
 ) filters.Spec {
 	if !enabled {
 		log.Debugf("Filter %q is not enabled. Spec returns `noop` filters.", Name)
@@ -67,9 +68,10 @@ func NewApiUsageMonitoring(
 		unknownPathClientTracking,
 	)
 	spec := &apiUsageMonitoringSpec{
-		realmKeys:   realmKeyList,
-		clientKeys:  clientKeyList,
-		unknownPath: unknownPath,
+		realmKeys:                    realmKeyList,
+		clientKeys:                   clientKeyList,
+		unknownPath:                  unknownPath,
+		defaultClientTrackingPattern: defaultClientTrackingPattern,
 	}
 	log.Debugf("Created filter spec: %+v", spec)
 	return spec
@@ -84,9 +86,10 @@ type apiConfig struct {
 }
 
 type apiUsageMonitoringSpec struct {
-	realmKeys   []string
-	clientKeys  []string
-	unknownPath *pathInfo
+	realmKeys                    []string
+	clientKeys                   []string
+	unknownPath                  *pathInfo
+	defaultClientTrackingPattern string
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
@@ -94,7 +97,7 @@ func (s *apiUsageMonitoringSpec) Name() string {
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
-	apis := parseJsonConfiguration(args)
+	apis := s.parseJsonConfiguration(args)
 	paths := s.buildPathInfoListFromConfiguration(apis)
 
 	filter = &apiUsageMonitoringFilter{
@@ -105,7 +108,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	return
 }
 
-func parseJsonConfiguration(args []interface{}) []*apiConfig {
+func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*apiConfig {
 	apis := make([]*apiConfig, 0, len(args))
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)
@@ -113,7 +116,9 @@ func parseJsonConfiguration(args []interface{}) []*apiConfig {
 			log.Errorf("args[%d] ignored: expecting a string, was %t", i, a)
 			continue
 		}
-		config := new(apiConfig)
+		config := &apiConfig{
+			ClientTrackingPattern: s.defaultClientTrackingPattern,
+		}
 		decoder := json.NewDecoder(strings.NewReader(rawJsonConfiguration))
 		decoder.DisallowUnknownFields()
 		err := decoder.Decode(config)

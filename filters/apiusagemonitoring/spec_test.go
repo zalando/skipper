@@ -1,13 +1,12 @@
 package apiusagemonitoring
 
 import (
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func Test_CreateSpec(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "realm", "    abc,def, ,ghi,xyz   ")
+	spec := NewApiUsageMonitoring(true, "realm", "    abc,def, ,ghi,xyz   ", "")
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	if assert.IsType(t, new(apiUsageMonitoringSpec), spec) {
 		s := spec.(*apiUsageMonitoringSpec)
@@ -18,7 +17,7 @@ func Test_CreateSpec(t *testing.T) {
 }
 
 func Test_FeatureDisableCreateNilFilters(t *testing.T) {
-	spec := NewApiUsageMonitoring(false, "", "")
+	spec := NewApiUsageMonitoring(false, "", "", "")
 	assert.IsType(t, &noopSpec{}, spec)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
@@ -26,7 +25,7 @@ func Test_FeatureDisableCreateNilFilters(t *testing.T) {
 }
 
 func assertApiUsageMonitoringFilter(t *testing.T, filterArgs []interface{}, asserter func(t *testing.T, filter *apiUsageMonitoringFilter)) {
-	spec := NewApiUsageMonitoring(true, "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "")
 	filter, err := spec.CreateFilter(filterArgs)
 	assert.NoError(t, err)
 	assert.NotNil(t, filter)
@@ -48,17 +47,17 @@ func assertPaths(t *testing.T, paths []*pathInfo, expectedPaths []pathMatcher) {
 	}
 	for i, actual := range paths {
 		expected := expectedPaths[i]
-		if !assert.Equal(t, expected.PathTemplate, actual.PathTemplate, fmt.Sprintf("Index %d", i)) {
+		if !assert.Equalf(t, expected.PathTemplate, actual.PathTemplate, "Index %d", i) {
 			continue // don't test this one further, it's an ordering problem and the template in results is enough
 		}
-		assert.Equal(t, expected.ApplicationId, actual.ApplicationId, fmt.Sprintf("Index %d", i))
-		assert.Equal(t, expected.ApiId, actual.ApiId, fmt.Sprintf("Index %d", i))
-		assert.Equal(t, expected.Matcher, actual.Matcher.String(), fmt.Sprintf("Index %d", i))
+		assert.Equalf(t, expected.ApplicationId, actual.ApplicationId, "Index %d", i)
+		assert.Equalf(t, expected.ApiId, actual.ApiId, "Index %d", i)
+		assert.Equalf(t, expected.Matcher, actual.Matcher.String(), "Index %d", i)
 	}
 }
 
 func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
-	spec := NewApiUsageMonitoring(false, "", "")
+	spec := NewApiUsageMonitoring(false, "", "", "")
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
@@ -229,7 +228,8 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 			"path_templates": [
 				"/foo/customers/",
 				"/foo/customers/{customer-id}/"
-			]
+			],
+			"client_tracking_pattern": ".*"
 		}`}
 	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assertPaths(t, filter.Paths, []pathMatcher{

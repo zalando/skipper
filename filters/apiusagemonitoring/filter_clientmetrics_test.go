@@ -10,15 +10,16 @@ type clientMetricsTest struct {
 	url                   string
 	realmKeyName          string
 	clientKeyName         string
-	clientTrackingPattern string
+	clientTrackingPattern *string
 	header                http.Header
 
 	expectedEndpointMetricPrefix string
 	expectedClientMetricPrefix   string
+	defaultClientTrackingPattern string
 }
 
 var (
-	clientTrackingPatternJustSomeUsers = `users\.(joe|sabine)`
+	clientTrackingPatternJustSomeUsers = s(`users\.(joe|sabine)`)
 	headerUsersJoe                     = http.Header{
 		authorizationHeaderName: {
 			"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
@@ -29,11 +30,15 @@ var (
 	}
 )
 
+func s(str string) *string {
+	return &str
+}
+
 func Test_Filter_ClientMetrics_ClientTrackingPatternDoesNotCompile(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:                 "realm",
 		clientKeyName:                "client",
-		clientTrackingPattern:        "([",
+		clientTrackingPattern:        s("(["),
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
 		expectedClientMetricPrefix:   "", // expecting no metrics
@@ -44,7 +49,7 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsKnown(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:                 "realm",
 		clientKeyName:                "client",
-		clientTrackingPattern:        ".*",
+		clientTrackingPattern:        s(".*"),
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.",
@@ -56,7 +61,7 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsUnknown(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:                 "will not match",
 		clientKeyName:                "client",
-		clientTrackingPattern:        ".*",
+		clientTrackingPattern:        s(".*"),
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.",
@@ -68,7 +73,7 @@ func Test_Filter_ClientMetrics_MatchAll(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:                 "realm",
 		clientKeyName:                "client",
-		clientTrackingPattern:        ".*",
+		clientTrackingPattern:        s(".*"),
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
 		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.joe.",
@@ -79,7 +84,7 @@ func Test_Filter_ClientMetrics_MatchOneOfClientKeyName(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client,sub",
-		clientTrackingPattern: ".*",
+		clientTrackingPattern: s(".*"),
 		header: http.Header{
 			authorizationHeaderName: {
 				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
@@ -97,7 +102,7 @@ func Test_Filter_ClientMetrics_MatchOneOfClientKeyName_UseFirstMatching(t *testi
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client,sub",
-		clientTrackingPattern: ".*",
+		clientTrackingPattern: s(".*"),
 		header: http.Header{
 			authorizationHeaderName: {
 				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
@@ -312,11 +317,50 @@ func Test_Filter_ClientMetrics_NoFlagClientKeyName(t *testing.T) {
 	})
 }
 
-func Test_Filter_ClientMetrics_NoClientTrackingPatternInRouteFilterJSON(t *testing.T) {
+func Test_Filter_ClientMetrics_DefaultClientTrackingPattern_NoClientTrackingPatternInRouteFilterJSON_User(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
-		realmKeyName:          "realm",
-		clientKeyName:         "client",
-		clientTrackingPattern: "", // no client tracking in route's filter configuration
+		realmKeyName:                 "realm",
+		clientKeyName:                "client",
+		defaultClientTrackingPattern: "services\\..*",
+		clientTrackingPattern:        nil, // no client tracking in route's filter configuration
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+					"realm":  "users",
+					"client": "joe",
+				}),
+			},
+		},
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.<unknown>.",
+	})
+}
+
+func Test_Filter_ClientMetrics_DefaultClientTrackingPattern_NoClientTrackingPatternInRouteFilterJSON_Service(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:                 "realm",
+		clientKeyName:                "client",
+		defaultClientTrackingPattern: "services\\..*",
+		clientTrackingPattern:        nil, // no client tracking in route's filter configuration
+		header: http.Header{
+			authorizationHeaderName: {
+				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{
+					"realm":  "services",
+					"client": "my_app",
+				}),
+			},
+		},
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.services.my_app.",
+	})
+}
+
+func Test_Filter_ClientMetrics_EmptyClientTrackingPatternInRouteFilterJSON(t *testing.T) {
+	testClientMetrics(t, clientMetricsTest{
+		realmKeyName:                 "realm",
+		clientKeyName:                "client",
+		defaultClientTrackingPattern: "services\\..*",
+		clientTrackingPattern:        s(""), // no client tracking in route's filter configuration
 		header: http.Header{
 			authorizationHeaderName: {
 				"Bearer " + buildFakeJwtWithBody(map[string]interface{}{

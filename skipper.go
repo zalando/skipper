@@ -458,9 +458,10 @@ type Options struct {
 	OAuthTokenintrospectionTimeout time.Duration
 
 	// API Monitoring feature is active (feature toggle)
-	ApiUsageMonitoringEnable          bool
-	ApiUsageMonitoringRealmKey        string
-	ApiUsageMonitoringClientIdKeyName string
+	ApiUsageMonitoringEnable                       bool
+	ApiUsageMonitoringRealmKey                     string
+	ApiUsageMonitoringClientIdKeyName              string
+	ApiUsageMonitoringDefaultClientTrackingPattern string
 
 	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
 	WebhookTimeout time.Duration
@@ -714,6 +715,7 @@ func Run(o Options) error {
 			o.ApiUsageMonitoringEnable,
 			o.ApiUsageMonitoringRealmKey,
 			o.ApiUsageMonitoringClientIdKeyName,
+			o.ApiUsageMonitoringDefaultClientTrackingPattern,
 		),
 	)
 
