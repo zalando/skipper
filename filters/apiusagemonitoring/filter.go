@@ -178,9 +178,8 @@ func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricN
 	prefixes := path.metricPrefixesPerMethod[methodIndex]
 	if prefixes == nil {
 		return createAndCacheMetricsNames(path, method, methodIndex)
-	} else {
-		return prefixes
 	}
+	return prefixes
 }
 
 // createAndCacheMetricsNames generates metrics names and cache them.
