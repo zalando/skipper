@@ -53,46 +53,28 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 		log.Errorf(
 			"Response HTTP Status Code %d is invalid. Response status code metric will be %q.",
 			response.StatusCode, metricCountUnknownClass)
-		classMetricsIndex = 0
+		classMetricsIndex = 0 // index of the "unknown class" metric name
 	}
 
-	//
-	// METRICS: ENDPOINT
-	//
+	// Endpoint metrics
 	endpointMetricsNames := getEndpointMetricsNames(request, path)
-
-	// METRIC: Count
 	metrics.IncCounter(endpointMetricsNames.CountAll)
-
-	// METRIC: Response Status Range Count
 	metrics.IncCounter(endpointMetricsNames.CountPerStatusCodeRange[classMetricsIndex])
-
-	// METRIC: Latency
 	if beginPresent {
 		metrics.MeasureSince(endpointMetricsNames.Latency, begin)
 	}
-
 	log.Debugf("Pushed endpoint metrics with prefix `%s`", endpointMetricsNames.EndpointPrefix)
 
-	//
-	// METRICS: CLIENT
-	//
+	// Client metrics
 	if path.ClientTracking != nil {
 		realmClientKey := f.getRealmClientKey(request, path)
 		clientMetricsNames := f.getClientMetricsNames(realmClientKey, path)
-
-		// METRIC: Count for client
 		metrics.IncCounter(clientMetricsNames.CountAll)
-
-		// METRIC: Response Status Range Count for client
 		metrics.IncCounter(clientMetricsNames.CountPerStatusCodeRange[classMetricsIndex])
-
-		// METRIC: Latency Sum (in decimal seconds)
 		if beginPresent {
 			latency := time.Since(begin).Seconds()
 			metrics.IncFloatCounterBy(clientMetricsNames.LatencySum, latency)
 		}
-
 		log.Debugf("Pushed client metrics with prefix `%s%s.`", path.ClientPrefix, realmClientKey)
 	}
 }

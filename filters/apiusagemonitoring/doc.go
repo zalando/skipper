@@ -38,7 +38,7 @@ Command line example for executing locally:
 		-api-usage-monitoring-client-keys="https://identity.zalando.com/managed-id" \
 		-api-usage-monitoring-default-client-tracking-pattern="services\\..*" \
 		-metrics-flavour prometheus \
-		-histogram-metric-buckets=.01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600 \
+		-histogram-metric-buckets=".01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600" \
 		-application-log-level=DEBUG
 
 */
