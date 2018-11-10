@@ -73,7 +73,7 @@ In case of Kubernetes you might specify additionally
 
 The following shows the setup of a cluster ratelimit:
 
-![Picture showing Skipper swarm and ratelimit](/skipper/img/swarm-and-cluster-ratelimit.svg)
+![Picture showing Skipper swarm and ratelimit](../img/swarm-and-cluster-ratelimit.svg)
 
 ### Backend Ratelimit
 

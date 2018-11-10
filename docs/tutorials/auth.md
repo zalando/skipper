@@ -102,7 +102,7 @@ Bearer token in the Authorization header to the Tokeninfo endpoint.
 The request flow with a Tokeninfo setup is shown in the following
 picture:
 
-![Skipper with Tokeninfo](/skipper/img/svc-to-svc-tokeninfo.svg)
+![Skipper with Tokeninfo](../img/svc-to-svc-tokeninfo.svg)
 
 ### Tokenintrospection RFC7662
 
@@ -129,7 +129,7 @@ in a POST request "application/x-www-form-urlencoded" as value for key
 The request flow with Tokenintrospection setup is shown in the
 following picture:
 
-![Skipper with Tokenintrospection](/skipper/img/svc-to-svc-tokenintrospection.svg)
+![Skipper with Tokenintrospection](../img/svc-to-svc-tokenintrospection.svg)
 
 ## OpenID Connect
 
