@@ -122,6 +122,10 @@ func (c *CodaHale) IncCounterBy(key string, value int64) {
 	c.incCounter(key, value)
 }
 
+func (c *CodaHale) IncFloatCounterBy(key string, value float64) {
+	// Dropped. CodaHale does not support float counter.
+}
+
 func (c *CodaHale) measureSince(key string, start time.Time) {
 	d := time.Since(start)
 	go c.updateTimer(key, d)
