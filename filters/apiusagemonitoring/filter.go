@@ -53,7 +53,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 		log.Errorf(
 			"Response HTTP Status Code %d is invalid. Response status code metric will be %q.",
 			response.StatusCode, metricCountUnknownClass)
-		classMetricsIndex = 0 // index of the "unknown class" metric name
+		classMetricsIndex = 0 // unknown classes are tracked, not ignored
 	}
 
 	// Endpoint metrics
