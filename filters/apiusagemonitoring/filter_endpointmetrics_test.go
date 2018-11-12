@@ -380,3 +380,18 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 		})
 	}
 }
+
+func Test_Filter_String(t *testing.T) {
+	spec := NewApiUsageMonitoring(true, "realm,universe", "managed-id,sub,username", "")
+	filter, err := spec.CreateFilter(defaultArgs)
+	if !assert.NoError(t, err) {
+		return
+	}
+	if !assert.IsType(t, &apiUsageMonitoringFilter{}, filter) {
+		return
+	}
+	f := filter.(*apiUsageMonitoringFilter)
+	s1 := fmt.Sprintf("%s", f)
+	s2 := fmt.Sprintf("%s", *f)
+	assert.Equal(t, s1, s2)
+}

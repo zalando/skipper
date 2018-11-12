@@ -144,7 +144,7 @@ func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *path
 }
 
 // String returns a JSON representation of the filter prefixed by its type.
-func (f *apiUsageMonitoringFilter) String() string {
+func (f apiUsageMonitoringFilter) String() string {
 	var js string
 	if jsBytes, err := json.Marshal(f); err == nil {
 		js = string(jsBytes)
