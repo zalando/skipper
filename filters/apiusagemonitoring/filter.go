@@ -58,22 +58,22 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 
 	// Endpoint metrics
 	endpointMetricsNames := getEndpointMetricsNames(request, path)
-	metrics.IncCounter(endpointMetricsNames.CountAll)
-	metrics.IncCounter(endpointMetricsNames.CountPerStatusCodeRange[classMetricsIndex])
+	metrics.IncCounter(endpointMetricsNames.countAll)
+	metrics.IncCounter(endpointMetricsNames.countPerStatusCodeRange[classMetricsIndex])
 	if beginPresent {
-		metrics.MeasureSince(endpointMetricsNames.Latency, begin)
+		metrics.MeasureSince(endpointMetricsNames.latency, begin)
 	}
-	log.Debugf("Pushed endpoint metrics with prefix `%s`", endpointMetricsNames.EndpointPrefix)
+	log.Debugf("Pushed endpoint metrics with prefix `%s`", endpointMetricsNames.endpointPrefix)
 
 	// Client metrics
 	if path.ClientTracking != nil {
 		realmClientKey := f.getRealmClientKey(request, path)
 		clientMetricsNames := f.getClientMetricsNames(realmClientKey, path)
-		metrics.IncCounter(clientMetricsNames.CountAll)
-		metrics.IncCounter(clientMetricsNames.CountPerStatusCodeRange[classMetricsIndex])
+		metrics.IncCounter(clientMetricsNames.countAll)
+		metrics.IncCounter(clientMetricsNames.countPerStatusCodeRange[classMetricsIndex])
 		if beginPresent {
 			latency := time.Since(begin).Seconds()
-			metrics.IncFloatCounterBy(clientMetricsNames.LatencySum, latency)
+			metrics.IncFloatCounterBy(clientMetricsNames.latencySum, latency)
 		}
 		log.Debugf("Pushed client metrics with prefix `%s%s.`", path.ClientPrefix, realmClientKey)
 	}
@@ -87,8 +87,8 @@ func (f *apiUsageMonitoringFilter) getClientMetricsNames(realmClientKey string, 
 
 	clientPrefixForThisClient := path.ClientPrefix + realmClientKey + "."
 	prefixes = &clientMetricNames{
-		CountAll: clientPrefixForThisClient + metricCountAll,
-		CountPerStatusCodeRange: [6]string{
+		countAll: clientPrefixForThisClient + metricCountAll,
+		countPerStatusCodeRange: [6]string{
 			clientPrefixForThisClient + metricCountUnknownClass,
 			clientPrefixForThisClient + metricCount100s,
 			clientPrefixForThisClient + metricCount200s,
@@ -96,7 +96,7 @@ func (f *apiUsageMonitoringFilter) getClientMetricsNames(realmClientKey string, 
 			clientPrefixForThisClient + metricCount400s,
 			clientPrefixForThisClient + metricCount500s,
 		},
-		LatencySum: clientPrefixForThisClient + metricLatencySum,
+		latencySum: clientPrefixForThisClient + metricLatencySum,
 	}
 	path.metricPrefixedPerClient[realmClientKey] = prefixes
 	return prefixes
@@ -171,7 +171,7 @@ func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricN
 	method := req.Method
 	methodIndex, ok := methodToIndex[method]
 	if !ok {
-		methodIndex = MethodIndexUnknown
+		methodIndex = methodIndexUnknown
 		method = unknownElementPlaceholder
 	}
 
@@ -186,9 +186,9 @@ func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricN
 func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) *endpointMetricNames {
 	endpointPrefix := path.CommonPrefix + method + "." + path.PathTemplate + ".*.*."
 	prefixes := &endpointMetricNames{
-		EndpointPrefix: endpointPrefix,
-		CountAll:       endpointPrefix + metricCountAll,
-		CountPerStatusCodeRange: [6]string{
+		endpointPrefix: endpointPrefix,
+		countAll:       endpointPrefix + metricCountAll,
+		countPerStatusCodeRange: [6]string{
 			endpointPrefix + metricCountUnknownClass,
 			endpointPrefix + metricCount100s,
 			endpointPrefix + metricCount200s,
@@ -196,7 +196,7 @@ func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) 
 			endpointPrefix + metricCount400s,
 			endpointPrefix + metricCount500s,
 		},
-		Latency: endpointPrefix + metricLatency,
+		latency: endpointPrefix + metricLatency,
 	}
 	path.metricPrefixesPerMethod[methodIndex] = prefixes
 	return prefixes
