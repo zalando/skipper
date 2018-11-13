@@ -31,8 +31,6 @@ pipeline:
       if [ "$CDP_PULL_REQUEST_NUMBER" ]; then
         mkdir -p site/pr/#{CDP_PULL_REQUEST_NUMBER}
         mv site/!(pr) site/pr/#{CDP_PULL_REQUEST_NUMBER}
-      else
-        mkdocs gh-deploy
       fi
   artifacts:
   - type: docs

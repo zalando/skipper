@@ -21,6 +21,7 @@ nav:
         - Ingress Controller Deployment: kubernetes/ingress-controller.md
         - Ingress Usage: kubernetes/ingress-usage.md
         - Ingress Backends: kubernetes/ingress-backends.md
+        - East-West aka svc-to-svc: kubernetes/east-west-usage.md
     - Tutorials:
         - Basics: tutorials/basics.md
         - Common Use Cases: tutorials/common-use-cases.md
