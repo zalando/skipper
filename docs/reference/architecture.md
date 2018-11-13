@@ -29,7 +29,7 @@ example [Jaeger](https://github.com/jaegertracing/jaeger) is supported.
 Skipper has a rich set of metrics that are exposed as json, but can be
 exported in [Prometheus](https://prometheus.io) format.
 
-![Skipper's architecture ](/skipper/img/architecture.svg)
+![Skipper's architecture ](../img/architecture.svg)
 
 ## Route processing
 
@@ -57,7 +57,7 @@ request alone, by using only the filters. When the route is a
 another route, based on the changes that the filters made to the
 request.
 
-![Skipper's request and response processing ](/skipper/img/req-and-resp-processing.svg)
+![Skipper's request and response processing ](../img/req-and-resp-processing.svg)
 
 #### Routing mechanism
 

@@ -17,3 +17,22 @@ pipeline:
       git status
       git diff
       cd packaging && make docker-build && git status && git diff && make docker-push
+- id: docs
+  type: script
+  overlay: ci/python
+  commands:
+  - desc: install deps
+    cmd: |
+      pip3 install mkdocs mkdocs-material
+  - desc: build docs
+    cmd: |
+      mkdocs build --strict
+      shopt -s extglob  # needed to use !(pr)
+      if [ "$CDP_PULL_REQUEST_NUMBER" ]; then
+        mkdir -p site/pr/#{CDP_PULL_REQUEST_NUMBER}
+        mv site/!(pr) site/pr/#{CDP_PULL_REQUEST_NUMBER}
+      fi
+  artifacts:
+  - type: docs
+    name: skipper
+    path: site

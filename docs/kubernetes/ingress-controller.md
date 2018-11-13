@@ -113,73 +113,82 @@ We start to deploy skipper-ingress as a daemonset, use hostNetwork and
 expose the TCP port 9999 on each Kubernetes worker node for incoming ingress
 traffic.
 
-    % cat skipper-ingress-ds.yaml
-    apiVersion: extensions/v1beta1
-    kind: DaemonSet
+```yaml
+# cat skipper-ingress-ds.yaml
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: skipper-ingress
+  namespace: kube-system
+  labels:
+    application: skipper-ingress
+    version: v0.10.112
+    component: ingress
+spec:
+  selector:
+    matchLabels:
+      application: skipper-ingress
+  updateStrategy:
+    type: RollingUpdate
+  template:
     metadata:
       name: skipper-ingress
-      namespace: kube-system
       labels:
         application: skipper-ingress
-        version: v0.10.5
+        version: v0.10.112
         component: ingress
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      selector:
-        matchLabels:
-          application: skipper-ingress
-      updateStrategy:
-        type: RollingUpdate
-      template:
-        metadata:
-          name: skipper-ingress
-          labels:
-            application: skipper-ingress
-            version: v0.10.5
-            component: ingress
-          annotations:
-            scheduler.alpha.kubernetes.io/critical-pod: ''
-        spec:
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                - matchExpressions:
-                  - key: master
-                    operator: DoesNotExist
-          tolerations:
-          - key: CriticalAddonsOnly
-            operator: Exists
-          hostNetwork: true
-          containers:
-          - name: skipper-ingress
-            image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.5
-            ports:
-            - name: ingress-port
-              containerPort: 9999
-              hostPort: 9999
-            args:
-              - "skipper"
-              - "-kubernetes"
-              - "-kubernetes-in-cluster"
-              - "-address=:9999"
-              - "-proxy-preserve-host"
-              - "-serve-host-metrics"
-              - "-enable-ratelimits"
-              - "-experimental-upgrade"
-              - "-metrics-exp-decay-sample"
-              - "-lb-healthcheck-interval=3s"
-              - "-metrics-flavour=codahale,prometheus"
-              - "-enable-connection-metrics"
-            resources:
-              requests:
-                cpu: 25m
-                memory: 25Mi
-            readinessProbe:
-              httpGet:
-                path: /kube-system/healthz
-                port: 9999
-              initialDelaySeconds: 5
-              timeoutSeconds: 5
+      priorityClassName: system-node-critical
+      tolerations:
+      - key: dedicated
+        operator: Exists
+      nodeSelector:
+        kubernetes.io/role: worker
+      hostNetwork: true
+      containers:
+      - name: skipper-ingress
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.112
+        ports:
+        - name: ingress-port
+          containerPort: 9999
+          hostPort: 9999
+        - name: metrics-port
+          containerPort: 9911
+        args:
+          - "skipper"
+          - "-kubernetes"
+          - "-kubernetes-in-cluster"
+          - "-kubernetes-path-mode=path-prefix"
+          - "-address=:9999"
+          - "-wait-first-route-load"
+          - "-proxy-preserve-host"
+          - "-serve-host-metrics"
+          - "-enable-ratelimits"
+          - "-experimental-upgrade"
+          - "-metrics-exp-decay-sample"
+          - "-reverse-source-predicate"
+          - "-lb-healthcheck-interval=3s"
+          - "-metrics-flavour=codahale,prometheus"
+          - "-enable-connection-metrics"
+          - "-max-audit-body=0"
+          - "-histogram-metric-buckets=.01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600"
+        resources:
+          requests:
+            cpu: 150m
+            memory: 150Mi
+        readinessProbe:
+          httpGet:
+            path: /kube-system/healthz
+            port: 9999
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+```
 
 Please check, that you are using the [latest
 release](https://github.com/zalando/skipper/releases/latest), we do
@@ -187,51 +196,57 @@ not maintain the **latest** tag.
 
 We now deploy a simple demo application serving html:
 
-    % cat demo-deployment.yaml
-    apiVersion: apps/v1beta1
-    kind: Deployment
+```yaml
+# cat demo-deployment.yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: skipper-demo
+spec:
+  replicas: 2
+  template:
     metadata:
-      name: skipper-demo
-    spec:
-      replicas: 2
-      template:
-        metadata:
-          labels:
-            application: skipper-demo
-        spec:
-          containers:
-          - name: skipper-demo
-            image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.5
-            args:
-              - "skipper"
-              - "-inline-routes"
-              - "* -> inlineContent(\"<body style='color: white; background-color: green;'><h1>Hello!</h1>\") -> <shunt>"
-            ports:
-            - containerPort: 9090
-
-We deploy a service type ClusterIP that we will select from ingress:
-
-    % cat demo-svc.yaml
-    apiVersion: v1
-    kind: Service
-    metadata:
-      name: skipper-demo
       labels:
         application: skipper-demo
     spec:
-      type: ClusterIP
-      ports:
-        - port: 80
-          protocol: TCP
-          targetPort: 9090
-          name: external
-      selector:
-        application: skipper-demo
+      containers:
+      - name: skipper-demo
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.112
+        args:
+          - "skipper"
+          - "-inline-routes"
+          - "* -> inlineContent(\"<body style='color: white; background-color: green;'><h1>Hello!</h1>\") -> <shunt>"
+        ports:
+        - containerPort: 9090
+```
+
+We deploy a service type ClusterIP that we will select from ingress:
+
+```yaml
+# cat demo-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: skipper-demo
+  labels:
+    application: skipper-demo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 9090
+      name: external
+  selector:
+    application: skipper-demo
+```
 
 To deploy both, you have to run:
 
-    % kubectl create -f demo-deployment.yaml
-    % kubectl create -f demo-svc.yaml
+```bash
+kubectl create -f demo-deployment.yaml
+kubectl create -f demo-svc.yaml
+```
 
 Now we have a skipper-ingress running as daemonset exposing the TCP
 port 9999 on each worker node, a backend application running with 2
@@ -240,27 +255,33 @@ cluster service on TCP port 80. Besides skipper-ingress, deployment
 and service can not be reached from outside the cluster. Now we expose
 the application with Ingress to the external network:
 
-    % cat demo-ing.yaml
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      name: skipper-demo
-    spec:
-      rules:
-      - host: skipper-demo.<mydomain.org>
-        http:
-          paths:
-          - backend:
-              serviceName: skipper-demo
-              servicePort: 80
+```bash
+# cat demo-ing.yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: skipper-demo
+spec:
+  rules:
+  - host: skipper-demo.<mydomain.org>
+    http:
+      paths:
+      - backend:
+          serviceName: skipper-demo
+          servicePort: 80
+```
 
 To deploy this ingress, you have to run:
 
-    % kubectl create -f demo-ing.yaml
+```bash
+kubectl create -f demo-ing.yaml
+```
 
 Skipper will configure itself for the given ingress, such that you can test doing:
 
-    % curl -v -H"Host: skipper-demo.<mydomain.org>" http://<nodeip>:9999/
+```bash
+curl -v -H"Host: skipper-demo.<mydomain.org>" http://<nodeip>:9999/
+```
 
 The next question you may ask is: how to expose this to your customers?
 
@@ -291,20 +312,22 @@ serve the traffic.
 
 Example ingress:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        kubernetes.io/ingress.class: skipper
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: skipper
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
 ## Scoping Skipper Deployments to a Single Namespace
 
@@ -329,11 +352,13 @@ understanding which permissions are delegated to Skipper within your Kubernetes 
 
 First create a new `ServiceAccount` which will be assigned to the Skipper pods:
 
-    apiVersion: v1
-    kind: ServiceAccount
-    metadata:
-      name: skipper-ingress
-      namespace: kube-system
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: skipper-ingress
+  namespace: kube-system
+```
 
 the required permissions are defined within a `ClusterRole` resource.
 
@@ -341,17 +366,19 @@ _Note: It's important to use a `ClusterRole` instead of normal `Role` because ot
 
 ClusterRole:
 
-    apiVersion: rbac.authorization.k8s.io/v1beta1
-    kind: ClusterRole
-    metadata:
-      name: skipper-ingress
-    rules:
-    - apiGroups: ["extensions"]
-      resources: ["ingresses", ]
-      verbs: ["get", "list"]
-    - apiGroups: [""]
-      resources: ["namespaces", "services", "endpoints"]
-      verbs: ["get"]
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: skipper-ingress
+rules:
+- apiGroups: ["extensions"]
+  resources: ["ingresses", ]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["namespaces", "services", "endpoints"]
+  verbs: ["get"]
+```
 
 This `ClusterRole` defines access to `get` and `list` all created ingresses, namespaces, services and endpoints.
 
@@ -360,77 +387,100 @@ a `ClusterRoleBinding` has to be created:
 
 ClusterRoleBinding:
 
-    apiVersion: rbac.authorization.k8s.io/v1beta1
-    kind: ClusterRoleBinding
-    metadata:
-      name: skipper-ingress
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: skipper-ingress
-    subjects:
-    - kind: ServiceAccount
-      name: skipper-ingress
-      namespace: kube-system
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: skipper-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: skipper-ingress
+subjects:
+- kind: ServiceAccount
+  name: skipper-ingress
+  namespace: kube-system
+```
 
 Last but not least the `ServiceAccount` has to be assigned to the Skipper daemonset.
 
 daemonset:
 
-    apiVersion: extensions/v1beta1
-    kind: DaemonSet
+```yaml
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: skipper-ingress
+  namespace: kube-system
+  labels:
+    application: skipper-ingress
+    version: v0.10.112
+    component: ingress
+spec:
+  selector:
+    matchLabels:
+      application: skipper-ingress
+  updateStrategy:
+    type: RollingUpdate
+  template:
     metadata:
       name: skipper-ingress
-      namespace: kube-system
       labels:
+        application: skipper-ingress
+        version: v0.10.112
         component: ingress
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      selector:
-        matchLabels:
-          component: ingress
-      updateStrategy:
-        type: RollingUpdate
-      template:
-        metadata:
-          name: skipper-ingress
-          labels:
-            component: ingress
-            application: skipper
-        spec:
-          hostNetwork: true
-          serviceAccountName: skipper-ingress
-          containers:
-          - name: skipper-ingress
-            image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.5
-            ports:
-            - name: ingress-port
-              containerPort: 9999
-              hostPort: 9999
-            - name: metrics-port
-              containerPort: 9911
-            args:
-              - "skipper"
-              - "-kubernetes"
-              - "-kubernetes-in-cluster"
-              - "-address=:9999"
-              - "-proxy-preserve-host"
-              - "-serve-host-metrics"
-              - "-enable-ratelimits"
-              - "-experimental-upgrade"
-              - "-metrics-exp-decay-sample"
-              - "-lb-healthcheck-interval=3s"
-              - "-metrics-flavour=codahale,prometheus"
-              - "-enable-connection-metrics"
-            resources:
-              requests:
-                cpu: 200m
-                memory: 200Mi
-            readinessProbe:
-              httpGet:
-                path: /kube-system/healthz
-                port: 9999
-              initialDelaySeconds: 5
-              timeoutSeconds: 5
+      priorityClassName: system-node-critical
+      tolerations:
+      - key: dedicated
+        operator: Exists
+      nodeSelector:
+        kubernetes.io/role: worker
+      hostNetwork: true
+      containers:
+      - name: skipper-ingress
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.112
+        ports:
+        - name: ingress-port
+          containerPort: 9999
+          hostPort: 9999
+        - name: metrics-port
+          containerPort: 9911
+        args:
+          - "skipper"
+          - "-kubernetes"
+          - "-kubernetes-in-cluster"
+          - "-kubernetes-path-mode=path-prefix"
+          - "-address=:9999"
+          - "-wait-first-route-load"
+          - "-proxy-preserve-host"
+          - "-serve-host-metrics"
+          - "-enable-ratelimits"
+          - "-experimental-upgrade"
+          - "-metrics-exp-decay-sample"
+          - "-reverse-source-predicate"
+          - "-lb-healthcheck-interval=3s"
+          - "-metrics-flavour=codahale,prometheus"
+          - "-enable-connection-metrics"
+          - "-max-audit-body=0"
+          - "-histogram-metric-buckets=.01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600"
+        resources:
+          requests:
+            cpu: 150m
+            memory: 150Mi
+        readinessProbe:
+          httpGet:
+            path: /kube-system/healthz
+            port: 9999
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+```
 
 Please check, that you are using the [latest
 release](https://github.com/zalando/skipper/releases/latest), we do
@@ -464,7 +514,7 @@ It is possible to deploy the chart without any further configuration like this:
     helm registry upgrade quay.io/baez/skipper -- \
         --install \
         --wait \
-        "<your release name e.g. skipper>"
+        "your release name e.g. skipper"
 
 The `--wait` switch can be omitted as it only takes care that Helm is waiting until the chart is completely deployed (meaning all resources are created).
 
@@ -476,7 +526,7 @@ If you have RBAC enabled in your Kubernetes instance you don't have to create al
         --install \
         --wait \
         --set rbac.create=true \
-        "<your release name e.g. skipper>"
+        "your release name e.g. skipper"
 
 There are some more options available for customization of the chart.
 Check the repository if you need more configuration possibilities.

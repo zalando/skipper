@@ -33,7 +33,7 @@ example [Jaeger](https://github.com/jaegertracing/jaeger) is supported.
 Skipper has a rich set of metrics that are exposed as json, but can
 also be exported in [Prometheus](https://prometheus.io) format.
 
-![Skipper's architecture ](/skipper/img/architecture.svg)
+![Skipper's architecture ](../img/architecture.svg)
 
 ## Concepts
 
@@ -91,6 +91,15 @@ Special Predicates:
 - `Path()` reduces the number of routes in O(log n) time to scan afterwards a subset in linear time
 - `PathSubtree()` reduces the number of routes O(log n) time to scan afterwards a subset in linear time
 
+#### Predicate and routing table
+
+A routing table consists of a number of routes.  A route has a list of
+predicates and filters.  Predicates match an incoming request to a
+specific, best matching, Route.  Each route has a set of filters.
+
+![picture of a Predicate](../img/skipper-predicate.svg)
+
+
 ### Filter
 
 A filter changes a HTTP request or response or both. Multiple filters
@@ -103,6 +112,11 @@ Some special filters are:
 - `status()` sets HTTP status code to a given value, should be used with <shunt> backend
 - `tee()` clones request to given target
 
+#### Filter in context of an HTTP request
+
+The picture shows the transformation for request and response
+
+![picture of a Filter](../img/skipper-filter.svg)
 
 ### Backend
 
@@ -124,10 +138,10 @@ HTTP->HTTPS redirects if skipper is started with `-kubernetes-https-redirect`.
 
 Dataclients:
 
-- [eskip-file](/skipper/data-clients/eskip-file)
-- [route string](/skipper/data-clients/route-string)
-- [kubernetes](/skipper/data-clients/kubernetes)
-- [etcd](/skipper/data-clients/etcd)
+- [eskip-file](../data-clients/eskip-file)
+- [route string](../data-clients/route-string)
+- [kubernetes](../data-clients/kubernetes)
+- [etcd](../data-clients/etcd)
 
 ## Route processing
 
@@ -156,7 +170,7 @@ another route, based on the changes that the filters made to the
 request. In case it will always find a `<loopback>` route it will stop
 after maximum number of loopbacks is reached and logs an error.
 
-![Skipper's request and response processing ](/skipper/img/req-and-resp-processing.svg)
+![Skipper's request and response processing ](../img/req-and-resp-processing.svg)
 
 ### Routing mechanism
 
