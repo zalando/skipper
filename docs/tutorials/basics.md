@@ -95,7 +95,7 @@ Special Predicates:
 
 A routing table consists of a number of routes.  A route has a list of
 predicates and filters.  Predicates match an incoming request to a
-specific, best matching, Route.  Each route has a set of filters.
+specific, best matching, route.  Each route has a set of filters.
 
 ![picture of a Predicate](../img/skipper-predicate.svg)
 
@@ -114,7 +114,7 @@ Some special filters are:
 
 #### Filter in context of an HTTP request
 
-The picture shows the transformation for request and response
+The picture shows the transformation of the requests and responses
 
 ![picture of a Filter](../img/skipper-filter.svg)
 
