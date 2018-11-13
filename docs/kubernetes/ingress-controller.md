@@ -530,3 +530,77 @@ If you have RBAC enabled in your Kubernetes instance you don't have to create al
 
 There are some more options available for customization of the chart.
 Check the repository if you need more configuration possibilities.
+
+## Run as API Gateway with East-West setup
+
+East-West means cluster internal service-to-service communication.
+For this you need to resolve DNS to skipper for an additional domain
+`.skipper.cluster.local` we introduce and add HTTP routes to route to
+the specified backend from your normal ingress object.
+
+### Skipper
+
+To enable the East-West in skipper, you need to run skipper with
+`-enable-kubernetes-east-west` enabled. Skipper will duplicate all
+routes with a `Host()` predicate and change it to match the host
+header scheme: `<name>.<namespace>.skipper.cluster.local`.
+
+You need also to have a kubernetes service type ClusterIP and write
+down the IP (p.e. `10.3.11.28`), which you will need in CoreDNS setup.
+
+### CoreDNS
+
+You can create the DNS records with the `template` plugin from CoreDNS.
+
+Corefile example:
+```
+.:53 {
+    errors
+    health
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+        pods insecure
+        upstream
+        fallthrough in-addr.arpa ip6.arpa
+    }
+    template IN A skipper.cluster.local  {
+      match "^.*[.]skipper[.]cluster[.]local"
+      answer "{{ .Name }} 60 IN A 10.3.11.28"
+      fallthrough
+    }
+    prometheus :9153
+    proxy . /etc/resolv.conf
+    cache 30
+    reload
+}
+```
+
+
+### Usage
+
+If the setup was done correctly, the following ingress example will
+create an internal route with
+`Host(/^demo[.]default[.]skipper[.]cluster[.]local)` predicate:
+
+```
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: demo
+  namespace: default
+spec:
+  rules:
+  - host: demo.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: example
+          servicePort: 80
+```
+
+Your clients inside the cluster should call this example with
+`demo.default.skipper.cluster.local` in their host header. Example
+from inside a container:
+
+```
+curl demo.default.skipper.cluster.local
+```
