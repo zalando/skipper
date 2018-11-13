@@ -7,20 +7,20 @@ system. Please refer the documentation of your Operating System or
 package management vendor how to install `htpasswd`:
 
 ```
-% apt-get install apache2-utils
+apt-get install apache2-utils
 ```
 
 Create a htpasswd file `foo.passwd` and use `captain` with password `apassword`:
 
 ```
-% htpasswd -bcB foo.passwd captain apassword
+htpasswd -bcB foo.passwd captain apassword
 ```
 
 Start skipper with a `basicAuth` filter referencing the just created
 htpasswd file:
 
 ```
-% ./bin/skipper -address :8080 -inline-routes 'r: * -> basicAuth("foo.passwd") -> status(200) -> <shunt>'
+./bin/skipper -address :8080 -inline-routes 'r: * -> basicAuth("foo.passwd") -> status(200) -> <shunt>'
 ```
 
 A client request without login credentials or wrong credentials:

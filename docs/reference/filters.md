@@ -890,7 +890,9 @@ skipper -enable-api-usage-monitoring -metrics-flavour prometheus
 
 The structure of the metrics is:
 
-    apiUsageMonitoring.custom.<Application ID>.<API ID>.<HTTP Verb>.<Path Template>.<Metric Name>
+```
+apiUsageMonitoring.custom.<Application ID>.<API ID>.<HTTP Verb>.<Path Template>.<Metric Name>
+```
 
 The available metrics are:
 
@@ -959,7 +961,9 @@ apiUsageMonitoring(`
 NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
 and path template.
 
-    apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count
+```
+apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.http_count
+```
 
 Based on the previous configuration, here is an example of a counter metric.
 
