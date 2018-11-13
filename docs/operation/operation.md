@@ -392,19 +392,23 @@ Skipper allows you to get some runtime insights. You can get the
 current routing table from skipper with in the
 [eskip file format](https://godoc.org/github.com/zalando/skipper/eskip):
 
-    % curl localhost:9911/routes
-    *
-      -> "http://localhost:12345/"
+```
+curl localhost:9911/routes
+*
+-> "http://localhost:12345/"
+```
 
 You also can get the number of routes `X-Count` and the UNIX timestamp
 of the last route table update `X-Timestamp`, using a HEAD request:
 
-    % curl -I localhost:9911/routes
-    HTTP/1.1 200 OK
-    Content-Type: text/plain
-    X-Count: 1
-    X-Timestamp: 1517777628
-    Date: Sun, 04 Feb 2018 20:54:31 GMT
+```
+curl -I localhost:9911/routes
+HTTP/1.1 200 OK
+Content-Type: text/plain
+X-Count: 1
+X-Timestamp: 1517777628
+Date: Sun, 04 Feb 2018 20:54:31 GMT
+```
 
 The number of routes given is limited (1024 routes by default).
 In order to control this limits, there are two parameters: `limit` and
@@ -412,7 +416,9 @@ In order to control this limits, there are two parameters: `limit` and
 `offset` where to start the list. Thanks to this, it's possible
 to get the results paginated or getting all of them at the same time.
 
-    % curl localhost:9911/routes?offset=200&limit=100
+```
+curl localhost:9911/routes?offset=200&limit=100
+```
 
 # Memory consumption
 
@@ -446,7 +452,9 @@ If you enable route based `-route-backend-metrics`
 it can count up. Please check the support listener endpoint (default
 9911) to understand the usage:
 
-    % curl localhost:9911/metrics
+```
+% curl localhost:9911/metrics
+```
 
 ## Filters
 

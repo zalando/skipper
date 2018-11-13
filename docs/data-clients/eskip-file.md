@@ -4,8 +4,10 @@ Eskip file dataclient can be used to serve static defined routes, read
 from an eskip file. The [file format eskip](https://godoc.org/github.com/zalando/skipper/eskip)
 shows your route definitions in a clear way:
 
-    % cat example.eskip
-    hello: Path("/hello") -> "https://www.example.org"'
+```
+% cat example.eskip
+hello: Path("/hello") -> "https://www.example.org"'
+```
 
 The [Skipper project](https://github.com/zalando/skipper) has two
 binaries, one is `skipper`, the other is `eskip`.
@@ -27,28 +29,30 @@ A more complicated example with different routes, matches,
 you can name your route and use preconditions and create, change, delete
 HTTP headers as you like:
 
-    % cat complicated_example.eskip
-    hostHeaderMatch:
-             Host("^skipper.teapot.org$")
-             -> setRequestHeader("Authorization", "Basic YWRtaW46YWRtaW5zcGFzc3dvcmQK")
-             -> "https://target-to.auth-with.basic-auth.enterprise.com";
-    baiduPathMatch:
-            Path("/baidu")
-            -> setRequestHeader("Host", "www.baidu.com")
-            -> setPath("/s")
-            -> setQuery("wd", "godoc skipper")
-            -> "http://www.baidu.com";
-    googleWildcardMatch:
-            *
-            -> setPath("/search")
-            -> setQuery("q", "godoc skipper")
-            -> "https://www.google.com";
-    yandexWildacardIfCookie:
-            * && Cookie("yandex", "true")
-            -> setPath("/search/")
-            -> setQuery("text", "godoc skipper")
-            -> tee("http://127.0.0.1:12345/")
-            -> "https://yandex.ru";
+```
+% cat complicated_example.eskip
+hostHeaderMatch:
+         Host("^skipper.teapot.org$")
+         -> setRequestHeader("Authorization", "Basic YWRtaW46YWRtaW5zcGFzc3dvcmQK")
+         -> "https://target-to.auth-with.basic-auth.enterprise.com";
+baiduPathMatch:
+        Path("/baidu")
+        -> setRequestHeader("Host", "www.baidu.com")
+        -> setPath("/s")
+        -> setQuery("wd", "godoc skipper")
+        -> "http://www.baidu.com";
+googleWildcardMatch:
+        *
+        -> setPath("/search")
+        -> setQuery("q", "godoc skipper")
+        -> "https://www.google.com";
+yandexWildacardIfCookie:
+        * && Cookie("yandex", "true")
+        -> setPath("/search/")
+        -> setQuery("text", "godoc skipper")
+        -> tee("http://127.0.0.1:12345/")
+        -> "https://yandex.ru";
+```
 
 The former example shows 4 routes: hostHeaderMatch,
 baiduPathMatch, googleWildcardMatch and yandexWildcardIfCookie.
@@ -83,8 +87,10 @@ and in [predicates](https://godoc.org/github.com/zalando/skipper/predicates).
 Eskip file format is also used if you print your current routes in skipper,
 for example (metrics listener required):
 
-    % curl localhost:9911/routes
-    *
-      -> setResponseHeader("Content-Type", "application/json; charset=utf-8")
-      -> inlineContent("{\"foo\": 3}")
-      -> <shunt>
+```
+% curl localhost:9911/routes
+*
+  -> setResponseHeader("Content-Type", "application/json; charset=utf-8")
+  -> inlineContent("{\"foo\": 3}")
+  -> <shunt>
+```
