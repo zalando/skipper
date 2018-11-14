@@ -918,13 +918,14 @@ Those metrics are not identifying the realm and client. They always have `*` in 
 
 Example:
 
-                                                                                 + Realm
-                                                                                 |
-    apiUsageMonitoring.custom.orders-backend.orders-api.GET.foo/orders/:order-id.*.*.http_count
-                                                                                   | |
-                                                                                   | + Metric Name
-                                                                                   + Client
-    
+```
+                                                                             + Realm
+                                                                             |
+apiUsageMonitoring.custom.orders-backend.orders-api.GET.foo/orders/:order-id.*.*.http_count
+                                                                               | |
+                                                                               | + Metric Name
+                                                                               + Client
+```
 
 The available metrics are:
 
@@ -944,13 +945,15 @@ Those metrics are not identifying endpoint (path) and HTTP verb. They always hav
 
 Example:
 
-                                                        + HTTP Verb
-                                                        | + Path Template     + Metric Name
-                                                        | |                   |
-    apiUsageMonitoring.custom.orders-backend.orders-api.*.*.users.mmustermann.http_count
-                                                            |     |
-                                                            |     + Client
-                                                            + Realm
+```
+                                                    + HTTP Verb
+                                                    | + Path Template     + Metric Name
+                                                    | |                   |
+apiUsageMonitoring.custom.orders-backend.orders-api.*.*.users.mmustermann.http_count
+                                                        |     |
+                                                        |     + Client
+                                                        + Realm
+```
 
 The available metrics are:
 
@@ -1042,20 +1045,30 @@ apiUsageMonitoring(`
 NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
 and path template.
 
-    apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.http_count
+```
+apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.http_count
+```
 
 Based on the previous configuration, here is an example of a counter metric.
 
-    apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.*.*.http_count
+```
+apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.*.*.http_count
+```
 
 Here is the _Prometheus_ query to obtain it.
 
-    sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.*.*.http_count"}[60s])) by (key)
+```
+sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.*.*.http_count"}[60s])) by (key)
+```
 
 Here is an example of a histogram metric.
 
-    apiUsageMonitoring.custom.my_app.orders-api.POST.foo/orders.latency
+```
+apiUsageMonitoring.custom.my_app.orders-api.POST.foo/orders.latency
+```
 
 Here is the _Prometheus_ query to obtain it.
 
-    histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.*.*.latency"}[60s])) by (le, key))
+```
+histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.*.*.latency"}[60s])) by (le, key))
+```
