@@ -66,7 +66,10 @@ const (
 	defaultWebhookTimeout                 = 2 * time.Second
 
 	// API Monitoring
-	defaultApiUsageMonitoringEnable = false
+	defaultApiUsageMonitoringEnable                       = false
+	defaultApiUsageMonitoringRealmKeys                    = ""
+	defaultApiUsageMonitoringClientKeys                   = "sub"
+	defaultApiUsageMonitoringDefaultClientTrackingPattern = ""
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -152,7 +155,10 @@ const (
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 
 	// API Monitoring:
-	apiUsageMonitoringEnableUsage = "enables the experimental filter apiUsageMonitoring"
+	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
+	apiUsageMonitoringRealmKeysUsage                    = "name of the property in the JWT payload that contains the authority realm"
+	apiUsageMonitoringClientKeysUsage                   = "comma separated list of names of the properties in the JWT body that contains the client ID"
+	apiUsageMonitoringDefaultClientTrackingPatternUsage = "regular expression to default to when API usage monitoring filter configuration does not provide `client_tracking_pattern`"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage           = "maximum idle connections per backend host"
@@ -279,7 +285,10 @@ var (
 	webhookTimeout                  time.Duration
 
 	// API Monitoring
-	apiUsageMonitoringEnable bool
+	apiUsageMonitoringEnable                       bool
+	apiUsageMonitoringRealmKeys                    string
+	apiUsageMonitoringClientKeys                   string
+	apiUsageMonitoringDefaultClientTrackingPattern string
 
 	// connections, timeouts:
 	idleConnsPerHost           int
@@ -405,6 +414,9 @@ func init() {
 
 	// API Monitoring:
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
+	flag.StringVar(&apiUsageMonitoringRealmKeys, "api-usage-monitoring-realm-keys", defaultApiUsageMonitoringRealmKeys, apiUsageMonitoringRealmKeysUsage)
+	flag.StringVar(&apiUsageMonitoringClientKeys, "api-usage-monitoring-client-keys", defaultApiUsageMonitoringClientKeys, apiUsageMonitoringClientKeysUsage)
+	flag.StringVar(&apiUsageMonitoringDefaultClientTrackingPattern, "api-usage-monitoring-default-client-tracking-pattern", defaultApiUsageMonitoringDefaultClientTrackingPattern, apiUsageMonitoringDefaultClientTrackingPatternUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -594,7 +606,10 @@ func main() {
 		KubernetesEnableEastWest:    kubernetesEnableEastWest,
 
 		// API Monitoring:
-		ApiUsageMonitoringEnable: apiUsageMonitoringEnable,
+		ApiUsageMonitoringEnable:                       apiUsageMonitoringEnable,
+		ApiUsageMonitoringRealmKey:                     apiUsageMonitoringRealmKeys,
+		ApiUsageMonitoringClientIdKeyName:              apiUsageMonitoringClientKeys,
+		ApiUsageMonitoringDefaultClientTrackingPattern: apiUsageMonitoringDefaultClientTrackingPattern,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,

@@ -53,9 +53,12 @@ func ParseMetricsKind(t string) Kind {
 // Metrics is the generic interface that all the required backends
 // should implement to be an skipper metrics compatible backend.
 type Metrics interface {
+	// Implements the `filter.Metrics` interface.
 	MeasureSince(key string, start time.Time)
 	IncCounter(key string)
 	IncCounterBy(key string, value int64)
+	IncFloatCounterBy(key string, value float64)
+	// Additional methods
 	MeasureRouteLookup(start time.Time)
 	MeasureFilterRequest(filterName string, start time.Time)
 	MeasureAllFiltersRequest(routeId string, start time.Time)

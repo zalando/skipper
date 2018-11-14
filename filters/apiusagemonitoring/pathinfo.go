@@ -6,23 +6,41 @@ import (
 	"regexp"
 )
 
-var (
-	unknownPath = &pathInfo{
-		ApplicationId:           unknownElementPlaceholder,
-		ApiId:                   unknownElementPlaceholder,
-		PathTemplate:            unknownElementPlaceholder,
-		metricPrefixesPerMethod: [MethodIndexLength]*metricNames{},
-	}
-)
-
+// pathInfo contains the tracking information for a specific path.
+// The exported members are marshaled as JSON.
 type pathInfo struct {
-	ApplicationId           string
-	ApiId                   string
-	PathTemplate            string
-	Matcher                 *regexp.Regexp
-	metricPrefixesPerMethod [MethodIndexLength]*metricNames
+	ApplicationId  string
+	ApiId          string
+	PathTemplate   string
+	Matcher        *regexp.Regexp
+	ClientTracking *clientTrackingInfo
+	CommonPrefix   string
+	ClientPrefix   string
+
+	metricPrefixesPerMethod [methodIndexLength]*endpointMetricNames
+	metricPrefixedPerClient map[string]*clientMetricNames
 }
 
+func newPathInfo(applicationId, apiId, pathTemplate string, clientTracking *clientTrackingInfo) *pathInfo {
+	commonPrefix := applicationId + "." + apiId + "."
+	var metricPrefixedPerClient map[string]*clientMetricNames
+	if clientTracking != nil {
+		metricPrefixedPerClient = make(map[string]*clientMetricNames)
+	}
+	return &pathInfo{
+		ApplicationId:           applicationId,
+		ApiId:                   apiId,
+		PathTemplate:            pathTemplate,
+		metricPrefixedPerClient: metricPrefixedPerClient,
+		ClientTracking:          clientTracking,
+		CommonPrefix:            commonPrefix,
+		ClientPrefix:            commonPrefix + "*.*.",
+	}
+}
+
+// MarshalJSON transforms a pathInfo into a JSON representation.
+// It is necessary (vs the reflection based marshalling) in order
+// to marshall the RegExp matcher as a string.
 func (p *pathInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		ApplicationId string
@@ -46,38 +64,48 @@ func (s pathInfoByRegExRev) Len() int           { return len(s) }
 func (s pathInfoByRegExRev) Less(i, j int) bool { return s[i].Matcher.String() > s[j].Matcher.String() }
 func (s pathInfoByRegExRev) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-type metricNames struct {
-	GlobalPrefix            string
-	CountAll                string
-	CountPerStatusCodeRange [5]string
-	Latency                 string
+type endpointMetricNames struct {
+	endpointPrefix          string
+	countAll                string
+	countPerStatusCodeRange [6]string
+	latency                 string
+}
+
+type clientMetricNames struct {
+	countAll                string
+	countPerStatusCodeRange [6]string
+	latencySum              string
 }
 
 const (
-	MethodIndexGet     = iota // GET
-	MethodIndexHead           // HEAD
-	MethodIndexPost           // POST
-	MethodIndexPut            // PUT
-	MethodIndexPatch          // PATCH
-	MethodIndexDelete         // DELETE
-	MethodIndexConnect        // CONNECT
-	MethodIndexOptions        // OPTIONS
-	MethodIndexTrace          // TRACE
+	methodIndexGet     = iota // GET
+	methodIndexHead           // HEAD
+	methodIndexPost           // POST
+	methodIndexPut            // PUT
+	methodIndexPatch          // PATCH
+	methodIndexDelete         // DELETE
+	methodIndexConnect        // CONNECT
+	methodIndexOptions        // OPTIONS
+	methodIndexTrace          // TRACE
 
-	MethodIndexUnknown // Value when the HTTP Method is not in the known list
-	MethodIndexLength  // Gives the constant size of the `metricPrefixesPerMethod` array.
+	methodIndexUnknown // Value when the HTTP Method is not in the known list
+	methodIndexLength  // Gives the constant size of the `metricPrefixesPerMethod` array.
 )
 
 var (
 	methodToIndex = map[string]int{
-		http.MethodGet:     MethodIndexGet,
-		http.MethodHead:    MethodIndexHead,
-		http.MethodPost:    MethodIndexPost,
-		http.MethodPut:     MethodIndexPut,
-		http.MethodPatch:   MethodIndexPatch,
-		http.MethodDelete:  MethodIndexDelete,
-		http.MethodConnect: MethodIndexConnect,
-		http.MethodOptions: MethodIndexOptions,
-		http.MethodTrace:   MethodIndexTrace,
+		http.MethodGet:     methodIndexGet,
+		http.MethodHead:    methodIndexHead,
+		http.MethodPost:    methodIndexPost,
+		http.MethodPut:     methodIndexPut,
+		http.MethodPatch:   methodIndexPatch,
+		http.MethodDelete:  methodIndexDelete,
+		http.MethodConnect: methodIndexConnect,
+		http.MethodOptions: methodIndexOptions,
+		http.MethodTrace:   methodIndexTrace,
 	}
 )
+
+type clientTrackingInfo struct {
+	ClientTrackingMatcher *regexp.Regexp
+}

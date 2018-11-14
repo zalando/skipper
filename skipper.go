@@ -461,7 +461,10 @@ type Options struct {
 	OAuthTokenintrospectionTimeout time.Duration
 
 	// API Monitoring feature is active (feature toggle)
-	ApiUsageMonitoringEnable bool
+	ApiUsageMonitoringEnable                       bool
+	ApiUsageMonitoringRealmKey                     string
+	ApiUsageMonitoringClientIdKeyName              string
+	ApiUsageMonitoringDefaultClientTrackingPattern string
 
 	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
 	WebhookTimeout time.Duration
@@ -712,7 +715,12 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewWebhook(o.WebhookTimeout),
-		apiusagemonitoring.NewApiUsageMonitoring(o.ApiUsageMonitoringEnable),
+		apiusagemonitoring.NewApiUsageMonitoring(
+			o.ApiUsageMonitoringEnable,
+			o.ApiUsageMonitoringRealmKey,
+			o.ApiUsageMonitoringClientIdKeyName,
+			o.ApiUsageMonitoringDefaultClientTrackingPattern,
+		),
 	)
 
 	// create a filter registry with the available filter specs registered,
