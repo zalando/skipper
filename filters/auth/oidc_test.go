@@ -22,7 +22,7 @@ const (
 
 func makeTestingFilter(claims []string) (*tokenOidcFilter, error) {
 	f := &tokenOidcFilter{
-		typ:    checkOidcAnyClaims,
+		typ:    checkOIDCAnyClaims,
 		claims: claims,
 		config: &oauth2.Config{
 			ClientID: "test",
@@ -121,7 +121,6 @@ func TestOidcValidateAnyClaims(t *testing.T) {
 		"claims are valid but filter returned false.")
 }
 
-
 type TestContext struct {
 	requestUrl *url.URL
 }
@@ -187,4 +186,3 @@ func (t *TestContext) Metrics() filters.Metrics {
 func (t *TestContext) Tracer() opentracing.Tracer {
 	panic("not implemented")
 }
-

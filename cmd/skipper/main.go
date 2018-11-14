@@ -149,7 +149,7 @@ const (
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
-	oidcSecretsFileUsage                 = "file where key to encrypt oid connect token is stored"
+	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage = "enables the experimental filter apiUsageMonitoring"
@@ -603,7 +603,7 @@ func main() {
 		OAuthTokeninfoTimeout:          oauth2TokeninfoTimeout,
 		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
 		WebhookTimeout:                 webhookTimeout,
-		OidcSecretsFile:                oidcSecretsFile,
+		OIDCSecretsFile:                oidcSecretsFile,
 
 		// connections, timeouts:
 		IdleConnectionsPerHost:     idleConnsPerHost,

@@ -457,8 +457,8 @@ type Options struct {
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
 
-	// OidcSecretsFile path to the file containing key to encrypt OpenID token
-	OidcSecretsFile string
+	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
+	OIDCSecretsFile string
 
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable bool
@@ -711,9 +711,9 @@ func Run(o Options) error {
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewWebhook(o.WebhookTimeout),
-		auth.NewOAuthOidcUserInfos(o.OidcSecretsFile),
-		auth.NewOAuthOidcAnyClaims(o.OidcSecretsFile),
-		auth.NewOAuthOidcAllClaims(o.OidcSecretsFile),
+		auth.NewOAuthOidcUserInfos(o.OIDCSecretsFile),
+		auth.NewOAuthOidcAnyClaims(o.OIDCSecretsFile),
+		auth.NewOAuthOidcAllClaims(o.OIDCSecretsFile),
 		apiusagemonitoring.NewApiUsageMonitoring(o.ApiUsageMonitoringEnable),
 	)
 

@@ -23,8 +23,6 @@ const (
 	OidcAnyClaimsName = "oauthOidcAnyClaims"
 	OidcAllClaimsName = "oauthOidcAllClaims"
 
-	oidcStatebagKey     = "oauthOidcKey"
-	redirectURLKey      = "redirectURLKey"
 	oauthOidcCookieName = "skipperOauthOidc"
 	stateValidity       = 1 * time.Minute
 )
@@ -65,19 +63,19 @@ type (
 
 // NewOAuthOidcUserInfos creates filter spec which tests user info.
 func NewOAuthOidcUserInfos(secretsFile string) filters.Spec {
-	return &tokenOidcSpec{typ: checkOidcUserInfos, SecretsFile: secretsFile}
+	return &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: secretsFile}
 }
 
 // NewOAuthOidcAnyClaims creates a filter spec which verifies that the token
 // has one of the claims specified
 func NewOAuthOidcAnyClaims(secretsFile string) filters.Spec {
-	return &tokenOidcSpec{typ: checkOidcAnyClaims, SecretsFile: secretsFile}
+	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile}
 }
 
 // NewOAuthOidcAllClaims creates a filter spec which verifies that the token
 // has all the claims specified
 func NewOAuthOidcAllClaims(secretsFile string) filters.Spec {
-	return &tokenOidcSpec{typ: checkOidcAllClaims, SecretsFile: secretsFile}
+	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile}
 }
 
 // CreateFilter creates an OpenID Connect authorization filter.
@@ -115,13 +113,16 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		h.Write([]byte(s))
 	}
 	byteSlice := h.Sum(nil)
-	_ = fmt.Sprintf("%x", byteSlice)[:8]
+	sargsHash := fmt.Sprintf("%x", byteSlice)[:8]
+	generatedCookieName := oauthOidcCookieName + sargsHash
+	log.Debugf("Generated Cookie Name: %s", generatedCookieName)
 
 	redirectURL, err := url.Parse(sargs[3])
 	if err != nil {
 		return nil, fmt.Errorf("the redirect url %s is not valid: %v", sargs[3], err)
 	}
 	encrypter, err := NewEncrypter(s.SecretsFile)
+
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +140,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 			ClientID: sargs[1],
 		}),
 		validity:   1 * time.Hour,
-		cookiename: oauthOidcCookieName,
+		cookiename: generatedCookieName,
 		encrypter:  encrypter,
 	}
 	err = f.encrypter.runCipherRefresher(1 * time.Minute)
@@ -149,7 +150,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	f.config.Scopes = []string{oidc.ScopeOpenID}
 
 	switch f.typ {
-	case checkOidcUserInfos:
+	case checkOIDCUserInfo:
 		if len(sargs) > 4 { // google IAM needs a scope to be sent
 			f.config.Scopes = append(f.config.Scopes, sargs[4:]...)
 		} else {
@@ -158,9 +159,9 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 			return nil, filters.ErrInvalidFilterParameters
 
 		}
-	case checkOidcAnyClaims:
+	case checkOIDCAnyClaims:
 		fallthrough
-	case checkOidcAllClaims:
+	case checkOIDCAllClaims:
 		additionScopes := sargs[4]
 		f.config.Scopes = append(f.config.Scopes, additionScopes)
 		f.claims = sargs[5:]
@@ -170,11 +171,11 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 func (s *tokenOidcSpec) Name() string {
 	switch s.typ {
-	case checkOidcUserInfos:
+	case checkOIDCUserInfo:
 		return OidcUserInfoName
-	case checkOidcAnyClaims:
+	case checkOIDCAnyClaims:
 		return OidcAnyClaimsName
-	case checkOidcAllClaims:
+	case checkOIDCAllClaims:
 		return OidcAllClaimsName
 	}
 	return AuthUnknown
@@ -266,10 +267,18 @@ func extractState(encState []byte) (*OauthState, error) {
 	return &state, nil
 }
 
+func (f *tokenOidcFilter) internalServerError(ctx filters.FilterContext) {
+	rsp := &http.Response{
+		StatusCode: http.StatusInternalServerError,
+	}
+	ctx.Serve(rsp)
+}
+
 func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 	nonce, err := f.encrypter.createNonce()
 	if err != nil {
 		log.Errorf("Failed to create nonce: %v", err)
+		f.internalServerError(ctx)
 		return
 	}
 
@@ -277,11 +286,13 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 	statePlain, err := createState(nonce, redirectUrl)
 	if err != nil {
 		log.Errorf("failed to create oauth2 state: %v", err)
+		f.internalServerError(ctx)
 		return
 	}
 	stateEnc, err := f.encrypter.encryptDataBlock(statePlain)
 	if err != nil {
 		log.Errorf("Failed to encrypt data block: %v", err)
+		f.internalServerError(ctx)
 		return
 	}
 
@@ -289,43 +300,29 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 		Header: http.Header{
 			"Location": []string{f.config.AuthCodeURL(fmt.Sprintf("%x", stateEnc))},
 		},
-		StatusCode: http.StatusFound,
+		StatusCode: http.StatusTemporaryRedirect,
 		Status:     "Moved Temporarily",
 	}
 	log.Infof("serve redirect: plaintextState:%s to Location: %s", statePlain, rsp.Header.Get("Location"))
 	ctx.Serve(rsp)
 }
 
-// Response saves our state bag in a cookie, such that we can get it
-// back in subsequent requests to handle the requests.
-func (f *tokenOidcFilter) Response(ctx filters.FilterContext) {
-	if v, ok := ctx.StateBag()[oidcStatebagKey]; ok {
-		cookie := f.createCookie(v, false, "127.0.0.1")
-		http.SetCookie(ctx.ResponseWriter(), cookie)
-	}
+func (f *tokenOidcFilter) Response(filters.FilterContext) {}
 
-	if v, ok := ctx.StateBag()[redirectURLKey]; ok {
-		log.Debugf("Response: Redirecting to: %s", v)
-		http.Redirect(ctx.ResponseWriter(), ctx.Request(), v.(string), http.StatusFound)
+func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
+	r := &http.Response{
+		StatusCode: http.StatusTemporaryRedirect,
+		Header: map[string][]string{
+			"Set-Cookie": {fmt.Sprintf("%s=%x; Path=/; HttpOnly; MaxAge=%d", f.cookiename, oidcState, int(f.validity.Seconds()))},
+			"Location":   {redirectUrl},
+		},
 	}
-}
-
-func (f *tokenOidcFilter) createCookie(v interface{}, secure bool, domain string) *http.Cookie {
-	cookie := &http.Cookie{
-		Name:     f.cookiename,
-		Value:    fmt.Sprintf("%x", v),
-		Secure:   secure, // for development
-		HttpOnly: false,
-		Path:     "/",
-		Domain:   domain,
-		MaxAge:   int(f.validity.Seconds()),
-		Expires:  time.Now().Add(f.validity),
-	}
-	return cookie
+	ctx.Serve(r)
 }
 
 func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) ([]byte, bool) {
 	if cookie == nil {
+		log.Debugf("Cookie is nil")
 		return nil, false
 	}
 	log.Debugf("validate cookie name: %s", f.cookiename)
@@ -366,7 +363,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 			}
 
 			switch f.typ {
-			case checkOidcUserInfos:
+			case checkOIDCUserInfo:
 				userInfo, err := f.provider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
 				if err != nil {
 					unauthorized(ctx, "Failed to get userinfo: "+err.Error(), invalidToken, r.Host)
@@ -379,9 +376,9 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 					unauthorized(ctx, fmt.Sprintf("Failed to marshal userinfo backend data for sub=%s: %v", sub, err), invalidToken, r.Host)
 					return
 				}
-			case checkOidcAnyClaims:
+			case checkOIDCAnyClaims:
 				fallthrough
-			case checkOidcAllClaims:
+			case checkOIDCAllClaims:
 				tokenMap, sub, err := f.tokenClaims(ctx, oauth2Token)
 				if err != nil {
 					return
@@ -400,8 +397,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 				return
 			}
 
-			ctx.StateBag()[redirectURLKey] = oauthState.RedirectUrl
-			ctx.StateBag()[oidcStatebagKey] = encryptedData
+			f.doDownstreamRedirect(ctx, encryptedData, oauthState.RedirectUrl)
 			return
 		}
 		f.doOauthRedirect(ctx)
@@ -415,7 +411,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 
 	// filter specific checks
 	switch f.typ {
-	case checkOidcUserInfos:
+	case checkOIDCUserInfo:
 		var container userInfoContainer
 		err := json.Unmarshal([]byte(cookie), &container)
 		if err != nil {
@@ -426,7 +422,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 			allowed = true
 		}
 		sub = container.Subject
-	case checkOidcAnyClaims:
+	case checkOIDCAnyClaims:
 		var container claimsContainer
 		err := json.Unmarshal([]byte(cookie), &container)
 		if err != nil {
@@ -436,7 +432,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		allowed = f.validateAnyClaims(container.Claims)
 		log.Infof("validateAnyClaims: %v", allowed)
 		sub = container.Subject
-	case checkOidcAllClaims:
+	case checkOIDCAllClaims:
 		var container claimsContainer
 		err := json.Unmarshal([]byte(cookie), &container)
 		if err != nil {

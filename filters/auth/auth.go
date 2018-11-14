@@ -21,9 +21,9 @@ const (
 	checkOAuthTokenintrospectionAllClaims
 	checkOAuthTokenintrospectionAnyKV
 	checkOAuthTokenintrospectionAllKV
-	checkOidcUserInfos
-	checkOidcAnyClaims
-	checkOidcAllClaims
+	checkOIDCUserInfo
+	checkOIDCAnyClaims
+	checkOIDCAllClaims
 	checkUnknown
 )
 
