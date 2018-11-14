@@ -126,6 +126,9 @@ type Route struct {
 	// The address of a backend for a parsed route.
 	// E.g. "https://www.example.org"
 	Backend string
+
+	Name      string
+	Namespace string
 }
 
 type RoutePredicate func(*Route) bool

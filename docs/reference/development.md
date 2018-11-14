@@ -461,4 +461,3 @@ index 837b6cf..aa69f09 100644
 
 The patch can be applied with the `git apply $PATCH_FILE` command. Please do not commit the
 modified `plugins.go` along with your changes.
-

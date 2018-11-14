@@ -1,3 +1,0 @@
-# Innkeeper API
-
-TODO

@@ -43,7 +43,7 @@ If you need to clean up for example a goroutine you can do it in
 The simplest filter possible is, if `filters.Spec` and
 `filters.Filter` are the same type:
 
-```
+```go
 type myFilter struct{}
 
 func NewMyFilter() filters.Spec {
@@ -90,7 +90,7 @@ given request.
 The simplest possible predicate implementation is, if `routing.PredicateSpec` and
 `routing.Predicate` are the same type:
 
-```
+```go
 type myPredicate struct{}
 
 func NewMyPredicate() routing.PredicateSpec {

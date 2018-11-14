@@ -143,6 +143,7 @@ const (
 	whitelistedHealthCheckCIDRUsage  = "sets the iprange/CIDRS to be whitelisted during healthcheck"
 	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
 	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
+	kubernetesEnableEastWestUsage    = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
 
 	// OAuth2:
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
@@ -272,6 +273,7 @@ var (
 	whitelistedHealthCheckCIDR  string
 	kubernetesPathModeString    string
 	kubernetesNamespace         string
+	kubernetesEnableEastWest    bool
 
 	// Auth:
 	oauthURL                        string
@@ -399,6 +401,7 @@ func init() {
 	flag.StringVar(&whitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", whitelistedHealthCheckCIDRUsage)
 	flag.StringVar(&kubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
 	flag.StringVar(&kubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
+	flag.BoolVar(&kubernetesEnableEastWest, "enable-kubernetes-east-west", false, kubernetesEnableEastWestUsage)
 
 	// Auth:
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
@@ -600,6 +603,7 @@ func main() {
 		WhitelistedHealthCheckCIDR:  whitelistCIDRS,
 		KubernetesPathMode:          kubernetesPathMode,
 		KubernetesNamespace:         kubernetesNamespace,
+		KubernetesEnableEastWest:    kubernetesEnableEastWest,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                       apiUsageMonitoringEnable,
