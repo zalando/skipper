@@ -3,9 +3,10 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+
 	"github.com/zalando/skipper/filters"
 	"golang.org/x/net/http/httpguts"
-	"strings"
 )
 
 const (

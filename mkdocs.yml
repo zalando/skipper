@@ -13,7 +13,6 @@ nav:
             - Eskip File: data-clients/eskip-file.md
             - Etcd: data-clients/etcd.md
             - Kubernetes: data-clients/kubernetes.md
-            - Innkeeper API: data-clients/innkeeper.md
             - Route String: data-clients/route-string.md
         - Operation:
             - Deployment: operation/deployment.md
@@ -22,9 +21,41 @@ nav:
         - Ingress Controller Deployment: kubernetes/ingress-controller.md
         - Ingress Usage: kubernetes/ingress-usage.md
         - Ingress Backends: kubernetes/ingress-backends.md
+        - East-West aka svc-to-svc: kubernetes/east-west-usage.md
     - Tutorials:
-        - Basis: tutorials/basics.md
+        - Basics: tutorials/basics.md
         - Common Use Cases: tutorials/common-use-cases.md
         - Development: tutorials/development.md
         - Authentication and Autorization: tutorials/auth.md
         - Ratelimits: tutorials/ratelimit.md
+theme:
+  name: material
+  favicon: favicon.ico
+  logo: favicon.ico
+  feature:
+    tabs: true
+  palette:
+    primary: 'white'
+  highlightjs: true
+  hljs_languages:
+  - yaml
+  - go
+repo_name: GitHub
+repo_url: https://github.com/zalando/skipper/
+edit_uri: edit/master/docs/
+markdown_extensions:
+- toc:
+    permalink: true
+- admonition
+- smarty
+- extra
+- codehilite
+- pymdownx.magiclink
+- pymdownx.superfences
+- pymdownx.details
+- pymdownx.mark
+
+plugins:
+- search
+
+strict: true

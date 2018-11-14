@@ -28,7 +28,6 @@ NodePort | yes | ---
 ExternalName | no, [related issue](https://github.com/zalando/skipper/issues/549) | [use deployment with routestring](../dataclients/route-string/#proxy-to-a-given-url)
 LoadBalancer | no | it should not, because Kubernetes cloud-controller-manager will maintain it
 
-# Basics
 
 ## HTTP Host header routing
 
@@ -125,21 +124,23 @@ path.
 
 This example shows how to add predicates and filters:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-predicate: predicate1 && predicate2 && .. && predicateN
-        zalando.org/skipper-filter: filter1 -> filter2 -> .. -> filterN
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-predicate: predicate1 && predicate2 && .. && predicateN
+    zalando.org/skipper-filter: filter1 -> filter2 -> .. -> filterN
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
 ## Custom Routes
 
@@ -153,18 +154,18 @@ to a backend, if you end your filter chain with `<shunt>`. The use of
 not respond with the default http code, which defaults to 404.  To
 match your custom route with higher priority than your ingress you
 also have to add another predicate, for example the [Method("GET")
-predicate](/predicates/#method) to match the route with higher
+predicate](../../reference/predicates/#method) to match the route with higher
 priority.
 
 Custom routes specified in ingress will always add the `Host()`
-[predicate](/predicates/#host) to match the host header specified in
+[predicate](../../reference/predicates/#host) to match the host header specified in
 the ingress `rules:`. If there is a `path:` definition in your
 ingress, then it will be based on the skipper command line parameter
 `-kubernetes-path-mode` set one of theses predicates:
 
-- [Path()](https://opensource.zalando.com/skipper/predicates/#path)
-- [PathSubtree()](https://opensource.zalando.com/skipper/predicates/#pathsubtree)
-- [PathRegexp()](https://opensource.zalando.com/skipper/predicates/#pathregexp)
+- [Path()](../../reference/predicates/#path)
+- [PathSubtree()](../../reference/predicates/#pathsubtree)
+- [PathRegexp()](../../reference/predicates/#pathregexp)
 
 ### Return static content
 
@@ -172,8 +173,10 @@ The following example sets a response header `X: bar`, a response body
 `<html><body>hello</body></html>` and respond from the ingress
 directly with a HTTP status code 200:
 
-    zalando.org/skipper-routes: |
-      Path("/") -> setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
+```
+zalando.org/skipper-routes: |
+  Path("/") -> setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
+```
 
 Keep in mind that you need a valid backend definition to backends
 which are available, otherwise Skipper would not accept the entire
@@ -220,14 +223,16 @@ Host(/^app-default[.]example[.]org$/) && Method("OPTIONS") ->
 You can also set multiple routes, but you have to set the names of the
 route as defined in eskip:
 
-    zalando.org/skipper-routes: |
-      routename1: Path("/") -> localRatelimit(2, "1h") -> inlineContent("A") -> status(200) -> <shunt>;
-      routename2: Path("/foo") -> localRatelimit(5, "1h") -> inlineContent("B") -> status(200) -> <shunt>;
+```
+zalando.org/skipper-routes: |
+  routename1: Path("/") -> localRatelimit(2, "1h") -> inlineContent("A") -> status(200) -> <shunt>;
+  routename2: Path("/foo") -> localRatelimit(5, "1h") -> inlineContent("B") -> status(200) -> <shunt>;
+```
 
 Make sure the `;` semicolon is used to terminate the routes, if you
 use multiple routes definitions.
 
-# Filters - Basic HTTP manipulations
+## Filters - Basic HTTP manipulations
 
 HTTP manipulations are done by using skipper filters. Changes can be
 done in the request path, meaning request to your backend or in the
@@ -236,19 +241,19 @@ response path to the client, which made the request.
 The following examples can be used within `zalando.org/skipper-filter`
 annotation.
 
-## Add a request Header
+### Add a request Header
 
 Add a HTTP header in the request path to your backend.
 
     setRequestHeader("X-Foo", "bar")
 
-## Add a response Header
+### Add a response Header
 
 Add a HTTP header in the response path of your clients.
 
     setResponseHeader("X-Foo", "bar")
 
-## Enable gzip
+### Enable gzip
 
 Compress responses with gzip.
 
@@ -256,31 +261,31 @@ Compress responses with gzip.
     compress("text/html") // only compress HTML files
     compress(9, "text/html") // control the level of compression, 1 = fastest, 9 = best compression, 0 = no compression
 
-## Set the Path
+### Set the Path
 
 Change the path in the request path to your backend to `/newPath/`.
 
     setPath("/newPath/")
 
-## Modify Path
+### Modify Path
 
 Modify the path in the request path from `/api/foo` to your backend to `/foo`.
 
     modPath("^/api/", "/")
 
-## Set the Querystring
+### Set the Querystring
 
 Set the Querystring in the request path to your backend to `?text=godoc%20skipper`.
 
     setQuery("text", "godoc skipper")
 
-## Redirect
+### Redirect
 
 Create a redirect with HTTP code 301 to https://foo.example.org/.
 
     redirectTo(301, "https://foo.example.org/")
 
-## Cookies
+### Cookies
 
 Set a Cookie in the request path to your backend.
 
@@ -294,29 +299,30 @@ Set a Cookie in the response path of your clients.
     // response cookie without HttpOnly:
     jsCookie("test-session-info", "abc-debug", 31536000, "change-only")
 
-## Authorization
+### Authorization
 
-Our [filter auth godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
+Our [autnetication and authorization tutorial](../../tutorials/auth/)
+or [filter auth godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
 shows how to use filters for authorization.
 
-### Basic Auth
+#### Basic Auth
 
     % htpasswd -nbm myName myPassword
 
     basicAuth("/path/to/htpasswd")
     basicAuth("/path/to/htpasswd", "My Website")
 
-### Bearer Token (OAuth/JWT)
+#### Bearer Token (OAuth/JWT)
 
 OAuth2/JWT tokens can be validated and allowed based on different
 content of the token. Please check the filter documentation for that:
 
-- [oauthTokeninfoAnyScope](/skipper/reference/filters/#oauthtokeninfoanyscope)
-- [oauthTokeninfoAllScope](/skipper/reference/filters/#oauthtokeninfoallscope)
-- [oauthTokeninfoAnyKV](/skipper/reference/filters/#oauthtokeninfoanykv)
-- [oauthTokeninfoAllKV](/skipper/reference/filters/#oauthtokeninfoallkv)
+- [oauthTokeninfoAnyScope](../../reference/filters/#oauthtokeninfoanyscope)
+- [oauthTokeninfoAllScope](../../reference/filters/#oauthtokeninfoallscope)
+- [oauthTokeninfoAnyKV](../../reference/filters/#oauthtokeninfoanykv)
+- [oauthTokeninfoAllKV](../../reference/filters/#oauthtokeninfoallkv)
 
-There are also [auth predicates](/skipper/reference/predicates/#auth), which will allow
+There are also [auth predicates](../../reference/predicates/#auth), which will allow
 you to match a route based on the content of a token:
 
 - `JWTPayloadAnyKV()`
@@ -325,7 +331,7 @@ you to match a route based on the content of a token:
 These are not validating the tokens, which should be done separately
 by the filters mentioned above.
 
-## Diagnosis - Throttling Bandwidth - Latency
+### Diagnosis - Throttling Bandwidth - Latency
 
 For diagnosis purpose there are filters that enable you to throttle
 the bandwidth or add latency. For the full list of filters see our
@@ -335,86 +341,100 @@ the bandwidth or add latency. For the full list of filters see our
     backendBandwidth(30) // outgoing in kb/s
     backendLatency(120) // in ms
 
-## Flow Id to trace request flows
+Filter documentation:
+
+- [latency](../../reference/filters/#latency)
+- [bandwidth](../../reference/filters/#bandwidth)
+- [chunks](../../reference/filters/#chunks)
+- [backendlatency](../../reference/filters/#backendlatency)
+- [backendChunks](../../reference/filters/#backendChunks)
+- [randomcontent](../../reference/filters/#randomcontent)
+
+### Flow Id to trace request flows
 
 To trace request flows skipper can generate a unique Flow Id for every
 HTTP request that it receives. You can then find the trace of the
 request in all your access logs.  Skipper sets the X-Flow-Id header to
 a unique value. Read more about this in our
-[flowid filter godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
+[flowid filter](../../reference/filters/#flowid)
+and [godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
 
      flowId("reuse")
 
-# Filters - reliability features
+## Filters - reliability features
 
 Filters can modify http requests and responses. There are plenty of
 things you can do with them.
 
-## Circuitbreaker
+### Circuitbreaker
 
-### Consecutive Breaker
+#### Consecutive Breaker
 
-The [consecutiveBreaker](https://godoc.org/github.com/zalando/skipper/filters/circuit#NewConsecutiveBreaker)
+The [consecutiveBreaker](../../reference/filters/#consecutivebreaker)
 filter is a breaker for the ingress route that open if the backend failures
 for the route reach a value of N (in this example N=15), where N is a
 mandatory argument of the filter and there are some more optional arguments
-[documented](https://godoc.org/github.com/zalando/skipper/filters/circuit#NewConsecutiveBreaker):
+documented.
 
     consecutiveBreaker(15)
 
 The ingress spec would look like this:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: consecutiveBreaker(15)
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: consecutiveBreaker(15)
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
-### Rate Breaker
+#### Rate Breaker
 
-The [rateBreaker](https://godoc.org/github.com/zalando/skipper/filters/circuit#NewRateBreaker)
+The [rateBreaker](../../reference/filters/#ratebreaker)
 filter is a breaker for the ingress route that open if the backend
 failures for the route reach a value of N within a window of the last
 M requests, where N (in this example 30) and M (in this example 300)
 are mandatory arguments of the filter and there are some more optional arguments
-[documented](https://godoc.org/github.com/zalando/skipper/filters/circuit#NewRateBreaker).
+documented.
 
     rateBreaker(30, 300)
 
 The ingress spec would look like this:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: rateBreaker(30, 300)
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: rateBreaker(30, 300)
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
 
-## Ratelimits
+### Ratelimits
 
 There are two kind of ratelimits:
 
 1. Client side ratelimits are used to slow down login enumeration
 attacks, that targets your login pages. This is a security protection
-for DDOS or login attacks.
+for DDoS or login attacks.
 2. Service or backend side ratelimits are used to protect your
 services due too much traffic. This can be used in an emergency
 situation to make sure you calm down ingress traffic or in general if
@@ -424,150 +444,162 @@ side as described above.
 
 Ratelimits are enforced per route.
 
-More details you will find in [ratelimit package](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
-and [Kubernetes dataclient](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes) documentation.
+More details you will find in [ratelimit
+package](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
+and in our [ratelimit tutorial](../../tutorials/ratelimit/).
 
-### Client Ratelimits
+#### Client Ratelimits
 
 The example shows 20 calls per hour per client, based on
 X-Forwarded-For header or IP incase there is no X-Forwarded-For header
 set, are allowed to each skipper instance for the given ingress.
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: localRatelimit(20, "1h")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: localRatelimit(20, "1h")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
 If you need to rate limit service to service communication and
 you use Authorization headers to protect your backend from your
 clients, then you can pass a 3 parameter to group clients by "Authorization
 Header":
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: localRatelimit(20, "1h", "auth")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: localRatelimit(20, "1h", "auth")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
 
-### Service Ratelimits
+#### Service Ratelimits
 
 The example shows 50 calls per minute are allowed to each skipper
 instance for the given ingress.
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: ratelimit(50, "1m")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: ratelimit(50, "1m")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
-### Cluster Ratelimits
+#### Cluster Ratelimits
 
 Cluster ratelimits are eventual consistent and require the flag
 `-enable-swarm` to be set.
 
-#### Service
+##### Service
 
 The example shows 50 calls per minute are allowed to pass this ingress
 rule to the backend.
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: clusterRatelimit(50, "1m")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: clusterRatelimit(50, "1m")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
-#### Client
+##### Client
 
 The example shows 10 calls per hour are allowed per client,
 X-Forwarded-For header, to pass this ingress rule to the backend.
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: clusterRatelimit(10, "1h", "xfwd")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: clusterRatelimit(10, "1h", "xfwd")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
 ## Shadow Traffic
 
 If you want to test a new replacement of a production service with
 production load, you can copy incoming requests to your new endpoint
 and ignore the responses from your new backend. This can be done by
-the [tee() and teenf() filters](https://godoc.org/github.com/zalando/skipper/filters/tee).
+the [tee()](../../reference/filters/#tee) and [teenf()](../../reference/filters/#teenf) filters.
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: teenf("https://app-new.example.org")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: teenf("https://app-new.example.org")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
+## Predicates
 
-# Predicates
-
-[Predicates](https://godoc.org/github.com/zalando/skipper/predicates)
+[Predicates](../../reference/predicates)
 are influencing the route matching, which you might want to carefully
 test before using it in production. This enables you to do feature
 toggles or time based enabling endpoints.
 
-You can use all kinds of [predicates](https://godoc.org/github.com/zalando/skipper/predicates)
-with [filters](https://godoc.org/github.com/zalando/skipper/filters) together.
+You can use all kinds of [predicates](../../reference/predicates)
+with [filters](../../reference/filters) together.
 
-## Feature Toggle
+### Feature Toggle
 
 Feature toggles are often implemented as query string to select a new
 feature. Normally you would have to implement this in your
@@ -583,54 +615,60 @@ query string in the URL has `version=alpha` set, for example
 
 alpha-svc:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-predicate: QueryParam("version", "^alpha$")
-      name: alpha-app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: alpha-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-predicate: QueryParam("version", "^alpha$")
+  name: alpha-app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: alpha-svc
+          servicePort: 80
+```
 
 prod-svc:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      name: prod-app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: prod-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: prod-app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: prod-svc
+          servicePort: 80
+```
 
-## IP Whitelisting
+### IP Whitelisting
 
 This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.0.0/17
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-predicate: Source("1.2.3.0/24", "195.168.0.0/17")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-predicate: Source("1.2.3.0/24", "195.168.0.0/17")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
 
 ## A/B test
@@ -639,85 +677,92 @@ Implementing A/B testing is heavy. Skipper can help you to do
 that. You need to have a traffic split somewhere and have your
 customers sticky to either A or B flavor of your application. Most
 likely people would implement using cookies. Skipper can set a
-[cookie with responseCookie()](https://godoc.org/github.com/zalando/skipper/filters/cookie)
+[cookie with responseCookie()](../../reference/filters/#responsecookie)
 in a response to the client and the
-[cookie predicate](https://godoc.org/github.com/zalando/skipper/predicates/cookie)
+[cookie predicate](../../reference/predicates/#cookie)
 can be used to match the route based on the cookie. Like this you can
 have sticky sessions to either A or B for your clients.  This example
 shows to have 10% traffic using A and the rest using B.
 
 10% choice of setting the Cookie "flavor" to "A":
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-predicate: Traffic(.1)
-        zalando.org/skipper-filter: responseCookie("flavor, "A", 31536000)
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: a-app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-predicate: Traffic(.1)
+    zalando.org/skipper-filter: responseCookie("flavor, "A", 31536000)
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: a-app-svc
+          servicePort: 80
+```
 
 Rest is setting Cookie "flavor" to "B":
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-filter: responseCookie("flavor, "B", 31536000)
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: b-app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: responseCookie("flavor, "B", 31536000)
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: b-app-svc
+          servicePort: 80
+```
 
 To be sticky, you have to create 2 ingress with predicate to match
 routes with the cookie we set before. For "A" this would be:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-predicate: Cookie("flavor", /^A$/)
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: a-app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-predicate: Cookie("flavor", /^A$/)
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: a-app-svc
+          servicePort: 80
+```
 
 For "B" this would be:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-predicate: Cookie("flavor", /^B$/)
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: b-app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-predicate: Cookie("flavor", /^B$/)
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: b-app-svc
+          servicePort: 80
+```
 
-
-# Blue-Green deployments
+## Blue-Green deployments
 
 To do blue-green deployments you have to have control over traffic
 switching. Skipper gives you the opportunity to set weights to backend
@@ -731,50 +776,56 @@ case for supporting blue-green deployments.
 In the following example **my-app-1** service will get **80%** of the traffic
 and **my-app-2** will get **20%** of the traffic:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      name: my-app
-      labels:
-        application: my-app
-      annotations:
-        zalando.org/backend-weights: |
-          {"my-app-1": 80, "my-app-2": 20}
-    spec:
-      rules:
-      - host: my-app.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: my-app-1
-              servicePort: http
-            path: /
-          - backend:
-              serviceName: my-app-2
-              servicePort: http
-            path: /
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: my-app
+  labels:
+    application: my-app
+  annotations:
+    zalando.org/backend-weights: |
+      {"my-app-1": 80, "my-app-2": 20}
+spec:
+  rules:
+  - host: my-app.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: my-app-1
+          servicePort: http
+        path: /
+      - backend:
+          serviceName: my-app-2
+          servicePort: http
+        path: /
+```
 
-# Chaining Filters and Predicates
+For more advanced blue-green deployments, check out our [stackset-controller](https://github.com/zalando-incubator/stackset-controller).
+
+## Chaining Filters and Predicates
 
 You can set multiple filters in a chain similar to the [eskip format](https://godoc.org/github.com/zalando/skipper/eskip).
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-predicate: Cookie("flavor", /^B$/) && Source("1.2.3.0/24", "195.168.0.0/17")
-        zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-predicate: Cookie("flavor", /^B$/) && Source("1.2.3.0/24", "195.168.0.0/17")
+    zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
-# Controlling HTTPS redirect
+## Controlling HTTPS redirect
 
 Skipper Ingress can provide HTTP->HTTPS redirection. Enabling it and setting the status code used by default can
 be done with the command line options: -kubernetes-https-redirect and -kubernetes-https-redirect-code. By using
