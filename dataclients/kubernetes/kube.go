@@ -509,14 +509,14 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
 	} else {
 		// TODO(aryszka): check docs that service name is always good for requesting the endpoints
-		log.Infof("Found target port %v, for service %s", targetPort, svcName)
+		log.Debugf("Found target port %v, for service %s", targetPort, svcName)
 		eps, err = c.getEndpoints(
 			ns,
 			svcName,
 			svcPort.String(),
 			targetPort,
 		)
-		log.Infof("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
+		log.Debugf("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}
 	if len(eps) == 0 || err == errEndpointNotFound {
 		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
