@@ -204,7 +204,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 					apiIndex, templateIndex, regExStr, info.PathTemplate, err)
 				continue
 			}
-			info.Matcher = regEx
+			info.Matcher = &Regex{regEx}
 
 			// Add valid entry to the results
 			paths = append(paths, info)

@@ -6,13 +6,22 @@ import (
 	"regexp"
 )
 
+type Regex struct{ *regexp.Regexp }
+
+func (r *Regex) MarshalJSON() ([]byte, error) {
+	if r == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(r.String())
+}
+
 // pathInfo contains the tracking information for a specific path.
 // The exported members are marshaled as JSON.
 type pathInfo struct {
 	ApplicationId  string
 	ApiId          string
 	PathTemplate   string
-	Matcher        *regexp.Regexp
+	Matcher        *Regex
 	ClientTracking *clientTrackingInfo
 	CommonPrefix   string
 	ClientPrefix   string
@@ -36,23 +45,6 @@ func newPathInfo(applicationId, apiId, pathTemplate string, clientTracking *clie
 		CommonPrefix:            commonPrefix,
 		ClientPrefix:            commonPrefix + "*.*.",
 	}
-}
-
-// MarshalJSON transforms a pathInfo into a JSON representation.
-// It is necessary (vs the reflection based marshalling) in order
-// to marshall the RegExp matcher as a string.
-func (p *pathInfo) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		ApplicationId string
-		ApiId         string
-		PathTemplate  string
-		Matcher       string
-	}{
-		ApplicationId: p.ApplicationId,
-		ApiId:         p.ApiId,
-		PathTemplate:  p.PathTemplate,
-		Matcher:       p.Matcher.String(),
-	})
 }
 
 // pathInfoByRegExRev allows sort.Sort to reorder a slice of `pathInfo` in

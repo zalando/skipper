@@ -393,5 +393,7 @@ func Test_Filter_String(t *testing.T) {
 	f := filter.(*apiUsageMonitoringFilter)
 	s1 := fmt.Sprintf("%s", f)
 	s2 := fmt.Sprintf("%s", *f)
-	assert.Equal(t, s1, s2)
+	expected := `apiusagemonitoring.apiUsageMonitoringFilter {"Spec":{},"Paths":[{"ApplicationId":"my_app","ApiId":"my_api","PathTemplate":"foo/orders/:order-id/order-items/:order-item-id","Matcher":"^\\/*foo\\/orders\\/.+\\/order-items\\/.+\\/*$","ClientTracking":null,"CommonPrefix":"my_app.my_api.","ClientPrefix":"my_app.my_api.*.*."},{"ApplicationId":"my_app","ApiId":"my_api","PathTemplate":"foo/orders/:order-id","Matcher":"^\\/*foo\\/orders\\/.+\\/*$","ClientTracking":null,"CommonPrefix":"my_app.my_api.","ClientPrefix":"my_app.my_api.*.*."},{"ApplicationId":"my_app","ApiId":"my_api","PathTemplate":"foo/orders","Matcher":"^\\/*foo\\/orders\\/*$","ClientTracking":null,"CommonPrefix":"my_app.my_api.","ClientPrefix":"my_app.my_api.*.*."},{"ApplicationId":"my_app","ApiId":"my_api","PathTemplate":"foo/customers/:customer-id","Matcher":"^\\/*foo\\/customers\\/.+\\/*$","ClientTracking":null,"CommonPrefix":"my_app.my_api.","ClientPrefix":"my_app.my_api.*.*."},{"ApplicationId":"my_app","ApiId":"my_api","PathTemplate":"foo/customers","Matcher":"^\\/*foo\\/customers\\/*$","ClientTracking":null,"CommonPrefix":"my_app.my_api.","ClientPrefix":"my_app.my_api.*.*."}]}`
+	assert.Equal(t, expected, s1)
+	assert.Equal(t, expected, s2)
 }
