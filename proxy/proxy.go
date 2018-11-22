@@ -558,7 +558,20 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 		start := time.Now()
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
+
+			var filterSpan ot.Span
+			spanName := "filter_request_" + fi.Name
+			ingressSpan := ot.SpanFromContext(ctx.request.Context())
+			if ingressSpan == nil {
+				filterSpan = p.openTracer.StartSpan(spanName)
+			} else {
+				filterSpan = p.openTracer.StartSpan(spanName, ot.ChildOf(ingressSpan.Context()))
+			}
+			filterSpan.SetTag("skipper.filter", fi.Name)
+			filterSpan.SetTag("skipper.filter.index", fi.Index)
 			fi.Request(ctx)
+			filterSpan.Finish()
+
 			p.metrics.MeasureFilterRequest(fi.Name, start)
 		}, func(err interface{}) {
 			if p.flags.Debug() {
@@ -591,7 +604,20 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 		start := time.Now()
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
+
+			var filterSpan ot.Span
+			spanName := "filter_response_" + fi.Name
+			ingressSpan := ot.SpanFromContext(ctx.request.Context())
+			if ingressSpan == nil {
+				filterSpan = p.openTracer.StartSpan(spanName)
+			} else {
+				filterSpan = p.openTracer.StartSpan(spanName, ot.ChildOf(ingressSpan.Context()))
+			}
+			filterSpan.SetTag("skipper.filter", fi.Name)
+			filterSpan.SetTag("skipper.filter.index", fi.Index)
 			fi.Response(ctx)
+			filterSpan.Finish()
+
 			p.metrics.MeasureFilterResponse(fi.Name, start)
 		}, func(err interface{}) {
 			if p.flags.Debug() {
