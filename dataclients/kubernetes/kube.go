@@ -467,20 +467,20 @@ func (c *Client) getServiceURL(svc *service, port backendPort) (string, error) {
 }
 
 // TODO: find a nicer way to autogenerate route IDs
-func routeID(namespace, name, host, path, backend string) string {
+func routeID(namespace, name, host, path, backend string, index int) string {
 	namespace = nonWord.ReplaceAllString(namespace, "_")
 	name = nonWord.ReplaceAllString(name, "_")
 	host = nonWord.ReplaceAllString(host, "_")
 	path = nonWord.ReplaceAllString(path, "_")
 	backend = nonWord.ReplaceAllString(backend, "_")
-	return fmt.Sprintf("%s_%s__%s__%s__%s__%s", ingressRouteIDPrefix, namespace, name, host, path, backend)
+	return fmt.Sprintf("%s_%s__%s__%s__%s__%s_%d", ingressRouteIDPrefix, namespace, name, host, path, backend, index)
 }
 
 // routeIDForCustom generates a route id for a custom route of an ingress
 // resource.
-func routeIDForCustom(namespace, name, id, host string, index int) string {
+func routeIDForCustom(namespace, name, id, host string, ruleIndex, index int) string {
 	name = name + "_" + id + "_" + strconv.Itoa(index)
-	return routeID(namespace, name, host, "", "")
+	return routeID(namespace, name, host, "", "", ruleIndex)
 }
 
 func patchRouteID(rid string) string {
@@ -545,7 +545,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		}
 
 		r := &eskip.Route{
-			Id:      routeID(ns, name, "", "", ""),
+			Id:      routeID(ns, name, "", "", "", 0),
 			Backend: address,
 		}
 		routes = append(routes, r)
@@ -553,7 +553,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 		return nil, false, err
 	}
 
-	group := routeID(ns, name, "", "", "")
+	group := routeID(ns, name, "", "", "", 0)
 
 	// TODO:
 	// - don't do load balancing if there's only a single endpoint
@@ -566,7 +566,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 
 	if len(eps) == 1 {
 		r := &eskip.Route{
-			Id:      routeID(ns, name, "", "", ""),
+			Id:      routeID(ns, name, "", "", "", 0),
 			Backend: eps[0],
 		}
 		routes = append(routes, r)
@@ -575,7 +575,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 
 	for idx, ep := range eps {
 		r := &eskip.Route{
-			Id:      routeID(ns, name, "", "", strconv.Itoa(idx)),
+			Id:      routeID(ns, name, "", "", strconv.Itoa(idx), 0),
 			Backend: ep,
 			Predicates: []*eskip.Predicate{{
 				Name: loadbalancer.MemberPredicateName,
@@ -595,7 +595,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	}
 
 	decisionRoute := &eskip.Route{
-		Id:          routeID(ns, name, "", "", "") + "__lb_group",
+		Id:          routeID(ns, name, "", "", "", 0) + "__lb_group",
 		BackendType: eskip.LoopBackend,
 		Predicates: []*eskip.Predicate{{
 			Name: loadbalancer.GroupPredicateName,
@@ -659,6 +659,7 @@ func (c *Client) convertPathRule(
 	prule *pathRule,
 	pathMode PathMode,
 	endpointsURLs map[string][]string,
+	ruleIndex int,
 ) ([]*eskip.Route, error) {
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
@@ -706,7 +707,7 @@ func (c *Client) convertPathRule(
 				return nil, err2
 			}
 			r := &eskip.Route{
-				Id:      routeID(ns, name, host, prule.Path, svcName),
+				Id:      routeID(ns, name, host, prule.Path, svcName, ruleIndex),
 				Backend: address,
 			}
 
@@ -733,7 +734,7 @@ func (c *Client) convertPathRule(
 
 	if len(eps) == 1 {
 		r := &eskip.Route{
-			Id:      routeID(ns, name, host, prule.Path, svcName),
+			Id:      routeID(ns, name, host, prule.Path, svcName, ruleIndex),
 			Backend: eps[0],
 		}
 
@@ -755,10 +756,10 @@ func (c *Client) convertPathRule(
 		return routes, nil
 	}
 
-	group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName)
+	group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName, ruleIndex)
 	for idx, ep := range eps {
 		r := &eskip.Route{
-			Id:      routeID(ns, name, host, prule.Path, svcName+fmt.Sprintf("_%d", idx)),
+			Id:      routeID(ns, name, host, prule.Path, svcName+fmt.Sprintf("_%d", idx), ruleIndex),
 			Backend: ep,
 			Predicates: []*eskip.Predicate{{
 				Name: loadbalancer.MemberPredicateName,
@@ -780,7 +781,7 @@ func (c *Client) convertPathRule(
 	}
 
 	decisionRoute := &eskip.Route{
-		Id:          routeID(ns, name, host, prule.Path, svcName) + "__lb_group",
+		Id:          routeID(ns, name, host, prule.Path, svcName, ruleIndex) + "__lb_group",
 		BackendType: eskip.LoopBackend,
 		Predicates: []*eskip.Predicate{{
 			Name: loadbalancer.GroupPredicateName,
@@ -952,12 +953,12 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			// update Traffic field for each backend
 			computeBackendWeights(backendWeights, rule)
 
-			for _, prule := range rule.Http.Paths {
+			for idx, prule := range rule.Http.Paths {
 				// add extra routes from optional annotation
-				for idx, r := range extraRoutes {
+				for extraIndex, r := range extraRoutes {
 					route := *r
 					route.HostRegexps = host
-					route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host+strings.Replace(prule.Path, "/", "_", -1), idx)
+					route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host+strings.Replace(prule.Path, "/", "_", -1), idx, extraIndex)
 					setPath(pathMode, &route, prule.Path)
 					if i := countPathRoutes(&route); i <= 1 {
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
@@ -976,6 +977,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						prule,
 						pathMode,
 						endpointsURLs,
+						idx,
 					)
 					if err != nil {
 						// if the service is not found the route should be removed
@@ -1060,7 +1062,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		// defined for the host name, create a route which returns 404
 		if !catchAllRoutes(rs) {
 			catchAll := &eskip.Route{
-				Id:          routeID("", "catchall", host, "", ""),
+				Id:          routeID("", "catchall", host, "", "", 0),
 				HostRegexps: rs[0].HostRegexps,
 				BackendType: eskip.ShuntBackend,
 			}
