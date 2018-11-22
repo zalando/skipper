@@ -384,7 +384,10 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 		rr.Header.Add("Authorization", fmt.Sprintf("Basic %s", upBase64))
 	}
 
-	rr = rr.WithContext(r.Context())
+	ctxspan := ot.SpanFromContext(r.Context())
+	if ctxspan != nil {
+		rr = rr.WithContext(ot.ContextWithSpan(rr.Context(), ctxspan))
+	}
 
 	return rr, nil
 }
