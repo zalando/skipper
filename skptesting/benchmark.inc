@@ -12,7 +12,7 @@ if [ -z "$wd" ]; then wd=3; fi
 
 cwd=$GOPATH/src/github.com/zalando/skipper/skptesting
 cd $cwd
-go install github.com/zalando/skipper/...
+GO111MODULE=on go install github.com/zalando/skipper/...
 if [ $? -ne 0 ]; then exit -1; fi
 
 loremHead='<!doctype html>
@@ -96,4 +96,13 @@ bench() {
 
 log() {
 	echo $@ >&2
+}
+
+check_deps() {
+  which wrk &>/dev/null
+  if [ $? -eq 1 ]
+  then
+    echo "ERR: dependency 'wrk' https://github.com/wg/wrk not found in \$PATH"
+    exit 2
+  fi
 }
