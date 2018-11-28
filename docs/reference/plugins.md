@@ -28,9 +28,10 @@ argument, this must be explicitly loaded and the arguments passed, e.g. with
 
 ## Building a plugin
 
-Each plugin should be built with
+Each plugin should be built with Go version >= 1.11, enabled Go
+modules support similar to the following build command line:
 
-    go build -buildmode=plugin -o example.so example.go
+    GO111MODULE=on go build -buildmode=plugin -o example.so example.go
 
 There are some pitfalls:
 
@@ -50,7 +51,7 @@ All plugins must have a function named `InitFilter` with the following signature
     func([]string) (filters.Spec, error)
 
 The parameters passed are all arguments for the plugin, i.e. everything after the first
-word from skipper's `-filter-plugin` parameter. E.g. when the `-filter-plugin` 
+word from skipper's `-filter-plugin` parameter. E.g. when the `-filter-plugin`
 parameter is
 
     myfilter,datafile=/path/to/file,foo=bar
@@ -102,7 +103,7 @@ All plugins must have a function named `InitPredicate` with the following signat
     func([]string) (routing.PredicateSpec, error)
 
 The parameters passed are all arguments for the plugin, i.e. everything after the first
-word from skipper's `-predicate-plugin` parameter. E.g. when the `-predicate-plugin` 
+word from skipper's `-predicate-plugin` parameter. E.g. when the `-predicate-plugin`
 parameter is
 
     mypred,datafile=/path/to/file,foo=bar
