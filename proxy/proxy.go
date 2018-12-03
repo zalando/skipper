@@ -756,7 +756,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 		}
 
 		if cerr := req.Context().Err(); cerr != nil {
-			// deadline exceeded or canceled in stdlib, client closed request
+			// deadline exceeded or canceled in stdlib, proxy client closed request
 			// see https://github.com/zalando/skipper/issues/687#issuecomment-405557503
 			return nil, &proxyError{err: cerr, code: 499}
 		}
@@ -967,6 +967,14 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	start := time.Now()
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
+
+	if err := ctx.Request().Context().Err(); err != nil {
+		// deadline exceeded or canceled in stdlib, client closed request
+		// see https://github.com/zalando/skipper/pull/864
+		p.log.Infof("Client request: %v", err)
+		ctx.response.StatusCode = 499
+	}
+
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body)
 	if err != nil {
