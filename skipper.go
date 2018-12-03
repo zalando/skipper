@@ -197,6 +197,15 @@ type Options struct {
 	// proxy http connections to the backend.
 	TimeoutBackend time.Duration
 
+	// ResponseHeaderTimeout sets the HTTP response timeout for
+	// proxy http connections to the backend.
+	ResponseHeaderTimeoutBackend time.Duration
+
+	// ExpectContinueTimeoutBackend sets the HTTP timeout to expect a
+	// response for status Code 100 for proxy http connections to
+	// the backend.
+	ExpectContinueTimeoutBackend time.Duration
+
 	// KeepAliveBackend sets the TCP keepalive for proxy http
 	// connections to the backend.
 	KeepAliveBackend time.Duration
@@ -792,6 +801,8 @@ func Run(o Options) error {
 		DefaultHTTPStatus:        o.DefaultHTTPStatus,
 		LoadBalancer:             lbInstance,
 		Timeout:                  o.TimeoutBackend,
+		ResponseHeaderTimeout:    o.ResponseHeaderTimeoutBackend,
+		ExpectContinueTimeout:    o.ExpectContinueTimeoutBackend,
 		KeepAlive:                o.KeepAliveBackend,
 		DualStack:                o.DualStackBackend,
 		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
