@@ -53,7 +53,7 @@ entered the directory.
 Build skipper:
 
 ```
-make skipper
+% make skipper
 ```
 
 Install filter plugins:
