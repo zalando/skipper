@@ -62,7 +62,7 @@ Skipper is 'go get' compatible. If needed, create a Go workspace first:
 
 Get the Skipper packages:
 
-    go get github.com/zalando/skipper/...
+    GO111MODULE=on go get github.com/zalando/skipper/...
 
 
 #### Running
@@ -114,7 +114,7 @@ logging. See the documentation at:
 
 Working with the code requires Go1.11 or a higher version. Getting the code with the test dependencies (`-t` switch):
 
-    go get -t github.com/zalando/skipper/...
+    GO111MODULE=on go get -t github.com/zalando/skipper/...
 
 Build and test all packages:
 
