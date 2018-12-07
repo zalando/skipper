@@ -28,9 +28,10 @@ argument, this must be explicitly loaded and the arguments passed, e.g. with
 
 ## Building a plugin
 
-Each plugin should be built with
+Each plugin should be built with Go version >= 1.11, enabled Go
+modules support similar to the following build command line:
 
-    go build -buildmode=plugin -o example.so example.go
+    GO111MODULE=on go build -buildmode=plugin -o example.so example.go
 
 There are some pitfalls:
 
@@ -43,6 +44,84 @@ There are some pitfalls:
 * do not attempt to rebuild a module and copy it over a loaded plugin, that
   will crash skipper immediately...
 
+## Use a plugin
+
+In this example we use a geoip database, that you need to find and download.
+We expect that you did a `git clone git@github.com:zalando/skipper.git` and
+entered the directory.
+
+Build skipper:
+
+```
+% make skipper
+```
+
+Install filter plugins:
+
+```
+% mkdir plugins
+% git clone git@github.com:skipper-plugins/filters.git plugins/filters
+% ls plugins/filters
+geoip/  glide.lock  glide.yaml  ldapauth/  Makefile  noop/  plugin_test.go
+% cd plugins/filters/geoip
+% GO111MODULE=on go build -buildmode=plugin -o geoip.so geoip.go
+% cd -
+~/go/src/github.com/zalando/skipper
+```
+
+Start a pseudo backend that shows all headers in plain:
+
+```
+% nc -l 9000
+
+```
+
+Run the proxy with geoip database:
+
+```
+% ./bin/skipper -filter-plugin geoip,db=$HOME/Downloads/GeoLite2-City_20181127/GeoLite2-City.mmdb -inline-routes '* -> geoip() -> "http://127.0.0.1:9000"'
+[APP]INFO[0000] found plugin geoip at plugins/filters/geoip/geoip.so
+[APP]INFO[0000] loaded plugin geoip (geoip) from plugins/filters/geoip/geoip.so
+[APP]INFO[0000] attempting to load plugin from plugins/filters/geoip/geoip.so
+[APP]INFO[0000] plugin geoip already loaded with InitFilter
+[APP]INFO[0000] Expose metrics in codahale format
+[APP]INFO[0000] support listener on :9911
+[APP]INFO[0000] proxy listener on :9090
+[APP]INFO[0000] route settings, reset, route: : * -> geoip() -> "http://127.0.0.1:9000"
+[APP]INFO[0000] certPathTLS or keyPathTLS not found, defaulting to HTTP
+[APP]INFO[0000] route settings received
+[APP]INFO[0000] route settings applied
+```
+
+Use a client to lookup geoip:
+
+```
+% curl -H"X-Forwarded-For: 107.12.53.5" localhost:9090/
+^C
+```
+
+
+pseudo backend should show X-Geoip-Country header:
+
+```
+# nc -l 9000
+GET / HTTP/1.1
+Host: 127.0.0.1:9000
+User-Agent: curl/7.49.0
+Accept: */*
+X-Forwarded-For: 107.12.53.5
+X-Geoip-Country: US
+Accept-Encoding: gzip
+^C
+```
+
+skipper should show additional log lines, because of the CTRL-C:
+
+```
+[APP]ERRO[0082] error while proxying, route  with backend http://127.0.0.1:9000, status code 500: dialing failed false: EOF
+107.12.53.5 - - [28/Nov/2018:14:39:40 +0100] "GET / HTTP/1.1" 500 22 "-" "curl/7.49.0" 2753 localhost:9090 - -
+```
+
 ## Filter plugins
 
 All plugins must have a function named `InitFilter` with the following signature
@@ -50,7 +129,7 @@ All plugins must have a function named `InitFilter` with the following signature
     func([]string) (filters.Spec, error)
 
 The parameters passed are all arguments for the plugin, i.e. everything after the first
-word from skipper's `-filter-plugin` parameter. E.g. when the `-filter-plugin` 
+word from skipper's `-filter-plugin` parameter. E.g. when the `-filter-plugin`
 parameter is
 
     myfilter,datafile=/path/to/file,foo=bar
@@ -102,7 +181,7 @@ All plugins must have a function named `InitPredicate` with the following signat
     func([]string) (routing.PredicateSpec, error)
 
 The parameters passed are all arguments for the plugin, i.e. everything after the first
-word from skipper's `-predicate-plugin` parameter. E.g. when the `-predicate-plugin` 
+word from skipper's `-predicate-plugin` parameter. E.g. when the `-predicate-plugin`
 parameter is
 
     mypred,datafile=/path/to/file,foo=bar

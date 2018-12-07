@@ -1,6 +1,8 @@
 package kubernetes
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 	svc := testServiceWithTargetPort(
@@ -72,50 +74,50 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 	const expectedRoutes = `
 
 		// default backend, target 1:
-		kube_namespace1__ingress1______0:
-		  LBMember("kube_namespace1__ingress1______", 0)
+		kube_namespace1__ingress1______0_0:
+		  LBMember("kube_namespace1__ingress1_______0", 0)
 		  -> dropRequestHeader("X-Load-Balancer-Member")
 		  -> "http://42.0.1.0:8080";
 
 		// default backend, target 2:
-		kube_namespace1__ingress1______1:
-		  LBMember("kube_namespace1__ingress1______", 1)
+		kube_namespace1__ingress1______1_0:
+		  LBMember("kube_namespace1__ingress1_______0", 1)
 		  -> dropRequestHeader("X-Load-Balancer-Member")
 		  -> "http://42.1.0.1:8080";
 
 		// default group:
-		kube_namespace1__ingress1________lb_group:
-		  LBGroup("kube_namespace1__ingress1______")
-		  -> lbDecide("kube_namespace1__ingress1______", 2) ->
+		kube_namespace1__ingress1_______0__lb_group:
+		  LBGroup("kube_namespace1__ingress1_______0")
+		  -> lbDecide("kube_namespace1__ingress1_______0", 2) ->
 		  <loopback>;
 
 		// path rule, target 1:
-		kube_namespace1__ingress1__test_example_org___test1__service1_0:
+		kube_namespace1__ingress1__test_example_org___test1__service1_0_0:
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
-		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1", 0)
+		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1_0", 0)
 		  -> dropRequestHeader("X-Load-Balancer-Member")
 		  -> setPath("/foo")
 		  -> "http://42.0.1.0:8080";
 
 		// path rule, target 2:
-		kube_namespace1__ingress1__test_example_org___test1__service1_1:
+		kube_namespace1__ingress1__test_example_org___test1__service1_1_0:
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
-		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1", 1)
+		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1_0", 1)
 		  -> dropRequestHeader("X-Load-Balancer-Member")
 		  -> setPath("/foo")
 		  -> "http://42.1.0.1:8080";
 
 		// path rule group:
-		kube_namespace1__ingress1__test_example_org___test1__service1__lb_group:
+		kube_namespace1__ingress1__test_example_org___test1__service1_0__lb_group:
 		  Host(/^test[.]example[.]org$/) && PathRegexp(/^\/test1/)
-		  && LBGroup("kube_namespace1__ingress1__test_example_org___test1__service1")
-		  -> lbDecide("kube_namespace1__ingress1__test_example_org___test1__service1", 2)
+		  && LBGroup("kube_namespace1__ingress1__test_example_org___test1__service1_0")
+		  -> lbDecide("kube_namespace1__ingress1__test_example_org___test1__service1_0", 2)
 		  -> <loopback>;
 
 		// catch all:
-		kube___catchall__test_example_org____:
+		kube___catchall__test_example_org_____0:
 		  Host(/^test[.]example[.]org$/)
 		  -> <shunt>;
 	`

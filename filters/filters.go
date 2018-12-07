@@ -93,6 +93,11 @@ type Metrics interface {
 
 	// IncCounterBy increments a custom counter identified by its key by a certain value.
 	IncCounterBy(key string, value int64)
+
+	// IncFloatCounterBy increments a custom counter identified by its key by a certain
+	// float (decimal) value. IMPORTANT: Not all Metrics implementation support float
+	// counters. In that case, a call to IncFloatCounterBy is dropped.
+	IncFloatCounterBy(key string, value float64)
 }
 
 // Filters are created by the Spec components, optionally using filter

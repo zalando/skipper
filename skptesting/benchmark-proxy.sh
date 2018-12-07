@@ -7,6 +7,8 @@ fi
 
 source $GOPATH/src/github.com/zalando/skipper/skptesting/benchmark.inc
 
+check_deps
+
 trap cleanup-exit SIGINT
 
 log [generating content]

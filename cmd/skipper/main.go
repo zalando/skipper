@@ -51,14 +51,16 @@ const (
 	defaultApplicationLogLevel  = "INFO"
 
 	// connections, timeouts:
-	defaultReadTimeoutServer          = 5 * time.Minute
-	defaultReadHeaderTimeoutServer    = 60 * time.Second
-	defaultWriteTimeoutServer         = 60 * time.Second
-	defaultIdleTimeoutServer          = 60 * time.Second
-	defaultTimeoutBackend             = 60 * time.Second
-	defaultKeepaliveBackend           = 30 * time.Second
-	defaultTLSHandshakeTimeoutBackend = 60 * time.Second
-	defaultMaxIdleConnsBackend        = 0
+	defaultReadTimeoutServer            = 5 * time.Minute
+	defaultReadHeaderTimeoutServer      = 60 * time.Second
+	defaultWriteTimeoutServer           = 60 * time.Second
+	defaultIdleTimeoutServer            = 60 * time.Second
+	defaultTimeoutBackend               = 60 * time.Second
+	defaultKeepaliveBackend             = 30 * time.Second
+	defaultTLSHandshakeTimeoutBackend   = 60 * time.Second
+	defaultResponseHeaderTimeoutBackend = 60 * time.Second
+	defaultExpectContinueTimeoutBackend = 30 * time.Second
+	defaultMaxIdleConnsBackend          = 0
 
 	// Auth:
 	defaultOAuthTokeninfoTimeout          = 2 * time.Second
@@ -66,7 +68,10 @@ const (
 	defaultWebhookTimeout                 = 2 * time.Second
 
 	// API Monitoring
-	defaultApiUsageMonitoringEnable = false
+	defaultApiUsageMonitoringEnable                       = false
+	defaultApiUsageMonitoringRealmKeys                    = ""
+	defaultApiUsageMonitoringClientKeys                   = "sub"
+	defaultApiUsageMonitoringDefaultClientTrackingPattern = ""
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -153,25 +158,30 @@ const (
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 
 	// API Monitoring:
-	apiUsageMonitoringEnableUsage = "enables the experimental filter apiUsageMonitoring"
+	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
+	apiUsageMonitoringRealmKeysUsage                    = "name of the property in the JWT payload that contains the authority realm"
+	apiUsageMonitoringClientKeysUsage                   = "comma separated list of names of the properties in the JWT body that contains the client ID"
+	apiUsageMonitoringDefaultClientTrackingPatternUsage = "regular expression to default to when API usage monitoring filter configuration does not provide `client_tracking_pattern`"
 
 	// connections, timeouts:
-	idleConnsPerHostUsage           = "maximum idle connections per backend host"
-	closeIdleConnsPeriodUsage       = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
-	backendFlushIntervalUsage       = "flush interval for upgraded proxy connections"
-	experimentalUpgradeUsage        = "enable experimental feature to handle upgrade protocol requests"
-	experimentalUpgradeAuditUsage   = "enable audit logging of the request line and the messages during the experimental web socket upgrades"
-	readTimeoutServerUsage          = "set ReadTimeout for http server connections"
-	readHeaderTimeoutServerUsage    = "set ReadHeaderTimeout for http server connections"
-	writeTimeoutServerUsage         = "set WriteTimeout for http server connections"
-	idleTimeoutServerUsage          = "set IdleTimeout for http server connections"
-	maxHeaderBytesUsage             = "set MaxHeaderBytes for http server connections"
-	enableConnMetricsServerUsage    = "enables connection metrics for http server connections"
-	timeoutBackendUsage             = "sets the TCP client connection timeout for backend connections"
-	keepaliveBackendUsage           = "sets the keepalive for backend connections"
-	enableDualstackBackendUsage     = "enables DualStack for backend connections"
-	tlsHandshakeTimeoutBackendUsage = "sets the TLS handshake timeout for backend connections"
-	maxIdleConnsBackendUsage        = "sets the maximum idle connections for all backend connections"
+	idleConnsPerHostUsage             = "maximum idle connections per backend host"
+	closeIdleConnsPeriodUsage         = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
+	backendFlushIntervalUsage         = "flush interval for upgraded proxy connections"
+	experimentalUpgradeUsage          = "enable experimental feature to handle upgrade protocol requests"
+	experimentalUpgradeAuditUsage     = "enable audit logging of the request line and the messages during the experimental web socket upgrades"
+	readTimeoutServerUsage            = "set ReadTimeout for http server connections"
+	readHeaderTimeoutServerUsage      = "set ReadHeaderTimeout for http server connections"
+	writeTimeoutServerUsage           = "set WriteTimeout for http server connections"
+	idleTimeoutServerUsage            = "set IdleTimeout for http server connections"
+	maxHeaderBytesUsage               = "set MaxHeaderBytes for http server connections"
+	enableConnMetricsServerUsage      = "enables connection metrics for http server connections"
+	timeoutBackendUsage               = "sets the TCP client connection timeout for backend connections"
+	keepaliveBackendUsage             = "sets the keepalive for backend connections"
+	enableDualstackBackendUsage       = "enables DualStack for backend connections"
+	tlsHandshakeTimeoutBackendUsage   = "sets the TLS handshake timeout for backend connections"
+	responseHeaderTimeoutBackendUsage = "sets the HTTP response header timeout for backend connections"
+	expectContinueTimeoutBackendUsage = "sets the HTTP expect continue timeout for backend connections"
+	maxIdleConnsBackendUsage          = "sets the maximum idle connections for all backend connections"
 
 	// swarm:
 	enableSwarmUsage                       = "enable swarm communication between nodes in a skipper fleet"
@@ -281,25 +291,30 @@ var (
 	oidcSecretsFile                 string
 
 	// API Monitoring
-	apiUsageMonitoringEnable bool
+	apiUsageMonitoringEnable                       bool
+	apiUsageMonitoringRealmKeys                    string
+	apiUsageMonitoringClientKeys                   string
+	apiUsageMonitoringDefaultClientTrackingPattern string
 
 	// connections, timeouts:
-	idleConnsPerHost           int
-	closeIdleConnsPeriod       string
-	backendFlushInterval       time.Duration
-	experimentalUpgrade        bool
-	experimentalUpgradeAudit   bool
-	readTimeoutServer          time.Duration
-	readHeaderTimeoutServer    time.Duration
-	writeTimeoutServer         time.Duration
-	idleTimeoutServer          time.Duration
-	maxHeaderBytes             int
-	enableConnMetricsServer    bool
-	timeoutBackend             time.Duration
-	keepaliveBackend           time.Duration
-	enableDualstackBackend     bool
-	tlsHandshakeTimeoutBackend time.Duration
-	maxIdleConnsBackend        int
+	idleConnsPerHost             int
+	closeIdleConnsPeriod         string
+	backendFlushInterval         time.Duration
+	experimentalUpgrade          bool
+	experimentalUpgradeAudit     bool
+	readTimeoutServer            time.Duration
+	readHeaderTimeoutServer      time.Duration
+	writeTimeoutServer           time.Duration
+	idleTimeoutServer            time.Duration
+	maxHeaderBytes               int
+	enableConnMetricsServer      bool
+	timeoutBackend               time.Duration
+	keepaliveBackend             time.Duration
+	enableDualstackBackend       bool
+	tlsHandshakeTimeoutBackend   time.Duration
+	responseHeaderTimeoutBackend time.Duration
+	expectContinueTimeoutBackend time.Duration
+	maxIdleConnsBackend          int
 
 	// swarm:
 	enableSwarm                       bool
@@ -408,6 +423,9 @@ func init() {
 
 	// API Monitoring:
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
+	flag.StringVar(&apiUsageMonitoringRealmKeys, "api-usage-monitoring-realm-keys", defaultApiUsageMonitoringRealmKeys, apiUsageMonitoringRealmKeysUsage)
+	flag.StringVar(&apiUsageMonitoringClientKeys, "api-usage-monitoring-client-keys", defaultApiUsageMonitoringClientKeys, apiUsageMonitoringClientKeysUsage)
+	flag.StringVar(&apiUsageMonitoringDefaultClientTrackingPattern, "api-usage-monitoring-default-client-tracking-pattern", defaultApiUsageMonitoringDefaultClientTrackingPattern, apiUsageMonitoringDefaultClientTrackingPatternUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -425,6 +443,8 @@ func init() {
 	flag.DurationVar(&keepaliveBackend, "keepalive-backend", defaultKeepaliveBackend, keepaliveBackendUsage)
 	flag.BoolVar(&enableDualstackBackend, "enable-dualstack-backend", true, enableDualstackBackendUsage)
 	flag.DurationVar(&tlsHandshakeTimeoutBackend, "tls-timeout-backend", defaultTLSHandshakeTimeoutBackend, tlsHandshakeTimeoutBackendUsage)
+	flag.DurationVar(&responseHeaderTimeoutBackend, "response-header-timeout-backend", defaultResponseHeaderTimeoutBackend, responseHeaderTimeoutBackendUsage)
+	flag.DurationVar(&expectContinueTimeoutBackend, "expect-continue-timeout-backend", defaultExpectContinueTimeoutBackend, expectContinueTimeoutBackendUsage)
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
 	flag.BoolVar(&enableSwarm, "enable-swarm", false, enableSwarmUsage)
 	flag.StringVar(&swarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, swarmKubernetesNamespaceUsage)
@@ -597,7 +617,10 @@ func main() {
 		KubernetesEnableEastWest:    kubernetesEnableEastWest,
 
 		// API Monitoring:
-		ApiUsageMonitoringEnable: apiUsageMonitoringEnable,
+		ApiUsageMonitoringEnable:                       apiUsageMonitoringEnable,
+		ApiUsageMonitoringRealmKey:                     apiUsageMonitoringRealmKeys,
+		ApiUsageMonitoringClientIdKeyName:              apiUsageMonitoringClientKeys,
+		ApiUsageMonitoringDefaultClientTrackingPattern: apiUsageMonitoringDefaultClientTrackingPattern,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,
@@ -610,22 +633,24 @@ func main() {
 		OIDCSecretsFile:                oidcSecretsFile,
 
 		// connections, timeouts:
-		IdleConnectionsPerHost:     idleConnsPerHost,
-		CloseIdleConnsPeriod:       time.Duration(clsic) * time.Second,
-		BackendFlushInterval:       backendFlushInterval,
-		ExperimentalUpgrade:        experimentalUpgrade,
-		ExperimentalUpgradeAudit:   experimentalUpgradeAudit,
-		ReadTimeoutServer:          readTimeoutServer,
-		ReadHeaderTimeoutServer:    readHeaderTimeoutServer,
-		WriteTimeoutServer:         writeTimeoutServer,
-		IdleTimeoutServer:          idleTimeoutServer,
-		MaxHeaderBytes:             maxHeaderBytes,
-		EnableConnMetricsServer:    enableConnMetricsServer,
-		TimeoutBackend:             timeoutBackend,
-		KeepAliveBackend:           keepaliveBackend,
-		DualStackBackend:           enableDualstackBackend,
-		TLSHandshakeTimeoutBackend: tlsHandshakeTimeoutBackend,
-		MaxIdleConnsBackend:        maxIdleConnsBackend,
+		IdleConnectionsPerHost:       idleConnsPerHost,
+		CloseIdleConnsPeriod:         time.Duration(clsic) * time.Second,
+		BackendFlushInterval:         backendFlushInterval,
+		ExperimentalUpgrade:          experimentalUpgrade,
+		ExperimentalUpgradeAudit:     experimentalUpgradeAudit,
+		ReadTimeoutServer:            readTimeoutServer,
+		ReadHeaderTimeoutServer:      readHeaderTimeoutServer,
+		WriteTimeoutServer:           writeTimeoutServer,
+		IdleTimeoutServer:            idleTimeoutServer,
+		MaxHeaderBytes:               maxHeaderBytes,
+		EnableConnMetricsServer:      enableConnMetricsServer,
+		TimeoutBackend:               timeoutBackend,
+		KeepAliveBackend:             keepaliveBackend,
+		DualStackBackend:             enableDualstackBackend,
+		TLSHandshakeTimeoutBackend:   tlsHandshakeTimeoutBackend,
+		ResponseHeaderTimeoutBackend: responseHeaderTimeoutBackend,
+		ExpectContinueTimeoutBackend: expectContinueTimeoutBackend,
+		MaxIdleConnsBackend:          maxIdleConnsBackend,
 
 		// swarm:
 		EnableSwarm:                       enableSwarm,

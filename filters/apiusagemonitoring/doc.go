@@ -5,10 +5,10 @@ Package apiusagemonitoring provides filters gathering metrics around API calls
 
 Feature switch & Dependencies
 
-This feature is considered experimental and should only be activated explicitly. To
-enable it, the flag `-enable-api-usage-monitoring` must be set when Skipper is launched. Also,
-it does not make sense if none of the metrics implementation is enabled. To use this
-filter, start skipper enabling at least one metrics flavour. Per instance:
+This feature is by default not enabled. To enable it, the flag `-enable-api-usage-monitoring`
+must be set when Skipper is launched. Also, it does not make sense if none of the metrics
+implementation is enabled. To use this filter, start skipper enabling at least one metrics
+flavour. Per instance:
 
 	skipper -enable-api-usage-monitoring -metrics-flavour prometheus
 
@@ -33,8 +33,11 @@ Command line example for executing locally:
 
 	make skipper && ./bin/skipper \
 		-routes-file "$HOME/temp/test.eskip" \
+		-enable-api-usage-monitoring \
+		-api-usage-monitoring-realm-keys="https://identity.zalando.com/realm" \
+		-api-usage-monitoring-client-keys="https://identity.zalando.com/managed-id" \
+		-api-usage-monitoring-default-client-tracking-pattern="services\\..*" \
 		-metrics-flavour prometheus \
-		-enable-prometheus-metrics \
 		-histogram-metric-buckets=".01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600" \
 		-application-log-level=DEBUG
 
