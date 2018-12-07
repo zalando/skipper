@@ -11,13 +11,13 @@ type testingSecretSource struct {
 	secretKey string
 }
 
-func (s *testingSecretSource) GetSecret() ([][]byte, error) {
+func (s *testingSecretSource) getSecret() ([][]byte, error) {
 	s.getCount++
 	return [][]byte{[]byte(s.secretKey)}, nil
 }
 
 func TestEncryptDecrypt(t *testing.T) {
-	enc := &Encrypter{
+	enc := &encrypter{
 		sSource: &testingSecretSource{secretKey: "abc"},
 	}
 	enc.refreshCiphers()
@@ -38,7 +38,7 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 func TestCipherRefreshing(t *testing.T) {
 	sSource := &testingSecretSource{secretKey: "abc"}
-	enc := &Encrypter{
+	enc := &encrypter{
 		sSource: sSource,
 		closer:  make(chan int),
 	}

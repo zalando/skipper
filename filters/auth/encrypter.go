@@ -14,16 +14,16 @@ import (
 	"time"
 )
 
-//SecretSource operates on the secret for OpenID
-type SecretSource interface {
-	GetSecret() ([][]byte, error)
+//secretSource operates on the secret for OpenID
+type secretSource interface {
+	getSecret() ([][]byte, error)
 }
 
 type fileSecretSource struct {
 	fileName string
 }
 
-func (fss *fileSecretSource) GetSecret() ([][]byte, error) {
+func (fss *fileSecretSource) getSecret() ([][]byte, error) {
 	contents, err := ioutil.ReadFile(fss.fileName)
 	if err != nil {
 		return nil, err
@@ -43,31 +43,30 @@ func (fss *fileSecretSource) GetSecret() ([][]byte, error) {
 	return byteSecrets, nil
 }
 
-func NewFileSecretSource(file string) SecretSource {
+func newFileSecretSource(file string) secretSource {
 	return &fileSecretSource{fileName: file}
 }
 
-// Encrypter can encrypt data based on keys provide from a secret source.
-type Encrypter struct {
+type encrypter struct {
 	cipherSuites []cipher.AEAD
 	mux          sync.RWMutex
-	sSource      SecretSource
+	sSource      secretSource
 	closer       chan int
 }
 
-func NewEncrypter(secretsFile string) (*Encrypter, error) {
-	secretSource := NewFileSecretSource(secretsFile)
-	_, err := secretSource.GetSecret()
+func newEncrypter(secretsFile string) (*encrypter, error) {
+	secretSource := newFileSecretSource(secretsFile)
+	_, err := secretSource.getSecret()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read secrets from secret source: %v", err)
 	}
-	return &Encrypter{
+	return &encrypter{
 		sSource: secretSource,
 		closer:  make(chan int),
 	}, nil
 }
 
-func (c *Encrypter) createNonce() ([]byte, error) {
+func (c *encrypter) createNonce() ([]byte, error) {
 	if len(c.cipherSuites) > 0 {
 		nonce := make([]byte, c.cipherSuites[0].NonceSize())
 		if _, err := io.ReadFull(crand.Reader, nonce); err != nil {
@@ -79,21 +78,21 @@ func (c *Encrypter) createNonce() ([]byte, error) {
 }
 
 // encryptDataBlock encrypts given plaintext
-func (c *Encrypter) encryptDataBlock(plaintext []byte) ([]byte, error) {
+func (c *encrypter) encryptDataBlock(plaintext []byte) ([]byte, error) {
+	c.mux.RLock()
+	defer c.mux.RUnlock()
 	if len(c.cipherSuites) > 0 {
 		nonce, err := c.createNonce()
 		if err != nil {
 			return nil, err
 		}
-		c.mux.RLock()
-		defer c.mux.RUnlock()
 		return c.cipherSuites[0].Seal(nonce, nonce, plaintext, nil), nil
 	}
 	return nil, fmt.Errorf("no ciphers which can be used")
 }
 
 // decryptDataBlock decrypts given cipher text
-func (c *Encrypter) decryptDataBlock(cipherText []byte) ([]byte, error) {
+func (c *encrypter) decryptDataBlock(cipherText []byte) ([]byte, error) {
 	c.mux.RLock()
 	defer c.mux.RUnlock()
 	for _, c := range c.cipherSuites {
@@ -110,8 +109,8 @@ func (c *Encrypter) decryptDataBlock(cipherText []byte) ([]byte, error) {
 	return nil, fmt.Errorf("none of the ciphers can decrypt the data")
 }
 
-func (c *Encrypter) refreshCiphers() error {
-	secrets, err := c.sSource.GetSecret()
+func (c *encrypter) refreshCiphers() error {
+	secrets, err := c.sSource.getSecret()
 	if err != nil {
 		return err
 	}
@@ -139,7 +138,7 @@ func (c *Encrypter) refreshCiphers() error {
 	return nil
 }
 
-func (c *Encrypter) runCipherRefresher(refreshInterval time.Duration) error {
+func (c *encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 	err := c.refreshCiphers()
 	if err != nil {
 		return err
@@ -163,7 +162,6 @@ func (c *Encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 	return nil
 }
 
-func (c *Encrypter) close() {
-	c.closer <- 1
+func (c *encrypter) close() {
 	close(c.closer)
 }

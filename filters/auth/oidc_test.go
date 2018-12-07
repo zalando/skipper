@@ -3,17 +3,13 @@ package auth
 import (
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"testing"
 	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
-	"github.com/zalando/skipper/filters"
 )
 
 const (
@@ -28,7 +24,7 @@ func makeTestingFilter(claims []string) (*tokenOidcFilter, error) {
 			ClientID: "test",
 			Endpoint: google.Endpoint,
 		},
-		encrypter: &Encrypter{
+		encrypter: &encrypter{
 			sSource: &testingSecretSource{secretKey: "key"},
 			closer:  make(chan int),
 		},
@@ -121,68 +117,3 @@ func TestOidcValidateAnyClaims(t *testing.T) {
 		"claims are valid but filter returned false.")
 }
 
-type TestContext struct {
-	requestUrl *url.URL
-}
-
-func (t *TestContext) ResponseWriter() http.ResponseWriter {
-	panic("not implemented")
-}
-
-func (t *TestContext) Request() *http.Request {
-	return &http.Request{
-		URL: t.requestUrl,
-	}
-}
-
-func (t *TestContext) Response() *http.Response {
-	panic("not implemented")
-}
-
-func (t *TestContext) OriginalRequest() *http.Request {
-	panic("not implemented")
-}
-
-func (t *TestContext) OriginalResponse() *http.Response {
-	panic("not implemented")
-}
-
-func (t *TestContext) Served() bool {
-	panic("not implemented")
-}
-
-func (t *TestContext) MarkServed() {
-	panic("not implemented")
-}
-
-func (t *TestContext) Serve(*http.Response) {
-	panic("not implemented")
-}
-
-func (t *TestContext) PathParam(string) string {
-	panic("not implemented")
-}
-
-func (t *TestContext) StateBag() map[string]interface{} {
-	return map[string]interface{}{}
-}
-
-func (t *TestContext) BackendUrl() string {
-	panic("not implemented")
-}
-
-func (t *TestContext) OutgoingHost() string {
-	panic("not implemented")
-}
-
-func (t *TestContext) SetOutgoingHost(string) {
-	panic("not implemented")
-}
-
-func (t *TestContext) Metrics() filters.Metrics {
-	panic("not implemented")
-}
-
-func (t *TestContext) Tracer() opentracing.Tracer {
-	panic("not implemented")
-}

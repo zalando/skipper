@@ -45,7 +45,8 @@ type (
 		refreshInterval time.Duration
 		closer          chan int
 		redirectPath    string
-		encrypter       *Encrypter
+		encrypter       *encrypter
+		authCodeOptions []oauth2.AuthCodeOption
 	}
 
 	userInfoContainer struct {
@@ -91,7 +92,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if err != nil {
 		return nil, err
 	}
-	if len(sargs) < 4 {
+	if len(sargs) <= 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -121,7 +122,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if err != nil {
 		return nil, fmt.Errorf("the redirect url %s is not valid: %v", sargs[3], err)
 	}
-	encrypter, err := NewEncrypter(s.SecretsFile)
+	encrypter, err := newEncrypter(s.SecretsFile)
 
 	if err != nil {
 		return nil, err
@@ -134,6 +135,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 			ClientSecret: sargs[2],
 			RedirectURL:  sargs[3], // self endpoint
 			Endpoint:     provider.Endpoint(),
+			Scopes:       []string{oidc.ScopeOpenID},
 		},
 		provider: provider,
 		verifier: provider.Verifier(&oidc.Config{
@@ -143,29 +145,38 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		cookiename: generatedCookieName,
 		encrypter:  encrypter,
 	}
+
+	// Start the self-refreshing cipher function
 	err = f.encrypter.runCipherRefresher(1 * time.Minute)
 	if err != nil {
 		return nil, err
 	}
-	f.config.Scopes = []string{oidc.ScopeOpenID}
 
 	switch f.typ {
 	case checkOIDCUserInfo:
-		if len(sargs) > 4 { // google IAM needs a scope to be sent
-			f.config.Scopes = append(f.config.Scopes, sargs[4:]...)
-		} else {
-			log.Debug("fewer than 4 arguments")
-			// Scope check is required for auth code flow
-			return nil, filters.ErrInvalidFilterParameters
-
-		}
+		f.config.Scopes = append(f.config.Scopes, sargs[4:]...)
 	case checkOIDCAnyClaims:
 		fallthrough
 	case checkOIDCAllClaims:
 		additionScopes := sargs[4]
 		f.config.Scopes = append(f.config.Scopes, additionScopes)
-		f.claims = sargs[5:]
+		f.claims = strings.Split(sargs[5], " ")
 	}
+
+	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
+	if len(sargs) > 6 {
+		extraParameters := strings.Split(sargs[6], " ")
+
+		for _, p := range extraParameters {
+			splitP := strings.Split(p, "=")
+			log.Debug(splitP)
+			if len(splitP) != 2 {
+				return nil, filters.ErrInvalidFilterParameters
+			}
+			f.authCodeOptions = append(f.authCodeOptions, oauth2.SetAuthURLParam(splitP[0], splitP[1]))
+		}
+	}
+	log.Debugf("Auth Code Options: %v", f.authCodeOptions)
 	return f, nil
 }
 
@@ -296,9 +307,10 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 		return
 	}
 
+	oauth2URL := f.config.AuthCodeURL(fmt.Sprintf("%x", stateEnc), f.authCodeOptions...)
 	rsp := &http.Response{
 		Header: http.Header{
-			"Location": []string{f.config.AuthCodeURL(fmt.Sprintf("%x", stateEnc))},
+			"Location": []string{oauth2URL},
 		},
 		StatusCode: http.StatusTemporaryRedirect,
 		Status:     "Moved Temporarily",
@@ -310,6 +322,7 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 func (f *tokenOidcFilter) Response(filters.FilterContext) {}
 
 func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
+	log.Debugf("Doing Downstream Redirect to :%s", redirectUrl)
 	r := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: map[string][]string{
@@ -381,6 +394,8 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 			case checkOIDCAllClaims:
 				tokenMap, sub, err := f.tokenClaims(ctx, oauth2Token)
 				if err != nil {
+					log.Debugf("Failed to get claims: %v", err)
+					unauthorized(ctx, fmt.Sprintf("received token does not contain the claims %s", f.claims), invalidToken, r.Host)
 					return
 				}
 				resp := claimsContainer{OAuth2Token: oauth2Token, Claims: tokenMap, Subject: sub}
@@ -390,13 +405,11 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 					return
 				}
 			}
-
 			encryptedData, err := f.encrypter.encryptDataBlock(data)
 			if err != nil {
 				unauthorized(ctx, "failed to encrypt the returned oidc data", invalidSub, r.Host)
 				return
 			}
-
 			f.doDownstreamRedirect(ctx, encryptedData, oauthState.RedirectUrl)
 			return
 		}
@@ -524,7 +537,7 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 
 	// authcode flow
 	code := r.URL.Query().Get("code")
-	oauth2Token, err := f.config.Exchange(r.Context(), code)
+	oauth2Token, err := f.config.Exchange(r.Context(), code, f.authCodeOptions...)
 	if err != nil {
 		unauthorized(ctx, "Failed to exchange token: "+err.Error(), invalidClaim, r.Host)
 		return nil, err
