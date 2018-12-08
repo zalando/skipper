@@ -12,7 +12,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/cenkalti/backoff"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -55,28 +57,49 @@ type ClientKubernetes struct {
 	httpClient *http.Client
 	apiURL     string
 	token      string
+	retry      *backoff.ConstantBackOff
+	quit       chan struct{}
 }
 
 // Get does the http GET call to kubernetes API to find the initial
 // peers of a swarm.
 func (c *ClientKubernetes) Get(s string) (*http.Response, error) {
+	var (
+		err error
+		rsp *http.Response
+	)
+
 	req, err := c.createRequest("GET", s, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	rsp, err := c.httpClient.Do(req)
+	err = backoff.Retry(func() error {
+		rsp, err = c.httpClient.Do(req)
+		if err != nil {
+			log.Infof("SWARM: request to %s failed: %v, retrying..", s, err)
+		}
+		return err
+	}, c.retry)
+
 	if err != nil {
-		log.Debugf("SWARM: request to %s failed: %v", s, err)
+		log.Errorf("SWARM: Give up now, request to %s failed: %v", s, err)
 		return nil, err
 	}
 	return rsp, err
 }
 
+func (c *ClientKubernetes) Stop() {
+	if c != nil && c.quit != nil {
+		close(c.quit)
+	}
+}
+
 // NewClientKubernetes creates and initializes a Kubernetes client to
 // find peers. A partial copy of the Kubernetes dataclient.
 func NewClientKubernetes(kubernetesInCluster bool, kubernetesURL string) (*ClientKubernetes, error) {
-	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, kubernetesInCluster)
+	quit := make(chan struct{})
+	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, kubernetesInCluster, quit)
 	if err != nil {
 		return nil, err
 	}
@@ -95,10 +118,12 @@ func NewClientKubernetes(kubernetesInCluster bool, kubernetesURL string) (*Clien
 		httpClient: httpClient,
 		apiURL:     apiURL,
 		token:      token,
+		retry:      backoff.NewConstantBackOff(5 * time.Second),
+		quit:       quit,
 	}, nil
 }
 
-func buildHTTPClient(certFilePath string, inCluster bool) (*http.Client, error) {
+func buildHTTPClient(certFilePath string, inCluster bool, quit chan struct{}) (*http.Client, error) {
 	if !inCluster {
 		return http.DefaultClient, nil
 	}
@@ -118,8 +143,29 @@ func buildHTTPClient(certFilePath string, inCluster bool) (*http.Client, error) 
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: false,
+		}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		ExpectContinueTimeout: 30 * time.Second,
+		MaxIdleConns:          5,
+		MaxIdleConnsPerHost:   5,
+		TLSClientConfig:       tlsConfig,
 	}
+	// regularly force closing idle connections
+	go func() {
+		for {
+			select {
+			case <-time.After(10 * time.Second):
+				transport.CloseIdleConnections()
+			case <-quit:
+				return
+			}
+		}
+	}()
 
 	return &http.Client{
 		Transport: transport,
@@ -157,7 +203,6 @@ func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, erro
 
 func (c *ClientKubernetes) getJSON(uri string, a interface{}) error {
 	url := c.apiURL + uri
-	log.Debugf("SWARM: making request to: %s", url)
 
 	req, err := c.createRequest("GET", url, nil)
 	if err != nil {
@@ -166,11 +211,9 @@ func (c *ClientKubernetes) getJSON(uri string, a interface{}) error {
 
 	rsp, err := c.httpClient.Do(req)
 	if err != nil {
-		log.Debugf("SWARM: request to %s failed: %v", url, err)
 		return err
 	}
 
-	log.Debugf("SWARM: request to %s succeeded", url)
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode == http.StatusNotFound {
@@ -178,22 +221,15 @@ func (c *ClientKubernetes) getJSON(uri string, a interface{}) error {
 	}
 
 	if rsp.StatusCode != http.StatusOK {
-		log.Debugf("SWARM: request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 	}
 
 	b := bytes.NewBuffer(nil)
 	if _, err2 := io.Copy(b, rsp.Body); err2 != nil {
-		log.Debugf("SWARM: reading response body failed: %v", err2)
 		return err2
 	}
 
-	err = json.Unmarshal(b.Bytes(), a)
-	if err != nil {
-		log.Debugf("SWARM: invalid response format: %v", err)
-	}
-
-	return err
+	return json.Unmarshal(b.Bytes(), a)
 }
 
 func (c *ClientKubernetes) createRequest(method, url string, body io.Reader) (*http.Request, error) {

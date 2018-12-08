@@ -24,7 +24,8 @@ func NewNodeInfoClient(o Options) (nodeInfoClient, func()) {
 	log.Infof("swarm type: %s", o.swarm)
 	switch o.swarm {
 	case swarmKubernetes:
-		return NewNodeInfoClientKubernetes(o), func() {}
+		cli := NewNodeInfoClientKubernetes(o)
+		return cli, cli.client.Stop
 	case swarmFake:
 		return NewNodeInfoClientFake(o), func() {
 			// reset fakePeers to cleanup swarm nodes for tests
@@ -144,7 +145,7 @@ func (c *nodeInfoClientKubernetes) GetNodeInfo() ([]*NodeInfo, error) {
 	for _, i := range il.Items {
 		addr := net.ParseIP(i.Status.PodIP)
 		if addr == nil {
-			log.Warn(fmt.Sprintf("SWARM: failed to parse the ip %s", i.Status.PodIP))
+			log.Errorf("SWARM: failed to parse the ip %s", i.Status.PodIP)
 			continue
 		}
 		nodes = append(nodes, &NodeInfo{Name: i.Metadata.Name, Addr: addr, Port: c.port})

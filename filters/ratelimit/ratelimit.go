@@ -8,7 +8,6 @@ package ratelimit
 import (
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/ratelimit"
 )
@@ -63,7 +62,7 @@ func NewRatelimit() filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, filterName: ratelimit.ServiceRatelimitName}
 }
 
-// NewClusterServiceRatelimit creates a rate limiting that is aware of the other
+// NewClusterRatelimit creates a rate limiting that is aware of the other
 // instances. The value given here should be the combined rate of all instances.
 //
 // Example:
@@ -72,9 +71,10 @@ func NewRatelimit() filters.Spec {
 //    -> clusterRatelimit(200, "1m")
 //    -> "https://foo.backend.net";
 //
-// The above example behaves like the "ratelimit", i.e. per backend. To create a client limit
-// like in "localRatelimit" a third parameter is mandatory. Currently known parameters are
-// "auth" (limit by "Authorization" header) and "xfwd" (client ip from X-Forwarded-For header)
+// The above example behaves like the "ratelimit", i.e. per backend.
+// There is an optional third parameter, which is one of "auth"
+// (limit by "Authorization" header) and "xfwd" (client ip from
+// X-Forwarded-For header)
 //
 // Example:
 //
@@ -84,6 +84,35 @@ func NewRatelimit() filters.Spec {
 //
 func NewClusterRateLimit() filters.Spec {
 	return &spec{typ: ratelimit.ClusterServiceRatelimit, filterName: ratelimit.ClusterServiceRatelimitName}
+}
+
+// NewClusterClientRatelimit creates a rate limiting that is aware of the other
+// instances. The value given here should be the combined rate of all instances.
+//
+// Example:
+//
+//    backendHealthcheck: Path("/login")
+//    -> clusterClientRatelimit(20, "1h")
+//    -> "https://foo.backend.net";
+//
+// The above example would limit access to "/login" if, the client did
+// more than 20 requests within the last hour to this route across all
+// running skippers in the cluster.  A single client can be detected
+// by different data from the http request and defaults to client IP
+// or X-Forwarded-For header, if exists. The optional third parameter
+// to the filter can change how a client is counted as the
+// same. Currently known parameters are "auth" (limit by
+// "Authorization" header) and "xfwd" (client ip from X-Forwarded-For
+// header)
+//
+// Example:
+//
+//    backendHealthcheck: Path("/login")
+//    -> clusterClientRatelimit(20, "1h", "auth")
+//    -> "https://foo.backend.net";
+//
+func NewClusterClientRateLimit() filters.Spec {
+	return &spec{typ: ratelimit.ClusterClientRatelimit, filterName: ratelimit.ClusterClientRatelimitName}
 }
 
 // NewDisableRatelimit disables rate limiting
@@ -143,6 +172,47 @@ func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
 
 	s := ratelimit.Settings{
 		Type:       ratelimit.ClusterServiceRatelimit,
+		MaxHits:    maxHits,
+		TimeWindow: timeWindow,
+	}
+
+	if len(args) > 2 {
+		lookuperName, err := getStringArg(args[2])
+		if err != nil {
+			return nil, err
+		}
+		switch lookuperName {
+		case "auth":
+			s.Lookuper = ratelimit.NewAuthLookuper()
+		case "xfwd":
+			s.Lookuper = ratelimit.NewXForwardedForLookuper()
+		default:
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	} else {
+		s.Lookuper = ratelimit.NewSameBucketLookuper()
+	}
+
+	return &filter{settings: s}, nil
+}
+
+func clusterClientRatelimitFilter(args []interface{}) (filters.Filter, error) {
+	if !(len(args) == 2 || len(args) == 3) {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	maxHits, err := getIntArg(args[0])
+	if err != nil {
+		return nil, err
+	}
+
+	timeWindow, err := getDurationArg(args[1])
+	if err != nil {
+		return nil, err
+	}
+
+	s := ratelimit.Settings{
+		Type:       ratelimit.ClusterClientRatelimit,
 		MaxHits:    maxHits,
 		TimeWindow: timeWindow,
 	}
@@ -226,10 +296,10 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	case ratelimit.LocalRatelimit:
 		return localRatelimitFilter(args)
 	case ratelimit.ClusterServiceRatelimit:
-		log.Debugf("SWARM: create cluster ratelimit: %v", args)
+		return clusterRatelimitFilter(args)
+	case ratelimit.ClusterClientRatelimit:
 		return clusterRatelimitFilter(args)
 	default:
-		log.Debugf("SWARM: warning disable ratelimit: %v", args)
 		return disableFilter(args)
 	}
 }
