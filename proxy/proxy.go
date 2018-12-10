@@ -45,6 +45,13 @@ const (
 	// The default period at which the idle connections are forcibly
 	// closed.
 	DefaultCloseIdleConnsPeriod = 20 * time.Second
+
+	// DefaultResponseHeaderTimeout, the default response header timeout
+	DefaultResponseHeaderTimeout = 60 * time.Second
+
+	// DefaultExpectContinueTimeout, the default timeout to expect
+	// a response for a 100 Continue request
+	DefaultExpectContinueTimeout = 30 * time.Second
 )
 
 // Flags control the behavior of the proxy.
@@ -162,6 +169,15 @@ type Params struct {
 
 	// Timeout sets the TCP client connection timeout for proxy http connections to the backend
 	Timeout time.Duration
+
+	// ResponseHeaderTimeout sets the HTTP response timeout for
+	// proxy http connections to the backend.
+	ResponseHeaderTimeout time.Duration
+
+	// ExpectContinueTimeout sets the HTTP timeout to expect a
+	// response for status Code 100 for proxy http connections to
+	// the backend.
+	ExpectContinueTimeout time.Duration
 
 	// KeepAlive sets the TCP keepalive for proxy http connections to the backend
 	KeepAlive time.Duration
@@ -454,6 +470,14 @@ func WithParams(p Params) *Proxy {
 		p.CloseIdleConnsPeriod = DefaultCloseIdleConnsPeriod
 	}
 
+	if p.ResponseHeaderTimeout == 0 {
+		p.ResponseHeaderTimeout = DefaultResponseHeaderTimeout
+	}
+
+	if p.ExpectContinueTimeout == 0 {
+		p.ExpectContinueTimeout = DefaultExpectContinueTimeout
+	}
+
 	if p.OpenTracer == nil {
 		p.OpenTracer = &ot.NoopTracer{}
 	}
@@ -464,12 +488,12 @@ func WithParams(p Params) *Proxy {
 			KeepAlive: p.KeepAlive,
 			DualStack: p.DualStack,
 		}).DialContext,
-		TLSHandshakeTimeout: p.TLSHandshakeTimeout,
-		//ResponseHeaderTimeout: 60 * time.Second,
-		//ExpectContinueTimeout: 30 * time.Second,
-		MaxIdleConns:        p.MaxIdleConns,
-		MaxIdleConnsPerHost: p.IdleConnectionsPerHost,
-		IdleConnTimeout:     p.CloseIdleConnsPeriod,
+		TLSHandshakeTimeout:   p.TLSHandshakeTimeout,
+		ResponseHeaderTimeout: p.ResponseHeaderTimeout,
+		ExpectContinueTimeout: p.ExpectContinueTimeout,
+		MaxIdleConns:          p.MaxIdleConns,
+		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
+		IdleConnTimeout:       p.CloseIdleConnsPeriod,
 	}
 
 	quit := make(chan struct{})
