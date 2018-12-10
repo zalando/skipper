@@ -35,6 +35,9 @@ const (
 
 	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
 	DisableRatelimitName = "disableRatelimit"
+
+	// UknownRatelimitName is to print unknown ratelimit settings in error messages
+	UknownRatelimitName = "unknownRatelimit"
 )
 
 // RatelimitType defines the type of  the used ratelimit
@@ -88,6 +91,27 @@ const (
 	// DisableRatelimit is used to disable rate limit
 	DisableRatelimit
 )
+
+func (rt RatelimitType) String() string {
+	switch rt {
+	case DisableRatelimit:
+		return DisableRatelimitName
+	case ClientRatelimit:
+		return ClientRatelimitName
+	case ClusterClientRatelimit:
+		return ClusterClientRatelimitName
+	case ClusterServiceRatelimit:
+		return ClusterServiceRatelimitName
+	case LocalRatelimit:
+		return LocalRatelimitName
+	case ServiceRatelimit:
+		return ServiceRatelimitName
+	default:
+		return UknownRatelimitName
+
+	}
+
+}
 
 // Lookuper makes it possible to be more flexible for ratelimiting.
 type Lookuper interface {
