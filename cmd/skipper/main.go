@@ -146,7 +146,7 @@ const (
 	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
 	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
 	kubernetesEnableEastWestUsage    = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
-	kubernetesEastWestDomainUsage    = "set the east-west domain to the given"
+	kubernetesEastWestDomainUsage    = "set the east-west domain, defaults to .skipper.cluster.local"
 
 	// OAuth2:
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"

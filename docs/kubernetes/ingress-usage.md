@@ -175,7 +175,7 @@ ingress, then it will be based on the skipper command line parameter
 overwrite the current ingress with a redirect to a nicer downtime
 page.
 
-The following example shows how to a temporary redirect with status
+The following example shows how to create a temporary redirect with status
 code 307 to https://outage.example.org. No requests will pass to your
 backend defined, because the created route from the annotation
 `zalando.org/skipper-routes` will get 3 Predicates
@@ -210,7 +210,7 @@ Sometimes you want to have a redirect from
 `http://app-default.example.org/myredirect` to
 `https://somewhere.example.org/another/path`.
 
-The following example shows how to a permanent redirect with status
+The following example shows how to create a permanent redirect with status
 code 308 from `http://app-default.example.org/myredirect` to
 `https://somewhere.example.org/another/path`, other paths will not be
 redirected and passed to the backend selected by `serviceName=app-svc` and

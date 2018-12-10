@@ -169,7 +169,7 @@ type Options struct {
 	// specify it with an annotation.
 	PathMode PathMode
 
-	// KubernetesEastWestDomain set the DNS domain to be used for east west traffic, defaults to "skipper.cluster.local"
+	// KubernetesEastWestDomain sets the DNS domain to be used for east west traffic, defaults to "skipper.cluster.local"
 	KubernetesEastWestDomain string
 }
 
