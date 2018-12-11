@@ -123,7 +123,8 @@ Build and test all packages:
     make install
     make shortcheck
 
-> On Mac the tests may fail because of low max open file limit. Please make sure you have correct limits setup by following [these instructions](https://gist.github.com/tombigel/d503800a282fcadbee14b537735d202c).
+> On Mac the tests may fail because of low max open file limit. Please make sure you have correct limits setup
+by following [these instructions](https://gist.github.com/tombigel/d503800a282fcadbee14b537735d202c).
 
 ##### Working from IntelliJ / GoLand
 
