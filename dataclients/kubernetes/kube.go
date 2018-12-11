@@ -168,6 +168,9 @@ type Options struct {
 	// PathMode controls the default interpretation of ingress paths in cases when the ingress doesn't
 	// specify it with an annotation.
 	PathMode PathMode
+
+	// KubernetesEastWestDomain sets the DNS domain to be used for east west traffic, defaults to "skipper.cluster.local"
+	KubernetesEastWestDomain string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -188,6 +191,7 @@ type Client struct {
 	quit                     chan struct{}
 	namespace                string
 	kubernetesEnableEastWest bool
+	eastWestDomainFmt        string
 }
 
 var nonWord = regexp.MustCompile("\\W")
@@ -253,6 +257,17 @@ func New(o Options) (*Client, error) {
 		httpsRedirectCode = o.HTTPSRedirectCode
 	}
 
+	eastWestDomainFmt := defaultEastWestDomainFmt
+	if o.KubernetesEastWestDomain != "" {
+		if strings.HasPrefix(o.KubernetesEastWestDomain, ".") {
+			o.KubernetesEastWestDomain = o.KubernetesEastWestDomain[1:len(o.KubernetesEastWestDomain)]
+		}
+		if strings.HasSuffix(o.KubernetesEastWestDomain, ".") {
+			o.KubernetesEastWestDomain = o.KubernetesEastWestDomain[:len(o.KubernetesEastWestDomain)-1]
+		}
+		eastWestDomainFmt = "%s.%s." + o.KubernetesEastWestDomain
+	}
+
 	return &Client{
 		httpClient:               httpClient,
 		apiURL:                   apiURL,
@@ -268,6 +283,7 @@ func New(o Options) (*Client, error) {
 		quit:                     quit,
 		namespace:                o.KubernetesNamespace,
 		kubernetesEnableEastWest: o.KubernetesEnableEastWest,
+		eastWestDomainFmt:        eastWestDomainFmt,
 	}, nil
 }
 
@@ -1044,7 +1060,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		if c.kubernetesEnableEastWest {
 			for _, rule := range i.Spec.Rules {
 				if rs, ok := hostRoutes[rule.Host]; ok {
-					rs = append(rs, createEastWestRoutes(i.Metadata.Name, i.Metadata.Namespace, rs)...)
+					rs = append(rs, createEastWestRoutes(c.eastWestDomainFmt, i.Metadata.Name, i.Metadata.Namespace, rs)...)
 					hostRoutes[rule.Host] = rs
 				}
 			}
@@ -1069,7 +1085,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			routes = append(routes, catchAll)
 
 			if c.kubernetesEnableEastWest {
-				if r := createEastWestRoute(rs[0].Name, rs[0].Namespace, catchAll); r != nil {
+				if r := createEastWestRoute(c.eastWestDomainFmt, rs[0].Name, rs[0].Namespace, catchAll); r != nil {
 					routes = append(routes, r)
 				}
 			}
@@ -1086,11 +1102,11 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 	return routes, nil
 }
 
-func createEastWestRoute(name, ns string, r *eskip.Route) *eskip.Route {
+func createEastWestRoute(eastWestDomainFmt, name, ns string, r *eskip.Route) *eskip.Route {
 	if strings.HasPrefix(r.Id, "kubeew") || ns == "" || name == "" {
 		return nil
 	}
-	newHostHeader := fmt.Sprintf(defaultEastWestDomainFmt, name, ns)
+	newHostHeader := fmt.Sprintf(eastWestDomainFmt, name, ns)
 	newHostHeaderRegex := strings.Join(strings.Split(newHostHeader, "."), "[.]")
 	ewR := *r
 	ewR.HostRegexps = []string{"^" + newHostHeaderRegex + "$"}
@@ -1099,7 +1115,7 @@ func createEastWestRoute(name, ns string, r *eskip.Route) *eskip.Route {
 	return &ewR
 }
 
-func createEastWestRoutes(name, ns string, routes []*eskip.Route) []*eskip.Route {
+func createEastWestRoutes(eastWestDomainFmt, name, ns string, routes []*eskip.Route) []*eskip.Route {
 	var ewroutes []*eskip.Route
 	for _, r := range routes {
 		if strings.HasPrefix(r.Id, "kubeew") {
@@ -1107,7 +1123,7 @@ func createEastWestRoutes(name, ns string, routes []*eskip.Route) []*eskip.Route
 		}
 		r.Namespace = ns // store namespace
 		r.Name = name    // store name
-		newHostHeader := fmt.Sprintf(defaultEastWestDomainFmt, name, ns)
+		newHostHeader := fmt.Sprintf(eastWestDomainFmt, name, ns)
 		newHostHeaderRegex := strings.Join(strings.Split(newHostHeader, "."), "[.]")
 		ewR := *r
 		ewR.HostRegexps = []string{"^" + newHostHeaderRegex + "$"}

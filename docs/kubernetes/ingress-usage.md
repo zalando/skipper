@@ -167,6 +167,75 @@ ingress, then it will be based on the skipper command line parameter
 - [PathSubtree()](../../reference/predicates/#pathsubtree)
 - [PathRegexp()](../../reference/predicates/#pathregexp)
 
+### Redirects
+
+#### Overwrite the current ingress with a redirect
+
+[Sometimes](https://github.com/zalando/skipper/issues/867) you want to
+overwrite the current ingress with a redirect to a nicer downtime
+page.
+
+The following example shows how to create a temporary redirect with status
+code 307 to https://outage.example.org. No requests will pass to your
+backend defined, because the created route from the annotation
+`zalando.org/skipper-routes` will get 3 Predicates
+`Host("^app-default[.]example[.]org$") && Path("/") && PathRegexp("/")`,
+instead of the 2 Predicates
+`Host("^app-default[.]example[.]org$") && Path("/")`, that will be
+created for the ingress backend.
+
+```
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app
+  namespace: default
+  annotations:
+    zalando.org/skipper-routes: |
+       redirect_app_default: PathRegexp("/") -> redirectTo(307, "https://outage.example.org/") -> <shunt>;
+spec:
+  rules:
+  - host: "app-default.example.org"
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: app-svc
+          servicePort: 80
+```
+
+#### Redirect a specific path from ingress
+
+Sometimes you want to have a redirect from
+`http://app-default.example.org/myredirect` to
+`https://somewhere.example.org/another/path`.
+
+The following example shows how to create a permanent redirect with status
+code 308 from `http://app-default.example.org/myredirect` to
+`https://somewhere.example.org/another/path`, other paths will not be
+redirected and passed to the backend selected by `serviceName=app-svc` and
+`servicePort=80`:
+
+```
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app
+  namespace: default
+  annotations:
+    zalando.org/skipper-routes: |
+       redirect_app_default: PathRegexp("/myredirect") -> redirectTo(308, "https://somewhere.example.org/another/path") -> <shunt>;
+spec:
+  rules:
+  - host: "app-default.example.org"
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: app-svc
+          servicePort: 80
+```
+
 ### Return static content
 
 The following example sets a response header `X: bar`, a response body
