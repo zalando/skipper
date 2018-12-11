@@ -33,6 +33,7 @@ const (
 	serviceAccountRootCAKey = "ca.crt"
 	serviceHostEnvVar       = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar       = "KUBERNETES_SERVICE_PORT"
+	maxRetries              = 12
 )
 
 var (
@@ -57,7 +58,7 @@ type ClientKubernetes struct {
 	httpClient *http.Client
 	apiURL     string
 	token      string
-	retry      *backoff.ConstantBackOff
+	retry      backoff.BackOff
 	quit       chan struct{}
 }
 
@@ -118,7 +119,7 @@ func NewClientKubernetes(kubernetesInCluster bool, kubernetesURL string) (*Clien
 		httpClient: httpClient,
 		apiURL:     apiURL,
 		token:      token,
-		retry:      backoff.NewConstantBackOff(5 * time.Second),
+		retry:      backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), maxRetries),
 		quit:       quit,
 	}, nil
 }

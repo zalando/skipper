@@ -281,7 +281,7 @@ func localRatelimitFilter(args []interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func disableFilter(args []interface{}) (filters.Filter, error) {
+func disableFilter([]interface{}) (filters.Filter, error) {
 	return &filter{
 		settings: ratelimit.Settings{
 			Type: ratelimit.DisableRatelimit,
@@ -298,7 +298,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	case ratelimit.ClusterServiceRatelimit:
 		return clusterRatelimitFilter(args)
 	case ratelimit.ClusterClientRatelimit:
-		return clusterRatelimitFilter(args)
+		return clusterClientRatelimitFilter(args)
 	default:
 		return disableFilter(args)
 	}
