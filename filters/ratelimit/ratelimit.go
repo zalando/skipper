@@ -30,7 +30,7 @@ type filter struct {
 // NewLocalRatelimit creates a local measured rate limiting, that is
 // only aware of itself. If you have 5 instances with 20 req/s, then
 // it would allow 100 req/s to the backend from the same user. A third
-// argument can be used to set which part of the request should be
+// argument can be used to set which HTTP header of the request should be
 // used to find the same user. Third argument defaults to
 // XForwardedForLookuper, meaning X-Forwarded-For Header.
 //
@@ -43,7 +43,7 @@ type filter struct {
 // Example rate limit per Authorization Header:
 //
 //    login: Path("/login")
-//    -> localRatelimit(3, "1m", "auth")
+//    -> localRatelimit(3, "1m", "Authorization")
 //    -> "https://login.backend.net";
 func NewLocalRatelimit() filters.Spec {
 	return &spec{typ: ratelimit.LocalRatelimit, filterName: ratelimit.LocalRatelimitName}
@@ -71,17 +71,6 @@ func NewRatelimit() filters.Spec {
 //    -> clusterRatelimit(200, "1m")
 //    -> "https://foo.backend.net";
 //
-// The above example behaves like the "ratelimit", i.e. per backend.
-// There is an optional third parameter, which is one of "auth"
-// (limit by "Authorization" header) and "xfwd" (client ip from
-// X-Forwarded-For header)
-//
-// Example:
-//
-//    backendHealthcheck: Path("/healthcheck")
-//    -> clusterRatelimit(200, "1m", "xfwd")
-//    -> "https://foo.backend.net";
-//
 func NewClusterRateLimit() filters.Spec {
 	return &spec{typ: ratelimit.ClusterServiceRatelimit, filterName: ratelimit.ClusterServiceRatelimitName}
 }
@@ -100,15 +89,13 @@ func NewClusterRateLimit() filters.Spec {
 // running skippers in the cluster.  A single client can be detected
 // by different data from the http request and defaults to client IP
 // or X-Forwarded-For header, if exists. The optional third parameter
-// to the filter can change how a client is counted as the
-// same. Currently known parameters are "auth" (limit by
-// "Authorization" header) and "xfwd" (client ip from X-Forwarded-For
-// header)
+// chooses the HTTP header to choose a client is
+// counted as the same.
 //
 // Example:
 //
 //    backendHealthcheck: Path("/login")
-//    -> clusterClientRatelimit(20, "1h", "auth")
+//    -> clusterClientRatelimit(20, "1h", "Authorization")
 //    -> "https://foo.backend.net";
 //
 func NewClusterClientRateLimit() filters.Spec {
@@ -156,7 +143,7 @@ func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
 }
 
 func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
-	if !(len(args) == 2 || len(args) == 3) {
+	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -174,23 +161,7 @@ func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
 		Type:       ratelimit.ClusterServiceRatelimit,
 		MaxHits:    maxHits,
 		TimeWindow: timeWindow,
-	}
-
-	if len(args) > 2 {
-		lookuperName, err := getStringArg(args[2])
-		if err != nil {
-			return nil, err
-		}
-		switch lookuperName {
-		case "auth":
-			s.Lookuper = ratelimit.NewAuthLookuper()
-		case "xfwd":
-			s.Lookuper = ratelimit.NewXForwardedForLookuper()
-		default:
-			return nil, filters.ErrInvalidFilterParameters
-		}
-	} else {
-		s.Lookuper = ratelimit.NewSameBucketLookuper()
+		Lookuper:   ratelimit.NewSameBucketLookuper(),
 	}
 
 	return &filter{settings: s}, nil
@@ -218,22 +189,15 @@ func clusterClientRatelimitFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	if len(args) > 2 {
-		lookuperName, err := getStringArg(args[2])
+		headerName, err := getStringArg(args[2])
 		if err != nil {
 			return nil, err
 		}
-		switch lookuperName {
-		case "auth":
-			s.Lookuper = ratelimit.NewAuthLookuper()
-			s.CleanInterval = 10 * timeWindow
-		case "xfwd":
-			s.Lookuper = ratelimit.NewXForwardedForLookuper()
-			s.CleanInterval = 10 * timeWindow
-		default:
-			return nil, filters.ErrInvalidFilterParameters
-		}
+		s.Lookuper = ratelimit.NewHeaderLookuper(headerName)
+		s.CleanInterval = 10 * timeWindow
 	} else {
-		s.Lookuper = ratelimit.NewSameBucketLookuper()
+		s.Lookuper = ratelimit.NewXForwardedForLookuper()
+		s.CleanInterval = 10 * timeWindow
 	}
 
 	return &filter{settings: s}, nil
@@ -256,16 +220,11 @@ func localRatelimitFilter(args []interface{}) (filters.Filter, error) {
 
 	var lookuper ratelimit.Lookuper
 	if len(args) > 2 {
-		lookuperName, err := getStringArg(args[2])
+		headerName, err := getStringArg(args[2])
 		if err != nil {
 			return nil, err
 		}
-		switch lookuperName {
-		case "auth":
-			lookuper = ratelimit.NewAuthLookuper()
-		default:
-			lookuper = ratelimit.NewXForwardedForLookuper()
-		}
+		lookuper = ratelimit.NewHeaderLookuper(headerName)
 	} else {
 		lookuper = ratelimit.NewXForwardedForLookuper()
 	}

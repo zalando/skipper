@@ -153,18 +153,20 @@ func (XForwardedForLookuper) Lookup(req *http.Request) string {
 	return net.RemoteHost(req).String()
 }
 
-// AuthLookuper implements Lookuper interface and will select a bucket
+// HeaderLookuper implements Lookuper interface and will select a bucket
 // by Authorization header.
-type AuthLookuper struct{}
+type HeaderLookuper struct {
+	key string
+}
 
-// NewAuthLookuper returns an empty AuthLookuper
-func NewAuthLookuper() AuthLookuper {
-	return AuthLookuper{}
+// NewHeaderLookuper returns HeaderLookuper configured to lookup header named k
+func NewHeaderLookuper(k string) HeaderLookuper {
+	return HeaderLookuper{key: k}
 }
 
 // Lookup returns the content of the Authorization header.
-func (AuthLookuper) Lookup(req *http.Request) string {
-	return req.Header.Get("Authorization")
+func (h HeaderLookuper) Lookup(req *http.Request) string {
+	return req.Header.Get(h.key)
 }
 
 // Settings configures the chosen rate limiter
