@@ -518,9 +518,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	if o.WatchRoutesFile != "" {
 		f := eskipfile.WatchFile(o.WatchRoutesFile, eskip.ParseBytes)
 		clients = append(clients, f)
-	}
-
-	if o.WatchRoutesFileJSON != "" {
+	} else if o.WatchRoutesFileJSON != "" {
 		f := eskipfile.WatchFile(o.WatchRoutesFileJSON, eskip.ParseJSON)
 		clients = append(clients, f)
 	}
