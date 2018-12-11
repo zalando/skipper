@@ -258,7 +258,6 @@ type limiter interface {
 // implemetations and stores settings for the ratelimiter
 type Ratelimit struct {
 	settings Settings
-	ts       time.Time
 	impl     limiter
 }
 
