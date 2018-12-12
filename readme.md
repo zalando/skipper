@@ -60,9 +60,15 @@ Skipper is 'go get' compatible. If needed, create a Go workspace first:
     export GOPATH=$(pwd)
     export PATH=$PATH:$GOPATH/bin
 
-Get the Skipper packages:
+Clone the repo and install the dependencies:
 
+    git clone git@github.com:zalando/skipper.git
+    cd skipper
     GO111MODULE=on go get github.com/zalando/skipper/...
+
+> Cloning the repo is a workaround until [this
+fix](https://github.com/golang/go/commit/cdbd4d49d8b3595048ae63ac0f3891633470dfbe)
+for enabling `go get` outside of a module is released in Go1.12
 
 
 #### Running
