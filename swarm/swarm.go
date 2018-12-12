@@ -35,7 +35,7 @@ func getSwarmType(o Options) swarmType {
 	if o.FakeSwarm {
 		return swarmFake
 	}
-	if o.KubernetesOptions != nil && o.KubernetesOptions.KubernetesInCluster && o.KubernetesOptions.KubernetesAPIBaseURL != "" {
+	if o.KubernetesOptions != nil {
 		return swarmKubernetes
 	}
 	return swarmUnknown
@@ -262,7 +262,8 @@ func (s *Swarm) control() {
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
 			if len(s.messages) <= 0 {
-				log.Warning("SWARM: getOutgoing with 0 messages, should not happen")
+				time.Sleep(10 * time.Millisecond)
+				continue
 			}
 			req.ret <- s.messages
 		case m := <-s.outgoing:
