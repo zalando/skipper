@@ -6,6 +6,7 @@ require (
 	github.com/abbot/go-http-auth v0.0.0-20150922224136-efc9484eee77
 	github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78 // indirect
 	github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a // indirect
+	github.com/cenkalti/backoff v2.1.0+incompatible
 	github.com/circonus-labs/circonus-gometrics v2.2.4+incompatible // indirect
 	github.com/circonus-labs/circonusllhist v0.0.0-20180430145027-5eb751da55c6 // indirect
 	github.com/cjoudrey/gluahttp v0.0.0-20161028104506-b4bfe0c50fea

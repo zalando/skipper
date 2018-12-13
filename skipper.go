@@ -118,8 +118,11 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
-	// KubernetesEnableEastWest
+	// KubernetesEnableEastWest enables cluster internal service to service communication, aka east-west traffic
 	KubernetesEnableEastWest bool
+
+	// KubernetesEastWestDomain sets the cluster internal domain used to create additional routes in skipper, defaults to skipper.cluster.local
+	KubernetesEastWestDomain string
 
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -568,6 +571,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			PathMode:                   o.KubernetesPathMode,
 			KubernetesNamespace:        o.KubernetesNamespace,
 			KubernetesEnableEastWest:   o.KubernetesEnableEastWest,
+			KubernetesEastWestDomain:   o.KubernetesEastWestDomain,
 		})
 		if err != nil {
 			return nil, err

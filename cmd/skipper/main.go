@@ -146,6 +146,7 @@ const (
 	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
 	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
 	kubernetesEnableEastWestUsage    = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
+	kubernetesEastWestDomainUsage    = "set the east-west domain, defaults to .skipper.cluster.local"
 
 	// OAuth2:
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
@@ -279,6 +280,7 @@ var (
 	kubernetesPathModeString    string
 	kubernetesNamespace         string
 	kubernetesEnableEastWest    bool
+	kubernetesEastWestDomain    string
 
 	// Auth:
 	oauthURL                        string
@@ -410,6 +412,7 @@ func init() {
 	flag.StringVar(&kubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
 	flag.StringVar(&kubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
 	flag.BoolVar(&kubernetesEnableEastWest, "enable-kubernetes-east-west", false, kubernetesEnableEastWestUsage)
+	flag.StringVar(&kubernetesEastWestDomain, "kubernetes-east-west-domain", "", kubernetesEastWestDomainUsage)
 
 	// Auth:
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
@@ -615,6 +618,7 @@ func main() {
 		KubernetesPathMode:          kubernetesPathMode,
 		KubernetesNamespace:         kubernetesNamespace,
 		KubernetesEnableEastWest:    kubernetesEnableEastWest,
+		KubernetesEastWestDomain:    kubernetesEastWestDomain,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                       apiUsageMonitoringEnable,
@@ -654,8 +658,10 @@ func main() {
 
 		// swarm:
 		EnableSwarm:                       enableSwarm,
+		SwarmKubernetesNamespace:          swarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   swarmKubernetesLabelSelectorKey,
 		SwarmKubernetesLabelSelectorValue: swarmKubernetesLabelSelectorValue,
+		SwarmPort:                         swarmPort,
 		SwarmMaxMessageBuffer:             swarmMaxMessageBuffer,
 		SwarmLeaveTimeout:                 swarmLeaveTimeout,
 	}

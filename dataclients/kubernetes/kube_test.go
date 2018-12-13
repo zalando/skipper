@@ -8,6 +8,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -3595,7 +3596,7 @@ func TestCreateEastWestRoute(t *testing.T) {
 		expectedID: "kubeew_foo__qux__www3_example_org___a_path__bar",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			ewrs := createEastWestRoutes("foo", "qux", []*eskip.Route{ti.route})
+			ewrs := createEastWestRoutes(defaultEastWestDomainFmt, "foo", "qux", []*eskip.Route{ti.route})
 			ewr := ewrs[0]
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
@@ -3604,6 +3605,80 @@ func TestCreateEastWestRoute(t *testing.T) {
 			reg := regexp.MustCompile(hostRegexp)
 			if !reg.MatchString("foo.qux.skipper.cluster.local") {
 				t.Errorf("Failed to create correct east west hostregexp, got %s, expected to match %s", ewr.HostRegexps, "foo.qux.skipper.cluster.local")
+			}
+		})
+	}
+}
+
+func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
+	for _, ti := range []struct {
+		msg            string
+		domain         string
+		name           string
+		namespace      string
+		route          *eskip.Route
+		expectedID     string
+		expectedDomain string
+	}{{
+		msg:       "valid non default DNS domain",
+		domain:    "internal.cluster.local",
+		name:      "foo",
+		namespace: "qux",
+		route: &eskip.Route{
+			Id:          "kube_foo__qux_a_0__www2_example_org_____",
+			HostRegexps: []string{"www2[.]example[.]org"},
+		},
+		expectedID:     "kubeew_foo__qux_a_0__www2_example_org_____",
+		expectedDomain: "internal.cluster.local",
+	}, {
+		msg:       "valid non default DNS domain with dot as prefix",
+		domain:    ".internal.cluster.local",
+		name:      "foo",
+		namespace: "qux",
+		route: &eskip.Route{
+			Id:          "kube_foo__qux__www3_example_org___a_path__bar",
+			HostRegexps: []string{"www3[.]example[.]org"},
+		},
+		expectedID:     "kubeew_foo__qux__www3_example_org___a_path__bar",
+		expectedDomain: "internal.cluster.local",
+	}, {
+		msg:       "valid non default DNS domain with dot as suffix",
+		domain:    "internal.cluster.local.",
+		name:      "foo",
+		namespace: "qux",
+		route: &eskip.Route{
+			Id:          "kube_foo__qux__www3_example_org___a_path__bar",
+			HostRegexps: []string{"www3[.]example[.]org"},
+		},
+		expectedID:     "kubeew_foo__qux__www3_example_org___a_path__bar",
+		expectedDomain: "internal.cluster.local",
+	}, {
+		msg:       "valid non default DNS domain with dot as prefix and suffix",
+		domain:    ".internal.cluster.local.",
+		name:      "foo",
+		namespace: "qux",
+		route: &eskip.Route{
+			Id:          "kube_foo__qux__www3_example_org___a_path__bar",
+			HostRegexps: []string{"www3[.]example[.]org"},
+		},
+		expectedID:     "kubeew_foo__qux__www3_example_org___a_path__bar",
+		expectedDomain: "internal.cluster.local",
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			c, err := New(Options{KubernetesEastWestDomain: ti.domain})
+			if err != nil {
+				t.Errorf("Failed to create data client: %v", err)
+			}
+
+			ewrs := createEastWestRoutes(c.eastWestDomainFmt, ti.name, ti.namespace, []*eskip.Route{ti.route})
+			ewr := ewrs[0]
+			if ewr.Id != ti.expectedID {
+				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
+			}
+			hostRegexp := ewr.HostRegexps[0]
+			reg := regexp.MustCompile(hostRegexp)
+			if !reg.MatchString(fmt.Sprintf("%s.%s.%s", ti.name, ti.namespace, ti.expectedDomain)) {
+				t.Errorf("Failed to create correct east west hostregexp, got %s, expected to match %s", ewr.HostRegexps, fmt.Sprintf("%s.%s.%s", ti.name, ti.namespace, ti.expectedDomain))
 			}
 		})
 	}
