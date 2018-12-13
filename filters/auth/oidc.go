@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -161,6 +162,8 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		additionScopes := sargs[4]
 		f.config.Scopes = append(f.config.Scopes, additionScopes)
 		f.claims = strings.Split(sargs[5], " ")
+	default:
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
@@ -321,13 +324,25 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 
 func (f *tokenOidcFilter) Response(filters.FilterContext) {}
 
+func extractDomainFromHost(host string) string {
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		h = host
+	}
+	if strings.Count(h, ".") < 2 {
+		return h
+	}
+	return strings.Join(strings.Split(h, ".")[1:], ".")
+}
+
 func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
 	log.Debugf("Doing Downstream Redirect to :%s", redirectUrl)
 	r := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: map[string][]string{
-			"Set-Cookie": {fmt.Sprintf("%s=%x; Path=/; HttpOnly; MaxAge=%d", f.cookiename, oidcState, int(f.validity.Seconds()))},
-			"Location":   {redirectUrl},
+			"Set-Cookie": {fmt.Sprintf("%s=%x; Path=/; HttpOnly; MaxAge=%d; Domain=%s",
+				f.cookiename, oidcState, int(f.validity.Seconds()), extractDomainFromHost(ctx.Request().Host))},
+			"Location": {redirectUrl},
 		},
 	}
 	ctx.Serve(r)

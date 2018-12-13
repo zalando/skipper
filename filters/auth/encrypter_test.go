@@ -40,7 +40,7 @@ func TestCipherRefreshing(t *testing.T) {
 	sSource := &testingSecretSource{secretKey: "abc"}
 	enc := &encrypter{
 		sSource: sSource,
-		closer:  make(chan int),
+		closer:  make(chan struct{}),
 	}
 	enc.runCipherRefresher(1 * time.Second)
 	time.Sleep(4 * time.Second)

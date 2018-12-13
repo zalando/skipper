@@ -51,7 +51,7 @@ type encrypter struct {
 	cipherSuites []cipher.AEAD
 	mux          sync.RWMutex
 	sSource      secretSource
-	closer       chan int
+	closer       chan struct{}
 }
 
 func newEncrypter(secretsFile string) (*encrypter, error) {
@@ -62,7 +62,7 @@ func newEncrypter(secretsFile string) (*encrypter, error) {
 	}
 	return &encrypter{
 		sSource: secretSource,
-		closer:  make(chan int),
+		closer:  make(chan struct{}),
 	}, nil
 }
 

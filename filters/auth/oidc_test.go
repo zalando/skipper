@@ -26,7 +26,7 @@ func makeTestingFilter(claims []string) (*tokenOidcFilter, error) {
 		},
 		encrypter: &encrypter{
 			sSource: &testingSecretSource{secretKey: "key"},
-			closer:  make(chan int),
+			closer:  make(chan struct{}),
 		},
 	}
 	err := f.encrypter.refreshCiphers()
@@ -117,3 +117,25 @@ func TestOidcValidateAnyClaims(t *testing.T) {
 		"claims are valid but filter returned false.")
 }
 
+type hostTest struct {
+	given    string
+	expected string
+}
+
+var hostTests = []hostTest{
+	{"localhost", "localhost"},
+	{"localhost.localdomain", "localhost.localdomain"},
+	{"www.example.local", "example.local"},
+	{"one.two.three.www.example.local", "two.three.www.example.local"},
+	{"localhost:9990", "localhost"},
+	{"www.example.local:9990", "example.local"},
+}
+
+func TestExtractDomainFromHost(t *testing.T) {
+	for _, ht := range hostTests {
+		got := extractDomainFromHost(ht.given)
+		if got != ht.expected {
+			t.Errorf("Failed to extract domain from host. Expected '%s' but got '%s'", ht.expected, got)
+		}
+	}
+}
