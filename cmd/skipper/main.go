@@ -654,8 +654,10 @@ func main() {
 
 		// swarm:
 		EnableSwarm:                       enableSwarm,
+		SwarmKubernetesNamespace:          swarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   swarmKubernetesLabelSelectorKey,
 		SwarmKubernetesLabelSelectorValue: swarmKubernetesLabelSelectorValue,
+		SwarmPort:                         swarmPort,
 		SwarmMaxMessageBuffer:             swarmMaxMessageBuffer,
 		SwarmLeaveTimeout:                 swarmLeaveTimeout,
 	}

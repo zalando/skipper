@@ -107,6 +107,7 @@ func MakeRegistry() filters.Registry {
 		ratelimit.NewLocalRatelimit(),
 		ratelimit.NewRatelimit(),
 		ratelimit.NewClusterRateLimit(),
+		ratelimit.NewClusterClientRateLimit(),
 		ratelimit.NewDisableRatelimit(),
 		loadbalancer.NewDecide(),
 		script.NewLuaScript(),

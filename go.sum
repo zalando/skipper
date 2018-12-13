@@ -4,6 +4,8 @@ github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78 h1:mdRSArcFLfW0Vo
 github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a h1:BtpsbiV638WQZwhA98cEZw2BsbnQJrbd0BI7tsy0W1c=
 github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
+github.com/cenkalti/backoff v2.1.0+incompatible h1:FIRvWBZrzS4YC7NT5cOuZjexzFvIr+Dbi6aD1cZaNBk=
+github.com/cenkalti/backoff v2.1.0+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/cjoudrey/gluahttp v0.0.0-20161028104506-b4bfe0c50fea h1:iCaXYAUf9iatN39UadJvkjNdxIMEEauPWCkIRBkF+g8=
 github.com/cjoudrey/gluahttp v0.0.0-20161028104506-b4bfe0c50fea/go.mod h1:X97UjDTXp+7bayQSFZk2hPvCTmTZIicUjZQRtkwgAKY=
 github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199 h1:cJ1E8ZwZLfercTX3dywnCAQDilbbi+m2cw3+8tCFpRo=
