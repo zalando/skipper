@@ -10,7 +10,7 @@ Baremetal loadbalancer perform really well, but the configuration is
 not updated frequently and most of these installations are not meant
 to rapidly change. With introducing Kubernetes this will change and
 there is a need of rapid changing http routers. Skipper is designed
-for rapidly changing it's routing tree.
+for rapidly changing its routing tree.
 
 Cloud loadbalancers are fine to scale and to change, but do not
 provide many features. Skipper has advanced resiliency and deployment
