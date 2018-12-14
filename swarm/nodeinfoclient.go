@@ -28,7 +28,7 @@ func NewNodeInfoClient(o Options) (nodeInfoClient, func()) {
 		return cli, cli.client.Stop
 	case swarmStatic:
 		return o.StaticSwarm, func() {
-			log.Infof("%s left", o.StaticSwarm.Self)
+			log.Infof("%s left swarm", o.StaticSwarm.Self())
 		}
 	case swarmFake:
 		return NewNodeInfoClientFake(o), func() {
