@@ -4,6 +4,7 @@ require (
 	github.com/abbot/go-http-auth v0.0.0-20150922224136-efc9484eee77
 	github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78 // indirect
 	github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a // indirect
+	github.com/cenkalti/backoff v2.1.0+incompatible
 	github.com/cjoudrey/gluahttp v0.0.0-20161028104506-b4bfe0c50fea
 	github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect

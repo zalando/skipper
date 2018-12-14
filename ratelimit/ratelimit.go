@@ -35,6 +35,9 @@ const (
 
 	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
 	DisableRatelimitName = "disableRatelimit"
+
+	// UknownRatelimitName is to print unknown ratelimit settings in error messages
+	UknownRatelimitName = "unknownRatelimit"
 )
 
 // RatelimitType defines the type of  the used ratelimit
@@ -89,6 +92,27 @@ const (
 	DisableRatelimit
 )
 
+func (rt RatelimitType) String() string {
+	switch rt {
+	case DisableRatelimit:
+		return DisableRatelimitName
+	case ClientRatelimit:
+		return ClientRatelimitName
+	case ClusterClientRatelimit:
+		return ClusterClientRatelimitName
+	case ClusterServiceRatelimit:
+		return ClusterServiceRatelimitName
+	case LocalRatelimit:
+		return LocalRatelimitName
+	case ServiceRatelimit:
+		return ServiceRatelimitName
+	default:
+		return UknownRatelimitName
+
+	}
+
+}
+
 // Lookuper makes it possible to be more flexible for ratelimiting.
 type Lookuper interface {
 	// Lookup is used to get the string which is used to define
@@ -129,18 +153,20 @@ func (XForwardedForLookuper) Lookup(req *http.Request) string {
 	return net.RemoteHost(req).String()
 }
 
-// AuthLookuper implements Lookuper interface and will select a bucket
+// HeaderLookuper implements Lookuper interface and will select a bucket
 // by Authorization header.
-type AuthLookuper struct{}
+type HeaderLookuper struct {
+	key string
+}
 
-// NewAuthLookuper returns an empty AuthLookuper
-func NewAuthLookuper() AuthLookuper {
-	return AuthLookuper{}
+// NewHeaderLookuper returns HeaderLookuper configured to lookup header named k
+func NewHeaderLookuper(k string) HeaderLookuper {
+	return HeaderLookuper{key: k}
 }
 
 // Lookup returns the content of the Authorization header.
-func (AuthLookuper) Lookup(req *http.Request) string {
-	return req.Header.Get("Authorization")
+func (h HeaderLookuper) Lookup(req *http.Request) string {
+	return req.Header.Get(h.key)
 }
 
 // Settings configures the chosen rate limiter
@@ -234,7 +260,6 @@ type limiter interface {
 // implemetations and stores settings for the ratelimiter
 type Ratelimit struct {
 	settings Settings
-	ts       time.Time
 	impl     limiter
 }
 
