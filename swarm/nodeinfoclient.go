@@ -26,6 +26,10 @@ func NewNodeInfoClient(o Options) (nodeInfoClient, func()) {
 	case swarmKubernetes:
 		cli := NewNodeInfoClientKubernetes(o)
 		return cli, cli.client.Stop
+	case swarmStatic:
+		return o.StaticSwarm, func() {
+			log.Infof("%s left", o.StaticSwarm.Self)
+		}
 	case swarmFake:
 		return NewNodeInfoClientFake(o), func() {
 			// reset fakePeers to cleanup swarm nodes for tests

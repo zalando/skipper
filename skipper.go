@@ -493,6 +493,9 @@ type Options struct {
 	SwarmPort                         int
 	SwarmMaxMessageBuffer             int
 	SwarmLeaveTimeout                 time.Duration
+
+	SwarmStaticSelf  string // 127.0.0.1:9001
+	SwarmStaticOther string // 127.0.0.1:9002,127.0.0.1:9003
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -830,6 +833,14 @@ func Run(o Options) error {
 				LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
 				LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
 			}
+		}
+		if o.SwarmStaticSelf != "" {
+			self := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
+			other := []*swarm.NodeInfo{self}
+			for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
+				other = append(other, swarm.NewStaticNodeInfo(addr, addr))
+			}
+			swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
 		}
 		theSwarm, err = swarm.NewSwarm(swops)
 		if err != nil {

@@ -17,6 +17,7 @@ type swarmType int
 
 const (
 	swarmKubernetes swarmType = iota
+	swarmStatic
 	swarmFake
 	swarmUnknown
 )
@@ -25,6 +26,8 @@ func (st swarmType) String() string {
 	switch st {
 	case swarmKubernetes:
 		return "kubernetes Swarm"
+	case swarmStatic:
+		return "static Swarm"
 	case swarmFake:
 		return "fake Swarm"
 	}
@@ -37,6 +40,9 @@ func getSwarmType(o Options) swarmType {
 	}
 	if o.KubernetesOptions != nil {
 		return swarmKubernetes
+	}
+	if o.StaticSwarm != nil {
+		return swarmStatic
 	}
 	return swarmUnknown
 }
@@ -76,6 +82,8 @@ type Options struct {
 
 	// KubernetesOptions are options required to find your peers in Kubernetes
 	KubernetesOptions *KubernetesOptions
+
+	StaticSwarm *StaticSwarm
 
 	// FakeSwarm enable a test swarm
 	FakeSwarm bool
@@ -117,6 +125,8 @@ func NewSwarm(o Options) (*Swarm, error) {
 	switch getSwarmType(o) {
 	case swarmKubernetes:
 		return newKubernetesSwarm(o)
+	case swarmStatic:
+		return newStaticSwarm(o)
 	case swarmFake:
 		return newFakeSwarm(o)
 	default:
@@ -126,6 +136,11 @@ func NewSwarm(o Options) (*Swarm, error) {
 
 func newFakeSwarm(o Options) (*Swarm, error) {
 	o.swarm = swarmFake
+	return Start(o)
+}
+
+func newStaticSwarm(o Options) (*Swarm, error) {
+	o.swarm = swarmStatic
 	return Start(o)
 }
 
@@ -262,8 +277,7 @@ func (s *Swarm) control() {
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
 			if len(s.messages) <= 0 {
-				time.Sleep(10 * time.Millisecond)
-				continue
+				log.Warning("SWARM: getOutgoing with 0 messages, should not happen")
 			}
 			req.ret <- s.messages
 		case m := <-s.outgoing:
@@ -299,6 +313,8 @@ func (s *Swarm) control() {
 						}
 					}
 				}
+			} else {
+				log.Debugf("SWARM: got message: %#v", m)
 			}
 		case req := <-s.getValues:
 			log.Debugf("SWARM: getValues for key: %s", req.key)
@@ -372,7 +388,9 @@ func (s *Swarm) Values(key string) map[string]interface{} {
 		ret: make(chan map[string]interface{}),
 	}
 	s.getValues <- req
-	return <-req.ret
+	d := <-req.ret
+	log.Debugf("SWARM: d: %#v", d)
+	return d
 }
 
 // Leave sends a signal for the local node to leave the Swarm.
