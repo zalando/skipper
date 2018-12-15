@@ -47,7 +47,7 @@ require (
 	github.com/prometheus/client_golang v0.9.0-pre1.0.20180907102542-7858729281ec
 	github.com/prometheus/client_model v0.0.0-20171117100541-99fa1f4be8e5 // indirect
 	github.com/prometheus/common v0.0.0-20171117163051-2e54d0b93cba // indirect
-	github.com/prometheus/procfs v0.0.0-20171017214025-a6e9df898b13 // indirect
+	github.com/prometheus/procfs v0.0.0-20181204211112-1dc9a6cbc91a // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20161128210544-1f30fe9094a5
 	github.com/sanity-io/litter v1.1.0
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
@@ -62,7 +62,7 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20171229012508-478861c8ce6e
 	go.uber.org/atomic v1.3.2 // indirect
 	golang.org/x/crypto v0.0.0-20170912191825-faadfbdc0353
-	golang.org/x/net v0.0.0-20180826012351-8a410e7b638d
+	golang.org/x/net v0.0.0-20181213202711-891ebc4b82d6
 	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect
 	golang.org/x/sys v0.0.0-20180831094639-fa5fdf94c789 // indirect
