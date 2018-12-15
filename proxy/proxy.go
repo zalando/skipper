@@ -1153,4 +1153,7 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 	s.SetTag("http.remote_addr", r.RemoteAddr)
 	s.SetTag("http.path", u.Path)
 	s.SetTag("http.host", r.Host)
+	if val := r.Header.Get("X-Flow-Id"); val != "" {
+		s.SetTag("flow_id", val)
+	}
 }
