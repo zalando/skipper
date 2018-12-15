@@ -458,7 +458,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 		allowed = f.validateAnyClaims(container.Claims)
-		log.Infof("validateAnyClaims: %v", allowed)
+		log.Debugf("validateAnyClaims: %v", allowed)
 		sub = container.Subject
 	case checkOIDCAllClaims:
 		var container claimsContainer
@@ -468,7 +468,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 		allowed = f.validateAllClaims(container.Claims)
-		log.Infof("validateAllClaims: %v", allowed)
+		log.Debugf("validateAllClaims: %v", allowed)
 		sub = container.Subject
 	default:
 		unauthorized(ctx, "unknown", invalidFilter, r.Host)
@@ -476,12 +476,10 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	}
 
 	if !allowed {
-		log.Infof("unauthorized")
 		unauthorized(ctx, "insufficient permissions :"+sub, invalidClaim, r.Host)
 		return
 	}
 
-	log.Infof("send authorized")
 	authorized(ctx, sub)
 }
 
@@ -528,6 +526,7 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 
 	stateQueryPlain, err := f.encrypter.decryptDataBlock(stateQueryEnc)
 	if err != nil {
+		// TODO: Implement metrics counter for number of incorrect tokens
 		log.Errorf("token from state query is invalid: %v", err)
 		return nil, err
 	}
@@ -536,7 +535,7 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 
 	state, err := extractState(stateQueryPlain)
 	if err != nil {
-		log.Errorf("Failed to deserialize state")
+		log.Errorf("Failed to deserialize state: %v", err)
 		return nil, err
 	}
 	return state, nil
@@ -558,4 +557,9 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 		return nil, err
 	}
 	return oauth2Token, err
+}
+
+func (f *tokenOidcFilter) Close() error {
+	f.encrypter.close()
+	return nil
 }
