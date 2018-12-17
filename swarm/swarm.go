@@ -277,7 +277,7 @@ func (s *Swarm) control() {
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
 			if len(s.messages) <= 0 {
-				log.Warning("SWARM: getOutgoing with 0 messages, should not happen")
+				log.Debugf("SWARM: getOutgoing with %d messages, should not happen", len(s.messages))
 			}
 			req.ret <- s.messages
 		case m := <-s.outgoing:

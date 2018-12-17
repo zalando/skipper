@@ -825,6 +825,7 @@ func Run(o Options) error {
 			LeaveTimeout:     o.SwarmLeaveTimeout,
 			Debug:            log.GetLevel() == log.DebugLevel,
 		}
+
 		if o.Kubernetes {
 			swops.KubernetesOptions = &swarm.KubernetesOptions{
 				KubernetesInCluster:  o.KubernetesInCluster,
@@ -834,14 +835,25 @@ func Run(o Options) error {
 				LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
 			}
 		}
+
 		if o.SwarmStaticSelf != "" {
-			self := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
-			other := []*swarm.NodeInfo{self}
-			for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
-				other = append(other, swarm.NewStaticNodeInfo(addr, addr))
+			self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
+			if err != nil {
+				log.Fatalf("Failed to get static NodeInfo: %v", err)
 			}
+			other := []*swarm.NodeInfo{self}
+
+			for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
+				ni, err := swarm.NewStaticNodeInfo(addr, addr)
+				if err != nil {
+					log.Fatalf("Failed to get static NodeInfo: %v", err)
+				}
+				other = append(other, ni)
+			}
+
 			swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
 		}
+
 		theSwarm, err = swarm.NewSwarm(swops)
 		if err != nil {
 			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
