@@ -314,7 +314,7 @@ The filter oauthOidcUserInfo is a filter for OAuth Implicit Flow authentication 
 It verifies that the token provided by the user upon authentication contains all the fields specified in the filter.
 
 	a: Path("/") -> oauthOidcUserInfo("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
-		"http://callback.com/auth/provider/callback", "scope1 scope2", "field1", "field2") -> "https://internal.example.org";
+		"http://callback.com/auth/provider/callback", "scope1 scope2", "field1 field2") -> "https://internal.example.org";
 
 OpenID - oauthOidcAnyClaims filter
 
@@ -323,7 +323,7 @@ It verifies that the token provided by the user upon authentication with the aut
 least one of the claims specified in the filter.
 
 	a: Path("/") -> oauthOidcAnyClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
-		"http://callback.com/auth/provider/callback", "scope1 scope2","claim1", "claim2", "claim3") -> "https://internal.example.org";
+		"http://callback.com/auth/provider/callback", "scope1 scope2","claim1 claim2 claim3") -> "https://internal.example.org";
 
 OpenID - oauthOidcAllClaims filter
 The filter oauthOidcAnyClaims is a filter for OAuth Implicit Flow authentication scheme for users through OpenID Connect.
@@ -331,7 +331,7 @@ It verifies that the token provided by the user upon authentication with the aut
 of the claims specified in the filter.
 
 	a: Path("/") -> oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
-	"http://callback.com/auth/provider/callback", "scope1 scope2", "claim1", "claim2") -> "https://internal.example.org";
+	"http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2") -> "https://internal.example.org";
 
 OAuth - auditLog() filter
 

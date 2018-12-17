@@ -44,7 +44,6 @@ type (
 		secretsFile     string
 		cookiename      string
 		refreshInterval time.Duration
-		closer          chan int
 		redirectPath    string
 		encrypter       *encrypter
 		authCodeOptions []oauth2.AuthCodeOption
@@ -219,7 +218,7 @@ func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
 		a = append(a, k)
 	}
 
-	log.Infof("all(%v, %v)", f.claims, a)
+	log.Debugf("all(%v, %v)", f.claims, a)
 	return all(f.claims, a)
 }
 
