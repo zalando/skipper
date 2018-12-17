@@ -3,6 +3,7 @@ package swarm
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -23,6 +24,24 @@ type NodeInfo struct {
 	Name string
 	Addr net.IP
 	Port uint16
+}
+
+func NewStaticNodeInfo(name, addr string) (*NodeInfo, error) {
+	ipString, portString, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	ip := net.ParseIP(ipString)
+	portInt, err := strconv.Atoi(portString)
+	if err != nil {
+		return nil, fmt.Errorf("invalid port in addr '%s': %v", portString, err)
+	}
+
+	return &NodeInfo{
+		Name: name,
+		Addr: ip,
+		Port: uint16(portInt),
+	}, nil
 }
 
 // NewFakeNodeInfo used to create a FakeSwarm
