@@ -493,6 +493,9 @@ type Options struct {
 	SwarmPort                         int
 	SwarmMaxMessageBuffer             int
 	SwarmLeaveTimeout                 time.Duration
+
+	SwarmStaticSelf  string // 127.0.0.1:9001
+	SwarmStaticOther string // 127.0.0.1:9002,127.0.0.1:9003
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -822,6 +825,7 @@ func Run(o Options) error {
 			LeaveTimeout:     o.SwarmLeaveTimeout,
 			Debug:            log.GetLevel() == log.DebugLevel,
 		}
+
 		if o.Kubernetes {
 			swops.KubernetesOptions = &swarm.KubernetesOptions{
 				KubernetesInCluster:  o.KubernetesInCluster,
@@ -831,6 +835,25 @@ func Run(o Options) error {
 				LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
 			}
 		}
+
+		if o.SwarmStaticSelf != "" {
+			self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
+			if err != nil {
+				log.Fatalf("Failed to get static NodeInfo: %v", err)
+			}
+			other := []*swarm.NodeInfo{self}
+
+			for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
+				ni, err := swarm.NewStaticNodeInfo(addr, addr)
+				if err != nil {
+					log.Fatalf("Failed to get static NodeInfo: %v", err)
+				}
+				other = append(other, ni)
+			}
+
+			swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
+		}
+
 		theSwarm, err = swarm.NewSwarm(swops)
 		if err != nil {
 			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
