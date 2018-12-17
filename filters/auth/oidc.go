@@ -86,7 +86,8 @@ func NewOAuthOidcAllClaims(secretsFile string) filters.Spec {
 //
 // Example:
 //
-//     tokenOidcSpec(""https://identity-provider.example.com", "client-id", "clent-secret", "https://callback-url")  -> "https://internal.example.org";
+//     oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
+//     "http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2") -> "https://internal.example.org";
 func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
