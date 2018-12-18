@@ -301,6 +301,36 @@ zalando.org/skipper-routes: |
 Make sure the `;` semicolon is used to terminate the routes, if you
 use multiple routes definitions.
 
+**Disclaimer**: This feature works only with having different `Path*`
+predicates in ingress, if there are no paths rules defined. For
+example this will **not** work:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: skipper-ingress
+  annotations:
+    kubernetes.io/ingress.class: skipper
+    zalando.org/skipper-routes: |
+       redirect1: Path("/foo/") -> redirectTo(308, "/bar/") -> <shunt>;
+  spec:
+    rules:
+      - host: foo.bar
+        http:
+          paths:
+            - path: /something/
+              backend:
+                serviceName: something
+                servicePort: 80
+            - path: /else/
+              backend:
+                serviceName: else
+                servicePort: 80
+```
+
+A possible solution will be a skipper route CRD: https://github.com/zalando/skipper/issues/660
+
 ## Filters - Basic HTTP manipulations
 
 HTTP manipulations are done by using skipper filters. Changes can be
