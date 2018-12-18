@@ -192,6 +192,8 @@ const (
 	swarmPortUsage                         = "swarm port to use to communicate with our peers"
 	swarmMaxMessageBufferUsage             = "swarm max message buffer size to use for member list messages"
 	swarmLeaveTimeoutUsage                 = "swarm leave timeout to use for leaving the memberlist on timeout"
+	swarmStaticSelfUsage                   = "set static swarm self node, for example 127.0.0.1:9001"
+	swarmStaticOtherUsage                  = "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003"
 )
 
 var (
@@ -326,6 +328,8 @@ var (
 	swarmPort                         int
 	swarmMaxMessageBuffer             int
 	swarmLeaveTimeout                 time.Duration
+	swarmStaticSelf                   string
+	swarmStaticOther                  string
 )
 
 func init() {
@@ -456,6 +460,9 @@ func init() {
 	flag.IntVar(&swarmPort, "swarm-port", swarm.DefaultPort, swarmPortUsage)
 	flag.IntVar(&swarmMaxMessageBuffer, "swarm-max-msg-buffer", swarm.DefaultMaxMessageBuffer, swarmMaxMessageBufferUsage)
 	flag.DurationVar(&swarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, swarmLeaveTimeoutUsage)
+	flag.StringVar(&swarmStaticSelf, "swarm-static-self", "", swarmStaticSelfUsage)
+	flag.StringVar(&swarmStaticOther, "swarm-static-other", "", swarmStaticOtherUsage)
+
 	flag.Parse()
 
 	// check if arguments were correctly parsed.
@@ -664,6 +671,9 @@ func main() {
 		SwarmPort:                         swarmPort,
 		SwarmMaxMessageBuffer:             swarmMaxMessageBuffer,
 		SwarmLeaveTimeout:                 swarmLeaveTimeout,
+
+		SwarmStaticSelf:  swarmStaticSelf,
+		SwarmStaticOther: swarmStaticOther,
 	}
 
 	if pluginDir != "" {
