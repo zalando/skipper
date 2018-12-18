@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 )
@@ -117,6 +118,29 @@ func TestDisableRatelimit(t *testing.T) {
 			checkNotRatelimitted(t, rl, client1)
 		}
 		checkNotRatelimitted(t, rl, client1)
+	})
+}
+
+func TestHeaderLookuper(t *testing.T) {
+	req, err := http.NewRequest("GET", "/foo", nil)
+	if err != nil {
+		t.Errorf("Could not create request: %v", err)
+	}
+
+	t.Run("header lookuper authorization header", func(t *testing.T) {
+		req.Header.Add("authorization", "foo")
+		authLookuper := NewHeaderLookuper("authorizatioN")
+		if authLookuper.Lookup(req) != "foo" {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+
+	t.Run("header lookuper x header", func(t *testing.T) {
+		req.Header.Add("x-blah", "bar")
+		xLookuper := NewHeaderLookuper("x-bLAh")
+		if xLookuper.Lookup(req) != "bar" {
+			t.Errorf("Failed to lookup request")
+		}
 	})
 }
 
