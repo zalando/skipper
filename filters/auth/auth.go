@@ -21,6 +21,9 @@ const (
 	checkOAuthTokenintrospectionAllClaims
 	checkOAuthTokenintrospectionAnyKV
 	checkOAuthTokenintrospectionAllKV
+	checkOIDCUserInfo
+	checkOIDCAnyClaims
+	checkOIDCAllClaims
 	checkUnknown
 )
 
@@ -133,5 +136,6 @@ func intersect(left, right []string) bool {
 			}
 		}
 	}
+
 	return false
 }

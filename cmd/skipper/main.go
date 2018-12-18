@@ -156,6 +156,7 @@ const (
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
+	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
@@ -291,6 +292,7 @@ var (
 	oauth2TokeninfoTimeout          time.Duration
 	oauth2TokenintrospectionTimeout time.Duration
 	webhookTimeout                  time.Duration
+	oidcSecretsFile                 string
 
 	// API Monitoring
 	apiUsageMonitoringEnable                       bool
@@ -424,6 +426,7 @@ func init() {
 	flag.DurationVar(&oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
 	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
+	flag.StringVar(&oidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 
 	// API Monitoring:
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
@@ -638,6 +641,7 @@ func main() {
 		OAuthTokeninfoTimeout:          oauth2TokeninfoTimeout,
 		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
 		WebhookTimeout:                 webhookTimeout,
+		OIDCSecretsFile:                oidcSecretsFile,
 
 		// connections, timeouts:
 		IdleConnectionsPerHost:       idleConnsPerHost,
