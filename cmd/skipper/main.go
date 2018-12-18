@@ -51,14 +51,16 @@ const (
 	defaultApplicationLogLevel  = "INFO"
 
 	// connections, timeouts:
-	defaultReadTimeoutServer          = 5 * time.Minute
-	defaultReadHeaderTimeoutServer    = 60 * time.Second
-	defaultWriteTimeoutServer         = 60 * time.Second
-	defaultIdleTimeoutServer          = 60 * time.Second
-	defaultTimeoutBackend             = 60 * time.Second
-	defaultKeepaliveBackend           = 30 * time.Second
-	defaultTLSHandshakeTimeoutBackend = 60 * time.Second
-	defaultMaxIdleConnsBackend        = 0
+	defaultReadTimeoutServer            = 5 * time.Minute
+	defaultReadHeaderTimeoutServer      = 60 * time.Second
+	defaultWriteTimeoutServer           = 60 * time.Second
+	defaultIdleTimeoutServer            = 60 * time.Second
+	defaultTimeoutBackend               = 60 * time.Second
+	defaultKeepaliveBackend             = 30 * time.Second
+	defaultTLSHandshakeTimeoutBackend   = 60 * time.Second
+	defaultResponseHeaderTimeoutBackend = 60 * time.Second
+	defaultExpectContinueTimeoutBackend = 30 * time.Second
+	defaultMaxIdleConnsBackend          = 0
 
 	// Auth:
 	defaultOAuthTokeninfoTimeout          = 2 * time.Second
@@ -144,6 +146,7 @@ const (
 	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
 	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
 	kubernetesEnableEastWestUsage    = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
+	kubernetesEastWestDomainUsage    = "set the east-west domain, defaults to .skipper.cluster.local"
 
 	// OAuth2:
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
@@ -161,22 +164,24 @@ const (
 	apiUsageMonitoringDefaultClientTrackingPatternUsage = "regular expression to default to when API usage monitoring filter configuration does not provide `client_tracking_pattern`"
 
 	// connections, timeouts:
-	idleConnsPerHostUsage           = "maximum idle connections per backend host"
-	closeIdleConnsPeriodUsage       = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
-	backendFlushIntervalUsage       = "flush interval for upgraded proxy connections"
-	experimentalUpgradeUsage        = "enable experimental feature to handle upgrade protocol requests"
-	experimentalUpgradeAuditUsage   = "enable audit logging of the request line and the messages during the experimental web socket upgrades"
-	readTimeoutServerUsage          = "set ReadTimeout for http server connections"
-	readHeaderTimeoutServerUsage    = "set ReadHeaderTimeout for http server connections"
-	writeTimeoutServerUsage         = "set WriteTimeout for http server connections"
-	idleTimeoutServerUsage          = "set IdleTimeout for http server connections"
-	maxHeaderBytesUsage             = "set MaxHeaderBytes for http server connections"
-	enableConnMetricsServerUsage    = "enables connection metrics for http server connections"
-	timeoutBackendUsage             = "sets the TCP client connection timeout for backend connections"
-	keepaliveBackendUsage           = "sets the keepalive for backend connections"
-	enableDualstackBackendUsage     = "enables DualStack for backend connections"
-	tlsHandshakeTimeoutBackendUsage = "sets the TLS handshake timeout for backend connections"
-	maxIdleConnsBackendUsage        = "sets the maximum idle connections for all backend connections"
+	idleConnsPerHostUsage             = "maximum idle connections per backend host"
+	closeIdleConnsPeriodUsage         = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
+	backendFlushIntervalUsage         = "flush interval for upgraded proxy connections"
+	experimentalUpgradeUsage          = "enable experimental feature to handle upgrade protocol requests"
+	experimentalUpgradeAuditUsage     = "enable audit logging of the request line and the messages during the experimental web socket upgrades"
+	readTimeoutServerUsage            = "set ReadTimeout for http server connections"
+	readHeaderTimeoutServerUsage      = "set ReadHeaderTimeout for http server connections"
+	writeTimeoutServerUsage           = "set WriteTimeout for http server connections"
+	idleTimeoutServerUsage            = "set IdleTimeout for http server connections"
+	maxHeaderBytesUsage               = "set MaxHeaderBytes for http server connections"
+	enableConnMetricsServerUsage      = "enables connection metrics for http server connections"
+	timeoutBackendUsage               = "sets the TCP client connection timeout for backend connections"
+	keepaliveBackendUsage             = "sets the keepalive for backend connections"
+	enableDualstackBackendUsage       = "enables DualStack for backend connections"
+	tlsHandshakeTimeoutBackendUsage   = "sets the TLS handshake timeout for backend connections"
+	responseHeaderTimeoutBackendUsage = "sets the HTTP response header timeout for backend connections"
+	expectContinueTimeoutBackendUsage = "sets the HTTP expect continue timeout for backend connections"
+	maxIdleConnsBackendUsage          = "sets the maximum idle connections for all backend connections"
 
 	// swarm:
 	enableSwarmUsage                       = "enable swarm communication between nodes in a skipper fleet"
@@ -186,6 +191,8 @@ const (
 	swarmPortUsage                         = "swarm port to use to communicate with our peers"
 	swarmMaxMessageBufferUsage             = "swarm max message buffer size to use for member list messages"
 	swarmLeaveTimeoutUsage                 = "swarm leave timeout to use for leaving the memberlist on timeout"
+	swarmStaticSelfUsage                   = "set static swarm self node, for example 127.0.0.1:9001"
+	swarmStaticOtherUsage                  = "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003"
 )
 
 var (
@@ -274,6 +281,7 @@ var (
 	kubernetesPathModeString    string
 	kubernetesNamespace         string
 	kubernetesEnableEastWest    bool
+	kubernetesEastWestDomain    string
 
 	// Auth:
 	oauthURL                        string
@@ -291,22 +299,24 @@ var (
 	apiUsageMonitoringDefaultClientTrackingPattern string
 
 	// connections, timeouts:
-	idleConnsPerHost           int
-	closeIdleConnsPeriod       string
-	backendFlushInterval       time.Duration
-	experimentalUpgrade        bool
-	experimentalUpgradeAudit   bool
-	readTimeoutServer          time.Duration
-	readHeaderTimeoutServer    time.Duration
-	writeTimeoutServer         time.Duration
-	idleTimeoutServer          time.Duration
-	maxHeaderBytes             int
-	enableConnMetricsServer    bool
-	timeoutBackend             time.Duration
-	keepaliveBackend           time.Duration
-	enableDualstackBackend     bool
-	tlsHandshakeTimeoutBackend time.Duration
-	maxIdleConnsBackend        int
+	idleConnsPerHost             int
+	closeIdleConnsPeriod         string
+	backendFlushInterval         time.Duration
+	experimentalUpgrade          bool
+	experimentalUpgradeAudit     bool
+	readTimeoutServer            time.Duration
+	readHeaderTimeoutServer      time.Duration
+	writeTimeoutServer           time.Duration
+	idleTimeoutServer            time.Duration
+	maxHeaderBytes               int
+	enableConnMetricsServer      bool
+	timeoutBackend               time.Duration
+	keepaliveBackend             time.Duration
+	enableDualstackBackend       bool
+	tlsHandshakeTimeoutBackend   time.Duration
+	responseHeaderTimeoutBackend time.Duration
+	expectContinueTimeoutBackend time.Duration
+	maxIdleConnsBackend          int
 
 	// swarm:
 	enableSwarm                       bool
@@ -316,6 +326,8 @@ var (
 	swarmPort                         int
 	swarmMaxMessageBuffer             int
 	swarmLeaveTimeout                 time.Duration
+	swarmStaticSelf                   string
+	swarmStaticOther                  string
 )
 
 func init() {
@@ -402,6 +414,7 @@ func init() {
 	flag.StringVar(&kubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
 	flag.StringVar(&kubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
 	flag.BoolVar(&kubernetesEnableEastWest, "enable-kubernetes-east-west", false, kubernetesEnableEastWestUsage)
+	flag.StringVar(&kubernetesEastWestDomain, "kubernetes-east-west-domain", "", kubernetesEastWestDomainUsage)
 
 	// Auth:
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)
@@ -434,6 +447,8 @@ func init() {
 	flag.DurationVar(&keepaliveBackend, "keepalive-backend", defaultKeepaliveBackend, keepaliveBackendUsage)
 	flag.BoolVar(&enableDualstackBackend, "enable-dualstack-backend", true, enableDualstackBackendUsage)
 	flag.DurationVar(&tlsHandshakeTimeoutBackend, "tls-timeout-backend", defaultTLSHandshakeTimeoutBackend, tlsHandshakeTimeoutBackendUsage)
+	flag.DurationVar(&responseHeaderTimeoutBackend, "response-header-timeout-backend", defaultResponseHeaderTimeoutBackend, responseHeaderTimeoutBackendUsage)
+	flag.DurationVar(&expectContinueTimeoutBackend, "expect-continue-timeout-backend", defaultExpectContinueTimeoutBackend, expectContinueTimeoutBackendUsage)
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
 	flag.BoolVar(&enableSwarm, "enable-swarm", false, enableSwarmUsage)
 	flag.StringVar(&swarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, swarmKubernetesNamespaceUsage)
@@ -442,6 +457,9 @@ func init() {
 	flag.IntVar(&swarmPort, "swarm-port", swarm.DefaultPort, swarmPortUsage)
 	flag.IntVar(&swarmMaxMessageBuffer, "swarm-max-msg-buffer", swarm.DefaultMaxMessageBuffer, swarmMaxMessageBufferUsage)
 	flag.DurationVar(&swarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, swarmLeaveTimeoutUsage)
+	flag.StringVar(&swarmStaticSelf, "swarm-static-self", "", swarmStaticSelfUsage)
+	flag.StringVar(&swarmStaticOther, "swarm-static-other", "", swarmStaticOtherUsage)
+
 	flag.Parse()
 
 	// check if arguments were correctly parsed.
@@ -604,6 +622,7 @@ func main() {
 		KubernetesPathMode:          kubernetesPathMode,
 		KubernetesNamespace:         kubernetesNamespace,
 		KubernetesEnableEastWest:    kubernetesEnableEastWest,
+		KubernetesEastWestDomain:    kubernetesEastWestDomain,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                       apiUsageMonitoringEnable,
@@ -621,29 +640,36 @@ func main() {
 		WebhookTimeout:                 webhookTimeout,
 
 		// connections, timeouts:
-		IdleConnectionsPerHost:     idleConnsPerHost,
-		CloseIdleConnsPeriod:       time.Duration(clsic) * time.Second,
-		BackendFlushInterval:       backendFlushInterval,
-		ExperimentalUpgrade:        experimentalUpgrade,
-		ExperimentalUpgradeAudit:   experimentalUpgradeAudit,
-		ReadTimeoutServer:          readTimeoutServer,
-		ReadHeaderTimeoutServer:    readHeaderTimeoutServer,
-		WriteTimeoutServer:         writeTimeoutServer,
-		IdleTimeoutServer:          idleTimeoutServer,
-		MaxHeaderBytes:             maxHeaderBytes,
-		EnableConnMetricsServer:    enableConnMetricsServer,
-		TimeoutBackend:             timeoutBackend,
-		KeepAliveBackend:           keepaliveBackend,
-		DualStackBackend:           enableDualstackBackend,
-		TLSHandshakeTimeoutBackend: tlsHandshakeTimeoutBackend,
-		MaxIdleConnsBackend:        maxIdleConnsBackend,
+		IdleConnectionsPerHost:       idleConnsPerHost,
+		CloseIdleConnsPeriod:         time.Duration(clsic) * time.Second,
+		BackendFlushInterval:         backendFlushInterval,
+		ExperimentalUpgrade:          experimentalUpgrade,
+		ExperimentalUpgradeAudit:     experimentalUpgradeAudit,
+		ReadTimeoutServer:            readTimeoutServer,
+		ReadHeaderTimeoutServer:      readHeaderTimeoutServer,
+		WriteTimeoutServer:           writeTimeoutServer,
+		IdleTimeoutServer:            idleTimeoutServer,
+		MaxHeaderBytes:               maxHeaderBytes,
+		EnableConnMetricsServer:      enableConnMetricsServer,
+		TimeoutBackend:               timeoutBackend,
+		KeepAliveBackend:             keepaliveBackend,
+		DualStackBackend:             enableDualstackBackend,
+		TLSHandshakeTimeoutBackend:   tlsHandshakeTimeoutBackend,
+		ResponseHeaderTimeoutBackend: responseHeaderTimeoutBackend,
+		ExpectContinueTimeoutBackend: expectContinueTimeoutBackend,
+		MaxIdleConnsBackend:          maxIdleConnsBackend,
 
 		// swarm:
 		EnableSwarm:                       enableSwarm,
+		SwarmKubernetesNamespace:          swarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   swarmKubernetesLabelSelectorKey,
 		SwarmKubernetesLabelSelectorValue: swarmKubernetesLabelSelectorValue,
+		SwarmPort:                         swarmPort,
 		SwarmMaxMessageBuffer:             swarmMaxMessageBuffer,
 		SwarmLeaveTimeout:                 swarmLeaveTimeout,
+
+		SwarmStaticSelf:  swarmStaticSelf,
+		SwarmStaticOther: swarmStaticOther,
 	}
 
 	if pluginDir != "" {

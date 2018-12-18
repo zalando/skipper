@@ -1,7 +1,8 @@
 ## Overview
 
 Ratelimits are calculated for a number of requests and a
-`time.Duration` for a given bucket.
+`time.Duration` for a given bucket. To enable rate limits you need to
+run skipper with `enable-ratelimits`.
 
 A `time.Duration` is specified as string and can for example be "10s"
 for ten seconds, "5m" for five minutes or "2h" for two hours.
@@ -51,10 +52,11 @@ header, you can specify:
 clientRatelimit(10, "1m")
 ```
 
-The same for Authorization Header you would use:
+There is an optional third argument that selects the same client by HTTP
+header value. As an example for Authorization Header you would use:
 
 ```
-clientRatelimit(10, "1m", "auth")
+clientRatelimit(10, "1m", "Authorization")
 ```
 
 Internally skipper has a clean interval to clean up old buckets to reduce

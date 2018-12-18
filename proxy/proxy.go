@@ -45,6 +45,13 @@ const (
 	// The default period at which the idle connections are forcibly
 	// closed.
 	DefaultCloseIdleConnsPeriod = 20 * time.Second
+
+	// DefaultResponseHeaderTimeout, the default response header timeout
+	DefaultResponseHeaderTimeout = 60 * time.Second
+
+	// DefaultExpectContinueTimeout, the default timeout to expect
+	// a response for a 100 Continue request
+	DefaultExpectContinueTimeout = 30 * time.Second
 )
 
 // Flags control the behavior of the proxy.
@@ -162,6 +169,15 @@ type Params struct {
 
 	// Timeout sets the TCP client connection timeout for proxy http connections to the backend
 	Timeout time.Duration
+
+	// ResponseHeaderTimeout sets the HTTP response timeout for
+	// proxy http connections to the backend.
+	ResponseHeaderTimeout time.Duration
+
+	// ExpectContinueTimeout sets the HTTP timeout to expect a
+	// response for status Code 100 for proxy http connections to
+	// the backend.
+	ExpectContinueTimeout time.Duration
 
 	// KeepAlive sets the TCP keepalive for proxy http connections to the backend
 	KeepAlive time.Duration
@@ -454,6 +470,14 @@ func WithParams(p Params) *Proxy {
 		p.CloseIdleConnsPeriod = DefaultCloseIdleConnsPeriod
 	}
 
+	if p.ResponseHeaderTimeout == 0 {
+		p.ResponseHeaderTimeout = DefaultResponseHeaderTimeout
+	}
+
+	if p.ExpectContinueTimeout == 0 {
+		p.ExpectContinueTimeout = DefaultExpectContinueTimeout
+	}
+
 	if p.OpenTracer == nil {
 		p.OpenTracer = &ot.NoopTracer{}
 	}
@@ -464,12 +488,12 @@ func WithParams(p Params) *Proxy {
 			KeepAlive: p.KeepAlive,
 			DualStack: p.DualStack,
 		}).DialContext,
-		TLSHandshakeTimeout: p.TLSHandshakeTimeout,
-		//ResponseHeaderTimeout: 60 * time.Second,
-		//ExpectContinueTimeout: 30 * time.Second,
-		MaxIdleConns:        p.MaxIdleConns,
-		MaxIdleConnsPerHost: p.IdleConnectionsPerHost,
-		IdleConnTimeout:     p.CloseIdleConnsPeriod,
+		TLSHandshakeTimeout:   p.TLSHandshakeTimeout,
+		ResponseHeaderTimeout: p.ResponseHeaderTimeout,
+		ExpectContinueTimeout: p.ExpectContinueTimeout,
+		MaxIdleConns:          p.MaxIdleConns,
+		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
+		IdleConnTimeout:       p.CloseIdleConnsPeriod,
 	}
 
 	quit := make(chan struct{})
@@ -733,10 +757,6 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
-	// handle Go issue https://github.com/golang/go/issues/23699
-	if req.Header.Get("Connection") == "Keep-Alive" {
-		req.Header.Set("Connection", "keep-alive")
-	}
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
@@ -782,7 +802,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 		}
 
 		if cerr := req.Context().Err(); cerr != nil {
-			// deadline exceeded or canceled in stdlib, client closed request
+			// deadline exceeded or canceled in stdlib, proxy client closed request
 			// see https://github.com/zalando/skipper/issues/687#issuecomment-405557503
 			return nil, &proxyError{err: cerr, code: 499}
 		}
@@ -993,6 +1013,14 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	start := time.Now()
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
+
+	if err := ctx.Request().Context().Err(); err != nil {
+		// deadline exceeded or canceled in stdlib, client closed request
+		// see https://github.com/zalando/skipper/pull/864
+		p.log.Infof("Client request: %v", err)
+		ctx.response.StatusCode = 499
+	}
+
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body)
 	if err != nil {
@@ -1151,4 +1179,7 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 	s.SetTag("http.remote_addr", r.RemoteAddr)
 	s.SetTag("http.path", u.Path)
 	s.SetTag("http.host", r.Host)
+	if val := r.Header.Get("X-Flow-Id"); val != "" {
+		s.SetTag("flow_id", val)
+	}
 }

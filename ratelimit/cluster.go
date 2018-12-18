@@ -47,12 +47,16 @@ func newClusterRateLimiter(s Settings, sw Swarmer, name string) *clusterLimit {
 		resize:  make(chan resizeLimit),
 		quit:    make(chan struct{}),
 	}
-	if s.CleanInterval == 0 {
+	switch s.Type {
+	case ClusterServiceRatelimit:
 		log.Infof("new backend clusterRateLimiter")
 		rl.local = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
-	} else {
+	case ClusterClientRatelimit:
 		log.Infof("new client clusterRateLimiter")
 		rl.local = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
+	default:
+		log.Errorf("Unknown ratelimit type: %s", s.Type)
+		return nil
 	}
 
 	// TODO(sszuecs): we might want to have one goroutine for all of these

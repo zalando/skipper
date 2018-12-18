@@ -118,8 +118,11 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
-	// KubernetesEnableEastWest
+	// KubernetesEnableEastWest enables cluster internal service to service communication, aka east-west traffic
 	KubernetesEnableEastWest bool
+
+	// KubernetesEastWestDomain sets the cluster internal domain used to create additional routes in skipper, defaults to skipper.cluster.local
+	KubernetesEastWestDomain string
 
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -196,6 +199,15 @@ type Options struct {
 	// TimeoutBackend sets the TCP client connection timeout for
 	// proxy http connections to the backend.
 	TimeoutBackend time.Duration
+
+	// ResponseHeaderTimeout sets the HTTP response timeout for
+	// proxy http connections to the backend.
+	ResponseHeaderTimeoutBackend time.Duration
+
+	// ExpectContinueTimeoutBackend sets the HTTP timeout to expect a
+	// response for status Code 100 for proxy http connections to
+	// the backend.
+	ExpectContinueTimeoutBackend time.Duration
 
 	// KeepAliveBackend sets the TCP keepalive for proxy http
 	// connections to the backend.
@@ -481,6 +493,9 @@ type Options struct {
 	SwarmPort                         int
 	SwarmMaxMessageBuffer             int
 	SwarmLeaveTimeout                 time.Duration
+
+	SwarmStaticSelf  string // 127.0.0.1:9001
+	SwarmStaticOther string // 127.0.0.1:9002,127.0.0.1:9003
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -556,6 +571,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			PathMode:                   o.KubernetesPathMode,
 			KubernetesNamespace:        o.KubernetesNamespace,
 			KubernetesEnableEastWest:   o.KubernetesEnableEastWest,
+			KubernetesEastWestDomain:   o.KubernetesEastWestDomain,
 		})
 		if err != nil {
 			return nil, err
@@ -792,6 +808,8 @@ func Run(o Options) error {
 		DefaultHTTPStatus:        o.DefaultHTTPStatus,
 		LoadBalancer:             lbInstance,
 		Timeout:                  o.TimeoutBackend,
+		ResponseHeaderTimeout:    o.ResponseHeaderTimeoutBackend,
+		ExpectContinueTimeout:    o.ExpectContinueTimeoutBackend,
 		KeepAlive:                o.KeepAliveBackend,
 		DualStack:                o.DualStackBackend,
 		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
@@ -807,6 +825,7 @@ func Run(o Options) error {
 			LeaveTimeout:     o.SwarmLeaveTimeout,
 			Debug:            log.GetLevel() == log.DebugLevel,
 		}
+
 		if o.Kubernetes {
 			swops.KubernetesOptions = &swarm.KubernetesOptions{
 				KubernetesInCluster:  o.KubernetesInCluster,
@@ -816,6 +835,25 @@ func Run(o Options) error {
 				LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
 			}
 		}
+
+		if o.SwarmStaticSelf != "" {
+			self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
+			if err != nil {
+				log.Fatalf("Failed to get static NodeInfo: %v", err)
+			}
+			other := []*swarm.NodeInfo{self}
+
+			for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
+				ni, err := swarm.NewStaticNodeInfo(addr, addr)
+				if err != nil {
+					log.Fatalf("Failed to get static NodeInfo: %v", err)
+				}
+				other = append(other, ni)
+			}
+
+			swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
+		}
+
 		theSwarm, err = swarm.NewSwarm(swops)
 		if err != nil {
 			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
