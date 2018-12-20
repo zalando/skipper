@@ -50,6 +50,7 @@
 package tracing
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -128,4 +129,20 @@ func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 		return nil, fmt.Errorf("module %s returned: %s", impl, err)
 	}
 	return tracer, nil
+}
+
+// CreateSpan creates a started span from an optional given parent from context
+func CreateSpan(name string, ctx context.Context, openTracer ot.Tracer) ot.Span {
+	parentSpan := ot.SpanFromContext(ctx)
+	if parentSpan == nil {
+		return openTracer.StartSpan(name)
+	}
+	return openTracer.StartSpan(name, ot.ChildOf(parentSpan.Context()))
+}
+
+// LogKV will add a log to the span from the given context
+func LogKV(k, v string, ctx context.Context) {
+	if span := ot.SpanFromContext(ctx); span != nil {
+		span.LogKV(k, v)
+	}
 }
