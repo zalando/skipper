@@ -1091,13 +1091,6 @@ apiUsageMonitoring(`
 `)
 ```
 
-NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
-and path template.
-
-```
-apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.http_count
-```
-
 Based on the previous configuration, here is an example of a counter metric.
 
 ```
@@ -1120,4 +1113,19 @@ Here is the _Prometheus_ query to obtain it.
 
 ```
 histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.*.*.latency"}[60s])) by (le, key))
+```
+
+NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
+and path template.
+
+```
+apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.http_count
+```
+
+However, if all `application_id`s of your configuration refer to the same application,
+the filter assume that also non configured paths will be directed to this application.
+E.g.:
+
+```
+apiUsageMonitoring.custom.my-app.<unknown>.GET.<unknown>.*.*.http_count
 ```

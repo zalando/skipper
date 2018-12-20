@@ -99,10 +99,12 @@ func (s *apiUsageMonitoringSpec) Name() string {
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
 	apis := s.parseJsonConfiguration(args)
 	paths := s.buildPathInfoListFromConfiguration(apis)
+	unknownPath := s.buildUnknownPathInfo(apis)
 
 	filter = &apiUsageMonitoringFilter{
-		Spec:  s,
-		Paths: paths,
+		Spec:        s,
+		Paths:       paths,
+		UnknownPath: unknownPath,
 	}
 	log.Debugf("Created filter: %s", filter)
 	return
@@ -129,6 +131,25 @@ func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*a
 		apis = append(apis, config)
 	}
 	return apis
+}
+
+func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(apis []*apiConfig) *pathInfo {
+	var applicationId *string
+	for _, api := range apis {
+		if applicationId != nil && *applicationId != api.ApplicationId {
+			return s.unknownPath
+		}
+		applicationId = &api.ApplicationId
+	}
+
+	if applicationId != nil && *applicationId != "" {
+		return newPathInfo(
+			*applicationId,
+			s.unknownPath.ApiId,
+			s.unknownPath.PathTemplate,
+			s.unknownPath.ClientTracking)
+	}
+	return s.unknownPath
 }
 
 func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {

@@ -37,6 +37,7 @@ const (
 type apiUsageMonitoringFilter struct {
 	Spec  *apiUsageMonitoringSpec
 	Paths []*pathInfo
+	UnknownPath *pathInfo // shouldn't this parameter(s) be privated?
 }
 
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
@@ -161,7 +162,7 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) *pathInfo {
 			return p
 		}
 	}
-	return f.Spec.unknownPath
+	return f.UnknownPath
 }
 
 // getEndpointMetricsNames returns the structure with names of the metrics for this specific context.
