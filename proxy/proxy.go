@@ -28,6 +28,7 @@ import (
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -193,6 +194,7 @@ type Params struct {
 }
 
 var (
+	hostname               = ""
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
 	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
 	errCircuitBreakerOpen  = &proxyError{
@@ -539,6 +541,8 @@ func WithParams(p Params) *Proxy {
 		openTracingInitialSpan = "ingress"
 	}
 
+	hostname = os.Getenv("HOSTNAME")
+
 	return &Proxy{
 		routing:                  p.Routing,
 		roundTripper:             tr,
@@ -575,11 +579,19 @@ func tryCatch(p func(), onErr func(err interface{})) {
 
 // applies filters to a request
 func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []*routing.RouteFilter {
+	if len(f) == 0 {
+		return f
+	}
+
 	filtersStart := time.Now()
+
+	filtersSpan := tracing.CreateSpan("request_filters", ctx.request.Context(), p.openTracer)
+	defer filtersSpan.Finish()
 
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start := time.Now()
+		filtersSpan.LogKV(fi.Name, "start")
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
 			fi.Request(ctx)
@@ -594,6 +606,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 
 			p.log.Errorf("error while processing filter during request: %s: %v", fi.Name, err)
 		})
+		filtersSpan.LogKV(fi.Name, "done")
 
 		filters = append(filters, fi)
 		if ctx.deprecatedShunted() || ctx.shunted() {
@@ -707,18 +720,12 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 		return nil, &proxyError{handled: true}
 	}
 
-	ingress := ot.SpanFromContext(req.Context())
 	bag := ctx.StateBag()
 	spanName, ok := bag[tracingfilter.OpenTracingProxySpanKey].(string)
 	if !ok {
 		spanName = "proxy"
 	}
-
-	if ingress == nil {
-		ctx.proxySpan = p.openTracer.StartSpan(spanName)
-	} else {
-		ctx.proxySpan = p.openTracer.StartSpan(spanName, ot.ChildOf(ingress.Context()))
-	}
+	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.openTracer)
 	ext.SpanKindRPCClient.Set(ctx.proxySpan)
 	ctx.proxySpan.SetTag("skipper.route_id", ctx.route.Id)
 	ctx.proxySpan.SetTag("skipper.route", ctx.route.String())
@@ -909,9 +916,7 @@ func (p *Proxy) do(ctx *context) error {
 	} else {
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
-			if span := ot.SpanFromContext(ctx.Request().Context()); span != nil {
-				span.LogKV(`circuit_breaker`, `open`)
-			}
+			tracing.LogKV("circuit_breaker", "open", ctx.request.Context())
 			return errCircuitBreakerOpen
 		}
 
@@ -937,6 +942,8 @@ func (p *Proxy) do(ctx *context) error {
 					ctx.proxySpan.Finish()
 					ctx.proxySpan = nil
 				}
+
+				tracing.LogKV("retry", ctx.route.Id, ctx.Request().Context())
 
 				perr = nil
 				var perr2 *proxyError
@@ -1124,6 +1131,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err = p.do(ctx)
 	if err != nil {
+		ext.Error.Set(span, true)
 		p.errorResponse(ctx, err)
 		return
 	}
@@ -1150,6 +1158,7 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 	ext.Component.Set(s, "skipper")
 	ext.HTTPUrl.Set(s, u.String())
 	ext.HTTPMethod.Set(s, r.Method)
+	s.SetTag("hostname", hostname)
 	s.SetTag("http.remote_addr", r.RemoteAddr)
 	s.SetTag("http.path", u.Path)
 	s.SetTag("http.host", r.Host)
