@@ -1131,6 +1131,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err = p.do(ctx)
 	if err != nil {
+		ext.Error.Set(span, true)
 		p.errorResponse(ctx, err)
 		return
 	}
