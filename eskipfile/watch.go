@@ -28,10 +28,10 @@ type WatchClient struct {
 // Watch creates a route configuration client with file watching. Watch doesn't follow file system nodes, it
 // always reads from the file identified by the initially provided file name.
 func Watch(fileName string) *WatchClient {
-	return WatchFile(fileName, eskip.ParseBytes)
+	return WatchWithParser(fileName, eskip.ParseBytes)
 }
 
-func WatchFile(fileName string, parseFunc eskip.ParseFunc) *WatchClient {
+func WatchWithParser(fileName string, parseFunc eskip.ParseFunc) *WatchClient {
 	c := &WatchClient{
 		fileName:   fileName,
 		parseFunc:  parseFunc,
