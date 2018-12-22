@@ -206,7 +206,7 @@ func (p *Predicate) MarshalJSON() ([]byte, error) {
 	return marshalNameArgs(p.Name, p.Args)
 }
 
-// UnmarshalJSON returns the JSON representation of a predicate.
+// UnmarshalJSON parses a predicate object from its JSON representation
 //
 // (Typically used only as part of the unmarshalling complete routes.)
 func (p *Predicate) UnmarshalJSON(b []byte) error {
