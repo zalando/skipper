@@ -3,6 +3,7 @@ package eskip
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/sanity-io/litter"
@@ -16,7 +17,7 @@ func TestJSON(t *testing.T) {
 	}{{
 		msg:   "minimal route expression",
 		route: `* -> <shunt>`,
-		json:  `{"id":"","backend":"\u003cshunt\u003e","predicates":[],"filters":[]}`,
+		json:  `{"id":"","backend":"<shunt>","predicates":[],"filters":[]}`,
 	}, {
 		msg:   "typical route expression",
 		route: `Method("GET") && Path("/foo") -> setPath("/bar") -> "https://www.example.org"`,
@@ -32,12 +33,12 @@ func TestJSON(t *testing.T) {
 	}, {
 		msg:   "shunt route",
 		route: `teapot: Path("/foo") -> status(418) -> <shunt>`,
-		json: `{"id":"teapot","backend":"\u003cshunt\u003e","predicates":[{"name":"Path",` +
+		json: `{"id":"teapot","backend":"<shunt>","predicates":[{"name":"Path",` +
 			`"args":["/foo"]}],"filters":[{"name":"status","args":[418]}]}`,
 	}, {
 		msg:   "loopback route",
 		route: `loop: Path("/foo") -> setPath("/bar") -> <loopback>`,
-		json: `{"id":"loop","backend":"\u003cloopback\u003e","predicates":[{"name":"Path",` +
+		json: `{"id":"loop","backend":"<loopback>","predicates":[{"name":"Path",` +
 			`"args":["/foo"]}],"filters":[{"name":"setPath","args":["/bar"]}]}`,
 	}} {
 		t.Run(test.msg, func(t *testing.T) {
@@ -47,13 +48,15 @@ func TestJSON(t *testing.T) {
 				return
 			}
 
-			b, err := json.Marshal(r[0])
+			// Using Route.MarshalJSON directly because json.Marshall
+			// forces encoding of HTML entities like <>
+			b, err := r[0].MarshalJSON()
 			if err != nil {
 				t.Error(err)
 				return
 			}
 
-			if string(b) != test.json {
+			if strings.TrimSpace(string(b)) != test.json {
 				t.Error("invalid json serialization result")
 				t.Log("got:     ", string(b))
 				t.Log("expected:", test.json)

@@ -167,7 +167,7 @@ func marshalNameArgs(name string, args []interface{}) ([]byte, error) {
 
 	var buf bytes.Buffer
 	e := json.NewEncoder(&buf)
-	e.SetEscapeHTML(false) // why not working :(
+	e.SetEscapeHTML(false)
 
 	err := e.Encode(&jsonNameArgs{
 		Name: name,
