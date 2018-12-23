@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"io"
 	"net"
 	"net/http"
@@ -47,8 +48,10 @@ func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error)
 	return a, err
 }
 
-func (ac *authClient) getWebhook(r *http.Request) (int, error) {
-	return doClonedGet(ac.url, ac.client, r)
+const webhookSpanName = "webhook"
+
+func (ac *authClient) getWebhook(r *http.Request, tracer opentracing.Tracer, parentSpan opentracing.Span) (int, error) {
+	return doClonedGet(ac.url, ac.client, r, tracer, parentSpan, webhookSpanName)
 }
 
 func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, error) {
@@ -122,12 +125,16 @@ func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http
 
 // doClonedGet requests url with the same headers and query as the
 // incoming request and returns with http statusCode and error.
-func doClonedGet(u *url.URL, client *http.Client, incoming *http.Request) (int, error) {
+func doClonedGet(u *url.URL, client *http.Client, incoming *http.Request, tracer opentracing.Tracer,
+	parentSpan opentracing.Span, childSpanName string) (int, error) {
+	span := tracer.StartSpan(childSpanName, opentracing.ChildOf(parentSpan.Context()))
+	defer span.Finish()
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return -1, err
 	}
 
+	tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
 	copyHeader(req.Header, incoming.Header)
 
 	rsp, err := client.Do(req)

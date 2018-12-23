@@ -584,9 +584,9 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	}
 
 	filtersStart := time.Now()
-
 	filtersSpan := tracing.CreateSpan("request_filters", ctx.request.Context(), p.openTracer)
 	defer filtersSpan.Finish()
+	ctx.parentSpan = filtersSpan
 
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
