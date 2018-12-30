@@ -98,7 +98,7 @@ To run `skipper` you first mount the `.eskip` file, into the container, expose t
         -v $(PWD)/doc-docker-intro.eskip:/doc-docker-intro.eskip \
         -p 9090:9090 \
         -p 9911:9911 \
-        registry.opensource.zalan.do/pathfinder/skipper:latest skipper doc-docker-intro.eskip
+        registry.opensource.zalan.do/pathfinder/skipper:latest skipper -routes-file doc-docker-intro.eskip
 
 Skipper will then be available on http://localhost:9090
 
