@@ -37,7 +37,7 @@ const (
 type apiUsageMonitoringFilter struct {
 	Spec  *apiUsageMonitoringSpec
 	Paths []*pathInfo
-	UnknownPath *pathInfo // shouldn't this parameter(s) be privated?
+	UnknownPath *pathInfo
 }
 
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {

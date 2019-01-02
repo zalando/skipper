@@ -161,7 +161,7 @@ type HeaderLookuper struct {
 
 // NewHeaderLookuper returns HeaderLookuper configured to lookup header named k
 func NewHeaderLookuper(k string) HeaderLookuper {
-	return HeaderLookuper{key: k}
+	return HeaderLookuper{key: http.CanonicalHeaderKey(k)}
 }
 
 // Lookup returns the content of the Authorization header.
