@@ -167,6 +167,14 @@ ingress, then it will be based on the skipper command line parameter
 - [PathSubtree()](../../reference/predicates/#pathsubtree)
 - [PathRegexp()](../../reference/predicates/#pathregexp)
 
+If you have a `path:` value defined in your ingress resource, a custom
+route is not allowed to use `Path()` nor `PathSubtree()` predicates.
+You will get an error in Skipper logs, similar to:
+
+```
+[APP]time="2019-01-02T13:30:16Z" level=error msg="Failed to add route having 2 path routes: Path(\"/foo/bar\") -> inlineContent(\"custom route\") -> status(200) -> <shunt>"
+```
+
 ### Redirects
 
 #### Overwrite the current ingress with a redirect
