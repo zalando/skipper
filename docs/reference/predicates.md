@@ -13,7 +13,7 @@ Predicates can be chained using the double ampersand operator `&&`.
 Example route with a Host, Method and Path match predicates and a backend:
 
 ```
-all: Host("^my-host-header\.example\.org$") && Method("GET") && Path("/hello") -> "http://127.0.0.1:1234/";
+all: Host(/^my-host-header\.example\.org$/) && Method("GET") && Path("/hello") -> "http://127.0.0.1:1234/";
 ```
 
 ## Path
@@ -85,8 +85,8 @@ Parameters:
 Examples:
 
 ```
-Host("/^my-host-header\.example\.org$/")
-Host("/header\.example\.org$/")
+Host(/^my-host-header\.example\.org$/)
+Host(/header\.example\.org$/)
 ```
 
 ## Method

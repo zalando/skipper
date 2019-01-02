@@ -140,14 +140,18 @@ production and skipper has a [godoc page](https://godoc.org/github.com/zalando/s
 for the [metrics package](https://godoc.org/github.com/zalando/skipper/metrics),
 describing options and most keys you will find in the metrics handler
 endpoint. The default is listening on `:9911/metrics`. You can modify
-the listen port with the `-support-listener` flag.
+the listen port with the `-support-listener` flag. Metrics can exposed
+using formats Codahale (json) or Prometheus and be configured by
+`-metrics-flavour=`, which defaults to `codahale`. To expose both
+formats you can use a comma separated list: `-metrics-flavour=codahale,prometheus`.
+
 
 ## Prometheus
 
 In case you want to get metrics in [Prometheus](https://prometheus.io/) format exposed, use this
 option to enable it:
 
-    -enable-prometheus-metrics
+    -metrics-flavour=prometheus
 
 It will return [Prometheus](https://prometheus.io/) metrics on the
 common metrics endpoint :9911/metrics.
