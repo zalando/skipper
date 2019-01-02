@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -87,6 +87,8 @@ func (l *luaContext) SetOutgoingHost(_ string) {}
 func (l *luaContext) Metrics() filters.Metrics { return nil }
 
 func (l *luaContext) Tracer() opentracing.Tracer { return nil }
+
+func (l *luaContext) ParentSpan() opentracing.Span { return nil }
 
 func TestStateBag(t *testing.T) {
 	code := `function request(ctx, params); ctx.state_bag["foo"] = "bar"; end`

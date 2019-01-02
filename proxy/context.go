@@ -36,6 +36,7 @@ type context struct {
 	metrics               *filterMetrics
 	tracer                opentracing.Tracer
 	proxySpan             opentracing.Span
+	parentSpan            opentracing.Span
 
 	routeLookup *routing.RouteLookup
 }
@@ -194,7 +195,7 @@ func (c *context) OutgoingHost() string                { return c.outgoingHost }
 func (c *context) SetOutgoingHost(h string)            { c.outgoingHost = h }
 func (c *context) Metrics() filters.Metrics            { return c.metrics }
 func (c *context) Tracer() opentracing.Tracer          { return c.tracer }
-
+func (c *context) ParentSpan() opentracing.Span        { return c.parentSpan }
 func (c *context) Serve(r *http.Response) {
 	r.Request = c.Request()
 

@@ -21,7 +21,7 @@ package filtertest
 import (
 	"net/http"
 
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -70,6 +70,10 @@ func (fc *Context) Tracer() opentracing.Tracer {
 	}
 	return &opentracing.NoopTracer{}
 }
+func (fc *Context) ParentSpan() opentracing.Span {
+	return opentracing.StartSpan("test_span")
+}
+
 func (fc *Context) Serve(resp *http.Response) {
 	fc.FServedWithResponse = true
 	fc.FResponse = resp
