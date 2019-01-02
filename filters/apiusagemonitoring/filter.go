@@ -35,8 +35,8 @@ const (
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
 // created for every route invocation of the `apiUsageMonitoring` filter.
 type apiUsageMonitoringFilter struct {
-	Spec  *apiUsageMonitoringSpec
-	Paths []*pathInfo
+	Spec        *apiUsageMonitoringSpec
+	Paths       []*pathInfo
 	UnknownPath *pathInfo
 }
 
