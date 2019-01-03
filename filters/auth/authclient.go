@@ -3,12 +3,18 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/filters"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
+)
+
+const (
+	webhookSpanName = "webhook"
 )
 
 type authClient struct {
@@ -47,8 +53,33 @@ func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error)
 	return a, err
 }
 
-func (ac *authClient) getWebhook(r *http.Request) (int, error) {
-	return doClonedGet(ac.url, ac.client, r)
+func (ac *authClient) getWebhook(ctx filters.FilterContext) (int, error) {
+	return ac.doClonedGet(ctx)
+}
+
+// doClonedGet requests url with the same headers and query as the
+// incoming request and returns with http statusCode and error.
+func (ac *authClient) doClonedGet(ctx filters.FilterContext) (int, error) {
+	tracer := ctx.Tracer()
+	parentSpan := ctx.ParentSpan()
+	request := ctx.Request()
+	span := tracer.StartSpan(webhookSpanName, opentracing.ChildOf(parentSpan.Context()))
+	defer span.Finish()
+	req, err := http.NewRequest("GET", ac.url.String(), nil)
+	if err != nil {
+		return -1, err
+	}
+
+	tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
+	copyHeader(req.Header, request.Header)
+
+	rsp, err := ac.client.Do(req)
+	if err != nil {
+		return -1, err
+	}
+	defer rsp.Body.Close()
+
+	return rsp.StatusCode, nil
 }
 
 func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, error) {
@@ -118,23 +149,4 @@ func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http
 		return err
 	}
 	return json.Unmarshal(buf, &doc)
-}
-
-// doClonedGet requests url with the same headers and query as the
-// incoming request and returns with http statusCode and error.
-func doClonedGet(u *url.URL, client *http.Client, incoming *http.Request) (int, error) {
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return -1, err
-	}
-
-	copyHeader(req.Header, incoming.Header)
-
-	rsp, err := client.Do(req)
-	if err != nil {
-		return -1, err
-	}
-	defer rsp.Body.Close()
-
-	return rsp.StatusCode, nil
 }

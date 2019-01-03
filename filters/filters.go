@@ -79,6 +79,9 @@ type FilterContext interface {
 
 	// Allow filters to add Tags, Baggage to the trace or set the ComponentName.
 	Tracer() opentracing.Tracer
+
+	// Allow filters to create their own spans
+	ParentSpan() opentracing.Span
 }
 
 // Metrics provides possibility to use custom metrics from filter implementations. The custom metrics will

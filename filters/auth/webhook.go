@@ -60,7 +60,7 @@ func copyHeader(to, from http.Header) {
 }
 
 func (f *webhookFilter) Request(ctx filters.FilterContext) {
-	statusCode, err := f.authClient.getWebhook(ctx.Request())
+	statusCode, err := f.authClient.getWebhook(ctx)
 	if err != nil {
 		unauthorized(ctx, WebhookName, authServiceAccess, f.authClient.url.Hostname())
 	}
