@@ -43,6 +43,8 @@ const (
 	authErrorMissingCredentials = authErrorType("AUTH2")
 	authErrorAuthentication     = authErrorType("AUTH3")
 
+	createAction = actionType("create")
+	updateAction = actionType("update")
 	deleteAction = actionType("delete")
 )
 
