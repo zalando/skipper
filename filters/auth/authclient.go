@@ -9,13 +9,15 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	webhookSpanName   = "webhook"
-	tokenInfoSpanName = "tokeninfo"
+	webhookSpanName        = "webhook"
+	tokenInfoSpanName      = "tokeninfo"
+	tokenIntrospectionSpan = "tokenIntrospection"
 )
 
 type authClient struct {
@@ -39,9 +41,9 @@ func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
 	return &authClient{url: u, client: client, quit: quit}, nil
 }
 
-func (ac *authClient) getTokenintrospect(token string) (tokenIntrospectionInfo, error) {
+func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext) (tokenIntrospectionInfo, error) {
 	info := make(tokenIntrospectionInfo)
-	err := jsonPost(ac.url, token, &info, ac.client)
+	err := jsonPost(ac.url, token, &info, ac.client, ctx.Tracer(), ctx.ParentSpan(), tokenIntrospectionSpan)
 	if err != nil {
 		return nil, err
 	}
@@ -116,10 +118,9 @@ func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Cli
 	}
 	req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
 
-	if tracer != nil && parentSpan != nil && childSpanName != "" {
-		span := tracer.StartSpan(childSpanName, opentracing.ChildOf(parentSpan.Context()))
+	span := injectSpan(tracer, parentSpan, childSpanName, req)
+	if span != nil {
 		defer span.Finish()
-		tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
 	}
 
 	rsp, err := client.Do(req)
@@ -136,11 +137,24 @@ func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Cli
 	return d.Decode(doc)
 }
 
+func injectSpan(tracer opentracing.Tracer, parentSpan opentracing.Span, childSpanName string, req *http.Request) opentracing.Span {
+	if tracer != nil && parentSpan != nil && childSpanName != "" {
+		span := tracer.StartSpan(childSpanName, opentracing.ChildOf(parentSpan.Context()))
+		tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
+		return span
+	}
+	return nil
+}
+
 // jsonPost does a form post to the url with auth in the body if auth was provided. Writes response body into doc.
-func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http.Client) error {
+func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http.Client, tracer opentracing.Tracer, parentSpan opentracing.Span, spanName string) error {
 	body := url.Values{}
 	body.Add(tokenKey, auth)
-
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(body.Encode()))
+	span := injectSpan(tracer, parentSpan, spanName, req)
+	if span != nil {
+		defer span.Finish()
+	}
 	rsp, err := client.PostForm(u.String(), body)
 	if err != nil {
 		return err

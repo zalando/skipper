@@ -293,7 +293,7 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 
-		info, err = f.authClient.getTokenintrospect(token)
+		info, err = f.authClient.getTokenintrospect(token, ctx)
 		if err != nil {
 			reason := authServiceAccess
 			if err == errInvalidToken {
