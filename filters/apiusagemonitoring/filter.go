@@ -35,8 +35,9 @@ const (
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
 // created for every route invocation of the `apiUsageMonitoring` filter.
 type apiUsageMonitoringFilter struct {
-	Spec  *apiUsageMonitoringSpec
-	Paths []*pathInfo
+	Spec        *apiUsageMonitoringSpec
+	Paths       []*pathInfo
+	UnknownPath *pathInfo
 }
 
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
@@ -161,7 +162,7 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) *pathInfo {
 			return p
 		}
 	}
-	return f.Spec.unknownPath
+	return f.UnknownPath
 }
 
 // getEndpointMetricsNames returns the structure with names of the metrics for this specific context.
