@@ -1,12 +1,9 @@
 package swarm
 
 import (
-	"bytes"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -27,7 +24,6 @@ const (
 	DefaultLabelSelectorValue = "skipper-ingress"
 
 	defaultKubernetesURL    = "http://localhost:8001"
-	endpointURIFmt          = "/api/v1/namespaces/%s/endpoints/%s"
 	serviceAccountDir       = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey  = "token"
 	serviceAccountRootCAKey = "ca.crt"
@@ -39,7 +35,6 @@ const (
 var (
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
 	errInvalidCertificate   = errors.New("invalid CA")
-	errEndpointNotFound     = errors.New("endpoint not found")
 )
 
 // KubernetesOptions are Kubernetes specific swarm options, that are
@@ -202,37 +197,6 @@ func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, erro
 	return string(bToken), nil
 }
 
-func (c *ClientKubernetes) getJSON(uri string, a interface{}) error {
-	url := c.apiURL + uri
-
-	req, err := c.createRequest("GET", url, nil)
-	if err != nil {
-		return err
-	}
-
-	rsp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer rsp.Body.Close()
-
-	if rsp.StatusCode == http.StatusNotFound {
-		return errEndpointNotFound
-	}
-
-	if rsp.StatusCode != http.StatusOK {
-		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
-	}
-
-	b := bytes.NewBuffer(nil)
-	if _, err2 := io.Copy(b, rsp.Body); err2 != nil {
-		return err2
-	}
-
-	return json.Unmarshal(b.Bytes(), a)
-}
-
 func (c *ClientKubernetes) createRequest(method, url string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
@@ -244,37 +208,4 @@ func (c *ClientKubernetes) createRequest(method, url string, body io.Reader) (*h
 	}
 
 	return req, nil
-}
-
-// The following types and code are copied from dataclient/kubernetes/definitions.go
-type endpoint struct {
-	Subsets []*subset `json:"subsets"`
-}
-
-type subset struct {
-	Addresses []*address `json:"addresses"`
-	Ports     []*port    `json:"ports"`
-}
-
-type address struct {
-	IP   string `json:"ip"`
-	Node string `json:"nodeName"`
-}
-
-type port struct {
-	Name     string `json:"name"`
-	Port     int    `json:"port"`
-	Protocol string `json:"protocol"`
-}
-
-func (ep endpoint) Targets() []string {
-	result := make([]string, 0)
-	for _, s := range ep.Subsets {
-		for _, port := range s.Ports {
-			for _, addr := range s.Addresses {
-				result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
-			}
-		}
-	}
-	return result
 }

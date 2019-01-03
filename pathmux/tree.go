@@ -85,7 +85,7 @@ func (n *node) addPath(path string, wildcards []string) (*node, error) {
 				for i := 0; i < len(wildcards); i++ {
 					if n.leafWildcardNames[i] != wildcards[i] {
 						return nil, fmt.Errorf(
-							"Wildcards %v are ambiguous with wildcards %v",
+							"wildcards %v are ambiguous with wildcards %v",
 							n.leafWildcardNames, wildcards)
 					}
 				}
@@ -124,7 +124,7 @@ func (n *node) addPath(path string, wildcards []string) (*node, error) {
 
 		if path[1:] != n.catchAllChild.path {
 			return nil, fmt.Errorf(
-				"Catch-all name in %s doesn't match %s",
+				"catch-all name in %s doesn't match %s",
 				path, n.catchAllChild.path)
 		}
 

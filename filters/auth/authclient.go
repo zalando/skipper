@@ -3,14 +3,15 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
-	"github.com/zalando/skipper/filters"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/filters"
 )
 
 const (
@@ -33,7 +34,7 @@ func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
 	quit := make(chan struct{})
 	client, err := createHTTPClient(timeout, quit)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to create http client: %v", err)
+		return nil, fmt.Errorf("unable to create http client: %v", err)
 	}
 	return &authClient{url: u, client: client, quit: quit}, nil
 }

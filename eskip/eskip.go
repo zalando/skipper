@@ -380,7 +380,7 @@ func ParsePredicates(p string) ([]*Predicate, error) {
 
 const randomIdLength = 16
 
-var routeIdRx = regexp.MustCompile("\\W")
+var routeIdRx = regexp.MustCompile(`\W`)
 
 // generate weak random id for a route if
 // it doesn't have one.

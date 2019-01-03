@@ -43,10 +43,7 @@ const (
 	authErrorMissingCredentials = authErrorType("AUTH2")
 	authErrorAuthentication     = authErrorType("AUTH3")
 
-	createAction   = actionType("create")
-	updateAction   = actionType("update")
-	activateAction = actionType("activate")
-	deleteAction   = actionType("delete")
+	deleteAction = actionType("delete")
 )
 
 // json serialization object for innkeeper route definitions
@@ -213,7 +210,7 @@ func setAuthToken(h http.Header, value string) {
 
 func (c *Client) writeRoute(url string, route *jsonRoute) error {
 
-	res, err := json.Marshal(route)
+	res, _ := json.Marshal(route)
 
 	req, err := http.NewRequest("POST", url, bytes.NewReader(res))
 

@@ -100,7 +100,6 @@ type Options struct {
 // consistent information with other skipper peers.
 type Swarm struct {
 	local            *NodeInfo
-	errors           chan<- error
 	maxMessageBuffer int
 	leaveTimeout     time.Duration
 

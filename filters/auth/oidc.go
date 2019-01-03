@@ -41,9 +41,7 @@ type (
 		verifier        *oidc.IDTokenVerifier
 		claims          []string
 		validity        time.Duration
-		secretsFile     string
 		cookiename      string
-		refreshInterval time.Duration
 		redirectPath    string
 		encrypter       *encrypter
 		authCodeOptions []oauth2.AuthCodeOption
@@ -98,6 +96,10 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	providerURL, err := url.Parse(sargs[0])
+	if err != nil {
+		log.Errorf("Failed to parse url %s: %v", sargs[0], err)
+		return nil, filters.ErrInvalidFilterParameters
+	}
 
 	ctx := context.Background()
 	provider, err := oidc.NewProvider(ctx, providerURL.String())
@@ -232,8 +234,7 @@ const (
 )
 
 var (
-	src      = rand.NewSource(time.Now().UnixNano())
-	stateMap = make(map[string]bool)
+	src = rand.NewSource(time.Now().UnixNano())
 )
 
 // https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-golang

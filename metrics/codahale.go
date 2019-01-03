@@ -246,7 +246,6 @@ func (c *CodaHale) getHandler(path string) http.Handler {
 type codaHaleMetricsHandler struct {
 	path     string
 	registry metrics.Registry
-	profile  http.Handler
 	options  Options
 }
 

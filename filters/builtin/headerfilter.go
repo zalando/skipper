@@ -15,8 +15,9 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters"
 	"strings"
+
+	"github.com/zalando/skipper/filters"
 )
 
 type headerType int
@@ -36,8 +37,8 @@ const (
 // common structure for requestHeader, responseHeader specifications and
 // filters
 type headerFilter struct {
-	typ              headerType
-	name, key, value string
+	typ        headerType
+	key, value string
 }
 
 // verifies that the filter config has two string parameters

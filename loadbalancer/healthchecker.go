@@ -57,8 +57,7 @@ func New(healthcheckInterval time.Duration) *LB {
 	if healthcheckInterval == 0 {
 		return nil
 	}
-	var sigs chan os.Signal
-	sigs = make(chan os.Signal, 1)
+	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
 
 	lb := &LB{
@@ -186,7 +185,7 @@ func (lb *LB) startDoHealthChecks() {
 					lb.Unlock()
 				}
 			}
-			log.Debugf("Checking health took %v", time.Now().Sub(now))
+			log.Debugf("Checking health took %v", time.Since(now))
 
 		case <-lb.sigtermSignal:
 			log.Infoln("Shutdown loadbalancer")

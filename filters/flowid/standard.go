@@ -15,7 +15,7 @@ const (
 )
 
 var (
-	ErrInvalidLen       = fmt.Errorf("Invalid length. Must be between %d and %d", MinLength, MaxLength)
+	ErrInvalidLen       = fmt.Errorf("invalid length, must be between %d and %d", MinLength, MaxLength)
 	standardFlowIDRegex = regexp.MustCompile(`^[0-9a-zA-Z+-]+$`)
 )
 

@@ -88,6 +88,10 @@ deps:
 vet: $(SOURCES)
 	GO111MODULE=on go vet $(PACKAGES)
 
+# TODO(sszuecs) review disabling these checks, f.e. -ST1008 because of inkeeper
+staticcheck: $(SOURCES)
+	GO111MODULE=on staticcheck -tests=false -checks "all,-ST1000,-ST1003,-ST1008,-ST1012,-ST1016" $(PACKAGES)
+
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)
 

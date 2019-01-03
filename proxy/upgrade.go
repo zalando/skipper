@@ -82,7 +82,9 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if p.useAuditLog {
 		auditlog := &auditLog{req.Method, req.URL.Path, req.URL.RawQuery, req.URL.Fragment}
 		auditJSON, err := json.Marshal(auditlog)
-		_, err = p.auditLogErr.Write(auditJSON)
+		if err == nil {
+			_, err = p.auditLogErr.Write(auditJSON)
+		}
 		if err != nil {
 			log.Errorf("Could not write audit-log, caused by: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)

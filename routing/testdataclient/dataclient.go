@@ -23,12 +23,12 @@ package testdataclient
 
 import (
 	"errors"
+
 	"github.com/zalando/skipper/eskip"
 )
 
 // DataClient implementation.
 type Client struct {
-	initDoc      string
 	routes       map[string]*eskip.Route
 	upsert       []*eskip.Route
 	deletedIds   []string

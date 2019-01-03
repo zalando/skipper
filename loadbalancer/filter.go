@@ -3,8 +3,9 @@ package loadbalancer
 import (
 	"fmt"
 
-	"github.com/zalando/skipper/filters"
 	"math/rand"
+
+	"github.com/zalando/skipper/filters"
 )
 
 const (
@@ -32,12 +33,6 @@ func (c counter) inc(groupSize int) int {
 	v := <-c
 	c <- v + 1
 	return v % groupSize
-}
-
-func (c counter) value() int {
-	v := <-c
-	c <- v
-	return v
 }
 
 // NewDecide create a filter specification for the decision route in

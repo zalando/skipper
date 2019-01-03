@@ -36,7 +36,6 @@ const (
 	UnverifiedAuditHeader = "X-Unverified-Audit"
 	authHeaderName        = "Authorization"
 	authHeaderPrefix      = "Bearer "
-	accessTokenQueryKey   = "access_token"
 	defaultSub            = "<invalid-sub>"
 )
 
