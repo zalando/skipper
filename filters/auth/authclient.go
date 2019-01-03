@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	webhookSpanName = "webhook"
+	webhookSpanName   = "webhook"
+	tokenInfoSpanName = "tokeninfo"
 )
 
 type authClient struct {
@@ -47,9 +48,9 @@ func (ac *authClient) getTokenintrospect(token string) (tokenIntrospectionInfo, 
 	return info, err
 }
 
-func (ac *authClient) getTokeninfo(token string) (map[string]interface{}, error) {
+func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map[string]interface{}, error) {
 	var a map[string]interface{}
-	err := jsonGet(ac.url, token, &a, ac.client)
+	err := jsonGet(ac.url, token, &a, ac.client, ctx.Tracer(), ctx.ParentSpan(), tokenInfoSpanName)
 	return a, err
 }
 
@@ -108,12 +109,18 @@ func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, 
 }
 
 // jsonGet does a get to the url with accessToken as the bearer token in the authorization header. Writes response body into doc.
-func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Client) error {
+func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Client, tracer opentracing.Tracer, parentSpan opentracing.Span, childSpanName string) error {
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
+
+	if tracer != nil && parentSpan != nil && childSpanName != "" {
+		span := tracer.StartSpan(childSpanName, opentracing.ChildOf(parentSpan.Context()))
+		defer span.Finish()
+		tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
+	}
 
 	rsp, err := client.Do(req)
 	if err != nil {

@@ -240,7 +240,7 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 
-		authMap, err = f.authClient.getTokeninfo(token)
+		authMap, err = f.authClient.getTokeninfo(token, ctx)
 		if err != nil {
 			reason := authServiceAccess
 			if err == errInvalidToken {
