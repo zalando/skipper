@@ -88,9 +88,11 @@ deps:
 vet: $(SOURCES)
 	GO111MODULE=on go vet $(PACKAGES)
 
-# TODO(sszuecs) review disabling these checks, f.e. -ST1008 because of inkeeper
+# TODO(sszuecs) review disabling these checks, f.e.:
+# -ST1008 because of inkeeper
+# -SA4006 because of eskip parser
 staticcheck: $(SOURCES)
-	GO111MODULE=on staticcheck -tests=false -checks "all,-ST1000,-ST1003,-ST1008,-ST1012,-ST1016" $(PACKAGES)
+	GO111MODULE=on staticcheck -tests=false -checks "all,-ST1000,-ST1003,-ST1008,-ST1012,-ST1016,-SA4006" $(PACKAGES)
 
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)

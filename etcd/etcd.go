@@ -35,8 +35,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/eskip"
 	"io"
 	"io/ioutil"
 	"net"
@@ -45,6 +43,9 @@ import (
 	"path"
 	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/eskip"
 )
 
 const (
@@ -136,7 +137,6 @@ var (
 	invalidNode             = errors.New("invalid node")
 	unexpectedHttpResponse  = errors.New("unexpected http response")
 	notFound                = errors.New("not found")
-	missingEtcdIndex        = errors.New("missing etcd index")
 	invalidResponseDocument = errors.New("invalid response document")
 )
 

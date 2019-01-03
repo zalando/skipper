@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-var parameterRegexp = regexp.MustCompile("\\$\\{(\\w+)\\}")
+var parameterRegexp = regexp.MustCompile(`\$\{(\w+)\}`)
 
 // TemplateGetter functions return the value for a template parameter name.
 type TemplateGetter func(string) string
