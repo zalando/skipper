@@ -3,7 +3,6 @@ package proxy
 import (
 	"bytes"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -17,6 +16,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
@@ -467,12 +468,12 @@ func TestAppliesFilters(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	fr := make(filters.Registry)
-	fr.Register(builtin.NewRequestHeader())
-	fr.Register(builtin.NewResponseHeader())
+	fr.Register(builtin.NewAppendRequestHeader())
+	fr.Register(builtin.NewAppendResponseHeader())
 
 	doc := fmt.Sprintf(`hello: Path("/hello")
-		-> requestHeader("X-Test-Request-Header", "request header value")
-		-> responseHeader("X-Test-Response-Header", "response header value")
+		-> appendRequestHeader("X-Test-Request-Header", "request header value")
+		-> appendResponseHeader("X-Test-Response-Header", "response header value")
 		-> "%s"
 	`, s.URL)
 	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
@@ -506,7 +507,7 @@ func TestBreakFilterChain(t *testing.T) {
 	defer s.Close()
 
 	fr := make(filters.Registry)
-	fr.Register(builtin.NewRequestHeader())
+	fr.Register(builtin.NewAppendRequestHeader())
 	resp1 := &http.Response{
 		Header:     make(http.Header),
 		Body:       ioutil.NopCloser(new(bytes.Buffer)),
@@ -514,15 +515,15 @@ func TestBreakFilterChain(t *testing.T) {
 		Status:     "Impossible body",
 	}
 	fr.Register(&shunter{resp1})
-	fr.Register(builtin.NewResponseHeader())
+	fr.Register(builtin.NewAppendResponseHeader())
 
 	doc := fmt.Sprintf(`breakerDemo:
 		Path("/shunter") ->
-		requestHeader("X-Expected", "request header") ->
-		responseHeader("X-Expected", "response header") ->
+		appendRequestHeader("X-Expected", "request header") ->
+		appendResponseHeader("X-Expected", "response header") ->
 		shunter() ->
-		requestHeader("X-Unexpected", "foo") ->
-		responseHeader("X-Unexpected", "bar") ->
+		appendRequestHeader("X-Unexpected", "foo") ->
+		appendResponseHeader("X-Unexpected", "bar") ->
 		"%s"`, s.URL)
 	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
 	if err != nil {
@@ -625,9 +626,9 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	fr := make(filters.Registry)
-	fr.Register(builtin.NewResponseHeader())
+	fr.Register(builtin.NewAppendResponseHeader())
 
-	doc := `hello: Path("/hello") -> responseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
+	doc := `hello: Path("/hello") -> appendResponseHeader("X-Test-Response-Header", "response header value") -> <shunt>`
 	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
 	if err != nil {
 		t.Error(err)
@@ -845,25 +846,25 @@ func TestHostHeader(t *testing.T) {
 	}, {
 		"no proxy preserve, route preserve not, explicit host last",
 		FlagsNone,
-		`route: Any() -> preserveHost("false") -> requestHeader("Host", "custom.example.org") -> "%s"`,
+		`route: Any() -> preserveHost("false") -> appendRequestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"no proxy preserve, route preserve, explicit host last",
 		FlagsNone,
-		`route: Any() -> preserveHost("true") -> requestHeader("Host", "custom.example.org") -> "%s"`,
+		`route: Any() -> preserveHost("true") -> appendRequestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"no proxy preserve, route preserve not, explicit host first",
 		FlagsNone,
-		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
+		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"no proxy preserve, route preserve, explicit host last",
 		FlagsNone,
-		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
@@ -887,31 +888,31 @@ func TestHostHeader(t *testing.T) {
 	}, {
 		"proxy preserve, route preserve not, explicit host last",
 		PreserveHost,
-		`route: Any() -> preserveHost("false") -> requestHeader("Host", "custom.example.org") -> "%s"`,
+		`route: Any() -> preserveHost("false") -> appendRequestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve, route preserve, explicit host last",
 		PreserveHost,
-		`route: Any() -> preserveHost("true") -> requestHeader("Host", "custom.example.org") -> "%s"`,
+		`route: Any() -> preserveHost("true") -> appendRequestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve, route preserve not, explicit host first",
 		PreserveHost,
-		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
+		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve, route preserve, explicit host last",
 		PreserveHost,
-		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"debug proxy, route not found",
 		PreserveHost | Debug,
-		`route: Path("/hello") -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		`route: Path("/hello") -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"",
 	}, {
@@ -923,7 +924,7 @@ func TestHostHeader(t *testing.T) {
 	}, {
 		"debug proxy, full circle",
 		PreserveHost | Debug,
-		`route: Any() -> requestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}} {

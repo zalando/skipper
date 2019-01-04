@@ -89,7 +89,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 		for i := 0; i < 300 && !t.Failed(); i++ {
 			req, err := http.NewRequest("GET", p.URL, nil)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 				break
 			}
 
@@ -189,39 +189,37 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 	runClient := func() {
 		ticker := time.NewTicker(routeUpdateTimeout)
 		for i := 0; i < repeatedRequests && !t.Failed(); i++ {
-			select {
-			case <-ticker.C:
-				req, err := http.NewRequest("GET", p.URL, nil)
-				if err != nil {
-					t.Fatal(err)
-					break
-				}
-
-				rsp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					t.Error(err)
-					break
-				}
-
-				defer rsp.Body.Close()
-				if rsp.StatusCode != http.StatusOK {
-					t.Error("invalid status code", rsp.StatusCode)
-					break
-				}
-
-				b, err := ioutil.ReadAll(rsp.Body)
-				if err != nil {
-					t.Error(err)
-					break
-				}
-
-				c, ok := memberCounters[string(b)]
-				if !ok {
-					t.Error("invalid response content", string(b))
-					break
-				}
-				c.inc()
+			<-ticker.C
+			req, err := http.NewRequest("GET", p.URL, nil)
+			if err != nil {
+				t.Error(err)
+				break
 			}
+
+			rsp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Error(err)
+				break
+			}
+
+			defer rsp.Body.Close()
+			if rsp.StatusCode != http.StatusOK {
+				t.Error("invalid status code", rsp.StatusCode)
+				break
+			}
+
+			b, err := ioutil.ReadAll(rsp.Body)
+			if err != nil {
+				t.Error(err)
+				break
+			}
+
+			c, ok := memberCounters[string(b)]
+			if !ok {
+				t.Error("invalid response content", string(b))
+				break
+			}
+			c.inc()
 		}
 
 		wg.Done()
@@ -287,8 +285,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 	p := proxytest.New(builtin.MakeRegistry(), routes...)
 	defer p.Close()
 
-	var memberCounters map[string]map[string]counter
-	memberCounters = make(map[string]map[string]counter)
+	memberCounters := make(map[string]map[string]counter)
 
 	for _, app := range apps {
 		memberCounters[app] = make(map[string]counter)
@@ -303,7 +300,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 			curApp := apps[i%2]
 			req, err := http.NewRequest("GET", p.URL+"/"+curApp, nil)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 				break
 			}
 
@@ -358,19 +355,17 @@ func createDataClientWithUpdates(initial []*eskip.Route, updateTimeout time.Dura
 	ticker := time.NewTicker(updateTimeout)
 	go func() {
 		for {
-			select {
-			case <-ticker.C:
-				dataClient.Update(append(initial, &eskip.Route{
-					Id:      "meaningless_route",
-					Backend: "https://some.site",
-					Predicates: []*eskip.Predicate{{
-						Name: "Host",
-						Args: []interface{}{
-							"no.sense",
-						},
-					}},
-				}), []string{})
-			}
+			<-ticker.C
+			dataClient.Update(append(initial, &eskip.Route{
+				Id:      "meaningless_route",
+				Backend: "https://some.site",
+				Predicates: []*eskip.Predicate{{
+					Name: "Host",
+					Args: []interface{}{
+						"no.sense",
+					},
+				}},
+			}), []string{})
 		}
 	}()
 

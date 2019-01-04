@@ -390,7 +390,11 @@ func GenerateIfNeeded(existingId string) string {
 	}
 
 	// using this to avoid adding a new dependency.
-	id, err := flowid.NewFlowId(randomIdLength)
+	g, err := flowid.NewStandardGenerator(randomIdLength)
+	if err != nil {
+		return existingId
+	}
+	id, err := g.Generate()
 	if err != nil {
 		return existingId
 	}

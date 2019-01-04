@@ -1,16 +1,11 @@
 package auth
 
 import (
-	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
 	"testing"
-)
 
-type createTestItem struct {
-	msg  string
-	args []interface{}
-	err  bool
-}
+	"github.com/zalando/skipper/filters/filtertest"
+)
 
 func TestWithMissingAuth(t *testing.T) {
 	spec := NewBasicAuth()

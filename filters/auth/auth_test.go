@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -17,19 +16,6 @@ const (
 	testValue    = "jdoe"
 	testAuthPath = "/test-auth"
 )
-
-type testAuthDoc struct {
-	authMap map[string]interface{}
-}
-
-func lastQueryValue(url string) string {
-	s := strings.Split(url, "=")
-	if len(s) == 0 {
-		return ""
-	}
-
-	return s[len(s)-1]
-}
 
 func Test_all(t *testing.T) {
 	for _, ti := range []struct {

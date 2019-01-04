@@ -40,13 +40,12 @@ var testOidcConfig *openIDConfig = &openIDConfig{
 }
 
 var (
-	validClaim1                = "email"
-	validClaim1Value           = "jdoe@example.com"
-	validClaim2                = "name"
-	validClaim2Value           = "Jane Doe"
-	invalidSupportedClaim      = "sub"
-	invalidSupportedClaimValue = "x42"
-	invalidFilterExpected      = 999
+	validClaim1           = "email"
+	validClaim1Value      = "jdoe@example.com"
+	validClaim2           = "name"
+	validClaim2Value      = "Jane Doe"
+	invalidSupportedClaim = "sub"
+	invalidFilterExpected = 999
 )
 
 func TestOAuth2Tokenintrospection(t *testing.T) {

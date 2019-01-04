@@ -88,7 +88,7 @@ func TestCodaHaleMeasurement(t *testing.T) {
 		t.Error("'TestMeasurement1' metric should only have zeroes")
 	}
 	now := time.Now()
-	time.Sleep(5)
+	time.Sleep(5 * time.Nanosecond)
 	c.measureSince("TestMeasurement1", now)
 
 	time.Sleep(20 * time.Millisecond)
