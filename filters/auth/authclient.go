@@ -17,7 +17,7 @@ import (
 const (
 	webhookSpanName        = "webhook"
 	tokenInfoSpanName      = "tokeninfo"
-	tokenIntrospectionSpan = "tokenIntrospection"
+	tokenIntrospectionSpan = "tokenintrospection"
 )
 
 type authClient struct {
