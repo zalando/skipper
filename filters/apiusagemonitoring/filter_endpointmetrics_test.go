@@ -391,10 +391,8 @@ func Test_Filter_String(t *testing.T) {
 	if !assert.IsType(t, &apiUsageMonitoringFilter{}, filter) {
 		return
 	}
-	f, ok := filter.(*apiUsageMonitoringFilter)
-	if ok && f != nil {
-		s1 := fmt.Sprintf("%s", f)
-		s2 := fmt.Sprintf("%s", *f)
-		assert.Equal(t, s1, s2)
-	}
+	f := filter.(*apiUsageMonitoringFilter)
+	s1 := fmt.Sprintf("%s", f)
+	s2 := fmt.Sprintf("%s", *f)
+	assert.Equal(t, s1, s2)
 }
