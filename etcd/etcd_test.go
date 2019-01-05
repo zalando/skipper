@@ -434,7 +434,7 @@ func TestUpsertNew(t *testing.T) {
 		t.Error(err)
 	}
 
-	routes, err := c.LoadAll()
+	routes, _ := c.LoadAll()
 	if len(routes) != 1 || routes[0].Id != "route1" {
 		t.Error("failed to upsert route", len(routes))
 	}
@@ -472,7 +472,7 @@ func TestUpsertExisting(t *testing.T) {
 		t.Error(err)
 	}
 
-	routes, err := c.LoadAll()
+	routes, _ := c.LoadAll()
 	if len(routes) != 1 || routes[0].Method != "PUT" {
 		t.Error("failed to upsert route")
 	}
@@ -553,7 +553,7 @@ func TestDelete(t *testing.T) {
 		t.Error(err)
 	}
 
-	routes, err := c.LoadAll()
+	routes, _ := c.LoadAll()
 	if len(routes) != 0 {
 		t.Error("failed to delete route")
 	}

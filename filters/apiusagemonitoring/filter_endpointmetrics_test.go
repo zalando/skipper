@@ -392,7 +392,9 @@ func Test_Filter_String(t *testing.T) {
 		return
 	}
 	f := filter.(*apiUsageMonitoringFilter)
+	//lint:ignore S1025 String can not be used so ignore
 	s1 := fmt.Sprintf("%s", f)
+	//lint:ignore S1025 String can not be used so ignore
 	s2 := fmt.Sprintf("%s", *f)
 	assert.Equal(t, s1, s2)
 }

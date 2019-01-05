@@ -74,6 +74,8 @@ func (to BreakerSettings) mergeSettings(from BreakerSettings) BreakerSettings {
 }
 
 // String returns the string representation of a particular set of settings.
+//
+//lint:ignore ST1016 "s" makes sense here and mergeSettings has "to"
 func (s BreakerSettings) String() string {
 	var ss []string
 

@@ -955,7 +955,7 @@ func TestIngress(t *testing.T) {
 
 		defer dc.Close()
 
-		r, err := dc.LoadAll()
+		_, err = dc.LoadAll()
 		if err != nil {
 			t.Error("failed to load initial routes", err)
 			return
@@ -1356,7 +1356,7 @@ func TestConvertPathRule(t *testing.T) {
 
 		defer dc.Close()
 
-		r, err := dc.LoadAll()
+		_, err = dc.LoadAll()
 
 		if err != nil {
 			t.Error("failed to load initial routes", err)
@@ -1419,7 +1419,7 @@ func TestConvertPathRule(t *testing.T) {
 
 		defer dc.Close()
 
-		r, err := dc.LoadAll()
+		_, err = dc.LoadAll()
 
 		if err != nil {
 			t.Error("failed to load initial routes", err)
@@ -1494,7 +1494,7 @@ func TestConvertPathRule(t *testing.T) {
 			},
 		)
 
-		r, _, err = dc.LoadUpdate()
+		r, _, err := dc.LoadUpdate()
 		if err != nil {
 			t.Errorf("update failed: %v", err)
 		}
@@ -1524,7 +1524,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 
 		defer dc.Close()
 
-		r, err := dc.LoadAll()
+		_, err = dc.LoadAll()
 
 		if err != nil {
 			t.Error("failed to load initial routes", err)
@@ -1577,7 +1577,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 
 		defer dc.Close()
 
-		r, err := dc.LoadAll()
+		_, err = dc.LoadAll()
 
 		if err != nil {
 			t.Error("failed to load initial routes", err)
@@ -1646,7 +1646,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 
 		defer dc.Close()
 
-		r, err := dc.LoadAll()
+		_, err = dc.LoadAll()
 
 		if err != nil {
 			t.Error("failed to load initial routes", err)
@@ -1721,7 +1721,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 			},
 		)
 
-		r, _, err = dc.LoadUpdate()
+		r, _, err := dc.LoadUpdate()
 		if err != nil {
 			t.Errorf("update failed: %v", err)
 		}
@@ -2127,18 +2127,18 @@ func TestCreateRequest(t *testing.T) {
 	client := &Client{}
 
 	url = "A%"
-	req, err = client.createRequest("GET", url, rc)
+	_, err = client.createRequest("GET", url, rc)
 	if err == nil {
 		t.Error("request creation should fail")
 	}
 
 	url = "https://www.example.org"
-	req, err = client.createRequest("GET", url, rc)
+	_, err = client.createRequest("GET", url, rc)
 	if err != nil {
 		t.Error(err)
 	}
 
-	req, err = client.createRequest("//", url, rc)
+	_, err = client.createRequest("//", url, rc)
 	if err == nil {
 		t.Error("request creation should fail")
 	}
@@ -2225,12 +2225,12 @@ func TestBuildHTTPClient(t *testing.T) {
 		t.Errorf("should return default client if outside the cluster``")
 	}
 
-	httpClient, err = buildHTTPClient("rumplestilzchen", true, quit)
+	_, err = buildHTTPClient("rumplestilzchen", true, quit)
 	if err == nil {
 		t.Errorf("expected to fail for non-existing file")
 	}
 
-	httpClient, err = buildHTTPClient("kube_test.go", true, quit)
+	_, err = buildHTTPClient("kube_test.go", true, quit)
 	if err != errInvalidCertificate {
 		t.Errorf("should return invalid certificate")
 	}
@@ -2253,7 +2253,7 @@ func TestBuildHTTPClient(t *testing.T) {
 	}
 	defer os.Remove("ca.temp.crt")
 
-	httpClient, err = buildHTTPClient("ca.temp.crt", true, quit)
+	_, err = buildHTTPClient("ca.temp.crt", true, quit)
 	if err != nil {
 		t.Error(err)
 	}

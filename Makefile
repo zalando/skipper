@@ -89,16 +89,12 @@ vet: $(SOURCES)
 	GO111MODULE=on go vet $(PACKAGES)
 
 # TODO(sszuecs) review disabling these checks, f.e.:
-# -ST1000 ?
-# -ST1003 ?
-# -ST1008 because of inkeeper DEPRECATED
-# -ST1012 ?
-# -ST1016 ?
-# -SA4000 because of fallback test in the loadbalancer
+# -ST1000 missing package doc in many packages
+# -ST1003 wrong naming convention Api vs API, Id vs ID
+# -ST1012 too many error variables are not having prefix "err"
 # -SA4006 because of eskip parser
-# -S1025  because of String test in filters/apiusagemonitoring/filter_endpointmetrics_test.go FIXME
 staticcheck: $(SOURCES)
-	GO111MODULE=on staticcheck -checks "all,-ST1000,-ST1003,-ST1008,-ST1012,-ST1016,-SA4000,-SA4006,-S1025" $(PACKAGES)
+	GO111MODULE=on staticcheck -checks "all,-ST1000,-ST1003,-ST1012" $(PACKAGES)
 
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)

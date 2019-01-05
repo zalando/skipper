@@ -178,8 +178,8 @@ type eskipParserImpl struct {
 	char  int
 }
 
-func (p *eskipParserImpl) Lookahead() int {
-	return p.char
+func (eskiprcvr *eskipParserImpl) Lookahead() int {
+	return eskiprcvr.char
 }
 
 func eskipNewParser() eskipParser {
@@ -567,7 +567,7 @@ eskipdefault:
 			eskipVAL.matchers = append(eskipVAL.matchers, eskipDollar[3].matcher)
 		}
 	case 13:
-		eskipDollar = eskipS[eskippt-1 : eskippt+1]
+		_ = eskipS[eskippt-1 : eskippt+1]
 		//line parser.y:131
 		{
 			eskipVAL.matcher = &matcher{"*", nil}
@@ -641,13 +641,13 @@ eskipdefault:
 			eskipVAL.loopback = false
 		}
 	case 25:
-		eskipDollar = eskipS[eskippt-1 : eskippt+1]
+		_ = eskipS[eskippt-1 : eskippt+1]
 		//line parser.y:189
 		{
 			eskipVAL.shunt = true
 		}
 	case 26:
-		eskipDollar = eskipS[eskippt-1 : eskippt+1]
+		_ = eskipS[eskippt-1 : eskippt+1]
 		//line parser.y:193
 		{
 			eskipVAL.loopback = true

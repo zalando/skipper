@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 /*
 Package etcd implements a DataClient for reading the skipper route
 definitions from an etcd service.
@@ -248,17 +234,17 @@ func parseResponse(rsp *http.Response) (*response, error) {
 }
 
 // Converts a non-success http status code into an in-memory error object.
-// As the second argument, returns true in case of error.
-func httpError(code int) (error, bool) {
+// As the first argument, returns true in case of error.
+func httpError(code int) (bool, error) {
 	if code == http.StatusNotFound {
-		return notFound, true
+		return true, notFound
 	}
 
 	if code < http.StatusOK || code >= http.StatusMultipleChoices {
-		return unexpectedHttpResponse, true
+		return true, unexpectedHttpResponse
 	}
 
-	return nil, false
+	return false, nil
 }
 
 // Makes a request to an available etcd endpoint, with retries in case of
@@ -296,7 +282,7 @@ func (c *Client) etcdRequest(method, path, data string) (*response, error) {
 
 	defer rsp.Body.Close()
 
-	if err, hasErr := httpError(rsp.StatusCode); hasErr {
+	if hasErr, err := httpError(rsp.StatusCode); hasErr {
 		return nil, err
 	}
 

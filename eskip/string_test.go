@@ -195,7 +195,7 @@ func TestParseAndStringAndParse(t *testing.T) {
 		`route2: Path("/some/path") -> "https://www.example.org";`
 	doc = testDoc(t, doc)
 	doc = testDoc(t, doc)
-	doc = testDoc(t, doc)
+	_ = testDoc(t, doc)
 }
 
 func TestNumberString(t *testing.T) {
