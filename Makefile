@@ -92,7 +92,6 @@ vet: $(SOURCES)
 # -ST1000 missing package doc in many packages
 # -ST1003 wrong naming convention Api vs API, Id vs ID
 # -ST1012 too many error variables are not having prefix "err"
-# -SA4006 because of eskip parser
 staticcheck: $(SOURCES)
 	GO111MODULE=on staticcheck -checks "all,-ST1000,-ST1003,-ST1012" $(PACKAGES)
 
