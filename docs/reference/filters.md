@@ -570,7 +570,7 @@ Examples:
 forwardToken("X-Tokeninfo-Forward")
 ```
 
-### oauthOIDCUserInfo
+## oauthOIDCUserInfo
 
 ```
 oauthOIDCUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
@@ -587,7 +587,7 @@ The filter needs the following parameters:
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** The claims which should be present in the token returned by the provider.
 
-### oauthOIDCAnyClaims
+## oauthOIDCAnyClaims
 
 ```
 oauthOIDCAnyClaims("https://oidc-provider.example.com", "client_id", "client_secret",
@@ -603,7 +603,7 @@ The filter needs the following parameters:
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** Several claims can be specified and the request is allowed as long as at least one of them is present.
 
-### oauthOIDCAllClaims
+## oauthOIDCAllClaims
 
 ```
 oauthOIDCAllClaims("https://oidc-provider.example.com", "client_id", "client_secret",
@@ -1050,7 +1050,7 @@ api-usage-monitoring-configuration:
         description: >
             The pattern that the combination `realm.client` must match in order for the client
             based metrics to be tracked, in form of a regular expression.
-            
+
             By default (if undefined), it is set to `services\\..*`.
 
             An empty string disables the client metrics completely.
