@@ -846,25 +846,25 @@ func TestHostHeader(t *testing.T) {
 	}, {
 		"no proxy preserve, route preserve not, explicit host last",
 		FlagsNone,
-		`route: Any() -> preserveHost("false") -> appendRequestHeader("Host", "custom.example.org") -> "%s"`,
+		`route: Any() -> preserveHost("false") -> setRequestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"no proxy preserve, route preserve, explicit host last",
 		FlagsNone,
-		`route: Any() -> preserveHost("true") -> appendRequestHeader("Host", "custom.example.org") -> "%s"`,
+		`route: Any() -> preserveHost("true") -> setRequestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"no proxy preserve, route preserve not, explicit host first",
 		FlagsNone,
-		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
+		`route: Any() -> setRequestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"no proxy preserve, route preserve, explicit host last",
 		FlagsNone,
-		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		`route: Any() -> setRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
@@ -888,31 +888,31 @@ func TestHostHeader(t *testing.T) {
 	}, {
 		"proxy preserve, route preserve not, explicit host last",
 		PreserveHost,
-		`route: Any() -> preserveHost("false") -> appendRequestHeader("Host", "custom.example.org") -> "%s"`,
+		`route: Any() -> preserveHost("false") -> setRequestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve, route preserve, explicit host last",
 		PreserveHost,
-		`route: Any() -> preserveHost("true") -> appendRequestHeader("Host", "custom.example.org") -> "%s"`,
+		`route: Any() -> preserveHost("true") -> setRequestHeader("Host", "custom.example.org") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve, route preserve not, explicit host first",
 		PreserveHost,
-		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
+		`route: Any() -> setRequestHeader("Host", "custom.example.org") -> preserveHost("false") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"proxy preserve, route preserve, explicit host last",
 		PreserveHost,
-		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		`route: Any() -> setRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}, {
 		"debug proxy, route not found",
 		PreserveHost | Debug,
-		`route: Path("/hello") -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		`route: Path("/hello") -> setRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"",
 	}, {
@@ -924,7 +924,7 @@ func TestHostHeader(t *testing.T) {
 	}, {
 		"debug proxy, full circle",
 		PreserveHost | Debug,
-		`route: Any() -> appendRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
+		`route: Any() -> setRequestHeader("Host", "custom.example.org") -> preserveHost("true") -> "%s"`,
 		"www.example.org",
 		"custom.example.org",
 	}} {
