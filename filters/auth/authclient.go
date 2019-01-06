@@ -111,7 +111,15 @@ func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, 
 }
 
 // jsonGet does a get to the url with accessToken as the bearer token in the authorization header. Writes response body into doc.
-func jsonGet(url *url.URL, accessToken string, doc interface{}, client *http.Client, tracer opentracing.Tracer, parentSpan opentracing.Span, childSpanName string) error {
+func jsonGet(
+	url *url.URL,
+	accessToken string,
+	doc interface{},
+	client *http.Client,
+	tracer opentracing.Tracer,
+	parentSpan opentracing.Span,
+	childSpanName string,
+) error {
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return err
@@ -147,15 +155,25 @@ func injectSpan(tracer opentracing.Tracer, parentSpan opentracing.Span, childSpa
 }
 
 // jsonPost does a form post to the url with auth in the body if auth was provided. Writes response body into doc.
-func jsonPost(u *url.URL, auth string, doc *tokenIntrospectionInfo, client *http.Client, tracer opentracing.Tracer, parentSpan opentracing.Span, spanName string) error {
+func jsonPost(
+	u *url.URL,
+	auth string,
+	doc *tokenIntrospectionInfo,
+	client *http.Client,
+	tracer opentracing.Tracer,
+	parentSpan opentracing.Span,
+	spanName string,
+) error {
 	body := url.Values{}
 	body.Add(tokenKey, auth)
 	req, err := http.NewRequest("POST", u.String(), strings.NewReader(body.Encode()))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
 	span := injectSpan(tracer, parentSpan, spanName, req)
 	if span != nil {
 		defer span.Finish()
 	}
-	rsp, err := client.PostForm(u.String(), body)
+	rsp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
