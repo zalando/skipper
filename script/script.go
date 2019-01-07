@@ -347,15 +347,15 @@ func getStateBag(f filters.FilterContext) func(*lua.LState) int {
 			s.Push(lua.LNil)
 			return 1
 		}
-		switch res.(type) {
+		switch res := res.(type) {
 		case string:
-			s.Push(lua.LString(res.(string)))
+			s.Push(lua.LString(res))
 		case int:
-			s.Push(lua.LNumber(res.(int)))
+			s.Push(lua.LNumber(res))
 		case int64:
-			s.Push(lua.LNumber(res.(int64)))
+			s.Push(lua.LNumber(res))
 		case float64:
-			s.Push(lua.LNumber(res.(float64)))
+			s.Push(lua.LNumber(res))
 		default:
 			s.Push(lua.LNil)
 		}
