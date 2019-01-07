@@ -2,6 +2,7 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"regexp"
 )
@@ -42,6 +43,9 @@ func newPathInfo(applicationId, apiId, pathTemplate string, clientTracking *clie
 // It is necessary (vs the reflection based marshalling) in order
 // to marshall the RegExp matcher as a string.
 func (p *pathInfo) MarshalJSON() ([]byte, error) {
+	if p == nil {
+		return nil, fmt.Errorf("pathInfo is a nil ptr")
+	}
 	return json.Marshal(struct {
 		ApplicationId string
 		ApiId         string

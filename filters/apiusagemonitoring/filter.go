@@ -4,10 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/zalando/skipper/filters"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/zalando/skipper/filters"
 )
 
 const (
@@ -217,14 +218,14 @@ func parseJwtBody(req *http.Request) jwtTokenPayload {
 	}
 
 	// base64-decode the JWT body part
-	bodyJson, err := base64.RawURLEncoding.DecodeString(fields[1])
+	bodyJSON, err := base64.RawURLEncoding.DecodeString(fields[1])
 	if err != nil {
 		return nil
 	}
 
 	// un-marshall the JWT body from JSON
 	var bodyObject map[string]interface{}
-	err = json.Unmarshal(bodyJson, &bodyObject)
+	err = json.Unmarshal(bodyJSON, &bodyObject)
 	if err != nil {
 		return nil
 	}

@@ -43,10 +43,9 @@ const (
 	authErrorMissingCredentials = authErrorType("AUTH2")
 	authErrorAuthentication     = authErrorType("AUTH3")
 
-	createAction   = actionType("create")
-	updateAction   = actionType("update")
-	activateAction = actionType("activate")
-	deleteAction   = actionType("delete")
+	createAction = actionType("create")
+	updateAction = actionType("update")
+	deleteAction = actionType("delete")
 )
 
 // json serialization object for innkeeper route definitions
@@ -194,6 +193,7 @@ func (c *Client) authenticate() error {
 
 // Checks if an http response status indicates an error, and returns an error
 // object if it does.
+//lint:ignore ST1008 inkeeper is deprecated and will be deleted
 func getHttpError(r *http.Response) (error, bool) {
 	switch {
 	case r.StatusCode < http.StatusBadRequest:
@@ -213,7 +213,7 @@ func setAuthToken(h http.Header, value string) {
 
 func (c *Client) writeRoute(url string, route *jsonRoute) error {
 
-	res, err := json.Marshal(route)
+	res, _ := json.Marshal(route)
 
 	req, err := http.NewRequest("POST", url, bytes.NewReader(res))
 

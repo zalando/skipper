@@ -211,7 +211,7 @@ func processFileArg() (*medium, error) {
 
 // if pretty print then check that indent matches pattern
 func processIndentStr() error {
-	if pretty && !(regexp.MustCompile("^[\\s]*$").MatchString(indentStr)) {
+	if pretty && !(regexp.MustCompile(`^[\s]*$`).MatchString(indentStr)) {
 		return invalidIndentStr
 	}
 	return nil

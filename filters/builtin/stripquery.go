@@ -17,10 +17,11 @@ package builtin
 import (
 	"bytes"
 	"fmt"
-	"github.com/zalando/skipper/filters"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/zalando/skipper/filters"
 )
 
 type stripQuery struct {
@@ -39,7 +40,7 @@ type stripQuery struct {
 func NewStripQuery() filters.Spec { return &stripQuery{} }
 
 // "stripQuery"
-func (spec *stripQuery) Name() string { return StripQueryName }
+func (stripQuery) Name() string { return StripQueryName }
 
 // copied from textproto/reader
 func validHeaderFieldByte(b byte) bool {
@@ -92,11 +93,11 @@ func (f *stripQuery) Request(ctx filters.FilterContext) {
 }
 
 // Noop.
-func (f *stripQuery) Response(ctx filters.FilterContext) {}
+func (stripQuery) Response(filters.FilterContext) {}
 
 // Creates instances of the stripQuery filter. Accepts one optional parameter:
 // "true", in order to preserve the stripped parameters in the request header.
-func (mw *stripQuery) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (stripQuery) CreateFilter(config []interface{}) (filters.Filter, error) {
 	var preserveAsHeader = false
 	if len(config) == 1 {
 		preserveAsHeaderString, ok := config[0].(string)

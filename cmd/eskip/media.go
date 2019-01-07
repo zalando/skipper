@@ -25,8 +25,7 @@ type (
 )
 
 const (
-	none mediaType = iota
-	stdin
+	stdin mediaType = 1 + iota
 	file
 	etcd
 	innkeeper

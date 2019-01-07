@@ -100,7 +100,6 @@ type Options struct {
 // consistent information with other skipper peers.
 type Swarm struct {
 	local            *NodeInfo
-	errors           chan<- error
 	maxMessageBuffer int
 	leaveTimeout     time.Duration
 
@@ -153,7 +152,7 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 	}
 	o.KubernetesOptions.KubernetesAPIBaseURL = u
 
-	if o.SwarmPort <= 0 || o.SwarmPort >= 65535 {
+	if o.SwarmPort == 0 || o.SwarmPort >= 65535 {
 		log.Errorf("Wrong SwarmPort %d, set to default %d instead", o.SwarmPort, DefaultMaxMessageBuffer)
 		o.SwarmPort = DefaultPort
 	}

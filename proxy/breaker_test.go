@@ -166,10 +166,6 @@ func proxyRequestHost(c *breakerTestContext, host string) (*http.Response, error
 	return rsp, nil
 }
 
-func proxyRequest(c *breakerTestContext) (*http.Response, error) {
-	return proxyRequestHost(c, defaultHost)
-}
-
 func checkStatus(c *breakerTestContext, rsp *http.Response, expected int) {
 	if rsp.StatusCode != expected {
 		c.t.Errorf(

@@ -45,10 +45,6 @@ func makeLocalUrls(ports ...int) []string {
 	return urls
 }
 
-func formatFlag(key, value string) string {
-	return fmt.Sprintf("%s=%s", key, value)
-}
-
 func randPort() int {
 	return (1 << 15) + rand.Intn(1<<15)
 }

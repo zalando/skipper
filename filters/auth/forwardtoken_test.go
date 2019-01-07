@@ -3,15 +3,16 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/proxy/proxytest"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 const (
@@ -87,7 +88,6 @@ func TestForwardTokenInfo(t *testing.T) {
 				}
 				w.Header().Set(contentTypeHeader, applicationJsonHeaderValue)
 				w.Write(info)
-				return
 			}))
 
 			var routeFilters []*eskip.Filter

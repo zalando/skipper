@@ -2,13 +2,14 @@ package apiusagemonitoring
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/metrics/metricstest"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics/metricstest"
 )
 
 func Test_Filter_NoPathTemplate(t *testing.T) {
@@ -122,11 +123,11 @@ func Test_Filter_PathTemplateWithMultipleVariablePart(t *testing.T) {
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.*.*."
 			m.WithCounters(func(counters map[string]int64) {
-				if !assert.NotContains(
+				assert.NotContains(
 					t, counters,
 					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.http_count",
-					"Matched `foo/orders/:order-id` instead of `foo/orders/:order-id`/order-items/:order-item-id") {
-				}
+					"Matched `foo/orders/:order-id` instead of `foo/orders/:order-id`/order-items/:order-item-id")
+
 				assert.Equal(t,
 					map[string]int64{
 						pre + "http_count":    int64(pass),
@@ -391,7 +392,9 @@ func Test_Filter_String(t *testing.T) {
 		return
 	}
 	f := filter.(*apiUsageMonitoringFilter)
+	//lint:ignore S1025 String can not be used so ignore
 	s1 := fmt.Sprintf("%s", f)
+	//lint:ignore S1025 String can not be used so ignore
 	s2 := fmt.Sprintf("%s", *f)
 	assert.Equal(t, s1, s2)
 }

@@ -71,7 +71,7 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 			if len(parts) == 1 {
 				return nil, missingArg(parts[0])
 			}
-			reporterQueue, err = strconv.ParseInt(parts[1], 10, 64)
+			reporterQueue, _ = strconv.ParseInt(parts[1], 10, 64)
 		case "reporter-interval":
 			if len(parts) == 1 {
 				return nil, missingArg(parts[0])

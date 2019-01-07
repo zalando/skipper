@@ -195,22 +195,6 @@ func (s Settings) Empty() bool {
 	return s == Settings{}
 }
 
-func (to Settings) mergeSettings(from Settings) Settings {
-	if to.Type == NoRatelimit {
-		to.Type = from.Type
-	}
-	if to.MaxHits == 0 {
-		to.MaxHits = from.MaxHits
-	}
-	if to.TimeWindow == 0 {
-		to.TimeWindow = from.TimeWindow
-	}
-	if to.CleanInterval == 0 {
-		to.CleanInterval = from.CleanInterval
-	}
-	return to
-}
-
 func (s Settings) String() string {
 	switch s.Type {
 	case DisableRatelimit:

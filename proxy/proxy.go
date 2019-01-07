@@ -33,7 +33,6 @@ import (
 
 const (
 	proxyBufferSize     = 8192
-	proxyErrorFmt       = "proxy: %s"
 	unknownRouteID      = "_unknownroute_"
 	unknownRouteBackend = "<unknown>"
 

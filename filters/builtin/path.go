@@ -98,6 +98,8 @@ func createSetPath(config []interface{}) (filters.Filter, error) {
 }
 
 // Creates instances of the modPath filter.
+//
+//lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
 func (spec *modPath) CreateFilter(config []interface{}) (filters.Filter, error) {
 	switch spec.behavior {
 	case regexpReplace:

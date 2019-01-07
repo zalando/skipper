@@ -73,8 +73,7 @@ bench: build $(TEST_PLUGINS)
 	#
 	for p in $(PACKAGES); do GO111MODULE=on go test -bench . $$p; done
 
-lint: build
-	gometalinter --enable-all --deadline=60s ./... | tee linter.log
+lint: build staticcheck
 
 clean:
 	go clean -i -cache -testcache ./...
@@ -83,10 +82,23 @@ clean:
 	rm -f ./_test_plugins_fail/*.so
 
 deps:
+	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
+	@curl -o /tmp/staticcheck -LO https://github.com/dominikh/go-tools/releases/download/2019.1/staticcheck_linux_amd64
+	@sha256sum /tmp/staticcheck | grep -q a13563b3fe136674a87e174bbedbd1af49e5bd89ffa605a11150ae06ab9fd999
+	@mkdir -p $(GOPATH)/bin
+	@mv /tmp/staticcheck $(GOPATH)/bin/
+	@chmod +x $(GOPATH)/bin/staticcheck
 
 vet: $(SOURCES)
 	GO111MODULE=on go vet $(PACKAGES)
+
+# TODO(sszuecs) review disabling these checks, f.e.:
+# -ST1000 missing package doc in many packages
+# -ST1003 wrong naming convention Api vs API, Id vs ID
+# -ST1012 too many error variables are not having prefix "err"
+staticcheck: $(SOURCES)
+	GO111MODULE=on staticcheck -checks "all,-ST1000,-ST1003,-ST1012" $(PACKAGES)
 
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)
@@ -94,9 +106,9 @@ fmt: $(SOURCES)
 check-fmt: $(SOURCES)
 	@if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi
 
-precommit: fmt build shortcheck vet
+precommit: fmt build vet staticcheck shortcheck
 
-check-precommit: check-fmt build shortcheck vet
+check-precommit: check-fmt build vet staticcheck shortcheck
 
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	# go list -f \

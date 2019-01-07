@@ -22,7 +22,6 @@ type (
 		typ              roleCheckType
 		tokeninfoURL     string
 		tokenInfoTimeout time.Duration
-		authClient       *authClient
 	}
 
 	tokeninfoFilter struct {

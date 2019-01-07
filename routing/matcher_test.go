@@ -487,7 +487,7 @@ func TestMatchHeadersRegexpTrue(t *testing.T) {
 }
 
 func TestMatchLeafWrongMethod(t *testing.T) {
-	rxh := regexp.MustCompile("example\\.org")
+	rxh := regexp.MustCompile(`example\.org`)
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{
@@ -508,7 +508,7 @@ func TestMatchLeafWrongMethod(t *testing.T) {
 }
 
 func TestMatchLeafWrongHost(t *testing.T) {
-	rxh := regexp.MustCompile("example\\.org")
+	rxh := regexp.MustCompile(`example\.org`)
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{
@@ -529,7 +529,7 @@ func TestMatchLeafWrongHost(t *testing.T) {
 }
 
 func TestMatchLeafWrongPath(t *testing.T) {
-	rxh := regexp.MustCompile("example\\.org")
+	rxh := regexp.MustCompile(`example\.org`)
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{
@@ -550,7 +550,7 @@ func TestMatchLeafWrongPath(t *testing.T) {
 }
 
 func TestMatchLeafWrongExactHeader(t *testing.T) {
-	rxh := regexp.MustCompile("example\\.org")
+	rxh := regexp.MustCompile(`example\.org`)
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{
@@ -571,7 +571,7 @@ func TestMatchLeafWrongExactHeader(t *testing.T) {
 }
 
 func TestMatchLeafWrongRegexpHeader(t *testing.T) {
-	rxh := regexp.MustCompile("example\\.org")
+	rxh := regexp.MustCompile(`example\.org`)
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{
@@ -592,7 +592,7 @@ func TestMatchLeafWrongRegexpHeader(t *testing.T) {
 }
 
 func TestMatchLeaf(t *testing.T) {
-	rxh := regexp.MustCompile("example\\.org")
+	rxh := regexp.MustCompile(`example\.org`)
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{

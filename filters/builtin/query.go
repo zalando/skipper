@@ -103,6 +103,8 @@ func createSetQuery(config []interface{}) (filters.Filter, error) {
 }
 
 // Creates instances of the modQuery filter.
+//
+//lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
 func (spec *modQuery) CreateFilter(config []interface{}) (filters.Filter, error) {
 	switch spec.behavior {
 	case drop:

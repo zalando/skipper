@@ -36,7 +36,6 @@ type roleMatchType int
 const (
 	matchJWTPayloadAnyKV roleMatchType = iota
 	matchJWTPayloadAllKV
-	matchUnknown
 
 	matchJWTPayloadAllKVName = "JWTPayloadAllKV"
 	matchJWTPayloadAnyKVName = "JWTPayloadAnyKV"

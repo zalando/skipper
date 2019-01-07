@@ -42,7 +42,6 @@ func TestWebhook(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				io.WriteString(w, "Hello from backend")
-				return
 			}))
 			defer backend.Close()
 

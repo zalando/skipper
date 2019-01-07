@@ -126,14 +126,6 @@ func (b *failingBackend) Close() {
 
 func (b *failingBackend) down() { b.close() }
 
-func (b *failingBackend) reset() {
-	b.synced(func() {
-		b.closeSynced()
-		b.count = 0
-		b.startSynced()
-	})
-}
-
 func (b *failingBackend) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	b.synced(func() {
 		b.count++

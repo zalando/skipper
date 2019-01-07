@@ -380,7 +380,7 @@ func ParsePredicates(p string) ([]*Predicate, error) {
 
 const randomIdLength = 16
 
-var routeIdRx = regexp.MustCompile("\\W")
+var routeIdRx = regexp.MustCompile(`\W`)
 
 // generate weak random id for a route if
 // it doesn't have one.
@@ -390,7 +390,11 @@ func GenerateIfNeeded(existingId string) string {
 	}
 
 	// using this to avoid adding a new dependency.
-	id, err := flowid.NewFlowId(randomIdLength)
+	g, err := flowid.NewStandardGenerator(randomIdLength)
+	if err != nil {
+		return existingId
+	}
+	id, err := g.Generate()
 	if err != nil {
 		return existingId
 	}

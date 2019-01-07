@@ -194,7 +194,7 @@ type Client struct {
 	eastWestDomainFmt        string
 }
 
-var nonWord = regexp.MustCompile("\\W")
+var nonWord = regexp.MustCompile(`\W`)
 
 var (
 	errServiceNotFound      = errors.New("service not found")

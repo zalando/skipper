@@ -24,7 +24,6 @@ const (
 	checkOIDCUserInfo
 	checkOIDCAnyClaims
 	checkOIDCAllClaims
-	checkUnknown
 )
 
 type rejectReason string

@@ -263,7 +263,6 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 	for _, ti := range []struct {
 		msg      string
 		timeout  time.Duration
-		auth     string
 		authType string
 		expected int
 	}{{
