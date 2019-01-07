@@ -168,6 +168,10 @@ func jsonPost(
 	body := url.Values{}
 	body.Add(tokenKey, auth)
 	req, err := http.NewRequest("POST", u.String(), strings.NewReader(body.Encode()))
+	if err != nil {
+		return err
+	}
+
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	span := injectSpan(tracer, parentSpan, spanName, req)
