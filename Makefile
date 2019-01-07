@@ -85,7 +85,7 @@ deps:
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	@curl -o /tmp/staticcheck -LO https://github.com/dominikh/go-tools/releases/download/2019.1/staticcheck_linux_amd64
 	@sha256sum /tmp/staticcheck | grep -q a13563b3fe136674a87e174bbedbd1af49e5bd89ffa605a11150ae06ab9fd999
-	@mv /tmp/staticcheck $(GOBIN)/
+	@mv /tmp/staticcheck $(GOPATH)/bin/
 
 vet: $(SOURCES)
 	GO111MODULE=on go vet $(PACKAGES)
@@ -103,9 +103,9 @@ fmt: $(SOURCES)
 check-fmt: $(SOURCES)
 	@if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi
 
-precommit: fmt build shortcheck vet staticcheck
+precommit: fmt build vet staticcheck shortcheck
 
-check-precommit: check-fmt build shortcheck vet staticcheck
+check-precommit: check-fmt build vet staticcheck shortcheck
 
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	# go list -f \
