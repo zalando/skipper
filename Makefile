@@ -82,13 +82,13 @@ clean:
 	rm -f ./_test_plugins_fail/*.so
 
 deps:
+	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	@curl -o /tmp/staticcheck -LO https://github.com/dominikh/go-tools/releases/download/2019.1/staticcheck_linux_amd64
 	@sha256sum /tmp/staticcheck | grep -q a13563b3fe136674a87e174bbedbd1af49e5bd89ffa605a11150ae06ab9fd999
 	@mkdir -p $(GOPATH)/bin
 	@mv /tmp/staticcheck $(GOPATH)/bin/
 	@chmod +x $(GOPATH)/bin/staticcheck
-	go env
 
 vet: $(SOURCES)
 	GO111MODULE=on go vet $(PACKAGES)
