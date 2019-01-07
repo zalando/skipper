@@ -141,7 +141,7 @@ func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
 	}
 
 	var cfg openIDConfig
-	err = jsonGet(u, "", &cfg, http.DefaultClient)
+	err = jsonGet(u, "", &cfg, http.DefaultClient, nil, nil, "")
 	return &cfg, err
 }
 
@@ -293,7 +293,7 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 
-		info, err = f.authClient.getTokenintrospect(token)
+		info, err = f.authClient.getTokenintrospect(token, ctx)
 		if err != nil {
 			reason := authServiceAccess
 			if err == errInvalidToken {
