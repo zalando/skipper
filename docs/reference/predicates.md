@@ -92,7 +92,7 @@ Host(/header\.example\.org$/)
 ## Method
 
 The HTTP method that the request must match. HTTP methods are one of
-GET, HEAD, POST, PUT, DELETE, OPTIONS, CONNECT.
+GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT.
 
 Parameters:
 
