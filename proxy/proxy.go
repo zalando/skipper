@@ -724,7 +724,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
-		if err := p.makeUpgradeRequest(ctx, ctx.route, req); err != nil {
+		if err = p.makeUpgradeRequest(ctx, ctx.route, req); err != nil {
 			return nil, &proxyError{err: err}
 		}
 
@@ -815,30 +815,35 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 		return ratelimit.Settings{}, 0
 	}
 
-	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].(ratelimit.Settings)
-	if !ok {
+	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].([]ratelimit.Settings)
+	if !ok || len(settings) < 1 {
 		return ratelimit.Settings{}, 0
 	}
 
-	rl := p.limiters.Get(settings)
-	if rl == nil {
-		return settings, 0
+	for _, setting := range settings {
+		rl := p.limiters.Get(setting)
+		if rl == nil {
+			p.log.Errorf("RateLimiter is nil for setting: %s", setting)
+			continue
+		}
+
+		if setting.Lookuper == nil {
+			p.log.Errorf("Lookuper is nil for setting: %s", setting)
+			continue
+		}
+
+		s := setting.Lookuper.Lookup(ctx.Request())
+		if s == "" {
+			p.log.Errorf("Lookuper found no data in request for setting: %s and request: %v", setting, ctx.Request())
+			continue
+		}
+
+		if !rl.Allow(s) {
+			return setting, rl.RetryAfter(s)
+		}
 	}
 
-	if settings.Lookuper == nil {
-		p.log.Error("lookuper is nil")
-		return settings, 0
-	}
-	s := settings.Lookuper.Lookup(ctx.Request())
-
-	if s == "" {
-		return settings, 0
-	}
-
-	if rl.Allow(s) {
-		return settings, 0
-	}
-	return settings, rl.RetryAfter(s)
+	return ratelimit.Settings{}, 0
 }
 
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
@@ -898,11 +903,6 @@ func (p *Proxy) do(ctx *context) error {
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
-	// per route rate limit
-	if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
-		rerr := ratelimitError(settings, ctx, retryAfter)
-		return rerr
-	}
 
 	if ctx.deprecatedShunted() {
 		p.log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
@@ -926,6 +926,12 @@ func (p *Proxy) do(ctx *context) error {
 		ctx.outgoingDebugRequest = debugReq
 		ctx.setResponse(&http.Response{Header: make(http.Header)}, p.flags.PreserveOriginal())
 	} else {
+		// per route rate limit
+		if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
+			rerr := ratelimitError(settings, ctx, retryAfter)
+			return rerr
+		}
+
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
 			tracing.LogKV("circuit_breaker", "open", ctx.request.Context())

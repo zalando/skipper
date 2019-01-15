@@ -21,7 +21,7 @@ type Swarmer interface {
 
 // clusterLimit stores all data required for the cluster ratelimit.
 type clusterLimit struct {
-	name    string
+	group   string
 	local   limiter
 	maxHits int
 	window  time.Duration
@@ -36,11 +36,11 @@ type resizeLimit struct {
 }
 
 // newClusterRateLimiter creates a new clusterLimit for given Settings
-// and use the given Swarmer. Name is used in log messages to identify
-// the ratelimit instance.
-func newClusterRateLimiter(s Settings, sw Swarmer, name string) *clusterLimit {
+// and use the given Swarmer. Group is used in log messages to identify
+// the ratelimit instance and has to be the same in all skipper instances.
+func newClusterRateLimiter(s Settings, sw Swarmer, group string) *clusterLimit {
 	rl := &clusterLimit{
-		name:    name,
+		group:   group,
 		swarm:   sw,
 		maxHits: s.MaxHits,
 		window:  s.TimeWindow,
@@ -64,11 +64,11 @@ func newClusterRateLimiter(s Settings, sw Swarmer, name string) *clusterLimit {
 		for {
 			select {
 			case size := <-rl.resize:
-				log.Debugf("resize clusterRatelimit: %v", size)
+				log.Debugf("%s resize clusterRatelimit: %v", group, size)
 				// TODO(sszuecs): call with "go" ?
 				rl.Resize(size.s, rl.maxHits/size.n)
 			case <-rl.quit:
-				log.Debugf("quit clusterRatelimit")
+				log.Debugf("%s: quit clusterRatelimit", group)
 				close(rl.resize)
 				return
 			}
@@ -85,6 +85,7 @@ const swarmPrefix string = `ratelimit.`
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
 func (c *clusterLimit) Allow(s string) bool {
+	key := swarmPrefix + c.group + "." + s
 
 	// t0 is the oldest entry in the local circularbuffer
 	// [ t3, t4, t0, t1, t2]
@@ -94,19 +95,19 @@ func (c *clusterLimit) Allow(s string) bool {
 
 	_ = c.local.Allow(s) // update local rate limit
 
-	if err := c.swarm.ShareValue(swarmPrefix+s, t0); err != nil {
-		log.Errorf("clusterRatelimit failed to share value: %v", err)
+	if err := c.swarm.ShareValue(key, t0); err != nil {
+		log.Errorf("%s clusterRatelimit failed to share value: %v", c.group, err)
 	}
 
-	swarmValues := c.swarm.Values(swarmPrefix + s)
-	log.Debugf("%s: clusterRatelimit swarmValues(%d) for '%s': %v", c.name, len(swarmValues), swarmPrefix+s, swarmValues)
+	swarmValues := c.swarm.Values(key)
+	log.Debugf("%s: clusterRatelimit swarmValues(%d) for '%s': %v", c.group, len(swarmValues), swarmPrefix+s, swarmValues)
 
 	c.resize <- resizeLimit{s: s, n: len(swarmValues)}
 
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, swarmValues)
 	result := rate < float64(c.maxHits)
-	log.Debugf("clusterRatelimit %s: Allow=%v, %v < %d", c.name, result, rate, c.maxHits)
+	log.Debugf("%s clusterRatelimit: Allow=%v, %v < %d", c.group, result, rate, c.maxHits)
 	return result
 }
 
@@ -121,10 +122,10 @@ func (c *clusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]in
 		}
 		delta := time.Duration(now - t0)
 		adjusted := float64(delta) / float64(c.window)
-		log.Debugf("%0.2f += %0.2f / %0.2f", requestRate, maxNodeHits, adjusted)
+		log.Debugf("%s: %0.2f += %0.2f / %0.2f", c.group, requestRate, maxNodeHits, adjusted)
 		requestRate += maxNodeHits / adjusted
 	}
-	log.Debugf("requestRate: %0.2f", requestRate)
+	log.Debugf("%s requestRate: %0.2f", c.group, requestRate)
 	return requestRate
 }
 

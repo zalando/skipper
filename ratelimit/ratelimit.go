@@ -161,7 +161,7 @@ type HeaderLookuper struct {
 
 // NewHeaderLookuper returns HeaderLookuper configured to lookup header named k
 func NewHeaderLookuper(k string) HeaderLookuper {
-	return HeaderLookuper{key: http.CanonicalHeaderKey(k)}
+	return HeaderLookuper{key: k}
 }
 
 // Lookup returns the content of the Authorization header.
@@ -189,6 +189,12 @@ type Settings struct {
 	// CleanInterval is the duration old data can expire, because
 	// need to cleanup data in for example client ratelimits.
 	CleanInterval time.Duration
+
+	// Group is a string to group ratelimiters of Type
+	// ClusterServiceRatelimit or ClusterClientRatelimit.
+	// A ratelimit group considers all hits to the same group as
+	// one target.
+	Group string
 }
 
 func (s Settings) Empty() bool {
@@ -206,9 +212,9 @@ func (s Settings) String() string {
 	case ClientRatelimit:
 		return fmt.Sprintf("ratelimit(type=client,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	case ClusterServiceRatelimit:
-		return fmt.Sprintf("ratelimit(type=clusterService,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+		return fmt.Sprintf("ratelimit(type=clusterService,max-hits=%d,time-window=%s,group=%s)", s.MaxHits, s.TimeWindow, s.Group)
 	case ClusterClientRatelimit:
-		return fmt.Sprintf("ratelimit(type=clusterClient,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
+		return fmt.Sprintf("ratelimit(type=clusterClient,max-hits=%d,time-window=%s,group=%s)", s.MaxHits, s.TimeWindow, s.Group)
 	default:
 		return "non"
 	}
@@ -300,7 +306,7 @@ func newRatelimit(s Settings, sw Swarmer) *Ratelimit {
 		fallthrough
 	case ClusterClientRatelimit:
 		if sw != nil {
-			impl = newClusterRateLimiter(s, sw, "CRL")
+			impl = newClusterRateLimiter(s, sw, s.Group)
 		} else {
 			fmt.Fprintf(os.Stderr, "ERROR: no -enable-swarm, falling back to no ratelimit for %q\n", s)
 			impl = voidRatelimit{}
