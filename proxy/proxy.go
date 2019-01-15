@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/filters"
 	"io"
 	"net"
 	"net/http"
@@ -369,12 +370,38 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
+func setRequestUrlForDynamicBackend(u *url.URL, stateBag map[string]interface{}) {
+	dbu, ok := stateBag[filters.DynamicBackendURLKey].(string)
+	if ok && dbu != "" {
+		bu, err := url.ParseRequestURI(dbu)
+		if err == nil {
+			u.Host = bu.Host
+			u.Scheme = bu.Scheme
+		}
+	} else {
+		host, ok := stateBag[filters.DynamicBackendHostKey].(string)
+		if ok && host != "" {
+			u.Host = host
+		}
+
+		scheme, ok := stateBag[filters.DynamicBackendSchemeKey].(string)
+		if ok && scheme != "" {
+			u.Scheme = scheme
+		}
+	}
+}
+
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeaders bool) (*http.Request, error) {
+func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeaders bool, stateBag map[string]interface{}) (*http.Request, error) {
+
 	u := r.URL
 	u.Scheme = rt.Scheme
 	u.Host = rt.Host
+
+	if rt.BackendType == eskip.DynamicBackend {
+		setRequestUrlForDynamicBackend(u, stateBag)
+	}
 
 	body := r.Body
 	if r.ContentLength == 0 {
@@ -704,7 +731,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
-	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval())
+	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
 	if err != nil {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
 		return nil, &proxyError{err: err}
@@ -905,7 +932,7 @@ func (p *Proxy) do(ctx *context) error {
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
-		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval())
+		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
 		if err != nil {
 			return &proxyError{err: err}
 		}

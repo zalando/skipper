@@ -120,6 +120,8 @@ func (r *Route) backendString() string {
 		return "<shunt>"
 	case r.BackendType == LoopBackend:
 		return "<loopback>"
+	case r.BackendType == DynamicBackend:
+		return "<dynamic>"
 	default:
 		return r.Backend
 	}

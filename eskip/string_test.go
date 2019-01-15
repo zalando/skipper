@@ -95,6 +95,11 @@ func TestRouteString(t *testing.T) {
 			Filters:     []*Filter{{"static", []interface{}{"/some", "/file"}}},
 			BackendType: LoopBackend},
 		`Method("GET") -> static("/some", "/file") -> <loopback>`,
+	}, {
+		&Route{
+			Filters:     []*Filter{{"filter0", []interface{}{"arg"}}},
+			BackendType: DynamicBackend},
+		`* -> filter0("arg") -> <dynamic>`,
 	}} {
 		rstring := item.route.String()
 		if rstring != item.string {

@@ -921,6 +921,104 @@ Example:
 auditLog()
 ```
 
+
+## setDynamicBackendHostFromHeader
+
+Filter sets the backend host for a route, value is taken from the provided header.
+Can be used only with `<dynamic>` backend. Meant to be used together with [setDynamicBackendSchemeFromHeader](#setdynamicbackendschemefromheader)
+or [setDynamicBackendScheme](#setdynamicbackendscheme). If this filter chained together with [setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader) 
+or [setDynamicBackendUrl](#setdynamicbackendurl) filters, the latter ones would have priority.
+
+Parameters:
+
+* header name (string)
+
+Example:
+
+```
+foo: * -> setDynamicBackendHostFromHeader("X-Forwarded-Host") -> <dynamic>;
+```
+
+## setDynamicBackendSchemeFromHeader
+
+Filter sets the backend scheme for a route, value is taken from the provided header.
+Can be used only with `<dynamic>` backend. Meant to be used together with [setDynamicBackendHostFromHeader](#setdynamicbackendhostfromheader)
+or [setDynamicBackendHost](#setdynamicbackendhost). If this filter chained together with 
+[setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader) or [setDynamicBackendUrl](#setdynamicbackendurl), the latter ones would have priority.
+
+Parameters:
+
+* header name (string)
+
+Example:
+
+```
+foo: * -> setDynamicBackendSchemeFromHeader("X-Forwarded-Proto") -> <dynamic>;
+```
+
+## setDynamicBackendUrlFromHeader
+
+Filter sets the backend url for a route, value is taken from the provided header.
+Can be used only with `<dynamic>` backend. 
+
+Parameters:
+
+* header name (string)
+
+Example:
+
+```
+foo: * -> setDynamicBackendUrlFromHeader("X-Custom-Url") -> <dynamic>;
+```
+
+## setDynamicBackendHost
+
+Filter sets the backend host for a route. Can be used only with `<dynamic>` backend.
+Meant to be used together with [setDynamicBackendSchemeFromHeader](#setdynamicbackendschemefromheader)
+or [setDynamicBackendScheme](#setdynamicbackendscheme). If this filter chained together with [setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader) 
+or [setDynamicBackendUrl](#setdynamicbackendurl), the latter ones would have priority.
+
+Parameters:
+
+* host (string)
+
+Example:
+
+```
+foo: * -> setDynamicBackendHost("example.com") -> <dynamic>;
+```
+
+## setDynamicBackendScheme
+
+Filter sets the backend scheme for a route. Can be used only with `<dynamic>` backend.
+Meant to be used together with [setDynamicBackendHostFromHeader](#setdynamicbackendhostfromheader)
+or [setDynamicBackendHost](#setdynamicbackendhost). If this filter chained together with 
+[setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader) or [setDynamicBackendUrl](#setdynamicbackendurl), the latter ones would have priority.
+
+Parameters:
+
+* scheme (string)
+
+Example:
+
+```
+foo: * -> setDynamicBackendScheme("https") -> <dynamic>;
+```
+
+## setDynamicBackendUrl
+
+Filter sets the backend url for a route. Can be used only with `<dynamic>` backend. 
+
+Parameters:
+
+* url (string)
+
+Example:
+
+```
+foo: * -> setDynamicBackendUrl("https://example.com") -> <dynamic>;
+```
+
 ## apiUsageMonitoring
 
 The `apiUsageMonitoring` filter adds API related metrics to the Skipper monitoring. It is by default not activated. Activate

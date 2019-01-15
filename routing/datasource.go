@@ -199,7 +199,7 @@ func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan []*eskip.Route {
 // splits the backend address of a route definition into separate
 // scheme and host variables.
 func splitBackend(r *eskip.Route) (string, string, error) {
-	if r.Shunt || r.BackendType == eskip.ShuntBackend || r.BackendType == eskip.LoopBackend {
+	if r.Shunt || r.BackendType == eskip.ShuntBackend || r.BackendType == eskip.LoopBackend || r.BackendType == eskip.DynamicBackend {
 		return "", "", nil
 	}
 

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -292,6 +293,99 @@ func TestGetRoundtrip(t *testing.T) {
 
 	if !bytes.Equal(w.Body.Bytes(), payload) {
 		t.Error("wrong content", w.Body.String())
+	}
+}
+
+func TestSetRequestUrlForDynamicBackend(t *testing.T) {
+	for _, ti := range []struct {
+		msg         string
+		expectedUrl *url.URL
+		stateBag    map[string]interface{}
+	}{{
+		"DynamicBackendURLKey is set",
+		&url.URL{Scheme: "https", Host: "example.com"},
+		map[string]interface{}{filters.DynamicBackendURLKey: "https://example.com"},
+	}, {
+		"DynamicBackendURLKey is set with not url",
+		&url.URL{},
+		map[string]interface{}{filters.DynamicBackendURLKey: "some string"},
+	}, {
+		"DynamicBackendHostKey is set",
+		&url.URL{Host: "example.com"},
+		map[string]interface{}{filters.DynamicBackendHostKey: "example.com"},
+	}, {
+		"DynamicBackendSchemeKey is set",
+		&url.URL{Scheme: "http"},
+		map[string]interface{}{filters.DynamicBackendSchemeKey: "http"},
+	}, {
+		"All keys are set, DynamicBackendURLKey has priority",
+		&url.URL{Scheme: "https", Host: "priority.com"},
+		map[string]interface{}{
+			filters.DynamicBackendSchemeKey: "http",
+			filters.DynamicBackendHostKey:   "example.com",
+			filters.DynamicBackendURLKey:    "https://priority.com"},
+	}} {
+		u := &url.URL{}
+		setRequestUrlForDynamicBackend(u, ti.stateBag)
+
+		beq := reflect.DeepEqual(ti.expectedUrl, u)
+		if !beq {
+			t.Error(ti.msg, "<urls don't match>", ti.expectedUrl, u)
+		}
+	}
+}
+
+func TestGetRoundtripForDynamicBackend(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		if th, ok := r.Header["X-Test-Header"]; !ok || th[0] != "test value" {
+			t.Error("wrong request header")
+		}
+	})
+
+	defer s.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetDynamicBackendHost())
+	fr.Register(builtin.NewSetDynamicBackendScheme())
+	fr.Register(builtin.NewSetDynamicBackendUrl())
+
+	w := httptest.NewRecorder()
+
+	bu, _ := url.ParseRequestURI(s.URL)
+	doc := fmt.Sprintf(
+		`dynamic: Method("GET") -> setDynamicBackendScheme(%q) ->setDynamicBackendHost(%q) -> <dynamic>;`+
+			`dynamic2: Method("POST") -> setDynamicBackendUrl(%q) -> <dynamic>;`, bu.Scheme, bu.Host, s.URL)
+
+	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	u1, _ := url.ParseRequestURI("https://example1.com")
+	r1 := &http.Request{
+		URL:    u1,
+		Method: "GET",
+		Header: http.Header{"X-Test-Header": []string{"test value"}}}
+	tp.proxy.ServeHTTP(w, r1)
+
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
+	}
+
+	u2, _ := url.ParseRequestURI("https://example2.com")
+	r2 := &http.Request{
+		URL:    u2,
+		Method: "POST",
+		Header: http.Header{"X-Test-Header": []string{"test value"}}}
+	tp.proxy.ServeHTTP(w, r2)
+
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
 	}
 }
 

@@ -70,6 +70,10 @@ Routing will happen again with an augmented request.
 This can happen several times in a row until maxLoopbacks
 limit is reached.
 
+3.d dynamic:
+
+In case of a `dynamic` route, the final target must be defined in a filter.
+
 
 4. downstream response augmentation:
 
