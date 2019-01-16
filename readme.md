@@ -5,6 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/zalando/skipper)](https://goreportcard.com/report/zalando/skipper)
 [![codecov](https://codecov.io/gh/zalando/skipper/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando/skipper)
 [![GitHub release](https://img.shields.io/github/release/zalando/skipper.svg)](https://github.com/zalando/skipper/releases)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/2461/badge)](https://bestpractices.coreinfrastructure.org/en/projects/2461)
 
 <p><img height="180" alt="Skipper" src="https://raw.githubusercontent.com/zalando/skipper/master/img/skipper-h180.png"></p>
 
