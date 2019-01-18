@@ -33,9 +33,9 @@ loremTail='
 </html>'
 
 lorem() {
-	echo -n $loremHead > "$cwd"/lorem.html
-	for i in $(seq 1 360); do echo -n $loremP >> "$cwd"/lorem.html; done
-	echo -n $loremTail >> "$cwd"/lorem.html
+	echo -n "$loremHead" > "$cwd"/lorem.html
+	for i in $(seq 1 360); do echo -n "$loremP" >> "$cwd"/lorem.html; done
+	echo -n "$loremTail" >> "$cwd"/lorem.html
 
 	# for nginx:
 	mkdir -p /tmp/lorem
@@ -82,6 +82,18 @@ ngx() {
 	pids="$pids $!"
 }
 
+slow() {
+	protocol=http
+	[ "$3" = tls ] && protocol=https
+	#wrk -H "$2" -c 1 -t 1 -d "$wd" "$protocol"://127.0.0.1"$1"/
+        for i in {0..9}
+        do
+          curl -sH "$2" "${protocol}://127.0.0.1${1}/"
+          echo ""
+          sleep 1
+        done
+}
+
 warmup() {
 	protocol=http
 	[ "$3" = tls ] && protocol=https
@@ -95,7 +107,7 @@ bench() {
 }
 
 log() {
-	echo $@ >&2
+	echo "$@" >&2
 }
 
 check_deps() {
