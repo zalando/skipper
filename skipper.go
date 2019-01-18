@@ -371,6 +371,9 @@ type Options struct {
 	// multiple keys, the order must match the one given in CertPathTLS
 	KeyPathTLS string
 
+	// TLS Settings for Proxy Server
+	ProxyTLS *tls.Config
+
 	// Flush interval for upgraded Proxy connections
 	BackendFlushInterval time.Duration
 
@@ -632,7 +635,7 @@ func initLog(o Options) error {
 }
 
 func (o *Options) isHTTPS() bool {
-	return o.CertPathTLS != "" && o.KeyPathTLS != ""
+	return (o.ProxyTLS != nil) || (o.CertPathTLS != "" && o.KeyPathTLS != "")
 }
 
 func listenAndServe(proxy http.Handler, o *Options) error {
@@ -657,7 +660,11 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	}
 
 	if o.isHTTPS() {
-		if strings.Index(o.CertPathTLS, ",") > 0 && strings.Index(o.KeyPathTLS, ",") > 0 {
+		if o.ProxyTLS != nil {
+			srv.TLSConfig = o.ProxyTLS
+			o.CertPathTLS = ""
+			o.KeyPathTLS = ""
+		} else if strings.Index(o.CertPathTLS, ",") > 0 && strings.Index(o.KeyPathTLS, ",") > 0 {
 			tlsCfg := &tls.Config{}
 			crts := strings.Split(o.CertPathTLS, ",")
 			keys := strings.Split(o.KeyPathTLS, ",")
@@ -678,7 +685,7 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 		}
 		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
 	}
-	log.Infof("certPathTLS or keyPathTLS not found, defaulting to HTTP")
+	log.Infof("TLS settings not found, defaulting to HTTP")
 	return srv.ListenAndServe()
 }
 
