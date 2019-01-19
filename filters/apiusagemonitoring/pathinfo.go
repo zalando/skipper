@@ -1,14 +1,11 @@
 package apiusagemonitoring
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"regexp"
 )
 
 // pathInfo contains the tracking information for a specific path.
-// The exported members are marshaled as JSON.
 type pathInfo struct {
 	ApplicationId  string
 	ApiId          string
@@ -37,26 +34,6 @@ func newPathInfo(applicationId, apiId, pathTemplate string, clientTracking *clie
 		CommonPrefix:            commonPrefix,
 		ClientPrefix:            commonPrefix + "*.*.",
 	}
-}
-
-// MarshalJSON transforms a pathInfo into a JSON representation.
-// It is necessary (vs the reflection based marshalling) in order
-// to marshall the RegExp matcher as a string.
-func (p *pathInfo) MarshalJSON() ([]byte, error) {
-	if p == nil {
-		return nil, fmt.Errorf("pathInfo is a nil ptr")
-	}
-	return json.Marshal(struct {
-		ApplicationId string
-		ApiId         string
-		PathTemplate  string
-		Matcher       string
-	}{
-		ApplicationId: p.ApplicationId,
-		ApiId:         p.ApiId,
-		PathTemplate:  p.PathTemplate,
-		Matcher:       p.Matcher.String(),
-	})
 }
 
 // pathInfoByRegExRev allows sort.Sort to reorder a slice of `pathInfo` in

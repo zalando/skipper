@@ -381,20 +381,3 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 		})
 	}
 }
-
-func Test_Filter_String(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "realm,universe", "managed-id,sub,username", "")
-	filter, err := spec.CreateFilter(defaultArgs)
-	if !assert.NoError(t, err) {
-		return
-	}
-	if !assert.IsType(t, &apiUsageMonitoringFilter{}, filter) {
-		return
-	}
-	f := filter.(*apiUsageMonitoringFilter)
-	//lint:ignore S1025 String can not be used so ignore
-	s1 := fmt.Sprintf("%s", f)
-	//lint:ignore S1025 String can not be used so ignore
-	s2 := fmt.Sprintf("%s", *f)
-	assert.Equal(t, s1, s2)
-}
