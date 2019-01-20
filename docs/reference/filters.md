@@ -890,23 +890,33 @@ accessLogDisabled("false")
 ## disableAccessLog
 
 Filter overrides global Skipper `AccessLogDisabled` setting and allows to turn-off the access log for specific route
-while access log, in general, is enabled.
+while access log, in general, is enabled. It is also possible to disable access logs only for a subset of response codes 
+from backend by providing an optional list of response code prefixes.
+
+Parameters:
+* response code prefixes (variadic int) - optional
 
 Example:
 
 ```
 disableAccessLog()
+disableAccessLog(1, 301, 40)
 ```
 
 ## enableAccessLog
 
 Filter overrides global Skipper `AccessLogDisabled` setting and allows to turn-on the access log for specific route
-while access log, in general, is disabled.
+while access log, in general, is disabled. It is also possible to enable access logs only for a subset of response codes
+from backend by providing an optional list of response code prefixes.
+
+Parameters:
+* response code prefixes (variadic int) - optional
 
 Example:
 
 ```
 enableAccessLog()
+enableAccessLog(1, 301, 20)
 ```
 
 ## auditLog
