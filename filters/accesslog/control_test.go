@@ -1,6 +1,7 @@
 package accesslog
 
 import (
+	"github.com/google/go-cmp/cmp"
 	"testing"
 
 	"github.com/zalando/skipper/filters"
@@ -11,21 +12,42 @@ func TestAccessLogControl(t *testing.T) {
 	for _, ti := range []struct {
 		msg    string
 		state  filters.Spec
-		result bool
+		args   []interface{}
+		result AccessLogFilter
 	}{
 		{
-			msg:    "false-value-enables-access-log",
+			msg:    "enables-access-log",
 			state:  NewEnableAccessLog(),
-			result: true,
+			args:   nil,
+			result: AccessLogFilter{true, make([]int, 0)},
 		},
 		{
-			msg:    "true-value-disables-access-log",
+			msg:    "enable-access-log-selective",
+			state:  NewEnableAccessLog(),
+			args:   []interface{}{2, 4, 300},
+			result: AccessLogFilter{true, []int{2, 4, 300}},
+		},
+		{
+			msg:    "disables-access-log",
 			state:  NewDisableAccessLog(),
-			result: false,
+			args:   nil,
+			result: AccessLogFilter{false, make([]int, 0)},
+		},
+		{
+			msg:    "disables-access-log-selective",
+			state:  NewDisableAccessLog(),
+			args:   []interface{}{1, 201, 30},
+			result: AccessLogFilter{false, []int{1, 201, 30}},
+		},
+		{
+			msg:    "disables-access-log-ignore-string-convert-float",
+			state:  NewDisableAccessLog(),
+			args:   []interface{}{1.0, 201, "a"},
+			result: AccessLogFilter{false, []int{1, 201}},
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
-			f, err := ti.state.CreateFilter([]interface{}{})
+			f, err := ti.state.CreateFilter(ti.args)
 
 			if err != nil {
 				return
@@ -36,8 +58,9 @@ func TestAccessLogControl(t *testing.T) {
 
 			f.Request(&ctx)
 			bag := ctx.StateBag()
-			if bag[AccessLogEnabledKey] != ti.result {
-				t.Errorf("access log state is not equal to expected '%v': %v", ti.result, bag[AccessLogEnabledKey])
+			filter := bag[AccessLogEnabledKey]
+			if diff := cmp.Diff(filter, &ti.result); diff != "" {
+				t.Errorf("access log state is not equal to expected '%v' got %v", ti.result, bag[AccessLogEnabledKey])
 			}
 		})
 	}

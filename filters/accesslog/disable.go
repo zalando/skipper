@@ -37,7 +37,7 @@ func (*accessLogDisabled) CreateFilter(args []interface{}) (filters.Filter, erro
 
 func (al *accessLogDisabled) Request(ctx filters.FilterContext) {
 	bag := ctx.StateBag()
-	bag[AccessLogEnabledKey] = !al.disabled
+	bag[AccessLogEnabledKey] = &AccessLogFilter{!al.disabled, nil}
 }
 
 func (*accessLogDisabled) Response(filters.FilterContext) {}
