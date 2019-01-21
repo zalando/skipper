@@ -1070,7 +1070,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	p.sendError(ctx, id, code)
 }
 
-func shouldLog(statusCode int, filter al.AccessLogFilter) bool {
+func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
 	if len(filter.Prefixes) == 0 {
 		return filter.Enable
 	}
@@ -1118,7 +1118,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		statusCode := lw.GetCode()
 
-		if shouldLog(statusCode, *accessLogEnabled) {
+		if shouldLog(statusCode, accessLogEnabled) {
 			entry := &logging.AccessEntry{
 				Request:      r,
 				ResponseSize: lw.GetBytes(),

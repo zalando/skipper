@@ -40,6 +40,8 @@ func extractFilterValues(args []interface{}, enable bool) (filters.Filter, error
 		}
 		if ok {
 			prefixes = append(prefixes, intPref)
+		} else {
+			return nil, filters.ErrInvalidFilterParameters
 		}
 	}
 	return &AccessLogFilter{Enable: enable, Prefixes: prefixes}, nil
