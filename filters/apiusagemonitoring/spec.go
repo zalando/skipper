@@ -106,7 +106,6 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 		Paths:       paths,
 		UnknownPath: unknownPath,
 	}
-	log.Debugf("Created filter: %s", filter)
 	return
 }
 
