@@ -39,12 +39,10 @@ SEC=8
 log; log [start http requests and upgrade to websocket call]
 
 ./gohttpclient &
-clipid="$!"
+pids="$pids $!"
 
 sleep $SEC
 log [skipper test done]
-
-kill -INT $clipid
 
 cleanup
 log; log [all done]

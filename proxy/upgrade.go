@@ -126,9 +126,9 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
-		log.Errorf("Got invalid status code from backend: %d", resp.StatusCode)
+		log.Debugf("Got invalid status code from backend: %d", resp.StatusCode)
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte("Backend do not allow to switch protocols"))
+		w.Write([]byte("Backend does not allow to switch protocols"))
 		return
 	}
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -24,7 +25,7 @@ func main() {
 
 	quit := make(chan struct{})
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 	target := "http://127.0.0.1:9090"
 	request, err := http.NewRequest("GET", target, nil)
@@ -63,15 +64,15 @@ func main() {
 	uresp, err := tr.RoundTrip(ureq)
 	if err != nil {
 		logrus.Errorf("Failed to do ugrade roundtrip: %v", err)
-	}
-	defer uresp.Body.Close()
+	} else {
 
-	b, err := ioutil.ReadAll(uresp.Body)
-	if err != nil {
-		logrus.Errorf("Failed to read upgrade body: %v", err)
+		defer uresp.Body.Close()
+		b, err := ioutil.ReadAll(uresp.Body)
+		if err != nil {
+			logrus.Errorf("Failed to read upgrade body: %v", err)
+		}
+		logrus.Infof("uresp: %s", b)
 	}
-	logrus.Infof("uresp: %s", b)
-
 	<-c
 	quit <- struct{}{}
 }
