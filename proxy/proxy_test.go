@@ -1636,14 +1636,14 @@ func TestHopHeaderRemovalDisabled(t *testing.T) {
 }
 
 func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {
-	response 	 := "some bytes"
+	response := "some bytes"
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
 	r := &http.Request{
 		URL:    u,
 		Method: "GET",
 		Header: http.Header{"Connection": []string{"token"}}}
-	
+
 	accessLogFilter := filter
 	if filter == "" {
 		accessLogFilter = ""
@@ -1664,14 +1664,16 @@ func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
-		for(pb.Next()) {
+		for pb.Next() {
 			tp.proxy.ServeHTTP(httptest.NewRecorder(), r)
 		}
 	})
 }
 
-func BenchmarkAccessLogNoFilter(b *testing.B) {benchmarkAccessLog(b, "", 200)}
-func BenchmarkAccessLogDisablePrint(b *testing.B) {benchmarkAccessLog(b, "disableAccessLog(1,3)", 200)}
-func BenchmarkAccessLogDisable(b *testing.B) {benchmarkAccessLog(b, "disableAccessLog(1,3,200)", 200)}
-func BenchmarkAccessLogEnablePrint(b *testing.B) {benchmarkAccessLog(b, "enableAccessLog(1,200,3)", 200)}
-func BenchmarkAccessLogEnable(b *testing.B) {benchmarkAccessLog(b, "enableAccessLog(1,3)", 200)}
+func BenchmarkAccessLogNoFilter(b *testing.B)     { benchmarkAccessLog(b, "", 200) }
+func BenchmarkAccessLogDisablePrint(b *testing.B) { benchmarkAccessLog(b, "disableAccessLog(1,3)", 200) }
+func BenchmarkAccessLogDisable(b *testing.B)      { benchmarkAccessLog(b, "disableAccessLog(1,3,200)", 200) }
+func BenchmarkAccessLogEnablePrint(b *testing.B) {
+	benchmarkAccessLog(b, "enableAccessLog(1,200,3)", 200)
+}
+func BenchmarkAccessLogEnable(b *testing.B) { benchmarkAccessLog(b, "enableAccessLog(1,3)", 200) }
