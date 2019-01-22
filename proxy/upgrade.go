@@ -119,7 +119,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		log.Errorf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
+		log.Debugf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(http.StatusText(http.StatusUnauthorized)))
 		return
@@ -127,8 +127,8 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		log.Debugf("Got invalid status code from backend: %d", resp.StatusCode)
-		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte("Backend does not allow to switch protocols"))
+		w.WriteHeader(resp.StatusCode)
+		w.Write([]byte(http.StatusText(resp.StatusCode)))
 		return
 	}
 
