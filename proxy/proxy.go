@@ -194,6 +194,8 @@ type Params struct {
 
 var (
 	hostname               = ""
+	disabledAccessLog      = al.AccessLogFilter{Enable: false, Prefixes: nil}
+	enabledAccessLog       = al.AccessLogFilter{Enable: true, Prefixes: nil}
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
 	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
 	errCircuitBreakerOpen  = &proxyError{
@@ -1114,7 +1116,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		accessLogEnabled, ok := ctx.stateBag[al.AccessLogEnabledKey].(*al.AccessLogFilter)
 
 		if !ok {
-			accessLogEnabled = &al.AccessLogFilter{Enable: !p.accessLogDisabled, Prefixes: nil}
+			if p.accessLogDisabled {
+				accessLogEnabled = &disabledAccessLog
+			} else {
+				accessLogEnabled = &enabledAccessLog
+			}
 		}
 		statusCode := lw.GetCode()
 
