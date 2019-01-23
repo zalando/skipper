@@ -1,0 +1,15 @@
+x_lb_group: Host(/^test[.]example[.]org$/) && LBGroup("x")
+  -> lbDecide("x", 1)
+  -> <loopback>;
+
+y_lb_group: Host(/^wrong[.]example[.]org$/) && LBGroup("y")
+  -> lbDecide("y", 1)
+  -> <loopback>;
+
+x0: Host(/^test[.]example[.]org$/) && LBMember("x", 0)
+  -> dropRequestHeader("X-Load-Balancer-Member")
+  -> "http://127.0.0.1:9000";
+
+y0: Host(/^wrong[.]example[.]org$/) && LBMember("y", 0)
+  -> dropRequestHeader("X-Load-Balancer-Member")
+  -> "http://127.0.0.1:9001";

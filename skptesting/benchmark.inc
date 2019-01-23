@@ -33,9 +33,9 @@ loremTail='
 </html>'
 
 lorem() {
-	echo -n $loremHead > "$cwd"/lorem.html
-	for i in $(seq 1 360); do echo -n $loremP >> "$cwd"/lorem.html; done
-	echo -n $loremTail >> "$cwd"/lorem.html
+	echo -n "$loremHead" > "$cwd"/lorem.html
+	for i in $(seq 1 360); do echo -n "$loremP" >> "$cwd"/lorem.html; done
+	echo -n "$loremTail" >> "$cwd"/lorem.html
 
 	# for nginx:
 	mkdir -p /tmp/lorem
@@ -95,7 +95,7 @@ bench() {
 }
 
 log() {
-	echo $@ >&2
+	echo "$@" >&2
 }
 
 check_deps() {
