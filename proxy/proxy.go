@@ -19,7 +19,7 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/accesslog"
+	al "github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
@@ -197,6 +197,8 @@ type Params struct {
 
 var (
 	hostname               = ""
+	disabledAccessLog      = al.AccessLogFilter{Enable: false, Prefixes: nil}
+	enabledAccessLog       = al.AccessLogFilter{Enable: true, Prefixes: nil}
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
 	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
 	errCircuitBreakerOpen  = &proxyError{
@@ -1081,6 +1083,25 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	p.sendError(ctx, id, code)
 }
 
+func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
+	if len(filter.Prefixes) == 0 {
+		return filter.Enable
+	}
+	match := false
+	for _, prefix := range filter.Prefixes {
+		prefMatch := false
+		if prefix < 10 {
+			prefMatch = (statusCode >= prefix*100 && statusCode < (prefix+1)*100)
+		} else if prefix < 100 {
+			prefMatch = (statusCode >= prefix*10 && statusCode < (prefix+1)*10)
+		} else {
+			prefMatch = statusCode == prefix
+		}
+		match = match || prefMatch
+	}
+	return match == filter.Enable
+}
+
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	lw := logging.NewLoggingWriter(w)
@@ -1103,17 +1124,22 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	defer func() {
-		accessLogEnabled, ok := ctx.stateBag[accesslog.AccessLogEnabledKey].(bool)
+		accessLogEnabled, ok := ctx.stateBag[al.AccessLogEnabledKey].(*al.AccessLogFilter)
 
 		if !ok {
-			accessLogEnabled = !p.accessLogDisabled
+			if p.accessLogDisabled {
+				accessLogEnabled = &disabledAccessLog
+			} else {
+				accessLogEnabled = &enabledAccessLog
+			}
 		}
+		statusCode := lw.GetCode()
 
-		if accessLogEnabled {
+		if shouldLog(statusCode, accessLogEnabled) {
 			entry := &logging.AccessEntry{
 				Request:      r,
 				ResponseSize: lw.GetBytes(),
-				StatusCode:   lw.GetCode(),
+				StatusCode:   statusCode,
 				RequestTime:  ctx.startServe,
 				Duration:     time.Since(ctx.startServe),
 			}
