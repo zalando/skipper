@@ -374,6 +374,9 @@ type Options struct {
 	// TLS Settings for Proxy Server
 	ProxyTLS *tls.Config
 
+	// Client TLS to connect to Backends
+	ClientTLS *tls.Config
+
 	// Flush interval for upgraded Proxy connections
 	BackendFlushInterval time.Duration
 
