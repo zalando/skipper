@@ -190,6 +190,9 @@ type Params struct {
 
 	// MaxIdleConns limits the number of idle connections to all backends, 0 means no limit
 	MaxIdleConns int
+
+	// Client TLS to connect to Backends
+	ClientTLS *tls.Config
 }
 
 var (
@@ -499,6 +502,10 @@ func WithParams(p Params) *Proxy {
 		IdleConnTimeout:       p.CloseIdleConnsPeriod,
 	}
 
+	if p.ClientTLS != nil {
+		tr.TLSClientConfig = p.ClientTLS
+	}
+
 	quit := make(chan struct{})
 	// We need this to reliably fade on DNS change, which is right
 	// now not fixed with IdleConnTimeout in the http.Transport.
@@ -517,7 +524,11 @@ func WithParams(p Params) *Proxy {
 	}
 
 	if p.Flags.Insecure() {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		if tr.TLSClientConfig == nil {
+			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		} else {
+			tr.TLSClientConfig.InsecureSkipVerify = true
+		}
 	}
 
 	m := metrics.Default
