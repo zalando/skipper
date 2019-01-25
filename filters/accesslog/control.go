@@ -29,21 +29,23 @@ func (*AccessLogFilter) Response(filters.FilterContext) {}
 func extractFilterValues(args []interface{}, enable bool) (filters.Filter, error) {
 	prefixes := make([]int, 0)
 	for _, prefix := range args {
-		intPref, ok := 0, false
-		switch prefix.(type) {
+		var intPref int
+		switch p := prefix.(type) {
 		case float32:
-			intPref, ok = int(prefix.(float32)), true
+			intPref = int(p)
 		case float64:
-			intPref, ok = int(prefix.(float64)), true
+			intPref = int(p)
 		default:
+			var ok bool
 			intPref, ok = prefix.(int)
+			if !ok {
+				return nil, filters.ErrInvalidFilterParameters
+			}
 		}
-		if ok {
-			prefixes = append(prefixes, intPref)
-		} else {
-			return nil, filters.ErrInvalidFilterParameters
-		}
+
+		prefixes = append(prefixes, intPref)
 	}
+
 	return &AccessLogFilter{Enable: enable, Prefixes: prefixes}, nil
 }
 
