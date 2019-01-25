@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -38,7 +39,7 @@ func TestArgs(t *testing.T) {
 func TestRateLimit(t *testing.T) {
 	test := func(
 		s func() filters.Spec,
-		expect ratelimit.Settings,
+		expect []ratelimit.Settings,
 		args ...interface{},
 	) func(*testing.T) {
 		return func(t *testing.T) {
@@ -66,7 +67,7 @@ func TestRateLimit(t *testing.T) {
 				t.Error("failed to set the ratelimit settings")
 			}
 
-			if settings != expect {
+			if !reflect.DeepEqual(settings, expect) {
 				t.Error("invalid settings")
 				t.Log("got     ", settings)
 				t.Log("expected", expect)
@@ -76,11 +77,13 @@ func TestRateLimit(t *testing.T) {
 
 	t.Run("ratelimit service", test(
 		NewRatelimit,
-		ratelimit.Settings{
-			Type:       ratelimit.ServiceRatelimit,
-			MaxHits:    3,
-			TimeWindow: 1 * time.Second,
-			Lookuper:   ratelimit.NewSameBucketLookuper(),
+		[]ratelimit.Settings{
+			{
+				Type:       ratelimit.ServiceRatelimit,
+				MaxHits:    3,
+				TimeWindow: 1 * time.Second,
+				Lookuper:   ratelimit.NewSameBucketLookuper(),
+			},
 		},
 		3,
 		"1s",
@@ -88,12 +91,14 @@ func TestRateLimit(t *testing.T) {
 
 	t.Run("ratelimit local", test(
 		NewLocalRatelimit,
-		ratelimit.Settings{
-			Type:          ratelimit.LocalRatelimit,
-			MaxHits:       3,
-			TimeWindow:    1 * time.Second,
-			CleanInterval: 10 * time.Second,
-			Lookuper:      ratelimit.NewXForwardedForLookuper(),
+		[]ratelimit.Settings{
+			{
+				Type:          ratelimit.LocalRatelimit,
+				MaxHits:       3,
+				TimeWindow:    1 * time.Second,
+				CleanInterval: 10 * time.Second,
+				Lookuper:      ratelimit.NewXForwardedForLookuper(),
+			},
 		},
 		3,
 		"1s",
@@ -101,6 +106,6 @@ func TestRateLimit(t *testing.T) {
 
 	t.Run("ratelimit disable", test(
 		NewDisableRatelimit,
-		ratelimit.Settings{Type: ratelimit.DisableRatelimit},
+		[]ratelimit.Settings{{Type: ratelimit.DisableRatelimit}},
 	))
 }

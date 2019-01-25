@@ -360,7 +360,7 @@ func TestTwoSwarms(t *testing.T) {
 
 		crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
 		defer crl1sw1.Close()
-		crl1sw2 := newClusterRateLimiter(s, sw2, "cr2")
+		crl1sw2 := newClusterRateLimiter(s, sw2, "cr1")
 		defer crl1sw2.Close()
 		backend := "TestTwoSwarmsFewMaxHits backend"
 
@@ -412,7 +412,7 @@ func TestTwoSwarms(t *testing.T) {
 
 		crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
 		defer crl1sw1.Close()
-		crl1sw2 := newClusterRateLimiter(s, sw2, "cr2")
+		crl1sw2 := newClusterRateLimiter(s, sw2, "cr1")
 		defer crl1sw2.Close()
 		backend := "TestTwoSwarmsMaze backend"
 
@@ -425,6 +425,68 @@ func TestTwoSwarms(t *testing.T) {
 			if i%2 != 0 && !crl1sw2.Allow(backend) {
 				t.Errorf("2.%d %s not allowed but should", i, backend)
 			}
+		}
+		// update swarm once again to be predictable
+		time.Sleep(150 * time.Millisecond)
+		crl1sw1.Allow(backend)
+		crl1sw2.Allow(backend)
+		time.Sleep(150 * time.Millisecond)
+		crl1sw1.Allow(backend)
+		crl1sw2.Allow(backend)
+		time.Sleep(150 * time.Millisecond)
+
+		if crl1sw1.Allow(backend) {
+			t.Errorf("1 %s allowed but should not", backend)
+		}
+		if crl1sw2.Allow(backend) {
+			t.Errorf("2 %s allowed but should not", backend)
+		}
+
+	})
+
+	t.Run("two swarms, maze, with 2 other ratelimiters", func(t *testing.T) {
+		l.Lock()
+		defer leaveFunction()
+
+		s := Settings{
+			Type:       ClusterServiceRatelimit,
+			MaxHits:    100,
+			TimeWindow: 1 * time.Second,
+		}
+
+		sw1, err := newFakeSwarm("n1", leaveTimeout)
+		if err != nil {
+			t.Fatalf("Failed to start swarm1: %v", err)
+		}
+		defer sw1.Leave()
+		sw2, err := newFakeSwarm("n2", leaveTimeout)
+		if err != nil {
+			t.Fatalf("Failed to start swarm2: %v", err)
+		}
+		defer sw2.Leave()
+
+		crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
+		defer crl1sw1.Close()
+		crl1sw2 := newClusterRateLimiter(s, sw2, "cr1")
+		defer crl1sw2.Close()
+		crl1sw3 := newClusterRateLimiter(s, sw2, "cr3")
+		defer crl1sw3.Close()
+		crl1sw4 := newClusterRateLimiter(s, sw2, "cr3")
+		defer crl1sw4.Close()
+		backend := "TestTwoSwarmsMaze backend"
+
+		//t.Run("two swarm peers, single ratelimit backend", func(t *testing.T) {
+		for i := 0; i <= s.MaxHits; i++ {
+			if i%2 == 0 && !crl1sw1.Allow(backend) {
+				t.Errorf("1.%d %s not allowed but should", i, backend)
+			}
+
+			if i%2 != 0 && !crl1sw2.Allow(backend) {
+				t.Errorf("2.%d %s not allowed but should", i, backend)
+			}
+
+			crl1sw3.Allow(backend)
+			crl1sw4.Allow(backend)
 		}
 		// update swarm once again to be predictable
 		time.Sleep(150 * time.Millisecond)

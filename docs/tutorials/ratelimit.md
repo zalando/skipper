@@ -81,13 +81,15 @@ The following shows the setup of a cluster ratelimit:
 
 The backend ratelimit filter is `clusterRatelimit()`. You can define
 how many requests a route allows for a given `time.Duration` in total
-for all skipper instances summed up.
+for all skipper instances summed up. The first parameter is the group
+parameter, which can be used to select the same ratelimit group across
+one or more routes
 
-For example to limit the route to 10 requests per minute in total for
-the cluster, you can specify:
+For example rate limit "groupA" limits the rate limit group to 10
+requests per minute in total for the cluster, you can specify:
 
 ```
-clusterRatelimit(10, "1m")
+clusterRatelimit("groupA", 10, "1m")
 ```
 
 ### Client Ratelimit
@@ -96,20 +98,22 @@ The client ratelimit filter is `clusterClientRatelimit()` and it uses
 information from the request to find the bucket which will get the
 increased request count.  You can define how many requests a client is
 allowed to hit this route for a given `time.Duration` in total for all
-skipper instances summed up.
+skipper instances summed up. The first parameter is the group
+parameter, which can be used to select the same ratelimit group across
+one or more routes
 
-For example to limit the route to 10 requests per minute for the full
-skipper swarm for the same client selected by the X-Forwarded-For
-header, you can specify:
+For example rate limit "groupB" limits the rate limit group to 10
+requests per minute for the full skipper swarm for the same client
+selected by the X-Forwarded-For header, you can specify:
 
 ```
-clusterClientRatelimit(10, "1m")
+clusterClientRatelimit("groupB", 10, "1m")
 ```
 
 The same for Authorization Header you would use:
 
 ```
-clusterClientRatelimit(10, "1m", "auth")
+clusterClientRatelimit("groupC", 10, "1m", "auth")
 ```
 
 Internally skipper has a clean interval to clean up old buckets to reduce

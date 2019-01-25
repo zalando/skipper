@@ -24,7 +24,7 @@ skipper -experimental-upgrade -access-log-disabled -address ":9001" -inline-rout
 pids="$pids $!"
 
 # lb
-skipper -experimental-upgrade -address :9091 -proxy-preserve-host -routes-file "$cwd"/lb_wrong.eskip \
+skipper -experimental-upgrade -address :9091 -proxy-preserve-host -routes-file "$cwd"/lb_group.eskip \
 	-idle-conns-num 2 -close-idle-conns-period 3 &
 pids="$pids $!"
 

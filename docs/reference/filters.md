@@ -764,43 +764,50 @@ See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratel
 
 ## clusterClientRatelimit
 
-This ratelimit is calculated across all skipper peers and allows the
-given number of requests by client. The definition of the same client
-is based on data of the http header and can be changed with an
-optional third parameter. If the third parameter is set skipper will
-use the Authorization header to put the request in the same client
-bucket, else the X-Forwarded-For Header will be used.  You need to run
-skipper with command line flags `-enable-swarm` and
+This ratelimit is calculated across all skipper peers and the same
+rate limit group. The first parameter is a string to select the same
+ratelimit group across one or more routes.  The rate limit group
+allows the given number of requests by client. The definition of the
+same client is based on data of the http header and can be changed
+with an optional fourth parameter. If the fourth parameter is set
+skipper will use the Authorization header to put the request in the
+same client bucket, else the X-Forwarded-For Header will be used.  You
+need to run skipper with command line flags `-enable-swarm` and
 `-enable-ratelimits`. Skipper will consume roughly 15 MB per filter
 for 100.000 clients and 1000 skipper peers.
 
 Parameters:
 
+* rate limit group (string)
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
 * optional parameter can be set to: "auth" (string)
 
 ```
-clusterClientRatelimit(10, "1h")
-clusterClientRatelimit(10, "1h", "auth")
+clusterClientRatelimit("groupA", 10, "1h")
+clusterClientRatelimit("groupA", 10, "1h", "auth")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
 
 ## clusterRatelimit
 
-This ratelimit is calculated across all skipper peers and allows the
-given number of requests to a backend. You need to have run skipper
-with command line flags `-enable-swarm` and `-enable-ratelimits`.
+This ratelimit is calculated across all skipper peers and the same
+rate limit group. The first parameter is a string to select the same
+ratelimit group across one or more routes.  The rate limit group
+allows the given number of requests to a backend. You need to have run
+skipper with command line flags `-enable-swarm` and
+`-enable-ratelimits`.
 
 Parameters:
 
+* rate limit group (string)
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
 
 ```
-clusterRatelimit(20, "1m")
-clusterRatelimit(300, "1h")
+clusterRatelimit("groupB", 20, "1m")
+clusterRatelimit("groupB", 300, "1h")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -890,7 +897,7 @@ accessLogDisabled("false")
 ## disableAccessLog
 
 Filter overrides global Skipper `AccessLogDisabled` setting and allows to turn-off the access log for specific route
-while access log, in general, is enabled. It is also possible to disable access logs only for a subset of response codes 
+while access log, in general, is enabled. It is also possible to disable access logs only for a subset of response codes
 from backend by providing an optional list of response code prefixes.
 
 Parameters:
