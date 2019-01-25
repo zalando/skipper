@@ -145,17 +145,6 @@ func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *path
 	return realmAndClient
 }
 
-// String returns a JSON representation of the filter prefixed by its type.
-func (f apiUsageMonitoringFilter) String() string {
-	var js string
-	if jsBytes, err := json.Marshal(f); err == nil {
-		js = string(jsBytes)
-	} else {
-		js = fmt.Sprintf("<%v>", err)
-	}
-	return fmt.Sprintf("%T %s", f, js)
-}
-
 // resolvePath tries to match the request's path with one of the configured path template.
 func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) *pathInfo {
 	for _, p := range f.Paths {

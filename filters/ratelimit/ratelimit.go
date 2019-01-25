@@ -6,6 +6,7 @@ For detailed documentation of the ratelimit, see https://godoc.org/github.com/za
 package ratelimit
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/zalando/skipper/filters"
@@ -62,26 +63,30 @@ func NewRatelimit() filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, filterName: ratelimit.ServiceRatelimitName}
 }
 
-// NewClusterRatelimit creates a rate limiting that is aware of the other
-// instances. The value given here should be the combined rate of all instances.
+// NewClusterRatelimit creates a rate limiting that is aware of the
+// other instances. The value given here should be the combined rate
+// of all instances. The ratelimit group parameter can be used to
+// select the same ratelimit group across one or more routes.
 //
 // Example:
 //
 //    backendHealthcheck: Path("/healthcheck")
-//    -> clusterRatelimit(200, "1m")
+//    -> clusterRatelimit("groupA", 200, "1m")
 //    -> "https://foo.backend.net";
 //
 func NewClusterRateLimit() filters.Spec {
 	return &spec{typ: ratelimit.ClusterServiceRatelimit, filterName: ratelimit.ClusterServiceRatelimitName}
 }
 
-// NewClusterClientRatelimit creates a rate limiting that is aware of the other
-// instances. The value given here should be the combined rate of all instances.
+// NewClusterClientRatelimit creates a rate limiting that is aware of
+// the other instances. The value given here should be the combined
+// rate of all instances. The ratelimit group parameter can be used to
+// select the same ratelimit group across one or more routes.
 //
 // Example:
 //
 //    backendHealthcheck: Path("/login")
-//    -> clusterClientRatelimit(20, "1h")
+//    -> clusterClientRatelimit("groupB", 20, "1h")
 //    -> "https://foo.backend.net";
 //
 // The above example would limit access to "/login" if, the client did
@@ -95,7 +100,7 @@ func NewClusterRateLimit() filters.Spec {
 // Example:
 //
 //    backendHealthcheck: Path("/login")
-//    -> clusterClientRatelimit(20, "1h", "Authorization")
+//    -> clusterClientRatelimit("groupC", 20, "1h", "Authorization")
 //    -> "https://foo.backend.net";
 //
 func NewClusterClientRateLimit() filters.Spec {
@@ -143,22 +148,28 @@ func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
 }
 
 func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 2 {
+	if len(args) != 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	maxHits, err := getIntArg(args[0])
+	group, err := getStringArg(args[0])
 	if err != nil {
 		return nil, err
 	}
 
-	timeWindow, err := getDurationArg(args[1])
+	maxHits, err := getIntArg(args[1])
+	if err != nil {
+		return nil, err
+	}
+
+	timeWindow, err := getDurationArg(args[2])
 	if err != nil {
 		return nil, err
 	}
 
 	s := ratelimit.Settings{
 		Type:       ratelimit.ClusterServiceRatelimit,
+		Group:      group,
 		MaxHits:    maxHits,
 		TimeWindow: timeWindow,
 		Lookuper:   ratelimit.NewSameBucketLookuper(),
@@ -168,36 +179,46 @@ func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
 }
 
 func clusterClientRatelimitFilter(args []interface{}) (filters.Filter, error) {
-	if !(len(args) == 2 || len(args) == 3) {
+	if !(len(args) == 3 || len(args) == 4) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	maxHits, err := getIntArg(args[0])
+	group, err := getStringArg(args[0])
 	if err != nil {
 		return nil, err
 	}
 
-	timeWindow, err := getDurationArg(args[1])
+	maxHits, err := getIntArg(args[1])
+	if err != nil {
+		return nil, err
+	}
+
+	timeWindow, err := getDurationArg(args[2])
 	if err != nil {
 		return nil, err
 	}
 
 	s := ratelimit.Settings{
-		Type:       ratelimit.ClusterClientRatelimit,
-		MaxHits:    maxHits,
-		TimeWindow: timeWindow,
+		Type:          ratelimit.ClusterClientRatelimit,
+		Group:         group,
+		MaxHits:       maxHits,
+		TimeWindow:    timeWindow,
+		CleanInterval: 10 * timeWindow,
 	}
 
-	if len(args) > 2 {
-		headerName, err := getStringArg(args[2])
+	if len(args) > 3 {
+		headerName, err := getStringArg(args[3])
 		if err != nil {
 			return nil, err
 		}
-		s.Lookuper = ratelimit.NewHeaderLookuper(headerName)
-		s.CleanInterval = 10 * timeWindow
+		headerName = http.CanonicalHeaderKey(headerName)
+		if headerName == "X-Forwarded-For" {
+			s.Lookuper = ratelimit.NewXForwardedForLookuper()
+		} else {
+			s.Lookuper = ratelimit.NewHeaderLookuper(headerName)
+		}
 	} else {
 		s.Lookuper = ratelimit.NewXForwardedForLookuper()
-		s.CleanInterval = 10 * timeWindow
 	}
 
 	return &filter{settings: s}, nil
@@ -295,7 +316,11 @@ func getDurationArg(a interface{}) (time.Duration, error) {
 // Request stores the configured ratelimit.Settings in the state bag,
 // such that it can be used in the proxy to check ratelimit.
 func (f *filter) Request(ctx filters.FilterContext) {
-	ctx.StateBag()[RouteSettingsKey] = f.settings
+	if settings, ok := ctx.StateBag()[RouteSettingsKey].([]ratelimit.Settings); ok {
+		ctx.StateBag()[RouteSettingsKey] = append(settings, f.settings)
+	} else {
+		ctx.StateBag()[RouteSettingsKey] = []ratelimit.Settings{f.settings}
+	}
 }
 
-func (f *filter) Response(filters.FilterContext) {}
+func (*filter) Response(filters.FilterContext) {}

@@ -61,6 +61,23 @@ type auditLog struct {
 // write data to an auditlog. It will not return until the connection
 // is closed.
 func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
+	// The following 2 checks are based on
+	// https://tools.ietf.org/html/rfc2616#section-14.42
+	// https://tools.ietf.org/html/rfc7230#section-6.7
+	// and https://tools.ietf.org/html/rfc6455 (websocket)
+	if req.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(http.StatusText(http.StatusMethodNotAllowed)))
+		return
+	}
+	if (req.ProtoMajor <= 1 && req.ProtoMinor < 1) ||
+		req.Header.Get("Connection") != "Upgrade" ||
+		req.Header.Get("Upgrade") == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(http.StatusText(http.StatusBadRequest)))
+		return
+	}
+
 	backendConn, err := p.dialBackend(req)
 	if err != nil {
 		log.Errorf("Error connecting to backend: %s", err)
@@ -102,9 +119,16 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		log.Errorf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
+		log.Debugf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(http.StatusText(http.StatusUnauthorized)))
+		return
+	}
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		log.Debugf("Got invalid status code from backend: %d", resp.StatusCode)
+		w.WriteHeader(resp.StatusCode)
+		w.Write([]byte(http.StatusText(resp.StatusCode)))
 		return
 	}
 

@@ -20,7 +20,7 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/accesslog"
+	al "github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
@@ -191,10 +191,15 @@ type Params struct {
 
 	// MaxIdleConns limits the number of idle connections to all backends, 0 means no limit
 	MaxIdleConns int
+
+	// Client TLS to connect to Backends
+	ClientTLS *tls.Config
 }
 
 var (
 	hostname               = ""
+	disabledAccessLog      = al.AccessLogFilter{Enable: false, Prefixes: nil}
+	enabledAccessLog       = al.AccessLogFilter{Enable: true, Prefixes: nil}
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
 	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
 	errCircuitBreakerOpen  = &proxyError{
@@ -524,6 +529,10 @@ func WithParams(p Params) *Proxy {
 		IdleConnTimeout:       p.CloseIdleConnsPeriod,
 	}
 
+	if p.ClientTLS != nil {
+		tr.TLSClientConfig = p.ClientTLS
+	}
+
 	quit := make(chan struct{})
 	// We need this to reliably fade on DNS change, which is right
 	// now not fixed with IdleConnTimeout in the http.Transport.
@@ -542,7 +551,11 @@ func WithParams(p Params) *Proxy {
 	}
 
 	if p.Flags.Insecure() {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		if tr.TLSClientConfig == nil {
+			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		} else {
+			tr.TLSClientConfig.InsecureSkipVerify = true
+		}
 	}
 
 	m := metrics.Default
@@ -738,7 +751,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
-		if err := p.makeUpgradeRequest(ctx, ctx.route, req); err != nil {
+		if err = p.makeUpgradeRequest(ctx, ctx.route, req); err != nil {
 			return nil, &proxyError{err: err}
 		}
 
@@ -829,30 +842,35 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 		return ratelimit.Settings{}, 0
 	}
 
-	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].(ratelimit.Settings)
-	if !ok {
+	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].([]ratelimit.Settings)
+	if !ok || len(settings) < 1 {
 		return ratelimit.Settings{}, 0
 	}
 
-	rl := p.limiters.Get(settings)
-	if rl == nil {
-		return settings, 0
+	for _, setting := range settings {
+		rl := p.limiters.Get(setting)
+		if rl == nil {
+			p.log.Errorf("RateLimiter is nil for setting: %s", setting)
+			continue
+		}
+
+		if setting.Lookuper == nil {
+			p.log.Errorf("Lookuper is nil for setting: %s", setting)
+			continue
+		}
+
+		s := setting.Lookuper.Lookup(ctx.Request())
+		if s == "" {
+			p.log.Errorf("Lookuper found no data in request for setting: %s and request: %v", setting, ctx.Request())
+			continue
+		}
+
+		if !rl.Allow(s) {
+			return setting, rl.RetryAfter(s)
+		}
 	}
 
-	if settings.Lookuper == nil {
-		p.log.Error("lookuper is nil")
-		return settings, 0
-	}
-	s := settings.Lookuper.Lookup(ctx.Request())
-
-	if s == "" {
-		return settings, 0
-	}
-
-	if rl.Allow(s) {
-		return settings, 0
-	}
-	return settings, rl.RetryAfter(s)
+	return ratelimit.Settings{}, 0
 }
 
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
@@ -912,11 +930,6 @@ func (p *Proxy) do(ctx *context) error {
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
-	// per route rate limit
-	if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
-		rerr := ratelimitError(settings, ctx, retryAfter)
-		return rerr
-	}
 
 	if ctx.deprecatedShunted() {
 		p.log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
@@ -940,6 +953,12 @@ func (p *Proxy) do(ctx *context) error {
 		ctx.outgoingDebugRequest = debugReq
 		ctx.setResponse(&http.Response{Header: make(http.Header)}, p.flags.PreserveOriginal())
 	} else {
+		// per route rate limit
+		if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
+			rerr := ratelimitError(settings, ctx, retryAfter)
+			return rerr
+		}
+
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
 			tracing.LogKV("circuit_breaker", "open", ctx.request.Context())
@@ -1097,6 +1116,25 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	p.sendError(ctx, id, code)
 }
 
+func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
+	if len(filter.Prefixes) == 0 {
+		return filter.Enable
+	}
+	match := false
+	for _, prefix := range filter.Prefixes {
+		prefMatch := false
+		if prefix < 10 {
+			prefMatch = (statusCode >= prefix*100 && statusCode < (prefix+1)*100)
+		} else if prefix < 100 {
+			prefMatch = (statusCode >= prefix*10 && statusCode < (prefix+1)*10)
+		} else {
+			prefMatch = statusCode == prefix
+		}
+		match = match || prefMatch
+	}
+	return match == filter.Enable
+}
+
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	lw := logging.NewLoggingWriter(w)
@@ -1119,17 +1157,22 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	defer func() {
-		accessLogEnabled, ok := ctx.stateBag[accesslog.AccessLogEnabledKey].(bool)
+		accessLogEnabled, ok := ctx.stateBag[al.AccessLogEnabledKey].(*al.AccessLogFilter)
 
 		if !ok {
-			accessLogEnabled = !p.accessLogDisabled
+			if p.accessLogDisabled {
+				accessLogEnabled = &disabledAccessLog
+			} else {
+				accessLogEnabled = &enabledAccessLog
+			}
 		}
+		statusCode := lw.GetCode()
 
-		if accessLogEnabled {
+		if shouldLog(statusCode, accessLogEnabled) {
 			entry := &logging.AccessEntry{
 				Request:      r,
 				ResponseSize: lw.GetBytes(),
-				StatusCode:   lw.GetCode(),
+				StatusCode:   statusCode,
 				RequestTime:  ctx.startServe,
 				Duration:     time.Since(ctx.startServe),
 			}

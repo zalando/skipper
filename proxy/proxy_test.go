@@ -1511,69 +1511,137 @@ func TestDisableAccessLog(t *testing.T) {
 }
 
 func TestDisableAccessLogWithFilter(t *testing.T) {
-	var buf bytes.Buffer
-	logging.Init(logging.Options{
-		AccessLogOutput: &buf})
+	for _, ti := range []struct {
+		msg          string
+		filter       string
+		responseCode int
+		disabled     bool
+	}{
+		{
+			msg:          "disable-log-for-all",
+			filter:       "disableAccessLog()",
+			responseCode: 201,
+			disabled:     true,
+		},
+		{
+			msg:          "disable-log-match-exact",
+			filter:       "disableAccessLog(200)",
+			responseCode: 200,
+			disabled:     true,
+		},
+		{
+			msg:          "disable-log-match-prefix",
+			filter:       "disableAccessLog(3)",
+			responseCode: 302,
+			disabled:     true,
+		},
+		{
+			msg:          "disable-log-no-match",
+			filter:       "disableAccessLog(1,20,300)",
+			responseCode: 500,
+			disabled:     false,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			var buf bytes.Buffer
+			logging.Init(logging.Options{
+				AccessLogOutput: &buf})
 
-	response := "7 bytes"
+			response := "7 bytes"
 
-	u, _ := url.ParseRequestURI("https://www.example.org/hello")
-	r := &http.Request{
-		URL:    u,
-		Method: "GET",
-		Header: http.Header{"Connection": []string{"token"}}}
-	w := httptest.NewRecorder()
+			u, _ := url.ParseRequestURI("https://www.example.org/hello")
+			r := &http.Request{
+				URL:    u,
+				Method: "GET",
+				Header: http.Header{"Connection": []string{"token"}}}
+			w := httptest.NewRecorder()
 
-	doc := fmt.Sprintf(`hello: Path("/hello") -> disableAccessLog() -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+			doc := fmt.Sprintf(`hello: Path("/hello") -> %s -> status(%d) -> inlineContent("%s") -> <shunt>`, ti.filter, ti.responseCode, response)
 
-	tp, err := newTestProxyWithParams(doc, Params{
-		AccessLogDisabled: false,
-	})
-	if err != nil {
-		t.Error(err)
-		return
-	}
+			tp, err := newTestProxyWithParams(doc, Params{
+				AccessLogDisabled: false,
+			})
+			if err != nil {
+				t.Error(err)
+				return
+			}
 
-	defer tp.close()
+			defer tp.close()
 
-	tp.proxy.ServeHTTP(w, r)
+			tp.proxy.ServeHTTP(w, r)
 
-	if buf.Len() != 0 {
-		t.Error("failed to disable access log")
+			if ti.disabled != (buf.Len() == 0) {
+				t.Error("failed to disable access log")
+			}
+		})
 	}
 }
 
 func TestEnableAccessLogWithFilter(t *testing.T) {
-	var buf bytes.Buffer
-	logging.Init(logging.Options{
-		AccessLogOutput: &buf})
+	for _, ti := range []struct {
+		msg          string
+		filter       string
+		responseCode int
+		shouldLog    bool
+	}{
+		{
+			msg:          "enable-log-for-all",
+			filter:       "enableAccessLog()",
+			responseCode: 201,
+			shouldLog:    true,
+		},
+		{
+			msg:          "enable-log-match-exact",
+			filter:       "enableAccessLog(200)",
+			responseCode: 200,
+			shouldLog:    true,
+		},
+		{
+			msg:          "enable-log-match-prefix",
+			filter:       "enableAccessLog(3)",
+			responseCode: 302,
+			shouldLog:    true,
+		},
+		{
+			msg:          "enable-log-no-match",
+			filter:       "enableAccessLog(1,20,300)",
+			responseCode: 500,
+			shouldLog:    false,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			var buf bytes.Buffer
+			logging.Init(logging.Options{
+				AccessLogOutput: &buf})
 
-	response := "7 bytes"
+			response := "7 bytes"
 
-	u, _ := url.ParseRequestURI("https://www.example.org/hello")
-	r := &http.Request{
-		URL:    u,
-		Method: "GET",
-		Header: http.Header{"Connection": []string{"token"}}}
-	w := httptest.NewRecorder()
+			u, _ := url.ParseRequestURI("https://www.example.org/hello")
+			r := &http.Request{
+				URL:    u,
+				Method: "GET",
+				Header: http.Header{"Connection": []string{"token"}}}
+			w := httptest.NewRecorder()
 
-	doc := fmt.Sprintf(`hello: Path("/hello") -> enableAccessLog() -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
+			doc := fmt.Sprintf(`hello: Path("/hello") -> %s -> status(%d) -> inlineContent("%s") -> <shunt>`, ti.filter, ti.responseCode, response)
 
-	tp, err := newTestProxyWithParams(doc, Params{
-		AccessLogDisabled: true,
-	})
-	if err != nil {
-		t.Error(err)
-		return
-	}
+			tp, err := newTestProxyWithParams(doc, Params{
+				AccessLogDisabled: true,
+			})
+			if err != nil {
+				t.Error(err)
+				return
+			}
 
-	defer tp.close()
+			defer tp.close()
 
-	tp.proxy.ServeHTTP(w, r)
+			tp.proxy.ServeHTTP(w, r)
 
-	output := buf.String()
-	if !strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-" 0 - - -`, r.Method, http.StatusTeapot, len(response))) {
-		t.Error("failed to log access", output)
+			output := buf.String()
+			if ti.shouldLog != strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-" 0 - - -`, r.Method, ti.responseCode, len(response))) {
+				t.Error("failed to log access", output)
+			}
+		})
 	}
 }
 
@@ -1660,3 +1728,46 @@ func TestHopHeaderRemovalDisabled(t *testing.T) {
 		t.Error("wrong status", w.Code)
 	}
 }
+
+func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {
+	response := "some bytes"
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"token"}}}
+
+	accessLogFilter := filter
+	if filter == "" {
+		accessLogFilter = ""
+	} else {
+		accessLogFilter = fmt.Sprintf("-> %v", filter)
+	}
+	doc := fmt.Sprintf(`hello: Path("/hello") %s -> status(%d) -> inlineContent("%s") -> <shunt>`, accessLogFilter, responseCode, response)
+
+	tp, err := newTestProxyWithParams(doc, Params{
+		AccessLogDisabled: false,
+	})
+	if err != nil {
+		b.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			tp.proxy.ServeHTTP(httptest.NewRecorder(), r)
+		}
+	})
+}
+
+func BenchmarkAccessLogNoFilter(b *testing.B)     { benchmarkAccessLog(b, "", 200) }
+func BenchmarkAccessLogDisablePrint(b *testing.B) { benchmarkAccessLog(b, "disableAccessLog(1,3)", 200) }
+func BenchmarkAccessLogDisable(b *testing.B)      { benchmarkAccessLog(b, "disableAccessLog(1,3,200)", 200) }
+func BenchmarkAccessLogEnablePrint(b *testing.B) {
+	benchmarkAccessLog(b, "enableAccessLog(1,200,3)", 200)
+}
+func BenchmarkAccessLogEnable(b *testing.B) { benchmarkAccessLog(b, "enableAccessLog(1,3)", 200) }

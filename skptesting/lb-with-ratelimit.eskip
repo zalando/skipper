@@ -1,0 +1,27 @@
+r0: Host(/^test[.]example[.]org$/) && LBMember("x", 0)
+  -> dropRequestHeader("X-Load-Balancer-Member")
+  -> clusterClientRatelimit("groupA", 1800, "1m")
+  -> "http://127.0.0.1:9000";
+
+r1: Host(/^test[.]example[.]org$/) && LBMember("x", 1)
+  -> dropRequestHeader("X-Load-Balancer-Member")
+  -> clusterClientRatelimit("groupA", 1800, "1m")
+  -> "http://127.0.0.1:9001";
+
+lb_group: Host(/^test[.]example[.]org$/) && LBGroup("x")
+  -> lbDecide("x", 2)
+  -> <loopback>;
+
+r2: Host(/^foo[.]example[.]org$/) && LBMember("y", 0)
+  -> dropRequestHeader("X-Load-Balancer-Member")
+  -> clusterClientRatelimit("groupB", 450, "1m")
+  -> "http://127.0.0.1:9000";
+
+r3: Host(/^foo[.]example[.]org$/) && LBMember("y", 1)
+  -> dropRequestHeader("X-Load-Balancer-Member")
+  -> clusterClientRatelimit("groupB", 450, "1m")
+  -> "http://127.0.0.1:9001";
+
+lb_group2: Host(/^foo[.]example[.]org$/) && LBGroup("y")
+  -> lbDecide("y", 2)
+  -> <loopback>;
