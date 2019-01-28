@@ -99,7 +99,7 @@ helloTest: Path("/test") -> status(200) -> inlineContent("Hello, test!") -> <shu
 ```
 
 Updating those routes in etcd that are defined in the file, or inserting them from the file in case they don't
-exist yet in etcd:
+exist in etcd, yet:
 
 ```
 eskip upsert -etcd-urls http://localhost:2379,http://localhost:4001 example.eskip
