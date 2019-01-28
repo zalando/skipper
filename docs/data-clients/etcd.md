@@ -7,9 +7,8 @@ storage and continuously synchronize the routing from etcd.
 ## Why storing Skipper routes in etcd?
 
 When running multiple Skipper instances, changing the configuration of each instance by accessing the instances
-directly on the fly can be complex and error-prone, e.g. to changing the configuration file on every server.
-With etcd, we need to update the routes only in etcd and each Skipper instance will synchronize its routing from
-the new version.
+directly on the fly can be complex and error-prone. With etcd, we need to update the routes only in etcd and
+each Skipper instance will synchronize its routing from the new version.
 
 Further benefits of using etcd are improved resiliency and the usage of a standard configuration storage for
 various system components of a distributed system, not only Skipper.
