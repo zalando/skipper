@@ -143,6 +143,16 @@ func TestParseRouteExpression(t *testing.T) {
 			BackendType: LoopBackend,
 		},
 		false,
+	}, {
+		"dynamic",
+		`* -> setRequestHeader("X-Foo", "bar") -> <dynamic>`,
+		&Route{
+			Filters: []*Filter{
+				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
+			},
+			BackendType: DynamicBackend,
+		},
+		false,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			stringMapKeys := func(m map[string]string) []string {
@@ -334,6 +344,9 @@ func TestRouteJSON(t *testing.T) {
 	}, {
 		&Route{Method: "GET", BackendType: LoopBackend},
 		`{"id":"","backend":"<loopback>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
+	}, {
+		&Route{Method: "GET", BackendType: DynamicBackend},
+		`{"id":"","backend":"<dynamic>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
 	}, {
 		&Route{
 			Method:      "PUT",

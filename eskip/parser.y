@@ -38,6 +38,7 @@ func convertNumber(s string) float64 {
 	backend string
 	shunt bool
 	loopback bool
+	dynamic bool
 	numval float64
 	stringval string
 	regexpval string
@@ -55,6 +56,7 @@ func convertNumber(s string) float64 {
 %token semicolon
 %token shunt
 %token loopback
+%token dynamic
 %token stringliteral
 %token symbol
 
@@ -103,7 +105,8 @@ route:
 			matchers: $1.matchers,
 			backend: $3.backend,
 			shunt: $3.shunt,
-			loopback: $3.loopback}
+			loopback: $3.loopback,
+			dynamic: $3.dynamic}
 	}
 	|
 	frontend arrow filters arrow backend {
@@ -112,7 +115,8 @@ route:
 			filters: $3.filters,
 			backend: $5.backend,
 			shunt: $5.shunt,
-			loopback: $5.loopback}
+			loopback: $5.loopback,
+			dynamic: $5.dynamic}
 		$1.matchers = nil
 		$3.filters = nil
 	}
@@ -184,6 +188,7 @@ backend:
 		$$.backend = $1.stringval
 		$$.shunt = false
 		$$.loopback = false
+		$$.dynamic = false
 	}
 	|
 	shunt {
@@ -191,7 +196,11 @@ backend:
 	}
 	|
 	loopback {
-	    $$.loopback = true
+	        $$.loopback = true
+	}
+	|
+	dynamic {
+	        $$.dynamic = true
 	}
 
 numval:

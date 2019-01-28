@@ -8,6 +8,17 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+const (
+	// DynamicBackendHostKey is the key used in the state bag to pass host to the proxy.
+	DynamicBackendHostKey = "backend:dynamic:host"
+
+	// DynamicBackendSchemeKey is the key used in the state bag to pass scheme to the proxy.
+	DynamicBackendSchemeKey = "backend:dynamic:scheme"
+
+	// DynamicBackendURLKey is the key used in the state bag to pass url to the proxy.
+	DynamicBackendURLKey = "backend:dynamic:url"
+)
+
 // Context object providing state and information that is unique to a request.
 type FilterContext interface {
 	// The response writer object belonging to the incoming request. Used by
@@ -57,7 +68,7 @@ type FilterContext interface {
 	StateBag() map[string]interface{}
 
 	// Gives filters access to the backend url specified in the route or an empty
-	// value in case it's a shunt or loopback
+	// value in case it's a shunt, loopback. In case of dynamic backend is empty.
 	BackendUrl() string
 
 	// Returns the host that will be set for the outgoing proxy request as the

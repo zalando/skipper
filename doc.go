@@ -123,8 +123,8 @@ For further details, see the 'filters' package documentation.
 
 Service Backends
 
-Each route has one of the following backends: HTTP endpoint, shunt or
-loopback.
+Each route has one of the following backends: HTTP endpoint, shunt,
+loopback or dynamic.
 
 Backend endpoints can be any HTTP service. They are specified by their
 network address, including the protocol scheme, the domain name or the
@@ -140,6 +140,9 @@ A loopback route executes the routing mechanism on current state of
 the request from the start, including the route lookup. This way it
 serves as a form of an internal redirect.
 
+A dynamic route means that the final target will be defined in a filter.
+One of the filters in the chain must set the target backend url explicitly.
+
 
 Route Definitions
 
@@ -149,7 +152,7 @@ Route definitions consist of the following:
 
 - filter chain (optional)
 
-- backend (either an HTTP endpoint or a shunt)
+- backend
 
 The eskip package implements the in-memory and text representations of
 route definitions, including a parser.

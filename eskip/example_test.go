@@ -48,6 +48,9 @@ func Example() {
 
 		// route definition with a loopback to route2 (no backend address)
 		route4: Path("/some/alternative/path") -> setPath("/some/other/path") -> <loopback>;
+
+        // route definition which forwards rest of requests (no backend address)
+		route5: * -> requestHeader("X-Type", "page") -> <forward>;
 		`
 
 	routes, err := eskip.Parse(code)

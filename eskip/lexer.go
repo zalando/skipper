@@ -57,7 +57,8 @@ var fixedTokens = map[fixedScanner]int{
 	"(":          openparen,
 	";":          semicolon,
 	"<shunt>":    shunt,
-	"<loopback>": loopback}
+	"<loopback>": loopback,
+	"<dynamic>":  dynamic}
 
 func (t token) String() string { return t.val }
 

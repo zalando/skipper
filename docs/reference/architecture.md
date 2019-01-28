@@ -16,11 +16,12 @@ always a current routing table which will be replaced on change.
 A route is one entry in the routing table. A route consists of one or
 more `predicate`, that are used to find a route for a given HTTP
 request. A route can also have one or more `filter`, that can modify
-the content of the request or response.  A route always points to a
-backend, or it's a `<shunt>`, meaning that skipper serves the requests
-for the route, or a `<loopback>`, meaning that the request will be
+the content of the request or response.  A route can point to a
+backend, it can be a `<shunt>`, meaning that skipper serves the requests
+for the route, a `<loopback>`, meaning that the requests will be
 matched against the routing table again after filters have modified
-it.
+them, or a `<dynamic>`, meaning that the target url can be set dynamically 
+by a filter (e.g. [setDynamicBackendUrl](filters.md#setdynamicbackendurl)). 
 
 [Opentracing API](http://opentracing.io/) is supported via
 [skipper-plugins](https://github.com/skipper-plugins/opentracing). For

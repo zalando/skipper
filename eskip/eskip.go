@@ -18,7 +18,6 @@ var (
 	invalidPredicateArgCountError   = errors.New("invalid predicate count arg")
 	duplicatePathTreePredicateError = errors.New("duplicate path tree predicate")
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
-	errInvalidBackend               = errors.New("invalid backend")
 )
 
 // Represents a matcher condition for incoming requests.
@@ -37,6 +36,7 @@ const (
 	NetworkBackend = iota
 	ShuntBackend
 	LoopBackend
+	DynamicBackend
 )
 
 // Route definition used during the parser processes the raw routing
@@ -47,6 +47,7 @@ type parsedRoute struct {
 	filters  []*Filter
 	shunt    bool
 	loopback bool
+	dynamic  bool
 	backend  string
 }
 
@@ -151,6 +152,8 @@ func (t BackendType) String() string {
 		return "shunt"
 	case LoopBackend:
 		return "loopback"
+	case DynamicBackend:
+		return "dynamic"
 	default:
 		return "unknown"
 	}
@@ -259,33 +262,19 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	rd.Shunt = r.shunt
 	rd.Backend = r.backend
 
-	bt, err := backendType(r.shunt, r.loopback)
-	if err != nil {
-		return nil, err
+	if r.shunt {
+		rd.BackendType = ShuntBackend
+	} else if r.loopback {
+		rd.BackendType = LoopBackend
+	} else if r.dynamic {
+		rd.BackendType = DynamicBackend
+	} else {
+		rd.BackendType = NetworkBackend
 	}
 
-	rd.BackendType = bt
-
-	err = applyPredicates(rd, r)
+	err := applyPredicates(rd, r)
 
 	return rd, err
-}
-
-func backendType(shunt, loopback bool) (bt BackendType, err error) {
-	if shunt && loopback {
-		err = errInvalidBackend
-		return
-	}
-
-	if shunt {
-		bt = ShuntBackend
-	} else if loopback {
-		bt = LoopBackend
-	} else {
-		bt = NetworkBackend
-	}
-
-	return
 }
 
 // executes the parser.

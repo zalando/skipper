@@ -90,7 +90,7 @@ const (
 	loadBalancerHealthCheckIntervalUsage = "use to set the health checker interval to check healthiness of former dead or unhealthy routes"
 	reverseSourcePredicateUsage          = "reverse the order of finding the client IP from X-Forwarded-For header"
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
-	maxAuditBodyUsage                    = "sets the max body to read to log inthe audit log body"
+	maxAuditBodyUsage                    = "sets the max body to read to log in the audit log body"
 
 	// logging, metrics, tracing:
 	enablePrometheusMetricsUsage    = "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"

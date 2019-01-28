@@ -37,6 +37,13 @@ const (
 	DropRequestHeaderName    = "dropRequestHeader"
 	DropResponseHeaderName   = "dropResponseHeader"
 
+	SetDynamicBackendHostFromHeader   = "setDynamicBackendHostFromHeader"
+	SetDynamicBackendSchemeFromHeader = "setDynamicBackendSchemeFromHeader"
+	SetDynamicBackendUrlFromHeader    = "setDynamicBackendUrlFromHeader"
+	SetDynamicBackendHost             = "setDynamicBackendHost"
+	SetDynamicBackendScheme           = "setDynamicBackendScheme"
+	SetDynamicBackendUrl              = "setDynamicBackendUrl"
+
 	HealthCheckName     = "healthcheck"
 	ModPathName         = "modPath"
 	SetPathName         = "setPath"
@@ -87,6 +94,12 @@ func MakeRegistry() filters.Registry {
 		NewCopyResponseHeader(),
 		NewHeaderToQuery(),
 		NewQueryToHeader(),
+		NewSetDynamicBackendHostFromHeader(),
+		NewSetDynamicBackendSchemeFromHeader(),
+		NewSetDynamicBackendUrlFromHeader(),
+		NewSetDynamicBackendHost(),
+		NewSetDynamicBackendScheme(),
+		NewSetDynamicBackendUrl(),
 		diag.NewRandom(),
 		diag.NewLatency(),
 		diag.NewBandwidth(),

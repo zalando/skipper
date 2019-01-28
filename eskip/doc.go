@@ -186,37 +186,42 @@ predicates start with upper case, while filters start with lower case.
 
 Backend
 
-There are three types of backends: a network endpoint address, a shunt or
-a loopback.
+There are four backend types: network endpoint address, shunt, loopback and dynamic.
 
-A network endpoint address example:
+Network endpoint address:
 
 	"http://internal.example.org:9090"
 
-An endpoint address backend is surrounded by '"'. It contains the scheme
-and the hostname of the endpoint, and optionally the port number that is
+The network endpoint address backend is a double quoted string. It contains a protocol scheme,
+a domain name or an IP address, and optionally can contain a port number which is
 inferred from the scheme if not specified.
 
-A shunt backend:
+shunt:
 
 	<shunt>
 
-The shunt backend means that the route will not forward the request to a
-network endpoint, but the router will handle the request itself. By
-default, the response is in this case 404 Not found, unless a filter in
-the route does not change it.
+The shunt backend means that the route will not forward requests,
+but the router will handle requests itself. The default response in this
+case is 404 Not Found, unless a filter in the route changes it.
 
-A loop backend:
+loopback:
 
 	<loopback>
 
-The loopback means that the state of the request at the end of the request
+The loopback backend means that the state of the request at the end of the request
 filter chain will be matched against the lookup table instead of being sent
-to a network backend. When the new route returns, the filter chain is on the
-response is executed on the original loop route, and the response is
+to a network backend. When a new route returns, the filter chain of the original
+loop route is executed on the response, and the response is
 returned. The path parameters of the outer, looping, route are preserved for
 the inner route, but the path parameters of the inner route are discarded
 once it returns.
+
+dynamic:
+
+	<dynamic>
+
+The dynamic backend means that a filter must be present in the filter chain which
+must set the target url explicitly.
 
 
 Comments
