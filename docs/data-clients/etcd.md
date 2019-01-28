@@ -67,8 +67,8 @@ curl -X DELETE http://localhost:2379/v2/keys/skipper/routes/hello
 Getting all route IDs, a route expression stored with an ID, insert or update and delete with etcdctl:
 
 ```
-etcdctl --endpoints ls http://localhost:2379,http://localhost:4001 /skipper/routes
-etcdctl --endpoints get http://localhost:2379,http://localhost:4001 /skipper/routes/hello
+etcdctl --endpoints http://localhost:2379,http://localhost:4001 ls /skipper/routes
+etcdctl --endpoints http://localhost:2379,http://localhost:4001 get /skipper/routes/hello
 etcdctl --endpoints http://localhost:2379,http://localhost:4001 set -- /skipper/routes/hello '* -> status(200) -> inlineContent("Hello, world!") -> <shunt>'
 etcdctl --endpoints http://localhost:2379,http://localhost:4001 rm /skipper/routes/bello
 ```
