@@ -802,8 +802,6 @@ func Run(o Options) error {
 		cookie.New(),
 		query.New(),
 		traffic.New(),
-		loadbalancer.NewGroup(),
-		loadbalancer.NewMember(),
 		pauth.NewJWTPayloadAllKV(),
 		pauth.NewJWTPayloadAnyKV(),
 	)

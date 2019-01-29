@@ -59,7 +59,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 
 	var (
 		contents []string
-		backends []string
+		backends []interface{}
 	)
 
 	for i := 0; i < backendCount; i++ {
@@ -71,12 +71,21 @@ func TestConcurrencySingleRoute(t *testing.T) {
 		backends = append(backends, b.URL)
 	}
 
-	baseRoute := &eskip.Route{
-		Id: "foo",
+	route := &eskip.Route{
+		Id:          "foo",
+		BackendType: eskip.DynamicBackend,
+		Filters: []*eskip.Filter{
+			{
+				Name: loadbalancer.LBEndpointsName,
+				Args: backends,
+			},
+			{
+				Name: loadbalancer.RoundRobin,
+			},
+		},
 	}
 
-	routes := loadbalancer.BalanceRoute(baseRoute, backends)
-	p := proxytest.New(builtin.MakeRegistry(), routes...)
+	p := proxytest.New(builtin.MakeRegistry(), route)
 	defer p.Close()
 
 	memberCounters := make(map[string]counter)
@@ -154,7 +163,7 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 
 	var (
 		contents []string
-		backends []string
+		backends []interface{}
 	)
 
 	for i := 0; i < backendCount; i++ {
@@ -166,18 +175,28 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 		backends = append(backends, b.URL)
 	}
 
-	baseRoute := &eskip.Route{
-		Id:      "foo",
-		Backend: "https://foo",
+	route := []*eskip.Route{
+		{
+			Id:          "foo",
+			BackendType: eskip.DynamicBackend,
+			Filters: []*eskip.Filter{
+				{
+					Name: loadbalancer.LBEndpointsName,
+					Args: backends,
+				},
+				{
+					Name: loadbalancer.RoundRobin,
+				},
+			},
+		},
 	}
 
-	routes := loadbalancer.BalanceRoute(baseRoute, backends)
-	dataClient := createDataClientWithUpdates(routes, routeUpdateTimeout)
+	dataClient := createDataClientWithUpdates(route, routeUpdateTimeout)
 
 	p := proxytest.WithRoutingOptions(builtin.MakeRegistry(), routing.Options{
 		DataClients: []routing.DataClient{dataClient},
 		PollTimeout: routeUpdateTimeout,
-	}, routes...)
+	}, route...)
 	defer p.Close()
 
 	memberCounters := make(map[string]counter)
@@ -256,10 +275,9 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 	}
 
 	var (
-		contents   = make(map[string][]string)
-		backends   = make(map[string][]string)
-		baseRoutes = make(map[string]*eskip.Route)
-		routes     []*eskip.Route
+		contents = make(map[string][]string)
+		backends = make(map[string][]interface{})
+		routes   []*eskip.Route
 	)
 
 	apps := []string{"app1", "app2"}
@@ -275,11 +293,24 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 	}
 
 	for _, app := range apps {
-		baseRoutes[app] = &eskip.Route{
-			Id:   app,
-			Path: fmt.Sprintf("/%s", app),
-		}
-		routes = append(routes, loadbalancer.BalanceRoute(baseRoutes[app], backends[app])...)
+		routes = append(routes, &eskip.Route{
+			Id:          app,
+			Path:        fmt.Sprintf("/%s", app),
+			BackendType: eskip.DynamicBackend,
+			Filters: []*eskip.Filter{
+				{
+					Name: loadbalancer.LBEndpointsName,
+					Args: backends[app],
+				},
+				{
+					Name: loadbalancer.RoundRobin,
+				},
+			},
+		})
+	}
+
+	for _, r := range routes {
+		t.Logf("r: %s", r)
 	}
 
 	p := proxytest.New(builtin.MakeRegistry(), routes...)

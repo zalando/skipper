@@ -7,7 +7,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -36,13 +35,6 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 	if len(routingOptions.DataClients) == 0 {
 		dc := testdataclient.New(routes)
 		routingOptions.DataClients = []routing.DataClient{dc}
-	}
-
-	if len(routingOptions.Predicates) == 0 {
-		routingOptions.Predicates = []routing.PredicateSpec{
-			loadbalancer.NewGroup(),
-			loadbalancer.NewMember(),
-		}
 	}
 
 	routingOptions.FilterRegistry = fr

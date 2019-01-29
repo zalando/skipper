@@ -58,7 +58,6 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	defer dc.Close()
 
 	r, err := dc.LoadAll()
@@ -73,18 +72,18 @@ func TestSingleLBTarget(t *testing.T) {
 	const expectedRoutes = `
 
 		// default backend:
-		kube_namespace1__ingress1_______0:
+		kube_namespace1__ingress1______:
 		  *
 		  -> "http://42.0.1.2:8080";
 
 		// path rule:
-		kube_namespace1__ingress1__test_example_org___test1__service1_0:
+		kube_namespace1__ingress1__test_example_org___test1__service1:
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
 		  -> "http://42.0.1.2:8080";
 
 		// catch all:
-		kube___catchall__test_example_org_____0:
+		kube___catchall__test_example_org____:
 		  Host(/^test[.]example[.]org$/)
 		  -> <shunt>;
 	`
@@ -96,48 +95,22 @@ func TestLBTargets(t *testing.T) {
 	const expectedRoutes = `
 
 		// default backend, target 1:
-		kube_namespace1__ingress1______0_0:
-		  LBMember("kube_namespace1__ingress1_______0", 0)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.2:8080";
-
-		// default backend, target 2:
-		kube_namespace1__ingress1______1_0:
-		  LBMember("kube_namespace1__ingress1_______0", 1)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.3:8080";
-
-		// default group:
-		kube_namespace1__ingress1_______0__lb_group:
-		  LBGroup("kube_namespace1__ingress1_______0")
-		  -> lbDecide("kube_namespace1__ingress1_______0", 2) ->
-		  <loopback>;
+		kube_namespace1__ingress1______:
+                  *
+		  -> lbEndpoints("http://42.0.1.2:8080", "http://42.0.1.3:8080")
+                  -> roundrobin()
+		  -> <dynamic>;
 
 		// path rule, target 1:
-		kube_namespace1__ingress1__test_example_org___test1__service1_0_0:
+		kube_namespace1__ingress1__test_example_org___test1__service1:
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
-		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1_0", 0)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.2:8080";
-
-		// path rule, target 2:
-		kube_namespace1__ingress1__test_example_org___test1__service1_1_0:
-		  Host(/^test[.]example[.]org$/)
-		  && PathRegexp(/^\/test1/)
-		  && LBMember("kube_namespace1__ingress1__test_example_org___test1__service1_0", 1)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.3:8080";
-
-		// path rule group:
-		kube_namespace1__ingress1__test_example_org___test1__service1_0__lb_group:
-		  Host(/^test[.]example[.]org$/) && PathRegexp(/^\/test1/)
-		  && LBGroup("kube_namespace1__ingress1__test_example_org___test1__service1_0")
-		  -> lbDecide("kube_namespace1__ingress1__test_example_org___test1__service1_0", 2)
-		  -> <loopback>;
+		  -> lbEndpoints("http://42.0.1.2:8080", "http://42.0.1.3:8080")
+                  -> roundrobin()
+		  -> <dynamic>;
 
 		// catch all:
-		kube___catchall__test_example_org_____0:
+		kube___catchall__test_example_org____:
 		  Host(/^test[.]example[.]org$/)
 		  -> <shunt>;
 	`

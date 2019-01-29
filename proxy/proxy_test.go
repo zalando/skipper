@@ -22,7 +22,6 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
@@ -140,11 +139,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},
-		Predicates: []routing.PredicateSpec{
-			loadbalancer.NewGroup(),
-			loadbalancer.NewMember(),
-		},
-		Log: tl,
+		Log:            tl,
 	})
 	params.Routing = rt
 	p := WithParams(params)

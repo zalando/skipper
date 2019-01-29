@@ -6,66 +6,28 @@ import (
 
 func TestLBWithTrafficControl(t *testing.T) {
 	const expectedDoc = `
-		kube_namespace1__ingress1______0_0:
-		  LBMember("kube_namespace1__ingress1_______0", 0)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.2:8080";
+		kube_namespace1__ingress1______:
+                  *
+		  -> lbEndpoints("http://42.0.1.2:8080", "http://42.0.1.3:8080")
+                  -> roundrobin()
+		  -> <dynamic>;
 
-		kube_namespace1__ingress1______1_0:
-		  LBMember("kube_namespace1__ingress1_______0", 1)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.3:8080";
-
-		kube_namespace1__ingress1_______0__lb_group:
-		  LBGroup("kube_namespace1__ingress1_______0")
-		  -> lbDecide("kube_namespace1__ingress1_______0", 2)
-		  -> <loopback>;
-
-		kube_namespace1__ingress1__test_example_org___test1__service1v1_0_0:
+		kube_namespace1__ingress1__test_example_org___test1__service1v1:
 		  Host(/^test[.]example[.]org$/) &&
 		  PathRegexp(/^\/test1/) &&
-		  LBMember("kube_namespace1__ingress1__test_example_org___test1__service1v1_0", 0)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.2:8080";
+		  Traffic(0.3)
+		  -> lbEndpoints("http://42.0.1.2:8080", "http://42.0.1.3:8080")
+                  -> roundrobin()
+		  -> <dynamic>;
 
-		kube_namespace1__ingress1__test_example_org___test1__service1v1_1_0:
+		kube_namespace1__ingress1__test_example_org___test1__service1v2:
 		  Host(/^test[.]example[.]org$/) &&
-		  PathRegexp(/^\/test1/) &&
-		  LBMember("kube_namespace1__ingress1__test_example_org___test1__service1v1_0", 1)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.3:8080";
+		  PathRegexp(/^\/test1/)
+		  -> lbEndpoints("http://42.0.1.4:8080", "http://42.0.1.5:8080")
+                  -> roundrobin()
+		  -> <dynamic>;
 
-		// the traffic predicate should be on the decision route:
-		kube_namespace1__ingress1__test_example_org___test1__service1v1_0__lb_group:
-		  Host(/^test[.]example[.]org$/) &&
-		  PathRegexp(/^\/test1/) &&
-		  Traffic(0.3) &&
-		  LBGroup("kube_namespace1__ingress1__test_example_org___test1__service1v1_0")
-		  -> lbDecide("kube_namespace1__ingress1__test_example_org___test1__service1v1_0", 2)
-		  -> <loopback>;
-
-		kube_namespace1__ingress1__test_example_org___test1__service1v2_0_1:
-		  Host(/^test[.]example[.]org$/) &&
-		  PathRegexp(/^\/test1/) &&
-		  LBMember("kube_namespace1__ingress1__test_example_org___test1__service1v2_1", 0)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.4:8080";
-
-		kube_namespace1__ingress1__test_example_org___test1__service1v2_1_1:
-		  Host(/^test[.]example[.]org$/) &&
-		  PathRegexp(/^\/test1/) &&
-		  LBMember("kube_namespace1__ingress1__test_example_org___test1__service1v2_1", 1)
-		  -> dropRequestHeader("X-Load-Balancer-Member")
-		  -> "http://42.0.1.5:8080";
-
-		kube_namespace1__ingress1__test_example_org___test1__service1v2_1__lb_group:
-		  Host(/^test[.]example[.]org$/) &&
-		  PathRegexp(/^\/test1/) &&
-		  LBGroup("kube_namespace1__ingress1__test_example_org___test1__service1v2_1")
-		  -> lbDecide("kube_namespace1__ingress1__test_example_org___test1__service1v2_1", 2)
-		  -> <loopback>;
-
-		kube___catchall__test_example_org_____0:
+		kube___catchall__test_example_org____:
 		  Host(/^test[.]example[.]org$/)
 		  -> <shunt>;
 	`

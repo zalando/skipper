@@ -1,8 +1,9 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters"
 	"net/url"
+
+	"github.com/zalando/skipper/filters"
 )
 
 type dynamicBackendFilterType int

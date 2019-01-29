@@ -483,20 +483,20 @@ func (c *Client) getServiceURL(svc *service, port backendPort) (string, error) {
 }
 
 // TODO: find a nicer way to autogenerate route IDs
-func routeID(namespace, name, host, path, backend string, index int) string {
+func routeID(namespace, name, host, path, backend string) string {
 	namespace = nonWord.ReplaceAllString(namespace, "_")
 	name = nonWord.ReplaceAllString(name, "_")
 	host = nonWord.ReplaceAllString(host, "_")
 	path = nonWord.ReplaceAllString(path, "_")
 	backend = nonWord.ReplaceAllString(backend, "_")
-	return fmt.Sprintf("%s_%s__%s__%s__%s__%s_%d", ingressRouteIDPrefix, namespace, name, host, path, backend, index)
+	return fmt.Sprintf("%s_%s__%s__%s__%s__%s", ingressRouteIDPrefix, namespace, name, host, path, backend)
 }
 
 // routeIDForCustom generates a route id for a custom route of an ingress
 // resource.
-func routeIDForCustom(namespace, name, id, host string, ruleIndex, index int) string {
+func routeIDForCustom(namespace, name, id, host string, index int) string {
 	name = name + "_" + id + "_" + strconv.Itoa(index)
-	return routeID(namespace, name, host, "", "", ruleIndex)
+	return routeID(namespace, name, host, "", "")
 }
 
 func patchRouteID(rid string) string {
@@ -504,7 +504,7 @@ func patchRouteID(rid string) string {
 }
 
 // converts the default backend if any
-func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, error) {
+func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, error) {
 	// the usage of the default backend depends on what we want
 	// we can generate a hostname out of it based on shared rules
 	// and instructions in annotations, if there are no rules defined
@@ -519,7 +519,6 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 	var (
 		eps     []string
 		err     error
-		routes  []*eskip.Route
 		ns      = i.Metadata.Namespace
 		name    = i.Metadata.Name
 		svcName = i.Spec.DefaultBackend.ServiceName
@@ -560,76 +559,37 @@ func (c *Client) convertDefaultBackend(i *ingressItem) ([]*eskip.Route, bool, er
 			return nil, false, err2
 		}
 
-		r := &eskip.Route{
-			Id:      routeID(ns, name, "", "", "", 0),
+		return &eskip.Route{
+			Id:      routeID(ns, name, "", "", ""),
 			Backend: address,
-		}
-		routes = append(routes, r)
+		}, true, nil
+	} else if len(eps) == 1 {
+		return &eskip.Route{
+			Id:      routeID(ns, name, "", "", ""),
+			Backend: eps[0],
+		}, true, nil
 	} else if err != nil {
 		return nil, false, err
 	}
 
-	group := routeID(ns, name, "", "", "", 0)
-
-	// TODO:
-	// - don't do load balancing if there's only a single endpoint
-	// - better: cleanup single route load balancer groups in the routing package before applying the next
-	// routing table
-
-	if len(eps) == 0 {
-		return routes, true, nil
+	epArgs := make([]interface{}, len(eps))
+	for i := 0; i < len(eps); i++ {
+		epArgs[i] = eps[i]
 	}
 
-	if len(eps) == 1 {
-		r := &eskip.Route{
-			Id:      routeID(ns, name, "", "", "", 0),
-			Backend: eps[0],
-		}
-		routes = append(routes, r)
-		return routes, true, nil
-	}
-
-	for idx, ep := range eps {
-		r := &eskip.Route{
-			Id:      routeID(ns, name, "", "", strconv.Itoa(idx), 0),
-			Backend: ep,
-			Predicates: []*eskip.Predicate{{
-				Name: loadbalancer.MemberPredicateName,
-				Args: []interface{}{
-					group,
-					idx, // index within the group
-				},
-			}},
-			Filters: []*eskip.Filter{{
-				Name: builtin.DropRequestHeaderName,
-				Args: []interface{}{
-					loadbalancer.DecisionHeader,
-				},
-			}},
-		}
-		routes = append(routes, r)
-	}
-
-	decisionRoute := &eskip.Route{
-		Id:          routeID(ns, name, "", "", "", 0) + "__lb_group",
-		BackendType: eskip.LoopBackend,
-		Predicates: []*eskip.Predicate{{
-			Name: loadbalancer.GroupPredicateName,
-			Args: []interface{}{
-				group,
+	return &eskip.Route{
+		Id:          routeID(ns, name, "", "", ""),
+		BackendType: eskip.DynamicBackend,
+		Filters: []*eskip.Filter{
+			{
+				Name: loadbalancer.LBEndpointsName,
+				Args: epArgs,
 			},
-		}},
-		Filters: []*eskip.Filter{{
-			Name: loadbalancer.DecideFilterName,
-			Args: []interface{}{
-				group,
-				len(eps), // number of member routes
+			{
+				Name: loadbalancer.RoundRobin,
 			},
-		}},
-	}
-
-	routes = append(routes, decisionRoute)
-	return routes, true, nil
+		},
+	}, true, nil
 }
 
 func (c *Client) getEndpoints(ns, name, servicePort, targetPort string) ([]string, error) {
@@ -675,19 +635,21 @@ func (c *Client) convertPathRule(
 	prule *pathRule,
 	pathMode PathMode,
 	endpointsURLs map[string][]string,
-	ruleIndex int,
-) ([]*eskip.Route, error) {
+) (*eskip.Route, error) {
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
 
 	var (
-		eps    []string
-		err    error
-		routes []*eskip.Route
-		svc    *service
+		eps []string
+		err error
+		svc *service
 	)
 
+	var hostRegexp []string
+	if host != "" {
+		hostRegexp = []string{"^" + strings.Replace(host, ".", "[.]", -1) + "$"}
+	}
 	svcPort := prule.Backend.ServicePort
 	svcName := prule.Backend.ServiceName
 	endpointKey := ns + svcName + svcPort.String()
@@ -723,8 +685,9 @@ func (c *Client) convertPathRule(
 				return nil, err2
 			}
 			r := &eskip.Route{
-				Id:      routeID(ns, name, host, prule.Path, svcName, ruleIndex),
-				Backend: address,
+				Id:          routeID(ns, name, host, prule.Path, svcName),
+				Backend:     address,
+				HostRegexps: hostRegexp,
 			}
 
 			setPath(pathMode, r, prule.Path)
@@ -736,7 +699,8 @@ func (c *Client) convertPathRule(
 				}}, r.Predicates...)
 				log.Infof("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
 			}
-			routes = append(routes, r)
+			return r, nil
+
 		} else if err != nil {
 			return nil, err
 		} else {
@@ -750,8 +714,9 @@ func (c *Client) convertPathRule(
 
 	if len(eps) == 1 {
 		r := &eskip.Route{
-			Id:      routeID(ns, name, host, prule.Path, svcName, ruleIndex),
-			Backend: eps[0],
+			Id:          routeID(ns, name, host, prule.Path, svcName),
+			Backend:     eps[0],
+			HostRegexps: hostRegexp,
 		}
 
 		setPath(pathMode, r, prule.Path)
@@ -764,69 +729,44 @@ func (c *Client) convertPathRule(
 			}}, r.Predicates...)
 			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
 		}
-		routes = append(routes, r)
-		return routes, nil
+		return r, nil
 	}
 
 	if len(eps) == 0 {
-		return routes, nil
+		return nil, nil
 	}
 
-	group := routeID(ns, name, host, prule.Path, prule.Backend.ServiceName, ruleIndex)
-	for idx, ep := range eps {
-		r := &eskip.Route{
-			Id:      routeID(ns, name, host, prule.Path, svcName+fmt.Sprintf("_%d", idx), ruleIndex),
-			Backend: ep,
-			Predicates: []*eskip.Predicate{{
-				Name: loadbalancer.MemberPredicateName,
-				Args: []interface{}{
-					group,
-					idx, // index within the group
-				},
-			}},
-			Filters: []*eskip.Filter{{
-				Name: builtin.DropRequestHeaderName,
-				Args: []interface{}{
-					loadbalancer.DecisionHeader,
-				},
-			}},
-		}
-
-		setPath(pathMode, r, prule.Path)
-		routes = append(routes, r)
+	epArgs := make([]interface{}, len(eps))
+	for i := 0; i < len(eps); i++ {
+		epArgs[i] = eps[i]
 	}
 
-	decisionRoute := &eskip.Route{
-		Id:          routeID(ns, name, host, prule.Path, svcName, ruleIndex) + "__lb_group",
-		BackendType: eskip.LoopBackend,
-		Predicates: []*eskip.Predicate{{
-			Name: loadbalancer.GroupPredicateName,
-			Args: []interface{}{
-				group,
+	r := &eskip.Route{
+		Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName),
+		BackendType: eskip.DynamicBackend,
+		HostRegexps: hostRegexp,
+		Filters: []*eskip.Filter{
+			{
+				Name: loadbalancer.LBEndpointsName,
+				Args: epArgs,
 			},
-		}},
-		Filters: []*eskip.Filter{{
-			Name: loadbalancer.DecideFilterName,
-			Args: []interface{}{
-				group,
-				len(eps), // number of member routes
+			{
+				Name: loadbalancer.RoundRobin,
 			},
-		}},
+		},
 	}
-
-	setPath(pathMode, decisionRoute, prule.Path)
+	setPath(pathMode, r, prule.Path)
 
 	// add traffic predicate if traffic weight is between 0.0 and 1.0
 	if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
-		decisionRoute.Predicates = append([]*eskip.Predicate{{
+		r.Predicates = append([]*eskip.Predicate{{
 			Name: traffic.PredicateName,
 			Args: []interface{}{prule.Backend.Traffic},
-		}}, decisionRoute.Predicates...)
+		}}, r.Predicates...)
 		log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
 	}
 
-	routes = append(routes, decisionRoute)
-	return routes, nil
+	return r, nil
 }
 
 func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) error {
@@ -870,8 +810,6 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 // because Ingress status field is v1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
 func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
-	// TODO: apply the load balancing by using the loadbalancer.BalanceRoute() function
-
 	routes := make([]*eskip.Route, 0, len(items))
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(c.provideHTTPSRedirect, c.httpsRedirectCode)
@@ -889,18 +827,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		redirect.initCurrent(i.Metadata)
 
 		if r, ok, err := c.convertDefaultBackend(i); ok {
-			routes = append(routes, r...)
-
-			// we cannot control the redirect for the default backends, because
-			// it would conflict with the default behavior
-
-			// if (redirect.enable || redirect.override) && len(r) > 0 {
-			// 	routes = append(routes, createIngressEnableHTTPSRedirect(r[0], redirect.code))
-			// }
-			//
-			// if redirect.disable && len(r) > 0 {
-			// 	routes = append(routes, createIngressDisableHTTPSRedirect(r[0]))
-			// }
+			routes = append(routes, r)
 		} else if err != nil {
 			logger.Errorf("error while converting default backend: %v", err)
 		}
@@ -912,9 +839,9 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		}
 		if val, ok := i.Metadata.Annotations[skipperfilterAnnotationKey]; ok {
 			if annotationFilter != "" {
-				annotationFilter = annotationFilter + " -> "
+				annotationFilter += " -> "
 			}
-			annotationFilter = annotationFilter + val
+			annotationFilter += val
 		}
 		// parse predicate annotation
 		var annotationPredicate string
@@ -969,12 +896,12 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			// update Traffic field for each backend
 			computeBackendWeights(backendWeights, rule)
 
-			for idx, prule := range rule.Http.Paths {
+			for _, prule := range rule.Http.Paths {
 				// add extra routes from optional annotation
 				for extraIndex, r := range extraRoutes {
 					route := *r
 					route.HostRegexps = host
-					route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host+strings.Replace(prule.Path, "/", "_", -1), idx, extraIndex)
+					route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host+strings.Replace(prule.Path, "/", "_", -1), extraIndex)
 					setPath(pathMode, &route, prule.Path)
 					if i := countPathRoutes(&route); i <= 1 {
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
@@ -986,14 +913,13 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 				if prule.Backend.Traffic > 0 {
 
-					endpoints, err := c.convertPathRule(
+					endpointsRoute, err := c.convertPathRule(
 						i.Metadata.Namespace,
 						i.Metadata.Name,
 						rule.Host,
 						prule,
 						pathMode,
 						endpointsURLs,
-						idx,
 					)
 					if err != nil {
 						// if the service is not found the route should be removed
@@ -1004,51 +930,38 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 						return nil, fmt.Errorf("error while getting service: %v", err)
 					}
 
-					for _, r := range endpoints {
-						r.HostRegexps = host
-
-						var isLBDecisionRoute bool
-						for _, p := range r.Predicates {
-							if p.Name == loadbalancer.GroupPredicateName {
-								isLBDecisionRoute = true
-								break
-							}
-						}
-
-						// only apply filters to member routes
-						if !isLBDecisionRoute && annotationFilter != "" {
-							annotationFilters, err := eskip.ParseFilters(annotationFilter)
-							if err != nil {
-								logger.Errorf("Can not parse annotation filters: %v", err)
-							} else {
-								r.Filters = append(r.Filters, annotationFilters...)
-							}
-						}
-
-						err := applyAnnotationPredicates(pathMode, r, annotationPredicate)
+					if annotationFilter != "" {
+						annotationFilters, err := eskip.ParseFilters(annotationFilter)
 						if err != nil {
-							logger.Errorf("failed to apply annotation predicates: %v", err)
+							logger.Errorf("Can not parse annotation filters: %v", err)
+						} else {
+							endpointsRoute.Filters = append(annotationFilters, endpointsRoute.Filters...)
 						}
-
-						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], r)
 					}
 
-					if (redirect.enable || redirect.override) && len(endpoints) > 0 {
+					err = applyAnnotationPredicates(pathMode, endpointsRoute, annotationPredicate)
+					if err != nil {
+						logger.Errorf("failed to apply annotation predicates: %v", err)
+					}
+
+					hostRoutes[rule.Host] = append(hostRoutes[rule.Host], endpointsRoute)
+
+					if redirect.enable || redirect.override {
 						hostRoutes[rule.Host] = append(
 							hostRoutes[rule.Host],
 							createIngressEnableHTTPSRedirect(
-								endpoints[0],
+								endpointsRoute,
 								redirect.code,
 							),
 						)
 						redirect.setHost(rule.Host)
 					}
 
-					if redirect.disable && len(endpoints) > 0 {
+					if redirect.disable {
 						hostRoutes[rule.Host] = append(
 							hostRoutes[rule.Host],
 							createIngressDisableHTTPSRedirect(
-								endpoints[0],
+								endpointsRoute,
 							),
 						)
 						redirect.setHostDisabled(rule.Host)
@@ -1078,7 +991,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 		// defined for the host name, create a route which returns 404
 		if !catchAllRoutes(rs) {
 			catchAll := &eskip.Route{
-				Id:          routeID("", "catchall", host, "", "", 0),
+				Id:          routeID("", "catchall", host, "", ""),
 				HostRegexps: rs[0].HostRegexps,
 				BackendType: eskip.ShuntBackend,
 			}

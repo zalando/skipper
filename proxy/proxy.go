@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/zalando/skipper/filters"
+
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
@@ -975,14 +977,6 @@ func (p *Proxy) do(ctx *context) error {
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 
 			if perr.DialError() && ctx.route.IsLoadBalanced {
-				// here we do a transparent retry, because we know it's safe to do
-				origRoute := ctx.route.Me
-				if ctx.route.Next != nil && origRoute != ctx.route.Next {
-					ctx.route = ctx.route.Next
-				} else if ctx.route.Head != nil && origRoute != ctx.route.Head {
-					ctx.route = ctx.route.Head
-				}
-
 				if ctx.proxySpan != nil {
 					ctx.proxySpan.Finish()
 					ctx.proxySpan = nil
@@ -990,17 +984,20 @@ func (p *Proxy) do(ctx *context) error {
 
 				tracing.LogKV("retry", ctx.route.Id, ctx.Request().Context())
 
+				// lbalgorithm has to be the last route
+				f := ctx.route.Filters[len(ctx.route.Filters)-1]
+				f.Request(ctx)
+
 				perr = nil
 				var perr2 *proxyError
 				rsp, perr2 = p.makeBackendRequest(ctx)
 				if perr2 != nil {
-					p.log.Errorf("Failed to do backend request to %s, retry failed to %s: %v", origRoute.Backend, ctx.route.Backend, perr2)
+					p.log.Errorf("Failed to do retry backend request: %v", perr2)
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
 					return perr2
 				}
-				p.log.Infof("successful retry to %v, orig %v, code: %d", ctx.route.Backend, origRoute.Backend, rsp.StatusCode)
 			} else {
 				return perr
 			}
