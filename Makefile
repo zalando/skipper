@@ -105,6 +105,13 @@ deps:
 	@mkdir -p $(GOPATH)/bin
 	@mv /tmp/staticcheck $(GOPATH)/bin/
 	@chmod +x $(GOPATH)/bin/staticcheck
+	@curl -o /tmp/gosec.tgz -LO https://github.com/securego/gosec/releases/download/2.0.0/gosec_2.0.0_linux_amd64.tar.gz
+	@sha256sum /tmp/gosec.tgz | grep -q 490c2a0434b2b9cbb2f4c5031eafe228023f1ac41b36dddd757bff9e1de76a2b
+	@tar -C /tmp -xzf /tmp/gosec.tgz
+	@mkdir -p $(GOPATH)/bin
+	@mv /tmp/gosec $(GOPATH)/bin/
+	@chmod +x $(GOPATH)/bin/gosec
+	@which gosec || cp -a $(GOPATH)/bin/gosec $(GOBIN)/gosec
 
 vet: $(SOURCES)
 	GO111MODULE=on go vet $(PACKAGES)
@@ -116,6 +123,13 @@ vet: $(SOURCES)
 staticcheck: $(SOURCES)
 	GO111MODULE=on staticcheck -checks "all,-ST1000,-ST1003,-ST1012" $(PACKAGES)
 
+# TODO(sszuecs) review disabling these checks, f.e.:
+# G101 find by variable name match "oauth" are not hardcoded credentials
+# G104 ignoring errors are in few cases fine
+# G304 reading kubernetes secret filepaths are not a file inclusions
+gosec: $(SOURCES)
+	GO111MODULE=on gosec -quiet -exclude="G101,G104,G304" ./...
+
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)
 
@@ -124,7 +138,7 @@ check-fmt: $(SOURCES)
 
 precommit: fmt build vet staticcheck check-race shortcheck
 
-check-precommit: check-fmt build vet staticcheck check-race cicheck
+check-precommit: check-fmt build vet staticcheck check-race cicheck gosec
 
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	# go list -f \
