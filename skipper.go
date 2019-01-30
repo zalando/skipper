@@ -843,6 +843,7 @@ func Run(o Options) error {
 		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
 		MaxIdleConns:             o.MaxIdleConnsBackend,
 		AccessLogDisabled:        o.AccessLogDisabled,
+		ClientTLS:                o.ClientTLS,
 	}
 
 	var theSwarm *swarm.Swarm
