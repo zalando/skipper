@@ -36,6 +36,7 @@ const (
 	// generic:
 	defaultAddress                         = ":9090"
 	defaultEtcdPrefix                      = "/skipper"
+	defaultEtcdTimeout                     = time.Second
 	defaultSourcePollTimeout               = int64(3000)
 	defaultSupportListener                 = ":9911"
 	defaultBackendFlushInterval            = 20 * time.Millisecond
@@ -125,6 +126,11 @@ const (
 	// route sources:
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
 	etcdPrefixUsage                = "path prefix for skipper related data in etcd"
+	etcdTimeoutUsage               = "http client timeout duration for etcd"
+	etcdInsecureUsage              = "ignore the verification of TLS certificates for etcd"
+	etcdOAuthTokenUsage            = "optional token for OAuth authentication with etcd"
+	etcdUsernameUsage              = "optional username for basic authentication with etcd"
+	etcdPasswordUsage              = "optional password for basic authentication with etcd"
 	innkeeperURLUsage              = "API endpoint of the Innkeeper service, storing route definitions"
 	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
 	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
@@ -261,6 +267,11 @@ var (
 	// route sources:
 	etcdUrls                  string
 	etcdPrefix                string
+	etcdTimeout               time.Duration
+	etcdInsecure              bool
+	etcdOAuthToken            string
+	etcdUsername              string
+	etcdPassword              string
 	innkeeperURL              string
 	innkeeperAuthToken        string
 	innkeeperPreRouteFilters  string
@@ -395,6 +406,11 @@ func init() {
 	// route sources:
 	flag.StringVar(&etcdUrls, "etcd-urls", "", etcdUrlsUsage)
 	flag.StringVar(&etcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
+	flag.DurationVar(&etcdTimeout, "etcd-timeout", defaultEtcdTimeout, etcdTimeoutUsage)
+	flag.BoolVar(&etcdInsecure, "etcd-insecure", false, etcdInsecureUsage)
+	flag.StringVar(&etcdOAuthToken, "etcd-oauth-token", "", etcdOAuthTokenUsage)
+	flag.StringVar(&etcdUsername, "etcd-username", "", etcdUsernameUsage)
+	flag.StringVar(&etcdPassword, "etcd-password", "", etcdPasswordUsage)
 	flag.StringVar(&innkeeperURL, "innkeeper-url", "", innkeeperURLUsage)
 	flag.StringVar(&innkeeperAuthToken, "innkeeper-auth-token", "", innkeeperAuthTokenUsage)
 	flag.StringVar(&innkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", innkeeperPreRouteFiltersUsage)
@@ -604,6 +620,11 @@ func main() {
 		// route sources:
 		EtcdUrls:                  eus,
 		EtcdPrefix:                etcdPrefix,
+		EtcdWaitTimeout:           etcdTimeout,
+		EtcdInsecure:              etcdInsecure,
+		EtcdOAuthToken:            etcdOAuthToken,
+		EtcdUsername:              etcdUsername,
+		EtcdPassword:              etcdPassword,
 		InnkeeperUrl:              innkeeperURL,
 		InnkeeperAuthToken:        innkeeperAuthToken,
 		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,

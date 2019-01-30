@@ -72,6 +72,15 @@ type Options struct {
 	// Skip TLS certificate check for etcd connections.
 	EtcdInsecure bool
 
+	// If set this value is used as Bearer token for etcd OAuth authorization.
+	EtcdOAuthToken string
+
+	// If set this value is used as username for etcd basic authorization.
+	EtcdUsername string
+
+	// If set this value is used as password for etcd basic authorization.
+	EtcdPassword string
+
 	// If set enables skipper to generate based on ingress resources in kubernetes cluster
 	Kubernetes bool
 
@@ -554,10 +563,13 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if len(o.EtcdUrls) > 0 {
 		etcdClient, err := etcd.New(etcd.Options{
-			Endpoints: o.EtcdUrls,
-			Prefix:    o.EtcdPrefix,
-			Timeout:   o.EtcdWaitTimeout,
-			Insecure:  o.EtcdInsecure,
+			Endpoints:  o.EtcdUrls,
+			Prefix:     o.EtcdPrefix,
+			Timeout:    o.EtcdWaitTimeout,
+			Insecure:   o.EtcdInsecure,
+			OAuthToken: o.EtcdOAuthToken,
+			Username:   o.EtcdUsername,
+			Password:   o.EtcdPassword,
 		})
 
 		if err != nil {
