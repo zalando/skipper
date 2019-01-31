@@ -11,10 +11,10 @@ import (
 type lbAlgorithmType int
 
 const (
-	RoundRobin         = "roundrobin"
+	RoundRobin         = "roundRobin"
 	unknownLbAlgorithm = "unknownLbAlgorithm"
 
-	roundrobin = iota
+	roundrobin lbAlgorithmType = iota
 )
 
 type lbAlgorithmSpec struct {
