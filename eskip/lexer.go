@@ -47,7 +47,24 @@ var (
 	eof              = errors.New("eof")
 )
 
-var fixedTokens = map[fixedScanner]int{
+// now this needs to be sorted
+var fixedTokens = []fixedScanner{
+	"&&",
+	"*",
+	"->",
+	")",
+	":",
+	",",
+	"(",
+	";",
+	"<shunt>",
+	"<loopback>",
+	"<dynamic>",
+	"<",
+	">",
+}
+
+var fixedTokenIDs = map[fixedScanner]int{
 	"&&":         and,
 	"*":          any,
 	"->":         arrow,
@@ -58,7 +75,10 @@ var fixedTokens = map[fixedScanner]int{
 	";":          semicolon,
 	"<shunt>":    shunt,
 	"<loopback>": loopback,
-	"<dynamic>":  dynamic}
+	"<dynamic>":  dynamic,
+	"<":          openarrow,
+	">":          closearrow,
+}
 
 func (t token) String() string { return t.val }
 
@@ -68,7 +88,7 @@ func (fs fixedScanner) scan(code string) (t token, rest string, err error) {
 		return
 	}
 
-	t.id = fixedTokens[fs]
+	t.id = fixedTokenIDs[fs]
 	t.val = string(fs)
 	rest = code[len(fs):]
 	return
@@ -258,7 +278,7 @@ func scanSymbol(code string) (t token, rest string, err error) {
 }
 
 func selectFixed(code string) scanner {
-	for fixed := range fixedTokens {
+	for _, fixed := range fixedTokens {
 		if len(code) >= len(fixed) && strings.HasPrefix(code, string(fixed)) {
 			return fixed
 		}

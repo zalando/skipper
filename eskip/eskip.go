@@ -37,18 +37,22 @@ const (
 	ShuntBackend
 	LoopBackend
 	DynamicBackend
+	LBBackend
 )
 
 // Route definition used during the parser processes the raw routing
 // document.
 type parsedRoute struct {
-	id       string
-	matchers []*matcher
-	filters  []*Filter
-	shunt    bool
-	loopback bool
-	dynamic  bool
-	backend  string
+	id          string
+	matchers    []*matcher
+	filters     []*Filter
+	shunt       bool
+	loopback    bool
+	dynamic     bool
+	lbBackend   bool
+	backend     string
+	lbAlgorithm string
+	lbEndpoints []string
 }
 
 // A Predicate object represents a parsed, in-memory, route matching predicate
@@ -127,6 +131,9 @@ type Route struct {
 	// The address of a backend for a parsed route.
 	// E.g. "https://www.example.org"
 	Backend string
+
+	LBAlgorithm string
+	LBEndpoints []string
 
 	Name      string
 	Namespace string
@@ -261,6 +268,8 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	rd.Filters = r.filters
 	rd.Shunt = r.shunt
 	rd.Backend = r.backend
+	rd.LBAlgorithm = r.lbAlgorithm
+	rd.LBEndpoints = r.lbEndpoints
 
 	if r.shunt {
 		rd.BackendType = ShuntBackend
@@ -268,6 +277,8 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 		rd.BackendType = LoopBackend
 	} else if r.dynamic {
 		rd.BackendType = DynamicBackend
+	} else if r.lbBackend {
+		rd.BackendType = LBBackend
 	} else {
 		rd.BackendType = NetworkBackend
 	}
