@@ -9,7 +9,7 @@ func TestLBWithTrafficControl(t *testing.T) {
 		kube_namespace1__ingress1______:
                   *
 		  -> lbEndpoints("http://42.0.1.2:8080", "http://42.0.1.3:8080")
-                  -> roundrobin()
+                  -> roundRobin()
 		  -> <dynamic>;
 
 		kube_namespace1__ingress1__test_example_org___test1__service1v1:
@@ -17,14 +17,14 @@ func TestLBWithTrafficControl(t *testing.T) {
 		  PathRegexp(/^\/test1/) &&
 		  Traffic(0.3)
 		  -> lbEndpoints("http://42.0.1.2:8080", "http://42.0.1.3:8080")
-                  -> roundrobin()
+                  -> roundRobin()
 		  -> <dynamic>;
 
 		kube_namespace1__ingress1__test_example_org___test1__service1v2:
 		  Host(/^test[.]example[.]org$/) &&
 		  PathRegexp(/^\/test1/)
 		  -> lbEndpoints("http://42.0.1.4:8080", "http://42.0.1.5:8080")
-                  -> roundrobin()
+                  -> roundRobin()
 		  -> <dynamic>;
 
 		kube___catchall__test_example_org____:

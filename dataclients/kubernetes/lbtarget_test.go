@@ -98,7 +98,7 @@ func TestLBTargets(t *testing.T) {
 		kube_namespace1__ingress1______:
                   *
 		  -> lbEndpoints("http://42.0.1.2:8080", "http://42.0.1.3:8080")
-                  -> roundrobin()
+                  -> roundRobin()
 		  -> <dynamic>;
 
 		// path rule, target 1:
@@ -106,7 +106,7 @@ func TestLBTargets(t *testing.T) {
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
 		  -> lbEndpoints("http://42.0.1.2:8080", "http://42.0.1.3:8080")
-                  -> roundrobin()
+                  -> roundRobin()
 		  -> <dynamic>;
 
 		// catch all:

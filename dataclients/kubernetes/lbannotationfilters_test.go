@@ -76,7 +76,7 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		kube_namespace1__ingress1______:
 		  *
 		  -> lbEndpoints("http://42.0.1.0:8080", "http://42.1.0.1:8080")
-                  -> roundrobin()
+                  -> roundRobin()
 		  -> <dynamic>;
 
 		// path rule, target 1:
@@ -85,7 +85,7 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		  && PathRegexp(/^\/test1/)
 		  -> setPath("/foo")
 		  -> lbEndpoints("http://42.0.1.0:8080", "http://42.1.0.1:8080")
-                  -> roundrobin()
+                  -> roundRobin()
 		  -> <dynamic>;
 
 		// catch all:

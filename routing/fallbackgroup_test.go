@@ -81,9 +81,9 @@ func TestFallbackGroupLB(t *testing.T) {
 	const routesFmt = `
 		nonGrouped: Path("/") -> "%s";
 
-		groupA: Path("/a") -> lbEndpoints("%s", "%s") -> roundrobin() -> <dynamic>;
+		groupA: Path("/a") -> lbEndpoints("%s", "%s") -> roundRobin() -> <dynamic>;
 
-		groupB: Path("/b") -> lbEndpoints("%s", "%s") -> roundrobin() -> <dynamic>;
+		groupB: Path("/b") -> lbEndpoints("%s", "%s") -> roundRobin() -> <dynamic>;
 	`
 
 	routesDoc := fmt.Sprintf(
