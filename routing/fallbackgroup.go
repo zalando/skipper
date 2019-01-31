@@ -13,7 +13,7 @@ func applyFallbackGroups(r []*Route) []*Route {
 
 		f := r[i].Filters[l-1]
 		switch f.Name {
-		case "roundrobin":
+		case "roundRobin":
 			r[i].IsLoadBalanced = true
 		}
 	}
