@@ -7,6 +7,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -39,6 +40,7 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 
 	routingOptions.FilterRegistry = fr
 	routingOptions.Log = tl
+	routingOptions.PostProcessors = []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()}
 
 	rt := routing.New(routingOptions)
 

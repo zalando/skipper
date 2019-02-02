@@ -23,7 +23,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 )
@@ -572,23 +571,11 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 		return nil, false, err
 	}
 
-	epArgs := make([]interface{}, len(eps))
-	for i := 0; i < len(eps); i++ {
-		epArgs[i] = eps[i]
-	}
-
 	return &eskip.Route{
 		Id:          routeID(ns, name, "", "", ""),
-		BackendType: eskip.DynamicBackend,
-		Filters: []*eskip.Filter{
-			{
-				Name: loadbalancer.LBEndpointsName,
-				Args: epArgs,
-			},
-			{
-				Name: loadbalancer.RoundRobin,
-			},
-		},
+		BackendType: eskip.LBBackend,
+		LBEndpoints: eps,
+		LBAlgorithm: "roundRobin",
 	}, true, nil
 }
 
@@ -736,24 +723,12 @@ func (c *Client) convertPathRule(
 		return nil, nil
 	}
 
-	epArgs := make([]interface{}, len(eps))
-	for i := 0; i < len(eps); i++ {
-		epArgs[i] = eps[i]
-	}
-
 	r := &eskip.Route{
 		Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName),
-		BackendType: eskip.DynamicBackend,
+		BackendType: eskip.LBBackend,
+		LBEndpoints: eps,
+		LBAlgorithm: "roundRobin",
 		HostRegexps: hostRegexp,
-		Filters: []*eskip.Filter{
-			{
-				Name: loadbalancer.LBEndpointsName,
-				Args: epArgs,
-			},
-			{
-				Name: loadbalancer.RoundRobin,
-			},
-		},
 	}
 	setPath(pathMode, r, prule.Path)
 

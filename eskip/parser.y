@@ -120,6 +120,8 @@ route:
 			lbAlgorithm: $3.lbAlgorithm,
 			lbEndpoints: $3.lbEndpoints,
 		}
+		$1.matchers = nil
+		$3.lbEndpoints = nil
 	}
 	|
 	frontend arrow filters arrow backend {
@@ -130,12 +132,13 @@ route:
 			shunt: $5.shunt,
 			loopback: $5.loopback,
 			dynamic: $5.dynamic,
-			lbBackend: $3.lbBackend,
-			lbAlgorithm: $3.lbAlgorithm,
-			lbEndpoints: $3.lbEndpoints,
+			lbBackend: $5.lbBackend,
+			lbAlgorithm: $5.lbAlgorithm,
+			lbEndpoints: $5.lbEndpoints,
 		}
 		$1.matchers = nil
 		$3.filters = nil
+		$5.lbEndpoints = nil
 	}
 
 frontend:

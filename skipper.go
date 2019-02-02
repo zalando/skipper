@@ -815,7 +815,10 @@ func Run(o Options) error {
 		Predicates:      o.CustomPredicates,
 		UpdateBuffer:    updateBuffer,
 		SuppressLogs:    o.SuppressRouteUpdateLogs,
-		PostProcessors:  []routing.PostProcessor{loadbalancer.HealthcheckPostProcessor{LB: lbInstance}},
+		PostProcessors: []routing.PostProcessor{
+			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
+			loadbalancer.NewAlgorithmProvider(),
+		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	})
 	defer routing.Close()

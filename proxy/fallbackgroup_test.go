@@ -1,11 +1,10 @@
-package routing_test
+package proxy_test
+
+// TODO: move this to the proxy package
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -13,43 +12,6 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
-
-func testBackend(token string) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(token))
-	}))
-}
-
-func bindClient(p *proxytest.TestProxy) func(string, ...string) bool {
-	return func(path string, responses ...string) bool {
-	remaining:
-		for range responses {
-			rsp, err := http.Get(p.URL + path)
-			if err != nil {
-				return false
-			}
-
-			defer rsp.Body.Close()
-			b, err := ioutil.ReadAll(rsp.Body)
-			if err != nil {
-				return false
-			}
-
-			for i := range responses {
-				if strings.TrimSpace(string(b)) != responses[i] {
-					continue
-				}
-
-				responses = append(responses[:i], responses[i+1:]...)
-				continue remaining
-			}
-
-			return false
-		}
-
-		return true
-	}
-}
 
 func TestFallbackGroupLB(t *testing.T) {
 	// two groups and a non-grouped route, altogether 1 + 2 + 2 = 5 backends
@@ -64,11 +26,11 @@ func TestFallbackGroupLB(t *testing.T) {
 	// -> the group fails
 
 	// start one ungrouped, and two grouped backends:
-	nonGrouped := testBackend("non-grouped")
-	groupA_BE1 := testBackend("group-A/BE-1")
-	groupA_BE2 := testBackend("group-A/BE-2")
-	groupB_BE1 := testBackend("group-B/BE-1")
-	groupB_BE2 := testBackend("group-B/BE-2")
+	nonGrouped := testBackend("non-grouped", http.StatusOK)
+	groupA_BE1 := testBackend("group-A/BE-1", http.StatusOK)
+	groupA_BE2 := testBackend("group-A/BE-2", http.StatusOK)
+	groupB_BE1 := testBackend("group-B/BE-1", http.StatusOK)
+	groupB_BE2 := testBackend("group-B/BE-2", http.StatusOK)
 
 	type closer interface {
 		Close()
@@ -81,9 +43,9 @@ func TestFallbackGroupLB(t *testing.T) {
 	const routesFmt = `
 		nonGrouped: Path("/") -> "%s";
 
-		groupA: Path("/a") -> lbEndpoints("%s", "%s") -> roundRobin() -> <dynamic>;
+		groupA: Path("/a") -> <roundRobin, "%s", "%s">;
 
-		groupB: Path("/b") -> lbEndpoints("%s", "%s") -> roundRobin() -> <dynamic>;
+		groupB: Path("/b") -> <roundRobin, "%s", "%s">;
 	`
 
 	routesDoc := fmt.Sprintf(
@@ -103,7 +65,11 @@ func TestFallbackGroupLB(t *testing.T) {
 	p := proxytest.New(builtin.MakeRegistry(), routes...)
 	defer p.Close()
 
-	request := bindClient(p)
+	requestMSG := bindClient(p)
+	request := func(path string, expectedResponses ...string) bool {
+		_, ok := requestMSG(path, expectedResponses...)
+		return ok
+	}
 
 	t.Run("succeed and load balance initially", func(t *testing.T) {
 		if !request("/", "non-grouped") ||

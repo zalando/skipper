@@ -75,13 +75,13 @@ func setup() (*proxytest.TestProxy, []closer) {
 		nonGrouped: Path("/") -> "%s";
 		nonGroupedFailing: Path("/fail") -> "%s";
 
-		groupA: Path("/a") -> lbEndpoints("%s", "%s") -> roundRobin() -> <dynamic>;
+		groupA: Path("/a") -> <roundRobin, "%s", "%s">;
 
-		groupB: Path("/b") -> lbEndpoints("%s", "%s") -> roundRobin() -> <dynamic>;
+		groupB: Path("/b") -> <roundRobin, "%s", "%s">;
 
-		groupC: Path("/c") -> lbEndpoints("%s", "%s") -> roundRobin() -> <dynamic>;
+		groupC: Path("/c") -> <roundRobin, "%s", "%s">;
 
-		groupD: Path("/d") -> lbEndpoints("%s", "%s") -> roundRobin() -> <dynamic>;
+		groupD: Path("/d") -> <roundRobin, "%s", "%s">;
 	`
 
 	routesDoc := fmt.Sprintf(

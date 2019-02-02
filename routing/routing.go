@@ -133,6 +133,14 @@ type RouteFilter struct {
 	Index int
 }
 
+type LBEndpoint struct {
+	Scheme, Host string
+}
+
+type LBAlgorithm interface {
+	Apply([]LBEndpoint) LBEndpoint
+}
+
 // Route object with preprocessed filter instances.
 type Route struct {
 
@@ -154,9 +162,8 @@ type Route struct {
 	// The preprocessed filter instances.
 	Filters []*RouteFilter
 
-	// IsLoadBalanced tells the proxy that the current route
-	// is a member of a load balanced group.
-	IsLoadBalanced bool
+	LBEndpoints []LBEndpoint
+	LBAlgorithm LBAlgorithm
 }
 
 // PostProcessor is an interface for custom post-processors applying changes

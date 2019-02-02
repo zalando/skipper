@@ -199,7 +199,8 @@ func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan []*eskip.Route {
 // splits the backend address of a route definition into separate
 // scheme and host variables.
 func splitBackend(r *eskip.Route) (string, string, error) {
-	if r.Shunt || r.BackendType == eskip.ShuntBackend || r.BackendType == eskip.LoopBackend || r.BackendType == eskip.DynamicBackend {
+	if r.Shunt || r.BackendType == eskip.ShuntBackend || r.BackendType == eskip.LoopBackend ||
+		r.BackendType == eskip.DynamicBackend || r.BackendType == eskip.LBBackend {
 		return "", "", nil
 	}
 
@@ -492,8 +493,6 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			o.Log.Info("route settings received")
 			routes, invalidRoutes := processRouteDefs(o, o.FilterRegistry, defs)
 
-			// TODO: consider if the fallbacks logic should be a post processor
-			routes = applyFallbackGroups(routes)
 			for i := range o.PostProcessors {
 				routes = o.PostProcessors[i].Do(routes)
 			}

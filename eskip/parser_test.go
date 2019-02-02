@@ -274,6 +274,22 @@ func TestLBBackend(t *testing.T) {
 				"https://example3.org",
 			},
 		}},
+	}, {
+		title: "multiple endpoints, default algorithm, with filters",
+		code: `* -> foo() -> <algFoo,
+		             "https://example1.org",
+		             "https://example2.org",
+		             "https://example3.org">`,
+		expectedResult: []*Route{{
+			Filters:     []*Filter{{Name: "foo"}},
+			BackendType: LBBackend,
+			LBAlgorithm: "algFoo",
+			LBEndpoints: []string{
+				"https://example1.org",
+				"https://example2.org",
+				"https://example3.org",
+			},
+		}},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			r, err := Parse(test.code)
@@ -289,7 +305,7 @@ func TestLBBackend(t *testing.T) {
 				return
 			}
 
-			if d := cmp.Diff(test.expectedResult, r); d != "" {
+			if d := cmp.Diff(r, test.expectedResult); d != "" {
 				t.Log("failed to parse routes")
 				t.Log(d)
 				t.Fatal()

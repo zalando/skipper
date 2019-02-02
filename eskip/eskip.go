@@ -161,6 +161,8 @@ func (t BackendType) String() string {
 		return "loopback"
 	case DynamicBackend:
 		return "dynamic"
+	case LBBackend:
+		return "loadbalanced"
 	default:
 		return "unknown"
 	}
@@ -271,15 +273,16 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	rd.LBAlgorithm = r.lbAlgorithm
 	rd.LBEndpoints = r.lbEndpoints
 
-	if r.shunt {
+	switch {
+	case r.shunt:
 		rd.BackendType = ShuntBackend
-	} else if r.loopback {
+	case r.loopback:
 		rd.BackendType = LoopBackend
-	} else if r.dynamic {
+	case r.dynamic:
 		rd.BackendType = DynamicBackend
-	} else if r.lbBackend {
+	case r.lbBackend:
 		rd.BackendType = LBBackend
-	} else {
+	default:
 		rd.BackendType = NetworkBackend
 	}
 

@@ -279,22 +279,10 @@ func checkRoutesExact(t *testing.T, r []*eskip.Route, expect []*eskip.Route) {
 		t.Error("length doesn't match")
 		t.Log("got:     ", len(r))
 		t.Log("expected:", len(expect))
-		//TODO(sszuecs): cleanup
-		for i := range expect {
-			if i < len(r) {
-				t.Logf(" id: %s", r[i].Id)
-			}
-			t.Logf("rid: %s", expect[i].Id)
-		}
 		return
 	}
 
 	for i := range r {
-		//TODO(sszuecs): cleanup
-		t.Logf("rid: %s", r[i].Id)
-		t.Logf("rid: %s", expect[i].Id)
-		t.Logf("%s", r[i])
-		t.Logf("%s", expect[i])
 		var found bool
 		for j := range expect {
 			if r[i].Id == expect[j].Id && r[i].String() == expect[j].String() {
@@ -313,13 +301,6 @@ func checkRoutesExact(t *testing.T, r []*eskip.Route, expect []*eskip.Route) {
 func checkIDs(t *testing.T, got []string, expected ...string) {
 	if len(got) != len(expected) {
 		t.Errorf("number of IDs %d doesn't match expected %d", len(got), len(expected))
-		//TODO(sszuecs): cleanup
-		for i := range expected {
-			if len(got) < i {
-				t.Logf("rid: %s", got[i])
-			}
-			t.Logf("rid: %s", expected[i])
-		}
 		return
 	}
 
@@ -3560,10 +3541,6 @@ func checkPrettyRoutes(t *testing.T, r []*eskip.Route, expected map[string]strin
 		sort.Strings(expectedIDs)
 		sort.Strings(curIDs)
 		t.Errorf("number of routes %d doesn't match expected %d: %v", len(r), len(expected), cmp.Diff(expectedIDs, curIDs))
-		// TODO(sszuecs) kann weg
-		for i := 0; i < len(r); i++ {
-			t.Logf("%s: %v", r[i].Id, r[i])
-		}
 
 		return
 	}

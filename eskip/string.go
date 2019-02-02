@@ -127,13 +127,29 @@ func (r *Route) backendString() string {
 	}
 }
 
-func (r *Route) backendStringQuoted() string {
-	s := r.backendString()
-	if r.BackendType == NetworkBackend && !r.Shunt {
-		s = fmt.Sprintf(`"%s"`, s)
+func lbBackendString(r *Route) string {
+	var endpointStrings []string
+	for _, ep := range r.LBEndpoints {
+		endpointStrings = append(endpointStrings, fmt.Sprintf(`"%s"`, ep))
 	}
 
-	return s
+	if r.LBAlgorithm == "" {
+		return fmt.Sprintf("<%s>", strings.Join(endpointStrings, ", "))
+	}
+
+	return fmt.Sprintf("<%s, %s>", r.LBAlgorithm, strings.Join(endpointStrings, ", "))
+}
+
+func (r *Route) backendStringQuoted() string {
+	s := r.backendString()
+	switch {
+	case r.BackendType == NetworkBackend && !r.Shunt:
+		return fmt.Sprintf(`"%s"`, s)
+	case r.BackendType == LBBackend:
+		return lbBackendString(r)
+	default:
+		return s
+	}
 }
 
 // Serializes a route expression. Omits the route id if any.

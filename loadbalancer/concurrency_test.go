@@ -12,7 +12,6 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -59,7 +58,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 
 	var (
 		contents []string
-		backends []interface{}
+		backends []string
 	)
 
 	for i := 0; i < backendCount; i++ {
@@ -73,16 +72,9 @@ func TestConcurrencySingleRoute(t *testing.T) {
 
 	route := &eskip.Route{
 		Id:          "foo",
-		BackendType: eskip.DynamicBackend,
-		Filters: []*eskip.Filter{
-			{
-				Name: loadbalancer.LBEndpointsName,
-				Args: backends,
-			},
-			{
-				Name: loadbalancer.RoundRobin,
-			},
-		},
+		BackendType: eskip.LBBackend,
+		LBEndpoints: backends,
+		LBAlgorithm: "roundRobin",
 	}
 
 	p := proxytest.New(builtin.MakeRegistry(), route)
@@ -95,7 +87,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 
 	var wg sync.WaitGroup
 	runClient := func() {
-		for i := 0; i < 300 && !t.Failed(); i++ {
+		for i := 0; i < repeatedRequests && !t.Failed(); i++ {
 			req, err := http.NewRequest("GET", p.URL, nil)
 			if err != nil {
 				t.Error(err)
@@ -163,7 +155,7 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 
 	var (
 		contents []string
-		backends []interface{}
+		backends []string
 	)
 
 	for i := 0; i < backendCount; i++ {
@@ -178,16 +170,9 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 	route := []*eskip.Route{
 		{
 			Id:          "foo",
-			BackendType: eskip.DynamicBackend,
-			Filters: []*eskip.Filter{
-				{
-					Name: loadbalancer.LBEndpointsName,
-					Args: backends,
-				},
-				{
-					Name: loadbalancer.RoundRobin,
-				},
-			},
+			BackendType: eskip.LBBackend,
+			LBEndpoints: backends,
+			LBAlgorithm: "roundRobin",
 		},
 	}
 
@@ -276,7 +261,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 
 	var (
 		contents = make(map[string][]string)
-		backends = make(map[string][]interface{})
+		backends = make(map[string][]string)
 		routes   []*eskip.Route
 	)
 
@@ -296,16 +281,9 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 		routes = append(routes, &eskip.Route{
 			Id:          app,
 			Path:        fmt.Sprintf("/%s", app),
-			BackendType: eskip.DynamicBackend,
-			Filters: []*eskip.Filter{
-				{
-					Name: loadbalancer.LBEndpointsName,
-					Args: backends[app],
-				},
-				{
-					Name: loadbalancer.RoundRobin,
-				},
-			},
+			BackendType: eskip.LBBackend,
+			LBEndpoints: backends[app],
+			LBAlgorithm: "roundRobin",
 		})
 	}
 
@@ -327,7 +305,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 
 	var wg sync.WaitGroup
 	runClient := func() {
-		for i := 0; i < 300 && !t.Failed(); i++ {
+		for i := 0; i < repeatedRequests && !t.Failed(); i++ {
 			curApp := apps[i%2]
 			req, err := http.NewRequest("GET", p.URL+"/"+curApp, nil)
 			if err != nil {

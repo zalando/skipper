@@ -75,18 +75,14 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		// default backend:
 		kube_namespace1__ingress1______:
 		  *
-		  -> lbEndpoints("http://42.0.1.0:8080", "http://42.1.0.1:8080")
-                  -> roundRobin()
-		  -> <dynamic>;
+		  -> <roundRobin, "http://42.0.1.0:8080", "http://42.1.0.1:8080">;
 
 		// path rule, target 1:
 		kube_namespace1__ingress1__test_example_org___test1__service1:
 		  Host(/^test[.]example[.]org$/)
 		  && PathRegexp(/^\/test1/)
 		  -> setPath("/foo")
-		  -> lbEndpoints("http://42.0.1.0:8080", "http://42.1.0.1:8080")
-                  -> roundRobin()
-		  -> <dynamic>;
+		  -> <roundRobin, "http://42.0.1.0:8080", "http://42.1.0.1:8080">;
 
 		// catch all:
 		kube___catchall__test_example_org____:

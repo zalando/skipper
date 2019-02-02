@@ -22,6 +22,7 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
@@ -139,6 +140,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},
+		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()},
 		Log:            tl,
 	})
 	params.Routing = rt
@@ -321,7 +323,7 @@ func TestSetRequestUrlForDynamicBackend(t *testing.T) {
 			filters.DynamicBackendURLKey:    "https://priority.com"},
 	}} {
 		u := &url.URL{}
-		setRequestUrlForDynamicBackend(u, ti.stateBag)
+		setRequestURLForDynamicBackend(u, ti.stateBag)
 
 		beq := reflect.DeepEqual(ti.expectedUrl, u)
 		if !beq {
