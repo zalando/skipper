@@ -41,8 +41,8 @@ func getUpgradeRequest(req *http.Request) string {
 type upgradeProxy struct {
 	backendAddr     *url.URL
 	reverseProxy    *httputil.ReverseProxy
-	insecure        bool
 	tlsClientConfig *tls.Config
+	insecure        bool
 	useAuditLog     bool
 	auditLogOut     io.Writer
 	auditLogErr     io.Writer
