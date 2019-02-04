@@ -276,6 +276,8 @@ Blog posts:
 - [Building our own open source http routing
   solution](https://jobs.zalando.com/tech/blog/building-our-own-open-source-http-routing-solution/):
   Giving some context about why Skipper was created in the first place.
+- [Kubernetes in production @ ShopGun](https://itnext.io/kubernetes-in-production-shopgun-2c280f0c0923)
+- Hacker News [Skipper – An HTTP router and reverse proxy for service composition](https://news.ycombinator.com/item?id=18837936)
 
 Conference/Meetups talks
 
