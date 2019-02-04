@@ -132,7 +132,12 @@ type Route struct {
 	// E.g. "https://www.example.org"
 	Backend string
 
+	// LBAlgorithm stores the name of the load balancing algorithm
+	// in case of load balancing backends.
 	LBAlgorithm string
+
+	// LBEndpoints stores one or more backend endpoint in case of
+	// load balancing backends.
 	LBEndpoints []string
 
 	Name      string

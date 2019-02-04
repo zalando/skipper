@@ -133,10 +133,14 @@ type RouteFilter struct {
 	Index int
 }
 
+// LBEndpoint represents the scheme and the host of load balanced
+// backends.
 type LBEndpoint struct {
 	Scheme, Host string
 }
 
+// LBAlgorithm implementations apply a load balancing algorithm
+// over the possible endpoints of a load balanced route.
 type LBAlgorithm interface {
 	Apply([]LBEndpoint) LBEndpoint
 }
@@ -162,7 +166,12 @@ type Route struct {
 	// The preprocessed filter instances.
 	Filters []*RouteFilter
 
+	// LBEndpoints contain the possible endpoints of a load
+	// balanced route.
 	LBEndpoints []LBEndpoint
+
+	// LBAlgorithm is the selected load balancing algorithm
+	// of a load balanced route.
 	LBAlgorithm LBAlgorithm
 }
 

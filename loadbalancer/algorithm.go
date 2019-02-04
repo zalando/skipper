@@ -37,6 +37,7 @@ func newRoundRobin(initialMax int) routing.LBAlgorithm {
 	}
 }
 
+// Apply implements routing.LBAlgorithm.
 func (r *roundRobin) Apply(endpoints []routing.LBEndpoint) routing.LBEndpoint {
 	r.mx.Lock()
 	defer r.mx.Unlock()
@@ -44,6 +45,8 @@ func (r *roundRobin) Apply(endpoints []routing.LBEndpoint) routing.LBEndpoint {
 	return endpoints[r.index]
 }
 
+// NewAlgorithmProvider creates a routing.PostProcessor used to initialize
+// the algorithm of load balancing routes.
 func NewAlgorithmProvider() routing.PostProcessor {
 	return &algorithmProvider{}
 }
@@ -84,7 +87,7 @@ func setAlgorithm(r *routing.Route) error {
 		a = algorithms[t]
 	}
 
-	r.LBAlgorithm = a(len(r.LBEndpoints))
+	r.LBAlgorithm = a(len(r.Route.LBEndpoints))
 	return nil
 }
 
@@ -97,8 +100,9 @@ func (p *algorithmProvider) Do(r []*routing.Route) []*routing.Route {
 			continue
 		}
 
-		if len(ri.LBEndpoints) == 0 {
+		if len(ri.Route.LBEndpoints) == 0 {
 			log.Errorf("failed to post-process LB route: %s, no endpoints defined", ri.Id)
+			continue
 		}
 
 		if err := parseEndpoints(ri); err != nil {
