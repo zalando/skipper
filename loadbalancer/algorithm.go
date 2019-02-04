@@ -25,15 +25,17 @@ type roundRobin struct {
 
 type algorithmProvider struct{}
 
-var algorithms = map[algorithmType]func(int) routing.LBAlgorithm{
+type initializeAgorithm func(endpoints []string) routing.LBAlgorithm
+
+var algorithms = map[algorithmType]initializeAgorithm{
 	roundRobinAlgorithm: newRoundRobin,
 }
 
 var defaultAlgorithm = newRoundRobin
 
-func newRoundRobin(initialMax int) routing.LBAlgorithm {
+func newRoundRobin(endpoints []string) routing.LBAlgorithm {
 	return &roundRobin{
-		index: rand.Intn(initialMax),
+		index: rand.Intn(len(endpoints)),
 	}
 }
 
@@ -54,6 +56,8 @@ func NewAlgorithmProvider() routing.PostProcessor {
 func algorithmTypeFromString(a string) (algorithmType, error) {
 	switch a {
 	case "":
+		// This means that the user didn't explicitly specify which
+		// algorithm should be used, and we will use a default one.
 		return none, nil
 	case "roundRobin":
 		return roundRobinAlgorithm, nil
@@ -82,12 +86,12 @@ func setAlgorithm(r *routing.Route) error {
 		return err
 	}
 
-	a := defaultAlgorithm
+	initialize := defaultAlgorithm
 	if t != none {
-		a = algorithms[t]
+		initialize = algorithms[t]
 	}
 
-	r.LBAlgorithm = a(len(r.Route.LBEndpoints))
+	r.LBAlgorithm = initialize(r.Route.LBEndpoints)
 	return nil
 }
 
