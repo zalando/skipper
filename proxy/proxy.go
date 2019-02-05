@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/filters"
 	"io"
 	"net"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	al "github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
@@ -109,24 +109,9 @@ type Params struct {
 	// Control flags. See the Flags values.
 	Flags Flags
 
-	// Same as net/http.Transport.MaxIdleConnsPerHost, but the default
-	// is 64. This value supports scenarios with relatively few remote
-	// hosts. When the routing table contains different hosts in the
-	// range of hundreds, it is recommended to set this options to a
-	// lower value.
-	IdleConnectionsPerHost int
-
-	// Defines the time period of how often the idle connections are
-	// forcibly closed. The default is 12 seconds. When set to less than
-	// 0, the proxy doesn't force closing the idle connections.
-	CloseIdleConnsPeriod time.Duration
-
 	// And optional list of priority routes to be used for matching
 	// before the general lookup tree.
 	PriorityRoutes []PriorityRoute
-
-	// The Flush interval for copying upgraded connections
-	FlushInterval time.Duration
 
 	// Enable the experimental upgrade protocol feature
 	ExperimentalUpgrade bool
@@ -135,20 +120,36 @@ type Params struct {
 	// and the response messages during web socket upgrades.
 	ExperimentalUpgradeAudit bool
 
+	// When set, no access log is printed.
+	AccessLogDisabled bool
+
+	// DualStack sets if the proxy TCP connections to the backend should be dual stack
+	DualStack bool
+
+	// DefaultHTTPStatus is the HTTP status used when no routes are found
+	// for a request.
+	DefaultHTTPStatus int
+
 	// MaxLoopbacks sets the maximum number of allowed loops. If 0
 	// the default (9) is applied. To disable looping, set it to
 	// -1. Note, that disabling looping by this option, may result
 	// wrong routing depending on the current configuration.
 	MaxLoopbacks int
 
+	// Same as net/http.Transport.MaxIdleConnsPerHost, but the default
+	// is 64. This value supports scenarios with relatively few remote
+	// hosts. When the routing table contains different hosts in the
+	// range of hundreds, it is recommended to set this options to a
+	// lower value.
+	IdleConnectionsPerHost int
+
+	// MaxIdleConns limits the number of idle connections to all backends, 0 means no limit
+	MaxIdleConns int
+
 	// CircuitBreakers provides a registry that skipper can use to
 	// find the matching circuit breaker for backend requests. If not
 	// set, no circuit breakers are used.
 	CircuitBreakers *circuit.Registry
-
-	// DefaultHTTPStatus is the HTTP status used when no routes are found
-	// for a request.
-	DefaultHTTPStatus int
 
 	// RateLimiters provides a registry that skipper can use to
 	// find the matching ratelimiter for backend requests. If not
@@ -162,11 +163,16 @@ type Params struct {
 	// Default: "ingress".
 	OpenTracingInitialSpan string
 
-	// When set, no access log is printed.
-	AccessLogDisabled bool
-
 	// Loadbalancer to report unhealthy or dead backends to
 	LoadBalancer *loadbalancer.LB
+
+	// Defines the time period of how often the idle connections are
+	// forcibly closed. The default is 12 seconds. When set to less than
+	// 0, the proxy doesn't force closing the idle connections.
+	CloseIdleConnsPeriod time.Duration
+
+	// The Flush interval for copying upgraded connections
+	FlushInterval time.Duration
 
 	// Timeout sets the TCP client connection timeout for proxy http connections to the backend
 	Timeout time.Duration
@@ -183,14 +189,8 @@ type Params struct {
 	// KeepAlive sets the TCP keepalive for proxy http connections to the backend
 	KeepAlive time.Duration
 
-	// DualStack sets if the proxy TCP connections to the backend should be dual stack
-	DualStack bool
-
 	// TLSHandshakeTimeout sets the TLS handshake timeout for proxy connections to the backend
 	TLSHandshakeTimeout time.Duration
-
-	// MaxIdleConns limits the number of idle connections to all backends, 0 means no limit
-	MaxIdleConns int
 
 	// Client TLS to connect to Backends
 	ClientTLS *tls.Config
@@ -255,6 +255,11 @@ type flusherWriter interface {
 // Proxy instances implement Skipper proxying functionality. For
 // initializing, see the WithParams the constructor and Params.
 type Proxy struct {
+	experimentalUpgrade      bool
+	experimentalUpgradeAudit bool
+	accessLogDisabled        bool
+	maxLoops                 int
+	defaultHTTPStatus        int
 	routing                  *routing.Routing
 	roundTripper             *http.Transport
 	priorityRoutes           []PriorityRoute
@@ -262,17 +267,12 @@ type Proxy struct {
 	metrics                  metrics.Metrics
 	quit                     chan struct{}
 	flushInterval            time.Duration
-	experimentalUpgrade      bool
-	experimentalUpgradeAudit bool
-	maxLoops                 int
 	breakers                 *circuit.Registry
 	limiters                 *ratelimit.Registry
 	log                      logging.Logger
-	defaultHTTPStatus        int
 	openTracer               ot.Tracer
 	openTracingInitialSpan   string
 	lb                       *loadbalancer.LB
-	accessLogDisabled        bool
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
 }
@@ -773,7 +773,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
-	p.openTracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
+	_ = p.openTracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
 
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
@@ -890,7 +890,7 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	return done, ok
 }
 
-func ratelimitError(settings ratelimit.Settings, ctx *context, retryAfter int) error {
+func ratelimitError(settings ratelimit.Settings, retryAfter int) error {
 	return &proxyError{
 		err:  errRatelimitError,
 		code: http.StatusTooManyRequests,
@@ -910,7 +910,7 @@ func (p *Proxy) do(ctx *context) error {
 
 	// proxy global setting
 	if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
-		rerr := ratelimitError(settings, ctx, retryAfter)
+		rerr := ratelimitError(settings, retryAfter)
 		return rerr
 	}
 
@@ -955,7 +955,7 @@ func (p *Proxy) do(ctx *context) error {
 	} else {
 		// per route rate limit
 		if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
-			rerr := ratelimitError(settings, ctx, retryAfter)
+			rerr := ratelimitError(settings, retryAfter)
 			return rerr
 		}
 
@@ -1122,15 +1122,17 @@ func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
 	}
 	match := false
 	for _, prefix := range filter.Prefixes {
-		prefMatch := false
-		if prefix < 10 {
-			prefMatch = (statusCode >= prefix*100 && statusCode < (prefix+1)*100)
-		} else if prefix < 100 {
-			prefMatch = (statusCode >= prefix*10 && statusCode < (prefix+1)*10)
-		} else {
-			prefMatch = statusCode == prefix
+		switch {
+		case prefix < 10:
+			match = (statusCode >= prefix*100 && statusCode < (prefix+1)*100)
+		case prefix < 100:
+			match = (statusCode >= prefix*10 && statusCode < (prefix+1)*10)
+		default:
+			match = statusCode == prefix
 		}
-		match = match || prefMatch
+		if match {
+			break
+		}
 	}
 	return match == filter.Enable
 }
