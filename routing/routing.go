@@ -133,6 +133,18 @@ type RouteFilter struct {
 	Index int
 }
 
+// LBEndpoint represents the scheme and the host of load balanced
+// backends.
+type LBEndpoint struct {
+	Scheme, Host string
+}
+
+// LBAlgorithm implementations apply a load balancing algorithm
+// over the possible endpoints of a load balanced route.
+type LBAlgorithm interface {
+	Apply([]LBEndpoint) LBEndpoint
+}
+
 // Route object with preprocessed filter instances.
 type Route struct {
 
@@ -154,30 +166,13 @@ type Route struct {
 	// The preprocessed filter instances.
 	Filters []*RouteFilter
 
-	// TODO: would a circular list be better?
+	// LBEndpoints contain the possible endpoints of a load
+	// balanced route.
+	LBEndpoints []LBEndpoint
 
-	// Next is forming a linked to the next route of a
-	// loadbalanced group of routes. This is nil if the route is
-	// the last in the linked list or there is only one route. To
-	// find the Next in case of the last route of the list, you
-	// have to use the Head.
-	Next *Route
-
-	// Head is the pointer to the head of linked list that forms
-	// the loadbalancer group of Route. Every Route will point to
-	// the same Route for being Head.
-	Head *Route
-
-	// Me is a pointer to self, to workaround Go type missmatch
-	// check, because eskip.Route != routing.Route
-	Me *Route
-
-	// Group is equal for all routes, members, forming a loadbalancer pool.
-	Group string
-
-	// IsLoadBalanced tells the proxy that the current route
-	// is a member of a load balanced group.
-	IsLoadBalanced bool
+	// LBAlgorithm is the selected load balancing algorithm
+	// of a load balanced route.
+	LBAlgorithm LBAlgorithm
 }
 
 // PostProcessor is an interface for custom post-processors applying changes

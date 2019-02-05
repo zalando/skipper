@@ -24,7 +24,7 @@ the content of the request or response.  A route can point to a
 backend, it can be a `<shunt>`, meaning that skipper serves the requests
 for the route, a `<loopback>`, meaning that the requests will be
 matched against the routing table again after filters have modified
-them, or a `<dynamic>`, meaning that the target backend must be set in a filter. 
+them, or a `<dynamic>`, meaning that the target backend must be set in a filter.
 
 [Opentracing API](http://opentracing.io/) is supported via
 `tracers` and you can find all of them in `./tracing/tracers/`. For
@@ -129,6 +129,9 @@ Special backends:
 - `<loopback>` restart route processing with the possibly changed request
 - `<shunt>` stops processing, used for fast returns
 - `<dynamic>` target is set dynamically in a filter
+- `<$algorithm, "be1", "be2", ..., "beN">` load balanced backend with N backends
+
+See more about backends in [backend references](../reference/backends.md).
 
 ### Dataclient
 

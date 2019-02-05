@@ -802,8 +802,6 @@ func Run(o Options) error {
 		cookie.New(),
 		query.New(),
 		traffic.New(),
-		loadbalancer.NewGroup(),
-		loadbalancer.NewMember(),
 		pauth.NewJWTPayloadAllKV(),
 		pauth.NewJWTPayloadAnyKV(),
 	)
@@ -817,7 +815,10 @@ func Run(o Options) error {
 		Predicates:      o.CustomPredicates,
 		UpdateBuffer:    updateBuffer,
 		SuppressLogs:    o.SuppressRouteUpdateLogs,
-		PostProcessors:  []routing.PostProcessor{loadbalancer.HealthcheckPostProcessor{LB: lbInstance}},
+		PostProcessors: []routing.PostProcessor{
+			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
+			loadbalancer.NewAlgorithmProvider(),
+		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	})
 	defer routing.Close()

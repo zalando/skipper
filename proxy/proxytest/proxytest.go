@@ -38,15 +38,9 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 		routingOptions.DataClients = []routing.DataClient{dc}
 	}
 
-	if len(routingOptions.Predicates) == 0 {
-		routingOptions.Predicates = []routing.PredicateSpec{
-			loadbalancer.NewGroup(),
-			loadbalancer.NewMember(),
-		}
-	}
-
 	routingOptions.FilterRegistry = fr
 	routingOptions.Log = tl
+	routingOptions.PostProcessors = []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()}
 
 	rt := routing.New(routingOptions)
 

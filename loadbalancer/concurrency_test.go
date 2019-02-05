@@ -12,7 +12,6 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -71,12 +70,14 @@ func TestConcurrencySingleRoute(t *testing.T) {
 		backends = append(backends, b.URL)
 	}
 
-	baseRoute := &eskip.Route{
-		Id: "foo",
+	route := &eskip.Route{
+		Id:          "foo",
+		BackendType: eskip.LBBackend,
+		LBEndpoints: backends,
+		LBAlgorithm: "roundRobin",
 	}
 
-	routes := loadbalancer.BalanceRoute(baseRoute, backends)
-	p := proxytest.New(builtin.MakeRegistry(), routes...)
+	p := proxytest.New(builtin.MakeRegistry(), route)
 	defer p.Close()
 
 	memberCounters := make(map[string]counter)
@@ -86,7 +87,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 
 	var wg sync.WaitGroup
 	runClient := func() {
-		for i := 0; i < 300 && !t.Failed(); i++ {
+		for i := 0; i < repeatedRequests && !t.Failed(); i++ {
 			req, err := http.NewRequest("GET", p.URL, nil)
 			if err != nil {
 				t.Error(err)
@@ -166,18 +167,21 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 		backends = append(backends, b.URL)
 	}
 
-	baseRoute := &eskip.Route{
-		Id:      "foo",
-		Backend: "https://foo",
+	route := []*eskip.Route{
+		{
+			Id:          "foo",
+			BackendType: eskip.LBBackend,
+			LBEndpoints: backends,
+			LBAlgorithm: "roundRobin",
+		},
 	}
 
-	routes := loadbalancer.BalanceRoute(baseRoute, backends)
-	dataClient := createDataClientWithUpdates(routes, routeUpdateTimeout)
+	dataClient := createDataClientWithUpdates(route, routeUpdateTimeout)
 
 	p := proxytest.WithRoutingOptions(builtin.MakeRegistry(), routing.Options{
 		DataClients: []routing.DataClient{dataClient},
 		PollTimeout: routeUpdateTimeout,
-	}, routes...)
+	}, route...)
 	defer p.Close()
 
 	memberCounters := make(map[string]counter)
@@ -256,10 +260,9 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 	}
 
 	var (
-		contents   = make(map[string][]string)
-		backends   = make(map[string][]string)
-		baseRoutes = make(map[string]*eskip.Route)
-		routes     []*eskip.Route
+		contents = make(map[string][]string)
+		backends = make(map[string][]string)
+		routes   []*eskip.Route
 	)
 
 	apps := []string{"app1", "app2"}
@@ -275,11 +278,17 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 	}
 
 	for _, app := range apps {
-		baseRoutes[app] = &eskip.Route{
-			Id:   app,
-			Path: fmt.Sprintf("/%s", app),
-		}
-		routes = append(routes, loadbalancer.BalanceRoute(baseRoutes[app], backends[app])...)
+		routes = append(routes, &eskip.Route{
+			Id:          app,
+			Path:        fmt.Sprintf("/%s", app),
+			BackendType: eskip.LBBackend,
+			LBEndpoints: backends[app],
+			LBAlgorithm: "roundRobin",
+		})
+	}
+
+	for _, r := range routes {
+		t.Logf("r: %s", r)
 	}
 
 	p := proxytest.New(builtin.MakeRegistry(), routes...)
@@ -296,7 +305,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 
 	var wg sync.WaitGroup
 	runClient := func() {
-		for i := 0; i < 300 && !t.Failed(); i++ {
+		for i := 0; i < repeatedRequests && !t.Failed(); i++ {
 			curApp := apps[i%2]
 			req, err := http.NewRequest("GET", p.URL+"/"+curApp, nil)
 			if err != nil {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -110,7 +111,7 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*routing.Route) []*routing.Rout
 	knownBackends := make(map[string]bool)
 	for _, r := range routes {
 		knownBackends[r.Backend] = true
-		if r.IsLoadBalanced {
+		if r.BackendType == eskip.LBBackend {
 			var st state
 			lb.RLock()
 			st, ok := lb.routeState[r.Backend]

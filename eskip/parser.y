@@ -13,6 +13,9 @@
 // limitations under the License.
 
 %{
+//lint:file-ignore ST1016 This is a generated file.
+//lint:file-ignore SA4006 This is a generated file.
+
 package eskip
 
 import "strconv"
@@ -39,9 +42,13 @@ func convertNumber(s string) float64 {
 	shunt bool
 	loopback bool
 	dynamic bool
+	lbBackend bool
 	numval float64
 	stringval string
 	regexpval string
+	stringvals []string
+	lbAlgorithm string
+	lbEndpoints []string
 }
 
 %token and
@@ -59,6 +66,8 @@ func convertNumber(s string) float64 {
 %token dynamic
 %token stringliteral
 %token symbol
+%token openarrow
+%token closearrow
 
 %%
 
@@ -106,7 +115,13 @@ route:
 			backend: $3.backend,
 			shunt: $3.shunt,
 			loopback: $3.loopback,
-			dynamic: $3.dynamic}
+			dynamic: $3.dynamic,
+			lbBackend: $3.lbBackend,
+			lbAlgorithm: $3.lbAlgorithm,
+			lbEndpoints: $3.lbEndpoints,
+		}
+		$1.matchers = nil
+		$3.lbEndpoints = nil
 	}
 	|
 	frontend arrow filters arrow backend {
@@ -116,9 +131,14 @@ route:
 			backend: $5.backend,
 			shunt: $5.shunt,
 			loopback: $5.loopback,
-			dynamic: $5.dynamic}
+			dynamic: $5.dynamic,
+			lbBackend: $5.lbBackend,
+			lbAlgorithm: $5.lbAlgorithm,
+			lbEndpoints: $5.lbEndpoints,
+		}
 		$1.matchers = nil
 		$3.filters = nil
+		$5.lbEndpoints = nil
 	}
 
 frontend:
@@ -132,12 +152,12 @@ frontend:
 	}
 
 matcher:
-    any {
-        $$.matcher = &matcher{"*", nil}
-    }
-    |
+	any {
+		$$.matcher = &matcher{"*", nil}
+	}
+	|
 	symbol openparen args closeparen {
-        $$.matcher = &matcher{$1.token, $3.args}
+		$$.matcher = &matcher{$1.token, $3.args}
 		$3.args = nil
 	}
 
@@ -183,24 +203,69 @@ arg:
 		$$.arg = $1.regexpval
 	}
 
+stringvals:
+	stringval {
+		$$.stringvals = []string{$1.stringval}
+	}
+	|
+	stringvals comma stringval {
+		$$.stringvals = $1.stringvals
+		$$.stringvals = append($$.stringvals, $3.stringval)
+	}
+
+lbbackendbody:
+	stringvals {
+		$$.lbEndpoints = $1.stringvals
+	}
+	|
+	symbol comma stringvals {
+		$$.lbAlgorithm = $1.token
+		$$.lbEndpoints = $3.stringvals
+	}
+
+lbbackend:
+	openarrow lbbackendbody closearrow {
+		$$.lbAlgorithm = $2.lbAlgorithm
+		$$.lbEndpoints = $2.lbEndpoints
+	}
+
 backend:
 	stringval {
 		$$.backend = $1.stringval
 		$$.shunt = false
 		$$.loopback = false
 		$$.dynamic = false
+		$$.lbBackend = false
 	}
 	|
 	shunt {
 		$$.shunt = true
+		$$.loopback = false
+		$$.dynamic = false
+		$$.lbBackend = false
 	}
 	|
 	loopback {
-	        $$.loopback = true
+		$$.shunt = false
+		$$.loopback = true
+		$$.dynamic = false
+		$$.lbBackend = false
 	}
 	|
 	dynamic {
-	        $$.dynamic = true
+		$$.shunt = false
+		$$.loopback = false
+		$$.dynamic = true
+		$$.lbBackend = false
+	}
+	|
+	lbbackend {
+		$$.shunt = false
+		$$.loopback = false
+		$$.dynamic = false
+		$$.lbBackend = true
+		$$.lbAlgorithm = $1.lbAlgorithm
+		$$.lbEndpoints = $1.lbEndpoints
 	}
 
 numval:

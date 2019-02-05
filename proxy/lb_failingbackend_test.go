@@ -75,29 +75,13 @@ func setup() (*proxytest.TestProxy, []closer) {
 		nonGrouped: Path("/") -> "%s";
 		nonGroupedFailing: Path("/fail") -> "%s";
 
-		groupA: Path("/a") && LBGroup("group-a")
-			-> lbDecide("group-a", 2)
-			-> <loopback>;
-		groupA_BE1: Path("/a") && LBMember("group-a", 0) -> "%s";
-		groupA_BE2: Path("/a") && LBMember("group-a", 1) -> "%s";
+		groupA: Path("/a") -> <roundRobin, "%s", "%s">;
 
-		groupB: Path("/b") && LBGroup("group-b")
-			-> lbDecide("group-b", 2)
-			-> <loopback>;
-		groupB_BE1_Failing: Path("/b") && LBMember("group-b", 0) -> "%s";
-		groupB_BE2: Path("/b") && LBMember("group-b", 1) -> "%s";
+		groupB: Path("/b") -> <roundRobin, "%s", "%s">;
 
-		groupC: Path("/c") && LBGroup("group-c")
-			-> lbDecide("group-c", 2)
-			-> <loopback>;
-		groupC_BE1: Path("/c") && LBMember("group-c", 0) -> "%s";
-		groupC_BE2_Failing: Path("/c") && LBMember("group-c", 1) -> "%s";
+		groupC: Path("/c") -> <roundRobin, "%s", "%s">;
 
-		groupD: Path("/d") && LBGroup("group-d")
-			-> lbDecide("group-d", 2)
-			-> <loopback>;
-		groupD_BE1_Failing: Path("/d") && LBMember("group-d", 0) -> "%s";
-		groupD_BE2_Failing: Path("/d") && LBMember("group-d", 1) -> "%s";
+		groupD: Path("/d") -> <roundRobin, "%s", "%s">;
 	`
 
 	routesDoc := fmt.Sprintf(

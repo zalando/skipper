@@ -285,11 +285,7 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 	}))
 	defer s1.Close()
 
-	const docFmt = `
-		member0: LBMember("test", 0) -> "%s";
-		member1: LBMember("test", 1) -> "%s";
-		group: LBGroup("test") -> lbDecide("test", 2) -> <loopback>;
-	`
+	const docFmt = `r: * -> <roundRobin, "%s", "%s">;`
 	doc := fmt.Sprintf(docFmt, s0.URL, s1.URL)
 	tracer := &tracingtest.Tracer{}
 	tp, err := newTestProxyWithParams(doc, Params{OpenTracer: tracer})

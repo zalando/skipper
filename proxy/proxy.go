@@ -375,7 +375,7 @@ func copyStream(to flusherWriter, from io.Reader) error {
 	}
 }
 
-func setRequestUrlForDynamicBackend(u *url.URL, stateBag map[string]interface{}) {
+func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{}) {
 	dbu, ok := stateBag[filters.DynamicBackendURLKey].(string)
 	if ok && dbu != "" {
 		bu, err := url.ParseRequestURI(dbu)
@@ -396,16 +396,24 @@ func setRequestUrlForDynamicBackend(u *url.URL, stateBag map[string]interface{})
 	}
 }
 
+func setRequestURLForLoadBalancedBackend(u *url.URL, r *routing.Route) {
+	e := r.LBAlgorithm.Apply(r.LBEndpoints)
+	u.Scheme = e.Scheme
+	u.Host = e.Host
+}
+
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
 func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeaders bool, stateBag map[string]interface{}) (*http.Request, error) {
-
 	u := r.URL
-	u.Scheme = rt.Scheme
-	u.Host = rt.Host
-
-	if rt.BackendType == eskip.DynamicBackend {
-		setRequestUrlForDynamicBackend(u, stateBag)
+	switch rt.BackendType {
+	case eskip.DynamicBackend:
+		setRequestURLForDynamicBackend(u, stateBag)
+	case eskip.LBBackend:
+		setRequestURLForLoadBalancedBackend(u, rt)
+	default:
+		u.Scheme = rt.Scheme
+		u.Host = rt.Host
 	}
 
 	body := r.Body
@@ -974,15 +982,7 @@ func (p *Proxy) do(ctx *context) error {
 
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 
-			if perr.DialError() && ctx.route.IsLoadBalanced {
-				// here we do a transparent retry, because we know it's safe to do
-				origRoute := ctx.route.Me
-				if ctx.route.Next != nil && origRoute != ctx.route.Next {
-					ctx.route = ctx.route.Next
-				} else if ctx.route.Head != nil && origRoute != ctx.route.Head {
-					ctx.route = ctx.route.Head
-				}
-
+			if perr.DialError() && ctx.route.BackendType == eskip.LBBackend {
 				if ctx.proxySpan != nil {
 					ctx.proxySpan.Finish()
 					ctx.proxySpan = nil
@@ -994,13 +994,12 @@ func (p *Proxy) do(ctx *context) error {
 				var perr2 *proxyError
 				rsp, perr2 = p.makeBackendRequest(ctx)
 				if perr2 != nil {
-					p.log.Errorf("Failed to do backend request to %s, retry failed to %s: %v", origRoute.Backend, ctx.route.Backend, perr2)
+					p.log.Errorf("Failed to do retry backend request: %v", perr2)
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
 					return perr2
 				}
-				p.log.Infof("successful retry to %v, orig %v, code: %d", ctx.route.Backend, origRoute.Backend, rsp.StatusCode)
 			} else {
 				return perr
 			}

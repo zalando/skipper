@@ -37,18 +37,22 @@ const (
 	ShuntBackend
 	LoopBackend
 	DynamicBackend
+	LBBackend
 )
 
 // Route definition used during the parser processes the raw routing
 // document.
 type parsedRoute struct {
-	id       string
-	matchers []*matcher
-	filters  []*Filter
-	shunt    bool
-	loopback bool
-	dynamic  bool
-	backend  string
+	id          string
+	matchers    []*matcher
+	filters     []*Filter
+	shunt       bool
+	loopback    bool
+	dynamic     bool
+	lbBackend   bool
+	backend     string
+	lbAlgorithm string
+	lbEndpoints []string
 }
 
 // A Predicate object represents a parsed, in-memory, route matching predicate
@@ -128,6 +132,14 @@ type Route struct {
 	// E.g. "https://www.example.org"
 	Backend string
 
+	// LBAlgorithm stores the name of the load balancing algorithm
+	// in case of load balancing backends.
+	LBAlgorithm string
+
+	// LBEndpoints stores one or more backend endpoint in case of
+	// load balancing backends.
+	LBEndpoints []string
+
 	Name      string
 	Namespace string
 }
@@ -154,6 +166,8 @@ func (t BackendType) String() string {
 		return "loopback"
 	case DynamicBackend:
 		return "dynamic"
+	case LBBackend:
+		return "loadbalanced"
 	default:
 		return "unknown"
 	}
@@ -261,14 +275,19 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	rd.Filters = r.filters
 	rd.Shunt = r.shunt
 	rd.Backend = r.backend
+	rd.LBAlgorithm = r.lbAlgorithm
+	rd.LBEndpoints = r.lbEndpoints
 
-	if r.shunt {
+	switch {
+	case r.shunt:
 		rd.BackendType = ShuntBackend
-	} else if r.loopback {
+	case r.loopback:
 		rd.BackendType = LoopBackend
-	} else if r.dynamic {
+	case r.dynamic:
 		rd.BackendType = DynamicBackend
-	} else {
+	case r.lbBackend:
+		rd.BackendType = LBBackend
+	default:
 		rd.BackendType = NetworkBackend
 	}
 

@@ -140,11 +140,8 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},
-		Predicates: []routing.PredicateSpec{
-			loadbalancer.NewGroup(),
-			loadbalancer.NewMember(),
-		},
-		Log: tl,
+		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()},
+		Log:            tl,
 	})
 	params.Routing = rt
 	p := WithParams(params)
@@ -326,7 +323,7 @@ func TestSetRequestUrlForDynamicBackend(t *testing.T) {
 			filters.DynamicBackendURLKey:    "https://priority.com"},
 	}} {
 		u := &url.URL{}
-		setRequestUrlForDynamicBackend(u, ti.stateBag)
+		setRequestURLForDynamicBackend(u, ti.stateBag)
 
 		beq := reflect.DeepEqual(ti.expectedUrl, u)
 		if !beq {

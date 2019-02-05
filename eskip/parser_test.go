@@ -16,6 +16,8 @@ package eskip
 
 import (
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 const (
@@ -208,5 +210,106 @@ func testRegExpOnce(t *testing.T, regexpStr string, expectedRegExp string) {
 
 	if expectedRegExp != routes[0].matchers[0].args[0] {
 		t.Error("failed to parse PathRegexp:"+regexpStr+", expected regexp to be "+expectedRegExp, err)
+	}
+}
+
+func TestLBBackend(t *testing.T) {
+	for _, test := range []struct {
+		title          string
+		code           string
+		expectedResult []*Route
+		fail           bool
+	}{{
+		title: "empty",
+		code:  "* -> <>",
+		fail:  true,
+	}, {
+		title: "empty with whitespace",
+		code:  "* -> <   >",
+		fail:  true,
+	}, {
+		title: "algorithm only",
+		code:  "* -> <roundRobin>",
+		fail:  true,
+	}, {
+		title: "single endpoint, default algorithm",
+		code:  `* -> <"https://example.org">`,
+		expectedResult: []*Route{{
+			BackendType: LBBackend,
+			LBEndpoints: []string{"https://example.org"},
+		}},
+	}, {
+		title: "multiple endpoints, default algorithm",
+		code: `* -> <"https://example1.org",
+		             "https://example2.org",
+		             "https://example3.org">`,
+		expectedResult: []*Route{{
+			BackendType: LBBackend,
+			LBEndpoints: []string{
+				"https://example1.org",
+				"https://example2.org",
+				"https://example3.org",
+			},
+		}},
+	}, {
+		title: "single endpoint, with algorithm",
+		code:  `* -> <algFoo, "https://example.org">`,
+		expectedResult: []*Route{{
+			BackendType: LBBackend,
+			LBAlgorithm: "algFoo",
+			LBEndpoints: []string{"https://example.org"},
+		}},
+	}, {
+		title: "multiple endpoints, default algorithm",
+		code: `* -> <algFoo,
+		             "https://example1.org",
+		             "https://example2.org",
+		             "https://example3.org">`,
+		expectedResult: []*Route{{
+			BackendType: LBBackend,
+			LBAlgorithm: "algFoo",
+			LBEndpoints: []string{
+				"https://example1.org",
+				"https://example2.org",
+				"https://example3.org",
+			},
+		}},
+	}, {
+		title: "multiple endpoints, default algorithm, with filters",
+		code: `* -> foo() -> <algFoo,
+		             "https://example1.org",
+		             "https://example2.org",
+		             "https://example3.org">`,
+		expectedResult: []*Route{{
+			Filters:     []*Filter{{Name: "foo"}},
+			BackendType: LBBackend,
+			LBAlgorithm: "algFoo",
+			LBEndpoints: []string{
+				"https://example1.org",
+				"https://example2.org",
+				"https://example3.org",
+			},
+		}},
+	}} {
+		t.Run(test.title, func(t *testing.T) {
+			r, err := Parse(test.code)
+			if test.fail && err == nil {
+				t.Fatal("failed to fail")
+			}
+
+			if err != nil && !test.fail {
+				t.Fatal(err)
+			}
+
+			if test.fail {
+				return
+			}
+
+			if d := cmp.Diff(r, test.expectedResult); d != "" {
+				t.Log("failed to parse routes")
+				t.Log(d)
+				t.Fatal()
+			}
+		})
 	}
 }

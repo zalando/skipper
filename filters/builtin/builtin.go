@@ -16,7 +16,6 @@ import (
 	"github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/tee"
 	"github.com/zalando/skipper/filters/tracing"
-	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/script"
 )
 
@@ -122,7 +121,6 @@ func MakeRegistry() filters.Registry {
 		ratelimit.NewClusterRateLimit(),
 		ratelimit.NewClusterClientRateLimit(),
 		ratelimit.NewDisableRatelimit(),
-		loadbalancer.NewDecide(),
 		script.NewLuaScript(),
 		cors.NewOrigin(),
 		logfilter.NewUnverifiedAuditLog(),
