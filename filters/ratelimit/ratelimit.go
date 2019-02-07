@@ -28,12 +28,13 @@ type filter struct {
 	settings ratelimit.Settings
 }
 
-// NewLocalRatelimit creates a local measured rate limiting, that is
-// only aware of itself. If you have 5 instances with 20 req/s, then
-// it would allow 100 req/s to the backend from the same user. A third
-// argument can be used to set which HTTP header of the request should be
-// used to find the same user. Third argument defaults to
-// XForwardedForLookuper, meaning X-Forwarded-For Header.
+// NewLocalRatelimit *DEPRECATED* creates a local measured rate
+// limiting, that is only aware of itself. If you have 5 instances
+// with 20 req/s, then it would allow 100 req/s to the backend from
+// the same user. A third argument can be used to set which HTTP
+// header of the request should be used to find the same user. Third
+// argument defaults to XForwardedForLookuper, meaning X-Forwarded-For
+// Header.
 //
 // Example:
 //
@@ -48,6 +49,28 @@ type filter struct {
 //    -> "https://login.backend.net";
 func NewLocalRatelimit() filters.Spec {
 	return &spec{typ: ratelimit.LocalRatelimit, filterName: ratelimit.LocalRatelimitName}
+}
+
+// NewClientRatelimit creates a instance based client rate limit.  If
+// you have 5 instances with 20 req/s, then it would allow 100 req/s
+// to the backend from the same client. A third argument can be used to
+// set which HTTP header of the request should be used to find the
+// same user. Third argument defaults to XForwardedForLookuper,
+// meaning X-Forwarded-For Header.
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> clientRatelimit(20, "1m")
+//    -> "https://foo.backend.net";
+//
+// Example rate limit per Authorization Header:
+//
+//    login: Path("/login")
+//    -> clientRatelimit(3, "1m", "Authorization")
+//    -> "https://login.backend.net";
+func NewClientRatelimit() filters.Spec {
+	return &spec{typ: ratelimit.ClientRatelimit, filterName: ratelimit.ClientRatelimitName}
 }
 
 // NewRatelimit creates a service rate limiting, that is

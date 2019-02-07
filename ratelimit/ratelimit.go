@@ -21,7 +21,7 @@ const (
 	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
 	ServiceRatelimitName = "ratelimit"
 
-	// LocalRatelimitName *deprecated*, use ClientRatelimitName instead
+	// LocalRatelimitName *DEPRECATED*, use ClientRatelimitName instead
 	LocalRatelimitName = "localRatelimit"
 
 	// ClientRatelimitName is the name of the ClientRatelimit filter, which will be shown in log
@@ -52,7 +52,7 @@ const (
 	// each instance
 	ServiceRatelimit
 
-	// LocalRatelimit *deprecated* will be replaced by ClientRatelimit
+	// LocalRatelimit *DEPRECATED* will be replaced by ClientRatelimit
 	LocalRatelimit
 
 	// ClientRatelimit is used to have a simple local rate limit
