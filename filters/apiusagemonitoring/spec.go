@@ -2,6 +2,7 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
@@ -100,6 +101,11 @@ func (s *apiUsageMonitoringSpec) Name() string {
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
 	apis := s.parseJsonConfiguration(args)
 	paths := s.buildPathInfoListFromConfiguration(apis)
+
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no valid configurations")
+	}
+
 	unknownPath := s.buildUnknownPathInfo(apis)
 
 	filter = &apiUsageMonitoringFilter{
@@ -111,7 +117,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 }
 
 func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*apiConfig {
-	apis := make([]*apiConfig, 0, len(args))
+	apis := make([]*apiConfig, 0)
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)
 		if !ok {
@@ -158,27 +164,21 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 	existingRegEx := make(map[string]*pathInfo)
 	for apiIndex, api := range apis {
 
-		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
-			log.Errorf(
-				"args[%d] ignored: does not specify any path template",
-				apiIndex)
-			continue
-		}
-
 		applicationId := api.ApplicationId
-		if applicationId == "" {
-			log.Errorf(
-				"args[%d] does not specify an application ID, defaulting to %q",
-				apiIndex, unknownElementPlaceholder)
-			applicationId = unknownElementPlaceholder
+		if api.ApplicationId == "" {
+			log.Errorf("args[%d] ignored: does not specify an application_id", apiIndex)
+			continue
 		}
 
 		apiId := api.ApiId
 		if apiId == "" {
-			log.Errorf(
-				"args[%d] does not specify an API ID, defaulting to %q",
-				apiIndex, unknownElementPlaceholder)
-			apiId = unknownElementPlaceholder
+			log.Errorf("args[%d] ignored: does not specify an api_id", apiIndex)
+			continue
+		}
+
+		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
+			log.Errorf("args[%d] ignored: does not specify any path template", apiIndex)
+			continue
 		}
 
 		clientTrackingInfo := s.buildClientTrackingInfo(apiIndex, api)

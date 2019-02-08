@@ -37,34 +37,6 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 		})
 }
 
-func Test_Filter_NoConfiguration(t *testing.T) {
-	testWithFilter(
-		t,
-		func() (filters.Filter, error) {
-			spec := NewApiUsageMonitoring(true, "", "", "")
-			return spec.CreateFilter([]interface{}{})
-		},
-		http.MethodGet,
-		"https://www.example.org/a/b/c",
-		200,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-			pre := "apiUsageMonitoring.custom.<unknown>.<unknown>.GET.{no-match}.*.*."
-			// no path matching: tracked as unknown
-			m.WithCounters(func(counters map[string]int64) {
-				assert.Equal(t,
-					map[string]int64{
-						pre + "http_count":    int64(pass),
-						pre + "http2xx_count": int64(pass),
-					},
-					counters,
-				)
-			})
-			m.WithMeasures(func(measures map[string][]time.Duration) {
-				assert.Contains(t, measures, pre+"latency")
-			})
-		})
-}
-
 func Test_Filter_PathTemplateNoVariablePart(t *testing.T) {
 	testWithFilter(
 		t,
