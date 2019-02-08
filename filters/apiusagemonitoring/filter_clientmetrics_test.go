@@ -52,7 +52,7 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsKnown(t *testing.T) {
 		clientTrackingPattern:        s(".*"),
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.<unknown>.GET.<unknown>.*.*.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.<unknown>.GET.{no-match}.*.*.",
 		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.<unknown>.*.*.users.<unknown>.",
 	})
 }
@@ -64,7 +64,7 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsUnknown(t *testing.T) {
 		clientTrackingPattern:        s(".*"),
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.<unknown>.GET.<unknown>.*.*.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.<unknown>.GET.{no-match}.*.*.",
 		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.<unknown>.*.*.<unknown>.<unknown>.",
 	})
 }

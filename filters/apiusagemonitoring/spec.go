@@ -13,6 +13,7 @@ const (
 	Name = "apiUsageMonitoring"
 
 	unknownElementPlaceholder = "<unknown>"
+	noMatchPath               = "{no-match}"
 
 	regexUrlPathPart     = `.+`
 	regexOptionalSlashes = `\/*`
@@ -64,7 +65,7 @@ func NewApiUsageMonitoring(
 	unknownPath := newPathInfo(
 		unknownElementPlaceholder,
 		unknownElementPlaceholder,
-		unknownElementPlaceholder,
+		noMatchPath,
 		unknownPathClientTracking,
 	)
 	spec := &apiUsageMonitoringSpec{

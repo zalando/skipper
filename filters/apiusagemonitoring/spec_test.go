@@ -43,7 +43,7 @@ type pathMatcher struct {
 
 func unknownPath(applicationId string) pathMatcher {
 	return pathMatcher{
-		PathTemplate:  "<unknown>",
+		PathTemplate:  "{no-match}",
 		ApplicationId: applicationId,
 		ApiId:         "<unknown>",
 		Matcher:       nil,
