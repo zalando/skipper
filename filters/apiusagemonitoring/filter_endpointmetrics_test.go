@@ -69,7 +69,7 @@ func Test_Filter_PathTemplateWithVariablePart(t *testing.T) {
 		"https://www.example.org/foo/orders/1234",
 		204,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.*.*."
+			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/{order-id}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
 					map[string]int64{
@@ -93,12 +93,12 @@ func Test_Filter_PathTemplateWithMultipleVariablePart(t *testing.T) {
 		"https://www.example.org/foo/orders/1234/order-items/123",
 		301,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.*.*."
+			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/{order-id}/order-items/{order-item-id}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.NotContains(
 					t, counters,
-					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id.http_count",
-					"Matched `foo/orders/:order-id` instead of `foo/orders/:order-id`/order-items/:order-item-id")
+					"apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/{order-id}.http_count",
+					"Matched `foo/orders/{order-id}` instead of `foo/orders/{order-id}`/order-items/{order-item-id}")
 
 				assert.Equal(t,
 					map[string]int64{
@@ -122,7 +122,7 @@ func Test_Filter_PathTemplateFromSecondConfiguredApi(t *testing.T) {
 		"https://www.example.org/foo/customers/loremipsum",
 		502,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/customers/:customer-id.*.*."
+			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/customers/{customer-id}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
 					map[string]int64{
@@ -287,7 +287,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashes(t *testing.T) {
 		"https://www.example.org/foo/orders/1/2/3/order-items/123",
 		204,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/:order-id/order-items/:order-item-id.*.*."
+			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/{order-id}/order-items/{order-item-id}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
 					map[string]int64{
@@ -321,11 +321,11 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 		requestPath                 string
 		expectedMatchedPathTemplate string
 	}{
-		{"foo/1", "foo/:a"},
-		{"foo/1/2", "foo/:a/:b"},
-		{"foo/1/2/3", "foo/:a/:b/:c"},
-		{"foo/1/2/3/4", "foo/:a/:b/:c"},
-		{"foo/1/2/3/4/5", "foo/:a/:b/:c"},
+		{"foo/1", "foo/{a}"},
+		{"foo/1/2", "foo/{a}/{b}"},
+		{"foo/1/2/3", "foo/{a}/{b}/{c}"},
+		{"foo/1/2/3/4", "foo/{a}/{b}/{c}"},
+		{"foo/1/2/3/4/5", "foo/{a}/{b}/{c}"},
 	} {
 		subTestName := strings.Replace(c.requestPath, "/", "_", -1)
 		t.Run(subTestName, func(t *testing.T) {

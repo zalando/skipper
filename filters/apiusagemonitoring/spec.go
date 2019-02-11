@@ -289,7 +289,7 @@ func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTem
 		} else {
 			// this part is a placeholder: match a wildcard for it
 			matcherPathParts = append(matcherPathParts, regexUrlPathPart)
-			normalizedPathTemplateParts = append(normalizedPathTemplateParts, ":"+placeholderName)
+			normalizedPathTemplateParts = append(normalizedPathTemplateParts, fmt.Sprintf("{%s}", placeholderName))
 		}
 	}
 	rawRegEx := &strings.Builder{}
