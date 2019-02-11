@@ -45,7 +45,7 @@ func unknownPath(applicationId string) pathMatcher {
 	return pathMatcher{
 		PathTemplate:  "{no-match}",
 		ApplicationId: applicationId,
-		ApiId:         "<unknown>",
+		ApiId:         "{unknown}",
 		Matcher:       nil,
 	}
 }
@@ -391,7 +391,7 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 				Matcher:       matcher("^\\/*foo\\/orders\\/*$"),
 			},
 		})
-		assertPath(t, filter.UnknownPath, unknownPath("<unknown>"))
+		assertPath(t, filter.UnknownPath, unknownPath("my_order_app"))
 	})
 }
 

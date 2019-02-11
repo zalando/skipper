@@ -1050,7 +1050,7 @@ For the client based metrics, additional flags need to be specified.
 |--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `api-usage-monitoring-realm-keys`                      | Name of the property in the JWT JSON body that contains the name of the _realm_.                                                                                                                                         |
 | `api-usage-monitoring-client-keys`                     | Name of the property in the JWT JSON body that contains the name of the _client_.                                                                                                                                        |
-| `api-usage-monitoring-default-client-tracking-pattern` | Optional. Default is empty. Allows to deploy Skipper with a default client tracking pattern. When `apiUsageMonitoring` configuration does not specify one, this default is used instead of disabling the client metrics. |
+| `api-usage-monitoring-realms`                          | List of _realms_ to be monitored. Defaults to 'services'.                                                                                                                                                                |
 
 NOTE: Make sure to activate the metrics flavour proper to your environment using the `metrics-flavour`
 flag in order to get those metrics.
@@ -1058,7 +1058,7 @@ flag in order to get those metrics.
 Example:
 
 ```bash
-skipper -metrics-flavour prometheus -enable-api-usage-monitoring -api-usage-monitoring-realm-keys="realm" -api-usage-monitoring-client-keys="managed-id"
+skipper -metrics-flavour prometheus -enable-api-usage-monitoring -api-usage-monitoring-realm-keys="realm" -api-usage-monitoring-client-keys="managed-id" api-usage-monitoring-realms="services,users"
 ```
 
 The structure of the metrics is all of those elements, separated by `.` dots:
@@ -1085,7 +1085,7 @@ Example:
 ```
                                                                              + Realm
                                                                              |
-apiUsageMonitoring.custom.orders-backend.orders-api.GET.foo/orders/:order-id.*.*.http_count
+apiUsageMonitoring.custom.orders-backend.orders-api.GET.foo/orders/{order-id}.*.*.http_count
                                                                                | |
                                                                                | + Metric Name
                                                                                + Client
@@ -1155,6 +1155,7 @@ api-usage-monitoring-configuration:
     path_templates:
       description: Endpoints to be monitored.
       type: array
+      minLength: 1
       items:
         type: string
         description: >
@@ -1163,23 +1164,19 @@ api-usage-monitoring-configuration:
         example: /orders/{order-id}
     client_tracking_pattern:
         description: >
-            The pattern that the combination `realm.client` must match in order for the client
-            based metrics to be tracked, in form of a regular expression.
+            The pattern that matches client id in form of a regular expression.
 
-            By default (if undefined), it is set to `services\\..*`.
+            By default (if undefined), it is set to `.*`.
 
             An empty string disables the client metrics completely.
-
-            IMPORTANT: Avoid patterns that would match too many different values like `.*` or `users\\..*`. Too
-            many different metric keys would badly affect the performances of the metric systems (e.g.: Prometheus).
         type: string
         examples:
             all_services:
-                summary: All services are tracked (clients of the realm `services`).
-                value: "services\\..*"
+                summary: All services are tracked (for all activated realms).
+                value: ".*"
             just_some_services:
-                summary: Only services `orders` and `shipment` are tracked.
-                value: "services\\.(orders|shipment)"
+                summary: Only services `orders-service` and `shipment-service` are tracked.
+                value: "(orders\-service|shipment\-service)"
 ```
 
 Configuration Example:
@@ -1194,7 +1191,7 @@ apiUsageMonitoring(`
             "foo/orders/:order-id",
             "foo/orders/:order-id/order_item/{order-item-id}"
         ],
-        "client_tracking_pattern": "users\\.(joe|sabine)"
+        "client_tracking_pattern": "(joe|sabine)"
     }`,`{
         "application_id": "my-app",
         "api_id": "customers-api",
@@ -1209,13 +1206,13 @@ apiUsageMonitoring(`
 Based on the previous configuration, here is an example of a counter metric.
 
 ```
-apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.*.*.http_count
+apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/{order-id}.*.*.http_count
 ```
 
 Here is the _Prometheus_ query to obtain it.
 
 ```
-sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/:order-id.*.*.http_count"}[60s])) by (key)
+sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/{order-id}.*.*.http_count"}[60s])) by (key)
 ```
 
 Here is an example of a histogram metric.
@@ -1228,19 +1225,4 @@ Here is the _Prometheus_ query to obtain it.
 
 ```
 histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.*.*.latency"}[60s])) by (le, key))
-```
-
-NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
-and path template.
-
-```
-apiUsageMonitoring.custom.<unknown>.<unknown>.GET.<unknown>.*.*.http_count
-```
-
-However, if all `application_id`s of your configuration refer to the same application,
-the filter assume that also non configured paths will be directed to this application.
-E.g.:
-
-```
-apiUsageMonitoring.custom.my-app.<unknown>.GET.<unknown>.*.*.http_count
 ```

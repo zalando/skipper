@@ -20,7 +20,7 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 		"https://www.example.org/a/b/c",
 		299,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-			pre := "apiUsageMonitoring.custom.my_app.<unknown>.GET.{no-match}.*.*."
+			pre := "apiUsageMonitoring.custom.my_app.{unknown}.GET.{no-match}.*.*."
 			// no path matching: tracked as unknown
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -218,7 +218,7 @@ func Test_Filter_NonConfiguredPathTrackedUnderNoMatch(t *testing.T) {
 		"https://www.example.org/lapin/malin",
 		200,
 		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-			pre := "apiUsageMonitoring.custom.my_app.<unknown>.GET.{no-match}.*.*."
+			pre := "apiUsageMonitoring.custom.my_app.{unknown}.GET.{no-match}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
 					map[string]int64{
@@ -248,8 +248,8 @@ func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
 		{http.MethodConnect, "CONNECT"},
 		{http.MethodOptions, "OPTIONS"},
 		{http.MethodTrace, "TRACE"},
-		{"", "<unknown>"},
-		{"foo", "<unknown>"},
+		{"", "{unknown}"},
+		{"foo", "{unknown}"},
 	} {
 		t.Run(testCase.method, func(t *testing.T) {
 			testWithFilter(
@@ -260,7 +260,7 @@ func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
 				200,
 				func(t *testing.T, pass int, m *metricstest.MockMetrics) {
 					pre := fmt.Sprintf(
-						"apiUsageMonitoring.custom.my_app.<unknown>.%s.{no-match}.*.*.",
+						"apiUsageMonitoring.custom.my_app.{unknown}.%s.{no-match}.*.*.",
 						testCase.expectedMethodInMetric)
 					m.WithCounters(func(counters map[string]int64) {
 						assert.Equal(t,
