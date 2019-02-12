@@ -3,7 +3,7 @@ package kubernetes
 import "testing"
 
 func TestUpdateOnlyChangedRoutes(t *testing.T) {
-	api := newTestAPIWithEndpoints(t, make(services), &ingressList{}, make(endpoints))
+	api := newTestAPIWithEndpoints(t, &serviceList{}, &ingressList{}, &endpointList{})
 	defer api.Close()
 
 	k, err := New(Options{

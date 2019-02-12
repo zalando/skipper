@@ -6,13 +6,14 @@ import (
 
 func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 	svc := testServiceWithTargetPort(
+		"namespace1", "service1",
 		"1.2.3.4",
 		map[string]int{"port1": 8080},
 		map[int]*backendPort{8080: {8080}},
 	)
 
-	services := services{
-		"namespace1": map[string]*service{"service1": svc},
+	services := &serviceList{
+		Items: []*service{svc},
 	}
 
 	subsets := []*subset{{
@@ -33,9 +34,12 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		}},
 	}}
 
-	endpoints := endpoints{
-		"namespace1": map[string]endpoint{
-			"service1": {Subsets: subsets},
+	endpoints := &endpointList{
+		Items: []*endpoint{
+			{
+				Meta:    &metadata{Namespace: "namespace1", Name: "service1"},
+				Subsets: subsets,
+			},
 		},
 	}
 

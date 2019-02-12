@@ -26,14 +26,16 @@ func TestLBWithTrafficControl(t *testing.T) {
 		  -> <shunt>;
 	`
 
-	services := services{
-		"namespace1": map[string]*service{
-			"service1v1": testServiceWithTargetPort(
+	services := &serviceList{
+		Items: []*service{
+			testServiceWithTargetPort(
+				"namespace1", "service1v1",
 				"1.2.3.4",
 				map[string]int{"port1": 8080},
 				map[int]*backendPort{8080: {8080}},
 			),
-			"service1v2": testServiceWithTargetPort(
+			testServiceWithTargetPort(
+				"namespace1", "service1v2",
 				"1.2.3.5",
 				map[string]int{"port1": 8080},
 				map[int]*backendPort{8080: {8080}},
@@ -41,48 +43,54 @@ func TestLBWithTrafficControl(t *testing.T) {
 		},
 	}
 
-	endpoints := endpoints{
-		"namespace1": map[string]endpoint{
-			"service1v1": {Subsets: []*subset{
-				{
-					Addresses: []*address{{
-						IP: "42.0.1.2",
-					}},
-					Ports: []*port{{
-						Name: "port1",
-						Port: 8080,
-					}},
+	endpoints := &endpointList{
+		[]*endpoint{
+			{
+				Meta: &metadata{Namespace: "namespace1", Name: "service1v1"},
+				Subsets: []*subset{
+					{
+						Addresses: []*address{{
+							IP: "42.0.1.2",
+						}},
+						Ports: []*port{{
+							Name: "port1",
+							Port: 8080,
+						}},
+					},
+					{
+						Addresses: []*address{{
+							IP: "42.0.1.3",
+						}},
+						Ports: []*port{{
+							Name: "port1",
+							Port: 8080,
+						}},
+					},
 				},
-				{
-					Addresses: []*address{{
-						IP: "42.0.1.3",
-					}},
-					Ports: []*port{{
-						Name: "port1",
-						Port: 8080,
-					}},
+			},
+			{
+				Meta: &metadata{Namespace: "namespace1", Name: "service1v2"},
+				Subsets: []*subset{
+					{
+						Addresses: []*address{{
+							IP: "42.0.1.4",
+						}},
+						Ports: []*port{{
+							Name: "port1",
+							Port: 8080,
+						}},
+					},
+					{
+						Addresses: []*address{{
+							IP: "42.0.1.5",
+						}},
+						Ports: []*port{{
+							Name: "port1",
+							Port: 8080,
+						}},
+					},
 				},
-			}},
-			"service1v2": {Subsets: []*subset{
-				{
-					Addresses: []*address{{
-						IP: "42.0.1.4",
-					}},
-					Ports: []*port{{
-						Name: "port1",
-						Port: 8080,
-					}},
-				},
-				{
-					Addresses: []*address{{
-						IP: "42.0.1.5",
-					}},
-					Ports: []*port{{
-						Name: "port1",
-						Port: 8080,
-					}},
-				},
-			}},
+			},
 		},
 	}
 

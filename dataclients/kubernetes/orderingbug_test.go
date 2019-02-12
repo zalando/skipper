@@ -98,42 +98,61 @@ const ingressDocFail = `{
 	}]
 }`
 
-// the difference is irrelevant
-const serviceDocV1 = `{
-	"spec": {
-		"clusterIP": "10.0.0.1",
-		"ports": [{
-			"name": "port",
-			"port": 80
-		}]
-	}
+const servicesDoc = `{
+  "items": [
+    {
+      "metadata": {
+        "namespace": "default",
+        "name": "sszuecs-demo-v1"
+      },
+      "spec": {
+        "clusterIP": "10.0.0.1",
+        "ports": [
+          {
+            "name": "port",
+            "port": 80
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "default",
+        "name": "sszuecs-demo-v2"
+      },
+      "spec": {
+        "clusterIP": "10.0.0.2",
+        "ports": [
+          {
+            "name": "port",
+            "port": 80
+          }
+        ]
+      }
+    }
+  ]
 }`
 
-// the difference is irrelevant
-const serviceDocV2 = `{
-	"spec": {
-		"clusterIP": "10.0.0.2",
-		"ports": [{
-			"name": "port",
-			"port": 80
-		}]
-	}
-}`
-
-type api string
+type api struct {
+	ingresses []byte
+	services  []byte
+}
 
 func (api api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/api/v1/namespaces/default/services/sszuecs-demo-v1" {
-		w.Write([]byte(serviceDocV1))
+	switch r.URL.Path {
+	case ingressesClusterURI:
+		w.Write(api.ingresses)
 		return
-	}
-
-	if r.URL.Path == "/api/v1/namespaces/default/services/sszuecs-demo-v2" {
-		w.Write([]byte(serviceDocV2))
+	case servicesClusterURI:
+		w.Write(api.services)
 		return
+	case endpointsClusterURI:
+		w.Write([]byte("{}"))
+		return
+	default:
+		w.WriteHeader(http.StatusNotFound)
+		w.Write(nil)
 	}
-
-	w.Write([]byte(api))
 }
 
 func findCustomPredicate(r []*eskip.Route) bool {
@@ -147,7 +166,10 @@ func findCustomPredicate(r []*eskip.Route) bool {
 }
 
 func testOrderingBug(t *testing.T, ingress string) {
-	s := httptest.NewServer(api(ingress))
+	s := httptest.NewServer(api{
+		ingresses: []byte(ingress),
+		services:  []byte(servicesDoc),
+	})
 	defer s.Close()
 
 	c, err := New(Options{KubernetesURL: s.URL})
