@@ -10,6 +10,7 @@ type pathInfo struct {
 	ApplicationId  string
 	ApiId          string
 	PathTemplate   string
+	PathLabel      string
 	Matcher        *regexp.Regexp
 	ClientTracking *clientTrackingInfo
 	CommonPrefix   string
@@ -19,7 +20,7 @@ type pathInfo struct {
 	metricPrefixedPerClient map[string]*clientMetricNames
 }
 
-func newPathInfo(applicationId, apiId, pathTemplate string, clientTracking *clientTrackingInfo) *pathInfo {
+func newPathInfo(applicationId, apiId, pathTemplate string, pathLabel string, clientTracking *clientTrackingInfo) *pathInfo {
 	commonPrefix := applicationId + "." + apiId + "."
 	var metricPrefixedPerClient map[string]*clientMetricNames
 	if clientTracking != nil {
@@ -29,6 +30,7 @@ func newPathInfo(applicationId, apiId, pathTemplate string, clientTracking *clie
 		ApplicationId:           applicationId,
 		ApiId:                   apiId,
 		PathTemplate:            pathTemplate,
+		PathLabel:               pathLabel,
 		metricPrefixedPerClient: metricPrefixedPerClient,
 		ClientTracking:          clientTracking,
 		CommonPrefix:            commonPrefix,

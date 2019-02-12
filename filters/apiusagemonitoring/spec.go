@@ -13,8 +13,8 @@ import (
 const (
 	Name = "apiUsageMonitoring"
 
-	unknown = "{unknown}"
-	noMatch = "{no-match}"
+	unknownPlaceholder = "{unknown}"
+	noMatchPlaceholder = "{no-match}"
 
 	regexUrlPathPart     = `.+`
 	regexOptionalSlashes = `\/*`
@@ -72,9 +72,10 @@ func NewApiUsageMonitoring(
 		}
 	}
 	unknownPath := newPathInfo(
-		unknown,
-		unknown,
-		noMatch,
+		unknownPlaceholder,
+		unknownPlaceholder,
+		noMatchPlaceholder,
+		noMatchPlaceholder,
 		unknownPathClientTracking,
 	)
 	spec := &apiUsageMonitoringSpec{
@@ -158,6 +159,7 @@ func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(paths []*pathInfo) *pathIn
 		return newPathInfo(
 			*applicationId,
 			s.unknownPath.ApiId,
+			s.unknownPath.PathLabel,
 			s.unknownPath.PathTemplate,
 			s.unknownPath.ClientTracking)
 	}
@@ -171,7 +173,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 	for apiIndex, api := range apis {
 
 		applicationId := api.ApplicationId
-		if api.ApplicationId == "" {
+		if applicationId == "" {
 			log.Errorf("args[%d] ignored: does not specify an application_id", apiIndex)
 			continue
 		}
@@ -200,10 +202,10 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			}
 
 			// Normalize path template and get regular expression from it
-			normalisedPathTemplate, regExStr := generateRegExpStringForPathTemplate(template)
+			normalisedPathTemplate, regExStr, pathLabel := generateRegExpStringForPathTemplate(template)
 
 			// Create new `pathInfo` with normalized PathTemplate
-			info := newPathInfo(applicationId, apiId, normalisedPathTemplate, clientTrackingInfo)
+			info := newPathInfo(applicationId, apiId, normalisedPathTemplate, pathLabel, clientTrackingInfo)
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {
@@ -280,10 +282,11 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 
 // generateRegExpStringForPathTemplate normalizes the given path template and
 // creates a regular expression from it.
-func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTemplate, matcher string) {
+func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTemplate, matcher, pathLabel string) {
 	pathParts := strings.Split(pathTemplate, "/")
 	matcherPathParts := make([]string, 0, len(pathParts))
 	normalizedPathTemplateParts := make([]string, 0, len(pathParts))
+	pathLabelParts := make([]string, 0, len(pathParts))
 	for _, p := range pathParts {
 		if p == "" {
 			continue
@@ -293,10 +296,13 @@ func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTem
 			// this part is not a placeholder: match it exactly
 			matcherPathParts = append(matcherPathParts, p)
 			normalizedPathTemplateParts = append(normalizedPathTemplateParts, p)
+			pathLabelParts = append(pathLabelParts, p)
+
 		} else {
 			// this part is a placeholder: match a wildcard for it
 			matcherPathParts = append(matcherPathParts, regexUrlPathPart)
-			normalizedPathTemplateParts = append(normalizedPathTemplateParts, fmt.Sprintf("{%s}", placeholderName))
+			normalizedPathTemplateParts = append(normalizedPathTemplateParts, ":"+placeholderName)
+			pathLabelParts = append(pathLabelParts, "{"+placeholderName+"}")
 		}
 	}
 	rawRegEx := &strings.Builder{}
@@ -308,6 +314,8 @@ func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTem
 
 	matcher = rawRegEx.String()
 	normalizedPathTemplate = strings.Join(normalizedPathTemplateParts, "/")
+	pathLabel = strings.Join(pathLabelParts, "/")
+
 	return
 }
 

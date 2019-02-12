@@ -233,13 +233,13 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 			{
 				ApplicationId: "my_app",
 				ApiId:         "my_api",
-				PathTemplate:  "foo/orders/{order-id}/order_item/{order-item-id}",
+				PathTemplate:  "foo/orders/:order-id/order_item/:order-item-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/order_item\\/.+\\/*$"),
 			},
 			{
 				ApplicationId: "my_app",
 				ApiId:         "my_api",
-				PathTemplate:  "foo/orders/{order-id}",
+				PathTemplate:  "foo/orders/:order-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/*$"),
 			},
 			{
@@ -251,7 +251,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 			{
 				ApplicationId: "my_app",
 				ApiId:         "my_api",
-				PathTemplate:  "foo/customers/{customer-id}",
+				PathTemplate:  "foo/customers/:customer-id",
 				Matcher:       matcher("^\\/*foo\\/customers\\/.+\\/*$"),
 			},
 			{
@@ -320,13 +320,13 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 			{
 				ApplicationId: "my_app",
 				ApiId:         "orders_api",
-				PathTemplate:  "foo/orders/{order-id}/order_item/{order-item-id}",
+				PathTemplate:  "foo/orders/:order-id/order_item/:order-item-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/order_item\\/.+\\/*$"),
 			},
 			{
 				ApplicationId: "my_app",
 				ApiId:         "orders_api",
-				PathTemplate:  "foo/orders/{order-id}",
+				PathTemplate:  "foo/orders/:order-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/*$"),
 			},
 			{
@@ -338,7 +338,7 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 			{
 				ApplicationId: "my_app",
 				ApiId:         "customers_api",
-				PathTemplate:  "foo/customers/{customer-id}",
+				PathTemplate:  "foo/customers/:customer-id",
 				Matcher:       matcher("^\\/*foo\\/customers\\/.+\\/*$"),
 			},
 			{
@@ -375,13 +375,13 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 			{
 				ApplicationId: "my_order_app",
 				ApiId:         "orders_api",
-				PathTemplate:  "foo/orders/{order-id}/order_item/{order-item-id}",
+				PathTemplate:  "foo/orders/:order-id/order_item/:order-item-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/order_item\\/.+\\/*$"),
 			},
 			{
 				ApplicationId: "my_order_app",
 				ApiId:         "orders_api",
-				PathTemplate:  "foo/orders/{order-id}",
+				PathTemplate:  "foo/orders/:order-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/*$"),
 			},
 			{
@@ -434,7 +434,7 @@ func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 			{
 				ApplicationId: "my_app",
 				ApiId:         "orders_api",
-				PathTemplate:  "foo/{a}",
+				PathTemplate:  "foo/:a",
 				Matcher:       matcher("^\\/*foo\\/.+\\/*$"),
 			},
 		})

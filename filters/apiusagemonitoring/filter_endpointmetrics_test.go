@@ -318,8 +318,8 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 		return spec.CreateFilter(args)
 	}
 	for _, c := range []struct {
-		requestPath                 string
-		expectedMatchedPathTemplate string
+		requestPath              string
+		expectedMatchedPathLabel string
 	}{
 		{"foo/1", "foo/{a}"},
 		{"foo/1/2", "foo/{a}/{b}"},
@@ -336,7 +336,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 				fmt.Sprintf("https://www.example.org/%s", c.requestPath),
 				204,
 				func(t *testing.T, pass int, m *metricstest.MockMetrics) {
-					pre := "apiUsageMonitoring.custom.my_app.my_api.GET." + c.expectedMatchedPathTemplate + ".*.*."
+					pre := "apiUsageMonitoring.custom.my_app.my_api.GET." + c.expectedMatchedPathLabel + ".*.*."
 					m.WithCounters(func(counters map[string]int64) {
 						assert.Equal(t,
 							map[string]int64{

@@ -104,40 +104,40 @@ func (f *apiUsageMonitoringFilter) getClientMetricsNames(realmClientKey string, 
 	return prefixes
 }
 
-const format = "%s.%s"
+const unknownUnknown = unknownPlaceholder + "." + unknownPlaceholder
 
 // getRealmClientKey generates the proper <realm>.<client> part of the client metrics name.
 func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *pathInfo) string {
 	// no JWT ==> {unknown}.{unknown}
 	jwt := parseJwtBody(r)
 	if jwt == nil {
-		return fmt.Sprintf(format, unknown, unknown)
+		return unknownUnknown
 	}
 
 	// no realm in JWT ==> {unknown}.{unknown}
 	realm, ok := jwt.getOneOfString(f.Spec.realmKeys)
 	if !ok {
-		return fmt.Sprintf(format, unknown, unknown)
+		return unknownUnknown
 	}
 
 	// realm is not one of the realms to be tracked ==> realm.{all}
 	if !contains(path.ClientTracking.RealmsToTrack, realm) {
-		return fmt.Sprintf(format, realm, "{all}")
+		return realm + ".{all}"
 	}
 
 	// no client in JWT ==> realm.{unknown}
 	client, ok := jwt.getOneOfString(f.Spec.clientKeys)
 	if !ok {
-		return fmt.Sprintf(format, realm, unknown)
+		return realm + "." + unknownPlaceholder
 	}
 
 	// if client does not match ==> realm.{no-match}
 	if !path.ClientTracking.ClientTrackingMatcher.MatchString(client) {
-		return fmt.Sprintf(format, realm, noMatch)
+		return realm + "." + noMatchPlaceholder
 	}
 
 	// all matched ==> realm.client
-	return fmt.Sprintf(format, realm, client)
+	return realm + "." + client
 }
 
 func contains(strings []string, s string) bool {
@@ -167,7 +167,7 @@ func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricN
 	methodIndex, ok := methodToIndex[method]
 	if !ok {
 		methodIndex = methodIndexUnknown
-		method = unknown
+		method = unknownPlaceholder
 	}
 
 	if p := path.metricPrefixesPerMethod[methodIndex]; p != nil {
@@ -178,7 +178,7 @@ func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricN
 
 // createAndCacheMetricsNames generates metrics names and cache them.
 func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) *endpointMetricNames {
-	endpointPrefix := path.CommonPrefix + method + "." + path.PathTemplate + ".*.*."
+	endpointPrefix := path.CommonPrefix + method + "." + path.PathLabel + ".*.*."
 	prefixes := &endpointMetricNames{
 		endpointPrefix: endpointPrefix,
 		countAll:       endpointPrefix + metricCountAll,
