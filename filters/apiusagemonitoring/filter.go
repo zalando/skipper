@@ -104,45 +104,40 @@ func (f *apiUsageMonitoringFilter) getClientMetricsNames(realmClientKey string, 
 	return prefixes
 }
 
-// getRealmClientKey generates the proper <Realm>.<Client ID> part of the
-// client metrics name.
-func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *pathInfo) string {
-	const (
-		unknownRealmClient           = unknownElementPlaceholder + "." + unknownElementPlaceholder
-		unknownClientAfterKnownRealm = "." + unknownElementPlaceholder
-	)
+const unknownUnknown = unknownPlaceholder + "." + unknownPlaceholder
 
-	// no JWT ==>  <unknown>.<unknown>
+// getRealmClientKey generates the proper <realm>.<client> part of the client metrics name.
+func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *pathInfo) string {
+	// no JWT ==> {unknown}.{unknown}
 	jwt := parseJwtBody(r)
 	if jwt == nil {
-		return unknownRealmClient
+		return unknownUnknown
 	}
 
-	// no realm in JWT ==>  <unknown>.<unknown>
+	// no realm in JWT ==> {unknown}.{unknown}
 	realm, ok := jwt.getOneOfString(f.Spec.realmKeys)
 	if !ok {
-		return unknownRealmClient
+		return unknownUnknown
 	}
 
-	// no matcher ==>  realm.<unknown>
-	if path.ClientTracking.ClientTrackingMatcher == nil {
-		return realm + unknownClientAfterKnownRealm
+	// realm is not one of the realmsTrackingPattern to be tracked ==> realm.{all}
+	if !path.ClientTracking.RealmsTrackingMatcher.MatchString(realm) {
+		return realm + ".{all}"
 	}
 
-	// no client in JWT ==>  realm.<unknown>
+	// no client in JWT ==> realm.{unknown}
 	client, ok := jwt.getOneOfString(f.Spec.clientKeys)
 	if !ok {
-		return realm + unknownClientAfterKnownRealm
+		return realm + "." + unknownPlaceholder
 	}
 
-	// if `realm.client` does not match ==>  realm.<unknown>
-	realmAndClient := realm + "." + client
-	if !path.ClientTracking.ClientTrackingMatcher.MatchString(realmAndClient) {
-		return realm + unknownClientAfterKnownRealm
+	// if client does not match ==> realm.{no-match}
+	if !path.ClientTracking.ClientTrackingMatcher.MatchString(client) {
+		return realm + "." + noMatchPlaceholder
 	}
 
-	// all matched ==>  realm.client
-	return realmAndClient
+	// all matched ==> realm.client
+	return realm + "." + client
 }
 
 // resolvePath tries to match the request's path with one of the configured path template.
@@ -163,7 +158,7 @@ func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricN
 	methodIndex, ok := methodToIndex[method]
 	if !ok {
 		methodIndex = methodIndexUnknown
-		method = unknownElementPlaceholder
+		method = unknownPlaceholder
 	}
 
 	if p := path.metricPrefixesPerMethod[methodIndex]; p != nil {
@@ -174,7 +169,7 @@ func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricN
 
 // createAndCacheMetricsNames generates metrics names and cache them.
 func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) *endpointMetricNames {
-	endpointPrefix := path.CommonPrefix + method + "." + path.PathTemplate + ".*.*."
+	endpointPrefix := path.CommonPrefix + method + "." + path.PathLabel + ".*.*."
 	prefixes := &endpointMetricNames{
 		endpointPrefix: endpointPrefix,
 		countAll:       endpointPrefix + metricCountAll,

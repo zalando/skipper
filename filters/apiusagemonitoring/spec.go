@@ -2,6 +2,7 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
@@ -12,7 +13,8 @@ import (
 const (
 	Name = "apiUsageMonitoring"
 
-	unknownElementPlaceholder = "<unknown>"
+	unknownPlaceholder = "{unknown}"
+	noMatchPlaceholder = "{no-match}"
 
 	regexUrlPathPart     = `.+`
 	regexOptionalSlashes = `\/*`
@@ -30,14 +32,14 @@ func NewApiUsageMonitoring(
 	enabled bool,
 	realmKeys string,
 	clientKeys string,
-	defaultClientTrackingPattern string,
+	realmsTrackingPattern string,
 ) filters.Spec {
 	if !enabled {
-		log.Debugf("Filter %q is not enabled. Spec returns `noop` filters.", Name)
+		log.Debugf("filter %q is not enabled. spec returns `noop` filters.", Name)
 		return &noopSpec{&noopFilter{}}
 	}
 
-	// Parse realm keys comma separated list
+	// parse realm keys comma separated list
 	var realmKeyList []string
 	for _, key := range strings.Split(realmKeys, ",") {
 		strippedKey := strings.TrimSpace(key)
@@ -45,7 +47,7 @@ func NewApiUsageMonitoring(
 			realmKeyList = append(realmKeyList, strippedKey)
 		}
 	}
-	// Parse client keys comma separated list
+	// parse client keys comma separated list
 	var clientKeyList []string
 	for _, key := range strings.Split(clientKeys, ",") {
 		strippedKey := strings.TrimSpace(key)
@@ -53,27 +55,39 @@ func NewApiUsageMonitoring(
 			clientKeyList = append(clientKeyList, strippedKey)
 		}
 	}
+	// compile realms regex
+	realmsTrackingMatcher, err := regexp.Compile(realmsTrackingPattern)
+	if err != nil {
+		log.Errorf(
+			"api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config) ignored: error compiling regular expression %q: %v",
+			realmsTrackingPattern, err)
+		realmsTrackingMatcher = regexp.MustCompile("services")
+		log.Warn("defaulting to 'services' as api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config)")
+	}
 
 	// Create the filter Spec
 	var unknownPathClientTracking *clientTrackingInfo = nil // client metrics feature is disabled
 	if realmKeys != "" {
 		unknownPathClientTracking = &clientTrackingInfo{
-			ClientTrackingMatcher: nil, // do not match anything (track `realm.<unknown>`)
+			ClientTrackingMatcher: nil, // do not match anything (track `realm.{unknown}`)
+			RealmsTrackingMatcher: realmsTrackingMatcher,
 		}
 	}
 	unknownPath := newPathInfo(
-		unknownElementPlaceholder,
-		unknownElementPlaceholder,
-		unknownElementPlaceholder,
+		unknownPlaceholder,
+		unknownPlaceholder,
+		noMatchPlaceholder,
+		noMatchPlaceholder,
 		unknownPathClientTracking,
 	)
+
 	spec := &apiUsageMonitoringSpec{
-		realmKeys:                    realmKeyList,
-		clientKeys:                   clientKeyList,
-		unknownPath:                  unknownPath,
-		defaultClientTrackingPattern: defaultClientTrackingPattern,
+		realmKeys:             realmKeyList,
+		clientKeys:            clientKeyList,
+		unknownPath:           unknownPath,
+		realmsTrackingMatcher: realmsTrackingMatcher,
 	}
-	log.Debugf("Created filter spec: %+v", spec)
+	log.Debugf("created filter spec: %+v", spec)
 	return spec
 }
 
@@ -86,10 +100,10 @@ type apiConfig struct {
 }
 
 type apiUsageMonitoringSpec struct {
-	realmKeys                    []string
-	clientKeys                   []string
-	unknownPath                  *pathInfo
-	defaultClientTrackingPattern string
+	realmKeys             []string
+	clientKeys            []string
+	realmsTrackingMatcher *regexp.Regexp
+	unknownPath           *pathInfo
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
@@ -99,12 +113,15 @@ func (s *apiUsageMonitoringSpec) Name() string {
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
 	apis := s.parseJsonConfiguration(args)
 	paths := s.buildPathInfoListFromConfiguration(apis)
-	unknownPath := s.buildUnknownPathInfo(apis)
+
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no valid configurations")
+	}
 
 	filter = &apiUsageMonitoringFilter{
 		Spec:        s,
 		Paths:       paths,
-		UnknownPath: unknownPath,
+		UnknownPath: s.buildUnknownPathInfo(paths),
 	}
 	return
 }
@@ -118,7 +135,7 @@ func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*a
 			continue
 		}
 		config := &apiConfig{
-			ClientTrackingPattern: s.defaultClientTrackingPattern,
+			ClientTrackingPattern: ".*", // track all clients per default
 		}
 		decoder := json.NewDecoder(strings.NewReader(rawJsonConfiguration))
 		decoder.DisallowUnknownFields()
@@ -132,19 +149,20 @@ func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*a
 	return apis
 }
 
-func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(apis []*apiConfig) *pathInfo {
+func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(paths []*pathInfo) *pathInfo {
 	var applicationId *string
-	for _, api := range apis {
-		if applicationId != nil && *applicationId != api.ApplicationId {
+	for _, path := range paths {
+		if applicationId != nil && *applicationId != path.ApplicationId {
 			return s.unknownPath
 		}
-		applicationId = &api.ApplicationId
+		applicationId = &path.ApplicationId
 	}
 
 	if applicationId != nil && *applicationId != "" {
 		return newPathInfo(
 			*applicationId,
 			s.unknownPath.ApiId,
+			s.unknownPath.PathLabel,
 			s.unknownPath.PathTemplate,
 			s.unknownPath.ClientTracking)
 	}
@@ -155,32 +173,27 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 	var paths []*pathInfo
 	existingPathTemplates := make(map[string]*pathInfo)
 	existingRegEx := make(map[string]*pathInfo)
-	for apiIndex, api := range apis {
 
-		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
-			log.Errorf(
-				"args[%d] ignored: does not specify any path template",
-				apiIndex)
-			continue
-		}
+	for apiIndex, api := range apis {
 
 		applicationId := api.ApplicationId
 		if applicationId == "" {
-			log.Errorf(
-				"args[%d] does not specify an application ID, defaulting to %q",
-				apiIndex, unknownElementPlaceholder)
-			applicationId = unknownElementPlaceholder
+			log.Errorf("args[%d] ignored: does not specify an application_id", apiIndex)
+			continue
 		}
 
 		apiId := api.ApiId
 		if apiId == "" {
-			log.Errorf(
-				"args[%d] does not specify an API ID, defaulting to %q",
-				apiIndex, unknownElementPlaceholder)
-			apiId = unknownElementPlaceholder
+			log.Errorf("args[%d] ignored: does not specify an api_id", apiIndex)
+			continue
 		}
 
-		clientTrackingInfo := s.buildClientTrackingInfo(apiIndex, api)
+		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
+			log.Errorf("args[%d] ignored: does not specify any path template", apiIndex)
+			continue
+		}
+
+		clientTrackingInfo := s.buildClientTrackingInfo(apiIndex, api, s.realmsTrackingMatcher)
 
 		for templateIndex, template := range api.PathTemplates {
 
@@ -193,10 +206,10 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			}
 
 			// Normalize path template and get regular expression from it
-			normalisedPathTemplate, regExStr := generateRegExpStringForPathTemplate(template)
+			normalisedPathTemplate, regExStr, pathLabel := generateRegExpStringForPathTemplate(template)
 
 			// Create new `pathInfo` with normalized PathTemplate
-			info := newPathInfo(applicationId, apiId, normalisedPathTemplate, clientTrackingInfo)
+			info := newPathInfo(applicationId, apiId, normalisedPathTemplate, pathLabel, clientTrackingInfo)
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {
@@ -237,7 +250,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 	return paths
 }
 
-func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig) *clientTrackingInfo {
+func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig, realmsTrackingMatcher *regexp.Regexp) *clientTrackingInfo {
 	if len(s.realmKeys) == 0 {
 		log.Infof(
 			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-keys" not provided, not tracking client metrics`,
@@ -267,15 +280,17 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 
 	return &clientTrackingInfo{
 		ClientTrackingMatcher: clientTrackingMatcher,
+		RealmsTrackingMatcher: realmsTrackingMatcher,
 	}
 }
 
 // generateRegExpStringForPathTemplate normalizes the given path template and
 // creates a regular expression from it.
-func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTemplate, matcher string) {
+func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTemplate, matcher, pathLabel string) {
 	pathParts := strings.Split(pathTemplate, "/")
 	matcherPathParts := make([]string, 0, len(pathParts))
 	normalizedPathTemplateParts := make([]string, 0, len(pathParts))
+	pathLabelParts := make([]string, 0, len(pathParts))
 	for _, p := range pathParts {
 		if p == "" {
 			continue
@@ -285,10 +300,13 @@ func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTem
 			// this part is not a placeholder: match it exactly
 			matcherPathParts = append(matcherPathParts, p)
 			normalizedPathTemplateParts = append(normalizedPathTemplateParts, p)
+			pathLabelParts = append(pathLabelParts, p)
+
 		} else {
 			// this part is a placeholder: match a wildcard for it
 			matcherPathParts = append(matcherPathParts, regexUrlPathPart)
 			normalizedPathTemplateParts = append(normalizedPathTemplateParts, ":"+placeholderName)
+			pathLabelParts = append(pathLabelParts, "{"+placeholderName+"}")
 		}
 	}
 	rawRegEx := &strings.Builder{}
@@ -300,6 +318,8 @@ func generateRegExpStringForPathTemplate(pathTemplate string) (normalizedPathTem
 
 	matcher = rawRegEx.String()
 	normalizedPathTemplate = strings.Join(normalizedPathTemplateParts, "/")
+	pathLabel = strings.Join(pathLabelParts, "/")
+
 	return
 }
 
