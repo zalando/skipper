@@ -73,7 +73,7 @@ const (
 	defaultApiUsageMonitoringRealmKeys                    = ""
 	defaultApiUsageMonitoringClientKeys                   = "sub"
 	defaultApiUsageMonitoringDefaultClientTrackingPattern = ""
-	defaultApiUsageMonitoringRealms                       = "services"
+	defaultApiUsageMonitoringRealmsTrackingPattern        = "services"
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -170,7 +170,7 @@ const (
 	apiUsageMonitoringRealmKeysUsage                    = "name of the property in the JWT payload that contains the authority realm"
 	apiUsageMonitoringClientKeysUsage                   = "comma separated list of names of the properties in the JWT body that contains the client ID"
 	apiUsageMonitoringDefaultClientTrackingPatternUsage = "*Deprecated*: set `client_tracking_pattern` directly on filter"
-	apiUsageMonitoringRealmsUsage                       = "comma separated list of realms to be monitored (defaults to 'services')"
+	apiUsageMonitoringRealmsTrackingPatternUsage        = "regular expression used for matching monitored realms (defaults is 'services')"
 
 	// connections, timeouts:
 	idleConnsPerHostUsage             = "maximum idle connections per backend host"
@@ -312,7 +312,7 @@ var (
 	apiUsageMonitoringRealmKeys                    string
 	apiUsageMonitoringClientKeys                   string
 	apiUsageMonitoringDefaultClientTrackingPattern string
-	apiUsageMonitoringRealms                       string
+	apiUsageMonitoringRealmsTrackingPattern        string
 
 	// connections, timeouts:
 	idleConnsPerHost             int
@@ -452,7 +452,7 @@ func init() {
 	flag.StringVar(&apiUsageMonitoringRealmKeys, "api-usage-monitoring-realm-keys", defaultApiUsageMonitoringRealmKeys, apiUsageMonitoringRealmKeysUsage)
 	flag.StringVar(&apiUsageMonitoringClientKeys, "api-usage-monitoring-client-keys", defaultApiUsageMonitoringClientKeys, apiUsageMonitoringClientKeysUsage)
 	flag.StringVar(&apiUsageMonitoringDefaultClientTrackingPattern, "api-usage-monitoring-default-client-tracking-pattern", defaultApiUsageMonitoringDefaultClientTrackingPattern, apiUsageMonitoringDefaultClientTrackingPatternUsage)
-	flag.StringVar(&apiUsageMonitoringRealms, "api-usage-monitoring-realms", defaultApiUsageMonitoringRealms, apiUsageMonitoringRealmsUsage)
+	flag.StringVar(&apiUsageMonitoringRealmsTrackingPattern, "api-usage-monitoring-realms-tracking-pattern", defaultApiUsageMonitoringRealmsTrackingPattern, apiUsageMonitoringRealmsTrackingPatternUsage)
 
 	// connections, timeouts:
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
@@ -657,7 +657,7 @@ func main() {
 		ApiUsageMonitoringRealmKeys:                    apiUsageMonitoringRealmKeys,
 		ApiUsageMonitoringClientKeys:                   apiUsageMonitoringClientKeys,
 		ApiUsageMonitoringDefaultClientTrackingPattern: apiUsageMonitoringDefaultClientTrackingPattern,
-		ApiUsageMonitoringRealms:                       apiUsageMonitoringRealms,
+		ApiUsageMonitoringRealmsTrackingPattern:        apiUsageMonitoringRealmsTrackingPattern,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,

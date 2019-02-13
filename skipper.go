@@ -495,7 +495,7 @@ type Options struct {
 	ApiUsageMonitoringRealmKeys                    string
 	ApiUsageMonitoringClientKeys                   string
 	ApiUsageMonitoringDefaultClientTrackingPattern string
-	ApiUsageMonitoringRealms                       string
+	ApiUsageMonitoringRealmsTrackingPattern        string
 
 	// WebhookTimeout sets timeout duration while calling a custom webhook auth service
 	WebhookTimeout time.Duration
@@ -764,7 +764,7 @@ func Run(o Options) error {
 			o.ApiUsageMonitoringEnable,
 			o.ApiUsageMonitoringRealmKeys,
 			o.ApiUsageMonitoringClientKeys,
-			o.ApiUsageMonitoringRealms,
+			o.ApiUsageMonitoringRealmsTrackingPattern,
 		),
 	)
 

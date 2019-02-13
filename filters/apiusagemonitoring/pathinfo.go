@@ -91,5 +91,5 @@ var (
 
 type clientTrackingInfo struct {
 	ClientTrackingMatcher *regexp.Regexp
-	RealmsToTrack         []string
+	RealmsTrackingMatcher *regexp.Regexp
 }

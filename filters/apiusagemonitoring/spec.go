@@ -32,7 +32,7 @@ func NewApiUsageMonitoring(
 	enabled bool,
 	realmKeys string,
 	clientKeys string,
-	realms string,
+	realmsTrackingPattern string,
 ) filters.Spec {
 	if !enabled {
 		log.Debugf("filter %q is not enabled. spec returns `noop` filters.", Name)
@@ -55,20 +55,22 @@ func NewApiUsageMonitoring(
 			clientKeyList = append(clientKeyList, strippedKey)
 		}
 	}
-	// parse comma separated list of realms to monitor
-	var realmValues []string
-	for _, key := range strings.Split(realms, ",") {
-		strippedKey := strings.TrimSpace(key)
-		if strippedKey != "" {
-			realmValues = append(realmValues, strippedKey)
-		}
+	// compile realms regex
+	realmsTrackingMatcher, err := regexp.Compile(realmsTrackingPattern)
+	if err != nil {
+		log.Errorf(
+			"api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config) ignored: error compiling regular expression %q: %v",
+			realmsTrackingPattern, err)
+		realmsTrackingMatcher = regexp.MustCompile("services")
+		log.Warn("defaulting to 'services' as api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config)")
 	}
 
 	// Create the filter Spec
 	var unknownPathClientTracking *clientTrackingInfo = nil // client metrics feature is disabled
 	if realmKeys != "" {
 		unknownPathClientTracking = &clientTrackingInfo{
-			ClientTrackingMatcher: nil, // do not match anything (track `realm.<unknown>`)
+			ClientTrackingMatcher: nil, // do not match anything (track `realm.{unknown}`)
+			RealmsTrackingMatcher: realmsTrackingMatcher,
 		}
 	}
 	unknownPath := newPathInfo(
@@ -78,11 +80,12 @@ func NewApiUsageMonitoring(
 		noMatchPlaceholder,
 		unknownPathClientTracking,
 	)
+
 	spec := &apiUsageMonitoringSpec{
-		realmKeys:   realmKeyList,
-		clientKeys:  clientKeyList,
-		unknownPath: unknownPath,
-		realms:      realmValues,
+		realmKeys:             realmKeyList,
+		clientKeys:            clientKeyList,
+		unknownPath:           unknownPath,
+		realmsTrackingMatcher: realmsTrackingMatcher,
 	}
 	log.Debugf("created filter spec: %+v", spec)
 	return spec
@@ -97,10 +100,10 @@ type apiConfig struct {
 }
 
 type apiUsageMonitoringSpec struct {
-	realmKeys   []string
-	clientKeys  []string
-	realms      []string
-	unknownPath *pathInfo
+	realmKeys             []string
+	clientKeys            []string
+	realmsTrackingMatcher *regexp.Regexp
+	unknownPath           *pathInfo
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
@@ -124,7 +127,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 }
 
 func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*apiConfig {
-	apis := make([]*apiConfig, 0)
+	apis := make([]*apiConfig, 0, len(args))
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)
 		if !ok {
@@ -170,6 +173,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 	var paths []*pathInfo
 	existingPathTemplates := make(map[string]*pathInfo)
 	existingRegEx := make(map[string]*pathInfo)
+
 	for apiIndex, api := range apis {
 
 		applicationId := api.ApplicationId
@@ -189,7 +193,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			continue
 		}
 
-		clientTrackingInfo := s.buildClientTrackingInfo(apiIndex, api, s.realms)
+		clientTrackingInfo := s.buildClientTrackingInfo(apiIndex, api, s.realmsTrackingMatcher)
 
 		for templateIndex, template := range api.PathTemplates {
 
@@ -246,7 +250,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 	return paths
 }
 
-func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig, realmsToTrack []string) *clientTrackingInfo {
+func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig, realmsTrackingMatcher *regexp.Regexp) *clientTrackingInfo {
 	if len(s.realmKeys) == 0 {
 		log.Infof(
 			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-keys" not provided, not tracking client metrics`,
@@ -276,7 +280,7 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 
 	return &clientTrackingInfo{
 		ClientTrackingMatcher: clientTrackingMatcher,
-		RealmsToTrack:         realmsToTrack,
+		RealmsTrackingMatcher: realmsTrackingMatcher,
 	}
 }
 

@@ -1050,7 +1050,7 @@ For the client based metrics, additional flags need to be specified.
 |--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `api-usage-monitoring-realm-keys`                      | Name of the property in the JWT JSON body that contains the name of the _realm_.                                                                                                                                         |
 | `api-usage-monitoring-client-keys`                     | Name of the property in the JWT JSON body that contains the name of the _client_.                                                                                                                                        |
-| `api-usage-monitoring-realms`                          | List of _realms_ to be monitored. Defaults to 'services'.                                                                                                                                                                |
+| `api-usage-monitoring-realms-tracking-pattern`         | RegEx of _realms_ to be monitored. Defaults to 'services'.                                                                                                                                                                |
 
 NOTE: Make sure to activate the metrics flavour proper to your environment using the `metrics-flavour`
 flag in order to get those metrics.
@@ -1058,7 +1058,7 @@ flag in order to get those metrics.
 Example:
 
 ```bash
-skipper -metrics-flavour prometheus -enable-api-usage-monitoring -api-usage-monitoring-realm-keys="realm" -api-usage-monitoring-client-keys="managed-id" api-usage-monitoring-realms="services,users"
+skipper -metrics-flavour prometheus -enable-api-usage-monitoring -api-usage-monitoring-realm-keys="realm" -api-usage-monitoring-client-keys="managed-id" api-usage-monitoring-realms-tracking-pattern="services,users"
 ```
 
 The structure of the metrics is all of those elements, separated by `.` dots:
@@ -1227,7 +1227,7 @@ Here is the _Prometheus_ query to obtain it.
 histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.*.*.latency"}[60s])) by (le, key))
 ```
 
-NOTE: Non configured paths will be tracked with `<unknown>` application ID, API ID
+NOTE: Non configured paths will be tracked with `{unknown}` application ID, API ID
 and path template.
 
 However, if all `application_id`s of your configuration refer to the same application,
@@ -1235,4 +1235,5 @@ the filter assume that also non configured paths will be directed to this applic
 E.g.:
 
 ```
-apiUsageMonitoring.custom.my-app.<unknown>.GET.<unknown>.*.*.http_count
+apiUsageMonitoring.custom.my-app.{unknown}.GET.{no-match}.*.*.http_count
+```

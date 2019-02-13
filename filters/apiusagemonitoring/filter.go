@@ -120,8 +120,8 @@ func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *path
 		return unknownUnknown
 	}
 
-	// realm is not one of the realms to be tracked ==> realm.{all}
-	if !contains(path.ClientTracking.RealmsToTrack, realm) {
+	// realm is not one of the realmsTrackingPattern to be tracked ==> realm.{all}
+	if !path.ClientTracking.RealmsTrackingMatcher.MatchString(realm) {
 		return realm + ".{all}"
 	}
 
@@ -138,15 +138,6 @@ func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *path
 
 	// all matched ==> realm.client
 	return realm + "." + client
-}
-
-func contains(strings []string, s string) bool {
-	for _, v := range strings {
-		if s == v {
-			return true
-		}
-	}
-	return false
 }
 
 // resolvePath tries to match the request's path with one of the configured path template.

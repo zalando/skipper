@@ -15,7 +15,7 @@ type clientMetricsTest struct {
 
 	expectedEndpointMetricPrefix string
 	expectedClientMetricPrefix   string
-	realms                       string
+	realmsTrackingPattern        string
 }
 
 var (
@@ -38,6 +38,7 @@ func Test_Filter_ClientMetrics_ClientTrackingPatternDoesNotCompile(t *testing.T)
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:                 "realm",
 		clientKeyName:                "client",
+		realmsTrackingPattern:        "service",
 		clientTrackingPattern:        s("(["),
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
@@ -50,11 +51,11 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsKnown(t *testing.T) {
 		realmKeyName:                 "realm",
 		clientKeyName:                "client",
 		clientTrackingPattern:        s(".*"),
+		realmsTrackingPattern:        "services",
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.{unknown}.GET.{no-match}.*.*.",
 		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.{unknown}.*.*.users.{all}.",
-		realms:                       "services",
 	})
 }
 
@@ -78,7 +79,7 @@ func Test_Filter_ClientMetrics_MatchAll(t *testing.T) {
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
 		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.joe.",
-		realms:                       "users",
+		realmsTrackingPattern:        "users",
 	})
 }
 
@@ -97,7 +98,7 @@ func Test_Filter_ClientMetrics_MatchOneOfClientKeyName(t *testing.T) {
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
 		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.services.payments.",
-		realms:                       "services",
+		realmsTrackingPattern:        "services",
 	})
 }
 
@@ -105,7 +106,7 @@ func Test_Filter_ClientMetrics_MatchOneOfClientKeyName_UseFirstMatching(t *testi
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client,sub",
-		realms:                "services",
+		realmsTrackingPattern: "services",
 		clientTrackingPattern: s(".*"),
 		header: http.Header{
 			authorizationHeaderName: {
@@ -125,7 +126,7 @@ func Test_Filter_ClientMetrics_Realm1User1(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:                 "realm",
 		clientKeyName:                "client",
-		realms:                       "users",
+		realmsTrackingPattern:        "users",
 		clientTrackingPattern:        clientTrackingPatternJustSomeUsers,
 		header:                       headerUsersJoe,
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
@@ -137,7 +138,7 @@ func Test_Filter_ClientMetrics_Realm1User0(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client",
-		realms:                "users",
+		realmsTrackingPattern: "users",
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
@@ -156,7 +157,7 @@ func Test_Filter_ClientMetrics_Realm0User1(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client",
-		realms:                "services",
+		realmsTrackingPattern: "services",
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
@@ -175,7 +176,7 @@ func Test_Filter_ClientMetrics_Realm0User0(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client",
-		realms:                "services",
+		realmsTrackingPattern: "services",
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
@@ -194,7 +195,7 @@ func Test_Filter_ClientMetrics_AuthDoesNotHaveBearerPrefix(t *testing.T) {
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client",
-		realms:                "services",
+		realmsTrackingPattern: "services",
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
@@ -290,7 +291,7 @@ func Test_Filter_ClientMetrics_JWTBodyHasNoClient_ShouldTrackRealm(t *testing.T)
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client",
-		realms:                "users",
+		realmsTrackingPattern: "users",
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
 		header: http.Header{
 			authorizationHeaderName: {
@@ -331,7 +332,7 @@ func Test_Filter_ClientMetrics_DefaultClientTrackingPattern_NoClientTrackingPatt
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client",
-		realms:                "services",
+		realmsTrackingPattern: "services",
 		clientTrackingPattern: nil, // no client tracking in route's filter configuration
 		header: http.Header{
 			authorizationHeaderName: {
@@ -350,7 +351,7 @@ func Test_Filter_ClientMetrics_DefaultClientTrackingPattern_NoClientTrackingPatt
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client",
-		realms:                "services",
+		realmsTrackingPattern: "services",
 		clientTrackingPattern: nil, // no client tracking in route's filter configuration
 		header: http.Header{
 			authorizationHeaderName: {
@@ -369,7 +370,7 @@ func Test_Filter_ClientMetrics_EmptyClientTrackingPatternInRouteFilterJSON(t *te
 	testClientMetrics(t, clientMetricsTest{
 		realmKeyName:          "realm",
 		clientKeyName:         "client",
-		realms:                "services",
+		realmsTrackingPattern: "services",
 		clientTrackingPattern: s(""), // no client tracking in route's filter configuration
 		header: http.Header{
 			authorizationHeaderName: {
