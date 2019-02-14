@@ -137,6 +137,7 @@ const (
 	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
 	innkeeperPostRouteFiltersUsage = "filters to be appended to each route loaded from Innkeeper"
 	routesFileUsage                = "file containing route definitions"
+	routesFileJSONUsage            = "file containing static route definitions in JSON format. If routes-file is also set, routes-file-json is ignored"
 	inlineRoutesUsage              = "inline routes in eskip format"
 	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
 	waitFirstRouteLoadUsage        = "prevent starting the listener before the first batch of routes were loaded"
@@ -279,6 +280,7 @@ var (
 	innkeeperPreRouteFilters  string
 	innkeeperPostRouteFilters string
 	routesFile                string
+	routesFileJSON            string
 	inlineRoutes              string
 	sourcePollTimeout         int64
 	waitFirstRouteLoad        bool
@@ -419,6 +421,7 @@ func init() {
 	flag.StringVar(&innkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", innkeeperPreRouteFiltersUsage)
 	flag.StringVar(&innkeeperPostRouteFilters, "innkeeper-post-route-filters", "", innkeeperPostRouteFiltersUsage)
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
+	flag.StringVar(&routesFileJSON, "routes-file-json", "", routesFileJSONUsage)
 	flag.StringVar(&inlineRoutes, "inline-routes", "", inlineRoutesUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
 	flag.BoolVar(&waitFirstRouteLoad, "wait-first-route-load", false, waitFirstRouteLoadUsage)
@@ -634,6 +637,7 @@ func main() {
 		InnkeeperPreRouteFilters:  innkeeperPreRouteFilters,
 		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
 		WatchRoutesFile:           routesFile,
+		WatchRoutesFileJSON:       routesFileJSON,
 		InlineRoutes:              inlineRoutes,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 		WaitFirstRouteLoad:        waitFirstRouteLoad,

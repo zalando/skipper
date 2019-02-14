@@ -13,12 +13,18 @@ type Client struct{ routes []*eskip.Route }
 // Opens an eskip file and parses it, returning a DataClient implementation. If reading or parsing the file
 // fails, returns an error. This implementation doesn't provide file watch.
 func Open(path string) (*Client, error) {
-	content, err := ioutil.ReadFile(path)
+	return LoadFile(path, eskip.ParseBytes)
+}
+
+// Loads a file and parses it with a given parser function, returning a DataClient implementation.
+// If reading or parsing the file fails, returns an error. This implementation doesn't provide file watch.
+func LoadFile(path string, parseFunc eskip.ParseFunc) (*Client, error) {
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	routes, err := eskip.Parse(string(content))
+	routes, err := parseFunc(data)
 	if err != nil {
 		return nil, err
 	}

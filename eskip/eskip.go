@@ -156,6 +156,8 @@ type RouteInfo struct {
 	ParseError error
 }
 
+type ParseFunc func(data []byte) ([]*Route, error)
+
 func (t BackendType) String() string {
 	switch t {
 	case NetworkBackend:
@@ -340,6 +342,11 @@ func Parse(code string) ([]*Route, error) {
 	}
 
 	return routeDefinitions, nil
+}
+
+// Parses a route expression or a routing document to a set of route definitions.
+func ParseBytes(data []byte) ([]*Route, error) {
+	return Parse(string(data))
 }
 
 func partialParse(f string, partialToRoute func(string) string) (*parsedRoute, error) {

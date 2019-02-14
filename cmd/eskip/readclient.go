@@ -47,7 +47,11 @@ func createReadClient(m *medium) (readClient, error) {
 		return &stdinReader{reader: os.Stdin}, nil
 
 	case file:
-		return eskipfile.Open(m.path)
+		if readJSON {
+			return eskipfile.LoadFile(m.path, eskip.ParseJSON)
+		}
+
+		return eskipfile.LoadFile(m.path, eskip.ParseBytes)
 
 	case inline:
 		return &inlineReader{routes: m.eskip}, nil
@@ -85,7 +89,12 @@ func (r *stdinReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 		return nil, err
 	}
 
-	routes, err := eskip.Parse(string(doc))
+	var routes []*eskip.Route
+	if readJSON {
+		routes, err = eskip.ParseJSON(doc)
+	} else {
+		routes, err = eskip.ParseBytes(doc)
+	}
 
 	if err != nil {
 		return nil, err
@@ -95,10 +104,20 @@ func (r *stdinReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 }
 
 func (r *inlineReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
-	routes, err := eskip.Parse(r.routes)
+	var (
+		routes []*eskip.Route
+		err    error
+	)
+	if readJSON {
+		routes, err = eskip.ParseJSON([]byte(r.routes))
+	} else {
+		routes, err = eskip.Parse(r.routes)
+	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return routesToRouteInfos(routes), nil
 }
 

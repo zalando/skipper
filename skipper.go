@@ -3,6 +3,7 @@ package skipper
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/zalando/skipper/eskip"
 	"io"
 	"net"
 	"net/http"
@@ -165,6 +166,11 @@ type Options struct {
 	// File containing route definitions with file watch enabled. (For the skipper
 	// command this option is used when starting it with the -routes-file flag.)
 	WatchRoutesFile string
+
+	// File containing route definitions in JSON format with file watch enabled.
+	// If RoutesFile is set, RoutesFileJSON is ignored. (For the skipper command
+	// this option is used when starting it with the -routes-file-json flag.)
+	WatchRoutesFileJSON string
 
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
@@ -522,6 +528,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.RoutesFile != "" {
 		f, err := eskipfile.Open(o.RoutesFile)
+
 		if err != nil {
 			log.Error("error while opening eskip file", err)
 			return nil, err
@@ -531,7 +538,10 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	}
 
 	if o.WatchRoutesFile != "" {
-		f := eskipfile.Watch(o.WatchRoutesFile)
+		f := eskipfile.WatchWithParser(o.WatchRoutesFile, eskip.ParseBytes)
+		clients = append(clients, f)
+	} else if o.WatchRoutesFileJSON != "" {
+		f := eskipfile.WatchWithParser(o.WatchRoutesFileJSON, eskip.ParseJSON)
 		clients = append(clients, f)
 	}
 

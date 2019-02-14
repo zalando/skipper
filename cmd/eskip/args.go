@@ -41,6 +41,7 @@ const (
 	prettyFlag         = "pretty"
 	indentStrFlag      = "indent"
 	jsonFlag           = "json"
+	readJSONFlag       = "read-json"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
@@ -76,7 +77,8 @@ var (
 	appendFileArg     string
 	pretty            bool
 	indentStr         string
-	printJson         bool
+	printJSON         bool
+	readJSON          bool
 )
 
 var (
@@ -111,7 +113,8 @@ func initFlags() {
 
 	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
 	flags.StringVar(&indentStr, indentStrFlag, "  ", indentStrUsage)
-	flags.BoolVar(&printJson, jsonFlag, false, jsonUsage)
+	flags.BoolVar(&printJSON, jsonFlag, false, jsonUsage)
+	flags.BoolVar(&readJSON, readJSONFlag, false, readJsonUsage)
 }
 
 func init() {
