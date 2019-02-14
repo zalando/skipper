@@ -940,7 +940,7 @@ func (p *Proxy) do(ctx *context) error {
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 
 	if ctx.deprecatedShunted() {
-		p.log.Debug("deprecated shunting detected in route: %s", ctx.route.Id)
+		p.log.Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}
 	} else if ctx.shunted() || ctx.route.Shunt || ctx.route.BackendType == eskip.ShuntBackend {
 		ctx.ensureDefaultResponse()
