@@ -190,7 +190,7 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 				t.FailNow()
 			}
 			args := []interface{}{string(js)}
-			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientKeyName, testCase.defaultClientTrackingPattern)
+			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientKeyName, testCase.realmsTrackingPattern)
 			return spec.CreateFilter(args)
 		},
 	}
