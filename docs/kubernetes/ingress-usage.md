@@ -80,8 +80,7 @@ Cloud migration.
 
 !!! Warning
     
-    If multiple backends define the same `Host` header, traffic routing may become 
-    non-deterministic. 
+    If multiple ingresses define the same host and the same predicates, traffic routing may become non-deterministic. 
     
 Consider the following two ingresses which have the same hostname and therefore
 overlap. In skipper the routing of this is currently undefined as skipper
@@ -99,13 +98,12 @@ ingress was forgot).
     name: service-x
     spec:
     rules:
-    - host: service-x.playground.zalan.do
+    - host: service-x.example.org
         http:
         paths:
         - backend:
             serviceName: service-x # this service has 0 endpoints
             servicePort: 80
-            apiVersion: extensions/v1beta1
 
 &#x200B;
 
@@ -115,7 +113,7 @@ ingress was forgot).
     name: service-x-live
     spec:
     rules:
-    - host: service-x.playground.zalan.do
+    - host: service-x.example.org
         http:
         paths:
         - backend:
