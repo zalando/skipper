@@ -76,6 +76,50 @@ Cloud migration.
               serviceName: app-svc
               servicePort: 80
 
+### Multiple Ingresses defining the same route
+
+!!! Warning
+    
+    If multiple ingresses define the same host and the same predicates, traffic routing may become non-deterministic. 
+    
+Consider the following two ingresses which have the same hostname and therefore
+overlap. In skipper the routing of this is currently undefined as skipper
+doesn't pick one over the other, but just creates routes (possible overlapping)
+for each of the ingresses.
+
+In this example (taken from the issues we saw in production clusters) one
+ingress points to a service with no endpoints and the other to a service with
+endpoints. (Most likely service-x was renamed to service-x-live and the old
+ingress was forgot).
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+    name: service-x
+    spec:
+    rules:
+    - host: service-x.example.org
+        http:
+        paths:
+        - backend:
+            serviceName: service-x # this service has 0 endpoints
+            servicePort: 80
+
+&#x200B;
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+    name: service-x-live
+    spec:
+    rules:
+    - host: service-x.example.org
+        http:
+        paths:
+        - backend:
+            serviceName: service-x-live
+            servicePort: 80
+                
 ## Ingress path handling
 
 Ingress paths can be interpreted in four different modes:
