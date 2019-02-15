@@ -80,8 +80,8 @@ Cloud migration.
 
 !!! Warning
     
-  If multiple backends define the same `Host` header, traffic routing may become 
-  non-deterministic. 
+    If multiple backends define the same `Host` header, traffic routing may become 
+    non-deterministic. 
     
 Consider the following two ingresses which have the same hostname and therefore
 overlap. In skipper the routing of this is currently undefined as skipper
