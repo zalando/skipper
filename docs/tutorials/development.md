@@ -65,7 +65,7 @@ func (f *myFilter) Response(ctx filters.FilterContext) {
 }
 ```
 
-Find a detailed example at [how to develop a filter](/skipper/reference/development#how-to-develop-a-filter).
+Find a detailed example at [how to develop a filter](../reference/development.md#how-to-develop-a-filter).
 
 ## Predicates
 
@@ -110,7 +110,7 @@ func (f *myPredicate) Match(r *http.Request) bool {
 ```
 
 Predicates are quite similar to implement as Filters, so for a more
-complete example, find an example [how to develop a filter](/skipper/reference/development#how-to-develop-a-filter).
+complete example, find an example [how to develop a filter](../reference/development#how-to-develop-a-filter).
 
 ## Dataclients
 
