@@ -76,6 +76,9 @@ Cloud migration.
               serviceName: app-svc
               servicePort: 80
 
+!!! Warning
+
+    If multiple backends define the same `Host` header, traffic routing will become non-deterministic
 ## Ingress path handling
 
 Ingress paths can be interpreted in four different modes:
