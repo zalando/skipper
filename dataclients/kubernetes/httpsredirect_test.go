@@ -32,9 +32,9 @@ func (s sortRoutes) Less(i, j int) bool { return s[i].Id < s[j].Id }
 func (s sortRoutes) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) {
-	s := services{
-		"namespace1": map[string]*service{
-			"service1": testService("1.2.3.4", map[string]int{"port1": 8080}),
+	s := &serviceList{
+		Items: []*service{
+			testService("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080}),
 		},
 	}
 	i := &ingressList{Items: []*ingressItem{
@@ -93,8 +93,8 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 
 	ingress := i.Items[0]
 	rule := ingress.Spec.Rules[0]
-	service := s[ingress.Metadata.Namespace][rule.Http.Paths[0].Backend.ServiceName].Spec
-	fallbackService := s[i.Items[0].Metadata.Namespace][i.Items[0].Spec.DefaultBackend.ServiceName].Spec
+	service := s.Items[0].Spec
+	fallbackService := s.Items[0].Spec
 	backend := fmt.Sprintf("http://%s:%d", service.ClusterIP, service.Ports[0].Port)
 	fallbackBackend := fmt.Sprintf("http://%s:%d", fallbackService.ClusterIP, fallbackService.Ports[0].Port)
 

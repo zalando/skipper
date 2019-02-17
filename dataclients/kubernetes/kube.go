@@ -38,8 +38,10 @@ const (
 	defaultIngressClass           = "skipper"
 	ingressRouteIDPrefix          = "kube"
 	defaultEastWestDomainFmt      = "%s.%s.skipper.cluster.local"
-	endpointURIFmt                = "/api/v1/namespaces/%s/endpoints/%s"
-	serviceURIFmt                 = "/api/v1/namespaces/%s/services/%s"
+	endpointsClusterURI           = "/api/v1/endpoints"
+	endpointsNamespaceFmt         = "/api/v1/namespaces/%s/endpoints"
+	servicesClusterURI            = "/api/v1/services"
+	servicesNamespaceFmt          = "/api/v1/namespaces/%s/services"
 	serviceAccountDir             = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey        = "token"
 	serviceAccountRootCAKey       = "ca.crt"
@@ -188,9 +190,11 @@ type Client struct {
 	reverseSourcePredicate   bool
 	pathMode                 PathMode
 	quit                     chan struct{}
-	namespace                string
 	kubernetesEnableEastWest bool
 	eastWestDomainFmt        string
+	ingressesURI             string
+	servicesURI              string
+	endpointsURI             string
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -267,7 +271,7 @@ func New(o Options) (*Client, error) {
 		eastWestDomainFmt = "%s.%s." + o.KubernetesEastWestDomain
 	}
 
-	return &Client{
+	result := &Client{
 		httpClient:               httpClient,
 		apiURL:                   apiURL,
 		provideHealthcheck:       o.ProvideHealthcheck,
@@ -280,10 +284,22 @@ func New(o Options) (*Client, error) {
 		reverseSourcePredicate:   o.ReverseSourcePredicate,
 		pathMode:                 o.PathMode,
 		quit:                     quit,
-		namespace:                o.KubernetesNamespace,
 		kubernetesEnableEastWest: o.KubernetesEnableEastWest,
 		eastWestDomainFmt:        eastWestDomainFmt,
-	}, nil
+		ingressesURI:             ingressesClusterURI,
+		servicesURI:              servicesClusterURI,
+		endpointsURI:             endpointsClusterURI,
+	}
+	if o.KubernetesNamespace != "" {
+		result.setNamespace(o.KubernetesNamespace)
+	}
+	return result, nil
+}
+
+func (c *Client) setNamespace(namespace string) {
+	c.ingressesURI = fmt.Sprintf(ingressesNamespaceFmt, namespace)
+	c.servicesURI = fmt.Sprintf(servicesNamespaceFmt, namespace)
+	c.endpointsURI = fmt.Sprintf(endpointsNamespaceFmt, namespace)
 }
 
 // String returns the string representation of the path mode, the same
@@ -445,24 +461,6 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	return err
 }
 
-// TODO:
-// - check if it can be batched
-// - check the existing controllers for cases when hunting for cluster ip
-func (c *Client) getService(namespace, name string) (*service, error) {
-	log.Debugf("requesting service: %s/%s", namespace, name)
-	url := fmt.Sprintf(serviceURIFmt, namespace, name)
-	var s service
-	if err := c.getJSON(url, &s); err != nil {
-		return nil, err
-	}
-
-	if s.Spec == nil {
-		log.Debug("invalid service datagram, missing spec")
-		return nil, errServiceNotFound
-	}
-	return &s, nil
-}
-
 func (c *Client) getServiceURL(svc *service, port backendPort) (string, error) {
 	if p, ok := port.number(); ok {
 		log.Debugf("service port as number: %d", p)
@@ -503,7 +501,7 @@ func patchRouteID(rid string) string {
 }
 
 // converts the default backend if any
-func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, error) {
+func (c *Client) convertDefaultBackend(state *clusterState, i *ingressItem) (*eskip.Route, bool, error) {
 	// the usage of the default backend depends on what we want
 	// we can generate a hostname out of it based on shared rules
 	// and instructions in annotations, if there are no rules defined
@@ -524,7 +522,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 		svcPort = i.Spec.DefaultBackend.ServicePort
 	)
 
-	svc, err := c.getService(ns, svcName)
+	svc, err := state.getService(ns, svcName)
 	if err != nil {
 		log.Errorf("convertDefaultBackend: Failed to get service %s, %s, %s", ns, svcName, svcPort)
 		return nil, false, err
@@ -536,7 +534,7 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 	} else {
 		// TODO(aryszka): check docs that service name is always good for requesting the endpoints
 		log.Infof("Found target port %v, for service %s", targetPort, svcName)
-		eps, err = c.getEndpoints(
+		eps, err = state.getEndpoints(
 			ns,
 			svcName,
 			svcPort.String(),
@@ -579,26 +577,6 @@ func (c *Client) convertDefaultBackend(i *ingressItem) (*eskip.Route, bool, erro
 	}, true, nil
 }
 
-func (c *Client) getEndpoints(ns, name, servicePort, targetPort string) ([]string, error) {
-	log.Debugf("requesting endpoint: %s/%s", ns, name)
-	url := fmt.Sprintf(endpointURIFmt, ns, name)
-	var ep endpoint
-	if err := c.getJSON(url, &ep); err != nil {
-		return nil, err
-	}
-
-	if ep.Subsets == nil {
-		return nil, errEndpointNotFound
-	}
-
-	targets := ep.Targets(servicePort, targetPort)
-	if len(targets) == 0 {
-		return nil, errEndpointNotFound
-	}
-	sort.Strings(targets)
-	return targets, nil
-}
-
 func setPath(m PathMode, r *eskip.Route, p string) {
 	if p == "" {
 		return
@@ -618,10 +596,10 @@ func setPath(m PathMode, r *eskip.Route, p string) {
 }
 
 func (c *Client) convertPathRule(
+	state *clusterState,
 	ns, name, host string,
 	prule *pathRule,
 	pathMode PathMode,
-	endpointsURLs map[string][]string,
 ) (*eskip.Route, error) {
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
@@ -639,65 +617,57 @@ func (c *Client) convertPathRule(
 	}
 	svcPort := prule.Backend.ServicePort
 	svcName := prule.Backend.ServiceName
-	endpointKey := ns + svcName + svcPort.String()
 
-	if val, ok := endpointsURLs[endpointKey]; !ok {
-		svc, err = c.getService(ns, svcName)
-		if err != nil {
-			log.Errorf("convertPathRule: Failed to get service %s, %s, %s", ns, svcName, svcPort)
-			return nil, err
-		}
-
-		targetPort, err := svc.GetTargetPort(svcPort)
-		if err != nil {
-			// fallback to service, but service definition is wrong or no pods
-			log.Debugf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
-			err = nil
-		} else {
-			// err handled below
-			eps, err = c.getEndpoints(ns, svcName, svcPort.String(), targetPort)
-			log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
-		}
-		if len(eps) == 0 || err == errEndpointNotFound {
-			// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
-			// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
-			// We should then implement a redirect route for that.
-			// Example spec:
-			//
-			//     spec:
-			//       type: ExternalName
-			//       externalName: my.database.example.com
-			address, err2 := c.getServiceURL(svc, svcPort)
-			if err2 != nil {
-				return nil, err2
-			}
-			r := &eskip.Route{
-				Id:          routeID(ns, name, host, prule.Path, svcName),
-				Backend:     address,
-				HostRegexps: hostRegexp,
-			}
-
-			setPath(pathMode, r, prule.Path)
-
-			if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
-				r.Predicates = append([]*eskip.Predicate{{
-					Name: traffic.PredicateName,
-					Args: []interface{}{prule.Backend.Traffic},
-				}}, r.Predicates...)
-				log.Infof("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
-			}
-			return r, nil
-
-		} else if err != nil {
-			return nil, err
-		} else {
-			endpointsURLs[endpointKey] = eps
-		}
-		log.Debugf("%d new routes for %s/%s/%s", len(eps), ns, svcName, svcPort)
-	} else {
-		eps = val
-		log.Debugf("%d routes for %s/%s/%s already known", len(eps), ns, svcName, svcPort)
+	svc, err = state.getService(ns, svcName)
+	if err != nil {
+		log.Errorf("convertPathRule: Failed to get service %s, %s, %s", ns, svcName, svcPort)
+		return nil, err
 	}
+
+	targetPort, err := svc.GetTargetPort(svcPort)
+	if err != nil {
+		// fallback to service, but service definition is wrong or no pods
+		log.Debugf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
+		err = nil
+	} else {
+		// err handled below
+		eps, err = state.getEndpoints(ns, svcName, svcPort.String(), targetPort)
+		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
+	}
+	if len(eps) == 0 || err == errEndpointNotFound {
+		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
+		// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
+		// We should then implement a redirect route for that.
+		// Example spec:
+		//
+		//     spec:
+		//       type: ExternalName
+		//       externalName: my.database.example.com
+		address, err2 := c.getServiceURL(svc, svcPort)
+		if err2 != nil {
+			return nil, err2
+		}
+		r := &eskip.Route{
+			Id:          routeID(ns, name, host, prule.Path, svcName),
+			Backend:     address,
+			HostRegexps: hostRegexp,
+		}
+
+		setPath(pathMode, r, prule.Path)
+
+		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+			r.Predicates = append([]*eskip.Predicate{{
+				Name: traffic.PredicateName,
+				Args: []interface{}{prule.Backend.Traffic},
+			}}, r.Predicates...)
+			log.Infof("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+		}
+		return r, nil
+
+	} else if err != nil {
+		return nil, err
+	}
+	log.Debugf("%d routes for %s/%s/%s", len(eps), ns, svcName, svcPort)
 
 	if len(eps) == 1 {
 		r := &eskip.Route{
@@ -784,11 +754,11 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 // valid ones.  Reporting failures in Ingress status is not possible,
 // because Ingress status field is v1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
-func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
-	routes := make([]*eskip.Route, 0, len(items))
+func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
+	routes := make([]*eskip.Route, 0, len(state.ingresses))
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(c.provideHTTPSRedirect, c.httpsRedirectCode)
-	for _, i := range items {
+	for _, i := range state.ingresses {
 		if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 			i.Spec == nil {
 			log.Error("invalid ingress item: missing metadata")
@@ -801,7 +771,7 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 
 		redirect.initCurrent(i.Metadata)
 
-		if r, ok, err := c.convertDefaultBackend(i); ok {
+		if r, ok, err := c.convertDefaultBackend(state, i); ok {
 			routes = append(routes, r)
 		} else if err != nil {
 			logger.Errorf("error while converting default backend: %v", err)
@@ -855,8 +825,6 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 			}
 		}
 
-		// We need this to avoid asking the k8s API for the same services
-		endpointsURLs := make(map[string][]string)
 		for _, rule := range i.Spec.Rules {
 			if rule.Http == nil {
 				logger.Warn("invalid ingress item: rule missing http definitions")
@@ -887,14 +855,13 @@ func (c *Client) ingressToRoutes(items []*ingressItem) ([]*eskip.Route, error) {
 				}
 
 				if prule.Backend.Traffic > 0 {
-
 					endpointsRoute, err := c.convertPathRule(
+						state,
 						i.Metadata.Namespace,
 						i.Metadata.Name,
 						rule.Host,
 						prule,
 						pathMode,
-						endpointsURLs,
 					)
 					if err != nil {
 						// if the service is not found the route should be removed
@@ -1155,17 +1122,9 @@ func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
 	return validIngs
 }
 
-func (c *Client) getIngressesURI() string {
-	if c.namespace == "" {
-		return ingressesClusterURI
-	}
-	return fmt.Sprintf(ingressesNamespaceFmt, c.namespace)
-}
-
-func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
+func (c *Client) loadIngresses() ([]*ingressItem, error) {
 	var il ingressList
-	ingressesURI := c.getIngressesURI()
-	if err := c.getJSON(ingressesURI, &il); err != nil {
+	if err := c.getJSON(c.ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err
 	}
@@ -1190,7 +1149,68 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return mI.Name < mJ.Name
 	})
 
-	r, err := c.ingressToRoutes(fItems)
+	return fItems, nil
+}
+
+func (c *Client) loadServices() (map[resourceId]*service, error) {
+	var services serviceList
+	if err := c.getJSON(c.servicesURI, &services); err != nil {
+		log.Debugf("requesting all services failed: %v", err)
+		return nil, err
+	}
+
+	log.Debugf("all services received: %d", len(services.Items))
+	result := make(map[resourceId]*service)
+	for _, service := range services.Items {
+		result[service.Meta.toResourceId()] = service
+	}
+	return result, nil
+}
+
+func (c *Client) loadEndpoints() (map[resourceId]*endpoint, error) {
+	var endpoints endpointList
+	if err := c.getJSON(c.endpointsURI, &endpoints); err != nil {
+		log.Debugf("requesting all endpoints failed: %v", err)
+		return nil, err
+	}
+
+	log.Debugf("all endpoints received: %d", len(endpoints.Items))
+	result := make(map[resourceId]*endpoint)
+	for _, endpoint := range endpoints.Items {
+		result[endpoint.Meta.toResourceId()] = endpoint
+	}
+	return result, nil
+}
+
+func (c *Client) fetchClusterState() (*clusterState, error) {
+	ingresses, err := c.loadIngresses()
+	if err != nil {
+		return nil, err
+	}
+	services, err := c.loadServices()
+	if err != nil {
+		return nil, err
+	}
+	endpoints, err := c.loadEndpoints()
+	if err != nil {
+		return nil, err
+	}
+
+	return &clusterState{
+		ingresses:       ingresses,
+		services:        services,
+		endpoints:       endpoints,
+		cachedEndpoints: make(map[endpointId][]string),
+	}, nil
+}
+
+func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
+	state, err := c.fetchClusterState()
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := c.ingressToRoutes(state)
 	if err != nil {
 		log.Debugf("converting ingresses to routes failed: %v", err)
 		return nil, err

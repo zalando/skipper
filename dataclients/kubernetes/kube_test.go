@@ -25,6 +25,10 @@ import (
 	"testing/quick"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/assert"
+
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
@@ -32,35 +36,25 @@ import (
 	"github.com/zalando/skipper/predicates/source"
 )
 
-type (
-	services  map[string]map[string]*service
-	endpoints map[string]map[string]endpoint
-)
-
 type testAPI struct {
 	test      *testing.T
-	services  services
+	services  *serviceList
+	endpoints *endpointList
 	ingresses *ingressList
-	endpoints endpoints
 	server    *httptest.Server
 	failNext  bool
 }
-
-var (
-	serviceURIRx  = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/services/([^/]+)$")
-	endpointURIRx = regexp.MustCompile("^/api/v1/namespaces/([^/]+)/endpoints/([^/]+)")
-)
 
 func init() {
 	log.SetLevel(log.InfoLevel)
 	// log.SetLevel(log.DebugLevel)
 }
 
-func testService(clusterIP string, ports map[string]int) *service {
-	return testServiceWithTargetPort(clusterIP, ports, nil)
+func testService(namespace, name string, clusterIP string, ports map[string]int) *service {
+	return testServiceWithTargetPort(namespace, name, clusterIP, ports, nil)
 }
 
-func testServiceWithTargetPort(clusterIP string, ports map[string]int, targetPorts map[int]*backendPort) *service {
+func testServiceWithTargetPort(namespace, name string, clusterIP string, ports map[string]int, targetPorts map[int]*backendPort) *service {
 	sports := make([]*servicePort, 0, len(ports))
 	for name, port := range ports {
 		sports = append(sports, &servicePort{
@@ -71,6 +65,10 @@ func testServiceWithTargetPort(clusterIP string, ports map[string]int, targetPor
 	}
 
 	return &service{
+		Meta: &metadata{
+			Namespace: namespace,
+			Name:      name,
+		},
 		Spec: &serviceSpec{
 			ClusterIP: clusterIP,
 			Ports:     sports,
@@ -166,15 +164,13 @@ func testIngressSimple(ns, name, defaultService string, defaultPort backendPort,
 	)
 }
 
-func testServices() services {
-	return services{
-		"namespace1": map[string]*service{
-			"service1": testService("1.2.3.4", map[string]int{"port1": 8080}),
-			"service2": testService("5.6.7.8", map[string]int{"port2": 8181}),
-		},
-		"namespace2": map[string]*service{
-			"service3": testService("9.0.1.2", map[string]int{"port3": 7272}),
-			"service4": testService("10.0.1.2", map[string]int{"port4": 4444, "port5": 5555}),
+func testServices() *serviceList {
+	return &serviceList{
+		Items: []*service{
+			testService("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080}),
+			testService("namespace1", "service2", "5.6.7.8", map[string]int{"port2": 8181}),
+			testService("namespace2", "service3", "9.0.1.2", map[string]int{"port3": 7272}),
+			testService("namespace2", "service4", "10.0.1.2", map[string]int{"port4": 4444, "port5": 5555}),
 		},
 	}
 }
@@ -401,11 +397,11 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, rever
 	}
 }
 
-func newTestAPI(t *testing.T, s services, i *ingressList) *testAPI {
-	return newTestAPIWithEndpoints(t, s, i, nil)
+func newTestAPI(t *testing.T, s *serviceList, i *ingressList) *testAPI {
+	return newTestAPIWithEndpoints(t, s, i, &endpointList{})
 }
 
-func newTestAPIWithEndpoints(t *testing.T, s services, i *ingressList, e endpoints) *testAPI {
+func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *ingressList, e *endpointList) *testAPI {
 	api := &testAPI{
 		test:      t,
 		services:  s,
@@ -427,25 +423,6 @@ func respondJSON(w io.Writer, v interface{}) error {
 	return err
 }
 
-func (api *testAPI) getEndpoints(uri string) endpoint {
-	var ep endpoint
-	if m := endpointURIRx.FindAllStringSubmatch(uri, -1); len(m) != 0 {
-		ns, n := m[0][1], m[0][2]
-		ep = api.endpoints[ns][n]
-	}
-
-	return ep
-}
-
-func (api *testAPI) getTestService(uri string) (*service, bool) {
-	if m := serviceURIRx.FindAllStringSubmatch(uri, -1); len(m) != 0 {
-		ns, n := m[0][1], m[0][2]
-		return api.services[ns][n], true
-	}
-
-	return nil, false
-}
-
 func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if api.failNext {
 		api.failNext = false
@@ -453,30 +430,25 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path == ingressesClusterURI {
+	switch r.URL.Path {
+	case ingressesClusterURI:
 		if err := respondJSON(w, api.ingresses); err != nil {
 			api.test.Error(err)
 		}
-
 		return
-	}
-
-	if endpointURIRx.MatchString(r.URL.Path) {
-		ep := api.getEndpoints(r.URL.Path)
-		if err := respondJSON(w, ep); err != nil {
+	case servicesClusterURI:
+		if err := respondJSON(w, api.services); err != nil {
 			api.test.Error(err)
 		}
-
 		return
-	}
-
-	s, ok := api.getTestService(r.URL.Path)
-	if !ok {
-		s = &service{}
-	}
-
-	if err := respondJSON(w, s); err != nil {
-		api.test.Error(err)
+	case endpointsClusterURI:
+		if err := respondJSON(w, api.endpoints); err != nil {
+			api.test.Error(err)
+		}
+		return
+	default:
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 }
 
@@ -487,15 +459,13 @@ func (api *testAPI) Close() {
 func TestIngressData(t *testing.T) {
 	for _, ti := range []struct {
 		msg            string
-		services       services
+		services       []*service
 		ingresses      []*ingressItem
 		expectedRoutes map[string]string
 	}{{
 		"service backend from ingress and service, default",
-		services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", nil),
-			},
+		[]*service{
+			testService("foo", "bar", "1.2.3.4", nil),
 		},
 		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", "", "", "", backendPort{8080}, 1.0)},
 		map[string]string{
@@ -503,10 +473,8 @@ func TestIngressData(t *testing.T) {
 		},
 	}, {
 		"service backend from ingress and service, path rule",
-		services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", nil),
-			},
+		[]*service{
+			testService("foo", "bar", "1.2.3.4", nil),
 		},
 		[]*ingressItem{testIngress(
 			"foo",
@@ -533,11 +501,9 @@ func TestIngressData(t *testing.T) {
 		},
 	}, {
 		"service backend from ingress and service, default and path rule",
-		services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", nil),
-				"baz": testService("5.6.7.8", nil),
-			},
+		[]*service{
+			testService("foo", "bar", "1.2.3.4", nil),
+			testService("foo", "baz", "5.6.7.8", nil),
 		},
 		[]*ingressItem{testIngress(
 			"foo",
@@ -565,10 +531,8 @@ func TestIngressData(t *testing.T) {
 		},
 	}, {
 		"service backend from ingress and service, with port name",
-		services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		[]*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		[]*ingressItem{testIngress(
 			"foo",
@@ -595,10 +559,8 @@ func TestIngressData(t *testing.T) {
 		},
 	}, {
 		"ignore ingress entries with missing metadata",
-		services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		[]*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		[]*ingressItem{
 			testIngress(
@@ -641,10 +603,8 @@ func TestIngressData(t *testing.T) {
 		},
 	}, {
 		"skipper-routes annotation",
-		services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		[]*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		[]*ingressItem{testIngress(
 			"foo",
@@ -693,7 +653,7 @@ func TestIngressData(t *testing.T) {
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			api := newTestAPI(t, ti.services, &ingressList{Items: ti.ingresses})
+			api := newTestAPI(t, &serviceList{Items: ti.services}, &ingressList{Items: ti.ingresses})
 			defer api.Close()
 			dc, err := New(Options{KubernetesURL: api.server.URL})
 			if err != nil {
@@ -1051,7 +1011,14 @@ func TestIngress(t *testing.T) {
 			return
 		}
 
-		delete(api.services["namespace1"], "service2")
+		var updatedServices []*service
+		for _, svc := range api.services.Items {
+			if svc.Meta.Namespace == "namespace1" && svc.Meta.Name == "service2" {
+				continue
+			}
+			updatedServices = append(updatedServices, svc)
+		}
+		api.services.Items = updatedServices
 
 		r, d, err := dc.LoadUpdate()
 		if err != nil || len(r) != 0 {
@@ -1426,9 +1393,13 @@ func TestConvertPathRule(t *testing.T) {
 			return
 		}
 
-		api.services = services{
-			"namespace1": map[string]*service{
-				"svcname1": {
+		api.services = &serviceList{
+			Items: []*service{
+				{
+					Meta: &metadata{
+						Namespace: "namespace1",
+						Name:      "svcname1",
+					},
 					Spec: &serviceSpec{
 						ClusterIP: "10.3.2.1",
 						Ports: []*servicePort{
@@ -1653,9 +1624,13 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 			return
 		}
 
-		api.services = services{
-			"namespace1": map[string]*service{
-				"svcname1": {
+		api.services = &serviceList{
+			Items: []*service{
+				{
+					Meta: &metadata{
+						Namespace: "namespace1",
+						Name:      "svcname1",
+					},
 					Spec: &serviceSpec{
 						ClusterIP: "10.3.2.1",
 						Ports: []*servicePort{
@@ -1811,7 +1786,10 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			route, err := dc.convertPathRule("namespace1", "", "", tc.rule, KubernetesIngressMode, map[string][]string{})
+			state, err := dc.fetchClusterState()
+			require.NoError(t, err)
+
+			route, err := dc.convertPathRule(state, "namespace1", "", "", tc.rule, KubernetesIngressMode)
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}
@@ -2291,22 +2269,13 @@ func TestReadServiceAccountToken(t *testing.T) {
 	}
 }
 
-func TestIngressScoping(t *testing.T) {
-	client := &Client{
-		namespace: "test",
-	}
-	expected := "/apis/extensions/v1beta1/namespaces/test/ingresses"
-	uri := client.getIngressesURI()
-	if uri != expected {
-		t.Errorf("unexpected ingress uri returned: %s should be %s", uri, expected)
-	}
+func TestScoping(t *testing.T) {
+	client := &Client{}
 
-	client.namespace = ""
-	expected = "/apis/extensions/v1beta1/ingresses"
-	uri = client.getIngressesURI()
-	if uri != expected {
-		t.Errorf("unexpected ingress uri returned: %s should be %s", uri, expected)
-	}
+	client.setNamespace("test")
+	assert.Equal(t, "/apis/extensions/v1beta1/namespaces/test/ingresses", client.ingressesURI)
+	assert.Equal(t, "/api/v1/namespaces/test/services", client.servicesURI)
+	assert.Equal(t, "/api/v1/namespaces/test/endpoints", client.endpointsURI)
 }
 
 // generateSSCert only for testing purposes
@@ -3077,15 +3046,13 @@ func checkSkipperPredicate(t *testing.T, got []*eskip.Route, expected map[string
 func TestSkipperCustomRoutes(t *testing.T) {
 	for _, ti := range []struct {
 		msg            string
-		services       services
+		services       []*service
 		ingresses      []*ingressItem
 		expectedRoutes map[string]string
 	}{{
 		msg: "ingress with 1 host definitions and 1 additional custom route",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3098,10 +3065,8 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 1 host definitions with path and 1 additional custom route",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3115,10 +3080,8 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 2 host definitions and 1 additional custom route",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3134,10 +3097,8 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 2 host definitions with path and 1 additional custom route",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3155,11 +3116,9 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 3 host definitions with one path and 3 additional custom routes",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-				"baz": testService("1.2.3.6", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
+			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`a: Method("OPTIONS") -> <shunt>;
@@ -3189,11 +3148,9 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 3 host definitions with one without path and 3 additional custom routes",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-				"baz": testService("1.2.3.6", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
+			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`a: Method("OPTIONS") -> <shunt>;
@@ -3223,10 +3180,8 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 1 host definitions and 1 additional custom route, changed pathmode to PathSubtree",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3239,10 +3194,8 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 1 host definitions and 1 additional custom route with path predicate, changed pathmode to PathSubtree",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Path("/foo") -> <shunt>`,
@@ -3254,7 +3207,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			api := newTestAPI(t, ti.services, &ingressList{Items: ti.ingresses})
+			api := newTestAPI(t, &serviceList{Items: ti.services}, &ingressList{Items: ti.ingresses})
 			defer api.Close()
 			dc, err := New(Options{
 				KubernetesURL: api.server.URL,
@@ -3279,15 +3232,13 @@ func TestSkipperCustomRoutes(t *testing.T) {
 func TestSkipperCustomRoutesEastWest(t *testing.T) {
 	for _, ti := range []struct {
 		msg            string
-		services       services
+		services       []*service
 		ingresses      []*ingressItem
 		expectedRoutes map[string]string
 	}{{
 		msg: "ingress with 1 host definitions and 1 additional custom route",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3302,10 +3253,8 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 1 host definitions with path and 1 additional custom route",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3322,10 +3271,8 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 2 host definitions and 1 additional custom route",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3345,10 +3292,8 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 2 host definitions with path and 1 additional custom route",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3372,11 +3317,9 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 3 host definitions with one path and 3 additional custom routes",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-				"baz": testService("1.2.3.6", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
+			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`a: Method("OPTIONS") -> <shunt>;
@@ -3421,11 +3364,9 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 			"kubeew___catchall__www3_example_org____":          "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>"},
 	}, {
 		msg: "ingress with 3 host definitions with one without path and 3 additional custom routes",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-				"baz": testService("1.2.3.6", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
+			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`a: Method("OPTIONS") -> <shunt>;
@@ -3469,10 +3410,8 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 1 host definitions and 1 additional custom route, changed pathmode to PathSubtree",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
@@ -3487,10 +3426,8 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 	}, {
 		msg: "ingress with 1 host definitions and 1 additional custom route with path predicate, changed pathmode to PathSubtree",
-		services: services{
-			"foo": map[string]*service{
-				"bar": testService("1.2.3.4", map[string]int{"baz": 8181}),
-			},
+		services: []*service{
+			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Path("/foo") -> <shunt>`,
@@ -3503,7 +3440,7 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			api := newTestAPI(t, ti.services, &ingressList{Items: ti.ingresses})
+			api := newTestAPI(t, &serviceList{Items: ti.services}, &ingressList{Items: ti.ingresses})
 			defer api.Close()
 			dc, err := New(Options{
 				KubernetesURL:            api.server.URL,

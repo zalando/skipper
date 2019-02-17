@@ -4,13 +4,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 )
+
+type resourceId struct {
+	namespace string
+	name      string
+}
 
 type metadata struct {
 	Namespace   string            `json:"namespace"`
 	Name        string            `json:"name"`
 	Annotations map[string]string `json:"annotations"`
+}
+
+func (meta *metadata) toResourceId() resourceId {
+	return resourceId{
+		namespace: meta.Namespace,
+		name:      meta.Name,
+	}
 }
 
 type backendPort struct {
@@ -130,6 +145,10 @@ type service struct {
 	Spec *serviceSpec `json:"spec"`
 }
 
+type serviceList struct {
+	Items []*service `json:"items"`
+}
+
 func (s service) GetTargetPort(svcPort backendPort) (string, error) {
 	for _, sp := range s.Spec.Ports {
 		if sp.MatchingPort(svcPort) && sp.TargetPort != nil {
@@ -140,7 +159,12 @@ func (s service) GetTargetPort(svcPort backendPort) (string, error) {
 }
 
 type endpoint struct {
+	Meta    *metadata `json:"metadata"`
 	Subsets []*subset `json:"subsets"`
+}
+
+type endpointList struct {
+	Items []*endpoint `json:"items"`
 }
 
 func (ep endpoint) Targets(svcPortName, svcPortTarget string) []string {
@@ -171,4 +195,63 @@ type port struct {
 	Name     string `json:"name"`
 	Port     int    `json:"port"`
 	Protocol string `json:"protocol"`
+}
+
+func newResourceId(namespace, name string) resourceId {
+	return resourceId{namespace: namespace, name: name}
+}
+
+type endpointId struct {
+	resourceId
+	servicePort string
+	targetPort  string
+}
+
+type clusterState struct {
+	ingresses       []*ingressItem
+	services        map[resourceId]*service
+	endpoints       map[resourceId]*endpoint
+	cachedEndpoints map[endpointId][]string
+}
+
+func (state *clusterState) getService(namespace, name string) (*service, error) {
+	s, ok := state.services[newResourceId(namespace, name)]
+	if !ok {
+		return nil, errServiceNotFound
+	}
+
+	if s.Spec == nil {
+		log.Debug("invalid service datagram, missing spec")
+		return nil, errServiceNotFound
+	}
+	return s, nil
+}
+
+func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort string) ([]string, error) {
+	epId := endpointId{
+		resourceId:  newResourceId(namespace, name),
+		servicePort: servicePort,
+		targetPort:  targetPort,
+	}
+
+	if cached, ok := state.cachedEndpoints[epId]; ok {
+		return cached, nil
+	}
+
+	ep, ok := state.endpoints[epId.resourceId]
+	if !ok {
+		return nil, errEndpointNotFound
+	}
+
+	if ep.Subsets == nil {
+		return nil, errEndpointNotFound
+	}
+
+	targets := ep.Targets(servicePort, targetPort)
+	if len(targets) == 0 {
+		return nil, errEndpointNotFound
+	}
+	sort.Strings(targets)
+	state.cachedEndpoints[epId] = targets
+	return targets, nil
 }
