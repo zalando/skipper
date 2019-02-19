@@ -965,7 +965,11 @@ func Run(o Options) error {
 		mux.Handle("/debug/pprof/", metricsHandler)
 
 		log.Infof("support listener on %s", supportListener)
-		go http.ListenAndServe(supportListener, mux)
+		go func() {
+			if err := http.ListenAndServe(supportListener, mux); err != nil {
+				log.Errorf("Failed to start supportListener on %s: %v", supportListener, err)
+			}
+		}()
 	} else {
 		log.Infoln("Metrics are disabled")
 	}
