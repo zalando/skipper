@@ -275,9 +275,6 @@ func (s *Swarm) control() {
 		select {
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
-			if len(s.messages) <= 0 {
-				log.Debugf("SWARM: getOutgoing with %d messages, should not happen", len(s.messages))
-			}
 			req.ret <- s.messages
 		case m := <-s.outgoing:
 			s.messages = append(s.messages, m.encoded)

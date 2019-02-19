@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
 )
@@ -293,6 +294,7 @@ func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
 
 func newRatelimit(s Settings, sw Swarmer) *Ratelimit {
+	log.Infof("newRatelimit: %s", s)
 	var impl limiter
 	switch s.Type {
 	case ServiceRatelimit:

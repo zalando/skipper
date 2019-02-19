@@ -41,12 +41,16 @@ type resizeLimit struct {
 // and use the given Swarmer. Group is used in log messages to identify
 // the ratelimit instance and has to be the same in all skipper instances.
 func newClusterRateLimiter(s Settings, sw Swarmer, group string) *clusterLimit {
+	log.Infof("newClusterRateLimiter")
+	m := metrics.Default
+	m.UpdateGauge("mytest", float64(10))
+
 	rl := &clusterLimit{
 		group:   group,
 		swarm:   sw,
 		maxHits: s.MaxHits,
 		window:  s.TimeWindow,
-		metrics: metrics.Default,
+		metrics: m,
 		resize:  make(chan resizeLimit),
 		quit:    make(chan struct{}),
 	}
@@ -95,7 +99,7 @@ func (c *clusterLimit) Allow(s string) bool {
 	//           ^- current pointer to oldest
 	// now - t0
 	t0 := c.Oldest(s).UTC().UnixNano()
-	c.metrics.UpdateGauge("t0/"+key, float64(t0))
+	c.metrics.UpdateGauge("swarm.t0."+key, float64(t0))
 
 	_ = c.local.Allow(s) // update local rate limit
 
@@ -110,7 +114,7 @@ func (c *clusterLimit) Allow(s string) bool {
 
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, swarmValues)
-	c.metrics.UpdateGauge("rate/"+key, rate)
+	c.metrics.UpdateGauge("swarm.rate."+key, rate)
 	result := rate < float64(c.maxHits)
 	log.Debugf("%s clusterRatelimit: Allow=%v, %v < %d", c.group, result, rate, c.maxHits)
 	return result
