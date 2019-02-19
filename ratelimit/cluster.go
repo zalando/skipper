@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
+	"github.com/zalando/skipper/metrics"
 )
 
 // Swarmer interface defines the requirement for a Swarm, for use as
@@ -26,6 +27,7 @@ type clusterLimit struct {
 	maxHits int
 	window  time.Duration
 	swarm   Swarmer
+	metrics metrics.Metrics
 	resize  chan resizeLimit
 	quit    chan struct{}
 }
@@ -44,6 +46,7 @@ func newClusterRateLimiter(s Settings, sw Swarmer, group string) *clusterLimit {
 		swarm:   sw,
 		maxHits: s.MaxHits,
 		window:  s.TimeWindow,
+		metrics: metrics.Default,
 		resize:  make(chan resizeLimit),
 		quit:    make(chan struct{}),
 	}
@@ -92,6 +95,7 @@ func (c *clusterLimit) Allow(s string) bool {
 	//           ^- current pointer to oldest
 	// now - t0
 	t0 := c.Oldest(s).UTC().UnixNano()
+	c.metrics.UpdateGauge("t0/"+key, float64(t0))
 
 	_ = c.local.Allow(s) // update local rate limit
 
@@ -106,6 +110,7 @@ func (c *clusterLimit) Allow(s string) bool {
 
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, swarmValues)
+	c.metrics.UpdateGauge("rate/"+key, rate)
 	result := rate < float64(c.maxHits)
 	log.Debugf("%s clusterRatelimit: Allow=%v, %v < %d", c.group, result, rate, c.maxHits)
 	return result
