@@ -71,7 +71,6 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if (req.ProtoMajor <= 1 && req.ProtoMinor < 1) ||
-		// RFC states "Upgrade", but reality is different in many libraries out in the world
 		strings.ToLower(req.Header.Get("Connection")) != "upgrade" ||
 		req.Header.Get("Upgrade") == "" {
 		w.WriteHeader(http.StatusBadRequest)
