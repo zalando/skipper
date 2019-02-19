@@ -41,16 +41,12 @@ type resizeLimit struct {
 // and use the given Swarmer. Group is used in log messages to identify
 // the ratelimit instance and has to be the same in all skipper instances.
 func newClusterRateLimiter(s Settings, sw Swarmer, group string) *clusterLimit {
-	log.Infof("newClusterRateLimiter")
-	m := metrics.Default
-	m.UpdateGauge("mytest", float64(10))
-
 	rl := &clusterLimit{
 		group:   group,
 		swarm:   sw,
 		maxHits: s.MaxHits,
 		window:  s.TimeWindow,
-		metrics: m,
+		metrics: metrics.Default,
 		resize:  make(chan resizeLimit),
 		quit:    make(chan struct{}),
 	}

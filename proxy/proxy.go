@@ -854,6 +854,7 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 	if !ok || len(settings) < 1 {
 		return ratelimit.Settings{}, 0
 	}
+	p.log.Infof("checkRatelimit settings: %d", len(settings))
 
 	for _, setting := range settings {
 		rl := p.limiters.Get(setting)
