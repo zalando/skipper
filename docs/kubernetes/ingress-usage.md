@@ -25,7 +25,7 @@ Service type | supported | workaround
 --- | --- | ---
 ClusterIP | yes | ---
 NodePort | yes | ---
-ExternalName | no, [related issue](https://github.com/zalando/skipper/issues/549) | [use deployment with routestring](../dataclients/route-string/#proxy-to-a-given-url)
+ExternalName | no, [related issue](https://github.com/zalando/skipper/issues/549) | [use deployment with routestring](../data-clients/route-string.md#proxy-to-a-given-url)
 LoadBalancer | no | it should not, because Kubernetes cloud-controller-manager will maintain it
 
 
@@ -79,9 +79,9 @@ Cloud migration.
 ### Multiple Ingresses defining the same route
 
 !!! Warning
-    
+
     If multiple ingresses define the same host and the same predicates, traffic routing may become non-deterministic. 
-    
+
 Consider the following two ingresses which have the same hostname and therefore
 overlap. In skipper the routing of this is currently undefined as skipper
 doesn't pick one over the other, but just creates routes (possible overlapping)
@@ -119,7 +119,7 @@ ingress was forgot).
         - backend:
             serviceName: service-x-live
             servicePort: 80
-                
+
 ## Ingress path handling
 
 Ingress paths can be interpreted in four different modes:
@@ -198,18 +198,18 @@ to a backend, if you end your filter chain with `<shunt>`. The use of
 not respond with the default http code, which defaults to 404.  To
 match your custom route with higher priority than your ingress you
 also have to add another predicate, for example the [Method("GET")
-predicate](../../reference/predicates/#method) to match the route with higher
+predicate](../reference/predicates.md#method) to match the route with higher
 priority.
 
 Custom routes specified in ingress will always add the `Host()`
-[predicate](../../reference/predicates/#host) to match the host header specified in
+[predicate](../reference/predicates.md#host) to match the host header specified in
 the ingress `rules:`. If there is a `path:` definition in your
 ingress, then it will be based on the skipper command line parameter
 `-kubernetes-path-mode` set one of theses predicates:
 
-- [Path()](../../reference/predicates/#path)
-- [PathSubtree()](../../reference/predicates/#pathsubtree)
-- [PathRegexp()](../../reference/predicates/#pathregexp)
+- [Path()](../reference/predicates.md#path)
+- [PathSubtree()](../reference/predicates.md#pathsubtree)
+- [PathRegexp()](../reference/predicates.md#pathregexp)
 
 If you have a `path:` value defined in your ingress resource, a custom
 route is not allowed to use `Path()` nor `PathSubtree()` predicates.
@@ -452,7 +452,7 @@ Set a Cookie in the response path of your clients.
 
 ### Authorization
 
-Our [autnetication and authorization tutorial](../../tutorials/auth/)
+Our [autnetication and authorization tutorial](../tutorials/auth/)
 or [filter auth godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
 shows how to use filters for authorization.
 
@@ -468,12 +468,12 @@ shows how to use filters for authorization.
 OAuth2/JWT tokens can be validated and allowed based on different
 content of the token. Please check the filter documentation for that:
 
-- [oauthTokeninfoAnyScope](../../reference/filters/#oauthtokeninfoanyscope)
-- [oauthTokeninfoAllScope](../../reference/filters/#oauthtokeninfoallscope)
-- [oauthTokeninfoAnyKV](../../reference/filters/#oauthtokeninfoanykv)
-- [oauthTokeninfoAllKV](../../reference/filters/#oauthtokeninfoallkv)
+- [oauthTokeninfoAnyScope](../reference/filters.md#oauthtokeninfoanyscope)
+- [oauthTokeninfoAllScope](../reference/filters.md#oauthtokeninfoallscope)
+- [oauthTokeninfoAnyKV](../reference/filters.md#oauthtokeninfoanykv)
+- [oauthTokeninfoAllKV](../reference/filters.md#oauthtokeninfoallkv)
 
-There are also [auth predicates](../../reference/predicates/#auth), which will allow
+There are also [auth predicates](../reference/predicates.md#auth), which will allow
 you to match a route based on the content of a token:
 
 - `JWTPayloadAnyKV()`
@@ -494,12 +494,12 @@ the bandwidth or add latency. For the full list of filters see our
 
 Filter documentation:
 
-- [latency](../../reference/filters/#latency)
-- [bandwidth](../../reference/filters/#bandwidth)
-- [chunks](../../reference/filters/#chunks)
-- [backendlatency](../../reference/filters/#backendlatency)
-- [backendChunks](../../reference/filters/#backendChunks)
-- [randomcontent](../../reference/filters/#randomcontent)
+- [latency](../reference/filters.md#latency)
+- [bandwidth](../reference/filters.md#bandwidth)
+- [chunks](../reference/filters.md#chunks)
+- [backendlatency](../reference/filters.md#backendlatency)
+- [backendChunks](../reference/filters.md#backendChunks)
+- [randomcontent](../reference/filters.md#randomcontent)
 
 ### Flow Id to trace request flows
 
@@ -507,7 +507,7 @@ To trace request flows skipper can generate a unique Flow Id for every
 HTTP request that it receives. You can then find the trace of the
 request in all your access logs.  Skipper sets the X-Flow-Id header to
 a unique value. Read more about this in our
-[flowid filter](../../reference/filters/#flowid)
+[flowid filter](../reference/filters.md#flowid)
 and [godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
 
      flowId("reuse")
@@ -521,7 +521,7 @@ things you can do with them.
 
 #### Consecutive Breaker
 
-The [consecutiveBreaker](../../reference/filters/#consecutivebreaker)
+The [consecutiveBreaker](../reference/filters.md#consecutivebreaker)
 filter is a breaker for the ingress route that open if the backend failures
 for the route reach a value of N (in this example N=15), where N is a
 mandatory argument of the filter and there are some more optional arguments
@@ -550,7 +550,7 @@ spec:
 
 #### Rate Breaker
 
-The [rateBreaker](../../reference/filters/#ratebreaker)
+The [rateBreaker](../reference/filters.md#ratebreaker)
 filter is a breaker for the ingress route that open if the backend
 failures for the route reach a value of N within a window of the last
 M requests, where N (in this example 30) and M (in this example 300)
@@ -597,7 +597,7 @@ Ratelimits are enforced per route.
 
 More details you will find in [ratelimit
 package](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
-and in our [ratelimit tutorial](../../tutorials/ratelimit/).
+and in our [ratelimit tutorial](../tutorials/ratelimit.md).
 
 #### Client Ratelimits
 
@@ -721,7 +721,7 @@ spec:
 If you want to test a new replacement of a production service with
 production load, you can copy incoming requests to your new endpoint
 and ignore the responses from your new backend. This can be done by
-the [tee()](../../reference/filters/#tee) and [teenf()](../../reference/filters/#teenf) filters.
+the [tee()](../reference/filters.md#tee) and [teenf()](../reference/filters.md#teenf) filters.
 
 ```yaml
 apiVersion: extensions/v1beta1
@@ -742,13 +742,13 @@ spec:
 
 ## Predicates
 
-[Predicates](../../reference/predicates)
+[Predicates](../reference/predicates.md)
 are influencing the route matching, which you might want to carefully
 test before using it in production. This enables you to do feature
 toggles or time based enabling endpoints.
 
-You can use all kinds of [predicates](../../reference/predicates)
-with [filters](../../reference/filters) together.
+You can use all kinds of [predicates](../reference/predicates.md)
+with [filters](../reference/filters.md) together.
 
 ### Feature Toggle
 
@@ -828,9 +828,9 @@ Implementing A/B testing is heavy. Skipper can help you to do
 that. You need to have a traffic split somewhere and have your
 customers sticky to either A or B flavor of your application. Most
 likely people would implement using cookies. Skipper can set a
-[cookie with responseCookie()](../../reference/filters/#responsecookie)
+[cookie with responseCookie()](../reference/filters.md#responsecookie)
 in a response to the client and the
-[cookie predicate](../../reference/predicates/#cookie)
+[cookie predicate](../reference/predicates.md#cookie)
 can be used to match the route based on the cookie. Like this you can
 have sticky sessions to either A or B for your clients.  This example
 shows to have 10% traffic using A and the rest using B.

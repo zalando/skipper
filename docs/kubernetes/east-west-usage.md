@@ -1,7 +1,7 @@
 ## East-West Usage
 
 If you run Skipper with an [East-West
-setup](../ingress-controller/#run-as-api-gateway-with-east-west-setup),
+setup](ingress-controller.md#run-as-api-gateway-with-east-west-setup),
 you can use the configured ingress also to do service-to-service
 calls, bypassing your ingress loadbalancer and stay inside the
 cluster. It depends on the configuration, but the default is that you
@@ -39,6 +39,6 @@ header, which changes with cluster internal calls from
 `demo.example.org` to `demo.default.skipper.cluster.local`.
 
 You can use all features as defined in [Ingress
-Usage](../ingress-usage/), [Filters](../../reference/filters/),
-[Predicates](../../reference/predicates/) via [annotations as
-before](../ingress-usage/#filters-and-predicates) and also [custom-routes](../ingress-usage/#custom-routes).
+Usage](ingress-usage.md), [Filters](../reference/filters.md),
+[Predicates](../reference/predicates.md) via [annotations as
+before](ingress-usage.md#filters-and-predicates) and also [custom-routes](ingress-usage.md#custom-routes).
