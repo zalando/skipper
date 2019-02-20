@@ -67,9 +67,11 @@ func newClusterRateLimiter(s Settings, sw Swarmer, group string) *clusterLimit {
 		for {
 			select {
 			case size := <-rl.resize:
-				log.Debugf("%s resize clusterRatelimit: %v", group, size)
+				// TODO(sszuecs): resize is only good if maxHits >> size.n , which means not have to many skipper instances
+				instSize := rl.maxHits / size.n
+				log.Debugf("%s resize clusterRatelimit: size=%v, rl.maxHits=%d, instance to: %v", group, size, rl.maxHits, instSize)
 				// TODO(sszuecs): call with "go" ?
-				rl.Resize(size.s, rl.maxHits/size.n)
+				rl.Resize(size.s, instSize)
 			case <-rl.quit:
 				log.Debugf("%s: quit clusterRatelimit", group)
 				close(rl.resize)
@@ -95,7 +97,7 @@ func (c *clusterLimit) Allow(s string) bool {
 	//           ^- current pointer to oldest
 	// now - t0
 	t0 := c.Oldest(s).UTC().UnixNano()
-	c.metrics.UpdateGauge("swarm.t0."+key, float64(t0))
+	c.metrics.UpdateGauge("swarm."+key+".t0", float64(t0))
 
 	_ = c.local.Allow(s) // update local rate limit
 
@@ -110,9 +112,8 @@ func (c *clusterLimit) Allow(s string) bool {
 
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, swarmValues)
-	c.metrics.UpdateGauge("swarm.rate."+key, rate)
+	c.metrics.UpdateGauge("swarm."+key+".rate", rate)
 	result := rate < float64(c.maxHits)
-	log.Debugf("%s clusterRatelimit: Allow=%v, %v < %d", c.group, result, rate, c.maxHits)
 	return result
 }
 
@@ -120,17 +121,20 @@ func (c *clusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]in
 	var requestRate float64
 	maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(len(swarmValues))))
 
-	for _, v := range swarmValues {
+	for k, v := range swarmValues {
 		t0, ok := v.(int64)
 		if !ok || t0 == 0 {
 			continue
 		}
 		delta := time.Duration(now - t0)
+		if delta < 0 {
+			log.Warningf("Should not happen: %v - %v < 0", now, t0)
+			continue
+		}
 		adjusted := float64(delta) / float64(c.window)
-		log.Debugf("%s: %0.2f += %0.2f / %0.2f", c.group, requestRate, maxNodeHits, adjusted)
+		log.Debugf("%s (%s): %0.2f += %0.2f / %0.2f", c.group, k, requestRate, maxNodeHits, adjusted)
 		requestRate += maxNodeHits / adjusted
 	}
-	log.Debugf("%s requestRate: %0.2f", c.group, requestRate)
 	return requestRate
 }
 

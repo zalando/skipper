@@ -254,6 +254,10 @@ type Ratelimit struct {
 	impl     limiter
 }
 
+func (l *Ratelimit) String() string {
+	return l.settings.String()
+}
+
 // Allow returns true if the s is not ratelimited, false if it is
 // ratelimited
 func (l *Ratelimit) Allow(s string) bool {
