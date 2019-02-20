@@ -95,6 +95,10 @@ func (sv sharedValues) set(source, key string, value interface{}) {
 	sv[key][source] = value
 }
 
+func (sv sharedValues) delete(source string) {
+	delete(sv, source)
+}
+
 func encodeMessage(m *message) ([]byte, error) {
 	// we're not saving the encoder together with the connections, because
 	// even if the reflection info would be cached, it's very fragile and

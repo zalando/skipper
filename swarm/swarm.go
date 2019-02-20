@@ -271,8 +271,30 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm
 
 // control is the control loop of a Swarm member.
 func (s *Swarm) control() {
+	ticker := time.NewTicker(time.Second)
+
 	for {
 		select {
+		case <-ticker.C:
+			mnodes := s.mlist.Members()
+
+			// TODO(sszuecs) we need to delete the data in our swarm from the node
+			// sharedValues[requestClientIP][sourceSkipper] = val
+			for requestClientIP, h := range s.shared {
+				found := false
+				for sourceSkipper := range h {
+					for _, n := range mnodes {
+						if sourceSkipper == n.Name {
+							found = true
+							break
+						}
+					}
+					if !found {
+						log.Infof("Deleted shared value %s->%s", requestClientIP, sourceSkipper)
+						delete(s.shared[requestClientIP], sourceSkipper) // do we delete the right thing?
+					}
+				}
+			}
 		case req := <-s.getOutgoing:
 			s.messages = takeMaxLatest(s.messages, req.overhead, req.limit)
 			req.ret <- s.messages
@@ -315,20 +337,10 @@ func (s *Swarm) control() {
 		case req := <-s.getValues:
 			req.ret <- s.shared[req.key]
 		case <-s.leave:
-			if s.mlist == nil {
-				log.Warningf("SWARM: Leave called, but %s already seem to be left", s.Local())
-				return
-			}
-			if err := s.mlist.Leave(s.leaveTimeout); err != nil {
-				log.Errorf("SWARM: Failed to leave mlist: %v", err)
-			}
-			if err := s.mlist.Shutdown(); err != nil {
-				log.Errorf("SWARM: Failed to shutdown mlist: %v", err)
-			}
-			log.Infof("SWARM: %s left", s.Local())
 			return
 		}
 	}
+
 }
 
 // Local is a getter to the local member of a swarm.
@@ -388,6 +400,21 @@ func (s *Swarm) Values(key string) map[string]interface{} {
 
 // Leave sends a signal for the local node to leave the Swarm.
 func (s *Swarm) Leave() {
+	log.Infof("SWARM: %s leaving..", s.Local())
+	// s.shared.delete(s.Local().Name)
+	// time.Sleep(15 * time.Second) // TODO(sszuecs): have a proper solution
 	close(s.leave)
+
+	if s.mlist == nil {
+		log.Warningf("SWARM: Leave called, but %s already seem to be left", s.Local())
+		return
+	}
+	if err := s.mlist.Leave(s.leaveTimeout); err != nil {
+		log.Errorf("SWARM: Failed to leave mlist: %v", err)
+	}
+	if err := s.mlist.Shutdown(); err != nil {
+		log.Errorf("SWARM: Failed to shutdown mlist: %v", err)
+	}
+	log.Infof("SWARM: %s left", s.Local())
 	s.cleanupF()
 }

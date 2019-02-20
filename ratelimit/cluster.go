@@ -113,12 +113,12 @@ func (c *clusterLimit) Allow(s string) bool {
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, swarmValues)
 	c.metrics.UpdateGauge("swarm."+key+".rate", rate)
-	result := rate < float64(c.maxHits)
-	return result
+	return rate < float64(c.maxHits)
 }
 
 func (c *clusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {
 	var requestRate float64
+	// len(swarmValues) will
 	maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(len(swarmValues))))
 
 	for k, v := range swarmValues {

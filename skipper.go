@@ -7,8 +7,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -707,6 +709,25 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 
 // Run skipper.
 func Run(o Options) error {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
+	type cleanup func()
+	var cleanups []cleanup
+	cleanups = append(cleanups, func() { log.Info("Run closing") })
+	go func() {
+		for {
+			select {
+			case <-sigs:
+				for _, f := range cleanups {
+					f()
+				}
+				log.Info("Run closed all the things")
+				os.Exit(0)
+			}
+
+		}
+	}()
+
 	// init log
 	err := initLog(o)
 	if err != nil {
@@ -822,7 +843,8 @@ func Run(o Options) error {
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	})
-	defer routing.Close()
+
+	cleanups = append(cleanups, func() { routing.Close() })
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
@@ -889,7 +911,8 @@ func Run(o Options) error {
 		if err != nil {
 			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
 		}
-		defer theSwarm.Leave()
+
+		cleanups = append(cleanups, func() { theSwarm.Leave() })
 	}
 
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
@@ -990,7 +1013,7 @@ func Run(o Options) error {
 
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)
-	defer proxy.Close()
+	cleanups = append(cleanups, func() { proxy.Close() })
 
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
