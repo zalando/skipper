@@ -377,7 +377,7 @@ rules:
   verbs: ["get", "list"]
 - apiGroups: [""]
   resources: ["namespaces", "services", "endpoints"]
-  verbs: ["get"]
+  verbs: ["get", "list"]
 ```
 
 This `ClusterRole` defines access to `get` and `list` all created ingresses, namespaces, services and endpoints.
@@ -439,6 +439,7 @@ spec:
       nodeSelector:
         kubernetes.io/role: worker
       hostNetwork: true
+      serviceAccountName: skipper-ingress
       containers:
       - name: skipper-ingress
         image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.112
