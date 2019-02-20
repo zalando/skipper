@@ -1,4 +1,5 @@
 site_name: Skipper
+site_url: https://opensource.zalando.com/skipper/
 nav:
     - Introduction: index.md
     - Reference:
