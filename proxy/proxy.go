@@ -854,7 +854,7 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 	if !ok || len(settings) < 1 {
 		return ratelimit.Settings{}, 0
 	}
-	p.log.Infof("checkRatelimit settings: %d", len(settings))
+	p.log.Debugf("checkRatelimit settings: %d", len(settings))
 
 	for _, setting := range settings {
 		rl := p.limiters.Get(setting)
@@ -862,6 +862,7 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 			p.log.Errorf("RateLimiter is nil for setting: %s", setting)
 			continue
 		}
+		p.log.Debugf("rl settings: %s", rl)
 
 		if setting.Lookuper == nil {
 			p.log.Errorf("Lookuper is nil for setting: %s", setting)

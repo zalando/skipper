@@ -310,13 +310,11 @@ func (s *Swarm) control() {
 					}
 				}
 			} else {
-				log.Debugf("SWARM: got message: %#v", m)
+				log.Errorf("SWARM: got message with unknown type: %#v", m)
 			}
 		case req := <-s.getValues:
-			log.Debugf("SWARM: getValues for key: %s", req.key)
 			req.ret <- s.shared[req.key]
 		case <-s.leave:
-			log.Debugf("SWARM: %s got leave signal", s.Local())
 			if s.mlist == nil {
 				log.Warningf("SWARM: Leave called, but %s already seem to be left", s.Local())
 				return
@@ -385,7 +383,6 @@ func (s *Swarm) Values(key string) map[string]interface{} {
 	}
 	s.getValues <- req
 	d := <-req.ret
-	log.Debugf("SWARM: d: %#v", d)
 	return d
 }
 
