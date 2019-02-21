@@ -269,17 +269,37 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm
 	return s, nil
 }
 
+var activeMember = make(map[string]time.Time)
+
+func (s *Swarm) Members() int {
+	// mnodes := s.mlist.Members()
+	// n := 0
+	// for _, mnode := range mnodes {
+	// 	t, ok := activeMember[mnode.Name]
+	// 	if !ok {
+	// 		activeMember[mnode.Name] = time.Now()
+	// 		continue
+	// 	}
+	// 	if t.Before(time.Now().Add(-time.Second * 60)) {
+	// 		n++
+	// 	}
+	// }
+	// return n
+	return s.mlist.NumMembers()
+}
+
 // control is the control loop of a Swarm member.
 func (s *Swarm) control() {
-	ticker := time.NewTicker(time.Second)
+	s.Members()                         // init data struct once
+	ticker := time.NewTicker(time.Hour) // TODO(sszuecs) configure cleanup by swarm and flag
 
 	for {
 		select {
 		case <-ticker.C:
 			mnodes := s.mlist.Members()
 
-			// TODO(sszuecs) we need to delete the data in our swarm from the node
-			// sharedValues[requestClientIP][sourceSkipper] = val
+			// s.shared: sharedValues[requestClientIP][sourceSkipper] = val
+			// we need to delete stale data from old sourceSkipper
 			for requestClientIP, h := range s.shared {
 				found := false
 				for sourceSkipper := range h {
@@ -401,8 +421,6 @@ func (s *Swarm) Values(key string) map[string]interface{} {
 // Leave sends a signal for the local node to leave the Swarm.
 func (s *Swarm) Leave() {
 	log.Infof("SWARM: %s leaving..", s.Local())
-	// s.shared.delete(s.Local().Name)
-	// time.Sleep(15 * time.Second) // TODO(sszuecs): have a proper solution
 	close(s.leave)
 
 	if s.mlist == nil {

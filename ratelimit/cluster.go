@@ -18,6 +18,8 @@ type Swarmer interface {
 	ShareValue(string, interface{}) error
 	// Values is used to get global information about current rates.
 	Values(string) map[string]interface{}
+	// Members returns the number of known members
+	Members() int
 }
 
 // clusterLimit stores all data required for the cluster ratelimit.
@@ -91,6 +93,8 @@ const swarmPrefix string = `ratelimit.`
 // to decide to allow or not.
 func (c *clusterLimit) Allow(s string) bool {
 	key := swarmPrefix + c.group + "." + s
+	numInstances := c.swarm.Members()
+	c.resize <- resizeLimit{s: s, n: numInstances}
 
 	// t0 is the oldest entry in the local circularbuffer
 	// [ t3, t4, t0, t1, t2]
@@ -101,39 +105,49 @@ func (c *clusterLimit) Allow(s string) bool {
 
 	_ = c.local.Allow(s) // update local rate limit
 
+	if t0 < 0 { // circularbuffer not filled yet
+		return true
+	}
+
 	if err := c.swarm.ShareValue(key, t0); err != nil {
 		log.Errorf("%s clusterRatelimit failed to share value: %v", c.group, err)
 	}
 
 	swarmValues := c.swarm.Values(key)
-	log.Debugf("%s: clusterRatelimit swarmValues(%d) for '%s': %v", c.group, len(swarmValues), swarmPrefix+s, swarmValues)
-
-	c.resize <- resizeLimit{s: s, n: len(swarmValues)}
 
 	now := time.Now().UTC().UnixNano()
-	rate := c.calcTotalRequestRate(now, swarmValues)
+	rate := c.calcTotalRequestRate(now, numInstances, swarmValues)
+	log.Debugf("clusterRatelimit(%s, %d/%s) numInstances(%d) requestrate=%0.2f swarmValues(%d) for '%s': %v",
+		c.group, c.maxHits, c.window, numInstances, rate, len(swarmValues), swarmPrefix+s, swarmValues)
 	c.metrics.UpdateGauge("swarm."+key+".rate", rate)
 	return rate < float64(c.maxHits)
 }
 
-func (c *clusterLimit) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {
+func (c *clusterLimit) calcTotalRequestRate(now int64, numInstances int, swarmValues map[string]interface{}) float64 {
 	var requestRate float64
-	// len(swarmValues) will
-	maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(len(swarmValues))))
+	// len(swarmValues) will create harm, because of stale data
+	// maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(len(swarmValues))))
+	maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(numInstances)))
 
 	for k, v := range swarmValues {
 		t0, ok := v.(int64)
 		if !ok || t0 == 0 {
 			continue
 		}
-		delta := time.Duration(now - t0)
+		delta := now - t0
+		log.Debugf("delta: %s", delta) // 1.4s
 		if delta < 0 {
-			log.Warningf("Should not happen: %v - %v < 0", now, t0)
+			log.Warningf("Clock skew, should not happen: %v - %v = %v", now, t0, delta)
 			continue
 		}
-		adjusted := float64(delta) / float64(c.window)
+		// if delta > int64(100*c.window) {
+		// 	continue
+		// }
+
+		//adjusted := float64(delta) / float64(c.window)
+		adjusted := math.Max(1.0, float64(delta)/float64(c.window))
 		log.Debugf("%s (%s): %0.2f += %0.2f / %0.2f", c.group, k, requestRate, maxNodeHits, adjusted)
-		requestRate += maxNodeHits / adjusted
+		requestRate += maxNodeHits / adjusted // 150 / 0.15
 	}
 	return requestRate
 }
