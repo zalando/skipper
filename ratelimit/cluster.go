@@ -117,8 +117,8 @@ func (c *clusterLimit) Allow(s string) bool {
 
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, numInstances, swarmValues)
-	log.Debugf("clusterRatelimit(%s, %d/%s) numInstances(%d) requestrate=%0.2f swarmValues(%d) for '%s': %v",
-		c.group, c.maxHits, c.window, numInstances, rate, len(swarmValues), swarmPrefix+s, swarmValues)
+	log.Debugf("clusterRatelimit(%s, %d/%s)=%v numInstances(%d) requestrate=%0.2f swarmValues(%d) for '%s': %v",
+		c.group, c.maxHits, c.window, rate < float64(c.maxHits), numInstances, rate, len(swarmValues), swarmPrefix+s, swarmValues)
 	c.metrics.UpdateGauge("swarm."+key+".rate", rate)
 	return rate < float64(c.maxHits)
 }
@@ -135,18 +135,21 @@ func (c *clusterLimit) calcTotalRequestRate(now int64, numInstances int, swarmVa
 			continue
 		}
 		delta := now - t0
-		log.Debugf("delta: %s", delta) // 1.4s
+		// delta: 23.892921ms
+		// delta: 13m52.528187839s
+		log.Debugf("clusterRatelimit delta: %s %d", time.Duration(delta), delta)
 		if delta < 0 {
 			log.Warningf("Clock skew, should not happen: %v - %v = %v", now, t0, delta)
 			continue
 		}
-		// if delta > int64(100*c.window) {
-		// 	continue
-		// }
+		if delta > int64(10*c.window) { // 1m40s     or 100000000000
+			//if delta > int64(100*c.window) { // 16m40s or 1000000000000
+			continue
+		}
 
 		//adjusted := float64(delta) / float64(c.window)
 		adjusted := math.Max(1.0, float64(delta)/float64(c.window))
-		log.Debugf("%s (%s): %0.2f += %0.2f / %0.2f", c.group, k, requestRate, maxNodeHits, adjusted)
+		log.Debugf("clusterRatelimit %s (%s): %0.2f += %0.2f / %0.2f", c.group, k, requestRate, maxNodeHits, adjusted)
 		requestRate += maxNodeHits / adjusted // 150 / 0.15
 	}
 	return requestRate
