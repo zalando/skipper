@@ -901,6 +901,7 @@ while access log, in general, is enabled. It is also possible to disable access 
 from backend by providing an optional list of response code prefixes.
 
 Parameters:
+
 * response code prefixes (variadic int) - optional
 
 Example:
@@ -910,6 +911,8 @@ disableAccessLog()
 disableAccessLog(1, 301, 40)
 ```
 
+This disables logs of all requests with status codes `1xxs`, `301` and all `40xs`.
+
 ## enableAccessLog
 
 Filter overrides global Skipper `AccessLogDisabled` setting and allows to turn-on the access log for specific route
@@ -917,6 +920,7 @@ while access log, in general, is disabled. It is also possible to enable access 
 from backend by providing an optional list of response code prefixes.
 
 Parameters:
+
 * response code prefixes (variadic int) - optional
 
 Example:
@@ -925,6 +929,8 @@ Example:
 enableAccessLog()
 enableAccessLog(1, 301, 20)
 ```
+
+This enables logs of all requests with status codes `1xxs`, `301` and all `20xs`.
 
 ## auditLog
 
