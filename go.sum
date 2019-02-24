@@ -114,6 +114,8 @@ github.com/stretchr/testify v1.2.2 h1:bSDNvY7ZPG5RlJ8otE/7V6gMiyenm9RtJ7IUVIAoJ1
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/szuecs/rate-limit-buffer v0.7.0 h1:/CPaOt1oLElQFnOAOYXxrN/kDMyCSp6iKSna2sYZ6X0=
 github.com/szuecs/rate-limit-buffer v0.7.0/go.mod h1:BxqrsmnHsCnWcvbtdcaDLEBmjNEvRFU5LQ8edoZ9B0M=
+github.com/szuecs/rate-limit-buffer v0.7.1 h1:kpVLwDvpCTFQi8uhiXQrhAKWzNUaEKhArFdjb4GQ8F4=
+github.com/szuecs/rate-limit-buffer v0.7.1/go.mod h1:BxqrsmnHsCnWcvbtdcaDLEBmjNEvRFU5LQ8edoZ9B0M=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926 h1:G3dpKMzFDjgEh2q1Z7zUUtKa8ViPtH+ocF0bE0g00O8=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
 github.com/uber-go/atomic v1.3.2 h1:Azu9lPBWRNKzYXSIwRfgRuDuS0YKsK4NFhiQv98gkxo=

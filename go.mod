@@ -54,7 +54,7 @@ require (
 	github.com/sirupsen/logrus v1.0.4
 	github.com/sony/gobreaker v0.0.0-20170530031423-e9556a45379e
 	github.com/stretchr/testify v1.2.2
-	github.com/szuecs/rate-limit-buffer v0.7.0
+	github.com/szuecs/rate-limit-buffer v0.7.1
 	github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926 // indirect
 	github.com/uber-go/atomic v1.3.2 // indirect
 	github.com/uber/jaeger-client-go v2.14.0+incompatible
