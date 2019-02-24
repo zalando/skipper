@@ -72,7 +72,6 @@ func newClusterRateLimiter(s Settings, sw Swarmer, group string) *clusterLimit {
 				// TODO(sszuecs): resize is only good if maxHits >> size.n , which means not have to many skipper instances
 				instSize := rl.maxHits / size.n
 				log.Debugf("%s resize clusterRatelimit: size=%v, rl.maxHits=%d, instance to: %v", group, size, rl.maxHits, instSize)
-				// TODO(sszuecs): call with "go" ?
 				rl.Resize(size.s, instSize)
 			case <-rl.quit:
 				log.Debugf("%s: quit clusterRatelimit", group)
@@ -105,28 +104,32 @@ func (c *clusterLimit) Allow(s string) bool {
 
 	_ = c.local.Allow(s) // update local rate limit
 
-	if t0 < 0 { // circularbuffer not filled yet
-		return true
-	}
+	// if t0 < 0 { // circularbuffer not filled yet
+	// 	log.Debugf("clusterLimit not filled: allow")
+	// 	return true
+	// }
+	nowt := time.Now().UTC()
+	// if t0 < nowt.Add(-c.window*2).UnixNano() { // TEST: do not populate outdated values
+	// 	log.Debugf("clusterLimit t0 too old to share: allow")
+	// 	return true
+	// }
 
 	if err := c.swarm.ShareValue(key, t0); err != nil {
 		log.Errorf("%s clusterRatelimit failed to share value: %v", c.group, err)
 	}
 
 	swarmValues := c.swarm.Values(key)
-
-	now := time.Now().UTC().UnixNano()
+	now := nowt.UnixNano()
 	rate := c.calcTotalRequestRate(now, numInstances, swarmValues)
-	log.Debugf("clusterRatelimit(%s, %d/%s)=%v numInstances(%d) requestrate=%0.2f swarmValues(%d) for '%s': %v",
-		c.group, c.maxHits, c.window, rate < float64(c.maxHits), numInstances, rate, len(swarmValues), swarmPrefix+s, swarmValues)
+	log.Debugf("clusterRatelimit(%s, %d/%s)=%v numInstances(%d) requestrate=%0.2f t0=%d swarmValues(%d) for '%s': %v",
+		c.group, c.maxHits, c.window, rate < float64(c.maxHits), numInstances, rate, t0, len(swarmValues), swarmPrefix+s, swarmValues)
 	c.metrics.UpdateGauge("swarm."+key+".rate", rate)
 	return rate < float64(c.maxHits)
 }
 
 func (c *clusterLimit) calcTotalRequestRate(now int64, numInstances int, swarmValues map[string]interface{}) float64 {
 	var requestRate float64
-	// len(swarmValues) will create harm, because of stale data
-	// maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(len(swarmValues))))
+	// len(swarmValues) instead of numInstances would create harm, because of stale data
 	maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(numInstances)))
 
 	for k, v := range swarmValues {
@@ -135,22 +138,24 @@ func (c *clusterLimit) calcTotalRequestRate(now int64, numInstances int, swarmVa
 			continue
 		}
 		delta := now - t0
-		// delta: 23.892921ms
-		// delta: 13m52.528187839s
 		log.Debugf("clusterRatelimit delta: %s %d", time.Duration(delta), delta)
 		if delta < 0 {
 			log.Warningf("Clock skew, should not happen: %v - %v = %v", now, t0, delta)
 			continue
 		}
+
+		// TODO(sszuecs) would be nice if we can drop this
 		if delta > int64(10*c.window) { // 1m40s     or 100000000000
 			//if delta > int64(100*c.window) { // 16m40s or 1000000000000
 			continue
 		}
 
-		//adjusted := float64(delta) / float64(c.window)
+		// cap to max 1.0 seems to be required (also tested 1.1), otherwise we spike and disallow too many
+		// adjusted := float64(delta) / float64(c.window)
 		adjusted := math.Max(1.0, float64(delta)/float64(c.window))
+
+		requestRate += maxNodeHits / adjusted
 		log.Debugf("clusterRatelimit %s (%s): %0.2f += %0.2f / %0.2f", c.group, k, requestRate, maxNodeHits, adjusted)
-		requestRate += maxNodeHits / adjusted // 150 / 0.15
 	}
 	return requestRate
 }

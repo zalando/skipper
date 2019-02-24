@@ -130,6 +130,60 @@ func TestSingleSwarm(t *testing.T) {
 
 }
 
+func Test_calcTotalRequestRate_Investigation(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	s := Settings{
+		Type:       ClusterServiceRatelimit,
+		MaxHits:    450,
+		TimeWindow: 10 * time.Second,
+	}
+	sw1, err := newFakeSwarm("n1", 5*time.Second)
+	if err != nil {
+		t.Fatalf("Failed to start swarm1: %v", err)
+	}
+	defer sw1.Leave()
+
+	crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
+	defer crl1sw1.Close()
+
+	now := time.Now().UTC().UnixNano()
+
+	for _, ti := range []struct {
+		name        string
+		swarmValues map[string]interface{}
+		epsilon     float64
+		expected    float64
+	}{{
+		name: "fst",
+		swarmValues: map[string]interface{}{
+			// 108.363876ms
+			// 135.937123ms
+			// 134.92788ms
+			"n1": now - int64(108363876),
+			"n2": now - int64(135937123),
+			"n3": now - int64(134927880),
+		},
+		// 450req total: 150req in 108ms+136ms+135ms -->
+		expected: 125.0, //-> rate=35993.8147156273
+		epsilon:  0.1,
+	}} {
+		ti := ti
+		t.Run(ti.name, func(t *testing.T) {
+			rate := crl1sw1.calcTotalRequestRate(now, len(ti.swarmValues), ti.swarmValues)
+			if !((ti.expected-ti.epsilon) <= rate && rate <= (ti.expected+ti.epsilon)) {
+				t.Errorf("Failed to calcTotalRequestRate: rate=%v expected=%v", rate, ti.expected)
+			}
+
+			// check that it times out, rate should be always below MaxHits
+			rate = crl1sw1.calcTotalRequestRate(now+int64(s.TimeWindow), len(ti.swarmValues), ti.swarmValues)
+			if rate > float64(s.MaxHits) {
+				t.Errorf("Failed to drop below maxhits calcTotalRequestRate: rate=%v but should be less than %v", rate, s.MaxHits)
+			}
+		})
+
+	}
+}
+
 func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
 	log.SetLevel(log.InfoLevel)
 	s := Settings{
@@ -195,13 +249,13 @@ func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
 		epsilon:  0.1,
 	}} {
 		t.Run(ti.name, func(t *testing.T) {
-			rate := crl1sw1.calcTotalRequestRate(now, ti.swarmValues)
+			rate := crl1sw1.calcTotalRequestRate(now, len(ti.swarmValues), ti.swarmValues)
 			if !((ti.expected-ti.epsilon) <= rate && rate <= (ti.expected+ti.epsilon)) {
 				t.Errorf("Failed to calcTotalRequestRate: rate=%v expected=%v", rate, ti.expected)
 			}
 
 			// check that it times out, rate should be always below MaxHits
-			rate = crl1sw1.calcTotalRequestRate(now+int64(s.TimeWindow), ti.swarmValues)
+			rate = crl1sw1.calcTotalRequestRate(now+int64(s.TimeWindow), len(ti.swarmValues), ti.swarmValues)
 			if rate > float64(s.MaxHits) {
 				t.Errorf("Failed to drop below maxhits calcTotalRequestRate: rate=%v but should be less than %v", rate, s.MaxHits)
 			}
@@ -312,13 +366,13 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 		epsilon:  0.1,
 	}} {
 		t.Run(ti.name, func(t *testing.T) {
-			rate := crl1sw1.calcTotalRequestRate(now, ti.swarmValues)
+			rate := crl1sw1.calcTotalRequestRate(now, len(ti.swarmValues), ti.swarmValues)
 			if !((ti.expected-ti.epsilon) <= rate && rate <= (ti.expected+ti.epsilon)) {
 				t.Errorf("Failed to calcTotalRequestRate: rate=%v expected=%v", rate, ti.expected)
 			}
 
 			// check that it times out, rate should be always 0
-			rate = crl1sw1.calcTotalRequestRate(now+int64(s.TimeWindow), ti.swarmValues)
+			rate = crl1sw1.calcTotalRequestRate(now+int64(s.TimeWindow), len(ti.swarmValues), ti.swarmValues)
 			if rate > float64(s.TimeWindow) {
 				t.Errorf("Failed to drop below maxhits calcTotalRequestRate: rate=%v but should be less than %v", rate, s.MaxHits)
 			}
