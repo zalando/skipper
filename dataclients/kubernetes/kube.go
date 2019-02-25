@@ -42,6 +42,7 @@ const (
 	endpointsNamespaceFmt         = "/api/v1/namespaces/%s/endpoints"
 	servicesClusterURI            = "/api/v1/services"
 	servicesNamespaceFmt          = "/api/v1/namespaces/%s/services"
+	configMapFmt                  = "/api/v1/namespaces/%s/configmaps/%s"
 	serviceAccountDir             = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey        = "token"
 	serviceAccountRootCAKey       = "ca.crt"
@@ -172,6 +173,12 @@ type Options struct {
 
 	// KubernetesEastWestDomain sets the DNS domain to be used for east west traffic, defaults to "skipper.cluster.local"
 	KubernetesEastWestDomain string
+
+	// KubernetesConfigMapName sets K8S config map to use as a source of default filter configurations
+	KubernetesConfigMapName string
+
+	// KubernetesConfigMapNamespace sets K8S config map's namespace to use as a source of default filter configurations
+	KubernetesConfigMapNamespace string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -195,6 +202,8 @@ type Client struct {
 	ingressesURI             string
 	servicesURI              string
 	endpointsURI             string
+	configMapName            string
+	configMapNamespace       string
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -289,6 +298,8 @@ func New(o Options) (*Client, error) {
 		ingressesURI:             ingressesClusterURI,
 		servicesURI:              servicesClusterURI,
 		endpointsURI:             endpointsClusterURI,
+		configMapName:            o.KubernetesConfigMapName,
+		configMapNamespace:       o.KubernetesConfigMapNamespace,
 	}
 	if o.KubernetesNamespace != "" {
 		result.setNamespace(o.KubernetesNamespace)
@@ -754,7 +765,7 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 // valid ones.  Reporting failures in Ingress status is not possible,
 // because Ingress status field is v1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
-func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
+func (c *Client) ingressToRoutes(state *clusterState, defaultFilters map[resourceId]string) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(state.ingresses))
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(c.provideHTTPSRedirect, c.httpsRedirectCode)
@@ -788,6 +799,9 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 			}
 			annotationFilter += val
 		}
+
+		//TODO add default filter configurations
+
 		// parse predicate annotation
 		var annotationPredicate string
 		if val, ok := i.Metadata.Annotations[skipperpredicateAnnotationKey]; ok {
@@ -1210,7 +1224,10 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
-	r, err := c.ingressToRoutes(state)
+	defaultFilters := c.fetchDefaultFilterConfigs()
+	log.Debugf("got default filter configurations for %d services", len(defaultFilters))
+
+	r, err := c.ingressToRoutes(state, defaultFilters)
 	if err != nil {
 		log.Debugf("converting ingresses to routes failed: %v", err)
 		return nil, err
@@ -1341,4 +1358,26 @@ func (c *Client) Close() {
 	if c != nil && c.quit != nil {
 		close(c.quit)
 	}
+}
+
+func (c *Client) fetchDefaultFilterConfigs() map[resourceId]string {
+	configs := make(map[resourceId]string)
+
+	if c.configMapNamespace == "" || c.configMapName == "" {
+		log.Debug("default filter configs via ConfigMap are disabled")
+		return configs
+	}
+
+	_, err := fetchConfigMap(c.configMapNamespace, c.configMapName)
+
+	if err != nil {
+		log.WithError(err).Error("could not fetch default filter configurations (config map)")
+		return configs
+	}
+
+	return configs
+}
+
+func fetchConfigMap(namespace string, name string) (map[resourceId]string, error) {
+	return nil, fmt.Errorf("not yet implemented")
 }

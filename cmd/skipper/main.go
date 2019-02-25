@@ -142,18 +142,20 @@ const (
 	waitFirstRouteLoadUsage        = "prevent starting the listener before the first batch of routes were loaded"
 
 	// Kubernetes:
-	kubernetesUsage                  = "enables skipper to generate routes for ingress resources in kubernetes cluster"
-	kubernetesInClusterUsage         = "specify if skipper is running inside kubernetes cluster"
-	kubernetesURLUsage               = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
-	kubernetesHealthcheckUsage       = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
-	kubernetesHTTPSRedirectUsage     = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
-	kubernetesHTTPSRedirectCodeUsage = "overrides the default redirect code (308) when used together with -kubernetes-https-redirect"
-	kubernetesIngressClassUsage      = "ingress class regular expression used to filter ingress resources for kubernetes"
-	whitelistedHealthCheckCIDRUsage  = "sets the iprange/CIDRS to be whitelisted during healthcheck"
-	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
-	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
-	kubernetesEnableEastWestUsage    = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
-	kubernetesEastWestDomainUsage    = "set the east-west domain, defaults to .skipper.cluster.local"
+	kubernetesUsage                   = "enables skipper to generate routes for ingress resources in kubernetes cluster"
+	kubernetesInClusterUsage          = "specify if skipper is running inside kubernetes cluster"
+	kubernetesURLUsage                = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
+	kubernetesHealthcheckUsage        = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
+	kubernetesHTTPSRedirectUsage      = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
+	kubernetesHTTPSRedirectCodeUsage  = "overrides the default redirect code (308) when used together with -kubernetes-https-redirect"
+	kubernetesIngressClassUsage       = "ingress class regular expression used to filter ingress resources for kubernetes"
+	whitelistedHealthCheckCIDRUsage   = "sets the iprange/CIDRS to be whitelisted during healthcheck"
+	kubernetesPathModeUsage           = "controls the default interpretation of Kubernetes ingress paths: kubernetes-ingress/path-regexp/path-prefix"
+	kubernetesNamespaceUsage          = "watch only this namespace for ingresses"
+	kubernetesEnableEastWestUsage     = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
+	kubernetesEastWestDomainUsage     = "set the east-west domain, defaults to .skipper.cluster.local"
+	kubernetesConfigMapNameUsage      = "name of the config map which contains default filter configs per service"
+	kubernetesConfigMapNamespaceUsage = "namespace of the config map which contains default filter configs per service"
 
 	// OAuth2:
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
@@ -284,18 +286,20 @@ var (
 	waitFirstRouteLoad        bool
 
 	// Kubernetes:
-	kubernetesIngress           bool
-	kubernetesInCluster         bool
-	kubernetesURL               string
-	kubernetesHealthcheck       bool
-	kubernetesHTTPSRedirect     bool
-	kubernetesHTTPSRedirectCode int
-	kubernetesIngressClass      string
-	whitelistedHealthCheckCIDR  string
-	kubernetesPathModeString    string
-	kubernetesNamespace         string
-	kubernetesEnableEastWest    bool
-	kubernetesEastWestDomain    string
+	kubernetesIngress            bool
+	kubernetesInCluster          bool
+	kubernetesURL                string
+	kubernetesHealthcheck        bool
+	kubernetesHTTPSRedirect      bool
+	kubernetesHTTPSRedirectCode  int
+	kubernetesIngressClass       string
+	whitelistedHealthCheckCIDR   string
+	kubernetesPathModeString     string
+	kubernetesNamespace          string
+	kubernetesEnableEastWest     bool
+	kubernetesEastWestDomain     string
+	kubernetesConfigMapName      string
+	kubernetesConfigMapNamespace string
 
 	// Auth:
 	oauthURL                        string
@@ -436,6 +440,8 @@ func init() {
 	flag.StringVar(&kubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
 	flag.BoolVar(&kubernetesEnableEastWest, "enable-kubernetes-east-west", false, kubernetesEnableEastWestUsage)
 	flag.StringVar(&kubernetesEastWestDomain, "kubernetes-east-west-domain", "", kubernetesEastWestDomainUsage)
+	flag.StringVar(&kubernetesConfigMapName, "kubernetes-config-map-name", "", kubernetesConfigMapNameUsage)
+	flag.StringVar(&kubernetesConfigMapNamespace, "kubernetes-config-map-namespace", "", kubernetesConfigMapNamespaceUsage)
 
 	// Auth:
 	flag.StringVar(&oauthURL, "oauth-url", "", oauthURLUsage)

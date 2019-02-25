@@ -133,6 +133,12 @@ type Options struct {
 	// KubernetesEastWestDomain sets the cluster internal domain used to create additional routes in skipper, defaults to skipper.cluster.local
 	KubernetesEastWestDomain string
 
+	// KubernetesConfigMapNames sets config map as source of default filter configurations
+	KubernetesConfigMapName string
+
+	// KubernetesConfigMapNamespace sets the namespace of the config map to be used as source of default filter configs
+	KubernetesConfigMapNamespace string
+
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -582,18 +588,20 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			KubernetesInCluster:        o.KubernetesInCluster,
-			KubernetesURL:              o.KubernetesURL,
-			ProvideHealthcheck:         o.KubernetesHealthcheck,
-			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
-			HTTPSRedirectCode:          o.KubernetesHTTPSRedirectCode,
-			IngressClass:               o.KubernetesIngressClass,
-			ReverseSourcePredicate:     o.ReverseSourcePredicate,
-			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
-			PathMode:                   o.KubernetesPathMode,
-			KubernetesNamespace:        o.KubernetesNamespace,
-			KubernetesEnableEastWest:   o.KubernetesEnableEastWest,
-			KubernetesEastWestDomain:   o.KubernetesEastWestDomain,
+			KubernetesInCluster:          o.KubernetesInCluster,
+			KubernetesURL:                o.KubernetesURL,
+			ProvideHealthcheck:           o.KubernetesHealthcheck,
+			ProvideHTTPSRedirect:         o.KubernetesHTTPSRedirect,
+			HTTPSRedirectCode:            o.KubernetesHTTPSRedirectCode,
+			IngressClass:                 o.KubernetesIngressClass,
+			ReverseSourcePredicate:       o.ReverseSourcePredicate,
+			WhitelistedHealthCheckCIDR:   o.WhitelistedHealthCheckCIDR,
+			PathMode:                     o.KubernetesPathMode,
+			KubernetesNamespace:          o.KubernetesNamespace,
+			KubernetesEnableEastWest:     o.KubernetesEnableEastWest,
+			KubernetesEastWestDomain:     o.KubernetesEastWestDomain,
+			KubernetesConfigMapName:      o.KubernetesConfigMapName,
+			KubernetesConfigMapNamespace: o.KubernetesConfigMapNamespace,
 		})
 		if err != nil {
 			return nil, err
