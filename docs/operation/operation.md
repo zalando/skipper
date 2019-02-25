@@ -389,6 +389,7 @@ Kubernetes API, use the following option:
 
     -source-poll-timeout int
         polling timeout of the routing data sources, in milliseconds (default 3000)
+        
 
 # Routing table information
 
@@ -469,6 +470,20 @@ metrics. Ratelimit filter `clusterClientRatelimit` implementation
 using the Redis ring based solution, adds 2 additional roundtrips to
 redis per hit. Make sure you monitor redis closely, because skipper
 will fallback to allow traffic if redis can not be reached.
+
+## Default filters
+
+Kubernetes dataclient supports default filters. You can enable this feature by
+specifying `default-filters-dir`. The defined directory must contain per-service
+filter configurations, with file name following the pattern `${service}.${namespace}`.
+The content of the files is the actual filter configurations. These filters are then
+prepended to the filters already defined in Ingresses.
+
+The default filters are supposed to be used only if the filters of the same kind
+are not configured on the Ingress resource. Otherwise, it can and will lead to
+potentially contradicting filter configurations and race conditions, i.e.
+you should specify a specific filter either on the Ingress resource or as
+a default filter.
 
 ## Slow Backends
 
