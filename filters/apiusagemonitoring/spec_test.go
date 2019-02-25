@@ -88,74 +88,68 @@ func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
 	assert.Equal(t, filter, &noopFilter{})
 }
 
-func Test_CreateFilter_NoParam_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_NoParam_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	_, err := spec.CreateFilter([]interface{}{})
+	filter, err := spec.CreateFilter([]interface{}{})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 }
 
-func Test_CreateFilter_EmptyString_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_EmptyString_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	_, err := spec.CreateFilter([]interface{}{""})
+	filter, err := spec.CreateFilter([]interface{}{""})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 }
 
-func Test_CreateFilter_NotAString_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_NotAString_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	_, err := spec.CreateFilter([]interface{}{1234})
+	filter, err := spec.CreateFilter([]interface{}{1234})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 }
 
-func Test_CreateFilter_NotJson_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_NotJson_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	_, err := spec.CreateFilter([]interface{}{"I am not JSON"})
+	filter, err := spec.CreateFilter([]interface{}{"I am not JSON"})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 }
 
-func Test_CreateFilter_EmptyJson_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_EmptyJson_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	_, err := spec.CreateFilter([]interface{}{"{}"})
+	filter, err := spec.CreateFilter([]interface{}{"{}"})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 }
 
-func Test_CreateFilter_NoPathTemplate_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_NoPathTemplate_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	_, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "app",
 		"api_id": "api",
 		"path_templates": []
 	}`})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 }
 
-func Test_CreateFilter_EmptyPathTemplate_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_EmptyPathTemplate_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	_, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
 		"path_templates": [
@@ -163,16 +157,15 @@ func Test_CreateFilter_EmptyPathTemplate_ShouldReturnError(t *testing.T) {
 		]
 	}`})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 }
 
-func Test_CreateFilter_TypoInPropertyNames_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_TypoInPropertyNames_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
 	// path_template has no `s` and should cause a JSON decoding error.
-	_, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
 		"api_id": "my_api",
 		"path_template": [
@@ -180,9 +173,8 @@ func Test_CreateFilter_TypoInPropertyNames_ShouldReturnError(t *testing.T) {
 		]
 	}`})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 }
 
 func Test_CreateFilter_NonParsableParametersShouldBeLoggedAndIgnored(t *testing.T) {
@@ -265,36 +257,33 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 	})
 }
 
-func Test_CreateFilter_NoApplicationId_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_NoApplicationId_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	_, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]interface{}{`{
 		"api_id": "api",
 		"path_templates": [
 			"foo/orders"
 		]
 	}`})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 
 }
 
-func Test_CreateFilter_NoApiId_ShouldReturnError(t *testing.T) {
+func Test_CreateFilter_NoApiId_ShouldReturnNoopFilter(t *testing.T) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 
-	_, err := spec.CreateFilter([]interface{}{`{
+	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "api",
 		"path_templates": [
 			"foo/orders"
 		]
 	}`})
 
-	assert.NotNil(t, err)
-	assert.Error(t, err)
-	assert.Regexp(t, `.*no valid configurations.*`, err.Error())
-
+	assert.Nil(t, err)
+	assert.Equal(t, noopFilter{}, filter)
 }
 
 func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
