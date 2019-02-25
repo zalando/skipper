@@ -16,5 +16,5 @@ func (s *noopSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 type noopFilter struct{}
 
-func (*noopFilter) Request(filters.FilterContext)  {}
-func (*noopFilter) Response(filters.FilterContext) {}
+func (noopFilter) Request(filters.FilterContext)  {}
+func (noopFilter) Response(filters.FilterContext) {}

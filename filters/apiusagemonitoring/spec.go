@@ -2,7 +2,6 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"regexp"
@@ -115,7 +114,8 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	paths := s.buildPathInfoListFromConfiguration(apis)
 
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("no valid configurations")
+		log.Error("no valid configurations, creating noop api usage monitoring filter")
+		return noopFilter{}, nil
 	}
 
 	filter = &apiUsageMonitoringFilter{
