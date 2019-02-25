@@ -41,6 +41,7 @@ type testAPI struct {
 	services  *serviceList
 	endpoints *endpointList
 	ingresses *ingressList
+	configmap *configMap
 	server    *httptest.Server
 	failNext  bool
 }
@@ -407,6 +408,7 @@ func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *ingressList, e *en
 		services:  s,
 		ingresses: i,
 		endpoints: e,
+		configmap: nil,
 	}
 
 	api.server = httptest.NewServer(api)
@@ -430,6 +432,8 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	configMapURI := fmt.Sprintf(configMapFmt, "api-infrastructure", "skipperdefaultconfiguration")
+
 	switch r.URL.Path {
 	case ingressesClusterURI:
 		if err := respondJSON(w, api.ingresses); err != nil {
@@ -443,6 +447,11 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case endpointsClusterURI:
 		if err := respondJSON(w, api.endpoints); err != nil {
+			api.test.Error(err)
+		}
+		return
+	case configMapURI:
+		if err := respondJSON(w, api.configmap); err != nil {
 			api.test.Error(err)
 		}
 		return
@@ -3616,4 +3625,100 @@ func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSkipperDefaultFilters(t *testing.T) {
+	api := newTestAPI(t, nil, &ingressList{})
+	defer api.Close()
+
+	t.Run("check routes are created if config map is not set", func(t *testing.T) {
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+
+		dc, err := New(Options{ // ConfigMap settings are not set
+			KubernetesURL: api.server.URL,
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		r, err := dc.LoadAll()
+
+		assert.Nil(t, err)
+		assert.Equal(t, 12, len(r))
+	})
+
+	t.Run("check default filters are applied to the route", func(t *testing.T) {
+		api.services = &serviceList{Items: []*service{testService("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080})}}
+		api.ingresses = &ingressList{Items: []*ingressItem{testIngress("namespace1", "default-only",
+			"service1", "", "", "", "", "", backendPort{8080}, 1.0,
+			testRule("www.example.org", testPathRule("/", "service1", backendPort{"port1"})))}}
+		api.configmap = &configMap{Data: map[string]string{"service1.namespace1": "consecutiveBreaker(15)"}}
+
+		dc, err := New(Options{
+			KubernetesURL:                api.server.URL,
+			KubernetesConfigMapNamespace: "api-infrastructure",
+			KubernetesConfigMapName:      "skipperdefaultconfiguration",
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		r, err := dc.LoadAll()
+
+		assert.Nil(t, err)
+		assert.NotNil(t, r)
+		assert.Equal(t, 2, len(r))
+		assert.Equal(t, 1, len(r[1].Filters))
+		assert.Equal(t, "consecutiveBreaker", r[1].Filters[0].Name)
+	})
+
+	t.Run("check default filters are appended to the ingress filters", func(t *testing.T) {
+		api.services = &serviceList{Items: []*service{testService("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080})}}
+		api.ingresses = &ingressList{Items: []*ingressItem{testIngress("namespace1", "default-only",
+			"service1", "", "localRatelimit(20,\"1m\")", "", "", "", backendPort{8080}, 1.0,
+			testRule("www.example.org", testPathRule("/", "service1", backendPort{"port1"})))}}
+		api.configmap = &configMap{Data: map[string]string{"service1.namespace1": "consecutiveBreaker(15)"}}
+
+		dc, err := New(Options{
+			KubernetesURL:                api.server.URL,
+			KubernetesConfigMapNamespace: "api-infrastructure",
+			KubernetesConfigMapName:      "skipperdefaultconfiguration",
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		r, err := dc.LoadAll()
+
+		assert.Nil(t, err)
+		assert.NotNil(t, r)
+		assert.Equal(t, 2, len(r))
+		assert.Equal(t, 2, len(r[1].Filters))
+		assert.Equal(t, "localRatelimit", r[1].Filters[0].Name)
+		assert.Equal(t, "consecutiveBreaker", r[1].Filters[1].Name)
+	})
+
+	t.Run("check fetchDefaultFilterConfigs returns empty map if fails to get the config map", func(t *testing.T) {
+		dc, err := New(Options{
+			KubernetesConfigMapNamespace: "api-infrastructure",
+			KubernetesConfigMapName:      "skipperdefaultconfiguration",
+		})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		f := dc.fetchDefaultFilterConfigs()
+
+		assert.NotNil(t, f)
+		assert.Equal(t, 0, len(f))
+	})
 }

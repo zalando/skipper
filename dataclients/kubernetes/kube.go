@@ -800,7 +800,13 @@ func (c *Client) ingressToRoutes(state *clusterState, defaultFilters map[resourc
 			annotationFilter += val
 		}
 
-		//TODO add default filter configurations
+		// add pre-configured default filters
+		if defFilter, ok := defaultFiltersOf(i, defaultFilters); ok {
+			if annotationFilter != "" {
+				annotationFilter += " -> "
+			}
+			annotationFilter += defFilter
+		}
 
 		// parse predicate annotation
 		var annotationPredicate string
@@ -969,6 +975,29 @@ func (c *Client) ingressToRoutes(state *clusterState, defaultFilters map[resourc
 	}
 
 	return routes, nil
+}
+
+func defaultFiltersOf(i *ingressItem, defaultFilters map[resourceId]string) (string, bool) {
+	var filters []string
+	services := make(map[string]struct{})
+	for _, r := range i.Spec.Rules {
+		for _, p := range r.Http.Paths {
+			services[p.Backend.ServiceName] = struct{}{}
+		}
+	}
+
+	for s := range services {
+		if val, ok := defaultFilters[resourceId{name: s, namespace: i.Metadata.Namespace}]; ok {
+			filters = append(filters, val)
+		}
+	}
+
+	if len(filters) == 0 {
+		return "", false
+	}
+
+	result := strings.Join(filters, " -> ")
+	return result, true
 }
 
 func createEastWestRoute(eastWestDomainFmt, name, ns string, r *eskip.Route) *eskip.Route {
@@ -1361,23 +1390,55 @@ func (c *Client) Close() {
 }
 
 func (c *Client) fetchDefaultFilterConfigs() map[resourceId]string {
-	configs := make(map[resourceId]string)
-
 	if c.configMapNamespace == "" || c.configMapName == "" {
-		log.Debug("default filter configs via ConfigMap are disabled")
-		return configs
+		log.Debug("default filters via ConfigMap are disabled")
+		return make(map[resourceId]string)
 	}
 
-	_, err := fetchConfigMap(c.configMapNamespace, c.configMapName)
+	filters, err := c.getDefaultFilterConfigurations()
 
 	if err != nil {
 		log.WithError(err).Error("could not fetch default filter configurations (config map)")
-		return configs
+		return make(map[resourceId]string)
 	}
 
-	return configs
+	log.WithField("#configs", len(filters)).Debug("default filter configurations loaded")
+
+	return filters
 }
 
-func fetchConfigMap(namespace string, name string) (map[resourceId]string, error) {
-	return nil, fmt.Errorf("not yet implemented")
+func (c *Client) getDefaultFilterConfigurations() (map[resourceId]string, error) {
+	cm, err := c.loadConfigMap()
+
+	if err != nil {
+		return nil, err
+	}
+
+	filters := make(map[resourceId]string)
+	for resource, config := range cm.Data {
+		r := strings.Split(resource, ".") // format: {service}.{namespace}
+		if len(r) != 2 {
+			log.WithField("key", r).Warn("could not parse config map entry")
+			continue
+		} else {
+			filters[resourceId{name: r[0], namespace: r[1]}] = config
+		}
+	}
+
+	return filters, nil
+}
+
+func (c *Client) loadConfigMap() (*configMap, error) {
+	cm := &configMap{}
+	path := fmt.Sprintf(configMapFmt, c.configMapNamespace, c.configMapName)
+	if err := c.getJSON(path, cm); err != nil {
+		log.Debugf("requesting config map failed: %v", err)
+		return nil, err
+	}
+
+	log.WithFields(log.Fields{
+		"configmap name":      c.configMapName,
+		"configmap namespace": c.configMapNamespace,
+	}).Debug("config map received")
+	return cm, nil
 }

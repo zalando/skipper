@@ -125,6 +125,10 @@ type servicePort struct {
 	TargetPort *backendPort `json:"targetPort"` // string or int
 }
 
+type configMap struct {
+	Data map[string]string `json:"data"`
+}
+
 func (sp servicePort) MatchingPort(svcPort backendPort) bool {
 	s := svcPort.String()
 	spt := strconv.Itoa(sp.Port)
