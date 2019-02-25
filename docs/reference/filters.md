@@ -1140,7 +1140,8 @@ The available metrics are:
 ### Filter Configuration
 
 Endpoints can be monitored using the `apiUsageMonitoring` filter in the route. It accepts JSON objects (as strings)
-of the following format.
+of the format mentioned below. In case any of the required parameters is missing, `no-op` filter is created, i.e. no
+metrics are captured, but the creation of the route does not fail.
 
 ```yaml
 api-usage-monitoring-configuration:
