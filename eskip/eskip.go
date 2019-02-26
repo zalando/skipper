@@ -156,6 +156,73 @@ type RouteInfo struct {
 	ParseError error
 }
 
+// Copy copies a filter to a new filter instance. The argument values are copied in a shallow way.
+func (f *Filter) Copy() *Filter {
+	c := *f
+	c.Args = make([]interface{}, len(f.Args))
+	copy(c.Args, f.Args)
+	return &c
+}
+
+// Copy copies a predicate to a new filter instance. The argument values are copied in a shallow way.
+func (p *Predicate) Copy() *Predicate {
+	c := *p
+	c.Args = make([]interface{}, len(p.Args))
+	copy(c.Args, p.Args)
+	return &c
+}
+
+// Copy copies a route to a new route instance with all the slice and map fields copied deep.
+func (r *Route) Copy() *Route {
+	c := *r
+
+	if len(r.HostRegexps) > 0 {
+		c.HostRegexps = make([]string, len(r.HostRegexps))
+		copy(c.HostRegexps, r.HostRegexps)
+	}
+
+	if len(r.PathRegexps) > 0 {
+		c.PathRegexps = make([]string, len(r.PathRegexps))
+		copy(c.PathRegexps, r.PathRegexps)
+	}
+
+	if len(r.Headers) > 0 {
+		c.Headers = make(map[string]string)
+		for k, v := range r.Headers {
+			c.Headers[k] = v
+		}
+	}
+
+	if len(r.HeaderRegexps) > 0 {
+		c.HeaderRegexps = make(map[string][]string)
+		for k, vs := range r.HeaderRegexps {
+			c.HeaderRegexps[k] = make([]string, len(vs))
+			copy(c.HeaderRegexps[k], vs)
+		}
+	}
+
+	if len(r.Predicates) > 0 {
+		c.Predicates = make([]*Predicate, len(r.Predicates))
+		for i, p := range r.Predicates {
+			c.Predicates[i] = p.Copy()
+		}
+	}
+
+	if len(r.Filters) > 0 {
+		c.Filters = make([]*Filter, len(r.Filters))
+		for i, p := range r.Filters {
+			c.Filters[i] = p.Copy()
+		}
+	}
+
+	if len(r.LBEndpoints) > 0 {
+		c.LBEndpoints = make([]string, len(r.LBEndpoints))
+		copy(c.LBEndpoints, r.LBEndpoints)
+	}
+
+	return &c
+}
+
 func (t BackendType) String() string {
 	switch t {
 	case NetworkBackend:

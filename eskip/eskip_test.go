@@ -442,3 +442,27 @@ func TestPredicateParsing(t *testing.T) {
 		})
 	}
 }
+
+func TestClone(t *testing.T) {
+	r := &Route{
+		Id:            "foo",
+		Path:          "/bar",
+		HostRegexps:   []string{"[.]example[.]org$", "^www[.]"},
+		PathRegexps:   []string{"^/", "bar$"},
+		Method:        "GET",
+		Headers:       map[string]string{"X-Foo": "bar"},
+		HeaderRegexps: map[string][]string{"X-Bar": {"baz", "qux"}},
+		Predicates:    []*Predicate{{Name: "Foo", Args: []interface{}{"bar", "baz"}}},
+		Filters:       []*Filter{{Name: "foo", Args: []interface{}{42, 84}}},
+		Backend:       "https://www2.example.org",
+	}
+
+	c := r.Copy()
+	if c == r {
+		t.Error("routes are of the same instance")
+	}
+
+	if !reflect.DeepEqual(c, r) {
+		t.Error("failed to clone all the fields")
+	}
+}

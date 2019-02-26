@@ -79,6 +79,19 @@ func (c *WatchClient) deleteAllListIDs() []string {
 	return ids
 }
 
+func cloneRoutes(r []*eskip.Route) []*eskip.Route {
+	if len(r) == 0 {
+		return nil
+	}
+
+	c := make([]*eskip.Route, len(r))
+	for i, ri := range r {
+		c[i] = ri.Copy()
+	}
+
+	return c
+}
+
 func (c *WatchClient) loadAll() watchResponse {
 	content, err := ioutil.ReadFile(c.fileName)
 	if err != nil {
@@ -91,7 +104,7 @@ func (c *WatchClient) loadAll() watchResponse {
 	}
 
 	c.storeRoutes(r)
-	return watchResponse{routes: r}
+	return watchResponse{routes: cloneRoutes(r)}
 }
 
 func (c *WatchClient) loadUpdates() watchResponse {
@@ -111,7 +124,7 @@ func (c *WatchClient) loadUpdates() watchResponse {
 	}
 
 	upsert, del := c.diffStoreRoutes(r)
-	return watchResponse{routes: upsert, deletedIDs: del}
+	return watchResponse{routes: cloneRoutes(upsert), deletedIDs: del}
 }
 
 func (c *WatchClient) watch() {
