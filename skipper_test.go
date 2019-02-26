@@ -210,6 +210,10 @@ func TestHTTPServer(t *testing.T) {
 }
 
 func TestLoadPlugins(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	o := Options{
 		PluginDirs:    []string{"./_test_plugins"},
 		FilterPlugins: [][]string{{"filter_noop"}},
@@ -220,6 +224,10 @@ func TestLoadPlugins(t *testing.T) {
 }
 
 func TestLoadPluginsFail(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	o := Options{
 		PluginDirs: []string{"./_test_plugins_fail"},
 	}

@@ -54,7 +54,7 @@ shortcheck: build check-plugins
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=on go test -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GO111MODULE=on go test -race -test.short -run ^Test $$p || break -1; done
 
 check-plugins: $(TEST_PLUGINS)
 	GO111MODULE=on go test -run LoadPlugins
