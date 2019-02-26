@@ -46,6 +46,7 @@ type upgradeProxy struct {
 	useAuditLog     bool
 	auditLogOut     io.Writer
 	auditLogErr     io.Writer
+	auditLogHook    chan struct{}
 }
 
 // TODO: add user here
@@ -162,6 +163,13 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(req))
 	// Wait for goroutine to finish, such that the established connection does not break.
 	wg.Wait()
+
+	if p.useAuditLog {
+		select {
+		case p.auditLogHook <- struct{}{}:
+		default:
+		}
+	}
 }
 
 func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {

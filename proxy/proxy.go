@@ -275,6 +275,7 @@ type Proxy struct {
 	lb                       *loadbalancer.LB
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
+	auditLogHook             chan struct{}
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -744,6 +745,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, route *routing.Route, req *http
 		useAuditLog:     p.experimentalUpgradeAudit,
 		auditLogOut:     p.upgradeAuditLogOut,
 		auditLogErr:     p.upgradeAuditLogErr,
+		auditLogHook:    p.auditLogHook,
 	}
 
 	upgradeProxy.serveHTTP(ctx.responseWriter, req)
