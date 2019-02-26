@@ -70,7 +70,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	// Client metrics
 	if path.ClientTracking != nil {
 		realmClientKey := f.getRealmClientKey(request, path)
-		clientMetricsNames := f.getClientMetricsNames(realmClientKey, path)
+		clientMetricsNames := getClientMetricsNames(realmClientKey, path)
 		metrics.IncCounter(clientMetricsNames.countAll)
 		metrics.IncCounter(clientMetricsNames.countPerStatusCodeRange[classMetricsIndex])
 		if beginPresent {
@@ -81,7 +81,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	}
 }
 
-func (f *apiUsageMonitoringFilter) getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricNames {
+func getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricNames {
 	prefixes, ok := path.metricPrefixedPerClient[realmClientKey]
 	if ok {
 		return prefixes
