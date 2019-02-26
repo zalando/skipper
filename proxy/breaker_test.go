@@ -32,7 +32,7 @@ type breakerScenario struct {
 
 const (
 	testConsecutiveFailureCount = 5
-	testBreakerTimeout          = 3 * time.Millisecond
+	testBreakerTimeout          = 15 * time.Millisecond
 	testHalfOpenRequests        = 3
 	testRateWindow              = 10
 	testRateFailures            = 4
