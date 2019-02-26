@@ -18,10 +18,8 @@ type pathInfo struct {
 	ClientPrefix   string
 
 	metricPrefixesPerMethod [methodIndexLength]*endpointMetricNames // endpoint metric names cache
-	methodCacheMu           sync.RWMutex
-
-	metricPrefixedPerClient map[string]*clientMetricNames // client metric names cache
-	clientCacheMu           sync.RWMutex
+	metricPrefixedPerClient map[string]*clientMetricNames           // client metric names cache
+	mu                      sync.RWMutex
 }
 
 func newPathInfo(applicationId, apiId, pathTemplate string, pathLabel string, clientTracking *clientTrackingInfo) *pathInfo {
@@ -43,23 +41,23 @@ func newPathInfo(applicationId, apiId, pathTemplate string, pathLabel string, cl
 }
 
 func (pt *pathInfo) readMetricPrefixesPerClientFromCache(realmClientKey string) (*clientMetricNames, bool) {
-	pt.clientCacheMu.RLock()
-	defer pt.clientCacheMu.RUnlock()
+	pt.mu.RLock()
+	defer pt.mu.RUnlock()
 
 	prefixes, ok := pt.metricPrefixedPerClient[realmClientKey]
 	return prefixes, ok
 }
 
 func (pt *pathInfo) writeMetricPrefixesPerClientToCache(realmClientKey string, names *clientMetricNames) {
-	pt.clientCacheMu.Lock()
-	defer pt.clientCacheMu.Unlock()
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
 
 	pt.metricPrefixedPerClient[realmClientKey] = names
 }
 
 func (pt *pathInfo) readMetricPrefixesPerMethodFromCache(idx int) (*endpointMetricNames, bool) {
-	pt.methodCacheMu.RLock()
-	defer pt.methodCacheMu.RUnlock()
+	pt.mu.RLock()
+	defer pt.mu.RUnlock()
 
 	prefixes := pt.metricPrefixesPerMethod[idx]
 	if prefixes == nil {
@@ -69,8 +67,8 @@ func (pt *pathInfo) readMetricPrefixesPerMethodFromCache(idx int) (*endpointMetr
 }
 
 func (pt *pathInfo) writeMetricPrefixesPerMethodToCache(idx int, names *endpointMetricNames) {
-	pt.methodCacheMu.Lock()
-	defer pt.methodCacheMu.Unlock()
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
 
 	pt.metricPrefixesPerMethod[idx] = names
 }
