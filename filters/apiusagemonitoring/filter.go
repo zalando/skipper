@@ -82,7 +82,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 }
 
 func getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricNames {
-	prefixes, ok := path.metricPrefixedPerClient[realmClientKey]
+	prefixes, ok := path.readMetricPrefixesPerClientFromCache(realmClientKey)
 	if ok {
 		return prefixes
 	}
@@ -100,7 +100,7 @@ func getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricN
 		},
 		latencySum: clientPrefixForThisClient + metricLatencySum,
 	}
-	path.metricPrefixedPerClient[realmClientKey] = prefixes
+	path.writeMetricPrefixesPerClientToCache(realmClientKey, prefixes)
 	return prefixes
 }
 
@@ -161,7 +161,7 @@ func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricN
 		method = unknownPlaceholder
 	}
 
-	if p := path.metricPrefixesPerMethod[methodIndex]; p != nil {
+	if p, ok := path.readMetricPrefixesPerMethodFromCache(methodIndex); ok {
 		return p
 	}
 	return createAndCacheMetricsNames(path, method, methodIndex)
@@ -183,7 +183,7 @@ func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) 
 		},
 		latency: endpointPrefix + metricLatency,
 	}
-	path.metricPrefixesPerMethod[methodIndex] = prefixes
+	path.writeMetricPrefixesPerMethodToCache(methodIndex, prefixes)
 	return prefixes
 }
 

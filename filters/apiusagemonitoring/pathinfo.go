@@ -3,6 +3,7 @@ package apiusagemonitoring
 import (
 	"net/http"
 	"regexp"
+	"sync"
 )
 
 // pathInfo contains the tracking information for a specific path.
@@ -16,8 +17,11 @@ type pathInfo struct {
 	CommonPrefix   string
 	ClientPrefix   string
 
-	metricPrefixesPerMethod [methodIndexLength]*endpointMetricNames
-	metricPrefixedPerClient map[string]*clientMetricNames
+	metricPrefixesPerMethod [methodIndexLength]*endpointMetricNames // endpoint metric names cache
+	methodCacheMu           sync.RWMutex
+
+	metricPrefixedPerClient map[string]*clientMetricNames // client metric names cache
+	clientCacheMu           sync.RWMutex
 }
 
 func newPathInfo(applicationId, apiId, pathTemplate string, pathLabel string, clientTracking *clientTrackingInfo) *pathInfo {
@@ -36,6 +40,39 @@ func newPathInfo(applicationId, apiId, pathTemplate string, pathLabel string, cl
 		CommonPrefix:            commonPrefix,
 		ClientPrefix:            commonPrefix + "*.*.",
 	}
+}
+
+func (pt *pathInfo) readMetricPrefixesPerClientFromCache(realmClientKey string) (*clientMetricNames, bool) {
+	pt.clientCacheMu.RLock()
+	defer pt.clientCacheMu.RUnlock()
+
+	prefixes, ok := pt.metricPrefixedPerClient[realmClientKey]
+	return prefixes, ok
+}
+
+func (pt *pathInfo) writeMetricPrefixesPerClientToCache(realmClientKey string, names *clientMetricNames) {
+	pt.clientCacheMu.Lock()
+	defer pt.clientCacheMu.Unlock()
+
+	pt.metricPrefixedPerClient[realmClientKey] = names
+}
+
+func (pt *pathInfo) readMetricPrefixesPerMethodFromCache(idx int) (*endpointMetricNames, bool) {
+	pt.methodCacheMu.RLock()
+	defer pt.methodCacheMu.RUnlock()
+
+	prefixes := pt.metricPrefixesPerMethod[idx]
+	if prefixes == nil {
+		return nil, false
+	}
+	return prefixes, true
+}
+
+func (pt *pathInfo) writeMetricPrefixesPerMethodToCache(idx int, names *endpointMetricNames) {
+	pt.methodCacheMu.Lock()
+	defer pt.methodCacheMu.Unlock()
+
+	pt.metricPrefixesPerMethod[idx] = names
 }
 
 // pathInfoByRegExRev allows sort.Sort to reorder a slice of `pathInfo` in
@@ -71,8 +108,8 @@ const (
 	methodIndexOptions        // OPTIONS
 	methodIndexTrace          // TRACE
 
-	methodIndexUnknown // Value when the HTTP Method is not in the known list
-	methodIndexLength  // Gives the constant size of the `metricPrefixesPerMethod` array.
+	methodIndexUnknown  // Value when the HTTP Method is not in the known list
+	methodIndexLength   // Gives the constant size of the `metricPrefixesPerMethod` array.
 )
 
 var (
