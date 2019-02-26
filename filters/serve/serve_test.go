@@ -13,17 +13,19 @@ import (
 
 const testDelay = 12 * time.Millisecond
 
+type testItem struct {
+	msg             string
+	sleep           time.Duration
+	status          int
+	body            string
+	ret             bool
+	blockForever    bool
+	expectedTimeout time.Duration
+	timeout         time.Duration
+}
+
 func TestBlock(t *testing.T) {
-	for _, ti := range []struct {
-		msg             string
-		sleep           time.Duration
-		status          int
-		body            string
-		ret             bool
-		blockForever    bool
-		expectedTimeout time.Duration
-		timeout         time.Duration
-	}{{
+	for _, ti := range []testItem{{
 		msg:             "block forever",
 		expectedTimeout: testDelay,
 	}, {
@@ -42,52 +44,54 @@ func TestBlock(t *testing.T) {
 		ret:     true,
 		timeout: 9 * testDelay,
 	}} {
-		done := make(chan struct{})
-		quit := make(chan struct{})
-		ctx := &filtertest.Context{}
-		go func() {
-			ServeHTTP(ctx, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				if ti.sleep > 0 {
-					time.Sleep(ti.sleep)
+		t.Run(ti.msg, func(t *testing.T) {
+			done := make(chan struct{})
+			quit := make(chan struct{})
+			ctx := &filtertest.Context{}
+			go func(ti testItem) {
+				ServeHTTP(ctx, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					if ti.sleep > 0 {
+						time.Sleep(ti.sleep)
+					}
+
+					if ti.status > 0 {
+						w.WriteHeader(ti.status)
+					}
+
+					if ti.body != "" {
+						w.Write([]byte(ti.body))
+					}
+
+					if !ti.ret {
+						<-quit
+					}
+				}))
+
+				close(done)
+			}(ti)
+
+			var eto, to <-chan time.Time
+			if ti.expectedTimeout > 0 {
+				eto = time.After(ti.expectedTimeout)
+			}
+			if ti.timeout > 0 {
+				to = time.After(ti.timeout)
+			}
+
+			select {
+			case <-done:
+				if ti.blockForever {
+					t.Error("failed to block")
+				} else {
+					close(quit)
 				}
-
-				if ti.status > 0 {
-					w.WriteHeader(ti.status)
-				}
-
-				if ti.body != "" {
-					w.Write([]byte(ti.body))
-				}
-
-				if !ti.ret {
-					<-quit
-				}
-			}))
-
-			close(done)
-		}()
-
-		var eto, to <-chan time.Time
-		if ti.expectedTimeout > 0 {
-			eto = time.After(ti.expectedTimeout)
-		}
-		if ti.timeout > 0 {
-			to = time.After(ti.timeout)
-		}
-
-		select {
-		case <-done:
-			if ti.blockForever {
-				t.Error(ti.msg, "failed to block")
-			} else {
+			case <-eto:
+				close(quit)
+			case <-to:
+				t.Error("timeout")
 				close(quit)
 			}
-		case <-eto:
-			close(quit)
-		case <-to:
-			t.Error(ti.msg, "timeout")
-			close(quit)
-		}
+		})
 	}
 }
 
