@@ -1481,7 +1481,8 @@ func TestLogsAccess(t *testing.T) {
 	tp.proxy.ServeHTTP(w, r)
 
 	output := accessLog.String()
-	if !strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-" 0 - - -`, r.Method, http.StatusTeapot, len(response))) {
+	println(fmt.Sprintf(`"%s - -" %d %d "-" "-"`, r.Method, http.StatusTeapot, len(response)))
+	if !strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-"`, r.Method, http.StatusTeapot, len(response))) {
 		t.Error("failed to log access", output)
 	}
 }
@@ -1647,7 +1648,7 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 			tp.proxy.ServeHTTP(w, r)
 
 			output := buf.String()
-			if ti.shouldLog != strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-" 0 - - -`, r.Method, ti.responseCode, len(response))) {
+			if ti.shouldLog != strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-"`, r.Method, ti.responseCode, len(response))) {
 				t.Error("failed to log access", output)
 			}
 		})
@@ -1693,9 +1694,11 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1" 0 %s - -`, http.StatusBadGateway, rsp.ContentLength, proxyURL.Host)
-	if !strings.Contains(output, expected) {
+	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1"`, http.StatusBadGateway, rsp.ContentLength)
+	if !strings.Contains(output, expected) || !strings.Contains(output, proxyURL.Host) {
 		t.Error("failed to log access", output, expected)
+		t.Log(output)
+		t.Log(expected)
 	}
 }
 
