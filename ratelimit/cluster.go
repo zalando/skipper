@@ -4,8 +4,9 @@ import (
 	"math"
 	"time"
 
+	"github.com/go-redis/redis"
+	"github.com/go-redis/redis_rate"
 	log "github.com/sirupsen/logrus"
-	circularbuffer "github.com/szuecs/rate-limit-buffer"
 )
 
 // Swarmer interface defines the requirement for a Swarm, for use as
@@ -28,6 +29,9 @@ type clusterLimit struct {
 	swarm   Swarmer
 	resize  chan resizeLimit
 	quit    chan struct{}
+	client  *redis.Client
+	ring    *redis.Ring
+	limiter *redis_rate.Limiter
 }
 
 type resizeLimit struct {
@@ -39,6 +43,21 @@ type resizeLimit struct {
 // and use the given Swarmer. Group is used in log messages to identify
 // the ratelimit instance and has to be the same in all skipper instances.
 func newClusterRateLimiter(s Settings, sw Swarmer, group string) *clusterLimit {
+	// redisclient := redis.NewClient(&redis.Options{
+	// 	Addr:     "localhost:6379",
+	// 	Password: "", // no password set
+	// 	DB:       0,  // use default DB
+	// })
+
+	ring := redis.NewRing(&redis.RingOptions{
+		Addrs: map[string]string{
+			"server1": "10.3.99.100:6379",
+		},
+	})
+	limiter := redis_rate.NewLimiter(ring)
+	// Optional.
+	//limiter.Fallback = rate.NewLimiter(rate.Every(s.TimeWindow), s.MaxHits)
+
 	rl := &clusterLimit{
 		group:   group,
 		swarm:   sw,
@@ -46,34 +65,45 @@ func newClusterRateLimiter(s Settings, sw Swarmer, group string) *clusterLimit {
 		window:  s.TimeWindow,
 		resize:  make(chan resizeLimit),
 		quit:    make(chan struct{}),
-	}
-	switch s.Type {
-	case ClusterServiceRatelimit:
-		log.Infof("new backend clusterRateLimiter")
-		rl.local = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
-	case ClusterClientRatelimit:
-		log.Infof("new client clusterRateLimiter")
-		rl.local = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
-	default:
-		log.Errorf("Unknown ratelimit type: %s", s.Type)
-		return nil
+		//client:  redisclient,
+		ring:    ring,
+		limiter: limiter,
 	}
 
-	// TODO(sszuecs): we might want to have one goroutine for all of these
-	go func() {
-		for {
-			select {
-			case size := <-rl.resize:
-				log.Debugf("%s resize clusterRatelimit: %v", group, size)
-				// TODO(sszuecs): call with "go" ?
-				rl.Resize(size.s, rl.maxHits/size.n)
-			case <-rl.quit:
-				log.Debugf("%s: quit clusterRatelimit", group)
-				close(rl.resize)
-				return
-			}
-		}
-	}()
+	pong, err := rl.ring.Ping().Result()
+	if err != nil {
+		log.Errorf("Failed to ping redis: %v", err)
+		return nil
+	}
+	log.Debugf("pong: %v", pong)
+
+	// switch s.Type {
+	// case ClusterServiceRatelimit:
+	// 	log.Infof("new backend clusterRateLimiter")
+	// 	rl.local = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
+	// case ClusterClientRatelimit:
+	// 	log.Infof("new client clusterRateLimiter")
+	// 	rl.local = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
+	// default:
+	// 	log.Errorf("Unknown ratelimit type: %s", s.Type)
+	// 	return nil
+	// }
+
+	// // TODO(sszuecs): we might want to have one goroutine for all of these
+	// go func() {
+	// 	for {
+	// 		select {
+	// 		case size := <-rl.resize:
+	// 			log.Debugf("%s resize clusterRatelimit: %v", group, size)
+	// 			// TODO(sszuecs): call with "go" ?
+	// 			rl.Resize(size.s, rl.maxHits/size.n)
+	// 		case <-rl.quit:
+	// 			log.Debugf("%s: quit clusterRatelimit", group)
+	// 			close(rl.resize)
+	// 			return
+	// 		}
+	// 	}
+	// }()
 
 	return rl
 }
@@ -85,6 +115,18 @@ const swarmPrefix string = `ratelimit.`
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
 func (c *clusterLimit) Allow(s string) bool {
+	key := swarmPrefix + c.group + "." + s
+	// nanos := time.Now().UTC().UnixNano()
+	// c.client.Set(key, nanos)
+	rate, delay, allowed := c.limiter.AllowN(key, int64(c.maxHits), c.window, 1)
+	log.Infof("rate: %v, delay: %v, allow: %v", rate, delay, allowed)
+	if rate == 0 {
+		return true
+	}
+	return allowed
+}
+
+func (c *clusterLimit) Allow2(s string) bool {
 	key := swarmPrefix + c.group + "." + s
 
 	// t0 is the oldest entry in the local circularbuffer
@@ -138,4 +180,6 @@ func (c *clusterLimit) Close() {
 func (c *clusterLimit) Delta(s string) time.Duration { return c.local.Delta(s) }
 func (c *clusterLimit) Oldest(s string) time.Time    { return c.local.Oldest(s) }
 func (c *clusterLimit) Resize(s string, n int)       { c.local.Resize(s, n) }
-func (c *clusterLimit) RetryAfter(s string) int      { return c.local.RetryAfter(s) }
+
+//func (c *clusterLimit) RetryAfter(s string) int      { return c.local.RetryAfter(s) }
+func (c *clusterLimit) RetryAfter(s string) int { return 10 }
