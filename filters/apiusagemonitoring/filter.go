@@ -82,13 +82,13 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 }
 
 func (f *apiUsageMonitoringFilter) getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricNames {
-	prefixes, ok := path.metricPrefixedPerClient[realmClientKey]
+	pref, ok := path.metricPrefixedPerClient.Load(realmClientKey)
 	if ok {
-		return prefixes
+		return pref.(*clientMetricNames)
 	}
 
 	clientPrefixForThisClient := path.ClientPrefix + realmClientKey + "."
-	prefixes = &clientMetricNames{
+	prefixes := &clientMetricNames{
 		countAll: clientPrefixForThisClient + metricCountAll,
 		countPerStatusCodeRange: [6]string{
 			clientPrefixForThisClient + metricCountUnknownClass,
@@ -100,7 +100,7 @@ func (f *apiUsageMonitoringFilter) getClientMetricsNames(realmClientKey string, 
 		},
 		latencySum: clientPrefixForThisClient + metricLatencySum,
 	}
-	path.metricPrefixedPerClient[realmClientKey] = prefixes
+	path.metricPrefixedPerClient.Store(realmClientKey, prefixes)
 	return prefixes
 }
 
