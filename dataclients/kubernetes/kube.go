@@ -25,6 +25,7 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
+	"github.com/zalando/skipper/metrics"
 )
 
 // FEATURE:
@@ -653,6 +654,7 @@ func (c *Client) convertPathRule(
 			HostRegexps: hostRegexp,
 		}
 
+		metrics.Default.ObserveRouteInfo(svcName, name, r.Id)
 		setPath(pathMode, r, prule.Path)
 
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
@@ -676,6 +678,7 @@ func (c *Client) convertPathRule(
 			HostRegexps: hostRegexp,
 		}
 
+		metrics.Default.ObserveRouteInfo(svcName, name, r.Id)
 		setPath(pathMode, r, prule.Path)
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
@@ -700,6 +703,7 @@ func (c *Client) convertPathRule(
 		LBAlgorithm: "roundRobin",
 		HostRegexps: hostRegexp,
 	}
+	metrics.Default.ObserveRouteInfo(prule.Backend.ServiceName, name, r.Id)
 	setPath(pathMode, r, prule.Path)
 
 	// add traffic predicate if traffic weight is between 0.0 and 1.0
