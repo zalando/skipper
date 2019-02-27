@@ -83,39 +83,56 @@ const swarmPrefix string = `ratelimit.`
 func (c *clusterLimit) Allow(s string) bool {
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
-	//clearBefore := now.Add(c.window)
+	nowNanos := now.UnixNano()
+	clearBefore := now.Add(-c.window).UnixNano()
 
 	// run MULTI exec
 	pipe := c.client.TxPipeline()
 	defer pipe.Close()
 
 	// drop all elements of the set which occurred before one interval ago.
-	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprintf("%v", float64(now.Add(-c.window).UnixNano())))
+	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprintf("%v", float64(clearBefore)))
 	//c.client.ZRemRangeByScore(key, "0.0", fmt.Sprintf("%v", float64(now.Add(-c.window).UnixNano())))
+	zcardResult := pipe.ZCard(key)
+	_, err := pipe.Exec()
+	if err != nil {
+		log.Errorf("Failed to get cardinality: %v", err)
+		return true
+	}
+	count := zcardResult.Val()
+	if count > int64(c.maxHits) {
+		return false
+	}
+
+	pipe2 := c.client.TxPipeline()
+	defer pipe2.Close()
 
 	// fetch all elements of the set
 	//zrangeResult := pipe.ZRange(key, 0, -1)
 	//c.client.ZRange(key, 0, -1)
 
 	// add the current timestamp to the set
-	pipe.ZAdd(key, redis.Z{Member: now.UnixNano(), Score: float64(now.UnixNano())})
+	pipe2.ZAdd(key, redis.Z{Member: nowNanos, Score: float64(nowNanos)})
 	//c.client.ZAdd(key, redis.Z{Member: now.UnixNano(), Score: float64(now.UnixNano())})
 
-	zcardResult := pipe.ZCard(key)
+	// get cardinality of the key
+	zcardResult2 := pipe2.ZCard(key)
 
-	pipe.Expire(key, c.window)
-	_, err := pipe.Exec()
+	// expire the key if it's too old
+	pipe2.Expire(key, c.window)
+
+	_, err = pipe2.Exec()
 	if err != nil {
 		log.Errorf("Failed to exec pipeline: %v", err)
 		return true
 	}
 
-	log.Debugf("number of requests from %s: %v", key, zcardResult.Val())
+	log.Debugf("number of requests from %s: %v", key, zcardResult2.Val())
 
 	// After all operations are completed, we count the number of fetched elements. If it exceeds the limit, we don’t allow the action.
 	//count := c.client.ZCard(key).Val()
-	count := zcardResult.Val()
-	return count < int64(c.maxHits)
+	count = zcardResult2.Val()
+	return count <= int64(c.maxHits)
 }
 
 // no TxPipeline possible with the library https://github.com/go-redis/redis/blob/master/ring.go#L640
