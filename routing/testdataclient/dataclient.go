@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 /*
 Package testdataclient provides a test implementation for the DataClient
 interface of the skipper/routing package.
@@ -27,13 +13,18 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
+type incomingUpdate struct {
+	upsert     []*eskip.Route
+	deletedIDs []string
+}
+
 // DataClient implementation.
 type Client struct {
 	routes       map[string]*eskip.Route
 	upsert       []*eskip.Route
-	deletedIds   []string
+	deletedIDs   []string
 	failNext     int
-	signalUpdate chan int
+	signalUpdate chan incomingUpdate
 }
 
 // Creates a Client with an initial set of route definitions.
@@ -45,7 +36,8 @@ func New(initial []*eskip.Route) *Client {
 
 	return &Client{
 		routes:       routes,
-		signalUpdate: make(chan int)}
+		signalUpdate: make(chan incomingUpdate),
+	}
 }
 
 // Creates a Client with an initial set of route definitions in eskip
@@ -62,7 +54,7 @@ func NewDoc(doc string) (*Client, error) {
 // Returns the initial/current set of route definitions.
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	if c.failNext > 0 {
-		c.upsert, c.deletedIds = nil, nil
+		c.upsert, c.deletedIDs = nil, nil
 		c.failNext--
 		return nil, errors.New("failed to get routes")
 	}
@@ -78,9 +70,10 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 // Returns the route definitions upserted/deleted since the last call to
 // LoadAll.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
-	<-c.signalUpdate
+	update := <-c.signalUpdate
+	c.upsert, c.deletedIDs = update.upsert, update.deletedIDs
 
-	for _, id := range c.deletedIds {
+	for _, id := range c.deletedIDs {
 		delete(c.routes, id)
 	}
 
@@ -89,7 +82,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	}
 
 	if c.failNext > 0 {
-		c.upsert, c.deletedIds = nil, nil
+		c.upsert, c.deletedIDs = nil, nil
 		c.failNext--
 		return nil, nil, errors.New("failed to get routes")
 	}
@@ -99,27 +92,26 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		d []string
 	)
 
-	u, d, c.upsert, c.deletedIds = c.upsert, c.deletedIds, nil, nil
+	u, d, c.upsert, c.deletedIDs = c.upsert, c.deletedIDs, nil, nil
 	return u, d, nil
 }
 
 // Updates the current set of routes with new/modified and deleted
 // route definitions.
-func (c *Client) Update(upsert []*eskip.Route, deletedIds []string) {
-	c.upsert, c.deletedIds = upsert, deletedIds
-	c.signalUpdate <- 42
+func (c *Client) Update(upsert []*eskip.Route, deletedIDs []string) {
+	c.signalUpdate <- incomingUpdate{upsert, deletedIDs}
 }
 
 // Updates the current set of routes with new/modified and deleted
 // route definitions in eskip format. In case the parsing of the
 // document fails, it returns an error.
-func (c *Client) UpdateDoc(upsertDoc string, deletedIds []string) error {
+func (c *Client) UpdateDoc(upsertDoc string, deletedIDs []string) error {
 	routes, err := eskip.Parse(upsertDoc)
 	if err != nil {
 		return err
 	}
 
-	c.Update(routes, deletedIds)
+	c.Update(routes, deletedIDs)
 	return nil
 }
 

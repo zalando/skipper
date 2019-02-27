@@ -273,9 +273,11 @@ func getFreeStringArgs(count int, p *eskip.Predicate) ([]string, error) {
 	return a, nil
 }
 
-func mergeLegacyNonTreePredicates(r *eskip.Route) error {
+func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 	var rest []*eskip.Predicate
-	for _, p := range r.Predicates {
+	c := r.Copy()
+
+	for _, p := range c.Predicates {
 		if isTreePredicate(p.Name) {
 			rest = append(rest, p)
 			continue
@@ -285,53 +287,53 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) error {
 		case hostRegexpName:
 			a, err := getFreeStringArgs(1, p)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			r.HostRegexps = append(r.HostRegexps, a[0])
+			c.HostRegexps = append(c.HostRegexps, a[0])
 		case pathRegexpName:
 			a, err := getFreeStringArgs(1, p)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			r.PathRegexps = append(r.PathRegexps, a[0])
+			c.PathRegexps = append(c.PathRegexps, a[0])
 		case methodName:
 			a, err := getFreeStringArgs(1, p)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			r.Method = a[0]
+			c.Method = a[0]
 		case headerName:
 			a, err := getFreeStringArgs(2, p)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			if r.Headers == nil {
-				r.Headers = make(map[string]string)
+			if c.Headers == nil {
+				c.Headers = make(map[string]string)
 			}
 
-			r.Headers[a[0]] = a[1]
+			c.Headers[a[0]] = a[1]
 		case headerRegexpName:
 			a, err := getFreeStringArgs(2, p)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			if r.HeaderRegexps == nil {
-				r.HeaderRegexps = make(map[string][]string)
+			if c.HeaderRegexps == nil {
+				c.HeaderRegexps = make(map[string][]string)
 			}
 
-			r.HeaderRegexps[a[0]] = append(r.HeaderRegexps[a[0]], a[1])
+			c.HeaderRegexps[a[0]] = append(c.HeaderRegexps[a[0]], a[1])
 		default:
 			rest = append(rest, p)
 		}
 	}
 
-	r.Predicates = rest
-	return nil
+	c.Predicates = rest
+	return c, nil
 }
 
 // initialize predicate instances from their spec with the concrete arguments
@@ -428,7 +430,8 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 		return nil, err
 	}
 
-	if err := mergeLegacyNonTreePredicates(def); err != nil {
+	def, err = mergeLegacyNonTreePredicates(def)
+	if err != nil {
 		return nil, err
 	}
 
