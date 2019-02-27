@@ -80,7 +80,53 @@ const swarmPrefix string = `ratelimit.`
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
 func (c *clusterLimit) Allow(s string) bool {
-	return c.AllowPipelined(s)
+	return c.AllowRingPipelined(s)
+}
+
+func (c *clusterLimit) AllowRingPipelined(s string) bool {
+	key := swarmPrefix + c.group + "." + s
+	now := time.Now()
+	nowNanos := now.UnixNano()
+	clearBefore := now.Add(-c.window).UnixNano()
+
+	// run MULTI exec
+	pipe := c.ring.Pipeline()
+	defer pipe.Close()
+
+	// drop all elements of the set which occurred before one interval ago.
+	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprintf("%v", float64(clearBefore)))
+
+	zcardResult := pipe.ZCard(key)
+	_, err := pipe.Exec()
+	if err != nil {
+		log.Errorf("Failed to get cardinality: %v", err)
+		return true
+	}
+	count := zcardResult.Val()
+	if count > int64(c.maxHits) {
+		return false
+	}
+
+	pipe2 := c.ring.Pipeline()
+	defer pipe2.Close()
+
+	// add the current timestamp to the set
+	pipe2.ZAdd(key, redis.Z{Member: nowNanos, Score: float64(nowNanos)})
+
+	// get cardinality of the key
+	count++
+
+	// expire the key if it's too old
+	pipe2.Expire(key, c.window)
+
+	_, err = pipe2.Exec()
+	if err != nil {
+		log.Errorf("Failed to exec pipeline: %v", err)
+		return true
+	}
+
+	//log.Debugf("number of requests from %s: %v", key, zcardResult2.Val())
+	return count <= int64(c.maxHits)
 }
 
 // no TxPipeline possible with ring
