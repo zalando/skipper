@@ -73,7 +73,7 @@ func initWatchTest(t *testing.T) *watchTest {
 			Log:            l,
 			FilterRegistry: builtin.MakeRegistry(),
 			DataClients:    []routing.DataClient{f},
-			PollTimeout:    6 * time.Millisecond,
+			PollTimeout:    15 * time.Millisecond,
 		}),
 	}
 }
