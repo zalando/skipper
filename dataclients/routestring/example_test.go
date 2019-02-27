@@ -1,4 +1,4 @@
-/* +build !race */
+// +build !race
 
 package routestring_test
 
