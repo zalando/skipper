@@ -38,7 +38,7 @@ func newClusterRateLimiter(s Settings, group string) *clusterLimit {
 	// // Optional.
 	// //limiter.Fallback = rate.NewLimiter(rate.Every(s.TimeWindow), s.MaxHits)
 
-	// TODO(sszuecs):
+	// test for pipeline operations
 	client := redis.NewClient(&redis.Options{
 		Addr: "skipper-redis-0.skipper-redis.kube-system.svc.cluster.local.:6379",
 		//Addr:     "127.0.0.1:6379",
