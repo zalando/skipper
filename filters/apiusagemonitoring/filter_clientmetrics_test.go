@@ -3,10 +3,10 @@ package apiusagemonitoring
 import (
 	"encoding/base64"
 	"net/http"
-	"testing"
-	"sync"
 	"regexp"
 	"strconv"
+	"sync"
+	"testing"
 )
 
 type clientMetricsTest struct {
