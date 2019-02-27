@@ -22,18 +22,10 @@ type Registry struct {
 	defaults Settings
 	global   Settings
 	lookup   map[Settings]*Ratelimit
-	swarm    Swarmer
 }
 
 // NewRegistry initializes a registry with the provided default settings.
 func NewRegistry(settings ...Settings) *Registry {
-	return NewSwarmRegistry(nil, settings...)
-}
-
-// NewSwarmRegistry initializes a registry with an optional swarm and
-// the provided default settings. If swarm is nil, clusterRatelimits
-// will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -45,7 +37,6 @@ func NewSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
 		defaults: defaults,
 		global:   defaults,
 		lookup:   make(map[Settings]*Ratelimit),
-		swarm:    swarm,
 	}
 
 	if len(settings) > 0 {
@@ -61,7 +52,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s, r.swarm)
+		rl = newRatelimit(s)
 		r.lookup[s] = rl
 	}
 

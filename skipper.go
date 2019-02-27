@@ -35,7 +35,6 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -848,53 +847,9 @@ func Run(o Options) error {
 		ClientTLS:                o.ClientTLS,
 	}
 
-	var theSwarm *swarm.Swarm
-	if o.EnableSwarm {
-		swops := swarm.Options{
-			SwarmPort:        uint16(o.SwarmPort),
-			MaxMessageBuffer: o.SwarmMaxMessageBuffer,
-			LeaveTimeout:     o.SwarmLeaveTimeout,
-			Debug:            log.GetLevel() == log.DebugLevel,
-		}
-
-		if o.Kubernetes {
-			swops.KubernetesOptions = &swarm.KubernetesOptions{
-				KubernetesInCluster:  o.KubernetesInCluster,
-				KubernetesAPIBaseURL: o.KubernetesURL,
-				Namespace:            o.SwarmKubernetesNamespace,
-				LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
-				LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
-			}
-		}
-
-		if o.SwarmStaticSelf != "" {
-			self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
-			if err != nil {
-				log.Fatalf("Failed to get static NodeInfo: %v", err)
-			}
-			other := []*swarm.NodeInfo{self}
-
-			for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
-				ni, err := swarm.NewStaticNodeInfo(addr, addr)
-				if err != nil {
-					log.Fatalf("Failed to get static NodeInfo: %v", err)
-				}
-				other = append(other, ni)
-			}
-
-			swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
-		}
-
-		theSwarm, err = swarm.NewSwarm(swops)
-		if err != nil {
-			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
-		}
-		defer theSwarm.Leave()
-	}
-
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		proxyParams.RateLimiters = ratelimit.NewSwarmRegistry(theSwarm, o.RatelimitSettings...)
+		proxyParams.RateLimiters = ratelimit.NewRegistry(o.RatelimitSettings...)
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
