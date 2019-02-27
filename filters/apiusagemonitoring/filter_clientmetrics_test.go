@@ -398,10 +398,10 @@ func Test_Filter_ClientMetricsCache_ConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(concurrencyLevel)
 	for i := 0; i < concurrencyLevel; i++ {
-		go func() {
+		go func(i int) {
 			getClientMetricsNames("services.service_id_"+strconv.Itoa(i), pathInfo)
 			wg.Done()
-		}()
+		}(i)
 	}
 	wg.Wait()
 }
