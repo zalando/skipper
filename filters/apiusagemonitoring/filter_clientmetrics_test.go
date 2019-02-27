@@ -218,7 +218,7 @@ func Test_Filter_ClientMetrics_NoAuthHeader(t *testing.T) {
 		realmKeyName:          "realm",
 		clientKeyName:         "client",
 		clientTrackingPattern: clientTrackingPatternJustSomeUsers,
-		header: http.Header{
+		header:                http.Header{
 			/* no Authorization header */
 		},
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",

@@ -82,13 +82,8 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 }
 
 func getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricNames {
-	prefixes, ok := path.readMetricPrefixesPerClientFromCache(realmClientKey)
-	if ok {
-		return prefixes
-	}
-
 	clientPrefixForThisClient := path.ClientPrefix + realmClientKey + "."
-	prefixes = &clientMetricNames{
+	prefixes := &clientMetricNames{
 		countAll: clientPrefixForThisClient + metricCountAll,
 		countPerStatusCodeRange: [6]string{
 			clientPrefixForThisClient + metricCountUnknownClass,
@@ -100,7 +95,6 @@ func getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricN
 		},
 		latencySum: clientPrefixForThisClient + metricLatencySum,
 	}
-	path.writeMetricPrefixesPerClientToCache(realmClientKey, prefixes)
 	return prefixes
 }
 
@@ -155,20 +149,11 @@ func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) *pathInfo {
 // caches it to speed up next calls.
 func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricNames {
 	method := req.Method
-	methodIndex, ok := methodToIndex[method]
+	_, ok := methodToIndex[method]
 	if !ok {
-		methodIndex = methodIndexUnknown
 		method = unknownPlaceholder
 	}
 
-	if p, ok := path.readMetricPrefixesPerMethodFromCache(methodIndex); ok {
-		return p
-	}
-	return createAndCacheMetricsNames(path, method, methodIndex)
-}
-
-// createAndCacheMetricsNames generates metrics names and cache them.
-func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) *endpointMetricNames {
 	endpointPrefix := path.CommonPrefix + method + "." + path.PathLabel + ".*.*."
 	prefixes := &endpointMetricNames{
 		endpointPrefix: endpointPrefix,
@@ -183,7 +168,6 @@ func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) 
 		},
 		latency: endpointPrefix + metricLatency,
 	}
-	path.writeMetricPrefixesPerMethodToCache(methodIndex, prefixes)
 	return prefixes
 }
 
