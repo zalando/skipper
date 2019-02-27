@@ -1,3 +1,5 @@
+// +build !race
+
 package proxy_test
 
 import (
@@ -32,7 +34,7 @@ type breakerScenario struct {
 
 const (
 	testConsecutiveFailureCount = 5
-	testBreakerTimeout          = 15 * time.Millisecond
+	testBreakerTimeout          = 3 * time.Millisecond
 	testHalfOpenRequests        = 3
 	testRateWindow              = 10
 	testRateFailures            = 4
