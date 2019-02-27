@@ -28,15 +28,15 @@ type clusterLimit struct {
 func newClusterRateLimiter(s Settings, group string) *clusterLimit {
 	log.Infof("creating clusterLimiter")
 
-	// ring := redis.NewRing(&redis.RingOptions{
-	// 	Addrs: map[string]string{
-	// 		"server1": "skipper-redis-0.skipper-redis.kube-system.svc.cluster.local.:6379",
-	// 		"server2": "skipper-redis-1.skipper-redis.kube-system.svc.cluster.local.:6379",
-	// 	},
-	// })
-	// limiter := redis_rate.NewLimiter(ring)
-	// // Optional.
-	// //limiter.Fallback = rate.NewLimiter(rate.Every(s.TimeWindow), s.MaxHits)
+	ring := redis.NewRing(&redis.RingOptions{
+		Addrs: map[string]string{
+			"server1": "skipper-redis-0.skipper-redis.kube-system.svc.cluster.local.:6379",
+			"server2": "skipper-redis-1.skipper-redis.kube-system.svc.cluster.local.:6379",
+		},
+	})
+	//limiter := redis_rate.NewLimiter(ring)
+	// Optional.
+	//limiter.Fallback = rate.NewLimiter(rate.Every(s.TimeWindow), s.MaxHits)
 
 	// test for pipeline operations
 	client := redis.NewClient(&redis.Options{
@@ -53,8 +53,7 @@ func newClusterRateLimiter(s Settings, group string) *clusterLimit {
 		maxHits: s.MaxHits,
 		window:  s.TimeWindow,
 		client:  client,
-		// ring:    ring,
-		// limiter: limiter,
+		ring:    ring,
 	}
 
 	pong, err := rl.client.Ping().Result()
@@ -64,12 +63,12 @@ func newClusterRateLimiter(s Settings, group string) *clusterLimit {
 	}
 	log.Debugf("pong: %v", pong)
 
-	// pong, err = rl.ring.Ping().Result()
-	// if err != nil {
-	// 	log.Errorf("Failed to ping redis: %v", err)
-	// 	return nil
-	// }
-	// log.Debugf("pong: %v", pong)
+	pong, err := rl.ring.Ping().Result()
+	if err != nil {
+		log.Errorf("Failed to ping redis: %v", err)
+		return nil
+	}
+	log.Debugf("pong: %v", pong)
 
 	return rl
 }
@@ -81,6 +80,46 @@ const swarmPrefix string = `ratelimit.`
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
 func (c *clusterLimit) Allow(s string) bool {
+	return c.AllowPipelined(s)
+}
+
+// no TxPipeline possible with ring
+// see library https://github.com/go-redis/redis/blob/master/ring.go#L640
+func (c *clusterLimit) AllowRing(s string) bool {
+	key := swarmPrefix + c.group + "." + s
+	now := time.Now()
+	nowNanos := now.UnixNano()
+	clearBefore := now.Add(-c.window).UnixNano()
+
+	// drop all elements of the set which occurred before one interval ago.
+	c.ring.ZRemRangeByScore(key, "0.0", fmt.Sprintf("%v", float64(clearBefore)))
+
+	zcardResult := c.ring.ZCard(key)
+	count := zcardResult.Val()
+	if count > int64(c.maxHits) {
+		return false
+	}
+
+	// add the current timestamp to the set
+	// pipe2.ZAdd(key, redis.Z{Member: nowNanos, Score: float64(nowNanos)})
+	//c.client.ZAdd(key, redis.Z{Member: now.UnixNano(), Score: float64(now.UnixNano())})
+	c.ring.ZAdd(key, redis.Z{Member: nowNanos, Score: float64(nowNanos)})
+
+	// get cardinality of the key
+	//zcardResult2 := pipe2.ZCard(key)
+	//zcardResult2 := c.ring.ZCard(key)
+	count++
+
+	// expire the key if it's too old
+	c.ring.Expire(key, c.window)
+
+	//log.Debugf("number of requests from %s: %v", key, zcardResult2.Val())
+
+	// After all operations are completed, we count the number of fetched elements. If it exceeds the limit, we don’t allow the action.
+	return count <= int64(c.maxHits)
+}
+
+func (c *clusterLimit) AllowPipelined(s string) bool {
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
 	nowNanos := now.UnixNano()
@@ -92,7 +131,7 @@ func (c *clusterLimit) Allow(s string) bool {
 
 	// drop all elements of the set which occurred before one interval ago.
 	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprintf("%v", float64(clearBefore)))
-	//c.client.ZRemRangeByScore(key, "0.0", fmt.Sprintf("%v", float64(now.Add(-c.window).UnixNano())))
+
 	zcardResult := pipe.ZCard(key)
 	_, err := pipe.Exec()
 	if err != nil {
@@ -107,16 +146,17 @@ func (c *clusterLimit) Allow(s string) bool {
 	pipe2 := c.client.TxPipeline()
 	defer pipe2.Close()
 
-	// fetch all elements of the set
+	// NOT NEEDED fetch all elements of the set
 	//zrangeResult := pipe.ZRange(key, 0, -1)
 	//c.client.ZRange(key, 0, -1)
 
 	// add the current timestamp to the set
 	pipe2.ZAdd(key, redis.Z{Member: nowNanos, Score: float64(nowNanos)})
-	//c.client.ZAdd(key, redis.Z{Member: now.UnixNano(), Score: float64(now.UnixNano())})
 
 	// get cardinality of the key
-	zcardResult2 := pipe2.ZCard(key)
+	//zcardResult2 := pipe2.ZCard(key)
+	//zcardResult2 := c.ring.ZCard(key)
+	count++
 
 	// expire the key if it's too old
 	pipe2.Expire(key, c.window)
@@ -127,16 +167,15 @@ func (c *clusterLimit) Allow(s string) bool {
 		return true
 	}
 
-	log.Debugf("number of requests from %s: %v", key, zcardResult2.Val())
+	//log.Debugf("number of requests from %s: %v", key, zcardResult2.Val())
 
 	// After all operations are completed, we count the number of fetched elements. If it exceeds the limit, we don’t allow the action.
 	//count := c.client.ZCard(key).Val()
-	count = zcardResult2.Val()
+	//count = zcardResult2.Val()
 	return count <= int64(c.maxHits)
 }
 
-// no TxPipeline possible with the library https://github.com/go-redis/redis/blob/master/ring.go#L640
-func (c *clusterLimit) Allow2(s string) bool {
+func (c *clusterLimit) AllowRedisLimiter(s string) bool {
 	key := swarmPrefix + c.group + "." + s
 	rate, delay, allowed := c.limiter.AllowN(key, int64(c.maxHits), c.window, 1)
 	log.Infof("rate: %v, delay: %v, allow: %v", rate, delay, allowed)
