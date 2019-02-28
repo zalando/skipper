@@ -32,6 +32,7 @@ func newClusterRateLimiter(s Settings, group string) *clusterLimit {
 		Addrs: map[string]string{
 			"server1": "skipper-redis-0.skipper-redis.kube-system.svc.cluster.local.:6379",
 			"server2": "skipper-redis-1.skipper-redis.kube-system.svc.cluster.local.:6379",
+			//"local": "127.0.0.1:6379",
 		},
 	})
 	//limiter := redis_rate.NewLimiter(ring)
@@ -63,7 +64,7 @@ func newClusterRateLimiter(s Settings, group string) *clusterLimit {
 	}
 	log.Debugf("pong: %v", pong)
 
-	pong, err := rl.ring.Ping().Result()
+	pong, err = rl.ring.Ping().Result()
 	if err != nil {
 		log.Errorf("Failed to ping redis: %v", err)
 		return nil
