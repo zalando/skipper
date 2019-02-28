@@ -166,7 +166,7 @@ func (c *clusterLimit) AllowRing(s string) bool {
 	return count <= int64(c.maxHits)
 }
 
-func (c *clusterLimit) AllowPipelined(s string) bool {
+func (c *clusterLimit) AllowClientPipelined(s string) bool {
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
 	nowNanos := now.UnixNano()
