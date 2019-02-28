@@ -122,7 +122,7 @@ metadata:
   namespace: kube-system
   labels:
     application: skipper-ingress
-    version: v0.10.112
+    version: v0.10.180
     component: ingress
 spec:
   selector:
@@ -135,7 +135,7 @@ spec:
       name: skipper-ingress
       labels:
         application: skipper-ingress
-        version: v0.10.112
+        version: v0.10.180
         component: ingress
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
@@ -149,7 +149,7 @@ spec:
       hostNetwork: true
       containers:
       - name: skipper-ingress
-        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.112
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.180
         ports:
         - name: ingress-port
           containerPort: 9999
@@ -211,7 +211,7 @@ spec:
     spec:
       containers:
       - name: skipper-demo
-        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.112
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.180
         args:
           - "skipper"
           - "-inline-routes"
@@ -376,7 +376,7 @@ rules:
   resources: ["ingresses", ]
   verbs: ["get", "list"]
 - apiGroups: [""]
-  resources: ["namespaces", "services", "endpoints"]
+  resources: ["namespaces", "services", "endpoints", "pods"]
   verbs: ["get", "list"]
 ```
 
@@ -414,7 +414,7 @@ metadata:
   namespace: kube-system
   labels:
     application: skipper-ingress
-    version: v0.10.112
+    version: v0.10.180
     component: ingress
 spec:
   selector:
@@ -427,7 +427,7 @@ spec:
       name: skipper-ingress
       labels:
         application: skipper-ingress
-        version: v0.10.112
+        version: v0.10.180
         component: ingress
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
@@ -442,7 +442,7 @@ spec:
       serviceAccountName: skipper-ingress
       containers:
       - name: skipper-ingress
-        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.112
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.180
         ports:
         - name: ingress-port
           containerPort: 9999
