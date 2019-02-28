@@ -70,7 +70,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	// Client metrics
 	if path.ClientTracking != nil {
 		realmClientKey := f.getRealmClientKey(request, path)
-		clientMetricsNames := f.getClientMetricsNames(realmClientKey, path)
+		clientMetricsNames := getClientMetricsNames(realmClientKey, path)
 		metrics.IncCounter(clientMetricsNames.countAll)
 		metrics.IncCounter(clientMetricsNames.countPerStatusCodeRange[classMetricsIndex])
 		if beginPresent {
@@ -81,14 +81,15 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	}
 }
 
-func (f *apiUsageMonitoringFilter) getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricNames {
-	prefixes, ok := path.metricPrefixedPerClient[realmClientKey]
-	if ok {
-		return prefixes
+func getClientMetricsNames(realmClientKey string, path *pathInfo) *clientMetricNames {
+	if value, ok := path.metricPrefixedPerClient.Load(realmClientKey); ok {
+		if prefixes, ok := value.(clientMetricNames); ok {
+			return &prefixes
+		}
 	}
 
 	clientPrefixForThisClient := path.ClientPrefix + realmClientKey + "."
-	prefixes = &clientMetricNames{
+	prefixes := &clientMetricNames{
 		countAll: clientPrefixForThisClient + metricCountAll,
 		countPerStatusCodeRange: [6]string{
 			clientPrefixForThisClient + metricCountUnknownClass,
@@ -100,7 +101,7 @@ func (f *apiUsageMonitoringFilter) getClientMetricsNames(realmClientKey string, 
 		},
 		latencySum: clientPrefixForThisClient + metricLatencySum,
 	}
-	path.metricPrefixedPerClient[realmClientKey] = prefixes
+	path.metricPrefixedPerClient.Store(realmClientKey, prefixes)
 	return prefixes
 }
 

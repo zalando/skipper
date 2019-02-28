@@ -3,6 +3,7 @@ package apiusagemonitoring
 import (
 	"net/http"
 	"regexp"
+	"sync"
 )
 
 // pathInfo contains the tracking information for a specific path.
@@ -17,21 +18,17 @@ type pathInfo struct {
 	ClientPrefix   string
 
 	metricPrefixesPerMethod [methodIndexLength]*endpointMetricNames
-	metricPrefixedPerClient map[string]*clientMetricNames
+	metricPrefixedPerClient sync.Map
 }
 
 func newPathInfo(applicationId, apiId, pathTemplate string, pathLabel string, clientTracking *clientTrackingInfo) *pathInfo {
 	commonPrefix := applicationId + "." + apiId + "."
-	var metricPrefixedPerClient map[string]*clientMetricNames
-	if clientTracking != nil {
-		metricPrefixedPerClient = make(map[string]*clientMetricNames)
-	}
 	return &pathInfo{
 		ApplicationId:           applicationId,
 		ApiId:                   apiId,
 		PathTemplate:            pathTemplate,
 		PathLabel:               pathLabel,
-		metricPrefixedPerClient: metricPrefixedPerClient,
+		metricPrefixedPerClient: sync.Map{},
 		ClientTracking:          clientTracking,
 		CommonPrefix:            commonPrefix,
 		ClientPrefix:            commonPrefix + "*.*.",
