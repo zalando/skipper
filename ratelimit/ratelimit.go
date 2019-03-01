@@ -3,7 +3,6 @@ package ratelimit
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
@@ -305,11 +304,8 @@ func newRatelimit(s Settings, sw Swarmer) *Ratelimit {
 		s.CleanInterval = 0
 		fallthrough
 	case ClusterClientRatelimit:
-		if sw != nil {
-			impl = newClusterRateLimiter(s, sw, s.Group)
-		} else {
-			fmt.Fprintf(os.Stderr, "ERROR: no -enable-swarm, falling back to no ratelimit for %q\n", s)
-			impl = voidRatelimit{}
+		impl = newClusterRateLimiter(s, sw, s.Group)
+		if impl == nil {
 		}
 	default:
 		impl = voidRatelimit{}
