@@ -9,6 +9,8 @@ func newClusterRateLimiter(s Settings, sw Swarmer, group string) limiter {
 		}
 		return voidRatelimit{}
 	}
-
+	if l := newClusterRateLimiterRedis(s, group); l != nil {
+		return l
+	}
 	return voidRatelimit{}
 }
