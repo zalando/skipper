@@ -7,6 +7,7 @@ import (
 
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/swarm"
 )
 
 const (
@@ -291,7 +292,7 @@ func (voidRatelimit) RetryAfter(string) int      { return 0 }
 func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
 
-func newRatelimit(s Settings, sw Swarmer, ro *RedisOptions) *Ratelimit {
+func newRatelimit(s Settings, sw Swarmer, so *swarm.Options, ro *RedisOptions) *Ratelimit {
 	var impl limiter
 	switch s.Type {
 	case ServiceRatelimit:
@@ -304,7 +305,7 @@ func newRatelimit(s Settings, sw Swarmer, ro *RedisOptions) *Ratelimit {
 		s.CleanInterval = 0
 		fallthrough
 	case ClusterClientRatelimit:
-		impl = newClusterRateLimiter(s, sw, ro, s.Group)
+		impl = newClusterRateLimiter(s, sw, so, ro, s.Group)
 		if impl == nil {
 		}
 	default:
