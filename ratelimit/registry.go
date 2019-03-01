@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/swarm"
 )
 
 const (
@@ -23,18 +24,19 @@ type Registry struct {
 	global       Settings
 	lookup       map[Settings]*Ratelimit
 	swarm        Swarmer
+	swimOptions  *swarm.Options
 	redisOptions *RedisOptions
 }
 
 // NewRegistry initializes a registry with the provided default settings.
 func NewRegistry(settings ...Settings) *Registry {
-	return NewSwarmRegistry(nil, nil, settings...)
+	return NewSwarmRegistry(nil, nil, nil, settings...)
 }
 
 // NewSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewSwarmRegistry(swarm Swarmer, redisOptions *RedisOptions, settings ...Settings) *Registry {
+func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, redisOptions *RedisOptions, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -47,6 +49,7 @@ func NewSwarmRegistry(swarm Swarmer, redisOptions *RedisOptions, settings ...Set
 		global:       defaults,
 		lookup:       make(map[Settings]*Ratelimit),
 		swarm:        swarm,
+		swimOptions:  swimOptions,
 		redisOptions: redisOptions,
 	}
 
@@ -63,7 +66,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s, r.swarm, r.redisOptions)
+		rl = newRatelimit(s, r.swarm, r.swimOptions, r.redisOptions)
 		r.lookup[s] = rl
 	}
 

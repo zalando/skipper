@@ -1,9 +1,11 @@
 package ratelimit
 
+import "github.com/zalando/skipper/swarm"
+
 const swarmPrefix string = `ratelimit.`
 
-func newClusterRateLimiter(s Settings, sw Swarmer, ro *RedisOptions, group string) limiter {
-	if sw != nil {
+func newClusterRateLimiter(s Settings, sw Swarmer, so *swarm.Options, ro *RedisOptions, group string) limiter {
+	if so != nil {
 		if l := newClusterRateLimiterSwim(s, sw, group); l != nil {
 			return l
 		}

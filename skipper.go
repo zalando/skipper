@@ -852,12 +852,15 @@ func Run(o Options) error {
 	}
 
 	var theSwarm *swarm.Swarm
+	var swops *swarm.Options
 	var redisOptions *ratelimit.RedisOptions
 	if o.EnableSwarm {
 		if len(o.SwarmRedisURLs) > 0 {
+			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
 			redisOptions = &ratelimit.RedisOptions{Addrs: o.SwarmRedisURLs}
 		} else {
-			swops := swarm.Options{
+			log.Infof("Start swim based swarm")
+			swops = &swarm.Options{
 				SwarmPort:        uint16(o.SwarmPort),
 				MaxMessageBuffer: o.SwarmMaxMessageBuffer,
 				LeaveTimeout:     o.SwarmLeaveTimeout,
@@ -902,7 +905,7 @@ func Run(o Options) error {
 
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		proxyParams.RateLimiters = ratelimit.NewSwarmRegistry(theSwarm, redisOptions, o.RatelimitSettings...)
+		proxyParams.RateLimiters = ratelimit.NewSwarmRegistry(theSwarm, swops, redisOptions, o.RatelimitSettings...)
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {

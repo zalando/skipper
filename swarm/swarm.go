@@ -120,7 +120,11 @@ type Swarm struct {
 }
 
 // NewSwarm creates a Swarm for given Options.
-func NewSwarm(o Options) (*Swarm, error) {
+func NewSwarm(optr *Options) (*Swarm, error) {
+	if optr == nil {
+		return nil, ErrUnknownSwarm
+	}
+	o := *optr
 	switch getSwarmType(o) {
 	case swarmKubernetes:
 		return newKubernetesSwarm(o)
