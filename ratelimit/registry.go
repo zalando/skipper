@@ -19,21 +19,22 @@ const (
 // ratelimiters.
 type Registry struct {
 	sync.Mutex
-	defaults Settings
-	global   Settings
-	lookup   map[Settings]*Ratelimit
-	swarm    Swarmer
+	defaults     Settings
+	global       Settings
+	lookup       map[Settings]*Ratelimit
+	swarm        Swarmer
+	redisOptions *RedisOptions
 }
 
 // NewRegistry initializes a registry with the provided default settings.
 func NewRegistry(settings ...Settings) *Registry {
-	return NewSwarmRegistry(nil, settings...)
+	return NewSwarmRegistry(nil, nil, settings...)
 }
 
 // NewSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
+func NewSwarmRegistry(swarm Swarmer, redisOptions *RedisOptions, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -42,10 +43,11 @@ func NewSwarmRegistry(swarm Swarmer, settings ...Settings) *Registry {
 	}
 
 	r := &Registry{
-		defaults: defaults,
-		global:   defaults,
-		lookup:   make(map[Settings]*Ratelimit),
-		swarm:    swarm,
+		defaults:     defaults,
+		global:       defaults,
+		lookup:       make(map[Settings]*Ratelimit),
+		swarm:        swarm,
+		redisOptions: redisOptions,
 	}
 
 	if len(settings) > 0 {
@@ -61,7 +63,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s, r.swarm)
+		rl = newRatelimit(s, r.swarm, r.redisOptions)
 		r.lookup[s] = rl
 	}
 

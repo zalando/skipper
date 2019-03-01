@@ -9,6 +9,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type RedisOptions struct {
+	Addrs []string
+}
+
 // clusterLimitRedis stores all data required for the cluster ratelimit.
 type clusterLimitRedis struct {
 	mu         sync.Mutex
@@ -20,17 +24,22 @@ type clusterLimitRedis struct {
 	retryAfter int
 }
 
-// newClusterRateLimiter creates a new clusterLimitRedis for given
+// newClusterRateLimiterRedis creates a new clusterLimitRedis for given
 // Settings. Group is used to identify the ratelimit instance, is used
 // in log messages and has to be the same in all skipper instances.
-func newClusterRateLimiterRedis(s Settings, group string) *clusterLimitRedis {
-	ring := redis.NewRing(&redis.RingOptions{
-		Addrs: map[string]string{
-			"server1": "skipper-redis-0.skipper-redis.kube-system.svc.cluster.local.:6379",
-			"server2": "skipper-redis-1.skipper-redis.kube-system.svc.cluster.local.:6379",
-			//"local": "127.0.0.1:6379",
-		},
-	})
+func newClusterRateLimiterRedis(s Settings, options *RedisOptions, group string) *clusterLimitRedis {
+	if options == nil {
+		return nil
+	}
+
+	ringOptions := &redis.RingOptions{
+		Addrs: map[string]string{},
+	}
+	for idx, addr := range options.Addrs {
+		ringOptions.Addrs[fmt.Sprintf("server%d", idx)] = addr
+	}
+
+	ring := redis.NewRing(ringOptions)
 	// TODO(sszuecs): if this is good wrap with context and add deadline
 	//ring = ring.WithContext(context.Background())
 

@@ -505,14 +505,17 @@ type Options struct {
 
 	// EnableSwarm enables skipper fleet communication, required by e.g.
 	// the cluster ratelimiter
-	EnableSwarm                       bool
+	EnableSwarm bool
+	// redis based swarm
+	SwarmRedisURLs []string
+	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
 	SwarmKubernetesLabelSelectorValue string
 	SwarmPort                         int
 	SwarmMaxMessageBuffer             int
 	SwarmLeaveTimeout                 time.Duration
-
+	// swim based swarm for local testing
 	SwarmStaticSelf  string // 127.0.0.1:9001
 	SwarmStaticOther string // 127.0.0.1:9002,127.0.0.1:9003
 }
@@ -849,52 +852,57 @@ func Run(o Options) error {
 	}
 
 	var theSwarm *swarm.Swarm
+	var redisOptions *ratelimit.RedisOptions
 	if o.EnableSwarm {
-		swops := swarm.Options{
-			SwarmPort:        uint16(o.SwarmPort),
-			MaxMessageBuffer: o.SwarmMaxMessageBuffer,
-			LeaveTimeout:     o.SwarmLeaveTimeout,
-			Debug:            log.GetLevel() == log.DebugLevel,
-		}
-
-		if o.Kubernetes {
-			swops.KubernetesOptions = &swarm.KubernetesOptions{
-				KubernetesInCluster:  o.KubernetesInCluster,
-				KubernetesAPIBaseURL: o.KubernetesURL,
-				Namespace:            o.SwarmKubernetesNamespace,
-				LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
-				LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
+		if len(o.SwarmRedisURLs) > 0 {
+			redisOptions = &ratelimit.RedisOptions{Addrs: o.SwarmRedisURLs}
+		} else {
+			swops := swarm.Options{
+				SwarmPort:        uint16(o.SwarmPort),
+				MaxMessageBuffer: o.SwarmMaxMessageBuffer,
+				LeaveTimeout:     o.SwarmLeaveTimeout,
+				Debug:            log.GetLevel() == log.DebugLevel,
 			}
-		}
 
-		if o.SwarmStaticSelf != "" {
-			self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
-			if err != nil {
-				log.Fatalf("Failed to get static NodeInfo: %v", err)
+			if o.Kubernetes {
+				swops.KubernetesOptions = &swarm.KubernetesOptions{
+					KubernetesInCluster:  o.KubernetesInCluster,
+					KubernetesAPIBaseURL: o.KubernetesURL,
+					Namespace:            o.SwarmKubernetesNamespace,
+					LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
+					LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
+				}
 			}
-			other := []*swarm.NodeInfo{self}
 
-			for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
-				ni, err := swarm.NewStaticNodeInfo(addr, addr)
+			if o.SwarmStaticSelf != "" {
+				self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
 				if err != nil {
 					log.Fatalf("Failed to get static NodeInfo: %v", err)
 				}
-				other = append(other, ni)
+				other := []*swarm.NodeInfo{self}
+
+				for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
+					ni, err := swarm.NewStaticNodeInfo(addr, addr)
+					if err != nil {
+						log.Fatalf("Failed to get static NodeInfo: %v", err)
+					}
+					other = append(other, ni)
+				}
+
+				swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
 			}
 
-			swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
+			theSwarm, err = swarm.NewSwarm(swops)
+			if err != nil {
+				log.Errorf("failed to init swarm with options %+v: %v", swops, err)
+			}
+			defer theSwarm.Leave()
 		}
-
-		theSwarm, err = swarm.NewSwarm(swops)
-		if err != nil {
-			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
-		}
-		defer theSwarm.Leave()
 	}
 
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		proxyParams.RateLimiters = ratelimit.NewSwarmRegistry(theSwarm, o.RatelimitSettings...)
+		proxyParams.RateLimiters = ratelimit.NewSwarmRegistry(theSwarm, redisOptions, o.RatelimitSettings...)
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {

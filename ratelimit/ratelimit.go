@@ -291,7 +291,7 @@ func (voidRatelimit) RetryAfter(string) int      { return 0 }
 func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
 
-func newRatelimit(s Settings, sw Swarmer) *Ratelimit {
+func newRatelimit(s Settings, sw Swarmer, ro *RedisOptions) *Ratelimit {
 	var impl limiter
 	switch s.Type {
 	case ServiceRatelimit:
@@ -304,7 +304,7 @@ func newRatelimit(s Settings, sw Swarmer) *Ratelimit {
 		s.CleanInterval = 0
 		fallthrough
 	case ClusterClientRatelimit:
-		impl = newClusterRateLimiter(s, sw, s.Group)
+		impl = newClusterRateLimiter(s, sw, ro, s.Group)
 		if impl == nil {
 		}
 	default:
