@@ -16,6 +16,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
+	github.com/go-redis/redis v6.15.2+incompatible
 	github.com/gogo/protobuf v1.1.1 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/google/go-cmp v0.0.0-20170901214248-d5735f74713c

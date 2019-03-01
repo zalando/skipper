@@ -40,7 +40,7 @@ func TestSingleSwarmSingleRatelimit(t *testing.T) {
 	}
 	defer sw1.Leave()
 
-	crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
+	crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
 	backend := "TestSingleSwarmSingleRatelimit backend"
 
 	t.Run("single swarm peer, single ratelimit", func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestSingleSwarm(t *testing.T) {
 			t.Errorf("Failed to start swarm1: %v", err)
 		}
 		defer sw1.Leave()
-		crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
+		crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
 
 		for i := 1; i <= s.MaxHits; i++ {
 			if !crl1sw1.Allow(backend) {
@@ -99,8 +99,8 @@ func TestSingleSwarm(t *testing.T) {
 			t.Errorf("Failed to start swarm1: %v", err)
 		}
 		defer sw1.Leave()
-		crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
-		crl2sw1 := newClusterRateLimiter(s, sw1, "cr2")
+		crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
+		crl2sw1 := newClusterRateLimiterSwim(s, sw1, "cr2")
 
 		for i := 0; i < s.MaxHits; i++ {
 			if !crl1sw1.Allow(backend) {
@@ -143,7 +143,7 @@ func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
 	}
 	defer sw1.Leave()
 
-	crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
+	crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
 	defer crl1sw1.Close()
 
 	now := time.Now().UTC().UnixNano()
@@ -223,7 +223,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 	}
 	defer sw1.Leave()
 
-	crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
+	crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
 	defer crl1sw1.Close()
 
 	now := time.Now().UTC().UnixNano()
@@ -358,9 +358,9 @@ func TestTwoSwarms(t *testing.T) {
 		}
 		defer sw2.Leave()
 
-		crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
+		crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
 		defer crl1sw1.Close()
-		crl1sw2 := newClusterRateLimiter(s, sw2, "cr1")
+		crl1sw2 := newClusterRateLimiterSwim(s, sw2, "cr1")
 		defer crl1sw2.Close()
 		backend := "TestTwoSwarmsFewMaxHits backend"
 
@@ -410,9 +410,9 @@ func TestTwoSwarms(t *testing.T) {
 		}
 		defer sw2.Leave()
 
-		crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
+		crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
 		defer crl1sw1.Close()
-		crl1sw2 := newClusterRateLimiter(s, sw2, "cr1")
+		crl1sw2 := newClusterRateLimiterSwim(s, sw2, "cr1")
 		defer crl1sw2.Close()
 		backend := "TestTwoSwarmsMaze backend"
 
@@ -465,13 +465,13 @@ func TestTwoSwarms(t *testing.T) {
 		}
 		defer sw2.Leave()
 
-		crl1sw1 := newClusterRateLimiter(s, sw1, "cr1")
+		crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
 		defer crl1sw1.Close()
-		crl1sw2 := newClusterRateLimiter(s, sw2, "cr1")
+		crl1sw2 := newClusterRateLimiterSwim(s, sw2, "cr1")
 		defer crl1sw2.Close()
-		crl1sw3 := newClusterRateLimiter(s, sw2, "cr3")
+		crl1sw3 := newClusterRateLimiterSwim(s, sw2, "cr3")
 		defer crl1sw3.Close()
-		crl1sw4 := newClusterRateLimiter(s, sw2, "cr3")
+		crl1sw4 := newClusterRateLimiterSwim(s, sw2, "cr3")
 		defer crl1sw4.Close()
 		backend := "TestTwoSwarmsMaze backend"
 
