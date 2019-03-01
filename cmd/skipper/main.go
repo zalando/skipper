@@ -338,7 +338,10 @@ var (
 	maxIdleConnsBackend          int
 
 	// swarm:
-	enableSwarm                       bool
+	enableSwarm bool
+	// redis based
+	swarmRedisURLs swarmRedisFlags
+	// swim based
 	swarmKubernetesNamespace          string
 	swarmKubernetesLabelSelectorKey   string
 	swarmKubernetesLabelSelectorValue string
@@ -479,6 +482,7 @@ func init() {
 	flag.DurationVar(&expectContinueTimeoutBackend, "expect-continue-timeout-backend", defaultExpectContinueTimeoutBackend, expectContinueTimeoutBackendUsage)
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
 	flag.BoolVar(&enableSwarm, "enable-swarm", false, enableSwarmUsage)
+	flag.Var(&swarmRedisURLs, "swarm-redis-urls", swarmRedisURLsUsage)
 	flag.StringVar(&swarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, swarmKubernetesNamespaceUsage)
 	flag.StringVar(&swarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, swarmKubernetesLabelSelectorKeyUsage)
 	flag.StringVar(&swarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, swarmKubernetesLabelSelectorValueUsage)
@@ -696,14 +700,17 @@ func main() {
 		MaxIdleConnsBackend:          maxIdleConnsBackend,
 
 		// swarm:
-		EnableSwarm:                       enableSwarm,
+		EnableSwarm: enableSwarm,
+		// redis based
+		SwarmRedisURLs: swarmRedisURLs.Get(),
+		// swim based
 		SwarmKubernetesNamespace:          swarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   swarmKubernetesLabelSelectorKey,
 		SwarmKubernetesLabelSelectorValue: swarmKubernetesLabelSelectorValue,
 		SwarmPort:                         swarmPort,
 		SwarmMaxMessageBuffer:             swarmMaxMessageBuffer,
 		SwarmLeaveTimeout:                 swarmLeaveTimeout,
-
+		// swim on localhost for testing
 		SwarmStaticSelf:  swarmStaticSelf,
 		SwarmStaticOther: swarmStaticOther,
 	}

@@ -34,12 +34,12 @@ func TestServiceRatelimit(t *testing.T) {
 	}
 
 	t.Run("new service ratelimitter", func(t *testing.T) {
-		rl := newRatelimit(s, nil)
+		rl := newRatelimit(s, nil, nil)
 		checkNotRatelimitted(t, rl, client1)
 	})
 
 	t.Run("does not rate limit unless we have enough calls, all clients are ratelimitted", func(t *testing.T) {
-		rl := newRatelimit(s, nil)
+		rl := newRatelimit(s, nil, nil)
 		for i := 0; i < s.MaxHits; i++ {
 			checkNotRatelimitted(t, rl, client1)
 		}
@@ -49,7 +49,7 @@ func TestServiceRatelimit(t *testing.T) {
 	})
 
 	t.Run("does not rate limit if TimeWindow is over", func(t *testing.T) {
-		rl := newRatelimit(s, nil)
+		rl := newRatelimit(s, nil, nil)
 		for i := 0; i < s.MaxHits-1; i++ {
 			checkNotRatelimitted(t, rl, client1)
 		}
@@ -73,12 +73,12 @@ func TestLocalRatelimit(t *testing.T) {
 	}
 
 	t.Run("new local ratelimitter", func(t *testing.T) {
-		rl := newRatelimit(s, nil)
+		rl := newRatelimit(s, nil, nil)
 		checkNotRatelimitted(t, rl, client1)
 	})
 
 	t.Run("does not rate limit unless we have enough calls", func(t *testing.T) {
-		rl := newRatelimit(s, nil)
+		rl := newRatelimit(s, nil, nil)
 		for i := 0; i < s.MaxHits; i++ {
 			checkNotRatelimitted(t, rl, client1)
 		}
@@ -88,7 +88,7 @@ func TestLocalRatelimit(t *testing.T) {
 	})
 
 	t.Run("does not rate limit if TimeWindow is over", func(t *testing.T) {
-		rl := newRatelimit(s, nil)
+		rl := newRatelimit(s, nil, nil)
 		for i := 0; i < s.MaxHits-1; i++ {
 			checkNotRatelimitted(t, rl, client1)
 		}
@@ -108,12 +108,12 @@ func TestDisableRatelimit(t *testing.T) {
 	client1 := "foo"
 
 	t.Run("new disabled ratelimitter", func(t *testing.T) {
-		rl := newRatelimit(s, nil)
+		rl := newRatelimit(s, nil, nil)
 		checkNotRatelimitted(t, rl, client1)
 	})
 
 	t.Run("disable ratelimitter should never rate limit", func(t *testing.T) {
-		rl := newRatelimit(s, nil)
+		rl := newRatelimit(s, nil, nil)
 		for i := 0; i < s.MaxHits; i++ {
 			checkNotRatelimitted(t, rl, client1)
 		}
@@ -152,7 +152,7 @@ func BenchmarkServiceRatelimit(b *testing.B) {
 		TimeWindow: 1 * time.Second,
 	}
 
-	rl := newRatelimit(s, nil)
+	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
 		rl.Allow("")
 	}
@@ -168,7 +168,7 @@ func BenchmarkLocalRatelimit(b *testing.B) {
 	}
 	client := "foo"
 
-	rl := newRatelimit(s, nil)
+	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
 		rl.Allow(client)
 	}
@@ -184,7 +184,7 @@ func BenchmarkLocalRatelimitWithCleaner(b *testing.B) {
 	}
 	client := "foo"
 
-	rl := newRatelimit(s, nil)
+	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
 		rl.Allow(client)
 	}
@@ -204,7 +204,7 @@ func BenchmarkLocalRatelimitClients1000(b *testing.B) {
 		clients = append(clients, fmt.Sprintf("%s-%d", client, i))
 	}
 
-	rl := newRatelimit(s, nil)
+	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
 		rl.Allow(clients[i%count])
 	}
@@ -225,7 +225,7 @@ func BenchmarkLocalRatelimitWithCleanerClients1000(b *testing.B) {
 		clients = append(clients, fmt.Sprintf("%s-%d", client, i))
 	}
 
-	rl := newRatelimit(s, nil)
+	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
 		rl.Allow(clients[i%count])
 	}
