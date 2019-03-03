@@ -225,7 +225,7 @@ func (c *CodaHale) IncErrorsStreaming(routeId string) {
 	}
 }
 
-func (c *CodaHale) ObserveRouteInfo(backend string, name string, routeId string) {}
+func (c *CodaHale) ObserveRouteKubeResources(ingress string, routeId string, name string) {}
 
 func (c *CodaHale) RegisterHandler(path string, handler *http.ServeMux) {
 	h := c.getHandler(path)

@@ -26,7 +26,7 @@ type Prometheus struct {
 	// Metrics.
 	routeLookupM               *prometheus.HistogramVec
 	routeErrorsM               *prometheus.CounterVec
-	routeInfoM                 *prometheus.GaugeVec
+	routeKubeResourcesM        *prometheus.GaugeVec
 	responseM                  *prometheus.HistogramVec
 	filterRequestM             *prometheus.HistogramVec
 	filterAllRequestM          *prometheus.HistogramVec
@@ -74,12 +74,12 @@ func NewPrometheus(opts Options) *Prometheus {
 		Help:      "The total of route lookup errors.",
 	}, []string{})
 
-	routeInfo := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	routeKubeResources := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: promRouteSubsystem,
-		Name:      "info",
-		Help:      "Additional labels of a route.",
-	}, []string{"backend", "name", "route"})
+		Name:      "kube_resources",
+		Help:      "Kubernetes resources that are the source of a route.",
+	}, []string{"ingress", "route", "service"})
 
 	response := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -212,7 +212,7 @@ func NewPrometheus(opts Options) *Prometheus {
 	p := &Prometheus{
 		routeLookupM:               routeLookup,
 		routeErrorsM:               routeErrors,
-		routeInfoM:                 routeInfo,
+		routeKubeResourcesM:        routeKubeResources,
 		responseM:                  response,
 		filterRequestM:             filterRequest,
 		filterAllRequestM:          filterAllRequest,
@@ -249,7 +249,7 @@ func (p *Prometheus) registerMetrics() {
 	p.registry.MustRegister(p.routeLookupM)
 	p.registry.MustRegister(p.responseM)
 	p.registry.MustRegister(p.routeErrorsM)
-	p.registry.MustRegister(p.routeInfoM)
+	p.registry.MustRegister(p.routeKubeResourcesM)
 	p.registry.MustRegister(p.filterRequestM)
 	p.registry.MustRegister(p.filterAllRequestM)
 	p.registry.MustRegister(p.filterAllCombinedRequestM)
@@ -420,6 +420,8 @@ func (p *Prometheus) IncErrorsStreaming(routeID string) {
 	p.proxyStreamingErrorsM.WithLabelValues(routeID).Inc()
 }
 
-func (p *Prometheus) ObserveRouteInfo(backend string, name string, routeId string) {
-	p.routeInfoM.WithLabelValues(backend, name, routeId).Set(1)
+func (p *Prometheus) ObserveRouteKubeResources(ingress string, routeId string, service string) {
+	if p.opts.EnableRouteKubeResourcesMetrics {
+		p.routeKubeResourcesM.WithLabelValues(ingress, routeId, service).Set(1)
+	}
 }

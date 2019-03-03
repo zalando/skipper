@@ -123,6 +123,7 @@ const (
 	accessLogJSONEnabledUsage       = "when this flag is set, log in JSON format is used"
 	accessLogStripQueryUsage        = "when this flag is set, the access log strips the query strings from the access log"
 	suppressRouteUpdateLogsUsage    = "print only summaries on route updates/deletes"
+	routeKubeResourcesMetricsUsage  = "enables reporting of Kubernetes resources that are the source of a route"
 
 	// route sources:
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -265,6 +266,7 @@ var (
 	accessLogJSONEnabled      bool
 	accessLogStripQuery       bool
 	suppressRouteUpdateLogs   bool
+	routeKubeResourcesMetrics bool
 
 	// route sources:
 	etcdUrls                  string
@@ -405,6 +407,7 @@ func init() {
 	flag.BoolVar(&accessLogJSONEnabled, "access-log-json-enabled", false, accessLogJSONEnabledUsage)
 	flag.BoolVar(&accessLogStripQuery, "access-log-strip-query", false, accessLogStripQueryUsage)
 	flag.BoolVar(&suppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
+	flag.BoolVar(&routeKubeResourcesMetrics, "route-kube-resources-metrics", false, routeKubeResourcesMetricsUsage)
 
 	// route sources:
 	flag.StringVar(&etcdUrls, "etcd-urls", "", etcdUrlsUsage)
@@ -620,6 +623,7 @@ func main() {
 		AccessLogJSONEnabled:                accessLogJSONEnabled,
 		AccessLogStripQuery:                 accessLogStripQuery,
 		SuppressRouteUpdateLogs:             suppressRouteUpdateLogs,
+		EnableRouteKubeResourcesMetrics:     routeKubeResourcesMetrics,
 
 		// route sources:
 		EtcdUrls:                  eus,
