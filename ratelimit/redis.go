@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -17,7 +18,7 @@ type RedisOptions struct {
 type clusterLimitRedis struct {
 	mu         sync.Mutex
 	group      string
-	maxHits    int
+	maxHits    int64
 	window     time.Duration
 	client     *redis.Client
 	ring       *redis.Ring
@@ -42,21 +43,33 @@ func newClusterRateLimiterRedis(s Settings, options *RedisOptions, group string)
 	ring := redis.NewRing(ringOptions)
 	// TODO(sszuecs): if this is good wrap with context and add deadline
 	//ring = ring.WithContext(context.Background())
+	log.Infof("redis ring: %+v", ring)
+	log.Infof("redis ring options: %+v", ring.Options())
 
 	rl := &clusterLimitRedis{
 		group:   group,
-		maxHits: s.MaxHits,
+		maxHits: int64(s.MaxHits),
 		window:  s.TimeWindow,
 		ring:    ring,
 	}
 
-	pong, err := rl.ring.Ping().Result()
+	var pong string
+	var err error
+	for _, i := range []int{1, 2, 3, 4, 5} {
+		pong, err = rl.ring.Ping().Result()
+		if err != nil {
+			log.Infof("%d. Failed to ping redis: %v", i, err)
+			time.Sleep(time.Duration(i) * time.Second)
+		} else {
+			break
+		}
+	}
 	if err != nil {
 		log.Errorf("Failed to ping redis: %v", err)
 		return nil
 	}
-	log.Debugf("pong: %v", pong)
 
+	log.Infof("pong: %v", pong)
 	return rl
 }
 
@@ -67,9 +80,22 @@ func newClusterRateLimiterRedis(s Settings, options *RedisOptions, group string)
 func (c *clusterLimitRedis) Allow(s string) bool {
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
-	nowSec := now.Unix()
-	clearBefore := now.Add(-c.window).Unix()
+	nowSec := now.UnixNano()
+	clearBefore := now.Add(-c.window).UnixNano()
 
+	count := c.allowCheckCard(key, clearBefore)
+	if count > c.maxHits {
+		log.Infof("redis disallow %s request: %d > %d = %v", key, count, c.maxHits, count > c.maxHits)
+		return false
+	}
+
+	c.allowAddAndCard(key, nowSec)
+	count++
+	log.Infof("redis allow %s count=%d, max=%d, result=%v", key, count, c.maxHits, count <= c.maxHits)
+	return count <= c.maxHits
+}
+
+func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 {
 	// TODO(sszuecs): https://github.com/go-redis/redis/issues/979 change to TxPipeline: MULTI exec
 	// Pipeline is not a transaction
 	pipe := c.ring.Pipeline()
@@ -80,30 +106,30 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 	zcardResult := pipe.ZCard(key)
 	_, err := pipe.Exec()
 	if err != nil {
-		log.Errorf("Failed to get cardinality: %v", err)
-		return true
+		log.Errorf("Failed to get redis cardinality for %s: %v", key, err)
+		return 0
 	}
-	count := zcardResult.Val()
-	if count > int64(c.maxHits) {
-		return false
-	}
+	return zcardResult.Val()
+}
 
+func (c *clusterLimitRedis) allowAddAndCard(key string, nowSec int64) int64 {
 	// TODO(sszuecs): https://github.com/go-redis/redis/issues/979 change to TxPipeline: MULTI exec
-	pipe2 := c.ring.Pipeline()
-	defer pipe2.Close()
+	pipe := c.ring.Pipeline()
+	defer pipe.Close()
 	// add the current timestamp to the set
-	pipe2.ZAdd(key, redis.Z{Member: nowSec, Score: float64(nowSec)})
-	// increment cardinality
-	count++
+	pipe.ZAdd(key, redis.Z{Member: nowSec, Score: float64(nowSec)})
+	// get/increment cardinality
+	zcardResult := pipe.ZCard(key)
+	//count++
 	// expire value if it is too old
-	pipe2.Expire(key, c.window)
-	_, err = pipe2.Exec()
+	pipe.Expire(key, c.window)
+	_, err := pipe.Exec()
 	if err != nil {
-		log.Errorf("Failed to exec pipeline: %v", err)
+		log.Errorf("Failed to exec redis pipeline for %s: %v", key, err)
 		// could not add, but we can use count
+		return 0
 	}
-
-	return count <= int64(c.maxHits)
+	return zcardResult.Val()
 }
 
 func (c *clusterLimitRedis) Close()                       { c.ring.Close() }
@@ -115,16 +141,23 @@ func (c *clusterLimitRedis) Oldest(s string) time.Time {
 
 	res := c.ring.ZRangeByScoreWithScores(key, redis.ZRangeBy{
 		Min:    "0.0",
-		Max:    fmt.Sprintf("%v", float64(now.Unix())),
+		Max:    fmt.Sprintf("%v", float64(now.UnixNano())),
 		Offset: 0,
 		Count:  1,
 	})
+
 	if zs := res.Val(); len(zs) > 0 {
 		z := zs[0]
-		if oldest, ok := z.Member.(int64); ok {
-			return time.Unix(oldest, 0)
+		if s, ok := z.Member.(string); ok {
+			oldest, err := strconv.ParseInt(s, 10, 64)
+			if err != nil {
+				log.Errorf("Failed to convert '%v' to int64: %v", s, err)
+			}
+			return time.Unix(0, oldest)
 		}
+		log.Errorf("Failed to convert redis data to int64: %v", z.Member)
 	}
+	log.Errorf("redis oldest got no valid data: %v", res)
 	return time.Time{}
 }
 
@@ -133,9 +166,11 @@ func (c *clusterLimitRedis) RetryAfter(s string) int {
 	now := time.Now()
 	oldest := c.Oldest(s)
 	gab := now.Sub(oldest)
-	retr := gab - c.window
-	if res := int(retr / time.Second); res > 0 {
+	retr := c.window - gab
+	res := int(retr / time.Second)
+	if res > 0 {
 		return res
 	}
-	return 0
+	// Less than 1s to wait -> so set to 1
+	return 1
 }
