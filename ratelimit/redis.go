@@ -89,10 +89,8 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 		return false
 	}
 
-	c.allowAddAndCard(key, nowSec)
-	count++
-	log.Infof("redis allow %s count=%d, max=%d, result=%v", key, count, c.maxHits, count <= c.maxHits)
-	return count <= c.maxHits
+	c.ring.ZAdd(key, redis.Z{Member: nowSec, Score: float64(nowSec)})
+	return true
 }
 
 func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 {
@@ -107,26 +105,6 @@ func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 
 	_, err := pipe.Exec()
 	if err != nil {
 		log.Errorf("Failed to get redis cardinality for %s: %v", key, err)
-		return 0
-	}
-	return zcardResult.Val()
-}
-
-func (c *clusterLimitRedis) allowAddAndCard(key string, nowSec int64) int64 {
-	// TODO(sszuecs): https://github.com/go-redis/redis/issues/979 change to TxPipeline: MULTI exec
-	pipe := c.ring.Pipeline()
-	defer pipe.Close()
-	// add the current timestamp to the set
-	pipe.ZAdd(key, redis.Z{Member: nowSec, Score: float64(nowSec)})
-	// get/increment cardinality
-	zcardResult := pipe.ZCard(key)
-	//count++
-	// expire value if it is too old
-	pipe.Expire(key, c.window)
-	_, err := pipe.Exec()
-	if err != nil {
-		log.Errorf("Failed to exec redis pipeline for %s: %v", key, err)
-		// could not add, but we can use count
 		return 0
 	}
 	return zcardResult.Val()
