@@ -915,8 +915,7 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 		if c.kubernetesEnableEastWest {
 			for _, rule := range i.Spec.Rules {
 				if rs, ok := hostRoutes[rule.Host]; ok {
-					rs = append(rs, createEastWestRoutes(c.eastWestDomainRegexpPostfix,
-						i.Metadata.Name, i.Metadata.Namespace, rs)...)
+					rs = append(rs, createEastWestRoutes(c.eastWestDomainRegexpPostfix, i.Metadata.Name, i.Metadata.Namespace, rs)...)
 					hostRoutes[rule.Host] = rs
 				}
 			}
@@ -941,8 +940,7 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 			routes = append(routes, catchAll)
 
 			if c.kubernetesEnableEastWest {
-				if r := createEastWestRoute(c.eastWestDomainRegexpPostfix,
-					rs[0].Name, rs[0].Namespace, catchAll); r != nil {
+				if r := createEastWestRoute(c.eastWestDomainRegexpPostfix, rs[0].Name, rs[0].Namespace, catchAll); r != nil {
 					routes = append(routes, r)
 				}
 			}
