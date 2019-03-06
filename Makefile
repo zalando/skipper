@@ -89,6 +89,7 @@ deps:
 	@mkdir -p $(GOPATH)/bin
 	@mv /tmp/staticcheck $(GOPATH)/bin/
 	@chmod +x $(GOPATH)/bin/staticcheck
+	@which redis-server || apt-get install -y redis-server
 
 vet: $(SOURCES)
 	GO111MODULE=on go vet $(PACKAGES)
