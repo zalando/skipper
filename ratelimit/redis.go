@@ -3,26 +3,25 @@ package ratelimit
 import (
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
 )
 
+// RedisOptions is used to configure the redis.Ring
 type RedisOptions struct {
+	// Addrs are the list of redis shards
 	Addrs []string
 }
 
 // clusterLimitRedis stores all data required for the cluster ratelimit.
 type clusterLimitRedis struct {
-	mu         sync.Mutex
-	group      string
-	maxHits    int64
-	window     time.Duration
-	client     *redis.Client
-	ring       *redis.Ring
-	retryAfter int
+	group   string
+	maxHits int64
+	window  time.Duration
+	ring    *redis.Ring
 }
 
 // newClusterRateLimiterRedis creates a new clusterLimitRedis for given
@@ -41,10 +40,8 @@ func newClusterRateLimiterRedis(s Settings, options *RedisOptions, group string)
 	}
 
 	ring := redis.NewRing(ringOptions)
-	// TODO(sszuecs): if this is good wrap with context and add deadline
+	// TODO(sszuecs): maybe wrap with context and expose a flag
 	//ring = ring.WithContext(context.Background())
-	log.Infof("redis ring: %+v", ring)
-	log.Infof("redis ring options: %+v", ring.Options())
 
 	rl := &clusterLimitRedis{
 		group:   group,
@@ -53,23 +50,22 @@ func newClusterRateLimiterRedis(s Settings, options *RedisOptions, group string)
 		ring:    ring,
 	}
 
-	var pong string
 	var err error
-	for _, i := range []int{1, 2, 3, 4, 5} {
-		pong, err = rl.ring.Ping().Result()
+
+	err = backoff.Retry(func() error {
+		_, err = rl.ring.Ping().Result()
 		if err != nil {
-			log.Infof("%d. Failed to ping redis: %v", i, err)
-			time.Sleep(time.Duration(i) * time.Second)
-		} else {
-			break
+			log.Infof("Failed to ping redis, retry with backoff: %v", err)
 		}
-	}
+		return err
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 7))
+
 	if err != nil {
-		log.Errorf("Failed to ping redis: %v", err)
+		log.Errorf("Failed to connect to redis: %v", err)
 		return nil
 	}
+	log.Debug("Redis ring is reachable")
 
-	log.Infof("pong: %v", pong)
 	return rl
 }
 
@@ -84,8 +80,9 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 	clearBefore := now.Add(-c.window).UnixNano()
 
 	count := c.allowCheckCard(key, clearBefore)
-	if count > c.maxHits {
-		log.Infof("redis disallow %s request: %d > %d = %v", key, count, c.maxHits, count > c.maxHits)
+	// we increase later with ZAdd, so max-1
+	if count >= c.maxHits {
+		log.Debugf("redis disallow %s request: %d >= %d = %v", key, count, c.maxHits, count > c.maxHits)
 		return false
 	}
 
@@ -95,7 +92,7 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 
 func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 {
 	// TODO(sszuecs): https://github.com/go-redis/redis/issues/979 change to TxPipeline: MULTI exec
-	// Pipeline is not a transaction
+	// Pipeline is not a transaction, but less roundtrip
 	pipe := c.ring.Pipeline()
 	defer pipe.Close()
 	// drop all elements of the set which occurred before one interval ago.
@@ -110,9 +107,19 @@ func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 
 	return zcardResult.Val()
 }
 
-func (c *clusterLimitRedis) Close()                       { c.ring.Close() }
-func (c *clusterLimitRedis) Delta(s string) time.Duration { return 10 * c.window }
+// Close all redis ring shards
+func (c *clusterLimitRedis) Close() { c.ring.Close() }
 
+// Delta returns the time.Duration until the next call is allowed,
+// negative means immediate calls are allowed
+func (c *clusterLimitRedis) Delta(s string) time.Duration {
+	now := time.Now()
+	oldest := c.Oldest(s)
+	gab := now.Sub(oldest)
+	return c.window - gab
+}
+
+// Oldest returns the oldest known request
 func (c *clusterLimitRedis) Oldest(s string) time.Time {
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
@@ -135,19 +142,24 @@ func (c *clusterLimitRedis) Oldest(s string) time.Time {
 		}
 		log.Errorf("Failed to convert redis data to int64: %v", z.Member)
 	}
-	log.Errorf("redis oldest got no valid data: %v", res)
+	log.Debugf("Oldest() for key %s got no valid data: %v", key, res)
 	return time.Time{}
 }
 
-func (c *clusterLimitRedis) Resize(s string, n int) {}
+// Resize is noop to implement the limiter interface
+func (*clusterLimitRedis) Resize(string, int) {}
+
+// RetryAfter returns seconds until next call is allowed similar to
+// Delta(), but returns at least one 1 in all cases. That is being
+// done, because if not the ratelimit would be too few ratelimits,
+// because of how it's used in the proxy and the nature of cluster
+// ratelimits being not strongly consistent across calls to Allow()
+// and RetryAfter().
 func (c *clusterLimitRedis) RetryAfter(s string) int {
-	now := time.Now()
-	oldest := c.Oldest(s)
-	gab := now.Sub(oldest)
-	retr := c.window - gab
+	retr := c.Delta(s)
 	res := int(retr / time.Second)
 	if res > 0 {
-		return res
+		return res + 1
 	}
 	// Less than 1s to wait -> so set to 1
 	return 1
