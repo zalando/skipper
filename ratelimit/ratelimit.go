@@ -306,8 +306,6 @@ func newRatelimit(s Settings, sw Swarmer, so *swarm.Options, ro *RedisOptions) *
 		fallthrough
 	case ClusterClientRatelimit:
 		impl = newClusterRateLimiter(s, sw, so, ro, s.Group)
-		if impl == nil {
-		}
 	default:
 		impl = voidRatelimit{}
 	}
