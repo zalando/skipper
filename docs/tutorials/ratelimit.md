@@ -65,17 +65,56 @@ the memory footprint in the long run.
 ## Cluster Ratelimit
 
 A cluster ratelimit computes all requests for all skipper peers. This
-requires, that you run skipper with `-enable-swarm` and all
-requirements, that are dependent on your dataclient in use.
+requires, that you run skipper with `-enable-swarm` and select one of
+the two implementations:
+
+- [Redis](https://redis.io)
+- [SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
+
+Make sure all requirements, that are dependent on the implementation
+and your dataclient in use.
+
+### Redis based Cluster Ratelimits
+
+This solution is independent of the dataclient being used.  You have
+to run N number of [Redis](https://redis.io) instances, where N is >
+0.  Specify `-swarm-redis-urls`, multiple instances can be separated
+by `,`, for example: `-swarm-redis-urls=redis1:6379,redis2:6379`. For
+running skipper in Kubernetes with this, see also [Running with
+Redis based Cluster Ratelimits](../../kubernetes/ingress-controller/#redis-based)
+
+The implementation use [redis ring](https://godoc.org/github.com/go-redis/redis#Ring)
+to be able to shard via client hashing and spread the load across
+multiple Redis instance to be able to scale out the shared storage.
+
+The ratelimit algorithm is a sliding window and make use of the
+following Redis commands:
+
+- [ZREMRANGEBYSCORE](https://redis.io/commands/zremrangebyscore),
+- [ZCARD](https://redis.io/commands/zcard),
+- [ZADD](https://redis.io/commands/zadd) and
+- [ZRANGEBYSCORE](https://redis.io/commands/zrangebyscore)
+
+![Picture showing Skipper with Redis based swarm and ratelimit](../img/redis-and-cluster-ratelimit.svg)
+
+### SWIM based Cluster Ratelimits
+
+[SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
+is a "Scalable Weakly-consistent Infection-style Process Group
+Membership Protocol", which is very interesting to use for cluster
+ratelimits. The implementation has some weaknesses in the algorithm,
+that lead sometimes to too much ratelimits or too few and therefore is
+not considered to be stable. For running skipper in Kubernetes with
+this, see also [Running with SWIM based Cluster Ratelimits](../../kubernetes/ingress-controller/#swim-based)
 
 In case of Kubernetes you might specify additionally
 `-swarm-label-selector-key`, which defaults to "application" and
 `-swarm-label-selector-value`, which defaults to "skipper-ingress" and
 `-swarm-namespace`, which defaults to "kube-system".
 
-The following shows the setup of a cluster ratelimit:
+The following shows the setup of a SWIM based cluster ratelimit:
 
-![Picture showing Skipper swarm and ratelimit](../img/swarm-and-cluster-ratelimit.svg)
+![Picture showing Skipper SWIM based swarm and ratelimit](../img/swarm-and-cluster-ratelimit.svg)
 
 ### Backend Ratelimit
 

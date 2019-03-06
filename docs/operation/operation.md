@@ -462,9 +462,13 @@ it can count up. Please check the support listener endpoint (default
 
 ## Filters
 
-Ratelimit filters `clientRatelimit` and `clusterClientRatelimit`, both consume
-roughly 15MB per filter for 100.000 individual clients and 10 maximum
-hits. Make sure you monitor Go metrics.
+Ratelimit filter `clusterClientRatelimit` implementation using the
+swim based protocol, consumes roughly 15MB per filter for 100.000
+individual clients and 10 maximum hits. Make sure you monitor Go
+metrics. Ratelimit filter `clusterClientRatelimit` implementation
+using the Redis ring based solution, adds 2 additional roundtrips to
+redis per hit. Make sure you monitor redis closely, because skipper
+will fallback to allow traffic if redis can not be reached.
 
 ## Slow Backends
 
