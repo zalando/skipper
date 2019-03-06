@@ -19,7 +19,7 @@ func newFakeSwarm(nodeName string, leaveTimeout time.Duration) (*swarm.Swarm, er
 	for i := 0; i < 3; i++ {
 		// create port >= 1025 and < 40000
 		port := uint16((fakeRand.Int() % (40000 - 1025)) + 1025)
-		sw, err = swarm.NewSwarm(swarm.Options{FakeSwarm: true, FakeSwarmLocalNode: fmt.Sprintf("%s-%d", nodeName, port), LeaveTimeout: leaveTimeout, MaxMessageBuffer: 1024, SwarmPort: port})
+		sw, err = swarm.NewSwarm(&swarm.Options{FakeSwarm: true, FakeSwarmLocalNode: fmt.Sprintf("%s-%d", nodeName, port), LeaveTimeout: leaveTimeout, MaxMessageBuffer: 1024, SwarmPort: port})
 		if err == nil {
 			return sw, nil
 		}
