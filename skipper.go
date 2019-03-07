@@ -938,7 +938,9 @@ func Run(o Options) error {
 
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		proxyParams.RateLimiters = ratelimit.NewSwarmRegistry(theSwarm, swops, redisOptions, o.RatelimitSettings...)
+		reg := ratelimit.NewSwarmRegistry(theSwarm, swops, redisOptions, o.RatelimitSettings...)
+		defer reg.Close()
+		proxyParams.RateLimiters = reg
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {

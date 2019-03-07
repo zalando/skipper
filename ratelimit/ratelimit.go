@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-redis/redis"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/swarm"
@@ -293,7 +292,7 @@ func (voidRatelimit) RetryAfter(string) int      { return 0 }
 func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
 
-func newRatelimit(s Settings, sw Swarmer, so *swarm.Options, redisRing *redis.Ring) *Ratelimit {
+func newRatelimit(s Settings, sw Swarmer, so *swarm.Options, redisRing *ring) *Ratelimit {
 	var impl limiter
 	switch s.Type {
 	case ServiceRatelimit:

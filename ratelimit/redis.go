@@ -8,6 +8,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/metrics"
 )
 
 // RedisOptions is used to configure the redis.Ring
@@ -16,35 +17,79 @@ type RedisOptions struct {
 	Addrs []string
 }
 
+type ring struct {
+	ring    *redis.Ring
+	metrics metrics.Metrics
+}
+
 // clusterLimitRedis stores all data required for the cluster ratelimit.
 type clusterLimitRedis struct {
 	group   string
 	maxHits int64
 	window  time.Duration
 	ring    *redis.Ring
+	metrics metrics.Metrics
 }
 
-func newRing(ro *RedisOptions) *redis.Ring {
-	var ring *redis.Ring
-	if ro != nil {
-		ringOptions := &redis.RingOptions{
-			Addrs: map[string]string{},
-		}
-		for idx, addr := range ro.Addrs {
-			ringOptions.Addrs[fmt.Sprintf("server%d", idx)] = addr
-		}
-		ring = redis.NewRing(ringOptions)
-		// TODO(sszuecs): maybe wrap with context and expose a flag
-		//ring = ring.WithContext(context.Background())
+const (
+	defaultConnMetricsInterval = 60 * time.Second
+	defaultReadTimeout         = 25 * time.Millisecond
+	defaultWriteTimeout        = 25 * time.Millisecond
+	defaultPoolTimeout         = 25 * time.Millisecond
+	defaultMinConns            = 100
+	defaultMaxConns            = 100
+	redisMetricsPrefix         = "swarm.redis."
+)
+
+func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
+	var r *ring
+
+	// ring.Options())
+	// HeartbeatFrequency:500000000,MaxRetries:0, MinRetryBackoff:8000000, MaxRetryBackoff:512000000, DialTimeout:0, ReadTimeout:0, WriteTimeout:0, PoolSize:0, MinIdleConns:0, MaxConnAge:0, PoolTimeout:0, IdleTimeout:0, IdleCheckFrequency:0}"
+	ringOptions := &redis.RingOptions{
+		Addrs: map[string]string{},
+		//DialTimeout:  5 * time.Millisecond, // wait until a new conn is established
+		ReadTimeout:  defaultReadTimeout,
+		WriteTimeout: defaultWriteTimeout,
+		PoolTimeout:  defaultPoolTimeout, // wait until we get a conn
+		MinIdleConns: defaultMinConns,
+		PoolSize:     defaultMaxConns,
 	}
-	return ring
+
+	if ro != nil {
+		for idx, addr := range ro.Addrs {
+			ringOptions.Addrs[fmt.Sprintf("redis%d", idx)] = addr
+		}
+		r = new(ring)
+		r.ring = redis.NewRing(ringOptions)
+		r.metrics = metrics.Default
+
+		go func() {
+			for {
+				select {
+				case <-time.After(defaultConnMetricsInterval):
+					stats := r.ring.PoolStats()
+					r.metrics.UpdateGauge(redisMetricsPrefix+"hits", float64(stats.Hits))
+					r.metrics.UpdateGauge(redisMetricsPrefix+"idleconns", float64(stats.IdleConns))
+					r.metrics.UpdateGauge(redisMetricsPrefix+"misses", float64(stats.Misses))
+					r.metrics.UpdateGauge(redisMetricsPrefix+"staleconns", float64(stats.StaleConns))
+					r.metrics.UpdateGauge(redisMetricsPrefix+"timeouts", float64(stats.Timeouts))
+					r.metrics.UpdateGauge(redisMetricsPrefix+"totalconns", float64(stats.TotalConns))
+				case <-quit:
+					r.ring.Close()
+					return
+				}
+			}
+		}()
+	}
+	return r
 }
 
 // newClusterRateLimiterRedis creates a new clusterLimitRedis for given
 // Settings. Group is used to identify the ratelimit instance, is used
 // in log messages and has to be the same in all skipper instances.
-func newClusterRateLimiterRedis(s Settings, ring *redis.Ring, group string) *clusterLimitRedis {
-	if ring == nil {
+func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimitRedis {
+	if r == nil {
 		return nil
 	}
 
@@ -52,7 +97,8 @@ func newClusterRateLimiterRedis(s Settings, ring *redis.Ring, group string) *clu
 		group:   group,
 		maxHits: int64(s.MaxHits),
 		window:  s.TimeWindow,
-		ring:    ring,
+		ring:    r.ring,
+		metrics: r.metrics,
 	}
 
 	var err error
@@ -86,6 +132,7 @@ func newClusterRateLimiterRedis(s Settings, ring *redis.Ring, group string) *clu
 // In case of allow it will additionally use ZADD with a second
 // roundtrip.
 func (c *clusterLimitRedis) Allow(s string) bool {
+	c.metrics.IncCounter(redisMetricsPrefix + "total")
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
 	nowSec := now.UnixNano()
@@ -94,11 +141,13 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 	count := c.allowCheckCard(key, clearBefore)
 	// we increase later with ZAdd, so max-1
 	if count >= c.maxHits {
+		c.metrics.IncCounter(redisMetricsPrefix + "forbids")
 		log.Debugf("redis disallow %s request: %d >= %d = %v", key, count, c.maxHits, count > c.maxHits)
 		return false
 	}
 
 	c.ring.ZAdd(key, redis.Z{Member: nowSec, Score: float64(nowSec)})
+	c.metrics.IncCounter(redisMetricsPrefix + "allows")
 	return true
 }
 
@@ -119,8 +168,9 @@ func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 
 	return zcardResult.Val()
 }
 
-// Close all redis ring shards
-func (c *clusterLimitRedis) Close() { c.ring.Close() }
+// Close can not decide to teardown redis ring, because it is not the
+// owner of it.
+func (c *clusterLimitRedis) Close() {}
 
 // Delta returns the time.Duration until the next call is allowed,
 // negative means immediate calls are allowed

@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/swarm"
 )
@@ -26,7 +25,8 @@ type Registry struct {
 	lookup      map[Settings]*Ratelimit
 	swarm       Swarmer
 	swimOptions *swarm.Options
-	redisRing   *redis.Ring
+	redisRing   *ring
+	quit        chan<- struct{}
 }
 
 // NewRegistry initializes a registry with the provided default settings.
@@ -45,13 +45,16 @@ func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, ro *RedisOption
 		CleanInterval: DefaultCleanInterval,
 	}
 
+	q := make(chan struct{})
+
 	r := &Registry{
 		defaults:    defaults,
 		global:      defaults,
 		lookup:      make(map[Settings]*Ratelimit),
 		swarm:       swarm,
 		swimOptions: swimOptions,
-		redisRing:   newRing(ro),
+		redisRing:   newRing(ro, q),
+		quit:        q,
 	}
 
 	if len(settings) > 0 {
@@ -59,6 +62,10 @@ func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, ro *RedisOption
 	}
 
 	return r
+}
+
+func (r *Registry) Close() {
+	close(r.quit)
 }
 
 func (r *Registry) get(s Settings) *Ratelimit {
