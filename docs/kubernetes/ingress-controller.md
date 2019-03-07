@@ -627,6 +627,9 @@ resolve redis hostnames as shown in the example, if skipper does not
 have `dnsPolicy: ClusterFirstWithHostNet` in it's Pod spec, see also
 [DNS policy in the official Kubernetes documentation](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy).
 
+This setup is considered experimental and should be carefully tested
+before running it in production.
+
 Example redis statefulset with headless service:
 
 ```yaml
