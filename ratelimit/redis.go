@@ -27,21 +27,10 @@ type clusterLimitRedis struct {
 // newClusterRateLimiterRedis creates a new clusterLimitRedis for given
 // Settings. Group is used to identify the ratelimit instance, is used
 // in log messages and has to be the same in all skipper instances.
-func newClusterRateLimiterRedis(s Settings, options *RedisOptions, group string) *clusterLimitRedis {
-	if options == nil {
+func newClusterRateLimiterRedis(s Settings, ring *redis.Ring, group string) *clusterLimitRedis {
+	if ring == nil {
 		return nil
 	}
-
-	ringOptions := &redis.RingOptions{
-		Addrs: map[string]string{},
-	}
-	for idx, addr := range options.Addrs {
-		ringOptions.Addrs[fmt.Sprintf("server%d", idx)] = addr
-	}
-
-	ring := redis.NewRing(ringOptions)
-	// TODO(sszuecs): maybe wrap with context and expose a flag
-	//ring = ring.WithContext(context.Background())
 
 	rl := &clusterLimitRedis{
 		group:   group,
@@ -73,6 +62,13 @@ func newClusterRateLimiterRedis(s Settings, options *RedisOptions, group string)
 // skippers should be allowed else false. It will share it's own data
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
+//
+// Performance considerations:
+//
+// In case of deny it will use ZREMRANGEBYSCORE and ZCARD commands in
+// one pipeline to remove old items in the list of hits.
+// In case of allow it will additionally use ZADD with a second
+// roundtrip.
 func (c *clusterLimitRedis) Allow(s string) bool {
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
@@ -119,7 +115,12 @@ func (c *clusterLimitRedis) Delta(s string) time.Duration {
 	return c.window - gab
 }
 
-// Oldest returns the oldest known request
+// Oldest returns the oldest known request time.
+//
+// Performance considerations:
+//
+// It will use ZRANGEBYSCORE with offset 0 and count 1 to get the
+// oldest item stored in redis.
 func (c *clusterLimitRedis) Oldest(s string) time.Time {
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
@@ -155,6 +156,9 @@ func (*clusterLimitRedis) Resize(string, int) {}
 // because of how it's used in the proxy and the nature of cluster
 // ratelimits being not strongly consistent across calls to Allow()
 // and RetryAfter().
+//
+// Performance considerations: It uses Oldest() to get the data from
+// Redis.
 func (c *clusterLimitRedis) RetryAfter(s string) int {
 	retr := c.Delta(s)
 	res := int(retr / time.Second)

@@ -1,10 +1,12 @@
 package ratelimit
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/swarm"
 )
@@ -20,12 +22,12 @@ const (
 // ratelimiters.
 type Registry struct {
 	sync.Mutex
-	defaults     Settings
-	global       Settings
-	lookup       map[Settings]*Ratelimit
-	swarm        Swarmer
-	swimOptions  *swarm.Options
-	redisOptions *RedisOptions
+	defaults    Settings
+	global      Settings
+	lookup      map[Settings]*Ratelimit
+	swarm       Swarmer
+	swimOptions *swarm.Options
+	redisRing   *redis.Ring
 }
 
 // NewRegistry initializes a registry with the provided default settings.
@@ -36,7 +38,7 @@ func NewRegistry(settings ...Settings) *Registry {
 // NewSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, redisOptions *RedisOptions, settings ...Settings) *Registry {
+func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, ro *RedisOptions, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -44,13 +46,26 @@ func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, redisOptions *R
 		CleanInterval: DefaultCleanInterval,
 	}
 
+	var ring *redis.Ring
+	if ro != nil {
+		ringOptions := &redis.RingOptions{
+			Addrs: map[string]string{},
+		}
+		for idx, addr := range ro.Addrs {
+			ringOptions.Addrs[fmt.Sprintf("server%d", idx)] = addr
+		}
+		ring = redis.NewRing(ringOptions)
+		// TODO(sszuecs): maybe wrap with context and expose a flag
+		//ring = ring.WithContext(context.Background())
+	}
+
 	r := &Registry{
-		defaults:     defaults,
-		global:       defaults,
-		lookup:       make(map[Settings]*Ratelimit),
-		swarm:        swarm,
-		swimOptions:  swimOptions,
-		redisOptions: redisOptions,
+		defaults:    defaults,
+		global:      defaults,
+		lookup:      make(map[Settings]*Ratelimit),
+		swarm:       swarm,
+		swimOptions: swimOptions,
+		redisRing:   ring,
 	}
 
 	if len(settings) > 0 {
@@ -66,7 +81,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s, r.swarm, r.swimOptions, r.redisOptions)
+		rl = newRatelimit(s, r.swarm, r.swimOptions, r.redisRing)
 		r.lookup[s] = rl
 	}
 

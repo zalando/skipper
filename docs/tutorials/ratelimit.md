@@ -2,7 +2,7 @@
 
 Ratelimits are calculated for a number of requests and a
 `time.Duration` for a given bucket. To enable rate limits you need to
-run skipper with `enable-ratelimits`.
+run skipper with `-enable-ratelimits`.
 
 A `time.Duration` is specified as string and can for example be "10s"
 for ten seconds, "5m" for five minutes or "2h" for two hours.
