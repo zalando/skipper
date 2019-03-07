@@ -1,7 +1,6 @@
 package ratelimit
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -46,26 +45,13 @@ func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, ro *RedisOption
 		CleanInterval: DefaultCleanInterval,
 	}
 
-	var ring *redis.Ring
-	if ro != nil {
-		ringOptions := &redis.RingOptions{
-			Addrs: map[string]string{},
-		}
-		for idx, addr := range ro.Addrs {
-			ringOptions.Addrs[fmt.Sprintf("server%d", idx)] = addr
-		}
-		ring = redis.NewRing(ringOptions)
-		// TODO(sszuecs): maybe wrap with context and expose a flag
-		//ring = ring.WithContext(context.Background())
-	}
-
 	r := &Registry{
 		defaults:    defaults,
 		global:      defaults,
 		lookup:      make(map[Settings]*Ratelimit),
 		swarm:       swarm,
 		swimOptions: swimOptions,
-		redisRing:   ring,
+		redisRing:   newRing(ro),
 	}
 
 	if len(settings) > 0 {

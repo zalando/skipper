@@ -24,6 +24,22 @@ type clusterLimitRedis struct {
 	ring    *redis.Ring
 }
 
+func newRing(ro *RedisOptions) *redis.Ring {
+	var ring *redis.Ring
+	if ro != nil {
+		ringOptions := &redis.RingOptions{
+			Addrs: map[string]string{},
+		}
+		for idx, addr := range ro.Addrs {
+			ringOptions.Addrs[fmt.Sprintf("server%d", idx)] = addr
+		}
+		ring = redis.NewRing(ringOptions)
+		// TODO(sszuecs): maybe wrap with context and expose a flag
+		//ring = ring.WithContext(context.Background())
+	}
+	return ring
+}
+
 // newClusterRateLimiterRedis creates a new clusterLimitRedis for given
 // Settings. Group is used to identify the ratelimit instance, is used
 // in log messages and has to be the same in all skipper instances.

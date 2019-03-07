@@ -81,7 +81,7 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}},
+				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}),
 				tt.settings.Group,
 			)
 
@@ -145,7 +145,7 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}},
+				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}),
 				tt.settings.Group,
 			)
 
@@ -209,7 +209,7 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}},
+				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}),
 				tt.settings.Group,
 			)
 
@@ -274,7 +274,7 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}},
+				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}),
 				tt.settings.Group,
 			)
 
