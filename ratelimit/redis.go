@@ -15,6 +15,16 @@ import (
 type RedisOptions struct {
 	// Addrs are the list of redis shards
 	Addrs []string
+	// ReadTimeout for redis socket reads
+	ReadTimeout time.Duration
+	// WriteTimeout for redis socket writes
+	WriteTimeout time.Duration
+	// PoolTimeout is the max time.Duration to get a connection from pool
+	PoolTimeout time.Duration
+	// MinIdleConns is the minimum number of socket connections to redis
+	MinIdleConns int
+	// MaxIdleConns is the maximum number of socket connections to redis
+	MaxIdleConns int
 }
 
 type ring struct {
@@ -32,12 +42,13 @@ type clusterLimitRedis struct {
 }
 
 const (
+	DefaultReadTimeout  = 25 * time.Millisecond
+	DefaultWriteTimeout = 25 * time.Millisecond
+	DefaultPoolTimeout  = 25 * time.Millisecond
+	DefaultMinConns     = 100
+	DefaultMaxConns     = 100
+
 	defaultConnMetricsInterval = 60 * time.Second
-	defaultReadTimeout         = 25 * time.Millisecond
-	defaultWriteTimeout        = 25 * time.Millisecond
-	defaultPoolTimeout         = 25 * time.Millisecond
-	defaultMinConns            = 100
-	defaultMaxConns            = 100
 	redisMetricsPrefix         = "swarm.redis."
 )
 
@@ -48,18 +59,18 @@ func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
 	// HeartbeatFrequency:500000000,MaxRetries:0, MinRetryBackoff:8000000, MaxRetryBackoff:512000000, DialTimeout:0, ReadTimeout:0, WriteTimeout:0, PoolSize:0, MinIdleConns:0, MaxConnAge:0, PoolTimeout:0, IdleTimeout:0, IdleCheckFrequency:0}"
 	ringOptions := &redis.RingOptions{
 		Addrs: map[string]string{},
-		//DialTimeout:  5 * time.Millisecond, // wait until a new conn is established
-		ReadTimeout:  defaultReadTimeout,
-		WriteTimeout: defaultWriteTimeout,
-		PoolTimeout:  defaultPoolTimeout, // wait until we get a conn
-		MinIdleConns: defaultMinConns,
-		PoolSize:     defaultMaxConns,
 	}
 
 	if ro != nil {
 		for idx, addr := range ro.Addrs {
 			ringOptions.Addrs[fmt.Sprintf("redis%d", idx)] = addr
 		}
+		ringOptions.ReadTimeout = ro.ReadTimeout
+		ringOptions.WriteTimeout = ro.WriteTimeout
+		ringOptions.PoolTimeout = ro.PoolTimeout
+		ringOptions.MinIdleConns = ro.MinIdleConns
+		ringOptions.PoolSize = ro.MaxIdleConns
+
 		r = new(ring)
 		r.ring = redis.NewRing(ringOptions)
 		r.metrics = metrics.Default

@@ -64,6 +64,7 @@ func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, ro *RedisOption
 	return r
 }
 
+// Close teardown Registry and dependent resources
 func (r *Registry) Close() {
 	close(r.quit)
 }

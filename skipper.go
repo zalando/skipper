@@ -515,7 +515,12 @@ type Options struct {
 	// the cluster ratelimiter
 	EnableSwarm bool
 	// redis based swarm
-	SwarmRedisURLs []string
+	SwarmRedisURLs         []string
+	SwarmRedisReadTimeout  time.Duration
+	SwarmRedisWriteTimeout time.Duration
+	SwarmRedisPoolTimeout  time.Duration
+	SwarmRedisMinIdleConns int
+	SwarmRedisMaxIdleConns int
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -890,7 +895,14 @@ func Run(o Options) error {
 	if o.EnableSwarm {
 		if len(o.SwarmRedisURLs) > 0 {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
-			redisOptions = &ratelimit.RedisOptions{Addrs: o.SwarmRedisURLs}
+			redisOptions = &ratelimit.RedisOptions{
+				Addrs:        o.SwarmRedisURLs,
+				ReadTimeout:  o.SwarmRedisReadTimeout,
+				WriteTimeout: o.SwarmRedisWriteTimeout,
+				PoolTimeout:  o.SwarmRedisPoolTimeout,
+				MinIdleConns: o.SwarmRedisMinIdleConns,
+				MaxIdleConns: o.SwarmRedisMaxIdleConns,
+			}
 		} else {
 			log.Infof("Start swim based swarm")
 			swops = &swarm.Options{
