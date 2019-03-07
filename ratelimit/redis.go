@@ -8,6 +8,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
+	"sync"
 )
 
 // RedisOptions is used to configure the redis.Ring
@@ -18,10 +19,11 @@ type RedisOptions struct {
 
 // clusterLimitRedis stores all data required for the cluster ratelimit.
 type clusterLimitRedis struct {
-	group   string
-	maxHits int64
-	window  time.Duration
-	ring    *redis.Ring
+	group    string
+	maxHits  int64
+	window   time.Duration
+	ring     *redis.Ring
+	retryMap sync.Map
 }
 
 // newClusterRateLimiterRedis creates a new clusterLimitRedis for given
@@ -76,6 +78,12 @@ func newClusterRateLimiterRedis(s Settings, options *RedisOptions, group string)
 func (c *clusterLimitRedis) Allow(s string) bool {
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
+
+	value, ok := c.retryMap.Load(s)
+	var retry time.Time = value.(time.Time)
+	if ok && !now.After(retry) {
+		return false
+	}
 	nowSec := now.UnixNano()
 	clearBefore := now.Add(-c.window).UnixNano()
 
@@ -114,9 +122,14 @@ func (c *clusterLimitRedis) Close() { c.ring.Close() }
 // negative means immediate calls are allowed
 func (c *clusterLimitRedis) Delta(s string) time.Duration {
 	now := time.Now()
-	oldest := c.Oldest(s)
-	gab := now.Sub(oldest)
-	return c.window - gab
+	value, ok := c.retryMap.Load(s)
+	var retry time.Time = value.(time.Time)
+	if ok && !now.After(retry) {
+		return retry.Sub(now)
+	}
+	retry = c.Oldest(s).Add(c.window)
+	c.retryMap.Store(s, retry)
+	return retry.Sub(now)
 }
 
 // Oldest returns the oldest known request
