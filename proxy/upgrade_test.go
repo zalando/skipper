@@ -177,11 +177,13 @@ func TestAuditLogging(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			auditHook := make(chan struct{}, 1)
 			p := WithParams(Params{
 				Routing:                  rt,
 				ExperimentalUpgrade:      true,
 				ExperimentalUpgradeAudit: enabled,
 			})
+			p.auditLogHook = auditHook
 			defer p.Close()
 
 			ps := httptest.NewServer(p)
@@ -201,8 +203,6 @@ func TestAuditLogging(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			defer wsc.Close()
-
 			if _, err := wsc.Write([]byte(message)); err != nil {
 				t.Fatal(err)
 			}
@@ -214,6 +214,11 @@ func TestAuditLogging(t *testing.T) {
 
 			if string(receive) != message {
 				t.Fatal("send/receive failed")
+			}
+
+			wsc.Close()
+			if enabled {
+				<-p.auditLogHook
 			}
 
 			check(t, sout, serr)

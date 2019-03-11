@@ -16,12 +16,13 @@ package routing_test
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/routing/testdataclient"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 func Example() {

@@ -1,11 +1,8 @@
 package metrics
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
 	"testing"
 	"time"
 
@@ -227,25 +224,6 @@ var serializationTests = []serializationTest{
 		"95%": 0.0, "99%": 0.0, "99.9%": 0.0, "count": 0.0, "max": 0.0, "mean": 0.0, "median": 0.0, "min": 0.0,
 		"stddev": 0.0}}}},
 	{func() int { return 42 }, serializationResult{"unknown": {"test": {"error": "unknown metrics type int"}}}},
-}
-
-func TestCodaHaleMetricSerialization(t *testing.T) {
-	metrics.UseNilMetrics = true
-	defer func() { metrics.UseNilMetrics = false }()
-
-	for _, st := range serializationTests {
-		m := reflect.ValueOf(st.i).Call(nil)[0].Interface()
-		metrics := skipperMetrics{"test": m}
-		var buf bytes.Buffer
-		json.NewEncoder(&buf).Encode(metrics)
-		var got serializationResult
-		json.Unmarshal(buf.Bytes(), &got)
-
-		if !reflect.DeepEqual(got, st.expected) {
-			t.Errorf("Got wrong serialization result. Expected '%v' but got '%v'", st.expected, got)
-		}
-
-	}
 }
 
 type serveMetricsMeasure struct {

@@ -50,7 +50,7 @@ func TestConsecutiveFailures(t *testing.T) {
 		Type:             ConsecutiveFailures,
 		Failures:         3,
 		HalfOpenRequests: 3,
-		Timeout:          3 * time.Millisecond,
+		Timeout:          15 * time.Millisecond,
 	}
 
 	waitTimeout := func() {

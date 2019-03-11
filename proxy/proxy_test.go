@@ -62,7 +62,7 @@ type testProxy struct {
 
 type listener struct {
 	inner    net.Listener
-	lastConn net.Conn
+	lastConn chan net.Conn
 }
 
 func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
@@ -227,7 +227,12 @@ func (l *listener) Accept() (c net.Conn, err error) {
 		return
 	}
 
-	l.lastConn = c
+	select {
+	case <-l.lastConn:
+	default:
+	}
+
+	l.lastConn <- c
 	return
 }
 
@@ -1129,22 +1134,29 @@ func TestRoundtripperRetry(t *testing.T) {
 
 		closeServer = false
 
-		if l.lastConn == nil {
+		var lastConn net.Conn
+		select {
+		case lastConn = <-l.lastConn:
+		default:
+		}
+
+		if lastConn == nil {
 			t.Error("failed to capture connection")
 			return
 		}
 
-		if err := l.lastConn.Close(); err != nil {
+		if err := lastConn.Close(); err != nil {
 			t.Error(err)
 			return
 		}
 	}
 
-	backend := httptest.NewServer(http.HandlerFunc(handler))
+	backend := httptest.NewUnstartedServer(http.HandlerFunc(handler))
 	defer backend.Close()
 
-	l = &listener{inner: backend.Listener}
+	l = &listener{inner: backend.Listener, lastConn: make(chan net.Conn, 1)}
 	backend.Listener = l
+	backend.Start()
 
 	tp, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, backend.URL), 0)
 	if err != nil {
@@ -1497,7 +1509,8 @@ func TestLogsAccess(t *testing.T) {
 	tp.proxy.ServeHTTP(w, r)
 
 	output := accessLog.String()
-	if !strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-" 0 - - -`, r.Method, http.StatusTeapot, len(response))) {
+	println(fmt.Sprintf(`"%s - -" %d %d "-" "-"`, r.Method, http.StatusTeapot, len(response)))
+	if !strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-"`, r.Method, http.StatusTeapot, len(response))) {
 		t.Error("failed to log access", output)
 	}
 }
@@ -1663,7 +1676,7 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 			tp.proxy.ServeHTTP(w, r)
 
 			output := buf.String()
-			if ti.shouldLog != strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-" 0 - - -`, r.Method, ti.responseCode, len(response))) {
+			if ti.shouldLog != strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-"`, r.Method, ti.responseCode, len(response))) {
 				t.Error("failed to log access", output)
 			}
 		})
@@ -1709,9 +1722,11 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1" 0 %s - -`, http.StatusBadGateway, rsp.ContentLength, proxyURL.Host)
-	if !strings.Contains(output, expected) {
+	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1"`, http.StatusBadGateway, rsp.ContentLength)
+	if !strings.Contains(output, expected) || !strings.Contains(output, proxyURL.Host) {
 		t.Error("failed to log access", output, expected)
+		t.Log(output)
+		t.Log(expected)
 	}
 }
 

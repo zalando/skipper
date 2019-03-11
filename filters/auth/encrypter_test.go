@@ -39,11 +39,13 @@ func TestEncryptDecrypt(t *testing.T) {
 func TestCipherRefreshing(t *testing.T) {
 	sSource := &testingSecretSource{secretKey: "abc"}
 	enc := &encrypter{
-		sSource: sSource,
-		closer:  make(chan struct{}),
+		sSource:    sSource,
+		closer:     make(chan struct{}),
+		closedHook: make(chan struct{}),
 	}
 	enc.runCipherRefresher(1 * time.Second)
 	time.Sleep(4 * time.Second)
 	enc.close()
+	<-enc.closedHook
 	assert.True(t, sSource.getCount >= 3, "secret fetched less than 3 time in 15 seconds")
 }

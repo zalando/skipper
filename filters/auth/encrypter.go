@@ -52,6 +52,7 @@ type encrypter struct {
 	mux          sync.RWMutex
 	sSource      secretSource
 	closer       chan struct{}
+	closedHook   chan struct{}
 }
 
 func newEncrypter(secretsFile string) (*encrypter, error) {
@@ -67,6 +68,8 @@ func newEncrypter(secretsFile string) (*encrypter, error) {
 }
 
 func (c *encrypter) createNonce() ([]byte, error) {
+	c.mux.RLock()
+	defer c.mux.RUnlock()
 	if len(c.cipherSuites) > 0 {
 		nonce := make([]byte, c.cipherSuites[0].NonceSize())
 		if _, err := io.ReadFull(crand.Reader, nonce); err != nil {
@@ -148,6 +151,10 @@ func (c *encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 		for {
 			select {
 			case <-c.closer:
+				if c.closedHook != nil {
+					close(c.closedHook)
+				}
+
 				return
 			case <-ticker.C:
 				log.Debug("started refresh of ciphers")

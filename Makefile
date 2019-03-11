@@ -56,6 +56,14 @@ shortcheck: build check-plugins
 	#
 	for p in $(PACKAGES); do GO111MODULE=on go test -test.short -run ^Test $$p || break -1; done
 
+check-race: build
+	# go test -race -test.short -run ^Test $(PACKAGES)
+	#
+	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
+	# probably can be reverted once etcd is fully mocked away for tests
+	#
+	for p in $(PACKAGES); do GO111MODULE=on go test -race -test.short -run ^Test $$p || break -1; done
+
 check-plugins: $(TEST_PLUGINS)
 	GO111MODULE=on go test -run LoadPlugins
 
@@ -106,9 +114,9 @@ fmt: $(SOURCES)
 check-fmt: $(SOURCES)
 	@if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi
 
-precommit: fmt build vet staticcheck shortcheck
+precommit: fmt build vet staticcheck check-race shortcheck
 
-check-precommit: check-fmt build vet staticcheck shortcheck
+check-precommit: check-fmt build vet staticcheck check-race shortcheck
 
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	# go list -f \
@@ -169,5 +177,5 @@ else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
 else ifeq ($(TRAVIS_BRANCH), master)
 	make deps check-precommit
 else
-	make deps shortcheck check-plugins
+	make deps check-race shortcheck check-plugins
 endif
