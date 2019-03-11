@@ -31,31 +31,31 @@ import (
 // - provide option to limit the used namespaces?
 
 const (
-	defaultKubernetesURL          = "http://localhost:8001"
-	ingressesClusterURI           = "/apis/extensions/v1beta1/ingresses"
-	ingressesNamespaceFmt         = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
-	ingressClassKey               = "kubernetes.io/ingress.class"
-	defaultIngressClass           = "skipper"
-	ingressRouteIDPrefix          = "kube"
-	defaultEastWestDomainFmt      = "%s.%s.skipper.cluster.local"
-	endpointsClusterURI           = "/api/v1/endpoints"
-	endpointsNamespaceFmt         = "/api/v1/namespaces/%s/endpoints"
-	servicesClusterURI            = "/api/v1/services"
-	servicesNamespaceFmt          = "/api/v1/namespaces/%s/services"
-	serviceAccountDir             = "/var/run/secrets/kubernetes.io/serviceaccount/"
-	serviceAccountTokenKey        = "token"
-	serviceAccountRootCAKey       = "ca.crt"
-	serviceHostEnvVar             = "KUBERNETES_SERVICE_HOST"
-	servicePortEnvVar             = "KUBERNETES_SERVICE_PORT"
-	healthcheckRouteID            = "kube__healthz"
-	httpRedirectRouteID           = "kube__redirect"
-	healthcheckPath               = "/kube-system/healthz"
-	backendWeightsAnnotationKey   = "zalando.org/backend-weights"
-	ratelimitAnnotationKey        = "zalando.org/ratelimit"
-	skipperfilterAnnotationKey    = "zalando.org/skipper-filter"
-	skipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
-	skipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
-	pathModeAnnotationKey         = "zalando.org/skipper-ingress-path-mode"
+	defaultKubernetesURL               = "http://localhost:8001"
+	ingressesClusterURI                = "/apis/extensions/v1beta1/ingresses"
+	ingressesNamespaceFmt              = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
+	ingressClassKey                    = "kubernetes.io/ingress.class"
+	defaultIngressClass                = "skipper"
+	ingressRouteIDPrefix               = "kube"
+	defaultEastWestDomainRegexpPostfix = "[.]skipper[.]cluster[.]local"
+	endpointsClusterURI                = "/api/v1/endpoints"
+	endpointsNamespaceFmt              = "/api/v1/namespaces/%s/endpoints"
+	servicesClusterURI                 = "/api/v1/services"
+	servicesNamespaceFmt               = "/api/v1/namespaces/%s/services"
+	serviceAccountDir                  = "/var/run/secrets/kubernetes.io/serviceaccount/"
+	serviceAccountTokenKey             = "token"
+	serviceAccountRootCAKey            = "ca.crt"
+	serviceHostEnvVar                  = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar                  = "KUBERNETES_SERVICE_PORT"
+	healthcheckRouteID                 = "kube__healthz"
+	httpRedirectRouteID                = "kube__redirect"
+	healthcheckPath                    = "/kube-system/healthz"
+	backendWeightsAnnotationKey        = "zalando.org/backend-weights"
+	ratelimitAnnotationKey             = "zalando.org/ratelimit"
+	skipperfilterAnnotationKey         = "zalando.org/skipper-filter"
+	skipperpredicateAnnotationKey      = "zalando.org/skipper-predicate"
+	skipperRoutesAnnotationKey         = "zalando.org/skipper-routes"
+	pathModeAnnotationKey              = "zalando.org/skipper-ingress-path-mode"
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -176,25 +176,25 @@ type Options struct {
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
-	httpClient               *http.Client
-	apiURL                   string
-	provideHealthcheck       bool
-	healthy                  bool
-	provideHTTPSRedirect     bool
-	httpsRedirectCode        int
-	token                    string
-	current                  map[string]*eskip.Route
-	termReceived             bool
-	sigs                     chan os.Signal
-	ingressClass             *regexp.Regexp
-	reverseSourcePredicate   bool
-	pathMode                 PathMode
-	quit                     chan struct{}
-	kubernetesEnableEastWest bool
-	eastWestDomainFmt        string
-	ingressesURI             string
-	servicesURI              string
-	endpointsURI             string
+	httpClient                  *http.Client
+	apiURL                      string
+	provideHealthcheck          bool
+	healthy                     bool
+	provideHTTPSRedirect        bool
+	httpsRedirectCode           int
+	token                       string
+	current                     map[string]*eskip.Route
+	termReceived                bool
+	sigs                        chan os.Signal
+	ingressClass                *regexp.Regexp
+	reverseSourcePredicate      bool
+	pathMode                    PathMode
+	quit                        chan struct{}
+	kubernetesEnableEastWest    bool
+	eastWestDomainRegexpPostfix string
+	ingressesURI                string
+	servicesURI                 string
+	endpointsURI                string
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -260,7 +260,7 @@ func New(o Options) (*Client, error) {
 		httpsRedirectCode = o.HTTPSRedirectCode
 	}
 
-	eastWestDomainFmt := defaultEastWestDomainFmt
+	eastWestDomainRegexpPostfix := defaultEastWestDomainRegexpPostfix
 	if o.KubernetesEastWestDomain != "" {
 		if strings.HasPrefix(o.KubernetesEastWestDomain, ".") {
 			o.KubernetesEastWestDomain = o.KubernetesEastWestDomain[1:len(o.KubernetesEastWestDomain)]
@@ -268,27 +268,27 @@ func New(o Options) (*Client, error) {
 		if strings.HasSuffix(o.KubernetesEastWestDomain, ".") {
 			o.KubernetesEastWestDomain = o.KubernetesEastWestDomain[:len(o.KubernetesEastWestDomain)-1]
 		}
-		eastWestDomainFmt = "%s.%s." + o.KubernetesEastWestDomain
+		eastWestDomainRegexpPostfix = "[.]" + strings.Replace(o.KubernetesEastWestDomain, ".", "[.]", -1)
 	}
 
 	result := &Client{
-		httpClient:               httpClient,
-		apiURL:                   apiURL,
-		provideHealthcheck:       o.ProvideHealthcheck,
-		provideHTTPSRedirect:     o.ProvideHTTPSRedirect,
-		httpsRedirectCode:        httpsRedirectCode,
-		current:                  make(map[string]*eskip.Route),
-		token:                    token,
-		sigs:                     sigs,
-		ingressClass:             ingClsRx,
-		reverseSourcePredicate:   o.ReverseSourcePredicate,
-		pathMode:                 o.PathMode,
-		quit:                     quit,
-		kubernetesEnableEastWest: o.KubernetesEnableEastWest,
-		eastWestDomainFmt:        eastWestDomainFmt,
-		ingressesURI:             ingressesClusterURI,
-		servicesURI:              servicesClusterURI,
-		endpointsURI:             endpointsClusterURI,
+		httpClient:                  httpClient,
+		apiURL:                      apiURL,
+		provideHealthcheck:          o.ProvideHealthcheck,
+		provideHTTPSRedirect:        o.ProvideHTTPSRedirect,
+		httpsRedirectCode:           httpsRedirectCode,
+		current:                     make(map[string]*eskip.Route),
+		token:                       token,
+		sigs:                        sigs,
+		ingressClass:                ingClsRx,
+		reverseSourcePredicate:      o.ReverseSourcePredicate,
+		pathMode:                    o.PathMode,
+		quit:                        quit,
+		kubernetesEnableEastWest:    o.KubernetesEnableEastWest,
+		eastWestDomainRegexpPostfix: eastWestDomainRegexpPostfix,
+		ingressesURI:                ingressesClusterURI,
+		servicesURI:                 servicesClusterURI,
+		endpointsURI:                endpointsClusterURI,
 	}
 	if o.KubernetesNamespace != "" {
 		result.setNamespace(o.KubernetesNamespace)
@@ -915,7 +915,7 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 		if c.kubernetesEnableEastWest {
 			for _, rule := range i.Spec.Rules {
 				if rs, ok := hostRoutes[rule.Host]; ok {
-					rs = append(rs, createEastWestRoutes(c.eastWestDomainFmt, i.Metadata.Name, i.Metadata.Namespace, rs)...)
+					rs = append(rs, createEastWestRoutes(c.eastWestDomainRegexpPostfix, i.Metadata.Name, i.Metadata.Namespace, rs)...)
 					hostRoutes[rule.Host] = rs
 				}
 			}
@@ -940,7 +940,7 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 			routes = append(routes, catchAll)
 
 			if c.kubernetesEnableEastWest {
-				if r := createEastWestRoute(c.eastWestDomainFmt, rs[0].Name, rs[0].Namespace, catchAll); r != nil {
+				if r := createEastWestRoute(c.eastWestDomainRegexpPostfix, rs[0].Name, rs[0].Namespace, catchAll); r != nil {
 					routes = append(routes, r)
 				}
 			}
@@ -957,31 +957,28 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 	return routes, nil
 }
 
-func createEastWestRoute(eastWestDomainFmt, name, ns string, r *eskip.Route) *eskip.Route {
+func createEastWestRoute(eastWestDomainRegexpPostfix, name, ns string, r *eskip.Route) *eskip.Route {
 	if strings.HasPrefix(r.Id, "kubeew") || ns == "" || name == "" {
 		return nil
 	}
-	newHostHeader := fmt.Sprintf(eastWestDomainFmt, name, ns)
-	newHostHeaderRegex := strings.Join(strings.Split(newHostHeader, "."), "[.]")
 	ewR := *r
-	ewR.HostRegexps = []string{"^" + newHostHeaderRegex + "$"}
+	ewR.HostRegexps = []string{"^" + name + "[.]" + ns + eastWestDomainRegexpPostfix + "$"}
 	ewR.Id = patchRouteID(r.Id)
 	log.Infof("*** ewR: %s: %s", ewR.Id, ewR.String())
 	return &ewR
 }
 
-func createEastWestRoutes(eastWestDomainFmt, name, ns string, routes []*eskip.Route) []*eskip.Route {
-	var ewroutes []*eskip.Route
+func createEastWestRoutes(eastWestDomainRegexpPostfix, name, ns string, routes []*eskip.Route) []*eskip.Route {
+	var ewroutes []*eskip.Route = make([]*eskip.Route, 0, len(routes))
+	newHostRegexps := []string{"^" + name + "[.]" + ns + eastWestDomainRegexpPostfix + "$"}
 	for _, r := range routes {
 		if strings.HasPrefix(r.Id, "kubeew") {
 			continue
 		}
 		r.Namespace = ns // store namespace
 		r.Name = name    // store name
-		newHostHeader := fmt.Sprintf(eastWestDomainFmt, name, ns)
-		newHostHeaderRegex := strings.Join(strings.Split(newHostHeader, "."), "[.]")
 		ewR := *r
-		ewR.HostRegexps = []string{"^" + newHostHeaderRegex + "$"}
+		ewR.HostRegexps = newHostRegexps
 		ewR.Id = patchRouteID(r.Id)
 		ewroutes = append(ewroutes, &ewR)
 	}

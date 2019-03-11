@@ -3530,7 +3530,7 @@ func TestCreateEastWestRoute(t *testing.T) {
 		expectedID: "kubeew_foo__qux__www3_example_org___a_path__bar",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			ewrs := createEastWestRoutes(defaultEastWestDomainFmt, "foo", "qux", []*eskip.Route{ti.route})
+			ewrs := createEastWestRoutes(defaultEastWestDomainRegexpPostfix, "foo", "qux", []*eskip.Route{ti.route})
 			ewr := ewrs[0]
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
@@ -3604,7 +3604,7 @@ func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
 				t.Errorf("Failed to create data client: %v", err)
 			}
 
-			ewrs := createEastWestRoutes(c.eastWestDomainFmt, ti.name, ti.namespace, []*eskip.Route{ti.route})
+			ewrs := createEastWestRoutes(c.eastWestDomainRegexpPostfix, ti.name, ti.namespace, []*eskip.Route{ti.route})
 			ewr := ewrs[0]
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)

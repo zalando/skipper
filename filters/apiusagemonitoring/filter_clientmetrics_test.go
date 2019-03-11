@@ -3,6 +3,9 @@ package apiusagemonitoring
 import (
 	"encoding/base64"
 	"net/http"
+	"regexp"
+	"strconv"
+	"sync"
 	"testing"
 )
 
@@ -383,4 +386,22 @@ func Test_Filter_ClientMetrics_EmptyClientTrackingPatternInRouteFilterJSON(t *te
 		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
 		expectedClientMetricPrefix:   "",
 	})
+}
+
+// may produce false-negatives
+func Test_Filter_ClientMetricsCache_ConcurrentAccess(t *testing.T) {
+	pathInfo := newPathInfo("application_id", "api_id", "orders", "orders",
+		&clientTrackingInfo{RealmsTrackingMatcher: regexp.MustCompile("services"), ClientTrackingMatcher: regexp.MustCompile(`.*`)})
+
+	concurrencyLevel := 500
+
+	var wg sync.WaitGroup
+	wg.Add(concurrencyLevel)
+	for i := 0; i < concurrencyLevel; i++ {
+		go func(i int) {
+			getClientMetricsNames("services.service_id_"+strconv.Itoa(i), pathInfo)
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
 }
