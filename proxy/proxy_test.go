@@ -735,6 +735,34 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	}
 }
 
+func TestProcessesRequestWithHTTPUpgradeWithLoadBalancing(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent) // bad header on purpose for the test
+	}))
+	defer backend.Close()
+
+	u, _ := url.ParseRequestURI("wss://www.example.org/ws")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"Connection": []string{"Upgrade"}, "Upgrade": []string{"websocket"}}}
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/ws") -> <roundRobin, "%s">;`, backend.URL)
+	tp, err := newTestProxyWithParams(doc, Params{ExperimentalUpgrade: true})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+	if w.Code != http.StatusNoContent {
+		t.Errorf("wrong response code %d", w.Code)
+	}
+}
+
 func TestProcessesRequestWithPriorityRoute(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test-Header", "test-value")
