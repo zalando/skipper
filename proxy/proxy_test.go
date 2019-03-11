@@ -739,6 +739,8 @@ func TestProcessesRequestWithHTTPUpgradeWithLoadBalancing(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent) // bad header on purpose for the test
 	}))
+	defer backend.Close()
+
 	u, _ := url.ParseRequestURI("wss://www.example.org/ws")
 	r := &http.Request{
 		URL:    u,
