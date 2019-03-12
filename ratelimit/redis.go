@@ -55,8 +55,6 @@ const (
 func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
 	var r *ring
 
-	// ring.Options())
-	// HeartbeatFrequency:500000000,MaxRetries:0, MinRetryBackoff:8000000, MaxRetryBackoff:512000000, DialTimeout:0, ReadTimeout:0, WriteTimeout:0, PoolSize:0, MinIdleConns:0, MaxConnAge:0, PoolTimeout:0, IdleTimeout:0, IdleCheckFrequency:0}"
 	ringOptions := &redis.RingOptions{
 		Addrs: map[string]string{},
 	}
@@ -146,7 +144,7 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
-	nowSec := now.UnixNano()
+	nowNanos := now.UnixNano()
 	clearBefore := now.Add(-c.window).UnixNano()
 
 	count := c.allowCheckCard(key, clearBefore)
@@ -157,7 +155,7 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 		return false
 	}
 
-	c.ring.ZAdd(key, redis.Z{Member: nowSec, Score: float64(nowSec)})
+	c.ring.ZAdd(key, redis.Z{Member: nowNanos, Score: float64(nowNanos)})
 	c.metrics.IncCounter(redisMetricsPrefix + "allows")
 	return true
 }
@@ -168,7 +166,7 @@ func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 
 	pipe := c.ring.Pipeline()
 	defer pipe.Close()
 	// drop all elements of the set which occurred before one interval ago.
-	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprintf("%v", float64(clearBefore)))
+	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprint(float64(clearBefore)))
 	// get cardinality
 	zcardResult := pipe.ZCard(key)
 	_, err := pipe.Exec()
@@ -204,7 +202,7 @@ func (c *clusterLimitRedis) Oldest(s string) time.Time {
 
 	res := c.ring.ZRangeByScoreWithScores(key, redis.ZRangeBy{
 		Min:    "0.0",
-		Max:    fmt.Sprintf("%v", float64(now.UnixNano())),
+		Max:    fmt.Sprint(float64(now.UnixNano())),
 		Offset: 0,
 		Count:  1,
 	})

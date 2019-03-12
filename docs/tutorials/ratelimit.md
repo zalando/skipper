@@ -85,9 +85,9 @@ Redis based Cluster Ratelimits](../../kubernetes/ingress-controller/#redis-based
 
 The implementation use [redis ring](https://godoc.org/github.com/go-redis/redis#Ring)
 to be able to shard via client hashing and spread the load across
-multiple Redis instance to be able to scale out the shared storage.
+multiple Redis instances to be able to scale out the shared storage.
 
-The ratelimit algorithm is a sliding window and make use of the
+The ratelimit algorithm is a sliding window and makes use of the
 following Redis commands:
 
 - [ZREMRANGEBYSCORE](https://redis.io/commands/zremrangebyscore),
