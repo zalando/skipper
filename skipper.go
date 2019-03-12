@@ -1,14 +1,17 @@
 package skipper
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -702,7 +705,29 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
 	}
 	log.Infof("TLS settings not found, defaulting to HTTP")
-	return srv.ListenAndServe()
+
+	idleConnsCH := make(chan struct{})
+	go func() {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
+
+		<-sigs
+
+		log.Info("Got shutdown signal")
+		if err := srv.Shutdown(context.Background()); err != nil {
+			log.Errorf("Failed to graceful shutdown: %v", err)
+		}
+		close(idleConnsCH)
+	}()
+
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Errorf("Failed to start to ListenAndServe: %v", err)
+		return err
+	}
+
+	<-idleConnsCH
+	log.Infof("done.")
+	return nil
 }
 
 // Run skipper.
