@@ -7,7 +7,7 @@ pipeline:
   - desc: build-push
     cmd: |
       apt-get update  -o Acquire::http::AllowRedirect=false
-      apt-get install -o Acquire::http::AllowRedirect=false -y bzr
+      apt-get install -o Acquire::http::AllowRedirect=false -y bzr redis-server
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         RELEASE_VERSION="$(git describe --tags --always --dirty)"
         IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION}"
