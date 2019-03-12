@@ -251,8 +251,8 @@ func TestHTTPServerShutdown(t *testing.T) {
 
 	var wg sync.WaitGroup
 	installSigHandler := make(chan struct{}, 1)
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGTERM)
@@ -268,14 +268,14 @@ func TestHTTPServerShutdown(t *testing.T) {
 			defer r.Body.Close()
 		}
 		if err2 != nil {
-			t.Fatalf("Cannot connect to the local server for testing: %v ", err2)
+			t.Errorf("Cannot connect to the local server for testing: %v ", err2)
 		}
 		if r.StatusCode != 200 {
-			t.Fatalf("Status code should be 200, instead got: %d\n", r.StatusCode)
+			t.Errorf("Status code should be 200, instead got: %d\n", r.StatusCode)
 		}
 		body, err2 := ioutil.ReadAll(r.Body)
 		if err2 != nil {
-			t.Fatalf("Failed to stream response body: %v", err2)
+			t.Errorf("Failed to stream response body: %v", err2)
 		}
 		if s := string(body); s != "OK" {
 			t.Errorf("Failed to get the right content: %s", s)
@@ -288,7 +288,7 @@ func TestHTTPServerShutdown(t *testing.T) {
 			defer r2.Body.Close()
 		}
 		if err2 == nil {
-			t.Fatalf("Can connect to a closed server for testing")
+			t.Error("Can connect to a closed server for testing")
 		}
 	}()
 
