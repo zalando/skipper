@@ -1,4 +1,5 @@
 //+build redis
+
 package ratelimit
 
 import (
