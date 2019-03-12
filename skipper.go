@@ -51,6 +51,11 @@ const DefaultPluginDir = "./plugins"
 
 // Options to start skipper.
 type Options struct {
+	// WaitForHealthcheckInterval sets the time that skipper waits
+	// for the loadbalancer in front to become unhealthy. Defaults
+	// to 0.
+	WaitForHealthcheckInterval time.Duration
+
 	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
 
@@ -713,7 +718,10 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 
 		<-sigs
 
-		log.Info("Got shutdown signal")
+		log.Infof("Got shutdown signal, wait %v for health check", o.WaitForHealthcheckInterval)
+		time.Sleep(o.WaitForHealthcheckInterval)
+
+		log.Info("Start shutdown")
 		if err := srv.Shutdown(context.Background()); err != nil {
 			log.Errorf("Failed to graceful shutdown: %v", err)
 		}

@@ -52,6 +52,7 @@ const (
 	defaultApplicationLogLevel  = "INFO"
 
 	// connections, timeouts:
+	defaultWaitForHealthcheckInterval   = (10 + 5) * 3 * time.Second // kube-ingress-aws-controller default
 	defaultReadTimeoutServer            = 5 * time.Minute
 	defaultReadHeaderTimeoutServer      = 60 * time.Second
 	defaultWriteTimeoutServer           = 60 * time.Second
@@ -173,6 +174,7 @@ const (
 	apiUsageMonitoringRealmsTrackingPatternUsage        = "regular expression used for matching monitored realms (defaults is 'services')"
 
 	// connections, timeouts:
+	waitForHealthcheckIntervalUsage   = "period waiting to become unhealthy in the loadbalancer pool in front of this instance, before shutdown triggered by SIGINT or SIGTERM"
 	idleConnsPerHostUsage             = "maximum idle connections per backend host"
 	closeIdleConnsPeriodUsage         = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
 	backendFlushIntervalUsage         = "flush interval for upgraded proxy connections"
@@ -315,6 +317,7 @@ var (
 	apiUsageMonitoringRealmsTrackingPattern        string
 
 	// connections, timeouts:
+	waitForHealthcheckInterval   time.Duration
 	idleConnsPerHost             int
 	closeIdleConnsPeriod         string
 	backendFlushInterval         time.Duration
@@ -455,6 +458,8 @@ func init() {
 	flag.StringVar(&apiUsageMonitoringRealmsTrackingPattern, "api-usage-monitoring-realms-tracking-pattern", defaultApiUsageMonitoringRealmsTrackingPattern, apiUsageMonitoringRealmsTrackingPatternUsage)
 
 	// connections, timeouts:
+	flag.DurationVar(&waitForHealthcheckInterval, "wait-for-healthcheck-interval", defaultWaitForHealthcheckInterval, waitForHealthcheckIntervalUsage)
+
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
 	flag.StringVar(&closeIdleConnsPeriod, "close-idle-conns-period", strconv.Itoa(int(proxy.DefaultCloseIdleConnsPeriod/time.Second)), closeIdleConnsPeriodUsage)
 	flag.DurationVar(&backendFlushInterval, "backend-flush-interval", defaultBackendFlushInterval, backendFlushIntervalUsage)
@@ -670,6 +675,7 @@ func main() {
 		OIDCSecretsFile:                oidcSecretsFile,
 
 		// connections, timeouts:
+		WaitForHealthcheckInterval:   waitForHealthcheckInterval,
 		IdleConnectionsPerHost:       idleConnsPerHost,
 		CloseIdleConnsPeriod:         time.Duration(clsic) * time.Second,
 		BackendFlushInterval:         backendFlushInterval,
