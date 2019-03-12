@@ -19,11 +19,6 @@ type Swarmer interface {
 	Values(string) map[string]interface{}
 }
 
-type noopSwarmer struct{}
-
-func (noopSwarmer) ShareValue(string, interface{}) error { return nil }
-func (noopSwarmer) Values(string) map[string]interface{} { return nil }
-
 // clusterLimitSwim stores all data required for the cluster ratelimit.
 type clusterLimitSwim struct {
 	group   string

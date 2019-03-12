@@ -1,9 +1,5 @@
 package ratelimit
 
-import (
-	"github.com/zalando/skipper/swarm"
-)
-
 const swarmPrefix string = `ratelimit.`
 
 // newClusterRateLimiter will return a limiter instance, that has a
@@ -13,8 +9,8 @@ const swarmPrefix string = `ratelimit.`
 // swarm.Options to configure a swarm.Swarm, RedisOptions to configure
 // redis.Ring and group is the ratelimit group that can span one or
 // multiple routes.
-func newClusterRateLimiter(s Settings, sw Swarmer, so *swarm.Options, ring *ring, group string) limiter {
-	if so != nil {
+func newClusterRateLimiter(s Settings, sw Swarmer, ring *ring, group string) limiter {
+	if sw != nil {
 		if l := newClusterRateLimiterSwim(s, sw, group); l != nil {
 			return l
 		}

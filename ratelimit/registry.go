@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/net"
-	"github.com/zalando/skipper/swarm"
 )
 
 const (
@@ -20,24 +19,23 @@ const (
 // ratelimiters.
 type Registry struct {
 	sync.Mutex
-	defaults    Settings
-	global      Settings
-	lookup      map[Settings]*Ratelimit
-	swarm       Swarmer
-	swimOptions *swarm.Options
-	redisRing   *ring
-	quit        chan<- struct{}
+	defaults  Settings
+	global    Settings
+	lookup    map[Settings]*Ratelimit
+	swarm     Swarmer
+	redisRing *ring
+	quit      chan<- struct{}
 }
 
 // NewRegistry initializes a registry with the provided default settings.
 func NewRegistry(settings ...Settings) *Registry {
-	return NewSwarmRegistry(nil, nil, nil, settings...)
+	return NewSwarmRegistry(nil, nil, settings...)
 }
 
 // NewSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, ro *RedisOptions, settings ...Settings) *Registry {
+func NewSwarmRegistry(swarm Swarmer, ro *RedisOptions, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -48,13 +46,12 @@ func NewSwarmRegistry(swarm Swarmer, swimOptions *swarm.Options, ro *RedisOption
 	q := make(chan struct{})
 
 	r := &Registry{
-		defaults:    defaults,
-		global:      defaults,
-		lookup:      make(map[Settings]*Ratelimit),
-		swarm:       swarm,
-		swimOptions: swimOptions,
-		redisRing:   newRing(ro, q),
-		quit:        q,
+		defaults:  defaults,
+		global:    defaults,
+		lookup:    make(map[Settings]*Ratelimit),
+		swarm:     swarm,
+		redisRing: newRing(ro, q),
+		quit:      q,
 	}
 
 	if len(settings) > 0 {
@@ -75,7 +72,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s, r.swarm, r.swimOptions, r.redisRing)
+		rl = newRatelimit(s, r.swarm, r.redisRing)
 		r.lookup[s] = rl
 	}
 

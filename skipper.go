@@ -889,7 +889,7 @@ func Run(o Options) error {
 		ClientTLS:                o.ClientTLS,
 	}
 
-	var theSwarm *swarm.Swarm
+	var swarmer ratelimit.Swarmer
 	var swops *swarm.Options
 	var redisOptions *ratelimit.RedisOptions
 	if o.EnableSwarm {
@@ -940,17 +940,18 @@ func Run(o Options) error {
 				swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
 			}
 
-			theSwarm, err = swarm.NewSwarm(swops)
+			theSwarm, err := swarm.NewSwarm(swops)
 			if err != nil {
 				log.Errorf("failed to init swarm with options %+v: %v", swops, err)
 			}
 			defer theSwarm.Leave()
+			swarmer = theSwarm
 		}
 	}
 
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		reg := ratelimit.NewSwarmRegistry(theSwarm, swops, redisOptions, o.RatelimitSettings...)
+		reg := ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
 		defer reg.Close()
 		proxyParams.RateLimiters = reg
 	}
