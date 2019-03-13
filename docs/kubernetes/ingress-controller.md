@@ -605,3 +605,124 @@ from inside a container:
 ```
 curl demo.default.skipper.cluster.local
 ```
+
+## Running with Cluster Ratelimits
+
+Cluster ratelimits require a communication exchange method to build a
+skipper swarm to have a shared knowledge about the requests passing
+all skipper instances. To enable this feature you need to add command
+line option `-enable-swarm` and `-enable-ratelimits`.
+The rest depends on the implementation, that can be:
+
+- [Redis](https://redis.io)
+- [SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
+
+### Redis based
+
+Additionally you have to add `-swarm-redis-urls` to skipper
+`args:`. For example: `-swarm-redis-urls=skipper-redis-0.skipper-redis.kube-system.svc.cluster.local:6379,skipper-redis-1.skipper-redis.kube-system.svc.cluster.local:6379`.
+
+Running skipper with `hostNetwork` in kubernetes will not be able to
+resolve redis hostnames as shown in the example, if skipper does not
+have `dnsPolicy: ClusterFirstWithHostNet` in it's Pod spec, see also
+[DNS policy in the official Kubernetes documentation](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy).
+
+This setup is considered experimental and should be carefully tested
+before running it in production.
+
+Example redis statefulset with headless service:
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    application: skipper-redis
+    version: v4.0.9
+  name: skipper-redis
+  namespace: kube-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      application: skipper-redis
+  serviceName: skipper-redis
+  template:
+    metadata:
+      labels:
+        application: skipper-redis
+        version: v4.0.9
+    spec:
+      containers:
+      - image: registry.opensource.zalan.do/zmon/redis:4.0.9-master-6
+        name: skipper-redis
+        ports:
+        - containerPort: 6379
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application: skipper-redis
+  name: skipper-redis
+  namespace: kube-system
+spec:
+  clusterIP: None
+  ports:
+  - port: 6379
+    protocol: TCP
+    targetPort: 6379
+  selector:
+    application: skipper-redis
+  type: ClusterIP
+```
+
+
+
+### SWIM based
+
+[SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
+is a "Scalable Weakly-consistent Infection-style Process Group
+Membership Protocol", which is very interesting for example to use for
+cluster ratelimits. This setup is not considered stable enough to run
+production, yet.
+
+Additionally you have to add the following command line flags to
+skipper's container spec `args:`:
+
+```
+-swarm-port=9990
+-swarm-label-selector-key=application
+-swarm-label-selector-value=skipper-ingress
+-swarm-leave-timeout=5s
+-swarm-max-msg-buffer=4194304
+-swarm-namespace=kube-system
+```
+
+and open another port in Kubernetes and your Firewall settings to make
+the communication work with TCP and UDP to the specified `swarm-port`:
+
+```yaml
+- containerPort: 9990
+  hostPort: 9990
+  name: swarm-port
+  protocol: TCP
+```

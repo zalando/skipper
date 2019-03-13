@@ -3,7 +3,6 @@ package ratelimit
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
@@ -292,7 +291,7 @@ func (voidRatelimit) RetryAfter(string) int      { return 0 }
 func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
 
-func newRatelimit(s Settings, sw Swarmer) *Ratelimit {
+func newRatelimit(s Settings, sw Swarmer, redisRing *ring) *Ratelimit {
 	var impl limiter
 	switch s.Type {
 	case ServiceRatelimit:
@@ -305,12 +304,7 @@ func newRatelimit(s Settings, sw Swarmer) *Ratelimit {
 		s.CleanInterval = 0
 		fallthrough
 	case ClusterClientRatelimit:
-		if sw != nil {
-			impl = newClusterRateLimiter(s, sw, s.Group)
-		} else {
-			fmt.Fprintf(os.Stderr, "ERROR: no -enable-swarm, falling back to no ratelimit for %q\n", s)
-			impl = voidRatelimit{}
-		}
+		impl = newClusterRateLimiter(s, sw, redisRing, s.Group)
 	default:
 		impl = voidRatelimit{}
 	}

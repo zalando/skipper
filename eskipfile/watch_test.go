@@ -109,7 +109,7 @@ func (t *watchTest) timeoutOrFailInitial() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err != nil {
+	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err != nil {
 		// timeout is also good, the routing handles its own
 		return
 	}
@@ -125,7 +125,7 @@ func (t *watchTest) timeoutAndSucceedInitial() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err == nil {
+	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err == nil {
 		t.testing.Error("unexpected change detected")
 	}
 
@@ -140,7 +140,7 @@ func (t *watchTest) waitAndFailInitial() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err != nil {
+	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err != nil {
 		t.testing.Fatal(err)
 	}
 
@@ -155,7 +155,7 @@ func (t *watchTest) waitAndSucceedInitial() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err != nil {
+	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err != nil {
 		t.testing.Fatal(err)
 	}
 
@@ -170,7 +170,7 @@ func (t *watchTest) waitAndSucceedUpdated() {
 	}
 
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 30*time.Millisecond); err != nil {
+	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err != nil {
 		t.testing.Fatal(err)
 	}
 

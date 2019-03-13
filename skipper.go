@@ -513,14 +513,22 @@ type Options struct {
 
 	// EnableSwarm enables skipper fleet communication, required by e.g.
 	// the cluster ratelimiter
-	EnableSwarm                       bool
+	EnableSwarm bool
+	// redis based swarm
+	SwarmRedisURLs         []string
+	SwarmRedisReadTimeout  time.Duration
+	SwarmRedisWriteTimeout time.Duration
+	SwarmRedisPoolTimeout  time.Duration
+	SwarmRedisMinIdleConns int
+	SwarmRedisMaxIdleConns int
+	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
 	SwarmKubernetesLabelSelectorValue string
 	SwarmPort                         int
 	SwarmMaxMessageBuffer             int
 	SwarmLeaveTimeout                 time.Duration
-
+	// swim based swarm for local testing
 	SwarmStaticSelf  string // 127.0.0.1:9001
 	SwarmStaticOther string // 127.0.0.1:9002,127.0.0.1:9003
 }
@@ -881,53 +889,71 @@ func Run(o Options) error {
 		ClientTLS:                o.ClientTLS,
 	}
 
-	var theSwarm *swarm.Swarm
+	var swarmer ratelimit.Swarmer
+	var swops *swarm.Options
+	var redisOptions *ratelimit.RedisOptions
 	if o.EnableSwarm {
-		swops := swarm.Options{
-			SwarmPort:        uint16(o.SwarmPort),
-			MaxMessageBuffer: o.SwarmMaxMessageBuffer,
-			LeaveTimeout:     o.SwarmLeaveTimeout,
-			Debug:            log.GetLevel() == log.DebugLevel,
-		}
-
-		if o.Kubernetes {
-			swops.KubernetesOptions = &swarm.KubernetesOptions{
-				KubernetesInCluster:  o.KubernetesInCluster,
-				KubernetesAPIBaseURL: o.KubernetesURL,
-				Namespace:            o.SwarmKubernetesNamespace,
-				LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
-				LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
+		if len(o.SwarmRedisURLs) > 0 {
+			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
+			redisOptions = &ratelimit.RedisOptions{
+				Addrs:        o.SwarmRedisURLs,
+				ReadTimeout:  o.SwarmRedisReadTimeout,
+				WriteTimeout: o.SwarmRedisWriteTimeout,
+				PoolTimeout:  o.SwarmRedisPoolTimeout,
+				MinIdleConns: o.SwarmRedisMinIdleConns,
+				MaxIdleConns: o.SwarmRedisMaxIdleConns,
 			}
-		}
-
-		if o.SwarmStaticSelf != "" {
-			self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
-			if err != nil {
-				log.Fatalf("Failed to get static NodeInfo: %v", err)
+		} else {
+			log.Infof("Start swim based swarm")
+			swops = &swarm.Options{
+				SwarmPort:        uint16(o.SwarmPort),
+				MaxMessageBuffer: o.SwarmMaxMessageBuffer,
+				LeaveTimeout:     o.SwarmLeaveTimeout,
+				Debug:            log.GetLevel() == log.DebugLevel,
 			}
-			other := []*swarm.NodeInfo{self}
 
-			for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
-				ni, err := swarm.NewStaticNodeInfo(addr, addr)
+			if o.Kubernetes {
+				swops.KubernetesOptions = &swarm.KubernetesOptions{
+					KubernetesInCluster:  o.KubernetesInCluster,
+					KubernetesAPIBaseURL: o.KubernetesURL,
+					Namespace:            o.SwarmKubernetesNamespace,
+					LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
+					LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
+				}
+			}
+
+			if o.SwarmStaticSelf != "" {
+				self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
 				if err != nil {
 					log.Fatalf("Failed to get static NodeInfo: %v", err)
 				}
-				other = append(other, ni)
+				other := []*swarm.NodeInfo{self}
+
+				for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
+					ni, err := swarm.NewStaticNodeInfo(addr, addr)
+					if err != nil {
+						log.Fatalf("Failed to get static NodeInfo: %v", err)
+					}
+					other = append(other, ni)
+				}
+
+				swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
 			}
 
-			swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
+			theSwarm, err := swarm.NewSwarm(swops)
+			if err != nil {
+				log.Errorf("failed to init swarm with options %+v: %v", swops, err)
+			}
+			defer theSwarm.Leave()
+			swarmer = theSwarm
 		}
-
-		theSwarm, err = swarm.NewSwarm(swops)
-		if err != nil {
-			log.Errorf("failed to init swarm with options %+v: %v", swops, err)
-		}
-		defer theSwarm.Leave()
 	}
 
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		proxyParams.RateLimiters = ratelimit.NewSwarmRegistry(theSwarm, o.RatelimitSettings...)
+		reg := ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
+		defer reg.Close()
+		proxyParams.RateLimiters = reg
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
