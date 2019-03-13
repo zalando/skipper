@@ -6,9 +6,13 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -207,4 +211,93 @@ func TestHTTPServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to stream response body: %v", err)
 	}
+}
+
+func TestHTTPServerShutdown(t *testing.T) {
+	d := 1 * time.Second
+
+	o := Options{
+		Address:                    ":19999",
+		WaitForHealthcheckInterval: d,
+	}
+
+	// simulate a backend that got a request and should be handled correctly
+	dc, err := routestring.New(`r0: * -> latency("3s") -> inlineContent("OK") -> status(200) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to create dataclient: %v", err)
+	}
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: builtin.MakeRegistry(),
+		DataClients: []routing.DataClient{
+			dc,
+		},
+	})
+	defer rt.Close()
+
+	proxy := proxy.New(rt, proxy.OptionsNone)
+	defer proxy.Close()
+	go func() {
+		if errLas := listenAndServe(proxy, &o); errLas != nil {
+			t.Logf("Failed to liste and serve: %v", errLas)
+		}
+	}()
+
+	pid := syscall.Getpid()
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		t.Errorf("Failed to find current process: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	installSigHandler := make(chan struct{}, 1)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGTERM)
+
+		installSigHandler <- struct{}{}
+
+		<-sigs
+
+		// ongoing requests passing in before shutdown
+		time.Sleep(d / 2)
+		r, err2 := waitConnGet("http://" + o.Address)
+		if r != nil {
+			defer r.Body.Close()
+		}
+		if err2 != nil {
+			t.Errorf("Cannot connect to the local server for testing: %v ", err2)
+		}
+		if r.StatusCode != 200 {
+			t.Errorf("Status code should be 200, instead got: %d\n", r.StatusCode)
+		}
+		body, err2 := ioutil.ReadAll(r.Body)
+		if err2 != nil {
+			t.Errorf("Failed to stream response body: %v", err2)
+		}
+		if s := string(body); s != "OK" {
+			t.Errorf("Failed to get the right content: %s", s)
+		}
+
+		// requests on closed listener should fail
+		time.Sleep(d / 2)
+		r2, err2 := waitConnGet("http://" + o.Address)
+		if r2 != nil {
+			defer r2.Body.Close()
+		}
+		if err2 == nil {
+			t.Error("Can connect to a closed server for testing")
+		}
+	}()
+
+	<-installSigHandler
+	time.Sleep(d / 2)
+
+	if err = p.Signal(syscall.SIGTERM); err != nil {
+		t.Errorf("Failed to signal process: %v", err)
+	}
+	wg.Wait()
+	time.Sleep(d)
 }

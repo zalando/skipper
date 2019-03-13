@@ -1,14 +1,17 @@
 package skipper
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -48,6 +51,11 @@ const DefaultPluginDir = "./plugins"
 
 // Options to start skipper.
 type Options struct {
+	// WaitForHealthcheckInterval sets the time that skipper waits
+	// for the loadbalancer in front to become unhealthy. Defaults
+	// to 0.
+	WaitForHealthcheckInterval time.Duration
+
 	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
 
@@ -702,7 +710,32 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
 	}
 	log.Infof("TLS settings not found, defaulting to HTTP")
-	return srv.ListenAndServe()
+
+	idleConnsCH := make(chan struct{})
+	go func() {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
+
+		<-sigs
+
+		log.Infof("Got shutdown signal, wait %v for health check", o.WaitForHealthcheckInterval)
+		time.Sleep(o.WaitForHealthcheckInterval)
+
+		log.Info("Start shutdown")
+		if err := srv.Shutdown(context.Background()); err != nil {
+			log.Errorf("Failed to graceful shutdown: %v", err)
+		}
+		close(idleConnsCH)
+	}()
+
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Errorf("Failed to start to ListenAndServe: %v", err)
+		return err
+	}
+
+	<-idleConnsCH
+	log.Infof("done.")
+	return nil
 }
 
 // Run skipper.
