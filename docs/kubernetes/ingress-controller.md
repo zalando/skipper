@@ -90,6 +90,58 @@ and can enhance the system easily. The user has 2 annotations to add
 predicates and filters to their ingress, which is easy accessible and
 powerful.
 
+### Comparison with service mesh
+
+Why run Skipper and not Istio, Linkerd or other service-mesh solutions?
+
+Skipper has a Kubernetes native integration, which is reliable, proven
+in production since end of 2015 and runs in March 2019 in 112
+Kubernetes clusters at Zalando. Skipper has most of the features that
+service-mesh systems provides:
+
+- [Authentication/Authorization](https://opensource.zalando.com/skipper/tutorials/auth/)
+ in [Kubernetes
+ ingress](https://opensource.zalando.com/skipper/kubernetes/ingress-usage/#authorization),
+ and integrate your custom service with [webhook](https://opensource.zalando.com/skipper/reference/filters/#webhook)
+- [Diagnosis tools](https://opensource.zalando.com/skipper/kubernetes/ingress-usage/#diagnosis-throttling-bandwidth-latency)
+that support latency, bandwidth throttling, random content and more
+- [rich amount of metrics](https://opensource.zalando.com/skipper/operation/operation/#monitoring)
+ you can enable and disable with format Prometheus or Codahale
+- [support for different Opentracing
+providers](https://opensource.zalando.com/skipper/tutorials/development/#opentracing)
+including jaeger, lightstep and instana
+- [ratelimits support](https://opensource.zalando.com/skipper/tutorials/ratelimit/)
+with cluster ratelimits as an outstanding solution, that enables you
+to stop login attacks easily
+- Connects to endpoints directly, instead of using kubernetes service
+- Retries requests, if the request can be safely retried, which is
+ only the case, if the error happens on TCP/IP connection
+ establishment or a backend defined what request is idempotent.
+- Simple [East-West communication](https://opensource.zalando.com/skipper/kubernetes/east-west-usage/)
+enables you to have proper communication paths without the need of yet
+another tool to do service discovery.
+See how to [run skipper as API Gateway with East-West
+setup](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#run-as-api-gateway-with-east-west-setup),
+if you want to run this powerful setup. Kubernetes, skipper and DNS
+ are the service discovery in this case.
+- [Blue-green deployments](https://opensource.zalando.com/skipper/kubernetes/ingress-usage/#blue-green-deployments)
+ with automation if you like to use [stackset-controller](https://github.com/zalando-incubator/stackset-controller)
+- [shadow-traffic](https://opensource.zalando.com/skipper/kubernetes/ingress-usage/#shadow-traffic)
+ to understand, if the new version is able to handle the traffic as
+ the old one
+- A simple way to do [A/B tests](https://opensource.zalando.com/skipper/kubernetes/ingress-usage/#ab-test)
+- You are free to use cloud providers TLS terminations and certificate
+ rotation, which is reliable and secure. Employees can not download
+ private keys and certificates are certified by a public CA. Many mTLS
+ setups rely on insecure CA handling and are hard to debug in case of
+ failure.
+- We are happy to get issues and pull requests in our repository, but
+ if you need a feature, which can not be done upstream, you are free
+ to use skipper as a library and create internal features to do
+ whatever you want.
+
+With Skipper you do not need to choose to go all-in and you are able
+to add features as soon as you need or are comfortable.
 
 ## What is an Ingress-Controller?
 
