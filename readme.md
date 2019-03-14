@@ -153,6 +153,8 @@ A production example,
 https://github.com/zalando-incubator/kubernetes-on-aws/blob/dev/cluster/manifests/skipper/daemonset.yaml,
 can be found in our Kubernetes configuration https://github.com/zalando-incubator/kubernetes-on-aws.
 
+[Comparison with other Ingress controllers](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#comparison-with-other-ingress-controllers)
+
 ### Documentation
 
 [Skipper's Documentation](https://opensource.zalando.com/skipper) and
