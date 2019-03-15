@@ -42,19 +42,19 @@ not one of these?
 
 HAproxy and Nginx are well understood and good TCP and HTTP proxies,
 that were built, before Kubernetes and their problem is on one hand
-the configuration files, that were build, when everything was quite
+the configuration files, that were built when everything was quite
 static and their list of annotations to implement basic features are
-already quite a big list for users. When we tested both in a simple
-Mesos setup we saw problems that one of these instances returned HTTP
-500 for all requests, because of unknown reasons.  Other advantages to
-use skipper is that we are easily able to build automated canary deployments, [automated
-blue-green deployments](https://github.com/zalando-incubator/stackset-controller)
+already quite a big list for users. Skipper was built to support
+dynamic changing of route configurations, that is happening quite
+often in Kubernetes. Other advantages to use skipper is that we are
+easily able to build automated canary deployments,
+[automated blue-green deployments](https://github.com/zalando-incubator/stackset-controller)
 or [shadow traffic](https://opensource.zalando.com/skipper/kubernetes/ingress-usage/#shadow-traffic).
 
 There are also features that have better support by
 aws-alb-ingress-controller, HAproxy and nginx, which is `sendfile()`
-operations. If you stream a large files or large amount of files, then
-you might want to choose for these type of ingress one of the options.
+operations. If you stream a large file or large amount of files, then
+you might want to choose for these types of ingress one of the options.
 
 Aws-alb-ingress-controller directly routes traffic to your Kubernetes
 services, which is good and bad, because it can reduce latency, but
@@ -77,7 +77,7 @@ was not in its current state, it was long time before the v1.0.0
 release, and there was not a solution that supported frequent changing
 backends, nor blue-green deployments, nor shadow traffic. One other
 advantage of skipper is, that it is easily extensible, because skipper
-is build as library, you can easily build fully different use cases
+is built as library, you can easily build fully different use cases
 like [an image transformation proxy](https://github.com/zalando-stups/skrop).
 Traefik does not support our current Opentracing provider, nor do they
 supported traffic splitting when we started
@@ -87,7 +87,7 @@ into running skipper as API gateway within Kubernetes, which could
 help a significant amount of teams that run a bunch of small
 services. Skipper predicates and filters are a powerful abstraction
 and can enhance the system easily. The user has 2 annotations to add
-predicates and filters to their ingress, which is easy accessible and
+predicates and filters to their ingress, which is easily accessible and
 powerful.
 
 ### Comparison with service mesh
