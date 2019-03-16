@@ -149,9 +149,11 @@ you will can be found in our [ingress-controller deployment docs](https://openso
 For AWS integration, we provide an ingress controller
 https://github.com/zalando-incubator/kube-ingress-aws-controller, that
 manage ALBs in front of your skipper deployment.
-A production example,
-https://github.com/zalando-incubator/kubernetes-on-aws/blob/dev/cluster/manifests/skipper/daemonset.yaml,
+A [production example](https://github.com/zalando-incubator/kubernetes-on-aws/blob/stable/cluster/manifests/skipper/),
 can be found in our Kubernetes configuration https://github.com/zalando-incubator/kubernetes-on-aws.
+
+- [Comparison with other Ingress controllers](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#comparison-with-other-ingress-controllers)
+- [Comparison with service-mesh](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#comparison-with-service-mesh)
 
 ### Documentation
 
