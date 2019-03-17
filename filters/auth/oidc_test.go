@@ -117,25 +117,23 @@ func TestOidcValidateAnyClaims(t *testing.T) {
 		"claims are valid but filter returned false.")
 }
 
-type hostTest struct {
-	given    string
-	expected string
-}
-
-var hostTests = []hostTest{
-	{"localhost", "localhost"},
-	{"localhost.localdomain", "localhost.localdomain"},
-	{"www.example.local", "example.local"},
-	{"one.two.three.www.example.local", "two.three.www.example.local"},
-	{"localhost:9990", "localhost"},
-	{"www.example.local:9990", "example.local"},
-}
-
 func TestExtractDomainFromHost(t *testing.T) {
-	for _, ht := range hostTests {
-		got := extractDomainFromHost(ht.given)
-		if got != ht.expected {
-			t.Errorf("Failed to extract domain from host. Expected '%s' but got '%s'", ht.expected, got)
-		}
+
+	for _, ht := range []struct {
+		given    string
+		expected string
+	}{
+		{"localhost", "localhost"},
+		{"localhost.localdomain", "localhost.localdomain"},
+		{"www.example.local", "example.local"},
+		{"one.two.three.www.example.local", "two.three.www.example.local"},
+		{"localhost:9990", "localhost"},
+		{"www.example.local:9990", "example.local"},
+		{"127.0.0.1:9090", "127.0.0.1"},
+	} {
+		t.Run(fmt.Sprintf("test:%s", ht.given), func(t *testing.T) {
+			got := extractDomainFromHost(ht.given)
+			assert.Equal(t, ht.expected, got)
+		})
 	}
 }
