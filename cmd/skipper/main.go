@@ -121,6 +121,7 @@ const (
 	applicationLogLevelUsage        = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
 	applicationLogPrefixUsage       = "prefix for each log entry"
 	accessLogUsage                  = "output file for the access log, When not set, /dev/stderr is used"
+	accessLogFilterUsage            = "when this flag is set, access log are filtered by status code only"
 	accessLogDisabledUsage          = "when this flag is set, no access log is printed"
 	accessLogJSONEnabledUsage       = "when this flag is set, log in JSON format is used"
 	accessLogStripQueryUsage        = "when this flag is set, the access log strips the query strings from the access log"
@@ -269,6 +270,7 @@ var (
 	applicationLogLevel       string
 	applicationLogPrefix      string
 	accessLog                 string
+	accessLogFilter           string
 	accessLogDisabled         bool
 	accessLogJSONEnabled      bool
 	accessLogStripQuery       bool
@@ -418,6 +420,7 @@ func init() {
 	flag.StringVar(&applicationLogLevel, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
 	flag.StringVar(&applicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
 	flag.StringVar(&accessLog, "access-log", "", accessLogUsage)
+	flag.StringVar(&accessLogFilter, "access-log-filter", "", accessLogFilterUsage)
 	flag.BoolVar(&accessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
 	flag.BoolVar(&accessLogJSONEnabled, "access-log-json-enabled", false, accessLogJSONEnabledUsage)
 	flag.BoolVar(&accessLogStripQuery, "access-log-strip-query", false, accessLogStripQueryUsage)
@@ -641,6 +644,7 @@ func main() {
 		ApplicationLogOutput:                applicationLog,
 		ApplicationLogPrefix:                applicationLogPrefix,
 		AccessLogOutput:                     accessLog,
+		AccessLogFilter:                     accessLogFilter,
 		AccessLogDisabled:                   accessLogDisabled,
 		AccessLogJSONEnabled:                accessLogJSONEnabled,
 		AccessLogStripQuery:                 accessLogStripQuery,

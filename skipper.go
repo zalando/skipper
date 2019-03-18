@@ -870,21 +870,6 @@ func Run(o Options) error {
 	})
 	defer routing.Close()
 
-	accessLogFilter := al.AccessLogFilter{Enable: false, Prefixes: nil}
-	if o.AccessLogFilter != "" {
-		accessFilter := strings.Split(o.AccessLogFilter, ",")
-		prefixes := make([]int, 0)
-		for _, v := range accessFilter {
-			statusCode, err := strconv.Atoi(v)
-			if err == nil {
-				prefixes = append(prefixes, statusCode)
-			}
-		}
-		accessLogFilter = al.AccessLogFilter{Enable: true, Prefixes: prefixes}
-	}
-	if o.AccessLogDisabled {
-		accessLogFilter = al.AccessLogFilter{Enable: true, Prefixes: nil}
-	}
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
 		Routing:                  routing,
@@ -905,7 +890,7 @@ func Run(o Options) error {
 		DualStack:                o.DualStackBackend,
 		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
 		MaxIdleConns:             o.MaxIdleConnsBackend,
-		AccessLogFilter:          accessLogFilter,
+		AccessLogFilter:          parseAccessLogFilter(o.AccessLogDisabled, o.AccessLogFilter),
 		ClientTLS:                o.ClientTLS,
 	}
 
@@ -1079,4 +1064,22 @@ func Run(o Options) error {
 	<-routing.FirstLoad()
 
 	return listenAndServe(proxy, &o)
+}
+
+func parseAccessLogFilter(accessLogDisabled bool, filter string) al.AccessLogFilter {
+	if accessLogDisabled {
+		return al.AccessLogFilter{Enable: false, Prefixes: nil}
+	}
+	if filter != "" {
+		accessFilter := strings.Split(filter, ",")
+		prefixes := make([]int, 0)
+		for _, v := range accessFilter {
+			statusCode, err := strconv.Atoi(v)
+			if err == nil {
+				prefixes = append(prefixes, statusCode)
+			}
+		}
+		return al.AccessLogFilter{Enable: true, Prefixes: prefixes}
+	}
+	return al.AccessLogFilter{Enable: false, Prefixes: nil}
 }
