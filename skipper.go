@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
+	al "github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/apiusagemonitoring"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
@@ -372,6 +374,9 @@ type Options struct {
 
 	// Disables the access log.
 	AccessLogDisabled bool
+
+	// Filter only logs based on status codes, comma separated.
+	AccessLogFilter string
 
 	// Enables logs in JSON format
 	AccessLogJSONEnabled bool
@@ -865,6 +870,21 @@ func Run(o Options) error {
 	})
 	defer routing.Close()
 
+	accessLogFilter := al.AccessLogFilter{Enable: false, Prefixes: nil}
+	if o.AccessLogFilter != "" {
+		accessFilter := strings.Split(o.AccessLogFilter, ",")
+		prefixes := make([]int, 0)
+		for _, v := range accessFilter {
+			statusCode, err := strconv.Atoi(v)
+			if err == nil {
+				prefixes = append(prefixes, statusCode)
+			}
+		}
+		accessLogFilter = al.AccessLogFilter{Enable: true, Prefixes: prefixes}
+	}
+	if o.AccessLogDisabled {
+		accessLogFilter = al.AccessLogFilter{Enable: true, Prefixes: nil}
+	}
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
 		Routing:                  routing,
@@ -885,7 +905,7 @@ func Run(o Options) error {
 		DualStack:                o.DualStackBackend,
 		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
 		MaxIdleConns:             o.MaxIdleConnsBackend,
-		AccessLogDisabled:        o.AccessLogDisabled,
+		AccessLogFilter:          accessLogFilter,
 		ClientTLS:                o.ClientTLS,
 	}
 

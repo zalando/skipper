@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/zalando/skipper/filters"
+	al "github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
@@ -1532,7 +1533,7 @@ func TestDisableAccessLog(t *testing.T) {
 	doc := fmt.Sprintf(`hello: Path("/hello") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
 
 	tp, err := newTestProxyWithParams(doc, Params{
-		AccessLogDisabled: true,
+		AccessLogFilter: al.AccessLogFilter{Enable: true, Prefixes: nil},
 	})
 	if err != nil {
 		t.Error(err)
@@ -1597,7 +1598,7 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 			doc := fmt.Sprintf(`hello: Path("/hello") -> %s -> status(%d) -> inlineContent("%s") -> <shunt>`, ti.filter, ti.responseCode, response)
 
 			tp, err := newTestProxyWithParams(doc, Params{
-				AccessLogDisabled: false,
+				AccessLogFilter: al.AccessLogFilter{Enable: false, Prefixes: nil},
 			})
 			if err != nil {
 				t.Error(err)
@@ -1664,7 +1665,7 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 			doc := fmt.Sprintf(`hello: Path("/hello") -> %s -> status(%d) -> inlineContent("%s") -> <shunt>`, ti.filter, ti.responseCode, response)
 
 			tp, err := newTestProxyWithParams(doc, Params{
-				AccessLogDisabled: true,
+				AccessLogFilter: al.AccessLogFilter{Enable: true, Prefixes: nil},
 			})
 			if err != nil {
 				t.Error(err)
@@ -1787,7 +1788,7 @@ func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {
 	doc := fmt.Sprintf(`hello: Path("/hello") %s -> status(%d) -> inlineContent("%s") -> <shunt>`, accessLogFilter, responseCode, response)
 
 	tp, err := newTestProxyWithParams(doc, Params{
-		AccessLogDisabled: false,
+		AccessLogFilter: al.AccessLogFilter{Enable: false, Prefixes: nil},
 	})
 	if err != nil {
 		b.Error(err)

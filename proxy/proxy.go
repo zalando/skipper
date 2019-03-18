@@ -15,12 +15,13 @@ import (
 	"strconv"
 	"time"
 
+	al "github.com/zalando/skipper/filters/accesslog"
+
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	al "github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
@@ -120,8 +121,8 @@ type Params struct {
 	// and the response messages during web socket upgrades.
 	ExperimentalUpgradeAudit bool
 
-	// When set, no access log is printed.
-	AccessLogDisabled bool
+	// AccessLogFilter can be set.
+	AccessLogFilter al.AccessLogFilter
 
 	// DualStack sets if the proxy TCP connections to the backend should be dual stack
 	DualStack bool
@@ -198,8 +199,6 @@ type Params struct {
 
 var (
 	hostname               = ""
-	disabledAccessLog      = al.AccessLogFilter{Enable: false, Prefixes: nil}
-	enabledAccessLog       = al.AccessLogFilter{Enable: true, Prefixes: nil}
 	errMaxLoopbacksReached = errors.New("max loopbacks reached")
 	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
 	errCircuitBreakerOpen  = &proxyError{
@@ -257,7 +256,7 @@ type flusherWriter interface {
 type Proxy struct {
 	experimentalUpgrade      bool
 	experimentalUpgradeAudit bool
-	accessLogDisabled        bool
+	accessLogFilter          al.AccessLogFilter
 	maxLoops                 int
 	defaultHTTPStatus        int
 	routing                  *routing.Routing
@@ -608,7 +607,7 @@ func WithParams(p Params) *Proxy {
 		log:                      &logging.DefaultLog{},
 		defaultHTTPStatus:        defaultHTTPStatus,
 		openTracer:               p.OpenTracer,
-		accessLogDisabled:        p.AccessLogDisabled,
+		accessLogFilter:          p.AccessLogFilter,
 		openTracingInitialSpan:   openTracingInitialSpan,
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
@@ -1152,18 +1151,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	defer func() {
-		accessLogEnabled, ok := ctx.stateBag[al.AccessLogEnabledKey].(*al.AccessLogFilter)
+		accessLogFilter, ok := ctx.stateBag[al.AccessLogEnabledKey].(*al.AccessLogFilter)
 
 		if !ok {
-			if p.accessLogDisabled {
-				accessLogEnabled = &disabledAccessLog
-			} else {
-				accessLogEnabled = &enabledAccessLog
-			}
+			accessLogFilter = &p.accessLogFilter
 		}
 		statusCode := lw.GetCode()
 
-		if shouldLog(statusCode, accessLogEnabled) {
+		if shouldLog(statusCode, accessLogFilter) {
 			entry := &logging.AccessEntry{
 				Request:      r,
 				ResponseSize: lw.GetBytes(),
