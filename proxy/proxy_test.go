@@ -164,7 +164,7 @@ func newTestProxyWithParams(doc string, params Params) (*testProxy, error) {
 }
 
 func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr})
+	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr, AccessLogFilter: al.AccessLogFilter{Enable: true, Prefixes: nil}})
 }
 
 func (tp *testProxy) close() {
