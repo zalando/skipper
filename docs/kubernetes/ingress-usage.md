@@ -80,7 +80,7 @@ Cloud migration.
 
 !!! Warning
 
-    If multiple ingresses define the same host and the same predicates, traffic routing may become non-deterministic. 
+    If multiple ingresses define the same host and the same predicates, traffic routing may become non-deterministic.
 
 Consider the following two ingresses which have the same hostname and therefore
 overlap. In skipper the routing of this is currently undefined as skipper
@@ -682,7 +682,7 @@ apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   annotations:
-    zalando.org/skipper-filter: clusterRatelimit(50, "1m")
+    zalando.org/skipper-filter: clusterRatelimit("groupSvcApp", 50, "1m")
   name: app
 spec:
   rules:
@@ -704,7 +704,7 @@ apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   annotations:
-    zalando.org/skipper-filter: clusterRatelimit(10, "1h", "xfwd")
+    zalando.org/skipper-filter: clusterClientRatelimit("groupSvcApp", 10, "1h")
   name: app
 spec:
   rules:

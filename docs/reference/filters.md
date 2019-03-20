@@ -717,7 +717,7 @@ See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper
 
 ## ~~localRatelimit~~
 
-**DEPRECATED** use [clientRatelimit](#clientRatelimit) with the same
+**DEPRECATED** use [clientRatelimit](#clientratelimit) with the same
   settings instead.
 
 ## clientRatelimit
@@ -726,7 +726,7 @@ Per skipper instance calculated ratelimit, that allows number of
 requests by client. The definition of the same client is based on data
 of the http header and can be changed with an optional third
 parameter. If the third parameter is set skipper will use the
-Authorization header to put the request in the same client bucket,
+defined HTTP header to put the request in the same client bucket,
 else the X-Forwarded-For Header will be used. You need to run skipper
 with command line flag `-enable-ratelimits`. Skipper will consume
 roughly 15 MB per filter for 100.000 clients.
@@ -735,11 +735,11 @@ Parameters:
 
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter can be set to: "auth" (string)
+* optional parameter to set the same client by header (string)
 
 ```
 clientRatelimit(3, "1m")
-clientRatelimit(3, "1m", "auth")
+clientRatelimit(3, "1m", "Authorization")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -770,22 +770,21 @@ ratelimit group across one or more routes.  The rate limit group
 allows the given number of requests by client. The definition of the
 same client is based on data of the http header and can be changed
 with an optional fourth parameter. If the fourth parameter is set
-skipper will use the Authorization header to put the request in the
-same client bucket, else the X-Forwarded-For Header will be used.  You
-need to run skipper with command line flags `-enable-swarm` and
-`-enable-ratelimits`. Skipper will consume roughly 15 MB per filter
-for 100.000 clients and 1000 skipper peers.
+skipper will use the HTTP header defined by this to put the request in
+the same client bucket, else the X-Forwarded-For Header will be used.
+You need to run skipper with command line flags `-enable-swarm` and
+`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../../tutorials/ratelimit/#cluster-ratelimit)
 
 Parameters:
 
 * rate limit group (string)
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter can be set to: "auth" (string)
+* optional parameter to set the same client by header (string)
 
 ```
 clusterClientRatelimit("groupA", 10, "1h")
-clusterClientRatelimit("groupA", 10, "1h", "auth")
+clusterClientRatelimit("groupA", 10, "1h", "Authorization")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -797,7 +796,8 @@ rate limit group. The first parameter is a string to select the same
 ratelimit group across one or more routes.  The rate limit group
 allows the given number of requests to a backend. You need to have run
 skipper with command line flags `-enable-swarm` and
-`-enable-ratelimits`.
+`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../../tutorials/ratelimit/#cluster-ratelimit)
+
 
 Parameters:
 
@@ -949,7 +949,7 @@ auditLog()
 
 Filter sets the backend host for a route, value is taken from the provided header.
 Can be used only with `<dynamic>` backend. Meant to be used together with [setDynamicBackendSchemeFromHeader](#setdynamicbackendschemefromheader)
-or [setDynamicBackendScheme](#setdynamicbackendscheme). If this filter chained together with [setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader) 
+or [setDynamicBackendScheme](#setdynamicbackendscheme). If this filter chained together with [setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader)
 or [setDynamicBackendUrl](#setdynamicbackendurl) filters, the latter ones would have priority.
 
 Parameters:
@@ -966,7 +966,7 @@ foo: * -> setDynamicBackendHostFromHeader("X-Forwarded-Host") -> <dynamic>;
 
 Filter sets the backend scheme for a route, value is taken from the provided header.
 Can be used only with `<dynamic>` backend. Meant to be used together with [setDynamicBackendHostFromHeader](#setdynamicbackendhostfromheader)
-or [setDynamicBackendHost](#setdynamicbackendhost). If this filter chained together with 
+or [setDynamicBackendHost](#setdynamicbackendhost). If this filter chained together with
 [setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader) or [setDynamicBackendUrl](#setdynamicbackendurl), the latter ones would have priority.
 
 Parameters:
@@ -982,7 +982,7 @@ foo: * -> setDynamicBackendSchemeFromHeader("X-Forwarded-Proto") -> <dynamic>;
 ## setDynamicBackendUrlFromHeader
 
 Filter sets the backend url for a route, value is taken from the provided header.
-Can be used only with `<dynamic>` backend. 
+Can be used only with `<dynamic>` backend.
 
 Parameters:
 
@@ -998,7 +998,7 @@ foo: * -> setDynamicBackendUrlFromHeader("X-Custom-Url") -> <dynamic>;
 
 Filter sets the backend host for a route. Can be used only with `<dynamic>` backend.
 Meant to be used together with [setDynamicBackendSchemeFromHeader](#setdynamicbackendschemefromheader)
-or [setDynamicBackendScheme](#setdynamicbackendscheme). If this filter chained together with [setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader) 
+or [setDynamicBackendScheme](#setdynamicbackendscheme). If this filter chained together with [setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader)
 or [setDynamicBackendUrl](#setdynamicbackendurl), the latter ones would have priority.
 
 Parameters:
@@ -1015,7 +1015,7 @@ foo: * -> setDynamicBackendHost("example.com") -> <dynamic>;
 
 Filter sets the backend scheme for a route. Can be used only with `<dynamic>` backend.
 Meant to be used together with [setDynamicBackendHostFromHeader](#setdynamicbackendhostfromheader)
-or [setDynamicBackendHost](#setdynamicbackendhost). If this filter chained together with 
+or [setDynamicBackendHost](#setdynamicbackendhost). If this filter chained together with
 [setDynamicBackendUrlFromHeader](#setdynamicbackendurlfromheader) or [setDynamicBackendUrl](#setdynamicbackendurl), the latter ones would have priority.
 
 Parameters:
@@ -1030,7 +1030,7 @@ foo: * -> setDynamicBackendScheme("https") -> <dynamic>;
 
 ## setDynamicBackendUrl
 
-Filter sets the backend url for a route. Can be used only with `<dynamic>` backend. 
+Filter sets the backend url for a route. Can be used only with `<dynamic>` backend.
 
 Parameters:
 

@@ -3,15 +3,19 @@ Package ratelimit implements rate limiting functionality for the proxy.
 
 It provides per process rate limiting. It can be
 configured globally, or based on routes. Rate limiting can be lookuped
-based on HTTP headers like X-Forwarded-For or Authorization.
+based on HTTP headers for example X-Forwarded-For or Authorization.
 
-Lookuper Type - Authorization Header
+Lookuper Type - SameBucketLookuper
 
-This lookuper will use the content of the Authorization header to
-calculate rate limiting. This will work for Bearer tokens or Basic
-Auth without change of the rate limiter configuration.
+This lookuper will use a static string to point always to the same
+bucket. This means all requests are counted the same.
 
-Lookuper Type - X-Forwarded-For Header
+Lookuper Type - HeaderLookuper
+
+This lookuper will use the content of the the specified header to
+calculate rate limiting.
+
+Lookuper Type - XForwardedForLookuper
 
 This lookuper will use the remote IP of the origin request to
 calculate rate limiting. If there is no such header it will use the
@@ -44,7 +48,7 @@ The following configuration will rate limit requests after 100
 requests within 1 minute with the same Authorization Header
 
     % cat ratelimit-auth.eskip
-    all: * -> clientRatelimit(100,"1m","auth") -> "http://www.example.org/"
+    all: * -> clientRatelimit(100,"1m","Authorization") -> "http://www.example.org/"
     % skipper -enable-ratelimits -routes-file=ratelimit-auth.eskip
 
 The following configuration will rate limit requests to /login after 10 requests
@@ -91,8 +95,16 @@ representation of Go's time.Duration, e.g. 1m30s.
 Settings - Lookuper
 
 Defines an optional configuration to choose which Header should be
-used to group client requests. It accepts the default
-"x-forwarded-for" or "auth"
+used to group client requests. It accepts any header, for example
+"Authorization".
+
+Settings - Group
+
+Defines the ratelimit group, which can be the same for different
+routes, if you want to have one ratelimiter spanning more than one
+route. Make sure your settings are the same for the whole group. In
+case of different settings for the same group the behavior is
+undefined and could toggle between different configurations.
 
 HTTP Response
 
