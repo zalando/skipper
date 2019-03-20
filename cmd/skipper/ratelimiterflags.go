@@ -4,11 +4,12 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/zalando/skipper/ratelimit"
 )
 
-const ratelimitUsage = `set global rate limit settings, e.g. -ratelimit type=local,max-hits=20,time-window=60
+const ratelimitUsage = `set global rate limit settings, e.g. -ratelimit type=local,max-hits=20,time-window=60s
 	possible ratelimit properties:
 	type: local/service/disabled (defaults to disabled)
 	max-hits: the number of hits a ratelimiter can get
@@ -59,7 +60,7 @@ func (r *ratelimitFlags) Set(value string) error {
 			}
 			s.MaxHits = i
 		case "time-window":
-			d, err := parseDurationFlag(kv[1])
+			d, err := time.ParseDuration(kv[1])
 			if err != nil {
 				return err
 			}

@@ -4,11 +4,12 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/zalando/skipper/circuit"
 )
 
-const breakerUsage = `set global or host specific circuit breakers, e.g. -breaker type=rate,host=www.example.org,window=300,failures=30
+const breakerUsage = `set global or host specific circuit breakers, e.g. -breaker type=rate,host=www.example.org,window=300s,failures=30
 	possible breaker properties:
 	type: consecutive/rate/disabled (defaults to consecutive)
 	host: a host name that overrides the global for a host
@@ -73,7 +74,7 @@ func (b *breakerFlags) Set(value string) error {
 
 			s.Failures = i
 		case "timeout":
-			d, err := parseDurationFlag(kv[1])
+			d, err := time.ParseDuration(kv[1])
 			if err != nil {
 				return err
 			}
@@ -87,7 +88,7 @@ func (b *breakerFlags) Set(value string) error {
 
 			s.HalfOpenRequests = i
 		case "idle-ttl":
-			d, err := parseDurationFlag(kv[1])
+			d, err := time.ParseDuration(kv[1])
 			if err != nil {
 				return err
 			}
