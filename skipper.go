@@ -722,7 +722,7 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	idleConnsCH := make(chan struct{})
 	go func() {
 		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
+		signal.Notify(sigs, syscall.SIGTERM)
 
 		<-sigs
 

@@ -1,9 +1,12 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -82,7 +85,159 @@ func TestValidGetUpgradeRequest(t *testing.T) {
 }
 
 func TestServeHTTP(t *testing.T) {
-	// TODO
+	for _, ti := range []struct {
+		msg                     string
+		route                   string
+		method                  string
+		backendClosesConnection bool
+		noBackend               bool
+	}{
+		{
+			msg:    "Load balanced route",
+			route:  `route: Path("/ws") -> <roundRobin, "%s">;`,
+			method: "GET",
+		},
+		{
+			msg:    "Simple route",
+			route:  `route: Path("/ws") -> "%s";`,
+			method: "GET",
+		},
+		{
+			msg:    "Wrong method",
+			route:  `route: Path("/ws") -> "%s";`,
+			method: "POST",
+		},
+		{
+			msg:                     "Closed connection",
+			route:                   `route: Path("/ws") -> "%s";`,
+			method:                  "GET",
+			backendClosesConnection: true,
+		},
+		{
+			msg:       "No backend",
+			route:     `route: Path("/ws") -> "%s";`,
+			method:    "GET",
+			noBackend: true,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusSwitchingProtocols)
+				if ti.backendClosesConnection {
+					w.Header().Set("Connection", "close")
+					return
+				}
+				hj, ok := w.(http.Hijacker)
+				if !ok {
+					t.Error("webserver doesn't support hijacking")
+					return
+				}
+				conn, bufrw, err := hj.Hijack()
+				if err != nil {
+					t.Error(err.Error())
+					return
+				}
+				defer conn.Close()
+				for {
+					s, err := bufrw.ReadString('\n')
+					if err != nil {
+						t.Errorf("error reading string: %v", err)
+						return
+					}
+					var resp string
+					if strings.Compare(s, "ping\n") == 0 {
+						resp = "pong\n"
+					} else {
+						resp = "bad\n"
+					}
+
+					_, err = bufrw.WriteString(resp)
+					if err != nil {
+						t.Error(err)
+						return
+					}
+					err = bufrw.Flush()
+					if err != nil {
+						t.Error(err)
+						return
+					}
+				}
+			}))
+			defer backend.Close()
+			routes := fmt.Sprintf(ti.route, backend.URL)
+			if ti.noBackend {
+				backend.Close()
+			}
+			tp, err := newTestProxyWithParams(routes, Params{ExperimentalUpgrade: true})
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer tp.close()
+
+			skipper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				tp.proxy.ServeHTTP(w, r)
+			}))
+			defer skipper.Close()
+
+			skipperUrl, _ := url.Parse(skipper.URL)
+			conn, err := net.Dial("tcp", skipperUrl.Host)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer conn.Close()
+
+			u, _ := url.ParseRequestURI("wss://www.example.org/ws")
+			r := &http.Request{
+				URL:    u,
+				Method: ti.method,
+				Header: http.Header{
+					"Connection": []string{"Upgrade"},
+					"Upgrade":    []string{"websocket"},
+				},
+			}
+			err = r.Write(conn)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			reader := bufio.NewReader(conn)
+			resp, err := http.ReadResponse(reader, r)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if resp.StatusCode != http.StatusSwitchingProtocols {
+				if ti.method == "POST" || ti.noBackend {
+					return
+				}
+				t.Errorf("wrong response status <%s>", resp.Status)
+				return
+			}
+			_, err = conn.Write([]byte("ping\n"))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			pong, err := reader.ReadString('\n')
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if ti.backendClosesConnection {
+				if pong != "HTTP/1.1 400 Bad Request\r\n" {
+					t.Errorf("wrong bad response <%s>", pong)
+				}
+				return
+			}
+			if pong != "pong\n" {
+				t.Errorf("wrong response <%s>", pong)
+				return
+			}
+		})
+	}
 }
 
 func getReverseProxy(backendURL *url.URL) *httputil.ReverseProxy {
