@@ -74,11 +74,13 @@ const (
 
 	// ClusterClientRatelimit is used to calculate a rate limit
 	// for a whole skipper fleet per user for a backend, needs
-	// swarm to be enabled with -enable-swarm.
-	// One filter consumes memory calculated
-	// by the following formular, where N is the number of
-	// individual clients put into the same bucket, M the maximum
-	// number of requests allowed, S the number of skipper peers:
+	// swarm to be enabled with -enable-swarm. In case of redis it
+	// will not consume more memory.
+	// In case of swim based cluster ratelimit, one filter
+	// consumes memory calculated by the following formular, where
+	// N is the number of individual clients put into the same
+	// bucket, M the maximum number of requests allowed, S the
+	// number of skipper peers:
 	//
 	//    memory = N * M * 15 + S * len(peername)
 	//
