@@ -177,7 +177,7 @@ const (
 	// connections, timeouts:
 	waitForHealthcheckIntervalUsage   = "period waiting to become unhealthy in the loadbalancer pool in front of this instance, before shutdown triggered by SIGINT or SIGTERM"
 	idleConnsPerHostUsage             = "maximum idle connections per backend host"
-	closeIdleConnsPeriodUsage         = "period of closing all idle connections in seconds or as a duration string. Not closing when less than 0"
+	closeIdleConnsPeriodUsage         = "sets the time interval of closing all idle connections. Not closing when 0"
 	backendFlushIntervalUsage         = "flush interval for upgraded proxy connections"
 	experimentalUpgradeUsage          = "enable experimental feature to handle upgrade protocol requests"
 	experimentalUpgradeAuditUsage     = "enable audit logging of the request line and the messages during the experimental web socket upgrades"
@@ -325,7 +325,7 @@ var (
 	// connections, timeouts:
 	waitForHealthcheckInterval   time.Duration
 	idleConnsPerHost             int
-	closeIdleConnsPeriod         string
+	closeIdleConnsPeriod         time.Duration
 	backendFlushInterval         time.Duration
 	experimentalUpgrade          bool
 	experimentalUpgradeAudit     bool
@@ -475,7 +475,7 @@ func init() {
 	flag.DurationVar(&waitForHealthcheckInterval, "wait-for-healthcheck-interval", defaultWaitForHealthcheckInterval, waitForHealthcheckIntervalUsage)
 
 	flag.IntVar(&idleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
-	flag.StringVar(&closeIdleConnsPeriod, "close-idle-conns-period", strconv.Itoa(int(proxy.DefaultCloseIdleConnsPeriod/time.Second)), closeIdleConnsPeriodUsage)
+	flag.DurationVar(&closeIdleConnsPeriod, "close-idle-conns-period", proxy.DefaultCloseIdleConnsPeriod, closeIdleConnsPeriodUsage)
 	flag.DurationVar(&backendFlushInterval, "backend-flush-interval", defaultBackendFlushInterval, backendFlushIntervalUsage)
 	flag.BoolVar(&experimentalUpgrade, "experimental-upgrade", defaultExperimentalUpgrade, experimentalUpgradeUsage)
 	flag.BoolVar(&experimentalUpgradeAudit, "experimental-upgrade-audit", false, experimentalUpgradeAuditUsage)
@@ -516,20 +516,6 @@ func init() {
 	}
 }
 
-func parseDurationFlag(ds string) (time.Duration, error) {
-	d, perr := time.ParseDuration(ds)
-	if perr == nil {
-		return d, nil
-	}
-
-	if i, serr := strconv.Atoi(ds); serr == nil {
-		return time.Duration(i) * time.Second, nil
-	}
-
-	// returning the first parse error as more informative
-	return 0, perr
-}
-
 func parseHistogramBuckets(buckets string) ([]float64, error) {
 	if buckets == "" {
 		return prometheus.DefBuckets, nil
@@ -567,12 +553,6 @@ func main() {
 	var eus []string
 	if len(etcdUrls) > 0 {
 		eus = strings.Split(etcdUrls, ",")
-	}
-
-	clsic, err := parseDurationFlag(closeIdleConnsPeriod)
-	if err != nil {
-		flag.PrintDefaults()
-		os.Exit(2)
 	}
 
 	var whitelistCIDRS []string
@@ -697,7 +677,7 @@ func main() {
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   waitForHealthcheckInterval,
 		IdleConnectionsPerHost:       idleConnsPerHost,
-		CloseIdleConnsPeriod:         time.Duration(clsic) * time.Second,
+		CloseIdleConnsPeriod:         closeIdleConnsPeriod,
 		BackendFlushInterval:         backendFlushInterval,
 		ExperimentalUpgrade:          experimentalUpgrade,
 		ExperimentalUpgradeAudit:     experimentalUpgradeAudit,
