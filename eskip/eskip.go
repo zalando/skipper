@@ -20,6 +20,20 @@ var (
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
 )
 
+type DefaultFilters struct {
+	Prepend []*Filter
+	Append  []*Filter
+}
+
+func (df *DefaultFilters) Do(r []*Route) []*Route {
+	for i := range r {
+		r[i].Filters = append(df.Prepend, r[i].Filters...)
+		r[i].Filters = append(r[i].Filters, df.Append...)
+	}
+
+	return r
+}
+
 // Represents a matcher condition for incoming requests.
 type matcher struct {
 	// The name of the matcher, e.g. Path or Header

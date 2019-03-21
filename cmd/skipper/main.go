@@ -28,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/swarm"
@@ -288,6 +289,8 @@ var (
 	innkeeperPostRouteFilters string
 	routesFile                string
 	inlineRoutes              string
+	appendFilters             defaultFiltersFlags
+	prependFilters            defaultFiltersFlags
 	sourcePollTimeout         int64
 	waitFirstRouteLoad        bool
 
@@ -438,6 +441,8 @@ func init() {
 	flag.StringVar(&routesFile, "routes-file", "", routesFileUsage)
 	flag.StringVar(&inlineRoutes, "inline-routes", "", inlineRoutesUsage)
 	flag.Int64Var(&sourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
+	flag.Var(&appendFilters, "default-filters-append", defaultAppendFiltersUsage)
+	flag.Var(&prependFilters, "default-filters-prepend", defaultPrependFiltersUsage)
 	flag.BoolVar(&waitFirstRouteLoad, "wait-first-route-load", false, waitFirstRouteLoadUsage)
 
 	// Kubernetes:
@@ -572,6 +577,11 @@ func main() {
 		os.Exit(2)
 	}
 
+	defaultFilters := &eskip.DefaultFilters{
+		Prepend: prependFilters.Get(),
+		Append:  appendFilters.Get(),
+	}
+
 	options := skipper.Options{
 		// generic:
 		Address:                         address,
@@ -640,6 +650,7 @@ func main() {
 		InnkeeperPostRouteFilters: innkeeperPostRouteFilters,
 		WatchRoutesFile:           routesFile,
 		InlineRoutes:              inlineRoutes,
+		DefaultFilters:            defaultFilters,
 		SourcePollTimeout:         time.Duration(sourcePollTimeout) * time.Millisecond,
 		WaitFirstRouteLoad:        waitFirstRouteLoad,
 
