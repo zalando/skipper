@@ -26,6 +26,7 @@ const (
 
 	oauthOidcCookieName = "skipperOauthOidc"
 	stateValidity       = 1 * time.Minute
+	oidcInfoHeader      = "Skipper-Oidc-Info"
 )
 
 type (
@@ -48,15 +49,15 @@ type (
 	}
 
 	userInfoContainer struct {
-		OAuth2Token *oauth2.Token
-		UserInfo    *oidc.UserInfo
-		Subject     string
+		OAuth2Token *oauth2.Token  `json:"oauth2token"`
+		UserInfo    *oidc.UserInfo `json:"userInfo"`
+		Subject     string         `json:"subject"`
 	}
 
 	claimsContainer struct {
-		OAuth2Token *oauth2.Token
-		Claims      map[string]interface{}
-		Subject     string
+		OAuth2Token *oauth2.Token          `json:"oauth2token"`
+		Claims      map[string]interface{} `json:"claims"`
+		Subject     string                 `json:"subject"`
 	}
 )
 
@@ -330,6 +331,10 @@ func extractDomainFromHost(host string) string {
 	if err != nil {
 		h = host
 	}
+	ip := net.ParseIP(h)
+	if ip != nil {
+		return ip.String()
+	}
 	if strings.Count(h, ".") < 2 {
 		return h
 	}
@@ -434,8 +439,9 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	}
 
 	var (
-		allowed bool
-		sub     string
+		sub      string
+		allowed  bool
+		oidcInfo interface{}
 	)
 
 	// filter specific checks
@@ -450,6 +456,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		if container.OAuth2Token.Valid() && container.UserInfo != nil {
 			allowed = true
 		}
+		oidcInfo = container
 		sub = container.Subject
 	case checkOIDCAnyClaims:
 		var container claimsContainer
@@ -460,6 +467,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		}
 		allowed = f.validateAnyClaims(container.Claims)
 		log.Debugf("validateAnyClaims: %v", allowed)
+		oidcInfo = container
 		sub = container.Subject
 	case checkOIDCAllClaims:
 		var container claimsContainer
@@ -471,17 +479,23 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		allowed = f.validateAllClaims(container.Claims)
 		log.Debugf("validateAllClaims: %v", allowed)
 		sub = container.Subject
+		oidcInfo = container
 	default:
 		unauthorized(ctx, "unknown", invalidFilter, r.Host)
 		return
 	}
 
 	if !allowed {
-		unauthorized(ctx, "insufficient permissions :"+sub, invalidClaim, r.Host)
+		unauthorized(ctx, sub, invalidClaim, r.Host)
 		return
 	}
 
-	authorized(ctx, sub)
+	oidcInfoJson, err := json.Marshal(oidcInfo)
+	if err != nil {
+		f.internalServerError(ctx)
+		return
+	}
+	ctx.Request().Header.Add(oidcInfoHeader, string(oidcInfoJson))
 }
 
 func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oauth2.Token) (map[string]interface{}, string, error) {

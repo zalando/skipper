@@ -133,9 +133,93 @@ following picture:
 
 ## OpenID Connect
 
-### UI authcode flow
+OpenID Connect is an OAuth2.0 based authentication and authorization mechanism supported by
+several providers. Skipper can act as a proxy for backend server which requires authenticated clients.
+Skipper handles the authentication with the provider and upon sucessful completion of authentication
+passes subsequent requests to the backend server.
 
-The pull request implements the authcode flow, which can be used for
-UI authentication and authorization.
+Skipper's implementation of OpenID Connect Client works as follows:
 
-[https://github.com/zalando/skipper/pull/743](https://github.com/zalando/skipper/pull/743)
+1. Filter is initialized with the following parameters:
+    1. Secrets file with keys used for encrypting the token in a cookie and also for generating shared secret.
+    2. OpenID Connect Provider URL
+    3. The Client ID
+    4. The Client Secret
+    5. The Callback URL for the client when a user successfully authenticates and is
+        returned.
+    6. The Scopes to be requested along with the `openid` scope
+    7. The claims that should be present in the token or the fields need in the user
+        information.
+2. The user makes a request to a backend which is covered by an OpenID filter.
+3. Skipper checks if a cookie is set with any previous successfully completed OpenID authentication.
+4. If the cookie is valid then Skipper passes the request to the backend.
+5. If the cookie is not valid then Skipper redirects the user to the OpenID provider with its Client ID and a callback URL.
+6. When the user successfully completes authentication the provider redirects the user to the callback URL with a token.
+7. Skipper receives this token and makes a backend channel call to get an ID token
+    and other required information.
+8. If all the user information/claims are present then it encrypts this and sets a cookie
+    which is encrypted and redirects the user to the originally requested URL.
+    
+To use OpenID define a filter for a backend which needs to be covered by OpenID Connection authentication.
+
+```
+oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id",
+    "some-client-secret", "http://callback.com/auth/provider/callback", "scope1 scope2",
+    "claim1 claim2") -> "https://internal.example.org";
+```
+
+Here `scope1 scope2` are the scopes that should be included which requesting authentication from the OpenID provider.
+Any number of scopes can be specified here. The `openid` scope is added automatically by the filter. The other fields
+which need to be specified are the URL of the provider which in the above example is
+`https://accounts.identity-provider.com`. The client ID and the client secret. The callback URL which is specified
+while generating the client id and client secret. Then the scopes and finally the claims which should be present along
+with the return id token.
+
+```
+oauthOIDCUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
+    "http://target.example.com/subpath/callback", "email profile", 
+    "name email picture") -> "https://internal.example.org";
+```
+
+This filter is similar but it verifies that the token has certain user information
+information fields accesible with the token return by the provider. The fields can
+be specified at the end like in the example above where the fields `name`, `email`
+and `picture` are requested.
+
+Upon sucessful authentication Skipper will start allowing the user requests through
+to the backend. Along with the orginal request to the backend Skipper will include
+information which it obtained from the provider. The information is in `JSON` format
+with the header name `Skipper-Oidc-Info`. In the case of the claims container the
+header value is in the format.
+
+```json
+{
+    "oauth2token": "xxx",
+    "claims": {
+        "claim1": "val1",
+        "claim2": "val2"
+    },
+    "subject": "subj"
+}
+```
+
+In the case of a user info filter the payload is in the format:
+
+```json
+{
+    "oauth2token": "xxx",
+    "userInfo": {
+        "sub": "sub",
+        "profile": "prof",
+        "email": "abc@example.com",
+        "email_verified": "abc@example.com"
+    },
+    "subject": "subj"
+}
+```
+
+Skipper encrypts the cookies and also generates a nonce during the OAuth2.0 flow
+for which it needs a secret key. This key is in a file which can be rotated periodically
+because it is reread by Skipper. The path to this file can be passed with the flag
+`-oidc-secret-file` when Skipper is started.
+
