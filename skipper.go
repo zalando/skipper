@@ -853,7 +853,7 @@ func Run(o Options) error {
 	)
 
 	// create a routing engine
-	routing := routing.New(routing.Options{
+	ro := routing.Options{
 		FilterRegistry:  registry,
 		MatchingOptions: mo,
 		PollTimeout:     o.SourcePollTimeout,
@@ -865,9 +865,12 @@ func Run(o Options) error {
 			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
 			loadbalancer.NewAlgorithmProvider(),
 		},
-		PreProcessors:   []routing.PreProcessor{o.DefaultFilters},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
-	})
+	}
+	if o.DefaultFilters != nil {
+		ro.PreProcessors = []routing.PreProcessor{o.DefaultFilters}
+	}
+	routing := routing.New(ro)
 	defer routing.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
