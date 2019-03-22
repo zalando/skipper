@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/zalando/skipper/eskip"
 )
@@ -17,11 +16,7 @@ type defaultFiltersFlags struct {
 }
 
 func (dpf *defaultFiltersFlags) String() string {
-	res := make([]string, len(dpf.filters))
-	for _, f := range dpf.filters {
-		res = append(res, f.Name)
-	}
-	return strings.Join(res, " -> ")
+	return "<default filters>"
 }
 
 func (dpf *defaultFiltersFlags) Set(value string) error {
