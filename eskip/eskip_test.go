@@ -497,6 +497,11 @@ func TestDefaultFiltersDo(t *testing.T) {
 		t.Errorf("Failed to parse route: %v", err)
 	}
 
+	outputPrependAppend2, err := Parse(`r1: Host("example.org") -> status(419) -> status(418) -> inlineContent("OK") -> status(418) -> status(419) -> "http://127.0.0.1:9001"`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
 	for _, tt := range []struct {
 		name   string
 		df     *DefaultFilters
@@ -540,6 +545,14 @@ func TestDefaultFiltersDo(t *testing.T) {
 			},
 			routes: input,
 			want:   outputPrependAppend,
+		}, {
+			name: "test default filters, that append and prepend should append and prepend a filters",
+			df: &DefaultFilters{
+				Append:  append(filter, filter2...),
+				Prepend: append(filter2, filter...),
+			},
+			routes: input,
+			want:   outputPrependAppend2,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.df.Do(tt.routes); !reflect.DeepEqual(got, tt.want) {
