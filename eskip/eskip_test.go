@@ -466,3 +466,86 @@ func TestClone(t *testing.T) {
 		t.Error("failed to clone all the fields")
 	}
 }
+
+func TestDefaultFiltersDo(t *testing.T) {
+	input, err := Parse(`r1: Host("example.org") -> inlineContent("OK") -> "http://127.0.0.1:9001"`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	filter, err := ParseFilters("status(418)")
+	if err != nil {
+		t.Errorf("Failed to parse filter: %v", err)
+	}
+	filter2, err := ParseFilters("status(419)")
+	if err != nil {
+		t.Errorf("Failed to parse filter: %v", err)
+	}
+
+	outputPrepend, err := Parse(`r1: Host("example.org") -> status(418) -> inlineContent("OK") -> "http://127.0.0.1:9001"`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	outputAppend, err := Parse(`r1: Host("example.org")  -> inlineContent("OK") -> status(418) -> "http://127.0.0.1:9001"`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	outputPrependAppend, err := Parse(`r1: Host("example.org") -> status(419) -> inlineContent("OK") -> status(418) -> "http://127.0.0.1:9001"`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	for _, tt := range []struct {
+		name   string
+		df     *DefaultFilters
+		routes []*Route
+		want   []*Route
+	}{
+		{
+			name:   "test no default filters should not change anything",
+			df:     &DefaultFilters{},
+			routes: input,
+			want:   input,
+		}, {
+			name: "test default filters, that are nil should not change anything",
+			df: &DefaultFilters{
+				Append:  nil,
+				Prepend: nil,
+			},
+			routes: input,
+			want:   input,
+		}, {
+			name: "test default filters, that prepend should prepend a filter",
+			df: &DefaultFilters{
+				Append:  nil,
+				Prepend: filter,
+			},
+			routes: input,
+			want:   outputPrepend,
+		}, {
+			name: "test default filters, that append should append a filter",
+			df: &DefaultFilters{
+				Append:  filter,
+				Prepend: nil,
+			},
+			routes: input,
+			want:   outputAppend,
+		}, {
+			name: "test default filters, that append and prepend should append and prepend a filter",
+			df: &DefaultFilters{
+				Append:  filter,
+				Prepend: filter2,
+			},
+			routes: input,
+			want:   outputPrependAppend,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.df.Do(tt.routes); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Want %v, got %v", tt.want, got)
+			}
+		})
+	}
+
+}
