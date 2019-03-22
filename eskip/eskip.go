@@ -25,13 +25,16 @@ type DefaultFilters struct {
 	Append  []*Filter
 }
 
-func (df *DefaultFilters) Do(r []*Route) []*Route {
-	for i := range r {
-		r[i].Filters = append(df.Prepend, r[i].Filters...)
-		r[i].Filters = append(r[i].Filters, df.Append...)
+func (df *DefaultFilters) Do(routes []*Route) []*Route {
+	nextRoutes := make([]*Route, len(routes))
+	for i, r := range routes {
+		nextRoutes[i] = new(Route)
+		*nextRoutes[i] = *r
+		nextRoutes[i].Filters = append(df.Prepend, nextRoutes[i].Filters...)
+		nextRoutes[i].Filters = append(nextRoutes[i].Filters, df.Append...)
 	}
 
-	return r
+	return nextRoutes
 }
 
 // Represents a matcher condition for incoming requests.
