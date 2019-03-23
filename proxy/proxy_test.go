@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/loadbalancer"
@@ -125,7 +126,7 @@ func (srw *syncResponseWriter) Len() int {
 	return srw.body.Len()
 }
 
-func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Params) (*testProxy, error) {
+func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Params, preprocs []routing.PreProcessor) (*testProxy, error) {
 	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		return nil, err
@@ -136,13 +137,18 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 	}
 
 	tl := loggingtest.New()
-	rt := routing.New(routing.Options{
+	opts := routing.Options{
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},
 		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()},
 		Log:            tl,
-	})
+	}
+	if len(preprocs) > 0 {
+		opts.PreProcessors = preprocs
+	}
+	rt := routing.New(opts)
+
 	params.Routing = rt
 	p := WithParams(params)
 	p.log = tl
@@ -155,15 +161,19 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 }
 
 func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags, PriorityRoutes: pr})
+	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
+}
+
+func newTestProxyWithFiltersAndPreProcessors(fr filters.Registry, doc string, flags Flags, preprocs []routing.PreProcessor) (*testProxy, error) {
+	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags}, preprocs)
 }
 
 func newTestProxyWithParams(doc string, params Params) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(nil, doc, params)
+	return newTestProxyWithFiltersAndParams(nil, doc, params, nil)
 }
 
 func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr})
+	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
 }
 
 func (tp *testProxy) close() {
@@ -573,6 +583,64 @@ func TestAppliesFilters(t *testing.T) {
 		-> "%s"
 	`, s.URL)
 	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	tp.proxy.ServeHTTP(w, r)
+
+	if h, ok := w.Header()["X-Test-Response-Header"]; !ok || h[0] != "response header value" {
+		t.Error("missing response header")
+	}
+}
+
+func TestAppliesFiltersAndDefaultFilters(t *testing.T) {
+	payload := []byte("Hello World!")
+
+	s := startTestServer(payload, 0, func(r *http.Request) {
+		if h, ok := r.Header["X-Test-Request-Header"]; !ok ||
+			h[0] != "request header value" {
+			t.Error("request header is missing")
+		}
+	})
+	defer s.Close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+		Header: http.Header{"X-Test-Header": []string{"test value"}}}
+	w := httptest.NewRecorder()
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewDropQuery())
+	fr.Register(builtin.NewAppendRequestHeader())
+	fr.Register(builtin.NewAppendResponseHeader())
+
+	doc := fmt.Sprintf(`hello: Path("/hello")
+		-> dropQuery("f00")
+		-> "%s"
+	`, s.URL)
+
+	appendFilter, err := eskip.ParseFilters(`appendResponseHeader("X-Test-Response-Header", "response header value")`)
+	if err != nil {
+		t.Errorf("Failed to parse append filter: %v", err)
+	}
+	prependFilter, err := eskip.ParseFilters(`appendRequestHeader("X-Test-Request-Header", "request header value")`)
+	if err != nil {
+		t.Errorf("Failed to parse prepend filter: %v", err)
+	}
+
+	tp, err := newTestProxyWithFiltersAndPreProcessors(fr, doc, FlagsNone, []routing.PreProcessor{
+		&eskip.DefaultFilters{
+			Append:  appendFilter,
+			Prepend: prependFilter,
+		},
+	})
+
 	if err != nil {
 		t.Error(err)
 		return

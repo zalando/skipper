@@ -20,6 +20,28 @@ var (
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
 )
 
+// DefaultFilters implements the routing.PreProcessor interface and
+// should be used with the routing package.
+type DefaultFilters struct {
+	Prepend []*Filter
+	Append  []*Filter
+}
+
+// Do implements the interface routing.PreProcessor. It appends and
+// prepends filters stored to incoming routes and returns the modified
+// version of routes.
+func (df *DefaultFilters) Do(routes []*Route) []*Route {
+	nextRoutes := make([]*Route, len(routes))
+	for i, r := range routes {
+		nextRoutes[i] = new(Route)
+		*nextRoutes[i] = *r
+		nextRoutes[i].Filters = append(df.Prepend, nextRoutes[i].Filters...)
+		nextRoutes[i].Filters = append(nextRoutes[i].Filters, df.Append...)
+	}
+
+	return nextRoutes
+}
+
 // Represents a matcher condition for incoming requests.
 type matcher struct {
 	// The name of the matcher, e.g. Path or Header

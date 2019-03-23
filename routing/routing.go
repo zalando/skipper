@@ -116,10 +116,13 @@ type Options struct {
 	// SuppressLogs indicates whether to log only a summary of the route changes.
 	SuppressLogs bool
 
-	// PostProcessrs contains custom route post-processors.
+	// PreProcessors contains custom eskip.Route pre-processors.
+	PreProcessors []PreProcessor
+
+	// PostProcessors contains custom route post-processors.
 	PostProcessors []PostProcessor
 
-	// SignalFirstLoad enables signalling on the first load
+	// SignalFirstLoad enables signaling on the first load
 	// of the routing configuration during the startup.
 	SignalFirstLoad bool
 }
@@ -182,6 +185,14 @@ type Route struct {
 // This feature is experimental.
 type PostProcessor interface {
 	Do([]*Route) []*Route
+}
+
+// PreProcessor is an interface for custom pre-processors applying changes
+// to the routes before they were created from eskip.Route representation.
+//
+// This feature is experimental.
+type PreProcessor interface {
+	Do([]*eskip.Route) []*eskip.Route
 }
 
 // Routing ('router') instance providing live

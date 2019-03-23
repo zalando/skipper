@@ -96,7 +96,7 @@ func testLoopback(
 	fr.Register(&setState{})
 	fr.Register(&returnState{})
 
-	p, err := newTestProxyWithFiltersAndParams(fr, routes, params)
+	p, err := newTestProxyWithFiltersAndParams(fr, routes, params, nil)
 	if err != nil {
 		t.Error(err)
 		return
