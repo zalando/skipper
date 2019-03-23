@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/eskipfile"
 	"github.com/zalando/skipper/etcd"
 	"github.com/zalando/skipper/filters"
@@ -179,6 +180,9 @@ type Options struct {
 
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
+
+	// DefaultFilters will be applied to all routes automatically.
+	DefaultFilters *eskip.DefaultFilters
 
 	// Deprecated. See ProxyFlags. When used together with ProxyFlags,
 	// the values will be combined with |.
@@ -849,7 +853,7 @@ func Run(o Options) error {
 	)
 
 	// create a routing engine
-	routing := routing.New(routing.Options{
+	ro := routing.Options{
 		FilterRegistry:  registry,
 		MatchingOptions: mo,
 		PollTimeout:     o.SourcePollTimeout,
@@ -862,7 +866,11 @@ func Run(o Options) error {
 			loadbalancer.NewAlgorithmProvider(),
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
-	})
+	}
+	if o.DefaultFilters != nil {
+		ro.PreProcessors = []routing.PreProcessor{o.DefaultFilters}
+	}
+	routing := routing.New(ro)
 	defer routing.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags

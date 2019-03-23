@@ -494,6 +494,11 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		select {
 		case defs := <-updatesRelay:
 			o.Log.Info("route settings received")
+
+			for i := range o.PreProcessors {
+				defs = o.PreProcessors[i].Do(defs)
+			}
+
 			routes, invalidRoutes := processRouteDefs(o, o.FilterRegistry, defs)
 
 			for i := range o.PostProcessors {
