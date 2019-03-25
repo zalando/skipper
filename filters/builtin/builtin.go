@@ -60,6 +60,7 @@ const (
 	InlineContentName   = "inlineContent"
 	HeaderToQueryName   = "headerToQuery"
 	QueryToHeaderName   = "queryToHeader"
+	CookieToHeaderName  = "cookieToHeader"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -95,6 +96,7 @@ func MakeRegistry() filters.Registry {
 		NewCopyResponseHeader(),
 		NewHeaderToQuery(),
 		NewQueryToHeader(),
+		NewCookieToHeader(),
 		NewSetDynamicBackendHostFromHeader(),
 		NewSetDynamicBackendSchemeFromHeader(),
 		NewSetDynamicBackendUrlFromHeader(),
