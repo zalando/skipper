@@ -2,12 +2,14 @@ package loadbalancer
 
 import (
 	"errors"
+	"hash/fnv"
 	"math/rand"
 	"net/url"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -16,11 +18,15 @@ type algorithmType int
 const (
 	none algorithmType = iota
 	roundRobinAlgorithm
+	randomAlgorithm
+	consistentHashAlgorithm
 )
 
 var (
 	algorithms = map[algorithmType]initializeAgorithm{
-		roundRobinAlgorithm: newRoundRobin,
+		roundRobinAlgorithm:     newRoundRobin,
+		randomAlgorithm:         newRandom,
+		consistentHashAlgorithm: newConsistentHash,
 	}
 	defaultAlgorithm = newRoundRobin
 )
@@ -36,12 +42,50 @@ type roundRobin struct {
 	index int
 }
 
-// Apply implements routing.LBAlgorithm.
-func (r *roundRobin) Apply(endpoints []routing.LBEndpoint) routing.LBEndpoint {
+// Apply implements routing.LBAlgorithm with a roundrobin algorithm.
+func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	r.mx.Lock()
 	defer r.mx.Unlock()
-	r.index = (r.index + 1) % len(endpoints)
-	return endpoints[r.index]
+	r.index = (r.index + 1) % len(ctx.Route.LBEndpoints)
+	return ctx.Route.LBEndpoints[r.index]
+}
+
+type random struct{}
+
+func newRandom(endpoints []string) routing.LBAlgorithm {
+	return &random{}
+}
+
+// Apply implements routing.LBAlgorithm with a stateless random algorithm.
+func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	return ctx.Route.LBEndpoints[rand.Intn(len(ctx.Route.LBEndpoints))]
+}
+
+type consistentHash struct{}
+
+func newConsistentHash(endpoints []string) routing.LBAlgorithm {
+	return &consistentHash{}
+}
+
+// Apply implements routing.LBAlgorithm with a consistent hash algorithm.
+func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	log.Infof("consistentHash.Apply: %#v", ctx.Route.LBEndpoints)
+
+	var sum uint32
+	h := fnv.New32()
+
+	key := net.RemoteHost(ctx.Request).String()
+	if _, err := h.Write([]byte(key)); err != nil {
+		log.Errorf("Failed to write '%s' into hash: %v", key, err)
+		return ctx.Route.LBEndpoints[0]
+	}
+	sum = h.Sum32()
+	choice := int(sum) % len(ctx.Route.LBEndpoints)
+	log.Infof("consistentHash: %s %d %d", key, len(ctx.Route.LBEndpoints), choice)
+	if choice < 0 {
+		choice = len(ctx.Route.LBEndpoints) + choice
+	}
+	return ctx.Route.LBEndpoints[choice]
 }
 
 type (
@@ -63,6 +107,10 @@ func algorithmTypeFromString(a string) (algorithmType, error) {
 		return none, nil
 	case "roundRobin":
 		return roundRobinAlgorithm, nil
+	case "random":
+		return randomAlgorithm, nil
+	case "consistentHash":
+		return consistentHashAlgorithm, nil
 	default:
 		return none, errors.New("unsupported algorithm")
 	}

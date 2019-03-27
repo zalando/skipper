@@ -107,7 +107,7 @@ func setAnnotation(i *ingressItem, key, value string) {
 	i.Metadata.Annotations[key] = value
 }
 
-func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
+func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString, lbAlgorithm string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
 	var defaultBackend *backend
 	if len(defaultService) != 0 {
 		defaultBackend = &backend{
@@ -144,6 +144,9 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 	if pathModeString != "" {
 		setAnnotation(i, pathModeAnnotationKey, pathModeString)
 	}
+	if lbAlgorithm != "" {
+		setAnnotation(i, skipperLoadbalancerAnnotationKey, lbAlgorithm)
+	}
 
 	return i
 }
@@ -153,6 +156,7 @@ func testIngressSimple(ns, name, defaultService string, defaultPort backendPort,
 		ns,
 		name,
 		defaultService,
+		"",
 		"",
 		"",
 		"",
@@ -177,10 +181,11 @@ func testServices() *serviceList {
 
 func testIngresses() []*ingressItem {
 	return []*ingressItem{
-		testIngress("namespace1", "default-only", "service1", "", "", "", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace1", "default-only", "service1", "", "", "", "", "", "", backendPort{8080}, 1.0),
 		testIngress(
 			"namespace2",
 			"path-rule-only",
+			"",
 			"",
 			"",
 			"",
@@ -203,6 +208,7 @@ func testIngresses() []*ingressItem {
 			"",
 			"",
 			"",
+			"",
 			backendPort{"port1"},
 			1.0,
 			testRule(
@@ -216,9 +222,9 @@ func testIngresses() []*ingressItem {
 				testPathRule("/test2", "service2", backendPort{"port2"}),
 			),
 		),
-		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", backendPort{8080}, 1.0),
-		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", backendPort{8080}, 1.0),
-		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", backendPort{4444}, 1.0),
+		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", "", backendPort{4444}, 1.0),
 	}
 }
 
@@ -467,7 +473,7 @@ func TestIngressData(t *testing.T) {
 		[]*service{
 			testService("foo", "bar", "1.2.3.4", nil),
 		},
-		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", "", "", "", backendPort{8080}, 1.0)},
+		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", "", "", "", "", backendPort{8080}, 1.0)},
 		map[string]string{
 			"kube_foo__baz______": "http://1.2.3.4:8080",
 		},
@@ -479,6 +485,7 @@ func TestIngressData(t *testing.T) {
 		[]*ingressItem{testIngress(
 			"foo",
 			"baz",
+			"",
 			"",
 			"",
 			"",
@@ -514,6 +521,7 @@ func TestIngressData(t *testing.T) {
 			"",
 			"",
 			"",
+			"",
 			backendPort{8080},
 			1.0,
 			testRule(
@@ -543,6 +551,7 @@ func TestIngressData(t *testing.T) {
 			"",
 			"",
 			"",
+			"",
 			backendPort{},
 			1.0,
 			testRule(
@@ -566,6 +575,7 @@ func TestIngressData(t *testing.T) {
 			testIngress(
 				"foo",
 				"qux",
+				"",
 				"",
 				"",
 				"",
@@ -614,6 +624,7 @@ func TestIngressData(t *testing.T) {
 			"",
 			"",
 			`Method("OPTIONS") -> <shunt>`,
+			"",
 			"",
 			backendPort{},
 			1.0,
@@ -1132,6 +1143,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1142,6 +1154,7 @@ func TestIngress(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new2",
+				"",
 				"",
 				"",
 				"",
@@ -1196,6 +1209,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1206,6 +1220,7 @@ func TestIngress(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new2",
+				"",
 				"",
 				"",
 				"",
@@ -1269,6 +1284,7 @@ func TestIngress(t *testing.T) {
 			"",
 			"",
 			"",
+			"",
 			backendPort{""},
 			1.0,
 			testRule(
@@ -1279,6 +1295,7 @@ func TestIngress(t *testing.T) {
 		ti2 := testIngress(
 			"namespace1",
 			"new2",
+			"",
 			"",
 			"",
 			"",
@@ -1341,6 +1358,7 @@ func TestConvertPathRule(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1351,6 +1369,7 @@ func TestConvertPathRule(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new1",
+				"",
 				"",
 				"",
 				"",
@@ -1513,6 +1532,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1566,6 +1586,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
 				backendPort{""},
 				1.0,
 				testRule(
@@ -1576,6 +1597,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 			testIngress(
 				"namespace1",
 				"new1",
+				"",
 				"",
 				"",
 				"",
@@ -1789,7 +1811,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 			state, err := dc.fetchClusterState()
 			require.NoError(t, err)
 
-			route, err := dc.convertPathRule(state, "namespace1", "", "", tc.rule, KubernetesIngressMode)
+			route, err := dc.convertPathRule(state, &metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}
@@ -2971,7 +2993,7 @@ func TestSkipperPredicate(t *testing.T) {
 	api := newTestAPI(t, nil, &ingressList{})
 	defer api.Close()
 
-	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", backendPort{8080}, 1.0)
+	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", backendPort{8080}, 1.0)
 
 	t.Run("check ingress predicate", func(t *testing.T) {
 		api.services = testServices()
@@ -3002,7 +3024,7 @@ func TestSkipperPredicateEastWest(t *testing.T) {
 	api := newTestAPI(t, nil, &ingressList{})
 	defer api.Close()
 
-	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", backendPort{8080}, 1.0)
+	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", backendPort{8080}, 1.0)
 
 	t.Run("check ingress predicate", func(t *testing.T) {
 		api.services = testServices()
@@ -3056,7 +3078,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 		)},
 		expectedRoutes: map[string]string{
@@ -3070,7 +3092,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
 		)},
 		expectedRoutes: map[string]string{
@@ -3085,7 +3107,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 		)},
@@ -3102,7 +3124,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
 			testRule("www2.example.org", testPathRule("/another/path", "bar", backendPort{"baz"})),
 		)},
@@ -3124,7 +3146,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 			`a: Method("OPTIONS") -> <shunt>;
                          b: Cookie("alpha", /^enabled$/) -> "http://1.2.3.6:8181";
                          c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 			testRule("www3.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
@@ -3156,7 +3178,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 			`a: Method("OPTIONS") -> <shunt>;
                          b: Cookie("alpha", /^enabled$/) -> "http://1.2.3.6:8181";
                          c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("", "bar", backendPort{"baz"})),
 			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 			testRule("www3.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
@@ -3185,7 +3207,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"path-prefix", backendPort{}, 1.0,
+			"path-prefix", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 		)},
 		expectedRoutes: map[string]string{
@@ -3199,7 +3221,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Path("/foo") -> <shunt>`,
-			"path-prefix", backendPort{}, 1.0,
+			"path-prefix", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 		)},
 		expectedRoutes: map[string]string{
@@ -3242,7 +3264,7 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 		)},
 		expectedRoutes: map[string]string{
@@ -3258,7 +3280,7 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
 		)},
 		expectedRoutes: map[string]string{
@@ -3276,7 +3298,7 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 		)},
@@ -3297,7 +3319,7 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
 			testRule("www2.example.org", testPathRule("/another/path", "bar", backendPort{"baz"})),
 		)},
@@ -3325,7 +3347,7 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 			`a: Method("OPTIONS") -> <shunt>;
                          b: Cookie("alpha", /^enabled$/) -> "http://1.2.3.6:8181";
                          c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 			testRule("www3.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
@@ -3372,7 +3394,7 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 			`a: Method("OPTIONS") -> <shunt>;
 		                 b: Cookie("alpha", /^enabled$/) -> "http://1.2.3.6:8181";
 		                 c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", backendPort{}, 1.0,
+			"", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("", "bar", backendPort{"baz"})),
 			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 			testRule("www3.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
@@ -3415,7 +3437,7 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"path-prefix", backendPort{}, 1.0,
+			"path-prefix", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 		)},
 		expectedRoutes: map[string]string{
@@ -3431,7 +3453,7 @@ func TestSkipperCustomRoutesEastWest(t *testing.T) {
 		},
 		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
 			`Path("/foo") -> <shunt>`,
-			"path-prefix", backendPort{}, 1.0,
+			"path-prefix", "", backendPort{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
 		)},
 		expectedRoutes: map[string]string{

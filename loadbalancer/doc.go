@@ -1,24 +1,29 @@
 /*
-Package loadbalancer implements predicates and filter which will match for different backends
-in a round-robin fashion.
+Package loadbalancer implements load balancer algorithms that are applied by the proxy.
 
-First parameter to LBGroup, lbDecide and LBMember defines a group which determines the set of possible routes to match.
+roundRobin Algorithm
 
-lbDecide's second parameter is the number of members in a loadbalancer group.
+    The roundRobin algorithm does proxy requests round robin to
+    backend endpoints. It has a mutex to update the index and will
+    start at a random index
 
-LBMember's second parameter is 0-based index of the route among the other routes in the same group.
+random Algorithm
+
+    The random algorithm does proxy requests at random to backend
+    endpoints.
+
+consistentHash Algorithm
+
+    The consistentHash algorithm choose backend endpoints by hashing
+    client data with hash function fnv.New32. The client data is the
+    client IP, which might be looked up from X-Forwarded-For header.
 
 Eskip example:
 
-	hello_lb_group: Path("/foo") && LBGroup("hello")
-	        -> lbDecide("hello", 3)
-	        -> <loopback>;
-	hello_1: Path("/foo") && LBMember("hello",0)
-	        -> "http://127.0.0.1:12345";
-	hello_2: Path("/foo") && LBMember("hello",1)
-	        -> "http://127.0.0.1:12346";
-	hello_3: Path("/foo") && LBMember("hello",2)
-	        -> "http://127.0.0.1:12347";
+
+        r1: * -> <roundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+        r2: * -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+        r3: * -> <random, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 
 
 Package loadbalancer also implements health checking of pool members for

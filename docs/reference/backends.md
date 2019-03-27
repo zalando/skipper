@@ -248,11 +248,23 @@ algorithm set by Skipper at start.
 Current implemented algorithms:
 
 - `roundRobin`: backend is chosen by the round robin algorithm, starting with a random selected backend to spread across all backends from the beginning
+- `random`: backend is chosen at random
+- `consistentHash`: backend is chosen by a consistent hashing algorithm with the client remote IP as input to the hash function
 - __TODO__: https://github.com/zalando/skipper/issues/557
 
 Route example with 2 backends and the `roundRobin` algorithm:
 ```
 r0: * -> <roundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+
+Route example with 2 backends and the `random` algorithm:
+```
+r0: * -> <random, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+
+Route example with 2 backends and the `consistentHash` algorithm:
+```
+r0: * -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 ```
 
 Proxy with `roundRobin` loadbalancer and two backends:

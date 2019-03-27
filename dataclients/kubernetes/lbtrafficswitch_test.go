@@ -95,7 +95,7 @@ func TestLBWithTrafficControl(t *testing.T) {
 	}
 
 	ingress := testIngress("namespace1", "ingress1", "service1v1",
-		"", "", "", "", "",
+		"", "", "", "", "", "",
 		backendPort{"port1"},
 		1.0,
 		testRule(
