@@ -18,25 +18,22 @@ const (
 	roundRobinAlgorithm
 )
 
-type roundRobin struct {
-	mx    sync.Mutex
-	index int
-}
-
-type algorithmProvider struct{}
-
-type initializeAgorithm func(endpoints []string) routing.LBAlgorithm
-
-var algorithms = map[algorithmType]initializeAgorithm{
-	roundRobinAlgorithm: newRoundRobin,
-}
-
-var defaultAlgorithm = newRoundRobin
+var (
+	algorithms = map[algorithmType]initializeAgorithm{
+		roundRobinAlgorithm: newRoundRobin,
+	}
+	defaultAlgorithm = newRoundRobin
+)
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
 	return &roundRobin{
 		index: rand.Intn(len(endpoints)),
 	}
+}
+
+type roundRobin struct {
+	mx    sync.Mutex
+	index int
 }
 
 // Apply implements routing.LBAlgorithm.
@@ -46,6 +43,11 @@ func (r *roundRobin) Apply(endpoints []routing.LBEndpoint) routing.LBEndpoint {
 	r.index = (r.index + 1) % len(endpoints)
 	return endpoints[r.index]
 }
+
+type (
+	algorithmProvider  struct{}
+	initializeAgorithm func(endpoints []string) routing.LBAlgorithm
+)
 
 // NewAlgorithmProvider creates a routing.PostProcessor used to initialize
 // the algorithm of load balancing routes.
