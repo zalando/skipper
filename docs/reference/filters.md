@@ -947,7 +947,7 @@ auditLog()
 ## unverifiedAuditLog
 
 Filter `unverifiedAuditLog()` adds a Header, `X-Unverified-Audit`, to the request, the content of which, will also
-be wrote to the log file. By default, the value of the audit header will be equal to the value of the `sub` key, from
+be written to the log file. By default, the value of the audit header will be equal to the value of the `sub` key, from
 the Authorization token. This can be changed by providing a `string` input to the filter which matches another key from the
 token.
 
