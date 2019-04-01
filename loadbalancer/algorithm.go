@@ -75,8 +75,6 @@ func newConsistentHash(endpoints []string) routing.LBAlgorithm {
 
 // Apply implements routing.LBAlgorithm with a consistent hash algorithm.
 func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	log.Infof("consistentHash.Apply: %#v", ctx.Route.LBEndpoints)
-
 	var sum uint32
 	h := fnv.New32()
 
@@ -87,7 +85,6 @@ func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	}
 	sum = h.Sum32()
 	choice := int(sum) % len(ctx.Route.LBEndpoints)
-	log.Infof("consistentHash: %s %d %d", key, len(ctx.Route.LBEndpoints), choice)
 	if choice < 0 {
 		choice = len(ctx.Route.LBEndpoints) + choice
 	}
@@ -153,7 +150,7 @@ func setAlgorithm(r *routing.Route) error {
 
 // Do implements routing.PostProcessor
 func (p *algorithmProvider) Do(r []*routing.Route) []*routing.Route {
-	var rr []*routing.Route
+	rr := make([]*routing.Route, 0, len(r))
 	for _, ri := range r {
 		if ri.Route.BackendType != eskip.LBBackend {
 			rr = append(rr, ri)
