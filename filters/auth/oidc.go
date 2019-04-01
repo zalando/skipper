@@ -341,13 +341,23 @@ func extractDomainFromHost(host string) string {
 	return strings.Join(strings.Split(h, ".")[1:], ".")
 }
 
+func getHost(request *http.Request) string {
+	if h := request.Header.Get("host"); h != "" {
+		return h
+	} else {
+		return request.Host
+	}
+}
+
 func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
 	log.Debugf("Doing Downstream Redirect to :%s", redirectUrl)
+	host := getHost(ctx.Request())
+
 	r := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: map[string][]string{
 			"Set-Cookie": {fmt.Sprintf("%s=%x; Path=/; HttpOnly; MaxAge=%d; Domain=%s",
-				f.cookiename, oidcState, int(f.validity.Seconds()), extractDomainFromHost(ctx.Request().Host))},
+				f.cookiename, oidcState, int(f.validity.Seconds()), extractDomainFromHost(host))},
 			"Location": {redirectUrl},
 		},
 	}
