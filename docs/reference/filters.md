@@ -944,6 +944,26 @@ Example:
 auditLog()
 ```
 
+## unverifiedAuditLog
+
+Filter `unverifiedAuditLog()` adds a Header, `X-Unverified-Audit`, to the request, the content of which, will also
+be written to the log file. By default, the value of the audit header will be equal to the value of the `sub` key, from
+the Authorization token. This can be changed by providing a `string` input to the filter which matches another key from the
+token.
+
+*N.B.* It is important to note that, if the content of the `X-Unverified-Audit` header does not match the following regex, then
+a default value of `invalid-sub` will be populated in the header instead:
+    `^[a-zA-z0-9_/:?=&%@.#-]*$`    
+
+Examples:
+
+```
+unverifiedAuditLog()
+```
+
+```
+unverifiedAuditLog("azp")
+```
 
 ## setDynamicBackendHostFromHeader
 
