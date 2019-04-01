@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/url"
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
@@ -32,6 +33,8 @@ var (
 )
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
+	i := time.Now().UnixNano()
+	rand.Seed(i)
 	return &roundRobin{
 		index: rand.Intn(len(endpoints)),
 	}
@@ -50,15 +53,18 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return ctx.Route.LBEndpoints[r.index]
 }
 
-type random struct{}
+type random struct {
+	rand *rand.Rand
+}
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
-	return &random{}
+	t := time.Now().UnixNano()
+	return &random{rand: rand.New(rand.NewSource(t))}
 }
 
 // Apply implements routing.LBAlgorithm with a stateless random algorithm.
 func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	return ctx.Route.LBEndpoints[rand.Intn(len(ctx.Route.LBEndpoints))]
+	return ctx.Route.LBEndpoints[r.rand.Intn(len(ctx.Route.LBEndpoints))]
 }
 
 type consistentHash struct{}
