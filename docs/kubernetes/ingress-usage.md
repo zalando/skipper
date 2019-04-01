@@ -842,8 +842,8 @@ apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   annotations:
-    zalando.org/skipper-predicate: Traffic(.1)
-    zalando.org/skipper-filter: responseCookie("flavor, "A", 31536000)
+    zalando.org/skipper-predicate: Traffic(.1, "flavor", "A")
+    zalando.org/skipper-filter: responseCookie("flavor", "A", 31536000)
   name: app
 spec:
   rules:
