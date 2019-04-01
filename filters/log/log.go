@@ -30,13 +30,15 @@ const (
 	// reject reason information into the state bag to pass the
 	// information to the auditLog filter.
 	AuthRejectReasonKey = "auth-reject-reason"
-	// UnverifiedAuditLogName is th filtername seend by the user
+	// UnverifiedAuditLogName is the filtername seen by the user
 	UnverifiedAuditLogName = "unverifiedAuditLog"
 
-	UnverifiedAuditHeader = "X-Unverified-Audit"
-	authHeaderName        = "Authorization"
-	authHeaderPrefix      = "Bearer "
-	defaultSub            = "<invalid-sub>"
+	// UnverifiedAuditHeader is the name of the header added to the request which contains the unverified audit details
+	UnverifiedAuditHeader        = "X-Unverified-Audit"
+	authHeaderName               = "Authorization"
+	authHeaderPrefix             = "Bearer "
+	defaultSub                   = "<invalid-sub>"
+	defaultUnverifiedAuditLogKey = "sub"
 )
 
 var (
@@ -172,27 +174,38 @@ func (al *auditLog) Response(ctx filters.FilterContext) {
 	}
 }
 
-type unverifiedAuditLog struct{}
+type (
+	unverifiedAuditLogSpec struct {
+	}
+	unverifiedAuditLogFilter struct {
+		TokenKey string
+	}
+)
 
-// NewUnverifiedAuditLog logs "Sub" of the middle part of a JWT Token.
-func NewUnverifiedAuditLog() filters.Spec { return &unverifiedAuditLog{} }
+// NewUnverifiedAuditLog logs "Sub" of the middle part of a JWT Token. Or else, logs the requested JSON key if present
+func NewUnverifiedAuditLog() filters.Spec { return &unverifiedAuditLogSpec{} }
 
-func (ual *unverifiedAuditLog) Name() string { return UnverifiedAuditLogName }
+func (ual *unverifiedAuditLogSpec) Name() string { return UnverifiedAuditLogName }
 
 // CreateFilter has no arguments. It creates the filter if the user
 // specifies unverifiedAuditLog() in their route.
-func (ual *unverifiedAuditLog) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 0 {
-		return nil, filters.ErrInvalidFilterParameters
+func (ual *unverifiedAuditLogSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	var len = len(args)
+	if len == 0 {
+		return &unverifiedAuditLogFilter{TokenKey: defaultUnverifiedAuditLogKey}, nil
+	} else if len == 1 {
+		keyName, ok := args[0].(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+
+		return &unverifiedAuditLogFilter{TokenKey: keyName}, nil
 	}
-	return ual, nil
+
+	return nil, filters.ErrInvalidFilterParameters
 }
 
-type jwtMidPart struct {
-	Sub string `json:"sub"`
-}
-
-func (ual *unverifiedAuditLog) Request(ctx filters.FilterContext) {
+func (ual *unverifiedAuditLogFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	ahead := req.Header.Get(authHeaderName)
 	if !strings.HasPrefix(ahead, authHeaderPrefix) {
@@ -208,16 +221,21 @@ func (ual *unverifiedAuditLog) Request(ctx filters.FilterContext) {
 			return
 		}
 
-		var j jwtMidPart
+		var j map[string]interface{}
 		err = json.Unmarshal(sDec, &j)
 		if err != nil {
 			return
 		}
-		req.Header.Add(UnverifiedAuditHeader, cleanSub(j.Sub))
+
+		if k, ok := j[ual.TokenKey]; ok {
+			if v, ok2 := k.(string); ok2 {
+				req.Header.Add(UnverifiedAuditHeader, cleanSub(v))
+			}
+		}
 	}
 }
 
-func (*unverifiedAuditLog) Response(filters.FilterContext) {}
+func (*unverifiedAuditLogFilter) Response(filters.FilterContext) {}
 
 func cleanSub(s string) string {
 	if re.MatchString(s) {
