@@ -81,7 +81,7 @@ func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	key := net.RemoteHost(ctx.Request).String()
 	if _, err := h.Write([]byte(key)); err != nil {
 		log.Errorf("Failed to write '%s' into hash: %v", key, err)
-		return ctx.Route.LBEndpoints[0]
+		return ctx.Route.LBEndpoints[rand.Intn(len(ctx.Route.LBEndpoints))]
 	}
 	sum = h.Sum32()
 	choice := int(sum) % len(ctx.Route.LBEndpoints)

@@ -9,14 +9,15 @@ roundRobin Algorithm
 
 random Algorithm
 
-    The random algorithm does proxy requests at random to backend
+    The random algorithm does proxy requests to random backend
     endpoints.
 
 consistentHash Algorithm
 
     The consistentHash algorithm choose backend endpoints by hashing
     client data with hash function fnv.New32. The client data is the
-    client IP, which might be looked up from X-Forwarded-For header.
+    client IP, which will be looked up from X-Forwarded-For header
+    with remote IP as the fallback.
 
 Eskip example:
 
