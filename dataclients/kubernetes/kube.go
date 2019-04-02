@@ -27,15 +27,13 @@ import (
 	"github.com/zalando/skipper/predicates/traffic"
 )
 
-// FEATURE:
-// - provide option to limit the used namespaces?
-
 const (
 	defaultKubernetesURL               = "http://localhost:8001"
 	ingressesClusterURI                = "/apis/extensions/v1beta1/ingresses"
 	ingressesNamespaceFmt              = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
 	ingressClassKey                    = "kubernetes.io/ingress.class"
 	defaultIngressClass                = "skipper"
+	defaultLoadbalancerAlgorithm       = "roundRobin"
 	ingressRouteIDPrefix               = "kube"
 	defaultEastWestDomainRegexpPostfix = "[.]skipper[.]cluster[.]local"
 	endpointsClusterURI                = "/api/v1/endpoints"
@@ -55,6 +53,7 @@ const (
 	skipperfilterAnnotationKey         = "zalando.org/skipper-filter"
 	skipperpredicateAnnotationKey      = "zalando.org/skipper-predicate"
 	skipperRoutesAnnotationKey         = "zalando.org/skipper-routes"
+	skipperLoadbalancerAnnotationKey   = "zalando.org/skipper-loadbalancer"
 	pathModeAnnotationKey              = "zalando.org/skipper-ingress-path-mode"
 )
 
@@ -177,29 +176,29 @@ type Options struct {
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
 	httpClient                  *http.Client
-	apiURL                      string
 	provideHealthcheck          bool
 	healthy                     bool
 	provideHTTPSRedirect        bool
-	httpsRedirectCode           int
-	token                       string
-	current                     map[string]*eskip.Route
 	termReceived                bool
-	sigs                        chan os.Signal
-	ingressClass                *regexp.Regexp
 	reverseSourcePredicate      bool
-	pathMode                    PathMode
-	quit                        chan struct{}
 	kubernetesEnableEastWest    bool
+	httpsRedirectCode           int
+	apiURL                      string
+	token                       string
 	eastWestDomainRegexpPostfix string
 	ingressesURI                string
 	servicesURI                 string
 	endpointsURI                string
+	current                     map[string]*eskip.Route
+	sigs                        chan os.Signal
+	ingressClass                *regexp.Regexp
+	pathMode                    PathMode
+	quit                        chan struct{}
 }
 
-var nonWord = regexp.MustCompile(`\W`)
-
 var (
+	nonWord = regexp.MustCompile(`\W`)
+
 	errServiceNotFound      = errors.New("service not found")
 	errEndpointNotFound     = errors.New("endpoint not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
@@ -448,7 +447,7 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	}
 
 	b := bytes.NewBuffer(nil)
-	if _, err := io.Copy(b, rsp.Body); err != nil {
+	if _, err = io.Copy(b, rsp.Body); err != nil {
 		log.Debugf("reading response body failed: %v", err)
 		return err
 	}
@@ -498,6 +497,15 @@ func routeIDForCustom(namespace, name, id, host string, index int) string {
 
 func patchRouteID(rid string) string {
 	return "kubeew" + rid[len(ingressRouteIDPrefix):]
+}
+
+func getLoadBalancerAlgorithm(m *metadata) string {
+	algorithm := defaultLoadbalancerAlgorithm
+	if algorithmAnnotationValue, ok := m.Annotations[skipperLoadbalancerAnnotationKey]; ok {
+		algorithm = algorithmAnnotationValue
+	}
+
+	return algorithm
 }
 
 // converts the default backend if any
@@ -573,7 +581,7 @@ func (c *Client) convertDefaultBackend(state *clusterState, i *ingressItem) (*es
 		Id:          routeID(ns, name, "", "", ""),
 		BackendType: eskip.LBBackend,
 		LBEndpoints: eps,
-		LBAlgorithm: "roundRobin",
+		LBAlgorithm: getLoadBalancerAlgorithm(i.Metadata),
 	}, true, nil
 }
 
@@ -597,10 +605,15 @@ func setPath(m PathMode, r *eskip.Route, p string) {
 
 func (c *Client) convertPathRule(
 	state *clusterState,
-	ns, name, host string,
+	metadata *metadata,
+	host string,
 	prule *pathRule,
 	pathMode PathMode,
 ) (*eskip.Route, error) {
+
+	ns := metadata.Namespace
+	name := metadata.Name
+
 	if prule.Backend == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
@@ -697,7 +710,7 @@ func (c *Client) convertPathRule(
 		Id:          routeID(ns, name, host, prule.Path, prule.Backend.ServiceName),
 		BackendType: eskip.LBBackend,
 		LBEndpoints: eps,
-		LBAlgorithm: "roundRobin",
+		LBAlgorithm: getLoadBalancerAlgorithm(metadata),
 		HostRegexps: hostRegexp,
 	}
 	setPath(pathMode, r, prule.Path)
@@ -815,7 +828,7 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 		}
 
 		// parse pathmode from annotation or fallback to global default
-		var pathMode PathMode = c.pathMode
+		pathMode := c.pathMode
 		if pathModeString, ok := i.Metadata.Annotations[pathModeAnnotationKey]; ok {
 			if p, err := ParsePathMode(pathModeString); err != nil {
 				log.Errorf("Failed to get path mode for ingress %s/%s: %v", i.Metadata.Namespace, i.Metadata.Name, err)
@@ -844,7 +857,12 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 				for extraIndex, r := range extraRoutes {
 					route := *r
 					route.HostRegexps = host
-					route.Id = routeIDForCustom(i.Metadata.Namespace, i.Metadata.Name, route.Id, rule.Host+strings.Replace(prule.Path, "/", "_", -1), extraIndex)
+					route.Id = routeIDForCustom(
+						i.Metadata.Namespace,
+						i.Metadata.Name,
+						route.Id,
+						rule.Host+strings.Replace(prule.Path, "/", "_", -1),
+						extraIndex)
 					setPath(pathMode, &route, prule.Path)
 					if i := countPathRoutes(&route); i <= 1 {
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
@@ -857,8 +875,7 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 				if prule.Backend.Traffic > 0 {
 					endpointsRoute, err := c.convertPathRule(
 						state,
-						i.Metadata.Namespace,
-						i.Metadata.Name,
+						i.Metadata,
 						rule.Host,
 						prule,
 						pathMode,

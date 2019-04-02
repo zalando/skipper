@@ -47,6 +47,7 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 			"",
 			"",
 			"",
+			"",
 			backendPort{"port1"},
 			1.0,
 			testRule(

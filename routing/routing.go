@@ -145,7 +145,23 @@ type LBEndpoint struct {
 // LBAlgorithm implementations apply a load balancing algorithm
 // over the possible endpoints of a load balanced route.
 type LBAlgorithm interface {
-	Apply([]LBEndpoint) LBEndpoint
+	Apply(*LBContext) LBEndpoint
+}
+
+// LBContext is used to pass data to the load balancer to decide based
+// on that data which endpoint to call from the backends
+type LBContext struct {
+	Request *http.Request
+	Route   *Route
+}
+
+// NewLBContext is used to create a new LBContext, to pass data to the
+// load balancer algorithms.
+func NewLBContext(r *http.Request, rt *Route) *LBContext {
+	return &LBContext{
+		Request: r,
+		Route:   rt,
+	}
 }
 
 // Route object with preprocessed filter instances.

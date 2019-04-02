@@ -74,6 +74,58 @@ func TestSelectAlgorithm(t *testing.T) {
 		}
 	})
 
+	t.Run("LB route with explicit consistentHash algorithm", func(t *testing.T) {
+		p := NewAlgorithmProvider()
+		r := &routing.Route{
+			Route: eskip.Route{
+				BackendType: eskip.LBBackend,
+				LBAlgorithm: "consistentHash",
+				LBEndpoints: []string{"https://www.example.org"},
+			},
+		}
+
+		rr := p.Do([]*routing.Route{r})
+		if len(rr) != 1 {
+			t.Fatal("failed to process LB route")
+		}
+
+		if len(rr[0].LBEndpoints) != 1 ||
+			rr[0].LBEndpoints[0].Scheme != "https" ||
+			rr[0].LBEndpoints[0].Host != "www.example.org" {
+			t.Fatal("failed to set the endpoints")
+		}
+
+		if _, ok := rr[0].LBAlgorithm.(*consistentHash); !ok {
+			t.Fatal("failed to set the right algorithm")
+		}
+	})
+
+	t.Run("LB route with explicit random algorithm", func(t *testing.T) {
+		p := NewAlgorithmProvider()
+		r := &routing.Route{
+			Route: eskip.Route{
+				BackendType: eskip.LBBackend,
+				LBAlgorithm: "random",
+				LBEndpoints: []string{"https://www.example.org"},
+			},
+		}
+
+		rr := p.Do([]*routing.Route{r})
+		if len(rr) != 1 {
+			t.Fatal("failed to process LB route")
+		}
+
+		if len(rr[0].LBEndpoints) != 1 ||
+			rr[0].LBEndpoints[0].Scheme != "https" ||
+			rr[0].LBEndpoints[0].Host != "www.example.org" {
+			t.Fatal("failed to set the endpoints")
+		}
+
+		if _, ok := rr[0].LBAlgorithm.(*random); !ok {
+			t.Fatal("failed to set the right algorithm")
+		}
+	})
+
 	t.Run("LB route with invalid algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
 		r := &routing.Route{
