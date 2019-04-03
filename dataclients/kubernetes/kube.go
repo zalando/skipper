@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -90,6 +91,8 @@ const (
 	pathRegexpString            = "path-regexp"
 	pathPrefixString            = "path-prefix"
 )
+
+const maxFileSize = 1024 * 1024 // 1MB
 
 var internalIPs = []interface{}{
 	"10.0.0.0/8",
@@ -171,6 +174,10 @@ type Options struct {
 
 	// KubernetesEastWestDomain sets the DNS domain to be used for east west traffic, defaults to "skipper.cluster.local"
 	KubernetesEastWestDomain string
+
+	// DefaultFiltersDir enables default filters mechanism and sets the location of the default filters.
+	// The provided filters are then applied to all routes.
+	DefaultFiltersDir string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -194,6 +201,7 @@ type Client struct {
 	ingressClass                *regexp.Regexp
 	pathMode                    PathMode
 	quit                        chan struct{}
+	defaultFiltersDir           string
 }
 
 var (
@@ -288,6 +296,7 @@ func New(o Options) (*Client, error) {
 		ingressesURI:                ingressesClusterURI,
 		servicesURI:                 servicesClusterURI,
 		endpointsURI:                endpointsClusterURI,
+		defaultFiltersDir:           o.DefaultFiltersDir,
 	}
 	if o.KubernetesNamespace != "" {
 		result.setNamespace(o.KubernetesNamespace)
@@ -767,7 +776,7 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 // valid ones.  Reporting failures in Ingress status is not possible,
 // because Ingress status field is v1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
-func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
+func (c *Client) ingressToRoutes(state *clusterState, defaultFilters map[resourceId]string) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(state.ingresses))
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(c.provideHTTPSRedirect, c.httpsRedirectCode)
@@ -801,6 +810,7 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 			}
 			annotationFilter += val
 		}
+
 		// parse predicate annotation
 		var annotationPredicate string
 		if val, ok := i.Metadata.Annotations[skipperpredicateAnnotationKey]; ok {
@@ -898,6 +908,16 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 						}
 					}
 
+					// add pre-configured default filters
+					if defFilter, ok := defaultFiltersOf(prule.Backend.ServiceName, i.Metadata.Namespace, defaultFilters); ok {
+						defaultFilters, err := eskip.ParseFilters(defFilter)
+						if err != nil {
+							logger.Errorf("Can not parse default filters: %v", err)
+						} else {
+							endpointsRoute.Filters = append(defaultFilters, endpointsRoute.Filters...)
+						}
+					}
+
 					err = applyAnnotationPredicates(pathMode, endpointsRoute, annotationPredicate)
 					if err != nil {
 						logger.Errorf("failed to apply annotation predicates: %v", err)
@@ -972,6 +992,13 @@ func (c *Client) ingressToRoutes(state *clusterState) ([]*eskip.Route, error) {
 	}
 
 	return routes, nil
+}
+
+func defaultFiltersOf(service string, namespace string, defaultFilters map[resourceId]string) (string, bool) {
+	if filters, ok := defaultFilters[resourceId{name: service, namespace: namespace}]; ok {
+		return filters, true
+	}
+	return "", false
 }
 
 func createEastWestRoute(eastWestDomainRegexpPostfix, name, ns string, r *eskip.Route) *eskip.Route {
@@ -1224,7 +1251,10 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
-	r, err := c.ingressToRoutes(state)
+	defaultFilters := c.fetchDefaultFilterConfigs()
+	log.Debugf("got default filter configurations for %d services", len(defaultFilters))
+
+	r, err := c.ingressToRoutes(state, defaultFilters)
 	if err != nil {
 		log.Debugf("converting ingresses to routes failed: %v", err)
 		return nil, err
@@ -1355,4 +1385,54 @@ func (c *Client) Close() {
 	if c != nil && c.quit != nil {
 		close(c.quit)
 	}
+}
+
+func (c *Client) fetchDefaultFilterConfigs() map[resourceId]string {
+	if c.defaultFiltersDir == "" {
+		log.Debug("default filters are disabled")
+		return make(map[resourceId]string)
+	}
+
+	filters, err := c.getDefaultFilterConfigurations()
+
+	if err != nil {
+		log.WithError(err).Error("could not fetch default filter configurations")
+		return make(map[resourceId]string)
+	}
+
+	log.WithField("#configs", len(filters)).Debug("default filter configurations loaded")
+
+	return filters
+}
+
+func (c *Client) getDefaultFilterConfigurations() (map[resourceId]string, error) {
+	files, err := ioutil.ReadDir(c.defaultFiltersDir)
+	if err != nil {
+		return nil, err
+	}
+
+	filters := make(map[resourceId]string)
+	for _, f := range files {
+		r := strings.Split(f.Name(), ".") // format: {service}.{namespace}
+		if len(r) != 2 || notRegularFile(f) || f.Size() > maxFileSize {
+			log.WithError(err).WithField("file", f.Name()).Debug("incompatible file")
+			continue
+		}
+
+		file := filepath.Join(c.defaultFiltersDir, f.Name())
+		config, err := ioutil.ReadFile(file)
+		if err != nil {
+			log.WithError(err).WithField("file", file).Debug("could not read file")
+			continue
+		}
+
+		filters[resourceId{name: r[0], namespace: r[1]}] = string(config)
+	}
+
+	return filters, nil
+}
+
+func notRegularFile(f os.FileInfo) bool {
+	mode := f.Mode()
+	return f.IsDir() || mode == os.ModeIrregular || mode == os.ModeDevice || mode == os.ModeNamedPipe || mode == os.ModeSocket
 }

@@ -175,6 +175,9 @@ const (
 	apiUsageMonitoringDefaultClientTrackingPatternUsage = "*Deprecated*: set `client_tracking_pattern` directly on filter"
 	apiUsageMonitoringRealmsTrackingPatternUsage        = "regular expression used for matching monitored realms (defaults is 'services')"
 
+	// Default filters
+	defaultFiltersDirUsage = "path to directory which contains default filter configurations per service and namespace (disabled if not set)"
+
 	// connections, timeouts:
 	waitForHealthcheckIntervalUsage   = "period waiting to become unhealthy in the loadbalancer pool in front of this instance, before shutdown triggered by SIGINT or SIGTERM"
 	idleConnsPerHostUsage             = "maximum idle connections per backend host"
@@ -307,6 +310,9 @@ var (
 	kubernetesNamespace         string
 	kubernetesEnableEastWest    bool
 	kubernetesEastWestDomain    string
+
+	// Default filters
+	defaultFiltersDir string
 
 	// Auth:
 	oauthURL                        string
@@ -475,6 +481,9 @@ func init() {
 	flag.StringVar(&apiUsageMonitoringClientKeys, "api-usage-monitoring-client-keys", defaultApiUsageMonitoringClientKeys, apiUsageMonitoringClientKeysUsage)
 	flag.StringVar(&apiUsageMonitoringDefaultClientTrackingPattern, "api-usage-monitoring-default-client-tracking-pattern", defaultApiUsageMonitoringDefaultClientTrackingPattern, apiUsageMonitoringDefaultClientTrackingPatternUsage)
 	flag.StringVar(&apiUsageMonitoringRealmsTrackingPattern, "api-usage-monitoring-realms-tracking-pattern", defaultApiUsageMonitoringRealmsTrackingPattern, apiUsageMonitoringRealmsTrackingPatternUsage)
+
+	// Default filters:
+	flag.StringVar(&defaultFiltersDir, "default-filters-dir", "", defaultFiltersDirUsage)
 
 	// connections, timeouts:
 	flag.DurationVar(&waitForHealthcheckInterval, "wait-for-healthcheck-interval", defaultWaitForHealthcheckInterval, waitForHealthcheckIntervalUsage)
@@ -674,6 +683,9 @@ func main() {
 		ApiUsageMonitoringClientKeys:                   apiUsageMonitoringClientKeys,
 		ApiUsageMonitoringDefaultClientTrackingPattern: apiUsageMonitoringDefaultClientTrackingPattern,
 		ApiUsageMonitoringRealmsTrackingPattern:        apiUsageMonitoringRealmsTrackingPattern,
+
+		// Default filters:
+		DefaultFiltersDir: defaultFiltersDir,
 
 		// Auth:
 		OAuthUrl:                       oauthURL,
