@@ -1434,6 +1434,5 @@ func (c *Client) getDefaultFilterConfigurations() (map[resourceId]string, error)
 
 func notRegularFile(f os.FileInfo) bool {
 	mode := f.Mode()
-	return f.IsDir() || mode == os.ModeIrregular || mode == os.ModeSymlink || mode == os.ModeDevice ||
-		mode == os.ModeNamedPipe || mode == os.ModeSocket
+	return f.IsDir() || mode == os.ModeIrregular || mode == os.ModeDevice || mode == os.ModeNamedPipe || mode == os.ModeSocket
 }
