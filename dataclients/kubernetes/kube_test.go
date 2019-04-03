@@ -3660,8 +3660,14 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		r, err := dc.LoadAll()
 
-		assert.Nil(t, err)
-		assert.Equal(t, 12, len(r))
+		if err != nil {
+			t.Error("should not return an error", err)
+			return
+		}
+		if len(r) != 12 {
+			t.Error("number of routes is incorrect", len(r))
+			return
+		}
 	})
 
 	t.Run("check default filters are applied to the route", func(t *testing.T) {
@@ -3691,11 +3697,15 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		r, err := dc.LoadAll()
 
-		assert.Nil(t, err)
-		assert.NotNil(t, r)
-		assert.Equal(t, 2, len(r))
-		assert.Equal(t, 1, len(r[1].Filters))
-		assert.Equal(t, "consecutiveBreaker", r[1].Filters[0].Name)
+		if err != nil || r == nil {
+			t.Error("should not fail", err, r)
+			return
+		}
+
+		if len(r) != 2 && len(r[1].Filters) != 1 && r[1].Filters[0].Name != "consecutiveBreaker" {
+			t.Error("should contain default filter", r[1].Filters)
+			return
+		}
 	})
 
 	t.Run("check default filters are prepended to the ingress filters", func(t *testing.T) {
@@ -3726,12 +3736,14 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		r, err := dc.LoadAll()
 
-		assert.Nil(t, err)
-		assert.NotNil(t, r)
-		assert.Equal(t, 2, len(r))
-		assert.Equal(t, 2, len(r[1].Filters))
-		assert.Equal(t, "consecutiveBreaker", r[1].Filters[0].Name)
-		assert.Equal(t, "localRatelimit", r[1].Filters[1].Name)
+		if err != nil || r == nil {
+			t.Error("should not fail", err, r)
+			return
+		}
+		if len(r) != 2 || len(r[1].Filters) != 2 || r[1].Filters[0].Name != "consecutiveBreaker" || r[1].Filters[1].Name != "localRatelimit" {
+			t.Error("should prepend the default filter to the ingress filters")
+			return
+		}
 	})
 
 	t.Run("check getDefaultFilterConfigurations ignores files names not following the pattern, directories and huge files", func(t *testing.T) {
@@ -3764,8 +3776,10 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		df, err := dc.getDefaultFilterConfigurations()
 
-		assert.Nil(t, err)
-		assert.Equal(t, 0, len(df))
+		if err != nil || len(df) != 0 {
+			t.Error("should return empty slice", err, df)
+			return
+		}
 	})
 
 	t.Run("check fetchDefaultFilterConfigs returns empty map if fails to get the config map", func(t *testing.T) {
@@ -3780,7 +3794,9 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		f := dc.fetchDefaultFilterConfigs()
 
-		assert.NotNil(t, f)
-		assert.Equal(t, 0, len(f))
+		if f == nil || len(f) != 0 {
+			t.Error("should return empty map", f)
+			return
+		}
 	})
 }

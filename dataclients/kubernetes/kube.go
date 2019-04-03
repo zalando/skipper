@@ -92,6 +92,8 @@ const (
 	pathPrefixString            = "path-prefix"
 )
 
+const maxFileSize = 1024 * 1024 // 1MB
+
 var internalIPs = []interface{}{
 	"10.0.0.0/8",
 	"192.168.0.0/16",
@@ -173,7 +175,8 @@ type Options struct {
 	// KubernetesEastWestDomain sets the DNS domain to be used for east west traffic, defaults to "skipper.cluster.local"
 	KubernetesEastWestDomain string
 
-	// DefaultFiltersDir enables default filters mechanism and sets the location of the default filters
+	// DefaultFiltersDir enables default filters mechanism and sets the location of the default filters.
+	// The provided filters are then applied to all routes.
 	DefaultFiltersDir string
 }
 
@@ -1402,8 +1405,6 @@ func (c *Client) fetchDefaultFilterConfigs() map[resourceId]string {
 	return filters
 }
 
-const maxFileSize = 1024 * 1024 // 1MB
-
 func (c *Client) getDefaultFilterConfigurations() (map[resourceId]string, error) {
 	files, err := ioutil.ReadDir(c.defaultFiltersDir)
 	if err != nil {
@@ -1413,7 +1414,7 @@ func (c *Client) getDefaultFilterConfigurations() (map[resourceId]string, error)
 	filters := make(map[resourceId]string)
 	for _, f := range files {
 		r := strings.Split(f.Name(), ".") // format: {service}.{namespace}
-		if len(r) != 2 || f.IsDir() || f.Size() > maxFileSize {
+		if len(r) != 2 || notRegularFile(f) || f.Size() > maxFileSize {
 			log.WithError(err).WithField("file", f.Name()).Debug("incompatible file")
 			continue
 		}
@@ -1429,4 +1430,10 @@ func (c *Client) getDefaultFilterConfigurations() (map[resourceId]string, error)
 	}
 
 	return filters, nil
+}
+
+func notRegularFile(f os.FileInfo) bool {
+	mode := f.Mode()
+	return f.IsDir() || mode == os.ModeIrregular || mode == os.ModeSymlink || mode == os.ModeDevice ||
+		mode == os.ModeNamedPipe || mode == os.ModeSocket
 }
