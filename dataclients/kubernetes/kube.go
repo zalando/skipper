@@ -550,14 +550,14 @@ func (c *Client) convertDefaultBackend(state *clusterState, i *ingressItem) (*es
 		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
 	} else {
 		// TODO(aryszka): check docs that service name is always good for requesting the endpoints
-		log.Infof("Found target port %v, for service %s", targetPort, svcName)
+		log.Debugf("Found target port %v, for service %s", targetPort, svcName)
 		eps, err = state.getEndpoints(
 			ns,
 			svcName,
 			svcPort.String(),
 			targetPort,
 		)
-		log.Infof("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
+		log.Debugf("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}
 	if len(eps) == 0 || err == errEndpointNotFound {
 		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
@@ -682,7 +682,7 @@ func (c *Client) convertPathRule(
 				Name: traffic.PredicateName,
 				Args: []interface{}{prule.Backend.Traffic},
 			}}, r.Predicates...)
-			log.Infof("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
 		}
 		return r, nil
 
@@ -843,7 +843,7 @@ func (c *Client) ingressToRoutes(state *clusterState, defaultFilters map[resourc
 			if p, err := ParsePathMode(pathModeString); err != nil {
 				log.Errorf("Failed to get path mode for ingress %s/%s: %v", i.Metadata.Namespace, i.Metadata.Name, err)
 			} else {
-				log.Infof("Set pathMode to %s", p)
+				log.Debugf("Set pathMode to %s", p)
 				pathMode = p
 			}
 		}
@@ -874,11 +874,11 @@ func (c *Client) ingressToRoutes(state *clusterState, defaultFilters map[resourc
 						rule.Host+strings.Replace(prule.Path, "/", "_", -1),
 						extraIndex)
 					setPath(pathMode, &route, prule.Path)
-					if i := countPathRoutes(&route); i <= 1 {
+					if n := countPathRoutes(&route); n <= 1 {
 						hostRoutes[rule.Host] = append(hostRoutes[rule.Host], &route)
 						redirect.updateHost(rule.Host)
 					} else {
-						log.Errorf("Failed to add route having %d path routes: %v", i, r)
+						log.Errorf("Failed to add route having %d path routes: %v", n, r)
 					}
 				}
 
@@ -1008,15 +1008,19 @@ func createEastWestRoute(eastWestDomainRegexpPostfix, name, ns string, r *eskip.
 	ewR := *r
 	ewR.HostRegexps = []string{"^" + name + "[.]" + ns + eastWestDomainRegexpPostfix + "$"}
 	ewR.Id = patchRouteID(r.Id)
-	log.Infof("*** ewR: %s: %s", ewR.Id, ewR.String())
 	return &ewR
 }
 
 func createEastWestRoutes(eastWestDomainRegexpPostfix, name, ns string, routes []*eskip.Route) []*eskip.Route {
-	var ewroutes []*eskip.Route = make([]*eskip.Route, 0, len(routes))
+	ewroutes := make([]*eskip.Route, 0)
 	newHostRegexps := []string{"^" + name + "[.]" + ns + eastWestDomainRegexpPostfix + "$"}
+	ingressAlreadyHandled := false
+
 	for _, r := range routes {
-		if strings.HasPrefix(r.Id, "kubeew") {
+		// TODO(sszuecs) we have to rethink how to handle eastwest routes in more complex cases
+		n := countPathRoutes(r)
+		// FIX memory leak in route creation
+		if strings.HasPrefix(r.Id, "kubeew") || (n == 0 && ingressAlreadyHandled) {
 			continue
 		}
 		r.Namespace = ns // store namespace
@@ -1025,6 +1029,7 @@ func createEastWestRoutes(eastWestDomainRegexpPostfix, name, ns string, routes [
 		ewR.HostRegexps = newHostRegexps
 		ewR.Id = patchRouteID(r.Id)
 		ewroutes = append(ewroutes, &ewR)
+		ingressAlreadyHandled = true
 	}
 	return ewroutes
 }
@@ -1364,7 +1369,9 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		}
 	}
 
-	log.Debugf("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
+	if len(updatedRoutes) > 0 || len(deletedIDs) > 0 {
+		log.Infof("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
+	}
 
 	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
