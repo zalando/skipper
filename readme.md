@@ -76,6 +76,8 @@ Optionally, verify the file's syntax:
 
     eskip check example.eskip
 
+If no errors are detected nothing is logged, else a descriptive error is logged.
+
 Start Skipper and make an HTTP request:
 
     skipper -routes-file example.eskip &
