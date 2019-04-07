@@ -67,6 +67,24 @@ Project maintainers who do not follow or enforce the Code of Conduct in good
 faith may face temporary or permanent repercussions as determined by other
 members of the project's leadership.
 
+## Roles
+
+The following roles are defined in the project:
+
+* maintainer
+* contributor
+
+### Maintainer
+
+Maintainers are listed in
+[MAINTAINERS](https://github.com/zalando/skipper/blob/master/MAINTAINERS)
+and are responsible for the healthiness of the project as stated in
+the sections above.
+
+### Contributor
+
+Everyone who interacts with the project is a contributor.
+
 ## Attribution
 
 This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 1.4,
