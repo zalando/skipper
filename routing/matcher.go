@@ -235,7 +235,11 @@ func addSubtreeMatcher(pathTree *pathmux.Tree, path string, m *pathMatcher) erro
 		}
 	}
 
-	return pathTree.Add(pathSubtree, m)
+	subtree, _ := pathTree.Lookup(pathSubtree)
+	if subtree == nil {
+		return pathTree.Add(pathSubtree, m)
+	}
+	return nil
 }
 
 // add each path matcher to the path tree. If a matcher is a subtree, add it with the
