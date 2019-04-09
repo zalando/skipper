@@ -2,6 +2,9 @@ sudo: false
 
 language: go
 
+# see https://github.com/golang/go/issues/31293
+dist: xenial
+
 go:
   - 1.12.x
 
