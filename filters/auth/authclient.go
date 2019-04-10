@@ -125,8 +125,11 @@ func jsonGet(
 	if err != nil {
 		return err
 	}
-	req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
-
+	
+	if len(accessToken > 0) {
+		req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
+	}
+	
 	span := injectSpan(tracer, parentSpan, childSpanName, req)
 	if span != nil {
 		defer span.Finish()
