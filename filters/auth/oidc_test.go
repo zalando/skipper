@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper/filters"
 )
 
 const (
@@ -136,4 +138,91 @@ func TestExtractDomainFromHost(t *testing.T) {
 			assert.Equal(t, ht.expected, got)
 		})
 	}
+}
+
+func TestNewOidc(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args string
+		f    func(string) filters.Spec
+		want *tokenOidcSpec
+	}{
+		{
+			name: "test UserInfo",
+			args: "/foo",
+			f:    NewOAuthOidcUserInfos,
+			want: &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: "/foo"},
+		},
+		{
+			name: "test AnyClaims",
+			args: "/foo",
+			f:    NewOAuthOidcAnyClaims,
+			want: &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo"},
+		},
+		{
+			name: "test AllClaims",
+			args: "/foo",
+			f:    NewOAuthOidcAllClaims,
+			want: &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.f(tt.args); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Failed to create object: Want %v, got %v", tt.want, got)
+			}
+		})
+	}
+
+}
+
+func TestCreateFilter(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		args    []interface{}
+		want    filters.Filter
+		wantErr bool
+	}{
+		{
+			name:    "test no args",
+			args:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "test wrong number of args",
+			args:    []interface{}{"s"},
+			wantErr: true,
+		},
+		{
+			name:    "test wrong number of args",
+			args:    []interface{}{"s", "d"},
+			wantErr: true,
+		},
+		{
+			name:    "test wrong number of args",
+			args:    []interface{}{"s", "d", "a"},
+			wantErr: true,
+		},
+		{
+			name:    "test wrong args",
+			args:    []interface{}{"s", "d", "a", "f"},
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo"}
+
+			got, err := spec.CreateFilter(tt.args)
+			if tt.wantErr && err == nil {
+				t.Errorf("Failed to get error but wanted, got: %v", got)
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("Failed to get no error: %v", err)
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Failed to create filter: Want %v, got %v", tt.want, got)
+			}
+		})
+	}
+
 }

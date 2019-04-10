@@ -5,13 +5,14 @@ import (
 	"crypto/cipher"
 	crand "crypto/rand"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/scrypt"
 	"io"
 	"io/ioutil"
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/scrypt"
 )
 
 //secretSource operates on the secret for OpenID
