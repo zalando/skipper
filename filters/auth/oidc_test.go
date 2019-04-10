@@ -207,19 +207,6 @@ func TestCreateFilter(t *testing.T) {
 			args:    []interface{}{"s", "d", "a", "f"},
 			wantErr: true,
 		},
-		// cert error for provider
-		// {
-		// 	name: "test valid args",
-		// 	args: []interface{}{
-		// 		"https://accounts.identity-provider.com",
-		// 		"some-client-id",
-		// 		"some-client-secret",
-		// 		"http://callback.com/auth/provider/callback",
-		// 		"scope1 scope2",
-		// 		"claim1 claim2",
-		// 	},
-		// 	wantErr: false,
-		// },
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo"}
