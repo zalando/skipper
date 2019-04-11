@@ -167,7 +167,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	if err != nil {
 		return nil, err
 	}
-	if len(sargs) < 2 {
+	if len(sargs) < 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
