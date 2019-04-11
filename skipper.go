@@ -503,11 +503,10 @@ type Options struct {
 	OIDCSecretsFile string
 
 	// API Monitoring feature is active (feature toggle)
-	ApiUsageMonitoringEnable                       bool
-	ApiUsageMonitoringRealmKeys                    string
-	ApiUsageMonitoringClientKeys                   string
-	ApiUsageMonitoringDefaultClientTrackingPattern string
-	ApiUsageMonitoringRealmsTrackingPattern        string
+	ApiUsageMonitoringEnable                bool
+	ApiUsageMonitoringRealmKeys             string
+	ApiUsageMonitoringClientKeys            string
+	ApiUsageMonitoringRealmsTrackingPattern string
 
 	// Default filters directory enables default filters mechanism and sets the directory where the filters are located
 	DefaultFiltersDir string
