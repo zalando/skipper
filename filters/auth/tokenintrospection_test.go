@@ -321,8 +321,8 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 			var spec filters.Spec
 			args := []interface{}{
 				"http://" + issuerServer.Listener.Addr().String(),
-                "",
-                "",
+				"",
+				"",
 			}
 
 			switch ti.authType {
