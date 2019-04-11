@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -42,9 +43,9 @@ func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
 	return &authClient{url: u, client: client, quit: quit}, nil
 }
 
-func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext) (tokenIntrospectionInfo, error) {
+func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext, clientId string, clientSecret string) (tokenIntrospectionInfo, error) {
 	info := make(tokenIntrospectionInfo)
-	err := jsonPost(ac.url, token, &info, ac.client, ctx.Tracer(), ctx.ParentSpan(), tokenIntrospectionSpan)
+	err := jsonPost(ac.url, token, clientId, clientSecret, &info, ac.client, ctx.Tracer(), ctx.ParentSpan(), tokenIntrospectionSpan)
 	if err != nil {
 		return nil, err
 	}
@@ -125,11 +126,11 @@ func jsonGet(
 	if err != nil {
 		return err
 	}
-	
-	if len(accessToken > 0) {
+
+	if accessToken != "" {
 		req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
 	}
-	
+
 	span := injectSpan(tracer, parentSpan, childSpanName, req)
 	if span != nil {
 		defer span.Finish()
@@ -162,6 +163,8 @@ func injectSpan(tracer opentracing.Tracer, parentSpan opentracing.Span, childSpa
 func jsonPost(
 	u *url.URL,
 	auth string,
+	clientId string,
+	clientSecret string,
 	doc *tokenIntrospectionInfo,
 	client *http.Client,
 	tracer opentracing.Tracer,
@@ -173,6 +176,11 @@ func jsonPost(
 	req, err := http.NewRequest("POST", u.String(), strings.NewReader(body.Encode()))
 	if err != nil {
 		return err
+	}
+
+	if clientId != "" && clientSecret != "" {
+		authorization := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", clientId, clientSecret)))
+		req.Header.Add("Authorization", fmt.Sprintf("Basic %s", authorization))
 	}
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")

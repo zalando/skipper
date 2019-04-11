@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -30,10 +31,12 @@ type (
 	tokenIntrospectionInfo map[string]interface{}
 
 	tokenintrospectFilter struct {
-		typ        roleCheckType
-		authClient *authClient
-		claims     []string
-		kv         kv
+		typ          roleCheckType
+		authClient   *authClient
+		claims       []string
+		kv           kv
+		clientId     string
+		clientSecret string
 	}
 
 	openIDConfig struct {
@@ -169,7 +172,9 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	}
 
 	issuerURL := sargs[0]
-	sargs = sargs[1:]
+	clientId := sargs[1]
+	clientSecret := sargs[2]
+	sargs = sargs[3:]
 	cfg, err := getOpenIDConfig(issuerURL)
 	if err != nil {
 		return nil, err
@@ -185,10 +190,20 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 		issuerAuthClient[issuerURL] = ac
 	}
 
+	if clientId == "" {
+		clientId, _ = os.LookupEnv("OAUTH_CLIENT_ID")
+	}
+
+	if clientSecret == "" {
+		clientSecret, _ = os.LookupEnv("OAUTH_CLIENT_SECRET")
+	}
+
 	f := &tokenintrospectFilter{
-		typ:        s.typ,
-		authClient: ac,
-		kv:         make(map[string]string),
+		typ:          s.typ,
+		authClient:   ac,
+		kv:           make(map[string]string),
+		clientId:     clientId,
+		clientSecret: clientSecret,
 	}
 	switch f.typ {
 	case checkOAuthTokenintrospectionAllClaims:
@@ -293,7 +308,7 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 
-		info, err = f.authClient.getTokenintrospect(token, ctx)
+		info, err = f.authClient.getTokenintrospect(token, ctx, f.clientId, f.clientSecret)
 		if err != nil {
 			reason := authServiceAccess
 			if err == errInvalidToken {
