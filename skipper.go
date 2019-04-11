@@ -27,6 +27,7 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/innkeeper"
+	"github.com/zalando/skipper/lifo"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -41,7 +42,6 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
-	"github.com/zalando/skipper/lifo"
 )
 
 const (

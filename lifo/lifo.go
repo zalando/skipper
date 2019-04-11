@@ -16,7 +16,7 @@ type Config struct {
 }
 
 type Stack struct {
-	stack *jobstack.Stack
+	stack  *jobstack.Stack
 	config Config
 }
 

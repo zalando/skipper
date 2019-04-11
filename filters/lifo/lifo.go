@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/lifo"
-	log "github.com/sirupsen/logrus"
 )
 
 // TODO: must be documented that it cannot be used together with the legacy shunting, meaning
@@ -28,7 +28,7 @@ type lifoGroupFilter struct {
 }
 
 const (
-	lifoKey = "lifo-done"
+	lifoKey      = "lifo-done"
 	lifoGroupKey = "lifo-group-done"
 )
 
