@@ -41,6 +41,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/lifo"
 )
 
 const (
@@ -878,6 +879,7 @@ func Run(o Options) error {
 		PostProcessors: []routing.PostProcessor{
 			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
 			loadbalancer.NewAlgorithmProvider(),
+			lifo.NewRegistry(lifo.Config{}, nil),
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
