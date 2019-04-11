@@ -72,10 +72,11 @@ const (
 	defaultWebhookTimeout                 = 2 * time.Second
 
 	// API Monitoring
-	defaultApiUsageMonitoringEnable                = false
-	defaultApiUsageMonitoringRealmKeys             = ""
-	defaultApiUsageMonitoringClientKeys            = "sub"
-	defaultApiUsageMonitoringRealmsTrackingPattern = "services"
+	defaultApiUsageMonitoringEnable                       = false
+	defaultApiUsageMonitoringRealmKeys                    = ""
+	defaultApiUsageMonitoringClientKeys                   = "sub"
+	defaultApiUsageMonitoringDefaultClientTrackingPattern = ""
+	defaultApiUsageMonitoringRealmsTrackingPattern        = "services"
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
@@ -168,10 +169,11 @@ const (
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 
 	// API Monitoring:
-	apiUsageMonitoringEnableUsage                = "enables the apiUsageMonitoring filter"
-	apiUsageMonitoringRealmKeysUsage             = "name of the property in the JWT payload that contains the authority realm"
-	apiUsageMonitoringClientKeysUsage            = "comma separated list of names of the properties in the JWT body that contains the client ID"
-	apiUsageMonitoringRealmsTrackingPatternUsage = "regular expression used for matching monitored realms (defaults is 'services')"
+	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
+	apiUsageMonitoringRealmKeysUsage                    = "name of the property in the JWT payload that contains the authority realm"
+	apiUsageMonitoringClientKeysUsage                   = "comma separated list of names of the properties in the JWT body that contains the client ID"
+	apiUsageMonitoringDefaultClientTrackingPatternUsage = "*Deprecated*: set `client_tracking_pattern` directly on filter"
+	apiUsageMonitoringRealmsTrackingPatternUsage        = "regular expression used for matching monitored realms (defaults is 'services')"
 
 	// Default filters
 	defaultFiltersDirUsage = "path to directory which contains default filter configurations per service and namespace (disabled if not set)"
@@ -323,10 +325,11 @@ var (
 	oidcSecretsFile                 string
 
 	// API Monitoring
-	apiUsageMonitoringEnable                bool
-	apiUsageMonitoringRealmKeys             string
-	apiUsageMonitoringClientKeys            string
-	apiUsageMonitoringRealmsTrackingPattern string
+	apiUsageMonitoringEnable                       bool
+	apiUsageMonitoringRealmKeys                    string
+	apiUsageMonitoringClientKeys                   string
+	apiUsageMonitoringDefaultClientTrackingPattern string
+	apiUsageMonitoringRealmsTrackingPattern        string
 
 	// connections, timeouts:
 	waitForHealthcheckInterval   time.Duration
@@ -476,6 +479,7 @@ func init() {
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
 	flag.StringVar(&apiUsageMonitoringRealmKeys, "api-usage-monitoring-realm-keys", defaultApiUsageMonitoringRealmKeys, apiUsageMonitoringRealmKeysUsage)
 	flag.StringVar(&apiUsageMonitoringClientKeys, "api-usage-monitoring-client-keys", defaultApiUsageMonitoringClientKeys, apiUsageMonitoringClientKeysUsage)
+	flag.StringVar(&apiUsageMonitoringDefaultClientTrackingPattern, "api-usage-monitoring-default-client-tracking-pattern", defaultApiUsageMonitoringDefaultClientTrackingPattern, apiUsageMonitoringDefaultClientTrackingPatternUsage)
 	flag.StringVar(&apiUsageMonitoringRealmsTrackingPattern, "api-usage-monitoring-realms-tracking-pattern", defaultApiUsageMonitoringRealmsTrackingPattern, apiUsageMonitoringRealmsTrackingPatternUsage)
 
 	// Default filters:
@@ -585,6 +589,10 @@ func main() {
 	defaultFilters := &eskip.DefaultFilters{
 		Prepend: prependFilters.Get(),
 		Append:  appendFilters.Get(),
+	}
+
+	if apiUsageMonitoringDefaultClientTrackingPattern != defaultApiUsageMonitoringDefaultClientTrackingPattern {
+		log.Warn(`"api-usage-monitoring-default-client-tracking-pattern" parameter is deprecated`)
 	}
 
 	options := skipper.Options{
