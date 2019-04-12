@@ -352,11 +352,12 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 
 // copies a stream with flushing on every successful read operation
 // (similar to io.Copy but with flushing)
-func copyStream(to flusherWriter, from io.Reader) error {
+func copyStream(to flusherWriter, from io.Reader, span ot.Span) error {
 	b := make([]byte, proxyBufferSize)
 
 	for {
 		l, rerr := from.Read(b)
+		span.LogKV("streamBody.byte", fmt.Sprintf("%d", l))
 		if rerr != nil && rerr != io.EOF {
 			return rerr
 		}
@@ -1031,17 +1032,20 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 
 	start := time.Now()
+	ctx.proxySpan.LogKV("stream_Headers", "start")
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
+	ctx.proxySpan.LogKV("stream_Headers", "done")
 
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
 		// see https://github.com/zalando/skipper/pull/864
 		p.log.Infof("Client request: %v", err)
 		ctx.response.StatusCode = 499
+		ctx.proxySpan.SetTag("client.request", "canceled")
 	}
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
-	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body)
+	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body, ctx.proxySpan)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		p.log.Error("error while copying the response stream", err)
