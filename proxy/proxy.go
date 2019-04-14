@@ -357,7 +357,9 @@ func copyStream(to flusherWriter, from io.Reader, span ot.Span) error {
 
 	for {
 		l, rerr := from.Read(b)
-		span.LogKV("streamBody.byte", fmt.Sprintf("%d", l))
+		if span != nil {
+			span.LogKV("streamBody.byte", fmt.Sprintf("%d", l))
+		}
 		if rerr != nil && rerr != io.EOF {
 			return rerr
 		}
@@ -1032,16 +1034,22 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 
 	start := time.Now()
-	ctx.proxySpan.LogKV("stream_Headers", "start")
+	if ctx.proxySpan != nil {
+		ctx.proxySpan.LogKV("stream_Headers", "start")
+	}
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
-	ctx.proxySpan.LogKV("stream_Headers", "done")
+	if ctx.proxySpan != nil {
+		ctx.proxySpan.LogKV("stream_Headers", "done")
+	}
 
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
 		// see https://github.com/zalando/skipper/pull/864
 		p.log.Infof("Client request: %v", err)
 		ctx.response.StatusCode = 499
-		ctx.proxySpan.SetTag("client.request", "canceled")
+		if ctx.proxySpan != nil {
+			ctx.proxySpan.SetTag("client.request", "canceled")
+		}
 	}
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
