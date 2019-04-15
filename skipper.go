@@ -507,6 +507,8 @@ type Options struct {
 	ApiUsageMonitoringRealmKeys             string
 	ApiUsageMonitoringClientKeys            string
 	ApiUsageMonitoringRealmsTrackingPattern string
+	// Deprecated: ApiUsageMonitoringDefaultClientTrackingPattern
+	ApiUsageMonitoringDefaultClientTrackingPattern string
 
 	// Default filters directory enables default filters mechanism and sets the directory where the filters are located
 	DefaultFiltersDir string
@@ -759,6 +761,10 @@ func Run(o Options) error {
 	err := initLog(o)
 	if err != nil {
 		return err
+	}
+
+	if o.ApiUsageMonitoringDefaultClientTrackingPattern != "" {
+		log.Warn(`"ApiUsageMonitoringDefaultClientTrackingPattern" option is deprecated`)
 	}
 
 	// *DEPRECATED* create authentication for Innkeeper
