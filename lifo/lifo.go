@@ -27,7 +27,7 @@ type Registry struct {
 }
 
 type LIFOFilter interface {
-	SetLIFO(*Stack)
+	SetStack(*Stack)
 }
 
 type ConfiguredFilter interface {
@@ -97,7 +97,7 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 					r.set(ri.Id, s)
 				}
 
-				cf.SetLIFO(s)
+				cf.SetStack(s)
 			}
 
 			nf, ok := fi.Filter.(GroupFilter)
@@ -109,7 +109,7 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 					r.set(n, s)
 				}
 
-				nf.SetLIFO(s)
+				nf.SetStack(s)
 			}
 		}
 	}

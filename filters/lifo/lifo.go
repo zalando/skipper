@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aryszka/jobstack"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/lifo"
@@ -15,24 +16,22 @@ import (
 type (
 	lifoSpec      struct{}
 	lifoGroupSpec struct{}
+
+	lifoFilter struct {
+		config lifo.Config
+		stack  *lifo.Stack
+	}
+
+	lifoGroupFilter struct {
+		name  string
+		stack *lifo.Stack
+	}
 )
-
-type lifoFilter struct {
-	config lifo.Config
-	stack  *lifo.Stack
-}
-
-type lifoGroupFilter struct {
-	name  string
-	stack *lifo.Stack
-}
 
 const (
 	lifoKey      = "lifo-done"
 	lifoGroupKey = "lifo-group-done"
-)
 
-const (
 	LIFOName      = "lifo"
 	LIFOGroupName = "lifoGroup"
 )
@@ -67,6 +66,15 @@ func durationArg(a interface{}) (time.Duration, error) {
 
 func (s *lifoSpec) Name() string { return LIFOName }
 
+// CreateFilter creates a lifoFilter, that will use a stack based
+// queue for handling requests instead of the fifo queue. The first
+// parameter is MaxConcurrency the second MaxStackSize and the third
+// Timeout.
+//
+// All parameters are optional and defaults to
+// https://godoc.org/github.com/aryszka/jobstack#Options, which
+// defaults to MaxConcurrency 1, MaxStackSize infinite, Timeout
+// infinite.
 func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var (
 		l   lifoFilter
@@ -100,6 +108,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 func request(s *lifo.Stack, key string, ctx filters.FilterContext) {
 	if s == nil {
+		log.Warningf("Unexpected lifo.Stack is nil for key %s", key)
 		return
 	}
 
@@ -110,8 +119,17 @@ func request(s *lifo.Stack, key string, ctx filters.FilterContext) {
 		// - allow custom status code
 		// - provide more info in the header about the reason
 
-		log.Debug("route based LIFO:", err)
-		ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable})
+		switch err {
+		case jobstack.ErrStackFull:
+			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
+			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable, Status: "Stack Full"})
+		case jobstack.ErrTimeout:
+			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
+			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout"})
+		default:
+			log.Errorf("Unknown error for route based LIFO:", err)
+			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable})
+		}
 		return
 	}
 
@@ -141,7 +159,7 @@ func (l *lifoFilter) Config() lifo.Config {
 	return l.config
 }
 
-func (l *lifoFilter) SetLIFO(s *lifo.Stack) {
+func (l *lifoFilter) SetStack(s *lifo.Stack) {
 	l.stack = s
 }
 
@@ -172,6 +190,6 @@ func (g *lifoGroupFilter) GroupName() string {
 	return g.name
 }
 
-func (g *lifoGroupFilter) SetLIFO(s *lifo.Stack) {
+func (g *lifoGroupFilter) SetStack(s *lifo.Stack) {
 	g.stack = s
 }
