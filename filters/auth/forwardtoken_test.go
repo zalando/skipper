@@ -213,7 +213,7 @@ func TestForwardTokenIntrospection(t *testing.T) {
 
 			if ti.oauthFilterPresent {
 				oauthTokenSpec := NewOAuthTokenintrospectionAllClaims(oauthTimeout)
-				oauthFilterArgs := []interface{}{"http://" + issuerServer.Listener.Addr().String(), "", "", emailClaim}
+				oauthFilterArgs := []interface{}{"http://" + issuerServer.Listener.Addr().String(), emailClaim}
 				oauthFilter, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
 				if err != nil {
 					t.Errorf("error creating oauth filter. %v", err)
