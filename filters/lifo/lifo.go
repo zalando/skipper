@@ -130,7 +130,7 @@ func request(s *lifo.Stack, key string, ctx filters.FilterContext) {
 			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
 			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout"})
 		default:
-			log.Errorf("Unknown error for route based LIFO:", err)
+			log.Errorf("Unknown error for route based LIFO: %v", err)
 			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable})
 		}
 		return
