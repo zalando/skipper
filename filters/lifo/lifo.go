@@ -75,6 +75,9 @@ func (s *lifoSpec) Name() string { return LIFOName }
 // https://godoc.org/github.com/aryszka/jobstack#Options, which
 // defaults to MaxConcurrency 1, MaxStackSize infinite, Timeout
 // infinite.
+//
+// The total maximum number of requests has to be computed by adding
+// MaxConcurrency and MaxStackSize: total max = MaxConcurrency + MaxStackSize
 func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var (
 		l   lifoFilter
