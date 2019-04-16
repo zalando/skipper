@@ -397,21 +397,13 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 
 	var allowed bool
 	switch f.typ {
-	case checkOAuthTokenintrospectionAnyClaims:
+	case checkOAuthTokenintrospectionAnyClaims, checkSecureOAuthTokenintrospectionAnyClaims:
 		allowed = f.validateAnyClaims(info)
-	case checkOAuthTokenintrospectionAnyKV:
+	case checkOAuthTokenintrospectionAnyKV, checkSecureOAuthTokenintrospectionAnyKV:
 		allowed = f.validateAnyKV(info)
-	case checkOAuthTokenintrospectionAllClaims:
+	case checkOAuthTokenintrospectionAllClaims, checkSecureOAuthTokenintrospectionAllClaims:
 		allowed = f.validateAllClaims(info)
-	case checkOAuthTokenintrospectionAllKV:
-		allowed = f.validateAllKV(info)
-	case checkSecureOAuthTokenintrospectionAnyClaims:
-		allowed = f.validateAnyClaims(info)
-	case checkSecureOAuthTokenintrospectionAnyKV:
-		allowed = f.validateAnyKV(info)
-	case checkSecureOAuthTokenintrospectionAllClaims:
-		allowed = f.validateAllClaims(info)
-	case checkSecureOAuthTokenintrospectionAllKV:
+	case checkOAuthTokenintrospectionAllKV, checkSecureOAuthTokenintrospectionAllKV:
 		allowed = f.validateAllKV(info)
 	default:
 		log.Errorf("Wrong tokenintrospectionFilter type: %s", f)
