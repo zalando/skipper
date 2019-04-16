@@ -65,7 +65,7 @@ require (
 	golang.org/x/crypto v0.0.0-20170912191825-faadfbdc0353
 	golang.org/x/net v0.0.0-20181213202711-891ebc4b82d6
 	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
-	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect
+	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 	golang.org/x/sys v0.0.0-20180831094639-fa5fdf94c789 // indirect
 	google.golang.org/appengine v1.2.0 // indirect
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b // indirect

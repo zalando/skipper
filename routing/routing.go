@@ -12,6 +12,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
+	"golang.org/x/sync/semaphore"
 )
 
 const (
@@ -192,6 +193,8 @@ type Route struct {
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.
 	LBAlgorithm LBAlgorithm
+
+	InflightRequests *semaphore.Weighted
 }
 
 // PostProcessor is an interface for custom post-processors applying changes

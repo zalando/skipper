@@ -932,6 +932,14 @@ func (p *Proxy) do(ctx *context) error {
 		return errRouteLookupFailed
 	}
 
+	if !route.InflightRequests.TryAcquire(1) {
+		return &proxyError{
+			err:  fmt.Errorf("too many inflight requests not handled by backend"),
+			code: http.StatusPaymentRequired,
+		}
+	}
+	defer route.InflightRequests.Release(1)
+
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)

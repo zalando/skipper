@@ -10,6 +10,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/predicates"
+	"golang.org/x/sync/semaphore"
 )
 
 type incomingType uint
@@ -440,7 +441,7 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 		return nil, err
 	}
 
-	r := &Route{Route: *def, Scheme: scheme, Host: host, Predicates: cps, Filters: fs}
+	r := &Route{Route: *def, Scheme: scheme, Host: host, Predicates: cps, Filters: fs, InflightRequests: semaphore.NewWeighted(1000)}
 	if err := processTreePredicates(r, def.Predicates); err != nil {
 		return nil, err
 	}
