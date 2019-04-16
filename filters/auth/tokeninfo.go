@@ -269,7 +269,7 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	}
 
 	if !allowed {
-		unauthorized(ctx, uid, invalidScope, f.authClient.url.Hostname())
+		forbidden(ctx, uid, invalidScope)
 		return
 	}
 	authorized(ctx, uid)
