@@ -507,7 +507,7 @@ type Options struct {
 	ApiUsageMonitoringRealmKeys             string
 	ApiUsageMonitoringClientKeys            string
 	ApiUsageMonitoringRealmsTrackingPattern string
-	// Deprecated: ApiUsageMonitoringDefaultClientTrackingPattern
+	// *DEPRECATED* ApiUsageMonitoringDefaultClientTrackingPattern
 	ApiUsageMonitoringDefaultClientTrackingPattern string
 
 	// Default filters directory enables default filters mechanism and sets the directory where the filters are located
@@ -763,6 +763,7 @@ func Run(o Options) error {
 		return err
 	}
 
+	// *DEPRECATED* client tracking parameter
 	if o.ApiUsageMonitoringDefaultClientTrackingPattern != "" {
 		log.Warn(`"ApiUsageMonitoringDefaultClientTrackingPattern" option is deprecated`)
 	}
