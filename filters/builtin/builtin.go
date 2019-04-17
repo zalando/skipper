@@ -14,6 +14,7 @@ import (
 	"github.com/zalando/skipper/filters/flowid"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/ratelimit"
+	"github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/filters/tee"
 	"github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/script"
@@ -130,6 +131,8 @@ func MakeRegistry() filters.Registry {
 		accesslog.NewDisableAccessLog(),
 		accesslog.NewEnableAccessLog(),
 		auth.NewForwardToken(),
+		scheduler.NewLIFO(),
+		scheduler.NewLIFOGroup(),
 	} {
 		r.Register(s)
 	}

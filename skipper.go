@@ -879,7 +879,17 @@ func Run(o Options) error {
 		PostProcessors: []routing.PostProcessor{
 			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
 			loadbalancer.NewAlgorithmProvider(),
-			scheduler.NewRegistry(scheduler.Config{}, nil),
+			scheduler.NewRegistry(scheduler.Config{
+				MaxConcurrency: 1,
+				MaxStackSize:   2,
+				Timeout:        10 * time.Second,
+			}, map[string]scheduler.Config{
+				"myglobal": scheduler.Config{
+					MaxConcurrency: 1,
+					MaxStackSize:   2,
+					Timeout:        3 * time.Second,
+				},
+			}),
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
