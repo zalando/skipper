@@ -1,4 +1,4 @@
-package lifo
+package scheduler
 
 import (
 	"time"
@@ -75,7 +75,7 @@ func (r *Registry) set(name string, s *Stack) {
 	r.stacks[name] = s
 }
 
-// Do implements routing.PostProcessor and sets the stack for the lifo filters.
+// Do implements routing.PostProcessor and sets the stack for the scheduler filters.
 //
 // It preserves the existing stack when available.
 func (r *Registry) Do(routes []*routing.Route) []*routing.Route {

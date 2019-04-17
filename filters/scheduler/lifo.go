@@ -1,4 +1,4 @@
-package lifo
+package scheduler
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"github.com/aryszka/jobstack"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/lifo"
+	"github.com/zalando/skipper/scheduler"
 )
 
 // TODO: must be documented that it cannot be used together with the legacy shunting, meaning
@@ -18,13 +18,13 @@ type (
 	lifoGroupSpec struct{}
 
 	lifoFilter struct {
-		config lifo.Config
-		stack  *lifo.Stack
+		config scheduler.Config
+		stack  *scheduler.Stack
 	}
 
 	lifoGroupFilter struct {
 		name  string
-		stack *lifo.Stack
+		stack *scheduler.Stack
 	}
 )
 
@@ -109,9 +109,9 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return &l, nil
 }
 
-func request(s *lifo.Stack, key string, ctx filters.FilterContext) {
+func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 	if s == nil {
-		log.Warningf("Unexpected lifo.Stack is nil for key %s", key)
+		log.Warningf("Unexpected scheduler.Stack is nil for key %s", key)
 		return
 	}
 
@@ -158,11 +158,11 @@ func (l *lifoFilter) Response(ctx filters.FilterContext) {
 	response(lifoKey, ctx)
 }
 
-func (l *lifoFilter) Config() lifo.Config {
+func (l *lifoFilter) Config() scheduler.Config {
 	return l.config
 }
 
-func (l *lifoFilter) SetStack(s *lifo.Stack) {
+func (l *lifoFilter) SetStack(s *scheduler.Stack) {
 	l.stack = s
 }
 
@@ -193,6 +193,6 @@ func (g *lifoGroupFilter) GroupName() string {
 	return g.name
 }
 
-func (g *lifoGroupFilter) SetStack(s *lifo.Stack) {
+func (g *lifoGroupFilter) SetStack(s *scheduler.Stack) {
 	g.stack = s
 }

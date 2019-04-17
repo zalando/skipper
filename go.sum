@@ -6,8 +6,8 @@ github.com/abbot/go-http-auth v0.0.0-20150922224136-efc9484eee77 h1:kFQ6l9ku7o6W
 github.com/abbot/go-http-auth v0.0.0-20150922224136-efc9484eee77/go.mod h1:Cz6ARTIzApMJDzh5bRMSUou6UMSp0IEXg9km/ci7TJM=
 github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78 h1:mdRSArcFLfW0VoL34LZAKSz6LkkK4jFxVx2xYavACMg=
 github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
-github.com/aryszka/jobstack v0.0.0-20190411203715-fcddcc9edd69 h1:x5wsUD3xGvuCbtDONAhMM0KNB9vX5FJLAVU1EnICQ2A=
-github.com/aryszka/jobstack v0.0.0-20190411203715-fcddcc9edd69/go.mod h1:SIN5JBhjgKGa8H7hDo+Ue0gx9mSqjcXHPWScbOWNnHg=
+github.com/aryszka/jobstack v0.0.0-20190412105908-03e626bef0b2 h1:y4lx+KsJ6guo95MVLPq8OCTWnPSXIlkSA1Xq0KRc/9Q=
+github.com/aryszka/jobstack v0.0.0-20190412105908-03e626bef0b2/go.mod h1:SIN5JBhjgKGa8H7hDo+Ue0gx9mSqjcXHPWScbOWNnHg=
 github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a h1:BtpsbiV638WQZwhA98cEZw2BsbnQJrbd0BI7tsy0W1c=
 github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/cenkalti/backoff v2.1.0+incompatible h1:FIRvWBZrzS4YC7NT5cOuZjexzFvIr+Dbi6aD1cZaNBk=
