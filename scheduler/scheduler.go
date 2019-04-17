@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/aryszka/jobstack"
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -22,7 +21,6 @@ type Stack struct {
 }
 
 type Registry struct {
-	global      *Stack
 	groupConfig map[string]Config
 	stacks      map[string]*Stack
 }
@@ -60,10 +58,9 @@ func (s *Stack) close() {
 	s.stack.Close()
 }
 
-func NewRegistry(global Config, groups map[string]Config) *Registry {
+func NewRegistry() *Registry {
 	return &Registry{
-		global:      newStack(global),
-		groupConfig: groups,
+		groupConfig: make(map[string]Config),
 		stacks:      make(map[string]*Stack),
 	}
 }
@@ -83,7 +80,6 @@ func (r *Registry) set(name string, s *Stack) {
 func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 	rr := make([]*routing.Route, len(routes))
 	for i, ri := range routes {
-		foundStack := false
 		rr[i] = ri
 
 		for _, fi := range ri.Filters {
@@ -101,7 +97,6 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 				}
 
 				cf.SetStack(s)
-				foundStack = true
 			}
 
 			nf, ok := fi.Filter.(GroupFilter)
@@ -114,25 +109,7 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 				}
 
 				nf.SetStack(s)
-				foundStack = true
 			}
-		}
-		// for testing purposes to add some kind of "global"
-		if !foundStack {
-			log.Errorf("Failed to find a stack filter")
-		}
-		if !foundStack && r.global != nil {
-			// fs, err := eskip.ParseFilters(`lifo(1,2,"10s")`)
-			// if err != nil {
-			// 	log.Errorf("Failed to create fallback scheduler: %v", err)
-			// }
-
-			// ef := fs[0] // eskip.Filter
-			// f := filters.Filter(ef)
-			// rf := routes.RouteFilter(f) // needs filters.Filter -> routes.RouteFilter undefined (type []*routing.Route has no field or method RouteFilter)
-			// rf.Name = f.Name
-			// rf.Index = 5
-			// ri.Filters = append(ri.Filters, rf...)
 		}
 	}
 
@@ -143,6 +120,4 @@ func (r *Registry) Close() {
 	for _, s := range r.stacks {
 		s.close()
 	}
-
-	r.global.close()
 }
