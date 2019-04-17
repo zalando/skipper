@@ -32,9 +32,10 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		msg:         "invalid token",
 		authType:    OAuthTokeninfoAnyScopeName,
 		authBaseURL: testAuthPath,
+		args:        []interface{}{"not-matching-scope"},
 		hasAuth:     true,
 		auth:        "invalid-token",
-		expected:    http.StatusNotFound,
+		expected:    http.StatusUnauthorized,
 	}, {
 		msg:         "invalid scope",
 		authType:    OAuthTokeninfoAnyScopeName,
@@ -42,7 +43,7 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		args:        []interface{}{"not-matching-scope"},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusUnauthorized,
+		expected:    http.StatusForbidden,
 	}, {
 		msg:         "oauthTokeninfoAnyScope: valid token, one valid scope",
 		authType:    OAuthTokeninfoAnyScopeName,
@@ -74,7 +75,7 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		args:        []interface{}{testScope, "other-scope"},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusUnauthorized,
+		expected:    http.StatusForbidden,
 	}, {
 		msg:         "anyKV(): invalid key",
 		authType:    OAuthTokeninfoAnyKVName,
@@ -82,7 +83,7 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		args:        []interface{}{"not-matching-scope"},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusNotFound,
+		expected:    http.StatusOK,
 	}, {
 		msg:         "anyKV(): valid token, one valid key, wrong value",
 		authType:    OAuthTokeninfoAnyKVName,
@@ -90,7 +91,7 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		args:        []interface{}{testKey, "other-value"},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusUnauthorized,
+		expected:    http.StatusForbidden,
 	}, {
 		msg:         "anyKV(): valid token, one valid key value pair",
 		authType:    OAuthTokeninfoAnyKVName,
@@ -130,7 +131,7 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		args:        []interface{}{testKey, "other-value"},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusUnauthorized,
+		expected:    http.StatusForbidden,
 	}, {
 		msg:         "allKV(): valid token, one valid key value pair",
 		authType:    OAuthTokeninfoAllKVName,
@@ -162,7 +163,7 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		args:        []interface{}{testKey, testValue, "wrongKey", "wrongValue"},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusUnauthorized,
+		expected:    http.StatusForbidden,
 	}, {
 		msg:         "allKV(): valid token, one valid kv, multiple key value pairs2",
 		authType:    OAuthTokeninfoAllKVName,
@@ -170,7 +171,7 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		args:        []interface{}{"wrongKey", "wrongValue", testKey, testValue},
 		hasAuth:     true,
 		auth:        testToken,
-		expected:    http.StatusUnauthorized,
+		expected:    http.StatusForbidden,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))

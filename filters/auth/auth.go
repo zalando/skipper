@@ -91,6 +91,17 @@ func unauthorized(ctx filters.FilterContext, uname string, reason rejectReason, 
 	ctx.Serve(rsp)
 }
 
+func forbidden(ctx filters.FilterContext, uname string, reason rejectReason) {
+	log.Debugf("Forbidden: uname: %s, reason: %s", uname, reason)
+	ctx.StateBag()[logfilter.AuthUserKey] = uname
+	ctx.StateBag()[logfilter.AuthRejectReasonKey] = string(reason)
+	rsp := &http.Response{
+		StatusCode: http.StatusForbidden,
+		Header:     make(map[string][]string),
+	}
+	ctx.Serve(rsp)
+}
+
 func authorized(ctx filters.FilterContext, uname string) {
 	ctx.StateBag()[logfilter.AuthUserKey] = uname
 }

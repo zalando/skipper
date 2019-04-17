@@ -416,7 +416,11 @@ this filter.
 
 The filter accepts variable number of string arguments, which are used to
 validate the incoming token from the `Authorization: Bearer <token>`
-header. If any of the configured scopes from the filter is found
+header. There are two rejection scenarios for this filter. If the token
+is not successfully validated by the oauth server, then a 401 Unauthorised
+response will be returned. However, if the token is successfully validated 
+but the required scope match isn't satisfied, then a 403 Forbidden response
+will be returned. If any of the configured scopes from the filter is found
 inside the tokeninfo result for the incoming token, it will allow the
 request to pass.
 
@@ -433,7 +437,11 @@ this filter.
 
 The filter accepts variable number of string arguments, which are used to
 validate the incoming token from the `Authorization: Bearer <token>`
-header. If all of the configured scopes from the filter are found
+header. There are two rejection scenarios for this filter. If the token
+is not successfully validated by the oauth server, then a 401 Unauthorised
+response will be returned. However, if the token is successfully validated 
+but the required scope match isn't satisfied, then a 403 Forbidden response
+will be returned. If all of the configured scopes from the filter are found
 inside the tokeninfo result for the incoming token, it will allow the
 request to pass.
 
@@ -450,9 +458,14 @@ this filter.
 
 The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
-`Authorization: Bearer <token>` header. If any of the configured key
-value pairs from the filter is found inside the tokeninfo result for
-the incoming token, it will allow the request to pass.
+`Authorization: Bearer <token>` header. There are two rejection scenarios 
+for this filter. If the token is not successfully validated by the oauth 
+server, then a 401 Unauthorised response will be returned. However, 
+if the token is successfully validated but the required scope match 
+isn't satisfied, then a 403 Forbidden response will be returned.
+If any of the configured key value pairs from the filter is found 
+inside the tokeninfo result for the incoming token, it will allow 
+the request to pass.
 
 Examples:
 
@@ -467,9 +480,14 @@ this filter.
 
 The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
-`Authorization: Bearer <token>` header. If all of the configured key
-value pairs from the filter are found inside the tokeninfo result for
-the incoming token, it will allow the request to pass.
+`Authorization: Bearer <token>` header. There are two rejection 
+scenarios for this filter. If the token is not successfully validated 
+by the oauth server, then a 401 Unauthorised response will be 
+returned. However, if the token is successfully validated but 
+the required scope match isn't satisfied, then a 403 Forbidden response 
+will be returned. If all of the configured key value pairs from 
+the filter are found inside the tokeninfo result for the incoming 
+token, it will allow the request to pass.
 
 Examples:
 
