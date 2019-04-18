@@ -10,6 +10,7 @@ import (
 // note: Config must stay comparable because it is used to detect changes in route specific LIFO config
 
 type Config struct {
+	Name           string
 	MaxConcurrency int
 	MaxStackSize   int
 	Timeout        time.Duration
@@ -35,7 +36,7 @@ type ConfiguredFilter interface {
 }
 
 type GroupFilter interface {
-	LIFOFilter
+	ConfiguredFilter
 	GroupName() string
 }
 
@@ -65,12 +66,12 @@ func NewRegistry() *Registry {
 	}
 }
 
-func (r *Registry) get(name string) (s *Stack, ok bool) {
+func (r *Registry) getStack(name string) (s *Stack, ok bool) {
 	s, ok = r.stacks[name]
 	return
 }
 
-func (r *Registry) set(name string, s *Stack) {
+func (r *Registry) setStack(name string, s *Stack) {
 	r.stacks[name] = s
 }
 
@@ -86,29 +87,34 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 			cf, ok := fi.Filter.(ConfiguredFilter)
 			if ok {
 				c := cf.Config()
-				s, ok := r.get(ri.Id)
+				s, ok := r.getStack(ri.Id)
 				if !ok {
 					s = newStack(c)
-					r.set(ri.Id, s)
+					r.setStack(ri.Id, s)
 				} else if c != s.config {
 					s.close()
 					s = newStack(c)
-					r.set(ri.Id, s)
+					r.setStack(ri.Id, s)
 				}
 
 				cf.SetStack(s)
 			}
 
-			nf, ok := fi.Filter.(GroupFilter)
+			gf, ok := fi.Filter.(GroupFilter)
 			if ok {
-				n := nf.GroupName()
-				s, ok := r.get(n)
+				c := gf.Config()
+				k := gf.GroupName()
+				s, ok := r.getStack(k)
 				if !ok {
-					s = newStack(r.groupConfig[n])
-					r.set(n, s)
+					s = newStack(c)
+					r.setStack(ri.Id, s)
+				} else if c != s.config {
+					s.close()
+					s = newStack(c)
+					r.setStack(ri.Id, s)
 				}
 
-				nf.SetStack(s)
+				gf.SetStack(s)
 			}
 		}
 	}

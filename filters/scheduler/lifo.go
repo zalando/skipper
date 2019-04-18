@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/aryszka/jobstack"
@@ -23,8 +24,14 @@ type (
 	}
 
 	lifoGroupFilter struct {
-		name  string
-		stack *scheduler.Stack
+		name   string
+		config scheduler.Config
+		stack  *scheduler.Stack
+	}
+
+	groupConfig struct {
+		mu     sync.Mutex
+		config map[string]scheduler.Config
 	}
 )
 
@@ -34,7 +41,13 @@ const (
 
 	LIFOName      = "lifo"
 	LIFOGroupName = "lifoGroup"
+
+	defaultMaxConcurreny = 100
+	defaultMaxStackSize  = 100
+	defaultTimeout       = 10 * time.Second
 )
+
+var configStore groupConfig
 
 func NewLIFO() filters.Spec {
 	return &lifoSpec{}
@@ -71,10 +84,12 @@ func (s *lifoSpec) Name() string { return LIFOName }
 // parameter is MaxConcurrency the second MaxStackSize and the third
 // Timeout.
 //
+// The implementation is based on
+// https://godoc.org/github.com/aryszka/jobstack, which provides more
+// detailed documentation.
+//
 // All parameters are optional and defaults to
-// https://godoc.org/github.com/aryszka/jobstack#Options, which
-// defaults to MaxConcurrency 1, MaxStackSize infinite, Timeout
-// infinite.
+// MaxConcurrency 100, MaxStackSize 100, Timeout 10s.
 //
 // The total maximum number of requests has to be computed by adding
 // MaxConcurrency and MaxStackSize: total max = MaxConcurrency + MaxStackSize
@@ -83,35 +98,40 @@ func (s *lifoSpec) Name() string { return LIFOName }
 // Timeout. All configration that is below will be set to these min
 // values.
 func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	var (
-		l   lifoFilter
-		err error
-	)
+	var l lifoFilter
+
+	// set defaults
+	l.config.MaxConcurrency = defaultMaxConcurreny
+	l.config.MaxStackSize = defaultMaxStackSize
+	l.config.Timeout = defaultTimeout
 
 	if len(args) > 0 {
-		if l.config.MaxConcurrency, err = intArg(args[0]); err != nil {
+		c, err := intArg(args[0])
+		if err != nil {
 			return nil, err
 		}
-		if l.config.MaxConcurrency < 1 {
-			l.config.MaxConcurrency = 1
+		if c >= 1 {
+			l.config.MaxConcurrency = c
 		}
 	}
 
 	if len(args) > 1 {
-		if l.config.MaxStackSize, err = intArg(args[1]); err != nil {
+		c, err := intArg(args[1])
+		if err != nil {
 			return nil, err
 		}
-		if l.config.MaxStackSize < 1 {
-			l.config.MaxStackSize = 1
+		if c >= 0 {
+			l.config.MaxStackSize = c
 		}
 	}
 
 	if len(args) > 2 {
-		if l.config.Timeout, err = durationArg(args[2]); err != nil {
+		d, err := durationArg(args[2])
+		if err != nil {
 			return nil, err
 		}
-		if l.config.Timeout < 1*time.Millisecond {
-			l.config.Timeout = 1 * time.Millisecond
+		if d >= 1*time.Millisecond {
+			l.config.Timeout = d
 		}
 	}
 
@@ -181,17 +201,86 @@ func (l *lifoFilter) SetStack(s *scheduler.Stack) {
 
 func (s *lifoGroupSpec) Name() string { return LIFOGroupName }
 
+// CreateFilter creates a lifoGroupFilter, that will use a stack based
+// queue for handling requests instead of the fifo queue. The first
+// parameter is the GroupName, the second MaxConcurrency, the third
+// MaxStackSize and the fourth Timeout.
+//
+// The GroupName parameter is to work on the same data structure for
+// multiple routes. All other parameters are optional and defaults to
+// MaxConcurrency 100, MaxStackSize 100, Timeout 10s.  If the
+// configuration for the same GroupName is different the behavior is
+// undefined.
+
+// The implementation is based on
+// https://godoc.org/github.com/aryszka/jobstack, which provides more
+// detailed documentation.
+//
+// The total maximum number of requests has to be computed by adding
+// MaxConcurrency and MaxStackSize: total max = MaxConcurrency + MaxStackSize
+//
+// Min values are 1 for MaxConcurrency and MaxStackSize, and 1ms for
+// Timeout. All configration that is below will be set to these min
+// values.
 func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 1 {
+	if len(args) < 1 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
+	l := &lifoGroupFilter{}
+
 	switch v := args[0].(type) {
 	case string:
-		return &lifoGroupFilter{name: v}, nil
+		l.name = v
 	default:
 		return nil, filters.ErrInvalidFilterParameters
 	}
+
+	// changes will only happen if we change the name of the group
+	configStore.mu.Lock()
+	if config, ok := l.getConfig(); ok {
+		l.config = config
+		configStore.mu.Unlock()
+		return l, nil
+	}
+	configStore.mu.Unlock()
+
+	// set defaults
+	l.config.MaxConcurrency = defaultMaxConcurreny
+	l.config.MaxStackSize = defaultMaxStackSize
+	l.config.Timeout = defaultTimeout
+
+	if len(args) > 1 {
+		c, err := intArg(args[1])
+		if err != nil {
+			return nil, err
+		}
+		if c >= 1 {
+			l.config.MaxConcurrency = c
+		}
+	}
+
+	if len(args) > 2 {
+		c, err := intArg(args[2])
+		if err != nil {
+			return nil, err
+		}
+		if c >= 1 {
+			l.config.MaxStackSize = c
+		}
+	}
+
+	if len(args) > 3 {
+		d, err := durationArg(args[3])
+		if err != nil {
+			return nil, err
+		}
+		if d >= 1*time.Millisecond {
+			l.config.Timeout = d
+		}
+	}
+
+	return l, nil
 }
 
 func (g *lifoGroupFilter) Request(ctx filters.FilterContext) {
@@ -200,6 +289,18 @@ func (g *lifoGroupFilter) Request(ctx filters.FilterContext) {
 
 func (g *lifoGroupFilter) Response(ctx filters.FilterContext) {
 	response(lifoGroupKey, ctx)
+}
+
+func (g *lifoGroupFilter) Config() scheduler.Config {
+	cfg, _ := g.getConfig()
+	return cfg
+}
+
+func (g *lifoGroupFilter) getConfig() (scheduler.Config, bool) {
+	configStore.mu.Lock()
+	defer configStore.mu.Unlock()
+	res, ok := configStore.config[g.name]
+	return res, ok
 }
 
 func (g *lifoGroupFilter) GroupName() string {
