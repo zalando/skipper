@@ -60,17 +60,21 @@ skp() {
 		tlskey=key.pem
 		tlscert=cert.pem
 	fi
+        lifo_filter=
+	if [ "$3" = lifo ]; then
+		lifo_filter=-default-filters-prepend="lifo($4, $5, \"$6\")"
+	fi
 
 	skipper -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" -insecure \
-		-idle-conns-num "$c" -close-idle-conns-period 3 \
+		-idle-conns-num "$c" -close-idle-conns-period=3s \
 		-tls-key "$tlskey" -tls-cert "$tlscert" 2> \
-		>(grep -Ev 'write: broken pipe|connection reset by peer|getsockopt: connection refused|INFO') &
+		>(grep -Ev 'write: broken pipe|connection reset by peer|getsockopt: connection refused|INFO|Client request: context canceled') &
 	pids="$pids $!"
 }
 
 skp-pprof() {
 	skptesting "$cwd"/cpu-profile.prof "$cwd"/mem-profile.prof "$1" "$2" 2> \
-		-idle-conns-num "$c" -close-idle-conns-period 3 \
+		-idle-conns-num "$c" -close-idle-conns-period=3s \
 		>(grep -Ev 'write: broken pipe|EOF|write: connection reset by peer|getsockopt: connection refused' | \
 		grep -Ev 'connect: cannot assign requested address|read: connection reset by peer|INFO') &
 	pids="$pids $!"
