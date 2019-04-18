@@ -78,6 +78,10 @@ func (s *lifoSpec) Name() string { return LIFOName }
 //
 // The total maximum number of requests has to be computed by adding
 // MaxConcurrency and MaxStackSize: total max = MaxConcurrency + MaxStackSize
+//
+// Min values are 1 for MaxConcurrency and MaxStackSize, and 1ms for
+// Timeout. All configration that is below will be set to these min
+// values.
 func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var (
 		l   lifoFilter
@@ -88,17 +92,26 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		if l.config.MaxConcurrency, err = intArg(args[0]); err != nil {
 			return nil, err
 		}
+		if l.config.MaxConcurrency < 1 {
+			l.config.MaxConcurrency = 1
+		}
 	}
 
 	if len(args) > 1 {
 		if l.config.MaxStackSize, err = intArg(args[1]); err != nil {
 			return nil, err
 		}
+		if l.config.MaxStackSize < 1 {
+			l.config.MaxStackSize = 1
+		}
 	}
 
 	if len(args) > 2 {
 		if l.config.Timeout, err = durationArg(args[2]); err != nil {
 			return nil, err
+		}
+		if l.config.Timeout < 1*time.Millisecond {
+			l.config.Timeout = 1 * time.Millisecond
 		}
 	}
 
