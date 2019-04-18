@@ -107,11 +107,11 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 				s, ok := r.getStack(k)
 				if !ok {
 					s = newStack(c)
-					r.setStack(ri.Id, s)
+					r.setStack(k, s)
 				} else if c != s.config {
 					s.close()
 					s = newStack(c)
-					r.setStack(ri.Id, s)
+					r.setStack(k, s)
 				}
 
 				gf.SetStack(s)
