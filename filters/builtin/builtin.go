@@ -132,7 +132,6 @@ func MakeRegistry() filters.Registry {
 		accesslog.NewEnableAccessLog(),
 		auth.NewForwardToken(),
 		scheduler.NewLIFO(),
-		scheduler.NewLIFOGroup(),
 	} {
 		r.Register(s)
 	}

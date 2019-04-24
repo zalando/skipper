@@ -28,16 +28,9 @@ type Registry struct {
 
 type LIFOFilter interface {
 	SetStack(*Stack)
-}
-
-type ConfiguredFilter interface {
-	LIFOFilter
+	GetStack() *Stack
 	Config() Config
-}
-
-type GroupFilter interface {
-	ConfiguredFilter
-	GroupName() string
+	Key() string
 }
 
 func newStack(c Config) *Stack {
@@ -57,6 +50,10 @@ func (s *Stack) Ready() (done func(), err error) {
 
 func (s *Stack) close() {
 	s.stack.Close()
+}
+
+func (s *Stack) Config() Config {
+	return s.config
 }
 
 func NewRegistry() *Registry {
@@ -82,43 +79,25 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 	rr := make([]*routing.Route, len(routes))
 	for i, ri := range routes {
 		rr[i] = ri
-
 		for _, fi := range ri.Filters {
-			cf, ok := fi.Filter.(ConfiguredFilter)
+			cf, ok := fi.Filter.(LIFOFilter)
 			if ok {
 				c := cf.Config()
-				s, ok := r.getStack(ri.Id)
+				key := cf.Key()
+				s, ok := r.getStack(key)
 				if !ok {
 					s = newStack(c)
-					r.setStack(ri.Id, s)
-				} else if c != s.config {
+					r.setStack(key, s)
+				} else if c != s.config { // UpdateDoc
 					s.close()
 					s = newStack(c)
-					r.setStack(ri.Id, s)
+					r.setStack(key, s)
 				}
 
 				cf.SetStack(s)
 			}
-
-			gf, ok := fi.Filter.(GroupFilter)
-			if ok {
-				c := gf.Config()
-				k := gf.GroupName()
-				s, ok := r.getStack(k)
-				if !ok {
-					s = newStack(c)
-					r.setStack(k, s)
-				} else if c != s.config {
-					s.close()
-					s = newStack(c)
-					r.setStack(k, s)
-				}
-
-				gf.SetStack(s)
-			}
 		}
 	}
-
 	return rr
 }
 
