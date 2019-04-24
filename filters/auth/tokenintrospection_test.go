@@ -256,7 +256,206 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusUnauthorized,
-	}} {
+	}, //secure
+		{
+			msg:      "secureOauthTokenintrospectionAnyClaims: uninitialized filter, no authorization header, scope check",
+			authType: SecureOAuthTokenintrospectionAnyClaimsName,
+			expected: invalidFilterExpected,
+		}, {
+			msg:         "secureOauthTokenintrospectionAnyClaims: invalid token",
+			authType:    SecureOAuthTokenintrospectionAnyClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", validClaim1},
+			hasAuth:     true,
+			auth:        "invalid-token",
+			expected:    http.StatusUnauthorized,
+		}, {
+			msg:         "secureOauthTokenintrospectionAnyClaims: unsupported claim",
+			authType:    SecureOAuthTokenintrospectionAnyClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", "unsupported-claim"},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    invalidFilterExpected,
+		}, {
+			msg:         "secureOauthTokenintrospectionAnyClaims: valid claim",
+			authType:    SecureOAuthTokenintrospectionAnyClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", validClaim1},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "secureOauthTokenintrospectionAnyClaims: invalid claim",
+			authType:    SecureOAuthTokenintrospectionAnyClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", invalidSupportedClaim},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusUnauthorized,
+		}, {
+			msg:         "secureOauthTokenintrospectionAnyClaims: valid token, one valid claim",
+			authType:    SecureOAuthTokenintrospectionAnyClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", validClaim1, validClaim2},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "secureOauthTokenintrospectionAnyClaims: valid token, one valid claim, one invalid supported claim",
+			authType:    SecureOAuthTokenintrospectionAnyClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", validClaim1, invalidSupportedClaim},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+
+			msg:         "secureOauthTokenintrospectionAllClaim: invalid token",
+			authType:    SecureOAuthTokenintrospectionAllClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", validClaim1},
+			hasAuth:     true,
+			auth:        "invalid-token",
+			expected:    http.StatusUnauthorized,
+		}, {
+			msg:         "secureOauthTokenintrospectionAllClaim: unsupported claim",
+			authType:    SecureOAuthTokenintrospectionAllClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", "unsupported-claim"},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    invalidFilterExpected,
+		}, {
+			msg:         "secureOauthTokenintrospectionAllClaim: valid claim",
+			authType:    SecureOAuthTokenintrospectionAllClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", validClaim1},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "secureOauthTokenintrospectionAllClaim: invalid claim",
+			authType:    SecureOAuthTokenintrospectionAllClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", invalidSupportedClaim},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusUnauthorized,
+		}, {
+			msg:         "secureOauthTokenintrospectionAllClaim: valid token, one valid claim",
+			authType:    SecureOAuthTokenintrospectionAllClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", validClaim1, validClaim2},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "SecureOAuthTokenintrospectionAllClaimsName: valid token, one valid claim, one invalid supported claim",
+			authType:    SecureOAuthTokenintrospectionAllClaimsName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", validClaim1, invalidSupportedClaim},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusUnauthorized,
+		}, {
+
+			msg:         "secureAnyKV(): invalid KV",
+			authType:    SecureOAuthTokenintrospectionAnyKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", validClaim1},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    invalidFilterExpected,
+		}, {
+			msg:         "secureAnyKV(): valid token, one valid key, wrong value",
+			authType:    SecureOAuthTokenintrospectionAnyKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", testKey, "other-value"},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusUnauthorized,
+		}, {
+			msg:         "secureAnyKV(): valid token, one valid key value pair",
+			authType:    SecureOAuthTokenintrospectionAnyKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", testKey, testValue},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "secureAnyKV(): valid token, one valid kv, multiple key value pairs1",
+			authType:    SecureOAuthTokenintrospectionAnyKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", testKey, testValue, "wrongKey", "wrongValue"},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "secureAnyKV(): valid token, one valid kv, multiple key value pairs2",
+			authType:    SecureOAuthTokenintrospectionAnyKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", "wrongKey", "wrongValue", testKey, testValue},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "secureAllKV(): invalid KV",
+			authType:    SecureOAuthTokenintrospectionAllKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", testKey},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    invalidFilterExpected,
+		}, {
+			msg:         "secureAllKV(): valid token, one valid key, wrong value",
+			authType:    SecureOAuthTokenintrospectionAllKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", testKey, "other-value"},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusUnauthorized,
+		}, {
+			msg:         "secureAllKV(): valid token, one valid key value pair",
+			authType:    SecureOAuthTokenintrospectionAllKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", testKey, testValue},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "secureAllKV(): valid token, one valid key value pair, check realm",
+			authType:    SecureOAuthTokenintrospectionAllKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", testRealmKey, testRealm, testKey, testValue},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "secureAllKV(): valid token, valid key value pairs",
+			authType:    SecureOAuthTokenintrospectionAllKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", testKey, testValue, testKey, testValue},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusOK,
+		}, {
+			msg:         "secureAllKV(): valid token, one valid kv, multiple key value pairs1",
+			authType:    SecureOAuthTokenintrospectionAllKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", testKey, testValue, "wrongKey", "wrongValue"},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusUnauthorized,
+		}, {
+			msg:         "secureAllKV(): valid token, one valid kv, multiple key value pairs2",
+			authType:    SecureOAuthTokenintrospectionAllKVName,
+			authBaseURL: testAuthPath,
+			args:        []interface{}{"client-id", "client-secret", "wrongKey", "wrongValue", testKey, testValue},
+			hasAuth:     true,
+			auth:        testToken,
+			expected:    http.StatusUnauthorized,
+		}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			if ti.msg == "" {
 				t.Fatalf("unknown ti: %+v", ti)
@@ -332,6 +531,14 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 				spec = NewOAuthTokenintrospectionAnyKV(time.Second)
 			case OAuthTokenintrospectionAllKVName:
 				spec = NewOAuthTokenintrospectionAllKV(time.Second)
+			case SecureOAuthTokenintrospectionAnyClaimsName:
+				spec = NewSecureOAuthTokenintrospectionAnyClaims(time.Second)
+			case SecureOAuthTokenintrospectionAllClaimsName:
+				spec = NewSecureOAuthTokenintrospectionAllClaims(time.Second)
+			case SecureOAuthTokenintrospectionAnyKVName:
+				spec = NewSecureOAuthTokenintrospectionAnyKV(time.Second)
+			case SecureOAuthTokenintrospectionAllKVName:
+				spec = NewSecureOAuthTokenintrospectionAllKV(time.Second)
 			default:
 				t.Fatalf("FATAL: authType '%s' not supported", ti.authType)
 			}
