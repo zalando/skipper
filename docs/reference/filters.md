@@ -573,6 +573,116 @@ Examples:
 oauthTokenintrospectionAllKV("k1", "v1", "k2", "v2")
 ```
 
+## secureOauthTokenintrospectionAnyClaims
+
+The filter accepts variable number of string arguments, which are used
+to validate the incoming token from the `Authorization: Bearer
+<token>` header. The first argument to the filter is the issuer URL,
+for example `https://accounts.google.com`, that will be used as
+described in [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
+to find the configuration and for example supported claims.
+
+Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
+The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
+
+If one of the configured and supported claims from the filter are
+found inside the tokenintrospection (RFC7662) result for the incoming
+token, it will allow the request to pass.
+
+Examples:
+
+```
+secureOauthTokenintrospectionAnyClaims("issuerURL", "client-id", "client-secret", "claim1", "claim2")
+```
+
+Read client-id and client-secret from environment variables
+```
+secureOauthTokenintrospectionAnyClaims("issuerURL", "", "", "claim1", "claim2")
+```
+
+## secureOauthTokenintrospectionAllClaims
+
+The filter accepts variable number of string arguments, which are used
+to validate the incoming token from the `Authorization: Bearer
+<token>` header. The first argument to the filter is the issuer URL,
+for example `https://accounts.google.com`, that will be used as
+described in [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
+to find the configuration and for example supported claims.
+
+Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
+The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
+
+If all of the configured and supported claims from the filter are
+found inside the tokenintrospection (RFC7662) result for the incoming
+token, it will allow the request to pass.
+
+Examples:
+
+```
+secureOauthTokenintrospectionAllClaims("issuerURL", "client-id", "client-secret", "claim1", "claim2")
+```
+
+Read client-id and client-secret from environment variables
+```
+secureOauthTokenintrospectionAllClaims("issuerURL", "", "", "claim1", "claim2")
+```
+
+## secureOauthTokenintrospectionAnyKV
+
+The filter accepts an even number of variable arguments of type
+string, which are used to validate the incoming token from the
+`Authorization: Bearer <token>` header.  The first argument to the
+filter is the issuer URL, for example `https://accounts.google.com`,
+that will be used as described in
+[RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
+to find the configuration and for example supported claims.
+
+Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
+The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
+
+If one of the configured key value pairs from the filter are found
+inside the tokenintrospection (RFC7662) result for the incoming token,
+it will allow the request to pass.
+
+Examples:
+
+```
+secureOauthTokenintrospectionAnyKV("issuerURL", "client-id", "client-secret", "k1", "v1", "k2", "v2")
+```
+
+Read client-id and client-secret from environment variables
+```
+secureOauthTokenintrospectionAnyKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
+```
+
+## secureOauthTokenintrospectionAllKV
+
+The filter accepts an even number of variable arguments of type
+string, which are used to validate the incoming token from the
+`Authorization: Bearer <token>` header.  The first argument to the
+filter is the issuer URL, for example `https://accounts.google.com`,
+that will be used as described in
+[RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
+to find the configuration and for example supported claims.
+
+Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
+The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
+
+If all of the configured key value pairs from the filter are found
+inside the tokenintrospection (RFC7662) result for the incoming token,
+it will allow the request to pass.
+
+Examples:
+
+```
+secureOauthTokenintrospectionAllKV("issuerURL", "client-id", "client-secret", "k1", "v1", "k2", "v2")
+```
+
+Read client-id and client-secret from environment variables
+```
+secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
+```
+
 ## forwardToken
 
 The filter accepts a single string as an argument. The argument is the header

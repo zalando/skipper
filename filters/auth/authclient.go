@@ -1,8 +1,11 @@
 package auth
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/filters"
 	"io"
 	"net"
 	"net/http"
@@ -10,9 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/opentracing/opentracing-go"
-	"github.com/zalando/skipper/filters"
 )
 
 const (
@@ -125,7 +125,10 @@ func jsonGet(
 	if err != nil {
 		return err
 	}
-	req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
+
+	if accessToken != "" {
+		req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
+	}
 
 	span := injectSpan(tracer, parentSpan, childSpanName, req)
 	if span != nil {
@@ -170,6 +173,12 @@ func jsonPost(
 	req, err := http.NewRequest("POST", u.String(), strings.NewReader(body.Encode()))
 	if err != nil {
 		return err
+	}
+
+	if u.User != nil {
+
+		authorization := base64.StdEncoding.EncodeToString([]byte(u.User.String()))
+		req.Header.Add("Authorization", fmt.Sprintf("Basic %s", authorization))
 	}
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")

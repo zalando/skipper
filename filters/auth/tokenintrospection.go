@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -12,10 +13,14 @@ import (
 )
 
 const (
-	OAuthTokenintrospectionAnyClaimsName = "oauthTokenintrospectionAnyClaims"
-	OAuthTokenintrospectionAllClaimsName = "oauthTokenintrospectionAllClaims"
-	OAuthTokenintrospectionAnyKVName     = "oauthTokenintrospectionAnyKV"
-	OAuthTokenintrospectionAllKVName     = "oauthTokenintrospectionAllKV"
+	OAuthTokenintrospectionAnyClaimsName       = "oauthTokenintrospectionAnyClaims"
+	OAuthTokenintrospectionAllClaimsName       = "oauthTokenintrospectionAllClaims"
+	OAuthTokenintrospectionAnyKVName           = "oauthTokenintrospectionAnyKV"
+	OAuthTokenintrospectionAllKVName           = "oauthTokenintrospectionAllKV"
+	SecureOAuthTokenintrospectionAnyClaimsName = "secureOauthTokenintrospectionAnyClaims"
+	SecureOAuthTokenintrospectionAllClaimsName = "secureOauthTokenintrospectionAllClaims"
+	SecureOAuthTokenintrospectionAnyKVName     = "secureOauthTokenintrospectionAnyKV"
+	SecureOAuthTokenintrospectionAllKVName     = "secureOauthTokenintrospectionAllKV"
 
 	tokenintrospectionCacheKey   = "tokenintrospection"
 	TokenIntrospectionConfigPath = "/.well-known/openid-configuration"
@@ -25,6 +30,7 @@ type (
 	tokenIntrospectionSpec struct {
 		typ     roleCheckType
 		timeout time.Duration
+		secure  bool
 	}
 
 	tokenIntrospectionInfo map[string]interface{}
@@ -127,10 +133,35 @@ func NewOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Spec {
 	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllClaims, timeout)
 }
 
+//Secure Introspection Point
+func NewSecureOAuthTokenintrospectionAnyKV(timeout time.Duration) filters.Spec {
+	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAnyKV, timeout)
+}
+func NewSecureOAuthTokenintrospectionAllKV(timeout time.Duration) filters.Spec {
+	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAllKV, timeout)
+}
+
+func NewSecureOAuthTokenintrospectionAnyClaims(timeout time.Duration) filters.Spec {
+	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAnyClaims, timeout)
+}
+
+func NewSecureOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Spec {
+	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAllClaims, timeout)
+}
+
 func newOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) filters.Spec {
 	return &tokenIntrospectionSpec{
 		typ:     typ,
 		timeout: timeout,
+		secure:  false,
+	}
+}
+
+func newSecureOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) filters.Spec {
+	return &tokenIntrospectionSpec{
+		typ:     typ,
+		timeout: timeout,
+		secure:  true,
 	}
 }
 
@@ -155,6 +186,14 @@ func (s *tokenIntrospectionSpec) Name() string {
 		return OAuthTokenintrospectionAnyKVName
 	case checkOAuthTokenintrospectionAllKV:
 		return OAuthTokenintrospectionAllKVName
+	case checkSecureOAuthTokenintrospectionAnyClaims:
+		return SecureOAuthTokenintrospectionAnyClaimsName
+	case checkSecureOAuthTokenintrospectionAllClaims:
+		return SecureOAuthTokenintrospectionAllClaimsName
+	case checkSecureOAuthTokenintrospectionAnyKV:
+		return SecureOAuthTokenintrospectionAnyKVName
+	case checkSecureOAuthTokenintrospectionAllKV:
+		return SecureOAuthTokenintrospectionAllKVName
 	}
 	return AuthUnknown
 }
@@ -164,12 +203,29 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	if err != nil {
 		return nil, err
 	}
-	if len(sargs) < 2 {
+	if s.secure && len(sargs) < 4 || !s.secure && len(sargs) < 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	issuerURL := sargs[0]
-	sargs = sargs[1:]
+
+	var clientId, clientSecret string
+
+	if s.secure {
+		clientId = sargs[1]
+		clientSecret = sargs[2]
+		sargs = sargs[3:]
+		if clientId == "" {
+			clientId, _ = os.LookupEnv("OAUTH_CLIENT_ID")
+		}
+
+		if clientSecret == "" {
+			clientSecret, _ = os.LookupEnv("OAUTH_CLIENT_SECRET")
+		}
+	} else {
+		sargs = sargs[1:]
+	}
+
 	cfg, err := getOpenIDConfig(issuerURL)
 	if err != nil {
 		return nil, err
@@ -185,6 +241,12 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 		issuerAuthClient[issuerURL] = ac
 	}
 
+	if s.secure && clientId != "" && clientSecret != "" {
+		ac.url.User = url.UserPassword(clientId, clientSecret)
+	} else {
+		ac.url.User = nil
+	}
+
 	f := &tokenintrospectFilter{
 		typ:        s.typ,
 		authClient: ac,
@@ -192,6 +254,10 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	}
 	switch f.typ {
 	case checkOAuthTokenintrospectionAllClaims:
+		fallthrough
+	case checkSecureOAuthTokenintrospectionAllClaims:
+		fallthrough
+	case checkSecureOAuthTokenintrospectionAnyClaims:
 		fallthrough
 	case checkOAuthTokenintrospectionAnyClaims:
 		f.claims = sargs
@@ -201,6 +267,10 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 
 	// key value pairs
 	case checkOAuthTokenintrospectionAllKV:
+		fallthrough
+	case checkSecureOAuthTokenintrospectionAllKV:
+		fallthrough
+	case checkSecureOAuthTokenintrospectionAnyKV:
 		fallthrough
 	case checkOAuthTokenintrospectionAnyKV:
 		for i := 0; i+1 < len(sargs); i += 2 {
@@ -228,6 +298,14 @@ func (f *tokenintrospectFilter) String() string {
 		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAnyKVName, f.kv)
 	case checkOAuthTokenintrospectionAllKV:
 		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAllKVName, f.kv)
+	case checkSecureOAuthTokenintrospectionAnyClaims:
+		return fmt.Sprintf("%s(%s)", SecureOAuthTokenintrospectionAnyClaimsName, strings.Join(f.claims, ","))
+	case checkSecureOAuthTokenintrospectionAllClaims:
+		return fmt.Sprintf("%s(%s)", SecureOAuthTokenintrospectionAllClaimsName, strings.Join(f.claims, ","))
+	case checkSecureOAuthTokenintrospectionAnyKV:
+		return fmt.Sprintf("%s(%s)", SecureOAuthTokenintrospectionAnyKVName, f.kv)
+	case checkSecureOAuthTokenintrospectionAllKV:
+		return fmt.Sprintf("%s(%s)", SecureOAuthTokenintrospectionAllKVName, f.kv)
 	}
 	return AuthUnknown
 }
@@ -319,13 +397,13 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 
 	var allowed bool
 	switch f.typ {
-	case checkOAuthTokenintrospectionAnyClaims:
+	case checkOAuthTokenintrospectionAnyClaims, checkSecureOAuthTokenintrospectionAnyClaims:
 		allowed = f.validateAnyClaims(info)
-	case checkOAuthTokenintrospectionAnyKV:
+	case checkOAuthTokenintrospectionAnyKV, checkSecureOAuthTokenintrospectionAnyKV:
 		allowed = f.validateAnyKV(info)
-	case checkOAuthTokenintrospectionAllClaims:
+	case checkOAuthTokenintrospectionAllClaims, checkSecureOAuthTokenintrospectionAllClaims:
 		allowed = f.validateAllClaims(info)
-	case checkOAuthTokenintrospectionAllKV:
+	case checkOAuthTokenintrospectionAllKV, checkSecureOAuthTokenintrospectionAllKV:
 		allowed = f.validateAllKV(info)
 	default:
 		log.Errorf("Wrong tokenintrospectionFilter type: %s", f)
