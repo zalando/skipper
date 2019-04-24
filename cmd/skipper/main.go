@@ -591,6 +591,10 @@ func main() {
 		Append:  appendFilters.Get(),
 	}
 
+	if apiUsageMonitoringDefaultClientTrackingPattern != defaultApiUsageMonitoringDefaultClientTrackingPattern {
+		log.Warn(`"api-usage-monitoring-default-client-tracking-pattern" parameter is deprecated`)
+	}
+
 	options := skipper.Options{
 		// generic:
 		Address:                         address,
@@ -678,11 +682,10 @@ func main() {
 		KubernetesEastWestDomain:    kubernetesEastWestDomain,
 
 		// API Monitoring:
-		ApiUsageMonitoringEnable:                       apiUsageMonitoringEnable,
-		ApiUsageMonitoringRealmKeys:                    apiUsageMonitoringRealmKeys,
-		ApiUsageMonitoringClientKeys:                   apiUsageMonitoringClientKeys,
-		ApiUsageMonitoringDefaultClientTrackingPattern: apiUsageMonitoringDefaultClientTrackingPattern,
-		ApiUsageMonitoringRealmsTrackingPattern:        apiUsageMonitoringRealmsTrackingPattern,
+		ApiUsageMonitoringEnable:                apiUsageMonitoringEnable,
+		ApiUsageMonitoringRealmKeys:             apiUsageMonitoringRealmKeys,
+		ApiUsageMonitoringClientKeys:            apiUsageMonitoringClientKeys,
+		ApiUsageMonitoringRealmsTrackingPattern: apiUsageMonitoringRealmsTrackingPattern,
 
 		// Default filters:
 		DefaultFiltersDir: defaultFiltersDir,
