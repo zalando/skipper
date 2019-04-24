@@ -102,7 +102,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	// changes will only happen if we change the name of the group
+	// changes will only happen if we change the key of the group
 	if config, ok := l.getConfig(); ok {
 		l.config = config
 		return l, nil
@@ -146,14 +146,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return l, nil
 }
 
-func (l *lifoFilter) Request(ctx filters.FilterContext) {
-	request(l.stack, lifoKey, ctx)
-}
-
-func (l *lifoFilter) Response(ctx filters.FilterContext) {
-	response(lifoKey, ctx)
-}
-
+// Config returns the scheduler configuration for the given filter
 func (l *lifoFilter) Config() scheduler.Config {
 	cfg, _ := l.getConfig()
 	return cfg
@@ -166,25 +159,34 @@ func (l *lifoFilter) getConfig() (scheduler.Config, bool) {
 	return res, ok
 }
 
+// SetStack binds the stack to the current filter context
 func (l *lifoFilter) SetStack(s *scheduler.Stack) {
 	l.stack = s
 }
 
+// GetStack is only used in tests
 func (l *lifoFilter) GetStack() *scheduler.Stack {
 	return l.stack
 }
 
+// Key returns the scheduler group string
 func (l *lifoFilter) Key() string {
 	return l.key
 }
 
-func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
-	if s == nil {
-		log.Warningf("Unexpected scheduler.Stack is nil for key %s", key)
+// Request is the filter.Filter interface implementation. Request will
+// increase the number of inflight requests and respond to the caller,
+// if the bounded stack returns an error. Status code by Error:
+//
+// - 503 if jobstack.ErrStackFull
+// - 502 if jobstack.ErrTimeout
+func (l *lifoFilter) Request(ctx filters.FilterContext) {
+	if l.stack == nil {
+		log.Warningf("Unexpected scheduler.Stack is nil for key %s", lifoKey)
 		return
 	}
 
-	done, err := s.Ready()
+	done, err := l.stack.Ready()
 	if err != nil {
 		// TODO:
 		// - replace the log with metrics
@@ -200,16 +202,19 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout"})
 		default:
 			log.Errorf("Unknown error for route based LIFO: %v", err)
-			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable})
+			ctx.Serve(&http.Response{StatusCode: http.StatusInternalServerError})
 		}
 		return
 	}
 
-	ctx.StateBag()[key] = done
+	ctx.StateBag()[lifoKey] = done
+
 }
 
-func response(key string, ctx filters.FilterContext) {
-	done := ctx.StateBag()[key]
+// Response is the filter.Filter interface implementation. Response
+// will decrease the number of inflight requests.
+func (l *lifoFilter) Response(ctx filters.FilterContext) {
+	done := ctx.StateBag()[lifoKey]
 	if done == nil {
 		return
 	}
