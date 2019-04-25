@@ -418,7 +418,7 @@ The filter accepts variable number of string arguments, which are used to
 validate the incoming token from the `Authorization: Bearer <token>`
 header. There are two rejection scenarios for this filter. If the token
 is not successfully validated by the oauth server, then a 401 Unauthorised
-response will be returned. However, if the token is successfully validated 
+response will be returned. However, if the token is successfully validated
 but the required scope match isn't satisfied, then a 403 Forbidden response
 will be returned. If any of the configured scopes from the filter is found
 inside the tokeninfo result for the incoming token, it will allow the
@@ -439,7 +439,7 @@ The filter accepts variable number of string arguments, which are used to
 validate the incoming token from the `Authorization: Bearer <token>`
 header. There are two rejection scenarios for this filter. If the token
 is not successfully validated by the oauth server, then a 401 Unauthorised
-response will be returned. However, if the token is successfully validated 
+response will be returned. However, if the token is successfully validated
 but the required scope match isn't satisfied, then a 403 Forbidden response
 will be returned. If all of the configured scopes from the filter are found
 inside the tokeninfo result for the incoming token, it will allow the
@@ -458,13 +458,13 @@ this filter.
 
 The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
-`Authorization: Bearer <token>` header. There are two rejection scenarios 
-for this filter. If the token is not successfully validated by the oauth 
-server, then a 401 Unauthorised response will be returned. However, 
-if the token is successfully validated but the required scope match 
+`Authorization: Bearer <token>` header. There are two rejection scenarios
+for this filter. If the token is not successfully validated by the oauth
+server, then a 401 Unauthorised response will be returned. However,
+if the token is successfully validated but the required scope match
 isn't satisfied, then a 403 Forbidden response will be returned.
-If any of the configured key value pairs from the filter is found 
-inside the tokeninfo result for the incoming token, it will allow 
+If any of the configured key value pairs from the filter is found
+inside the tokeninfo result for the incoming token, it will allow
 the request to pass.
 
 Examples:
@@ -480,13 +480,13 @@ this filter.
 
 The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
-`Authorization: Bearer <token>` header. There are two rejection 
-scenarios for this filter. If the token is not successfully validated 
-by the oauth server, then a 401 Unauthorised response will be 
-returned. However, if the token is successfully validated but 
-the required scope match isn't satisfied, then a 403 Forbidden response 
-will be returned. If all of the configured key value pairs from 
-the filter are found inside the tokeninfo result for the incoming 
+`Authorization: Bearer <token>` header. There are two rejection
+scenarios for this filter. If the token is not successfully validated
+by the oauth server, then a 401 Unauthorised response will be
+returned. However, if the token is successfully validated but
+the required scope match isn't satisfied, then a 403 Forbidden response
+will be returned. If all of the configured key value pairs from
+the filter are found inside the tokeninfo result for the incoming
 token, it will allow the request to pass.
 
 Examples:
@@ -1081,7 +1081,7 @@ token.
 
 *N.B.* It is important to note that, if the content of the `X-Unverified-Audit` header does not match the following regex, then
 a default value of `invalid-sub` will be populated in the header instead:
-    `^[a-zA-z0-9_/:?=&%@.#-]*$`    
+    `^[a-zA-z0-9_/:?=&%@.#-]*$`
 
 Examples:
 
@@ -1392,3 +1392,67 @@ E.g.:
 ```
 apiUsageMonitoring.custom.my-app.{unknown}.GET.{no-match}.*.*.http_count
 ```
+
+## lifo
+
+Filter changes skipper to handle the route with a bounded last in
+first out queue (LIFO), instead of an unbounded first in first out
+queue (FIFO). The default skipper scheduler is based on Go net/http
+package, which provides an unbounded FIFO request handling. If you
+enable this filter the request scheduling will change to a LIFO.  The
+idea of a LIFO queue is based on Dropbox bandit proxy, which is not
+opensource. Dropbox shared their idea in a
+[public blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/).
+All bounded scheduler filters will respond requests with server status error
+codes in case of overrun. All scheduler filters return HTTP status code:
+
+- 502, if the specified timeout is reached, because a request could not be scheduled fast enough
+- 503, if the queue is full
+
+Parameters:
+
+* MaxConcurrency specifies how many goroutines are allowed to work on this queue(int)
+* MaxStackSize sets the queue size (int)
+* Timeout sets the timeout to get request scheduled (time)
+
+Example:
+
+```
+lifo(100, 150, "10s")
+```
+
+The above configuration will set MaxConcurrency to 100, MaxStackSize
+to 150 and Timeout to 10 seconds.
+
+## lifoGroup
+
+Filter changes skipper to handle the route with a bounded last in
+first out queue (LIFO), instead of an unbounded first in first out
+queue (FIFO). The default skipper scheduler is based on Go net/http
+package, which provides an unbounded FIFO request handling. If you
+enable this filter the request scheduling will change to a LIFO.  The
+idea of a LIFO queue is based on Dropbox bandit proxy, which is not
+opensource. Dropbox shared their idea in a
+[public blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/).
+All bounded scheduler filters will respond requests with server status error
+codes in case of overrun. All scheduler filters return HTTP status code:
+
+- 502, if the specified timeout is reached, because a request could not be scheduled fast enough
+- 503, if the queue is full
+
+Parameters:
+
+* GroupName to group multiple one or many routes to the same queue, which have to have the same settings (string)
+* MaxConcurrency specifies how many goroutines are allowed to work on this queue(int)
+* MaxStackSize sets the queue size (int)
+* Timeout sets the timeout to get request scheduled (time)
+
+Example:
+
+```
+lifoGroup("mygroup", 100, 150, "10s")
+```
+
+The above configuration will set MaxConcurrency to 100, MaxStackSize
+to 150 and Timeout to 10 seconds for the lifoGroup "mygroup", that can
+be shared between more than routes.

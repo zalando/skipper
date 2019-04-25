@@ -8,21 +8,22 @@
 // the number of goroutines from skipper metrics, if you have this
 // problem.
 //
-// The scheduler filter package has one implementation of bounded
-// queue, the lifo filter. Lifo filter will, use a last in first out
-// queue to handle most requests fast and if skipper is in an overrun
-// mode, it will serve some requests fast and some will timeout. The
-// idea is based on Dropbox bandit proxy, which is not
-// opensource. Dropbox shared their idea in a public blogpost
+// The scheduler filter package has two implementations of bounded
+// queue, the lifo and lifoGroup filter. Both lifo filters will, use a
+// last in first out queue to handle most requests fast and if skipper
+// is in an overrun mode, it will serve some requests fast and some
+// will timeout. The idea is based on Dropbox bandit proxy, which is
+// not opensource. Dropbox shared their idea in a public blogpost
 // https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/.
 // This scheduler implementation makes sure that one route will not
 // interfere with other routes, if these routes are not in the same
-// scheduler group.
+// scheduler group. LifoGroup has a user chosen scheduler group and
+// lifo will get a per route unique scheduler group.
 //
 // Bounded schedulers were tested in Kubernetes with 3 proxy instances
 // with 500m CPU and 500Mi memory resources. The load test was done
 // with 500 requests per second to backends with 25 seconds latency
-// and a second load test was done in parallel with 50 150 250
+// and a second load test was done in parallel with 50 150 250 .. 1000
 // requests per second to backends with no additional latency. For the
 // workload without additional latency there was no additional latency
 // measurable. The memory was at maximum 350Mi with the bounded

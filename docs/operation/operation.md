@@ -389,7 +389,7 @@ Kubernetes API, use the following option:
 
     -source-poll-timeout int
         polling timeout of the routing data sources, in milliseconds (default 3000)
-        
+
 
 # Routing table information
 
@@ -472,6 +472,23 @@ redis per hit. Make sure you monitor redis closely, because skipper
 will fallback to allow traffic if redis can not be reached.
 
 ## Default filters
+
+### Global default filters
+
+Global default filters can be specified via two different command line
+flags `-default-filters-prepend` and
+`-default-filters-append`. Filters passed to these command line flag
+will be applied to all routes. The difference `prepend` and `append` is
+where in the filter chain these default filters are applied.
+
+For example a user specified the route: `r: * -> setPath("/foo")`
+If you run skipper with `-default-filters-prepend=enableAccessLog(4,5) -> lifo(100,100,"10s")`,
+the actual route will look like this: `r: * -> enableAccessLog(4,5) -> lifo(100,100,"10s") -> setPath("/foo")`.
+If you run skipper with `-default-filters-append=enableAccessLog(4,5) -> lifo(100,100,"10s")`,
+the actual route will look like this: `r: *  -> setPath("/foo") -> enableAccessLog(4,5) -> lifo(100,100,"10s")`.
+
+
+### Kubernetes default filters
 
 Kubernetes dataclient supports default filters. You can enable this feature by
 specifying `default-filters-dir`. The defined directory must contain per-service
