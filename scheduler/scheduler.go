@@ -31,6 +31,7 @@ type LIFOFilter interface {
 	GetStack() *Stack
 	Config() Config
 	Key() string
+	SetKey(string)
 }
 
 func newStack(c Config) *Stack {
@@ -83,6 +84,7 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 			cf, ok := fi.Filter.(LIFOFilter)
 			if ok {
 				c := cf.Config()
+				cf.SetKey(ri.Id)
 				key := cf.Key()
 				s, ok := r.getStack(key)
 				if !ok {

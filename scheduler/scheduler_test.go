@@ -31,8 +31,18 @@ func TestScheduler(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "one scheduler filter lifo",
+			doc:     `l2: * -> lifo(10, 12, "10s") -> "http://www.example.org"`,
+			wantErr: false,
+		},
+		{
 			name:    "one scheduler filter lifoGroup",
 			doc:     `r2: * -> lifoGroup("r2", 10, 12, "10s") -> "http://www.example.org"`,
+			wantErr: false,
+		},
+		{
+			name:    "multiple filters with one scheduler filter lifo",
+			doc:     `l3: * -> setPath("/bar") -> lifo(10, 12, "10s") -> setRequestHeader("X-Foo", "bar") -> "http://www.example.org"`,
 			wantErr: false,
 		},
 		{
@@ -41,7 +51,13 @@ func TestScheduler(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "multiple routes with different grouping do not interfeere",
+			name:    "multiple routes with lifo filters do not interfere",
+			doc:     `l4: Path("/l4") -> setPath("/bar") -> lifo(10, 12, "10s") -> "http://www.example.org"; l5: Path("/l5") -> setPath("/foo") -> lifo(15, 2, "11s")  -> setRequestHeader("X-Foo", "bar")-> "http://www.example.org";`,
+			paths:   [][]string{[]string{"l4"}, []string{"l5"}},
+			wantErr: false,
+		},
+		{
+			name:    "multiple routes with different grouping do not interfere",
 			doc:     `r4: Path("/r4") -> setPath("/bar") -> lifoGroup("r4", 10, 12, "10s") -> "http://www.example.org"; r5: Path("/r5") -> setPath("/foo") -> lifoGroup("r5", 15, 2, "11s")  -> setRequestHeader("X-Foo", "bar")-> "http://www.example.org";`,
 			paths:   [][]string{[]string{"r4"}, []string{"r5"}},
 			wantErr: false,

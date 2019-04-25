@@ -15,8 +15,14 @@ import (
 // that it's incompatible with MarkServed().
 
 type (
+	lifoSpec      struct{}
 	lifoGroupSpec struct{}
 
+	lifoFilter struct {
+		key    string
+		config scheduler.Config
+		stack  *scheduler.Stack
+	}
 	lifoGroupFilter struct {
 		key    string
 		config scheduler.Config
@@ -30,8 +36,10 @@ type (
 )
 
 const (
+	LIFOName      = "lifo"
 	LIFOGroupName = "lifoGroup"
 
+	lifoKey      = "lifo-done"
 	lifoGroupKey = "lifo-group-done"
 
 	defaultMaxConcurreny = 100
@@ -39,7 +47,12 @@ const (
 	defaultTimeout       = 10 * time.Second
 )
 
+// TODO: get rid of global
 var configStore groupConfig
+
+func NewLIFO() filters.Spec {
+	return &lifoSpec{}
+}
 
 func NewLIFOGroup() filters.Spec {
 	return &lifoGroupSpec{}
@@ -63,6 +76,71 @@ func durationArg(a interface{}) (time.Duration, error) {
 	default:
 		return 0, filters.ErrInvalidFilterParameters
 	}
+}
+
+func (s *lifoSpec) Name() string { return LIFOName }
+
+// CreateFilter creates a lifoFilter, that will use a stack based
+// queue for handling requests instead of the fifo queue. The first
+// parameter is MaxConcurrency the second MaxStackSize and the third
+// Timeout.
+//
+// The implementation is based on
+// https://godoc.org/github.com/aryszka/jobstack, which provides more
+// detailed documentation.
+//
+// All parameters are optional and defaults to
+// MaxConcurrency 100, MaxStackSize 100, Timeout 10s.
+//
+// The total maximum number of requests has to be computed by adding
+// MaxConcurrency and MaxStackSize: total max = MaxConcurrency + MaxStackSize
+//
+// Min values are 1 for MaxConcurrency and MaxStackSize, and 1ms for
+// Timeout. All configration that is below will be set to these min
+// values.
+func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	var l lifoFilter
+
+	// set defaults
+	l.config.MaxConcurrency = defaultMaxConcurreny
+	l.config.MaxStackSize = defaultMaxStackSize
+	l.config.Timeout = defaultTimeout
+
+	if len(args) > 0 {
+		c, err := intArg(args[0])
+		if err != nil {
+			return nil, err
+		}
+		if c >= 1 {
+			l.config.MaxConcurrency = c
+		}
+	}
+
+	if len(args) > 1 {
+		c, err := intArg(args[1])
+		if err != nil {
+			return nil, err
+		}
+		if c >= 0 {
+			l.config.MaxStackSize = c
+		}
+	}
+
+	if len(args) > 2 {
+		d, err := durationArg(args[2])
+		if err != nil {
+			return nil, err
+		}
+		if d >= 1*time.Millisecond {
+			l.config.Timeout = d
+		}
+	}
+
+	if len(args) > 3 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return &l, nil
 }
 
 func (s *lifoGroupSpec) Name() string { return LIFOGroupName }
@@ -147,6 +225,48 @@ func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 }
 
 // Config returns the scheduler configuration for the given filter
+func (l *lifoFilter) Config() scheduler.Config {
+	return l.config
+}
+
+// SetStack binds the stack to the current filter context
+func (l *lifoFilter) SetStack(s *scheduler.Stack) {
+	l.stack = s
+}
+
+// GetStack is only used in tests
+func (l *lifoFilter) GetStack() *scheduler.Stack {
+	return l.stack
+}
+
+// Key returns the scheduler string
+func (l *lifoFilter) Key() string {
+	return l.key
+}
+
+// SetKey sets the scheduler string, which should be called from the
+// PostProcessor
+func (l *lifoFilter) SetKey(k string) {
+	l.key = k
+}
+
+// Request is the filter.Filter interface implementation. Request will
+// increase the number of inflight requests and respond to the caller,
+// if the bounded stack returns an error. Status code by Error:
+//
+// - 503 if jobstack.ErrStackFull
+// - 502 if jobstack.ErrTimeout
+func (l *lifoFilter) Request(ctx filters.FilterContext) {
+	request(l.GetStack(), lifoKey, ctx)
+}
+
+// Response is the filter.Filter interface implementation. Response
+// will decrease the number of inflight requests.
+func (l *lifoFilter) Response(ctx filters.FilterContext) {
+	response(lifoKey, ctx)
+}
+
+// Config returns the scheduler configuration for the given filter
 func (l *lifoGroupFilter) Config() scheduler.Config {
 	cfg, _ := l.getConfig()
 	return cfg
@@ -174,6 +294,9 @@ func (l *lifoGroupFilter) Key() string {
 	return l.key
 }
 
+// SetKey is a noop to implement the LIFOFilter interface
+func (*lifoGroupFilter) SetKey(string) {}
+
 // Request is the filter.Filter interface implementation. Request will
 // increase the number of inflight requests and respond to the caller,
 // if the bounded stack returns an error. Status code by Error:
@@ -181,12 +304,22 @@ func (l *lifoGroupFilter) Key() string {
 // - 503 if jobstack.ErrStackFull
 // - 502 if jobstack.ErrTimeout
 func (l *lifoGroupFilter) Request(ctx filters.FilterContext) {
-	if l.stack == nil {
-		log.Warningf("Unexpected scheduler.Stack is nil for key %s", lifoGroupKey)
+	request(l.GetStack(), lifoGroupKey, ctx)
+}
+
+// Response is the filter.Filter interface implementation. Response
+// will decrease the number of inflight requests.
+func (l *lifoGroupFilter) Response(ctx filters.FilterContext) {
+	response(lifoGroupKey, ctx)
+}
+
+func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
+	if s == nil {
+		log.Warningf("Unexpected scheduler.Stack is nil for key %s", key)
 		return
 	}
 
-	done, err := l.stack.Ready()
+	done, err := s.Ready()
 	if err != nil {
 		// TODO:
 		// - replace the log with metrics
@@ -207,14 +340,11 @@ func (l *lifoGroupFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	ctx.StateBag()[lifoGroupKey] = done
+	ctx.StateBag()[key] = done
 
 }
-
-// Response is the filter.Filter interface implementation. Response
-// will decrease the number of inflight requests.
-func (l *lifoGroupFilter) Response(ctx filters.FilterContext) {
-	done := ctx.StateBag()[lifoGroupKey]
+func response(key string, ctx filters.FilterContext) {
+	done := ctx.StateBag()[key]
 	if done == nil {
 		return
 	}
