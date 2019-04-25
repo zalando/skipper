@@ -31,24 +31,24 @@ func TestScheduler(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "one scheduler filter lifo",
-			doc:     `r2: * -> lifo("r2", 10, 12, "10s") -> "http://www.example.org"`,
+			name:    "one scheduler filter lifoGroup",
+			doc:     `r2: * -> lifoGroup("r2", 10, 12, "10s") -> "http://www.example.org"`,
 			wantErr: false,
 		},
 		{
-			name:    "multiple filters with one scheduler filter lifo",
-			doc:     `r3: * -> setPath("/bar") -> lifo("r3", 10, 12, "10s") -> setRequestHeader("X-Foo", "bar") -> "http://www.example.org"`,
+			name:    "multiple filters with one scheduler filter lifoGroup",
+			doc:     `r3: * -> setPath("/bar") -> lifoGroup("r3", 10, 12, "10s") -> setRequestHeader("X-Foo", "bar") -> "http://www.example.org"`,
 			wantErr: false,
 		},
 		{
 			name:    "multiple routes with different grouping do not interfeere",
-			doc:     `r4: Path("/r4") -> setPath("/bar") -> lifo("r4", 10, 12, "10s") -> "http://www.example.org"; r5: Path("/r5") -> setPath("/foo") -> lifo("r5", 15, 2, "11s")  -> setRequestHeader("X-Foo", "bar")-> "http://www.example.org";`,
+			doc:     `r4: Path("/r4") -> setPath("/bar") -> lifoGroup("r4", 10, 12, "10s") -> "http://www.example.org"; r5: Path("/r5") -> setPath("/foo") -> lifoGroup("r5", 15, 2, "11s")  -> setRequestHeader("X-Foo", "bar")-> "http://www.example.org";`,
 			paths:   [][]string{[]string{"r4"}, []string{"r5"}},
 			wantErr: false,
 		},
 		{
 			name:    "multiple routes with same grouping do use the same configuration",
-			doc:     `r6: Path("/r6") -> setPath("/bar") -> lifo("r6", 10, 12, "10s") -> "http://www.example.org"; r7: Path("/r7") -> setPath("/foo") -> lifo("r6", 10, 12, "10s")  -> setRequestHeader("X-Foo", "bar")-> "http://www.example.org";`,
+			doc:     `r6: Path("/r6") -> setPath("/bar") -> lifoGroup("r6", 10, 12, "10s") -> "http://www.example.org"; r7: Path("/r7") -> setPath("/foo") -> lifoGroup("r6", 10, 12, "10s")  -> setRequestHeader("X-Foo", "bar")-> "http://www.example.org";`,
 			wantErr: false,
 			paths:   [][]string{{"r6", "r7"}},
 		}} {

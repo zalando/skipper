@@ -15,9 +15,9 @@ import (
 // that it's incompatible with MarkServed().
 
 type (
-	lifoSpec struct{}
+	lifoGroupSpec struct{}
 
-	lifoFilter struct {
+	lifoGroupFilter struct {
 		key    string
 		config scheduler.Config
 		stack  *scheduler.Stack
@@ -30,9 +30,9 @@ type (
 )
 
 const (
-	LIFOName = "lifo"
+	LIFOGroupName = "lifoGroup"
 
-	lifoKey = "lifo-done"
+	lifoGroupKey = "lifo-group-done"
 
 	defaultMaxConcurreny = 100
 	defaultMaxStackSize  = 100
@@ -41,8 +41,8 @@ const (
 
 var configStore groupConfig
 
-func NewLIFO() filters.Spec {
-	return &lifoSpec{}
+func NewLIFOGroup() filters.Spec {
+	return &lifoGroupSpec{}
 }
 
 func intArg(a interface{}) (int, error) {
@@ -65,9 +65,9 @@ func durationArg(a interface{}) (time.Duration, error) {
 	}
 }
 
-func (s *lifoSpec) Name() string { return LIFOName }
+func (s *lifoGroupSpec) Name() string { return LIFOGroupName }
 
-// CreateFilter creates a lifoFilter, that will use a stack based
+// CreateFilter creates a lifoGroupFilter, that will use a stack based
 // queue for handling requests instead of the fifo queue. The first
 // parameter is the Name, the second MaxConcurrency, the third
 // MaxStackSize and the fourth Timeout.
@@ -88,12 +88,12 @@ func (s *lifoSpec) Name() string { return LIFOName }
 // Min values are 1 for MaxConcurrency and MaxStackSize, and 1ms for
 // Timeout. All configration that is below will be set to these min
 // values.
-func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) < 1 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	l := &lifoFilter{}
+	l := &lifoGroupFilter{}
 
 	switch v := args[0].(type) {
 	case string:
@@ -147,12 +147,12 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 }
 
 // Config returns the scheduler configuration for the given filter
-func (l *lifoFilter) Config() scheduler.Config {
+func (l *lifoGroupFilter) Config() scheduler.Config {
 	cfg, _ := l.getConfig()
 	return cfg
 }
 
-func (l *lifoFilter) getConfig() (scheduler.Config, bool) {
+func (l *lifoGroupFilter) getConfig() (scheduler.Config, bool) {
 	configStore.mu.Lock()
 	defer configStore.mu.Unlock()
 	res, ok := configStore.config[l.key]
@@ -160,17 +160,17 @@ func (l *lifoFilter) getConfig() (scheduler.Config, bool) {
 }
 
 // SetStack binds the stack to the current filter context
-func (l *lifoFilter) SetStack(s *scheduler.Stack) {
+func (l *lifoGroupFilter) SetStack(s *scheduler.Stack) {
 	l.stack = s
 }
 
 // GetStack is only used in tests
-func (l *lifoFilter) GetStack() *scheduler.Stack {
+func (l *lifoGroupFilter) GetStack() *scheduler.Stack {
 	return l.stack
 }
 
 // Key returns the scheduler group string
-func (l *lifoFilter) Key() string {
+func (l *lifoGroupFilter) Key() string {
 	return l.key
 }
 
@@ -180,9 +180,9 @@ func (l *lifoFilter) Key() string {
 //
 // - 503 if jobstack.ErrStackFull
 // - 502 if jobstack.ErrTimeout
-func (l *lifoFilter) Request(ctx filters.FilterContext) {
+func (l *lifoGroupFilter) Request(ctx filters.FilterContext) {
 	if l.stack == nil {
-		log.Warningf("Unexpected scheduler.Stack is nil for key %s", lifoKey)
+		log.Warningf("Unexpected scheduler.Stack is nil for key %s", lifoGroupKey)
 		return
 	}
 
@@ -201,20 +201,20 @@ func (l *lifoFilter) Request(ctx filters.FilterContext) {
 			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
 			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout"})
 		default:
-			log.Errorf("Unknown error for route based LIFO: %v", err)
+			log.Errorf("Unknown error for route based LIFOGroup: %v", err)
 			ctx.Serve(&http.Response{StatusCode: http.StatusInternalServerError})
 		}
 		return
 	}
 
-	ctx.StateBag()[lifoKey] = done
+	ctx.StateBag()[lifoGroupKey] = done
 
 }
 
 // Response is the filter.Filter interface implementation. Response
 // will decrease the number of inflight requests.
-func (l *lifoFilter) Response(ctx filters.FilterContext) {
-	done := ctx.StateBag()[lifoKey]
+func (l *lifoGroupFilter) Response(ctx filters.FilterContext) {
+	done := ctx.StateBag()[lifoGroupKey]
 	if done == nil {
 		return
 	}
