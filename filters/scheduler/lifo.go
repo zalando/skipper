@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/aryszka/jobstack"
@@ -27,11 +26,6 @@ type (
 		key    string
 		config scheduler.Config
 		stack  *scheduler.Stack
-	}
-
-	groupConfig struct {
-		mu     sync.Mutex
-		config map[string]scheduler.Config
 	}
 )
 
@@ -177,16 +171,13 @@ func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	// changes will only happen if we change the key of the group
-	if config, ok := l.getConfig(); ok {
-		l.config = config
-		return l, nil
-	}
-
 	// set defaults
-	l.config.MaxConcurrency = defaultMaxConcurreny
-	l.config.MaxStackSize = defaultMaxStackSize
-	l.config.Timeout = defaultTimeout
+	cfg := scheduler.Config{
+		MaxConcurrency: defaultMaxConcurreny,
+		MaxStackSize:   defaultMaxStackSize,
+		Timeout:        defaultTimeout,
+	}
+	l.config = cfg
 
 	if len(args) > 1 {
 		c, err := intArg(args[1])
@@ -222,7 +213,7 @@ func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 }
 
 // Config returns the scheduler configuration for the given filter
-func (l *lifoFilter) Config(*Registry) scheduler.Config {
+func (l *lifoFilter) Config(*scheduler.Registry) scheduler.Config {
 	return l.config
 }
 
@@ -264,7 +255,7 @@ func (l *lifoFilter) Response(ctx filters.FilterContext) {
 }
 
 // Config returns the scheduler configuration for the given filter
-func (l *lifoGroupFilter) Config(r *Registry) scheduler.Config {
+func (l *lifoGroupFilter) Config(r *scheduler.Registry) scheduler.Config {
 	return r.Config(l.key)
 }
 

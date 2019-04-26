@@ -74,12 +74,13 @@ func TestScheduler(t *testing.T) {
 				t.Fatalf("Failed to create a test dataclient: %v", err)
 			}
 
+			reg := scheduler.NewRegistry()
 			ro := routing.Options{
 				SignalFirstLoad: true,
 				FilterRegistry:  fr,
 				DataClients:     []routing.DataClient{cli},
 				PostProcessors: []routing.PostProcessor{
-					scheduler.NewRegistry(),
+					reg,
 				},
 			}
 			rt := routing.New(ro)
@@ -101,7 +102,7 @@ func TestScheduler(t *testing.T) {
 					if !ok {
 						continue
 					}
-					cfg := lf.Config()
+					cfg := lf.Config(reg)
 					stack := lf.GetStack()
 					if stack == nil {
 						t.Errorf("Stack is nil")
@@ -133,7 +134,7 @@ func TestScheduler(t *testing.T) {
 						if !ok {
 							continue
 						}
-						cfg := lf.Config()
+						cfg := lf.Config(reg)
 						stack := lf.GetStack()
 						if stack == nil {
 							t.Errorf("Stack is nil")
