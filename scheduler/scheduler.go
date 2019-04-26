@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aryszka/jobstack"
+	"github.com/aryszka/jobqueue"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -18,7 +18,7 @@ type Config struct {
 }
 
 type Stack struct {
-	stack  *jobstack.Stack
+	stack  *jobqueue.Stack
 	config Config
 }
 
@@ -39,7 +39,7 @@ type LIFOFilter interface {
 func newStack(c Config) *Stack {
 	return &Stack{
 		config: c,
-		stack: jobstack.With(jobstack.Options{
+		stack: jobqueue.With(jobqueue.Options{
 			MaxConcurrency: c.MaxConcurrency,
 			MaxStackSize:   c.MaxStackSize,
 			Timeout:        c.Timeout,

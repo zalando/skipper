@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aryszka/jobstack"
+	"github.com/aryszka/jobqueue"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/scheduler"
@@ -74,7 +74,7 @@ func (s *lifoSpec) Name() string { return LIFOName }
 // Timeout.
 //
 // The implementation is based on
-// https://godoc.org/github.com/aryszka/jobstack, which provides more
+// https://godoc.org/github.com/aryszka/jobqueue, which provides more
 // detailed documentation.
 //
 // All parameters are optional and defaults to
@@ -145,7 +145,7 @@ func (s *lifoGroupSpec) Name() string { return LIFOGroupName }
 // undefined.
 
 // The implementation is based on
-// https://godoc.org/github.com/aryszka/jobstack, which provides more
+// https://godoc.org/github.com/aryszka/jobqueue, which provides more
 // detailed documentation.
 //
 // The total maximum number of requests has to be computed by adding
@@ -239,8 +239,8 @@ func (l *lifoFilter) SetKey(k string) {
 // increase the number of inflight requests and respond to the caller,
 // if the bounded stack returns an error. Status code by Error:
 //
-// - 503 if jobstack.ErrStackFull
-// - 502 if jobstack.ErrTimeout
+// - 503 if jobqueue.ErrStackFull
+// - 502 if jobqueue.ErrTimeout
 func (l *lifoFilter) Request(ctx filters.FilterContext) {
 	request(l.GetStack(), lifoKey, ctx)
 }
@@ -278,8 +278,8 @@ func (*lifoGroupFilter) SetKey(string) {}
 // increase the number of inflight requests and respond to the caller,
 // if the bounded stack returns an error. Status code by Error:
 //
-// - 503 if jobstack.ErrStackFull
-// - 502 if jobstack.ErrTimeout
+// - 503 if jobqueue.ErrStackFull
+// - 502 if jobqueue.ErrTimeout
 func (l *lifoGroupFilter) Request(ctx filters.FilterContext) {
 	request(l.GetStack(), lifoGroupKey, ctx)
 }
@@ -300,10 +300,10 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 	if err != nil {
 		// TODO: replace the log with metrics
 		switch err {
-		case jobstack.ErrStackFull:
+		case jobqueue.ErrStackFull:
 			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
 			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable, Status: "Stack Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
-		case jobstack.ErrTimeout:
+		case jobqueue.ErrTimeout:
 			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
 			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
 		default:
