@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -308,6 +309,43 @@ func TestGetRoundtrip(t *testing.T) {
 	}
 }
 
+func TestSetRequestUrlFromRequest(t *testing.T) {
+	for _, ti := range []struct {
+		msg         string
+		originalURL *url.URL
+		expectedURL *url.URL
+		req         *http.Request
+	}{{
+		"Scheme and Host are set when empty",
+		&url.URL{Scheme: "", Host: ""},
+		&url.URL{Scheme: "http", Host: "example.com"},
+		&http.Request{TLS: nil, Host: "example.com"},
+	}, {
+		"Scheme and Host are not modified when already set",
+		&url.URL{Scheme: "http", Host: "example.com"},
+		&url.URL{Scheme: "http", Host: "example.com"},
+		&http.Request{TLS: &tls.ConnectionState{}, Host: "example2.com"},
+	}, {
+		"Scheme is set to http when TLS not set",
+		&url.URL{Scheme: ""},
+		&url.URL{Scheme: "http"},
+		&http.Request{TLS: nil},
+	}, {
+		"Scheme is set to https when TLS is set",
+		&url.URL{Scheme: ""},
+		&url.URL{Scheme: "https"},
+		&http.Request{TLS: &tls.ConnectionState{}},
+	}} {
+		u, _ := url.Parse(ti.originalURL.String())
+		setRequestURLFromRequest(u, ti.req)
+
+		beq := reflect.DeepEqual(ti.expectedURL, u)
+		if !beq {
+			t.Error(ti.msg, "<urls don't match>", ti.expectedURL, u)
+		}
+	}
+}
+
 func TestSetRequestUrlForDynamicBackend(t *testing.T) {
 	for _, ti := range []struct {
 		msg         string
@@ -368,7 +406,8 @@ func TestGetRoundtripForDynamicBackend(t *testing.T) {
 	bu, _ := url.ParseRequestURI(s.URL)
 	doc := fmt.Sprintf(
 		`dynamic: Method("GET") -> setDynamicBackendScheme(%q) ->setDynamicBackendHost(%q) -> <dynamic>;`+
-			`dynamic2: Method("POST") -> setDynamicBackendUrl(%q) -> <dynamic>;`, bu.Scheme, bu.Host, s.URL)
+			`dynamic2: Method("POST") -> setDynamicBackendUrl(%q) -> <dynamic>;`+
+			`dynamic3: Path("/defaults") -> <dynamic>;`, bu.Scheme, bu.Host, s.URL)
 
 	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
 	if err != nil {
@@ -395,6 +434,19 @@ func TestGetRoundtripForDynamicBackend(t *testing.T) {
 		Method: "POST",
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	tp.proxy.ServeHTTP(w, r2)
+
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
+	}
+
+	u3 := &url.URL{Path: "/defaults"}
+	r3 := &http.Request{
+		URL:    u3,
+		Method: "HEAD",
+		Host:   bu.Host,
+		Header: http.Header{"X-Test-Header": []string{"test value"}},
+	}
+	tp.proxy.ServeHTTP(w, r3)
 
 	if w.Code != http.StatusOK {
 		t.Error("wrong status", w.Code)
