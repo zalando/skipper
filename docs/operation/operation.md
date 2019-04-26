@@ -561,13 +561,14 @@ Skipper has two filters [`lifo()`](../../reference/filters/#lifo) and
 the number of requests for a route.  A [documented load
 test](https://github.com/zalando/skipper/pull/1030#issuecomment-485714338)
 shows the behavior with an enabled `lifo(100,100,"10s")` filter for
-all routes, that was added by default the filter flag:
+all routes, that was added by default. You can do this, if you pass
+the following flag to skipper:
 `-default-filters-prepend=lifo(100,100,"10s")`.
 
 Both LIFO filters will, use a last in first out queue to handle most
 requests fast. If skipper is in an overrun mode, it will serve some
 requests fast and some will timeout. The idea is based on Dropbox
-bandit proxy, which is not opensource. [Dropbox](https://dropbox.com/)
+bandaid proxy, which is not opensource. [Dropbox](https://dropbox.com/)
 shared their idea in a [public
 blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/).
 

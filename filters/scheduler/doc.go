@@ -12,7 +12,7 @@
 // queue, the lifo and lifoGroup filter. Both lifo filters will, use a
 // last in first out queue to handle most requests fast and if skipper
 // is in an overrun mode, it will serve some requests fast and some
-// will timeout. The idea is based on Dropbox bandit proxy, which is
+// will timeout. The idea is based on Dropbox bandaid proxy, which is
 // not opensource. Dropbox shared their idea in a public blogpost
 // https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/.
 // This scheduler implementation makes sure that one route will not

@@ -113,9 +113,7 @@ func TestScheduler(t *testing.T) {
 				}
 			}
 
-			// tt.paths
 			stacksMap := make(map[string][]*scheduler.Stack)
-
 			for _, group := range tt.paths {
 				key := group[0]
 

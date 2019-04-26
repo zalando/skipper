@@ -1400,7 +1400,7 @@ first out queue (LIFO), instead of an unbounded first in first out
 queue (FIFO). The default skipper scheduler is based on Go net/http
 package, which provides an unbounded FIFO request handling. If you
 enable this filter the request scheduling will change to a LIFO.  The
-idea of a LIFO queue is based on Dropbox bandit proxy, which is not
+idea of a LIFO queue is based on Dropbox bandaid proxy, which is not
 opensource. Dropbox shared their idea in a
 [public blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/).
 All bounded scheduler filters will respond requests with server status error
@@ -1426,19 +1426,7 @@ to 150 and Timeout to 10 seconds.
 
 ## lifoGroup
 
-Filter changes skipper to handle the route with a bounded last in
-first out queue (LIFO), instead of an unbounded first in first out
-queue (FIFO). The default skipper scheduler is based on Go net/http
-package, which provides an unbounded FIFO request handling. If you
-enable this filter the request scheduling will change to a LIFO.  The
-idea of a LIFO queue is based on Dropbox bandit proxy, which is not
-opensource. Dropbox shared their idea in a
-[public blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/).
-All bounded scheduler filters will respond requests with server status error
-codes in case of overrun. All scheduler filters return HTTP status code:
-
-- 502, if the specified timeout is reached, because a request could not be scheduled fast enough
-- 503, if the queue is full
+This filter is similar to the [lifo](#lifo) filter.
 
 Parameters:
 
