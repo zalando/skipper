@@ -309,12 +309,12 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 		switch err {
 		case jobstack.ErrStackFull:
 			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
-			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable, Status: "Stack Full"})
+			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable, Status: "Stack Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
 		case jobstack.ErrTimeout:
 			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
-			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout"})
+			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
 		default:
-			log.Errorf("Unknown error for route based LIFOGroup: %v", err)
+			log.Errorf("Unknown error for route based LIFO: %v", err)
 			ctx.Serve(&http.Response{StatusCode: http.StatusInternalServerError})
 		}
 		return

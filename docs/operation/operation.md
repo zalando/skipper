@@ -526,6 +526,12 @@ that is provided by [Go's](https://golang.org/) standard library.
 Skipper provides 2 last in first out (LIFO) filters to change the
 scheduling behavior.
 
+On failure conditions, Skipper will return HTTP status code:
+
+- 503 if the queue is full, which is expected on the rout with a failing backend
+- 502 if queue access times out, because the queue access was not fast enough
+- 500 on unknown errors, please create [an issue](https://github.com/zalando/skipper/issues/new/choose)
+
 ## The problem
 
 Why should you use boundaries to limit concurrency level and limit the
