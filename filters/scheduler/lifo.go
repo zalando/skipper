@@ -296,7 +296,7 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 		return
 	}
 
-	done, err := s.Ready()
+	done, err := s.Wait()
 	if err != nil {
 		// TODO: replace the log with metrics
 		switch err {

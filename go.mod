@@ -5,7 +5,7 @@ require (
 	github.com/DataDog/datadog-go v0.0.0-20180822151419-281ae9f2d895 // indirect
 	github.com/abbot/go-http-auth v0.0.0-20150922224136-efc9484eee77
 	github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78 // indirect
-	github.com/aryszka/jobqueue v0.0.0-20190426153830-224f7dbd1e5a
+	github.com/aryszka/jobqueue v0.0.0-20190426154417-07494a038a8e
 	github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a // indirect
 	github.com/cenkalti/backoff v2.1.0+incompatible
 	github.com/circonus-labs/circonus-gometrics v2.2.4+incompatible // indirect

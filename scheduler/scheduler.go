@@ -47,8 +47,8 @@ func newStack(c Config) *Stack {
 	}
 }
 
-func (s *Stack) Ready() (done func(), err error) {
-	return s.stack.Ready()
+func (s *Stack) Wait() (done func(), err error) {
+	return s.stack.Wait()
 }
 
 func (s *Stack) close() {
