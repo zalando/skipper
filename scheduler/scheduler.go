@@ -68,7 +68,7 @@ func NewRegistry() *Registry {
 
 func (r *Registry) Config(key string) Config {
 	r.mu.Lock()
-	cfg, _ := r.groupConfig[key]
+	cfg := r.groupConfig[key]
 	r.mu.Unlock()
 	return cfg
 }
