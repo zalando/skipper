@@ -47,9 +47,6 @@ const (
 	defaultTimeout       = 10 * time.Second
 )
 
-// TODO: get rid of global
-var configStore groupConfig
-
 func NewLIFO() filters.Spec {
 	return &lifoSpec{}
 }
@@ -225,7 +222,7 @@ func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 }
 
 // Config returns the scheduler configuration for the given filter
-func (l *lifoFilter) Config() scheduler.Config {
+func (l *lifoFilter) Config(*Registry) scheduler.Config {
 	return l.config
 }
 
@@ -267,16 +264,8 @@ func (l *lifoFilter) Response(ctx filters.FilterContext) {
 }
 
 // Config returns the scheduler configuration for the given filter
-func (l *lifoGroupFilter) Config() scheduler.Config {
-	cfg, _ := l.getConfig()
-	return cfg
-}
-
-func (l *lifoGroupFilter) getConfig() (scheduler.Config, bool) {
-	configStore.mu.Lock()
-	defer configStore.mu.Unlock()
-	res, ok := configStore.config[l.key]
-	return res, ok
+func (l *lifoGroupFilter) Config(r *Registry) scheduler.Config {
+	return r.Config(l.key)
 }
 
 // SetStack binds the stack to the current filter context

@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"sync"
 	"time"
 
 	"github.com/aryszka/jobstack"
@@ -22,6 +23,7 @@ type Stack struct {
 }
 
 type Registry struct {
+	mu          sync.Mutex
 	groupConfig map[string]Config
 	stacks      map[string]*Stack
 }
@@ -29,7 +31,7 @@ type Registry struct {
 type LIFOFilter interface {
 	SetStack(*Stack)
 	GetStack() *Stack
-	Config() Config
+	Config(*Registry) Config
 	Key() string
 	SetKey(string)
 }
@@ -64,6 +66,13 @@ func NewRegistry() *Registry {
 	}
 }
 
+func (r *Registry) Config(key string) Config {
+	r.mu.Lock()
+	cfg, _ := r.groupConfig[key]
+	r.mu.Unlock()
+	return cfg
+}
+
 func (r *Registry) getStack(name string) (s *Stack, ok bool) {
 	s, ok = r.stacks[name]
 	return
@@ -81,11 +90,11 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 	for i, ri := range routes {
 		rr[i] = ri
 		for _, fi := range ri.Filters {
-			cf, ok := fi.Filter.(LIFOFilter)
+			lf, ok := fi.Filter.(LIFOFilter)
 			if ok {
-				c := cf.Config()
-				cf.SetKey(ri.Id)
-				key := cf.Key()
+				lf.SetKey(ri.Id)
+				key := lf.Key()
+				c := lf.Config(r)
 				s, ok := r.getStack(key)
 				if !ok {
 					s = newStack(c)
@@ -96,7 +105,7 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 					r.setStack(key, s)
 				}
 
-				cf.SetStack(s)
+				lf.SetStack(s)
 			}
 		}
 	}
