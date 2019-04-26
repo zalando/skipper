@@ -10,9 +10,6 @@ import (
 	"github.com/zalando/skipper/scheduler"
 )
 
-// TODO: must be documented that it cannot be used together with the legacy shunting, meaning
-// that it's incompatible with MarkServed().
-
 type (
 	lifoSpec      struct{}
 	lifoGroupSpec struct{}
@@ -301,11 +298,7 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 
 	done, err := s.Ready()
 	if err != nil {
-		// TODO:
-		// - replace the log with metrics
-		// - allow custom status code
-		// - provide more info in the header about the reason
-
+		// TODO: replace the log with metrics
 		switch err {
 		case jobstack.ErrStackFull:
 			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
