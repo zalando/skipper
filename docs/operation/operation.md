@@ -471,13 +471,24 @@ using the Redis ring based solution, adds 2 additional roundtrips to
 redis per hit. Make sure you monitor redis closely, because skipper
 will fallback to allow traffic if redis can not be reached.
 
-## Default filters
+## Slow Backends
 
-### Global default filters
+Skipper has to keep track of all active connections and http
+Requests. Slow Backends can pile up in number of connections, that
+will consume each a little memory per request. If you have high
+traffic per instance and a backend times out it can start to increase
+your memory consumption. Make sure you monitor backend latency,
+request and error rates.
+
+# Default Filters
+
+Default filters will be applied to all routes created or updated.
+
+## Global Default Filters
 
 Global default filters can be specified via two different command line
 flags `-default-filters-prepend` and
-`-default-filters-append`. Filters passed to these command line flag
+`-default-filters-append`. Filters passed to these command line flags
 will be applied to all routes. The difference `prepend` and `append` is
 where in the filter chain these default filters are applied.
 
@@ -487,8 +498,7 @@ the actual route will look like this: `r: * -> enableAccessLog(4,5) -> lifo(100,
 If you run skipper with `-default-filters-append=enableAccessLog(4,5) -> lifo(100,100,"10s")`,
 the actual route will look like this: `r: *  -> setPath("/foo") -> enableAccessLog(4,5) -> lifo(100,100,"10s")`.
 
-
-### Kubernetes default filters
+## Kubernetes Default Filters
 
 Kubernetes dataclient supports default filters. You can enable this feature by
 specifying `default-filters-dir`. The defined directory must contain per-service
@@ -502,11 +512,62 @@ potentially contradicting filter configurations and race conditions, i.e.
 you should specify a specific filter either on the Ingress resource or as
 a default filter.
 
-## Slow Backends
+# Scheduler
 
-Skipper has to keep track of all active connections and http
-Requests. Slow Backends can pile up in number of connections, that
-will consume each a little memory per request. If you have high
-traffic per instance and a backend times out it can start to increase
-your memory consumption. Make sure you monitor backend latency,
-request and error rates.
+HTTP request schedulers change the queuing behavior of in-flight
+requests. A queue has two generic properties: a limit of requests and
+a concurrency level.  The limit of request can be unlimited (unbounded
+queue), or limited (bounded queue).  The concurrency level is either
+limited or unlimited.
+
+The default scheduler is an unbounded first in first out (FIFO) queue,
+that is provided by [Go's](https://golang.org/) standard library.
+
+Skipper provides 2 last in first out (LIFO) filters to change the
+scheduling behavior.
+
+## The problem
+
+Why should you use boundaries to limit concurrency level and limit the
+queue?
+
+The short answer is resiliency. If you have one route, that is timing
+out, the request queue of skipper will pile up and consume much more
+memory, than before. This can lead to out of memory kill, which will
+affect all other routes. In [this
+comment](https://github.bus.zalan.do/teapot/issues/issues/1792#issuecomment-1315569)
+you can see the memory usage increased in [Go's](https://golang.org/)
+standard library `bufio` package.
+
+Why LIFO queue instead of FIFO queue?
+
+In normal cases the queue should not contain many requests. Skipper is
+able to process many requests concurrently without letting the queue
+piling up. In overrun situations you might want to process at least
+some fraction of requests instead of timing out all requests. LIFO
+would not time out all requests within the queue, if the backend is
+capable of responding some requests fast enough.
+
+## A solution
+
+Skipper has two filters [`lifo()`](../../reference/filters/#lifo) and
+[`lifoGroup()`](../../reference/filters/#lifogroup), that can limit
+the number of requests for a route.  A [documented load
+test](https://github.com/zalando/skipper/pull/1030#issuecomment-485714338)
+shows the behavior with an enabled `lifo(100,100,"10s")` filter for
+all routes, that was added by default the filter flag:
+`-default-filters-prepend=lifo(100,100,"10s")`.
+
+Both LIFO filters will, use a last in first out queue to handle most
+requests fast. If skipper is in an overrun mode, it will serve some
+requests fast and some will timeout. The idea is based on Dropbox
+bandit proxy, which is not opensource. [Dropbox](https://dropbox.com/)
+shared their idea in a [public
+blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/).
+
+Skipper's scheduler implementation makes sure, that one route will not
+interfere with other routes, if these routes are not in the same
+scheduler group. [`LifoGroup`](../../reference/filters/#lifogroup) has
+a user chosen scheduler group and
+[`lifo()`](../../reference/filters/#lifo) will get a per route unique
+scheduler group.
