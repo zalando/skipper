@@ -238,6 +238,11 @@ $ curl -sv localhost:9090/ >/dev/null
 * Connection #0 to host localhost left intact
 ```
 
+When no filters modifying the target are set (e.g. `r0: * -> <dynamic>;`), the
+target host defaults to either the `Host` header or the host name given in the
+URL, and the target scheme defaults to either `https` when TLS is
+configured or `http` when TLS is not configured.
+
 ## Load Balancer backend
 
 The loadbalancer backend, `<$algorithm, "backend1", "backend2">`, will

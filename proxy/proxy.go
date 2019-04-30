@@ -379,6 +379,19 @@ func copyStream(to flusherWriter, from io.Reader, span ot.Span) error {
 	}
 }
 
+func setRequestURLFromRequest(u *url.URL, r *http.Request) {
+	if u.Host == "" {
+		u.Host = r.Host
+	}
+	if u.Scheme == "" {
+		if r.TLS != nil {
+			u.Scheme = "https"
+		} else {
+			u.Scheme = "http"
+		}
+	}
+}
+
 func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{}) {
 	dbu, ok := stateBag[filters.DynamicBackendURLKey].(string)
 	if ok && dbu != "" {
@@ -412,6 +425,7 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 	u := r.URL
 	switch rt.BackendType {
 	case eskip.DynamicBackend:
+		setRequestURLFromRequest(u, r)
 		setRequestURLForDynamicBackend(u, stateBag)
 	case eskip.LBBackend:
 		setRequestURLForLoadBalancedBackend(u, rt, routing.NewLBContext(r, rt))
