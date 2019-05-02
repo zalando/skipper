@@ -528,7 +528,7 @@ scheduling behavior.
 
 On failure conditions, Skipper will return HTTP status code:
 
-- 503 if the queue is full, which is expected on the rout with a failing backend
+- 503 if the queue is full, which is expected on the route with a failing backend
 - 502 if queue access times out, because the queue access was not fast enough
 - 500 on unknown errors, please create [an issue](https://github.com/zalando/skipper/issues/new/choose)
 
