@@ -1395,7 +1395,7 @@ apiUsageMonitoring.custom.my-app.{unknown}.GET.{no-match}.*.*.http_count
 
 ## lifo
 
-Filter changes skipper to handle the route with a bounded last in
+This Filter changes skipper to handle the route with a bounded last in
 first out queue (LIFO), instead of an unbounded first in first out
 queue (FIFO). The default skipper scheduler is based on Go net/http
 package, which provides an unbounded FIFO request handling. If you

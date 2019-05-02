@@ -12,13 +12,11 @@
 // queue, the lifo and lifoGroup filter. Both lifo filters will, use a
 // last in first out queue to handle most requests fast and if skipper
 // is in an overrun mode, it will serve some requests fast and some
-// will timeout. The idea is based on Dropbox bandaid proxy, which is
-// not opensource. Dropbox shared their idea in a public blogpost
-// https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/.
-// This scheduler implementation makes sure that one route will not
-// interfere with other routes, if these routes are not in the same
-// scheduler group. LifoGroup has a user chosen scheduler group and
-// lifo will get a per route unique scheduler group.
+// will timeout.  This scheduler implementation makes sure that one
+// route will not interfere with other routes, if these routes are not
+// in the same scheduler group. LifoGroup has a user specified
+// scheduler group and lifo will get a per route unique scheduler
+// group.
 //
 // Bounded schedulers were tested in Kubernetes with 3 proxy instances
 // with 500m CPU and 500Mi memory resources. The load test was done
@@ -28,9 +26,9 @@
 // workload without additional latency there was no additional latency
 // measurable. The memory was at maximum 350Mi with the bounded
 // scheduler. The unbounded scheduler spiked in memory to above 500Mi,
-// which caused an out of memory kill by the operating system.
+// which caused an out of memory (OOM) kill by the operating system.
 //
-// Bounded schedulers will respond requests with server status error
+// Bounded schedulers will respond to requests with server status error
 // codes in case of overrun. The scheduler returns HTTP status code:
 //
 //   - 502, if it can not get a request from data structure fast enough
