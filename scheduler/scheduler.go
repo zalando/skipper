@@ -59,10 +59,6 @@ func (s *Stack) Config() Config {
 	return s.config
 }
 
-func (s *Stack) MoveTo(newStack *Stack) {
-	s.stack.MoveTo(newStack.stack)
-}
-
 func NewRegistry() *Registry {
 	return &Registry{
 		groupConfig: make(map[string]Config),
@@ -104,10 +100,7 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 					s = newStack(c)
 					r.setStack(key, s)
 				} else if c != s.config { // UpdateDoc
-					s.close()
-					old := s
-					s = newStack(c)
-					old.MoveTo(s)
+					s.config = c
 					r.setStack(key, s)
 				}
 
