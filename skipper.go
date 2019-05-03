@@ -39,6 +39,7 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
 )
@@ -878,6 +879,7 @@ func Run(o Options) error {
 		PostProcessors: []routing.PostProcessor{
 			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
 			loadbalancer.NewAlgorithmProvider(),
+			scheduler.NewRegistry(),
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
