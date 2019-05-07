@@ -1861,6 +1861,49 @@ func TestHopHeaderRemovalDisabled(t *testing.T) {
 	}
 }
 
+func thisOneWillPanic() {
+	panic("oops")
+}
+
+func TestTryCatch(t *testing.T) {
+	caughtPanic = false
+	tryCatch(thisOneWillPanic, func(err interface{}, stack string) {
+		if err == nil {
+			t.Error("should provide error")
+			return
+		}
+
+		if stack == "" {
+			t.Error("should provide stack trace")
+			return
+		}
+
+		if !strings.Contains(stack, "TestTryCatch") ||
+			!strings.Contains(stack, "thisOneWillPanic") ||
+			!strings.Contains(stack, "proxy_test.go") {
+			t.Error("should provide function names and file names in the stack trace")
+			return
+		}
+	})
+}
+
+func TestTryCatchProvidesStackTraceOnlyOnce(t *testing.T) {
+	caughtPanic = false
+	tryCatch(thisOneWillPanic, func(err interface{}, stack string) {
+		fmt.Printf("HERE: %v %s", err, stack)
+		if stack == "" {
+			t.Error("should provide stack trace the first time")
+			return
+		}
+	})
+	tryCatch(thisOneWillPanic, func(err interface{}, stack string) {
+		if stack != "" {
+			t.Error("should not provide stack trace the second time")
+			return
+		}
+	})
+}
+
 func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {
 	response := "some bytes"
 

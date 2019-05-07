@@ -12,6 +12,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -632,10 +633,22 @@ func WithParams(p Params) *Proxy {
 	}
 }
 
-func tryCatch(p func(), onErr func(err interface{})) {
+var caughtPanic = false
+
+// tryCatch executes function `p` and `onErr` if `p` panics
+// onErr will receive a stack trace string of the first panic
+// further panics are ignored for efficiency reasons
+func tryCatch(p func(), onErr func(err interface{}, stack string)) {
 	defer func() {
 		if err := recover(); err != nil {
-			onErr(err)
+			s := ""
+			if !caughtPanic {
+				buf := make([]byte, 1024)
+				l := runtime.Stack(buf, false)
+				s = string(buf[:l])
+				caughtPanic = true
+			}
+			onErr(err, s)
 		}
 	}()
 
@@ -661,7 +674,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 			ctx.setMetricsPrefix(fi.Name)
 			fi.Request(ctx)
 			p.metrics.MeasureFilterRequest(fi.Name, start)
-		}, func(err interface{}) {
+		}, func(err interface{}, stack string) {
 			if p.flags.Debug() {
 				// these errors are collected for the debug mode to be able
 				// to report in the response which filters failed.
@@ -669,7 +682,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 				return
 			}
 
-			p.log.Errorf("error while processing filter during request: %s: %v", fi.Name, err)
+			p.log.Errorf("error while processing filter during request: %s: %v (%s)", fi.Name, err, stack)
 		})
 		filtersSpan.LogKV(fi.Name, "done")
 
@@ -695,7 +708,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 			ctx.setMetricsPrefix(fi.Name)
 			fi.Response(ctx)
 			p.metrics.MeasureFilterResponse(fi.Name, start)
-		}, func(err interface{}) {
+		}, func(err interface{}, stack string) {
 			if p.flags.Debug() {
 				// these errors are collected for the debug mode to be able
 				// to report in the response which filters failed.
@@ -703,7 +716,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 				return
 			}
 
-			p.log.Errorf("error while processing filters during response: %s: %v", fi.Name, err)
+			p.log.Errorf("error while processing filters during response: %s: %v (%s)", fi.Name, err, stack)
 		})
 	}
 
