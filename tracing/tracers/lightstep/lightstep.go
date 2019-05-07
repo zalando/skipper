@@ -22,6 +22,7 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 	var cmdLine string
 	var logCmdLine bool
 	var maxBufferedSpans int
+	globalTags := make(map[string]string)
 
 	for _, o := range opts {
 		parts := strings.SplitN(o, "=", 2)
@@ -32,6 +33,13 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 			}
 		case "token":
 			token = parts[1]
+		case "tag":
+			if len(parts) > 1 {
+				tags := strings.SplitN(parts[1], "=", 2)
+				if len(tags) == 2 {
+					globalTags[tags[0]] = tags[1]
+				}
+			}
 		case "collector":
 			var err error
 			var sport string
@@ -70,9 +78,14 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 	tags := map[string]interface{}{
 		lightstep.ComponentNameKey: componentName,
 	}
+
+	for k, v := range globalTags {
+		tags[k] = v
+	}
 	if logCmdLine {
 		tags[lightstep.CommandLineKey] = cmdLine
 	}
+
 	return lightstep.NewTracer(lightstep.Options{
 		AccessToken: token,
 		Collector: lightstep.Endpoint{
