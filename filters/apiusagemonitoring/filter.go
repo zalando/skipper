@@ -144,10 +144,10 @@ func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *path
 }
 
 // resolveMatchedPath tries to match the request's path with one of the configured path template.
-func (f *apiUsageMonitoringFilter) resolveMatchedPath(url *url.URL) *pathInfo {
-	if url != nil {
+func (f *apiUsageMonitoringFilter) resolveMatchedPath(u *url.URL) *pathInfo {
+	if u != nil {
 		for _, p := range f.Paths {
-			if p.Matcher.MatchString(url.Path) {
+			if p.Matcher.MatchString(u.Path) {
 				return p
 			}
 		}
