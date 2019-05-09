@@ -15,7 +15,8 @@ pipeline:
         IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-test:${CDP_BUILD_VERSION}"
       fi
       export IMAGE
-      make deps cicheck staticcheck
+
+      make deps cicheck staticcheck gosec
       git status
       git diff
       cd packaging && make docker-build && git status && git diff && make docker-push

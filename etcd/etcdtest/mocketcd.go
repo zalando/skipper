@@ -60,6 +60,7 @@ func Start() error {
 	Urls = makeLocalUrls(randPort(), randPort())
 	clientUrlsString := strings.Join(Urls, ",")
 
+	/* #nosec */
 	e := exec.Command("etcd",
 		"-listen-client-urls", clientUrlsString,
 		"-advertise-client-urls", clientUrlsString)
