@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -48,7 +49,7 @@ func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
 	begin, beginPresent := c.StateBag()[stateBagKeyBegin].(time.Time)
-	path := f.resolvePath(request)
+	path := f.resolveMatchedPath(request.URL)
 
 	classMetricsIndex := response.StatusCode / 100
 	if classMetricsIndex < 1 || classMetricsIndex > 5 {
@@ -133,7 +134,8 @@ func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *path
 	}
 
 	// if client does not match ==> realm.{no-match}
-	if !path.ClientTracking.ClientTrackingMatcher.MatchString(client) {
+	matcher := path.ClientTracking.ClientTrackingMatcher
+	if matcher == nil || !matcher.MatchString(client) {
 		return realm + "." + noMatchPlaceholder
 	}
 
@@ -141,11 +143,13 @@ func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *path
 	return realm + "." + client
 }
 
-// resolvePath tries to match the request's path with one of the configured path template.
-func (f *apiUsageMonitoringFilter) resolvePath(req *http.Request) *pathInfo {
-	for _, p := range f.Paths {
-		if p.Matcher.MatchString(req.URL.Path) {
-			return p
+// resolveMatchedPath tries to match the request's path with one of the configured path template.
+func (f *apiUsageMonitoringFilter) resolveMatchedPath(u *url.URL) *pathInfo {
+	if u != nil {
+		for _, p := range f.Paths {
+			if p.Matcher.MatchString(u.Path) {
+				return p
+			}
 		}
 	}
 	return f.UnknownPath
