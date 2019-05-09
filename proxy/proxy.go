@@ -578,8 +578,10 @@ func WithParams(p Params) *Proxy {
 
 	if p.Flags.Insecure() {
 		if tr.TLSClientConfig == nil {
+			/* #nosec */
 			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		} else {
+			/* #nosec */
 			tr.TLSClientConfig.InsecureSkipVerify = true
 		}
 	}
