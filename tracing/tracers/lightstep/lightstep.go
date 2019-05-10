@@ -36,9 +36,10 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 		case "tag":
 			if len(parts) > 1 {
 				tags := strings.SplitN(parts[1], "=", 2)
-				if len(tags) == 2 {
-					globalTags[tags[0]] = tags[1]
+				if len(tags) != 2 {
+					return nil, fmt.Errorf("missing value for tag %s", tags[0])
 				}
+				globalTags[tags[0]] = tags[1]
 			}
 		case "collector":
 			var err error
