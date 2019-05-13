@@ -1890,7 +1890,6 @@ func TestTryCatch(t *testing.T) {
 func TestTryCatchProvidesStackTraceOnlyOnce(t *testing.T) {
 	caughtPanic = false
 	tryCatch(thisOneWillPanic, func(err interface{}, stack string) {
-		fmt.Printf("HERE: %v %s", err, stack)
 		if stack == "" {
 			t.Error("should provide stack trace the first time")
 			return
