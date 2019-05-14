@@ -301,13 +301,13 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 		// TODO: replace the log with metrics
 		switch err {
 		case jobqueue.ErrStackFull:
-			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
+			log.Errorf("Failed to get an entry on to the stack to process: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable, Status: "Stack Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
 		case jobqueue.ErrTimeout:
-			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
+			log.Errorf("Failed to get an entry on to the stack to process: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
 		default:
-			log.Errorf("Unknown error for route based LIFO: %v", err)
+			log.Errorf("Unknown error for route based LIFO: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{StatusCode: http.StatusInternalServerError})
 		}
 		return
