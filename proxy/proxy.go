@@ -30,6 +30,7 @@ import (
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -1024,11 +1025,18 @@ func (p *Proxy) do(ctx *context) error {
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
+					if done := ctx.StateBag()[scheduler.LIFOKey]; done != nil {
+						done.(func())()
+					}
 					return perr2
 				}
-			} else {
-				return perr
 			}
+
+			if done := ctx.StateBag()[scheduler.LIFOKey]; done != nil {
+				done.(func())()
+			}
+
+			return perr
 		}
 
 		if rsp.StatusCode >= http.StatusInternalServerError {
