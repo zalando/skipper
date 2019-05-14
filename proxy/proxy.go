@@ -1030,13 +1030,12 @@ func (p *Proxy) do(ctx *context) error {
 					}
 					return perr2
 				}
+			} else {
+				if done := ctx.StateBag()[scheduler.LIFOKey]; done != nil {
+					done.(func())()
+				}
+				return perr
 			}
-
-			if done := ctx.StateBag()[scheduler.LIFOKey]; done != nil {
-				done.(func())()
-			}
-
-			return perr
 		}
 
 		if rsp.StatusCode >= http.StatusInternalServerError {
