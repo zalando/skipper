@@ -10,6 +10,10 @@ import (
 
 // note: Config must stay comparable because it is used to detect changes in route specific LIFO config
 
+const (
+	LIFOKey = "lifo"
+)
+
 type Config struct {
 	Name           string
 	MaxConcurrency int

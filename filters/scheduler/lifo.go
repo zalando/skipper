@@ -30,9 +30,6 @@ const (
 	LIFOName      = "lifo"
 	LIFOGroupName = "lifoGroup"
 
-	lifoKey      = "lifo-done"
-	lifoGroupKey = "lifo-group-done"
-
 	defaultMaxConcurreny = 100
 	defaultMaxStackSize  = 100
 	defaultTimeout       = 10 * time.Second
@@ -242,13 +239,13 @@ func (l *lifoFilter) SetKey(k string) {
 // - 503 if jobqueue.ErrStackFull
 // - 502 if jobqueue.ErrTimeout
 func (l *lifoFilter) Request(ctx filters.FilterContext) {
-	request(l.GetStack(), lifoKey, ctx)
+	request(l.GetStack(), scheduler.LIFOKey, ctx)
 }
 
 // Response is the filter.Filter interface implementation. Response
 // will decrease the number of inflight requests.
 func (l *lifoFilter) Response(ctx filters.FilterContext) {
-	response(lifoKey, ctx)
+	response(scheduler.LIFOKey, ctx)
 }
 
 // Config returns the scheduler configuration for the given filter
@@ -281,13 +278,13 @@ func (*lifoGroupFilter) SetKey(string) {}
 // - 503 if jobqueue.ErrStackFull
 // - 502 if jobqueue.ErrTimeout
 func (l *lifoGroupFilter) Request(ctx filters.FilterContext) {
-	request(l.GetStack(), lifoGroupKey, ctx)
+	request(l.GetStack(), scheduler.LIFOKey, ctx)
 }
 
 // Response is the filter.Filter interface implementation. Response
 // will decrease the number of inflight requests.
 func (l *lifoGroupFilter) Response(ctx filters.FilterContext) {
-	response(lifoGroupKey, ctx)
+	response(scheduler.LIFOKey, ctx)
 }
 
 func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
@@ -301,13 +298,13 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 		// TODO: replace the log with metrics
 		switch err {
 		case jobqueue.ErrStackFull:
-			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
+			log.Errorf("Failed to get an entry on to the stack to process StackFull: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable, Status: "Stack Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
 		case jobqueue.ErrTimeout:
-			log.Errorf("Failed to get an entry on to the stack to process: %v", err)
+			log.Errorf("Failed to get an entry on to the stack to process Timeout: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
 		default:
-			log.Errorf("Unknown error for route based LIFO: %v", err)
+			log.Errorf("Unknown error for route based LIFO: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{StatusCode: http.StatusInternalServerError})
 		}
 		return
