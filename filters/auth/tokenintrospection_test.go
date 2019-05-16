@@ -201,6 +201,14 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
+		msg:         "anyKV(): valid token, one valid kv, same key multiple times should pass",
+		authType:    OAuthTokenintrospectionAnyKVName,
+		authBaseURL: testAuthPath,
+		args:        []interface{}{testKey, testValue, testKey, "someValue"},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
+	}, {
 		msg:         "allKV(): invalid KV",
 		authType:    OAuthTokenintrospectionAllKVName,
 		authBaseURL: testAuthPath,

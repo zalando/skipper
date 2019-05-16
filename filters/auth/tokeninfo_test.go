@@ -117,6 +117,14 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
+		msg:         "anyKV(): valid token, one valid kv, same key multiple times should pass",
+		authType:    OAuthTokeninfoAnyKVName,
+		authBaseURL: testAuthPath,
+		args:        []interface{}{testKey, testValue, testKey, "someValue"},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
+	}, {
 		msg:         "allKV(): invalid key",
 		authType:    OAuthTokeninfoAllKVName,
 		authBaseURL: testAuthPath,
