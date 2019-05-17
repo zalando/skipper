@@ -107,7 +107,12 @@ incoming calls from your clients.
 
 This will set IdleTimeout in
 [http.Server](https://golang.org/pkg/net/http/#Server) handling
-incoming calls from your clients.
+incoming calls from your clients. If you have another loadbalancer
+layer in front of your Skipper http routers, for example [AWS Application Load
+Balancers](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#connection-idle-timeout),
+you should make sure, that Skipper's `idle-timeout-server` setting is
+bigger than the idle timeout from the loadbalancer in front. Wrong
+combinations of idle timeouts can lead to a few unexpected HTTP 502.
 
     -idle-timeout-server duration
         maximum idle connections per backend host (default 1m0s)

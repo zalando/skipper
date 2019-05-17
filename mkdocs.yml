@@ -27,9 +27,10 @@ nav:
     - Tutorials:
         - Basics: tutorials/basics.md
         - Common Use Cases: tutorials/common-use-cases.md
-        - Development: tutorials/development.md
         - Authentication and Autorization: tutorials/auth.md
         - Ratelimits: tutorials/ratelimit.md
+        - Operations: tutorials/operations.md
+        - Development: tutorials/development.md
 theme:
   name: material
   favicon: favicon.ico
