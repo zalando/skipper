@@ -108,7 +108,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		tokeninfoAuthClient[s.tokeninfoURL] = ac
 	}
 
-	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string]string)}
+	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string][]string)}
 	switch f.typ {
 	// all scopes
 	case checkOAuthTokeninfoAllScopes:
@@ -120,7 +120,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		fallthrough
 	case checkOAuthTokeninfoAllKV:
 		for i := 0; i+1 < len(sargs); i += 2 {
-			f.kv[sargs[i]] = sargs[i+1]
+			f.kv[sargs[i]] = append(f.kv[sargs[i]], sargs[i+1])
 		}
 		if len(sargs) == 0 || len(sargs)%2 != 0 {
 			return nil, filters.ErrInvalidFilterParameters
@@ -200,9 +200,11 @@ func (f *tokeninfoFilter) validateAllScopes(h map[string]interface{}) bool {
 
 func (f *tokeninfoFilter) validateAnyKV(h map[string]interface{}) bool {
 	for k, v := range f.kv {
-		if v2, ok := h[k].(string); ok {
-			if v == v2 {
-				return true
+		for _, res := range v {
+			if v2, ok := h[k].(string); ok {
+				if res == v2 {
+					return true
+				}
 			}
 		}
 	}
@@ -214,9 +216,11 @@ func (f *tokeninfoFilter) validateAllKV(h map[string]interface{}) bool {
 		return false
 	}
 	for k, v := range f.kv {
-		v2, ok := h[k].(string)
-		if !ok || v != v2 {
-			return false
+		for _, res := range v {
+			v2, ok := h[k].(string)
+			if !ok || res != v2 {
+				return false
+			}
 		}
 	}
 	return true

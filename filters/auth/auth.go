@@ -56,7 +56,7 @@ const (
 	uidKey   = "uid"
 )
 
-type kv map[string]string
+type kv map[string][]string
 
 var (
 	errUnsupportedClaimSpecified     = errors.New("unsupported claim specified in filter")
@@ -68,7 +68,7 @@ var (
 func (kv kv) String() string {
 	var res []string
 	for k, v := range kv {
-		res = append(res, k, v)
+		res = append(res, k, strings.Join(v, " "))
 	}
 	return strings.Join(res, ",")
 }
