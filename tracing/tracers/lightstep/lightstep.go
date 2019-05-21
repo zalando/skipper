@@ -3,7 +3,7 @@ package lightstep
 import (
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/logging"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"strings"
@@ -91,8 +91,7 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 	}
 
 	if logEvents {
-		logger := &logging.DefaultLog{}
-		lightstep.SetGlobalEventHandler(createEventLogger(logger))
+		lightstep.SetGlobalEventHandler(createEventLogger())
 	}
 
 	return lightstep.NewTracer(lightstep.Options{
@@ -107,14 +106,18 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 	}), nil
 }
 
-func createEventLogger(logger logging.Logger) lightstep.EventHandler {
+func createEventLogger() lightstep.EventHandler {
 	return func(event lightstep.Event) {
 		if e, ok := event.(lightstep.ErrorEvent); ok {
-			logger.Warn("LightStep tracer received an error event", e)
+			log.WithError(e).Warn("LightStep tracer received an error event")
 		} else if e, ok := event.(lightstep.EventStatusReport); ok {
-			logger.Debugf("Sent a report to the collectors in %d ms. Sent spans: %d - dropped spans: %d", e.Duration(), e.SentSpans(), e.DroppedSpans())
+			log.WithFields(log.Fields{
+				"duration":      e.Duration(),
+				"sent_spans":    e.SentSpans(),
+				"dropped_spans": e.DroppedSpans(),
+			}).Debugf("Sent a report to the collectors")
 		} else if _, ok := event.(lightstep.EventTracerDisabled); ok {
-			logger.Warn("LightStep tracer has been disabled")
+			log.Warn("LightStep tracer has been disabled")
 		}
 	}
 }
