@@ -89,7 +89,12 @@ The following route has a filter definition, that one of the keys
 will check if there is a "realm" "/employees":
 
     a: Path("/") -> oauthTokeninfoAnyKV("uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+
     b: Path("/") -> oauthTokeninfoAnyKV("realm","/employees", "uid", "jdoe", "foo", "bar") -> "https://internal.example.org/";
+
+The same as route `a` above, but you also allow "uid=mstar" to access:
+
+    a: Path("/") -> oauthTokeninfoAnyKV("uid", "jdoe", "uid", "mstar") -> "https://internal.example.org/";
 
 Example json output of this tokeninfo response:
 
@@ -291,6 +296,10 @@ one of the following key-value pairs in the token: "uid=jdoe" or
 "iss=https://issuer.example.com":
 
     a: Path("/") -> oauthTokenintrospectionAnyKV("https://issuer.example.com", "uid", "jdoe", "iss", "https://issuer.example.com") -> "https://internal.example.org/";
+
+The same as route `a` above, but you also allow "uid=mstar" to access:
+
+    a: Path("/") -> oauthTokenintrospectionAnyKV("https://issuer.example.com", "uid", "jdoe", "uid", "mstar", "iss", "https://issuer.example.com") -> "https://internal.example.org/";
 
 OAuth2 - oauthTokenintrospectionAllKV filter
 
