@@ -3,6 +3,7 @@ package lightstep
 import (
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"strings"
@@ -20,7 +21,7 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 	var port int
 	var host, token string
 	var cmdLine string
-	var logCmdLine bool
+	var logCmdLine, logEvents bool
 	var maxBufferedSpans int
 	globalTags := make(map[string]string)
 
@@ -57,6 +58,8 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 		case "cmd-line":
 			cmdLine = parts[1]
 			logCmdLine = true
+		case "log-events":
+			logEvents = true
 		case "max-buffered-spans":
 			var err error
 			if maxBufferedSpans, err = strconv.Atoi(parts[1]); err != nil {
@@ -87,6 +90,10 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 		tags[lightstep.CommandLineKey] = cmdLine
 	}
 
+	if logEvents {
+		lightstep.SetGlobalEventHandler(createEventLogger())
+	}
+
 	return lightstep.NewTracer(lightstep.Options{
 		AccessToken: token,
 		Collector: lightstep.Endpoint{
@@ -97,4 +104,20 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 		Tags:             tags,
 		MaxBufferedSpans: maxBufferedSpans,
 	}), nil
+}
+
+func createEventLogger() lightstep.EventHandler {
+	return func(event lightstep.Event) {
+		if e, ok := event.(lightstep.ErrorEvent); ok {
+			log.WithError(e).Warn("LightStep tracer received an error event")
+		} else if e, ok := event.(lightstep.EventStatusReport); ok {
+			log.WithFields(log.Fields{
+				"duration":      e.Duration(),
+				"sent_spans":    e.SentSpans(),
+				"dropped_spans": e.DroppedSpans(),
+			}).Debugf("Sent a report to the collectors")
+		} else if _, ok := event.(lightstep.EventTracerDisabled); ok {
+			log.Warn("LightStep tracer has been disabled")
+		}
+	}
 }
