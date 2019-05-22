@@ -802,7 +802,6 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.openTracer)
 	ext.SpanKindRPCClient.Set(ctx.proxySpan)
 	ctx.proxySpan.SetTag("skipper.route_id", ctx.route.Id)
-	ctx.proxySpan.SetTag("skipper.route", ctx.route.String())
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
