@@ -102,6 +102,15 @@ const (
 	OptionsHopHeadersRemoval = Options(HopHeadersRemoval)
 )
 
+type OpenTracingParams struct {
+	// Tracer holds the tracer enabled for this proxy instance
+	Tracer ot.Tracer
+
+	// InitialSpan can override the default initial, pre-routing, span name.
+	// Default: "ingress".
+	InitialSpan string
+}
+
 // Proxy initialization options.
 type Params struct {
 	// The proxy expects a routing instance that is used to match
@@ -158,13 +167,6 @@ type Params struct {
 	// set, no ratelimits are used.
 	RateLimiters *ratelimit.Registry
 
-	// OpenTracer holds the tracer enabled for this proxy instance
-	OpenTracer ot.Tracer
-
-	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
-	// Default: "ingress".
-	OpenTracingInitialSpan string
-
 	// Loadbalancer to report unhealthy or dead backends to
 	LoadBalancer *loadbalancer.LB
 
@@ -196,6 +198,8 @@ type Params struct {
 
 	// Client TLS to connect to Backends
 	ClientTLS *tls.Config
+
+	OpenTracing *OpenTracingParams
 }
 
 var (
@@ -272,8 +276,7 @@ type Proxy struct {
 	breakers                 *circuit.Registry
 	limiters                 *ratelimit.Registry
 	log                      logging.Logger
-	openTracer               ot.Tracer
-	openTracingInitialSpan   string
+	tracing                  *OpenTracingParams
 	lb                       *loadbalancer.LB
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
@@ -539,8 +542,12 @@ func WithParams(p Params) *Proxy {
 		p.ExpectContinueTimeout = DefaultExpectContinueTimeout
 	}
 
-	if p.OpenTracer == nil {
-		p.OpenTracer = &ot.NoopTracer{}
+	if p.OpenTracing == nil {
+		p.OpenTracing = &OpenTracingParams{}
+	}
+
+	if p.OpenTracing.Tracer == nil {
+		p.OpenTracing.Tracer = &ot.NoopTracer{}
 	}
 
 	tr := &http.Transport{
@@ -605,9 +612,8 @@ func WithParams(p Params) *Proxy {
 		defaultHTTPStatus = p.DefaultHTTPStatus
 	}
 
-	openTracingInitialSpan := p.OpenTracingInitialSpan
-	if openTracingInitialSpan == "" {
-		openTracingInitialSpan = "ingress"
+	if p.OpenTracing.InitialSpan == "" {
+		p.OpenTracing.InitialSpan = "ingress"
 	}
 
 	hostname = os.Getenv("HOSTNAME")
@@ -628,9 +634,8 @@ func WithParams(p Params) *Proxy {
 		limiters:                 p.RateLimiters,
 		log:                      &logging.DefaultLog{},
 		defaultHTTPStatus:        defaultHTTPStatus,
-		openTracer:               p.OpenTracer,
+		tracing:                  p.OpenTracing,
 		accessLogDisabled:        p.AccessLogDisabled,
-		openTracingInitialSpan:   openTracingInitialSpan,
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
 	}
@@ -665,7 +670,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	}
 
 	filtersStart := time.Now()
-	filtersSpan := tracing.CreateSpan("request_filters", ctx.request.Context(), p.openTracer)
+	filtersSpan := tracing.CreateSpan("request_filters", ctx.request.Context(), p.tracing.Tracer)
 	defer filtersSpan.Finish()
 	ctx.parentSpan = filtersSpan
 
@@ -799,7 +804,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	if !ok {
 		spanName = "proxy"
 	}
-	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.openTracer)
+	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.tracing.Tracer)
 	ext.SpanKindRPCClient.Set(ctx.proxySpan)
 	ctx.proxySpan.SetTag("skipper.route_id", ctx.route.Id)
 	u := cloneURL(req.URL)
@@ -807,7 +812,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
-	_ = p.openTracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
+	_ = p.tracing.Tracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
 
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
@@ -1185,11 +1190,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var ctx *context
 
 	var span ot.Span
-	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
+	wireContext, err := p.tracing.Tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
 	if err == nil {
-		span = p.openTracer.StartSpan(p.openTracingInitialSpan, ext.RPCServerOption(wireContext))
+		span = p.tracing.Tracer.StartSpan(p.tracing.InitialSpan, ext.RPCServerOption(wireContext))
 	} else {
-		span = p.openTracer.StartSpan(p.openTracingInitialSpan)
+		span = p.tracing.Tracer.StartSpan(p.tracing.InitialSpan)
 	}
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
@@ -1229,7 +1234,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx = newContext(lw, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
 	ctx.startServe = time.Now()
-	ctx.tracer = p.openTracer
+	ctx.tracer = p.tracing.Tracer
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {

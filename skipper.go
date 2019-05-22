@@ -1063,16 +1063,18 @@ func Run(o Options) error {
 		if err != nil {
 			return err
 		}
-		proxyParams.OpenTracer = tracer
-		proxyParams.OpenTracingInitialSpan = o.OpenTracingInitialSpan
+		proxyParams.OpenTracing = &proxy.OpenTracingParams{
+			Tracer:      tracer,
+			InitialSpan: o.OpenTracingInitialSpan,
+		}
 	} else {
 		// always have a tracer available, so filter authors can rely on the
 		// existence of a tracer
-		proxyParams.OpenTracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
-	}
-
-	if proxyParams.OpenTracingInitialSpan != "" {
-		proxyParams.OpenTracingInitialSpan = o.OpenTracingInitialSpan
+		tracer, _ := tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+		proxyParams.OpenTracing = &proxy.OpenTracingParams{
+			Tracer:      tracer,
+			InitialSpan: o.OpenTracingInitialSpan,
+		}
 	}
 
 	// create the proxy
