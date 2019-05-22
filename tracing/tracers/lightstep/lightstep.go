@@ -3,26 +3,37 @@ package lightstep
 import (
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"strings"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
 const (
-	defComponentName = "skipper"
+	defComponentName     = "skipper"
+	defaultGRPMaxMsgSize = 16 * 1024 * 1000
 )
 
-func InitTracer(opts []string) (opentracing.Tracer, error) {
+func parseOptions(opts []string) (lightstep.Options, error) {
+	var (
+		port             int
+		host, token      string
+		cmdLine          string
+		logCmdLine       bool
+		logEvents        bool
+		maxBufferedSpans int
+
+		grpcMaxMsgSize     = defaultGRPMaxMsgSize
+		minReportingPeriod = lightstep.DefaultMinReportingPeriod
+		maxReportingPeriod = lightstep.DefaultMaxReportingPeriod
+	)
+
 	componentName := defComponentName
-	var port int
-	var host, token string
-	var cmdLine string
-	var logCmdLine, logEvents bool
-	var maxBufferedSpans int
 	globalTags := make(map[string]string)
 
 	for _, o := range opts {
@@ -34,11 +45,29 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 			}
 		case "token":
 			token = parts[1]
+		case "grpc-max-msg-size":
+			v, err := strconv.Atoi(parts[1])
+			if err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as int grpc-max-msg-size: %v", parts[1], err)
+			}
+			grpcMaxMsgSize = v
+		case "min-period":
+			v, err := time.ParseDuration(parts[1])
+			if err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as time.Duration min-period : %v", parts[1], err)
+			}
+			minReportingPeriod = v
+		case "max-period":
+			v, err := time.ParseDuration(parts[1])
+			if err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as time.Duration max-period: %v", parts[1], err)
+			}
+			maxReportingPeriod = v
 		case "tag":
 			if len(parts) > 1 {
 				tags := strings.SplitN(parts[1], "=", 2)
 				if len(tags) != 2 {
-					return nil, fmt.Errorf("missing value for tag %s", tags[0])
+					return lightstep.Options{}, fmt.Errorf("missing value for tag %s", tags[0])
 				}
 				globalTags[tags[0]] = tags[1]
 			}
@@ -48,12 +77,12 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 
 			host, sport, err = net.SplitHostPort(parts[1])
 			if err != nil {
-				return nil, err
+				return lightstep.Options{}, err
 			}
 
 			port, err = strconv.Atoi(sport)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse %s as int: %v", sport, err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as int: %v", sport, err)
 			}
 		case "cmd-line":
 			cmdLine = parts[1]
@@ -63,14 +92,14 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 		case "max-buffered-spans":
 			var err error
 			if maxBufferedSpans, err = strconv.Atoi(parts[1]); err != nil {
-				return nil, fmt.Errorf("failed to parse max buffered spans: %v", err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse max buffered spans: %v", err)
 			}
 		}
 	}
 
 	// Token is required.
 	if token == "" {
-		return nil, errors.New("missing token= option")
+		return lightstep.Options{}, errors.New("missing token= option")
 	}
 
 	// Set defaults.
@@ -94,16 +123,31 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 		lightstep.SetGlobalEventHandler(createEventLogger())
 	}
 
-	return lightstep.NewTracer(lightstep.Options{
+	if minReportingPeriod > maxReportingPeriod {
+		return lightstep.Options{}, fmt.Errorf("wrong periods settings %s > %s", minReportingPeriod, maxReportingPeriod)
+	}
+
+	return lightstep.Options{
 		AccessToken: token,
 		Collector: lightstep.Endpoint{
 			Host: host,
 			Port: port,
 		},
-		UseGRPC:          true,
-		Tags:             tags,
-		MaxBufferedSpans: maxBufferedSpans,
-	}), nil
+		UseGRPC:                     true,
+		Tags:                        tags,
+		MaxBufferedSpans:            maxBufferedSpans,
+		GRPCMaxCallSendMsgSizeBytes: grpcMaxMsgSize,
+		ReportingPeriod:             maxReportingPeriod,
+		MinReportingPeriod:          minReportingPeriod,
+	}, nil
+}
+
+func InitTracer(opts []string) (opentracing.Tracer, error) {
+	lopt, err := parseOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	return lightstep.NewTracer(lopt), nil
 }
 
 func createEventLogger() lightstep.EventHandler {
