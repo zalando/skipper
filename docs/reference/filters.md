@@ -471,6 +471,7 @@ Examples:
 
 ```
 oauthTokeninfoAnyKV("k1", "v1", "k2", "v2")
+oauthTokeninfoAnyKV("k1", "v1", "k1", "v2")
 ```
 
 ## oauthTokeninfoAllKV
@@ -551,6 +552,7 @@ Examples:
 
 ```
 oauthTokenintrospectionAnyKV("k1", "v1", "k2", "v2")
+oauthTokenintrospectionAnyKV("k1", "v1", "k1", "v2")
 ```
 
 ## oauthTokenintrospectionAllKV

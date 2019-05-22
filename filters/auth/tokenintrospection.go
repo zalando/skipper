@@ -250,7 +250,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	f := &tokenintrospectFilter{
 		typ:        s.typ,
 		authClient: ac,
-		kv:         make(map[string]string),
+		kv:         make(map[string][]string),
 	}
 	switch f.typ {
 	case checkOAuthTokenintrospectionAllClaims:
@@ -274,7 +274,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 		fallthrough
 	case checkOAuthTokenintrospectionAnyKV:
 		for i := 0; i+1 < len(sargs); i += 2 {
-			f.kv[sargs[i]] = sargs[i+1]
+			f.kv[sargs[i]] = append(f.kv[sargs[i]], sargs[i+1])
 		}
 		if len(sargs) == 0 || len(sargs)%2 != 0 {
 			return nil, filters.ErrInvalidFilterParameters
@@ -336,9 +336,11 @@ func (f *tokenintrospectFilter) validateAllClaims(info tokenIntrospectionInfo) b
 
 func (f *tokenintrospectFilter) validateAllKV(info tokenIntrospectionInfo) bool {
 	for k, v := range f.kv {
-		v2, ok := info[k].(string)
-		if !ok || v != v2 {
-			return false
+		for _, res := range v {
+			v2, ok := info[k].(string)
+			if !ok || res != v2 {
+				return false
+			}
 		}
 	}
 	return true
@@ -346,9 +348,11 @@ func (f *tokenintrospectFilter) validateAllKV(info tokenIntrospectionInfo) bool 
 
 func (f *tokenintrospectFilter) validateAnyKV(info tokenIntrospectionInfo) bool {
 	for k, v := range f.kv {
-		v2, ok := info[k].(string)
-		if ok && v == v2 {
-			return true
+		for _, res := range v {
+			v2, ok := info[k].(string)
+			if ok && res == v2 {
+				return true
+			}
 		}
 	}
 	return false
