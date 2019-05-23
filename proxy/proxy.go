@@ -700,11 +700,14 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 // applies filters to a response in reverse order
 func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *context) {
 	filtersStart := time.Now()
+	filtersSpan := tracing.CreateSpan("response_filters", ctx.request.Context(), p.tracing.tracer)
+	defer filtersSpan.Finish()
 
 	last := len(filters) - 1
 	for i := range filters {
 		fi := filters[last-i]
 		start := time.Now()
+		p.tracing.logFilterStart(filtersSpan, fi.Name)
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
 			fi.Response(ctx)
@@ -719,6 +722,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 
 			p.log.Errorf("error while processing filters during response: %s: %v (%s)", fi.Name, err, stack)
 		})
+		p.tracing.logFilterEnd(filtersSpan, fi.Name)
 	}
 
 	p.metrics.MeasureAllFiltersResponse(ctx.route.Id, filtersStart)
