@@ -98,34 +98,36 @@ const (
 	maxAuditBodyUsage                    = "sets the max body to read to log in the audit log body"
 
 	// logging, metrics, tracing:
-	enablePrometheusMetricsUsage    = "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
-	opentracingUsage                = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
-	opentracingIngressSpanNameUsage = "set the name of the initial, pre-routing, tracing span"
-	metricsListenerUsage            = "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty."
-	metricsPrefixUsage              = "allows setting a custom path prefix for metrics export"
-	enableProfileUsage              = "enable profile information on the metrics endpoint with path /pprof"
-	debugGcMetricsUsage             = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
-	runtimeMetricsUsage             = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
-	serveRouteMetricsUsage          = "enables reporting total serve time metrics for each route"
-	serveHostMetricsUsage           = "enables reporting total serve time metrics for each host"
-	backendHostMetricsUsage         = "enables reporting total serve time metrics for each backend"
-	allFiltersMetricsUsage          = "enables reporting combined filter metrics for each route"
-	combinedResponseMetricsUsage    = "enables reporting combined response time metrics"
-	routeResponseMetricsUsage       = "enables reporting response time metrics for each route"
-	routeBackendErrorCountersUsage  = "enables counting backend errors for each route"
-	routeStreamErrorCountersUsage   = "enables counting streaming errors for each route"
-	routeBackendMetricsUsage        = "enables reporting backend response time metrics for each route"
-	metricsUseExpDecaySampleUsage   = "use exponentially decaying sample in metrics"
-	histogramMetricBucketsUsage     = "use custom buckets for prometheus histograms, must be a comma-separated list of numbers"
-	disableMetricsCompatsUsage      = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
-	applicationLogUsage             = "output file for the application log. When not set, /dev/stderr is used"
-	applicationLogLevelUsage        = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
-	applicationLogPrefixUsage       = "prefix for each log entry"
-	accessLogUsage                  = "output file for the access log, When not set, /dev/stderr is used"
-	accessLogDisabledUsage          = "when this flag is set, no access log is printed"
-	accessLogJSONEnabledUsage       = "when this flag is set, log in JSON format is used"
-	accessLogStripQueryUsage        = "when this flag is set, the access log strips the query strings from the access log"
-	suppressRouteUpdateLogsUsage    = "print only summaries on route updates/deletes"
+	enablePrometheusMetricsUsage             = "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
+	opentracingUsage                         = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
+	opentracingIngressSpanNameUsage          = "set the name of the initial, pre-routing, tracing span"
+	openTracingExcludedProxyTagsUsage        = "set tags that should be excluded from spans created for proxy operation. must be a comma-separated list of strings."
+	opentracingLogFilterLifecycleEventsUsage = "enables the logs for request & response filters' lifecycle events that are marking start & end times."
+	metricsListenerUsage                     = "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty."
+	metricsPrefixUsage                       = "allows setting a custom path prefix for metrics export"
+	enableProfileUsage                       = "enable profile information on the metrics endpoint with path /pprof"
+	debugGcMetricsUsage                      = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
+	runtimeMetricsUsage                      = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
+	serveRouteMetricsUsage                   = "enables reporting total serve time metrics for each route"
+	serveHostMetricsUsage                    = "enables reporting total serve time metrics for each host"
+	backendHostMetricsUsage                  = "enables reporting total serve time metrics for each backend"
+	allFiltersMetricsUsage                   = "enables reporting combined filter metrics for each route"
+	combinedResponseMetricsUsage             = "enables reporting combined response time metrics"
+	routeResponseMetricsUsage                = "enables reporting response time metrics for each route"
+	routeBackendErrorCountersUsage           = "enables counting backend errors for each route"
+	routeStreamErrorCountersUsage            = "enables counting streaming errors for each route"
+	routeBackendMetricsUsage                 = "enables reporting backend response time metrics for each route"
+	metricsUseExpDecaySampleUsage            = "use exponentially decaying sample in metrics"
+	histogramMetricBucketsUsage              = "use custom buckets for prometheus histograms, must be a comma-separated list of numbers"
+	disableMetricsCompatsUsage               = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
+	applicationLogUsage                      = "output file for the application log. When not set, /dev/stderr is used"
+	applicationLogLevelUsage                 = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
+	applicationLogPrefixUsage                = "prefix for each log entry"
+	accessLogUsage                           = "output file for the access log, When not set, /dev/stderr is used"
+	accessLogDisabledUsage                   = "when this flag is set, no access log is printed"
+	accessLogJSONEnabledUsage                = "when this flag is set, log in JSON format is used"
+	accessLogStripQueryUsage                 = "when this flag is set, the access log strips the query strings from the access log"
+	suppressRouteUpdateLogsUsage             = "print only summaries on route updates/deletes"
 
 	// route sources:
 	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
@@ -249,34 +251,36 @@ var (
 	multiPlugins                    pluginFlags
 
 	// logging, metrics, tracing:
-	enablePrometheusMetrics   bool
-	openTracing               string
-	openTracingInitialSpan    string
-	metricsListener           string
-	metricsPrefix             string
-	enableProfile             bool
-	debugGcMetrics            bool
-	runtimeMetrics            bool
-	serveRouteMetrics         bool
-	serveHostMetrics          bool
-	backendHostMetrics        bool
-	allFiltersMetrics         bool
-	combinedResponseMetrics   bool
-	routeResponseMetrics      bool
-	routeBackendErrorCounters bool
-	routeStreamErrorCounters  bool
-	routeBackendMetrics       bool
-	metricsUseExpDecaySample  bool
-	histogramMetricBuckets    string
-	disableMetricsCompat      bool
-	applicationLog            string
-	applicationLogLevel       string
-	applicationLogPrefix      string
-	accessLog                 string
-	accessLogDisabled         bool
-	accessLogJSONEnabled      bool
-	accessLogStripQuery       bool
-	suppressRouteUpdateLogs   bool
+	enablePrometheusMetrics             bool
+	openTracing                         string
+	openTracingInitialSpan              string
+	openTracingExcludedProxyTags        string
+	opentracingLogFilterLifecycleEvents bool
+	metricsListener                     string
+	metricsPrefix                       string
+	enableProfile                       bool
+	debugGcMetrics                      bool
+	runtimeMetrics                      bool
+	serveRouteMetrics                   bool
+	serveHostMetrics                    bool
+	backendHostMetrics                  bool
+	allFiltersMetrics                   bool
+	combinedResponseMetrics             bool
+	routeResponseMetrics                bool
+	routeBackendErrorCounters           bool
+	routeStreamErrorCounters            bool
+	routeBackendMetrics                 bool
+	metricsUseExpDecaySample            bool
+	histogramMetricBuckets              string
+	disableMetricsCompat                bool
+	applicationLog                      string
+	applicationLogLevel                 string
+	applicationLogPrefix                string
+	accessLog                           string
+	accessLogDisabled                   bool
+	accessLogJSONEnabled                bool
+	accessLogStripQuery                 bool
+	suppressRouteUpdateLogs             bool
 
 	// route sources:
 	etcdUrls                  string
@@ -406,6 +410,8 @@ func init() {
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
 	flag.StringVar(&openTracing, "opentracing", "noop", opentracingUsage)
 	flag.StringVar(&openTracingInitialSpan, "opentracing-initial-span", "ingress", opentracingIngressSpanNameUsage)
+	flag.StringVar(&openTracingExcludedProxyTags, "opentracing-excluded-proxy-tags", "", openTracingExcludedProxyTagsUsage)
+	flag.BoolVar(&opentracingLogFilterLifecycleEvents, "opentracing-log-filter-lifecycle-events", true, opentracingLogFilterLifecycleEventsUsage)
 	flag.StringVar(&metricsListener, "metrics-listener", defaultMetricsListener, metricsListenerUsage)
 	flag.StringVar(&metricsPrefix, "metrics-prefix", defaultMetricsPrefix, metricsPrefixUsage)
 	flag.BoolVar(&enableProfile, "enable-profile", false, enableProfileUsage)

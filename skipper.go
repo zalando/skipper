@@ -15,6 +15,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	ot "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -439,6 +440,13 @@ type Options struct {
 	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
 	// Default: "ingress".
 	OpenTracingInitialSpan string
+
+	// OpenTracingExcludedProxyTags can disable a tag so that it is not recorded. By default every tag is included.
+	OpenTracingExcludedProxyTags []string
+
+	// OpenTracingLogFilterLifecycleEvents flag is used to enable/disable the logs for events marking request and
+	// response filters' start & end times.
+	OpenTracingLogFilterLifecycleEvents bool
 
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
@@ -1058,23 +1066,23 @@ func Run(o Options) error {
 	}
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
+
+	var tracer ot.Tracer
 	if len(o.OpenTracing) > 0 {
-		tracer, err := tracing.InitTracer(o.OpenTracing)
+		tracer, err = tracing.InitTracer(o.OpenTracing)
 		if err != nil {
 			return err
-		}
-		proxyParams.OpenTracing = &proxy.OpenTracingParams{
-			Tracer:      tracer,
-			InitialSpan: o.OpenTracingInitialSpan,
 		}
 	} else {
 		// always have a tracer available, so filter authors can rely on the
 		// existence of a tracer
-		tracer, _ := tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
-		proxyParams.OpenTracing = &proxy.OpenTracingParams{
-			Tracer:      tracer,
-			InitialSpan: o.OpenTracingInitialSpan,
-		}
+		tracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	}
+	proxyParams.OpenTracing = &proxy.OpenTracingParams{
+		Tracer:          tracer,
+		InitialSpan:     o.OpenTracingInitialSpan,
+		ExcludeTags:     o.OpenTracingExcludedProxyTags,
+		LogFilterEvents: o.OpenTracingLogFilterLifecycleEvents,
 	}
 
 	// create the proxy
