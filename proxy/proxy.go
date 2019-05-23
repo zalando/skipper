@@ -207,6 +207,8 @@ type Params struct {
 	// Client TLS to connect to Backends
 	ClientTLS *tls.Config
 
+	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
+	// check OpenTracingParams
 	OpenTracing *OpenTracingParams
 }
 
