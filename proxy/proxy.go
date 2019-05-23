@@ -115,9 +115,8 @@ type OpenTracingParams struct {
 	// Default: false
 	LogFilterEvents bool
 
-	// IncludeTags controls what tags are enabled. Any tag that is not listed here will be ignored.
-	// Default: DefaultIncludedTags
-	IncludeTags []string
+	// ExcludeTags controls what tags are disabled. Any tag that is listed here will be ignored.
+	ExcludeTags []string
 }
 
 // Proxy initialization options.

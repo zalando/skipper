@@ -22,15 +22,11 @@ const (
 	SpanKindServer    = "server"
 )
 
-var DefaultIncludedTags []string = []string{
-
-}
-
 type proxyTracing struct {
 	tracer                   ot.Tracer
 	initialOperationName     string
 	logFilterLifecycleEvents bool
-	includeTags              map[string]bool
+	excludeTags              map[string]bool
 }
 
 func newProxyTracing(p *OpenTracingParams) *proxyTracing {
@@ -46,16 +42,17 @@ func newProxyTracing(p *OpenTracingParams) *proxyTracing {
 		p.Tracer = &ot.NoopTracer{}
 	}
 
-	includedTags := map[string]bool{}
+	excludedTags := map[string]bool{}
 
-	for _, t := range p.IncludeTags {
-		includedTags[t] = true
+	for _, t := range p.ExcludeTags {
+		excludedTags[t] = true
 	}
 
 	return &proxyTracing{
 		tracer:                   p.Tracer,
 		initialOperationName:     p.InitialSpan,
 		logFilterLifecycleEvents: p.LogFilterEvents,
+		excludeTags:              excludedTags,
 	}
 }
 
@@ -76,7 +73,8 @@ func (t *proxyTracing) logFilterEnd(span ot.Span, filterName string) {
 }
 
 func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *proxyTracing {
-	if included, ok := t.includeTags[key]; included && ok {
+	_, excluded := t.excludeTags[key]
+	if !excluded {
 		span.SetTag(key, value)
 	}
 
