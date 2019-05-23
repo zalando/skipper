@@ -42,11 +42,8 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 	routingOptions.PostProcessors = []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()}
 
 	rt := routing.New(routingOptions)
-
 	proxyParams.Routing = rt
-	//if proxyParams.OpenTracing == nil {
-	//	proxyParams.OpenTracing = &proxy.OpenTracingParams{ Tracer: &opentracing.NoopTracer{} }
-	//}
+
 	pr := proxy.WithParams(proxyParams)
 	tsp := httptest.NewServer(pr)
 
