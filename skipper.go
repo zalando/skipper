@@ -336,6 +336,11 @@ type Options struct {
 	// enabled by default.
 	EnableRouteBackendMetrics bool
 
+	// EnableRouteKubeResourcesMetrics adds an additional metric per route
+	// that exposes the name of the Ingress and Service that are the source
+	// of the route in Kubernetes.
+	EnableRouteKubeResourcesMetrics bool
+
 	// When set, makes the histograms use an exponentially decaying sample
 	// instead of the default uniform one.
 	MetricsUseExpDecaySample bool
@@ -1041,6 +1046,7 @@ func Run(o Options) error {
 			UseExpDecaySample:                  o.MetricsUseExpDecaySample,
 			HistogramBuckets:                   o.HistogramMetricBuckets,
 			DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
+			EnableRouteKubeResourcesMetrics:    o.EnableRouteKubeResourcesMetrics,
 		})
 		mux.Handle("/metrics", metricsHandler)
 		mux.Handle("/metrics/", metricsHandler)

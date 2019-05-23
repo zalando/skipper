@@ -74,6 +74,7 @@ type Metrics interface {
 	IncErrorsStreaming(routeId string)
 	RegisterHandler(path string, handler *http.ServeMux)
 	UpdateGauge(key string, value float64)
+	ObserveRouteKubeResources(ingress string, routeId string, service string)
 }
 
 // Options for initializing metrics collection.
@@ -152,6 +153,11 @@ type Options struct {
 	// EnableProfile exposes profiling information on /pprof of the
 	// metrics listener.
 	EnableProfile bool
+
+	// EnableRouteKubeResourcesMetrics adds an additional metric per route
+	// that exposes the name of the Ingress and Service that are the source
+	// of the route in Kubernetes.
+	EnableRouteKubeResourcesMetrics bool
 }
 
 var (

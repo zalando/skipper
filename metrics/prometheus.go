@@ -26,6 +26,7 @@ type Prometheus struct {
 	// Metrics.
 	routeLookupM               *prometheus.HistogramVec
 	routeErrorsM               *prometheus.CounterVec
+	routeKubeResourcesM        *prometheus.GaugeVec
 	responseM                  *prometheus.HistogramVec
 	filterRequestM             *prometheus.HistogramVec
 	filterAllRequestM          *prometheus.HistogramVec
@@ -72,6 +73,13 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "error_total",
 		Help:      "The total of route lookup errors.",
 	}, []string{})
+
+	routeKubeResources := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: promRouteSubsystem,
+		Name:      "kube_resources",
+		Help:      "Kubernetes resources that are the source of a route.",
+	}, []string{"ingress", "route", "service"})
 
 	response := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -204,6 +212,7 @@ func NewPrometheus(opts Options) *Prometheus {
 	p := &Prometheus{
 		routeLookupM:               routeLookup,
 		routeErrorsM:               routeErrors,
+		routeKubeResourcesM:        routeKubeResources,
 		responseM:                  response,
 		filterRequestM:             filterRequest,
 		filterAllRequestM:          filterAllRequest,
@@ -240,6 +249,7 @@ func (p *Prometheus) registerMetrics() {
 	p.registry.MustRegister(p.routeLookupM)
 	p.registry.MustRegister(p.responseM)
 	p.registry.MustRegister(p.routeErrorsM)
+	p.registry.MustRegister(p.routeKubeResourcesM)
 	p.registry.MustRegister(p.filterRequestM)
 	p.registry.MustRegister(p.filterAllRequestM)
 	p.registry.MustRegister(p.filterAllCombinedRequestM)
@@ -408,4 +418,10 @@ func (p *Prometheus) MeasureBackend5xx(start time.Time) {
 // IncErrorsStreaming satisfies Metrics interface.
 func (p *Prometheus) IncErrorsStreaming(routeID string) {
 	p.proxyStreamingErrorsM.WithLabelValues(routeID).Inc()
+}
+
+func (p *Prometheus) ObserveRouteKubeResources(ingress string, routeId string, service string) {
+	if p.opts.EnableRouteKubeResourcesMetrics {
+		p.routeKubeResourcesM.WithLabelValues(ingress, routeId, service).Set(1)
+	}
 }

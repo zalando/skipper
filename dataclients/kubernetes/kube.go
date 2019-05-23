@@ -24,6 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 )
@@ -675,6 +676,7 @@ func (c *Client) convertPathRule(
 			HostRegexps: hostRegexp,
 		}
 
+		metrics.Default.ObserveRouteKubeResources(name, r.Id, svcName)
 		setPath(pathMode, r, prule.Path)
 
 		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
@@ -698,6 +700,7 @@ func (c *Client) convertPathRule(
 			HostRegexps: hostRegexp,
 		}
 
+		metrics.Default.ObserveRouteKubeResources(name, r.Id, svcName)
 		setPath(pathMode, r, prule.Path)
 
 		// add traffic predicate if traffic weight is between 0.0 and 1.0
@@ -722,6 +725,7 @@ func (c *Client) convertPathRule(
 		LBAlgorithm: getLoadBalancerAlgorithm(metadata),
 		HostRegexps: hostRegexp,
 	}
+	metrics.Default.ObserveRouteKubeResources(name, r.Id, prule.Backend.ServiceName)
 	setPath(pathMode, r, prule.Path)
 
 	// add traffic predicate if traffic weight is between 0.0 and 1.0
