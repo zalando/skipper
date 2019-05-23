@@ -386,6 +386,43 @@ func TestDisabledLogFilterLifecycleEvents(t *testing.T) {
 		t.Errorf("filter lifecycle events were logged although it was disabled")
 	}
 }
+func TestEnabledLogStreamEvents(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:          tracer,
+		LogStreamEvents: true,
+	})
+	span := tracer.StartSpan("test")
+	defer span.Finish()
+
+	tracing.logStreamEvent(span, "test-filter", StartEvent)
+	tracing.logStreamEvent(span, "test-filter", EndEvent)
+
+	mockSpan := span.(*mocktracer.MockSpan)
+
+	if len(mockSpan.Logs()) != 2 {
+		t.Errorf("filter lifecycle events were not logged although it was enabled")
+	}
+}
+
+func TestDisabledLogStreamEvents(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:          tracer,
+		LogStreamEvents: false,
+	})
+	span := tracer.StartSpan("test")
+	defer span.Finish()
+
+	tracing.logStreamEvent(span, "test-filter", StartEvent)
+	tracing.logStreamEvent(span, "test-filter", EndEvent)
+
+	mockSpan := span.(*mocktracer.MockSpan)
+
+	if len(mockSpan.Logs()) != 0 {
+		t.Errorf("filter lifecycle events were logged although it was disabled")
+	}
+}
 
 func TestSetEnabledTags(t *testing.T) {
 	tracer := mocktracer.New()
@@ -441,4 +478,25 @@ func TestSetDisabledTags(t *testing.T) {
 	if ok3 {
 		t.Errorf("a tag was set although it was configured to be excluded")
 	}
+}
+
+func TestLogEventWithEmptySpan(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer: tracer,
+	})
+
+	// should not panic
+	tracing.logEvent(nil, "test", StartEvent)
+	tracing.logEvent(nil, "test", EndEvent)
+}
+
+func TestSetTagWithEmptySpan(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer: tracer,
+	})
+
+	// should not panic
+	tracing.setTag(nil, "test", "val")
 }

@@ -448,6 +448,10 @@ type Options struct {
 	// response filters' start & end times.
 	OpenTracingLogFilterLifecycleEvents bool
 
+	// OpenTracingLogStreamEvents flag is used to enable/disable the logs that marks the
+	// times when response headers & payload are streamed to the client
+	OpenTracingLogStreamEvents bool
+
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
 	// PluginDirs defines the directories to load plugins from
@@ -1083,6 +1087,7 @@ func Run(o Options) error {
 		InitialSpan:     o.OpenTracingInitialSpan,
 		ExcludeTags:     o.OpenTracingExcludedProxyTags,
 		LogFilterEvents: o.OpenTracingLogFilterLifecycleEvents,
+		LogStreamEvents: o.OpenTracingLogStreamEvents,
 	}
 
 	// create the proxy

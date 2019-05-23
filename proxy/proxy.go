@@ -115,6 +115,11 @@ type OpenTracingParams struct {
 	// Default: false
 	LogFilterEvents bool
 
+	// LogStreamEvents enables the logs that marks the times when response headers & payload are streamed to
+	// the client
+	// Default: false
+	LogStreamEvents bool
+
 	// ExcludeTags controls what tags are disabled. Any tag that is listed here will be ignored.
 	ExcludeTags []string
 }
@@ -367,14 +372,14 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 
 // copies a stream with flushing on every successful read operation
 // (similar to io.Copy but with flushing)
-func copyStream(to flusherWriter, from io.Reader, span ot.Span) error {
+func copyStream(to flusherWriter, from io.Reader, tracing *proxyTracing, span ot.Span) error {
 	b := make([]byte, proxyBufferSize)
 
 	for {
 		l, rerr := from.Read(b)
-		if span != nil {
-			span.LogKV("streamBody.byte", fmt.Sprintf("%d", l))
-		}
+
+		tracing.logStreamEvent(span, "streamBody.byte", fmt.Sprintf("%d", l))
+
 		if rerr != nil && rerr != io.EOF {
 			return rerr
 		}
@@ -1080,26 +1085,20 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 
 	start := time.Now()
-	if ctx.proxySpan != nil {
-		ctx.proxySpan.LogKV("stream_Headers", "start")
-	}
+	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
-	if ctx.proxySpan != nil {
-		ctx.proxySpan.LogKV("stream_Headers", "done")
-	}
+	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
 
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
 		// see https://github.com/zalando/skipper/pull/864
 		p.log.Infof("Client request: %v", err)
 		ctx.response.StatusCode = 499
-		if ctx.proxySpan != nil {
-			p.tracing.setTag(ctx.proxySpan, "client.request", "canceled")
-		}
+		p.tracing.setTag(ctx.proxySpan, ClientRequestStateTag, ClientRequestCanceled)
 	}
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
-	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body, ctx.proxySpan)
+	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body, p.tracing, ctx.proxySpan)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		p.log.Error("error while copying the response stream", err)

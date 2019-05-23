@@ -5,27 +5,35 @@ import (
 )
 
 const (
-	ComponentTag      = "component"
-	ErrorTag          = "error"
-	FlowIDTag         = "component"
-	HostnameTag       = "hostname"
-	HTTPHostTag       = "http.host"
-	HTTPMethodTag     = "http.method"
-	HTTPRemoteAddrTag = "http.remote_addr"
-	HTTPPathTag       = "http.path"
-	HTTPUrlTag        = "http.url"
-	HTTPStatusCodeTag = "http.status_code"
-	SkipperRouteTag   = "skipper.route"
-	SkipperRouteIDTag = "skipper.route_id"
-	SpanKindTag       = "span.kind"
-	SpanKindClient    = "client"
-	SpanKindServer    = "server"
+	ClientRequestStateTag = "client.request"
+	ComponentTag          = "component"
+	ErrorTag              = "error"
+	FlowIDTag             = "component"
+	HostnameTag           = "hostname"
+	HTTPHostTag           = "http.host"
+	HTTPMethodTag         = "http.method"
+	HTTPRemoteAddrTag     = "http.remote_addr"
+	HTTPPathTag           = "http.path"
+	HTTPUrlTag            = "http.url"
+	HTTPStatusCodeTag     = "http.status_code"
+	SkipperRouteTag       = "skipper.route"
+	SkipperRouteIDTag     = "skipper.route_id"
+	SpanKindTag           = "span.kind"
+
+	ClientRequestCanceled = "canceled"
+	SpanKindClient        = "client"
+	SpanKindServer        = "server"
+
+	EndEvent           = "start"
+	StartEvent         = "start"
+	StreamHeadersEvent = "stream_Headers"
 )
 
 type proxyTracing struct {
 	tracer                   ot.Tracer
 	initialOperationName     string
 	logFilterLifecycleEvents bool
+	logStreamEvents          bool
 	excludeTags              map[string]bool
 }
 
@@ -52,31 +60,52 @@ func newProxyTracing(p *OpenTracingParams) *proxyTracing {
 		tracer:                   p.Tracer,
 		initialOperationName:     p.InitialSpan,
 		logFilterLifecycleEvents: p.LogFilterEvents,
+		logStreamEvents:          p.LogStreamEvents,
 		excludeTags:              excludedTags,
 	}
 }
 
-func (t *proxyTracing) logFilterLifecycleEvent(span ot.Span, filterName, event string) {
-	if !t.logFilterLifecycleEvents {
+func (t *proxyTracing) logEvent(span ot.Span, eventName, eventValue string) {
+	if span == nil {
 		return
 	}
 
-	span.LogKV(filterName, event)
-}
-
-func (t *proxyTracing) logFilterStart(span ot.Span, filterName string) {
-	t.logFilterLifecycleEvent(span, filterName, "start")
-}
-
-func (t *proxyTracing) logFilterEnd(span ot.Span, filterName string) {
-	t.logFilterLifecycleEvent(span, filterName, "done")
+	span.LogKV(eventName, eventValue)
 }
 
 func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *proxyTracing {
+	if span == nil {
+		return t
+	}
+
 	_, excluded := t.excludeTags[key]
 	if !excluded {
 		span.SetTag(key, value)
 	}
 
 	return t
+}
+
+func (t *proxyTracing) logFilterEvent(span ot.Span, filterName, event string) {
+	if !t.logFilterLifecycleEvents {
+		return
+	}
+
+	t.logEvent(span, filterName, event)
+}
+
+func (t *proxyTracing) logStreamEvent(span ot.Span, eventName, eventValue string) {
+	if !t.logStreamEvents {
+		return
+	}
+
+	t.logEvent(span, eventName, eventValue)
+}
+
+func (t *proxyTracing) logFilterStart(span ot.Span, filterName string) {
+	t.logFilterEvent(span, filterName, StartEvent)
+}
+
+func (t *proxyTracing) logFilterEnd(span ot.Span, filterName string) {
+	t.logFilterEvent(span, filterName, EndEvent)
 }

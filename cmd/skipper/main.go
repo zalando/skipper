@@ -103,6 +103,7 @@ const (
 	opentracingIngressSpanNameUsage          = "set the name of the initial, pre-routing, tracing span"
 	openTracingExcludedProxyTagsUsage        = "set tags that should be excluded from spans created for proxy operation. must be a comma-separated list of strings."
 	opentracingLogFilterLifecycleEventsUsage = "enables the logs for request & response filters' lifecycle events that are marking start & end times."
+	opentracingLogStreamEventsUsage          = "enables the logs for events marking the times response headers & payload are streamed to the client"
 	metricsListenerUsage                     = "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty."
 	metricsPrefixUsage                       = "allows setting a custom path prefix for metrics export"
 	enableProfileUsage                       = "enable profile information on the metrics endpoint with path /pprof"
@@ -256,6 +257,7 @@ var (
 	openTracingInitialSpan              string
 	openTracingExcludedProxyTags        string
 	opentracingLogFilterLifecycleEvents bool
+	opentracingLogStreamEvents          bool
 	metricsListener                     string
 	metricsPrefix                       string
 	enableProfile                       bool
@@ -412,6 +414,7 @@ func init() {
 	flag.StringVar(&openTracingInitialSpan, "opentracing-initial-span", "ingress", opentracingIngressSpanNameUsage)
 	flag.StringVar(&openTracingExcludedProxyTags, "opentracing-excluded-proxy-tags", "", openTracingExcludedProxyTagsUsage)
 	flag.BoolVar(&opentracingLogFilterLifecycleEvents, "opentracing-log-filter-lifecycle-events", true, opentracingLogFilterLifecycleEventsUsage)
+	flag.BoolVar(&opentracingLogStreamEvents, "opentracing-log-stream-events", true, opentracingLogStreamEventsUsage)
 	flag.StringVar(&metricsListener, "metrics-listener", defaultMetricsListener, metricsListenerUsage)
 	flag.StringVar(&metricsPrefix, "metrics-prefix", defaultMetricsPrefix, metricsPrefixUsage)
 	flag.BoolVar(&enableProfile, "enable-profile", false, enableProfileUsage)
