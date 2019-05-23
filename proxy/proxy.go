@@ -109,6 +109,11 @@ type OpenTracingParams struct {
 	// InitialSpan can override the default initial, pre-routing, span name.
 	// Default: "ingress".
 	InitialSpan string
+
+	// LogFilterEvents enables the behavior to mark start and completion times of filters
+	// on the span representing request filters being processed.
+	// Default: false
+	LogFilterEvents bool
 }
 
 // Proxy initialization options.
@@ -276,7 +281,7 @@ type Proxy struct {
 	breakers                 *circuit.Registry
 	limiters                 *ratelimit.Registry
 	log                      logging.Logger
-	tracing                  *OpenTracingParams
+	tracing                  *proxyTracing
 	lb                       *loadbalancer.LB
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
@@ -542,14 +547,6 @@ func WithParams(p Params) *Proxy {
 		p.ExpectContinueTimeout = DefaultExpectContinueTimeout
 	}
 
-	if p.OpenTracing == nil {
-		p.OpenTracing = &OpenTracingParams{}
-	}
-
-	if p.OpenTracing.Tracer == nil {
-		p.OpenTracing.Tracer = &ot.NoopTracer{}
-	}
-
 	tr := &http.Transport{
 		DialContext: newSkipperDialer(net.Dialer{
 			Timeout:   p.Timeout,
@@ -612,10 +609,6 @@ func WithParams(p Params) *Proxy {
 		defaultHTTPStatus = p.DefaultHTTPStatus
 	}
 
-	if p.OpenTracing.InitialSpan == "" {
-		p.OpenTracing.InitialSpan = "ingress"
-	}
-
 	hostname = os.Getenv("HOSTNAME")
 
 	return &Proxy{
@@ -634,7 +627,7 @@ func WithParams(p Params) *Proxy {
 		limiters:                 p.RateLimiters,
 		log:                      &logging.DefaultLog{},
 		defaultHTTPStatus:        defaultHTTPStatus,
-		tracing:                  p.OpenTracing,
+		tracing:                  newProxyTracing(p.OpenTracing),
 		accessLogDisabled:        p.AccessLogDisabled,
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
@@ -670,14 +663,14 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	}
 
 	filtersStart := time.Now()
-	filtersSpan := tracing.CreateSpan("request_filters", ctx.request.Context(), p.tracing.Tracer)
+	filtersSpan := tracing.CreateSpan("request_filters", ctx.request.Context(), p.tracing.tracer)
 	defer filtersSpan.Finish()
 	ctx.parentSpan = filtersSpan
 
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start := time.Now()
-		filtersSpan.LogKV(fi.Name, "start")
+		p.tracing.logFilterStart(filtersSpan, fi.Name)
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
 			fi.Request(ctx)
@@ -692,7 +685,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 
 			p.log.Errorf("error while processing filter during request: %s: %v (%s)", fi.Name, err, stack)
 		})
-		filtersSpan.LogKV(fi.Name, "done")
+		p.tracing.logFilterEnd(filtersSpan, fi.Name)
 
 		filters = append(filters, fi)
 		if ctx.deprecatedShunted() || ctx.shunted() {
@@ -804,15 +797,18 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	if !ok {
 		spanName = "proxy"
 	}
-	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.tracing.Tracer)
+	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.tracing.tracer)
 	ext.SpanKindRPCClient.Set(ctx.proxySpan)
-	ctx.proxySpan.SetTag("skipper.route_id", ctx.route.Id)
+
+	p.tracing.setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id)
+	p.tracing.setTag(ctx.proxySpan, SkipperRouteTag, ctx.route.String())
+
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
-	_ = p.tracing.Tracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
+	_ = p.tracing.tracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
 
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
@@ -1190,11 +1186,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var ctx *context
 
 	var span ot.Span
-	wireContext, err := p.tracing.Tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
+	wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
 	if err == nil {
-		span = p.tracing.Tracer.StartSpan(p.tracing.InitialSpan, ext.RPCServerOption(wireContext))
+		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName, ext.RPCServerOption(wireContext))
 	} else {
-		span = p.tracing.Tracer.StartSpan(p.tracing.InitialSpan)
+		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName)
 	}
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
@@ -1234,7 +1230,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx = newContext(lw, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
 	ctx.startServe = time.Now()
-	ctx.tracer = p.tracing.Tracer
+	ctx.tracer = p.tracing.tracer
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
