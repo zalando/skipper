@@ -102,6 +102,28 @@ const (
 	OptionsHopHeadersRemoval = Options(HopHeadersRemoval)
 )
 
+type OpenTracingParams struct {
+	// Tracer holds the tracer enabled for this proxy instance
+	Tracer ot.Tracer
+
+	// InitialSpan can override the default initial, pre-routing, span name.
+	// Default: "ingress".
+	InitialSpan string
+
+	// LogFilterEvents enables the behavior to mark start and completion times of filters
+	// on the span representing request filters being processed.
+	// Default: false
+	LogFilterEvents bool
+
+	// LogStreamEvents enables the logs that marks the times when response headers & payload are streamed to
+	// the client
+	// Default: false
+	LogStreamEvents bool
+
+	// ExcludeTags controls what tags are disabled. Any tag that is listed here will be ignored.
+	ExcludeTags []string
+}
+
 // Proxy initialization options.
 type Params struct {
 	// The proxy expects a routing instance that is used to match
@@ -158,13 +180,6 @@ type Params struct {
 	// set, no ratelimits are used.
 	RateLimiters *ratelimit.Registry
 
-	// OpenTracer holds the tracer enabled for this proxy instance
-	OpenTracer ot.Tracer
-
-	// OpenTracingInitialSpan can override the default initial, pre-routing, span name.
-	// Default: "ingress".
-	OpenTracingInitialSpan string
-
 	// Loadbalancer to report unhealthy or dead backends to
 	LoadBalancer *loadbalancer.LB
 
@@ -196,6 +211,10 @@ type Params struct {
 
 	// Client TLS to connect to Backends
 	ClientTLS *tls.Config
+
+	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
+	// check OpenTracingParams
+	OpenTracing *OpenTracingParams
 }
 
 var (
@@ -272,8 +291,7 @@ type Proxy struct {
 	breakers                 *circuit.Registry
 	limiters                 *ratelimit.Registry
 	log                      logging.Logger
-	openTracer               ot.Tracer
-	openTracingInitialSpan   string
+	tracing                  *proxyTracing
 	lb                       *loadbalancer.LB
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
@@ -354,14 +372,14 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 
 // copies a stream with flushing on every successful read operation
 // (similar to io.Copy but with flushing)
-func copyStream(to flusherWriter, from io.Reader, span ot.Span) error {
+func copyStream(to flusherWriter, from io.Reader, tracing *proxyTracing, span ot.Span) error {
 	b := make([]byte, proxyBufferSize)
 
 	for {
 		l, rerr := from.Read(b)
-		if span != nil {
-			span.LogKV("streamBody.byte", fmt.Sprintf("%d", l))
-		}
+
+		tracing.logStreamEvent(span, "streamBody.byte", fmt.Sprintf("%d", l))
+
 		if rerr != nil && rerr != io.EOF {
 			return rerr
 		}
@@ -539,10 +557,6 @@ func WithParams(p Params) *Proxy {
 		p.ExpectContinueTimeout = DefaultExpectContinueTimeout
 	}
 
-	if p.OpenTracer == nil {
-		p.OpenTracer = &ot.NoopTracer{}
-	}
-
 	tr := &http.Transport{
 		DialContext: newSkipperDialer(net.Dialer{
 			Timeout:   p.Timeout,
@@ -605,11 +619,6 @@ func WithParams(p Params) *Proxy {
 		defaultHTTPStatus = p.DefaultHTTPStatus
 	}
 
-	openTracingInitialSpan := p.OpenTracingInitialSpan
-	if openTracingInitialSpan == "" {
-		openTracingInitialSpan = "ingress"
-	}
-
 	hostname = os.Getenv("HOSTNAME")
 
 	return &Proxy{
@@ -628,9 +637,8 @@ func WithParams(p Params) *Proxy {
 		limiters:                 p.RateLimiters,
 		log:                      &logging.DefaultLog{},
 		defaultHTTPStatus:        defaultHTTPStatus,
-		openTracer:               p.OpenTracer,
+		tracing:                  newProxyTracing(p.OpenTracing),
 		accessLogDisabled:        p.AccessLogDisabled,
-		openTracingInitialSpan:   openTracingInitialSpan,
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
 	}
@@ -665,14 +673,14 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	}
 
 	filtersStart := time.Now()
-	filtersSpan := tracing.CreateSpan("request_filters", ctx.request.Context(), p.openTracer)
+	filtersSpan := tracing.CreateSpan("request_filters", ctx.request.Context(), p.tracing.tracer)
 	defer filtersSpan.Finish()
 	ctx.parentSpan = filtersSpan
 
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start := time.Now()
-		filtersSpan.LogKV(fi.Name, "start")
+		p.tracing.logFilterStart(filtersSpan, fi.Name)
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
 			fi.Request(ctx)
@@ -687,7 +695,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 
 			p.log.Errorf("error while processing filter during request: %s: %v (%s)", fi.Name, err, stack)
 		})
-		filtersSpan.LogKV(fi.Name, "done")
+		p.tracing.logFilterEnd(filtersSpan, fi.Name)
 
 		filters = append(filters, fi)
 		if ctx.deprecatedShunted() || ctx.shunted() {
@@ -702,11 +710,14 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 // applies filters to a response in reverse order
 func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *context) {
 	filtersStart := time.Now()
+	filtersSpan := tracing.CreateSpan("response_filters", ctx.request.Context(), p.tracing.tracer)
+	defer filtersSpan.Finish()
 
 	last := len(filters) - 1
 	for i := range filters {
 		fi := filters[last-i]
 		start := time.Now()
+		p.tracing.logFilterStart(filtersSpan, fi.Name)
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
 			fi.Response(ctx)
@@ -721,6 +732,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 
 			p.log.Errorf("error while processing filters during response: %s: %v (%s)", fi.Name, err, stack)
 		})
+		p.tracing.logFilterEnd(filtersSpan, fi.Name)
 	}
 
 	p.metrics.MeasureAllFiltersResponse(ctx.route.Id, filtersStart)
@@ -799,22 +811,26 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	if !ok {
 		spanName = "proxy"
 	}
-	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.openTracer)
-	ext.SpanKindRPCClient.Set(ctx.proxySpan)
-	ctx.proxySpan.SetTag("skipper.route_id", ctx.route.Id)
+	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.tracing.tracer)
+
+	p.tracing.
+		setTag(ctx.proxySpan, SpanKindTag, SpanKindClient).
+		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id).
+		setTag(ctx.proxySpan, SkipperRouteTag, ctx.route.String())
+
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
-	_ = p.openTracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
+	_ = p.tracing.tracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
 
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	response, err := p.roundTripper.RoundTrip(req)
 	if err != nil {
-		ext.Error.Set(ctx.proxySpan, true)
+		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
 		ctx.proxySpan.LogKV(
 			"event", "error",
 			"message", err.Error())
@@ -828,26 +844,26 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			p.log.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %v", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err)
 			//p.lb.AddHealthcheck(ctx.route.Backend)
 			if nerr.Timeout() {
-				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusGatewayTimeout))
+				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusGatewayTimeout))
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusGatewayTimeout,
 				}
 			} else if !nerr.Temporary() {
-				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusServiceUnavailable))
+				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusServiceUnavailable))
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusServiceUnavailable,
 				}
 			} else if !nerr.Timeout() && nerr.Temporary() {
 				p.log.Errorf("Backend error see https://github.com/zalando/skipper/issues/768: %v", err)
-				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusServiceUnavailable))
+				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusServiceUnavailable))
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusServiceUnavailable,
 				}
 			} else {
-				ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(http.StatusInternalServerError))
+				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusInternalServerError))
 				return nil, &proxyError{
 					err:  err,
 					code: http.StatusInternalServerError,
@@ -863,7 +879,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 		return nil, &proxyError{err: err}
 	}
-	ext.HTTPStatusCode.Set(ctx.proxySpan, uint16(response.StatusCode))
+	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
 	return response, nil
 }
 
@@ -1069,26 +1085,20 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 
 	start := time.Now()
-	if ctx.proxySpan != nil {
-		ctx.proxySpan.LogKV("stream_Headers", "start")
-	}
+	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
-	if ctx.proxySpan != nil {
-		ctx.proxySpan.LogKV("stream_Headers", "done")
-	}
+	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
 
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
 		// see https://github.com/zalando/skipper/pull/864
 		p.log.Infof("Client request: %v", err)
 		ctx.response.StatusCode = 499
-		if ctx.proxySpan != nil {
-			ctx.proxySpan.SetTag("client.request", "canceled")
-		}
+		p.tracing.setTag(ctx.proxySpan, ClientRequestStateTag, ClientRequestCanceled)
 	}
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
-	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body, ctx.proxySpan)
+	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body, p.tracing, ctx.proxySpan)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		p.log.Error("error while copying the response stream", err)
@@ -1120,7 +1130,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	if span := ot.SpanFromContext(ctx.Request().Context()); span != nil {
-		ext.HTTPStatusCode.Set(span, uint16(code))
+		p.tracing.setTag(span, HTTPStatusCodeTag, uint16(code))
 	}
 
 	if p.flags.Debug() {
@@ -1185,11 +1195,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var ctx *context
 
 	var span ot.Span
-	wireContext, err := p.openTracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
+	wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
 	if err == nil {
-		span = p.openTracer.StartSpan(p.openTracingInitialSpan, ext.RPCServerOption(wireContext))
+		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName, ext.RPCServerOption(wireContext))
 	} else {
-		span = p.openTracer.StartSpan(p.openTracingInitialSpan)
+		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName)
 	}
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
@@ -1223,13 +1233,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	ext.SpanKindRPCServer.Set(span)
+	p.tracing.setTag(span, SpanKindTag, SpanKindServer)
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
 	ctx = newContext(lw, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
 	ctx.startServe = time.Now()
-	ctx.tracer = p.openTracer
+	ctx.tracer = p.tracing.tracer
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -1242,7 +1252,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err = p.do(ctx)
 	if err != nil {
-		ext.Error.Set(span, true)
+		p.tracing.setTag(span, ErrorTag, true)
 		p.errorResponse(ctx, err)
 		return
 	}
@@ -1266,14 +1276,15 @@ func (p *Proxy) Close() error {
 }
 
 func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
-	ext.Component.Set(s, "skipper")
-	ext.HTTPUrl.Set(s, u.String())
-	ext.HTTPMethod.Set(s, r.Method)
-	s.SetTag("hostname", hostname)
-	s.SetTag("http.remote_addr", r.RemoteAddr)
-	s.SetTag("http.path", u.Path)
-	s.SetTag("http.host", r.Host)
+	p.tracing.
+		setTag(s, ComponentTag, "skipper").
+		setTag(s, HTTPUrlTag, u.String()).
+		setTag(s, HTTPMethodTag, r.Method).
+		setTag(s, HostnameTag, hostname).
+		setTag(s, HTTPRemoteAddrTag, r.RemoteAddr).
+		setTag(s, HTTPPathTag, u.Path).
+		setTag(s, HTTPHostTag, r.Host)
 	if val := r.Header.Get("X-Flow-Id"); val != "" {
-		s.SetTag("flow_id", val)
+		p.tracing.setTag(s, FlowIDTag, val)
 	}
 }
