@@ -604,6 +604,8 @@ func main() {
 		log.Warn(`"api-usage-monitoring-default-client-tracking-pattern" parameter is deprecated`)
 	}
 
+	excludedProxyTags := strings.Split(openTracingExcludedProxyTags, ",")
+
 	options := skipper.Options{
 		// generic:
 		Address:                         address,
@@ -633,6 +635,9 @@ func main() {
 		EnablePrometheusMetrics:             enablePrometheusMetrics,
 		OpenTracing:                         strings.Split(openTracing, " "),
 		OpenTracingInitialSpan:              openTracingInitialSpan,
+		OpenTracingExcludedProxyTags:        excludedProxyTags,
+		OpenTracingLogStreamEvents:          opentracingLogStreamEvents,
+		OpenTracingLogFilterLifecycleEvents: opentracingLogFilterLifecycleEvents,
 		MetricsListener:                     metricsListener,
 		MetricsPrefix:                       metricsPrefix,
 		EnableProfile:                       enableProfile,
