@@ -78,8 +78,7 @@ func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *prox
 		return t
 	}
 
-	_, excluded := t.excludeTags[key]
-	if !excluded {
+	if !t.excludeTags[key] {
 		span.SetTag(key, value)
 	}
 
