@@ -109,9 +109,7 @@ func stringInSlice(a string, list []string) bool {
 }
 
 func removeKeys(data map[string]interface{}, keys []string) {
-	for k := range data {
-		if stringInSlice(k, keys) {
-			delete(data, k)
-		}
+	for _, v := range keys {
+		delete(data, v)
 	}
 }
