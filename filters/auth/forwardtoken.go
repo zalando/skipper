@@ -99,15 +99,6 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 func (f *forwardTokenFilter) Response(filters.FilterContext) {
 }
 
-func stringInSlice(a string, list []string) bool {
-	for _, b := range list {
-		if b == a {
-			return true
-		}
-	}
-	return false
-}
-
 func removeKeys(data map[string]interface{}, keys []string) {
 	for _, v := range keys {
 		delete(data, v)
