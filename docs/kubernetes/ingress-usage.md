@@ -15,6 +15,7 @@ zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | ext
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
 zalando.org/skipper-ingress-redirect | `true` | change the default HTTPS redirect behavior for specific ingresses (true/false)
 zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
+zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../../reference/backends/#load-balancer-backend)
 
 ## Supported Service types
 
@@ -979,16 +980,16 @@ spec:
 ## Controlling HTTPS redirect
 
 Skipper Ingress can provide HTTP->HTTPS redirection. Enabling it and setting the status code used by default can
-be done with the command line options: -kubernetes-https-redirect and -kubernetes-https-redirect-code. By using
+be done with the command line options: `-kubernetes-https-redirect` and `-kubernetes-https-redirect-code`. By using
 annotations, this behavior can be overridden from the individual ingress specs for the scope of routes generated
 based on these ingresses specs.
 
 Annotations:
 
-- zalando.org/skipper-ingress-redirect: the possible values are true or false. When the global HTTPS redirect is
+- `zalando.org/skipper-ingress-redirect`: the possible values are true or false. When the global HTTPS redirect is
   disabled, the value true enables it for the current ingress. When the global redirect is enabled, the value
   false disables it for the current ingress.
-- zalando.org/skipper-ingress-redirect-code: the possible values are integers 300 <= x < 400. Sets the redirect
+- `zalando.org/skipper-ingress-redirect-code`: the possible values are integers `300 <= x < 400`. Sets the redirect
   status code for the current ingress.
 
 Example:
@@ -1003,6 +1004,39 @@ Example:
     spec:
       rules:
       - host: mobile-api.example.org
+        http:
+          paths:
+          - backend:
+              serviceName: app-svc
+              servicePort: 80
+
+## Loadbalancer Algorithm
+
+You can set the loadbalancer algorithm, which is used to find the next
+endpoint for a given request with the ingress annotation
+`zalando.org/skipper-loadbalancer`.
+
+For example, for some workloads you might want to have always the same
+endpoint for the same client. For this use case there is the
+consistent hash algorithm, that finds for a client detected by the IP
+or X-Forwarded-For header, the same backend. If the backend is not
+available it would switch to another one.
+
+Annotations:
+
+- `zalando.org/skipper-loadbalancer` [see available choices](../../reference/backends/#load-balancer-backend)
+
+Example:
+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        zalando.org/skipper-loadbalancer: consistentHash
+      name: app
+    spec:
+      rules:
+      - host: websocket.example.org
         http:
           paths:
           - backend:
