@@ -3,8 +3,10 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"golang.org/x/net/http/httpguts"
 )
@@ -74,17 +76,18 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	typedTiMap, ok := tiMap.(map[string]interface{})
-	if !ok {
-		return
-	}
-	for k := range typedTiMap {
-		if stringInSlice(k, f.StripJsonKeys) {
-			delete(typedTiMap, k)
+	if len(f.StripJsonKeys) > 0 {
+		switch typedTiMap := tiMap.(type) {
+		case map[string]interface{}:
+			removeKeys(typedTiMap, f.StripJsonKeys)
+		case tokenIntrospectionInfo:
+			removeKeys(typedTiMap, f.StripJsonKeys)
+		default:
+			log.Errorf("Unexpected input type[%v] for `forwardToken` filter. Unable to apply mask", reflect.TypeOf(typedTiMap))
 		}
 	}
 
-	payload, err := json.Marshal(typedTiMap)
+	payload, err := json.Marshal(tiMap)
 	if err != nil {
 		return
 	}
@@ -103,4 +106,12 @@ func stringInSlice(a string, list []string) bool {
 		}
 	}
 	return false
+}
+
+func removeKeys(data map[string]interface{}, keys []string) {
+	for k := range data {
+		if stringInSlice(k, keys) {
+			delete(data, k)
+		}
+	}
 }

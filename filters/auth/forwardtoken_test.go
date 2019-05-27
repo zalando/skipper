@@ -198,6 +198,7 @@ func TestForwardTokenIntrospection(t *testing.T) {
 			clientServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				if ti.oauthFilterPresent {
 					tokenInfo := r.Header.Get(ti.headerName)
+					fmt.Printf("Header Value is %s\n", tokenInfo)
 					var info testTokenIntrospection
 					err := json.Unmarshal([]byte(tokenInfo), &info)
 					if err != nil {
