@@ -4,7 +4,6 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/loadbalancer"
@@ -43,11 +42,8 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 	routingOptions.PostProcessors = []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()}
 
 	rt := routing.New(routingOptions)
-
 	proxyParams.Routing = rt
-	if proxyParams.OpenTracer == nil {
-		proxyParams.OpenTracer = &opentracing.NoopTracer{}
-	}
+
 	pr := proxy.WithParams(proxyParams)
 	tsp := httptest.NewServer(pr)
 

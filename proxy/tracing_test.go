@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/md5"
 	"fmt"
+	"github.com/zalando/skipper/tracing/tracingtest"
 	"io"
 	"math/rand"
 	"net/http"
@@ -12,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zalando/skipper/tracing/tracingtest"
+	"github.com/opentracing/opentracing-go/mocktracer"
 )
 
 const traceHeader = "X-Trace-Header"
@@ -43,8 +44,10 @@ func TestTracingFromWire(t *testing.T) {
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{}
 	params := Params{
-		OpenTracer: tracer,
-		Flags:      FlagsNone,
+		OpenTracing: &OpenTracingParams{
+			Tracer: tracer,
+		},
+		Flags: FlagsNone,
 	}
 
 	tp, err := newTestProxyWithParams(doc, params)
@@ -92,8 +95,10 @@ func TestTracingRoot(t *testing.T) {
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{TraceContent: traceContent}
 	params := Params{
-		OpenTracer: tracer,
-		Flags:      FlagsNone,
+		OpenTracing: &OpenTracingParams{
+			Tracer: tracer,
+		},
+		Flags: FlagsNone,
 	}
 
 	tp, err := newTestProxyWithParams(doc, params)
@@ -147,8 +152,10 @@ func TestTracingSpanName(t *testing.T) {
 	doc := fmt.Sprintf(`hello: Path("/hello") -> tracingSpanName("test-span") -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{TraceContent: traceContent}
 	params := Params{
-		OpenTracer: tracer,
-		Flags:      FlagsNone,
+		OpenTracing: &OpenTracingParams{
+			Tracer: tracer,
+		},
+		Flags: FlagsNone,
 	}
 
 	tp, err := newTestProxyWithParams(doc, params)
@@ -190,9 +197,11 @@ func TestTracingInitialSpanName(t *testing.T) {
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{TraceContent: traceContent}
 	params := Params{
-		OpenTracer:             tracer,
-		OpenTracingInitialSpan: "test-initial-span",
-		Flags:                  FlagsNone,
+		OpenTracing: &OpenTracingParams{
+			Tracer:      tracer,
+			InitialSpan: "test-initial-span",
+		},
+		Flags: FlagsNone,
 	}
 
 	tp, err := newTestProxyWithParams(doc, params)
@@ -236,7 +245,7 @@ func TestTracingProxySpan(t *testing.T) {
 
 	doc := fmt.Sprintf(`* -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{}
-	tp, err := newTestProxyWithParams(doc, Params{OpenTracer: tracer})
+	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{Tracer: tracer}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +297,7 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 	const docFmt = `r: * -> <roundRobin, "%s", "%s">;`
 	doc := fmt.Sprintf(docFmt, s0.URL, s1.URL)
 	tracer := &tracingtest.Tracer{}
-	tp, err := newTestProxyWithParams(doc, Params{OpenTracer: tracer})
+	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{Tracer: tracer}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,4 +335,168 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 	if !testFallback() && !testFallback() {
 		t.Error("failed to trace the right span duration for fallback")
 	}
+}
+
+func TestProxyTracingDefaultOptions(t *testing.T) {
+	t1 := newProxyTracing(nil)
+	if t1.tracer == nil || t1.initialOperationName == "" {
+		t.Errorf("did not set default options")
+	}
+
+	t2 := newProxyTracing(&OpenTracingParams{})
+	if t2.tracer == nil || t2.initialOperationName == "" {
+		t.Errorf("did not set default options")
+	}
+}
+
+func TestEnabledLogFilterLifecycleEvents(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:          tracer,
+		LogFilterEvents: true,
+	})
+	span := tracer.StartSpan("test")
+	defer span.Finish()
+
+	tracing.logFilterStart(span, "test-filter")
+	tracing.logFilterEnd(span, "test-filter")
+
+	mockSpan := span.(*mocktracer.MockSpan)
+
+	if len(mockSpan.Logs()) != 2 {
+		t.Errorf("filter lifecycle events were not logged although it was enabled")
+	}
+}
+
+func TestDisabledLogFilterLifecycleEvents(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:          tracer,
+		LogFilterEvents: false,
+	})
+	span := tracer.StartSpan("test")
+	defer span.Finish()
+
+	tracing.logFilterStart(span, "test-filter")
+	tracing.logFilterEnd(span, "test-filter")
+
+	mockSpan := span.(*mocktracer.MockSpan)
+
+	if len(mockSpan.Logs()) != 0 {
+		t.Errorf("filter lifecycle events were logged although it was disabled")
+	}
+}
+func TestEnabledLogStreamEvents(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:          tracer,
+		LogStreamEvents: true,
+	})
+	span := tracer.StartSpan("test")
+	defer span.Finish()
+
+	tracing.logStreamEvent(span, "test-filter", StartEvent)
+	tracing.logStreamEvent(span, "test-filter", EndEvent)
+
+	mockSpan := span.(*mocktracer.MockSpan)
+
+	if len(mockSpan.Logs()) != 2 {
+		t.Errorf("filter lifecycle events were not logged although it was enabled")
+	}
+}
+
+func TestDisabledLogStreamEvents(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:          tracer,
+		LogStreamEvents: false,
+	})
+	span := tracer.StartSpan("test")
+	defer span.Finish()
+
+	tracing.logStreamEvent(span, "test-filter", StartEvent)
+	tracing.logStreamEvent(span, "test-filter", EndEvent)
+
+	mockSpan := span.(*mocktracer.MockSpan)
+
+	if len(mockSpan.Logs()) != 0 {
+		t.Errorf("filter lifecycle events were logged although it was disabled")
+	}
+}
+
+func TestSetEnabledTags(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer:      tracer,
+		ExcludeTags: []string{},
+	})
+	span := tracer.StartSpan("test")
+	defer span.Finish()
+
+	tracing.setTag(span, HTTPStatusCodeTag, 200)
+	tracing.setTag(span, ComponentTag, "skipper")
+
+	mockSpan := span.(*mocktracer.MockSpan)
+
+	tags := mockSpan.Tags()
+
+	_, ok := tags[HTTPStatusCodeTag]
+	_, ok2 := tags[ComponentTag]
+
+	if !ok || !ok2 {
+		t.Errorf("could not set tags although they were not configured to be excluded")
+	}
+}
+
+func TestSetDisabledTags(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer: tracer,
+		ExcludeTags: []string{
+			SkipperRouteTag,
+		},
+	})
+	span := tracer.StartSpan("test")
+	defer span.Finish()
+
+	tracing.setTag(span, HTTPStatusCodeTag, 200)
+	tracing.setTag(span, ComponentTag, "skipper")
+	tracing.setTag(span, SkipperRouteTag, "long route definition")
+
+	mockSpan := span.(*mocktracer.MockSpan)
+
+	tags := mockSpan.Tags()
+
+	_, ok := tags[HTTPStatusCodeTag]
+	_, ok2 := tags[ComponentTag]
+	_, ok3 := tags[SkipperRouteTag]
+
+	if !ok || !ok2 {
+		t.Errorf("could not set tags although they were not configured to be excluded")
+	}
+
+	if ok3 {
+		t.Errorf("a tag was set although it was configured to be excluded")
+	}
+}
+
+func TestLogEventWithEmptySpan(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer: tracer,
+	})
+
+	// should not panic
+	tracing.logEvent(nil, "test", StartEvent)
+	tracing.logEvent(nil, "test", EndEvent)
+}
+
+func TestSetTagWithEmptySpan(t *testing.T) {
+	tracer := mocktracer.New()
+	tracing := newProxyTracing(&OpenTracingParams{
+		Tracer: tracer,
+	})
+
+	// should not panic
+	tracing.setTag(nil, "test", "val")
 }

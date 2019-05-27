@@ -45,6 +45,7 @@ func TestForwardTokenInfo(t *testing.T) {
 		maskedJSONKeys     []interface{}
 		tokenInfo          testTokeninfo
 		oauthFilterPresent bool
+		matchHeaderExactly bool
 	}{
 		{
 			msg:                "Basic Test",
@@ -52,6 +53,7 @@ func TestForwardTokenInfo(t *testing.T) {
 			maskedJSONKeys:     []interface{}{},
 			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
 			oauthFilterPresent: true,
+			matchHeaderExactly: true,
 		},
 		{
 			msg:                "No OAuth Filter Test Test",
@@ -59,6 +61,7 @@ func TestForwardTokenInfo(t *testing.T) {
 			maskedJSONKeys:     []interface{}{},
 			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
 			oauthFilterPresent: false,
+			matchHeaderExactly: true,
 		},
 		{
 			msg:                "Test JSON Key Masking",
@@ -66,6 +69,15 @@ func TestForwardTokenInfo(t *testing.T) {
 			maskedJSONKeys:     []interface{}{"uid"},
 			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
 			oauthFilterPresent: true,
+			matchHeaderExactly: false,
+		},
+		{
+			msg:                "Test JSON Key Masking Non Existant Key",
+			headerName:         "X-Skipper-Tokeninfo",
+			maskedJSONKeys:     []interface{}{"blah_blah"},
+			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
+			oauthFilterPresent: true,
+			matchHeaderExactly: true,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -78,7 +90,7 @@ func TestForwardTokenInfo(t *testing.T) {
 					if err != nil {
 						t.Fatalf("Failed to unmarshall header value %s", tokenInfo)
 					}
-					if len(ti.maskedJSONKeys) == 0 {
+					if ti.matchHeaderExactly {
 						if !reflect.DeepEqual(info, ti.tokenInfo) {
 							t.Fatalf("Did not receive token info in header %s", ti.headerName)
 						}
