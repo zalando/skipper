@@ -17,7 +17,8 @@ type (
 	forwardTokenSpec struct {
 	}
 	forwardTokenFilter struct {
-		HeaderName string
+		HeaderName    string
+		StripJsonKeys []string
 	}
 )
 
@@ -31,9 +32,10 @@ func (s *forwardTokenSpec) Name() string {
 }
 
 func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 1 {
+	if len(args) < 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
+
 	headerName, ok := args[0].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
@@ -42,7 +44,18 @@ func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error
 	if !valid {
 		return nil, fmt.Errorf("header name %s in invalid", headerName)
 	}
-	return &forwardTokenFilter{HeaderName: headerName}, nil
+
+	remainingArgs := args[1:]
+	stringifiedRemainingArgs := make([]string, len(remainingArgs))
+	for i, v := range remainingArgs {
+		maskedKeyName, ok := v.(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		stringifiedRemainingArgs[i] = maskedKeyName
+	}
+
+	return &forwardTokenFilter{HeaderName: headerName, StripJsonKeys: stringifiedRemainingArgs}, nil
 }
 
 func getTokenPayload(ctx filters.FilterContext, cacheKey string) interface{} {
@@ -62,7 +75,17 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	payload, err := json.Marshal(tiMap)
+	typedTiMap, ok := tiMap.(map[string]interface{})
+	if !ok {
+		return
+	}
+	for k := range typedTiMap {
+		if stringInSlice(k, f.StripJsonKeys) {
+			delete(typedTiMap, k)
+		}
+	}
+
+	payload, err := json.Marshal(typedTiMap)
 	if err != nil {
 		return
 	}
@@ -72,4 +95,13 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 }
 
 func (f *forwardTokenFilter) Response(filters.FilterContext) {
+}
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }

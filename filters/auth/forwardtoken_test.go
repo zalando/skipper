@@ -42,20 +42,30 @@ func TestForwardTokenInfo(t *testing.T) {
 	for _, ti := range []struct {
 		msg                string
 		headerName         string
+		maskedJSONKeys     []interface{}
 		tokenInfo          testTokeninfo
 		oauthFilterPresent bool
 	}{
 		{
 			msg:                "Basic Test",
 			headerName:         "X-Skipper-Tokeninfo",
+			maskedJSONKeys:     []interface{}{},
 			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
 			oauthFilterPresent: true,
 		},
 		{
 			msg:                "No OAuth Filter Test Test",
 			headerName:         "X-Skipper-Tokeninfo",
+			maskedJSONKeys:     []interface{}{},
 			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
 			oauthFilterPresent: false,
+		},
+		{
+			msg:                "Test JSON Key Masking",
+			headerName:         "X-Skipper-Tokeninfo",
+			maskedJSONKeys:     []interface{}{"uid"},
+			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
+			oauthFilterPresent: true,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -68,8 +78,14 @@ func TestForwardTokenInfo(t *testing.T) {
 					if err != nil {
 						t.Fatalf("Failed to unmarshall header value %s", tokenInfo)
 					}
-					if !reflect.DeepEqual(info, ti.tokenInfo) {
-						t.Fatalf("Did not receive token info in header %s", ti.headerName)
+					if len(ti.maskedJSONKeys) == 0 {
+						if !reflect.DeepEqual(info, ti.tokenInfo) {
+							t.Fatalf("Did not receive token info in header %s", ti.headerName)
+						}
+					} else {
+						if reflect.DeepEqual(info, ti.tokenInfo) {
+							t.Fatalf("Token Info header was not properly masked %s", ti.headerName)
+						}
 					}
 					t.Logf("tokeninfo present in header %s", ti.headerName)
 				} else {
@@ -108,12 +124,13 @@ func TestForwardTokenInfo(t *testing.T) {
 			}
 
 			ftSpec := NewForwardToken()
-			_, err := ftSpec.CreateFilter([]interface{}{ti.headerName})
+			filterArgs := append([]interface{}{ti.headerName}, ti.maskedJSONKeys...)
+			_, err := ftSpec.CreateFilter(filterArgs)
 			if err != nil {
-				t.Fatalf("error in creating filter")
+				t.Fatalf("error in creating filter: %v", err)
 			}
 			fr.Register(ftSpec)
-			routeFilters = append(routeFilters, &eskip.Filter{Name: ftSpec.Name(), Args: []interface{}{ti.headerName}})
+			routeFilters = append(routeFilters, &eskip.Filter{Name: ftSpec.Name(), Args: filterArgs})
 
 			r := &eskip.Route{Filters: routeFilters, Backend: clientServer.URL}
 
