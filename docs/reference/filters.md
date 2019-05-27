@@ -687,10 +687,9 @@ secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 
 ## forwardToken
 
-The filter accepts a variable number of string arguments but there must be at least 1 input which represents the header
-name where the result of token info or token introspection is added when the request is passed to the backend. Input
-arguments after the first, are considered to be keys within the JSON that you want to be excluded from forwarding to
-the backend service.
+The filter takes the (string) header name as its first argument. The result of token info or token introspection is added to 
+this header when the request is passed to the backend. Any subsequent arguments are keys within the JSON to be excluded from the 
+header payload when forwarding to the backend service.
 
 If this filter is used when there is no token introspection or token info data
 then it does not have any effect.
