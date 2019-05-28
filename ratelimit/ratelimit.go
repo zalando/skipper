@@ -1,10 +1,12 @@
 package ratelimit
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
 )
@@ -139,6 +141,10 @@ func (SameBucketLookuper) Lookup(*http.Request) string {
 	return "s"
 }
 
+func (SameBucketLookuper) String() string {
+	return "SameBucketLookuper"
+}
+
 // XForwardedForLookuper implements Lookuper interface and will
 // select a bucket by X-Forwarded-For header or clientIP.
 type XForwardedForLookuper struct{}
@@ -152,6 +158,10 @@ func NewXForwardedForLookuper() XForwardedForLookuper {
 // clientIP if not set.
 func (XForwardedForLookuper) Lookup(req *http.Request) string {
 	return net.RemoteHost(req).String()
+}
+
+func (XForwardedForLookuper) String() string {
+	return "XForwardedForLookuper"
 }
 
 // HeaderLookuper implements Lookuper interface and will select a bucket
@@ -168,6 +178,46 @@ func NewHeaderLookuper(k string) HeaderLookuper {
 // Lookup returns the content of the Authorization header.
 func (h HeaderLookuper) Lookup(req *http.Request) string {
 	return req.Header.Get(h.key)
+}
+
+func (h HeaderLookuper) String() string {
+	return "HeaderLookuper"
+}
+
+// Lookupers is a slice of Lookuper, required to get a hashable member
+// in the TupleLookuper.
+type Lookupers []Lookuper
+
+// TupleLookuper implements Lookuper interface and will select a
+// bucket that is defined by all combined Lookupers.
+type TupleLookuper struct {
+	// pointer is required to be hashable from Registry lookup table
+	l *Lookupers
+}
+
+// NewTupleLookuper returns TupleLookuper configured to lookup the
+// combined result of all given Lookuper
+func NewTupleLookuper(args ...Lookuper) TupleLookuper {
+	var ls Lookupers = args
+	return TupleLookuper{l: &ls}
+}
+
+// Lookup returns the combined string of all Lookupers part of the
+// tuple
+func (t TupleLookuper) Lookup(req *http.Request) string {
+	if t.l == nil {
+		return ""
+	}
+
+	buf := bytes.Buffer{}
+	for _, l := range *(t.l) {
+		buf.WriteString(l.Lookup(req))
+	}
+	return buf.String()
+}
+
+func (t TupleLookuper) String() string {
+	return "TupleLookuper"
 }
 
 // Settings configures the chosen rate limiter
@@ -299,6 +349,7 @@ func newRatelimit(s Settings, sw Swarmer, redisRing *ring) *Ratelimit {
 	case ServiceRatelimit:
 		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
 	case LocalRatelimit:
+		log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
 		fallthrough
 	case ClientRatelimit:
 		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
