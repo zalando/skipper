@@ -15,6 +15,7 @@ package documentation.
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"net/http"
@@ -23,7 +24,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"crypto/tls"
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -173,8 +173,8 @@ const (
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 
 	// TLS client certs
-	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
-	clientCertFileUsage  = "TLS certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys"
+	clientKeyFileUsage  = "TSL Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
+	clientCertFileUsage = "TSL certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys"
 
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
@@ -337,7 +337,7 @@ var (
 
 	// TLS client certs
 	clientKeyFile  string
-	clientCertFile  string
+	clientCertFile string
 
 	// API Monitoring
 	apiUsageMonitoringEnable                       bool
@@ -494,9 +494,8 @@ func init() {
 	flag.StringVar(&oidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 
 	// TLS client certs
-	flag.StringVar(&clientKeyFile, "client-tls-key", "", clientKeyFileUsage)
-	flag.StringVar(&clientCertFile, "client-tls-cert", "", clientCertFileUsage)
-
+	flag.StringVar(&clientKeyFile, "client-tsl-key", "", clientKeyFileUsage)
+	flag.StringVar(&clientCertFile, "client-tsl-cert", "", clientCertFileUsage)
 
 	// API Monitoring:
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
@@ -786,23 +785,23 @@ func main() {
 		options.ProxyFlags |= proxy.HopHeadersRemoval
 	}
 
-	if clientKeyFile != "" && clientCertFile != ""{
+	if clientKeyFile != "" && clientCertFile != "" {
 		certsFiles := strings.Split(clientCertFile, ",")
 		keyFiles := strings.Split(clientKeyFile, ",")
 
 		var certificates []tls.Certificate
 
 		for i := range keyFiles {
-        	certificate, err := tls.LoadX509KeyPair(certsFiles[i],keyFiles[i])
-			if(err != nil){
-				log.Fatal("invalid key/cert pair",err)
+			certificate, err := tls.LoadX509KeyPair(certsFiles[i], keyFiles[i])
+			if err != nil {
+				log.Fatal("invalid key/cert pair", err)
 				return
 			}
-			certificates = append(certificates,certificate)
+			certificates = append(certificates, certificate)
 
-   	 }
-		options.ClientTLS =  &tls.Config{
-			Certificates : certificates,
+		}
+		options.ClientTLS = &tls.Config{
+			Certificates: certificates,
 		}
 	}
 
