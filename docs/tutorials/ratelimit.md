@@ -60,7 +60,7 @@ clientRatelimit(10, "1m", "Authorization")
 ```
 
 The optional third argument can create an AND combined Header
-ratelimit, if you use `,` to separate the them. For example all of the
+ratelimit. The header names must be separated by `,`. For example all of the
 specified headers have to be the same to recognize them as the same
 client:
 
@@ -165,9 +165,9 @@ clusterClientRatelimit("groupC", 10, "1m", "Authorization)
 ```
 
 The optional fourth argument can create an AND combined Header
-ratelimit, if you use `,` to separate the them. For example all of the
-specified headers have to be the same to recognize them as the same
-client:
+ratelimit. The header names must be separated by `,`. For example all
+of the specified headers have to be the same to recognize them as the
+same client:
 
 ```
 clusterClientRatelimit("groupC", 5, "10s", "X-Forwarded-For,Authorization,X-Foo")
