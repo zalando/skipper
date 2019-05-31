@@ -173,8 +173,8 @@ const (
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 
 	// TLS client certs
-	clientKeyFileUsage  = "TSL Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
-	clientCertFileUsage = "TSL certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys"
+	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
+	clientCertFileUsage = "TLS certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys"
 
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
@@ -494,8 +494,8 @@ func init() {
 	flag.StringVar(&oidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 
 	// TLS client certs
-	flag.StringVar(&clientKeyFile, "client-tsl-key", "", clientKeyFileUsage)
-	flag.StringVar(&clientCertFile, "client-tsl-cert", "", clientCertFileUsage)
+	flag.StringVar(&clientKeyFile, "client-tls-key", "", clientKeyFileUsage)
+	flag.StringVar(&clientCertFile, "client-tls-cert", "", clientCertFileUsage)
 
 	// API Monitoring:
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
