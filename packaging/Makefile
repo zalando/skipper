@@ -1,11 +1,11 @@
 .PHONY: docker-push
 
 VERSION            ?= $(shell git rev-parse HEAD)
-REGISTRY           ?= registry-write.opensource.zalan.do/pathfinder
-IMAGE              ?= $(REGISTRY)/skipper:$(VERSION)
-LIGHTSTEP_IMAGE    ?= $(REGISTRY)/skipper-lightstep:$(VERSION)
-OPENTRACING_IMAGE    ?= $(REGISTRY)/skipper-opentracing:$(VERSION)
-ALPINE_BUILD_IMAGE ?= $(REGISTRY)/skipper-alpine-build:latest
+REGISTRY           ?= dist.spotahome.net:5000/spotahome
+IMAGE              ?= $(REGISTRY)/skipper-custom:$(VERSION)
+LIGHTSTEP_IMAGE    ?= $(REGISTRY)/skipper-custom-lightstep:$(VERSION)
+OPENTRACING_IMAGE    ?= $(REGISTRY)/skipper-custom-opentracing:$(VERSION)
+ALPINE_BUILD_IMAGE ?= $(REGISTRY)/skipper-custom-alpine-build:latest
 PACKAGE            ?= github.com/zalando/skipper
 CGO_ENABLED        ?= 0
 GO111              ?= on
