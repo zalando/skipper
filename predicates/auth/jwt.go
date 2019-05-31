@@ -45,7 +45,7 @@ const (
 type (
 	spec         struct{ typ roleMatchType }
 	predicateAny struct {
-		kv map[string]string
+		kv map[string][]string
 	}
 	predicateAll struct {
 		kv map[string]string
@@ -75,30 +75,45 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	kv := make(map[string]string)
-	var k, v string
-
-	for i := range args {
-		if s, ok := args[i].(string); ok {
-			switch i % 2 {
-			case 0:
-				k = s
-				kv[k] = ""
-			case 1:
-				v = s
-				kv[k] = v
-			}
-		} else {
-			return nil, predicates.ErrInvalidPredicateParameters
-		}
-	}
+	var k string
 
 	switch s.typ {
 	case matchJWTPayloadAllKV:
+		kv := make(map[string]string)
+		for i := range args {
+			if s, ok := args[i].(string); ok {
+				switch i % 2 {
+				case 0:
+					k = s
+					kv[k] = ""
+				case 1:
+					kv[k] = s
+				}
+			} else {
+				return nil, predicates.ErrInvalidPredicateParameters
+			}
+		}
 		return &predicateAll{kv: kv}, nil
 	case matchJWTPayloadAnyKV:
+		kv := make(map[string][]string)
+		for i := range args {
+			if s, ok := args[i].(string); ok {
+				switch i % 2 {
+				case 0:
+					k = s
+					if _, ok := kv[k]; !ok {
+						kv[k] = []string{}
+					}
+				case 1:
+					kv[k] = append(kv[k], s)
+				}
+			} else {
+				return nil, predicates.ErrInvalidPredicateParameters
+			}
+		}
 		return &predicateAny{kv: kv}, nil
 	}
+
 	return nil, predicates.ErrInvalidPredicateParameters
 }
 
@@ -157,6 +172,9 @@ func (p *predicateAny) Match(r *http.Request) bool {
 }
 
 func allMatch(kv map[string]string, h map[string]interface{}) bool {
+	if len(kv) > len(h) {
+		return false
+	}
 	for k, v := range kv {
 		if vh, ok := h[k]; !ok {
 			return false
@@ -169,11 +187,20 @@ func allMatch(kv map[string]string, h map[string]interface{}) bool {
 	return true
 }
 
-func anyMatch(kv map[string]string, h map[string]interface{}) bool {
-	for k, v := range kv {
+func anyMatch(kv map[string][]string, h map[string]interface{}) bool {
+	if len(kv) == 0 {
+		return true
+	}
+	for k, a := range kv {
 		if vh, ok := h[k]; ok {
-			if s, ok2 := vh.(string); ok2 && v == s {
-				return true
+			var s string
+			if s, ok = vh.(string); !ok {
+				return false
+			}
+			for _, v := range a {
+				if v == s {
+					return true
+				}
 			}
 		}
 	}
