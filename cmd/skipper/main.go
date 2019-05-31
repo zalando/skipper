@@ -173,8 +173,8 @@ const (
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 
 	// TLS client certs
-	clientKeyFileUsage  = "TSL Key file for backend connections"
-	clientCertFileUsage  = "TSL certificate file for backend connections"
+	clientKeyFileUsage  = "TSL Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
+	clientCertFileUsage  = "TSL certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys"
 
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
@@ -787,16 +787,24 @@ func main() {
 	}
 
 	if clientKeyFile != "" && clientCertFile != ""{
-		certificate, err := tls.LoadX509KeyPair(clientCertFile,clientKeyFile)
-		if(err != nil){
-			log.Fatal("invalid key/cert pair",err)
-			return
-		}
+		certsFiles := strings.Split(clientCertFile, ",")
+		keyFiles := strings.Split(clientKeyFile, ",")
+
+		var certificates []tls.Certificate
+
+		for i := range keyFiles {
+        	certificate, err := tls.LoadX509KeyPair(certsFiles[i],keyFiles[i])
+			if(err != nil){
+				log.Fatal("invalid key/cert pair",err)
+				return
+			}
+			certificates = append(certificates,certificate)
+
+   	 }
 		options.ClientTLS =  &tls.Config{
-			Certificates : []tls.Certificate{
-				certificate,
-			},
+			Certificates : certificates,
 		}
 	}
+
 	log.Fatal(skipper.Run(options))
 }
