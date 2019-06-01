@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/net"
 )
 
@@ -87,8 +88,9 @@ func (r *Registry) Get(s Settings) *Ratelimit {
 	return r.get(s)
 }
 
-// Check returns Settings used and the retry-after duration in case of request is
-// ratelimitted. Otherwise return the Settings and 0.
+// Check returns Settings used and the retry-after duration in case of
+// request is ratelimitted. Otherwise return the Settings and 0. It is
+// only used in the global ratelimit facility.
 func (r *Registry) Check(req *http.Request) (Settings, int) {
 	if r == nil {
 		return Settings{}, 0
@@ -97,6 +99,7 @@ func (r *Registry) Check(req *http.Request) (Settings, int) {
 	s := r.global
 
 	rlimit := r.Get(s)
+
 	switch s.Type {
 	case ClusterServiceRatelimit:
 		fallthrough
@@ -106,9 +109,10 @@ func (r *Registry) Check(req *http.Request) (Settings, int) {
 		}
 		return s, rlimit.RetryAfter("")
 
-	case ClusterClientRatelimit:
+	case LocalRatelimit:
+		log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
 		fallthrough
-	case LocalRatelimit: // TODO(sszuecs): name should be dropped if we do a breaking change
+	case ClusterClientRatelimit:
 		fallthrough
 	case ClientRatelimit:
 		ip := net.RemoteHost(req)

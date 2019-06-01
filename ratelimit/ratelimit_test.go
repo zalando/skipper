@@ -33,6 +33,10 @@ func TestServiceRatelimit(t *testing.T) {
 		time.Sleep(s.TimeWindow)
 	}
 
+	t.Run("no nil dereference ratelimitter", func(t *testing.T) {
+		checkNotRatelimitted(t, nil, client1)
+	})
+
 	t.Run("new service ratelimitter", func(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
 		checkNotRatelimitted(t, rl, client1)
@@ -121,6 +125,32 @@ func TestDisableRatelimit(t *testing.T) {
 	})
 }
 
+func TestXForwardedForLookuper(t *testing.T) {
+	req, err := http.NewRequest("GET", "/foo", nil)
+	if err != nil {
+		t.Errorf("Could not create request: %v", err)
+	}
+
+	t.Run("header lookuper X-Forwarded-For header", func(t *testing.T) {
+		req.Header.Add("X-Forwarded-For", "127.0.0.3")
+		lookuper := NewXForwardedForLookuper()
+		if lookuper.Lookup(req) != "127.0.0.3" {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+
+	t.Run("header lookuper X-Forwarded-For without header", func(t *testing.T) {
+		lookuper := NewXForwardedForLookuper()
+		req.Header.Set("X-Forwarded-For", "127.0.0.1")
+		req.Header.Add("X-Forwarded-For", "127.0.0.2")
+		req.Header.Add("X-Forwarded-For", "127.0.0.3")
+		if s := lookuper.Lookup(req); s != "127.0.0.1" {
+			t.Errorf("Failed to lookup request, got: %s", s)
+		}
+	})
+
+}
+
 func TestHeaderLookuper(t *testing.T) {
 	req, err := http.NewRequest("GET", "/foo", nil)
 	if err != nil {
@@ -139,6 +169,37 @@ func TestHeaderLookuper(t *testing.T) {
 		req.Header.Add("x-blah", "bar")
 		xLookuper := NewHeaderLookuper("x-bLAh")
 		if xLookuper.Lookup(req) != "bar" {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+}
+
+func TestTupleLookuper(t *testing.T) {
+	req, err := http.NewRequest("GET", "/foo", nil)
+	if err != nil {
+		t.Errorf("Could not create request: %v", err)
+	}
+
+	t.Run("header lookuper authorization header", func(t *testing.T) {
+		req.Header.Add("authorization", "foo")
+		req.Header.Add("bar", "meow")
+		tupleLookuper := NewTupleLookuper(
+			NewHeaderLookuper("authorizatioN"),
+			NewHeaderLookuper("bar"),
+		)
+		if tupleLookuper.Lookup(req) != "foomeow" {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+
+	t.Run("header lookuper x header", func(t *testing.T) {
+		req.Header.Add("foo", "meow")
+		req.Header.Add("x-blah", "bar")
+		tupleLookuper := NewTupleLookuper(
+			NewHeaderLookuper("x-blah"),
+			NewHeaderLookuper("foo"),
+		)
+		if tupleLookuper.Lookup(req) != "barmeow" {
 			t.Errorf("Failed to lookup request")
 		}
 	})
@@ -229,4 +290,41 @@ func BenchmarkLocalRatelimitWithCleanerClients1000(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		rl.Allow(clients[i%count])
 	}
+}
+
+func TestSettingsRatelimit(t *testing.T) {
+	t.Run("ratelimit settings empty", func(t *testing.T) {
+		s := Settings{}
+		if !s.Empty() {
+			t.Errorf("setting should be empty: %s", s)
+		}
+
+		s = Settings{
+			Type:          ServiceRatelimit,
+			MaxHits:       3,
+			TimeWindow:    3 * time.Second,
+			CleanInterval: 4 * time.Second,
+		}
+		if s.Empty() {
+			t.Errorf("setting should not be empty: %s", s)
+		}
+	})
+
+	t.Run("ratelimit settings stringer", func(t *testing.T) {
+		s := Settings{
+			Type:          ServiceRatelimit,
+			MaxHits:       3,
+			TimeWindow:    3 * time.Second,
+			CleanInterval: 4 * time.Second,
+		}
+
+		if st := s.String(); st == "non" || st == "disable" {
+			t.Errorf("Failed to get string version: %s", s)
+		}
+
+		s.Type = DisableRatelimit
+		if s.String() != "disable" {
+			t.Errorf("Failed to get disabled string version: %s", s)
+		}
+	})
 }

@@ -865,11 +865,12 @@ Parameters:
 
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter to set the same client by header (string)
+* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
 
 ```
 clientRatelimit(3, "1m")
 clientRatelimit(3, "1m", "Authorization")
+clientRatelimit(3, "1m", "X-Foo,Authorization,X-Bar")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -910,11 +911,12 @@ Parameters:
 * rate limit group (string)
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter to set the same client by header (string)
+* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
 
 ```
 clusterClientRatelimit("groupA", 10, "1h")
 clusterClientRatelimit("groupA", 10, "1h", "Authorization")
+clusterClientRatelimit("groupA", 10, "1h", "X-Forwarded-For,Authorization,User-Agent")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
