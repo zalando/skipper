@@ -7,8 +7,10 @@ package ratelimit
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/ratelimit"
 )
@@ -28,26 +30,9 @@ type filter struct {
 	settings ratelimit.Settings
 }
 
-// NewLocalRatelimit *DEPRECATED* creates a local measured rate
-// limiting, that is only aware of itself. If you have 5 instances
-// with 20 req/s, then it would allow 100 req/s to the backend from
-// the same user. A third argument can be used to set which HTTP
-// header of the request should be used to find the same user. Third
-// argument defaults to XForwardedForLookuper, meaning X-Forwarded-For
-// Header.
-//
-// Example:
-//
-//    backendHealthcheck: Path("/healthcheck")
-//    -> localRatelimit(20, "1m")
-//    -> "https://foo.backend.net";
-//
-// Example rate limit per Authorization Header:
-//
-//    login: Path("/login")
-//    -> localRatelimit(3, "1m", "Authorization")
-//    -> "https://login.backend.net";
+// NewLocalRatelimit is *DEPRECATED*, use NewClientRatelimit, instead
 func NewLocalRatelimit() filters.Spec {
+	log.Warning("NewLocalRatelimit is deprecated, please use NewClientRatelimit")
 	return &spec{typ: ratelimit.LocalRatelimit, filterName: ratelimit.LocalRatelimitName}
 }
 
@@ -230,15 +215,18 @@ func clusterClientRatelimitFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	if len(args) > 3 {
-		headerName, err := getStringArg(args[3])
+		lookuperString, err := getStringArg(args[3])
 		if err != nil {
 			return nil, err
 		}
-		headerName = http.CanonicalHeaderKey(headerName)
-		if headerName == "X-Forwarded-For" {
-			s.Lookuper = ratelimit.NewXForwardedForLookuper()
+		if strings.Contains(lookuperString, ",") {
+			var lookupers []ratelimit.Lookuper
+			for _, ls := range strings.Split(lookuperString, ",") {
+				lookupers = append(lookupers, getLookuper(ls))
+			}
+			s.Lookuper = ratelimit.NewTupleLookuper(lookupers...)
 		} else {
-			s.Lookuper = ratelimit.NewHeaderLookuper(headerName)
+			s.Lookuper = getLookuper(lookuperString)
 		}
 	} else {
 		s.Lookuper = ratelimit.NewXForwardedForLookuper()
@@ -247,7 +235,16 @@ func clusterClientRatelimitFilter(args []interface{}) (filters.Filter, error) {
 	return &filter{settings: s}, nil
 }
 
-func localRatelimitFilter(args []interface{}) (filters.Filter, error) {
+func getLookuper(s string) ratelimit.Lookuper {
+	headerName := http.CanonicalHeaderKey(s)
+	if headerName == "X-Forwarded-For" {
+		return ratelimit.NewXForwardedForLookuper()
+	} else {
+		return ratelimit.NewHeaderLookuper(headerName)
+	}
+}
+
+func clientRatelimitFilter(args []interface{}) (filters.Filter, error) {
 	if !(len(args) == 2 || len(args) == 3) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -264,18 +261,26 @@ func localRatelimitFilter(args []interface{}) (filters.Filter, error) {
 
 	var lookuper ratelimit.Lookuper
 	if len(args) > 2 {
-		headerName, err := getStringArg(args[2])
+		lookuperString, err := getStringArg(args[2])
 		if err != nil {
 			return nil, err
 		}
-		lookuper = ratelimit.NewHeaderLookuper(headerName)
+		if strings.Contains(lookuperString, ",") {
+			var lookupers []ratelimit.Lookuper
+			for _, ls := range strings.Split(lookuperString, ",") {
+				lookupers = append(lookupers, getLookuper(ls))
+			}
+			lookuper = ratelimit.NewTupleLookuper(lookupers...)
+		} else {
+			lookuper = ratelimit.NewHeaderLookuper(lookuperString)
+		}
 	} else {
 		lookuper = ratelimit.NewXForwardedForLookuper()
 	}
 
 	return &filter{
 		settings: ratelimit.Settings{
-			Type:          ratelimit.LocalRatelimit,
+			Type:          ratelimit.ClientRatelimit,
 			MaxHits:       maxHits,
 			TimeWindow:    timeWindow,
 			CleanInterval: 10 * timeWindow,
@@ -297,7 +302,10 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	case ratelimit.ServiceRatelimit:
 		return serviceRatelimitFilter(args)
 	case ratelimit.LocalRatelimit:
-		return localRatelimitFilter(args)
+		log.Warning("ratelimit.LocalRatelimit is deprecated, please use ratelimit.ClientRatelimit")
+		fallthrough
+	case ratelimit.ClientRatelimit:
+		return clientRatelimitFilter(args)
 	case ratelimit.ClusterServiceRatelimit:
 		return clusterRatelimitFilter(args)
 	case ratelimit.ClusterClientRatelimit:
