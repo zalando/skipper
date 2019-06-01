@@ -19,8 +19,8 @@ type (
 	forwardTokenSpec struct {
 	}
 	forwardTokenFilter struct {
-		HeaderName    string
-		StripJsonKeys []string
+		HeaderName     string
+		RetainJsonKeys []string
 	}
 )
 
@@ -56,7 +56,7 @@ func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error
 		stringifiedRemainingArgs[i] = maskedKeyName
 	}
 
-	return &forwardTokenFilter{HeaderName: headerName, StripJsonKeys: stringifiedRemainingArgs}, nil
+	return &forwardTokenFilter{HeaderName: headerName, RetainJsonKeys: stringifiedRemainingArgs}, nil
 }
 
 func getTokenPayload(ctx filters.FilterContext, cacheKey string) interface{} {
@@ -76,12 +76,12 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if len(f.StripJsonKeys) > 0 {
+	if len(f.RetainJsonKeys) > 0 {
 		switch typedTiMap := tiMap.(type) {
 		case map[string]interface{}:
-			removeKeys(typedTiMap, f.StripJsonKeys)
+			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
 		case tokenIntrospectionInfo:
-			removeKeys(typedTiMap, f.StripJsonKeys)
+			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
 		default:
 			log.Errorf("Unexpected input type[%v] for `forwardToken` filter. Unable to apply mask", reflect.TypeOf(typedTiMap))
 		}
@@ -99,8 +99,13 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 func (f *forwardTokenFilter) Response(filters.FilterContext) {
 }
 
-func removeKeys(data map[string]interface{}, keys []string) {
+func retainKeys(data map[string]interface{}, keys []string) map[string]interface{} {
+	whitelistedKeys := make(map[string]interface{})
 	for _, v := range keys {
-		delete(data, v)
+		if val, ok := data[v]; ok {
+			whitelistedKeys[v] = val
+		}
 	}
+
+	return whitelistedKeys
 }

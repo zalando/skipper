@@ -64,7 +64,7 @@ func TestForwardTokenInfo(t *testing.T) {
 			matchHeaderExactly: true,
 		},
 		{
-			msg:                "Test JSON Key Masking",
+			msg:                "Test JSON Key filtering",
 			headerName:         "X-Skipper-Tokeninfo",
 			maskedJSONKeys:     []interface{}{"uid"},
 			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
@@ -72,12 +72,20 @@ func TestForwardTokenInfo(t *testing.T) {
 			matchHeaderExactly: false,
 		},
 		{
-			msg:                "Test JSON Key Masking Non Existant Key",
+			msg:                "Test JSON Key filtering, Match All Keys",
+			headerName:         "X-Skipper-Tokeninfo",
+			maskedJSONKeys:     []interface{}{"uid", "scope"},
+			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
+			oauthFilterPresent: true,
+			matchHeaderExactly: true,
+		},
+		{
+			msg:                "Test JSON Key filtering Non Existant Key",
 			headerName:         "X-Skipper-Tokeninfo",
 			maskedJSONKeys:     []interface{}{"blah_blah"},
 			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
 			oauthFilterPresent: true,
-			matchHeaderExactly: true,
+			matchHeaderExactly: false,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
