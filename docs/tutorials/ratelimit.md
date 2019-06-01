@@ -59,6 +59,15 @@ header value. As an example for Authorization Header you would use:
 clientRatelimit(10, "1m", "Authorization")
 ```
 
+The optional third argument can create an AND combined Header
+ratelimit. The header names must be separated by `,`. For example all of the
+specified headers have to be the same to recognize them as the same
+client:
+
+```
+clientRatelimit(10, "1m", "X-Forwarded-For,Authorization,X-Foo")
+```
+
 Internally skipper has a clean interval to clean up old buckets to reduce
 the memory footprint in the long run.
 
@@ -152,7 +161,16 @@ clusterClientRatelimit("groupB", 10, "1m")
 The same for Authorization Header you would use:
 
 ```
-clusterClientRatelimit("groupC", 10, "1m", "auth")
+clusterClientRatelimit("groupC", 10, "1m", "Authorization)
+```
+
+The optional fourth argument can create an AND combined Header
+ratelimit. The header names must be separated by `,`. For example all
+of the specified headers have to be the same to recognize them as the
+same client:
+
+```
+clusterClientRatelimit("groupC", 5, "10s", "X-Forwarded-For,Authorization,X-Foo")
 ```
 
 Internally skipper has a clean interval to clean up old buckets to reduce

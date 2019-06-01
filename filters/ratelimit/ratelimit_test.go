@@ -30,6 +30,26 @@ func TestArgs(t *testing.T) {
 		t.Run("missing", testErr(rl, nil))
 	})
 
+	t.Run("service", func(t *testing.T) {
+		rl := NewRatelimit()
+		t.Run("missing", testErr(rl, nil))
+	})
+
+	t.Run("client", func(t *testing.T) {
+		rl := NewClientRatelimit()
+		t.Run("missing", testErr(rl, nil))
+	})
+
+	t.Run("cluster", func(t *testing.T) {
+		rl := NewClusterRateLimit()
+		t.Run("missing", testErr(rl, nil))
+	})
+
+	t.Run("clusterClient", func(t *testing.T) {
+		rl := NewClusterClientRateLimit()
+		t.Run("missing", testErr(rl, nil))
+	})
+
 	t.Run("disable", func(t *testing.T) {
 		rl := NewDisableRatelimit()
 		t.Run("no args, ok", testOK(rl))
@@ -89,11 +109,25 @@ func TestRateLimit(t *testing.T) {
 		"1s",
 	))
 
+	t.Run("ratelimit service with float", test(
+		NewRatelimit,
+		[]ratelimit.Settings{
+			{
+				Type:       ratelimit.ServiceRatelimit,
+				MaxHits:    3,
+				TimeWindow: 1 * time.Second,
+				Lookuper:   ratelimit.NewSameBucketLookuper(),
+			},
+		},
+		3.3,
+		"1s",
+	))
+
 	t.Run("ratelimit local", test(
 		NewLocalRatelimit,
 		[]ratelimit.Settings{
 			{
-				Type:          ratelimit.LocalRatelimit,
+				Type:          ratelimit.ClientRatelimit,
 				MaxHits:       3,
 				TimeWindow:    1 * time.Second,
 				CleanInterval: 10 * time.Second,
@@ -102,6 +136,124 @@ func TestRateLimit(t *testing.T) {
 		},
 		3,
 		"1s",
+	))
+
+	t.Run("ratelimit client", test(
+		NewClientRatelimit,
+		[]ratelimit.Settings{
+			{
+				Type:          ratelimit.ClientRatelimit,
+				MaxHits:       3,
+				TimeWindow:    1 * time.Second,
+				CleanInterval: 10 * time.Second,
+				Lookuper:      ratelimit.NewXForwardedForLookuper(),
+			},
+		},
+		3,
+		"1s",
+	))
+
+	t.Run("ratelimit client tuple", test(
+		NewClientRatelimit,
+		[]ratelimit.Settings{
+			{
+				Type:          ratelimit.ClientRatelimit,
+				MaxHits:       3,
+				TimeWindow:    1 * time.Second,
+				CleanInterval: 10 * time.Second,
+				Lookuper: ratelimit.NewTupleLookuper(
+					ratelimit.NewHeaderLookuper("Authorization"),
+					ratelimit.NewXForwardedForLookuper()),
+			},
+		},
+		3,
+		"1s",
+		"Authorization,X-Forwarded-For",
+	))
+	t.Run("ratelimit client header", test(
+		NewClientRatelimit,
+		[]ratelimit.Settings{
+			{
+				Type:          ratelimit.ClientRatelimit,
+				MaxHits:       3,
+				TimeWindow:    1 * time.Second,
+				CleanInterval: 10 * time.Second,
+				Lookuper:      ratelimit.NewHeaderLookuper("Authorization"),
+			},
+		},
+		3,
+		"1s",
+		"Authorization",
+	))
+
+	t.Run("ratelimit cluster", test(
+		NewClusterRateLimit,
+		[]ratelimit.Settings{
+			{
+				Type:       ratelimit.ClusterServiceRatelimit,
+				MaxHits:    3,
+				TimeWindow: 1 * time.Second,
+				Lookuper:   ratelimit.NewSameBucketLookuper(),
+				Group:      "mygroup",
+			},
+		},
+		"mygroup",
+		3,
+		"1s",
+	))
+
+	t.Run("ratelimit clusterClient", test(
+		NewClusterClientRateLimit,
+		[]ratelimit.Settings{
+			{
+				Type:          ratelimit.ClusterClientRatelimit,
+				MaxHits:       3,
+				TimeWindow:    1 * time.Second,
+				CleanInterval: 10 * time.Second,
+				Lookuper:      ratelimit.NewXForwardedForLookuper(),
+				Group:         "mygroup",
+			},
+		},
+		"mygroup",
+		3,
+		"1s",
+	))
+
+	t.Run("ratelimit clusterClient tuple", test(
+		NewClusterClientRateLimit,
+		[]ratelimit.Settings{
+			{
+				Type:          ratelimit.ClusterClientRatelimit,
+				MaxHits:       3,
+				TimeWindow:    1 * time.Second,
+				CleanInterval: 10 * time.Second,
+				Lookuper: ratelimit.NewTupleLookuper(
+					ratelimit.NewHeaderLookuper("Authorization"),
+					ratelimit.NewXForwardedForLookuper()),
+				Group: "mygroup",
+			},
+		},
+		"mygroup",
+		3,
+		"1s",
+		"Authorization,X-Forwarded-For",
+	))
+	t.Run("ratelimit clusterClient header", test(
+		NewClusterClientRateLimit,
+		[]ratelimit.Settings{
+			{
+				Type:          ratelimit.ClusterClientRatelimit,
+				MaxHits:       3,
+				TimeWindow:    1 * time.Second,
+				CleanInterval: 10 * time.Second,
+				Lookuper:      ratelimit.NewHeaderLookuper("Authorization"),
+				Group:         "mygroup",
+			},
+		},
+		"mygroup",
+		3,
+		"1s",
+		"Authorization",
 	))
 
 	t.Run("ratelimit disable", test(
