@@ -15,6 +15,7 @@ package documentation.
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"net/http"
@@ -170,6 +171,10 @@ const (
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
+
+	// TLS client certs
+	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
+	clientCertFileUsage = "TLS certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys"
 
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
@@ -330,6 +335,10 @@ var (
 	webhookTimeout                  time.Duration
 	oidcSecretsFile                 string
 
+	// TLS client certs
+	clientKeyFile  string
+	clientCertFile string
+
 	// API Monitoring
 	apiUsageMonitoringEnable                       bool
 	apiUsageMonitoringRealmKeys                    string
@@ -483,6 +492,10 @@ func init() {
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
 	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 	flag.StringVar(&oidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
+
+	// TLS client certs
+	flag.StringVar(&clientKeyFile, "client-tls-key", "", clientKeyFileUsage)
+	flag.StringVar(&clientCertFile, "client-tls-cert", "", clientCertFileUsage)
 
 	// API Monitoring:
 	flag.BoolVar(&apiUsageMonitoringEnable, "enable-api-usage-monitoring", defaultApiUsageMonitoringEnable, apiUsageMonitoringEnableUsage)
@@ -770,6 +783,26 @@ func main() {
 
 	if removeHopHeaders {
 		options.ProxyFlags |= proxy.HopHeadersRemoval
+	}
+
+	if clientKeyFile != "" && clientCertFile != "" {
+		certsFiles := strings.Split(clientCertFile, ",")
+		keyFiles := strings.Split(clientKeyFile, ",")
+
+		var certificates []tls.Certificate
+
+		for i := range keyFiles {
+			certificate, err := tls.LoadX509KeyPair(certsFiles[i], keyFiles[i])
+			if err != nil {
+				log.Fatal("invalid key/cert pair", err)
+				return
+			}
+			certificates = append(certificates, certificate)
+
+		}
+		options.ClientTLS = &tls.Config{
+			Certificates: certificates,
+		}
 	}
 
 	log.Fatal(skipper.Run(options))
