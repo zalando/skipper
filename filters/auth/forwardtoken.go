@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -83,7 +82,7 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 		case tokenIntrospectionInfo:
 			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
 		default:
-			log.Errorf("Unexpected input type[%v] for `forwardToken` filter. Unable to apply mask", reflect.TypeOf(typedTiMap))
+			log.Errorf("Unexpected input type[%T] for `forwardToken` filter. Unable to apply mask", typedTiMap)
 		}
 	}
 
