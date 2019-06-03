@@ -3,8 +3,10 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"golang.org/x/net/http/httpguts"
 )
@@ -17,7 +19,8 @@ type (
 	forwardTokenSpec struct {
 	}
 	forwardTokenFilter struct {
-		HeaderName string
+		HeaderName     string
+		RetainJsonKeys []string
 	}
 )
 
@@ -31,7 +34,7 @@ func (s *forwardTokenSpec) Name() string {
 }
 
 func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 1 {
+	if len(args) < 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 	headerName, ok := args[0].(string)
@@ -42,7 +45,18 @@ func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error
 	if !valid {
 		return nil, fmt.Errorf("header name %s in invalid", headerName)
 	}
-	return &forwardTokenFilter{HeaderName: headerName}, nil
+
+	remainingArgs := args[1:]
+	stringifiedRemainingArgs := make([]string, len(remainingArgs))
+	for i, v := range remainingArgs {
+		maskedKeyName, ok := v.(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		stringifiedRemainingArgs[i] = maskedKeyName
+	}
+
+	return &forwardTokenFilter{HeaderName: headerName, RetainJsonKeys: stringifiedRemainingArgs}, nil
 }
 
 func getTokenPayload(ctx filters.FilterContext, cacheKey string) interface{} {
@@ -62,6 +76,17 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
+	if len(f.RetainJsonKeys) > 0 {
+		switch typedTiMap := tiMap.(type) {
+		case map[string]interface{}:
+			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
+		case tokenIntrospectionInfo:
+			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
+		default:
+			log.Errorf("Unexpected input type[%v] for `forwardToken` filter. Unable to apply mask", reflect.TypeOf(typedTiMap))
+		}
+	}
+
 	payload, err := json.Marshal(tiMap)
 	if err != nil {
 		return
@@ -72,4 +97,15 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 }
 
 func (f *forwardTokenFilter) Response(filters.FilterContext) {
+}
+
+func retainKeys(data map[string]interface{}, keys []string) map[string]interface{} {
+	whitelistedKeys := make(map[string]interface{})
+	for _, v := range keys {
+		if val, ok := data[v]; ok {
+			whitelistedKeys[v] = val
+		}
+	}
+
+	return whitelistedKeys
 }
