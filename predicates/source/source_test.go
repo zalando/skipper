@@ -47,14 +47,16 @@ func TestCreate(t *testing.T) {
 		[]interface{}{"C0:FF::EE/32"},
 		false,
 	}} {
-		_, err := (&spec{}).Create(ti.args)
-		if err == nil && ti.err || err != nil && !ti.err {
-			t.Error(ti.msg, "failure case", err, ti.err)
-		}
-		_, err = (&spec{fromLast: true}).Create(ti.args)
-		if err == nil && ti.err || err != nil && !ti.err {
-			t.Error(ti.msg, "failure case", err, ti.err)
-		}
+		t.Run(ti.msg, func(t *testing.T) {
+			_, err := (&spec{}).Create(ti.args)
+			if err == nil && ti.err || err != nil && !ti.err {
+				t.Error(ti.msg, "failure case", err, ti.err)
+			}
+			_, err = (&spec{fromLast: true}).Create(ti.args)
+			if err == nil && ti.err || err != nil && !ti.err {
+				t.Error(ti.msg, "failure case", err, ti.err)
+			}
+		})
 	}
 }
 
@@ -102,7 +104,7 @@ func TestMatching(t *testing.T) {
 	}, {
 		"should use first X-Forwarded-For host (source instead of proxies) for matching",
 		[]interface{}{"8.8.8.8"},
-		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8", "7.7.7.7", "6.6.6.6"}}},
+		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8, 7.7.7.7, 6.6.6.6"}}},
 		true,
 	}, {
 		"should work for IPv6",
@@ -120,15 +122,17 @@ func TestMatching(t *testing.T) {
 		&http.Request{RemoteAddr: "C0:FF::EC"},
 		false,
 	}} {
-		pred, err := (&spec{}).Create(ti.args)
-		if err != nil {
-			t.Error("failed to create predicate", err)
-		} else {
-			matches := pred.Match(ti.req)
-			if matches != ti.matches {
-				t.Error(ti.msg, "failed to match as expected")
+		t.Run(ti.msg, func(t *testing.T) {
+			pred, err := (&spec{}).Create(ti.args)
+			if err != nil {
+				t.Error("failed to create predicate", err)
+			} else {
+				matches := pred.Match(ti.req)
+				if matches != ti.matches {
+					t.Error(ti.msg, "failed to match as expected")
+				}
 			}
-		}
+		})
 	}
 }
 
@@ -176,7 +180,7 @@ func TestMatchingFromLast(t *testing.T) {
 	}, {
 		"should use first X-Forwarded-For host (source instead of proxies) for matching",
 		[]interface{}{"6.6.6.6"},
-		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8", "7.7.7.7", "6.6.6.6"}}},
+		&http.Request{RemoteAddr: "127.0.0.1", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8, 7.7.7.7, 6.6.6.6"}}},
 		true,
 	}, {
 		"should work for IPv6",
@@ -194,14 +198,16 @@ func TestMatchingFromLast(t *testing.T) {
 		&http.Request{RemoteAddr: "C0:FF::EC"},
 		false,
 	}} {
-		pred, err := (&spec{fromLast: true}).Create(ti.args)
-		if err != nil {
-			t.Error("failed to create predicate", err)
-		} else {
-			matches := pred.Match(ti.req)
-			if matches != ti.matches {
-				t.Error(ti.msg, "failed to match from last as expected")
+		t.Run(ti.msg, func(t *testing.T) {
+			pred, err := (&spec{fromLast: true}).Create(ti.args)
+			if err != nil {
+				t.Error("failed to create predicate", err)
+			} else {
+				matches := pred.Match(ti.req)
+				if matches != ti.matches {
+					t.Error(ti.msg, "failed to match from last as expected")
+				}
 			}
-		}
+		})
 	}
 }
