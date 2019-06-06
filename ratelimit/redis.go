@@ -25,6 +25,9 @@ type RedisOptions struct {
 	MinIdleConns int
 	// MaxIdleConns is the maximum number of socket connections to redis
 	MaxIdleConns int
+	// ConnMetricsInterval defines the frequency of updating the redis
+	// connection related metrics. Defaults to 60 seconds.
+	ConnMetricsInterval time.Duration
 }
 
 type ring struct {
@@ -69,6 +72,10 @@ func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
 		ringOptions.MinIdleConns = ro.MinIdleConns
 		ringOptions.PoolSize = ro.MaxIdleConns
 
+		if ro.ConnMetricsInterval <= 0 {
+			ro.ConnMetricsInterval = defaultConnMetricsInterval
+		}
+
 		r = new(ring)
 		r.ring = redis.NewRing(ringOptions)
 		r.metrics = metrics.Default
@@ -76,7 +83,7 @@ func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
 		go func() {
 			for {
 				select {
-				case <-time.After(defaultConnMetricsInterval):
+				case <-time.After(ro.ConnMetricsInterval):
 					stats := r.ring.PoolStats()
 					r.metrics.UpdateGauge(redisMetricsPrefix+"hits", float64(stats.Hits))
 					r.metrics.UpdateGauge(redisMetricsPrefix+"idleconns", float64(stats.IdleConns))

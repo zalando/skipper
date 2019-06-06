@@ -52,6 +52,10 @@ const (
 
 const DefaultPluginDir = "./plugins"
 
+type testOptions struct {
+	redisConnMetricsInterval time.Duration
+}
+
 // Options to start skipper.
 type Options struct {
 	// WaitForHealthcheckInterval sets the time that skipper waits
@@ -552,6 +556,8 @@ type Options struct {
 	// swim based swarm for local testing
 	SwarmStaticSelf  string // 127.0.0.1:9001
 	SwarmStaticOther string // 127.0.0.1:9002,127.0.0.1:9003
+
+	testOptions
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
@@ -692,7 +698,7 @@ func (o *Options) isHTTPS() bool {
 	return (o.ProxyTLS != nil) || (o.CertPathTLS != "" && o.KeyPathTLS != "")
 }
 
-func listenAndServe(proxy http.Handler, o *Options) error {
+func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idleConnsCH chan struct{}) error {
 	// create the access log handler
 	log.Infof("proxy listener on %v", o.Address)
 
@@ -741,9 +747,17 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	}
 	log.Infof("TLS settings not found, defaulting to HTTP")
 
-	idleConnsCH := make(chan struct{})
+	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
+	// from the tests
+	if idleConnsCH == nil {
+		idleConnsCH = make(chan struct{})
+	}
+
+	if sigs == nil {
+		sigs = make(chan os.Signal, 1)
+	}
+
 	go func() {
-		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGTERM)
 
 		<-sigs
@@ -768,13 +782,59 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	return nil
 }
 
-// Run skipper.
-func Run(o Options) error {
+func listenAndServe(proxy http.Handler, o *Options) error {
+	return listenAndServeQuit(proxy, o, nil, nil)
+}
+
+func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	err := initLog(o)
 	if err != nil {
 		return err
 	}
+
+	if o.EnablePrometheusMetrics {
+		o.MetricsFlavours = append(o.MetricsFlavours, "prometheus")
+	}
+
+	metricsKind := metrics.UnkownKind
+	for _, s := range o.MetricsFlavours {
+		switch s {
+		case "codahale":
+			metricsKind |= metrics.CodaHaleKind
+		case "prometheus":
+			metricsKind |= metrics.PrometheusKind
+		}
+	}
+
+	// set default if unset
+	if metricsKind == metrics.UnkownKind {
+		metricsKind = metrics.CodaHaleKind
+	}
+
+	log.Infof("Expose metrics in %s format", metricsKind)
+	mtrOpts := metrics.Options{
+		Format:                             metricsKind,
+		Prefix:                             o.MetricsPrefix,
+		EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
+		EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
+		EnableServeRouteMetrics:            o.EnableServeRouteMetrics,
+		EnableServeHostMetrics:             o.EnableServeHostMetrics,
+		EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
+		EnableProfile:                      o.EnableProfile,
+		EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
+		EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
+		EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
+		EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
+		EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
+		EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
+		UseExpDecaySample:                  o.MetricsUseExpDecaySample,
+		HistogramBuckets:                   o.HistogramMetricBuckets,
+		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
+	}
+
+	mtr := metrics.NewMetrics(mtrOpts)
+	metrics.Default = mtr
 
 	// *DEPRECATED* client tracking parameter
 	if o.ApiUsageMonitoringDefaultClientTrackingPattern != "" {
@@ -932,12 +992,13 @@ func Run(o Options) error {
 		if len(o.SwarmRedisURLs) > 0 {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
 			redisOptions = &ratelimit.RedisOptions{
-				Addrs:        o.SwarmRedisURLs,
-				ReadTimeout:  o.SwarmRedisReadTimeout,
-				WriteTimeout: o.SwarmRedisWriteTimeout,
-				PoolTimeout:  o.SwarmRedisPoolTimeout,
-				MinIdleConns: o.SwarmRedisMinIdleConns,
-				MaxIdleConns: o.SwarmRedisMaxIdleConns,
+				Addrs:               o.SwarmRedisURLs,
+				ReadTimeout:         o.SwarmRedisReadTimeout,
+				WriteTimeout:        o.SwarmRedisWriteTimeout,
+				PoolTimeout:         o.SwarmRedisPoolTimeout,
+				MinIdleConns:        o.SwarmRedisMinIdleConns,
+				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
+				ConnMetricsInterval: o.redisConnMetricsInterval,
 			}
 		} else {
 			log.Infof("Start swim based swarm")
@@ -1017,43 +1078,7 @@ func Run(o Options) error {
 		mux.Handle("/routes", routing)
 		mux.Handle("/routes/", routing)
 
-		if o.EnablePrometheusMetrics {
-			o.MetricsFlavours = append(o.MetricsFlavours, "prometheus")
-		}
-		metricsKind := metrics.UnkownKind
-		for _, s := range o.MetricsFlavours {
-			switch s {
-			case "codahale":
-				metricsKind |= metrics.CodaHaleKind
-			case "prometheus":
-				metricsKind |= metrics.PrometheusKind
-			}
-		}
-		// set default if unset
-		if metricsKind == metrics.UnkownKind {
-			metricsKind = metrics.CodaHaleKind
-		}
-		log.Infof("Expose metrics in %s format", metricsKind)
-
-		metricsHandler := metrics.NewDefaultHandler(metrics.Options{
-			Format:                             metricsKind,
-			Prefix:                             o.MetricsPrefix,
-			EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
-			EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
-			EnableServeRouteMetrics:            o.EnableServeRouteMetrics,
-			EnableServeHostMetrics:             o.EnableServeHostMetrics,
-			EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
-			EnableProfile:                      o.EnableProfile,
-			EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
-			EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
-			EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
-			EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
-			EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
-			EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
-			UseExpDecaySample:                  o.MetricsUseExpDecaySample,
-			HistogramBuckets:                   o.HistogramMetricBuckets,
-			DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
-		})
+		metricsHandler := metrics.NewHandler(mtrOpts, mtr)
 		mux.Handle("/metrics", metricsHandler)
 		mux.Handle("/metrics/", metricsHandler)
 		mux.Handle("/debug/pprof", metricsHandler)
@@ -1097,5 +1122,10 @@ func Run(o Options) error {
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
 
-	return listenAndServe(proxy, &o)
+	return listenAndServeQuit(proxy, &o, sig, idleConnsCH)
+}
+
+// Run skipper.
+func Run(o Options) error {
+	return run(o, nil, nil)
 }

@@ -166,24 +166,28 @@ func init() {
 
 // NewDefaultHandler returns a default metrics handler.
 func NewDefaultHandler(o Options) http.Handler {
-	var m Metrics
+	m := NewMetrics(o)
+	return NewHandler(o, m)
+}
 
+// NewMetrics creates a metrics collector instance based on the Format option.
+func NewMetrics(o Options) Metrics {
+	var m Metrics
 	switch o.Format {
 	case AllKind:
 		m = NewAll(o)
 	case PrometheusKind:
 		m = NewPrometheus(o)
 	default:
-		// CodaHale is the default backend always.
+		// CodaHale is the default metrics implementation.
 		m = NewCodaHale(o)
 	}
 
-	return NewHandler(o, m)
+	return m
 }
 
 // NewHandler returns a collection of metrics handlers.
 func NewHandler(o Options, m Metrics) http.Handler {
-
 	mux := http.NewServeMux()
 	if o.EnableProfile {
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
