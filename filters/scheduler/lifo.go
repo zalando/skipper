@@ -310,16 +310,17 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 		return
 	}
 
-	ctx.StateBag()[key] = done
+	pending, _ := ctx.StateBag()[key].([]func())
+	ctx.StateBag()[key] = append(pending, done)
 
 }
 func response(key string, ctx filters.FilterContext) {
-	done := ctx.StateBag()[key]
-	if done == nil {
+	pending, _ := ctx.StateBag()[key].([]func())
+	last := len(pending) - 1
+	if last < 0 {
 		return
 	}
 
-	if f, ok := done.(func()); ok {
-		f()
-	}
+	pending[last]()
+	ctx.StateBag()[key] = pending[:last]
 }
