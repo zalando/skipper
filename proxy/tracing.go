@@ -24,7 +24,7 @@ const (
 	SpanKindClient        = "client"
 	SpanKindServer        = "server"
 
-	EndEvent           = "start"
+	EndEvent           = "end"
 	StartEvent         = "start"
 	StreamHeadersEvent = "stream_Headers"
 )
