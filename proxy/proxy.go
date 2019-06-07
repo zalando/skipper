@@ -1040,15 +1040,9 @@ func (p *Proxy) do(ctx *context) error {
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
-					if done := ctx.StateBag()[scheduler.LIFOKey]; done != nil {
-						done.(func())()
-					}
 					return perr2
 				}
 			} else {
-				if done := ctx.StateBag()[scheduler.LIFOKey]; done != nil {
-					done.(func())()
-				}
 				return perr
 			}
 		}
@@ -1251,6 +1245,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	err = p.do(ctx)
+	pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
+	for _, done := range pendingLIFO {
+		done()
+	}
+
 	if err != nil {
 		p.tracing.setTag(span, ErrorTag, true)
 		p.errorResponse(ctx, err)
