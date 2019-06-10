@@ -38,6 +38,11 @@ func TestPatch(t *testing.T) {
 		parsed:   "/foo/",
 		expected: "/foo/",
 	}, {
+		title:    "modified, too short, before escape",
+		raw:      "/foo%2Fbar",
+		parsed:   "/foo",
+		expected: "/foo",
+	}, {
 		title:    "modified, too long",
 		raw:      "/foo%2Fbar",
 		parsed:   "/foo/bar/baz",

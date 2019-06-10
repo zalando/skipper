@@ -80,7 +80,7 @@ func PatchPath(parsed, raw string) string {
 	for i := 0; i < len(r); i++ {
 		c := r[i]
 		escape = c == '%'
-		modified = !escape && (pi >= len(p) || p[pi] != c)
+		modified = pi >= len(p) || !escape && p[pi] != c
 		if modified {
 			doPatch = false
 			break
