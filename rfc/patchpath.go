@@ -54,8 +54,8 @@ func unescape(seq []byte) (byte, bool) {
 // escaped form of %2F, if it was detected that they are unescaped in the raw path.
 //
 // It only returns the patched variant, if the only difference between the parsed and raw
-// paths are the encoding of the reserved chars, according to RFC2396. If it detects any
-// other difference between the two, it returns the original parsed path as provided. It
+// paths are the encoding the chars, according to RFC2396. If it detects any other
+// difference between the two, it returns the original parsed path as provided. It
 // tolerates empty argument for the raw path, which can happen when the URL parsed via the
 // stdlib url package, and there is no difference between the parsed and the raw path.
 // This basically means that the following code is correct:
