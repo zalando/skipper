@@ -40,7 +40,7 @@ func testPatch(t *testing.T, title string, f Flags, expectedStatus int) {
 		defer rsp.Body.Close()
 
 		if rsp.StatusCode != expectedStatus {
-			t.Error("failed not to match the request")
+			t.Error()
 		}
 	})
 }
