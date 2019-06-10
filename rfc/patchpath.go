@@ -1,7 +1,5 @@
 package rfc
 
-import "bytes"
-
 const escapeLength = 3 // always, because we only handle the below cases
 
 const (
@@ -54,10 +52,10 @@ func unescape(seq []byte) (byte, bool) {
 // escaped form of %2F, if it was detected that they are unescaped in the raw path.
 //
 // It only returns the patched variant, if the only difference between the parsed and raw
-// paths are the encoding the chars, according to RFC2396. If it detects any other
+// paths are the encoding of the chars, according to RFC2 396. If it detects any other
 // difference between the two, it returns the original parsed path as provided. It
-// tolerates empty argument for the raw path, which can happen when the URL parsed via the
-// stdlib url package, and there is no difference between the parsed and the raw path.
+// tolerates an empty argument for the raw path, which can happen when the URL parsed via
+// the stdlib url package, and there is no difference between the parsed and the raw path.
 // This basically means that the following code is correct:
 //
 // 	req.URL.Path = rfc.PatchPath(req.URL.Path, req.URL.RawPath)
@@ -68,19 +66,15 @@ func unescape(seq []byte) (byte, bool) {
 //
 func PatchPath(parsed, raw string) string {
 	p, r := []byte(parsed), []byte(raw)
-	if q := bytes.IndexByte(r, '?'); q >= 0 {
-		r = r[:q]
-	}
-
 	patched := make([]byte, 0, len(r))
 	var (
-		escape     bool
-		seq        []byte
-		unescaped  byte
-		handled    bool
-		needsPatch bool
-		modified   bool
-		pi         int
+		escape    bool
+		seq       []byte
+		unescaped byte
+		handled   bool
+		doPatch   bool
+		modified  bool
+		pi        int
 	)
 
 	for i := 0; i < len(r); i++ {
@@ -88,7 +82,7 @@ func PatchPath(parsed, raw string) string {
 		escape = c == '%'
 		modified = !escape && (pi >= len(p) || p[pi] != c)
 		if modified {
-			needsPatch = false
+			doPatch = false
 			break
 		}
 
@@ -99,7 +93,7 @@ func PatchPath(parsed, raw string) string {
 		}
 
 		if len(r) < i+escapeLength {
-			needsPatch = false
+			doPatch = false
 			break
 		}
 
@@ -114,16 +108,16 @@ func PatchPath(parsed, raw string) string {
 
 		modified = p[pi] != unescaped
 		if modified {
-			needsPatch = false
+			doPatch = false
 			break
 		}
 
 		patched = append(patched, seq...)
-		needsPatch = true
+		doPatch = true
 		pi++
 	}
 
-	if !needsPatch {
+	if !doPatch {
 		return parsed
 	}
 
