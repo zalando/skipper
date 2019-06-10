@@ -96,6 +96,7 @@ const (
 	loadBalancerHealthCheckIntervalUsage = "use to set the health checker interval to check healthiness of former dead or unhealthy routes"
 	reverseSourcePredicateUsage          = "reverse the order of finding the client IP from X-Forwarded-For header"
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
+	rfcPatchPathUsage                    = "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 2396"
 	maxAuditBodyUsage                    = "sets the max body to read to log in the audit log body"
 
 	// logging, metrics, tracing:
@@ -245,6 +246,7 @@ var (
 	loadBalancerHealthCheckInterval time.Duration
 	reverseSourcePredicate          bool
 	removeHopHeaders                bool
+	rfcPatchPath                    bool
 	maxAuditBody                    int
 	enableBreakers                  bool
 	breakers                        breakerFlags
@@ -406,6 +408,7 @@ func init() {
 	flag.DurationVar(&loadBalancerHealthCheckInterval, "lb-healthcheck-interval", defaultLoadBalancerHealthCheckInterval, loadBalancerHealthCheckIntervalUsage)
 	flag.BoolVar(&reverseSourcePredicate, "reverse-source-predicate", false, reverseSourcePredicateUsage)
 	flag.BoolVar(&removeHopHeaders, "remove-hop-headers", false, enableHopHeadersRemovalUsage)
+	flag.BoolVar(&rfcPatchPath, "rfc-patch-path", false, rfcPatchPathUsage)
 	flag.IntVar(&maxAuditBody, "max-audit-body", defaultMaxAuditBody, maxAuditBodyUsage)
 	flag.BoolVar(&enableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&breakers, "breaker", breakerUsage)
@@ -783,6 +786,10 @@ func main() {
 
 	if removeHopHeaders {
 		options.ProxyFlags |= proxy.HopHeadersRemoval
+	}
+
+	if rfcPatchPath {
+		options.ProxyFlags |= proxy.PatchPath
 	}
 
 	if clientKeyFile != "" && clientCertFile != "" {
