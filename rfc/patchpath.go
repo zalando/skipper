@@ -1,5 +1,50 @@
 package rfc
 
+import "bytes"
+
+const escapeLength = 3 // always, because we only handle the below cases
+
+const (
+	semicolon    = ';'
+	slash        = '/'
+	questionMark = '?'
+	colon        = ':'
+	at           = '@'
+	and          = '&'
+	eq           = '='
+	plus         = '+'
+	dollar       = '$'
+	comma        = ','
+)
+
+// https://tools.ietf.org/html/rfc2396#section-2.2
+func unescape(seq []byte) (byte, bool) {
+	switch string(seq) {
+	case "%3B", "%3b":
+		return semicolon, true
+	case "%2F", "%2f":
+		return slash, true
+	case "%3F", "%3f":
+		return questionMark, true
+	case "%3A", "%3a":
+		return colon, true
+	case "%40":
+		return at, true
+	case "%26":
+		return and, true
+	case "%3D", "%3d":
+		return eq, true
+	case "%2B", "%2b":
+		return plus, true
+	case "%24":
+		return dollar, true
+	case "%2C", "%2c":
+		return comma, true
+	default:
+		return 0, false
+	}
+}
+
 // PatchPath attempts to patch a request path based on an interpretation of the standards
 // RFC 2616 and RFC 2396 where the reserved characters should not be unescaped. Currently
 // the Go stdlib does unescape these characters (v1.12.5).
@@ -22,5 +67,70 @@ package rfc
 // - https://tools.ietf.org/html/rfc2396#section-2.2
 //
 func PatchPath(parsed, raw string) string {
-	return parsed
+	p, r := []byte(parsed), []byte(raw)
+	if q := bytes.IndexByte(r, '?'); q >= 0 {
+		r = r[:q]
+	}
+
+	patched := make([]byte, 0, len(r))
+	var (
+		escape     bool
+		seq        []byte
+		unescaped  byte
+		handled    bool
+		needsPatch bool
+		modified   bool
+		pi         int
+	)
+
+	for i := 0; i < len(r); i++ {
+		c := r[i]
+		escape = c == '%'
+		modified = !escape && (pi >= len(p) || p[pi] != c)
+		if modified {
+			needsPatch = false
+			break
+		}
+
+		if !escape {
+			patched = append(patched, p[pi])
+			pi++
+			continue
+		}
+
+		if len(r) < i+escapeLength {
+			needsPatch = false
+			break
+		}
+
+		seq = r[i : i+escapeLength]
+		i += escapeLength - 1
+		unescaped, handled = unescape(seq)
+		if !handled {
+			patched = append(patched, p[pi])
+			pi++
+			continue
+		}
+
+		modified = p[pi] != unescaped
+		if modified {
+			needsPatch = false
+			break
+		}
+
+		patched = append(patched, seq...)
+		needsPatch = true
+		pi++
+	}
+
+	if !needsPatch {
+		return parsed
+	}
+
+	modified = pi < len(p)
+	if modified {
+		return parsed
+	}
+
+	return string(patched)
 }
