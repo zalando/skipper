@@ -72,6 +72,11 @@ func TestPatch(t *testing.T) {
 		raw:      "/foo%2Abar%2F",
 		parsed:   "/foo*bar/",
 		expected: "/foo*bar%2F",
+	}, {
+		title:    "non-ascii range",
+		raw:      "/世%2F界",
+		parsed:   "/世/界",
+		expected: "/世%2F界",
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			patched := PatchPath(test.parsed, test.raw)
