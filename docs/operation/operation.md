@@ -589,7 +589,7 @@ scheduler group.
 Considering the following request path: /foo%2Fbar, Skipper can handle
 it in two different ways. The current default way is that when the
 request is parsed purely relying on the Go stdlib url package, this
-path becomes /foo/bar. According to RFC 2616 and RFC 2396, this may
+path becomes /foo/bar. According to RFC 2616 and RFC 3986, this may
 be considered wrong, and this path should be parsed as /foo%2Fbar.
 This is possible to achieve centrally, when Skipper is started with
 the -rfc-patch-path flag. It is also possible to allow the default

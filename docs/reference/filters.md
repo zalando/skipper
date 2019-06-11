@@ -1453,7 +1453,7 @@ be shared between more than routes.
 
 ## rfcPath
 
-This filter forces an alternative interpretation of the RFC 2616 and RFC 2396 standards,
+This filter forces an alternative interpretation of the RFC 2616 and RFC 3986 standards,
 where paths containing reserved characters will have these characters unescaped when the
 incoming request also has them unescaped.
 

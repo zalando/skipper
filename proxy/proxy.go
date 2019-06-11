@@ -91,7 +91,7 @@ const (
 	HopHeadersRemoval
 
 	// PatchPath instructs the proxy to patch the parsed request path
-	// if the reserved characters according to RFC 2616 and RFC 2396
+	// if the reserved characters according to RFC 2616 and RFC 3986
 	// were unescaped by the parser.
 	PatchPath
 )

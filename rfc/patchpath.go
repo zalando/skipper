@@ -15,7 +15,7 @@ const (
 	comma        = ','
 )
 
-// https://tools.ietf.org/html/rfc2396#section-2.2
+// https://tools.ietf.org/html/rfc3986#section-2.2
 func unescape(seq []byte) (byte, bool) {
 	switch string(seq) {
 	case "%3B", "%3b":
@@ -44,7 +44,7 @@ func unescape(seq []byte) (byte, bool) {
 }
 
 // PatchPath attempts to patch a request path based on an interpretation of the standards
-// RFC 2616 and RFC 2396 where the reserved characters should not be unescaped. Currently
+// RFC 2616 and RFC 3986 where the reserved characters should not be unescaped. Currently
 // the Go stdlib does unescape these characters (v1.12.5).
 //
 // It expects the parsed path as found in http.Request.URL.Path and the raw path as found
@@ -52,7 +52,7 @@ func unescape(seq []byte) (byte, bool) {
 // escaped form of %2F, if it was detected that they are unescaped in the raw path.
 //
 // It only returns the patched variant, if the only difference between the parsed and raw
-// paths are the encoding of the chars, according to RFC 2396. If it detects any other
+// paths are the encoding of the chars, according to RFC 3986. If it detects any other
 // difference between the two, it returns the original parsed path as provided. It
 // tolerates an empty argument for the raw path, which can happen when the URL parsed via
 // the stdlib url package, and there is no difference between the parsed and the raw path.
@@ -62,7 +62,7 @@ func unescape(seq []byte) (byte, bool) {
 //
 // Links:
 // - https://tools.ietf.org/html/rfc2616#section-3.2.3 and
-// - https://tools.ietf.org/html/rfc2396#section-2.2
+// - https://tools.ietf.org/html/rfc3986#section-2.2
 //
 func PatchPath(parsed, raw string) string {
 	p, r := []byte(parsed), []byte(raw)

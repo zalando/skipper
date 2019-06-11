@@ -96,7 +96,7 @@ const (
 	loadBalancerHealthCheckIntervalUsage = "use to set the health checker interval to check healthiness of former dead or unhealthy routes"
 	reverseSourcePredicateUsage          = "reverse the order of finding the client IP from X-Forwarded-For header"
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
-	rfcPatchPathUsage                    = "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 2396"
+	rfcPatchPathUsage                    = "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 3986"
 	maxAuditBodyUsage                    = "sets the max body to read to log in the audit log body"
 
 	// logging, metrics, tracing:
