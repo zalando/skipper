@@ -1450,3 +1450,35 @@ lifoGroup("mygroup", 100, 150, "10s")
 The above configuration will set MaxConcurrency to 100, MaxStackSize
 to 150 and Timeout to 10 seconds for the lifoGroup "mygroup", that can
 be shared between more than routes.
+
+## rfcPath
+
+This filter forces an alternative interpretation of the RFC 2616 and RFC 3986 standards,
+where paths containing reserved characters will have these characters unescaped when the
+incoming request also has them unescaped.
+
+Example:
+
+```
+Path("/api/*id) -> rfcPath() -> "http://api-backend"
+```
+
+In the above case, if the incoming request has something like foo%2Fbar in the id
+position, the api-backend service will also receive it in the format foo%2Fbar, while
+without the rfcPath() filter the outgoing request path will become /api/foo/bar.
+
+In case we want to use the id while routing the request, we can use the <loopback>
+backend. Example:
+
+```
+api: Path("/api/:id") -> setPath("/api/${id}/summary") -> "http://api-backend";
+patch: Path("/api/*id") -> rfcPath() -> <loopback>;
+```
+
+In the above case, if the incoming request path is /api/foo%2Fbar, it will match
+the 'patch' route, and then the patched request will match the api route, and
+the api-backend service will receive a request with the path /api/foo%2Fbar/summary.
+
+It is also possible to enable this behavior centrally for a Skipper instance with
+the -rfc-patch-path flag. See
+[URI standards interpretation](../../operation/operation/#uri-standards-interpretation).

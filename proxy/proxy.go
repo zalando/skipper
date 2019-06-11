@@ -29,6 +29,7 @@ import (
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/ratelimit"
+	"github.com/zalando/skipper/rfc"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/tracing"
@@ -88,6 +89,11 @@ const (
 	// HopHeadersRemoval indicates whether the Hop Headers should be removed
 	// in compliance with RFC 2616
 	HopHeadersRemoval
+
+	// PatchPath instructs the proxy to patch the parsed request path
+	// if the reserved characters according to RFC 2616 and RFC 3986
+	// were unescaped by the parser.
+	PatchPath
 )
 
 // Options are deprecated alias for Flags.
@@ -258,6 +264,8 @@ func (f Flags) Debug() bool { return f&Debug != 0 }
 
 // When set, the proxy will remove the Hop Headers
 func (f Flags) HopHeadersRemoval() bool { return f&HopHeadersRemoval != 0 }
+
+func (f Flags) patchPath() bool { return f&PatchPath != 0 }
 
 // Priority routes are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
@@ -1226,6 +1234,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			logging.LogAccess(entry)
 		}
 	}()
+
+	if p.flags.patchPath() {
+		r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
+	}
 
 	p.tracing.setTag(span, SpanKindTag, SpanKindServer)
 	p.setCommonSpanInfo(r.URL, r, span)

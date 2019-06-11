@@ -583,3 +583,21 @@ scheduler group. [`LifoGroup`](../../reference/filters/#lifogroup) has
 a user chosen scheduler group and
 [`lifo()`](../../reference/filters/#lifo) will get a per route unique
 scheduler group.
+
+# URI standards interpretation
+
+Considering the following request path: /foo%2Fbar, Skipper can handle
+it in two different ways. The current default way is that when the
+request is parsed purely relying on the Go stdlib url package, this
+path becomes /foo/bar. According to RFC 2616 and RFC 3986, this may
+be considered wrong, and this path should be parsed as /foo%2Fbar.
+This is possible to achieve centrally, when Skipper is started with
+the -rfc-patch-path flag. It is also possible to allow the default
+behavior and only force the alternative interpretation on a per-route
+basis with the rfcPath() filter. See
+[`rfcPath()`](../../reference/filters/#rfcPath).
+
+If the second interpretation gets considered the right way, and the
+other one a bug, then the default value for this flag may become to
+be on.
+
