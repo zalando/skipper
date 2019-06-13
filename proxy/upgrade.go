@@ -62,15 +62,10 @@ type auditLog struct {
 // write data to an auditlog. It will not return until the connection
 // is closed.
 func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
-	// The following 2 checks are based on
+	// The following check is based on
 	// https://tools.ietf.org/html/rfc2616#section-14.42
 	// https://tools.ietf.org/html/rfc7230#section-6.7
 	// and https://tools.ietf.org/html/rfc6455 (websocket)
-	if req.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		w.Write([]byte(http.StatusText(http.StatusMethodNotAllowed)))
-		return
-	}
 	if (req.ProtoMajor <= 1 && req.ProtoMinor < 1) ||
 		strings.ToLower(req.Header.Get("Connection")) != "upgrade" ||
 		req.Header.Get("Upgrade") == "" {
