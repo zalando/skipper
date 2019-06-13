@@ -6,6 +6,7 @@ NEXT_MAJOR         = $(shell go run packaging/version/version.go major $(CURRENT
 NEXT_MINOR         = $(shell go run packaging/version/version.go minor $(CURRENT_VERSION))
 NEXT_PATCH         = $(shell go run packaging/version/version.go patch $(CURRENT_VERSION))
 COMMIT_HASH        = $(shell git rev-parse --short HEAD)
+LIMIT_FDS          = $(shell ulimit -n)
 TEST_ETCD_VERSION ?= v2.3.8
 TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/predicate_match_none.so \
@@ -28,6 +29,11 @@ skipper: $(SOURCES) bindir
 eskip: $(SOURCES) bindir
 	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip/*.go
 
+fixlimits:
+ifeq (LIMIT_FDS, 256)
+	ulimit -n 1024
+endif
+
 build: $(SOURCES) lib skipper eskip
 
 build.osx:
@@ -48,7 +54,7 @@ check: build check-plugins
 	#
 	for p in $(PACKAGES); do GO111MODULE=on go test $$p || break; done
 
-shortcheck: build check-plugins
+shortcheck: build check-plugins fixlimits
 	# go test -test.short -run ^Test $(PACKAGES)
 	#
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
