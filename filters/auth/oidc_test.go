@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/secrets"
+	"github.com/zalando/skipper/secrets/secrettest"
 )
 
 const (
@@ -19,6 +21,12 @@ const (
 )
 
 func makeTestingFilter(claims []string) (*tokenOidcFilter, error) {
+	r := secrettest.NewTestRegistry()
+	encrypter, err := r.NewEncrypter("key")
+	if err != nil {
+		return nil, err
+	}
+
 	f := &tokenOidcFilter{
 		typ:    checkOIDCAnyClaims,
 		claims: claims,
@@ -26,12 +34,8 @@ func makeTestingFilter(claims []string) (*tokenOidcFilter, error) {
 			ClientID: "test",
 			Endpoint: google.Endpoint,
 		},
-		encrypter: &encrypter{
-			sSource: &testingSecretSource{secretKey: "key"},
-			closer:  make(chan struct{}),
-		},
+		encrypter: encrypter,
 	}
-	err := f.encrypter.refreshCiphers()
 	return f, err
 }
 
@@ -39,7 +43,7 @@ func TestEncryptDecryptState(t *testing.T) {
 	f, err := makeTestingFilter([]string{})
 	assert.NoError(t, err, "could not refresh ciphers")
 
-	nonce, err := f.encrypter.createNonce()
+	nonce, err := f.encrypter.CreateNonce()
 	if err != nil {
 		t.Errorf("Failed to create nonce: %v", err)
 	}
@@ -47,7 +51,7 @@ func TestEncryptDecryptState(t *testing.T) {
 	// enc
 	state, err := createState(nonce, testRedirectUrl)
 	assert.NoError(t, err, "failed to create state")
-	stateEnc, err := f.encrypter.encryptDataBlock(state)
+	stateEnc, err := f.encrypter.Encrypt(state)
 	if err != nil {
 		t.Errorf("Failed to encrypt data block: %v", err)
 	}
@@ -58,7 +62,7 @@ func TestEncryptDecryptState(t *testing.T) {
 	if _, err := fmt.Sscanf(stateEncHex, "%x", &stateQueryEnc); err != nil && err != io.EOF {
 		t.Errorf("Failed to read hex string: %v", err)
 	}
-	stateQueryPlain, err := f.encrypter.decryptDataBlock(stateQueryEnc)
+	stateQueryPlain, err := f.encrypter.Decrypt(stateQueryEnc)
 	if err != nil {
 		t.Errorf("token from state query is invalid: %v", err)
 	}
@@ -141,33 +145,34 @@ func TestExtractDomainFromHost(t *testing.T) {
 }
 
 func TestNewOidc(t *testing.T) {
+	reg := secrets.NewRegistry()
 	for _, tt := range []struct {
 		name string
 		args string
-		f    func(string) filters.Spec
+		f    func(string, *secrets.Registry) filters.Spec
 		want *tokenOidcSpec
 	}{
 		{
 			name: "test UserInfo",
 			args: "/foo",
 			f:    NewOAuthOidcUserInfos,
-			want: &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: "/foo"},
+			want: &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: "/foo", secretsRegistry: reg},
 		},
 		{
 			name: "test AnyClaims",
 			args: "/foo",
 			f:    NewOAuthOidcAnyClaims,
-			want: &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo"},
+			want: &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo", secretsRegistry: reg},
 		},
 		{
 			name: "test AllClaims",
 			args: "/foo",
 			f:    NewOAuthOidcAllClaims,
-			want: &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo"},
+			want: &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo", secretsRegistry: reg},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.f(tt.args); !reflect.DeepEqual(got, tt.want) {
+			if got := tt.f(tt.args, reg); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Failed to create object: Want %v, got %v", tt.want, got)
 			}
 		})

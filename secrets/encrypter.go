@@ -1,4 +1,4 @@
-package auth
+package secrets
 
 import (
 	"crypto/aes"
@@ -17,14 +17,14 @@ import (
 
 //secretSource operates on the secret for OpenID
 type secretSource interface {
-	getSecret() ([][]byte, error)
+	GetSecret() ([][]byte, error)
 }
 
 type fileSecretSource struct {
 	fileName string
 }
 
-func (fss *fileSecretSource) getSecret() ([][]byte, error) {
+func (fss *fileSecretSource) GetSecret() ([][]byte, error) {
 	contents, err := ioutil.ReadFile(fss.fileName)
 	if err != nil {
 		return nil, err
@@ -48,31 +48,31 @@ func newFileSecretSource(file string) secretSource {
 	return &fileSecretSource{fileName: file}
 }
 
-type encrypter struct {
+type Encrypter struct {
 	cipherSuites []cipher.AEAD
 	mux          sync.RWMutex
-	sSource      secretSource
-	closer       chan struct{}
+	SecSource    secretSource
+	Closer       chan struct{}
 	closedHook   chan struct{}
 }
 
-func newEncrypter(secretsFile string) (*encrypter, error) {
+func newEncrypter(secretsFile string) (*Encrypter, error) {
 	secretSource := newFileSecretSource(secretsFile)
-	_, err := secretSource.getSecret()
+	_, err := secretSource.GetSecret()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read secrets from secret source: %v", err)
 	}
-	return &encrypter{
-		sSource: secretSource,
-		closer:  make(chan struct{}),
+	return &Encrypter{
+		SecSource: secretSource,
+		Closer:    make(chan struct{}),
 	}, nil
 }
 
-func (c *encrypter) createNonce() ([]byte, error) {
-	c.mux.RLock()
-	defer c.mux.RUnlock()
-	if len(c.cipherSuites) > 0 {
-		nonce := make([]byte, c.cipherSuites[0].NonceSize())
+func (e *Encrypter) CreateNonce() ([]byte, error) {
+	e.mux.RLock()
+	defer e.mux.RUnlock()
+	if len(e.cipherSuites) > 0 {
+		nonce := make([]byte, e.cipherSuites[0].NonceSize())
 		if _, err := io.ReadFull(crand.Reader, nonce); err != nil {
 			return nil, err
 		}
@@ -81,25 +81,25 @@ func (c *encrypter) createNonce() ([]byte, error) {
 	return nil, fmt.Errorf("no ciphers which can be used")
 }
 
-// encryptDataBlock encrypts given plaintext
-func (c *encrypter) encryptDataBlock(plaintext []byte) ([]byte, error) {
-	c.mux.RLock()
-	defer c.mux.RUnlock()
-	if len(c.cipherSuites) > 0 {
-		nonce, err := c.createNonce()
+// Encrypt encrypts given plaintext
+func (e *Encrypter) Encrypt(plaintext []byte) ([]byte, error) {
+	e.mux.RLock()
+	defer e.mux.RUnlock()
+	if len(e.cipherSuites) > 0 {
+		nonce, err := e.CreateNonce()
 		if err != nil {
 			return nil, err
 		}
-		return c.cipherSuites[0].Seal(nonce, nonce, plaintext, nil), nil
+		return e.cipherSuites[0].Seal(nonce, nonce, plaintext, nil), nil
 	}
 	return nil, fmt.Errorf("no ciphers which can be used")
 }
 
-// decryptDataBlock decrypts given cipher text
-func (c *encrypter) decryptDataBlock(cipherText []byte) ([]byte, error) {
-	c.mux.RLock()
-	defer c.mux.RUnlock()
-	for _, c := range c.cipherSuites {
+// Decrypt decrypts given cipher text
+func (e *Encrypter) Decrypt(cipherText []byte) ([]byte, error) {
+	e.mux.RLock()
+	defer e.mux.RUnlock()
+	for _, c := range e.cipherSuites {
 		nonceSize := c.NonceSize()
 		if len(cipherText) < nonceSize {
 			return nil, fmt.Errorf("failed to decrypt, ciphertext too short %d", len(cipherText))
@@ -113,8 +113,8 @@ func (c *encrypter) decryptDataBlock(cipherText []byte) ([]byte, error) {
 	return nil, fmt.Errorf("none of the ciphers can decrypt the data")
 }
 
-func (c *encrypter) refreshCiphers() error {
-	secrets, err := c.sSource.getSecret()
+func (e *Encrypter) RefreshCiphers() error {
+	secrets, err := e.SecSource.GetSecret()
 	if err != nil {
 		return err
 	}
@@ -136,14 +136,14 @@ func (c *encrypter) refreshCiphers() error {
 		}
 		suites[i] = aesgcm
 	}
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	c.cipherSuites = suites
+	e.mux.Lock()
+	defer e.mux.Unlock()
+	e.cipherSuites = suites
 	return nil
 }
 
-func (c *encrypter) runCipherRefresher(refreshInterval time.Duration) error {
-	err := c.refreshCiphers()
+func (e *Encrypter) runCipherRefresher(refreshInterval time.Duration) error {
+	err := e.RefreshCiphers()
 	if err != nil {
 		return err
 	}
@@ -151,15 +151,15 @@ func (c *encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 		ticker := time.NewTicker(refreshInterval)
 		for {
 			select {
-			case <-c.closer:
-				if c.closedHook != nil {
-					close(c.closedHook)
+			case <-e.Closer:
+				if e.closedHook != nil {
+					close(e.closedHook)
 				}
 
 				return
 			case <-ticker.C:
 				log.Debug("started refresh of ciphers")
-				err := c.refreshCiphers()
+				err := e.RefreshCiphers()
 				if err != nil {
 					log.Error("failed to refresh the ciphers")
 				}
@@ -170,6 +170,6 @@ func (c *encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 	return nil
 }
 
-func (c *encrypter) close() {
-	close(c.closer)
+func (e *Encrypter) Close() {
+	close(e.Closer)
 }

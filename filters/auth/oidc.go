@@ -16,6 +16,7 @@ import (
 	"github.com/coreos/go-oidc"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/secrets"
 	"golang.org/x/oauth2"
 )
 
@@ -31,8 +32,9 @@ const (
 
 type (
 	tokenOidcSpec struct {
-		typ         roleCheckType
-		SecretsFile string
+		typ             roleCheckType
+		SecretsFile     string
+		secretsRegistry *secrets.Registry
 	}
 
 	tokenOidcFilter struct {
@@ -44,7 +46,7 @@ type (
 		validity        time.Duration
 		cookiename      string
 		redirectPath    string
-		encrypter       *encrypter
+		encrypter       secrets.Encryption
 		authCodeOptions []oauth2.AuthCodeOption
 	}
 
@@ -62,20 +64,20 @@ type (
 )
 
 // NewOAuthOidcUserInfos creates filter spec which tests user info.
-func NewOAuthOidcUserInfos(secretsFile string) filters.Spec {
-	return &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: secretsFile}
+func NewOAuthOidcUserInfos(secretsFile string, secretsRegistry *secrets.Registry) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
 }
 
 // NewOAuthOidcAnyClaims creates a filter spec which verifies that the token
 // has one of the claims specified
-func NewOAuthOidcAnyClaims(secretsFile string) filters.Spec {
-	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile}
+func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry *secrets.Registry) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
 }
 
 // NewOAuthOidcAllClaims creates a filter spec which verifies that the token
 // has all the claims specified
-func NewOAuthOidcAllClaims(secretsFile string) filters.Spec {
-	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile}
+func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry *secrets.Registry) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
 }
 
 // CreateFilter creates an OpenID Connect authorization filter.
@@ -126,11 +128,12 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if err != nil {
 		return nil, fmt.Errorf("the redirect url %s is not valid: %v", sargs[3], err)
 	}
-	encrypter, err := newEncrypter(s.SecretsFile)
 
+	encrypter, err := s.secretsRegistry.NewEncrypter(1*time.Minute, s.SecretsFile)
 	if err != nil {
 		return nil, err
 	}
+
 	f := &tokenOidcFilter{
 		typ:          s.typ,
 		redirectPath: redirectURL.Path,
@@ -148,12 +151,6 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		validity:   1 * time.Hour,
 		cookiename: generatedCookieName,
 		encrypter:  encrypter,
-	}
-
-	// Start the self-refreshing cipher function
-	err = f.encrypter.runCipherRefresher(1 * time.Minute)
-	if err != nil {
-		return nil, err
 	}
 
 	switch f.typ {
@@ -291,7 +288,7 @@ func (f *tokenOidcFilter) internalServerError(ctx filters.FilterContext) {
 }
 
 func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
-	nonce, err := f.encrypter.createNonce()
+	nonce, err := f.encrypter.CreateNonce()
 	if err != nil {
 		log.Errorf("Failed to create nonce: %v", err)
 		f.internalServerError(ctx)
@@ -305,7 +302,7 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 		f.internalServerError(ctx)
 		return
 	}
-	stateEnc, err := f.encrypter.encryptDataBlock(statePlain)
+	stateEnc, err := f.encrypter.Encrypt(statePlain)
 	if err != nil {
 		log.Errorf("Failed to encrypt data block: %v", err)
 		f.internalServerError(ctx)
@@ -376,7 +373,7 @@ func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) ([]byte, bool) {
 	var cookieStr string
 	fmt.Sscanf(cookie.Value, "%x", &cookieStr)
 
-	decryptedCookie, err := f.encrypter.decryptDataBlock([]byte(cookieStr))
+	decryptedCookie, err := f.encrypter.Decrypt([]byte(cookieStr))
 	if err != nil {
 		log.Debugf("Decrypting the cookie failed: %v", err)
 		return nil, false
@@ -439,7 +436,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 					return
 				}
 			}
-			encryptedData, err := f.encrypter.encryptDataBlock(data)
+			encryptedData, err := f.encrypter.Encrypt(data)
 			if err != nil {
 				unauthorized(ctx, "failed to encrypt the returned oidc data", invalidSub, r.Host)
 				return
@@ -552,7 +549,7 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 		return nil, err
 	}
 
-	stateQueryPlain, err := f.encrypter.decryptDataBlock(stateQueryEnc)
+	stateQueryPlain, err := f.encrypter.Decrypt(stateQueryEnc)
 	if err != nil {
 		// TODO: Implement metrics counter for number of incorrect tokens
 		log.Errorf("token from state query is invalid: %v", err)
@@ -588,6 +585,6 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 }
 
 func (f *tokenOidcFilter) Close() error {
-	f.encrypter.close()
+	f.encrypter.Close()
 	return nil
 }
