@@ -352,13 +352,16 @@ func getHost(request *http.Request) string {
 func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
 	log.Debugf("Doing Downstream Redirect to :%s", redirectUrl)
 	host := getHost(ctx.Request())
-
+	cookieHeaderVal := fmt.Sprintf("%s=%x; Path=/; HttpOnly; MaxAge=%d; Domain=%s",
+		f.cookiename, oidcState, int(f.validity.Seconds()), extractDomainFromHost(host))
+	if ctx.Request().TLS != nil {
+		cookieHeaderVal = fmt.Sprintf("%s; Secure", cookieHeaderVal)
+	}
 	r := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: map[string][]string{
-			"Set-Cookie": {fmt.Sprintf("%s=%x; Path=/; HttpOnly; MaxAge=%d; Domain=%s",
-				f.cookiename, oidcState, int(f.validity.Seconds()), extractDomainFromHost(host))},
-			"Location": {redirectUrl},
+			"Set-Cookie": {cookieHeaderVal},
+			"Location":   {redirectUrl},
 		},
 	}
 	ctx.Serve(r)
