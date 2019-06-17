@@ -223,18 +223,33 @@ type Params struct {
 	OpenTracing *OpenTracingParams
 }
 
+type (
+	maxLoopbackError string
+	ratelimitError   string
+	routeLookupError string
+)
+
+func (e maxLoopbackError) Error() string { return string(e) }
+func (e ratelimitError) Error() string   { return string(e) }
+func (e routeLookupError) Error() string { return string(e) }
+
+const (
+	errMaxLoopbacksReached = maxLoopbackError("max loopbacks reached")
+	errRatelimit           = ratelimitError("ratelimited")
+	errRouteLookup         = routeLookupError("route lookup failed")
+)
+
 var (
-	hostname               = ""
-	disabledAccessLog      = al.AccessLogFilter{Enable: false, Prefixes: nil}
-	enabledAccessLog       = al.AccessLogFilter{Enable: true, Prefixes: nil}
-	errMaxLoopbacksReached = errors.New("max loopbacks reached")
-	errRouteLookupFailed   = &proxyError{err: errors.New("route lookup failed")}
-	errCircuitBreakerOpen  = &proxyError{
+	errRouteLookupFailed  = &proxyError{err: errRouteLookup}
+	errCircuitBreakerOpen = &proxyError{
 		err:              errors.New("circuit breaker open"),
 		code:             http.StatusServiceUnavailable,
 		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
-	errRatelimitError = errors.New("ratelimited")
+
+	hostname          = ""
+	disabledAccessLog = al.AccessLogFilter{Enable: false, Prefixes: nil}
+	enabledAccessLog  = al.AccessLogFilter{Enable: true, Prefixes: nil}
 	hopHeaders        = map[string]bool{
 		"Te":                  true,
 		"Connection":          true,
@@ -948,9 +963,9 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	return done, ok
 }
 
-func ratelimitError(settings ratelimit.Settings, retryAfter int) error {
+func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 	return &proxyError{
-		err:  errRatelimitError,
+		err:  errRatelimit,
 		code: http.StatusTooManyRequests,
 		additionalHeader: http.Header{
 			ratelimit.Header:           []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
@@ -968,7 +983,7 @@ func (p *Proxy) do(ctx *context) error {
 
 	// proxy global setting
 	if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
-		rerr := ratelimitError(settings, retryAfter)
+		rerr := newRatelimitError(settings, retryAfter)
 		return rerr
 	}
 
@@ -1013,7 +1028,7 @@ func (p *Proxy) do(ctx *context) error {
 	} else {
 		// per route rate limit
 		if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
-			rerr := ratelimitError(settings, retryAfter)
+			rerr := newRatelimitError(settings, retryAfter)
 			return rerr
 		}
 
@@ -1159,7 +1174,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	switch {
 	case err == errRouteLookupFailed:
 		code = p.defaultHTTPStatus
-	case ok && perr.err == errRatelimitError:
+	case ok && perr.err == errRatelimit:
 		code = perr.code
 	default:
 		p.log.Errorf("error while proxying, route %s with backend %s, status code %d: %v", id, backend, code, err)
