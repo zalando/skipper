@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
 )
 
@@ -19,7 +20,7 @@ func Test_Filter_NoPathTemplate(t *testing.T) {
 		http.MethodGet,
 		"https://www.example.org/a/b/c",
 		299,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.{unknown}.GET.{no-match}.*.*."
 			// no path matching: tracked as unknown
 			m.WithCounters(func(counters map[string]int64) {
@@ -44,7 +45,7 @@ func Test_Filter_PathTemplateNoVariablePart(t *testing.T) {
 		http.MethodPost,
 		"https://www.example.org/foo/orders",
 		400,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -68,7 +69,7 @@ func Test_Filter_PathTemplateWithVariablePart(t *testing.T) {
 		http.MethodPost,
 		"https://www.example.org/foo/orders/1234",
 		204,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/{order-id}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -92,7 +93,7 @@ func Test_Filter_PathTemplateWithMultipleVariablePart(t *testing.T) {
 		http.MethodPost,
 		"https://www.example.org/foo/orders/1234/order-items/123",
 		301,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/{order-id}/order-items/{order-item-id}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.NotContains(
@@ -121,7 +122,7 @@ func Test_Filter_PathTemplateFromSecondConfiguredApi(t *testing.T) {
 		http.MethodPost,
 		"https://www.example.org/foo/customers/loremipsum",
 		502,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/customers/{customer-id}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -145,7 +146,7 @@ func Test_Filter_StatusCodes1xxAreMonitored(t *testing.T) {
 		http.MethodPost,
 		"https://www.example.org/foo/orders",
 		100,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -169,7 +170,7 @@ func Test_Filter_StatusCodeOver599IsMonitored(t *testing.T) {
 		http.MethodPost,
 		"https://www.example.org/foo/orders",
 		600,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -193,7 +194,7 @@ func Test_Filter_StatusCodeUnder100IsMonitoredWithoutHttpStatusCount(t *testing.
 		http.MethodPost,
 		"https://www.example.org/foo/orders",
 		99,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -217,7 +218,7 @@ func Test_Filter_NonConfiguredPathTrackedUnderNoMatch(t *testing.T) {
 		http.MethodGet,
 		"https://www.example.org/lapin/malin",
 		200,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.{unknown}.GET.{no-match}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -258,7 +259,7 @@ func Test_Filter_AllHttpMethodsAreSupported(t *testing.T) {
 				testCase.method,
 				"https://www.example.org/lapin/malin",
 				200,
-				func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+				func(pass int, m *metricstest.MockMetrics) {
 					pre := fmt.Sprintf(
 						"apiUsageMonitoring.custom.my_app.{unknown}.%s.{no-match}.*.*.",
 						testCase.expectedMethodInMetric)
@@ -286,7 +287,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashes(t *testing.T) {
 		http.MethodPost,
 		"https://www.example.org/foo/orders/1/2/3/order-items/123",
 		204,
-		func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+		func(pass int, m *metricstest.MockMetrics) {
 			pre := "apiUsageMonitoring.custom.my_app.my_api.POST.foo/orders/{order-id}/order-items/{order-item-id}.*.*."
 			m.WithCounters(func(counters map[string]int64) {
 				assert.Equal(t,
@@ -335,7 +336,57 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 				http.MethodGet,
 				fmt.Sprintf("https://www.example.org/%s", c.requestPath),
 				204,
-				func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+				func(pass int, m *metricstest.MockMetrics) {
+					pre := "apiUsageMonitoring.custom.my_app.my_api.GET." + c.expectedMatchedPathLabel + ".*.*."
+					m.WithCounters(func(counters map[string]int64) {
+						assert.Equal(t,
+							map[string]int64{
+								pre + "http_count":    int64(pass),
+								pre + "http2xx_count": int64(pass),
+							},
+							counters,
+						)
+					})
+					m.WithMeasures(func(measures map[string][]time.Duration) {
+						assert.Contains(t, measures, pre+"latency")
+					})
+				})
+		})
+	}
+}
+
+func Test_Filter_PathTemplateMatchesPathFromRequestChain(t *testing.T) {
+	filterCreate := func() (filters.Filter, error) {
+		args := []interface{}{`{
+				"application_id": "my_app",
+				"api_id": "my_api",
+				"path_templates": [
+					"foo/:a",
+					"bar/:a"
+				]
+			}`}
+		spec := NewApiUsageMonitoring(true, "", "", "")
+		return spec.CreateFilter(args)
+	}
+	for _, c := range []struct {
+		requestPath              string
+		modifiedPath             string
+		expectedMatchedPathLabel string
+	}{
+		{"foo/x", "bar/x", "foo/{a}"},
+	} {
+		subTestName := strings.Replace(c.requestPath, "/", "_", -1)
+		t.Run(subTestName, func(t *testing.T) {
+			testWithFilterModifyContext(
+				t,
+				filterCreate,
+				http.MethodGet,
+				fmt.Sprintf("https://www.example.org/%s", c.requestPath),
+				204,
+				func(ctx *filtertest.Context) {
+					ctx.FRequest.URL.Path = c.modifiedPath
+				},
+				func(pass int, m *metricstest.MockMetrics) {
 					pre := "apiUsageMonitoring.custom.my_app.my_api.GET." + c.expectedMatchedPathLabel + ".*.*."
 					m.WithCounters(func(counters map[string]int64) {
 						assert.Equal(t,
