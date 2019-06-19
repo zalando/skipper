@@ -47,9 +47,9 @@ type apiUsageMonitoringStateBag struct {
 }
 
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
-	URL := *c.Request().URL
+	uRL := *c.Request().URL
 	c.StateBag()[stateBagKey] = apiUsageMonitoringStateBag{
-		URL:   &URL,
+		URL:   &uRL,
 		Begin: time.Now(),
 	}
 }
@@ -57,11 +57,13 @@ func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
 	stateBag, stateBagPresent := c.StateBag()[stateBagKey].(apiUsageMonitoringStateBag)
-	URL := request.URL
+	path := f.UnknownPath
 	if stateBagPresent && stateBag.URL != nil {
-		URL = stateBag.URL
+		path = f.resolveMatchedPath(stateBag.URL)
 	}
-	path := f.resolveMatchedPath(URL)
+	if path == f.UnknownPath {
+		path = f.resolveMatchedPath(request.URL)
+	}
 
 	classMetricsIndex := response.StatusCode / 100
 	if classMetricsIndex < 1 || classMetricsIndex > 5 {

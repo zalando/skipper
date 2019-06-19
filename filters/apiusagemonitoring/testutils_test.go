@@ -82,7 +82,7 @@ func testWithFilterModifyContext(
 			modify(ctx)
 			filter.Response(ctx)
 
-			expect(pass,metricsMock)
+			expect(pass, metricsMock)
 		})
 	}
 }
