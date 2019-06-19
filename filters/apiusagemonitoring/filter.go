@@ -25,8 +25,7 @@ const (
 )
 
 const (
-	stateBagKeyPrefix = "filter." + Name + "."
-	stateBagKeyBegin  = stateBagKeyPrefix + "begin"
+	stateBagKey = "filter." + Name
 )
 
 const (
@@ -42,14 +41,29 @@ type apiUsageMonitoringFilter struct {
 	UnknownPath *pathInfo
 }
 
+type apiUsageMonitoringStateBag struct {
+	url   *url.URL
+	begin time.Time
+}
+
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
-	c.StateBag()[stateBagKeyBegin] = time.Now()
+	u := *c.Request().URL
+	c.StateBag()[stateBagKey] = apiUsageMonitoringStateBag{
+		url:   &u,
+		begin: time.Now(),
+	}
 }
 
 func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
-	begin, beginPresent := c.StateBag()[stateBagKeyBegin].(time.Time)
-	path := f.resolveMatchedPath(request.URL)
+	stateBag, stateBagPresent := c.StateBag()[stateBagKey].(apiUsageMonitoringStateBag)
+	path := f.UnknownPath
+	if stateBagPresent && stateBag.url != nil {
+		path = f.resolveMatchedPath(stateBag.url)
+	}
+	if path == f.UnknownPath {
+		path = f.resolveMatchedPath(request.URL)
+	}
 
 	classMetricsIndex := response.StatusCode / 100
 	if classMetricsIndex < 1 || classMetricsIndex > 5 {
@@ -63,8 +77,8 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	endpointMetricsNames := getEndpointMetricsNames(request, path)
 	metrics.IncCounter(endpointMetricsNames.countAll)
 	metrics.IncCounter(endpointMetricsNames.countPerStatusCodeRange[classMetricsIndex])
-	if beginPresent {
-		metrics.MeasureSince(endpointMetricsNames.latency, begin)
+	if stateBagPresent {
+		metrics.MeasureSince(endpointMetricsNames.latency, stateBag.begin)
 	}
 	log.Debugf("Pushed endpoint metrics with prefix `%s`", endpointMetricsNames.endpointPrefix)
 
@@ -74,8 +88,8 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 		clientMetricsNames := getClientMetricsNames(realmClientKey, path)
 		metrics.IncCounter(clientMetricsNames.countAll)
 		metrics.IncCounter(clientMetricsNames.countPerStatusCodeRange[classMetricsIndex])
-		if beginPresent {
-			latency := time.Since(begin).Seconds()
+		if stateBagPresent {
+			latency := time.Since(stateBag.begin).Seconds()
 			metrics.IncFloatCounterBy(clientMetricsNames.latencySum, latency)
 		}
 		log.Debugf("Pushed client metrics with prefix `%s%s.`", path.ClientPrefix, realmClientKey)

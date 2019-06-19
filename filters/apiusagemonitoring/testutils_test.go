@@ -30,14 +30,26 @@ func createFilterForTest() (filters.Filter, error) {
 	spec := NewApiUsageMonitoring(true, "", "", "")
 	return spec.CreateFilter(defaultArgs)
 }
-
 func testWithFilter(
 	t *testing.T,
 	filterCreate func() (filters.Filter, error),
 	method string,
 	url string,
 	resStatus int,
-	expect func(t *testing.T, pass int, m *metricstest.MockMetrics),
+	expect func(pass int, m *metricstest.MockMetrics),
+) {
+	testWithFilterModifyContext(t, filterCreate, method, url, resStatus,
+		func(ctx *filtertest.Context) {}, expect)
+}
+
+func testWithFilterModifyContext(
+	t *testing.T,
+	filterCreate func() (filters.Filter, error),
+	method string,
+	url string,
+	resStatus int,
+	modify func(ctx *filtertest.Context),
+	expect func(pass int, m *metricstest.MockMetrics),
 ) {
 	filter, err := filterCreate()
 	assert.NoError(t, err)
@@ -67,13 +79,10 @@ func testWithFilter(
 				FMetrics:  metricsMock,
 			}
 			filter.Request(ctx)
+			modify(ctx)
 			filter.Response(ctx)
 
-			expect(
-				t,
-				pass,
-				metricsMock,
-			)
+			expect(pass, metricsMock)
 		})
 	}
 }
@@ -87,10 +96,10 @@ type testWithFilterConf struct {
 	header       http.Header
 }
 
-func testWithFilterC(
+func testWithFilterConfig(
 	t *testing.T,
 	conf testWithFilterConf,
-	expect func(t *testing.T, pass int, m *metricstest.MockMetrics),
+	expect func(pass int, m *metricstest.MockMetrics),
 ) {
 	var (
 		passCount    int
@@ -158,11 +167,7 @@ func testWithFilterC(
 			filter.Request(ctx)
 			filter.Response(ctx)
 
-			expect(
-				t,
-				pass,
-				metricsMock,
-			)
+			expect(pass, metricsMock)
 		})
 		if t.Failed() {
 			return
@@ -196,7 +201,7 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 	}
 	previousLatencySum := float64(0)
 
-	testWithFilterC(t, conf, func(t *testing.T, pass int, m *metricstest.MockMetrics) {
+	testWithFilterConfig(t, conf, func(pass int, m *metricstest.MockMetrics) {
 
 		var expectedCounters expectedActualStringList
 		var expectedFloatCounters expectedActualStringList
