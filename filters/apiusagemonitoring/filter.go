@@ -42,15 +42,15 @@ type apiUsageMonitoringFilter struct {
 }
 
 type apiUsageMonitoringStateBag struct {
-	URL   *url.URL
-	Begin time.Time
+	url   *url.URL
+	begin time.Time
 }
 
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
-	uRL := *c.Request().URL
+	u := *c.Request().URL
 	c.StateBag()[stateBagKey] = apiUsageMonitoringStateBag{
-		URL:   &uRL,
-		Begin: time.Now(),
+		url:   &u,
+		begin: time.Now(),
 	}
 }
 
@@ -58,8 +58,8 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	request, response, metrics := c.Request(), c.Response(), c.Metrics()
 	stateBag, stateBagPresent := c.StateBag()[stateBagKey].(apiUsageMonitoringStateBag)
 	path := f.UnknownPath
-	if stateBagPresent && stateBag.URL != nil {
-		path = f.resolveMatchedPath(stateBag.URL)
+	if stateBagPresent && stateBag.url != nil {
+		path = f.resolveMatchedPath(stateBag.url)
 	}
 	if path == f.UnknownPath {
 		path = f.resolveMatchedPath(request.URL)
@@ -78,7 +78,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 	metrics.IncCounter(endpointMetricsNames.countAll)
 	metrics.IncCounter(endpointMetricsNames.countPerStatusCodeRange[classMetricsIndex])
 	if stateBagPresent {
-		metrics.MeasureSince(endpointMetricsNames.latency, stateBag.Begin)
+		metrics.MeasureSince(endpointMetricsNames.latency, stateBag.begin)
 	}
 	log.Debugf("Pushed endpoint metrics with prefix `%s`", endpointMetricsNames.endpointPrefix)
 
@@ -89,7 +89,7 @@ func (f *apiUsageMonitoringFilter) Response(c filters.FilterContext) {
 		metrics.IncCounter(clientMetricsNames.countAll)
 		metrics.IncCounter(clientMetricsNames.countPerStatusCodeRange[classMetricsIndex])
 		if stateBagPresent {
-			latency := time.Since(stateBag.Begin).Seconds()
+			latency := time.Since(stateBag.begin).Seconds()
 			metrics.IncFloatCounterBy(clientMetricsNames.latencySum, latency)
 		}
 		log.Debugf("Pushed client metrics with prefix `%s%s.`", path.ClientPrefix, realmClientKey)
