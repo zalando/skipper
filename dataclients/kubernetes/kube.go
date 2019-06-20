@@ -559,15 +559,27 @@ func (c *Client) convertDefaultBackend(state *clusterState, i *ingressItem) (*es
 		)
 		log.Debugf("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}
+
+	if svc.Spec.Type == "ExternalName" {
+		scheme := "https"
+		if targetPort != "443" {
+			scheme = "http"
+		}
+		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
+		f, err := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
+		if err != nil {
+			return nil, false, err
+		}
+		return &eskip.Route{
+			Id:          routeID(ns, name, "default", "", svc.Spec.ExternalName),
+			BackendType: eskip.NetworkBackend,
+			Backend:     u,
+			Filters:     f,
+		}, true, nil
+	}
+
 	if len(eps) == 0 || err == errEndpointNotFound {
-		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
-		// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
-		// We should then implement a redirect route for that.
-		// Example spec:
-		//
-		//     spec:
-		//       type: ExternalName
-		//       externalName: my.database.example.com
+
 		address, err2 := c.getServiceURL(svc, svcPort)
 		if err2 != nil {
 			return nil, false, err2
@@ -656,15 +668,27 @@ func (c *Client) convertPathRule(
 		eps, err = state.getEndpoints(ns, svcName, svcPort.String(), targetPort)
 		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
 	}
+
+	if svc.Spec.Type == "ExternalName" {
+		scheme := "https"
+		if targetPort != "443" {
+			scheme = "http"
+		}
+		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
+		f, err := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
+		if err != nil {
+			return nil, err
+		}
+		return &eskip.Route{
+			Id:          routeID(ns, name, "", "", svc.Spec.ExternalName),
+			BackendType: eskip.NetworkBackend,
+			Backend:     u,
+			Filters:     f,
+		}, nil
+	}
+
 	if len(eps) == 0 || err == errEndpointNotFound {
-		// TODO(sszuecs): https://github.com/zalando/skipper/issues/549
-		// dispatch by service type to implement type externalname, which has no ServicePort (could be ignored from ingress).
-		// We should then implement a redirect route for that.
-		// Example spec:
-		//
-		//     spec:
-		//       type: ExternalName
-		//       externalName: my.database.example.com
+
 		address, err2 := c.getServiceURL(svc, svcPort)
 		if err2 != nil {
 			return nil, err2
