@@ -544,23 +544,12 @@ func (c *Client) convertDefaultBackend(state *clusterState, i *ingressItem) (*es
 		log.Errorf("convertDefaultBackend: Failed to get service %s, %s, %s", ns, svcName, svcPort)
 		return nil, false, err
 	}
+
 	targetPort, err := svc.GetTargetPort(svcPort)
 	if err != nil {
 		err = nil
 		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
-	} else {
-		// TODO(aryszka): check docs that service name is always good for requesting the endpoints
-		log.Debugf("Found target port %v, for service %s", targetPort, svcName)
-		eps, err = state.getEndpoints(
-			ns,
-			svcName,
-			svcPort.String(),
-			targetPort,
-		)
-		log.Debugf("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
-	}
-
-	if svc.Spec.Type == "ExternalName" {
+	} else if svc.Spec.Type == "ExternalName" {
 		scheme := "https"
 		if targetPort != "443" {
 			scheme = "http"
@@ -576,6 +565,16 @@ func (c *Client) convertDefaultBackend(state *clusterState, i *ingressItem) (*es
 			Backend:     u,
 			Filters:     f,
 		}, true, nil
+	} else {
+		// TODO(aryszka): check docs that service name is always good for requesting the endpoints
+		log.Debugf("Found target port %v, for service %s", targetPort, svcName)
+		eps, err = state.getEndpoints(
+			ns,
+			svcName,
+			svcPort.String(),
+			targetPort,
+		)
+		log.Debugf("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}
 
 	if len(eps) == 0 || err == errEndpointNotFound {
@@ -663,21 +662,15 @@ func (c *Client) convertPathRule(
 		// fallback to service, but service definition is wrong or no pods
 		log.Debugf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
 		err = nil
-	} else {
-		// err handled below
-		eps, err = state.getEndpoints(ns, svcName, svcPort.String(), targetPort)
-		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
-	}
-
-	if svc.Spec.Type == "ExternalName" {
+	} else if svc.Spec.Type == "ExternalName" {
 		scheme := "https"
 		if targetPort != "443" {
 			scheme = "http"
 		}
 		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
-		f, err := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
-		if err != nil {
-			return nil, err
+		f, e := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
+		if e != nil {
+			return nil, e
 		}
 		return &eskip.Route{
 			Id:          routeID(ns, name, "", "", svc.Spec.ExternalName),
@@ -685,6 +678,10 @@ func (c *Client) convertPathRule(
 			Backend:     u,
 			Filters:     f,
 		}, nil
+	} else {
+		// err handled below
+		eps, err = state.getEndpoints(ns, svcName, svcPort.String(), targetPort)
+		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
 	}
 
 	if len(eps) == 0 || err == errEndpointNotFound {
