@@ -29,10 +29,11 @@ in a local view having no information about other skipper instances.
 
 The backend ratelimit filter is `ratelimit()` and it is the simplest
 one. You can define how many requests a route allows for a given
-`time.Duration`.
+`time.Duration` to send to all backends of the route. This means that you
+can not limit traffic to a single backend instance.
 
 For example to limit the route to 10 requests per minute for each
- skipper instance, you can specify:
+skipper instance, you can specify:
 
 ```
 ratelimit(10, "1m")
