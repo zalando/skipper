@@ -851,7 +851,9 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
+	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	response, err := p.roundTripper.RoundTrip(req)
+	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
 		ctx.proxySpan.LogKV(
