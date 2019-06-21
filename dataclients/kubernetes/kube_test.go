@@ -568,6 +568,53 @@ func TestIngressData(t *testing.T) {
 			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
 		},
 	}, {
+		"ingress with service type ExternalName should proxy to externalName",
+		[]*service{
+			&service{
+				Meta: &metadata{
+					Namespace: "foo",
+					Name:      "extname",
+				},
+				Spec: &serviceSpec{
+					Type:         "ExternalName",
+					ExternalName: "www.zalando.de",
+					Ports: []*servicePort{
+						&servicePort{
+							Name: "ext",
+							Port: 443,
+							TargetPort: &backendPort{
+								value: 443,
+							},
+						},
+					},
+				},
+			},
+		},
+		[]*ingressItem{testIngress(
+			"foo",
+			"qux",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			backendPort{value: 443},
+			1.0,
+			testRule(
+				"www.zalando.de",
+				testPathRule(
+					"/",
+					"extname",
+					backendPort{value: 443},
+				),
+			),
+		)},
+		map[string]string{
+			"kube_foo__qux______www_zalando_de": "https://www.zalando.de:443",
+		},
+	}, {
 		"ignore ingress entries with missing metadata",
 		[]*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
