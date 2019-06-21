@@ -879,9 +879,9 @@ See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratel
 
 ## ratelimit
 
-Per skipper instance calculated ratelimit, that allows number of
-requests to a backend. You need to run skipper
-with command line flag `-enable-ratelimits`.
+Per skipper instance calculated ratelimit, that allows forwarding a
+number of requests to the backend group. You need to run skipper with
+command line flag `-enable-ratelimits`.
 
 Parameters:
 
