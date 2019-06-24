@@ -1117,7 +1117,9 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
-	err := copyStream(ctx.responseWriter.(flusherWriter), ctx.response.Body, p.tracing, ctx.proxySpan)
+	fw := ctx.responseWriter.(flusherWriter)
+	fw.Flush()
+	err := copyStream(fw, ctx.response.Body, p.tracing, ctx.proxySpan)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		p.log.Error("error while copying the response stream", err)
