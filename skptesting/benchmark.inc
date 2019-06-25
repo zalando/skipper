@@ -60,12 +60,13 @@ skp() {
 		tlskey=key.pem
 		tlscert=cert.pem
 	fi
-        lifo_filter=
+	lifo_filter=
 	if [ "$3" = lifo ]; then
 		lifo_filter=-default-filters-prepend="lifo($4, $5, \"$6\")"
 	fi
 
 	skipper -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" -insecure \
+		-support-listener :0 \
 		-idle-conns-num "$c" -close-idle-conns-period=3s \
 		-tls-key "$tlskey" -tls-cert "$tlscert" 2> \
 		>(grep -Ev 'write: broken pipe|connection reset by peer|getsockopt: connection refused|INFO|Client request: context canceled') &
