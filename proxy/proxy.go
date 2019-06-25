@@ -291,11 +291,6 @@ type PriorityRoute interface {
 	Match(*http.Request) (*routing.Route, map[string]string)
 }
 
-type flusherWriter interface {
-	http.Flusher
-	io.Writer
-}
-
 // Proxy instances implement Skipper proxying functionality. For
 // initializing, see the WithParams the constructor and Params.
 type Proxy struct {
@@ -395,7 +390,7 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 
 // copies a stream with flushing on every successful read operation
 // (similar to io.Copy but with flushing)
-func copyStream(to flusherWriter, from io.Reader, tracing *proxyTracing, span ot.Span) error {
+func copyStream(to flushedResponseWriter, from io.Reader, tracing *proxyTracing, span ot.Span) error {
 	b := make([]byte, proxyBufferSize)
 
 	for {
@@ -1117,9 +1112,8 @@ func (p *Proxy) serveResponse(ctx *context) {
 	}
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
-	fw := ctx.responseWriter.(flusherWriter)
-	fw.Flush()
-	err := copyStream(fw, ctx.response.Body, p.tracing, ctx.proxySpan)
+	ctx.responseWriter.Flush()
+	err := copyStream(ctx.responseWriter, ctx.response.Body, p.tracing, ctx.proxySpan)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		p.log.Error("error while copying the response stream", err)
