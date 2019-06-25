@@ -140,7 +140,7 @@ fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)
 
 check-fmt: $(SOURCES)
-	@if [ "$$(gofmt -d $(SOURCES))" != "" ]; then false; else true; fi
+	@if [ "$$(gofmt -s -d $(SOURCES))" != "" ]; then false; else true; fi
 
 precommit: fmt build vet staticcheck check-race shortcheck
 

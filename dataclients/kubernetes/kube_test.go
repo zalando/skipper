@@ -570,7 +570,7 @@ func TestIngressData(t *testing.T) {
 	}, {
 		"ingress with service type ExternalName should proxy to externalName",
 		[]*service{
-			&service{
+			{
 				Meta: &metadata{
 					Namespace: "foo",
 					Name:      "extname",
@@ -579,7 +579,7 @@ func TestIngressData(t *testing.T) {
 					Type:         "ExternalName",
 					ExternalName: "www.zalando.de",
 					Ports: []*servicePort{
-						&servicePort{
+						{
 							Name: "ext",
 							Port: 443,
 							TargetPort: &backendPort{
