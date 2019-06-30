@@ -29,3 +29,22 @@ docker-build: clean skipper eskip
 
 docker-push:
 	docker push $(IMAGE)
+
+build.linux: $(SOURCES)
+	GO111MODULE=$(GO111) GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build -o build/linux/skipper ../cmd/skipper/*.go
+	GO111MODULE=$(GO111) GOOS=linux GOARCH=arm64 CGO_ENABLED=$(CGO_ENABLED) go build -o build/linux_arm8/skipper ../cmd/skipper/*.go
+	GO111MODULE=$(GO111) GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=$(CGO_ENABLED) go build -o build/linux_arm7/skipper ../cmd/skipper/*.go
+
+build.osx:
+	GO111MODULE=$(GO111) GOOS=darwin GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build -o build/osx/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ../cmd/skipper
+
+build.windows:
+	GO111MODULE=$(GO111) GOOS=windows GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build -o build/windows/skipper.exe -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ../cmd/skipper
+
+build.package: build.linux build.osx build.windows
+	tar --transform 's,^\.,skipper-$(VERSION)-linux-amd64,' -C build/linux -czvf skipper-$(VERSION)-linux-amd64.tar.gz .
+	tar --transform 's,^\.,skipper-$(VERSION)-linux-arm8,' -C build/linux_arm8 -czvf skipper-$(VERSION)-linux-arm8.tar.gz .
+	tar --transform 's,^\.,skipper-$(VERSION)-linux-arm7,' -C build/linux_arm7 -czvf skipper-$(VERSION)-linux-arm7.tar.gz .
+	tar --transform 's,^\.,skipper-$(VERSION)-osx-amd64,' -C build/osx -czvf skipper-$(VERSION)-osx-amd64.tar.gz .
+	tar --transform 's,^\.,skipper-$(VERSION)-windows-amd64,' -C build/windows -czvf skipper-$(VERSION)-windows-amd64.tar.gz .
+

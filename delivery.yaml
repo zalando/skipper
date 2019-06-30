@@ -20,6 +20,14 @@ pipeline:
       git status
       git diff
       cd packaging && make docker-build && git status && git diff && make docker-push
+      if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
+        echo "Creating release for tag: ${RELEASE_VERSION}"
+        cd packaging && make build.package
+        cd packaging && files=(); for f in *.tar.gz; do files+=(-u "$f"); done
+        cd packaging && git gh-release "${files[@]}" "$RELEASE_VERSION"
+      else
+        echo "Not creating a release. No release version defined."
+      fi
 - id: docs
   type: script
   overlay: ci/python
