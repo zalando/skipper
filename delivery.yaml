@@ -55,7 +55,7 @@ pipeline:
     cmd: |
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         RELEASE_VERSION="$(git describe --tags --always --dirty)"
-        echo $RELEASE_VERSION | grep -qE '^[0-9]+[.][0-9]+[.][0-9]+$'; if [ $? -eq 1 ]; exit 0; fi
+        echo $RELEASE_VERSION | grep -qE '^[0-9]+[.][0-9]+[.][0-9]+$'; if [ $? -eq 1 ]; then exit 0; fi
         export IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-armv8:${RELEASE_VERSION}"
         make deps cicheck staticcheck gosec
         git status
