@@ -36,6 +36,15 @@ endif
 
 build: $(SOURCES) lib skipper eskip
 
+build.linux.armv8:
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
+build.linux.armv7:
+	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
+build.linux:
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+
 build.osx:
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
