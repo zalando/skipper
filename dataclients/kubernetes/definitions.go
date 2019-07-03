@@ -136,8 +136,10 @@ func (sp servicePort) String() string {
 }
 
 type serviceSpec struct {
-	ClusterIP string         `json:"clusterIP"`
-	Ports     []*servicePort `json:"ports"`
+	Type         string         `json:"type"`
+	ClusterIP    string         `json:"clusterIP"`
+	ExternalName string         `json:"externalName"`
+	Ports        []*servicePort `json:"ports"`
 }
 
 type service struct {

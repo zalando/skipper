@@ -175,10 +175,9 @@ func (al *auditLog) Response(ctx filters.FilterContext) {
 }
 
 type (
-	unverifiedAuditLogSpec struct {
-	}
+	unverifiedAuditLogSpec   struct{}
 	unverifiedAuditLogFilter struct {
-		TokenKey string
+		TokenKeys []string
 	}
 )
 
@@ -192,17 +191,19 @@ func (ual *unverifiedAuditLogSpec) Name() string { return UnverifiedAuditLogName
 func (ual *unverifiedAuditLogSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var len = len(args)
 	if len == 0 {
-		return &unverifiedAuditLogFilter{TokenKey: defaultUnverifiedAuditLogKey}, nil
-	} else if len == 1 {
-		keyName, ok := args[0].(string)
+		return &unverifiedAuditLogFilter{TokenKeys: []string{defaultUnverifiedAuditLogKey}}, nil
+	}
+
+	keys := make([]string, len)
+	for i := 0; i < len; i++ {
+		keyName, ok := args[i].(string)
 		if !ok {
 			return nil, filters.ErrInvalidFilterParameters
 		}
-
-		return &unverifiedAuditLogFilter{TokenKey: keyName}, nil
+		keys[i] = keyName
 	}
 
-	return nil, filters.ErrInvalidFilterParameters
+	return &unverifiedAuditLogFilter{TokenKeys: keys}, nil
 }
 
 func (ual *unverifiedAuditLogFilter) Request(ctx filters.FilterContext) {
@@ -227,9 +228,12 @@ func (ual *unverifiedAuditLogFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 
-		if k, ok := j[ual.TokenKey]; ok {
-			if v, ok2 := k.(string); ok2 {
-				req.Header.Add(UnverifiedAuditHeader, cleanSub(v))
+		for i := 0; i < len(ual.TokenKeys); i++ {
+			if k, ok := j[ual.TokenKeys[i]]; ok {
+				if v, ok2 := k.(string); ok2 {
+					req.Header.Add(UnverifiedAuditHeader, cleanSub(v))
+					return
+				}
 			}
 		}
 	}

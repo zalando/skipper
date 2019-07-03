@@ -16,8 +16,13 @@ import (
 
 const unknownHost = "_unknownhost_"
 
+type flushedResponseWriter interface {
+	http.ResponseWriter
+	http.Flusher
+}
+
 type context struct {
-	responseWriter       http.ResponseWriter
+	responseWriter       flushedResponseWriter
 	request              *http.Request
 	response             *http.Response
 	route                *routing.Route
@@ -116,7 +121,7 @@ func appendParams(to, from map[string]string) map[string]string {
 }
 
 func newContext(
-	w http.ResponseWriter,
+	w flushedResponseWriter,
 	r *http.Request,
 	preserveOriginal bool,
 	m metrics.Metrics,
