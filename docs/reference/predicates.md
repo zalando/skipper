@@ -32,8 +32,8 @@ route.
 **Wildcards:**
 
 Wildcards can be put in place of one or more path segments in the path, e.g. "/some/:dir/:name", or the path can
-end with a free wildcard like "/some/path/*param", where the free wildcard can match against a sub-path with
-multiple segments. Note, that this solution implicitly supports the glob standard, e.g. "/some/path/**" will
+end with a free wildcard like `"/some/path/*param"`, where the free wildcard can match against a sub-path with
+multiple segments. Note, that this solution implicitly supports the glob standard, e.g. `"/some/path/**"` will
 work as expected. The wildcards must follow a `/`.
 
 The arguments are available to the filters while processing the matched requests, but
@@ -66,8 +66,8 @@ Path("/foo/**")      //   /foo/bar/baz
 
 The path subtree predicate behaves similar to the path predicate, but it matches the exact path in the
 definition and any sub path below it. The subpath is automatically provided among the path parameters with the
-name "*". If a free wildcard is appended to the definition, e.g. PathSubtree("/some/path/*rest"), the free
-wildcard name is used instead of "*". The simple wildcards behave similar to the Path predicate. The main
+name `*`. If a free wildcard is appended to the definition, e.g. `PathSubtree("/some/path/*rest")`, the free
+wildcard name is used instead of `*`. The simple wildcards behave similar to the Path predicate. The main
 difference between `PathSubtree("/foo")` and `Path("/foo/**")` is that the PathSubtree predicate always ignores
 the trailing slashes.
 
