@@ -7,7 +7,7 @@ Package includes a single predicate: Cron.
 
 For supported & unsupported features refer to the "cronmask" package
 documentation (https://github.com/sarslanhan/cronmask).
- */
+*/
 package cron
 
 import (

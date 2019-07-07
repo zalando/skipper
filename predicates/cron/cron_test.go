@@ -5,9 +5,9 @@ import (
 )
 
 func TestCreate(t *testing.T) {
-	testCases := []struct{
-		msg string
-		args []interface{}
+	testCases := []struct {
+		msg     string
+		args    []interface{}
 		isError bool
 	}{
 		{
@@ -55,11 +55,11 @@ func TestPredicateName(t *testing.T) {
 }
 
 func TestPredicateMatch(t *testing.T) {
-	testCases := []struct{
-		msg string
-		args []interface{}
+	testCases := []struct {
+		msg     string
+		args    []interface{}
 		matches bool
-		clock clock
+		clock   clock
 	}{
 		{
 			"match everything",
