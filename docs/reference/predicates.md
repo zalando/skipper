@@ -1,14 +1,8 @@
 # Skipper Predicates
 
-The parameters can be strings, regex or float64 / int
-
-* `string` is a string surrounded by double quotes (`"`)
-* `regex` is a [re2 regular expression](https://github.com/google/re2/wiki/Syntax), surrounded by `/`, e.g. `/^www\.example\.org(:\d+)?$/`
-* `int` / `float64` are usual (decimal) numbers like `401` or `1.23456`
-* `time` is a string in double quotes, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
-
-Predicates are a generic tool and can change the route matching behavior.
-Predicates can be chained using the double ampersand operator `&&`.
+Predicates are used to decide which route will handle an incoming request. Routes can contain multiple
+predicates. A request will match a route only if all the predicates of the route match. See the description of
+the route matching mechanism here: [Route matching](../tutorials/basics.md#route-matching).
 
 Example route with a Host, Method and Path match predicates and a backend:
 
@@ -16,44 +10,80 @@ Example route with a Host, Method and Path match predicates and a backend:
 all: Host(/^my-host-header\.example\.org$/) && Method("GET") && Path("/hello") -> "http://127.0.0.1:1234/";
 ```
 
+## Predicate arguments
+
+The predicate arguments can be strings, regular expressions or numbers (float64, int). In the eskip syntax
+representation:
+
+* strings are surrounded by double quotes (`"`). When necessary, characters can be escaped by `\`, e.g. `\\` or `\"`.
+* regular expressions are a [re2 regular expression](https://github.com/google/re2/wiki/Syntax), surrounded by
+* `/`, e.g. `/^www\.example\.org(:\d+)?$/`. When a predicate expects a regular expression as an argument, the string representation with double quotes can be used, as well.
+* numbers are regular (decimal) numbers like `401` or `1.23456`. The eskip syntax doesn't define a limitation on the size of the numbers, but the underlying implementation currently relies on the float64 values of the Go runtime.
+
+Other higher level argument types must be represented as one of the above types. E.g. it is a convention to
+represent time duration values as strings, parseable by [time.Duration](https://godoc.org/time#ParseDuration)).
+
 ## Path
 
-The route definitions may contain a single path condition, optionally
-with wildcards, used for looking up routes in the lookup tree.
+The path predicate is used to match the path in HTTP request line. It accepts a single argument, that can be a
+fixed path like "/some/path", or it can contain wildcards. There can be only zero or one path predicate in a
+route.
 
-Parameters:
+**Wildcards:**
 
-* Path (string) can contain a wildcard `*` or a named `:wildcard`
+Wildcards can be put in place of one or more path segments in the path, e.g. "/some/:dir/:name", or the path can
+end with a free wildcard like `"/some/path/*param"`, where the free wildcard can match against a sub-path with
+multiple segments. Note, that this solution implicitly supports the glob standard, e.g. `"/some/path/**"` will
+work as expected. The wildcards must follow a `/`.
 
-Examples:
+The arguments are available to the filters while processing the matched requests, but
+currently only a few built-in filters utilize them, and they can be used rather only from custom filter
+extensions.
+
+**Known bug:**
+
+There is a known bug with how predicates of the form `Path("/foo/*")` are currently handled. Note the wildcard
+defined with `*` doesn't have a name here. Wildcards must have a name, but Skipper currently does not reject
+these routes, resulting in undefined behavior.
+
+**Trailing slash:**
+
+By default, `Path("/foo")` and `Path("/foo/")` are not equivalent. Ignoring the trailing slash can be toggled
+with the `-ignore-trailing-slash` command line flag.
+
+**Examples:**
 
 ```
-Path("/foo/bar")
-Path("/foo/:bar")
-Path("/foo*")
-Path("/foo/*")
-Path("/foo/**")
+Path("/foo/bar")     //   /foo/bar
+Path("/foo/bar/")    //   /foo/bar/, unless started with -ignore-trailing-slash
+Path("/foo/:id")     //   /foo/_anything
+Path("/foo/:id/baz") //   /foo/_anything/baz
+Path("/foo/*rest")   //   /foo/bar/baz
+Path("/foo/**")      //   /foo/bar/baz
 ```
 
 ## PathSubtree
 
-Similar to Path, but used to match full subtrees including the path of
-the definition.
+The path subtree predicate behaves similar to the path predicate, but it matches the exact path in the
+definition and any sub path below it. The subpath is automatically provided among the path parameters with the
+name `*`. If a free wildcard is appended to the definition, e.g. `PathSubtree("/some/path/*rest")`, the free
+wildcard name is used instead of `*`. The simple wildcards behave similar to the Path predicate. The main
+difference between `PathSubtree("/foo")` and `Path("/foo/**")` is that the PathSubtree predicate always ignores
+the trailing slashes.
 
-PathSubtree("/foo") predicate is equivalent to having routes with
-Path("/foo"), Path("/foo/") and Path("/foo/**") predicates.
-
-Parameters:
-
-* PathSubtree (string)
-
-Examples:
+**Examples:**
 
 ```
 PathSubtree("/foo/bar")
 PathSubtree("/")
-PathSubtree("/foo*")
+PathSubtree("/foo/*rest")
 ```
+
+## The path tree:
+
+There is an important difference between the evaluation of the Path or PathSubtree predicates, and the
+evaluation of all the other predicates (PathRegexp belonging to the second group). Find an explanation in the
+[Route matching](../tutorials/basics.md/#route-matching) section explanation section.
 
 ## PathRegexp
 
@@ -65,7 +95,16 @@ Parameters:
 
 * PathRegexp (regex)
 
-Examples:
+A route can contain more than one PathRegexp predicates. It can be also used in combination with the Path
+predicate.
+
+```
+Path("/colors/:name/rgb-value") && PathRegexp("^/colors/(red|green|blue|cyan|magenta|pink|yellow)/")
+-> returnRGB()
+-> <shunt>
+```
+
+Further examples:
 
 ```
 PathRegexp("^/foo/bar")

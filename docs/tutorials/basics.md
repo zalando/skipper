@@ -233,6 +233,8 @@ The route matching logic can be summed up as follows:
 3. _If_ #2 results in multiple matching routes, then one route will be
    selected. It is unspecified which one.
 
+See more details about the predicates here: (Predicates)[../../reference/predicates.md].
+
 ## Building skipper
 
 We use Go modules to build skipper, therefore you need [Go](https://golang.org/dl) version `>= 1.11`.
