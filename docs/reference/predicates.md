@@ -251,7 +251,8 @@ Between(1451642400, 1454320800)
 Matches routes when the given cron-like expression matches the system time.
 
 Parameters:
-* [Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)\-like expression. See [the package documentation](https://godoc.org/github.com/sarslanhan/cronmask#New) for supported & unsupported features.
+* [Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)\-like expression. See [the package documentation](https://godoc.org/github.com/sarslanhan/cronmask#New) for supported & unsupported features. Expressions are expected to be in the same time zone as the system that generates the `time.Time` instances.
+
 
 Examples:
 
