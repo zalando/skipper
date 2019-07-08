@@ -2,6 +2,7 @@ package cron
 
 import (
 	"testing"
+	"time"
 )
 
 func TestCreate(t *testing.T) {
@@ -65,7 +66,7 @@ func TestPredicateMatch(t *testing.T) {
 			"match everything",
 			[]interface{}{"* * * * *"},
 			true,
-			getSystemTime,
+			time.Now,
 		},
 	}
 

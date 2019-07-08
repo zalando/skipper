@@ -44,7 +44,7 @@ func (*spec) Create(args []interface{}) (routing.Predicate, error) {
 
 	return &predicate{
 		mask:    mask,
-		getTime: getSystemTime,
+		getTime: time.Now,
 	}, nil
 }
 
@@ -57,10 +57,6 @@ func (p *predicate) Match(r *http.Request) bool {
 	now := p.getTime()
 
 	return p.mask.Matches(now)
-}
-
-func getSystemTime() time.Time {
-	return time.Now()
 }
 
 func New() routing.PredicateSpec {
