@@ -20,6 +20,14 @@ pipeline:
       git status
       git diff
       cd packaging && make docker-build && git status && git diff && make docker-push
+      if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
+        echo "Creating release for tag: ${RELEASE_VERSION}"
+        cd packaging && make build.package
+        cd packaging && files=(); for f in *.tar.gz; do files+=(-u "$f"); done
+        cd packaging && git gh-release "${files[@]}" "$RELEASE_VERSION"
+      else
+        echo "Not creating a release. No release version defined."
+      fi
 - id: docs
   type: script
   overlay: ci/python
@@ -39,3 +47,20 @@ pipeline:
   - type: docs
     name: skipper
     path: site
+- id: ARM builds
+  overlay: ci/golang
+  type: script
+  commands:
+  - desc: build-push
+    cmd: |
+      if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
+        RELEASE_VERSION="$(git describe --tags --always --dirty)"
+        echo $RELEASE_VERSION | grep -qE '^[0-9]+[.][0-9]+[.][0-9]+$'; if [ $? -eq 1 ]; then exit 0; fi
+        export IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-armv8:${RELEASE_VERSION}"
+        make deps cicheck staticcheck gosec
+        git status
+        git diff
+        cd packaging && GOARCH=arm64 make docker-build && git status && git diff && make docker-push
+        export IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper-armv7:${RELEASE_VERSION}"
+        cd packaging && GOARCH=arm GOARM=GOARM=7 make docker-build && git status && git diff && make docker-push
+      fi
