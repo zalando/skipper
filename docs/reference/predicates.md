@@ -2,7 +2,7 @@
 
 Predicates are used to decide which route will handle an incoming request. Routes can contain multiple
 predicates. A request will match a route only if all the predicates of the route match. See the description of
-the route matching mechanism here: [Route matching](../../tutorials/basics.md#route-matching).
+the route matching mechanism here: [Route matching](../tutorials/basics.md#route-matching).
 
 Example route with a Host, Method and Path match predicates and a backend:
 
@@ -83,7 +83,7 @@ PathSubtree("/foo/*rest")
 
 There is an important difference between the evaluation of the Path or PathSubtree predicates, and the
 evaluation of all the other predicates (PathRegexp belonging to the second group). Find an explanation in the
-[Route matching](../../tutorials/basics.md/#route-matching) section explanation section.
+[Route matching](../tutorials/basics.md/#route-matching) section explanation section.
 
 ## PathRegexp
 
