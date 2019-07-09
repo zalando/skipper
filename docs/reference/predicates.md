@@ -285,6 +285,29 @@ Between("2016-01-01T12:00:00+02:00", "2016-02-01T12:00:00+02:00")
 Between(1451642400, 1454320800)
 ```
 
+## Cron
+
+Matches routes when the given cron-like expression matches the system time.
+
+Parameters:
+* [Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)\-like expression. See [the package documentation](https://godoc.org/github.com/sarslanhan/cronmask#New) for supported & unsupported features. Expressions are expected to be in the same time zone as the system that generates the `time.Time` instances.
+
+
+Examples:
+
+```
+// match everything
+Cron("* * * * *")
+// match only when the hour is between 5-7 (inclusive)
+Cron("* 5-7, * * *")
+// match only when the hour is between 5-7, equal to 8, or betweeen 12-15
+Cron("* 5-7,8,12-15 * * *")
+// match only when it is weekdays
+Cron("* * * * 1-5")
+// match only when it is weekdays & working hours
+Cron("* 7-18 * * 1-5")
+```
+
 ## QueryParam
 
 Match request based on the Query Params in URL

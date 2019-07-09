@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/zalando/skipper/predicates/cron"
 	"io"
 	"net"
 	"net/http"
@@ -932,6 +933,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		interval.NewBetween(),
 		interval.NewBefore(),
 		interval.NewAfter(),
+		cron.New(),
 		cookie.New(),
 		query.New(),
 		traffic.New(),
