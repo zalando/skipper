@@ -132,8 +132,8 @@ github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a h1:9ZKAASQSHhD
 github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=
 github.com/sanity-io/litter v1.1.0 h1:BllcKWa3VbZmOZbDCoszYLk7zCsKHz5Beossi8SUcTc=
 github.com/sanity-io/litter v1.1.0/go.mod h1:CJ0VCw2q4qKU7LaQr3n7UOSHzgEMgcGco7N/SkZQPjw=
-github.com/sarslanhan/cronmask v0.0.0-20190707140726-b3a65e58d3a3 h1:gmnjYYpsR8S7jmTyMiXiwJOFsmxfJZkESkfhhtDHm4I=
-github.com/sarslanhan/cronmask v0.0.0-20190707140726-b3a65e58d3a3/go.mod h1:NmI1tg7wwsf1hF6G5EtyGCrtNKsH2RIdYYoJa7GsnP8=
+github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011 h1:S5j3KTsiGwmQSEJJBp0iIG87CDBCGCwbYLmVv8L/nuE=
+github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011/go.mod h1:NmI1tg7wwsf1hF6G5EtyGCrtNKsH2RIdYYoJa7GsnP8=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 h1:nn5Wsu0esKSJiIVhscUtVbo7ada43DJhG55ua/hjS5I=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=

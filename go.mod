@@ -27,7 +27,7 @@ require (
 	github.com/prometheus/client_golang v1.0.0
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a
 	github.com/sanity-io/litter v1.1.0
-	github.com/sarslanhan/cronmask v0.0.0-20190707140726-b3a65e58d3a3
+	github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011
 	github.com/sirupsen/logrus v1.4.2
 	github.com/sony/gobreaker v0.4.1
 	github.com/stretchr/testify v1.3.0

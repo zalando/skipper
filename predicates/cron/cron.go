@@ -49,14 +49,14 @@ func (*spec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 type predicate struct {
-	mask    cronmask.CronMask
+	mask    *cronmask.CronMask
 	getTime clock
 }
 
 func (p *predicate) Match(r *http.Request) bool {
 	now := p.getTime()
 
-	return p.mask.Matches(now)
+	return p.mask.Match(now)
 }
 
 func New() routing.PredicateSpec {
