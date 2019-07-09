@@ -659,7 +659,7 @@ func getLogOutput(name string) (io.Writer, error) {
 		return os.Stderr, nil
 	}
 
-	return os.OpenFile(name, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+	return os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 }
 
 func initLog(o Options) error {
