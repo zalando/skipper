@@ -22,7 +22,7 @@ func (s *testingSecretSource) GetSecret() ([][]byte, error) {
 
 func TestEncryptDecrypt(t *testing.T) {
 	enc := &Encrypter{
-		SecSource: &testingSecretSource{secretKey: "abc"},
+		secretSource: &testingSecretSource{secretKey: "abc"},
 	}
 	enc.RefreshCiphers()
 
@@ -45,9 +45,9 @@ func TestCipherRefreshing(t *testing.T) {
 	sleepD := 4 * d
 	SecSource := &testingSecretSource{secretKey: "abc"}
 	enc := &Encrypter{
-		SecSource:  SecSource,
-		Closer:     make(chan struct{}),
-		closedHook: make(chan struct{}),
+		secretSource: SecSource,
+		closer:       make(chan struct{}),
+		closedHook:   make(chan struct{}),
 	}
 	enc.runCipherRefresher(d)
 	time.Sleep(sleepD)

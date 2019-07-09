@@ -15,8 +15,8 @@ import (
 	"golang.org/x/crypto/scrypt"
 )
 
-//secretSource operates on the secret for OpenID
-type secretSource interface {
+// SecretSource
+type SecretSource interface {
 	GetSecret() ([][]byte, error)
 }
 
@@ -44,15 +44,15 @@ func (fss *fileSecretSource) GetSecret() ([][]byte, error) {
 	return byteSecrets, nil
 }
 
-func newFileSecretSource(file string) secretSource {
+func newFileSecretSource(file string) SecretSource {
 	return &fileSecretSource{fileName: file}
 }
 
 type Encrypter struct {
 	cipherSuites []cipher.AEAD
 	mux          sync.RWMutex
-	SecSource    secretSource
-	Closer       chan struct{}
+	secretSource SecretSource
+	closer       chan struct{}
 	closedHook   chan struct{}
 }
 
@@ -63,8 +63,17 @@ func newEncrypter(secretsFile string) (*Encrypter, error) {
 		return nil, fmt.Errorf("failed to read secrets from secret source: %v", err)
 	}
 	return &Encrypter{
-		SecSource: secretSource,
-		Closer:    make(chan struct{}),
+		secretSource: secretSource,
+		closer:       make(chan struct{}),
+	}, nil
+}
+
+// WithSource can be used to create an Encrypter, for example in
+// secrettest for testing purposes.
+func WithSource(s SecretSource) (*Encrypter, error) {
+	return &Encrypter{
+		secretSource: s,
+		closer:       make(chan struct{}),
 	}, nil
 }
 
@@ -114,7 +123,7 @@ func (e *Encrypter) Decrypt(cipherText []byte) ([]byte, error) {
 }
 
 func (e *Encrypter) RefreshCiphers() error {
-	secrets, err := e.SecSource.GetSecret()
+	secrets, err := e.secretSource.GetSecret()
 	if err != nil {
 		return err
 	}
@@ -151,7 +160,7 @@ func (e *Encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 		ticker := time.NewTicker(refreshInterval)
 		for {
 			select {
-			case <-e.Closer:
+			case <-e.closer:
 				if e.closedHook != nil {
 					close(e.closedHook)
 				}
@@ -171,5 +180,5 @@ func (e *Encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 }
 
 func (e *Encrypter) Close() {
-	close(e.Closer)
+	close(e.closer)
 }

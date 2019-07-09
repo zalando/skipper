@@ -24,10 +24,11 @@ func (tr *TestRegistry) NewEncrypter(s string) (secrets.Encryption, error) {
 		return e, nil
 	}
 
-	testEnc := &secrets.Encrypter{
-		SecSource: &TestingSecretSource{secretKey: s},
-		Closer:    make(chan struct{}),
+	testEnc, err := secrets.WithSource(&TestingSecretSource{secretKey: s})
+	if err != nil {
+		return nil, err
 	}
+
 	testEnc.RefreshCiphers()
 
 	tr.encrypterMap[s] = testEnc
