@@ -42,6 +42,7 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
+	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
 )
@@ -520,6 +521,9 @@ type Options struct {
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
 
+	// SecretsRegistry to store and load secretsencrypt
+	SecretsRegistry *secrets.Registry
+
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
 	ApiUsageMonitoringRealmKeys             string
@@ -879,6 +883,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
 	}
 
+	if o.SecretsRegistry == nil {
+		o.SecretsRegistry = secrets.NewRegistry()
+	}
+	defer o.SecretsRegistry.Close()
+
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
 		auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
@@ -890,9 +899,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		auth.NewSecureOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewSecureOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
 		auth.NewWebhook(o.WebhookTimeout),
-		auth.NewOAuthOidcUserInfos(o.OIDCSecretsFile),
-		auth.NewOAuthOidcAnyClaims(o.OIDCSecretsFile),
-		auth.NewOAuthOidcAllClaims(o.OIDCSecretsFile),
+		auth.NewOAuthOidcUserInfos(o.OIDCSecretsFile, o.SecretsRegistry),
+		auth.NewOAuthOidcAnyClaims(o.OIDCSecretsFile, o.SecretsRegistry),
+		auth.NewOAuthOidcAllClaims(o.OIDCSecretsFile, o.SecretsRegistry),
 		apiusagemonitoring.NewApiUsageMonitoring(
 			o.ApiUsageMonitoringEnable,
 			o.ApiUsageMonitoringRealmKeys,

@@ -1,4 +1,4 @@
-package auth
+package secrets
 
 import (
 	"fmt"
@@ -15,24 +15,24 @@ type testingSecretSource struct {
 	secretKey string
 }
 
-func (s *testingSecretSource) getSecret() ([][]byte, error) {
+func (s *testingSecretSource) GetSecret() ([][]byte, error) {
 	s.getCount++
 	return [][]byte{[]byte(s.secretKey)}, nil
 }
 
 func TestEncryptDecrypt(t *testing.T) {
-	enc := &encrypter{
-		sSource: &testingSecretSource{secretKey: "abc"},
+	enc := &Encrypter{
+		secretSource: &testingSecretSource{secretKey: "abc"},
 	}
-	enc.refreshCiphers()
+	enc.RefreshCiphers()
 
 	plaintext := "helloworld"
 	plain := []byte(plaintext)
-	b, err := enc.encryptDataBlock(plain)
+	b, err := enc.Encrypt(plain)
 	if err != nil {
 		t.Errorf("failed to encrypt data block: %v", err)
 	}
-	decenc, err := enc.decryptDataBlock(b)
+	decenc, err := enc.Decrypt(b)
 	if err != nil {
 		t.Errorf("failed to decrypt data block: %v", err)
 	}
@@ -41,20 +41,22 @@ func TestEncryptDecrypt(t *testing.T) {
 	}
 }
 func TestCipherRefreshing(t *testing.T) {
-	sSource := &testingSecretSource{secretKey: "abc"}
-	enc := &encrypter{
-		sSource:    sSource,
-		closer:     make(chan struct{}),
-		closedHook: make(chan struct{}),
+	d := 1 * time.Second
+	sleepD := 4 * d
+	SecSource := &testingSecretSource{secretKey: "abc"}
+	enc := &Encrypter{
+		secretSource: SecSource,
+		closer:       make(chan struct{}),
+		closedHook:   make(chan struct{}),
 	}
-	enc.runCipherRefresher(1 * time.Second)
-	time.Sleep(4 * time.Second)
-	enc.close()
+	enc.runCipherRefresher(d)
+	time.Sleep(sleepD)
+	enc.Close()
 	<-enc.closedHook
-	assert.True(t, sSource.getCount >= 3, "secret fetched less than 3 time in 15 seconds")
+	assert.True(t, SecSource.getCount >= 3, "secret fetched more than 3 times in %s", sleepD)
 }
 
-func Test_getSecret(t *testing.T) {
+func Test_GetSecret(t *testing.T) {
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Errorf("Failed to get CWD: %v", err)
@@ -74,7 +76,7 @@ func Test_getSecret(t *testing.T) {
 		},
 		{
 			name: "secret file that exists",
-			args: fmt.Sprintf("%s/../../skptesting/enckey", wd),
+			args: fmt.Sprintf("%s/../skptesting/enckey", wd),
 			want: [][]byte{
 				[]byte("very secure"),
 			},
@@ -84,13 +86,13 @@ func Test_getSecret(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fss := &fileSecretSource{fileName: tt.args}
-			got, err := fss.getSecret()
+			got, err := fss.GetSecret()
 
 			if (tt.wantErr && err == nil) || (!tt.wantErr && err != nil) {
 				t.Errorf("Got error but does not want an error, or the other way around: wantErr: %v, err: %v", tt.wantErr, err)
 			}
 			if err == nil && !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Failed to getSecret: Want %v, got %v, err %v", tt.want, got, err)
+				t.Errorf("Failed to GetSecret: Want %v, got %v, err %v", tt.want, got, err)
 			}
 		})
 	}
