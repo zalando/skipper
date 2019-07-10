@@ -1235,6 +1235,7 @@ The structure of the metrics is all of those elements, separated by `.` dots:
 |-----------------------------|-------------------------------------------------------------------------------------------------------|
 | `apiUsageMonitoring.custom` | Every filter metrics starts with the name of the filter followed by `custom`. This part is constant.  |
 | Application ID              | Identifier of the application, configured in the filter under `app_id`.                               |
+| Tag                         | Tag of the application (e.g. staging), configured in the filter under `tag`.                               |
 | API ID                      | Identifier of the API, configured in the filter under `api_id`.                                       |
 | Method                      | The request's method (verb), capitalized (ex: `GET`, `POST`, `PUT`, `DELETE`).                        |
 | Path                        | The request's path, in the form of the path template configured in the filter under `path_templates`. |
@@ -1251,12 +1252,12 @@ Those metrics are not identifying the realm and client. They always have `*` in 
 Example:
 
 ```
-                                                                             + Realm
-                                                                             |
-apiUsageMonitoring.custom.orders-backend.orders-api.GET.foo/orders/{order-id}.*.*.http_count
-                                                                               | |
-                                                                               | + Metric Name
-                                                                               + Client
+                                                                                     + Realm
+                                                                                     |
+apiUsageMonitoring.custom.orders-backend.staging.orders-api.GET.foo/orders/{order-id}.*.*.http_count
+                                                                                       | |
+                                                                                       | + Metric Name
+                                                                                       + Client
 ```
 
 The available metrics are:
@@ -1278,13 +1279,13 @@ Those metrics are not identifying endpoint (path) and HTTP verb. They always hav
 Example:
 
 ```
-                                                    + HTTP Verb
-                                                    | + Path Template     + Metric Name
-                                                    | |                   |
-apiUsageMonitoring.custom.orders-backend.orders-api.*.*.users.mmustermann.http_count
-                                                        |     |
-                                                        |     + Client
-                                                        + Realm
+                                                            + HTTP Verb
+                                                            | + Path Template     + Metric Name
+                                                            | |                   |
+apiUsageMonitoring.custom.orders-backend.staging.orders-api.*.*.users.mmustermann.http_count
+                                                                |     |
+                                                                |     + Client
+                                                                + Realm
 ```
 
 The available metrics are:
@@ -1317,6 +1318,10 @@ api-usage-monitoring-configuration:
       type: string
       description: ID of the application
       example: order-service
+    tag:
+      type: string
+      description: tag of the application
+      example: staging
     api_id:
       type: string
       description: ID of the API
@@ -1354,6 +1359,7 @@ Configuration Example:
 apiUsageMonitoring(`
     {
         "application_id": "my-app",
+        "tag": "staging",
         "api_id": "orders-api",
         "path_templates": [
             "foo/orders",
@@ -1375,28 +1381,34 @@ apiUsageMonitoring(`
 Based on the previous configuration, here is an example of a counter metric.
 
 ```
-apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/{order-id}.*.*.http_count
+apiUsageMonitoring.custom.my-app.staging.orders-api.GET.foo/orders/{order-id}.*.*.http_count
+```
+
+Note that a missing `tag` in the configuration will be replaced by `{no-tag}` in the metric: 
+
+```
+apiUsageMonitoring.custom.my-app.{no-tag}.customers-api.GET.foo/customers.*.*.http_count
 ```
 
 Here is the _Prometheus_ query to obtain it.
 
 ```
-sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.orders-api.GET.foo/orders/{order-id}.*.*.http_count"}[60s])) by (key)
+sum(rate(skipper_custom_total{key="apiUsageMonitoring.custom.my-app.staging.orders-api.GET.foo/orders/{order-id}.*.*.http_count"}[60s])) by (key)
 ```
 
 Here is an example of a histogram metric.
 
 ```
-apiUsageMonitoring.custom.my_app.orders-api.POST.foo/orders.latency
+apiUsageMonitoring.custom.my_app.staging.orders-api.POST.foo/orders.latency
 ```
 
 Here is the _Prometheus_ query to obtain it.
 
 ```
-histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.orders-api.POST.foo/orders.*.*.latency"}[60s])) by (le, key))
+histogram_quantile(0.5, sum(rate(skipper_custom_duration_seconds_bucket{key="apiUsageMonitoring.custom.my-app.staging.orders-api.POST.foo/orders.*.*.latency"}[60s])) by (le, key))
 ```
 
-NOTE: Non configured paths will be tracked with `{unknown}` application ID, API ID
+NOTE: Non configured paths will be tracked with `{unknown}` Application ID, Tag, API ID
 and path template.
 
 However, if all `application_id`s of your configuration refer to the same application,
@@ -1404,7 +1416,7 @@ the filter assume that also non configured paths will be directed to this applic
 E.g.:
 
 ```
-apiUsageMonitoring.custom.my-app.{unknown}.GET.{no-match}.*.*.http_count
+apiUsageMonitoring.custom.my-app.{unknown}.{unknown}.GET.{no-match}.*.*.http_count
 ```
 
 ## lifo

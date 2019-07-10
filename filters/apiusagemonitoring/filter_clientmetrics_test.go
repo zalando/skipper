@@ -44,7 +44,7 @@ func Test_Filter_ClientMetrics_ClientTrackingPatternDoesNotCompile(t *testing.T)
 		realmsTrackingPattern:        "service",
 		clientTrackingPattern:        s("(["),
 		header:                       headerUsersJoe,
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
 		expectedClientMetricPrefix:   "", // expecting no metrics
 	})
 }
@@ -57,8 +57,8 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsKnown(t *testing.T) {
 		realmsTrackingPattern:        "services",
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.{unknown}.GET.{no-match}.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.{unknown}.*.*.users.{all}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.{unknown}.{unknown}.GET.{no-match}.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.{unknown}.{unknown}.*.*.users.{all}.",
 	})
 }
 
@@ -69,8 +69,8 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsUnknown(t *testing.T) {
 		clientTrackingPattern:        s(".*"),
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.{unknown}.GET.{no-match}.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.{unknown}.*.*.{unknown}.{unknown}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.{unknown}.{unknown}.GET.{no-match}.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.{unknown}.{unknown}.*.*.{unknown}.{unknown}.",
 	})
 }
 
@@ -80,8 +80,8 @@ func Test_Filter_ClientMetrics_MatchAll(t *testing.T) {
 		clientKeyName:                "client",
 		clientTrackingPattern:        s(".*"),
 		header:                       headerUsersJoe,
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.joe.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.users.joe.",
 		realmsTrackingPattern:        "users",
 	})
 }
@@ -99,8 +99,8 @@ func Test_Filter_ClientMetrics_MatchOneOfClientKeyName(t *testing.T) {
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.services.payments.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.services.payments.",
 		realmsTrackingPattern:        "services",
 	})
 }
@@ -120,8 +120,8 @@ func Test_Filter_ClientMetrics_MatchOneOfClientKeyName_UseFirstMatching(t *testi
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.services.but_I_should_come_first.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.services.but_I_should_come_first.",
 	})
 }
 
@@ -132,8 +132,8 @@ func Test_Filter_ClientMetrics_Realm1User1(t *testing.T) {
 		realmsTrackingPattern:        "users",
 		clientTrackingPattern:        clientTrackingPatternJustSomeUsers,
 		header:                       headerUsersJoe,
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.joe.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.users.joe.",
 	})
 }
 
@@ -151,8 +151,8 @@ func Test_Filter_ClientMetrics_Realm1User0(t *testing.T) {
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.{no-match}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.users.{no-match}.",
 	})
 }
 
@@ -170,8 +170,8 @@ func Test_Filter_ClientMetrics_Realm0User1(t *testing.T) {
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.nobodies.{all}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.nobodies.{all}.",
 	})
 }
 
@@ -189,8 +189,8 @@ func Test_Filter_ClientMetrics_Realm0User0(t *testing.T) {
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.nobodies.{all}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.nobodies.{all}.",
 	})
 }
 
@@ -208,8 +208,8 @@ func Test_Filter_ClientMetrics_AuthDoesNotHaveBearerPrefix(t *testing.T) {
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.{unknown}.{unknown}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.{unknown}.{unknown}.",
 	})
 }
 
@@ -221,8 +221,8 @@ func Test_Filter_ClientMetrics_NoAuthHeader(t *testing.T) {
 		header:                http.Header{
 			/* no Authorization header */
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.{unknown}.{unknown}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.{unknown}.{unknown}.",
 	})
 }
 
@@ -236,8 +236,8 @@ func Test_Filter_ClientMetrics_JWTIsNot3DotSeparatedString(t *testing.T) {
 				"Bearer " + "foo",
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.{unknown}.{unknown}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.{unknown}.{unknown}.",
 	})
 }
 
@@ -251,8 +251,8 @@ func Test_Filter_ClientMetrics_JWTIsNotBase64Encoded(t *testing.T) {
 				"Bearer " + "there&is.no&way.this&is&base64",
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.{unknown}.{unknown}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.{unknown}.{unknown}.",
 	})
 }
 
@@ -267,8 +267,8 @@ func Test_Filter_ClientMetrics_JWTBodyIsNoJSON(t *testing.T) {
 				"Bearer " + "header." + body + ".signature",
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.{unknown}.{unknown}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.{unknown}.{unknown}.",
 	})
 }
 
@@ -285,8 +285,8 @@ func Test_Filter_ClientMetrics_JWTBodyHasNoRealm(t *testing.T) {
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.{unknown}.{unknown}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.{unknown}.{unknown}.",
 	})
 }
 
@@ -304,8 +304,8 @@ func Test_Filter_ClientMetrics_JWTBodyHasNoClient_ShouldTrackRealm(t *testing.T)
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.{unknown}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.users.{unknown}.",
 	})
 }
 
@@ -315,7 +315,7 @@ func Test_Filter_ClientMetrics_NoFlagRealmKeyName(t *testing.T) {
 		clientKeyName:                "client",
 		clientTrackingPattern:        clientTrackingPatternJustSomeUsers,
 		header:                       headerUsersJoe,
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
 		expectedClientMetricPrefix:   "", // expecting no metrics
 	})
 }
@@ -326,7 +326,7 @@ func Test_Filter_ClientMetrics_NoFlagClientKeyName(t *testing.T) {
 		clientKeyName:                "", // no client ID key name CLI flag
 		clientTrackingPattern:        clientTrackingPatternJustSomeUsers,
 		header:                       headerUsersJoe,
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
 		expectedClientMetricPrefix:   "", // expecting no metrics
 	})
 }
@@ -345,8 +345,8 @@ func Test_Filter_ClientMetrics_DefaultClientTrackingPattern_NoClientTrackingPatt
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.users.{all}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.users.{all}.",
 	})
 }
 
@@ -364,8 +364,8 @@ func Test_Filter_ClientMetrics_DefaultClientTrackingPattern_NoClientTrackingPatt
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_api.*.*.services.my_app.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.my_tag.my_api.*.*.services.my_app.",
 	})
 }
 
@@ -383,14 +383,14 @@ func Test_Filter_ClientMetrics_EmptyClientTrackingPatternInRouteFilterJSON(t *te
 				}),
 			},
 		},
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_api.GET.foo/orders.*.*.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.my_tag.my_api.GET.foo/orders.*.*.",
 		expectedClientMetricPrefix:   "",
 	})
 }
 
 // may produce false-negatives
 func Test_Filter_ClientMetricsCache_ConcurrentAccess(t *testing.T) {
-	pathInfo := newPathInfo("application_id", "api_id", "orders", "orders",
+	pathInfo := newPathInfo("application_id", "tag", "api_id", "orders", "orders",
 		&clientTrackingInfo{RealmsTrackingMatcher: regexp.MustCompile("services"), ClientTrackingMatcher: regexp.MustCompile(`.*`)})
 
 	concurrencyLevel := 500

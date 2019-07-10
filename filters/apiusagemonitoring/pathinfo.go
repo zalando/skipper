@@ -3,12 +3,14 @@ package apiusagemonitoring
 import (
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 )
 
 // pathInfo contains the tracking information for a specific path.
 type pathInfo struct {
 	ApplicationId  string
+	Tag            string
 	ApiId          string
 	PathTemplate   string
 	PathLabel      string
@@ -21,10 +23,22 @@ type pathInfo struct {
 	metricPrefixedPerClient sync.Map
 }
 
-func newPathInfo(applicationId, apiId, pathTemplate string, pathLabel string, clientTracking *clientTrackingInfo) *pathInfo {
-	commonPrefix := applicationId + "." + apiId + "."
+func newPathInfo(applicationId, tag, apiId, pathTemplate, pathLabel string, clientTracking *clientTrackingInfo) *pathInfo {
+	if strings.Contains(applicationId, ":") {
+		//can be removed after feature toggle is enabled on monitoring controller
+		split := strings.Split(applicationId, ":")
+		applicationId = split[0]
+		tag = split[1]
+	}
+
+	if tag == "" {
+		tag = noTagPlaceholder
+	}
+
+	commonPrefix := applicationId + "." + tag + "." + apiId + "."
 	return &pathInfo{
 		ApplicationId:           applicationId,
+		Tag:                     tag,
 		ApiId:                   apiId,
 		PathTemplate:            pathTemplate,
 		PathLabel:               pathLabel,

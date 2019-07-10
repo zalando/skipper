@@ -2,11 +2,13 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
-	"github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/filters"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+
+	"github.com/zalando/skipper/filters"
 )
 
 const (
@@ -14,6 +16,7 @@ const (
 
 	unknownPlaceholder = "{unknown}"
 	noMatchPlaceholder = "{no-match}"
+	noTagPlaceholder   = "{no-tag}"
 
 	regexUrlPathPart     = `.+`
 	regexOptionalSlashes = `\/*`
@@ -75,6 +78,7 @@ func NewApiUsageMonitoring(
 	unknownPath := newPathInfo(
 		unknownPlaceholder,
 		unknownPlaceholder,
+		unknownPlaceholder,
 		noMatchPlaceholder,
 		noMatchPlaceholder,
 		unknownPathClientTracking,
@@ -93,6 +97,7 @@ func NewApiUsageMonitoring(
 // apiConfig is the structure used to parse the parameters of the filter.
 type apiConfig struct {
 	ApplicationId         string   `json:"application_id"`
+	Tag                   string   `json:"tag"`
 	ApiId                 string   `json:"api_id"`
 	PathTemplates         []string `json:"path_templates"`
 	ClientTrackingPattern string   `json:"client_tracking_pattern"`
@@ -161,6 +166,7 @@ func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(paths []*pathInfo) *pathIn
 	if applicationId != nil && *applicationId != "" {
 		return newPathInfo(
 			*applicationId,
+			s.unknownPath.Tag,
 			s.unknownPath.ApiId,
 			s.unknownPath.PathLabel,
 			s.unknownPath.PathTemplate,
@@ -209,7 +215,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			normalisedPathTemplate, regExStr, pathLabel := generateRegExpStringForPathTemplate(template)
 
 			// Create new `pathInfo` with normalized PathTemplate
-			info := newPathInfo(applicationId, apiId, normalisedPathTemplate, pathLabel, clientTrackingInfo)
+			info := newPathInfo(applicationId, api.Tag, apiId, normalisedPathTemplate, pathLabel, clientTrackingInfo)
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {
