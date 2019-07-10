@@ -16,6 +16,7 @@ import (
 
 var defaultArgs = []interface{}{`{
 		"application_id": "my_app",
+		"tag": "my_tag",
 		"api_id": "my_api",
 	  	"path_templates": [
 			"foo/orders",
