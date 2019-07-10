@@ -9,6 +9,7 @@ import (
 // pathInfo contains the tracking information for a specific path.
 type pathInfo struct {
 	ApplicationId  string
+	Tag            string
 	ApiId          string
 	PathTemplate   string
 	PathLabel      string
@@ -21,10 +22,15 @@ type pathInfo struct {
 	metricPrefixedPerClient sync.Map
 }
 
-func newPathInfo(applicationId, apiId, pathTemplate string, pathLabel string, clientTracking *clientTrackingInfo) *pathInfo {
-	commonPrefix := applicationId + "." + apiId + "."
+func newPathInfo(applicationId, tag, apiId, pathTemplate, pathLabel string, clientTracking *clientTrackingInfo) *pathInfo {
+	commonPrefix := applicationId + "." + tag + "." + apiId + "."
+	if tag == "" {
+		//can be removed after roll-out of skipper and feature toggle in monitoring controller
+		commonPrefix = applicationId + "." + apiId + "."
+	}
 	return &pathInfo{
 		ApplicationId:           applicationId,
+		Tag:                     tag,
 		ApiId:                   apiId,
 		PathTemplate:            pathTemplate,
 		PathLabel:               pathLabel,

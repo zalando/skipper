@@ -390,7 +390,7 @@ func Test_Filter_ClientMetrics_EmptyClientTrackingPatternInRouteFilterJSON(t *te
 
 // may produce false-negatives
 func Test_Filter_ClientMetricsCache_ConcurrentAccess(t *testing.T) {
-	pathInfo := newPathInfo("application_id", "api_id", "orders", "orders",
+	pathInfo := newPathInfo("application_id", "tag", "api_id", "orders", "orders",
 		&clientTrackingInfo{RealmsTrackingMatcher: regexp.MustCompile("services"), ClientTrackingMatcher: regexp.MustCompile(`.*`)})
 
 	concurrencyLevel := 500

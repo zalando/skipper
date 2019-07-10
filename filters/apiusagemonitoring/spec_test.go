@@ -1,8 +1,9 @@
 package apiusagemonitoring
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_CreateSpec(t *testing.T) {
@@ -36,15 +37,17 @@ func assertApiUsageMonitoringFilter(t *testing.T, filterArgs []interface{}, asse
 
 type pathMatcher struct {
 	ApplicationId string
+	Tag           string
 	ApiId         string
 	PathTemplate  string
 	Matcher       *string
 }
 
-func unknownPath(applicationId string) pathMatcher {
+func unknownPath(applicationId string, tag string) pathMatcher {
 	return pathMatcher{
 		PathTemplate:  "{no-match}",
 		ApplicationId: applicationId,
+		Tag:           tag,
 		ApiId:         "{unknown}",
 		Matcher:       nil,
 	}
@@ -57,6 +60,7 @@ func matcher(matcher string) *string {
 func assertPath(t *testing.T, actualPath *pathInfo, expectedPath pathMatcher) {
 	assert.Equalf(t, expectedPath.ApiId, actualPath.ApiId, "AppId")
 	assert.Equalf(t, expectedPath.ApplicationId, actualPath.ApplicationId, "ApplicationId")
+	assert.Equalf(t, expectedPath.Tag, actualPath.Tag, "tag")
 	assert.Equalf(t, expectedPath.PathTemplate, actualPath.PathTemplate, "PathTemplate")
 	if expectedPath.Matcher != nil {
 		assert.Equalf(t, *expectedPath.Matcher, actualPath.Matcher.String(), "Matcher")
@@ -71,6 +75,7 @@ func assertPaths(t *testing.T, paths []*pathInfo, expectedPaths []pathMatcher) {
 		expected := expectedPaths[i]
 		assert.Equalf(t, expected.ApiId, actual.ApiId, "AppId[%d]", i)
 		assert.Equalf(t, expected.ApplicationId, actual.ApplicationId, "ApplicationId[%d]", i)
+		assert.Equalf(t, expected.Tag, actual.Tag, "tag[%d]", i)
 		assert.Equalf(t, expected.PathTemplate, actual.PathTemplate, "PathTemplate[%d]", i)
 		if expected.Matcher != nil {
 			assert.Equalf(t, *expected.Matcher, actual.Matcher.String(), "Matcher[%d]", i)
@@ -199,7 +204,7 @@ func Test_CreateFilter_NonParsableParametersShouldBeLoggedAndIgnored(t *testing.
 				Matcher:       matcher("^\\/*test\\/*$"),
 			},
 		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+		assertPath(t, filter.UnknownPath, unknownPath("my_app", ""))
 	})
 }
 
@@ -211,6 +216,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 	//   - with/without head/trailing slash
 	args := []interface{}{`{
 		"application_id": "my_app",
+        "tag": "staging",
 		"api_id": "my_api",
 		"path_templates": [
 			"foo/orders",
@@ -224,36 +230,41 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 		assertPaths(t, filter.Paths, []pathMatcher{
 			{
 				ApplicationId: "my_app",
+				Tag:           "staging",
 				ApiId:         "my_api",
 				PathTemplate:  "foo/orders/:order-id/order_item/:order-item-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/order_item\\/.+\\/*$"),
 			},
 			{
 				ApplicationId: "my_app",
+				Tag:           "staging",
 				ApiId:         "my_api",
 				PathTemplate:  "foo/orders/:order-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/*$"),
 			},
 			{
 				ApplicationId: "my_app",
+				Tag:           "staging",
 				ApiId:         "my_api",
 				PathTemplate:  "foo/orders",
 				Matcher:       matcher("^\\/*foo\\/orders\\/*$"),
 			},
 			{
 				ApplicationId: "my_app",
+				Tag:           "staging",
 				ApiId:         "my_api",
 				PathTemplate:  "foo/customers/:customer-id",
 				Matcher:       matcher("^\\/*foo\\/customers\\/.+\\/*$"),
 			},
 			{
 				ApplicationId: "my_app",
+				Tag:           "staging",
 				ApiId:         "my_api",
 				PathTemplate:  "foo/customers",
 				Matcher:       matcher("^\\/*foo\\/customers\\/*$"),
 			},
 		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+		assertPath(t, filter.UnknownPath, unknownPath("my_app", "staging"))
 	})
 }
 
@@ -337,7 +348,7 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 				Matcher:       matcher("^\\/*foo\\/customers\\/*$"),
 			},
 		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+		assertPath(t, filter.UnknownPath, unknownPath("my_app", ""))
 	})
 }
 
@@ -347,12 +358,14 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 	// be accepted.
 	args := []interface{}{`{
 			"application_id": "my_order_app",
+			"tag": "staging",
 			"api_id": "orders_api",
 			"path_templates": [
 				"foo/orders",
 				"foo/orders/:order-id",
 				"foo/orders/:order-id/order_item/{order-item-id}"
-			]
+			],
+            "context": { "deployment_id": "1", "trace": { "trace_id": "id" }}
 		}`, `{
 			"application_id": "my_customer_app",
 			"api_id": "customers_api",
@@ -363,24 +376,27 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 		assertPaths(t, filter.Paths, []pathMatcher{
 			{
 				ApplicationId: "my_order_app",
+				Tag:           "staging",
 				ApiId:         "orders_api",
 				PathTemplate:  "foo/orders/:order-id/order_item/:order-item-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/order_item\\/.+\\/*$"),
 			},
 			{
 				ApplicationId: "my_order_app",
+				Tag:           "staging",
 				ApiId:         "orders_api",
 				PathTemplate:  "foo/orders/:order-id",
 				Matcher:       matcher("^\\/*foo\\/orders\\/.+\\/*$"),
 			},
 			{
 				ApplicationId: "my_order_app",
+				Tag:           "staging",
 				ApiId:         "orders_api",
 				PathTemplate:  "foo/orders",
 				Matcher:       matcher("^\\/*foo\\/orders\\/*$"),
 			},
 		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_order_app"))
+		assertPath(t, filter.UnknownPath, unknownPath("my_order_app", "staging"))
 	})
 }
 
@@ -404,7 +420,7 @@ func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 				Matcher:       matcher("^\\/*foo\\/*$"),
 			},
 		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+		assertPath(t, filter.UnknownPath, unknownPath("my_app", ""))
 	})
 }
 
@@ -427,7 +443,7 @@ func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 				Matcher:       matcher("^\\/*foo\\/.+\\/*$"),
 			},
 		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+		assertPath(t, filter.UnknownPath, unknownPath("my_app", ""))
 	})
 }
 
@@ -442,6 +458,6 @@ func Test_CreateFilter_RegExCompileFailureIgnoresPath(t *testing.T) {
 	}`}
 	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
 		assert.Equal(t, 1, len(filter.Paths))
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+		assertPath(t, filter.UnknownPath, unknownPath("my_app", ""))
 	})
 }

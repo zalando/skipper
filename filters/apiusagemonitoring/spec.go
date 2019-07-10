@@ -2,11 +2,13 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
-	"github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/filters"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+
+	"github.com/zalando/skipper/filters"
 )
 
 const (
@@ -75,6 +77,7 @@ func NewApiUsageMonitoring(
 	unknownPath := newPathInfo(
 		unknownPlaceholder,
 		unknownPlaceholder,
+		unknownPlaceholder,
 		noMatchPlaceholder,
 		noMatchPlaceholder,
 		unknownPathClientTracking,
@@ -92,10 +95,17 @@ func NewApiUsageMonitoring(
 
 // apiConfig is the structure used to parse the parameters of the filter.
 type apiConfig struct {
-	ApplicationId         string   `json:"application_id"`
-	ApiId                 string   `json:"api_id"`
-	PathTemplates         []string `json:"path_templates"`
-	ClientTrackingPattern string   `json:"client_tracking_pattern"`
+	ApplicationId         string           `json:"application_id"`
+	Tag                   string           `json:"tag"`
+	ApiId                 string           `json:"api_id"`
+	PathTemplates         []string         `json:"path_templates"`
+	ClientTrackingPattern string           `json:"client_tracking_pattern"`
+	Context               apiConfigContext `json:"context"`
+}
+
+type apiConfigContext struct {
+	Trace        map[string]string `json:"trace"`
+	DeploymentId string            `json:"deployment_id"`
 }
 
 type apiUsageMonitoringSpec struct {
@@ -103,6 +113,15 @@ type apiUsageMonitoringSpec struct {
 	clientKeys            []string
 	realmsTrackingMatcher *regexp.Regexp
 	unknownPath           *pathInfo
+}
+
+type applicationAndTag struct {
+	applicationId string
+	tag           string
+}
+
+func (a applicationAndTag) Equal(info *pathInfo) bool {
+	return a.applicationId == info.ApplicationId && a.tag == info.Tag
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
@@ -150,17 +169,21 @@ func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*a
 }
 
 func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(paths []*pathInfo) *pathInfo {
-	var applicationId *string
+	var application *applicationAndTag
 	for _, path := range paths {
-		if applicationId != nil && *applicationId != path.ApplicationId {
+		if application != nil && !application.Equal(path) {
 			return s.unknownPath
 		}
-		applicationId = &path.ApplicationId
+		application = &applicationAndTag{
+			applicationId: path.ApplicationId,
+			tag:           path.Tag,
+		}
 	}
 
-	if applicationId != nil && *applicationId != "" {
+	if application != nil && application.applicationId != "" {
 		return newPathInfo(
-			*applicationId,
+			application.applicationId,
+			application.tag,
 			s.unknownPath.ApiId,
 			s.unknownPath.PathLabel,
 			s.unknownPath.PathTemplate,
@@ -209,7 +232,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			normalisedPathTemplate, regExStr, pathLabel := generateRegExpStringForPathTemplate(template)
 
 			// Create new `pathInfo` with normalized PathTemplate
-			info := newPathInfo(applicationId, apiId, normalisedPathTemplate, pathLabel, clientTrackingInfo)
+			info := newPathInfo(applicationId, api.Tag, apiId, normalisedPathTemplate, pathLabel, clientTrackingInfo)
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {
