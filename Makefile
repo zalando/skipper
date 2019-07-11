@@ -181,25 +181,14 @@ publish-coverage: .coverprofile-all
 	curl -s https://codecov.io/bash -o codecov
 	bash codecov -f .coverprofile-all
 
-tag:
-	echo "git tag $(VERSION)"
-
 release-major:
-	make VERSION=$(NEXT_MAJOR) tag
+	echo $(NEXT_MAJOR)
 
 release-minor:
-	make VERSION=$(NEXT_MINOR) tag
+	echo $(NEXT_MINOR)
 
 release-patch:
-	make VERSION=$(NEXT_PATCH) tag
-
-#ci-user:
-#	git config --global user.email "builds@travis-ci.com"
-#	git config --global user.name "Travis CI"
-#
-#ci-release-major: ci-user deps release-major
-#ci-release-minor: ci-user deps release-minor
-#ci-release-patch: ci-user deps release-patch
+	echo $(NEXT_PATCH)
 
 ci-trigger:
 ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)
