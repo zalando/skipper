@@ -181,36 +181,22 @@ publish-coverage: .coverprofile-all
 	curl -s https://codecov.io/bash -o codecov
 	bash codecov -f .coverprofile-all
 
-tag:
-	git tag $(VERSION)
-
-push-tags:
-	git push --tags https://$(GITHUB_AUTH)@github.com/zalando/skipper
-
 release-major:
-	make VERSION=$(NEXT_MAJOR) tag push-tags
+	echo $(NEXT_MAJOR)
 
 release-minor:
-	make VERSION=$(NEXT_MINOR) tag push-tags
+	echo $(NEXT_MINOR)
 
 release-patch:
-	make VERSION=$(NEXT_PATCH) tag push-tags
-
-ci-user:
-	git config --global user.email "builds@travis-ci.com"
-	git config --global user.name "Travis CI"
-
-ci-release-major: ci-user deps release-major
-ci-release-minor: ci-user deps release-minor
-ci-release-patch: ci-user deps release-patch
+	echo $(NEXT_PATCH)
 
 ci-trigger:
 ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)
-	make deps publish-coverage ci-release-major
+	make deps publish-coverage
 else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring minor-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_minor-release)
-	make deps publish-coverage ci-release-minor
+	make deps publish-coverage
 else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
-	make deps publish-coverage ci-release-patch
+	make deps publish-coverage
 else ifeq ($(TRAVIS_BRANCH), master)
 	make deps check-precommit
 else
