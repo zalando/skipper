@@ -182,13 +182,13 @@ publish-coverage: .coverprofile-all
 	bash codecov -f .coverprofile-all
 
 release-major:
-	echo $(NEXT_MAJOR)
+	@echo $(NEXT_MAJOR)
 
 release-minor:
-	echo $(NEXT_MINOR)
+	@echo $(NEXT_MINOR)
 
 release-patch:
-	echo $(NEXT_PATCH)
+	@echo $(NEXT_PATCH)
 
 ci-trigger:
 ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)
