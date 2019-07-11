@@ -47,5 +47,5 @@ build.package: build.linux build.osx build.windows
 	tar --transform 's,^\.,skipper-$(VERSION)-linux-arm7,' -C build/linux_arm7 -czvf skipper-$(VERSION)-linux-arm7.tar.gz .
 	tar --transform 's,^\.,skipper-$(VERSION)-osx-amd64,' -C build/osx -czvf skipper-$(VERSION)-osx-amd64.tar.gz .
 	tar --transform 's,^\.,skipper-$(VERSION)-windows-amd64,' -C build/windows -czvf skipper-$(VERSION)-windows-amd64.tar.gz .
-	for f in *.tar.gz; do sha256sum $f >> sha256sum.txt
+	for f in *.tar.gz; do sha256sum $f >> sha256sum.txt; done
 
