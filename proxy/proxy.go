@@ -897,6 +897,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			return nil, &proxyError{err: cerr, code: 499}
 		}
 
+		p.log.Errorf("Unexpected error from Go stdlib net/http package during roundtrip: %v", err)
 		return nil, &proxyError{err: err}
 	}
 	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
