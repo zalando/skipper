@@ -316,7 +316,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 					"foo/:a/:b/:c"
 				]
 			}`}
-		spec := NewApiUsageMonitoring(true, "", "", "")
+		spec := NewApiUsageMonitoring(true, "", "", "", nil)
 		return spec.CreateFilter(args)
 	}
 	for _, c := range []struct {
@@ -367,7 +367,7 @@ func Test_Filter_PathTemplateMatchesPathFromRequestChain(t *testing.T) {
 					"bar/:a"
 				]
 			}`}
-		spec := NewApiUsageMonitoring(true, "", "", "")
+		spec := NewApiUsageMonitoring(true, "", "", "", nil)
 		return spec.CreateFilter(args)
 	}
 	for _, c := range []struct {

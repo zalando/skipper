@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/filters"
@@ -34,6 +35,7 @@ func NewApiUsageMonitoring(
 	realmKeys string,
 	clientKeys string,
 	realmsTrackingPattern string,
+	tracer opentracing.Tracer,
 ) filters.Spec {
 	if !enabled {
 		log.Debugf("filter %q is not enabled. spec returns `noop` filters.", Name)
@@ -88,6 +90,7 @@ func NewApiUsageMonitoring(
 		clientKeys:            clientKeyList,
 		unknownPath:           unknownPath,
 		realmsTrackingMatcher: realmsTrackingMatcher,
+		tracer:                tracer,
 	}
 	log.Debugf("created filter spec: %+v", spec)
 	return spec
@@ -104,8 +107,9 @@ type apiConfig struct {
 }
 
 type apiConfigContext struct {
-	Trace        map[string]string `json:"trace"`
-	DeploymentId string            `json:"deployment_id"`
+	Trace map[string]string `json:"trace"`
+	//just for debugging
+	DeploymentId string `json:"deployment_id"`
 }
 
 type apiUsageMonitoringSpec struct {
@@ -113,6 +117,7 @@ type apiUsageMonitoringSpec struct {
 	clientKeys            []string
 	realmsTrackingMatcher *regexp.Regexp
 	unknownPath           *pathInfo
+	tracer                opentracing.Tracer
 }
 
 type applicationAndTag struct {
@@ -130,6 +135,7 @@ func (s *apiUsageMonitoringSpec) Name() string {
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
 	apis := s.parseJsonConfiguration(args)
+	s.finishSpans(apis)
 	paths := s.buildPathInfoListFromConfiguration(apis)
 
 	if len(paths) == 0 {
@@ -190,6 +196,20 @@ func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(paths []*pathInfo) *pathIn
 			s.unknownPath.ClientTracking)
 	}
 	return s.unknownPath
+}
+
+func (s *apiUsageMonitoringSpec) finishSpans(apis []*apiConfig) {
+	for _, api := range apis {
+		if len(api.Context.Trace) > 0 {
+			context, err := s.tracer.Extract(opentracing.TextMap, opentracing.TextMapCarrier(api.Context.Trace))
+
+			if err != nil {
+				log.Errorf("cannot extract context from context: %v", api.Context.Trace)
+			} else {
+				s.tracer.StartSpan("route created", opentracing.FollowsFrom(context)).Finish()
+			}
+		}
+	}
 }
 
 func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {

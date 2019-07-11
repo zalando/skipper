@@ -3,11 +3,12 @@ package apiusagemonitoring
 import (
 	"testing"
 
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_CreateSpec(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "realm", "    abc,def, ,ghi,xyz   ", "")
+	spec := NewApiUsageMonitoring(true, "realm", "    abc,def, ,ghi,xyz   ", "", nil)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 	if assert.IsType(t, new(apiUsageMonitoringSpec), spec) {
 		s := spec.(*apiUsageMonitoringSpec)
@@ -18,20 +19,22 @@ func Test_CreateSpec(t *testing.T) {
 }
 
 func Test_FeatureDisableCreateNilFilters(t *testing.T) {
-	spec := NewApiUsageMonitoring(false, "", "", "")
+	spec := NewApiUsageMonitoring(false, "", "", "", nil)
 	assert.IsType(t, &noopSpec{}, spec)
 	filter, err := spec.CreateFilter([]interface{}{})
 	assert.NoError(t, err)
 	assert.Equal(t, filter, &noopFilter{})
 }
 
-func assertApiUsageMonitoringFilter(t *testing.T, filterArgs []interface{}, asserter func(t *testing.T, filter *apiUsageMonitoringFilter)) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+func assertApiUsageMonitoringFilter(t *testing.T, filterArgs []interface{},
+	asserter func(t *testing.T, filter *apiUsageMonitoringFilter, tracer *mocktracer.MockTracer)) {
+	tracer := mocktracer.New()
+	spec := NewApiUsageMonitoring(true, "", "", "", tracer)
 	filter, err := spec.CreateFilter(filterArgs)
 	assert.NoError(t, err)
 	assert.NotNil(t, filter)
 	if assert.IsType(t, &apiUsageMonitoringFilter{}, filter) {
-		asserter(t, filter.(*apiUsageMonitoringFilter))
+		asserter(t, filter.(*apiUsageMonitoringFilter), tracer)
 	}
 }
 
@@ -84,7 +87,7 @@ func assertPaths(t *testing.T, paths []*pathInfo, expectedPaths []pathMatcher) {
 }
 
 func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
-	spec := NewApiUsageMonitoring(false, "", "", "")
+	spec := NewApiUsageMonitoring(false, "", "", "", nil)
 	assert.Equal(t, "apiUsageMonitoring", spec.Name())
 
 	filter, err := spec.CreateFilter([]interface{}{})
@@ -94,7 +97,7 @@ func Test_FeatureNotEnabled_TypeNameAndCreatedFilterAreRight(t *testing.T) {
 }
 
 func Test_CreateFilter_NoParam_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	filter, err := spec.CreateFilter([]interface{}{})
 
@@ -103,7 +106,7 @@ func Test_CreateFilter_NoParam_ShouldReturnNoopFilter(t *testing.T) {
 }
 
 func Test_CreateFilter_EmptyString_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	filter, err := spec.CreateFilter([]interface{}{""})
 
@@ -112,7 +115,7 @@ func Test_CreateFilter_EmptyString_ShouldReturnNoopFilter(t *testing.T) {
 }
 
 func Test_CreateFilter_NotAString_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	filter, err := spec.CreateFilter([]interface{}{1234})
 
@@ -121,7 +124,7 @@ func Test_CreateFilter_NotAString_ShouldReturnNoopFilter(t *testing.T) {
 }
 
 func Test_CreateFilter_NotJson_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	filter, err := spec.CreateFilter([]interface{}{"I am not JSON"})
 
@@ -130,7 +133,7 @@ func Test_CreateFilter_NotJson_ShouldReturnNoopFilter(t *testing.T) {
 }
 
 func Test_CreateFilter_EmptyJson_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	filter, err := spec.CreateFilter([]interface{}{"{}"})
 
@@ -139,7 +142,7 @@ func Test_CreateFilter_EmptyJson_ShouldReturnNoopFilter(t *testing.T) {
 }
 
 func Test_CreateFilter_NoPathTemplate_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "app",
@@ -152,7 +155,7 @@ func Test_CreateFilter_NoPathTemplate_ShouldReturnNoopFilter(t *testing.T) {
 }
 
 func Test_CreateFilter_EmptyPathTemplate_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "my_app",
@@ -167,7 +170,7 @@ func Test_CreateFilter_EmptyPathTemplate_ShouldReturnNoopFilter(t *testing.T) {
 }
 
 func Test_CreateFilter_TypoInPropertyNames_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	// path_template has no `s` and should cause a JSON decoding error.
 	filter, err := spec.CreateFilter([]interface{}{`{
@@ -195,7 +198,7 @@ func Test_CreateFilter_NonParsableParametersShouldBeLoggedAndIgnored(t *testing.
 		123.456,
 		"I am useless...", // poor little depressed parameter :'(
 	}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter, tracer *mocktracer.MockTracer) {
 		assertPaths(t, filter.Paths, []pathMatcher{
 			{
 				ApplicationId: "my_app",
@@ -226,7 +229,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 			"/foo/customers/{customer-id}/"
 		]
 	}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter, tracer *mocktracer.MockTracer) {
 		assertPaths(t, filter.Paths, []pathMatcher{
 			{
 				ApplicationId: "my_app",
@@ -269,7 +272,7 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 }
 
 func Test_CreateFilter_NoApplicationId_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"api_id": "api",
@@ -284,7 +287,7 @@ func Test_CreateFilter_NoApplicationId_ShouldReturnNoopFilter(t *testing.T) {
 }
 
 func Test_CreateFilter_NoApiId_ShouldReturnNoopFilter(t *testing.T) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 
 	filter, err := spec.CreateFilter([]interface{}{`{
 		"application_id": "api",
@@ -315,7 +318,7 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 			],
 			"client_tracking_pattern": ".*"
 		}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter, tracer *mocktracer.MockTracer) {
 		assertPaths(t, filter.Paths, []pathMatcher{
 			{
 				ApplicationId: "my_app",
@@ -365,14 +368,17 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 				"foo/orders/:order-id",
 				"foo/orders/:order-id/order_item/{order-item-id}"
 			],
-            "context": { "deployment_id": "1", "trace": { "trace_id": "id" }}
+            "context": { 
+                "deployment_id": "1", 
+                "trace": { "mockpfx-ids-traceid": "43", "mockpfx-ids-spanid": "44", "mockpfx-ids-sampled": "true" }
+            }
 		}`, `{
 			"application_id": "my_customer_app",
 			"api_id": "customers_api",
 			"path_templates": [
 			]
 		}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter, tracer *mocktracer.MockTracer) {
 		assertPaths(t, filter.Paths, []pathMatcher{
 			{
 				ApplicationId: "my_order_app",
@@ -397,6 +403,8 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 			},
 		})
 		assertPath(t, filter.UnknownPath, unknownPath("my_order_app", "staging"))
+
+		assert.Len(t, tracer.FinishedSpans(), 1)
 	})
 }
 
@@ -411,7 +419,7 @@ func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 			"/foo/"
 		]
 	}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter, tracer *mocktracer.MockTracer) {
 		assertPaths(t, filter.Paths, []pathMatcher{
 			{
 				ApplicationId: "my_app",
@@ -434,7 +442,7 @@ func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 			"foo/:b"
 		]
 	}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter, tracer *mocktracer.MockTracer) {
 		assertPaths(t, filter.Paths, []pathMatcher{
 			{
 				ApplicationId: "my_app",
@@ -456,7 +464,7 @@ func Test_CreateFilter_RegExCompileFailureIgnoresPath(t *testing.T) {
 			"orders/"
 		]
 	}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
+	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter, tracer *mocktracer.MockTracer) {
 		assert.Equal(t, 1, len(filter.Paths))
 		assertPath(t, filter.UnknownPath, unknownPath("my_app", ""))
 	})

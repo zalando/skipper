@@ -888,6 +888,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 	defer o.SecretsRegistry.Close()
 
+	var tracer ot.Tracer
+	if len(o.OpenTracing) > 0 {
+		tracer, err = tracing.InitTracer(o.OpenTracing)
+		if err != nil {
+			return err
+		}
+	} else {
+		// always have a tracer available, so filter authors can rely on the
+		// existence of a tracer
+		tracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	}
+
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
 		auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
@@ -907,6 +919,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			o.ApiUsageMonitoringRealmKeys,
 			o.ApiUsageMonitoringClientKeys,
 			o.ApiUsageMonitoringRealmsTrackingPattern,
+			tracer,
 		),
 	)
 
@@ -1107,17 +1120,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
-	var tracer ot.Tracer
-	if len(o.OpenTracing) > 0 {
-		tracer, err = tracing.InitTracer(o.OpenTracing)
-		if err != nil {
-			return err
-		}
-	} else {
-		// always have a tracer available, so filter authors can rely on the
-		// existence of a tracer
-		tracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
-	}
 	proxyParams.OpenTracing = &proxy.OpenTracingParams{
 		Tracer:          tracer,
 		InitialSpan:     o.OpenTracingInitialSpan,

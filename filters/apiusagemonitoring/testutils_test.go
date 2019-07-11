@@ -28,7 +28,7 @@ var defaultArgs = []interface{}{`{
 	}`}
 
 func createFilterForTest() (filters.Filter, error) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec := NewApiUsageMonitoring(true, "", "", "", nil)
 	return spec.CreateFilter(defaultArgs)
 }
 func testWithFilter(
@@ -196,7 +196,7 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 				t.FailNow()
 			}
 			args := []interface{}{string(js)}
-			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientKeyName, testCase.realmsTrackingPattern)
+			spec := NewApiUsageMonitoring(true, testCase.realmKeyName, testCase.clientKeyName, testCase.realmsTrackingPattern, nil)
 			return spec.CreateFilter(args)
 		},
 	}
