@@ -41,6 +41,7 @@ require (
 	golang.org/x/net v0.0.0-20190619014844-b5b0513f8c1b
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	google.golang.org/grpc v1.21.1 // indirect
+	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
 	layeh.com/gopher-json v0.0.0-20190114024228-97fed8db8427
 )
