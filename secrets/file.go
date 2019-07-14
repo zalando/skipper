@@ -32,13 +32,13 @@ type SecretsProvider interface {
 	Add(string) error
 }
 
-type secretPaths struct {
+type SecretPaths struct {
 	watcher *fsnotify.Watcher
 	known   map[string][]byte
 }
 
-func newSecretPaths() *secretPaths {
-	sp := &secretPaths{
+func NewSecretPaths() *SecretPaths {
+	sp := &SecretPaths{
 		known: make(map[string][]byte),
 	}
 
@@ -53,18 +53,21 @@ func newSecretPaths() *secretPaths {
 }
 
 // GetSecret returns secret and if found or not for a given name.
-func (sp *secretPaths) GetSecret(s string) ([]byte, bool) {
+func (sp *SecretPaths) GetSecret(s string) ([]byte, bool) {
 	dat, ok := sp.known[s]
 	return dat, ok
 }
 
-func (sp *secretPaths) updateSecret(name string, dat []byte) {
+func (sp *SecretPaths) updateSecret(name string, dat []byte) {
+	if dat[len(dat)-1] == 0xa {
+		dat = dat[:len(dat)-1]
+	}
 	sp.known[name] = dat
 }
 
 // Add adds a file or directory to find secrets in all files
 // found. The basename of the file will be the key to get the secret
-func (sp *secretPaths) Add(p string) error {
+func (sp *SecretPaths) Add(p string) error {
 	fi, err := os.Lstat(p)
 	if err != nil {
 		log.Errorf("Failed to stat path: %v", err)
@@ -90,7 +93,7 @@ func (sp *secretPaths) Add(p string) error {
 	return ErrWrongFileType
 }
 
-func (sp *secretPaths) handleDir(p string) error {
+func (sp *SecretPaths) handleDir(p string) error {
 	m, err := filepath.Glob(p + "/*")
 	if err != nil {
 		return err
@@ -109,7 +112,7 @@ func (sp *secretPaths) handleDir(p string) error {
 	return nil
 }
 
-func (sp *secretPaths) tryDir(p string) error {
+func (sp *SecretPaths) tryDir(p string) error {
 	_, err := filepath.Glob(p + "/*")
 	if err != nil {
 		return ErrWrongFileType
@@ -117,7 +120,7 @@ func (sp *secretPaths) tryDir(p string) error {
 	return sp.handleDir(p)
 }
 
-func (sp *secretPaths) registerSecretFile(name, p string) error {
+func (sp *SecretPaths) registerSecretFile(name, p string) error {
 	if _, ok := sp.known[name]; ok {
 		return ErrAlreadyExists
 	}
@@ -135,7 +138,7 @@ func (sp *secretPaths) registerSecretFile(name, p string) error {
 	return nil
 }
 
-func (sp *secretPaths) registerWatcher(p string) error {
+func (sp *SecretPaths) registerWatcher(p string) error {
 	if sp.watcher == nil {
 		return nil
 	}
@@ -143,7 +146,7 @@ func (sp *secretPaths) registerWatcher(p string) error {
 }
 
 // startRefresher refreshes all secrets, that are registered on the watcher
-func (sp *secretPaths) startRefresher() {
+func (sp *SecretPaths) startRefresher() {
 	for {
 		select {
 		case event, ok := <-sp.watcher.Events:
@@ -170,7 +173,7 @@ func (sp *secretPaths) startRefresher() {
 	}
 }
 
-func (sp *secretPaths) Close() {
+func (sp *SecretPaths) Close() {
 	log.Info("Stop secret updates")
 	sp.watcher.Close()
 }

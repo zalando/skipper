@@ -15,8 +15,7 @@ const (
 )
 
 type (
-	forwardTokenSpec struct {
-	}
+	forwardTokenSpec   struct{}
 	forwardTokenFilter struct {
 		HeaderName     string
 		RetainJsonKeys []string
@@ -28,6 +27,7 @@ type (
 func NewForwardToken() filters.Spec {
 	return &forwardTokenSpec{}
 }
+
 func (s *forwardTokenSpec) Name() string {
 	return ForwardTokenName
 }
@@ -95,8 +95,7 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 	request.Header.Add(f.HeaderName, jsonHeader)
 }
 
-func (f *forwardTokenFilter) Response(filters.FilterContext) {
-}
+func (*forwardTokenFilter) Response(filters.FilterContext) {}
 
 func retainKeys(data map[string]interface{}, keys []string) map[string]interface{} {
 	whitelistedKeys := make(map[string]interface{})
