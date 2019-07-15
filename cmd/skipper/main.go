@@ -164,7 +164,7 @@ const (
 	kubernetesEnableEastWestUsage    = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
 	kubernetesEastWestDomainUsage    = "set the east-west domain, defaults to .skipper.cluster.local"
 
-	// OAuth2:
+	// Auth:
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
 	oauthCredentialsDirUsage             = "directory where oauth credentials are stored: client.json and user.json"
 	oauthScopeUsage                      = "the whitespace separated list of oauth scopes"
@@ -338,6 +338,7 @@ var (
 	oauth2TokenintrospectionTimeout time.Duration
 	webhookTimeout                  time.Duration
 	oidcSecretsFile                 string
+	credentialPaths                 secretsFlags
 
 	// TLS client certs
 	clientKeyFile  string
@@ -497,6 +498,7 @@ func init() {
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
 	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 	flag.StringVar(&oidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
+	flag.Var(&credentialPaths, "credentials-paths", credentialPathsUsage)
 
 	// TLS client certs
 	flag.StringVar(&clientKeyFile, "client-tls-key", "", clientKeyFileUsage)
@@ -731,6 +733,7 @@ func main() {
 		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
 		WebhookTimeout:                 webhookTimeout,
 		OIDCSecretsFile:                oidcSecretsFile,
+		CredentialsPaths:               credentialPaths.Get(),
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   waitForHealthcheckInterval,

@@ -525,6 +525,9 @@ type Options struct {
 	// SecretsRegistry to store and load secretsencrypt
 	SecretsRegistry *secrets.Registry
 
+	// CredentialsPaths directories or files where credentials are stored one secret per file
+	CredentialsPaths []string
+
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
 	ApiUsageMonitoringRealmKeys             string
@@ -890,7 +893,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	defer o.SecretsRegistry.Close()
 
 	sp := secrets.NewSecretPaths()
-	sp.Add("/tmp/mysecrets") // TODO(sszuecs): parameterize
+	for _, p := range o.CredentialsPaths {
+		sp.Add(p)
+	}
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
 		auth.NewBearerInjector(sp),
