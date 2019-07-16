@@ -8,6 +8,7 @@ import (
 type listFlag struct {
 	sep     string
 	allowed map[string]bool
+	value string
 	values  []string
 }
 
@@ -33,6 +34,7 @@ func (lf *listFlag) Set(value string) error {
 		return nil
 	}
 
+	lf.value = value
 	lf.values = strings.Split(value, lf.sep)
 	if len(lf.allowed) == 0 {
 		return nil
@@ -47,4 +49,4 @@ func (lf *listFlag) Set(value string) error {
 	return nil
 }
 
-func (lf listFlag) String() string { return strings.Join(lf.values, lf.sep) }
+func (lf listFlag) String() string { return lf.value }

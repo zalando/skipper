@@ -11,25 +11,27 @@ const (
 	multiPluginUsage      = "set a custom multitype plugins to load, a comma separated list of name and arguments"
 )
 
-type pluginFlags struct {
+type pluginFlag struct {
+	listFlag *listFlag
 	values [][]string
 }
 
-func (f *pluginFlags) String() string {
-	var ret []string
-	for _, val := range f.values {
-		ret = append(ret, strings.Join(val, ","))
-	}
-	return strings.Join(ret, " ")
+func newPluginFlag() *pluginFlag {
+	return &pluginFlag{listFlag: newListFlag(" ")}
 }
 
-func (f *pluginFlags) Set(value string) error {
-	for _, v := range strings.Split(value, " ") {
+func (f pluginFlag) String() string {
+	return f.listFlag.String()
+}
+
+func (f *pluginFlag) Set(value string) error {
+	if err := f.listFlag.Set(value); err != nil {
+		return err
+	}
+
+	for _, v := range f.listFlag.values {
 		f.values = append(f.values, strings.Split(v, ","))
 	}
-	return nil
-}
 
-func (f *pluginFlags) Get() [][]string {
-	return f.values
+	return nil
 }
