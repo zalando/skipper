@@ -387,6 +387,8 @@ var (
 	swarmLeaveTimeout                 time.Duration
 	swarmStaticSelf                   string
 	swarmStaticOther                  string
+
+	test = commaListFlag()
 )
 
 func init() {
@@ -547,12 +549,16 @@ func init() {
 	flag.StringVar(&swarmStaticSelf, "swarm-static-self", "", swarmStaticSelfUsage)
 	flag.StringVar(&swarmStaticOther, "swarm-static-other", "", swarmStaticOtherUsage)
 
+	flag.Var(test, "test", "test flag")
+
 	flag.Parse()
 
 	// check if arguments were correctly parsed.
 	if len(flag.Args()) != 0 {
 		log.Fatalf("Invalid arguments: %s", flag.Args())
 	}
+
+	log.Println(test.values)
 }
 
 func parseHistogramBuckets(buckets string) ([]float64, error) {
