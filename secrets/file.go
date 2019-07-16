@@ -11,9 +11,9 @@ import (
 )
 
 var (
-	ErrAlreadyExists    = errors.New("Secret already exists")
-	ErrWrongFileType    = errors.New("File type not supported")
-	ErrFailedToReadFile = errors.New("Failed to read file")
+	ErrAlreadyExists    = errors.New("secret already exists")
+	ErrWrongFileType    = errors.New("file type not supported")
+	ErrFailedToReadFile = errors.New("failed to read file")
 )
 
 // SecretsReader is able to get a secret
