@@ -59,7 +59,7 @@ func (sp *SecretPaths) GetSecret(s string) ([]byte, bool) {
 }
 
 func (sp *SecretPaths) updateSecret(name string, dat []byte) {
-	if dat[len(dat)-1] == 0xa {
+	if len(dat) > 0 && dat[len(dat)-1] == 0xa {
 		dat = dat[:len(dat)-1]
 	}
 	sp.known[name] = dat

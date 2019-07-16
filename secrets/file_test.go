@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func Test_secretPaths_GetSecret(t *testing.T) {
+func Test_SecretPaths_GetSecret(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		known  map[string][]byte
@@ -45,19 +45,19 @@ func Test_secretPaths_GetSecret(t *testing.T) {
 			want:   []byte("data"),
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			sp := &secretPaths{known: tt.known}
+			sp := &SecretPaths{known: tt.known}
 			got, ok := sp.GetSecret(tt.s)
 			if ok != tt.wantOk {
-				t.Errorf("secretPaths.GetSecret() ok = %v, want %v", ok, tt.wantOk)
+				t.Errorf("SecretPaths.GetSecret() ok = %v, want %v", ok, tt.wantOk)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("secretPaths.GetSecret() got = %v, want %v", got, tt.want)
+				t.Errorf("SecretPaths.GetSecret() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func Test_secretPaths_Add(t *testing.T) {
+func Test_SecretPaths_Add(t *testing.T) {
 	temproot, err := ioutil.TempDir(os.TempDir(), "skipper-secrets")
 	if err != nil {
 		t.Errorf("Failed to create temp dir: %v", err)
@@ -137,7 +137,7 @@ func Test_secretPaths_Add(t *testing.T) {
 			wantErr:   true,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			sp := newSecretPaths()
+			sp := NewSecretPaths()
 			err := ioutil.WriteFile(tt.writeFile, []byte(""), 0644)
 			if err != nil {
 				t.Errorf("Failed to create file: %v", err)
@@ -145,7 +145,7 @@ func Test_secretPaths_Add(t *testing.T) {
 
 			err = sp.Add(tt.addFile)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("secretPaths.Add() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("SecretPaths.Add() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
 			err = ioutil.WriteFile(tt.writeFile, dat, 0644)
@@ -165,7 +165,7 @@ func Test_secretPaths_Add(t *testing.T) {
 	}
 }
 
-func Test_secretPaths_Close(t *testing.T) {
+func Test_SecretPaths_Close(t *testing.T) {
 	temproot, err := ioutil.TempDir(os.TempDir(), "skipper-secrets-close")
 	if err != nil {
 		t.Errorf("Failed to create temp dir: %v", err)
@@ -180,7 +180,7 @@ func Test_secretPaths_Close(t *testing.T) {
 	dat := []byte("data")
 	afile := watchit + "/afile"
 
-	sp := newSecretPaths()
+	sp := NewSecretPaths()
 	err = ioutil.WriteFile(afile, []byte(""), 0644)
 	if err != nil {
 		t.Errorf("Failed to create file: %v", err)
