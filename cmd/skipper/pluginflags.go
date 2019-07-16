@@ -13,7 +13,7 @@ const (
 
 type pluginFlag struct {
 	listFlag *listFlag
-	values [][]string
+	values   [][]string
 }
 
 func newPluginFlag() *pluginFlag {

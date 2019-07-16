@@ -8,7 +8,7 @@ import (
 type listFlag struct {
 	sep     string
 	allowed map[string]bool
-	value string
+	value   string
 	values  []string
 }
 
