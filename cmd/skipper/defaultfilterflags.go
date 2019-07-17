@@ -15,7 +15,7 @@ type defaultFiltersFlags struct {
 	filters []*eskip.Filter
 }
 
-func (dpf *defaultFiltersFlags) String() string {
+func (dpf defaultFiltersFlags) String() string {
 	return "<default filters>"
 }
 
@@ -29,10 +29,6 @@ func (dpf *defaultFiltersFlags) Set(value string) error {
 		return fmt.Errorf("failed to parse default filters: %v", err)
 	}
 
-	dpf.filters = append(dpf.filters, fs...)
+	dpf.filters = fs
 	return nil
-}
-
-func (dpf *defaultFiltersFlags) Get() []*eskip.Filter {
-	return dpf.filters
 }

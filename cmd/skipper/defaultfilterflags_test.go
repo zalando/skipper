@@ -1,7 +1,6 @@
 package main
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
@@ -69,41 +68,6 @@ func Test_defaultFiltersFlags_Set(t *testing.T) {
 				if len(tt.want) != len(dpf.filters) {
 					t.Errorf("defaultFiltersFlags size missmatch got %d want %d", len(dpf.filters), len(tt.want))
 				}
-			}
-		})
-	}
-}
-
-func Test_defaultFiltersFlags_Get(t *testing.T) {
-	oneFilter, _ := eskip.ParseFilters(`tee("https://www.zalando.de/")`)
-	manyFilters, _ := eskip.ParseFilters(`ratelimit(5, "10s") -> tee("https://www.zalando.de/")`)
-
-	tests := []struct {
-		name    string
-		filters []*eskip.Filter
-		want    []*eskip.Filter
-	}{
-		{
-			name: "get no filter",
-		},
-		{
-			name:    "get one filter",
-			filters: oneFilter,
-			want:    oneFilter,
-		},
-		{
-			name:    "get many filter",
-			filters: manyFilters,
-			want:    manyFilters,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dpf := &defaultFiltersFlags{
-				filters: tt.filters,
-			}
-			if got := dpf.Get(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("defaultFiltersFlags.Get() = %v, want %v", got, tt.want)
 			}
 		})
 	}

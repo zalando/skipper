@@ -120,6 +120,7 @@ const (
 	routeBackendErrorCountersUsage           = "enables counting backend errors for each route"
 	routeStreamErrorCountersUsage            = "enables counting streaming errors for each route"
 	routeBackendMetricsUsage                 = "enables reporting backend response time metrics for each route"
+	metricsFlavourUsage                      = "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale' and 'prometheus', you can select both of them"
 	metricsUseExpDecaySampleUsage            = "use exponentially decaying sample in metrics"
 	histogramMetricBucketsUsage              = "use custom buckets for prometheus histograms, must be a comma-separated list of numbers"
 	disableMetricsCompatsUsage               = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
@@ -216,6 +217,7 @@ const (
 	swarmPortUsage                         = "swarm port to use to communicate with our peers"
 	swarmMaxMessageBufferUsage             = "swarm max message buffer size to use for member list messages"
 	swarmLeaveTimeoutUsage                 = "swarm leave timeout to use for leaving the memberlist on timeout"
+	swarmRedisURLsUsage                    = "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits"
 	swarmStaticSelfUsage                   = "set static swarm self node, for example 127.0.0.1:9001"
 	swarmStaticOtherUsage                  = "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003"
 	swarmRedisReadTimeoutUsage             = "set redis socket read timeout"
@@ -252,11 +254,11 @@ var (
 	breakers                        breakerFlags
 	enableRatelimiters              bool
 	ratelimits                      ratelimitFlags
-	metricsFlavour                  metricsFlags
-	filterPlugins                   pluginFlags
-	predicatePlugins                pluginFlags
-	dataclientPlugins               pluginFlags
-	multiPlugins                    pluginFlags
+	metricsFlavour                  = commaListFlag("codahale", "prometheus")
+	filterPlugins                   = newPluginFlag()
+	predicatePlugins                = newPluginFlag()
+	dataclientPlugins               = newPluginFlag()
+	multiPlugins                    = newPluginFlag()
 
 	// logging, metrics, tracing:
 	enablePrometheusMetrics             bool
@@ -372,7 +374,7 @@ var (
 	// swarm:
 	enableSwarm bool
 	// redis based
-	swarmRedisURLs         swarmRedisFlags
+	swarmRedisURLs         = commaListFlag()
 	swarmRedisReadTimeout  time.Duration
 	swarmRedisWriteTimeout time.Duration
 	swarmRedisPoolTimeout  time.Duration
@@ -414,11 +416,11 @@ func init() {
 	flag.Var(&breakers, "breaker", breakerUsage)
 	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
 	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
-	flag.Var(&metricsFlavour, "metrics-flavour", metricsFlavourUsage)
-	flag.Var(&filterPlugins, "filter-plugin", filterPluginUsage)
-	flag.Var(&predicatePlugins, "predicate-plugin", predicatePluginUsage)
-	flag.Var(&dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
-	flag.Var(&multiPlugins, "multi-plugin", multiPluginUsage)
+	flag.Var(metricsFlavour, "metrics-flavour", metricsFlavourUsage)
+	flag.Var(filterPlugins, "filter-plugin", filterPluginUsage)
+	flag.Var(predicatePlugins, "predicate-plugin", predicatePluginUsage)
+	flag.Var(dataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
+	flag.Var(multiPlugins, "multi-plugin", multiPluginUsage)
 
 	// logging, metrics, tracing:
 	flag.BoolVar(&enablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
@@ -532,7 +534,7 @@ func init() {
 	flag.DurationVar(&expectContinueTimeoutBackend, "expect-continue-timeout-backend", defaultExpectContinueTimeoutBackend, expectContinueTimeoutBackendUsage)
 	flag.IntVar(&maxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
 	flag.BoolVar(&enableSwarm, "enable-swarm", false, enableSwarmUsage)
-	flag.Var(&swarmRedisURLs, "swarm-redis-urls", swarmRedisURLsUsage)
+	flag.Var(swarmRedisURLs, "swarm-redis-urls", swarmRedisURLsUsage)
 	flag.DurationVar(&swarmRedisReadTimeout, "swarm-redis-read-timeout", ratelimit.DefaultReadTimeout, swarmRedisReadTimeoutUsage)
 	flag.DurationVar(&swarmRedisWriteTimeout, "swarm-redis-write-timeout", ratelimit.DefaultWriteTimeout, swarmRedisWriteTimeoutUsage)
 	flag.DurationVar(&swarmRedisPoolTimeout, "swarm-redis-pool-timeout", ratelimit.DefaultPoolTimeout, swarmRedisPoolTimeoutUsage)
@@ -612,8 +614,8 @@ func main() {
 	}
 
 	defaultFilters := &eskip.DefaultFilters{
-		Prepend: prependFilters.Get(),
-		Append:  appendFilters.Get(),
+		Prepend: prependFilters.filters,
+		Append:  appendFilters.filters,
 	}
 
 	if apiUsageMonitoringDefaultClientTrackingPattern != defaultApiUsageMonitoringDefaultClientTrackingPattern {
@@ -640,11 +642,11 @@ func main() {
 		BreakerSettings:                 breakers,
 		EnableRatelimiters:              enableRatelimiters,
 		RatelimitSettings:               ratelimits,
-		MetricsFlavours:                 metricsFlavour.Get(),
-		FilterPlugins:                   filterPlugins.Get(),
-		PredicatePlugins:                predicatePlugins.Get(),
-		DataClientPlugins:               dataclientPlugins.Get(),
-		Plugins:                         multiPlugins.Get(),
+		MetricsFlavours:                 metricsFlavour.values,
+		FilterPlugins:                   filterPlugins.values,
+		PredicatePlugins:                predicatePlugins.values,
+		DataClientPlugins:               dataclientPlugins.values,
+		Plugins:                         multiPlugins.values,
 		PluginDirs:                      []string{skipper.DefaultPluginDir},
 
 		// logging, metrics, tracing:
@@ -754,7 +756,7 @@ func main() {
 		// swarm:
 		EnableSwarm: enableSwarm,
 		// redis based
-		SwarmRedisURLs:         swarmRedisURLs.Get(),
+		SwarmRedisURLs:         swarmRedisURLs.values,
 		SwarmRedisReadTimeout:  swarmRedisReadTimeout,
 		SwarmRedisWriteTimeout: swarmRedisWriteTimeout,
 		SwarmRedisPoolTimeout:  swarmRedisPoolTimeout,
