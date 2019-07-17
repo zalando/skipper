@@ -80,6 +80,8 @@ func (l *luaContext) StateBag() map[string]interface{} {
 
 func (l *luaContext) BackendUrl() string { return "" }
 
+func (l *luaContext) RouteId() string { return "" }
+
 func (l *luaContext) OutgoingHost() string { return "www.example.com" }
 
 func (l *luaContext) SetOutgoingHost(_ string) {}
