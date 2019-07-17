@@ -193,6 +193,7 @@ func (c *context) Served() bool                        { return c.deprecatedServ
 func (c *context) PathParam(key string) string         { return c.pathParams[key] }
 func (c *context) StateBag() map[string]interface{}    { return c.stateBag }
 func (c *context) BackendUrl() string                  { return c.route.Backend }
+func (c *context) RouteId() string                     { return c.route.Id }
 func (c *context) OriginalRequest() *http.Request      { return c.originalRequest }
 func (c *context) OriginalResponse() *http.Response    { return c.originalResponse }
 func (c *context) OutgoingHost() string                { return c.outgoingHost }

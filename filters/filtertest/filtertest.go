@@ -28,6 +28,7 @@ type Context struct {
 	FParams             map[string]string
 	FStateBag           map[string]interface{}
 	FBackendUrl         string
+	FRouteID            string
 	FOutgoingHost       string
 	FMetrics            filters.Metrics
 	FTracer             opentracing.Tracer
@@ -47,6 +48,7 @@ func (fc *Context) StateBag() map[string]interface{}    { return fc.FStateBag }
 func (fc *Context) OriginalRequest() *http.Request      { return nil }
 func (fc *Context) OriginalResponse() *http.Response    { return nil }
 func (fc *Context) BackendUrl() string                  { return fc.FBackendUrl }
+func (fc *Context) RouteId() string                     { return fc.FRouteID }
 func (fc *Context) OutgoingHost() string                { return fc.FOutgoingHost }
 func (fc *Context) SetOutgoingHost(h string)            { fc.FOutgoingHost = h }
 func (fc *Context) Metrics() filters.Metrics            { return fc.FMetrics }

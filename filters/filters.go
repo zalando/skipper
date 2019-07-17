@@ -71,6 +71,9 @@ type FilterContext interface {
 	// value in case it's a shunt, loopback. In case of dynamic backend is empty.
 	BackendUrl() string
 
+	// Gives filters access to the route id.
+	RouteId() string
+
 	// Returns the host that will be set for the outgoing proxy request as the
 	// 'Host' header.
 	OutgoingHost() string
