@@ -893,6 +893,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	defer o.SecretsRegistry.Close()
 
 	sp := secrets.NewSecretPaths()
+	defer sp.Close()
 	for _, p := range o.CredentialsPaths {
 		sp.Add(p)
 	}

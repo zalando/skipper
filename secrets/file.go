@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/fsnotify.v1"
@@ -34,6 +35,7 @@ type SecretsProvider interface {
 
 type SecretPaths struct {
 	watcher *fsnotify.Watcher
+	mu      sync.RWMutex
 	known   map[string][]byte
 }
 
@@ -54,11 +56,15 @@ func NewSecretPaths() *SecretPaths {
 
 // GetSecret returns secret and if found or not for a given name.
 func (sp *SecretPaths) GetSecret(s string) ([]byte, bool) {
+	sp.mu.RLock()
 	dat, ok := sp.known[s]
+	sp.mu.RUnlock()
 	return dat, ok
 }
 
 func (sp *SecretPaths) updateSecret(name string, dat []byte) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	if len(dat) > 0 && dat[len(dat)-1] == 0xa {
 		dat = dat[:len(dat)-1]
 	}
@@ -121,7 +127,7 @@ func (sp *SecretPaths) tryDir(p string) error {
 }
 
 func (sp *SecretPaths) registerSecretFile(name, p string) error {
-	if _, ok := sp.known[name]; ok {
+	if _, ok := sp.GetSecret(name); ok {
 		return ErrAlreadyExists
 	}
 	dat, err := ioutil.ReadFile(p)
