@@ -868,7 +868,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			return nil, perr
 
 		}
-		
+
 		if nerr, ok := err.(net.Error); ok {
 			perr := &proxyError{
 				err: fmt.Errorf(
