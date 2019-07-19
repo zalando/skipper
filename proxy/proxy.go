@@ -1124,7 +1124,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 		// see https://github.com/zalando/skipper/pull/864
 		ctx.response.StatusCode = 499
 		p.tracing.setTag(ctx.proxySpan, ClientRequestStateTag, ClientRequestCanceled)
-		p.log.Errorf("Client request: %v", err)
+		p.log.Infof("Client request: %v", err)
 		return
 	}
 
