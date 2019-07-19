@@ -95,7 +95,6 @@ func (sp *SecretPaths) Add(p string) error {
 		return nil
 	}
 
-	log.Errorf("File type not supported, only regular, directories and symlinks are supported")
 	return ErrWrongFileType
 }
 
