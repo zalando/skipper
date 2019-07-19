@@ -1124,7 +1124,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 		// see https://github.com/zalando/skipper/pull/864
 		ctx.response.StatusCode = 499
 		p.tracing.setTag(ctx.proxySpan, ClientRequestStateTag, ClientRequestCanceled)
-		p.log.Errorf("client request: %v", err)
+		p.log.Errorf("Client request: %v", err)
 		return
 	}
 
@@ -1133,12 +1133,11 @@ func (p *Proxy) serveResponse(ctx *context) {
 	err := copyStream(ctx.responseWriter, ctx.response.Body, p.tracing, ctx.proxySpan)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
-		p.log.Errorf("error while copying the response stream: %v", err)
+		p.log.Infof("Error while copying the response stream: %v", err)
 		return
 	}
 
 	p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
-	return
 }
 
 func (p *Proxy) errorResponse(ctx *context, err error) {
@@ -1196,6 +1195,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	case ok && perr.err == errRatelimit:
 		code = perr.code
 	default:
+		// tracing log
 		p.log.Errorf("error while proxying, route %s with backend %s, status code %d: %v", id, backend, code, err)
 	}
 
@@ -1298,7 +1298,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		p.tracing.setTag(span, ErrorTag, true)
-		// tracing log
 		p.errorResponse(ctx, err)
 		return
 	}
