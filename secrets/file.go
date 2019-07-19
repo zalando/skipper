@@ -136,7 +136,10 @@ func (sp *SecretPaths) registerSecretFile(name, p string) error {
 		return err
 	}
 	sp.updateSecret(name, dat)
+
+	sp.mu.Lock()
 	sp.files[name] = p
+	sp.mu.Unlock()
 
 	return nil
 }
