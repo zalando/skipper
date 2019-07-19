@@ -331,7 +331,7 @@ type proxyError struct {
 
 func (e proxyError) Error() string {
 	if e.err != nil {
-		return fmt.Sprintf("dialing failed %v: %v", e.DialError(), e.err.Error())
+		return fmt.Sprintf("proxy error with dialing failed=%t: %v", e.DialError(), e.err.Error())
 	}
 
 	if e.handled {
@@ -478,10 +478,11 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 	}
 
 	rr, err := http.NewRequest(r.Method, u.String(), body)
-	rr.ContentLength = r.ContentLength
 	if err != nil {
 		return nil, err
 	}
+
+	rr.ContentLength = r.ContentLength
 
 	if removeHopHeaders {
 		rr.Header = cloneHeaderExcluding(r.Header, hopHeaders)
@@ -711,6 +712,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 				return
 			}
 
+			// tracing
 			p.log.Errorf("error while processing filter during request: %s: %v (%s)", fi.Name, err, stack)
 		})
 		p.tracing.logFilterEnd(filtersSpan, fi.Name)
@@ -748,6 +750,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 				return
 			}
 
+			// tracing
 			p.log.Errorf("error while processing filters during response: %s: %v (%s)", fi.Name, err, stack)
 		})
 		p.tracing.logFilterEnd(filtersSpan, fi.Name)
@@ -811,8 +814,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
 	if err != nil {
-		p.log.Errorf("could not map backend request, caused by: %v", err)
-		return nil, &proxyError{err: err}
+		return nil, &proxyError{err: fmt.Errorf("could not map backend request, caused by: %v", err)}
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
@@ -820,7 +822,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			return nil, &proxyError{err: err}
 		}
 
-		// We are not owner of the connection anymore.
+		// We are not the owners of the connection anymore.
 		return nil, &proxyError{handled: true}
 	}
 
@@ -851,44 +853,50 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
+		// this one is logged here, too, probably we should move to the root
 		ctx.proxySpan.LogKV(
 			"event", "error",
-			"message", err.Error())
+			"message", err.Error(),
+		)
 
 		if perr, ok := err.(*proxyError); ok {
-			p.log.Errorf("Failed to do backend roundtrip to %s: %v", ctx.route.Backend, perr)
-			//p.lb.AddHealthcheck(ctx.route.Backend)
+			perr.err = fmt.Errorf(
+				"failed to do backend roundtrip to %s: %v",
+				ctx.route.Backend,
+				perr.err,
+			)
 			return nil, perr
 
-		} else if nerr, ok := err.(net.Error); ok {
-			p.log.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %v", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err)
-			//p.lb.AddHealthcheck(ctx.route.Backend)
-			if nerr.Timeout() {
-				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusGatewayTimeout))
-				return nil, &proxyError{
-					err:  err,
-					code: http.StatusGatewayTimeout,
-				}
-			} else if !nerr.Temporary() {
-				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusServiceUnavailable))
-				return nil, &proxyError{
-					err:  err,
-					code: http.StatusServiceUnavailable,
-				}
-			} else if !nerr.Timeout() && nerr.Temporary() {
-				p.log.Errorf("Backend error see https://github.com/zalando/skipper/issues/768: %v", err)
-				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusServiceUnavailable))
-				return nil, &proxyError{
-					err:  err,
-					code: http.StatusServiceUnavailable,
-				}
-			} else {
-				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusInternalServerError))
-				return nil, &proxyError{
-					err:  err,
-					code: http.StatusInternalServerError,
-				}
+		}
+		
+		if nerr, ok := err.(net.Error); ok {
+			perr := &proxyError{
+				err: fmt.Errorf(
+					"net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %v",
+					ctx.route.Backend,
+					nerr.Timeout(),
+					nerr.Temporary(),
+					err,
+				),
 			}
+
+			switch {
+			case nerr.Timeout():
+				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusGatewayTimeout))
+				perr.code = http.StatusGatewayTimeout
+			case !nerr.Temporary():
+				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusServiceUnavailable))
+				perr.code = http.StatusServiceUnavailable
+			case !nerr.Timeout() && nerr.Temporary():
+				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusServiceUnavailable))
+				perr.err = fmt.Errorf("backend error see https://github.com/zalando/skipper/issues/768: %v", err)
+				perr.code = http.StatusServiceUnavailable
+			default:
+				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusInternalServerError))
+				perr.code = http.StatusInternalServerError
+			}
+
+			return nil, perr
 		}
 
 		if cerr := req.Context().Err(); cerr != nil {
@@ -897,9 +905,13 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			return nil, &proxyError{err: cerr, code: 499}
 		}
 
-		p.log.Errorf("Unexpected error from Go stdlib net/http package during roundtrip: %v", err)
-		return nil, &proxyError{err: err}
+		return nil, &proxyError{
+			err: fmt.Errorf("unexpected error from Go stdlib net/http package during roundtrip: %v", err),
+		}
 	}
+
+	// we should set the status code even when it is an error
+	// this setting should be probably moved to the root
 	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
 	return response, nil
 }
@@ -913,18 +925,12 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 		return ratelimit.Settings{}, 0
 	}
 
-	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].([]ratelimit.Settings)
-	if !ok || len(settings) < 1 {
+	settings, _ := ctx.stateBag[ratelimitfilters.RouteSettingsKey].([]ratelimit.Settings)
+	if len(settings) == 0 {
 		return ratelimit.Settings{}, 0
 	}
 
 	for _, setting := range settings {
-		rl := p.limiters.Get(setting)
-		if rl == nil {
-			p.log.Errorf("RateLimiter is nil for setting: %s", setting)
-			continue
-		}
-
 		if setting.Lookuper == nil {
 			p.log.Errorf("Lookuper is nil for setting: %s", setting)
 			continue
@@ -933,6 +939,12 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 		s := setting.Lookuper.Lookup(ctx.Request())
 		if s == "" {
 			p.log.Errorf("Lookuper found no data in request for setting: %s and request: %v", setting, ctx.Request())
+			continue
+		}
+
+		rl := p.limiters.Get(setting)
+		if rl == nil {
+			p.log.Errorf("RateLimiter is nil for setting: %s", setting)
 			continue
 		}
 
@@ -1044,28 +1056,31 @@ func (p *Proxy) do(ctx *context) error {
 			}
 
 			p.metrics.IncErrorsBackend(ctx.route.Id)
-
-			if perr.DialError() && ctx.route.BackendType == eskip.LBBackend {
-				if ctx.proxySpan != nil {
-					ctx.proxySpan.Finish()
-					ctx.proxySpan = nil
-				}
-
-				tracing.LogKV("retry", ctx.route.Id, ctx.Request().Context())
-
-				perr = nil
-				var perr2 *proxyError
-				rsp, perr2 = p.makeBackendRequest(ctx)
-				if perr2 != nil {
-					p.log.Errorf("Failed to do retry backend request: %v", perr2)
-					if perr2.code >= http.StatusInternalServerError {
-						p.metrics.MeasureBackend5xx(backendStart)
-					}
-					return perr2
-				}
-			} else {
+			if !perr.DialError() || ctx.route.BackendType != eskip.LBBackend {
 				return perr
 			}
+
+			if ctx.proxySpan != nil {
+				ctx.proxySpan.Finish()
+				ctx.proxySpan = nil
+			}
+
+			tracing.LogKV("retry", ctx.route.Id, ctx.Request().Context())
+
+			var perr2 *proxyError
+			rsp, perr2 = p.makeBackendRequest(ctx)
+			if perr2 != nil {
+				if perr2.code >= http.StatusInternalServerError {
+					p.metrics.MeasureBackend5xx(backendStart)
+				}
+				perr2.err = fmt.Errorf(
+					"both initial and retry request to the backend failed: %v -> %v",
+					perr.err, perr2.err,
+				)
+				return perr2
+			}
+
+			perr = nil
 		}
 
 		if rsp.StatusCode >= http.StatusInternalServerError {
@@ -1107,9 +1122,10 @@ func (p *Proxy) serveResponse(ctx *context) {
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
 		// see https://github.com/zalando/skipper/pull/864
-		p.log.Infof("Client request: %v", err)
 		ctx.response.StatusCode = 499
 		p.tracing.setTag(ctx.proxySpan, ClientRequestStateTag, ClientRequestCanceled)
+		p.log.Errorf("client request: %v", err)
+		return
 	}
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
@@ -1117,13 +1133,17 @@ func (p *Proxy) serveResponse(ctx *context) {
 	err := copyStream(ctx.responseWriter, ctx.response.Body, p.tracing, ctx.proxySpan)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
-		p.log.Error("error while copying the response stream", err)
-	} else {
-		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
+		p.log.Errorf("error while copying the response stream: %v", err)
+		return
 	}
+
+	p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
+	return
 }
 
 func (p *Proxy) errorResponse(ctx *context, err error) {
+	// it would be fine to log the errors only from here, but we need to make sure that none of them is
+	// lost
 	perr, ok := err.(*proxyError)
 	if ok && perr.handled {
 		return
@@ -1278,6 +1298,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		p.tracing.setTag(span, ErrorTag, true)
+		// tracing log
 		p.errorResponse(ctx, err)
 		return
 	}
