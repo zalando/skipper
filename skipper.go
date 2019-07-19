@@ -528,6 +528,9 @@ type Options struct {
 	// CredentialsPaths directories or files where credentials are stored one secret per file
 	CredentialsPaths []string
 
+	// CredentialsUpdateInterval sets the interval to update secrets
+	CredentialsUpdateInterval time.Duration
+
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
 	ApiUsageMonitoringRealmKeys             string
@@ -892,7 +895,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 	defer o.SecretsRegistry.Close()
 
-	sp := secrets.NewSecretPaths()
+	sp := secrets.NewSecretPaths(o.CredentialsUpdateInterval)
 	defer sp.Close()
 	for _, p := range o.CredentialsPaths {
 		sp.Add(p)

@@ -11,33 +11,33 @@ import (
 
 func Test_SecretPaths_GetSecret(t *testing.T) {
 	for _, tt := range []struct {
-		name   string
-		known  map[string][]byte
-		s      string
-		want   []byte
-		wantOk bool
+		name    string
+		secrets map[string][]byte
+		s       string
+		want    []byte
+		wantOk  bool
 	}{
 		{
-			name:   "nothing known should not find anything for empty string",
+			name:   "nothing secrets should not find anything for empty string",
 			s:      "",
 			wantOk: false,
 		},
 		{
-			name:   "nothing known should not find anything for non-empty string",
+			name:   "nothing secrets should not find anything for non-empty string",
 			s:      "key",
 			wantOk: false,
 		},
 		{
-			name: "something known should not find anything for wrong string",
-			known: map[string][]byte{
+			name: "something secrets should not find anything for wrong string",
+			secrets: map[string][]byte{
 				"dat": []byte("data"),
 			},
 			s:      "key",
 			wantOk: false,
 		},
 		{
-			name: "something known should find for key",
-			known: map[string][]byte{
+			name: "something secrets should find for key",
+			secrets: map[string][]byte{
 				"key": []byte("data"),
 			},
 			s:      "key",
@@ -45,7 +45,7 @@ func Test_SecretPaths_GetSecret(t *testing.T) {
 			want:   []byte("data"),
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			sp := &SecretPaths{known: tt.known}
+			sp := &SecretPaths{secrets: tt.secrets}
 			got, ok := sp.GetSecret(tt.s)
 			if ok != tt.wantOk {
 				t.Errorf("SecretPaths.GetSecret() ok = %v, want %v", ok, tt.wantOk)
@@ -137,7 +137,7 @@ func Test_SecretPaths_Add(t *testing.T) {
 			wantErr:   true,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			sp := NewSecretPaths()
+			sp := NewSecretPaths(60 * time.Millisecond)
 			err := ioutil.WriteFile(tt.writeFile, []byte(""), 0644)
 			if err != nil {
 				t.Errorf("Failed to create file: %v", err)
@@ -152,7 +152,7 @@ func Test_SecretPaths_Add(t *testing.T) {
 			if err != nil {
 				t.Errorf("Failed to write file: %v", err)
 			}
-			time.Sleep(100 * time.Millisecond) // wait for fsnotify
+			time.Sleep(100 * time.Millisecond) // wait for refresher
 
 			got, ok := sp.GetSecret(filepath.Base(tt.writeFile))
 			if ok != tt.wantOk {
@@ -180,7 +180,7 @@ func Test_SecretPaths_Close(t *testing.T) {
 	dat := []byte("data")
 	afile := watchit + "/afile"
 
-	sp := NewSecretPaths()
+	sp := NewSecretPaths(60 * time.Millisecond)
 	err = ioutil.WriteFile(afile, []byte(""), 0644)
 	if err != nil {
 		t.Errorf("Failed to create file: %v", err)
@@ -193,7 +193,7 @@ func Test_SecretPaths_Close(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to write to file: %v", err)
 	}
-	time.Sleep(100 * time.Millisecond) // wait for fsnotify
+	time.Sleep(100 * time.Millisecond) // wait for refresher
 
 	got, ok := sp.GetSecret(filepath.Base(afile))
 	if !ok {

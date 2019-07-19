@@ -71,6 +71,7 @@ const (
 	defaultOAuthTokeninfoTimeout          = 2 * time.Second
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 	defaultWebhookTimeout                 = 2 * time.Second
+	defaultSecretsUpdateInterval          = 10 * time.Minute
 
 	// API Monitoring
 	defaultApiUsageMonitoringEnable                       = false
@@ -174,6 +175,7 @@ const (
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 	credentialPathsUsage                 = "directories or files to watch for credentials to use by bearerinjector filter"
+	secretsUpdateIntervalUsage           = "sets the interval to update secrets"
 
 	// TLS client certs
 	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
@@ -340,6 +342,7 @@ var (
 	webhookTimeout                  time.Duration
 	oidcSecretsFile                 string
 	credentialPaths                 = commaListFlag()
+	secretsUpdateInterval           time.Duration
 
 	// TLS client certs
 	clientKeyFile  string
@@ -500,6 +503,7 @@ func init() {
 	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 	flag.StringVar(&oidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 	flag.Var(credentialPaths, "credentials-paths", credentialPathsUsage)
+	flag.DurationVar(&secretsUpdateInterval, "credentials-update-interval", defaultSecretsUpdateInterval, secretsUpdateIntervalUsage)
 
 	// TLS client certs
 	flag.StringVar(&clientKeyFile, "client-tls-key", "", clientKeyFileUsage)

@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/fsnotify.v1"
 )
 
 var (
@@ -34,22 +34,22 @@ type SecretsProvider interface {
 }
 
 type SecretPaths struct {
-	watcher *fsnotify.Watcher
 	mu      sync.RWMutex
-	known   map[string][]byte
+	quit    chan struct{}
+	secrets map[string][]byte
+	files   map[string]string
 }
 
-func NewSecretPaths() *SecretPaths {
+// NewSecretPaths creates a SecretPaths, that implements a
+// SecretsProvider. It runs every d interval background refresher as a
+// side effect. On tear down make sure to Close() it.
+func NewSecretPaths(d time.Duration) *SecretPaths {
 	sp := &SecretPaths{
-		known: make(map[string][]byte),
+		quit:    make(chan struct{}),
+		secrets: make(map[string][]byte),
+		files:   make(map[string]string),
 	}
-
-	if watcher, err := fsnotify.NewWatcher(); err != nil {
-		log.Errorf("Failed to create watcher, probably no support for fsnotify: %v", err)
-	} else {
-		sp.watcher = watcher
-		go sp.startRefresher()
-	}
+	go sp.runRefresher(d)
 
 	return sp
 }
@@ -57,7 +57,7 @@ func NewSecretPaths() *SecretPaths {
 // GetSecret returns secret and if found or not for a given name.
 func (sp *SecretPaths) GetSecret(s string) ([]byte, bool) {
 	sp.mu.RLock()
-	dat, ok := sp.known[s]
+	dat, ok := sp.secrets[s]
 	sp.mu.RUnlock()
 	return dat, ok
 }
@@ -68,7 +68,7 @@ func (sp *SecretPaths) updateSecret(name string, dat []byte) {
 	if len(dat) > 0 && dat[len(dat)-1] == 0xa {
 		dat = dat[:len(dat)-1]
 	}
-	sp.known[name] = dat
+	sp.secrets[name] = dat
 }
 
 // Add adds a file or directory to find secrets in all files
@@ -136,50 +136,33 @@ func (sp *SecretPaths) registerSecretFile(name, p string) error {
 		return err
 	}
 	sp.updateSecret(name, dat)
+	sp.files[name] = p
 
-	err = sp.registerWatcher(p)
-	if err != nil {
-		log.Errorf("Failed to watch path '%s': %v", p, err)
-	}
 	return nil
 }
 
-func (sp *SecretPaths) registerWatcher(p string) error {
-	if sp.watcher == nil {
-		return nil
-	}
-	return sp.watcher.Add(p)
-}
-
-// startRefresher refreshes all secrets, that are registered on the watcher
-func (sp *SecretPaths) startRefresher() {
+// runRefresher refreshes all secrets, that are registered
+func (sp *SecretPaths) runRefresher(d time.Duration) {
+	log.Infof("Run secrets path refresher every %s", d)
 	for {
 		select {
-		case event, ok := <-sp.watcher.Events:
-			if !ok {
-				log.Infoln("Stop secrets background refresher")
-				return
-			}
-			if event.Op&fsnotify.Write == fsnotify.Write {
-				dat, err := ioutil.ReadFile(event.Name)
+		case <-time.After(d):
+			for name, p := range sp.files {
+				dat, err := ioutil.ReadFile(p)
 				if err != nil {
-					log.Errorf("Failed to read file (%s): %v", event.Name, err)
+					log.Errorf("Failed to read file (%s): %v", p, err)
 					continue
 				}
-				log.Infof("update secret file: %s", event.Name)
-				sp.updateSecret(filepath.Base(event.Name), dat)
+				log.Infof("update secret file: %s", name)
+				sp.updateSecret(name, dat)
 			}
-		case err, ok := <-sp.watcher.Errors:
-			if !ok {
-				log.Infoln("Stop secrets background refresher")
-				return
-			}
-			log.Errorf("Watch event error: %v", err)
+		case <-sp.quit:
+			log.Infoln("Stop secrets background refresher")
+			return
 		}
 	}
 }
 
 func (sp *SecretPaths) Close() {
-	log.Info("Stop secret updates")
-	sp.watcher.Close()
+	close(sp.quit)
 }
