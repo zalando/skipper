@@ -9,6 +9,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/syncmap"
 )
 
 var (
@@ -37,7 +38,7 @@ type SecretPaths struct {
 	mu      sync.RWMutex
 	quit    chan struct{}
 	secrets map[string][]byte
-	files   map[string]string
+	files   *syncmap.Map
 }
 
 // NewSecretPaths creates a SecretPaths, that implements a
@@ -47,7 +48,7 @@ func NewSecretPaths(d time.Duration) *SecretPaths {
 	sp := &SecretPaths{
 		quit:    make(chan struct{}),
 		secrets: make(map[string][]byte),
-		files:   make(map[string]string),
+		files:   &syncmap.Map{},
 	}
 	go sp.runRefresher(d)
 
@@ -135,10 +136,7 @@ func (sp *SecretPaths) registerSecretFile(name, p string) error {
 		return err
 	}
 	sp.updateSecret(name, dat)
-
-	sp.mu.Lock()
-	sp.files[name] = p
-	sp.mu.Unlock()
+	sp.files.Store(name, p)
 
 	return nil
 }
@@ -149,15 +147,26 @@ func (sp *SecretPaths) runRefresher(d time.Duration) {
 	for {
 		select {
 		case <-time.After(d):
-			for name, p := range sp.files {
+			sp.files.Range(func(k, b interface{}) bool {
+				name, ok := k.(string)
+				if !ok {
+					log.Errorf("Failed to convert k '%v' to string", k)
+					return true
+				}
+				p, ok := b.(string)
+				if !ok {
+					log.Errorf("Failed to convert p '%v' to string", b)
+					return true
+				}
 				dat, err := ioutil.ReadFile(p)
 				if err != nil {
 					log.Errorf("Failed to read file (%s): %v", p, err)
-					continue
+					return true
 				}
 				log.Infof("update secret file: %s", name)
 				sp.updateSecret(name, dat)
-			}
+				return true
+			})
 		case <-sp.quit:
 			log.Infoln("Stop secrets background refresher")
 			return
