@@ -27,6 +27,10 @@ type breakerFlags []circuit.BreakerSettings
 var errInvalidBreakerConfig = errors.New("invalid breaker config")
 
 func (b *breakerFlags) String() string {
+	if b == nil {
+		return ""
+	}
+
 	s := make([]string, len(*b))
 	for i, bi := range *b {
 		s[i] = bi.String()
