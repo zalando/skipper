@@ -318,7 +318,7 @@ func TestRetryable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create request with NoBody: %v", err)
 	}
-	reqWithBody, err := http.NewRequest("GET", "http://www.zalando.de", &bytes.Buffer{})
+	reqWithBody, err := http.NewRequest("GET", "http://www.zalando.de", bytes.NewBufferString("hello"))
 	if err != nil {
 		t.Fatalf("Failed to create request with body: %v", err)
 	}
