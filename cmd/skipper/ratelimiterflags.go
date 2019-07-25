@@ -23,6 +23,10 @@ type ratelimitFlags []ratelimit.Settings
 var errInvalidRatelimitConfig = errors.New("invalid ratelimit config")
 
 func (r *ratelimitFlags) String() string {
+	if r == nil {
+		return ""
+	}
+
 	s := make([]string, len(*r))
 	for i, ri := range *r {
 		s[i] = ri.String()

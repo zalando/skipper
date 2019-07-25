@@ -21,6 +21,10 @@ func newPluginFlag() *pluginFlag {
 }
 
 func (f pluginFlag) String() string {
+	if f.listFlag == nil {
+		return ""
+	}
+
 	return f.listFlag.String()
 }
 
