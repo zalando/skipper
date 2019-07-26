@@ -13,7 +13,7 @@ zalando.org/skipper-filter | `consecutiveBreaker(15)` | arbitrary filters
 zalando.org/skipper-predicate | `QueryParam("version", "^alpha$")` | arbitrary predicates
 zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | extra custom routes
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
-zalando.org/skipper-ingress-redirect | `true` | change the default HTTPS redirect behavior for specific ingresses (true/false)
+zalando.org/skipper-ingress-redirect | `"true"` | change the default HTTPS redirect behavior for specific ingresses (true/false)
 zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
 zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../../reference/backends/#load-balancer-backend)
 
@@ -998,7 +998,7 @@ Example:
     kind: Ingress
     metadata:
       annotations:
-        zalando.org/skipper-ingress-redirect: true
+        zalando.org/skipper-ingress-redirect: "true"
         zalando.org/skipper-ingress-redirect-code: 301
       name: app
     spec:
