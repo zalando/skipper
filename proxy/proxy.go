@@ -1045,7 +1045,7 @@ func (p *Proxy) do(ctx *context) error {
 
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 
-			if perr.DialError() && ctx.route.BackendType == eskip.LBBackend {
+			if retryable(ctx.Request()) && perr.DialError() && ctx.route.BackendType == eskip.LBBackend {
 				if ctx.proxySpan != nil {
 					ctx.proxySpan.Finish()
 					ctx.proxySpan = nil
@@ -1084,6 +1084,10 @@ func (p *Proxy) do(ctx *context) error {
 	addBranding(ctx.response.Header)
 	p.applyFiltersToResponse(processedFilters, ctx)
 	return nil
+}
+
+func retryable(req *http.Request) bool {
+	return req != nil && (req.Body == nil || req.Body == http.NoBody)
 }
 
 func (p *Proxy) serveResponse(ctx *context) {

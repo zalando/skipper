@@ -309,6 +309,54 @@ func TestGetRoundtrip(t *testing.T) {
 	}
 }
 
+func TestRetryable(t *testing.T) {
+	reqWithoutBody, err := http.NewRequest("GET", "http://www.zalando.de", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request without body: %v", err)
+	}
+	reqWithNoBody, err := http.NewRequest("GET", "http://www.zalando.de", http.NoBody)
+	if err != nil {
+		t.Fatalf("Failed to create request with NoBody: %v", err)
+	}
+	reqWithBody, err := http.NewRequest("GET", "http://www.zalando.de", bytes.NewBufferString("hello"))
+	if err != nil {
+		t.Fatalf("Failed to create request with body: %v", err)
+	}
+
+	for _, tt := range []struct {
+		name string
+		req  *http.Request
+		want bool
+	}{
+		{
+			name: "test nil request",
+			req:  nil,
+			want: false,
+		},
+		{
+			name: "test request without body",
+			req:  reqWithoutBody,
+			want: true,
+		},
+		{
+			name: "test request with no body",
+			req:  reqWithNoBody,
+			want: true,
+		},
+		{
+			name: "test request with body",
+			req:  reqWithBody,
+			want: false,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := retryable(tt.req)
+			if got != tt.want {
+				t.Errorf("Failed to find retryable, want %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
 func TestSetRequestUrlFromRequest(t *testing.T) {
 	for _, ti := range []struct {
 		msg         string
