@@ -38,10 +38,10 @@ func (b *bearerInjectorSpec) CreateFilter(args []interface{}) (filters.Filter, e
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return newbearerInjectorFilter(secretName, b.secretsReader), nil
+	return newBearerInjectorFilter(secretName, b.secretsReader), nil
 }
 
-func newbearerInjectorFilter(s string, sr secrets.SecretsReader) *bearerInjectorFilter {
+func newBearerInjectorFilter(s string, sr secrets.SecretsReader) *bearerInjectorFilter {
 	return &bearerInjectorFilter{
 		secretName:    s,
 		secretsReader: sr,
