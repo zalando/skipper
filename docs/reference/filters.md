@@ -90,8 +90,10 @@ Parameters:
 Example:
 
 ```
-redir: PathRegex(/^\/foo\/bar/) -> redirectTo(302, "/foo/newBar") -> <shunt>;
+redirect: PathRegex(/^\/foo\/bar/) -> redirectTo(302, "/foo/newBar") -> <shunt>;
 ```
+
+see also [redirect-handling](../tutorials/common-use-cases.md#redirect-handling)
 
 ## redirectToLower
 

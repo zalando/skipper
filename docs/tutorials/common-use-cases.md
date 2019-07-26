@@ -48,7 +48,6 @@ Example:
 < Content-Length: 0
 <
 * Connection #0 to host localhost left intact
-
 ```
 
 #### set absolute path
@@ -83,6 +82,19 @@ If you want a redirect definition that adds a base path and the
 specified path by the client should be appended to this base path you
 can use the `modPath` filter just before the `redirectTo()` to modify
 the base path as you like.
+
+Route Example shows, that calls to `/a/base/foo/bar` would be
+redirected to `https://another-example.com/my/new/base/foo/bar`:
+
+```
+redirect: Path("/a/base/")
+          -> modPath("/a/base/", "/my/new/base/")
+          -> redirectTo(308, "https://another-example.com")
+          -> <shunt>'
+```
+
+The next example shows how to test a redirect with changed base path
+on your computer:
 
 ```
 % ./bin/skipper -address :8080 -inline-routes 'r: * -> modPath("/", "/my/new/base/") -> redirectTo(308, "http://127.0.0.1:9999") -> <shunt>'
