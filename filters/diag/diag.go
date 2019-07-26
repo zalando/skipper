@@ -324,7 +324,7 @@ func (t *throttle) goThrottle(in io.ReadCloser, close bool) io.ReadCloser {
 					delay -= time.Since(start)
 				}
 
-				time.Sleep(t.delay)
+				time.Sleep(delay)
 			}
 		}
 	}()
