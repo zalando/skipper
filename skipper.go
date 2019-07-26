@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/zalando/skipper/predicates/cron"
 	"io"
 	"net"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/zalando/skipper/predicates/cron"
 
 	ot "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
@@ -524,6 +525,12 @@ type Options struct {
 	// SecretsRegistry to store and load secretsencrypt
 	SecretsRegistry *secrets.Registry
 
+	// CredentialsPaths directories or files where credentials are stored one secret per file
+	CredentialsPaths []string
+
+	// CredentialsUpdateInterval sets the interval to update secrets
+	CredentialsUpdateInterval time.Duration
+
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
 	ApiUsageMonitoringRealmKeys             string
@@ -888,8 +895,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 	defer o.SecretsRegistry.Close()
 
+	sp := secrets.NewSecretPaths(o.CredentialsUpdateInterval)
+	defer sp.Close()
+	for _, p := range o.CredentialsPaths {
+		sp.Add(p)
+	}
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
+		auth.NewBearerInjector(sp),
 		auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
 		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),

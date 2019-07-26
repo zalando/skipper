@@ -122,6 +122,8 @@ func (e *Encrypter) Decrypt(cipherText []byte) ([]byte, error) {
 	return nil, fmt.Errorf("none of the ciphers can decrypt the data")
 }
 
+// RefreshCiphers rotates the list of cipher.AEAD initialized with
+// SecretSource from the Encrypter.
 func (e *Encrypter) RefreshCiphers() error {
 	secrets, err := e.secretSource.GetSecret()
 	if err != nil {

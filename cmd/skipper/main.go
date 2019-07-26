@@ -71,6 +71,7 @@ const (
 	defaultOAuthTokeninfoTimeout          = 2 * time.Second
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 	defaultWebhookTimeout                 = 2 * time.Second
+	defaultCredentialsUpdateInterval      = 10 * time.Minute
 
 	// API Monitoring
 	defaultApiUsageMonitoringEnable                       = false
@@ -164,7 +165,7 @@ const (
 	kubernetesEnableEastWestUsage    = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
 	kubernetesEastWestDomainUsage    = "set the east-west domain, defaults to .skipper.cluster.local"
 
-	// OAuth2:
+	// Auth:
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
 	oauthCredentialsDirUsage             = "directory where oauth credentials are stored: client.json and user.json"
 	oauthScopeUsage                      = "the whitespace separated list of oauth scopes"
@@ -173,6 +174,8 @@ const (
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
+	credentialPathsUsage                 = "directories or files to watch for credentials to use by bearerinjector filter"
+	credentialsUpdateIntervalUsage       = "sets the interval to update secrets"
 
 	// TLS client certs
 	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
@@ -338,6 +341,8 @@ var (
 	oauth2TokenintrospectionTimeout time.Duration
 	webhookTimeout                  time.Duration
 	oidcSecretsFile                 string
+	credentialPaths                 = commaListFlag()
+	credentialsUpdateInterval       time.Duration
 
 	// TLS client certs
 	clientKeyFile  string
@@ -497,6 +502,8 @@ func init() {
 	flag.DurationVar(&oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
 	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 	flag.StringVar(&oidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
+	flag.Var(credentialPaths, "credentials-paths", credentialPathsUsage)
+	flag.DurationVar(&credentialsUpdateInterval, "credentials-update-interval", defaultCredentialsUpdateInterval, credentialsUpdateIntervalUsage)
 
 	// TLS client certs
 	flag.StringVar(&clientKeyFile, "client-tls-key", "", clientKeyFileUsage)
@@ -731,6 +738,8 @@ func main() {
 		OAuthTokenintrospectionTimeout: oauth2TokenintrospectionTimeout,
 		WebhookTimeout:                 webhookTimeout,
 		OIDCSecretsFile:                oidcSecretsFile,
+		CredentialsPaths:               credentialPaths.values,
+		CredentialsUpdateInterval:      credentialsUpdateInterval,
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   waitForHealthcheckInterval,
