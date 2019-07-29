@@ -14,20 +14,21 @@ TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/multitype_noop.so \
 		     _test_plugins_fail/fail.so
 GO111             ?= on
+GOPROXY           ?=https://proxy.golang.org
 
 default: build
 
 lib: $(SOURCES)
-	GO111MODULE=$(GO111) go build $(PACKAGES)
+	GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build $(PACKAGES)
 
 bindir:
 	mkdir -p bin
 
 skipper: $(SOURCES) bindir
-	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper/*.go
+	GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper/*.go
 
 eskip: $(SOURCES) bindir
-	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip/*.go
+	GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip/*.go
 
 fixlimits:
 ifeq (LIMIT_FDS, 256)
@@ -37,23 +38,23 @@ endif
 build: $(SOURCES) lib skipper eskip
 
 build.linux.armv8:
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux.armv7:
-	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.osx:
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.windows:
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 install: $(SOURCES)
-	GO111MODULE=$(GO111) go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
-	GO111MODULE=$(GO111) go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
+	GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
 check: build check-plugins
 	# go test $(PACKAGES)
@@ -61,7 +62,7 @@ check: build check-plugins
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test $$p || break; done
+	for p in $(PACKAGES); do GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go test $$p || break; done
 
 shortcheck: build check-plugins fixlimits
 	# go test -test.short -run ^Test $(PACKAGES)
@@ -69,7 +70,7 @@ shortcheck: build check-plugins fixlimits
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go test -test.short -run ^Test $$p || break -1; done
 
 cicheck: build check-plugins
 	# go test -test.short -run ^Test $(PACKAGES)
@@ -77,7 +78,7 @@ cicheck: build check-plugins
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -tags=redis -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go test -tags=redis -test.short -run ^Test $$p || break -1; done
 
 check-race: build
 	# go test -race -test.short -run ^Test $(PACKAGES)
@@ -85,16 +86,16 @@ check-race: build
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -race -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go test -race -test.short -run ^Test $$p || break -1; done
 
 check-plugins: $(TEST_PLUGINS)
-	GO111MODULE=$(GO111) go test -run LoadPlugins
+	GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go test -run LoadPlugins
 
 _test_plugins/%.so: _test_plugins/%.go
-	GO111MODULE=$(GO111) go build -buildmode=plugin -o $@ $<
+	GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build -buildmode=plugin -o $@ $<
 
 _test_plugins_fail/%.so: _test_plugins_fail/%.go
-	GO111MODULE=$(GO111) go build -buildmode=plugin -o $@ $<
+	GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go build -buildmode=plugin -o $@ $<
 
 bench: build $(TEST_PLUGINS)
 	# go test -bench . $(PACKAGES)
@@ -102,7 +103,7 @@ bench: build $(TEST_PLUGINS)
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -bench . $$p; done
+	for p in $(PACKAGES); do GOPROXY=$(GOPROXY) GO111MODULE=$(GO111) go test -bench . $$p; done
 
 lint: build staticcheck
 
