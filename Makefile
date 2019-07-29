@@ -37,23 +37,23 @@ endif
 build: $(SOURCES) lib skipper eskip
 
 build.linux.armv8:
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux.armv7:
-	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.osx:
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.windows:
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 install: $(SOURCES)
-	GO111MODULE=on go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
-	GO111MODULE=on go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
+	GO111MODULE=$(GO111) go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GO111MODULE=$(GO111) go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
 check: build check-plugins
 	# go test $(PACKAGES)
@@ -61,7 +61,7 @@ check: build check-plugins
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=on go test $$p || break; done
+	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test $$p || break; done
 
 shortcheck: build check-plugins fixlimits
 	# go test -test.short -run ^Test $(PACKAGES)
@@ -69,7 +69,7 @@ shortcheck: build check-plugins fixlimits
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=on go test -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -test.short -run ^Test $$p || break -1; done
 
 cicheck: build check-plugins
 	# go test -test.short -run ^Test $(PACKAGES)
@@ -77,7 +77,7 @@ cicheck: build check-plugins
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=on go test -tags=redis -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -tags=redis -test.short -run ^Test $$p || break -1; done
 
 check-race: build
 	# go test -race -test.short -run ^Test $(PACKAGES)
@@ -85,16 +85,16 @@ check-race: build
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=on go test -race -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -race -test.short -run ^Test $$p || break -1; done
 
 check-plugins: $(TEST_PLUGINS)
-	GO111MODULE=on go test -run LoadPlugins
+	GO111MODULE=$(GO111) go test -run LoadPlugins
 
 _test_plugins/%.so: _test_plugins/%.go
-	GO111MODULE=on go build -buildmode=plugin -o $@ $<
+	GO111MODULE=$(GO111) go build -buildmode=plugin -o $@ $<
 
 _test_plugins_fail/%.so: _test_plugins_fail/%.go
-	GO111MODULE=on go build -buildmode=plugin -o $@ $<
+	GO111MODULE=$(GO111) go build -buildmode=plugin -o $@ $<
 
 bench: build $(TEST_PLUGINS)
 	# go test -bench . $(PACKAGES)
@@ -102,7 +102,7 @@ bench: build $(TEST_PLUGINS)
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=on go test -bench . $$p; done
+	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -bench . $$p; done
 
 lint: build staticcheck
 
@@ -129,21 +129,21 @@ deps:
 	@which gosec || cp -a $(GOPATH)/bin/gosec $(GOBIN)/gosec
 
 vet: $(SOURCES)
-	GO111MODULE=on go vet $(PACKAGES)
+	GO111MODULE=$(GO111) go vet $(PACKAGES)
 
 # TODO(sszuecs) review disabling these checks, f.e.:
 # -ST1000 missing package doc in many packages
 # -ST1003 wrong naming convention Api vs API, Id vs ID
 # -ST1012 too many error variables are not having prefix "err"
 staticcheck: $(SOURCES)
-	GO111MODULE=on staticcheck -checks "all,-ST1000,-ST1003,-ST1012" $(PACKAGES)
+	GO111MODULE=$(GO111) staticcheck -checks "all,-ST1000,-ST1003,-ST1012" $(PACKAGES)
 
 # TODO(sszuecs) review disabling these checks, f.e.:
 # G101 find by variable name match "oauth" are not hardcoded credentials
 # G104 ignoring errors are in few cases fine
 # G304 reading kubernetes secret filepaths are not a file inclusions
 gosec: $(SOURCES)
-	GO111MODULE=on gosec -quiet -exclude="G101,G104,G304" ./...
+	GO111MODULE=$(GO111) gosec -quiet -exclude="G101,G104,G304" ./...
 
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)
