@@ -115,8 +115,8 @@ clean:
 deps:
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
-	@curl -o /tmp/staticcheck -LO https://github.com/dominikh/go-tools/releases/download/2019.1/staticcheck_linux_amd64
-	@sha256sum /tmp/staticcheck | grep -q a13563b3fe136674a87e174bbedbd1af49e5bd89ffa605a11150ae06ab9fd999
+	@curl -o /tmp/staticcheck -LO https://github.com/dominikh/go-tools/releases/download/2019.2.1/staticcheck_linux_amd64
+	@sha256sum /tmp/staticcheck | grep -q 8ab2da668f4c0bdab4047e9be0d9fd6fe86454d3cd44123e5a15478172b0d70b
 	@mkdir -p $(GOPATH)/bin
 	@mv /tmp/staticcheck $(GOPATH)/bin/
 	@chmod +x $(GOPATH)/bin/staticcheck
