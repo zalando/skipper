@@ -1484,3 +1484,11 @@ the api-backend service will receive a request with the path /api/foo%2Fbar/summ
 It is also possible to enable this behavior centrally for a Skipper instance with
 the -rfc-patch-path flag. See
 [URI standards interpretation](../../operation/operation/#uri-standards-interpretation).
+
+## bearerinjector
+
+This filter injects `Bearer` tokens into `Authorization` headers read
+from file providing the token as content. This is only for use cases
+using skipper as sidecar to inject tokens for the application on the
+[**egress**](egress.md) path, if it's used in the **ingress** path you likely
+create a security issue for your application.
