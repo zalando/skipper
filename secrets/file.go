@@ -12,6 +12,10 @@ import (
 	"golang.org/x/sync/syncmap"
 )
 
+const (
+	DefaultCredentialsUpdateInterval = 10 * time.Minute
+)
+
 var (
 	ErrAlreadyExists    = errors.New("secret already exists")
 	ErrWrongFileType    = errors.New("file type not supported")

@@ -895,10 +895,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 	defer o.SecretsRegistry.Close()
 
+	if o.CredentialsUpdateInterval == 0 {
+		o.CredentialsUpdateInterval = secrets.DefaultCredentialsUpdateInterval
+	}
 	sp := secrets.NewSecretPaths(o.CredentialsUpdateInterval)
 	defer sp.Close()
 	for _, p := range o.CredentialsPaths {
-		sp.Add(p)
+		if err := sp.Add(p); err != nil {
+			log.Errorf("Failed to add credentials file: %s: %v", p, err)
+		}
 	}
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),

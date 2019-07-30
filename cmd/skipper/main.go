@@ -32,6 +32,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
+	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/swarm"
 )
 
@@ -71,7 +72,6 @@ const (
 	defaultOAuthTokeninfoTimeout          = 2 * time.Second
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 	defaultWebhookTimeout                 = 2 * time.Second
-	defaultCredentialsUpdateInterval      = 10 * time.Minute
 
 	// API Monitoring
 	defaultApiUsageMonitoringEnable                       = false
@@ -503,7 +503,7 @@ func init() {
 	flag.DurationVar(&webhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 	flag.StringVar(&oidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 	flag.Var(credentialPaths, "credentials-paths", credentialPathsUsage)
-	flag.DurationVar(&credentialsUpdateInterval, "credentials-update-interval", defaultCredentialsUpdateInterval, credentialsUpdateIntervalUsage)
+	flag.DurationVar(&credentialsUpdateInterval, "credentials-update-interval", secrets.DefaultCredentialsUpdateInterval, credentialsUpdateIntervalUsage)
 
 	// TLS client certs
 	flag.StringVar(&clientKeyFile, "client-tls-key", "", clientKeyFileUsage)
