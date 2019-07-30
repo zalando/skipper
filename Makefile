@@ -136,8 +136,9 @@ vet: $(SOURCES)
 # -ST1000 missing package doc in many packages
 # -ST1003 wrong naming convention Api vs API, Id vs ID
 # -ST1012 too many error variables are not having prefix "err"
+# -ST1020 too many wrong comments on exported functions to fix right away
 staticcheck: $(SOURCES)
-	GO111MODULE=$(GO111) staticcheck -checks "all,-ST1000,-ST1003,-ST1012" $(PACKAGES)
+	GO111MODULE=$(GO111) staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020" $(PACKAGES)
 
 # TODO(sszuecs) review disabling these checks, f.e.:
 # G101 find by variable name match "oauth" are not hardcoded credentials
