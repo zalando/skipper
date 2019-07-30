@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	DefaultCredentialsUpdateInterval = 10 * time.Minute
+	defaultCredentialsUpdateInterval = 10 * time.Minute
 )
 
 var (
@@ -39,24 +39,29 @@ type SecretsProvider interface {
 }
 
 type SecretPaths struct {
-	mu      sync.RWMutex
-	quit    chan struct{}
-	secrets map[string][]byte
-	files   *syncmap.Map
+	mu              sync.RWMutex
+	quit            chan struct{}
+	secrets         map[string][]byte
+	files           *syncmap.Map
+	refreshInterval time.Duration
+	started         bool
 }
 
 // NewSecretPaths creates a SecretPaths, that implements a
 // SecretsProvider. It runs every d interval background refresher as a
 // side effect. On tear down make sure to Close() it.
 func NewSecretPaths(d time.Duration) *SecretPaths {
-	sp := &SecretPaths{
-		quit:    make(chan struct{}),
-		secrets: make(map[string][]byte),
-		files:   &syncmap.Map{},
+	if d <= 0 {
+		d = defaultCredentialsUpdateInterval
 	}
-	go sp.runRefresher(d)
 
-	return sp
+	return &SecretPaths{
+		quit:            make(chan struct{}),
+		secrets:         make(map[string][]byte),
+		files:           &syncmap.Map{},
+		refreshInterval: d,
+		started:         false,
+	}
 }
 
 // GetSecret returns secret and if found or not for a given name.
@@ -77,8 +82,17 @@ func (sp *SecretPaths) updateSecret(name string, dat []byte) {
 }
 
 // Add adds a file or directory to find secrets in all files
-// found. The basename of the file will be the key to get the secret
+// found. The basename of the file will be the key to get the
+// secret. Add is not synchronized and is not safe to call
+// concurrently. Add has a side effect of lazily init a goroutine to
+// start a single background refresher for the SecretPaths instance.
 func (sp *SecretPaths) Add(p string) error {
+	if !sp.started {
+		// lazy init background goroutine, such that we have only a goroutine if there is work
+		go sp.runRefresher()
+		sp.started = true
+	}
+
 	fi, err := os.Lstat(p)
 	if err != nil {
 		log.Errorf("Failed to stat path: %v", err)
@@ -146,11 +160,11 @@ func (sp *SecretPaths) registerSecretFile(name, p string) error {
 }
 
 // runRefresher refreshes all secrets, that are registered
-func (sp *SecretPaths) runRefresher(d time.Duration) {
-	log.Infof("Run secrets path refresher every %s", d)
+func (sp *SecretPaths) runRefresher() {
+	log.Infof("Run secrets path refresher every %s", sp.refreshInterval)
 	for {
 		select {
-		case <-time.After(d):
+		case <-time.After(sp.refreshInterval):
 			sp.files.Range(func(k, b interface{}) bool {
 				name, ok := k.(string)
 				if !ok {

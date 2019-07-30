@@ -895,9 +895,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 	defer o.SecretsRegistry.Close()
 
-	if o.CredentialsUpdateInterval == 0 {
-		o.CredentialsUpdateInterval = secrets.DefaultCredentialsUpdateInterval
-	}
 	sp := secrets.NewSecretPaths(o.CredentialsUpdateInterval)
 	defer sp.Close()
 	for _, p := range o.CredentialsPaths {
