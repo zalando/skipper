@@ -6,6 +6,7 @@ nav:
         - Filters: reference/filters.md
         - Predicates: reference/predicates.md
         - Backends: reference/backends.md
+        - Egress: reference/egress.md
         - Scripts: reference/scripts.md
         - Plugins: reference/plugins.md
         - Architecture: reference/architecture.md
