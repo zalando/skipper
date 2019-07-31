@@ -816,6 +816,8 @@ Parameters:
 
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
 
+Can be used as [egress](egress.md) feature.
+
 ## rateBreaker
 
 The "rate breaker" works similar to the [consecutiveBreaker](#consecutivebreaker), but
@@ -833,6 +835,8 @@ Parameters:
 
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
 
+Can be used as [egress](egress.md) feature.
+
 ## disableBreaker
 
 Change (or set) the breaker configurations for an individual route and disable for another, in eskip:
@@ -848,6 +852,8 @@ backendHealthcheck: Path("/healthcheck")
 ```
 
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
+
+Can be used as [egress](egress.md) feature.
 
 ## ~~localRatelimit~~
 
@@ -1484,3 +1490,29 @@ the api-backend service will receive a request with the path /api/foo%2Fbar/summ
 It is also possible to enable this behavior centrally for a Skipper instance with
 the -rfc-patch-path flag. See
 [URI standards interpretation](../../operation/operation/#uri-standards-interpretation).
+
+## Bearerinjector
+
+This filter injects `Bearer` tokens into `Authorization` headers read
+from file providing the token as content. This is only for use cases
+using skipper as sidecar to inject tokens for the application on the
+[**egress**](egress.md) path, if it's used in the **ingress** path you likely
+create a security issue for your application.
+
+This filter should be used as an [egress](egress.md) only feature.
+
+Example:
+
+```
+egress1: Method("POST") && Host("api.example.com") -> bearerinjector("write-token") -> "https://api.example.com/shoes";
+egress2: Method("GET") && Host("api.example.com") -> bearerinjector("read-token") -> "https://api.example.com/shoes";
+```
+
+To integrate with the `bearerinjector` filter you need to run skipper
+with `-credentials-paths=/tmp/secrets` and specify an update interval
+`-credentials-update-interval=10s`. Files in the credentials path can
+be a directory, which will be able to find all files within this
+directory, but it won't walk subtrees. For the example case, there
+have to be filenames `write-token` and `read-token` within the
+specified credential paths `/tmp/secrets/`, resulting in
+`/tmp/secrets/write-token` and `/tmp/secrets/read-token`.
