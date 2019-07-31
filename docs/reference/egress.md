@@ -41,7 +41,7 @@ To specify files or directories to find secrets, you can use
 `-credentials-paths` command line flag. Filenames are used to define
 the name of the secret, which will be used as a lookup key.
 
-Files need to be created before skipper started, and as of today
+The files need to be created before skipper is started, and as of today
 skipper doesn't find new files automatically. This might change in the
 future.
 
@@ -62,13 +62,13 @@ start fake service
 nc -l 8080
 ```
 
-start skipper forward proxy
+start skipper proxy
 
 ```
 skipper -inline-routes='Host("host1") -> bearerinjector("sec1") -> "http://127.0.0.1:8080/"' -credentials-paths=/tmp/secrets -credentials-update-interval=10s
 ```
 
-Client calls skipper forward proxy
+Client calls skipper proxy
 
 ```
 % curl -H"Host: host1" localhost:9090/foo
@@ -96,7 +96,7 @@ Restart fake service (CTRL-c to stop)
 nc -l 8080
 ```
 
-Client calls skipper forward proxy retry:
+Client calls skipper proxy retry:
 
 ```
 % curl -H"Host: host1" localhost:9090/foo

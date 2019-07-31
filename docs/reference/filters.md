@@ -1514,5 +1514,5 @@ with `-credentials-paths=/tmp/secrets` and specify an update interval
 be a directory, which will be able to find all files within this
 directory, but it won't walk subtrees. For the example case, there
 have to be filenames `write-token` and `read-token` within the
-specified credential paths `/tmp/secrets/`, so
+specified credential paths `/tmp/secrets/`, resulting in
 `/tmp/secrets/write-token` and `/tmp/secrets/read-token`.
