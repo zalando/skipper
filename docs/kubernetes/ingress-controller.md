@@ -219,7 +219,7 @@ traffic.
 
 ```yaml
 # cat skipper-ingress-ds.yaml
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: skipper-ingress
@@ -302,7 +302,7 @@ We now deploy a simple demo application serving html:
 
 ```yaml
 # cat demo-deployment.yaml
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: skipper-demo
@@ -511,7 +511,7 @@ Last but not least the `ServiceAccount` has to be assigned to the Skipper daemon
 daemonset:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: skipper-ingress
