@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	// check if this commit broke something
 	defaultCredentialsUpdateInterval = 10 * time.Minute
 )
 
