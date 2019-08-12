@@ -4,18 +4,21 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/filtertest"
-	"github.com/zalando/skipper/metrics/metricstest"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/metrics/metricstest"
 )
 
 var defaultArgs = []interface{}{`{
 		"application_id": "my_app",
+		"tag": "my_tag",
 		"api_id": "my_api",
 	  	"path_templates": [
 			"foo/orders",
@@ -183,6 +186,7 @@ func testClientMetrics(t *testing.T, testCase clientMetricsTest) {
 			filterConf := map[string]interface{}{
 				"application_id": "my_app",
 				"api_id":         "my_api",
+				"tag":            "my_tag",
 				"path_templates": []string{
 					"foo/orders",
 				},
