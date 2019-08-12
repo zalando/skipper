@@ -31,43 +31,45 @@ const (
 	authHeaderPrefix = "Bearer "
 )
 
-type roleMatchType int
+type (
+	matchBehavior int
+)
 
 const (
-	matchJWTPayloadAnyKV roleMatchType = iota
-	matchJWTPayloadAllKV
-
 	matchJWTPayloadAllKVName = "JWTPayloadAllKV"
 	matchJWTPayloadAnyKVName = "JWTPayloadAnyKV"
-	matchUnkown              = "unkown"
+
+	matchBehaviorAll matchBehavior = iota
+	matchBehaviorAny
 )
 
 type (
-	spec         struct{ typ roleMatchType }
-	predicateAny struct {
-		kv map[string][]string
+	spec struct {
+		matchBehavior matchBehavior
+		name          string
 	}
-	predicateAll struct {
-		kv map[string]string
+	predicate struct {
+		kv            map[string][]string
+		matchBehavior matchBehavior
 	}
 )
 
 func NewJWTPayloadAnyKV() routing.PredicateSpec {
-	return &spec{typ: matchJWTPayloadAnyKV}
+	return &spec{
+		matchBehavior: matchBehaviorAny,
+		name:          matchJWTPayloadAnyKVName,
+	}
 }
 
 func NewJWTPayloadAllKV() routing.PredicateSpec {
-	return &spec{typ: matchJWTPayloadAllKV}
+	return &spec{
+		matchBehavior: matchBehaviorAll,
+		name:          matchJWTPayloadAllKVName,
+	}
 }
 
 func (s *spec) Name() string {
-	switch s.typ {
-	case matchJWTPayloadAllKV:
-		return matchJWTPayloadAllKVName
-	case matchJWTPayloadAnyKV:
-		return matchJWTPayloadAnyKVName
-	}
-	return matchUnkown
+	return s.name
 }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
@@ -75,49 +77,23 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	var k string
-
-	switch s.typ {
-	case matchJWTPayloadAllKV:
-		kv := make(map[string]string)
-		for i := range args {
-			if s, ok := args[i].(string); ok {
-				switch i % 2 {
-				case 0:
-					k = s
-					kv[k] = ""
-				case 1:
-					kv[k] = s
-				}
-			} else {
-				return nil, predicates.ErrInvalidPredicateParameters
-			}
+	kv := make(map[string][]string)
+	for i := 0; i < len(args); i += 2 {
+		key, keyOk := args[i].(string)
+		value, valueOk := args[i+1].(string)
+		if !keyOk || !valueOk {
+			return nil, predicates.ErrInvalidPredicateParameters
 		}
-		return &predicateAll{kv: kv}, nil
-	case matchJWTPayloadAnyKV:
-		kv := make(map[string][]string)
-		for i := range args {
-			if s, ok := args[i].(string); ok {
-				switch i % 2 {
-				case 0:
-					k = s
-					if _, ok := kv[k]; !ok {
-						kv[k] = []string{}
-					}
-				case 1:
-					kv[k] = append(kv[k], s)
-				}
-			} else {
-				return nil, predicates.ErrInvalidPredicateParameters
-			}
-		}
-		return &predicateAny{kv: kv}, nil
+		kv[key] = append(kv[key], value)
 	}
 
-	return nil, predicates.ErrInvalidPredicateParameters
+	return &predicate{
+		kv:            kv,
+		matchBehavior: s.matchBehavior,
+	}, nil
 }
 
-func (p *predicateAll) Match(r *http.Request) bool {
+func (p *predicate) Match(r *http.Request) bool {
 	ahead := r.Header.Get(authHeaderName)
 	if !strings.HasPrefix(ahead, authHeaderPrefix) {
 		return false
@@ -135,51 +111,43 @@ func (p *predicateAll) Match(r *http.Request) bool {
 		return false
 	}
 
-	var h map[string]interface{}
-	err = json.Unmarshal(sDec, &h)
+	var payload map[string]interface{}
+	err = json.Unmarshal(sDec, &payload)
 	if err != nil {
 		return false
 	}
 
-	return allMatch(p.kv, h)
+	switch p.matchBehavior {
+	case matchBehaviorAll:
+		return allMatch(p.kv, payload)
+	case matchBehaviorAny:
+		return anyMatch(p.kv, payload)
+	default:
+		return false
+	}
 }
 
-func (p *predicateAny) Match(r *http.Request) bool {
-	ahead := r.Header.Get(authHeaderName)
-	if !strings.HasPrefix(ahead, authHeaderPrefix) {
-		return false
+func stringValue(payload map[string]interface{}, key string) (string, bool) {
+	if value, ok := payload[key]; ok {
+		result, ok := value.(string)
+		return result, ok
 	}
-
-	fields := strings.FieldsFunc(ahead, func(r rune) bool {
-		return r == []rune(".")[0]
-	})
-	if len(fields) != 3 {
-		return false
-	}
-
-	sDec, err := base64.RawURLEncoding.DecodeString(fields[1])
-	if err != nil {
-		return false
-	}
-
-	var h map[string]interface{}
-	err = json.Unmarshal(sDec, &h)
-	if err != nil {
-		return false
-	}
-
-	return anyMatch(p.kv, h)
+	return "", false
 }
 
-func allMatch(kv map[string]string, h map[string]interface{}) bool {
-	if len(kv) > len(h) {
+func allMatch(expected map[string][]string, payload map[string]interface{}) bool {
+	if len(expected) > len(payload) {
 		return false
 	}
-	for k, v := range kv {
-		if vh, ok := h[k]; !ok {
+	for key, expectedValues := range expected {
+		payloadValue, ok := stringValue(payload, key)
+		if !ok {
 			return false
-		} else {
-			if s, ok2 := vh.(string); !ok2 || v != s {
+		}
+
+		// expectedValues is expected to be a slice of one value
+		for _, expectedValue := range expectedValues {
+			if expectedValue != payloadValue {
 				return false
 			}
 		}
@@ -187,18 +155,14 @@ func allMatch(kv map[string]string, h map[string]interface{}) bool {
 	return true
 }
 
-func anyMatch(kv map[string][]string, h map[string]interface{}) bool {
-	if len(kv) == 0 {
+func anyMatch(expected map[string][]string, payload map[string]interface{}) bool {
+	if len(expected) == 0 {
 		return true
 	}
-	for k, a := range kv {
-		if vh, ok := h[k]; ok {
-			var s string
-			if s, ok = vh.(string); !ok {
-				return false
-			}
-			for _, v := range a {
-				if v == s {
+	for key, expectedValues := range expected {
+		if payloadValue, ok := stringValue(payload, key); ok {
+			for _, expectedValue := range expectedValues {
+				if expectedValue == payloadValue {
 					return true
 				}
 			}

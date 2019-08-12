@@ -28,94 +28,101 @@ func Test_spec(t *testing.T) {
 func Test_spec_Create(t *testing.T) {
 	tests := []struct {
 		name    string
-		typ     roleMatchType
+		spec    routing.PredicateSpec
 		args    []interface{}
 		want    routing.Predicate
 		wantErr bool
 	}{{
 		name:    "invalid number of args",
-		typ:     matchJWTPayloadAllKV,
+		spec:    NewJWTPayloadAllKV(),
 		args:    []interface{}{"foo"},
 		want:    nil,
 		wantErr: true,
 	}, {
 		name:    "invalid type of args",
-		typ:     matchJWTPayloadAllKV,
+		spec:    NewJWTPayloadAllKV(),
 		args:    []interface{}{3, 5},
 		want:    nil,
 		wantErr: true,
 	}, {
 		name: "one valid kv pair of args",
-		typ:  matchJWTPayloadAllKV,
+		spec: NewJWTPayloadAllKV(),
 		args: []interface{}{"uid", "sszuecs"},
-		want: &predicateAll{
-			kv: map[string]string{
-				"uid": "sszuecs",
+		want: &predicate{
+			kv: map[string][]string{
+				"uid": {"sszuecs"},
 			},
+			matchBehavior: matchBehaviorAll,
 		},
 		wantErr: false,
 	}, {
 		name: "one valid kv pair of args",
-		typ:  matchJWTPayloadAnyKV,
+		spec: NewJWTPayloadAnyKV(),
 		args: []interface{}{"uid", "sszuecs"},
-		want: &predicateAny{
+		want: &predicate{
 			kv: map[string][]string{
 				"uid": {"sszuecs"},
 			},
+			matchBehavior: matchBehaviorAny,
 		},
 		wantErr: false,
 	}, {
 		name: "valid kv pair of args of the same key",
-		typ:  matchJWTPayloadAnyKV,
+		spec: NewJWTPayloadAnyKV(),
 		args: []interface{}{"uid", "sszuecs", "uid", "foo"},
-		want: &predicateAny{
+		want: &predicate{
 			kv: map[string][]string{
 				"uid": {"sszuecs", "foo"},
 			},
+			matchBehavior: matchBehaviorAny,
 		},
 		wantErr: false,
 	}, {
 		name: "many valid kv pair of args",
-		typ:  matchJWTPayloadAllKV,
+		spec: NewJWTPayloadAllKV(),
 		args: []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
-		want: &predicateAll{
-			kv: map[string]string{
-				"uid":    "sszuecs",
-				"claim1": "claimValue1",
-				"claim2": "claimValue2",
-			},
-		},
-		wantErr: false,
-	}, {
-		name: "many valid kv pair of args",
-		typ:  matchJWTPayloadAnyKV,
-		args: []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
-		want: &predicateAny{
+		want: &predicate{
 			kv: map[string][]string{
 				"uid":    {"sszuecs"},
 				"claim1": {"claimValue1"},
 				"claim2": {"claimValue2"},
 			},
+			matchBehavior: matchBehaviorAll,
+		},
+		wantErr: false,
+	}, {
+		name: "many valid kv pair of args",
+		spec: NewJWTPayloadAnyKV(),
+		args: []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2", "claimValue2"},
+		want: &predicate{
+			kv: map[string][]string{
+				"uid":    {"sszuecs"},
+				"claim1": {"claimValue1"},
+				"claim2": {"claimValue2"},
+			},
+			matchBehavior: matchBehaviorAny,
 		},
 		wantErr: false,
 	}, {
 		name:    "many kv pair of args, one missing",
-		typ:     matchJWTPayloadAllKV,
+		spec:    NewJWTPayloadAllKV(),
 		args:    []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2"},
 		want:    nil,
 		wantErr: true,
 	}, {
 		name:    "many kv pair of args",
-		typ:     matchJWTPayloadAnyKV,
+		spec:    NewJWTPayloadAnyKV(),
 		args:    []interface{}{"uid", "sszuecs", "claim1", "claimValue1", "claim2"},
 		want:    nil,
 		wantErr: true,
 	}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &spec{
-				typ: tt.typ,
+			s, ok := tt.spec.(*spec)
+			if !ok {
+				t.Errorf("unexpected spec value: %v", tt.spec)
 			}
+
 			got, err := s.Create(tt.args)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("spec.Create() error = %v, wantErr %v", err, tt.wantErr)
@@ -131,54 +138,54 @@ func Test_spec_Create(t *testing.T) {
 func Test_predicateAll_Match(t *testing.T) {
 	tests := []struct {
 		name string
-		kv   map[string]string
+		kv   map[string][]string
 		tok  string
 		want bool
 	}{{
 		name: "no valid kv pairs matching",
-		kv: map[string]string{
-			"https://identity.zalando.com/managed-id": "sszuecs",
-			"https://identity.zalando.com/token":      "Bearer",
+		kv: map[string][]string{
+			"https://identity.zalando.com/managed-id": {"sszuecs"},
+			"https://identity.zalando.com/token":      {"Bearer"},
 		},
 		tok:  "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJjNGRkZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic3N6dWVjcyIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA",
 		want: true,
 	}, {
 		name: "many valid kv pairs matching",
-		kv: map[string]string{
-			"https://identity.zalando.com/managed-id": "sszuecs",
-			"https://identity.zalando.com/token":      "Bearer",
+		kv: map[string][]string{
+			"https://identity.zalando.com/managed-id": {"sszuecs"},
+			"https://identity.zalando.com/token":      {"Bearer"},
 		},
 		tok:  "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJjNGRkZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic3N6dWVjcyIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA",
 		want: true,
 	}, {
 		name: "many valid kv pairs invalid token content",
-		kv: map[string]string{
-			"https://identity.zalando.com/managed-id": "sszuecs",
-			"https://identity.zalando.com/token":      "Bearer",
+		kv: map[string][]string{
+			"https://identity.zalando.com/managed-id": {"sszuecs"},
+			"https://identity.zalando.com/token":      {"Bearer"},
 		},
 		tok:  "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.31JzdWIiOiJjNG34ZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic3N6dWVjcyIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA",
 		want: false,
 	}, {
 		name: "many valid kv pairs invalid token fields",
-		kv: map[string]string{
-			"https://identity.zalando.com/managed-id": "sszuecs",
-			"https://identity.zalando.com/token":      "Bearer",
+		kv: map[string][]string{
+			"https://identity.zalando.com/managed-id": {"sszuecs"},
+			"https://identity.zalando.com/token":      {"Bearer"},
 		},
 		tok:  "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJjNGRkZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZW.50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic3N6dWVjcyIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA",
 		want: false,
 	}, {
 		name: "many valid kv pairs invalid base64 in token field",
-		kv: map[string]string{
-			"https://identity.zalando.com/managed-id": "sszuecs",
-			"https://identity.zalando.com/token":      "Bearer",
+		kv: map[string][]string{
+			"https://identity.zalando.com/managed-id": {"sszuecs"},
+			"https://identity.zalando.com/token":      {"Bearer"},
 		},
 		tok:  "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJjNGRkZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZ_50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic3N6dWVjcyIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA",
 		want: false,
 	}, {
 		name: "many valid kv pairs invalid managed-id in token",
-		kv: map[string]string{
-			"https://identity.zalando.com/managed-id": "sszuecs",
-			"https://identity.zalando.com/token":      "Bearer",
+		kv: map[string][]string{
+			"https://identity.zalando.com/managed-id": {"sszuecs"},
+			"https://identity.zalando.com/token":      {"Bearer"},
 		},
 		tok:  "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJjNGRkZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic29tZW9uZSIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0K.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA",
 		want: false,
@@ -190,8 +197,9 @@ func Test_predicateAll_Match(t *testing.T) {
 					authHeaderName: []string{"Bearer " + tt.tok},
 				},
 			}
-			p := &predicateAll{
-				kv: tt.kv,
+			p := &predicate{
+				kv:            tt.kv,
+				matchBehavior: matchBehaviorAll,
 			}
 			if got := p.Match(r); got != tt.want {
 				t.Errorf("predicateAll.Match() = %v, want %v", got, tt.want)
@@ -205,11 +213,12 @@ func Test_predicateAll_Match(t *testing.T) {
 				authHeaderName: []string{"Foo " + "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJjNGRkZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic29tZW9uZSIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0K.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA"},
 			},
 		}
-		p := &predicateAll{
-			kv: map[string]string{
-				"https://identity.zalando.com/managed-id": "sszuecs",
-				"https://identity.zalando.com/token":      "Bearer",
+		p := &predicate{
+			kv: map[string][]string{
+				"https://identity.zalando.com/managed-id": {"sszuecs"},
+				"https://identity.zalando.com/token":      {"Bearer"},
 			},
+			matchBehavior: matchBehaviorAny,
 		}
 		if got := p.Match(r); got != false {
 			t.Error("predicateAll.Match() should not match if there is not a matching header")
@@ -299,8 +308,9 @@ func Test_predicateAny_Match(t *testing.T) {
 					authHeaderName: []string{"Bearer " + tt.tok},
 				},
 			}
-			p := &predicateAny{
-				kv: tt.kv,
+			p := &predicate{
+				kv:            tt.kv,
+				matchBehavior: matchBehaviorAny,
 			}
 			if got := p.Match(r); got != tt.want {
 				t.Errorf("predicateAny.Match() = %v, want %v", got, tt.want)
@@ -312,7 +322,7 @@ func Test_predicateAny_Match(t *testing.T) {
 func Test_allMatch(t *testing.T) {
 	for _, tt := range []struct {
 		name string
-		kv   map[string]string
+		kv   map[string][]string
 		h    map[string]interface{}
 		want bool
 	}{
@@ -327,15 +337,15 @@ func Test_allMatch(t *testing.T) {
 			want: true,
 		}, {
 			name: "kv, but no h",
-			kv: map[string]string{
-				"foo": "bar",
+			kv: map[string][]string{
+				"foo": {"bar"},
 			},
 			want: false,
 		}, {
 			name: "multiple kv, with all overlapping h",
-			kv: map[string]string{
-				"foo": "bar",
-				"x":   "y",
+			kv: map[string][]string{
+				"foo": {"bar"},
+				"x":   {"y"},
 			},
 			h: map[string]interface{}{
 				"foo": "bar",
@@ -344,9 +354,9 @@ func Test_allMatch(t *testing.T) {
 			want: true,
 		}, {
 			name: "multiple kv, with one non overlapping h",
-			kv: map[string]string{
-				"foo": "bar",
-				"x":   "y",
+			kv: map[string][]string{
+				"foo": {"bar"},
+				"x":   {"y"},
 			},
 			h: map[string]interface{}{
 				"foo": "bar",
