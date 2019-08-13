@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/zalando/skipper/predicates"
@@ -33,38 +34,73 @@ const (
 
 type (
 	matchBehavior int
+	matchMode     int
 )
 
+type valueMatcher interface {
+	Match(jwtValue string) bool
+}
+
 const (
-	matchJWTPayloadAllKVName = "JWTPayloadAllKV"
-	matchJWTPayloadAnyKVName = "JWTPayloadAnyKV"
+	matchJWTPayloadAllKVName       = "JWTPayloadAllKV"
+	matchJWTPayloadAnyKVName       = "JWTPayloadAnyKV"
+	matchJWTPayloadAllKVRegexpName = "JWTPayloadAllKVRegexp"
+	matchJWTPayloadAnyKVRegexpName = "JWTPayloadAnyKVRegexp"
 
 	matchBehaviorAll matchBehavior = iota
 	matchBehaviorAny
+
+	matchModeExact matchMode = iota
+	matchModeRegexp
 )
 
 type (
 	spec struct {
-		matchBehavior matchBehavior
 		name          string
+		matchBehavior matchBehavior
+		matchMode     matchMode
 	}
 	predicate struct {
-		kv            map[string][]string
+		kv            map[string][]valueMatcher
 		matchBehavior matchBehavior
+	}
+	exactMatcher struct {
+		expected string
+	}
+	regexMatcher struct {
+		regexp *regexp.Regexp
 	}
 )
 
 func NewJWTPayloadAnyKV() routing.PredicateSpec {
 	return &spec{
-		matchBehavior: matchBehaviorAny,
 		name:          matchJWTPayloadAnyKVName,
+		matchBehavior: matchBehaviorAny,
+		matchMode:     matchModeExact,
 	}
 }
 
 func NewJWTPayloadAllKV() routing.PredicateSpec {
 	return &spec{
-		matchBehavior: matchBehaviorAll,
 		name:          matchJWTPayloadAllKVName,
+		matchBehavior: matchBehaviorAll,
+		matchMode:     matchModeExact,
+	}
+}
+
+func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
+	return &spec{
+		name:          matchJWTPayloadAnyKVRegexpName,
+		matchBehavior: matchBehaviorAny,
+		matchMode:     matchModeRegexp,
+	}
+}
+
+func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
+	return &spec{
+		name:          matchJWTPayloadAllKVRegexpName,
+		matchBehavior: matchBehaviorAll,
+		matchMode:     matchModeRegexp,
 	}
 }
 
@@ -77,20 +113,42 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	kv := make(map[string][]string)
+	kv := make(map[string][]valueMatcher)
 	for i := 0; i < len(args); i += 2 {
 		key, keyOk := args[i].(string)
 		value, valueOk := args[i+1].(string)
 		if !keyOk || !valueOk {
 			return nil, predicates.ErrInvalidPredicateParameters
 		}
-		kv[key] = append(kv[key], value)
+
+		var matcher valueMatcher
+		switch s.matchMode {
+		case matchModeExact:
+			matcher = exactMatcher{expected: value}
+		case matchModeRegexp:
+			re, err := regexp.Compile(value)
+			if err != nil {
+				return nil, predicates.ErrInvalidPredicateParameters
+			}
+			matcher = regexMatcher{regexp: re}
+		default:
+			return nil, predicates.ErrInvalidPredicateParameters
+		}
+		kv[key] = append(kv[key], matcher)
 	}
 
 	return &predicate{
 		kv:            kv,
 		matchBehavior: s.matchBehavior,
 	}, nil
+}
+
+func (m exactMatcher) Match(jwtValue string) bool {
+	return jwtValue == m.expected
+}
+
+func (m regexMatcher) Match(jwtValue string) bool {
+	return m.regexp.MatchString(jwtValue)
 }
 
 func (p *predicate) Match(r *http.Request) bool {
@@ -135,7 +193,7 @@ func stringValue(payload map[string]interface{}, key string) (string, bool) {
 	return "", false
 }
 
-func allMatch(expected map[string][]string, payload map[string]interface{}) bool {
+func allMatch(expected map[string][]valueMatcher, payload map[string]interface{}) bool {
 	if len(expected) > len(payload) {
 		return false
 	}
@@ -147,7 +205,7 @@ func allMatch(expected map[string][]string, payload map[string]interface{}) bool
 
 		// expectedValues is expected to be a slice of one value
 		for _, expectedValue := range expectedValues {
-			if expectedValue != payloadValue {
+			if !expectedValue.Match(payloadValue) {
 				return false
 			}
 		}
@@ -155,14 +213,14 @@ func allMatch(expected map[string][]string, payload map[string]interface{}) bool
 	return true
 }
 
-func anyMatch(expected map[string][]string, payload map[string]interface{}) bool {
+func anyMatch(expected map[string][]valueMatcher, payload map[string]interface{}) bool {
 	if len(expected) == 0 {
 		return true
 	}
 	for key, expectedValues := range expected {
 		if payloadValue, ok := stringValue(payload, key); ok {
 			for _, expectedValue := range expectedValues {
-				if expectedValue == payloadValue {
+				if expectedValue.Match(payloadValue) {
 					return true
 				}
 			}

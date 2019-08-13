@@ -963,6 +963,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		traffic.New(),
 		pauth.NewJWTPayloadAllKV(),
 		pauth.NewJWTPayloadAnyKV(),
+		pauth.NewJWTPayloadAllKVRegexp(),
+		pauth.NewJWTPayloadAnyKVRegexp(),
 	)
 
 	// create a routing engine
