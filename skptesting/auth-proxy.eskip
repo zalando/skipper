@@ -1,0 +1,1 @@
+* -> oauthTokeninfoAllScope("foo", "bar") -> status(200) -> <shunt>
