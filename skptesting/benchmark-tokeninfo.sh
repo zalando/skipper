@@ -21,7 +21,7 @@ sleep 1
 log; log [warmup]
 warmup :9999
 warmup :9080
-warmup :9090 "Authorization:\ Bearer\ foo"
+warmup :9090 "Authorization: Bearer foo"
 log [warmup done]
 
 log; log [benchmarking baseline]
@@ -29,7 +29,7 @@ bench :9080
 log [benchmarking baseline done]
 
 log; log [benchmarking auth]
-bench :9090
+bench :9090 "Authorization: Bearer foo"
 log [benchmarking auth done]
 
 cleanup
