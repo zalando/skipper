@@ -229,6 +229,19 @@ JWTPayloadAllKV("iss", "https://accounts.google.com")
 JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
 ```
 
+### JWTPayloadAnyKVRegexp, JWTPayloadAllKVRegexp
+
+Behaves exactly the same as `JWTPayloadAnyKV`, `JWTPayloadAllKV`, 
+but the expected values are regular expressions that will be matched
+against the JWT value.
+
+Examples:
+
+```
+JWTPayloadAllKVRegexp("iss", "^https://")
+JWTPayloadAnyKVRegexp("iss", "^https://")
+```
+
 ## Interval
 
 An interval implements custom predicates to match routes only during some period of time.
