@@ -358,6 +358,11 @@ type Options struct {
 	// for these options can be set to false.
 	DisableMetricsCompatibilityDefaults bool
 
+	// Implementation of a Metrics handler. If provided this is going to be used
+	// instead of creating a new one based on the Kind of metrics wanted. This
+	// is useful in case you want to report metrics to a custom aggregator.
+	MetricsBackend metrics.Metrics
+
 	// Output file for the application log. Default value: /dev/stderr.
 	//
 	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
@@ -845,7 +850,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 	}
 
-	mtr := metrics.NewMetrics(mtrOpts)
+	mtr := o.MetricsBackend
+	if mtr == nil {
+		mtr = metrics.NewMetrics(mtrOpts)
+	}
 	metrics.Default = mtr
 
 	// *DEPRECATED* client tracking parameter
