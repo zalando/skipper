@@ -97,13 +97,13 @@ ngx() {
 warmup() {
 	protocol=http
 	[ "$3" = tls ] && protocol=https
-	wrk -H "$2" -c "$c" -d "$wd" "$protocol"://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
+	$wrk -H "$2" -c "$c" -d "$wd" "$protocol"://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
 }
 
 bench() {
 	protocol=http
 	[ "$3" = tls ] && protocol=https
-	wrk --latency -H "$2" -c "$c" -d "$d" "$protocol"://127.0.0.1"$1"/lorem.html
+	$wrk --latency -H "$2" -c "$c" -d "$d" "$protocol"://127.0.0.1"$1"/lorem.html
 }
 
 log() {
@@ -118,3 +118,8 @@ check_deps() {
     exit 2
   fi
 }
+
+wrk=wrk
+if wrk --help | grep -e --rate > /dev/null; then
+	wrk="wrk --rate 5400"
+fi
