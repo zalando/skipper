@@ -17,11 +17,16 @@ const (
 	tokeninfoCacheKey          = "tokeninfo"
 )
 
+type TokeninfoOptions struct {
+	URL          string
+	Timeout      time.Duration
+	MaxIdleConns int
+}
+
 type (
 	tokeninfoSpec struct {
-		typ              roleCheckType
-		tokeninfoURL     string
-		tokenInfoTimeout time.Duration
+		typ     roleCheckType
+		options TokeninfoOptions
 	}
 
 	tokeninfoFilter struct {
@@ -38,8 +43,14 @@ var tokeninfoAuthClient map[string]*authClient = make(map[string]*authClient)
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all scopes.
-func NewOAuthTokeninfoAllScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllScopes, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
+func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout time.Duration) filters.Spec {
+	return &tokeninfoSpec{
+		typ: checkOAuthTokeninfoAllScopes,
+		options: TokeninfoOptions{
+			URL:     oauthTokeninfoURL,
+			Timeout: oauthTokeninfoTimeout,
+		},
+	}
 }
 
 // NewOAuthTokeninfoAnyScope creates a new auth filter specification
@@ -47,7 +58,13 @@ func NewOAuthTokeninfoAllScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout t
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one scope.
 func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyScopes, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
+	return &tokeninfoSpec{
+		typ: checkOAuthTokeninfoAnyScopes,
+		options: TokeninfoOptions{
+			URL:     OAuthTokeninfoURL,
+			Timeout: OAuthTokeninfoTimeout,
+		},
+	}
 }
 
 // NewOAuthTokeninfoAllKV creates a new auth filter specification
@@ -55,7 +72,13 @@ func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout t
 // Bearer tokens to authorize requests and checks that the token
 // contains all key value pairs provided.
 func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAllKV, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
+	return &tokeninfoSpec{
+		typ: checkOAuthTokeninfoAllKV,
+		options: TokeninfoOptions{
+			URL:     OAuthTokeninfoURL,
+			Timeout: OAuthTokeninfoTimeout,
+		},
+	}
 }
 
 // NewOAuthTokeninfoAnyKV creates a new auth filter specification
@@ -63,7 +86,32 @@ func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one key value pair provided.
 func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
-	return &tokeninfoSpec{typ: checkOAuthTokeninfoAnyKV, tokeninfoURL: OAuthTokeninfoURL, tokenInfoTimeout: OAuthTokeninfoTimeout}
+	return &tokeninfoSpec{
+		typ: checkOAuthTokeninfoAnyKV,
+		options: TokeninfoOptions{
+			URL:     OAuthTokeninfoURL,
+			Timeout: OAuthTokeninfoTimeout,
+		},
+	}
+}
+
+// TokeninfoWithOptions creates a new auth filter specification
+// for token validation with additional settings to the mandatory
+// tokeninfo URL and timeout.
+//
+// Use one of the base initializer functions as the first argument:
+// NewOAuthTokeninfoAllScope, NewOAuthTokeninfoAnyScope,
+// NewOAuthTokeninfoAllKV or NewOAuthTokeninfoAnyKV.
+//
+func TokeninfoWithOptions(create func(string, time.Duration) filters.Spec, o TokeninfoOptions) filters.Spec {
+	s := create(o.URL, o.Timeout)
+	ts, ok := s.(*tokeninfoSpec)
+	if !ok {
+		return s
+	}
+
+	ts.options = o
+	return ts
 }
 
 func (s *tokeninfoSpec) Name() string {
@@ -100,12 +148,12 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 	var ac *authClient
 	var ok bool
-	if ac, ok = tokeninfoAuthClient[s.tokeninfoURL]; !ok {
-		ac, err = newAuthClient(s.tokeninfoURL, s.tokenInfoTimeout)
+	if ac, ok = tokeninfoAuthClient[s.options.URL]; !ok {
+		ac, err = newAuthClient(s.options.URL, s.options.Timeout, s.options.MaxIdleConns)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}
-		tokeninfoAuthClient[s.tokeninfoURL] = ac
+		tokeninfoAuthClient[s.options.URL] = ac
 	}
 
 	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string][]string)}

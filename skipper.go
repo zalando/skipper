@@ -883,11 +883,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if o.OAuthTokeninfoURL != "" {
+		tio := auth.TokeninfoOptions{
+			URL:          o.OAuthTokeninfoURL,
+			Timeout:      o.OAuthTokeninfoTimeout,
+			MaxIdleConns: o.IdleConnectionsPerHost,
+		}
+
 		o.CustomFilters = append(o.CustomFilters,
-			auth.NewOAuthTokeninfoAllScope(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
-			auth.NewOAuthTokeninfoAnyScope(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
-			auth.NewOAuthTokeninfoAllKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout),
-			auth.NewOAuthTokeninfoAnyKV(o.OAuthTokeninfoURL, o.OAuthTokeninfoTimeout))
+			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAllScope, tio),
+			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAnyScope, tio),
+			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAllKV, tio),
+			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAnyKV, tio),
+		)
 	}
 
 	if o.SecretsRegistry == nil {
@@ -902,18 +909,29 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			log.Errorf("Failed to add credentials file: %s: %v", p, err)
 		}
 	}
+
+	tio := auth.TokenintrospectionOptions{
+		Timeout:      o.OAuthTokenintrospectionTimeout,
+		MaxIdleConns: o.IdleConnectionsPerHost,
+	}
+
+	who := auth.WebhookOptions{
+		Timeout:      o.WebhookTimeout,
+		MaxIdleConns: o.IdleConnectionsPerHost,
+	}
+
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
 		auth.NewBearerInjector(sp),
-		auth.NewOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
-		auth.NewOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
-		auth.NewOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
-		auth.NewOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
-		auth.NewSecureOAuthTokenintrospectionAnyClaims(o.OAuthTokenintrospectionTimeout),
-		auth.NewSecureOAuthTokenintrospectionAllClaims(o.OAuthTokenintrospectionTimeout),
-		auth.NewSecureOAuthTokenintrospectionAnyKV(o.OAuthTokenintrospectionTimeout),
-		auth.NewSecureOAuthTokenintrospectionAllKV(o.OAuthTokenintrospectionTimeout),
-		auth.NewWebhook(o.WebhookTimeout),
+		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyClaims, tio),
+		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAllClaims, tio),
+		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyKV, tio),
+		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAllKV, tio),
+		auth.TokenintrospectionWithOptions(auth.NewSecureOAuthTokenintrospectionAnyClaims, tio),
+		auth.TokenintrospectionWithOptions(auth.NewSecureOAuthTokenintrospectionAllClaims, tio),
+		auth.TokenintrospectionWithOptions(auth.NewSecureOAuthTokenintrospectionAnyKV, tio),
+		auth.TokenintrospectionWithOptions(auth.NewSecureOAuthTokenintrospectionAllKV, tio),
+		auth.WebhookWithOptions(who),
 		auth.NewOAuthOidcUserInfos(o.OIDCSecretsFile, o.SecretsRegistry),
 		auth.NewOAuthOidcAnyClaims(o.OIDCSecretsFile, o.SecretsRegistry),
 		auth.NewOAuthOidcAllClaims(o.OIDCSecretsFile, o.SecretsRegistry),
