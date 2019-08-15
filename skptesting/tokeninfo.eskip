@@ -1,0 +1,1 @@
+* -> inlineContent("{\"scope\": [\"foo\", \"bar\"]}") -> <shunt>

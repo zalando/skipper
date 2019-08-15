@@ -11,9 +11,14 @@ const (
 	WebhookName = "webhook"
 )
 
+type WebhookOptions struct {
+	Timeout      time.Duration
+	MaxIdleConns int
+}
+
 type (
 	webhookSpec struct {
-		Timeout time.Duration
+		options WebhookOptions
 	}
 	webhookFilter struct {
 		authClient *authClient
@@ -21,9 +26,17 @@ type (
 )
 
 // NewWebhook creates a new auth filter specification
-// to validate authorization for requests.
-func NewWebhook(d time.Duration) filters.Spec {
-	return &webhookSpec{Timeout: d}
+// to validate authorization for requests via an
+// external web hook.
+func NewWebhook(timeout time.Duration) filters.Spec {
+	return WebhookWithOptions(WebhookOptions{Timeout: timeout})
+}
+
+// WebhookWithOptions creates a new auth filter specification
+// to validate authorization of requests via an external web
+// hook.
+func WebhookWithOptions(o WebhookOptions) filters.Spec {
+	return &webhookSpec{options: o}
 }
 
 func (*webhookSpec) Name() string {
@@ -45,7 +58,7 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac, err := newAuthClient(s, ws.Timeout)
+	ac, err := newAuthClient(s, ws.options.Timeout, ws.options.MaxIdleConns)
 	if err != nil {
 		return nil, filters.ErrInvalidFilterParameters
 	}

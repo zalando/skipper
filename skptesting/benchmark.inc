@@ -45,7 +45,7 @@ lorem() {
 pids=
 
 cleanup() {
-	kill $pids
+	kill -9 $pids
 }
 
 cleanup-exit() {
@@ -60,13 +60,20 @@ skp() {
 		tlskey=key.pem
 		tlscert=cert.pem
 	fi
+
 	lifo_filter=
 	if [ "$3" = lifo ]; then
 		lifo_filter=-default-filters-prepend="lifo($4, $5, \"$6\")"
 	fi
 
+	tokeninfo_url=
+	if [ "$2" = "auth-proxy.eskip" ]; then
+		tokeninfo_url=http://localhost:9999
+	fi
+
 	skipper -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" -insecure \
 		-support-listener :0 \
+		-oauth2-tokeninfo-url "$tokeninfo_url" \
 		-idle-conns-num "$c" -close-idle-conns-period=3s \
 		-tls-key "$tlskey" -tls-cert "$tlscert" 2> \
 		>(grep -Ev 'write: broken pipe|connection reset by peer|getsockopt: connection refused|INFO|Client request: context canceled') &
@@ -90,13 +97,13 @@ ngx() {
 warmup() {
 	protocol=http
 	[ "$3" = tls ] && protocol=https
-	wrk -H "$2" -c "$c" -d "$wd" "$protocol"://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
+	$wrk -H "$2" -c "$c" -d "$wd" "$protocol"://127.0.0.1"$1"/lorem.html | grep -v '^[ \t]'
 }
 
 bench() {
 	protocol=http
 	[ "$3" = tls ] && protocol=https
-	wrk -H "$2" -c "$c" -d "$d" "$protocol"://127.0.0.1"$1"/lorem.html
+	$wrk --latency -H "$2" -c "$c" -d "$d" "$protocol"://127.0.0.1"$1"/lorem.html
 }
 
 log() {
@@ -111,3 +118,8 @@ check_deps() {
     exit 2
   fi
 }
+
+wrk=wrk
+if wrk --help | grep -e --rate > /dev/null; then
+	wrk="wrk --rate 5400"
+fi

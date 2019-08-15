@@ -26,10 +26,15 @@ const (
 	TokenIntrospectionConfigPath = "/.well-known/openid-configuration"
 )
 
+type TokenintrospectionOptions struct {
+	Timeout      time.Duration
+	MaxIdleConns int
+}
+
 type (
 	tokenIntrospectionSpec struct {
 		typ     roleCheckType
-		timeout time.Duration
+		options TokenintrospectionOptions
 		secure  bool
 	}
 
@@ -149,10 +154,34 @@ func NewSecureOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Sp
 	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAllClaims, timeout)
 }
 
+// TokenintrospectionWithOptions create a new auth filter specification
+// for validating authorization requests with additional options to the
+// mandatory timeout parameter.
+//
+// Use one of the base initializer functions as the first argument:
+// NewOAuthTokenintrospectionAnyKV, NewOAuthTokenintrospectionAllKV,
+// NewOAuthTokenintrospectionAnyClaims, NewOAuthTokenintrospectionAllClaims,
+// NewSecureOAuthTokenintrospectionAnyKV, NewSecureOAuthTokenintrospectionAllKV,
+// NewSecureOAuthTokenintrospectionAnyClaims, NewSecureOAuthTokenintrospectionAllClaims,
+//
+func TokenintrospectionWithOptions(
+	create func(time.Duration) filters.Spec,
+	o TokenintrospectionOptions,
+) filters.Spec {
+	s := create(o.Timeout)
+	ts, ok := s.(*tokenIntrospectionSpec)
+	if !ok {
+		return s
+	}
+
+	ts.options = o
+	return ts
+}
+
 func newOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) filters.Spec {
 	return &tokenIntrospectionSpec{
 		typ:     typ,
-		timeout: timeout,
+		options: TokenintrospectionOptions{Timeout: timeout},
 		secure:  false,
 	}
 }
@@ -160,7 +189,7 @@ func newOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) 
 func newSecureOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) filters.Spec {
 	return &tokenIntrospectionSpec{
 		typ:     typ,
-		timeout: timeout,
+		options: TokenintrospectionOptions{Timeout: timeout},
 		secure:  true,
 	}
 }
@@ -234,7 +263,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	var ac *authClient
 	var ok bool
 	if ac, ok = issuerAuthClient[issuerURL]; !ok {
-		ac, err = newAuthClient(cfg.IntrospectionEndpoint, s.timeout)
+		ac, err = newAuthClient(cfg.IntrospectionEndpoint, s.options.Timeout, s.options.MaxIdleConns)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}

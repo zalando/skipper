@@ -21,6 +21,8 @@ const (
 	tokenIntrospectionSpan = "tokenintrospection"
 )
 
+const defaultMaxIdleConns = 64
+
 type authClient struct {
 	url    *url.URL
 	client *http.Client
@@ -28,14 +30,18 @@ type authClient struct {
 	quit   chan struct{}
 }
 
-func newAuthClient(baseURL string, timeout time.Duration) (*authClient, error) {
+func newAuthClient(baseURL string, timeout time.Duration, maxIdleConns int) (*authClient, error) {
+	if maxIdleConns <= 0 {
+		maxIdleConns = defaultMaxIdleConns
+	}
+
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
 
 	quit := make(chan struct{})
-	client, err := createHTTPClient(timeout, quit)
+	client, err := createHTTPClient(timeout, quit, maxIdleConns)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create http client: %v", err)
 	}
@@ -86,13 +92,14 @@ func (ac *authClient) doClonedGet(ctx filters.FilterContext) (int, error) {
 	return rsp.StatusCode, nil
 }
 
-func createHTTPClient(timeout time.Duration, quit chan struct{}) (*http.Client, error) {
+func createHTTPClient(timeout time.Duration, quit chan struct{}, maxIdleConns int) (*http.Client, error) {
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout: timeout,
 		}).DialContext,
 		ResponseHeaderTimeout: timeout,
 		TLSHandshakeTimeout:   timeout,
+		MaxIdleConnsPerHost:   maxIdleConns,
 	}
 
 	go func() {
