@@ -22,6 +22,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/source"
@@ -202,6 +203,20 @@ type Client struct {
 	pathMode                    PathMode
 	quit                        chan struct{}
 	defaultFiltersDir           string
+}
+
+type ingressContext struct {
+	state               *clusterState
+	ingress             *ingressItem
+	logger              *log.Entry
+	annotationFilter    string
+	annotationPredicate string
+	extraRoutes         []*eskip.Route
+	backendWeights      map[string]float64
+	pathMode            PathMode
+	redirect            *redirectInfo
+	hostRoutes          map[string][]*eskip.Route
+	defaultFilters      map[resourceId]string
 }
 
 var (
@@ -839,21 +854,28 @@ func (c *Client) ingressRoute(i *ingressItem, redirect *redirectInfo, state *clu
 		"ingress": fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name),
 	})
 	redirect.initCurrent(i.Metadata)
+	ic := ingressContext{
+		state:               state,
+		ingress:             i,
+		logger:              logger,
+		annotationFilter:    annotationFilter(i),
+		annotationPredicate: annotationPredicate(i),
+		extraRoutes:         extraRoutes(i, logger),
+		backendWeights:      backendWeights(i, logger),
+		pathMode:            pathMode(i, c.pathMode),
+		redirect:            redirect,
+		hostRoutes:          hostRoutes,
+		defaultFilters:      defaultFilters,
+	}
 
 	var route *eskip.Route
 	if r, ok, err := c.convertDefaultBackend(state, i); ok {
 		route = r
 	} else if err != nil {
-		logger.Errorf("error while converting default backend: %v", err)
+		ic.logger.Errorf("error while converting default backend: %v", err)
 	}
-	annotationFilter := annotationFilter(i)
-	annotationPredicate := annotationPredicate(i)
-	extraRoutes := extraRoutes(i, logger)
-	backendWeights := backendWeights(i, logger)
-	pMode := pathMode(i, c.pathMode)
 	for _, rule := range i.Spec.Rules {
-		err := c.addSpecRule(rule, logger, backendWeights, extraRoutes, i, pMode, hostRoutes,
-			redirect, state, annotationFilter, defaultFilters, annotationPredicate)
+		err := c.addSpecRule(ic, rule)
 		if err != nil {
 			return nil, err
 		}
@@ -929,12 +951,9 @@ func pathMode(i *ingressItem, globalDefault PathMode) PathMode {
 	return pathMode
 }
 
-func (c *Client) addSpecRule(ru *rule, logger *log.Entry, backendWeights map[string]float64,
-	extraRoutes []*eskip.Route, i *ingressItem, pathMode PathMode, hostRoutes map[string][]*eskip.Route,
-	redirect *redirectInfo, state *clusterState, annotationFilter string,
-	defaultFilters map[resourceId]string, annotationPredicate string) error {
+func (c *Client) addSpecRule(ic ingressContext, ru *rule) error {
 	if ru.Http == nil {
-		logger.Warn("invalid ingress item: rule missing http definitions")
+		ic.logger.Warn("invalid ingress item: rule missing http definitions")
 		return nil
 	}
 	// it is a regexp, would be better to have exact host, needs to be added in skipper
@@ -942,12 +961,11 @@ func (c *Client) addSpecRule(ru *rule, logger *log.Entry, backendWeights map[str
 	// currently handled as mandatory
 	host := []string{"^" + strings.Replace(ru.Host, ".", "[.]", -1) + "$"}
 	// update Traffic field for each backend
-	computeBackendWeights(backendWeights, ru)
+	computeBackendWeights(ic.backendWeights, ru)
 	for _, prule := range ru.Http.Paths {
-		addExtraRoutes(extraRoutes, host, ru, i, prule, pathMode, hostRoutes, redirect)
+		addExtraRoutes(ic, host, ru, prule)
 		if prule.Backend.Traffic > 0 {
-			err := c.addEndpointsRule(state, i, ru, prule, pathMode, annotationFilter, logger,
-				defaultFilters, annotationPredicate, hostRoutes, redirect)
+			err := c.addEndpointsRule(ic, ru, prule)
 			if err != nil {
 				return err
 			}
@@ -956,39 +974,36 @@ func (c *Client) addSpecRule(ru *rule, logger *log.Entry, backendWeights map[str
 	return nil
 }
 
-func addExtraRoutes(extraRoutes []*eskip.Route, host []string, ru *rule, i *ingressItem, prule *pathRule,
-	pathMode PathMode, hostRoutes map[string][]*eskip.Route, redirect *redirectInfo) {
+func addExtraRoutes(ic ingressContext, host []string, ru *rule, prule *pathRule) {
 	// add extra routes from optional annotation
-	for extraIndex, r := range extraRoutes {
+	for extraIndex, r := range ic.extraRoutes {
 		route := *r
 		route.HostRegexps = host
 		h := ru.Host
 		route.Id = routeIDForCustom(
-			i.Metadata.Namespace,
-			i.Metadata.Name,
+			ic.ingress.Metadata.Namespace,
+			ic.ingress.Metadata.Name,
 			route.Id,
 			h+strings.Replace(prule.Path, "/", "_", -1),
 			extraIndex)
-		setPath(pathMode, &route, prule.Path)
+		setPath(ic.pathMode, &route, prule.Path)
 		if n := countPathRoutes(&route); n <= 1 {
-			hostRoutes[h] = append(hostRoutes[h], &route)
-			redirect.updateHost(h)
+			ic.addHostRoute(h, &route)
+			ic.redirect.updateHost(h)
 		} else {
 			log.Errorf("Failed to add route having %d path routes: %v", n, r)
 		}
 	}
 }
 
-func (c *Client) addEndpointsRule(state *clusterState, i *ingressItem, ru *rule, prule *pathRule, pathMode PathMode,
-	annotationFilter string, logger *log.Entry, defaultFilters map[resourceId]string,
-	annotationPredicate string, hostRoutes map[string][]*eskip.Route, redirect *redirectInfo) error {
+func (c *Client) addEndpointsRule(ic ingressContext, ru *rule, prule *pathRule) error {
 	h := ru.Host
 	endpointsRoute, err := c.convertPathRule(
-		state,
-		i.Metadata,
+		ic.state,
+		ic.ingress.Metadata,
 		h,
 		prule,
-		pathMode,
+		ic.pathMode,
 	)
 	if err != nil {
 		// if the service is not found the route should be removed
@@ -998,45 +1013,35 @@ func (c *Client) addEndpointsRule(state *clusterState, i *ingressItem, ru *rule,
 		// Ingress status field does not support errors
 		return fmt.Errorf("error while getting service: %v", err)
 	}
-	if annotationFilter != "" {
-		annotationFilters, err := eskip.ParseFilters(annotationFilter)
+	if ic.annotationFilter != "" {
+		annotationFilters, err := eskip.ParseFilters(ic.annotationFilter)
 		if err != nil {
-			logger.Errorf("Can not parse annotation filters: %v", err)
+			ic.logger.Errorf("Can not parse annotation filters: %v", err)
 		} else {
 			endpointsRoute.Filters = append(annotationFilters, endpointsRoute.Filters...)
 		}
 	}
 	// add pre-configured default filters
-	if defFilter, ok := defaultFiltersOf(prule.Backend.ServiceName, i.Metadata.Namespace, defaultFilters); ok {
+	if defFilter, ok := defaultFiltersOf(prule.Backend.ServiceName, ic.ingress.Metadata.Namespace, ic.defaultFilters); ok {
 		defaultFilters, err := eskip.ParseFilters(defFilter)
 		if err != nil {
-			logger.Errorf("Can not parse default filters: %v", err)
+			ic.logger.Errorf("Can not parse default filters: %v", err)
 		} else {
 			endpointsRoute.Filters = append(defaultFilters, endpointsRoute.Filters...)
 		}
 	}
-	err = applyAnnotationPredicates(pathMode, endpointsRoute, annotationPredicate)
+	err = applyAnnotationPredicates(ic.pathMode, endpointsRoute, ic.annotationPredicate)
 	if err != nil {
-		logger.Errorf("failed to apply annotation predicates: %v", err)
+		ic.logger.Errorf("failed to apply annotation predicates: %v", err)
 	}
-	hostRoutes[h] = append(hostRoutes[h], endpointsRoute)
+	ic.addHostRoute(h, endpointsRoute)
+	redirect := ic.redirect
 	if redirect.enable || redirect.override {
-		hostRoutes[h] = append(
-			hostRoutes[h],
-			createIngressEnableHTTPSRedirect(
-				endpointsRoute,
-				redirect.code,
-			),
-		)
+		ic.addHostRoute(h, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
 		redirect.setHost(h)
 	}
 	if redirect.disable {
-		hostRoutes[h] = append(
-			hostRoutes[h],
-			createIngressDisableHTTPSRedirect(
-				endpointsRoute,
-			),
-		)
+		ic.addHostRoute(h, createIngressDisableHTTPSRedirect(endpointsRoute))
 		redirect.setHostDisabled(h)
 	}
 
@@ -1516,6 +1521,10 @@ func (c *Client) getDefaultFilterConfigurations() (map[resourceId]string, error)
 	}
 
 	return filters, nil
+}
+
+func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
+	ic.hostRoutes[host] = append(ic.hostRoutes[host], route)
 }
 
 func notRegularFile(f os.FileInfo) bool {
