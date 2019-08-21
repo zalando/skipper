@@ -209,7 +209,7 @@ type ingressContext struct {
 	state               *clusterState
 	ingress             *ingressItem
 	logger              *log.Entry
-	annotationFilter    string
+	annotationFilters   []*eskip.Filter
 	annotationPredicate string
 	extraRoutes         []*eskip.Route
 	backendWeights      map[string]float64
@@ -836,7 +836,7 @@ func (c *Client) ingressToRoutes(state *clusterState, defaultFilters map[resourc
 		// if routes were configured, but there is no catchall route
 		// defined for the host name, create a route which returns 404
 		if !catchAllRoutes(rs) {
-			routes = append(routes, c.addCatchAllRoutes(host, rs, redirect)...)
+			routes = append(routes, c.addCatchAllRoutes(host, rs[0], redirect)...)
 		}
 	}
 
@@ -858,7 +858,7 @@ func (c *Client) ingressRoute(i *ingressItem, redirect *redirectInfo, state *clu
 		state:               state,
 		ingress:             i,
 		logger:              logger,
-		annotationFilter:    annotationFilter(i),
+		annotationFilters:   annotationFilter(i, logger),
 		annotationPredicate: annotationPredicate(i),
 		extraRoutes:         extraRoutes(i, logger),
 		backendWeights:      backendWeights(i, logger),
@@ -887,7 +887,7 @@ func (c *Client) ingressRoute(i *ingressItem, redirect *redirectInfo, state *clu
 }
 
 // parse filter and ratelimit annotation
-func annotationFilter(i *ingressItem) string {
+func annotationFilter(i *ingressItem, logger *log.Entry) []*eskip.Filter {
 	var annotationFilter string
 	if ratelimitAnnotationValue, ok := i.Metadata.Annotations[ratelimitAnnotationKey]; ok {
 		annotationFilter = ratelimitAnnotationValue
@@ -898,7 +898,15 @@ func annotationFilter(i *ingressItem) string {
 		}
 		annotationFilter += val
 	}
-	return annotationFilter
+
+	if annotationFilter != "" {
+		annotationFilters, err := eskip.ParseFilters(annotationFilter)
+		if err == nil {
+			return annotationFilters
+		}
+		logger.Errorf("Can not parse annotation filters: %v", err)
+	}
+	return nil
 }
 
 // parse predicate annotation
@@ -963,9 +971,9 @@ func (c *Client) addSpecRule(ic ingressContext, ru *rule) error {
 	// update Traffic field for each backend
 	computeBackendWeights(ic.backendWeights, ru)
 	for _, prule := range ru.Http.Paths {
-		addExtraRoutes(ic, host, ru, prule)
+		addExtraRoutes(ic, host, ru.Host, prule.Path)
 		if prule.Backend.Traffic > 0 {
-			err := c.addEndpointsRule(ic, ru, prule)
+			err := c.addEndpointsRule(ic, ru.Host, prule)
 			if err != nil {
 				return err
 			}
@@ -974,37 +982,29 @@ func (c *Client) addSpecRule(ic ingressContext, ru *rule) error {
 	return nil
 }
 
-func addExtraRoutes(ic ingressContext, host []string, ru *rule, prule *pathRule) {
+func addExtraRoutes(ic ingressContext, hosts []string, host string, path string) {
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {
 		route := *r
-		route.HostRegexps = host
-		h := ru.Host
+		route.HostRegexps = hosts
 		route.Id = routeIDForCustom(
 			ic.ingress.Metadata.Namespace,
 			ic.ingress.Metadata.Name,
 			route.Id,
-			h+strings.Replace(prule.Path, "/", "_", -1),
+			host+strings.Replace(path, "/", "_", -1),
 			extraIndex)
-		setPath(ic.pathMode, &route, prule.Path)
+		setPath(ic.pathMode, &route, path)
 		if n := countPathRoutes(&route); n <= 1 {
-			ic.addHostRoute(h, &route)
-			ic.redirect.updateHost(h)
+			ic.addHostRoute(host, &route)
+			ic.redirect.updateHost(host)
 		} else {
 			log.Errorf("Failed to add route having %d path routes: %v", n, r)
 		}
 	}
 }
 
-func (c *Client) addEndpointsRule(ic ingressContext, ru *rule, prule *pathRule) error {
-	h := ru.Host
-	endpointsRoute, err := c.convertPathRule(
-		ic.state,
-		ic.ingress.Metadata,
-		h,
-		prule,
-		ic.pathMode,
-	)
+func (c *Client) addEndpointsRule(ic ingressContext, host string, prule *pathRule) error {
+	endpointsRoute, err := c.convertPathRule(ic.state, ic.ingress.Metadata, host, prule, ic.pathMode)
 	if err != nil {
 		// if the service is not found the route should be removed
 		if err == errServiceNotFound {
@@ -1013,14 +1013,7 @@ func (c *Client) addEndpointsRule(ic ingressContext, ru *rule, prule *pathRule) 
 		// Ingress status field does not support errors
 		return fmt.Errorf("error while getting service: %v", err)
 	}
-	if ic.annotationFilter != "" {
-		annotationFilters, err := eskip.ParseFilters(ic.annotationFilter)
-		if err != nil {
-			ic.logger.Errorf("Can not parse annotation filters: %v", err)
-		} else {
-			endpointsRoute.Filters = append(annotationFilters, endpointsRoute.Filters...)
-		}
-	}
+	endpointsRoute.Filters = append(ic.annotationFilters, endpointsRoute.Filters...)
 	// add pre-configured default filters
 	if defFilter, ok := defaultFiltersOf(prule.Backend.ServiceName, ic.ingress.Metadata.Namespace, ic.defaultFilters); ok {
 		defaultFilters, err := eskip.ParseFilters(defFilter)
@@ -1034,15 +1027,15 @@ func (c *Client) addEndpointsRule(ic ingressContext, ru *rule, prule *pathRule) 
 	if err != nil {
 		ic.logger.Errorf("failed to apply annotation predicates: %v", err)
 	}
-	ic.addHostRoute(h, endpointsRoute)
+	ic.addHostRoute(host, endpointsRoute)
 	redirect := ic.redirect
 	if redirect.enable || redirect.override {
-		ic.addHostRoute(h, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
-		redirect.setHost(h)
+		ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
+		redirect.setHost(host)
 	}
 	if redirect.disable {
-		ic.addHostRoute(h, createIngressDisableHTTPSRedirect(endpointsRoute))
-		redirect.setHostDisabled(h)
+		ic.addHostRoute(host, createIngressDisableHTTPSRedirect(endpointsRoute))
+		redirect.setHostDisabled(host)
 	}
 
 	return nil
@@ -1057,16 +1050,16 @@ func (c *Client) addEastWestRoutes(hostRoutes map[string][]*eskip.Route, i *ingr
 	}
 }
 
-func (c *Client) addCatchAllRoutes(host string, rs []*eskip.Route, redirect *redirectInfo) []*eskip.Route {
+func (c *Client) addCatchAllRoutes(host string, r *eskip.Route, redirect *redirectInfo) []*eskip.Route {
 	catchAll := &eskip.Route{
 		Id:          routeID("", "catchall", host, "", ""),
-		HostRegexps: rs[0].HostRegexps,
+		HostRegexps: r.HostRegexps,
 		BackendType: eskip.ShuntBackend,
 	}
 	routes := []*eskip.Route{catchAll}
 	if c.kubernetesEnableEastWest {
-		if r := createEastWestRoute(c.eastWestDomainRegexpPostfix, rs[0].Name, rs[0].Namespace, catchAll); r != nil {
-			routes = append(routes, r)
+		if ew := createEastWestRoute(c.eastWestDomainRegexpPostfix, r.Name, r.Namespace, catchAll); ew != nil {
+			routes = append(routes, ew)
 		}
 	}
 	if code, ok := redirect.setHostCode[host]; ok {
