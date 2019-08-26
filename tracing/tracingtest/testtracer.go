@@ -39,8 +39,17 @@ type Span struct {
 	FinishTime time.Time
 
 	operationName string
-	tags          map[string]interface{}
+	Tags          map[string]interface{}
+	baggage       map[string]string
 	tracer        *Tracer
+}
+
+func NewSpan(operation string) *Span {
+	return &Span{
+		operationName: operation,
+		Tags:          make(map[string]interface{}),
+		baggage:       make(map[string]string),
+	}
 }
 
 // FindAllSpans returns all the spans with the defined operation name.
@@ -78,7 +87,8 @@ func (t *Tracer) createSpanBase() *Span {
 		Trace:     t.TraceContent,
 		StartTime: time.Now(),
 		tracer:    t,
-		tags:      make(map[string]interface{}),
+		Tags:      make(map[string]interface{}),
+		baggage:   make(map[string]string),
 	}
 }
 
@@ -154,7 +164,7 @@ func (s *Span) SetOperationName(operationName string) tracing.Span {
 
 // Adds a tag to the span.
 func (s *Span) SetTag(key string, value interface{}) tracing.Span {
-	s.tags[key] = value
+	s.Tags[key] = value
 	return s
 }
 
@@ -171,13 +181,14 @@ func (*Span) LogKV(...interface{}) {}
 // SetBaggageItem sets a key:value pair on this Span and its SpanContext
 // that also propagates to descendants of this Span.
 func (s *Span) SetBaggageItem(restrictedKey, value string) tracing.Span {
+	s.baggage[restrictedKey] = value
 	return s
 }
 
 // Gets the value for a baggage item given its key. Returns the empty string
 // if the value isn't found in this Span.
-func (*Span) BaggageItem(string) string {
-	return ""
+func (s *Span) BaggageItem(key string) string {
+	return s.baggage[key]
 }
 
 // Provides access to the Tracer that created this Span.
