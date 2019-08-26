@@ -128,6 +128,7 @@ func MakeRegistry() filters.Registry {
 		cors.NewOrigin(),
 		logfilter.NewUnverifiedAuditLog(),
 		tracing.NewSpanName(),
+		tracing.NewBaggageToTagFilter(),
 		accesslog.NewAccessLogDisabled(),
 		accesslog.NewDisableAccessLog(),
 		accesslog.NewEnableAccessLog(),
