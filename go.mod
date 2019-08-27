@@ -2,7 +2,7 @@ module github.com/zalando/skipper
 
 require (
 	github.com/abbot/go-http-auth v0.4.0
-	github.com/aryszka/jobqueue v0.0.0-20190503120114-6df7deff17a1
+	github.com/aryszka/jobqueue v0.0.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cjoudrey/gluahttp v0.0.0-20190104103309-101c19a37344
 	github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199
