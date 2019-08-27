@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-lib/metrics/prometheus"
 )
@@ -28,6 +28,7 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 	var localAgent string
 	var reporterQueue int64
 	var reporterInterval time.Duration
+	var globalTags []opentracing.Tag
 
 	for _, o := range opts {
 		parts := strings.SplitN(o, "=", 2)
@@ -85,6 +86,15 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 				return nil, missingArg(parts[0])
 			}
 			localAgent = parts[1]
+		case "tag":
+			if len(parts) > 1 {
+				kv := strings.SplitN(parts[1], "=", 2)
+				if len(kv) != 2 {
+					return nil, fmt.Errorf("missing value for tag %s", kv[0])
+				}
+
+				globalTags = append(globalTags, opentracing.Tag{Key: kv[0], Value: kv[1]})
+			}
 		}
 	}
 
@@ -102,6 +112,7 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 			LocalAgentHostPort:  localAgent,
 		},
 		RPCMetrics: useRPCMetrics,
+		Tags:       globalTags,
 	}
 	tracer, _, err := conf.NewTracer(config.Metrics(metricsFactory))
 	return tracer, err
