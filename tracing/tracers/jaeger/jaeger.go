@@ -16,9 +16,7 @@ const (
 	defServiceName = "skipper"
 )
 
-func InitTracer(opts []string) (opentracing.Tracer, error) {
-	metricsFactory := prometheus.New()
-
+func parseOptions(opts []string) (*config.Configuration, error) {
 	useRPCMetrics := false
 	serviceName := defServiceName
 	var err error
@@ -114,6 +112,16 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 		RPCMetrics: useRPCMetrics,
 		Tags:       globalTags,
 	}
+	return conf, nil
+}
+
+func InitTracer(opts []string) (opentracing.Tracer, error) {
+	conf, err := parseOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	metricsFactory := prometheus.New()
 	tracer, _, err := conf.NewTracer(config.Metrics(metricsFactory))
 	return tracer, err
 }
