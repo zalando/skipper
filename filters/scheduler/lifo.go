@@ -19,10 +19,12 @@ type (
 		config scheduler.Config
 		stack  *scheduler.Stack
 	}
+
 	lifoGroupFilter struct {
-		key    string
-		config scheduler.Config
-		stack  *scheduler.Stack
+		name      string
+		hasConfig bool
+		config    scheduler.Config
+		stack     *scheduler.Stack
 	}
 )
 
@@ -128,7 +130,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return &l, nil
 }
 
-func (s *lifoGroupSpec) Name() string { return LIFOGroupName }
+func (*lifoGroupSpec) Name() string { return LIFOGroupName }
 
 // CreateFilter creates a lifoGroupFilter, that will use a stack based
 // queue for handling requests instead of the fifo queue. The first
@@ -140,7 +142,7 @@ func (s *lifoGroupSpec) Name() string { return LIFOGroupName }
 // MaxConcurrency 100, MaxStackSize 100, Timeout 10s.  If the
 // configuration for the same Name is different the behavior is
 // undefined.
-
+//
 // The implementation is based on
 // https://godoc.org/github.com/aryszka/jobqueue, which provides more
 // detailed documentation.
@@ -151,7 +153,7 @@ func (s *lifoGroupSpec) Name() string { return LIFOGroupName }
 // Min values are 1 for MaxConcurrency and MaxStackSize, and 1ms for
 // Timeout. All configration that is below will be set to these min
 // values.
-func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (*lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) < 1 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -160,7 +162,7 @@ func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 	switch v := args[0].(type) {
 	case string:
-		l.key = v
+		l.name = v
 	default:
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -174,6 +176,7 @@ func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	l.config = cfg
 
 	if len(args) > 1 {
+		l.hasConfig = true
 		c, err := intArg(args[1])
 		if err != nil {
 			return nil, err
@@ -207,7 +210,7 @@ func (s *lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 }
 
 // Config returns the scheduler configuration for the given filter
-func (l *lifoFilter) Config(*scheduler.Registry) scheduler.Config {
+func (l *lifoFilter) Config() scheduler.Config {
 	return l.config
 }
 
@@ -216,20 +219,9 @@ func (l *lifoFilter) SetStack(s *scheduler.Stack) {
 	l.stack = s
 }
 
-// GetStack is only used in tests
+// GetStack is only used in tests.
 func (l *lifoFilter) GetStack() *scheduler.Stack {
 	return l.stack
-}
-
-// Key returns the scheduler string
-func (l *lifoFilter) Key() string {
-	return l.key
-}
-
-// SetKey sets the scheduler string, which should be called from the
-// PostProcessor
-func (l *lifoFilter) SetKey(k string) {
-	l.key = k
 }
 
 // Request is the filter.Filter interface implementation. Request will
@@ -248,9 +240,17 @@ func (l *lifoFilter) Response(ctx filters.FilterContext) {
 	response(scheduler.LIFOKey, ctx)
 }
 
+func (l *lifoGroupFilter) Group() string {
+	return l.name
+}
+
+func (l *lifoGroupFilter) HasConfig() bool {
+	return l.hasConfig
+}
+
 // Config returns the scheduler configuration for the given filter
-func (l *lifoGroupFilter) Config(r *scheduler.Registry) scheduler.Config {
-	return r.Config(l.key)
+func (l *lifoGroupFilter) Config() scheduler.Config {
+	return l.config
 }
 
 // SetStack binds the stack to the current filter context
@@ -262,14 +262,6 @@ func (l *lifoGroupFilter) SetStack(s *scheduler.Stack) {
 func (l *lifoGroupFilter) GetStack() *scheduler.Stack {
 	return l.stack
 }
-
-// Key returns the scheduler group string
-func (l *lifoGroupFilter) Key() string {
-	return l.key
-}
-
-// SetKey is a noop to implement the LIFOFilter interface
-func (*lifoGroupFilter) SetKey(string) {}
 
 // Request is the filter.Filter interface implementation. Request will
 // increase the number of inflight requests and respond to the caller,
@@ -299,10 +291,16 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 		switch err {
 		case jobqueue.ErrStackFull:
 			log.Errorf("Failed to get an entry on to the stack to process StackFull: %v for host %s", err, ctx.Request().Host)
-			ctx.Serve(&http.Response{StatusCode: http.StatusServiceUnavailable, Status: "Stack Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
+			ctx.Serve(&http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Status:     "Stack Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler",
+			})
 		case jobqueue.ErrTimeout:
 			log.Errorf("Failed to get an entry on to the stack to process Timeout: %v for host %s", err, ctx.Request().Host)
-			ctx.Serve(&http.Response{StatusCode: http.StatusBadGateway, Status: "Stack timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler"})
+			ctx.Serve(&http.Response{
+				StatusCode: http.StatusBadGateway,
+				Status:     "Stack timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler",
+			})
 		default:
 			log.Errorf("Unknown error for route based LIFO: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{StatusCode: http.StatusInternalServerError})
@@ -314,6 +312,7 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 	ctx.StateBag()[key] = append(pending, done)
 
 }
+
 func response(key string, ctx filters.FilterContext) {
 	pending, _ := ctx.StateBag()[key].([]func())
 	last := len(pending) - 1

@@ -78,8 +78,6 @@ func TestNewLIFO(t *testing.T) {
 			wantCode: http.StatusOK,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			reg := scheduler.NewRegistry()
-
 			l := tt.schedFunc()
 			if l.Name() != tt.wantName {
 				t.Errorf("Failed to get name, got %s, want %s", l.Name(), tt.wantName)
@@ -94,13 +92,8 @@ func TestNewLIFO(t *testing.T) {
 			}
 
 			if f, ok := fl.(*lifoFilter); ok {
-				if got := f.Config(reg); got != tt.wantConfig {
+				if got := f.Config(); got != tt.wantConfig {
 					t.Errorf("Failed to get Config, got: %v, want: %v", got, tt.wantConfig)
-				}
-
-				f.SetKey(tt.wantKey)
-				if k := f.Key(); k != tt.wantKey {
-					t.Errorf("Failed to set and get key, got %s, want: %s", k, tt.wantKey)
 				}
 
 			} else if !ok {

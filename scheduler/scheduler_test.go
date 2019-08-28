@@ -102,7 +102,7 @@ func TestScheduler(t *testing.T) {
 					if !ok {
 						continue
 					}
-					cfg := lf.Config(reg)
+					cfg := lf.Config()
 					stack := lf.GetStack()
 					if stack == nil {
 						t.Errorf("Stack is nil")
@@ -128,26 +128,26 @@ func TestScheduler(t *testing.T) {
 						if f == nil && !tt.wantErr {
 							t.Errorf("Filter is nil but we do not expect an error")
 						}
+
 						lf, ok := f.Filter.(scheduler.LIFOFilter)
 						if !ok {
 							continue
 						}
-						cfg := lf.Config(reg)
+
+						cfg := lf.Config()
 						stack := lf.GetStack()
 						if stack == nil {
 							t.Errorf("Stack is nil")
 						}
+
 						if cfg != stack.Config() {
 							t.Errorf("Failed to get stack with configuration, want: %v, got: %v", cfg, stack)
 						}
 
-						if lf.Key() != key {
-							t.Errorf("Failed to get the right key: %s, expected: %s", lf.Key(), key)
-						}
-						k := lf.Key()
-						stacksMap[k] = append(stacksMap[k], stack)
+						stacksMap[key] = append(stacksMap[key], stack)
 					}
 				}
+
 				if len(stacksMap[key]) != len(group) {
 					t.Errorf("Failed to get the right group size %v != %v", len(stacksMap[key]), len(group))
 				}
