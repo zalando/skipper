@@ -60,6 +60,14 @@ func (s *Stack) Wait() (done func(), err error) {
 	return s.stack.Wait()
 }
 
+func (s *Stack) reconfigure() {
+	s.stack.Reconfigure(jobqueue.Options{
+		MaxConcurrency: s.config.MaxConcurrency,
+		MaxStackSize:   s.config.MaxStackSize,
+		Timeout:        s.config.Timeout,
+	})
+}
+
 func (s *Stack) close() {
 	s.stack.Close()
 }
@@ -100,9 +108,8 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 				s = newStack(c)
 				r.stacks[key] = s
 			} else if s.config != c {
-				s.config = c // TODO: the config is actually not updated this way
-				r.stacks[key] = s
-				// TODO: tear down here
+				s.config = c
+				s.reconfigure()
 			}
 
 			lf.SetStack(s)
@@ -136,8 +143,7 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 			r.stacks[key] = s
 		} else if s.config != c {
 			s.config = c
-			r.stacks[key] = s
-			// TODO: tear down here
+			s.reconfigure()
 		}
 
 		for _, glf := range group {
