@@ -19,23 +19,23 @@ const (
 type Config struct {
 	Name           string
 	MaxConcurrency int
-	MaxStackSize   int
+	MaxQueueSize   int
 	Timeout        time.Duration
 }
 
-type Stack struct {
+type Queue struct {
 	stack  *jobqueue.Stack
 	config Config
 }
 
 type Registry struct {
 	mu     sync.Mutex
-	stacks map[string]*Stack
+	stacks map[string]*Queue
 }
 
 type LIFOFilter interface {
-	SetStack(*Stack)
-	GetStack() *Stack
+	SetQueue(*Queue)
+	GetQueue() *Queue
 	Config() Config
 }
 
@@ -45,40 +45,42 @@ type GroupedLIFOFilter interface {
 	HasConfig() bool
 }
 
-func newStack(c Config) *Stack {
-	return &Stack{
+func newQueue(c Config) *Queue {
+	return &Queue{
 		config: c,
+		// renaming Stack -> Queue in the jobqueue project will follow
 		stack: jobqueue.With(jobqueue.Options{
 			MaxConcurrency: c.MaxConcurrency,
-			MaxStackSize:   c.MaxStackSize,
+			MaxStackSize:   c.MaxQueueSize,
 			Timeout:        c.Timeout,
 		}),
 	}
 }
 
-func (s *Stack) Wait() (done func(), err error) {
+func (s *Queue) Wait() (done func(), err error) {
 	return s.stack.Wait()
 }
 
-func (s *Stack) reconfigure() {
+func (s *Queue) reconfigure() {
+	// renaming Stack -> Queue in the jobqueue project will follow
 	s.stack.Reconfigure(jobqueue.Options{
 		MaxConcurrency: s.config.MaxConcurrency,
-		MaxStackSize:   s.config.MaxStackSize,
+		MaxStackSize:   s.config.MaxQueueSize,
 		Timeout:        s.config.Timeout,
 	})
 }
 
-func (s *Stack) close() {
+func (s *Queue) close() {
 	s.stack.Close()
 }
 
-func (s *Stack) Config() Config {
+func (s *Queue) Config() Config {
 	return s.config
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
-		stacks: make(map[string]*Stack),
+		stacks: make(map[string]*Queue),
 	}
 }
 
@@ -105,14 +107,14 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 			c := lf.Config()
 			s, ok := r.stacks[key]
 			if !ok {
-				s = newStack(c)
+				s = newQueue(c)
 				r.stacks[key] = s
 			} else if s.config != c {
 				s.config = c
 				s.reconfigure()
 			}
 
-			lf.SetStack(s)
+			lf.SetQueue(s)
 		}
 	}
 
@@ -139,7 +141,7 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 		key := fmt.Sprintf("group-lifo::%s", name)
 		s, ok := r.stacks[key]
 		if !ok {
-			s = newStack(c)
+			s = newQueue(c)
 			r.stacks[key] = s
 		} else if s.config != c {
 			s.config = c
@@ -147,7 +149,7 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 		}
 
 		for _, glf := range group {
-			glf.SetStack(s)
+			glf.SetQueue(s)
 		}
 	}
 

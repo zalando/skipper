@@ -37,7 +37,7 @@ func TestNewLIFO(t *testing.T) {
 			wantErr:   false,
 			wantConfig: scheduler.Config{
 				MaxConcurrency: 10,
-				MaxStackSize:   15,
+				MaxQueueSize:   15,
 				Timeout:        5 * time.Second,
 			},
 			wantCode: http.StatusOK,
@@ -54,7 +54,7 @@ func TestNewLIFO(t *testing.T) {
 			wantErr:   false,
 			wantConfig: scheduler.Config{
 				MaxConcurrency: defaultMaxConcurreny,
-				MaxStackSize:   defaultMaxStackSize,
+				MaxQueueSize:   defaultMaxQueueSize,
 				Timeout:        defaultTimeout,
 			},
 			wantCode: http.StatusOK,
@@ -72,7 +72,7 @@ func TestNewLIFO(t *testing.T) {
 			wantErr:   true,
 			wantConfig: scheduler.Config{
 				MaxConcurrency: defaultMaxConcurreny,
-				MaxStackSize:   defaultMaxStackSize,
+				MaxQueueSize:   defaultMaxQueueSize,
 				Timeout:        defaultTimeout,
 			},
 			wantCode: http.StatusOK,

@@ -1438,7 +1438,7 @@ codes in case of overrun. All scheduler filters return HTTP status code:
 Parameters:
 
 * MaxConcurrency specifies how many goroutines are allowed to work on this queue(int)
-* MaxStackSize sets the queue size (int)
+* MaxQueueSize sets the queue size (int)
 * Timeout sets the timeout to get request scheduled (time)
 
 Example:
@@ -1447,7 +1447,7 @@ Example:
 lifo(100, 150, "10s")
 ```
 
-The above configuration will set MaxConcurrency to 100, MaxStackSize
+The above configuration will set MaxConcurrency to 100, MaxQueueSize
 to 150 and Timeout to 10 seconds.
 
 ## lifoGroup
@@ -1458,7 +1458,7 @@ Parameters:
 
 * GroupName to group multiple one or many routes to the same queue, which have to have the same settings (string)
 * MaxConcurrency specifies how many goroutines are allowed to work on this queue(int)
-* MaxStackSize sets the queue size (int)
+* MaxQueueSize sets the queue size (int)
 * Timeout sets the timeout to get request scheduled (time)
 
 Example:
@@ -1467,7 +1467,7 @@ Example:
 lifoGroup("mygroup", 100, 150, "10s")
 ```
 
-The above configuration will set MaxConcurrency to 100, MaxStackSize
+The above configuration will set MaxConcurrency to 100, MaxQueueSize
 to 150 and Timeout to 10 seconds for the lifoGroup "mygroup", that can
 be shared between more than routes.
 

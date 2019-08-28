@@ -17,14 +17,14 @@ type (
 	lifoFilter struct {
 		key    string
 		config scheduler.Config
-		stack  *scheduler.Stack
+		queue  *scheduler.Queue
 	}
 
 	lifoGroupFilter struct {
 		name      string
 		hasConfig bool
 		config    scheduler.Config
-		stack     *scheduler.Stack
+		queue     *scheduler.Queue
 	}
 )
 
@@ -33,7 +33,7 @@ const (
 	LIFOGroupName = "lifoGroup"
 
 	defaultMaxConcurreny = 100
-	defaultMaxStackSize  = 100
+	defaultMaxQueueSize  = 100
 	defaultTimeout       = 10 * time.Second
 )
 
@@ -67,9 +67,9 @@ func durationArg(a interface{}) (time.Duration, error) {
 
 func (s *lifoSpec) Name() string { return LIFOName }
 
-// CreateFilter creates a lifoFilter, that will use a stack based
+// CreateFilter creates a lifoFilter, that will use a queue based
 // queue for handling requests instead of the fifo queue. The first
-// parameter is MaxConcurrency the second MaxStackSize and the third
+// parameter is MaxConcurrency the second MaxQueueSize and the third
 // Timeout.
 //
 // The implementation is based on
@@ -77,12 +77,12 @@ func (s *lifoSpec) Name() string { return LIFOName }
 // detailed documentation.
 //
 // All parameters are optional and defaults to
-// MaxConcurrency 100, MaxStackSize 100, Timeout 10s.
+// MaxConcurrency 100, MaxQueueSize 100, Timeout 10s.
 //
 // The total maximum number of requests has to be computed by adding
-// MaxConcurrency and MaxStackSize: total max = MaxConcurrency + MaxStackSize
+// MaxConcurrency and MaxQueueSize: total max = MaxConcurrency + MaxQueueSize
 //
-// Min values are 1 for MaxConcurrency and MaxStackSize, and 1ms for
+// Min values are 1 for MaxConcurrency and MaxQueueSize, and 1ms for
 // Timeout. All configration that is below will be set to these min
 // values.
 func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -90,7 +90,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	// set defaults
 	l.config.MaxConcurrency = defaultMaxConcurreny
-	l.config.MaxStackSize = defaultMaxStackSize
+	l.config.MaxQueueSize = defaultMaxQueueSize
 	l.config.Timeout = defaultTimeout
 
 	if len(args) > 0 {
@@ -109,7 +109,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 			return nil, err
 		}
 		if c >= 0 {
-			l.config.MaxStackSize = c
+			l.config.MaxQueueSize = c
 		}
 	}
 
@@ -132,14 +132,14 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 func (*lifoGroupSpec) Name() string { return LIFOGroupName }
 
-// CreateFilter creates a lifoGroupFilter, that will use a stack based
+// CreateFilter creates a lifoGroupFilter, that will use a queue based
 // queue for handling requests instead of the fifo queue. The first
 // parameter is the Name, the second MaxConcurrency, the third
-// MaxStackSize and the fourth Timeout.
+// MaxQueueSize and the fourth Timeout.
 //
 // The Name parameter is used to group the queue by one or
 // multiple routes. All other parameters are optional and defaults to
-// MaxConcurrency 100, MaxStackSize 100, Timeout 10s.  If the
+// MaxConcurrency 100, MaxQueueSize 100, Timeout 10s.  If the
 // configuration for the same Name is different the behavior is
 // undefined.
 //
@@ -148,9 +148,9 @@ func (*lifoGroupSpec) Name() string { return LIFOGroupName }
 // detailed documentation.
 //
 // The total maximum number of requests has to be computed by adding
-// MaxConcurrency and MaxStackSize: total max = MaxConcurrency + MaxStackSize
+// MaxConcurrency and MaxQueueSize: total max = MaxConcurrency + MaxQueueSize
 //
-// Min values are 1 for MaxConcurrency and MaxStackSize, and 1ms for
+// Min values are 1 for MaxConcurrency and MaxQueueSize, and 1ms for
 // Timeout. All configration that is below will be set to these min
 // values.
 func (*lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -170,7 +170,7 @@ func (*lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	// set defaults
 	cfg := scheduler.Config{
 		MaxConcurrency: defaultMaxConcurreny,
-		MaxStackSize:   defaultMaxStackSize,
+		MaxQueueSize:   defaultMaxQueueSize,
 		Timeout:        defaultTimeout,
 	}
 	l.config = cfg
@@ -192,7 +192,7 @@ func (*lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 			return nil, err
 		}
 		if c >= 1 {
-			l.config.MaxStackSize = c
+			l.config.MaxQueueSize = c
 		}
 	}
 
@@ -214,24 +214,24 @@ func (l *lifoFilter) Config() scheduler.Config {
 	return l.config
 }
 
-// SetStack binds the stack to the current filter context
-func (l *lifoFilter) SetStack(s *scheduler.Stack) {
-	l.stack = s
+// SetQueue binds the queue to the current filter context
+func (l *lifoFilter) SetQueue(s *scheduler.Queue) {
+	l.queue = s
 }
 
-// GetStack is only used in tests.
-func (l *lifoFilter) GetStack() *scheduler.Stack {
-	return l.stack
+// GetQueue is only used in tests.
+func (l *lifoFilter) GetQueue() *scheduler.Queue {
+	return l.queue
 }
 
 // Request is the filter.Filter interface implementation. Request will
 // increase the number of inflight requests and respond to the caller,
-// if the bounded stack returns an error. Status code by Error:
+// if the bounded queue returns an error. Status code by Error:
 //
-// - 503 if jobqueue.ErrStackFull
+// - 503 if jobqueue.ErrQueueFull
 // - 502 if jobqueue.ErrTimeout
 func (l *lifoFilter) Request(ctx filters.FilterContext) {
-	request(l.GetStack(), scheduler.LIFOKey, ctx)
+	request(l.GetQueue(), scheduler.LIFOKey, ctx)
 }
 
 // Response is the filter.Filter interface implementation. Response
@@ -253,24 +253,24 @@ func (l *lifoGroupFilter) Config() scheduler.Config {
 	return l.config
 }
 
-// SetStack binds the stack to the current filter context
-func (l *lifoGroupFilter) SetStack(s *scheduler.Stack) {
-	l.stack = s
+// SetQueue binds the queue to the current filter context
+func (l *lifoGroupFilter) SetQueue(s *scheduler.Queue) {
+	l.queue = s
 }
 
-// GetStack is only used in tests
-func (l *lifoGroupFilter) GetStack() *scheduler.Stack {
-	return l.stack
+// GetQueue is only used in tests
+func (l *lifoGroupFilter) GetQueue() *scheduler.Queue {
+	return l.queue
 }
 
 // Request is the filter.Filter interface implementation. Request will
 // increase the number of inflight requests and respond to the caller,
-// if the bounded stack returns an error. Status code by Error:
+// if the bounded queue returns an error. Status code by Error:
 //
 // - 503 if jobqueue.ErrStackFull
 // - 502 if jobqueue.ErrTimeout
 func (l *lifoGroupFilter) Request(ctx filters.FilterContext) {
-	request(l.GetStack(), scheduler.LIFOKey, ctx)
+	request(l.GetQueue(), scheduler.LIFOKey, ctx)
 }
 
 // Response is the filter.Filter interface implementation. Response
@@ -279,9 +279,9 @@ func (l *lifoGroupFilter) Response(ctx filters.FilterContext) {
 	response(scheduler.LIFOKey, ctx)
 }
 
-func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
+func request(s *scheduler.Queue, key string, ctx filters.FilterContext) {
 	if s == nil {
-		log.Warningf("Unexpected scheduler.Stack is nil for key %s", key)
+		log.Warningf("Unexpected scheduler.Queue is nil for key %s", key)
 		return
 	}
 
@@ -290,16 +290,16 @@ func request(s *scheduler.Stack, key string, ctx filters.FilterContext) {
 		// TODO: replace the log with metrics
 		switch err {
 		case jobqueue.ErrStackFull:
-			log.Errorf("Failed to get an entry on to the stack to process StackFull: %v for host %s", err, ctx.Request().Host)
+			log.Errorf("Failed to get an entry on to the queue to process QueueFull: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusServiceUnavailable,
-				Status:     "Stack Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler",
+				Status:     "Queue Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler",
 			})
 		case jobqueue.ErrTimeout:
-			log.Errorf("Failed to get an entry on to the stack to process Timeout: %v for host %s", err, ctx.Request().Host)
+			log.Errorf("Failed to get an entry on to the queue to process Timeout: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusBadGateway,
-				Status:     "Stack timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler",
+				Status:     "Queue timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler",
 			})
 		default:
 			log.Errorf("Unknown error for route based LIFO: %v for host %s", err, ctx.Request().Host)

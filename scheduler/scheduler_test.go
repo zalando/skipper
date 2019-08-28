@@ -103,17 +103,17 @@ func TestScheduler(t *testing.T) {
 						continue
 					}
 					cfg := lf.Config()
-					stack := lf.GetStack()
-					if stack == nil {
-						t.Errorf("Stack is nil")
+					queue := lf.GetQueue()
+					if queue == nil {
+						t.Errorf("Queue is nil")
 					}
-					if cfg != stack.Config() {
-						t.Errorf("Failed to get stack with configuration, want: %v, got: %v", cfg, stack)
+					if cfg != queue.Config() {
+						t.Errorf("Failed to get queue with configuration, want: %v, got: %v", cfg, queue)
 					}
 				}
 			}
 
-			stacksMap := make(map[string][]*scheduler.Stack)
+			queuesMap := make(map[string][]*scheduler.Queue)
 			for _, group := range tt.paths {
 				key := group[0]
 
@@ -135,39 +135,39 @@ func TestScheduler(t *testing.T) {
 						}
 
 						cfg := lf.Config()
-						stack := lf.GetStack()
-						if stack == nil {
-							t.Errorf("Stack is nil")
+						queue := lf.GetQueue()
+						if queue == nil {
+							t.Errorf("Queue is nil")
 						}
 
-						if cfg != stack.Config() {
-							t.Errorf("Failed to get stack with configuration, want: %v, got: %v", cfg, stack)
+						if cfg != queue.Config() {
+							t.Errorf("Failed to get queue with configuration, want: %v, got: %v", cfg, queue)
 						}
 
-						stacksMap[key] = append(stacksMap[key], stack)
+						queuesMap[key] = append(queuesMap[key], queue)
 					}
 				}
 
-				if len(stacksMap[key]) != len(group) {
-					t.Errorf("Failed to get the right group size %v != %v", len(stacksMap[key]), len(group))
+				if len(queuesMap[key]) != len(group) {
+					t.Errorf("Failed to get the right group size %v != %v", len(queuesMap[key]), len(group))
 				}
 			}
-			// check pointers to stack are the same for same group
-			for k, stacks := range stacksMap {
-				firstStack := stacks[0]
-				for _, stack := range stacks {
-					if stack != firstStack {
-						t.Errorf("Unexpected different stack in group: %s", k)
+			// check pointers to queue are the same for same group
+			for k, stacks := range queuesMap {
+				firstQueue := stacks[0]
+				for _, queue := range stacks {
+					if queue != firstQueue {
+						t.Errorf("Unexpected different queue in group: %s", k)
 					}
 				}
 			}
-			// check pointers to stack of different groups are different
-			diffStacks := make(map[*scheduler.Stack]struct{})
-			for _, stacks := range stacksMap {
-				diffStacks[stacks[0]] = struct{}{}
+			// check pointers to queue of different groups are different
+			diffQueues := make(map[*scheduler.Queue]struct{})
+			for _, stacks := range queuesMap {
+				diffQueues[stacks[0]] = struct{}{}
 			}
-			if len(diffStacks) != len(stacksMap) {
-				t.Error("Unexpected got pointer to the same stack for different group")
+			if len(diffQueues) != len(queuesMap) {
+				t.Error("Unexpected got pointer to the same queue for different group")
 			}
 		})
 	}
