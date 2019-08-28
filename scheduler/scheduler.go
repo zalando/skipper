@@ -23,14 +23,19 @@ type Config struct {
 	Timeout        time.Duration
 }
 
+type QueueStatus struct {
+	ActiveRequests int
+	QueuedRequests int
+}
+
 type Queue struct {
-	stack  *jobqueue.Stack
+	queue  *jobqueue.Stack
 	config Config
 }
 
 type Registry struct {
 	mu     sync.Mutex
-	stacks map[string]*Queue
+	queues map[string]*Queue
 }
 
 type LIFOFilter interface {
@@ -49,7 +54,7 @@ func newQueue(c Config) *Queue {
 	return &Queue{
 		config: c,
 		// renaming Stack -> Queue in the jobqueue project will follow
-		stack: jobqueue.With(jobqueue.Options{
+		queue: jobqueue.With(jobqueue.Options{
 			MaxConcurrency: c.MaxConcurrency,
 			MaxStackSize:   c.MaxQueueSize,
 			Timeout:        c.Timeout,
@@ -57,30 +62,38 @@ func newQueue(c Config) *Queue {
 	}
 }
 
-func (s *Queue) Wait() (done func(), err error) {
-	return s.stack.Wait()
+func (q *Queue) Wait() (done func(), err error) {
+	return q.queue.Wait()
 }
 
-func (s *Queue) reconfigure() {
+func (q *Queue) Status() QueueStatus {
+	st := q.queue.Status()
+	return QueueStatus{
+		ActiveRequests: st.ActiveJobs,
+		QueuedRequests: st.QueuedJobs,
+	}
+}
+
+func (q *Queue) reconfigure() {
 	// renaming Stack -> Queue in the jobqueue project will follow
-	s.stack.Reconfigure(jobqueue.Options{
-		MaxConcurrency: s.config.MaxConcurrency,
-		MaxStackSize:   s.config.MaxQueueSize,
-		Timeout:        s.config.Timeout,
+	q.queue.Reconfigure(jobqueue.Options{
+		MaxConcurrency: q.config.MaxConcurrency,
+		MaxStackSize:   q.config.MaxQueueSize,
+		Timeout:        q.config.Timeout,
 	})
 }
 
-func (s *Queue) close() {
-	s.stack.Close()
+func (q *Queue) close() {
+	q.queue.Close()
 }
 
-func (s *Queue) Config() Config {
-	return s.config
+func (q *Queue) Config() Config {
+	return q.config
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
-		stacks: make(map[string]*Queue),
+		queues: make(map[string]*Queue),
 	}
 }
 
@@ -105,16 +118,16 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 
 			key := fmt.Sprintf("lifo::%s", ri.Id)
 			c := lf.Config()
-			s, ok := r.stacks[key]
+			q, ok := r.queues[key]
 			if !ok {
-				s = newQueue(c)
-				r.stacks[key] = s
-			} else if s.config != c {
-				s.config = c
-				s.reconfigure()
+				q = newQueue(c)
+				r.queues[key] = q
+			} else if q.config != c {
+				q.config = c
+				q.reconfigure()
 			}
 
-			lf.SetQueue(s)
+			lf.SetQueue(q)
 		}
 	}
 
@@ -139,32 +152,32 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 		}
 
 		key := fmt.Sprintf("group-lifo::%s", name)
-		s, ok := r.stacks[key]
+		q, ok := r.queues[key]
 		if !ok {
-			s = newQueue(c)
-			r.stacks[key] = s
-		} else if s.config != c {
-			s.config = c
-			s.reconfigure()
+			q = newQueue(c)
+			r.queues[key] = q
+		} else if q.config != c {
+			q.config = c
+			q.reconfigure()
 		}
 
 		for _, glf := range group {
-			glf.SetQueue(s)
+			glf.SetQueue(q)
 		}
 	}
 
 	return rr
 }
 
-// Do implements routing.PostProcessor and sets the stack for the scheduler filters.
+// Do implements routing.PostProcessor and sets the queue for the scheduler filters.
 //
-// It preserves the existing stack when available.
+// It preserves the existing queue when available.
 func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 	return r.initLIFOFilters(routes)
 }
 
 func (r *Registry) Close() {
-	for _, s := range r.stacks {
-		s.close()
+	for _, q := range r.queues {
+		q.close()
 	}
 }
