@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/aryszka/jobqueue"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
@@ -221,6 +222,9 @@ type Params struct {
 	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
 	// check OpenTracingParams
 	OpenTracing *OpenTracingParams
+
+	// GlobalLIFO can be used to control all the requests with a common LIFO queue.
+	GlobalLIFO *scheduler.Queue
 }
 
 type (
@@ -246,6 +250,9 @@ var (
 		code:             http.StatusServiceUnavailable,
 		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
+
+	errQueueFull    = &proxyError{err: jobqueue.ErrStackFull, code: http.StatusServiceUnavailable}
+	errQueueTimeout = &proxyError{err: jobqueue.ErrTimeout, code: http.StatusBadGateway}
 
 	hostname          = ""
 	disabledAccessLog = al.AccessLogFilter{Enable: false, Prefixes: nil}
@@ -307,6 +314,7 @@ type Proxy struct {
 	quit                     chan struct{}
 	flushInterval            time.Duration
 	breakers                 *circuit.Registry
+	lifo                     *scheduler.Queue
 	limiters                 *ratelimit.Registry
 	log                      logging.Logger
 	tracing                  *proxyTracing
@@ -651,6 +659,7 @@ func WithParams(p Params) *Proxy {
 		experimentalUpgradeAudit: p.ExperimentalUpgradeAudit,
 		maxLoops:                 p.MaxLoopbacks,
 		breakers:                 p.CircuitBreakers,
+		lifo:                     p.GlobalLIFO,
 		lb:                       p.LoadBalancer,
 		limiters:                 p.RateLimiters,
 		log:                      &logging.DefaultLog{},
@@ -1220,6 +1229,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName, ext.RPCServerOption(wireContext))
 	} else {
 		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName)
+		err = nil
 	}
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
@@ -1274,10 +1284,27 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	err = p.do(ctx)
-	pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
-	for _, done := range pendingLIFO {
-		done()
+	var lifoDone func()
+	if p.lifo != nil {
+		lifoDone, err = p.lifo.Wait()
+		defer lifoDone()
+	}
+
+	switch {
+	case err == jobqueue.ErrStackFull:
+		err = errQueueFull
+	case err == jobqueue.ErrTimeout:
+		err = errQueueTimeout
+	case err != nil:
+		err = &proxyError{err: err, code: http.StatusInternalServerError}
+	}
+
+	if err == nil {
+		err = p.do(ctx)
+		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
+		for _, done := range pendingLIFO {
+			done()
+		}
 	}
 
 	if err != nil {

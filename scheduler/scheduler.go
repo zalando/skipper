@@ -17,10 +17,10 @@ const (
 )
 
 type Config struct {
-	Name           string
 	MaxConcurrency int
 	MaxQueueSize   int
 	Timeout        time.Duration
+	CloseTimeout   time.Duration
 }
 
 type QueueStatus struct {
@@ -36,6 +36,7 @@ type Queue struct {
 type Registry struct {
 	mu     sync.Mutex
 	queues map[string]*Queue
+	global *Queue
 }
 
 type LIFOFilter interface {
@@ -83,7 +84,7 @@ func (q *Queue) reconfigure() {
 	})
 }
 
-func (q *Queue) close() {
+func (q *Queue) Close() {
 	q.queue.Close()
 }
 
@@ -174,10 +175,22 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 // It preserves the existing queue when available.
 func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 	return r.initLIFOFilters(routes)
+
+}
+
+func (r *Registry) Global(c Config) *Queue {
+	if r.global == nil {
+		r.global = newQueue(c)
+		return r.global
+	}
+
+	r.global.config = c
+	r.global.reconfigure()
+	return r.global
 }
 
 func (r *Registry) Close() {
 	for _, q := range r.queues {
-		q.close()
+		q.Close()
 	}
 }
