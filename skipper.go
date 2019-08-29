@@ -1022,6 +1022,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			MaxQueueSize:   o.GlobalLIFOMaxQueueSize,
 			Timeout:        o.GlobalLIFOTimeout,
 			CloseTimeout:   closeTimeout,
+			Metrics:        mtr,
 		})
 
 		defer globalLIFO.Close()

@@ -1,13 +1,16 @@
 package scheduler_test
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
@@ -321,4 +324,46 @@ func TestConfig(t *testing.T) {
 
 		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
 	})
+}
+
+func TestMetrics(t *testing.T) {
+	m := metrics.NewCodaHale(metrics.Options{})
+	r := scheduler.RegistryWith(scheduler.Options{MetricsUpdateTimeout: time.Millisecond})
+	q := r.Global(scheduler.Config{Metrics: m, MaxConcurrency: 2, MaxQueueSize: 2})
+	for i := 0; i < 3; i++ {
+		go q.Wait()
+	}
+
+	expect := scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1}
+	for q.Status() != expect {
+	}
+
+	h := m.CreateHandler("/")
+	getMetricsValue := func(j map[string]interface{}, name string) float64 {
+		defer func() {
+			recover()
+		}()
+
+		return j["gauges"].(map[string]interface{})["lifo.global."+name].(map[string]interface{})["value"].(float64)
+	}
+
+	timeout := time.After(10 * time.Second)
+	for {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, &http.Request{URL: &url.URL{Path: "/lifo"}})
+		var j map[string]interface{}
+		if err := json.Unmarshal(rec.Body.Bytes(), &j); err != nil {
+			t.Fatal(err)
+		}
+
+		select {
+		case <-timeout:
+			t.Fatal("Failed to set the metrics")
+		default:
+		}
+
+		if getMetricsValue(j, "active") == 2 && getMetricsValue(j, "queued") == 1 {
+			break
+		}
+	}
 }

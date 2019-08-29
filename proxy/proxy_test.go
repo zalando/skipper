@@ -1649,7 +1649,6 @@ func TestLogsAccess(t *testing.T) {
 	tp.proxy.ServeHTTP(w, r)
 
 	output := accessLog.String()
-	println(fmt.Sprintf(`"%s - -" %d %d "-" "-"`, r.Method, http.StatusTeapot, len(response)))
 	if !strings.Contains(output, fmt.Sprintf(`"%s - -" %d %d "-" "-"`, r.Method, http.StatusTeapot, len(response))) {
 		t.Error("failed to log access", output)
 	}
