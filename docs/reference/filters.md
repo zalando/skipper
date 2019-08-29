@@ -70,6 +70,14 @@ Parameters:
 * the expression to match (regex)
 * the replacement (string)
 
+Example:
+
+```
+rm_api: Path("/api") -> modPath("/api", "/") -> "https://backend.example.org";
+append_bar: Path("/foo") -> modPath("/foo", "/foo/bar") -> "https://backend.example.org";
+new_base: PathSubtree("/base") -> modPath("/base", "/new/base) -> "https://backend.example.org";
+```
+
 ## setPath
 
 Replace the path of the original request to the replacement.
@@ -1384,7 +1392,7 @@ Based on the previous configuration, here is an example of a counter metric.
 apiUsageMonitoring.custom.my-app.staging.orders-api.GET.foo/orders/{order-id}.*.*.http_count
 ```
 
-Note that a missing `tag` in the configuration will be replaced by `{no-tag}` in the metric: 
+Note that a missing `tag` in the configuration will be replaced by `{no-tag}` in the metric:
 
 ```
 apiUsageMonitoring.custom.my-app.{no-tag}.customers-api.GET.foo/customers.*.*.http_count
@@ -1531,14 +1539,14 @@ specified credential paths `/tmp/secrets/`, resulting in
 
 ## baggageItemToTag
 
-This filter adds an opentracing tag for a given baggage item in the trace. 
+This filter adds an opentracing tag for a given baggage item in the trace.
 
 Syntax:
 ```
 baggageItemToTag("<baggage_item_name>", "<tag_name>")
 ```
 
-Example: If a trace consists of baggage item named `foo` with a value `bar`. Adding below filter will add a tag named `baz` with value `bar` 
+Example: If a trace consists of baggage item named `foo` with a value `bar`. Adding below filter will add a tag named `baz` with value `bar`
 ```
 baggageItemToTag("foo", "baz")
 ```

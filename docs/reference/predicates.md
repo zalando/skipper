@@ -231,7 +231,7 @@ JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@g
 
 ### JWTPayloadAnyKVRegexp, JWTPayloadAllKVRegexp
 
-Behaves exactly the same as `JWTPayloadAnyKV`, `JWTPayloadAllKV`, 
+Behaves exactly the same as `JWTPayloadAnyKV`, `JWTPayloadAllKV`,
 but the expected values are regular expressions that will be matched
 against the JWT value.
 
@@ -424,6 +424,7 @@ v2:
 
 // hit by remaining chance
 v1:
+    * ->
     "https://api-test-blue";
 ```
 
