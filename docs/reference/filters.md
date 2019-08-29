@@ -1511,7 +1511,7 @@ It is also possible to enable this behavior centrally for a Skipper instance wit
 the -rfc-patch-path flag. See
 [URI standards interpretation](../../operation/operation/#uri-standards-interpretation).
 
-## bearerInjector
+## bearerinjector
 
 This filter injects `Bearer` tokens into `Authorization` headers read
 from file providing the token as content. This is only for use cases
