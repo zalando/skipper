@@ -1511,7 +1511,7 @@ It is also possible to enable this behavior centrally for a Skipper instance wit
 the -rfc-patch-path flag. See
 [URI standards interpretation](../../operation/operation/#uri-standards-interpretation).
 
-## bearerinjector
+## bearerInjector
 
 This filter injects `Bearer` tokens into `Authorization` headers read
 from file providing the token as content. This is only for use cases
@@ -1537,16 +1537,16 @@ have to be filenames `write-token` and `read-token` within the
 specified credential paths `/tmp/secrets/`, resulting in
 `/tmp/secrets/write-token` and `/tmp/secrets/read-token`.
 
-## baggageItemToTag
+## tracingBaggageToTag
 
 This filter adds an opentracing tag for a given baggage item in the trace.
 
 Syntax:
 ```
-baggageItemToTag("<baggage_item_name>", "<tag_name>")
+tracingBaggageToTag("<baggage_item_name>", "<tag_name>")
 ```
 
 Example: If a trace consists of baggage item named `foo` with a value `bar`. Adding below filter will add a tag named `baz` with value `bar`
 ```
-baggageItemToTag("foo", "baz")
+tracingBaggageToTag("foo", "baz")
 ```
