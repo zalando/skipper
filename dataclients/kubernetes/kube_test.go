@@ -32,6 +32,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/source"
@@ -1372,6 +1373,47 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__new1__new1_example_org_____service1": "http://1.2.3.4:8080",
 		})
 	})
+}
+
+func TestOriginMarker(t *testing.T) {
+	api := newTestAPI(t, nil, &ingressList{})
+	defer api.Close()
+
+	api.services = testServices()
+	ii := testIngresses()
+	ti := time.Now().UTC()
+	var expected []string
+	for _, i := range ii {
+		n := i.Metadata.Name
+		expected = append(expected, n)
+		i.Metadata.Uid = n
+		i.Metadata.Created = ti
+	}
+	api.ingresses.Items = ii
+
+	dc, err := New(Options{KubernetesURL: api.server.URL, OriginMarker: true})
+	if err != nil {
+		t.Error(err)
+	}
+
+	defer dc.Close()
+
+	rr, err := dc.LoadAll()
+	require.NoError(t, err)
+
+	var actual []string
+	for _, r := range rr {
+		for _, f := range r.Filters {
+			if f.Name == builtin.OriginMarkerName {
+				require.Len(t, f.Args, 3)
+				actual = append(actual, f.Args[1].(string))
+				assert.Equal(t, ingressOriginName, f.Args[0])
+				assert.Equal(t, ti, f.Args[2])
+			}
+		}
+	}
+
+	assert.ElementsMatch(t, actual, expected)
 }
 
 func TestConvertPathRule(t *testing.T) {

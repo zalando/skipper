@@ -77,7 +77,7 @@ func NewApiUsageMonitoring(
 	}
 	unknownPath := newPathInfo(
 		unknownPlaceholder,
-		unknownPlaceholder,
+		noTagPlaceholder,
 		unknownPlaceholder,
 		noMatchPlaceholder,
 		noMatchPlaceholder,
