@@ -1,3 +1,5 @@
+// Package scheduler provides a registry to be used as a postprocessor for the routes
+// that use a LIFO filter.
 package scheduler
 
 import (
