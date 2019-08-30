@@ -99,10 +99,6 @@ const (
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
 	rfcPatchPathUsage                    = "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 3986"
 	maxAuditBodyUsage                    = "sets the max body to read to log in the audit log body"
-	enableGlobalLIFOUsage                = "enable a global LIFO queue"
-	globalLIFOMaxConcurrencyUsage        = "set the max concurrency for the global LIFO queue"
-	globalLIFOMaxQueueSizeUsage          = "set the max queue size for the global LIFO queue"
-	globalLIFOTimeoutUsage               = "set the timeout a request can wait in the global LIFO queue"
 	enableRouteLIFOMetricsUsage          = "enalbe metrics for the individual route LIFO queues"
 
 	// logging, metrics, tracing:
@@ -262,10 +258,6 @@ var (
 	breakers                        breakerFlags
 	enableRatelimiters              bool
 	ratelimits                      ratelimitFlags
-	enableGlobalLIFO                bool
-	globalLIFOMaxConcurrency        int
-	globalLIFOMaxQueueSize          int
-	globalLIFOTimeout               time.Duration
 	enableRouteLIFOMetrics          bool
 	metricsFlavour                  = commaListFlag("codahale", "prometheus")
 	filterPlugins                   = newPluginFlag()
@@ -431,10 +423,6 @@ func init() {
 	flag.Var(&breakers, "breaker", breakerUsage)
 	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
 	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
-	flag.BoolVar(&enableGlobalLIFO, "enable-global-lifo", false, enableGlobalLIFOUsage)
-	flag.IntVar(&globalLIFOMaxConcurrency, "global-lifo-max-concurrency", 0, globalLIFOMaxConcurrencyUsage)
-	flag.IntVar(&globalLIFOMaxQueueSize, "global-lifo-max-queue-size", 0, globalLIFOMaxQueueSizeUsage)
-	flag.DurationVar(&globalLIFOTimeout, "global-lifo-timeout", 0, globalLIFOTimeoutUsage)
 	flag.BoolVar(&enableRouteLIFOMetrics, "enable-route-lifo-metrics", false, enableRouteLIFOMetricsUsage)
 	flag.Var(metricsFlavour, "metrics-flavour", metricsFlavourUsage)
 	flag.Var(filterPlugins, "filter-plugin", filterPluginUsage)
@@ -664,10 +652,6 @@ func main() {
 		BreakerSettings:                 breakers,
 		EnableRatelimiters:              enableRatelimiters,
 		RatelimitSettings:               ratelimits,
-		EnableGlobalLIFO:                enableGlobalLIFO,
-		GlobalLIFOMaxConcurrency:        globalLIFOMaxConcurrency,
-		GlobalLIFOMaxQueueSize:          globalLIFOMaxQueueSize,
-		GlobalLIFOTimeout:               globalLIFOTimeout,
 		EnableRouteLIFOMetrics:          enableRouteLIFOMetrics,
 		MetricsFlavours:                 metricsFlavour.values,
 		FilterPlugins:                   filterPlugins.values,

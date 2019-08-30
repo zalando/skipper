@@ -222,9 +222,6 @@ type Params struct {
 	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
 	// check OpenTracingParams
 	OpenTracing *OpenTracingParams
-
-	// GlobalLIFO can be used to control all the requests with a common LIFO queue.
-	GlobalLIFO *scheduler.Queue
 }
 
 type (
@@ -314,7 +311,6 @@ type Proxy struct {
 	quit                     chan struct{}
 	flushInterval            time.Duration
 	breakers                 *circuit.Registry
-	lifo                     *scheduler.Queue
 	limiters                 *ratelimit.Registry
 	log                      logging.Logger
 	tracing                  *proxyTracing
@@ -659,7 +655,6 @@ func WithParams(p Params) *Proxy {
 		experimentalUpgradeAudit: p.ExperimentalUpgradeAudit,
 		maxLoops:                 p.MaxLoopbacks,
 		breakers:                 p.CircuitBreakers,
-		lifo:                     p.GlobalLIFO,
 		lb:                       p.LoadBalancer,
 		limiters:                 p.RateLimiters,
 		log:                      &logging.DefaultLog{},
@@ -1283,12 +1278,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
-
-	var lifoDone func()
-	if p.lifo != nil {
-		lifoDone, err = p.lifo.Wait()
-		defer lifoDone()
-	}
 
 	switch {
 	case err == jobqueue.ErrStackFull:

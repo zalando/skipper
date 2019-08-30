@@ -446,20 +446,6 @@ type Options struct {
 	// RatelimitSettings contain global and host specific settings for the ratelimiters.
 	RatelimitSettings []ratelimit.Settings
 
-	// EnableGlobalLIFO applies a global LIFO queue for the proxy instance controlling max concurrency of
-	// the proxied requests, when required throttling with a LIFO style queue.
-	EnableGlobalLIFO bool
-
-	// GlobalLIFOMaxConcurrency sets the max concurrency for the global LIFO queue. Defaults to 1.
-	GlobalLIFOMaxConcurrency int
-
-	// GlobalLIFOMaxQueueSize sets the max queue size for the global LIFO queue. Defaults to infinite.
-	GlobalLIFOMaxQueueSize int
-
-	// GlobalLIFOTimeout controls the max time a request can spend queued up before processing or being
-	// rejected.
-	GlobalLIFOTimeout time.Duration
-
 	// EnableRouteLIFOMetrics enables metrics for the individual route LIFO queues, if any.
 	EnableRouteLIFOMetrics bool
 
@@ -1016,23 +1002,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	})
 	defer schedulerRegistry.Close()
 
-	var globalLIFO *scheduler.Queue
-	if o.EnableGlobalLIFO {
-		if o.GlobalLIFOMaxConcurrency <= 0 {
-			log.Warn("Global LIFO is enabled but max concurrency is not configured.")
-		}
-
-		// timeout for tearing down the queue
-		closeTimeout := o.WaitForHealthcheckInterval
-
-		globalLIFO = schedulerRegistry.Global(scheduler.Config{
-			MaxConcurrency: o.GlobalLIFOMaxConcurrency,
-			MaxQueueSize:   o.GlobalLIFOMaxQueueSize,
-			Timeout:        o.GlobalLIFOTimeout,
-			CloseTimeout:   closeTimeout,
-		})
-	}
-
 	// create a routing engine
 	ro := routing.Options{
 		FilterRegistry:  registry,
@@ -1069,7 +1038,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		DefaultHTTPStatus:        o.DefaultHTTPStatus,
 		LoadBalancer:             lbInstance,
 		Timeout:                  o.TimeoutBackend,
-		GlobalLIFO:               globalLIFO,
 		ResponseHeaderTimeout:    o.ResponseHeaderTimeoutBackend,
 		ExpectContinueTimeout:    o.ExpectContinueTimeoutBackend,
 		KeepAlive:                o.KeepAliveBackend,

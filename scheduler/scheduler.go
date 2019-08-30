@@ -107,7 +107,7 @@ func NewRegistry() *Registry {
 }
 
 func (r *Registry) newQueue(name string, c Config) *Queue {
-	measure := name == "::global" || r.options.EnableRouteLIFOMetrics
+	measure := r.options.EnableRouteLIFOMetrics
 	q := &Queue{
 		config: c,
 		// renaming Stack -> Queue in the jobqueue project will follow
@@ -121,10 +121,6 @@ func (r *Registry) newQueue(name string, c Config) *Queue {
 	if measure {
 		if name == "" {
 			name = "unknown"
-		}
-
-		if name == "::global" {
-			name = "global"
 		}
 
 		q.activeRequestsMetricsKey = fmt.Sprintf("lifo.%s.active", name)
@@ -258,22 +254,6 @@ func (r *Registry) measure() {
 			}
 		}
 	}()
-}
-
-func (r *Registry) Global(c Config) *Queue {
-	var global *Queue
-	globali, ok := r.queues.Load("global")
-	if !ok {
-		// ::global avoids conflict with a route ID
-		global = r.newQueue("::global", c)
-		r.queues.Store("global", global)
-		return global
-	}
-
-	global = globali.(*Queue)
-	global.config = c
-	global.reconfigure()
-	return global
 }
 
 func (r *Registry) Close() {
