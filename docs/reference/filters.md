@@ -1542,3 +1542,21 @@ Example: If a trace consists of baggage item named `foo` with a value `bar`. Add
 ```
 baggageItemToTag("foo", "baz")
 ```
+
+## originMarker
+
+This filter is used to measure the time it took to create a route. Other than that, it's a no-op.
+You can include the same origin marker when you re-create the route. As long as the `origin` and `id` are the same, the route creation time will not be measured again. 
+If there are multiple origin markers with the same origin, the earliest timestamp will be used.
+
+Parameters:
+
+* the name of the origin
+* the ID of the object that is the logical source for the route
+* the creation timestamp (rfc3339) 
+
+Example:
+
+```
+originMarker("apiUsageMonitoring", "deployment1", "2019-08-30T09:55:51Z")
+```
