@@ -1002,6 +1002,12 @@ func (p *Proxy) do(ctx *context) error {
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 
+	// per route rate limit
+	if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
+		rerr := newRatelimitError(settings, retryAfter)
+		return rerr
+	}
+
 	if ctx.deprecatedShunted() {
 		p.log.Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}
@@ -1024,11 +1030,6 @@ func (p *Proxy) do(ctx *context) error {
 		ctx.outgoingDebugRequest = debugReq
 		ctx.setResponse(&http.Response{Header: make(http.Header)}, p.flags.PreserveOriginal())
 	} else {
-		// per route rate limit
-		if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
-			rerr := newRatelimitError(settings, retryAfter)
-			return rerr
-		}
 
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
