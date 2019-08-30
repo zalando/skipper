@@ -446,7 +446,7 @@ type Options struct {
 	// RatelimitSettings contain global and host specific settings for the ratelimiters.
 	RatelimitSettings []ratelimit.Settings
 
-	// EnableGlobalLIFO applies a global lifo queue for the proxy instance controlling max concurrency of
+	// EnableGlobalLIFO applies a global LIFO queue for the proxy instance controlling max concurrency of
 	// the proxied requests, when required throttling with a LIFO style queue.
 	EnableGlobalLIFO bool
 
@@ -459,6 +459,9 @@ type Options struct {
 	// GlobalLIFOTimeout controls the max time a request can spend queued up before processing or being
 	// rejected.
 	GlobalLIFOTimeout time.Duration
+
+	// EnableRouteLIFOMetrics enables metrics for the individual route LIFO queues, if any.
+	EnableRouteLIFOMetrics bool
 
 	// OpenTracing enables opentracing
 	OpenTracing []string
@@ -1007,7 +1010,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		pauth.NewJWTPayloadAnyKVRegexp(),
 	)
 
-	schedulerRegistry := scheduler.NewRegistry()
+	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
+		Metrics:                mtr,
+		EnableRouteLIFOMetrics: o.EnableRouteLIFOMetrics,
+	})
+	defer schedulerRegistry.Close()
+
 	var globalLIFO *scheduler.Queue
 	if o.EnableGlobalLIFO {
 		if o.GlobalLIFOMaxConcurrency <= 0 {
@@ -1022,10 +1030,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			MaxQueueSize:   o.GlobalLIFOMaxQueueSize,
 			Timeout:        o.GlobalLIFOTimeout,
 			CloseTimeout:   closeTimeout,
-			Metrics:        mtr,
 		})
-
-		defer globalLIFO.Close()
 	}
 
 	// create a routing engine

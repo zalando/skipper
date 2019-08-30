@@ -14,19 +14,14 @@ import (
 // note: Config must stay comparable because it is used to detect changes in route specific LIFO config
 
 const (
-	LIFOKey   = "lifo"
-	globalKey = "::global" // (cannot come from an eskip route id)
+	LIFOKey = "lifo"
 )
 
 type Config struct {
-	Name                     string
-	MaxConcurrency           int
-	MaxQueueSize             int
-	Timeout                  time.Duration
-	CloseTimeout             time.Duration
-	Metrics                  metrics.Metrics
-	activeRequestsMetricsKey string
-	queuedRequestsMetricsKey string
+	MaxConcurrency int
+	MaxQueueSize   int
+	Timeout        time.Duration
+	CloseTimeout   time.Duration
 }
 
 type QueueStatus struct {
@@ -35,12 +30,16 @@ type QueueStatus struct {
 }
 
 type Queue struct {
-	queue  *jobqueue.Stack
-	config Config
+	queue                    *jobqueue.Stack
+	config                   Config
+	activeRequestsMetricsKey string
+	queuedRequestsMetricsKey string
 }
 
 type Options struct {
-	MetricsUpdateTimeout time.Duration
+	MetricsUpdateTimeout   time.Duration
+	EnableRouteLIFOMetrics bool
+	Metrics                metrics.Metrics
 }
 
 type Registry struct {
@@ -60,27 +59,6 @@ type GroupedLIFOFilter interface {
 	LIFOFilter
 	Group() string
 	HasConfig() bool
-}
-
-func newQueue(c Config) *Queue {
-	if c.Metrics != nil {
-		if c.Name == "" {
-			c.Name = "unknown"
-		}
-
-		c.activeRequestsMetricsKey = fmt.Sprintf("lifo.%s.active", c.Name)
-		c.queuedRequestsMetricsKey = fmt.Sprintf("lifo.%s.queued", c.Name)
-	}
-
-	return &Queue{
-		config: c,
-		// renaming Stack -> Queue in the jobqueue project will follow
-		queue: jobqueue.With(jobqueue.Options{
-			MaxConcurrency: c.MaxConcurrency,
-			MaxStackSize:   c.MaxQueueSize,
-			Timeout:        c.Timeout,
-		}),
-	}
 }
 
 func (q *Queue) Wait() (done func(), err error) {
@@ -104,7 +82,7 @@ func (q *Queue) reconfigure() {
 	})
 }
 
-func (q *Queue) Close() {
+func (q *Queue) close() {
 	q.queue.Close()
 }
 
@@ -126,6 +104,35 @@ func RegistryWith(o Options) *Registry {
 
 func NewRegistry() *Registry {
 	return RegistryWith(Options{})
+}
+
+func (r *Registry) newQueue(name string, c Config) *Queue {
+	measure := name == "::global" || r.options.EnableRouteLIFOMetrics
+	q := &Queue{
+		config: c,
+		// renaming Stack -> Queue in the jobqueue project will follow
+		queue: jobqueue.With(jobqueue.Options{
+			MaxConcurrency: c.MaxConcurrency,
+			MaxStackSize:   c.MaxQueueSize,
+			Timeout:        c.Timeout,
+		}),
+	}
+
+	if measure {
+		if name == "" {
+			name = "unknown"
+		}
+
+		if name == "::global" {
+			name = "global"
+		}
+
+		q.activeRequestsMetricsKey = fmt.Sprintf("lifo.%s.active", name)
+		q.queuedRequestsMetricsKey = fmt.Sprintf("lifo.%s.queued", name)
+		r.measure()
+	}
+
+	return q
 }
 
 func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
@@ -156,7 +163,7 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 			}
 
 			if !ok {
-				q = newQueue(c)
+				q = r.newQueue(ri.Id, c)
 				r.queues.Store(key, q)
 			} else if q.config != c {
 				q.config = c
@@ -195,7 +202,7 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 		}
 
 		if !ok {
-			q = newQueue(c)
+			q = r.newQueue(name, c)
 			r.queues.Store(key, q)
 		} else if q.config != c {
 			q.config = c
@@ -218,7 +225,7 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 }
 
 func (r *Registry) measure() {
-	if r.measuring {
+	if r.options.Metrics == nil || r.measuring {
 		return
 	}
 
@@ -228,8 +235,8 @@ func (r *Registry) measure() {
 			r.queues.Range(func(_, value interface{}) bool {
 				q := value.(*Queue)
 				s := q.Status()
-				q.config.Metrics.UpdateGauge(q.config.activeRequestsMetricsKey, float64(s.ActiveRequests))
-				q.config.Metrics.UpdateGauge(q.config.queuedRequestsMetricsKey, float64(s.QueuedRequests))
+				r.options.Metrics.UpdateGauge(q.activeRequestsMetricsKey, float64(s.ActiveRequests))
+				r.options.Metrics.UpdateGauge(q.queuedRequestsMetricsKey, float64(s.QueuedRequests))
 				return true
 			})
 
@@ -243,16 +250,12 @@ func (r *Registry) measure() {
 }
 
 func (r *Registry) Global(c Config) *Queue {
-	c.Name = "global"
-	if c.Metrics != nil {
-		r.measure()
-	}
-
 	var global *Queue
-	globali, ok := r.queues.Load(globalKey)
+	globali, ok := r.queues.Load("global")
 	if !ok {
-		global = newQueue(c)
-		r.queues.Store(globalKey, global)
+		// ::global avoids conflict with a route ID
+		global = r.newQueue("::global", c)
+		r.queues.Store("global", global)
 		return global
 	}
 
@@ -264,7 +267,7 @@ func (r *Registry) Global(c Config) *Queue {
 
 func (r *Registry) Close() {
 	r.queues.Range(func(_, value interface{}) bool {
-		value.(*Queue).Close()
+		value.(*Queue).close()
 		return true
 	})
 

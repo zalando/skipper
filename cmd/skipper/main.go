@@ -103,6 +103,7 @@ const (
 	globalLIFOMaxConcurrencyUsage        = "set the max concurrency for the global LIFO queue"
 	globalLIFOMaxQueueSizeUsage          = "set the max queue size for the global LIFO queue"
 	globalLIFOTimeoutUsage               = "set the timeout a request can wait in the global LIFO queue"
+	enableRouteLIFOMetricsUsage          = "enalbe metrics for the individual route LIFO queues"
 
 	// logging, metrics, tracing:
 	enablePrometheusMetricsUsage             = "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
@@ -265,6 +266,7 @@ var (
 	globalLIFOMaxConcurrency        int
 	globalLIFOMaxQueueSize          int
 	globalLIFOTimeout               time.Duration
+	enableRouteLIFOMetrics          bool
 	metricsFlavour                  = commaListFlag("codahale", "prometheus")
 	filterPlugins                   = newPluginFlag()
 	predicatePlugins                = newPluginFlag()
@@ -433,6 +435,7 @@ func init() {
 	flag.IntVar(&globalLIFOMaxConcurrency, "global-lifo-max-concurrency", 0, globalLIFOMaxConcurrencyUsage)
 	flag.IntVar(&globalLIFOMaxQueueSize, "global-lifo-max-queue-size", 0, globalLIFOMaxQueueSizeUsage)
 	flag.DurationVar(&globalLIFOTimeout, "global-lifo-timeout", 0, globalLIFOTimeoutUsage)
+	flag.BoolVar(&enableRouteLIFOMetrics, "enable-route-lifo-metrics", false, enableRouteLIFOMetricsUsage)
 	flag.Var(metricsFlavour, "metrics-flavour", metricsFlavourUsage)
 	flag.Var(filterPlugins, "filter-plugin", filterPluginUsage)
 	flag.Var(predicatePlugins, "predicate-plugin", predicatePluginUsage)
@@ -665,6 +668,7 @@ func main() {
 		GlobalLIFOMaxConcurrency:        globalLIFOMaxConcurrency,
 		GlobalLIFOMaxQueueSize:          globalLIFOMaxQueueSize,
 		GlobalLIFOTimeout:               globalLIFOTimeout,
+		EnableRouteLIFOMetrics:          enableRouteLIFOMetrics,
 		MetricsFlavours:                 metricsFlavour.values,
 		FilterPlugins:                   filterPlugins.values,
 		PredicatePlugins:                predicatePlugins.values,

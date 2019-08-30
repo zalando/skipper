@@ -112,6 +112,7 @@ func TestScheduler(t *testing.T) {
 					if queue == nil {
 						t.Errorf("Queue is nil")
 					}
+
 					if cfg != queue.Config() {
 						t.Errorf("Failed to get queue with configuration, want: %v, got: %v", cfg, queue)
 					}
@@ -328,8 +329,12 @@ func TestConfig(t *testing.T) {
 
 func TestMetrics(t *testing.T) {
 	m := metrics.NewCodaHale(metrics.Options{})
-	r := scheduler.RegistryWith(scheduler.Options{MetricsUpdateTimeout: time.Millisecond})
-	q := r.Global(scheduler.Config{Metrics: m, MaxConcurrency: 2, MaxQueueSize: 2})
+	r := scheduler.RegistryWith(scheduler.Options{
+		MetricsUpdateTimeout: time.Millisecond,
+		Metrics:              m,
+	})
+
+	q := r.Global(scheduler.Config{MaxConcurrency: 2, MaxQueueSize: 2})
 	for i := 0; i < 3; i++ {
 		go q.Wait()
 	}
@@ -347,19 +352,19 @@ func TestMetrics(t *testing.T) {
 		return j["gauges"].(map[string]interface{})["lifo.global."+name].(map[string]interface{})["value"].(float64)
 	}
 
-	timeout := time.After(10 * time.Second)
+	timeout := time.After(120 * time.Millisecond)
 	for {
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, &http.Request{URL: &url.URL{Path: "/lifo"}})
-		var j map[string]interface{}
-		if err := json.Unmarshal(rec.Body.Bytes(), &j); err != nil {
-			t.Fatal(err)
-		}
-
 		select {
 		case <-timeout:
 			t.Fatal("Failed to set the metrics")
 		default:
+		}
+
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, &http.Request{URL: &url.URL{Path: "/lifo"}})
+		var j map[string]interface{}
+		if err := json.Unmarshal(rec.Body.Bytes(), &j); err != nil {
+			continue
 		}
 
 		if getMetricsValue(j, "active") == 2 && getMetricsValue(j, "queued") == 1 {
