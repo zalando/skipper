@@ -20,6 +20,7 @@ const (
 type RouteCreationMetrics struct {
 	metrics      filters.Metrics
 	originIdAges map[string]map[string]int
+	initialized  bool
 }
 
 func NewRouteCreationMetrics(metrics filters.Metrics) *RouteCreationMetrics {
@@ -53,6 +54,12 @@ func (m *RouteCreationMetrics) startTimes(route *routing.Route) map[string]time.
 		if !exists || t.Before(old) {
 			startTimes[origin] = t
 		}
+	}
+
+	if !m.initialized {
+		//must be done after filling the cache
+		m.initialized = true
+		return nil
 	}
 
 	return startTimes

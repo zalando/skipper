@@ -22,8 +22,9 @@ func TestRouteCreationMetrics_Do(t *testing.T) {
 		expectedMetrics []string
 	}{
 		{
-			name:  "no start time provided",
-			route: routing.Route{},
+			name:            "no start time provided",
+			route:           routing.Route{},
+			expectedMetrics: []string{},
 		},
 		{
 			name:            "start time provided",
@@ -48,14 +49,24 @@ func TestRouteCreationMetrics_Do(t *testing.T) {
 
 func TestRouteCreationMetrics_startTimes(t *testing.T) {
 	for _, tt := range []struct {
-		name     string
-		route    routing.Route
-		expected map[string]time.Time
+		name        string
+		route       routing.Route
+		initialized bool
+		expected    map[string]time.Time
 	}{
 		{
-			name:     "no start time provided",
-			route:    routing.Route{},
-			expected: map[string]time.Time{},
+			name:        "no start time provided",
+			route:       routing.Route{},
+			initialized: true,
+			expected:    map[string]time.Time{},
+		},
+		{
+			name: "first run doesn't provide metrics, just fills the cache (this origin was seen by the previous skipper instance)",
+			route: routing.Route{Filters: []*routing.RouteFilter{
+				{Filter: OriginMarker{Origin: "origin", Id: "config0", Created: time0}},
+			}},
+			initialized: false,
+			expected:    nil,
 		},
 		{
 			name: "start time from origin marker",
@@ -63,14 +74,16 @@ func TestRouteCreationMetrics_startTimes(t *testing.T) {
 				{Filter: OriginMarker{Origin: "origin", Id: "config0", Created: time0}},
 				{Filter: OriginMarker{Origin: "origin", Id: "config1", Created: time1}},
 			}},
-			expected: map[string]time.Time{"origin": time0},
+			initialized: true,
+			expected:    map[string]time.Time{"origin": time0},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			metrics := metricstest.MockMetrics{}
-			s := NewRouteCreationMetrics(&metrics).startTimes(&tt.route)
-
-			assert.Equal(t, tt.expected, s)
+			metrics := NewRouteCreationMetrics(&metricstest.MockMetrics{})
+			metrics.initialized = tt.initialized
+			assert.Equal(t, tt.expected, metrics.startTimes(&tt.route))
+			//should be cached
+			assert.Empty(t, metrics.startTimes(&tt.route))
 		})
 	}
 }
@@ -107,7 +120,7 @@ func TestRouteCreationMetrics_pruneCache(t *testing.T) {
 	}
 }
 
-func TestRouteCreationMetrics_filterStartTime(t *testing.T) {
+func TestRouteCreationMetrics_originStartTime(t *testing.T) {
 	for _, tt := range []struct {
 		name            string
 		configIds       map[string]map[string]int
