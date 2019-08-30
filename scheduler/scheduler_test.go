@@ -265,11 +265,10 @@ func TestConfig(t *testing.T) {
 		f := r.Filters[0]
 
 		// fill up the queue:
-		ctx := &filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})}
-		go f.Request(ctx)
-		go f.Request(ctx)
-		go f.Request(ctx)
-		go f.Request(ctx)
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
 
 		q := f.Filter.(scheduler.LIFOFilter).GetQueue()
 		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})

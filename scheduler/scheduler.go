@@ -137,6 +137,7 @@ func (r *Registry) newQueue(name string, c Config) *Queue {
 
 func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 	rr := make([]*routing.Route, len(routes))
+	existingKeys := make(map[string]bool)
 	groups := make(map[string][]GroupedLIFOFilter)
 
 	for i, ri := range routes {
@@ -156,6 +157,7 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 
 			var q *Queue
 			key := fmt.Sprintf("lifo::%s", ri.Id)
+			existingKeys[key] = true
 			c := lf.Config()
 			qi, ok := r.queues.Load(key)
 			if ok {
@@ -196,6 +198,7 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 
 		var q *Queue
 		key := fmt.Sprintf("group-lifo::%s", name)
+		existingKeys[key] = true
 		qi, ok := r.queues.Load(key)
 		if ok {
 			q = qi.(*Queue)
@@ -213,6 +216,14 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 			glf.SetQueue(q)
 		}
 	}
+
+	r.queues.Range(func(key, _ interface{}) bool {
+		if !existingKeys[key.(string)] {
+			r.queues.Delete(key)
+		}
+
+		return true
+	})
 
 	return rr
 }
