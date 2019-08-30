@@ -207,6 +207,30 @@ It will expose them in /metrics, for example json structure looks like this exam
       /* stripped a lot of metrics here */
     }
 
+## LIFO metrics
+
+When enabled in the routes, LIFO queues can control the maximum concurrency level
+proxied to the backends and mitigate the impact of traffic pikes. The current
+level of concurrency and the size of the queue can be monitored with gauges per
+each route using one of the lifo filters. To enable monitoring for the lifo
+filters, use the command line option:
+
+    -enable-route-lifo-metrics
+
+When queried, it will return metrics like:
+
+
+    {
+      "gauges": {
+        "skipper.lifo.route.active": {
+          "value": 245
+        },
+        "skipper.lifo.route.queued": {
+          "value": 27
+        }
+      }
+    }
+
 ## Application metrics
 
 Application metrics for your proxied applications you can enable with the option:

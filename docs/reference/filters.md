@@ -1458,6 +1458,9 @@ lifo(100, 150, "10s")
 The above configuration will set MaxConcurrency to 100, MaxQueueSize
 to 150 and Timeout to 10 seconds.
 
+When multiple lifo filters are set in a route, only one of them will be
+applied. It is undefined which one.
+
 ## lifoGroup
 
 This filter is similar to the [lifo](#lifo) filter.
@@ -1477,7 +1480,17 @@ lifoGroup("mygroup", 100, 150, "10s")
 
 The above configuration will set MaxConcurrency to 100, MaxQueueSize
 to 150 and Timeout to 10 seconds for the lifoGroup "mygroup", that can
-be shared between more than routes.
+be shared between multiple routes.
+
+It is enough to set the concurrency, queue size and timeout parameters for one instance of
+the filter in the group, and only the group name for the rest. Setting these values for
+multiple instances is fine, too. While only one of them will be used as the source for the
+applied settings, if there is accidentally a difference between the settings in the same
+group, a warning will be logged.
+
+It is possible to use the lifoGroup filter together with the single lifo filter, e.g. if
+a route belongs to a group, but needs to have additional stricter settings then the whole
+group.
 
 ## rfcPath
 
