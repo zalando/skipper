@@ -156,9 +156,9 @@ func TestScheduler(t *testing.T) {
 				}
 			}
 			// check pointers to queue are the same for same group
-			for k, stacks := range queuesMap {
-				firstQueue := stacks[0]
-				for _, queue := range stacks {
+			for k, queues := range queuesMap {
+				firstQueue := queues[0]
+				for _, queue := range queues {
 					if queue != firstQueue {
 						t.Errorf("Unexpected different queue in group: %s", k)
 					}
@@ -166,8 +166,8 @@ func TestScheduler(t *testing.T) {
 			}
 			// check pointers to queue of different groups are different
 			diffQueues := make(map[*scheduler.Queue]struct{})
-			for _, stacks := range queuesMap {
-				diffQueues[stacks[0]] = struct{}{}
+			for _, queues := range queuesMap {
+				diffQueues[queues[0]] = struct{}{}
 			}
 			if len(diffQueues) != len(queuesMap) {
 				t.Error("Unexpected got pointer to the same queue for different group")
@@ -193,7 +193,7 @@ func TestConfig(t *testing.T) {
 		}
 	}
 
-	initTest := func(doc string) (*scheduler.Registry, *routing.Routing, *testdataclient.Client) {
+	initTest := func(doc string) (*routing.Routing, *testdataclient.Client, func()) {
 		cli, err := testdataclient.NewDoc(doc)
 		if err != nil {
 			t.Fatalf("Failed to create a test dataclient: %v", err)
@@ -211,7 +211,10 @@ func TestConfig(t *testing.T) {
 
 		rt := routing.New(ro)
 		<-rt.FirstLoad()
-		return reg, rt, cli
+		return rt, cli, func() {
+			rt.Close()
+			reg.Close()
+		}
 	}
 
 	t.Run("group config applied", func(t *testing.T) {
@@ -220,9 +223,8 @@ func TestConfig(t *testing.T) {
 			g2: Path("/two") -> lifoGroup("g") -> <shunt>;
 		`
 
-		reg, rt, _ := initTest(doc)
-		defer reg.Close()
-		defer rt.Close()
+		rt, _, close := initTest(doc)
+		defer close()
 
 		req1 := &http.Request{URL: &url.URL{Path: "/one"}}
 		req2 := &http.Request{URL: &url.URL{Path: "/two"}}
@@ -253,9 +255,8 @@ func TestConfig(t *testing.T) {
 
 	t.Run("update config", func(t *testing.T) {
 		const doc = `route: * -> lifo(2, 2) -> <shunt>`
-		reg, rt, dc := initTest(doc)
-		defer reg.Close()
-		defer rt.Close()
+		rt, dc, close := initTest(doc)
+		defer close()
 
 		req := &http.Request{URL: &url.URL{}}
 		r, _ := rt.Route(req)
@@ -285,9 +286,8 @@ func TestConfig(t *testing.T) {
 			g2: Path("/two") -> lifoGroup("g") -> <shunt>;
 		`
 
-		reg, rt, dc := initTest(doc)
-		defer reg.Close()
-		defer rt.Close()
+		rt, dc, close := initTest(doc)
+		defer close()
 
 		req1 := &http.Request{URL: &url.URL{Path: "/one"}}
 		req2 := &http.Request{URL: &url.URL{Path: "/two"}}

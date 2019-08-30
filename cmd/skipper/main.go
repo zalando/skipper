@@ -100,7 +100,7 @@ const (
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
 	rfcPatchPathUsage                    = "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 3986"
 	maxAuditBodyUsage                    = "sets the max body to read to log in the audit log body"
-	enableRouteLIFOMetricsUsage          = "enalbe metrics for the individual route LIFO queues"
+	enableRouteLIFOMetricsUsage          = "enable metrics for the individual route LIFO queues"
 
 	// logging, metrics, tracing:
 	enablePrometheusMetricsUsage             = "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"

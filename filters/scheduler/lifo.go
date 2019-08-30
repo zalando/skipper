@@ -215,8 +215,8 @@ func (l *lifoFilter) Config() scheduler.Config {
 }
 
 // SetQueue binds the queue to the current filter context
-func (l *lifoFilter) SetQueue(s *scheduler.Queue) {
-	l.queue = s
+func (l *lifoFilter) SetQueue(q *scheduler.Queue) {
+	l.queue = q
 }
 
 // GetQueue is only used in tests.
@@ -254,8 +254,8 @@ func (l *lifoGroupFilter) Config() scheduler.Config {
 }
 
 // SetQueue binds the queue to the current filter context
-func (l *lifoGroupFilter) SetQueue(s *scheduler.Queue) {
-	l.queue = s
+func (l *lifoGroupFilter) SetQueue(q *scheduler.Queue) {
+	l.queue = q
 }
 
 // GetQueue is only used in tests
@@ -279,13 +279,13 @@ func (l *lifoGroupFilter) Response(ctx filters.FilterContext) {
 	response(scheduler.LIFOKey, ctx)
 }
 
-func request(s *scheduler.Queue, key string, ctx filters.FilterContext) {
-	if s == nil {
+func request(q *scheduler.Queue, key string, ctx filters.FilterContext) {
+	if q == nil {
 		log.Warningf("Unexpected scheduler.Queue is nil for key %s", key)
 		return
 	}
 
-	done, err := s.Wait()
+	done, err := q.Wait()
 	if err != nil {
 		// TODO: replace the log with metrics
 		switch err {

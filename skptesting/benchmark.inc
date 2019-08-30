@@ -72,7 +72,6 @@ skp() {
 	fi
 
 	skipper -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" -insecure \
-		-enable-global-lifo -global-lifo-max-concurrency 256 \
 		-support-listener :0 \
 		-oauth2-tokeninfo-url "$tokeninfo_url" \
 		-idle-conns-num "$c" -close-idle-conns-period=3s \
