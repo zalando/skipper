@@ -47,7 +47,7 @@ func unknownPath(applicationId string) pathMatcher {
 	return pathMatcher{
 		PathTemplate:  "{no-match}",
 		ApplicationId: applicationId,
-		Tag:           "{unknown}",
+		Tag:           "{no-tag}",
 		ApiId:         "{unknown}",
 		Matcher:       nil,
 	}

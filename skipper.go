@@ -18,6 +18,7 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -344,6 +345,9 @@ type Options struct {
 	// enabled by default.
 	EnableRouteBackendMetrics bool
 
+	// EnableRouteCreationMetrics enables the OriginMarker to track route creation times. Disabled by default
+	EnableRouteCreationMetrics bool
+
 	// When set, makes the histograms use an exponentially decaying sample
 	// instead of the default uniform one.
 	MetricsUseExpDecaySample bool
@@ -658,6 +662,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			KubernetesEnableEastWest:   o.KubernetesEnableEastWest,
 			KubernetesEastWestDomain:   o.KubernetesEastWestDomain,
 			DefaultFiltersDir:          o.DefaultFiltersDir,
+			OriginMarker:               o.EnableRouteCreationMetrics,
 		})
 		if err != nil {
 			return nil, err
@@ -1015,6 +1020,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
 			loadbalancer.NewAlgorithmProvider(),
 			schedulerRegistry,
+			builtin.NewRouteCreationMetrics(mtr),
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}

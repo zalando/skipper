@@ -70,6 +70,14 @@ Parameters:
 * the expression to match (regex)
 * the replacement (string)
 
+Example:
+
+```
+rm_api: Path("/api") -> modPath("/api", "/") -> "https://backend.example.org";
+append_bar: Path("/foo") -> modPath("/foo", "/foo/bar") -> "https://backend.example.org";
+new_base: PathSubtree("/base") -> modPath("/base", "/new/base) -> "https://backend.example.org";
+```
+
 ## setPath
 
 Replace the path of the original request to the replacement.
@@ -1384,7 +1392,7 @@ Based on the previous configuration, here is an example of a counter metric.
 apiUsageMonitoring.custom.my-app.staging.orders-api.GET.foo/orders/{order-id}.*.*.http_count
 ```
 
-Note that a missing `tag` in the configuration will be replaced by `{no-tag}` in the metric: 
+Note that a missing `tag` in the configuration will be replaced by `{no-tag}` in the metric:
 
 ```
 apiUsageMonitoring.custom.my-app.{no-tag}.customers-api.GET.foo/customers.*.*.http_count
@@ -1529,16 +1537,34 @@ have to be filenames `write-token` and `read-token` within the
 specified credential paths `/tmp/secrets/`, resulting in
 `/tmp/secrets/write-token` and `/tmp/secrets/read-token`.
 
-## baggageItemToTag
+## tracingBaggageToTag
 
-This filter adds an opentracing tag for a given baggage item in the trace. 
+This filter adds an opentracing tag for a given baggage item in the trace.
 
 Syntax:
 ```
-baggageItemToTag("<baggage_item_name>", "<tag_name>")
+tracingBaggageToTag("<baggage_item_name>", "<tag_name>")
 ```
 
-Example: If a trace consists of baggage item named `foo` with a value `bar`. Adding below filter will add a tag named `baz` with value `bar` 
+Example: If a trace consists of baggage item named `foo` with a value `bar`. Adding below filter will add a tag named `baz` with value `bar`
 ```
-baggageItemToTag("foo", "baz")
+tracingBaggageToTag("foo", "baz")
+```
+
+## originMarker
+
+This filter is used to measure the time it took to create a route. Other than that, it's a no-op.
+You can include the same origin marker when you re-create the route. As long as the `origin` and `id` are the same, the route creation time will not be measured again. 
+If there are multiple origin markers with the same origin, the earliest timestamp will be used.
+
+Parameters:
+
+* the name of the origin
+* the ID of the object that is the logical source for the route
+* the creation timestamp (rfc3339) 
+
+Example:
+
+```
+originMarker("apiUsageMonitoring", "deployment1", "2019-08-30T09:55:51Z")
 ```

@@ -57,8 +57,8 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsKnown(t *testing.T) {
 		realmsTrackingPattern:        "services",
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.{unknown}.{unknown}.GET.{no-match}.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.{unknown}.{unknown}.*.*.users.{all}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.{no-tag}.{unknown}.GET.{no-match}.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.{no-tag}.{unknown}.*.*.users.{all}.",
 	})
 }
 
@@ -69,8 +69,8 @@ func Test_Filter_ClientMetrics_NoMatchingPath_RealmIsUnknown(t *testing.T) {
 		clientTrackingPattern:        s(".*"),
 		header:                       headerUsersJoe,
 		url:                          "https://www.example.com/non/configured/path/template",
-		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.{unknown}.{unknown}.GET.{no-match}.*.*.",
-		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.{unknown}.{unknown}.*.*.{unknown}.{unknown}.",
+		expectedEndpointMetricPrefix: "apiUsageMonitoring.custom.my_app.{no-tag}.{unknown}.GET.{no-match}.*.*.",
+		expectedClientMetricPrefix:   "apiUsageMonitoring.custom.my_app.{no-tag}.{unknown}.*.*.{unknown}.{unknown}.",
 	})
 }
 

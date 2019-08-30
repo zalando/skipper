@@ -101,6 +101,7 @@ func MakeRegistry() filters.Registry {
 		NewSetDynamicBackendHost(),
 		NewSetDynamicBackendScheme(),
 		NewSetDynamicBackendUrl(),
+		NewOriginMarkerSpec(),
 		diag.NewRandom(),
 		diag.NewLatency(),
 		diag.NewBandwidth(),

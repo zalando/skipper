@@ -27,6 +27,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
@@ -122,6 +123,7 @@ const (
 	routeBackendErrorCountersUsage           = "enables counting backend errors for each route"
 	routeStreamErrorCountersUsage            = "enables counting streaming errors for each route"
 	routeBackendMetricsUsage                 = "enables reporting backend response time metrics for each route"
+	routeCreationMetricsUsage                = "enables reporting for route creation times"
 	metricsFlavourUsage                      = "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale' and 'prometheus', you can select both of them"
 	metricsUseExpDecaySampleUsage            = "use exponentially decaying sample in metrics"
 	histogramMetricBucketsUsage              = "use custom buckets for prometheus histograms, must be a comma-separated list of numbers"
@@ -297,6 +299,7 @@ var (
 	accessLogJSONEnabled                bool
 	accessLogStripQuery                 bool
 	suppressRouteUpdateLogs             bool
+	routeCreationMetrics                bool
 
 	// route sources:
 	etcdUrls                  string
@@ -451,6 +454,7 @@ func init() {
 	flag.BoolVar(&routeBackendErrorCounters, "route-backend-error-counters", false, routeBackendErrorCountersUsage)
 	flag.BoolVar(&routeStreamErrorCounters, "route-stream-error-counters", false, routeStreamErrorCountersUsage)
 	flag.BoolVar(&routeBackendMetrics, "route-backend-metrics", false, routeBackendMetricsUsage)
+	flag.BoolVar(&routeCreationMetrics, "route-creation-metrics", false, routeCreationMetricsUsage)
 	flag.BoolVar(&metricsUseExpDecaySample, "metrics-exp-decay-sample", false, metricsUseExpDecaySampleUsage)
 	flag.StringVar(&histogramMetricBuckets, "histogram-metric-buckets", "", histogramMetricBucketsUsage)
 	flag.BoolVar(&disableMetricsCompat, "disable-metrics-compat", false, disableMetricsCompatsUsage)
@@ -681,6 +685,7 @@ func main() {
 		EnableRouteBackendErrorsCounters:    routeBackendErrorCounters,
 		EnableRouteStreamingErrorsCounters:  routeStreamErrorCounters,
 		EnableRouteBackendMetrics:           routeBackendMetrics,
+		EnableRouteCreationMetrics:          routeCreationMetrics,
 		MetricsUseExpDecaySample:            metricsUseExpDecaySample,
 		HistogramMetricBuckets:              histogramBuckets,
 		DisableMetricsCompatibilityDefaults: disableMetricsCompat,

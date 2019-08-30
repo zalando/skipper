@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	BaggageToTagFilterName = "baggageItemToTag"
+	BaggageToTagFilterName = "tracingBaggageToTag"
 )
 
 type baggageToTagSpec struct{}
