@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aryszka/jobqueue"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
@@ -247,9 +246,6 @@ var (
 		code:             http.StatusServiceUnavailable,
 		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
-
-	errQueueFull    = &proxyError{err: jobqueue.ErrStackFull, code: http.StatusServiceUnavailable}
-	errQueueTimeout = &proxyError{err: jobqueue.ErrTimeout, code: http.StatusBadGateway}
 
 	hostname          = ""
 	disabledAccessLog = al.AccessLogFilter{Enable: false, Prefixes: nil}
@@ -1279,15 +1275,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
-
-	switch {
-	case err == jobqueue.ErrStackFull:
-		err = errQueueFull
-	case err == jobqueue.ErrTimeout:
-		err = errQueueTimeout
-	case err != nil:
-		err = &proxyError{err: err, code: http.StatusInternalServerError}
-	}
 
 	if err == nil {
 		err = p.do(ctx)
