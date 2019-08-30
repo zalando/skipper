@@ -15,7 +15,6 @@ type (
 	lifoGroupSpec struct{}
 
 	lifoFilter struct {
-		key    string
 		config scheduler.Config
 		queue  *scheduler.Queue
 	}
