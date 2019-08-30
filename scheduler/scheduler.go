@@ -14,21 +14,43 @@ import (
 // note: Config must stay comparable because it is used to detect changes in route specific LIFO config
 
 const (
+	// Key used during routing to pass lifo values from the filters to the proxy.
 	LIFOKey = "lifo"
 )
 
+// Config can be used to provide configuration of the registry.
 type Config struct {
+
+	// MaxConcurrency defines how many jobs are allowed to run concurrently.
+	// Defaults to 1.
 	MaxConcurrency int
-	MaxQueueSize   int
-	Timeout        time.Duration
-	CloseTimeout   time.Duration
+
+	// MaxStackSize defines how many jobs may be waiting in the stack.
+	// Defaults to infinite.
+	MaxQueueSize int
+
+	// Timeout defines how long a job can be waiting in the stack.
+	// Defaults to infinite.
+	Timeout time.Duration
+
+	// CloseTimeout sets a maximum duration for how long the queue can wait
+	// for the active and queued jobs to finish. Defaults to infinite.
+	CloseTimeout time.Duration
 }
 
+// QueueStatus reports the current status of a queue. It can be used for metrics.
 type QueueStatus struct {
+
+	// ActiveRequests represents the number of the requests currently being handled.
 	ActiveRequests int
+
+	// QueuedRequests represents the number of requests waiting to be handled.
 	QueuedRequests int
 }
 
+// Queue objects implement a LIFO queue for handling requests, with a maximum allowed
+// concurrency and queue size. Currently, they can be used from the lifo and lifoGroup
+// filters in the filters/scheduler package only.
 type Queue struct {
 	queue                    *jobqueue.Stack
 	config                   Config
@@ -36,12 +58,23 @@ type Queue struct {
 	queuedRequestsMetricsKey string
 }
 
+// Options provides options for the registry.
 type Options struct {
-	MetricsUpdateTimeout   time.Duration
+
+	// MetricsUpdateTimeout defines the frequence of how often the LIFO metrics
+	// are updated when they are enabled. Defaults to 1s.
+	MetricsUpdateTimeout time.Duration
+
+	// EnableRouteLIFOMetrics enables collecting metrics about the LIFO queues.
 	EnableRouteLIFOMetrics bool
-	Metrics                metrics.Metrics
+
+	// Metrics must be provided to the registry in order to collect the LIFO metrics.
+	Metrics metrics.Metrics
 }
 
+// Registry maintains a set of LIFO queues. It is used to preserve LIFO queue instances
+// across multiple generations of the routing. It implements the routing.PostProcessor
+// interface, it is enough to just pass in to routing.Routing when initializing it.
 type Registry struct {
 	options   Options
 	queues    *sync.Map
@@ -49,28 +82,55 @@ type Registry struct {
 	quit      chan struct{}
 }
 
+// LIFOFilter is the interface that needs to be implemented by the filters that
+// use a LIFO queue maintained by the registry.
 type LIFOFilter interface {
+
+	// SetQueue will be used by the registry to pass in the right queue to
+	// the filter.
 	SetQueue(*Queue)
+
+	// GetQueue is currently used only by tests.
 	GetQueue() *Queue
+
+	// Config will be called by the registry once during processing the
+	// routing to get the right queue settings from the filter.
 	Config() Config
 }
 
+// GroupedLIFOFilter is an extension of the LIFOFilter interface for filters
+// that use a shared queue.
 type GroupedLIFOFilter interface {
 	LIFOFilter
+
+	// Group returns the name of the group.
 	Group() string
+
+	// HasConfig indicates that the current filter provides the queue
+	// queue settings for the group.
 	HasConfig() bool
 }
 
+// Wait blocks until a request can be processed or needs to be rejected.
+// When it can be processed, calling done indicates that it has finished.
+// It is mandatory to call done() the request was processed. When the
+// request needs to be rejected, an error will be returned.
 func (q *Queue) Wait() (done func(), err error) {
 	return q.queue.Wait()
 }
 
+// Status returns the current status of a queue.
 func (q *Queue) Status() QueueStatus {
 	st := q.queue.Status()
 	return QueueStatus{
 		ActiveRequests: st.ActiveJobs,
 		QueuedRequests: st.QueuedJobs,
 	}
+}
+
+// Config returns the configuration that the queue was created with.
+func (q *Queue) Config() Config {
+	return q.config
 }
 
 func (q *Queue) reconfigure() {
@@ -86,10 +146,7 @@ func (q *Queue) close() {
 	q.queue.Close()
 }
 
-func (q *Queue) Config() Config {
-	return q.config
-}
-
+// RegistryWith (Options) creates a registry with the provided options.
 func RegistryWith(o Options) *Registry {
 	if o.MetricsUpdateTimeout <= 0 {
 		o.MetricsUpdateTimeout = time.Second
@@ -102,6 +159,7 @@ func RegistryWith(o Options) *Registry {
 	}
 }
 
+// NewRegistry creates a registry with the default options.
 func NewRegistry() *Registry {
 	return RegistryWith(Options{})
 }
@@ -256,6 +314,8 @@ func (r *Registry) measure() {
 	}()
 }
 
+// Close closes the registry, including gracefull tearing down the stored
+// queues.
 func (r *Registry) Close() {
 	r.queues.Range(func(_, value interface{}) bool {
 		value.(*Queue).close()
