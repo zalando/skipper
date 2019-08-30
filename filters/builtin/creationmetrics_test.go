@@ -34,7 +34,9 @@ func TestRouteCreationMetrics_Do(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			metrics := metricstest.MockMetrics{}
-			NewRouteCreationMetrics(&metrics).Do([]*routing.Route{&tt.route})
+			creationMetrics := NewRouteCreationMetrics(&metrics)
+			creationMetrics.initialized = true
+			creationMetrics.Do([]*routing.Route{&tt.route})
 
 			metrics.WithMeasures(func(measures map[string][]time.Duration) {
 				assert.Len(t, measures, len(tt.expectedMetrics))
