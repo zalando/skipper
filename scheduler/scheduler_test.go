@@ -236,12 +236,10 @@ func TestConfig(t *testing.T) {
 		f2 := r2.Filters[0]
 
 		// fill up the group queue:
-		ctx1 := &filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})}
-		ctx2 := &filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})}
-		go f1.Request(ctx1)
-		go f1.Request(ctx1)
-		go f2.Request(ctx2)
-		go f2.Request(ctx2)
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
 
 		q1 := f1.Filter.(scheduler.LIFOFilter).GetQueue()
 		q2 := f2.Filter.(scheduler.LIFOFilter).GetQueue()
@@ -299,12 +297,10 @@ func TestConfig(t *testing.T) {
 		f2 := r2.Filters[0]
 
 		// fill up the group queue:
-		ctx1 := &filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})}
-		ctx2 := &filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})}
-		go f1.Request(ctx1)
-		go f1.Request(ctx1)
-		go f2.Request(ctx2)
-		go f2.Request(ctx2)
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
 
 		q := f1.Filter.(scheduler.LIFOFilter).GetQueue()
 		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
