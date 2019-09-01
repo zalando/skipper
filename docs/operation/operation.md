@@ -210,7 +210,7 @@ It will expose them in /metrics, for example json structure looks like this exam
 ## LIFO metrics
 
 When enabled in the routes, LIFO queues can control the maximum concurrency level
-proxied to the backends and mitigate the impact of traffic pikes. The current
+proxied to the backends and mitigate the impact of traffic spikes. The current
 level of concurrency and the size of the queue can be monitored with gauges per
 each route using one of the lifo filters. To enable monitoring for the lifo
 filters, use the command line option:
