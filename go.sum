@@ -10,6 +10,10 @@ github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da h1:8GUt8eRujhVEGZ
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/aryszka/jobqueue v0.0.0-20190503120114-6df7deff17a1 h1:17UrEJixEtKkcdHScBESGvpdzXFHPvX/bfZGOkVPUEU=
 github.com/aryszka/jobqueue v0.0.0-20190503120114-6df7deff17a1/go.mod h1:SdxqI6HZ4E1Lss94tey5OfjcAu3bdCDWS1AQzzIN4m4=
+github.com/aryszka/jobqueue v0.0.1 h1:nCqJZmTcLTX7CGuPfQrnMSd0OgkxQQLwWotZb+5FI28=
+github.com/aryszka/jobqueue v0.0.1/go.mod h1:SdxqI6HZ4E1Lss94tey5OfjcAu3bdCDWS1AQzzIN4m4=
+github.com/aryszka/jobqueue v0.0.2 h1:LYPhzklo0XFpVF+QtzfP9XRQPEsbJ2EW5Pur6pxxaS4=
+github.com/aryszka/jobqueue v0.0.2/go.mod h1:SdxqI6HZ4E1Lss94tey5OfjcAu3bdCDWS1AQzzIN4m4=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0 h1:HWo1m869IqiPhD389kmkxeTalrjNbbJTC8LXupb+sl0=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=

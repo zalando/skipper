@@ -450,6 +450,9 @@ type Options struct {
 	// RatelimitSettings contain global and host specific settings for the ratelimiters.
 	RatelimitSettings []ratelimit.Settings
 
+	// EnableRouteLIFOMetrics enables metrics for the individual route LIFO queues, if any.
+	EnableRouteLIFOMetrics bool
+
 	// OpenTracing enables opentracing
 	OpenTracing []string
 
@@ -998,6 +1001,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		pauth.NewJWTPayloadAnyKVRegexp(),
 	)
 
+	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
+		Metrics:                mtr,
+		EnableRouteLIFOMetrics: o.EnableRouteLIFOMetrics,
+	})
+	defer schedulerRegistry.Close()
+
 	// create a routing engine
 	ro := routing.Options{
 		FilterRegistry:  registry,
@@ -1010,7 +1019,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		PostProcessors: []routing.PostProcessor{
 			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
 			loadbalancer.NewAlgorithmProvider(),
-			scheduler.NewRegistry(),
+			schedulerRegistry,
 			builtin.NewRouteCreationMetrics(mtr),
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,

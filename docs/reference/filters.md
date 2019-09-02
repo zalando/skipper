@@ -1446,7 +1446,7 @@ codes in case of overrun. All scheduler filters return HTTP status code:
 Parameters:
 
 * MaxConcurrency specifies how many goroutines are allowed to work on this queue(int)
-* MaxStackSize sets the queue size (int)
+* MaxQueueSize sets the queue size (int)
 * Timeout sets the timeout to get request scheduled (time)
 
 Example:
@@ -1455,8 +1455,11 @@ Example:
 lifo(100, 150, "10s")
 ```
 
-The above configuration will set MaxConcurrency to 100, MaxStackSize
+The above configuration will set MaxConcurrency to 100, MaxQueueSize
 to 150 and Timeout to 10 seconds.
+
+When multiple lifo filters are set in a route, only one of them will be
+applied. It is undefined which one.
 
 ## lifoGroup
 
@@ -1466,7 +1469,7 @@ Parameters:
 
 * GroupName to group multiple one or many routes to the same queue, which have to have the same settings (string)
 * MaxConcurrency specifies how many goroutines are allowed to work on this queue(int)
-* MaxStackSize sets the queue size (int)
+* MaxQueueSize sets the queue size (int)
 * Timeout sets the timeout to get request scheduled (time)
 
 Example:
@@ -1475,9 +1478,19 @@ Example:
 lifoGroup("mygroup", 100, 150, "10s")
 ```
 
-The above configuration will set MaxConcurrency to 100, MaxStackSize
+The above configuration will set MaxConcurrency to 100, MaxQueueSize
 to 150 and Timeout to 10 seconds for the lifoGroup "mygroup", that can
-be shared between more than routes.
+be shared between multiple routes.
+
+It is enough to set the concurrency, queue size and timeout parameters for one instance of
+the filter in the group, and only the group name for the rest. Setting these values for
+multiple instances is fine, too. While only one of them will be used as the source for the
+applied settings, if there is accidentally a difference between the settings in the same
+group, a warning will be logged.
+
+It is possible to use the lifoGroup filter together with the single lifo filter, e.g. if
+a route belongs to a group, but needs to have additional stricter settings then the whole
+group.
 
 ## rfcPath
 

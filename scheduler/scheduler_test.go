@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
@@ -102,18 +104,19 @@ func TestScheduler(t *testing.T) {
 					if !ok {
 						continue
 					}
-					cfg := lf.Config(reg)
-					stack := lf.GetStack()
-					if stack == nil {
-						t.Errorf("Stack is nil")
+					cfg := lf.Config()
+					queue := lf.GetQueue()
+					if queue == nil {
+						t.Errorf("Queue is nil")
 					}
-					if cfg != stack.Config() {
-						t.Errorf("Failed to get stack with configuration, want: %v, got: %v", cfg, stack)
+
+					if cfg != queue.Config() {
+						t.Errorf("Failed to get queue with configuration, want: %v, got: %v", cfg, queue)
 					}
 				}
 			}
 
-			stacksMap := make(map[string][]*scheduler.Stack)
+			queuesMap := make(map[string][]*scheduler.Queue)
 			for _, group := range tt.paths {
 				key := group[0]
 
@@ -128,48 +131,190 @@ func TestScheduler(t *testing.T) {
 						if f == nil && !tt.wantErr {
 							t.Errorf("Filter is nil but we do not expect an error")
 						}
+
 						lf, ok := f.Filter.(scheduler.LIFOFilter)
 						if !ok {
 							continue
 						}
-						cfg := lf.Config(reg)
-						stack := lf.GetStack()
-						if stack == nil {
-							t.Errorf("Stack is nil")
-						}
-						if cfg != stack.Config() {
-							t.Errorf("Failed to get stack with configuration, want: %v, got: %v", cfg, stack)
+
+						cfg := lf.Config()
+						queue := lf.GetQueue()
+						if queue == nil {
+							t.Errorf("Queue is nil")
 						}
 
-						if lf.Key() != key {
-							t.Errorf("Failed to get the right key: %s, expected: %s", lf.Key(), key)
+						if cfg != queue.Config() {
+							t.Errorf("Failed to get queue with configuration, want: %v, got: %v", cfg, queue)
 						}
-						k := lf.Key()
-						stacksMap[k] = append(stacksMap[k], stack)
+
+						queuesMap[key] = append(queuesMap[key], queue)
 					}
 				}
-				if len(stacksMap[key]) != len(group) {
-					t.Errorf("Failed to get the right group size %v != %v", len(stacksMap[key]), len(group))
+
+				if len(queuesMap[key]) != len(group) {
+					t.Errorf("Failed to get the right group size %v != %v", len(queuesMap[key]), len(group))
 				}
 			}
-			// check pointers to stack are the same for same group
-			for k, stacks := range stacksMap {
-				firstStack := stacks[0]
-				for _, stack := range stacks {
-					if stack != firstStack {
-						t.Errorf("Unexpected different stack in group: %s", k)
+			// check pointers to queue are the same for same group
+			for k, queues := range queuesMap {
+				firstQueue := queues[0]
+				for _, queue := range queues {
+					if queue != firstQueue {
+						t.Errorf("Unexpected different queue in group: %s", k)
 					}
 				}
 			}
-			// check pointers to stack of different groups are different
-			diffStacks := make(map[*scheduler.Stack]struct{})
-			for _, stacks := range stacksMap {
-				diffStacks[stacks[0]] = struct{}{}
+			// check pointers to queue of different groups are different
+			diffQueues := make(map[*scheduler.Queue]struct{})
+			for _, queues := range queuesMap {
+				diffQueues[queues[0]] = struct{}{}
 			}
-			if len(diffStacks) != len(stacksMap) {
-				t.Error("Unexpected got pointer to the same stack for different group")
+			if len(diffQueues) != len(queuesMap) {
+				t.Error("Unexpected got pointer to the same queue for different group")
 			}
 		})
 	}
 
+}
+
+func TestConfig(t *testing.T) {
+	waitForStatus := func(t *testing.T, q *scheduler.Queue, s scheduler.QueueStatus) {
+		timeout := time.After(120 * time.Millisecond)
+		for {
+			if q.Status() == s {
+				return
+			}
+
+			select {
+			case <-timeout:
+				t.Fatal("failed to reach status")
+			default:
+			}
+		}
+	}
+
+	initTest := func(doc string) (*routing.Routing, *testdataclient.Client, func()) {
+		cli, err := testdataclient.NewDoc(doc)
+		if err != nil {
+			t.Fatalf("Failed to create a test dataclient: %v", err)
+		}
+
+		reg := scheduler.NewRegistry()
+		ro := routing.Options{
+			SignalFirstLoad: true,
+			FilterRegistry:  builtin.MakeRegistry(),
+			DataClients:     []routing.DataClient{cli},
+			PostProcessors: []routing.PostProcessor{
+				reg,
+			},
+		}
+
+		rt := routing.New(ro)
+		<-rt.FirstLoad()
+		return rt, cli, func() {
+			rt.Close()
+			reg.Close()
+		}
+	}
+
+	t.Run("group config applied", func(t *testing.T) {
+		const doc = `
+			g1: Path("/one") -> lifoGroup("g", 2, 2) -> <shunt>;
+			g2: Path("/two") -> lifoGroup("g") -> <shunt>;
+		`
+
+		rt, _, close := initTest(doc)
+		defer close()
+
+		req1 := &http.Request{URL: &url.URL{Path: "/one"}}
+		req2 := &http.Request{URL: &url.URL{Path: "/two"}}
+
+		r1, _ := rt.Route(req1)
+		r2, _ := rt.Route(req2)
+
+		f1 := r1.Filters[0]
+		f2 := r2.Filters[0]
+
+		// fill up the group queue:
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
+
+		q1 := f1.Filter.(scheduler.LIFOFilter).GetQueue()
+		q2 := f2.Filter.(scheduler.LIFOFilter).GetQueue()
+
+		if q1 != q2 {
+			t.Error("the queues in the group don't match")
+		}
+
+		waitForStatus(t, q1, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
+	})
+
+	t.Run("update config", func(t *testing.T) {
+		const doc = `route: * -> lifo(2, 2) -> <shunt>`
+		rt, dc, close := initTest(doc)
+		defer close()
+
+		req := &http.Request{URL: &url.URL{}}
+		r, _ := rt.Route(req)
+		f := r.Filters[0]
+
+		// fill up the queue:
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+
+		q := f.Filter.(scheduler.LIFOFilter).GetQueue()
+		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
+
+		// change the configuration, should decrease the queue size:
+		const updateDoc = `route: * -> lifo(2, 1) -> <shunt>`
+		if err := dc.UpdateDoc(updateDoc, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
+	})
+
+	t.Run("update group config", func(t *testing.T) {
+		const doc = `
+			g1: Path("/one") -> lifoGroup("g", 2, 2) -> <shunt>;
+			g2: Path("/two") -> lifoGroup("g") -> <shunt>;
+		`
+
+		rt, dc, close := initTest(doc)
+		defer close()
+
+		req1 := &http.Request{URL: &url.URL{Path: "/one"}}
+		req2 := &http.Request{URL: &url.URL{Path: "/two"}}
+
+		r1, _ := rt.Route(req1)
+		r2, _ := rt.Route(req2)
+
+		f1 := r1.Filters[0]
+		f2 := r2.Filters[0]
+
+		// fill up the group queue:
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
+		go f1.Request(&filtertest.Context{FRequest: req1, FStateBag: make(map[string]interface{})})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
+		go f2.Request(&filtertest.Context{FRequest: req2, FStateBag: make(map[string]interface{})})
+
+		q := f1.Filter.(scheduler.LIFOFilter).GetQueue()
+		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
+
+		// change the configuration, should decrease the queue size:
+		const updateDoc = `
+			g1: Path("/one") -> lifoGroup("g", 2, 1) -> <shunt>;
+			g2: Path("/two") -> lifoGroup("g") -> <shunt>;
+		`
+
+		if err := dc.UpdateDoc(updateDoc, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
+	})
 }

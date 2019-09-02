@@ -100,6 +100,7 @@ const (
 	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
 	rfcPatchPathUsage                    = "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 3986"
 	maxAuditBodyUsage                    = "sets the max body to read to log in the audit log body"
+	enableRouteLIFOMetricsUsage          = "enable metrics for the individual route LIFO queues"
 
 	// logging, metrics, tracing:
 	enablePrometheusMetricsUsage             = "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
@@ -259,6 +260,7 @@ var (
 	breakers                        breakerFlags
 	enableRatelimiters              bool
 	ratelimits                      ratelimitFlags
+	enableRouteLIFOMetrics          bool
 	metricsFlavour                  = commaListFlag("codahale", "prometheus")
 	filterPlugins                   = newPluginFlag()
 	predicatePlugins                = newPluginFlag()
@@ -424,6 +426,7 @@ func init() {
 	flag.Var(&breakers, "breaker", breakerUsage)
 	flag.BoolVar(&enableRatelimiters, "enable-ratelimits", false, enableRatelimitUsage)
 	flag.Var(&ratelimits, "ratelimits", ratelimitUsage)
+	flag.BoolVar(&enableRouteLIFOMetrics, "enable-route-lifo-metrics", false, enableRouteLIFOMetricsUsage)
 	flag.Var(metricsFlavour, "metrics-flavour", metricsFlavourUsage)
 	flag.Var(filterPlugins, "filter-plugin", filterPluginUsage)
 	flag.Var(predicatePlugins, "predicate-plugin", predicatePluginUsage)
@@ -653,6 +656,7 @@ func main() {
 		BreakerSettings:                 breakers,
 		EnableRatelimiters:              enableRatelimiters,
 		RatelimitSettings:               ratelimits,
+		EnableRouteLIFOMetrics:          enableRouteLIFOMetrics,
 		MetricsFlavours:                 metricsFlavour.values,
 		FilterPlugins:                   filterPlugins.values,
 		PredicatePlugins:                predicatePlugins.values,

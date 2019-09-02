@@ -1221,6 +1221,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName, ext.RPCServerOption(wireContext))
 	} else {
 		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName)
+		err = nil
 	}
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
@@ -1275,10 +1276,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	err = p.do(ctx)
-	pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
-	for _, done := range pendingLIFO {
-		done()
+	if err == nil {
+		err = p.do(ctx)
+		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
+		for _, done := range pendingLIFO {
+			done()
+		}
 	}
 
 	if err != nil {
