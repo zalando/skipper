@@ -219,13 +219,12 @@ filters, use the command line option:
 
 When queried, it will return metrics like:
 
-
     {
       "gauges": {
-        "skipper.lifo.route.active": {
+        "skipper.lifo.routeXYZ.active": {
           "value": 245
         },
-        "skipper.lifo.route.queued": {
+        "skipper.lifo.routeXYZ.queued": {
           "value": 27
         }
       }

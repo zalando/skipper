@@ -77,6 +77,13 @@ type Options struct {
 // Registry maintains a set of LIFO queues. It is used to preserve LIFO queue instances
 // across multiple generations of the routing. It implements the routing.PostProcessor
 // interface, it is enough to just pass in to routing.Routing when initializing it.
+//
+// When the EnableRouteLIFOMetrics is set, then the registry starts a background goroutine
+// for regularly take snapshots of the active lifo queues and update the corresponding
+// metrics. This goroutine is started when the first lifo filter is detected and returns
+// when the registry is closed. Individual metrics objects (keys) are used for each
+// lifo filter, and one for each lifo group defined by the lifoGroup filter.
+//
 type Registry struct {
 	options   Options
 	queues    *sync.Map
@@ -136,7 +143,6 @@ func (q *Queue) Config() Config {
 }
 
 func (q *Queue) reconfigure() {
-	// renaming Stack -> Queue in the jobqueue project will follow
 	q.queue.Reconfigure(jobqueue.Options{
 		MaxConcurrency: q.config.MaxConcurrency,
 		MaxStackSize:   q.config.MaxQueueSize,
@@ -167,7 +173,6 @@ func NewRegistry() *Registry {
 }
 
 func (r *Registry) newQueue(name string, c Config) *Queue {
-	measure := r.options.EnableRouteLIFOMetrics
 	q := &Queue{
 		config: c,
 		// renaming Stack -> Queue in the jobqueue project will follow
@@ -178,7 +183,7 @@ func (r *Registry) newQueue(name string, c Config) *Queue {
 		}),
 	}
 
-	if measure {
+	if r.options.EnableRouteLIFOMetrics {
 		if name == "" {
 			name = "unknown"
 		}
@@ -191,13 +196,17 @@ func (r *Registry) newQueue(name string, c Config) *Queue {
 	return q
 }
 
-func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
+// Do implements routing.PostProcessor and sets the queue for the scheduler filters.
+//
+// It preserves the existing queue when available.
+func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 	rr := make([]*routing.Route, len(routes))
 	existingKeys := make(map[string]bool)
 	groups := make(map[string][]GroupedLIFOFilter)
 
 	for i, ri := range routes {
 		rr[i] = ri
+		var lifoCount int
 		for _, fi := range ri.Filters {
 			// TODO: warn on multiple lifos in the same route
 			if glf, ok := fi.Filter.(GroupedLIFOFilter); ok {
@@ -211,6 +220,7 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 				continue
 			}
 
+			lifoCount++
 			var q *Queue
 			key := fmt.Sprintf("lifo::%s", ri.Id)
 			existingKeys[key] = true
@@ -218,17 +228,20 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 			qi, ok := r.queues.Load(key)
 			if ok {
 				q = qi.(*Queue)
-			}
-
-			if !ok {
+				if q.config != c {
+					q.config = c
+					q.reconfigure()
+				}
+			} else {
 				q = r.newQueue(ri.Id, c)
 				r.queues.Store(key, q)
-			} else if q.config != c {
-				q.config = c
-				q.reconfigure()
 			}
 
 			lf.SetQueue(q)
+		}
+
+		if lifoCount > 0 {
+			log.Warnf("Found multiple lifo filters in route: %s", ri.Id)
 		}
 	}
 
@@ -258,14 +271,13 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 		qi, ok := r.queues.Load(key)
 		if ok {
 			q = qi.(*Queue)
-		}
-
-		if !ok {
+			if q.config != c {
+				q.config = c
+				q.reconfigure()
+			}
+		} else {
 			q = r.newQueue(name, c)
 			r.queues.Store(key, q)
-		} else if q.config != c {
-			q.config = c
-			q.reconfigure()
 		}
 
 		for _, glf := range group {
@@ -282,13 +294,6 @@ func (r *Registry) initLIFOFilters(routes []*routing.Route) []*routing.Route {
 	})
 
 	return rr
-}
-
-// Do implements routing.PostProcessor and sets the queue for the scheduler filters.
-//
-// It preserves the existing queue when available.
-func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
-	return r.initLIFOFilters(routes)
 }
 
 func (r *Registry) measure() {

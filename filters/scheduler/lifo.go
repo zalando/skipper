@@ -152,6 +152,14 @@ func (*lifoGroupSpec) Name() string { return LIFOGroupName }
 // Min values are 1 for MaxConcurrency and MaxQueueSize, and 1ms for
 // Timeout. All configration that is below will be set to these min
 // values.
+//
+// It is enough to set the concurrency, queue size and timeout parameters for
+// one instance of the filter in the group, and only the group name for the
+// rest. Setting these values for multiple instances is fine, too. While only
+// one of them will be used as the source for the applied settings, if there
+// is accidentally a difference between the settings in the same group, a
+// warning will be logged.
+//
 func (*lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) < 1 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters
