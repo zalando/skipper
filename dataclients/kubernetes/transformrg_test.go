@@ -12,12 +12,12 @@ func (c stringClient) loadRouteGroups() ([]byte, error) {
 	return []byte(c), nil
 }
 
-func TestTransformCRD(t *testing.T) {
-	const allCRDsJSON = `{"routeGroups": []}`
+func TestTransformRouteGroups(t *testing.T) {
+	const allRouteGroupsJSON = `{"routeGroups": []}`
 
-	dc, err := NewCRDSource(CRDOptions{
+	dc, err := NewRouteGroupClient(RouteGroupsOptions{
 		Kubernetes: Options{},
-		apiClient:  stringClient(allCRDsJSON),
+		apiClient:  stringClient(allRouteGroupsJSON),
 	})
 	if err != nil {
 		t.Fatal(err)

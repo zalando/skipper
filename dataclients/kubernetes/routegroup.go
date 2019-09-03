@@ -10,7 +10,7 @@ type httpAPIClient struct {
 	apiURL string
 }
 
-type CRDOptions struct {
+type RouteGroupsOptions struct {
 
 	// a way to share the common definitions
 	Kubernetes Options
@@ -19,9 +19,8 @@ type CRDOptions struct {
 	apiClient apiClient
 }
 
-// naming??? RouteGroupClient, CRDClient, other?
-type CRDClient struct {
-	options CRDOptions
+type RouteGroupClient struct {
+	options RouteGroupsOptions
 }
 
 func (h *httpAPIClient) loadRouteGroups() ([]byte, error) {
@@ -32,23 +31,23 @@ func newHTTPAPIClient(apiURL string) *httpAPIClient {
 	return &httpAPIClient{apiURL: apiURL}
 }
 
-func NewCRDSource(o CRDOptions) (*CRDClient, error) {
+func NewRouteGroupClient(o RouteGroupsOptions) (*RouteGroupClient, error) {
 	if o.apiClient == nil {
 		o.apiClient = newHTTPAPIClient(o.Kubernetes.KubernetesURL)
 	}
 
-	return &CRDClient{options: o}, nil
+	return &RouteGroupClient{options: o}, nil
 }
 
-func (c *CRDClient) LoadAll() ([]*eskip.Route, error) {
+func (c *RouteGroupClient) LoadAll() ([]*eskip.Route, error) {
 	doc, err := c.options.apiClient.loadRouteGroups()
 	if err != nil {
 		return nil, err
 	}
 
-	return transformCRD(doc)
+	return transformRouteGroups(doc)
 }
 
-func (c *CRDClient) LoadUpdate() (upsert []*eskip.Route, deletedIDs []string, err error) {
+func (c *RouteGroupClient) LoadUpdate() (upsert []*eskip.Route, deletedIDs []string, err error) {
 	return nil, nil, nil
 }
