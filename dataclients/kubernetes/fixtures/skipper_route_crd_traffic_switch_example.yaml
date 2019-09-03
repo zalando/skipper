@@ -14,17 +14,6 @@ spec:
   paths:
   - path: /api/resource
     method: post
-    configs:
-    - filters:
-      - f1("foo")
-      - f2("bar", "baz")
-      predicates:
-      - P1("serviceUser")
-      - P2("bar", "baz")
-    - filters:
-      - f1("dosomething")
-      predicates:
-      - P1("adminusers")
   - path: /api/resource/*
     method:  get
     configs:
@@ -32,14 +21,3 @@ spec:
       - f("foo")
       predicates:
       - P("b", 0.4)
-      backend:  # overrides default
-        serviceName: migrate-to-bar-service
-        servicePort: 8080
-  - path: /events
-    method:  post
-    configs:
-    - filters:
-      - f1("a", "b", "c")
-      - f2("hello")
-      predicates:
-      - P1("foo")
