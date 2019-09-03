@@ -1,0 +1,15 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  backends:
+  - serviceName: foo-service
+    servicePort: 80
+  paths:
+  - path: /login
+    method: get
+    configs:
+    - filters:
+      - redirectTo(301, "https://login.example.org")
+  - path: /

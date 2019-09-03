@@ -1,0 +1,37 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  backends:
+  - serviceName: foo-service
+    servicePort: 80
+  paths:
+  - path: /
+    config:
+    - filters:
+      - responseCookie("canary", "A")
+      predicates:
+      - Traffic(.1)
+    backends:
+    - serviceName: foo-service-a
+      servicePort: 80
+  - path: /
+    config:
+    - filters:
+      - responseCookie("canary", "B")
+  - path: /
+    config:
+    - predicates:
+      - Cookie("canary", "team-foo")
+  - path: /
+    config:
+    - predicates:
+      - Cookie("canary", "A")
+    backends:
+    - serviceName: foo-service-a
+      servicePort: 80
+  - path: /
+    config:
+    - predicates:
+      - Cookie("canary", "B")
