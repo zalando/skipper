@@ -3,6 +3,9 @@ package kubernetes
 import (
 	"encoding/json"
 	"errors"
+	"net/url"
+
+	"github.com/zalando/skipper/eskip"
 )
 
 var errInvalidSkipperBackendType = errors.New("invalid skipper backend type")
@@ -44,7 +47,29 @@ type skipperBackend struct {
 	value interface{}
 }
 
-func (sb skipperBackend) special() (string, bool) {
+// naming is hard and should we return eskip.BackendType or string?
+// I think it would be more safe to return eskip.BackendType
+func (sb skipperBackend) special() (eskip.BackendType, bool) {
+	s, ok := sb.value.(string)
+	if !ok {
+		return -1, false
+	}
+
+	switch s {
+	case "<shunt>":
+		return eskip.ShuntBackend, true
+	case "<loopback>":
+		return eskip.LoopBackend, true
+	case "<dynamic>":
+		return eskip.DynamicBackend, true
+	default:
+		if _, err := url.Parse(s); err == nil {
+			return eskip.NetworkBackend, true
+		}
+	}
+	return eskip.LBBackend, true
+}
+func (sb skipperBackend) specialString() (string, bool) {
 	s, ok := sb.value.(string)
 	return s, ok
 }
