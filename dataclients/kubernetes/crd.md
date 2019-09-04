@@ -14,7 +14,27 @@ workarounds, than the generic Ingress specs. Primarily targeting the Kubernetes 
 - better support for skipper specific features
 - orchestrate traffic switching for a full set of routes (RouteGroup) without redundant configuration
 
-## Examples
+**Ingress example for unrelated routes:**
+
+```
+spec:
+  rules:
+  - host: registry.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: registry
+          servicePort: 80
+  - host: shop.foo.com
+    http:
+      paths:
+      path: /api
+      - backend:
+          serviceName: foo
+          servicePort: 80
+```
+
+## RouteGroup Examples
 
 ### Minimal example
 
