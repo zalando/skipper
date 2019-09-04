@@ -10,6 +10,7 @@ workarounds, than the generic Ingress specs. Primarily targeting the Kubernetes 
 **Goals:**
 
 - more DRY object than ingress (hosts and backends separated from path rules)
+- avoid defining unrelated route groups in the same specification object
 - better support for skipper specific features
 - orchestrate traffic switching for a full set of routes (RouteGroup) without redundant configuration
 
