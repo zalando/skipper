@@ -94,6 +94,10 @@ type backend struct {
 	Traffic float64
 }
 
+func (b backend) String() string {
+	return fmt.Sprintf("svc(%s, %s) %0.2f", b.ServiceName, b.ServicePort, b.Traffic)
+}
+
 type pathRule struct {
 	Path    string   `json:"path"`
 	Backend *backend `json:"backend"`
