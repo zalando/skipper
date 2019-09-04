@@ -563,12 +563,6 @@ func init() {
 	flag.StringVar(&swarmStaticSelf, "swarm-static-self", "", swarmStaticSelfUsage)
 	flag.StringVar(&swarmStaticOther, "swarm-static-other", "", swarmStaticOtherUsage)
 
-	flag.Parse()
-
-	// check if arguments were correctly parsed.
-	if len(flag.Args()) != 0 {
-		log.Fatalf("Invalid arguments: %s", flag.Args())
-	}
 }
 
 func parseHistogramBuckets(buckets string) ([]float64, error) {
@@ -590,6 +584,13 @@ func parseHistogramBuckets(buckets string) ([]float64, error) {
 }
 
 func main() {
+	flag.Parse()
+
+	// check if arguments were correctly parsed.
+	if len(flag.Args()) != 0 {
+		log.Fatalf("Invalid arguments: %s", flag.Args())
+	}
+
 	if printVersion {
 		fmt.Printf(
 			"Skipper version %s (commit: %s)\n",
