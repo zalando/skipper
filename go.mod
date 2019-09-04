@@ -10,6 +10,7 @@ require (
 	github.com/coreos/go-oidc v2.0.0+incompatible
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/felixge/httpsnoop v1.0.0 // indirect
+	github.com/ghodss/yaml v1.0.0
 	github.com/go-redis/redis v6.15.2+incompatible
 	github.com/google/go-cmp v0.3.0
 	github.com/hashicorp/memberlist v0.1.4
@@ -43,5 +44,6 @@ require (
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/grpc v1.22.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
+	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
 	layeh.com/gopher-json v0.0.0-20190114024228-97fed8db8427
 )

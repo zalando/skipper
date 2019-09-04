@@ -40,9 +40,9 @@ const singleRouteGroupResult = `
 		Host("^(foo.example.org)$") && Path("/") -> "http://foo-service"
 `
 
-type stringClient string
+type jsonClient string
 
-func (c stringClient) loadRouteGroups() ([]byte, error) {
+func (c jsonClient) loadRouteGroups() ([]byte, error) {
 	return []byte(c), nil
 }
 
@@ -62,7 +62,7 @@ func TestTransformRouteGroups(t *testing.T) {
 		t.Run(test.title, func(t *testing.T) {
 			dc, err := NewRouteGroupClient(RouteGroupsOptions{
 				Kubernetes: Options{},
-				apiClient:  stringClient(test.routeGroupJSON),
+				apiClient:  jsonClient(test.routeGroupJSON),
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -80,7 +80,7 @@ func TestTransformRouteGroups(t *testing.T) {
 
 			if !eskip.EqLists(r, exp) {
 				t.Error("Failed to convert the route groups to the right routes:", err)
-				t.Log(cmp.Diff(r, exp))
+				t.Log(cmp.Diff(eskip.CanonicalList(r), eskip.CanonicalList(exp)))
 			}
 		})
 	}
