@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -40,46 +41,41 @@ func (c stringClient) loadRouteGroups() ([]byte, error) {
 }
 
 func TestTransformRouteGroups(t *testing.T) {
-	t.Skip()
+	for _, test := range []struct {
+		title          string
+		routeGroupJSON string
+		expectedRoutes string
+	}{{
+		title: "empty doc",
+		routeGroupJSON: `{"items": []}`,
+	}, {
+		title: "single route group",
+		routeGroupJSON: singleRouteGroup,
+		expectedRoutes: `// TBD`,
+	}} {
+		t.Run(test.title, func(t *testing.T) {
+			dc, err := NewRouteGroupClient(RouteGroupsOptions{
+				Kubernetes: Options{},
+				apiClient:  stringClient(test.routeGroupJSON),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	t.Run("empty doc", func(t *testing.T) {
-		const allRouteGroupsJSON = `{"items": []}`
+			r, err := dc.LoadAll()
+			if err != nil {
+				t.Error("Failed to convert route group document:", err)
+			}
 
-		dc, err := NewRouteGroupClient(RouteGroupsOptions{
-			Kubernetes: Options{},
-			apiClient:  stringClient(allRouteGroupsJSON),
+			exp, err := eskip.Parse(test.expectedRoutes)
+			if err != nil {
+				t.Error("Failed to parse expected routes:", err)
+			}
+
+			if !eskip.EqLists(r, exp) {
+				t.Error("Failed to convert the route groups to the right routes:", err)
+				t.Log(cmp.Diff(r, exp))
+			}
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		r, err := dc.LoadAll()
-		if err != nil {
-			t.Error("data client failed to convert an empty route group document", err)
-		}
-
-		if len(r) != 0 {
-			t.Error("data client returned unexpected routes")
-			t.Log(eskip.String(r...))
-		}
-	})
-
-	t.Run("single route gropu", func(t *testing.T) {
-		dc, err := NewRouteGroupClient(RouteGroupsOptions{
-			Kubernetes: Options{},
-			apiClient:  stringClient(singleRouteGroup),
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		r, err := dc.LoadAll()
-		if err != nil {
-			t.Error("data client failed to convert route groups", err)
-		}
-
-		if len(r) != 1 {
-			t.Error("failed to transform a single route")
-		}
-	})
+	}
 }
