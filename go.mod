@@ -45,3 +45,5 @@ require (
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
 	layeh.com/gopher-json v0.0.0-20190114024228-97fed8db8427
 )
+
+go 1.13
