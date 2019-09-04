@@ -31,7 +31,13 @@ const singleRouteGroup = `
       }
     ]
   }
-}]}
+}
+]}
+`
+
+const singleRouteGroupResult = `
+	kube__rg__default__my_routes_____0:
+		Host("^(foo.example.org)$") && Path("/") -> "http://foo-service"
 `
 
 type stringClient string
@@ -46,12 +52,12 @@ func TestTransformRouteGroups(t *testing.T) {
 		routeGroupJSON string
 		expectedRoutes string
 	}{{
-		title: "empty doc",
+		title:          "empty doc",
 		routeGroupJSON: `{"items": []}`,
 	}, {
-		title: "single route group",
+		title:          "single route group",
 		routeGroupJSON: singleRouteGroup,
-		expectedRoutes: `// TBD`,
+		expectedRoutes: singleRouteGroupResult,
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			dc, err := NewRouteGroupClient(RouteGroupsOptions{
