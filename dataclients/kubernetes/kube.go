@@ -681,7 +681,7 @@ func (c *Client) convertPathRule(
 	targetPort, err := svc.GetTargetPort(svcPort)
 	if err != nil {
 		// fallback to service, but service definition is wrong or no pods
-		log.Debugf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
+		log.Errorf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
 		err = nil
 	} else if svc.Spec.Type == "ExternalName" {
 		scheme := "https"
