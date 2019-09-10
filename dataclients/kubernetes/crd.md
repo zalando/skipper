@@ -105,52 +105,131 @@ enough to be a considered normal case.
 ## Proposed solution
 
 We create a CRD with `kind: RouteGroup`, that can express the mentioned use cases.
-The spec of the RouteGroup has 3 keys that are all arrays of some kind.
+The spec of the RouteGroup has 4 keys that are all arrays of some kind.
 
 ```yaml
 apiVersion: zalando.org/v1
 kind: RouteGroup
 spec:
-  hosts:
+  hosts:                    optional
   - <string>
   backends:
   - <backend>
+  defaultBackends:          optional
+  - <backendRef>
   routes:
   - <route>
 ```
 
-`<string>` is an arbitrary string
+The `<backend>` object defines, the type of backend with all relevant
+information required to create the skipper
+[backend](https://opensource.zalando.com/skipper/reference/backends/):
 
-`<backend>` is an object that has optional fields based on type
-
-```
+```yaml
 <backend>
   name: <string>
-  type: <string> that is one of "service|shunt|loopback|lb|url"
-  url: <string> required for type=url
-  algorithm: <string> optional, only user for type=lb
-  endpoints: <stringarray> required for type=lb
-  serviceName: <string> required for type=service
-  servicePort: <number> required for type=service
-  default: <bool> optional  // TODO: maybe separate object
-  weight: <number> optional // TODO: maybe separate object
+  type: <string>            that is one of "service|shunt|loopback|dynamic|lb|network"
+  address: <string>         optional, required for type=network
+  algorithm: <string>       optional, valid for type=lb
+  endpoints: <stringarray>  optional, required for type=lb
+  serviceName: <string>     optional, required for type=service Kubernetes
+  servicePort: <number>     optional, required for type=service Kubernetes
 ```
 
+The `defaultBackends` key is a list of `<backendRef>` to be used for
+all routes that have no overrides defined. In normal cases the list is
+length of 1. The list with more entries is used in case of traffic
+switching.
+
+The `<backendRef>` object references the backend by name and adds an
+optional weight. The weight is used to split the traffic according to
+the definition. If there is no weight defined it will spread traffic
+evenly to all backends. To remove traffic from a backend use `weight:0`
+or remove the `<backedRef>`
+
+```yaml
+<backendRef>
+- backendName: <string>
+  weight: <number>          optional
+```
+
+The `<route>` object defines the actual routing setup and enables skipper specific
+[route matching](https://opensource.zalando.com/skipper/tutorials/basics/#route-matching).
+In one `<route>` can use
+[path](https://opensource.zalando.com/skipper/reference/predicates/#path)
+or
+[pathSubtree](https://opensource.zalando.com/skipper/reference/predicates/#pathsubtree)
+and additionally add a
+
+```yaml
+<route>
+  path: <string>            either path or pathSubtree is allowed
+  pathSubtree: <string>     either path or pathSubtree is allowed
+  pathRegexp: <string>      optional
+  backends:                 optional, overrides defaults
+  - <backendRef>
+  filters: <stringarray>    optional
+  predicates: <stringarray> optional
+  method: <stringarray>     optional, one of the HTTP methods "GET|HEAD|PATCH|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE", defaults to all
+```
+
+`<string>` is an arbitrary string
 `<stringarray>` is an array of `<string>`
 `<number>` is an unsigned integer, example: 80
-`<bool>` is a either `true` or `false`
 
-```
-<route>
-  path: <string>  // TODO: maybe separate object and rest put into object
-  exactPath: <bool> optional // TODO: does it makes sense to have this or should this be the default?
-  backend: <string>, optional references a specific <backend>
-  filters: <stringarray>, optional
-  predicates: <stringarray>, optional
-  method: <string>, optional, one of the HTTP methods "GET|HEAD|PATCH|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE", defaults to all // TODO maybe indent into an object and move filters,predicates,backends to it
-```
 
 ### RouteGroup expressed use cases
+
+#### Simplicity
+
+To route the listed Host headers `myapp.example.org` and `example.org` to
+Kubernetes service `myapp-svc` on service port `80`, the RouteGroup
+would look like this:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - example.org
+  - myapp.example.org
+  backends:
+  - name: myapp
+    type: service
+    serviceName: myapp-svc
+    servicePort: 80
+  routes:
+  - path: /
+    backends:
+    - backendName: myapp
+```
+
+Another example, if you have multiple path routes to the same backend
+can be done like that:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - example.org
+  - myapp.example.org
+  backends:
+  - name: myapp
+    type: service
+    serviceName: myapp-svc
+    servicePort: 80
+  defaultBackends:
+  - backendName: myapp
+  routes:
+  - path: /articles
+  - path: /articles/shoes
+  - path: /order
+```
 
 #### Complex route with redirect and migration
 
@@ -176,29 +255,70 @@ spec:
     type: service
     serviceName: my-service-v1
     servicePort: 80
-    default: true
   - name: redirect
     type: shunt
   - name: migration
     type: loopback
+  defaultBackends:
+  - backendName: my-service
   routes:
   - path: /
   - path: /api
-    backend: migration
+    backends:
+    - backendName: migration
     filters:
     - modPath("/api", "/")
   - path: /login
-    method: get
+    method:
+    - GET
     backend: redirect
     filters:
     - redirectTo(308, "https://login.example.org/)
 ```
 
+#### Complex routes with authnz, separating read and write tokens
+
+One use case is to separate read tokens from write tokens for
+authorization.
+
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - www.complex.example.org
+  - complex.example.org
+  backends:
+  - name: myapp
+    type: service
+    serviceName: my-service-v1
+    servicePort: 80
+  defaultBackends:
+  - backendName: my-service
+  routes:
+  - path: /
+    method:
+    - PUSH
+    - PUT
+    - PATCH
+    - DELETE
+    filters:
+    - oauthTokeninfoAllScope("myapp.write")
+  - path: /
+    method:
+    - GET
+    - HEAD
+    filters:
+    - oauthTokeninfoAllScope("myapp.read")
+```
 
 #### Complex routes with ratelimits based on tokens
 
-A complex route case could specify different ratelimits for POST
-request to /api/resource for clients.  Clients that have JWT/OAuth2
+A complex route case could specify different ratelimits for POST and PUT
+requests to /api/resource for clients.  Clients that have JWT/OAuth2
 Tokens from issuer https://accounts.google.com with email
 "important@example.org" get 20/equest per minute, other clients with
 Token with issuer https://accounts.google.com or
@@ -222,17 +342,22 @@ spec:
     type: service
     serviceName: api-service-v1
     servicePort: 80
-    default: true
+  defaultBackends:
+  - backendName: api-svc
   routes:
   - path: /api/resource
-    method: post
+    method:
+    - post
+    - put
     filters:
     - ratelimit(20, "1m")
     - oauthTokeninfoAllKV("iss", "https://accounts.google.com", "email", "important@example.org")
     predicates:
     - JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
   - path: /api/resource
-    method: post
+    method:
+    - post
+    - put
     filters:
     - ratelimit(2, "1m")
     - oauthTokeninfoAnyKV("iss", "https://accounts.google.com", "iss", "https://accounts.github.com")
