@@ -80,7 +80,7 @@ func TestTransformRouteGroups(t *testing.T) {
 
 			if !eskip.EqLists(r, exp) {
 				t.Error("Failed to convert the route groups to the right routes:", err)
-				t.Log(cmp.Diff(r, exp))
+				t.Log(cmp.Diff(eskip.CanonicalList(r), eskip.CanonicalList(exp)))
 			}
 		})
 	}
