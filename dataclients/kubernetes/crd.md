@@ -201,7 +201,7 @@ spec:
     serviceName: myapp-svc
     servicePort: 80
   routes:
-  - path: /
+  - pathSubtree: /
     backends:
     - backendName: myapp
 ```
@@ -262,8 +262,8 @@ spec:
   defaultBackends:
   - backendName: my-service
   routes:
-  - path: /
-  - path: /api
+  - pathSubtree: /
+  - pathSubtree: /api
     backends:
     - backendName: migration
     filters:
@@ -271,7 +271,8 @@ spec:
   - path: /login
     method:
     - GET
-    backend: redirect
+    backends:
+    - backendName: redirect
     filters:
     - redirectTo(308, "https://login.example.org/)
 ```
@@ -299,7 +300,7 @@ spec:
   defaultBackends:
   - backendName: my-service
   routes:
-  - path: /
+  - pathSubtree: /
     method:
     - PUSH
     - PUT
@@ -307,7 +308,7 @@ spec:
     - DELETE
     filters:
     - oauthTokeninfoAllScope("myapp.write")
-  - path: /
+  - pathSubtree: /
     method:
     - GET
     - HEAD
@@ -324,8 +325,8 @@ Tokens from issuer https://accounts.google.com with email
 Token with issuer https://accounts.google.com or
 https://accounts.github.com get only 2.
 
-Additionally for all other HTTP methods ratelimit for each client 100
-requests per minute based on "Authorization" header and make sure the
+Additionally for all other HTTP methods ratelimit for each client 10
+requests per hour based on "Authorization" header and make sure the
 Token is valid and has the scopes to read and list the resource.
 
 ```yaml
@@ -363,7 +364,7 @@ spec:
     - oauthTokeninfoAnyKV("iss", "https://accounts.google.com", "iss", "https://accounts.github.com")
   - path: /api/resource
     filters:
-    - clientRatelimit(100, "1m", "Authorization")
+    - clientRatelimit(10, "1h", "Authorization")
     - oauthTokeninfoAllScope("read.resource", "list.resource")
 ```
 
@@ -372,7 +373,8 @@ spec:
 If we want to traffic switch, we want to make sure all path endpoints
 we have configured are switched at the same time and get the same
 traffic split applied. To not be ambiguous with multiple backends, we
-need to set `default: true` for both backends we traffic switched.
+need to set the `weight` and both backends have to be
+`defaultBackends`, if we want to traffic switch.
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -388,22 +390,26 @@ spec:
     type: service
     serviceName: api-service-v1
     servicePort: 80
-    default: true
-    weight: 80
   - name: api-svc-v2
     type: service
     serviceName: foo-service-v2
     servicePort: 80
-    default: true
+  defaultBackends:
+  - backendName: api-svc
+    weight: 80
+  - backendName: api-svc-v2
     weight: 20
   routes:
   - path: /api/resource
     filters:
-    - ratelimit(20, "1m")
+    - ratelimit(200, "1m")
     - oauthTokeninfoAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
     predicates:
     - JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
   - path: /api/resource
+    filters:
+    - ratelimit(20, "1m")
+    - oauthTokeninfoAllKV("iss", "https://accounts.google.com")
 ```
 
 #### A/B test
@@ -412,6 +418,7 @@ A/B test via cookie `canary`, used for sticky sessions.
 
 - 10% chance to get cookie for service-a
 - the rest of the traffic goes to service-b
+- All requests with a `canary` cookie will be sticky to the chosen backend
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -428,25 +435,25 @@ spec:
     type: service
     serviceName: service-b
     servicePort: 80
-    default: true
+  defaultBackends:
+  - backendName: variant-b
   routes:
-  - path: /
+  - pathSubtree: /
     filters:
-    - responseCookie("canary", "A")
+    - responseCookie("canary", "A") # set canary Cookie to A
     predicates:
-    - Traffic(.1)
-    backend: variant-a
-  - path: /
+    - Traffic(.1)                   # 10% chance
+    backends:
+    - backendName: variant-a        # overrides default
+  - pathSubtree: /
     filters:
     - responseCookie("canary", "B")
-  - path: /
+  - pathSubtree: /
     predicates:
-    - Cookie("canary", "team-foo")
-  - path: /
-    predicates:
-    - Cookie("canary", "A")
-    backend: variant-a
-  - path: /
+    - Cookie("canary", "A")         # sticky match
+    backends:
+    - backendName: variant-a        # overrides default
+  - pathSubtree: /
     predicates:
     - Cookie("canary", "B")
 ```
@@ -455,8 +462,8 @@ spec:
 
 A/B test via cookie `canary`, used for sticky sessions.
 
-step0
-- all traffic goes to Kubernetes service-b-v1
+**step0**
+- all traffic goes to backend `variant-b`, Kubernetes service-b-v1
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -471,13 +478,16 @@ spec:
     type: service
     serviceName: service-b-v1
     servicePort: 80
-    default: true
+  defaultBackends:
+  - backendName: variant-b
   routes:
-  - path: /
+  - pathSubtree: /
 ```
 
-step1
-- A canary route for team "foo" was added, that needs a Cookie "canary" with content "team-foo" to validate service-a
+**step1**
+- A canary route for team foo was added, that needs a Cookie `canary`
+  with content `team-foo` to validate backend `variant-a`, before
+  customers will get the traffic.
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -496,18 +506,21 @@ spec:
     type: service
     serviceName: service-b-v1
     servicePort: 80
-    default: true
+  defaultBackends:
+  - backendName: variant-b
   routes:
-  - path: /
-  - path: /
+  - pathSubtree: /
+  - pathSubtree: /
     predicates:
     - Cookie("canary", "team-foo")
-    backend: variant-a
+    backends:
+    - backendName: variant-a
 ```
 
-step2
-- A/B test: 10% chance to get cookie for service-a
-- the rest of the traffic goes to service-b
+**step2**
+- After successful test delete team cookie
+- A/B test: 10% chance to get cookie for backend `variant-a`
+- the rest of the traffic goes to backend `variant-b`
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -526,32 +539,32 @@ spec:
     type: service
     serviceName: service-b-v1
     servicePort: 80
-    default: true
+  defaultBackends:
+  - backendName: variant-b
   routes:
-  - path: /
+  - pathSubtree: /
     filters:
     - responseCookie("canary", "A")
     predicates:
     - Traffic(.1)
-    backend: variant-a
-  - path: /
+    backends:
+    - backendName: variant-a
+  - pathSubtree: /
     filters:
     - responseCookie("canary", "B")
-  - path: /
-    predicates:
-    - Cookie("canary", "team-foo")
-  - path: /
+  - pathSubtree: /
     predicates:
     - Cookie("canary", "A")
-    backend: variant-a
-  - path: /
+    backends:
+    - backendName: variant-a
+  - pathSubtree: /
     predicates:
     - Cookie("canary", "B")
 ```
 
-
-step3
+**step3**
 - service-b will be traffic switched from v1 to v2, v2 will get 20% traffic, rest to v1
+- service-a stays unchanged and all customers that have cookie `canary=A`
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -570,38 +583,88 @@ spec:
     type: service
     serviceName: service-b-v1
     servicePort: 80
-    default: true
+  - name: variant-b-v2
+    type: service
+    serviceName: service-b-v2
+    servicePort: 80
+  defaultBackends:
+  - backendName: variant-b
     weight: 80
+  - backendName: variant-b-v2
+    weight: 20
+  routes:
+  - pathSubtree: /
+    filters:
+    - responseCookie("canary", "A")
+    predicates:
+    - Traffic(.1)
+    backends:
+    - backendName: variant-a
+  - pathSubtree: /
+    filters:
+    - responseCookie("canary", "B")
+  - pathSubtree: /
+    predicates:
+    - Cookie("canary", "A")
+    backends:
+    - backendName: variant-a
+  - pathSubtree: /
+    predicates:
+    - Cookie("canary", "B")
+```
+
+**step4**
+- variant-b will be completely switched to `service-b-v2`
+- variant-a stays unchanged and all customers that have cookie `canary=A`
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  hosts:
+  - api.example.org
+  backends:
+  - name: variant-a
+    type: service
+    serviceName: service-a
+    servicePort: 80
   - name: variant-b
     type: service
     serviceName: service-b-v2
     servicePort: 80
-    default: true
-    weight: 20
+  defaultBackends:
+  - backendName: variant-b
   routes:
-  - path: /
+  - pathSubtree: /
     filters:
     - responseCookie("canary", "A")
     predicates:
     - Traffic(.1)
-    backend: variant-a
-  - path: /
+    backends:
+    - backendName: variant-a
+  - pathSubtree: /
     filters:
     - responseCookie("canary", "B")
-  - path: /
-    predicates:
-    - Cookie("canary", "team-foo")
-  - path: /
+  - pathSubtree: /
     predicates:
     - Cookie("canary", "A")
-    backend: variant-a
-  - path: /
+    backends:
+    - backendName: variant-a
+  - pathSubtree: /
     predicates:
     - Cookie("canary", "B")
 ```
 
+As we see in **step0** till **step4** we can create an A/B test with
+manual pre-validating `variant-a`. We do ongoing A/B test and can do
+traffic switching for one backend while having a running A/B test.
 
 ### Examples Ingress vs. RouteGroup
+
+Ingress objects are will known. To compare the use of RouteGroup we
+show some Ingress examples and how these would be written as RouteGroup.
 
 #### Minimal example
 
@@ -638,6 +701,8 @@ spec:
     type: service
     serviceName: app-svc
     servicePort: 80
+  defaultBackends:
+  - backendName: app
 ```
 
 #### 2 Hostnames example
@@ -682,6 +747,8 @@ spec:
     type: service
     serviceName: app-svc
     servicePort: 80
+  defaultBackends:
+  - backendName: app
 ```
 
 #### Common use case ingress and redirect
@@ -723,14 +790,16 @@ spec:
     type: service
     serviceName: app-svc
     servicePort: 80
-    default: true
   - name: redirect
     type: shunt
+  defaultBackends:
+  - backendName: app
   routes:
   - path: /login
     filters:
     - redirectTo(308, "https://login.example.org")
-    backend: redirect
+    backends:
+    - backendName: redirect
   - path: /
 ```
 
@@ -757,3 +826,73 @@ spec:
 ```
 
 Not possible with a single RouteGroup, because backends can not bind to a host.
+
+#### Traffic Switching with 2 hostnames
+
+Traffic switch state
+- api-svc-v1: 70%
+- api-svc-v2: 30%
+
+Ingress
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app
+  annotations:
+    zalando.org/backend-weights: {"api-svc-v1": 70, "api-svc-v2": 30}
+spec:
+  rules:
+  - host: api.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc-v1
+          servicePort: 80
+  - host: api.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc-v2
+          servicePort: 80
+  - host: example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc-v1
+          servicePort: 80
+  - host: example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc-v2
+          servicePort: 80
+```
+
+RouteGroup
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  hosts:
+  - api.example.org
+  - example.org
+  backends:
+  - name: api-svc
+    type: service
+    serviceName: api-service-v1
+    servicePort: 80
+  - name: api-svc-v2
+    type: service
+    serviceName: foo-service-v2
+    servicePort: 80
+  defaultBackends:
+  - backendName: api-svc
+    weight: 70
+  - backendName: api-svc-v2
+    weight: 30
+```
