@@ -6,4 +6,4 @@ approvals:
       from:
         orgs:
           - "zalando"
-X-Zalando-Team: "pathfinder"
+X-Zalando-Team: "teapot"
