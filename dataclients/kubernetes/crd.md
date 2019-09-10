@@ -128,7 +128,7 @@ information required to create the skipper
 ```yaml
 <backend>
   name: <string>
-  type: <string>            that is one of "service|shunt|loopback|dynamic|lb|network"
+  type: <string>            one of "service|shunt|loopback|dynamic|lb|network"
   address: <string>         optional, required for type=network
   algorithm: <string>       optional, valid for type=lb
   endpoints: <stringarray>  optional, required for type=lb
