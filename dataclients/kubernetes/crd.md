@@ -170,7 +170,7 @@ and additionally add a
   - <backendRef>
   filters: <stringarray>    optional
   predicates: <stringarray> optional
-  method: <stringarray>     optional, one of the HTTP methods "GET|HEAD|PATCH|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE", defaults to all
+  methods: <stringarray>     optional, one of the HTTP methods "GET|HEAD|PATCH|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE", defaults to all
 ```
 
 `<string>` is an arbitrary string
@@ -269,7 +269,7 @@ spec:
     filters:
     - modPath("/api", "/")
   - path: /login
-    method:
+    methods:
     - GET
     backends:
     - backendName: redirect
@@ -301,7 +301,7 @@ spec:
   - backendName: my-service
   routes:
   - pathSubtree: /
-    method:
+    methods:
     - PUSH
     - PUT
     - PATCH
@@ -309,7 +309,7 @@ spec:
     filters:
     - oauthTokeninfoAllScope("myapp.write")
   - pathSubtree: /
-    method:
+    methods:
     - GET
     - HEAD
     filters:
@@ -347,7 +347,7 @@ spec:
   - backendName: api-svc
   routes:
   - path: /api/resource
-    method:
+    methods:
     - post
     - put
     filters:
@@ -356,7 +356,7 @@ spec:
     predicates:
     - JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
   - path: /api/resource
-    method:
+    methods:
     - post
     - put
     filters:

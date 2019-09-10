@@ -14,21 +14,12 @@ func createHostRx(h []string) string {
 	return fmt.Sprintf("^(%s)$", strings.Join(h, "|"))
 }
 
-// expects at least one
-func mapBackends(b []*skipperBackend) (m map[string]*skipperBackend, dflt *skipperBackend) {
-	m = make(map[string]*skipperBackend)
-	for _, bi := range b {
-		m[bi.Name] = bi
-		if bi.Default {
-			dflt = bi
-		}
+func mapBackends(spec *routeGroupSpec) map[string]*skipperBackend {
+	m := make(map[string]*skipperBackend)
+	for _, b := range spec.Backends {
+		m[b.Name] = b
 	}
-
-	if dflt == nil {
-		dflt = b[0]
-	}
-
-	return
+	return m
 }
 
 func toSymbol(p string) string {
@@ -75,72 +66,114 @@ func transformRouteGroup(rg *routeGroupItem) ([]*eskip.Route, error) {
 	}
 
 	if len(rg.Spec.Routes) == 0 {
+		// TODO(sszuecs): should return catchall route, depends on Hosts
 		return nil, fmt.Errorf("missing path spec for route group: %s", rg.Metadata.Name)
 	}
 
 	hostRx := createHostRx(rg.Spec.Hosts)
-	bm, dflt := mapBackends(rg.Spec.Backends)
+	refToBackend := mapBackends(rg.Spec)
 
-	var r []*eskip.Route
-	for i, p := range rg.Spec.Routes {
-		ri := &eskip.Route{Id: crdRouteID(rg.Metadata, p.Path, i)}
-		if p.Path != "" {
-			ri.Predicates = appendPredicate(ri.Predicates, "Path", p.Path)
+	var routes []*eskip.Route
+	for i, sr := range rg.Spec.Routes {
+		if len(sr.Methods) == 0 {
+			sr.Methods = []string{""}
 		}
+		for _, method := range sr.Methods {
 
-		if len(rg.Spec.Hosts) > 0 {
-			ri.Predicates = appendPredicate(ri.Predicates, "Host", hostRx)
-		}
+			if len(sr.Backends) != 0 {
+				// case override defaultBackends
+				for _, bref := range sr.Backends {
 
-		if p.Method != "" {
-			ri.Predicates = appendPredicate(ri.Predicates, "Method", strings.ToUpper(p.Method))
-		}
-
-		var pp []*eskip.Predicate
-		for _, pi := range p.Predicates {
-			ppi, err := eskip.ParsePredicates(pi)
-			if err != nil {
-				return nil, err
+					if r, err := getRoute(
+						refToBackend,
+						sr,
+						// TODO: crdRouteID needs more input
+						crdRouteID(rg.Metadata, sr.Path, i),
+						bref.BackendName,
+						hostRx,
+						method,
+						bref.Weight,
+					); err != nil {
+						return nil, err
+					} else {
+						routes = append(routes, r)
+					}
+				}
 			}
-
-			pp = append(pp, ppi...)
 		}
-
-		ri.Predicates = append(ri.Predicates, pp...)
-
-		var f []*eskip.Filter
-		for _, fi := range p.Filters {
-			ffi, err := eskip.ParseFilters(fi)
-			if err != nil {
-				return nil, err
-			}
-
-			f = append(f, ffi...)
-		}
-
-		ri.Filters = f
-
-		// TODO: properly
-		b := dflt
-		if p.Backend != "" {
-			bref, ok := bm[p.Backend]
-			if !ok {
-				return nil, fmt.Errorf(
-					"missing backend in route group: %s, for path: %s, with reference: %s",
-					rg.Metadata.Name,
-					p.Path,
-					p.Backend,
-				)
-			}
-
-			b = bref
-		}
-
-		ri.Backend = fmt.Sprintf("http://%s", b.ServiceName)
-		r = append(r, ri)
 	}
 
-	return r, nil
+	return routes, nil
+}
+
+func getRoute(refToBackend map[string]*skipperBackend, sr *routeSpec, rid, beName, hostRx, method string, weight int) (*eskip.Route, error) {
+	if be, ok := refToBackend[beName]; ok {
+		r, err := transformRoute(
+			sr,
+			be,
+			rid,
+			hostRx,
+			method,
+			weight)
+		if err != nil {
+			// TODO: review log and fail fast
+			log.Errorf("failed to handle route: %v", err)
+			return nil, err
+		}
+		return r, nil
+	}
+	return nil, fmt.Errorf("backend not found in reference table")
+}
+
+// transformRoute creates one eskip.Route for the specified input
+func transformRoute(sr *routeSpec, be *skipperBackend, rid, hostRx, method string, weight int) (*eskip.Route, error) {
+	ri := &eskip.Route{Id: rid}
+
+	// Path or PathSubtree, prefer Path if we have
+	if sr.Path != "" {
+		ri.Predicates = appendPredicate(ri.Predicates, "Path", sr.Path)
+	} else if sr.PathSubtree != "" {
+		ri.Predicates = appendPredicate(ri.Predicates, "PathSubtree", sr.PathSubtree)
+	}
+
+	if sr.PathRegexp != "" {
+		// TODO: validate correctness
+		ri.PathRegexps = []string{"PathRegexp(" + sr.PathRegexp + ")"}
+	}
+
+	if hostRx != "" {
+		ri.Predicates = appendPredicate(ri.Predicates, "Host", hostRx)
+	}
+
+	if method != "" {
+		ri.Predicates = appendPredicate(ri.Predicates, "Method", strings.ToUpper(method))
+	}
+
+	// handle predicates list
+	for _, pi := range sr.Predicates {
+		ppi, err := eskip.ParsePredicates(pi)
+		if err != nil {
+			return nil, err
+		}
+
+		ri.Predicates = append(ri.Predicates, ppi...)
+	}
+
+	var f []*eskip.Filter
+	for _, fi := range sr.Filters {
+		ffi, err := eskip.ParseFilters(fi)
+		if err != nil {
+			return nil, err
+		}
+
+		f = append(f, ffi...)
+	}
+
+	ri.Filters = f
+
+	ri.BackendType = be.Type
+	ri.Backend = be.String()
+	return ri, nil
 }
 
 func transformRouteGroups(doc []byte) ([]*eskip.Route, error) {
