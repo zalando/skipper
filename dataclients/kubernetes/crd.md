@@ -182,9 +182,9 @@ and additionally add a
 
 #### Simplicity
 
-To route the listed Host headers `myapp.example.org` and `example.org` to
-Kubernetes service `myapp-svc` on service port `80`, the RouteGroup
-would look like this:
+To route the listed Host headers `myapp.example.org` and `example.org`
+and all paths the client choose to Kubernetes service `myapp-svc` on
+service port `80`, the RouteGroup would look like this:
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -206,8 +206,8 @@ spec:
     - backendName: myapp
 ```
 
-Another example, if you have multiple path routes to the same backend
-can be done like that:
+Another example, if you have multiple exact path routes to the same
+backend can be done like that:
 
 ```yaml
 apiVersion: zalando.org/v1
