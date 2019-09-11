@@ -19,6 +19,48 @@ Skipper features in a straightforward way.
 
 ## Problem statement
 
+We want to solve common user problems and observed unsafe usage of
+Ingress.
+
+### Redirects
+
+One common case is, that users want to define one or more redirects on
+an Ingress. There are two solutions in skipper.
+
+First you can create one Ingress for your application and one for each
+redirect. The redirect would be done by matching the request with
+annotation `zalando.org/skipper-predicate` and applying the
+[redirectTo filter](https://opensource.zalando.com/skipper/reference/filters/#redirectto)
+with `zalando.org/skipper-filter` annotation. This solution is more
+maintenance and you need to assign all Ingress a valid Kubernetes
+service as a backend, that is not used for a redirect.
+
+As second solution you can use `zalando.org/skipper-routes`. It does
+not require you to have more than one object. For these routes you
+have to specify a unique eskip route ID and you have to apply eskip
+syntax as a string, which is not validated in Kubernetes. Like this
+you can easily create errors and we want to reduce the unsafe
+usage. We should reduce complexity to our users.
+
+### Traffic switching complex routes
+
+Right now the traffic switching orchestration works based on Ingress
+annotation `zalando.org/backend-weights`, which supports an arbitrary
+number of backends. This supports one Ingress to be traffic switched
+automatically using
+[stackset-controller](https://github.com/zalando-incubator/stackset-controller)
+for example. You can also have 3 versions ongoing traffic switched.
+
+This solution lack of traffic switching with more than one Ingress
+object as the same stackset.
+
+We want to be able to also do traffic switching, while having ongoing
+A/B tests, that require routing with cookies, for example. These
+complex routing need either more than one object or rely on the less
+safe use of `zalando.org/skipper-routes`.
+
+### Advanced routing - Open API Spec controller
+
 At Zalando we have a controller, that creates multiple Ingresses for a
 given enhanced OpenAPI spec. It configures Skipper features with
 [predicates](https://opensource.zalando.com/skipper/reference/predicates)
@@ -58,13 +100,11 @@ spec:
 
 The problem with having multiple Ingress having this kind of
 annotation is that it needs to be in-sync across all Ingress belonging
-to a group of routes. This has of course a race condition, which is a
-problem in this case.
-
-We want to solve also traffic switching while having ongoing A/B tests
-or as simple as defining one or more redirects without having more
-than one object.  While you can use `zalando.org/skipper-routes` to do
-the redirects, we do not want to move complexity to our users.
+to a group of routes. While the orchestrating controller writes these
+objects, skipper instances read these. This can result in unexpected
+behavior, caused by non atomic changes. More problematic could be if
+an API changes and and it requires an atomic change to have either the
+version 1 view or the version 2 view and not half.
 
 ## Background Information
 
@@ -896,3 +936,97 @@ spec:
   - backendName: api-svc-v2
     weight: 30
 ```
+
+### External components that need to be changed
+
+The current Kubernetes loadbalancer infrastructure, that we provide
+automates ALB creation, DNS records and do the HTTP routing. HTTP
+routing is the only thing that skipper does and the other tools need
+also to be changed to make `RouteGroup` a useful tool to the user.
+
+#### Kube-ingress-aws-controller
+
+[Kube-ingress-aws-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller)
+needs to be changed to create the Loadbalancer based on the
+`RouteGroup`. It also needs to update the status field similar to the
+Ingress status field, in order to provide data for other controller,
+for example external-dns, to work on that.
+
+Ingress status field, set by kube-ingress-aws-controller:
+
+```json
+{
+  "loadBalancer": {
+    "ingress": [
+      {
+        "hostname": "kube-ing-lb-52qc7m7pofvpj-1564137991.eu-west-1.elb.amazonaws.com"
+      }
+    ]
+  }
+}
+```
+
+It would need to read `RouteGroup.spec.hosts` to get all hostnames to
+find certificates.
+It would need to write into the status field the created ALIAS record
+for the ALBs created for the `RouteGroup`.
+
+#### External-DNS
+
+[External-DNS](https://github.com/kubernetes-incubator/external-dns/)
+needs to be able to consume the status field and `hosts` spec of the
+proposed `RoutingGroup` to create the DNS records.
+
+#### StackSet Controller
+
+[Stackset-controller](https://github.com/zalando-incubator/stackset-controller)
+needs to have a `routegroup` spec definition, manage a `RouteGroup`
+and write to the `RouteGroup` annotation in order to be able to do
+traffic switching based on a `RouteGroup`.
+
+### Why not adapt other solutions?
+
+In general we want to increase usability for more complex Ingress
+cases and enable all Skipper features.
+
+Some Ingress controllers use heavily annotations to expose their
+capabilities, as skipper does with
+[skipper annotations](https://opensource.zalando.com/skipper/kubernetes/ingress-usage/#skipper-ingress-annotations),
+for example [Nginx exposes a lot of annotations](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/).
+
+The drawback of annotations is, that these are not type safe in
+Kubernetes and can only be validated by the controller after
+successful apply by the user.
+Another problem is, that annotations from the metadata are disturbing
+the mental concept of the spec. The spec should define what you want,
+but now you have to patch the spec with all the annotations you
+applied.
+
+Another solution would be to adapt
+[SMI](https://github.com/deislabs/smi-spec). If you check the
+[routing specs](https://github.com/deislabs/smi-spec/blob/master/traffic-specs.md),
+you do not find the concept of respond from HTTP router, which is one
+capability in Skipper, that is used to create redirects. This we would
+have to implement again with annotations. Another Skipper capability, which we
+would lack is to define the different path predicates: `Path()`,
+`PathSubtree()` and `PathRegexp()`. SMI only define routes as
+`pathRegex`. To enable the mentioned path predicates, we would need to
+have this unrelated name and change the behavior based on annotations,
+which is not increased usability.
+
+Another solution would be to adapt [Istio
+VirtualService](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/),
+which seems the most similar object to the proposed
+`RouteGroup`. [HTTPMatchRequest](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/#HTTPMatchRequest)
+would be able to reflect Skipper's path routing capabilities and you
+can define
+[HTTPRedirect](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/#HTTPRedirect).
+
+The problem of VirtualService object is that it does not reflect
+Skipper filters and predicates. There are a number of predicates and
+filters, that can not be used from the VirtualService and we would
+need to map every single key to a specific predicate or filter. This
+increases the complexity of the code base. Skipper also lacks of the
+L4 capabilities, such that we would not be 100% compliant to the spec.
+In our opinion the VirtualService is also a quite complex type, that
+does not increase the usability.
