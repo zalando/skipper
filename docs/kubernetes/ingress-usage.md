@@ -16,6 +16,7 @@ zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skip
 zalando.org/skipper-ingress-redirect | `"true"` | change the default HTTPS redirect behavior for specific ingresses (true/false)
 zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
 zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../../reference/backends/#load-balancer-backend)
+zalando.org/skipper-ingress-path-mode | `path-prefix` | defaults to `kubernetes-ingress`, [see available choices](#ingress-path-handling), to change the default use `-kubernetes-path-mode`
 
 ## Supported Service types
 
@@ -139,21 +140,23 @@ E.g.:
 
 ### Kubernetes ingress specification base path
 
-By default, the ingress path is interpreted as a regular expression with a
-mandatory leading "/", and is automatically prepended by a "^" control character,
-enforcing that the path has to be at the start of the incoming request path.
+By default, the ingress path mode is set to `kubernetes-ingress`,
+which is interpreted as a regular expression with a mandatory leading
+`/`, and is automatically prepended by a `^` control character,
+enforcing that the path has to be at the start of the incoming request
+path.
 
 ### Plain regular expression
 
-When the path mode is set to "path-regexp", the ingress path is interpreted similar
-to the default kubernetes ingress specification way, but is not prepended by the "^"
+When the path mode is set to `path-regexp`, the ingress path is interpreted similar
+to the default kubernetes ingress specification way, but is not prepended by the `^`
 control character.
 
 ### Path prefix
 
-When the path mode is set to "path-prefix", the ingress path is not a regular
-expression. As an example, "/foo/bar" will match "/foo/bar" or "/foo/bar/baz", but
-won't match "/foo/barooz".
+When the path mode is set to `path-prefix`, the ingress path is not a regular
+expression. As an example, `/foo/bar` will match `/foo/bar` or `/foo/bar/baz`, but
+won't match `/foo/barooz`.
 
 When PathPrefix is used, the path matching becomes deterministic when
 a request could match more than one ingress routes otherwise.
