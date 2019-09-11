@@ -38,18 +38,20 @@ func toSymbol(p string) string {
 	return string(b)
 }
 
-func crdRouteID(m *metadata, path string, index int) string {
+func crdRouteID(m *metadata, path, method string, routeIndex, backendIndex int) string {
 	ns := m.Namespace
 	if ns == "" {
 		ns = "default"
 	}
 
 	return fmt.Sprintf(
-		"kube__rg__%s__%s__%s__%d",
+		"kube__rg__%s__%s__%s__%s__%d_%d",
 		toSymbol(ns),
 		toSymbol(m.Name),
 		toSymbol(path),
-		index,
+		strings.ToLower(method),
+		routeIndex,
+		backendIndex,
 	)
 }
 
@@ -65,39 +67,62 @@ func transformRouteGroup(rg *routeGroupItem) ([]*eskip.Route, error) {
 		return nil, fmt.Errorf("missing backend for route group: %s", rg.Metadata.Name)
 	}
 
-	if len(rg.Spec.Routes) == 0 {
-		// TODO(sszuecs): should return catchall route, depends on Hosts
-		return nil, fmt.Errorf("missing path spec for route group: %s", rg.Metadata.Name)
-	}
-
 	hostRx := createHostRx(rg.Spec.Hosts)
 	refToBackend := mapBackends(rg.Spec)
 
 	var routes []*eskip.Route
+
+	if len(rg.Spec.Routes) == 0 {
+		if len(rg.Spec.DefaultBackends) == 0 {
+			return nil, fmt.Errorf("missing path spec for route group: %s", rg.Metadata.Name)
+		}
+		for i, beref := range rg.Spec.DefaultBackends {
+			if be, ok := refToBackend[beref.BackendName]; ok {
+				rid := crdRouteID(rg.Metadata, "all", "all", i, 0)
+				ri := &eskip.Route{
+					Id:          rid,
+					BackendType: be.Type,
+					Backend:     be.String(),
+					LBAlgorithm: be.Algorithm.String(),
+					LBEndpoints: be.Endpoints,
+					Name:        be.Name, // TODO: or rg.Metadata.Name ?
+					Namespace:   rg.Metadata.Namespace,
+				}
+				routes = append(routes, ri)
+			}
+		}
+		if len(rg.Spec.Hosts) > 0 {
+			for _, r := range routes {
+				r.HostRegexps = []string{hostRx}
+			}
+		}
+		return routes, nil
+	}
+
 	for i, sr := range rg.Spec.Routes {
 		if len(sr.Methods) == 0 {
 			sr.Methods = []string{""}
 		}
 		for _, method := range sr.Methods {
-
+			backendRefs := rg.Spec.DefaultBackends
 			if len(sr.Backends) != 0 {
 				// case override defaultBackends
-				for _, bref := range sr.Backends {
+				backendRefs = sr.Backends
+			}
 
-					if r, err := getRoute(
-						refToBackend,
-						sr,
-						// TODO: crdRouteID needs more input
-						crdRouteID(rg.Metadata, sr.Path, i),
-						bref.BackendName,
-						hostRx,
-						method,
-						bref.Weight,
-					); err != nil {
-						return nil, err
-					} else {
-						routes = append(routes, r)
-					}
+			for j, bref := range backendRefs {
+				if r, err := getRoute(
+					refToBackend,
+					sr,
+					crdRouteID(rg.Metadata, sr.Path, method, i, j),
+					bref.BackendName,
+					hostRx,
+					method,
+					bref.Weight,
+				); err != nil {
+					return nil, err
+				} else {
+					routes = append(routes, r)
 				}
 			}
 		}
@@ -117,7 +142,7 @@ func getRoute(refToBackend map[string]*skipperBackend, sr *routeSpec, rid, beNam
 			weight)
 		if err != nil {
 			// TODO: review log and fail fast
-			log.Errorf("failed to handle route: %v", err)
+			log.Errorf("failed to transform route: %v", err)
 			return nil, err
 		}
 		return r, nil
@@ -129,7 +154,7 @@ func getRoute(refToBackend map[string]*skipperBackend, sr *routeSpec, rid, beNam
 func transformRoute(sr *routeSpec, be *skipperBackend, rid, hostRx, method string, weight int) (*eskip.Route, error) {
 	ri := &eskip.Route{Id: rid}
 
-	// Path or PathSubtree, prefer Path if we have
+	// Path or PathSubtree, prefer Path if we have, becasuse it is more specifc
 	if sr.Path != "" {
 		ri.Predicates = appendPredicate(ri.Predicates, "Path", sr.Path)
 	} else if sr.PathSubtree != "" {
@@ -137,7 +162,7 @@ func transformRoute(sr *routeSpec, be *skipperBackend, rid, hostRx, method strin
 	}
 
 	if sr.PathRegexp != "" {
-		// TODO: validate correctness
+		// TODO: do we need to validate regexp correctness?
 		ri.PathRegexps = []string{"PathRegexp(" + sr.PathRegexp + ")"}
 	}
 

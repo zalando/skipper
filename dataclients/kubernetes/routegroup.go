@@ -1,6 +1,8 @@
 package kubernetes
 
-import "github.com/zalando/skipper/eskip"
+import (
+	"github.com/zalando/skipper/eskip"
+)
 
 type apiClient interface {
 	loadRouteGroups() ([]byte, error)

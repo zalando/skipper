@@ -7,13 +7,26 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-const singleRouteGroup = `
-{"items": [
+type transformationTest struct {
+	title          string
+	routeGroupJSON string
+	expectedRoutes string
+}
+
+var transTests []transformationTest = []transformationTest{
+	{
+		title:          "empty doc",
+		routeGroupJSON: `{"items": []}`,
+	},
+	{
+		title: "simplest host Route Group",
+		routeGroupJSON: `{"items": [
 {
   "apiVersion": "zalando.org/v1",
   "kind": "RouteGroup",
   "metadata": {
-    "name": "my-routes"
+    "name": "my-routes",
+    "namespace": "default"
   },
   "spec": {
     "hosts": [
@@ -21,24 +34,52 @@ const singleRouteGroup = `
     ],
     "backends": [
       {
-        "serviceName": "foo-service",
-        "servicePort": 80
+        "name": "be1",
+        "type": "shunt"
       }
     ],
-    "routes": [
+    "defaultBackends": [
       {
-        "path": "/"
+        "backendName": "be1"
       }
     ]
   }
 }
-]}
-`
-
-const singleRouteGroupResult = `
-	kube__rg__default__my_routes_____0:
-		Host("^(foo.example.org)$") && Path("/") -> "http://foo-service"
-`
+]}`,
+		expectedRoutes: `kube__rg__default__my_routes_____0:
+		Host("^(foo.example.org)$") -> <shunt>`,
+	},
+	/*	{
+				title: "single Kubernetes RouteGroup",
+				routeGroupJSON: `{"items": [
+		{
+		  "apiVersion": "zalando.org/v1",
+		  "kind": "RouteGroup",
+		  "metadata": {
+		    "name": "my-routes"
+		  },
+		  "spec": {
+		    "hosts": [
+		      "foo.example.org"
+		    ],
+		    "backends": [
+		      {
+		        "serviceName": "foo-service",
+		        "servicePort": 80
+		      }
+		    ],
+		    "routes": [
+		      {
+		        "path": "/"
+		      }
+		    ]
+		  }
+		}
+		]}`,
+				expectedRoutes: `kube__rg__default__my_routes_____0:
+				Host("^(foo.example.org)$") && Path("/") -> "http://foo-service"`,
+			},*/
+}
 
 type stringClient string
 
@@ -47,18 +88,7 @@ func (c stringClient) loadRouteGroups() ([]byte, error) {
 }
 
 func TestTransformRouteGroups(t *testing.T) {
-	for _, test := range []struct {
-		title          string
-		routeGroupJSON string
-		expectedRoutes string
-	}{{
-		title:          "empty doc",
-		routeGroupJSON: `{"items": []}`,
-	}, {
-		title:          "single route group",
-		routeGroupJSON: singleRouteGroup,
-		expectedRoutes: singleRouteGroupResult,
-	}} {
+	for _, test := range transTests {
 		t.Run(test.title, func(t *testing.T) {
 			dc, err := NewRouteGroupClient(RouteGroupsOptions{
 				Kubernetes: Options{},
@@ -70,16 +100,21 @@ func TestTransformRouteGroups(t *testing.T) {
 
 			r, err := dc.LoadAll()
 			if err != nil {
-				t.Error("Failed to convert route group document:", err)
+				t.Fatal("Failed to convert route group document:", err)
 			}
 
 			exp, err := eskip.Parse(test.expectedRoutes)
 			if err != nil {
-				t.Error("Failed to parse expected routes:", err)
+				t.Fatal("Failed to parse expected routes:", err)
+			}
+
+			if len(r) != len(exp) {
+				t.Fatalf("Failed to get number of routes expected %d, got %d", len(exp), len(r))
+				t.Log(cmp.Diff(eskip.CanonicalList(r), eskip.CanonicalList(exp)))
 			}
 
 			if !eskip.EqLists(r, exp) {
-				t.Error("Failed to convert the route groups to the right routes:", err)
+				t.Error("Failed to convert the route groups to the right routes.")
 				t.Log(cmp.Diff(eskip.CanonicalList(r), eskip.CanonicalList(exp)))
 			}
 		})
