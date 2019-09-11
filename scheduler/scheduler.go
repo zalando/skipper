@@ -208,7 +208,6 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 		rr[i] = ri
 		var lifoCount int
 		for _, fi := range ri.Filters {
-			// TODO: warn on multiple lifos in the same route
 			if glf, ok := fi.Filter.(GroupedLIFOFilter); ok {
 				groupName := glf.Group()
 				groups[groupName] = append(groups[groupName], glf)
@@ -240,7 +239,7 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 			lf.SetQueue(q)
 		}
 
-		if lifoCount > 0 {
+		if lifoCount > 1 {
 			log.Warnf("Found multiple lifo filters in route: %s", ri.Id)
 		}
 	}
