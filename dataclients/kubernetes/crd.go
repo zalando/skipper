@@ -91,6 +91,7 @@ type skipperBackend struct {
 	Endpoints []string
 }
 
+// TODO: do we use this? The way it is now is very imprecise and mixing concepts.
 // String implements stringer interface such that we can use it to set
 // eskip.Backend.
 func (sb skipperBackend) String() string {
@@ -166,8 +167,8 @@ func backendTypeFromString(s string) (eskip.BackendType, error) {
 	switch s {
 	case "", "service":
 		return serviceBackend, nil
-	case "external":
-		return externalURL, nil
+	case "network":
+		return eskip.NetworkBackend, nil
 	case "shunt":
 		return eskip.ShuntBackend, nil
 	case "loopback":

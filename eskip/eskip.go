@@ -175,7 +175,10 @@ type Route struct {
 	// load balancing backends.
 	LBEndpoints []string
 
-	Name      string
+	// Name is deprecated and not used.
+	Name string
+
+	// Namespace is deprecated and not used.
 	Namespace string
 }
 

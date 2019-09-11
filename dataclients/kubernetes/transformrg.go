@@ -14,9 +14,9 @@ func createHostRx(h []string) string {
 	return fmt.Sprintf("^(%s)$", strings.Join(h, "|"))
 }
 
-func mapBackends(spec *routeGroupSpec) map[string]*skipperBackend {
+func mapBackends(backends []*skipperBackend) map[string]*skipperBackend {
 	m := make(map[string]*skipperBackend)
-	for _, b := range spec.Backends {
+	for _, b := range backends {
 		m[b.Name] = b
 	}
 	return m
@@ -38,18 +38,17 @@ func toSymbol(p string) string {
 	return string(b)
 }
 
-func crdRouteID(m *metadata, path, method string, routeIndex, backendIndex int) string {
+func crdRouteID(m *metadata, method string, routeIndex, backendIndex int) string {
 	ns := m.Namespace
 	if ns == "" {
 		ns = "default"
 	}
 
 	return fmt.Sprintf(
-		"kube__rg__%s__%s__%s__%s__%d_%d",
+		"kube__rg__%s__%s__%s__%d_%d",
 		toSymbol(ns),
 		toSymbol(m.Name),
-		toSymbol(path),
-		strings.ToLower(method),
+		toSymbol(method),
 		routeIndex,
 		backendIndex,
 	)
@@ -62,40 +61,48 @@ func appendPredicate(p []*eskip.Predicate, name string, args ...interface{}) []*
 	})
 }
 
+func invalidBackendRef(name string) error {
+	return fmt.Errorf("invalid backend reference: %s", name)
+}
+
 func transformRouteGroup(rg *routeGroupItem) ([]*eskip.Route, error) {
 	if len(rg.Spec.Backends) == 0 {
 		return nil, fmt.Errorf("missing backend for route group: %s", rg.Metadata.Name)
 	}
 
 	hostRx := createHostRx(rg.Spec.Hosts)
-	refToBackend := mapBackends(rg.Spec)
+	refToBackend := mapBackends(rg.Spec.Backends)
 
 	var routes []*eskip.Route
-
 	if len(rg.Spec.Routes) == 0 {
 		if len(rg.Spec.DefaultBackends) == 0 {
-			return nil, fmt.Errorf("missing path spec for route group: %s", rg.Metadata.Name)
+			return nil, fmt.Errorf("missing route spec for route group: %s", rg.Metadata.Name)
 		}
+
 		for i, beref := range rg.Spec.DefaultBackends {
-			if be, ok := refToBackend[beref.BackendName]; ok {
-				rid := crdRouteID(rg.Metadata, "all", "all", i, 0)
-				ri := &eskip.Route{
-					Id:          rid,
-					BackendType: be.Type,
-					Backend:     be.String(),
-					LBAlgorithm: be.Algorithm.String(),
-					LBEndpoints: be.Endpoints,
-					Name:        be.Name, // TODO: or rg.Metadata.Name ?
-					Namespace:   rg.Metadata.Namespace,
-				}
-				routes = append(routes, ri)
+			be, ok := refToBackend[beref.BackendName]
+			if !ok {
+				return nil, invalidBackendRef(beref.BackendName)
 			}
+
+			rid := crdRouteID(rg.Metadata, "all", i, 0)
+			ri := &eskip.Route{
+				Id:          rid,
+				BackendType: be.Type,
+				Backend:     be.String(),
+				LBAlgorithm: be.Algorithm.String(),
+				LBEndpoints: be.Endpoints,
+			}
+
+			routes = append(routes, ri)
 		}
+
 		if len(rg.Spec.Hosts) > 0 {
 			for _, r := range routes {
 				r.HostRegexps = []string{hostRx}
 			}
 		}
+
 		return routes, nil
 	}
 
@@ -103,7 +110,13 @@ func transformRouteGroup(rg *routeGroupItem) ([]*eskip.Route, error) {
 		if len(sr.Methods) == 0 {
 			sr.Methods = []string{""}
 		}
-		for _, method := range sr.Methods {
+
+		uniqueMethods := make(map[string]struct{})
+		for _, m := range sr.Methods {
+			uniqueMethods[m] = struct{}{}
+		}
+
+		for method := range uniqueMethods {
 			backendRefs := rg.Spec.DefaultBackends
 			if len(sr.Backends) != 0 {
 				// case override defaultBackends
@@ -111,43 +124,30 @@ func transformRouteGroup(rg *routeGroupItem) ([]*eskip.Route, error) {
 			}
 
 			for j, bref := range backendRefs {
-				if r, err := getRoute(
-					refToBackend,
+				be, ok := refToBackend[bref.BackendName]
+				if !ok {
+					return nil, invalidBackendRef(bref.BackendName)
+				}
+
+				r, err := transformRoute(
 					sr,
-					crdRouteID(rg.Metadata, sr.Path, method, i, j),
-					bref.BackendName,
+					be,
+					crdRouteID(rg.Metadata, method, i, j),
 					hostRx,
 					method,
 					bref.Weight,
-				); err != nil {
+				)
+
+				if err != nil {
 					return nil, err
-				} else {
-					routes = append(routes, r)
 				}
+
+				routes = append(routes, r)
 			}
 		}
 	}
 
 	return routes, nil
-}
-
-func getRoute(refToBackend map[string]*skipperBackend, sr *routeSpec, rid, beName, hostRx, method string, weight int) (*eskip.Route, error) {
-	if be, ok := refToBackend[beName]; ok {
-		r, err := transformRoute(
-			sr,
-			be,
-			rid,
-			hostRx,
-			method,
-			weight)
-		if err != nil {
-			// TODO: review log and fail fast
-			log.Errorf("failed to transform route: %v", err)
-			return nil, err
-		}
-		return r, nil
-	}
-	return nil, fmt.Errorf("backend not found in reference table")
 }
 
 // transformRoute creates one eskip.Route for the specified input
@@ -162,8 +162,8 @@ func transformRoute(sr *routeSpec, be *skipperBackend, rid, hostRx, method strin
 	}
 
 	if sr.PathRegexp != "" {
-		// TODO: do we need to validate regexp correctness?
-		ri.PathRegexps = []string{"PathRegexp(" + sr.PathRegexp + ")"}
+		// TODO: do we need to validate regexp correctness? No, it's compiled in a later phase
+		ri.Predicates = appendPredicate(ri.Predicates, "PathRegexp", sr.PathRegexp)
 	}
 
 	if hostRx != "" {
@@ -196,8 +196,21 @@ func transformRoute(sr *routeSpec, be *skipperBackend, rid, hostRx, method strin
 
 	ri.Filters = f
 
-	ri.BackendType = be.Type
-	ri.Backend = be.String()
+	t := be.Type
+	if t == serviceBackend {
+		// TODO: resolve to LB with the endpoints
+		t = eskip.NetworkBackend
+	}
+
+	ri.BackendType = t
+	switch t {
+	case eskip.NetworkBackend:
+		ri.Backend = be.Address
+	case eskip.LBBackend:
+		ri.LBAlgorithm = be.Algorithm.String()
+		ri.LBEndpoints = be.Endpoints
+	}
+
 	return ri, nil
 }
 
