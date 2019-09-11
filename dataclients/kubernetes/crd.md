@@ -170,7 +170,7 @@ and additionally add a
   - <backendRef>
   filters: <stringarray>    optional
   predicates: <stringarray> optional
-  methods: <stringarray>     optional, one of the HTTP methods "GET|HEAD|PATCH|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE", defaults to all
+  methods: <stringarray>    optional, one of the HTTP methods per entry "GET|HEAD|PATCH|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE", defaults to all
 ```
 
 `<string>` is an arbitrary string
