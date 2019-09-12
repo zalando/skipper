@@ -16,6 +16,7 @@ var time0 = time.Now().Truncate(time.Second).UTC()
 var time1 = time.Now().Add(1)
 
 func TestRouteCreationMetrics_Do(t *testing.T) {
+	f, _ := NewOriginMarkerSpec().CreateFilter([]interface{}{"origin", "config1", time0})
 	for _, tt := range []struct {
 		name            string
 		route           routing.Route
@@ -28,7 +29,7 @@ func TestRouteCreationMetrics_Do(t *testing.T) {
 		},
 		{
 			name:            "start time provided",
-			route:           routing.Route{Filters: []*routing.RouteFilter{{Filter: OriginMarker{Origin: "origin", Id: "config1", Created: time0}}}},
+			route:           routing.Route{Filters: []*routing.RouteFilter{{Filter: f}}},
 			expectedMetrics: []string{"routeCreationTime.origin"},
 		},
 	} {
@@ -65,7 +66,7 @@ func TestRouteCreationMetrics_startTimes(t *testing.T) {
 		{
 			name: "first run doesn't provide metrics, just fills the cache (this origin was seen by the previous skipper instance)",
 			route: routing.Route{Filters: []*routing.RouteFilter{
-				{Filter: OriginMarker{Origin: "origin", Id: "config0", Created: time0}},
+				{Filter: &OriginMarker{Origin: "origin", Id: "config0", Created: time0}},
 			}},
 			initialized: false,
 			expected:    nil,
@@ -73,8 +74,8 @@ func TestRouteCreationMetrics_startTimes(t *testing.T) {
 		{
 			name: "start time from origin marker",
 			route: routing.Route{Filters: []*routing.RouteFilter{
-				{Filter: OriginMarker{Origin: "origin", Id: "config0", Created: time0}},
-				{Filter: OriginMarker{Origin: "origin", Id: "config1", Created: time1}},
+				{Filter: &OriginMarker{Origin: "origin", Id: "config0", Created: time0}},
+				{Filter: &OriginMarker{Origin: "origin", Id: "config1", Created: time1}},
 			}},
 			initialized: true,
 			expected:    map[string]time.Time{"origin": time0},
@@ -140,28 +141,28 @@ func TestRouteCreationMetrics_originStartTime(t *testing.T) {
 		{
 			name:            "config info with no time",
 			configIds:       map[string]map[string]int{},
-			filter:          OriginMarker{},
+			filter:          &OriginMarker{},
 			expectedOrigin:  "",
 			expectedCreated: time.Time{},
 		},
 		{
 			name:            "no config exists",
 			configIds:       map[string]map[string]int{},
-			filter:          OriginMarker{Origin: "origin", Id: "config1", Created: time0},
+			filter:          &OriginMarker{Origin: "origin", Id: "config1", Created: time0},
 			expectedOrigin:  "origin",
 			expectedCreated: time0,
 		},
 		{
 			name:            "same config",
 			configIds:       map[string]map[string]int{"origin": {"config0": 0}},
-			filter:          OriginMarker{Origin: "origin", Id: "config0", Created: time0},
+			filter:          &OriginMarker{Origin: "origin", Id: "config0", Created: time0},
 			expectedOrigin:  "",
 			expectedCreated: time.Time{},
 		},
 		{
 			name:            "new config",
 			configIds:       map[string]map[string]int{"origin": {"config0": 0}},
-			filter:          OriginMarker{Origin: "origin", Id: "config1", Created: time1},
+			filter:          &OriginMarker{Origin: "origin", Id: "config1", Created: time1},
 			expectedOrigin:  "origin",
 			expectedCreated: time1,
 		},

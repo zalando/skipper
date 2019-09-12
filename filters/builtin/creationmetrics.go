@@ -66,7 +66,7 @@ func (m *RouteCreationMetrics) startTimes(route *routing.Route) map[string]time.
 }
 
 func (m *RouteCreationMetrics) originStartTime(f filters.Filter) (string, time.Time) {
-	marker, ok := f.(OriginMarker)
+	marker, ok := f.(*OriginMarker)
 
 	if !ok {
 		return "", time.Time{}
