@@ -1,0 +1,118 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: routegroups.zalando.org
+spec:
+  group: zalando.org
+  version: v1
+  scope: Namespaced
+  names:
+    kind: RouteGroup
+    singular: routegroup
+    plural: routegroups
+    categories:
+    - all
+    shortNames:
+    - rg
+    - rgs
+  additionalPrinterColumns:
+  - name: Hosts
+    type: string
+    description: Hostnames expecting requests to
+    JSONPath: .spec.hosts
+  - name: Backends
+    type: string
+    description: Backends forwarding traffic to
+    JSONPath: .spec.backends
+  subresources:
+    # status enables the status subresource.
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          required:
+          - backends
+          - routes
+          properties:
+            hosts:
+              type: array
+              items:
+                type: string
+            backends:
+              type: array
+              minLength: 1
+              items:
+                required:
+                - type
+                - name
+                properties:
+                  type:
+                    type: string
+                    enum:
+                    - service
+                    - shunt
+                    - loopback
+                    - dynamic
+                    - lb
+                    - network
+                  name:
+                    type: string
+                  serviceName:
+                    type: string
+                  servicePort:
+                    type: int
+                  algorithm:
+                    type: string
+                    enum:
+                    - roundrobin
+                    - random
+                    - consistent-hash
+                  endpoints:
+                    type: array
+                    minLength: 1
+                    items:
+                      type: string
+                  address:
+                    type: string
+            defaultBackends:
+              type: array
+              items:
+                properties:
+                  backendName:
+                    type: string
+                  weight:
+                    type: integer
+                    minimum: 0
+            routes:
+              type: array
+              minLength: 1
+              items:
+                properties:
+                  path:
+                    type: string
+                  pathSubtree:
+                    type: string
+                  pathRegexp:
+                    type: string
+                  backends:
+                    type: array
+                    items:
+                      properties:
+                        backendName:
+                          type: string
+                        weight:
+                          type: integer
+                          minimum: 0
+                  filters:
+                    type: array
+                    items:
+                      type: string
+                  predicates:
+                    type: array
+                    items:
+                      type: string
+                  methods:
+                    type: array
+                    items:
+                      type: string
