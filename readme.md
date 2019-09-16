@@ -242,12 +242,16 @@ You should have a base understanding of [Kubernetes](https://kubernetes.io) and
 
 See https://github.com/zalando/skipper/blob/master/packaging/readme.md
 
+Skipper uses Go modules, so you might need to add `GO111MODULE=on` in
+your custom build process.
+
 In case you want to implement and link your own modules into your
-skipper for more advanced features like [opentracing API](https://github.com/opentracing) support there
-is https://github.com/skipper-plugins organization to enable you to do
+skipper, there is https://github.com/skipper-plugins organization to enable you to do
 so. In order to explain you the build process with custom Go modules
 there is https://github.com/skipper-plugins/skipper-tracing-build,
-that is used to build skipper's [opentracing package](https://github.com/skipper-plugins/opentracing).
+that was used to build skipper's [opentracing
+package](https://github.com/skipper-plugins/opentracing).
+We moved the opentracing plugin source into the `tracing` package.
 
 
 ## Community

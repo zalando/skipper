@@ -23,7 +23,7 @@ my-repo.
 
 **Test:**
 
-Create some artefacts to run skipper in the image:
+Create some artifacts to run skipper in the image:
 
 ```
 echo '<p>Hello, world!</p>' > hello.html
