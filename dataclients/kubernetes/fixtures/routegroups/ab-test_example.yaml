@@ -1,0 +1,35 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  backends:
+  - name: variant-a
+    type: service
+    serviceName: service-a
+    servicePort: 80
+  - name: variant-b
+    type: service
+    serviceName: service-b
+    servicePort: 80
+  defaultBackends:
+  - backendName: variant-b
+  routes:
+  - pathSubtree: /
+    filters:
+    - responseCookie("variant", "A") # set a variant Cookie to A
+    predicates:
+    - Traffic(.1)                    # 10% chance
+    backends:
+    - backendName: variant-a         # overrides default
+  - pathSubtree: /
+    filters:
+    - responseCookie("variant", "B")
+  - pathSubtree: /
+    predicates:
+    - Cookie("variant", "A")         # sticky match
+    backends:
+    - backendName: variant-a         # overrides default
+  - pathSubtree: /
+    predicates:
+    - Cookie("variant", "B")

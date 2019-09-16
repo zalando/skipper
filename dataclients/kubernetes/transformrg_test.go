@@ -1,122 +1,174 @@
 package kubernetes
 
 import (
+	"bytes"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
+	yaml2json "github.com/ghodss/yaml"
+	"github.com/go-yaml/yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/zalando/skipper/eskip"
 )
 
+type jsonClient []byte
+
 type transformationTest struct {
-	title          string
-	routeGroupJSON string
-	expectedRoutes string
+	title           string
+	routeGroupsPath string
+	routesPath      string
 }
 
-var transTests []transformationTest = []transformationTest{
-	{
-		title:          "empty doc",
-		routeGroupJSON: `{"items": []}`,
-	},
-	{
-		title: "simplest host Route Group",
-		routeGroupJSON: `{"items": [
-{
-  "apiVersion": "zalando.org/v1",
-  "kind": "RouteGroup",
-  "metadata": {
-    "name": "my-routes",
-    "namespace": "default"
-  },
-  "spec": {
-    "hosts": [
-      "foo.example.org"
-    ],
-    "backends": [
-      {
-        "name": "be1",
-        "type": "shunt"
-      }
-    ],
-    "defaultBackends": [
-      {
-        "backendName": "be1"
-      }
-    ]
-  }
-}
-]}`,
-		expectedRoutes: `kube__rg__default__my_routes_____0:
-		Host("^(foo.example.org)$") -> <shunt>`,
-	},
-	/*	{
-				title: "single Kubernetes RouteGroup",
-				routeGroupJSON: `{"items": [
-		{
-		  "apiVersion": "zalando.org/v1",
-		  "kind": "RouteGroup",
-		  "metadata": {
-		    "name": "my-routes"
-		  },
-		  "spec": {
-		    "hosts": [
-		      "foo.example.org"
-		    ],
-		    "backends": [
-		      {
-		        "serviceName": "foo-service",
-		        "servicePort": 80
-		      }
-		    ],
-		    "routes": [
-		      {
-		        "path": "/"
-		      }
-		    ]
-		  }
+func yaml2JSON(y []byte) ([]byte, error) {
+	d := yaml.NewDecoder(bytes.NewBuffer(y))
+
+	var yo []interface{}
+	for {
+		var o interface{}
+		if err := d.Decode(&o); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
 		}
-		]}`,
-				expectedRoutes: `kube__rg__default__my_routes_____0:
-				Host("^(foo.example.org)$") && Path("/") -> "http://foo-service"`,
-			},*/
+
+		yo = append(yo, o)
+	}
+
+	yd := map[string]interface{}{
+		"items": yo,
+	}
+
+	yb, err := yaml.Marshal(yd)
+	if err != nil {
+		return nil, err
+	}
+
+	return yaml2json.YAMLToJSON(yb)
 }
 
-type stringClient string
-
-func (c stringClient) loadRouteGroups() ([]byte, error) {
+func (c jsonClient) loadRouteGroups() ([]byte, error) {
 	return []byte(c), nil
 }
 
+func collectFixtures() ([]transformationTest, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	fixtures := filepath.Join(wd, "fixtures/routegroups")
+	d, err := os.Open(fixtures)
+	if err != nil {
+		return nil, err
+	}
+
+	fs, err := d.Readdir(0)
+	if err != nil {
+		return nil, err
+	}
+
+	println(len(fs))
+
+	sort.Slice(fs, func(i, j int) bool {
+		return fs[i].Name() < fs[j].Name()
+	})
+
+	tests := make([]transformationTest, 0, len(fs)/2)
+	for len(fs) > 1 {
+		var t transformationTest
+		name := fs[0].Name()
+		firstExt := filepath.Ext(name)
+		t.title = name[:len(name)-len(firstExt)]
+
+		nameDot := t.title + "."
+		for {
+			name = fs[0].Name()
+			if !strings.HasPrefix(name, nameDot) {
+				break
+			}
+
+			if filepath.Ext(name) == ".yaml" {
+				t.routeGroupsPath = filepath.Join(fixtures, name)
+			}
+
+			if filepath.Ext(name) == ".eskip" {
+				t.routesPath = filepath.Join(fixtures, name)
+			}
+
+			fs = fs[1:]
+		}
+
+		if t.routeGroupsPath != "" && t.routesPath != "" {
+			tests = append(tests, t)
+		}
+	}
+
+	return tests, nil
+}
+
+func (test transformationTest) run(t *testing.T) {
+	rgf, err := os.Open(test.routeGroupsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	y, err := ioutil.ReadAll(rgf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	j, err := yaml2JSON(y)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dc, err := NewRouteGroupClient(RouteGroupsOptions{
+		Kubernetes: Options{},
+		apiClient:  jsonClient(j),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	routes, err := dc.LoadAll()
+	if err != nil {
+		t.Fatal("Failed to convert route group document:", err)
+	}
+
+	rf, err := os.Open(test.routesPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e, err := ioutil.ReadAll(rf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedRoutes, err := eskip.Parse(string(e))
+	if err != nil {
+		t.Fatal("Failed to parse expected routes:", err)
+	}
+
+	if !eskip.EqLists(routes, expectedRoutes) {
+		t.Error("Failed to convert the route groups to the right routes.")
+		t.Logf("routes: %d, expected: %d", len(routes), len(expectedRoutes))
+		t.Log(cmp.Diff(eskip.CanonicalList(routes), eskip.CanonicalList(expectedRoutes)))
+	}
+}
+
 func TestTransformRouteGroups(t *testing.T) {
-	for _, test := range transTests {
-		t.Run(test.title, func(t *testing.T) {
-			dc, err := NewRouteGroupClient(RouteGroupsOptions{
-				Kubernetes: Options{},
-				apiClient:  stringClient(test.routeGroupJSON),
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
+	tests, err := collectFixtures()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			r, err := dc.LoadAll()
-			if err != nil {
-				t.Fatal("Failed to convert route group document:", err)
-			}
-
-			exp, err := eskip.Parse(test.expectedRoutes)
-			if err != nil {
-				t.Fatal("Failed to parse expected routes:", err)
-			}
-
-			if len(r) != len(exp) {
-				t.Fatalf("Failed to get number of routes expected %d, got %d", len(exp), len(r))
-				t.Log(cmp.Diff(eskip.CanonicalList(r), eskip.CanonicalList(exp)))
-			}
-
-			if !eskip.EqLists(r, exp) {
-				t.Error("Failed to convert the route groups to the right routes.")
-				t.Log(cmp.Diff(eskip.CanonicalList(r), eskip.CanonicalList(exp)))
-			}
-		})
+	for _, test := range tests {
+		t.Run(test.title, test.run)
 	}
 }

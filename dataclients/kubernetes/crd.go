@@ -102,8 +102,6 @@ func (sb skipperBackend) String() string {
 		return "<loopback>"
 	case eskip.DynamicBackend:
 		return "<dynamic>"
-	case externalURL, eskip.NetworkBackend:
-		return sb.Address
 	case serviceBackend, eskip.LBBackend:
 		return fmt.Sprintf("<%s, %s>", sb.Algorithm, strings.Join(sb.Endpoints, ", "))
 	}
@@ -160,7 +158,6 @@ const (
 // --> As CRD we have to lookup endpoints ourselves, maybe via kube.go
 const (
 	serviceBackend = eskip.LBBackend + 1 + iota
-	externalURL
 )
 
 func backendTypeFromString(s string) (eskip.BackendType, error) {
@@ -186,8 +183,6 @@ func backendTypeToString(t eskip.BackendType) string {
 	switch t {
 	case serviceBackend:
 		return "service"
-	case externalURL:
-		return "external"
 	default:
 		return t.String()
 	}
@@ -244,7 +239,7 @@ func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
 	b.Address = p.Address
 	b.ServiceName = p.ServiceName
 	if p.ServicePort < 0 || p.ServicePort > 2<<16-1 {
-		return fmt.Errorf("Failed to validate ServicePort, should be in range uint16")
+		return fmt.Errorf("failed to validate ServicePort, should be in range uint16")
 	}
 	b.ServicePort = p.ServicePort
 	b.Algorithm = a

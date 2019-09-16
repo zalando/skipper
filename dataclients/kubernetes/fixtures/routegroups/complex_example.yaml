@@ -1,0 +1,36 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: api
+spec:
+  hosts:
+  - api.example.org
+  - api.service.example.net
+  backends:
+  - name: api-svc
+    type: service
+    serviceName: api-service-v1
+    servicePort: 80
+  defaultBackends:
+  - backendName: api-svc
+  routes:
+  - path: /api/resource
+    methods:
+    - post
+    - put
+    filters:
+    - ratelimit(20, "1m")
+    - oauthTokeninfoAllKV("iss", "https://accounts.google.com", "email", "important@example.org")
+    predicates:
+    - JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+  - path: /api/resource
+    methods:
+    - post
+    - put
+    filters:
+    - ratelimit(2, "1m")
+    - oauthTokeninfoAnyKV("iss", "https://accounts.google.com", "iss", "https://accounts.github.com")
+  - path: /api/resource
+    filters:
+    - clientRatelimit(10, "1h", "Authorization")
+    - oauthTokeninfoAllScope("read.resource", "list.resource")

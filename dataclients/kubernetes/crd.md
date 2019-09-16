@@ -178,7 +178,7 @@ information required to create the skipper
 
 The `defaultBackends` key is a list of `<backendRef>` to be used for
 all routes that have no overrides defined. In normal cases the list is
-length of 1. The list with more entries is used in case of traffic
+of length 1. The list with more entries is used in case of traffic
 switching.
 
 The `<backendRef>` object references the backend by name and adds an
@@ -359,7 +359,7 @@ spec:
 #### Complex routes with ratelimits based on tokens
 
 A complex route case could specify different ratelimits for POST and PUT
-requests to /api/resource for clients.  Clients that have JWT/OAuth2
+requests to /api/resource for clients. Clients that have JWT/OAuth2
 Tokens from issuer https://accounts.google.com with email
 "important@example.org" get 20/equest per minute, other clients with
 Token with issuer https://accounts.google.com or
