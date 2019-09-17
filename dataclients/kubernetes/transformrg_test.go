@@ -92,11 +92,10 @@ func collectFixtures() ([]transformationTest, error) {
 				break
 			}
 
-			if filepath.Ext(name) == ".yaml" {
+			switch filepath.Ext(name) {
+			case ".yaml":
 				t.routeGroupsPath = filepath.Join(fixtures, name)
-			}
-
-			if filepath.Ext(name) == ".eskip" {
+			case ".eskip":
 				t.routesPath = filepath.Join(fixtures, name)
 			}
 

@@ -228,6 +228,7 @@ type ingressContext struct {
 var (
 	nonWord = regexp.MustCompile(`\W`)
 
+	errResourceNotFound     = errors.New("resource not found")
 	errServiceNotFound      = errors.New("service not found")
 	errEndpointNotFound     = errors.New("endpoint not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
@@ -437,29 +438,32 @@ func buildAPIURL(o Options) (string, error) {
 	return "https://" + net.JoinHostPort(host, port), nil
 }
 
-func (c *Client) createRequest(method, url string, body io.Reader) (*http.Request, error) {
+func createRequest(token, method, url string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
 	}
 
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	return req, nil
 }
 
-func (c *Client) getJSON(uri string, a interface{}) error {
-	url := c.apiURL + uri
+func (c *Client) createRequest(method, url string, body io.Reader) (*http.Request, error) {
+	return createRequest(c.token, method, url, body)
+}
+
+func getJSON(c *http.Client, token, url string, a interface{}) error {
 	log.Debugf("making request to: %s", url)
 
-	req, err := c.createRequest("GET", url, nil)
+	req, err := createRequest(token, "GET", url, nil)
 	if err != nil {
 		return err
 	}
 
-	rsp, err := c.httpClient.Do(req)
+	rsp, err := c.Do(req)
 	if err != nil {
 		log.Debugf("request to %s failed: %v", url, err)
 		return err
@@ -469,7 +473,7 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode == http.StatusNotFound {
-		return errServiceNotFound
+		return errResourceNotFound
 	}
 
 	if rsp.StatusCode != http.StatusOK {
@@ -489,6 +493,10 @@ func (c *Client) getJSON(uri string, a interface{}) error {
 	}
 
 	return err
+}
+
+func (c *Client) getJSON(uri string, a interface{}) error {
+	return getJSON(c.httpClient, c.token, c.apiURL+uri, a)
 }
 
 func (c *Client) getServiceURL(svc *service, port backendPort) (string, error) {
@@ -1007,7 +1015,7 @@ func (c *Client) addEndpointsRule(ic ingressContext, host string, prule *pathRul
 	endpointsRoute, err := c.convertPathRule(ic.state, ic.ingress.Metadata, host, prule, ic.pathMode)
 	if err != nil {
 		// if the service is not found the route should be removed
-		if err == errServiceNotFound {
+		if err == errServiceNotFound || err == errResourceNotFound {
 			return nil
 		}
 		// Ingress status field does not support errors

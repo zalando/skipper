@@ -61,7 +61,7 @@ spec:
                   serviceName:
                     type: string
                   servicePort:
-                    type: int
+                    type: integer
                   algorithm:
                     type: string
                     enum:
