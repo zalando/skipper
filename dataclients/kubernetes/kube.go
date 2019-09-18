@@ -1,13 +1,8 @@
 package kubernetes
 
 import (
-	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -15,7 +10,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -31,21 +25,10 @@ import (
 )
 
 const (
-	defaultKubernetesURL               = "http://localhost:8001"
-	ingressesClusterURI                = "/apis/extensions/v1beta1/ingresses"
-	ingressesNamespaceFmt              = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
-	ingressClassKey                    = "kubernetes.io/ingress.class"
 	defaultIngressClass                = "skipper"
 	defaultLoadbalancerAlgorithm       = "roundRobin"
 	ingressRouteIDPrefix               = "kube"
 	defaultEastWestDomainRegexpPostfix = "[.]skipper[.]cluster[.]local"
-	endpointsClusterURI                = "/api/v1/endpoints"
-	endpointsNamespaceFmt              = "/api/v1/namespaces/%s/endpoints"
-	servicesClusterURI                 = "/api/v1/services"
-	servicesNamespaceFmt               = "/api/v1/namespaces/%s/services"
-	serviceAccountDir                  = "/var/run/secrets/kubernetes.io/serviceaccount/"
-	serviceAccountTokenKey             = "token"
-	serviceAccountRootCAKey            = "ca.crt"
 	serviceHostEnvVar                  = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar                  = "KUBERNETES_SERVICE_PORT"
 	healthcheckRouteID                 = "kube__healthz"
@@ -188,7 +171,7 @@ type Options struct {
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
-	httpClient                  *http.Client
+	clusterClient               *clusterClient
 	provideHealthcheck          bool
 	healthy                     bool
 	provideHTTPSRedirect        bool
@@ -196,15 +179,9 @@ type Client struct {
 	reverseSourcePredicate      bool
 	kubernetesEnableEastWest    bool
 	httpsRedirectCode           int
-	apiURL                      string
-	token                       string
 	eastWestDomainRegexpPostfix string
-	ingressesURI                string
-	servicesURI                 string
-	endpointsURI                string
 	current                     map[string]*eskip.Route
 	sigs                        chan os.Signal
-	ingressClass                *regexp.Regexp
 	pathMode                    PathMode
 	quit                        chan struct{}
 	defaultFiltersDir           string
@@ -225,30 +202,13 @@ type ingressContext struct {
 	defaultFilters      map[resourceId]string
 }
 
-var (
-	nonWord = regexp.MustCompile(`\W`)
-
-	errResourceNotFound     = errors.New("resource not found")
-	errServiceNotFound      = errors.New("service not found")
-	errEndpointNotFound     = errors.New("endpoint not found")
-	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
-	errInvalidCertificate   = errors.New("invalid CA")
-)
+var nonWord = regexp.MustCompile(`\W`)
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) (*Client, error) {
 	quit := make(chan struct{})
-	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster, quit)
-	if err != nil {
-		return nil, err
-	}
 
 	apiURL, err := buildAPIURL(o)
-	if err != nil {
-		return nil, err
-	}
-
-	token, err := readServiceAccountToken(serviceAccountDir+serviceAccountTokenKey, o.KubernetesInCluster)
 	if err != nil {
 		return nil, err
 	}
@@ -256,11 +216,6 @@ func New(o Options) (*Client, error) {
 	ingCls := defaultIngressClass
 	if o.IngressClass != "" {
 		ingCls = o.IngressClass
-	}
-
-	ingClsRx, err := regexp.Compile(ingCls)
-	if err != nil {
-		return nil, err
 	}
 
 	log.Debugf(
@@ -300,37 +255,42 @@ func New(o Options) (*Client, error) {
 		eastWestDomainRegexpPostfix = "[.]" + strings.Replace(o.KubernetesEastWestDomain, ".", "[.]", -1)
 	}
 
-	result := &Client{
-		httpClient:                  httpClient,
-		apiURL:                      apiURL,
+	clusterClient, err := newClusterClient(o, apiURL, ingCls, quit)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Client{
+		clusterClient:               clusterClient,
 		provideHealthcheck:          o.ProvideHealthcheck,
 		provideHTTPSRedirect:        o.ProvideHTTPSRedirect,
 		httpsRedirectCode:           httpsRedirectCode,
 		current:                     make(map[string]*eskip.Route),
-		token:                       token,
 		sigs:                        sigs,
-		ingressClass:                ingClsRx,
 		reverseSourcePredicate:      o.ReverseSourcePredicate,
 		pathMode:                    o.PathMode,
 		quit:                        quit,
 		kubernetesEnableEastWest:    o.KubernetesEnableEastWest,
 		eastWestDomainRegexpPostfix: eastWestDomainRegexpPostfix,
-		ingressesURI:                ingressesClusterURI,
-		servicesURI:                 servicesClusterURI,
-		endpointsURI:                endpointsClusterURI,
 		defaultFiltersDir:           o.DefaultFiltersDir,
 		originMarker:                o.OriginMarker,
-	}
-	if o.KubernetesNamespace != "" {
-		result.setNamespace(o.KubernetesNamespace)
-	}
-	return result, nil
+	}, nil
 }
 
-func (c *Client) setNamespace(namespace string) {
-	c.ingressesURI = fmt.Sprintf(ingressesNamespaceFmt, namespace)
-	c.servicesURI = fmt.Sprintf(servicesNamespaceFmt, namespace)
-	c.endpointsURI = fmt.Sprintf(endpointsNamespaceFmt, namespace)
+func buildAPIURL(o Options) (string, error) {
+	if !o.KubernetesInCluster {
+		if o.KubernetesURL == "" {
+			return defaultKubernetesURL, nil
+		}
+		return o.KubernetesURL, nil
+	}
+
+	host, port := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
+	if host == "" || port == "" {
+		return "", errAPIServerURLNotFound
+	}
+
+	return "https://" + net.JoinHostPort(host, port), nil
 }
 
 // String returns the string representation of the path mode, the same
@@ -361,145 +321,7 @@ func ParsePathMode(s string) (PathMode, error) {
 	}
 }
 
-func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, error) {
-	if !inCluster {
-		return "", nil
-	}
-
-	bToken, err := ioutil.ReadFile(tokenFilePath)
-	if err != nil {
-		return "", err
-	}
-
-	return string(bToken), nil
-}
-
-func buildHTTPClient(certFilePath string, inCluster bool, quit chan struct{}) (*http.Client, error) {
-	if !inCluster {
-		return http.DefaultClient, nil
-	}
-
-	rootCA, err := ioutil.ReadFile(certFilePath)
-	if err != nil {
-		return nil, err
-	}
-	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(rootCA) {
-		return nil, errInvalidCertificate
-	}
-
-	transport := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-		}).DialContext,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second,
-		ExpectContinueTimeout: 30 * time.Second,
-		MaxIdleConns:          5,
-		MaxIdleConnsPerHost:   5,
-		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			RootCAs:    certPool,
-		},
-	}
-
-	// regularly force closing idle connections
-	go func() {
-		for {
-			select {
-			case <-time.After(10 * time.Second):
-				transport.CloseIdleConnections()
-			case <-quit:
-				return
-			}
-		}
-	}()
-
-	return &http.Client{
-		Transport: transport,
-	}, nil
-}
-
-func buildAPIURL(o Options) (string, error) {
-	if !o.KubernetesInCluster {
-		if o.KubernetesURL == "" {
-			return defaultKubernetesURL, nil
-		}
-		return o.KubernetesURL, nil
-	}
-
-	host, port := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
-	if host == "" || port == "" {
-		return "", errAPIServerURLNotFound
-	}
-
-	return "https://" + net.JoinHostPort(host, port), nil
-}
-
-func createRequest(token, method, url string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest(method, url, body)
-	if err != nil {
-		return nil, err
-	}
-
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	return req, nil
-}
-
-func (c *Client) createRequest(method, url string, body io.Reader) (*http.Request, error) {
-	return createRequest(c.token, method, url, body)
-}
-
-func getJSON(c *http.Client, token, url string, a interface{}) error {
-	log.Debugf("making request to: %s", url)
-
-	req, err := createRequest(token, "GET", url, nil)
-	if err != nil {
-		return err
-	}
-
-	rsp, err := c.Do(req)
-	if err != nil {
-		log.Debugf("request to %s failed: %v", url, err)
-		return err
-	}
-
-	log.Debugf("request to %s succeeded", url)
-	defer rsp.Body.Close()
-
-	if rsp.StatusCode == http.StatusNotFound {
-		return errResourceNotFound
-	}
-
-	if rsp.StatusCode != http.StatusOK {
-		log.Debugf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
-		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
-	}
-
-	b := bytes.NewBuffer(nil)
-	if _, err = io.Copy(b, rsp.Body); err != nil {
-		log.Debugf("reading response body failed: %v", err)
-		return err
-	}
-
-	err = json.Unmarshal(b.Bytes(), a)
-	if err != nil {
-		log.Debugf("invalid response format: %v", err)
-	}
-
-	return err
-}
-
-func (c *Client) getJSON(uri string, a interface{}) error {
-	return getJSON(c.httpClient, c.token, c.apiURL+uri, a)
-}
-
-func (c *Client) getServiceURL(svc *service, port backendPort) (string, error) {
+func getServiceURL(svc *service, port backendPort) (string, error) {
 	if p, ok := port.number(); ok {
 		log.Debugf("service port as number: %d", p)
 		return fmt.Sprintf("http://%s:%d", svc.Spec.ClusterIP, p), nil
@@ -609,7 +431,7 @@ func (c *Client) convertDefaultBackend(state *clusterState, i *ingressItem) (*es
 
 	if len(eps) == 0 || err == errEndpointNotFound {
 
-		address, err2 := c.getServiceURL(svc, svcPort)
+		address, err2 := getServiceURL(svc, svcPort)
 		if err2 != nil {
 			return nil, false, err2
 		}
@@ -716,7 +538,7 @@ func (c *Client) convertPathRule(
 
 	if len(eps) == 0 || err == errEndpointNotFound {
 
-		address, err2 := c.getServiceURL(svc, svcPort)
+		address, err2 := getServiceURL(svc, svcPort)
 		if err2 != nil {
 			return nil, err2
 		}
@@ -1245,110 +1067,8 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 	return m
 }
 
-// filterIngressesByClass will filter only the ingresses that have the valid class, these are
-// the defined one, empty string class or not class at all
-func (c *Client) filterIngressesByClass(items []*ingressItem) []*ingressItem {
-	validIngs := []*ingressItem{}
-
-	for _, ing := range items {
-		// No metadata is the same as no annotations for us
-		if ing.Metadata != nil {
-			cls, ok := ing.Metadata.Annotations[ingressClassKey]
-			// Skip loop iteration if not valid ingress (non defined, empty or non defined one)
-			if ok && cls != "" && !c.ingressClass.MatchString(cls) {
-				continue
-			}
-		}
-		validIngs = append(validIngs, ing)
-	}
-
-	return validIngs
-}
-
-func (c *Client) loadIngresses() ([]*ingressItem, error) {
-	var il ingressList
-	if err := c.getJSON(c.ingressesURI, &il); err != nil {
-		log.Debugf("requesting all ingresses failed: %v", err)
-		return nil, err
-	}
-
-	log.Debugf("all ingresses received: %d", len(il.Items))
-	fItems := c.filterIngressesByClass(il.Items)
-	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
-
-	sort.Slice(fItems, func(i, j int) bool {
-		mI := fItems[i].Metadata
-		mJ := fItems[j].Metadata
-		if mI == nil && mJ != nil {
-			return true
-		} else if mJ == nil {
-			return false
-		}
-		nsI := mI.Namespace
-		nsJ := mJ.Namespace
-		if nsI != nsJ {
-			return nsI < nsJ
-		}
-		return mI.Name < mJ.Name
-	})
-
-	return fItems, nil
-}
-
-func (c *Client) loadServices() (map[resourceId]*service, error) {
-	var services serviceList
-	if err := c.getJSON(c.servicesURI, &services); err != nil {
-		log.Debugf("requesting all services failed: %v", err)
-		return nil, err
-	}
-
-	log.Debugf("all services received: %d", len(services.Items))
-	result := make(map[resourceId]*service)
-	for _, service := range services.Items {
-		result[service.Meta.toResourceId()] = service
-	}
-	return result, nil
-}
-
-func (c *Client) loadEndpoints() (map[resourceId]*endpoint, error) {
-	var endpoints endpointList
-	if err := c.getJSON(c.endpointsURI, &endpoints); err != nil {
-		log.Debugf("requesting all endpoints failed: %v", err)
-		return nil, err
-	}
-
-	log.Debugf("all endpoints received: %d", len(endpoints.Items))
-	result := make(map[resourceId]*endpoint)
-	for _, endpoint := range endpoints.Items {
-		result[endpoint.Meta.toResourceId()] = endpoint
-	}
-	return result, nil
-}
-
-func (c *Client) fetchClusterState() (*clusterState, error) {
-	ingresses, err := c.loadIngresses()
-	if err != nil {
-		return nil, err
-	}
-	services, err := c.loadServices()
-	if err != nil {
-		return nil, err
-	}
-	endpoints, err := c.loadEndpoints()
-	if err != nil {
-		return nil, err
-	}
-
-	return &clusterState{
-		ingresses:       ingresses,
-		services:        services,
-		endpoints:       endpoints,
-		cachedEndpoints: make(map[endpointId][]string),
-	}, nil
-}
-
 func (c *Client) loadAndConvert() (*clusterState, []*eskip.Route, error) {
-	state, err := c.fetchClusterState()
+	state, err := c.clusterClient.fetchClusterState()
 	if err != nil {
 		return nil, nil, err
 	}

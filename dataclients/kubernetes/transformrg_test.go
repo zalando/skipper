@@ -72,8 +72,6 @@ func collectFixtures() ([]transformationTest, error) {
 		return nil, err
 	}
 
-	println(len(fs))
-
 	sort.Slice(fs, func(i, j int) bool {
 		return fs[i].Name() < fs[j].Name()
 	})
@@ -162,6 +160,8 @@ func (test transformationTest) run(t *testing.T) {
 }
 
 func TestTransformRouteGroups(t *testing.T) {
+	t.Skip()
+
 	tests, err := collectFixtures()
 	if err != nil {
 		t.Fatal(err)

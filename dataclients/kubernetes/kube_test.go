@@ -865,7 +865,7 @@ func TestIngressClassFilter(t *testing.T) {
 				return
 			}
 
-			c := &Client{
+			c := &clusterClient{
 				ingressClass: clsRx,
 			}
 
@@ -1898,7 +1898,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			state, err := dc.fetchClusterState()
+			state, err := dc.clusterClient.fetchClusterState()
 			require.NoError(t, err)
 
 			route, err := dc.convertPathRule(state, &metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
@@ -2215,27 +2215,22 @@ func TestCreateRequest(t *testing.T) {
 	)
 	rc := ioutil.NopCloser(&buf)
 
-	client := &Client{}
+	client := &clusterClient{}
 
 	url = "A%"
-	_, err = client.createRequest("GET", url, rc)
+	_, err = client.createRequest(url, rc)
 	if err == nil {
 		t.Error("request creation should fail")
 	}
 
 	url = "https://www.example.org"
-	_, err = client.createRequest("GET", url, rc)
+	_, err = client.createRequest(url, rc)
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = client.createRequest("//", url, rc)
-	if err == nil {
-		t.Error("request creation should fail")
-	}
-
 	client.token = "1234"
-	req, err = client.createRequest("POST", url, rc)
+	req, err = client.createRequest(url, rc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -2245,7 +2240,7 @@ func TestCreateRequest(t *testing.T) {
 	if req.Header.Get("Authorization") != "Bearer 1234" {
 		t.Errorf("incorrect authorization header set")
 	}
-	if req.Method != "POST" {
+	if req.Method != "GET" {
 		t.Errorf("incorrect method is set")
 	}
 }
@@ -2382,7 +2377,7 @@ func TestReadServiceAccountToken(t *testing.T) {
 }
 
 func TestScoping(t *testing.T) {
-	client := &Client{}
+	client := &clusterClient{}
 
 	client.setNamespace("test")
 	assert.Equal(t, "/apis/extensions/v1beta1/namespaces/test/ingresses", client.ingressesURI)
