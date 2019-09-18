@@ -97,7 +97,7 @@ func (m *RouteCreationMetrics) originStartTime(f filters.Filter) (string, time.T
 		"origin":  origin,
 		"id":      id,
 		"seconds": time.Since(created).Seconds(),
-	}).Info("route creation time")
+	}).Debug("route creation time")
 
 	return origin, created
 }
@@ -110,7 +110,7 @@ func (m *RouteCreationMetrics) pruneCache() {
 				log.WithFields(log.Fields{
 					"origin": origin,
 					"id":     id,
-				}).Info("delete from route creation cache")
+				}).Debug("delete from route creation cache")
 
 				delete(idAges, id)
 			} else {
@@ -119,7 +119,7 @@ func (m *RouteCreationMetrics) pruneCache() {
 		}
 
 		if len(idAges) == 0 {
-			log.WithField("origin", origin).Info("delete from route creation cache")
+			log.WithField("origin", origin).Debug("delete from route creation cache")
 
 			delete(m.originIdAges, origin)
 		}
