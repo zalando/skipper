@@ -33,8 +33,15 @@ func NewRouteCreationMetrics(metrics filters.Metrics) *RouteCreationMetrics {
 func (m *RouteCreationMetrics) Do(routes []*routing.Route) []*routing.Route {
 	for _, r := range routes {
 		for origin, start := range m.startTimes(r) {
-			m.metrics.MeasureSince(metricsPrefix+origin, start)
+			if m.initialized {
+				m.metrics.MeasureSince(metricsPrefix+origin, start)
+			}
 		}
+	}
+
+	if !m.initialized {
+		//must be done after filling the cache
+		m.initialized = true
 	}
 
 	m.pruneCache()
@@ -56,12 +63,6 @@ func (m *RouteCreationMetrics) startTimes(route *routing.Route) map[string]time.
 		if !exists || t.Before(old) {
 			startTimes[origin] = t
 		}
-	}
-
-	if !m.initialized {
-		//must be done after filling the cache
-		m.initialized = true
-		return nil
 	}
 
 	return startTimes
