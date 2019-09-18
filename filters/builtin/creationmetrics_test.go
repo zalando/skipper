@@ -19,25 +19,45 @@ func TestRouteCreationMetrics_Do(t *testing.T) {
 	f, _ := NewOriginMarkerSpec().CreateFilter([]interface{}{"origin", "config1", time0})
 	for _, tt := range []struct {
 		name            string
-		route           routing.Route
+		routes          []*routing.Route
+		initialized     bool
 		expectedMetrics []string
 	}{
 		{
 			name:            "no start time provided",
-			route:           routing.Route{},
+			routes:          nil,
+			initialized:     true,
 			expectedMetrics: []string{},
 		},
 		{
 			name:            "start time provided",
-			route:           routing.Route{Filters: []*routing.RouteFilter{{Filter: f}}},
+			routes:          []*routing.Route{{Filters: []*routing.RouteFilter{{Filter: f}}}},
+			initialized:     true,
 			expectedMetrics: []string{"routeCreationTime.origin"},
+		},
+		{
+			name: "first run doesn't provide metrics, just fills the cache (this origin was seen by the previous skipper instance)",
+			routes: []*routing.Route{
+				{
+					Filters: []*routing.RouteFilter{
+						{Filter: &OriginMarker{Origin: "origin", Id: "config0", Created: time0}},
+					},
+				},
+				{
+					Filters: []*routing.RouteFilter{
+						{Filter: &OriginMarker{Origin: "origin", Id: "config1", Created: time0}},
+					},
+				},
+			},
+			initialized:     false,
+			expectedMetrics: []string{},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			metrics := metricstest.MockMetrics{}
 			creationMetrics := NewRouteCreationMetrics(&metrics)
-			creationMetrics.initialized = true
-			creationMetrics.Do([]*routing.Route{&tt.route})
+			creationMetrics.initialized = tt.initialized
+			creationMetrics.Do(tt.routes)
 
 			metrics.WithMeasures(func(measures map[string][]time.Duration) {
 				assert.Len(t, measures, len(tt.expectedMetrics))
@@ -46,30 +66,22 @@ func TestRouteCreationMetrics_Do(t *testing.T) {
 					assert.Containsf(t, measures, e, "measure metrics do not contain %q", e)
 				}
 			})
+
+			assert.True(t, creationMetrics.initialized)
 		})
 	}
 }
 
 func TestRouteCreationMetrics_startTimes(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		route       routing.Route
-		initialized bool
-		expected    map[string]time.Time
+		name     string
+		route    routing.Route
+		expected map[string]time.Time
 	}{
 		{
-			name:        "no start time provided",
-			route:       routing.Route{},
-			initialized: true,
-			expected:    map[string]time.Time{},
-		},
-		{
-			name: "first run doesn't provide metrics, just fills the cache (this origin was seen by the previous skipper instance)",
-			route: routing.Route{Filters: []*routing.RouteFilter{
-				{Filter: &OriginMarker{Origin: "origin", Id: "config0", Created: time0}},
-			}},
-			initialized: false,
-			expected:    nil,
+			name:     "no start time provided",
+			route:    routing.Route{},
+			expected: map[string]time.Time{},
 		},
 		{
 			name: "start time from origin marker",
@@ -77,13 +89,11 @@ func TestRouteCreationMetrics_startTimes(t *testing.T) {
 				{Filter: &OriginMarker{Origin: "origin", Id: "config0", Created: time0}},
 				{Filter: &OriginMarker{Origin: "origin", Id: "config1", Created: time1}},
 			}},
-			initialized: true,
-			expected:    map[string]time.Time{"origin": time0},
+			expected: map[string]time.Time{"origin": time0},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			metrics := NewRouteCreationMetrics(&metricstest.MockMetrics{})
-			metrics.initialized = tt.initialized
 			assert.Equal(t, tt.expected, metrics.startTimes(&tt.route))
 			//should be cached
 			assert.Empty(t, metrics.startTimes(&tt.route))
