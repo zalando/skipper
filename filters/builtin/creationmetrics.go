@@ -3,6 +3,8 @@ package builtin
 import (
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/routing"
 )
@@ -87,10 +89,17 @@ func (m *RouteCreationMetrics) originStartTime(f filters.Filter) (string, time.T
 
 	_, exists := originCache[id]
 	originCache[id] = 0
-	if !exists {
-		return origin, created
+	if exists {
+		return "", time.Time{}
 	}
-	return "", time.Time{}
+
+	log.WithFields(log.Fields{
+		"origin":  origin,
+		"id":      id,
+		"seconds": time.Since(created).Seconds(),
+	}).Info("route creation time")
+
+	return origin, created
 }
 
 func (m *RouteCreationMetrics) pruneCache() {
@@ -98,6 +107,11 @@ func (m *RouteCreationMetrics) pruneCache() {
 		for id, age := range idAges {
 			age++
 			if age > maxAge {
+				log.WithFields(log.Fields{
+					"origin": origin,
+					"id":     id,
+				}).Info("delete from route creation cache")
+
 				delete(idAges, id)
 			} else {
 				idAges[id] = age
@@ -105,6 +119,8 @@ func (m *RouteCreationMetrics) pruneCache() {
 		}
 
 		if len(idAges) == 0 {
+			log.WithField("origin", origin).Info("delete from route creation cache")
+
 			delete(m.originIdAges, origin)
 		}
 	}
