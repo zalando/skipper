@@ -11,8 +11,8 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/felixge/httpsnoop v1.0.0 // indirect
-	github.com/go-redis/redis/v7 v7.0.0-beta.4
 	github.com/ghodss/yaml v1.0.0
+	github.com/go-redis/redis/v7 v7.0.0-beta.4
 	github.com/go-yaml/yaml v2.1.0+incompatible
 	github.com/google/go-cmp v0.3.0
 	github.com/hashicorp/memberlist v0.1.4

@@ -4,6 +4,18 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
+type routeGroups struct{}
+
+func newRouteGroups(o Options) *routeGroups {
+	return nil
+}
+
+func (r *routeGroups) convert(s *clusterState, defaultFilters map[resourceId]string) ([]*eskip.Route, error) {
+	return nil, nil
+}
+
+// --
+
 type apiClient interface {
 	loadRouteGroups() ([]byte, error)
 }

@@ -1901,7 +1901,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 			state, err := dc.clusterClient.fetchClusterState()
 			require.NoError(t, err)
 
-			route, err := dc.convertPathRule(state, &metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
+			route, err := convertPathRule(state, &metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}
@@ -3785,16 +3785,13 @@ func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
 		expectedDomain: "internal.cluster.local",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			c, err := New(Options{KubernetesEastWestDomain: ti.domain})
-			if err != nil {
-				t.Errorf("Failed to create data client: %v", err)
-			}
-
-			ewrs := createEastWestRoutes(c.eastWestDomainRegexpPostfix, ti.name, ti.namespace, []*eskip.Route{ti.route})
+			ing := newIngress(Options{KubernetesEastWestDomain: ti.domain}, http.StatusFound)
+			ewrs := createEastWestRoutes(ing.eastWestDomainRegexpPostfix, ti.name, ti.namespace, []*eskip.Route{ti.route})
 			ewr := ewrs[0]
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
 			}
+
 			hostRegexp := ewr.HostRegexps[0]
 			reg := regexp.MustCompile(hostRegexp)
 			if !reg.MatchString(fmt.Sprintf("%s.%s.%s", ti.name, ti.namespace, ti.expectedDomain)) {
