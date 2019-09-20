@@ -55,6 +55,7 @@ func ParseMetricsKind(t string) Kind {
 type Metrics interface {
 	// Implements the `filter.Metrics` interface.
 	MeasureSince(key string, start time.Time)
+	MeasureFloat(key string, value float64)
 	IncCounter(key string)
 	IncCounterBy(key string, value int64)
 	IncFloatCounterBy(key string, value float64)

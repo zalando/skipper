@@ -41,12 +41,13 @@ const (
 
 // CodaHale is the CodaHale format backend, implements Metrics interface in DropWizard's CodaHale metrics format.
 type CodaHale struct {
-	reg           metrics.Registry
-	createTimer   func() metrics.Timer
-	createCounter func() metrics.Counter
-	createGauge   func() metrics.GaugeFloat64
-	options       Options
-	handler       http.Handler
+	reg             metrics.Registry
+	createTimer     func() metrics.Timer
+	createHistogram func() metrics.Histogram
+	createCounter   func() metrics.Counter
+	createGauge     func() metrics.GaugeFloat64
+	options         Options
+	handler         http.Handler
 }
 
 // NewCodaHale returns a new CodaHale backend of metrics.
@@ -63,6 +64,7 @@ func NewCodaHale(o Options) *CodaHale {
 		createSample = newUniformSample
 	}
 	c.createTimer = func() metrics.Timer { return createTimer(createSample()) }
+	c.createHistogram = func() metrics.Histogram { return metrics.NewHistogram(createSample()) }
 
 	c.createCounter = metrics.NewCounter
 	c.createGauge = metrics.NewGaugeFloat64
@@ -85,6 +87,7 @@ func NewVoid() *CodaHale {
 	c := &CodaHale{}
 	c.reg = metrics.NewRegistry()
 	c.createTimer = func() metrics.Timer { return metrics.NilTimer{} }
+	c.createHistogram = func() metrics.Histogram { return metrics.NilHistogram{} }
 	c.createCounter = func() metrics.Counter { return metrics.NilCounter{} }
 	c.createGauge = func() metrics.GaugeFloat64 { return metrics.NilGaugeFloat64{} }
 	return c
@@ -100,8 +103,22 @@ func (c *CodaHale) updateTimer(key string, d time.Duration) {
 	}
 }
 
+func (c *CodaHale) getHistogram(key string) metrics.Histogram {
+	return c.reg.GetOrRegister(key, c.createHistogram).(metrics.Histogram)
+}
+
+func (c *CodaHale) updateHistogram(key string, value float64) {
+	if t := c.getHistogram(key); t != nil {
+		t.Update(int64(value))
+	}
+}
+
 func (c *CodaHale) MeasureSince(key string, start time.Time) {
 	c.measureSince(key, start)
+}
+
+func (c *CodaHale) MeasureFloat(key string, value float64) {
+	go c.updateHistogram(key, value)
 }
 
 func (c *CodaHale) getGauge(key string) metrics.GaugeFloat64 {

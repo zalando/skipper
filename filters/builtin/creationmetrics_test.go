@@ -13,27 +13,28 @@ import (
 )
 
 var time0 = time.Now().Truncate(time.Second).UTC()
-var time1 = time.Now().Add(1)
+var time1 = time0.Add(time.Second)
+var timeNow = time1.Add(time.Second)
 
-func TestRouteCreationMetrics_Do(t *testing.T) {
+func TestRouteCreationMetrics_reportRouteCreationTimes(t *testing.T) {
 	f, _ := NewOriginMarkerSpec().CreateFilter([]interface{}{"origin", "config1", time0})
 	for _, tt := range []struct {
 		name            string
 		routes          []*routing.Route
 		initialized     bool
-		expectedMetrics []string
+		expectedMetrics map[string][]float64
 	}{
 		{
 			name:            "no start time provided",
 			routes:          nil,
 			initialized:     true,
-			expectedMetrics: []string{},
+			expectedMetrics: map[string][]float64{},
 		},
 		{
 			name:            "start time provided",
 			routes:          []*routing.Route{{Filters: []*routing.RouteFilter{{Filter: f}}}},
 			initialized:     true,
-			expectedMetrics: []string{"routeCreationTime.origin"},
+			expectedMetrics: map[string][]float64{"routeCreationTime.origin": {0.02}},
 		},
 		{
 			name: "first run doesn't provide metrics, just fills the cache (this origin was seen by the previous skipper instance)",
@@ -50,21 +51,17 @@ func TestRouteCreationMetrics_Do(t *testing.T) {
 				},
 			},
 			initialized:     false,
-			expectedMetrics: []string{},
+			expectedMetrics: map[string][]float64{},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			metrics := metricstest.MockMetrics{}
+			metrics := metricstest.MockMetrics{Now: timeNow}
 			creationMetrics := NewRouteCreationMetrics(&metrics)
 			creationMetrics.initialized = tt.initialized
-			creationMetrics.Do(tt.routes)
+			creationMetrics.reportRouteCreationTimes(tt.routes, timeNow)
 
-			metrics.WithMeasures(func(measures map[string][]time.Duration) {
-				assert.Len(t, measures, len(tt.expectedMetrics))
-
-				for _, e := range tt.expectedMetrics {
-					assert.Containsf(t, measures, e, "measure metrics do not contain %q", e)
-				}
+			metrics.WithFloatMeasures(func(measures map[string][]float64) {
+				assert.Equal(t, tt.expectedMetrics, measures)
 			})
 
 			assert.True(t, creationMetrics.initialized)
