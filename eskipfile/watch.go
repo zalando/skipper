@@ -110,7 +110,7 @@ func (c *WatchClient) loadAll() watchResponse {
 func (c *WatchClient) loadUpdates() watchResponse {
 	content, err := ioutil.ReadFile(c.fileName)
 	if err != nil {
-		if _, isPerr := err.(*os.PathError); isPerr {
+		if os.IsNotExist(err) {
 			deletedIDs := c.deleteAllListIDs()
 			return watchResponse{deletedIDs: deletedIDs}
 		}
