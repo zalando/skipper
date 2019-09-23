@@ -102,8 +102,8 @@ type Metrics interface {
 	// MeasureSince adds values to a timer with a custom key.
 	MeasureSince(key string, start time.Time)
 
-	// MeasureFloat adds a value to a histogram with a custom key.
-	MeasureFloat(key string, value float64)
+	// MeasureDuration adds duration values to a timer with a custom key.
+	MeasureDuration(key string, duration time.Duration)
 
 	// IncCounter increments a custom counter identified by its key.
 	IncCounter(key string)

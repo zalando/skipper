@@ -23,9 +23,9 @@ func (a *All) MeasureSince(key string, start time.Time) {
 	a.prometheus.MeasureSince(key, start)
 	a.codaHale.MeasureSince(key, start)
 }
-func (a *All) MeasureFloat(key string, value float64) {
-	a.prometheus.MeasureFloat(key, value)
-	a.codaHale.MeasureFloat(key, value)
+func (a *All) MeasureDuration(key string, duration time.Duration) {
+	a.prometheus.MeasureDuration(key, duration)
+	a.codaHale.MeasureDuration(key, duration)
 }
 func (a *All) IncCounter(key string) {
 	a.prometheus.IncCounter(key)

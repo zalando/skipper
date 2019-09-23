@@ -14,7 +14,7 @@ type MockMetrics struct {
 	// Metrics gathering
 	counters      map[string]int64
 	floatCounters map[string]float64
-	measures      map[string][]float64
+	measures      map[string][]time.Duration
 	Now           time.Time
 }
 
@@ -41,24 +41,10 @@ func (m *MockMetrics) WithFloatCounters(f func(floatCounters map[string]float64)
 }
 
 func (m *MockMetrics) WithMeasures(f func(measures map[string][]time.Duration)) {
-	m.WithFloatMeasures(func(fm map[string][]float64) {
-		dm := make(map[string][]time.Duration)
-		for k, vv := range fm {
-			d := make([]time.Duration, len(vv))
-			for _, v := range vv {
-				d = append(d, time.Duration(v))
-			}
-			dm[k] = d
-		}
-		f(dm)
-	})
-}
-
-func (m *MockMetrics) WithFloatMeasures(f func(measures map[string][]float64)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.measures == nil {
-		m.measures = make(map[string][]float64)
+		m.measures = make(map[string][]time.Duration)
 	}
 	f(m.measures)
 }
@@ -68,17 +54,17 @@ func (m *MockMetrics) WithFloatMeasures(f func(measures map[string][]float64)) {
 //
 
 func (m *MockMetrics) MeasureSince(key string, start time.Time) {
-	m.MeasureFloat(key, float64(m.Now.Sub(start).Nanoseconds()))
+	m.MeasureDuration(key, m.Now.Sub(start))
 }
 
-func (m *MockMetrics) MeasureFloat(key string, value float64) {
+func (m *MockMetrics) MeasureDuration(key string, duration time.Duration) {
 	key = m.Prefix + key
-	m.WithFloatMeasures(func(measures map[string][]float64) {
+	m.WithMeasures(func(measures map[string][]time.Duration) {
 		measure, ok := m.measures[key]
 		if !ok {
-			measure = make([]float64, 0)
+			measure = make([]time.Duration, 0)
 		}
-		measures[key] = append(measure, value)
+		measures[key] = append(measure, duration)
 	})
 }
 

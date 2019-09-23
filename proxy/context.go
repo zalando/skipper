@@ -248,8 +248,8 @@ func (m *filterMetrics) MeasureSince(key string, start time.Time) {
 	m.impl.MeasureSince(m.prefix+key, start)
 }
 
-func (m *filterMetrics) MeasureFloat(key string, value float64) {
-	m.impl.MeasureFloat(m.prefix+key, value)
+func (m *filterMetrics) MeasureDuration(key string, duration time.Duration) {
+	m.impl.MeasureDuration(key, duration)
 }
 
 func (m *filterMetrics) IncFloatCounterBy(key string, value float64) {

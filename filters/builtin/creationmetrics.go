@@ -38,7 +38,7 @@ func (m *RouteCreationMetrics) reportRouteCreationTimes(routes []*routing.Route,
 	for _, r := range routes {
 		for origin, start := range m.startTimes(r) {
 			if m.initialized {
-				m.metrics.MeasureFloat(metricsPrefix+origin, now.Sub(start).Seconds()/100)
+				m.metrics.MeasureDuration(metricsPrefix+origin, now.Sub(start)/100)
 			}
 		}
 	}
