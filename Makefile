@@ -170,7 +170,7 @@ check-precommit: check-fmt build vet staticcheck check-race cicheck gosec
 	#
 	for p in $(PACKAGES); do \
 		go list -f \
-			'{{if len .TestGoFiles}}"GO111MODULE=on go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
+			'{{if len .TestGoFiles}}"GO111MODULE=on go test -tags=redis -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
 			$$p | xargs -i sh -c {}; \
 	done
 	go get github.com/modocache/gover
