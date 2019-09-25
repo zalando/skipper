@@ -105,7 +105,7 @@ func (c *CodaHale) MeasureSince(key string, start time.Time) {
 }
 
 func (c *CodaHale) MeasureDuration(key string, duration time.Duration) {
-	go c.updateTimer(key, duration)
+	c.updateTimer(key, duration)
 }
 
 func (c *CodaHale) getGauge(key string) metrics.GaugeFloat64 {
