@@ -54,17 +54,13 @@ func (m *MockMetrics) WithMeasures(f func(measures map[string][]time.Duration)) 
 //
 
 func (m *MockMetrics) MeasureSince(key string, start time.Time) {
-	m.MeasureDuration(key, m.Now.Sub(start))
-}
-
-func (m *MockMetrics) MeasureDuration(key string, duration time.Duration) {
 	key = m.Prefix + key
 	m.WithMeasures(func(measures map[string][]time.Duration) {
 		measure, ok := m.measures[key]
 		if !ok {
 			measure = make([]time.Duration, 0)
 		}
-		measures[key] = append(measure, duration)
+		measures[key] = append(measure, m.Now.Sub(start))
 	})
 }
 

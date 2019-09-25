@@ -289,11 +289,6 @@ func (p *Prometheus) MeasureSince(key string, start time.Time) {
 	p.customHistogramM.WithLabelValues(key).Observe(t)
 }
 
-// MeasureDuration satisfies Metrics interface.
-func (p *Prometheus) MeasureDuration(key string, duration time.Duration) {
-	p.customHistogramM.WithLabelValues(key).Observe(duration.Seconds())
-}
-
 // IncCounter satisfies Metrics interface.
 func (p *Prometheus) IncCounter(key string) {
 	p.customCounterM.WithLabelValues(key).Inc()

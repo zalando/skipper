@@ -104,10 +104,6 @@ func (c *CodaHale) MeasureSince(key string, start time.Time) {
 	c.measureSince(key, start)
 }
 
-func (c *CodaHale) MeasureDuration(key string, duration time.Duration) {
-	c.updateTimer(key, duration)
-}
-
 func (c *CodaHale) getGauge(key string) metrics.GaugeFloat64 {
 	return c.reg.GetOrRegister(key, c.createGauge).(metrics.GaugeFloat64)
 }

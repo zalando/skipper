@@ -34,7 +34,7 @@ func TestRouteCreationMetrics_reportRouteCreationTimes(t *testing.T) {
 			name:            "start time provided",
 			routes:          []*routing.Route{{Filters: []*routing.RouteFilter{{Filter: f}}}},
 			initialized:     true,
-			expectedMetrics: map[string][]time.Duration{"routeCreationTime.origin": {time.Second / 100 * 2}},
+			expectedMetrics: map[string][]time.Duration{"routeCreationTime.origin": {2 * time.Second}},
 		},
 		{
 			name: "first run doesn't provide metrics, just fills the cache (this origin was seen by the previous skipper instance)",
@@ -58,7 +58,7 @@ func TestRouteCreationMetrics_reportRouteCreationTimes(t *testing.T) {
 			metrics := metricstest.MockMetrics{Now: timeNow}
 			creationMetrics := NewRouteCreationMetrics(&metrics)
 			creationMetrics.initialized = tt.initialized
-			creationMetrics.reportRouteCreationTimes(tt.routes, timeNow)
+			creationMetrics.reportRouteCreationTimes(tt.routes)
 
 			metrics.WithMeasures(func(measures map[string][]time.Duration) {
 				assert.Equal(t, tt.expectedMetrics, measures)

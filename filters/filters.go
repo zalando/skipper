@@ -102,9 +102,6 @@ type Metrics interface {
 	// MeasureSince adds values to a timer with a custom key.
 	MeasureSince(key string, start time.Time)
 
-	// MeasureDuration adds duration values to a timer with a custom key.
-	MeasureDuration(key string, duration time.Duration)
-
 	// IncCounter increments a custom counter identified by its key.
 	IncCounter(key string)
 
