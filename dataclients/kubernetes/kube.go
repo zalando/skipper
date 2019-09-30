@@ -846,14 +846,6 @@ func (c *Client) ingressToRoutes(state *clusterState, defaultFilters map[resourc
 		}
 	}
 
-	if c.originMarker && len(routes) > 0 {
-		//it doesn't matter which route the marker is added to
-		r := routes[0]
-		for _, i := range state.ingresses {
-			r.Filters = append(r.Filters, builtin.NewOriginMarker(ingressOriginName, i.Metadata.Uid, i.Metadata.Created))
-		}
-	}
-
 	return routes, nil
 }
 
@@ -1342,10 +1334,10 @@ func (c *Client) fetchClusterState() (*clusterState, error) {
 	}, nil
 }
 
-func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
+func (c *Client) loadAndConvert() (*clusterState, []*eskip.Route, error) {
 	state, err := c.fetchClusterState()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
@@ -1354,11 +1346,11 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	r, err := c.ingressToRoutes(state, defaultFilters)
 	if err != nil {
 		log.Debugf("converting ingresses to routes failed: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	log.Debugf("all routes created: %d", len(r))
 
-	return r, nil
+	return state, r, nil
 }
 
 func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
@@ -1403,12 +1395,30 @@ func (c *Client) hasReceivedTerm() bool {
 	return c.termReceived
 }
 
+func setOriginMarker(s *clusterState, r []*eskip.Route) []*eskip.Route {
+	if len(r) == 0 {
+		return nil
+	}
+
+	//it doesn't matter which route the marker is added to
+	r0 := r[0]
+	for _, i := range s.ingresses {
+		r0.Filters = append(r0.Filters, builtin.NewOriginMarker(ingressOriginName, i.Metadata.Uid, i.Metadata.Created))
+	}
+
+	return r
+}
+
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
-	r, err := c.loadAndConvert()
+	clusterState, r, err := c.loadAndConvert()
 	if err != nil {
 		log.Errorf("failed to load all: %v", err)
 		return nil, err
+	}
+
+	if c.originMarker {
+		r = setOriginMarker(clusterState, r)
 	}
 
 	// teardown handling: always healthy unless SIGTERM received
@@ -1433,7 +1443,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 // TODO: implement a force reset after some time.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("polling for updates")
-	r, err := c.loadAndConvert()
+	clusterState, r, err := c.loadAndConvert()
 	if err != nil {
 		log.Errorf("polling for updates failed: %v", err)
 		return nil, nil, err
@@ -1474,6 +1484,10 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 			next[healthcheckRouteID] = hc
 			updatedRoutes = append(updatedRoutes, hc)
 		}
+	}
+
+	if c.originMarker {
+		updatedRoutes = setOriginMarker(clusterState, updatedRoutes)
 	}
 
 	c.current = next
