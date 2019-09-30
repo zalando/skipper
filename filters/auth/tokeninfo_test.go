@@ -191,8 +191,8 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 					return
 				}
 
-				token, err := getToken(r)
-				if err != nil || token != testToken {
+				token, ok := getToken(r)
+				if !ok || token != testToken {
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
@@ -203,8 +203,7 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 					"scope":      []string{testScope, testScope2, testScope3}}
 
 				e := json.NewEncoder(w)
-				err = e.Encode(&d)
-				if err != nil {
+				if err := e.Encode(&d); err != nil {
 					t.Error(err)
 				}
 			}))
@@ -295,8 +294,8 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 					return
 				}
 
-				token, err := getToken(r)
-				if err != nil || token != testToken {
+				token, ok := getToken(r)
+				if !ok || token != testToken {
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}

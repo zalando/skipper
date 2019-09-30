@@ -1,6 +1,7 @@
 package auth
 
 import (
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"time"
 
@@ -75,12 +76,15 @@ func copyHeader(to, from http.Header) {
 func (f *webhookFilter) Request(ctx filters.FilterContext) {
 	statusCode, err := f.authClient.getWebhook(ctx)
 	if err != nil {
-		unauthorized(ctx, WebhookName, authServiceAccess, f.authClient.url.Hostname())
+		log.Errorf("Failed to make authentication webhook request: %v.", err)
+		unauthorized(ctx, "", authServiceAccess, f.authClient.url.Hostname(), WebhookName)
 	}
+
 	// redirects, auth errors, webhook errors
 	if statusCode >= 300 {
-		unauthorized(ctx, WebhookName, invalidAccess, f.authClient.url.Hostname())
+		unauthorized(ctx, "", invalidAccess, f.authClient.url.Hostname(), WebhookName)
 	}
+
 	authorized(ctx, WebhookName)
 }
 

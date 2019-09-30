@@ -393,24 +393,23 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 	var info tokenIntrospectionInfo
 	infoTemp, ok := ctx.StateBag()[tokenintrospectionCacheKey]
 	if !ok {
-		token, err := getToken(r)
-		if err != nil {
-			unauthorized(ctx, "", missingToken, f.authClient.url.Hostname())
+		token, ok := getToken(r)
+		if !ok || token == "" {
+			unauthorized(ctx, "", missingToken, f.authClient.url.Hostname(), "")
 			return
 		}
 
-		if token == "" {
-			unauthorized(ctx, "", missingToken, f.authClient.url.Hostname())
-			return
-		}
-
+		var err error
 		info, err = f.authClient.getTokenintrospect(token, ctx)
 		if err != nil {
 			reason := authServiceAccess
 			if err == errInvalidToken {
 				reason = invalidToken
+			} else {
+				log.Errorf("Error while calling token introspection: %v.", err)
 			}
-			unauthorized(ctx, "", reason, f.authClient.url.Hostname())
+
+			unauthorized(ctx, "", reason, f.authClient.url.Hostname(), "")
 			return
 		}
 	} else {
@@ -419,12 +418,16 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 
 	sub, err := info.Sub()
 	if err != nil {
-		unauthorized(ctx, sub, invalidSub, f.authClient.url.Hostname())
+		if err != errInvalidTokenintrospectionData {
+			log.Errorf("Error while reading token: %v.", err)
+		}
+
+		unauthorized(ctx, sub, invalidSub, f.authClient.url.Hostname(), "")
 		return
 	}
 
 	if !info.Active() {
-		unauthorized(ctx, sub, inactiveToken, f.authClient.url.Hostname())
+		unauthorized(ctx, sub, inactiveToken, f.authClient.url.Hostname(), "")
 		return
 	}
 
@@ -439,13 +442,14 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 	case checkOAuthTokenintrospectionAllKV, checkSecureOAuthTokenintrospectionAllKV:
 		allowed = f.validateAllKV(info)
 	default:
-		log.Errorf("Wrong tokenintrospectionFilter type: %s", f)
+		log.Errorf("Wrong tokenintrospectionFilter type: %s.", f)
 	}
 
 	if !allowed {
-		unauthorized(ctx, sub, invalidClaim, f.authClient.url.Hostname())
+		unauthorized(ctx, sub, invalidClaim, f.authClient.url.Hostname(), "")
 		return
 	}
+
 	authorized(ctx, sub)
 	ctx.StateBag()[tokenintrospectionCacheKey] = info
 }
@@ -459,5 +463,6 @@ func (f *tokenintrospectFilter) Close() {
 		close(f.authClient.quit)
 		f.authClient.quit = nil
 	}
+
 	f.authClient.mu.Unlock()
 }

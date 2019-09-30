@@ -88,6 +88,7 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 
 	payload, err := json.Marshal(tiMap)
 	if err != nil {
+		log.Errorf("Error while marshaling token: %v.", err)
 		return
 	}
 	request := ctx.Request()

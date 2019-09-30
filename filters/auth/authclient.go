@@ -183,7 +183,6 @@ func jsonPost(
 	}
 
 	if u.User != nil {
-
 		authorization := base64.StdEncoding.EncodeToString([]byte(u.User.String()))
 		req.Header.Add("Authorization", fmt.Sprintf("Basic %s", authorization))
 	}

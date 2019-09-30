@@ -281,23 +281,23 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	var authMap map[string]interface{}
 	authMapTemp, ok := ctx.StateBag()[tokeninfoCacheKey]
 	if !ok {
-		token, err := getToken(r)
-		if err != nil {
-			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
-			return
-		}
-		if token == "" {
-			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname())
+		token, ok := getToken(r)
+		if !ok || token == "" {
+			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname(), "")
 			return
 		}
 
+		var err error
 		authMap, err = f.authClient.getTokeninfo(token, ctx)
 		if err != nil {
 			reason := authServiceAccess
 			if err == errInvalidToken {
 				reason = invalidToken
+			} else {
+				log.Errorf("Error while calling tokeninfo: %v.", err)
 			}
-			unauthorized(ctx, "", reason, f.authClient.url.Hostname())
+
+			unauthorized(ctx, "", reason, f.authClient.url.Hostname(), "")
 			return
 		}
 	} else {
@@ -317,13 +317,14 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	case checkOAuthTokeninfoAllKV:
 		allowed = f.validateAllKV(authMap)
 	default:
-		log.Errorf("Wrong tokeninfoFilter type: %s", f)
+		log.Errorf("Wrong tokeninfoFilter type: %s.", f)
 	}
 
 	if !allowed {
-		forbidden(ctx, uid, invalidScope)
+		forbidden(ctx, uid, invalidScope, "")
 		return
 	}
+
 	authorized(ctx, uid)
 	ctx.StateBag()[tokeninfoCacheKey] = authMap
 }
