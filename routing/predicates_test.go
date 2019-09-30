@@ -308,6 +308,48 @@ func TestPredicateList(t *testing.T) {
 			},
 			expectedID: "catchAll",
 		}},
+	}, {
+		title: "path wildcard and path subtree",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^foo[.]example[.]org$"},
+			}, {
+				Name: "Path",
+				Args: []interface{}{"/**"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^bar[.]example[.]org$"},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{"/"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID: "star",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			dc := testdataclient.New(test.routes)
