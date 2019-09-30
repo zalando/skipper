@@ -77,12 +77,12 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 	statusCode, err := f.authClient.getWebhook(ctx)
 	if err != nil {
 		log.Errorf("Failed to make authentication webhook request: %v.", err)
-		unauthorized(ctx, "", authServiceAccess, f.authClient.url.Hostname(), WebhookName)
 	}
 
-	// redirects, auth errors, webhook errors
-	if statusCode >= 300 {
+	// errors, redirects, auth errors, webhook errors
+	if err != nil || statusCode >= 300 {
 		unauthorized(ctx, "", invalidAccess, f.authClient.url.Hostname(), WebhookName)
+		return
 	}
 
 	authorized(ctx, WebhookName)
