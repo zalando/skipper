@@ -20,9 +20,10 @@ func TestPredicateList(t *testing.T) {
 	}
 
 	for _, test := range []struct {
-		title  string
-		routes []*eskip.Route
-		checks []check
+		title   string
+		options MatchingOptions
+		routes  []*eskip.Route
+		checks  []check
 	}{{
 
 		title: "only legacy predicate",
@@ -338,6 +339,12 @@ func TestPredicateList(t *testing.T) {
 			},
 			expectedID: "star",
 		}, {
+			// no match when trailing slash not ignored
+			request: &http.Request{
+				URL:  &url.URL{Path: "/"},
+				Host: "foo.example.org",
+			},
+		}, {
 			request: &http.Request{
 				URL:  &url.URL{Path: "/"},
 				Host: "bar.example.org",
@@ -346,6 +353,79 @@ func TestPredicateList(t *testing.T) {
 		}, {
 			request: &http.Request{
 				URL:  &url.URL{Path: "/qux"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux/quz"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}},
+	}, {
+		title:   "path wildcard and path subtree, ignore trailing slash",
+		options: IgnoreTrailingSlash,
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^foo[.]example[.]org$"},
+			}, {
+				Name: "Path",
+				Args: []interface{}{"/**"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^bar[.]example[.]org$"},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{"/"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID: "star",
+		}, {
+			// no match when trailing slash not ignored
+			request: &http.Request{
+				URL:  &url.URL{Path: "/"},
+				Host: "foo.example.org",
+			},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux/quz"},
 				Host: "bar.example.org",
 			},
 			expectedID: "subtree",
@@ -359,8 +439,9 @@ func TestPredicateList(t *testing.T) {
 			defer l.Close()
 
 			rt := New(Options{
-				DataClients: []DataClient{dc},
-				Log:         l,
+				DataClients:     []DataClient{dc},
+				MatchingOptions: test.options,
+				Log:             l,
 			})
 			defer rt.Close()
 
@@ -374,6 +455,14 @@ func TestPredicateList(t *testing.T) {
 
 				t.Run("expecting "+checkTitle, func(t *testing.T) {
 					r, _ := rt.Route(check.request)
+					if check.expectedID == "" && len(check.allowedIDs) == 0 {
+						if r != nil {
+							t.Error("unexpected route match")
+						}
+
+						return
+					}
+
 					if r == nil {
 						t.Error("route not found")
 						return

@@ -22,19 +22,24 @@ func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
 	}
 
 	l := matchLeaves(v.leaves, m.r, m.path)
-
 	return l != nil, l
 }
 
+type subtreeMergeControl struct {
+	noSubtreeRoot bool
+	subtreeRoot   string
+}
+
 type leafMatcher struct {
-	exactPath     string
-	method        string
-	hostRxs       []*regexp.Regexp
-	pathRxs       []*regexp.Regexp
-	headersExact  map[string]string
-	headersRegexp map[string][]*regexp.Regexp
-	predicates    []Predicate
-	route         *Route
+	exactPath           string
+	method              string
+	hostRxs             []*regexp.Regexp
+	pathRxs             []*regexp.Regexp
+	headersExact        map[string]string
+	headersRegexp       map[string][]*regexp.Regexp
+	predicates          []Predicate
+	route               *Route
+	subtreeMergeControl subtreeMergeControl
 }
 
 type leafMatchers []*leafMatcher
@@ -283,14 +288,42 @@ func moveToSubtreeIfExists(subtree *pathMatcher, paths map[string]*pathMatcher, 
 	}
 
 	subtree.leaves = append(subtree.leaves, pm.leaves...)
-
 	delete(paths, path)
 }
 
 func moveConflictingToSubtree(subtrees, paths map[string]*pathMatcher) {
 	for p, stm := range subtrees {
 		moveToSubtreeIfExists(stm, paths, p)
+
+		// TODO: this may mean that a non-subtree route will match even when ignore-trailing-match is
+		// false:
 		moveToSubtreeIfExists(stm, paths, p+"/")
+	}
+
+	for p, pm := range paths {
+		fwm := freeWildcardRx.FindString(p)
+		if fwm == "" {
+			continue
+		}
+
+		stp := p[:len(p)-len(fwm)]
+		if stp == "" {
+			stp = "/"
+		}
+
+		stm, ok := subtrees[stp]
+		if !ok {
+			continue
+		}
+
+		for _, l := range pm.leaves {
+			l.subtreeMergeControl.noSubtreeRoot = true
+			l.subtreeMergeControl.subtreeRoot = stp
+		}
+
+		pm.leaves = append(pm.leaves, stm.leaves...)
+		pm.freeWildcardParam = ""
+		subtrees[stp] = pm
 	}
 }
 
@@ -447,6 +480,10 @@ func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 	}
 
 	if !matchPredicates(l.predicates, req) {
+		return false
+	}
+
+	if l.subtreeMergeControl.noSubtreeRoot && path == l.subtreeMergeControl.subtreeRoot {
 		return false
 	}
 
