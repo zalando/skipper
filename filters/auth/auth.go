@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -58,9 +59,12 @@ const (
 
 type kv map[string][]string
 
+type requestError struct {
+	err error
+}
+
 var (
 	errUnsupportedClaimSpecified     = errors.New("unsupported claim specified in filter")
-	errInvalidAuthorizationHeader    = errors.New("invalid authorization header")
 	errInvalidToken                  = errors.New("invalid token")
 	errInvalidTokenintrospectionData = errors.New("invalid tokenintrospection data")
 )
@@ -73,41 +77,70 @@ func (kv kv) String() string {
 	return strings.Join(res, ",")
 }
 
-func getToken(r *http.Request) (string, error) {
+func (err *requestError) Error() string {
+	return err.err.Error()
+}
+
+func requestErrorf(f string, args ...interface{}) error {
+	return &requestError{
+		err: fmt.Errorf(f, args...),
+	}
+}
+
+func getToken(r *http.Request) (string, bool) {
 	h := r.Header.Get(authHeaderName)
 	if !strings.HasPrefix(h, authHeaderPrefix) {
-		return "", errInvalidAuthorizationHeader
+		return "", false
 	}
 
-	return h[len(authHeaderPrefix):], nil
+	return h[len(authHeaderPrefix):], true
 }
 
-func unauthorized(ctx filters.FilterContext, uname string, reason rejectReason, hostname string) {
-	log.Debugf("uname: %s, reason: %s", uname, reason)
-	ctx.StateBag()[logfilter.AuthUserKey] = uname
+func reject(
+	ctx filters.FilterContext,
+	status int,
+	username string,
+	reason rejectReason,
+	hostname,
+	debuginfo string,
+) {
+	if debuginfo == "" {
+		log.Debugf(
+			"Rejected: status: %d, username: %s, reason: %s.",
+			status, username, reason,
+		)
+	} else {
+		log.Debugf(
+			"Rejected: status: %d, username: %s, reason: %s, info: %s.",
+			status, username, reason, debuginfo,
+		)
+	}
+
+	ctx.StateBag()[logfilter.AuthUserKey] = username
 	ctx.StateBag()[logfilter.AuthRejectReasonKey] = string(reason)
 	rsp := &http.Response{
-		StatusCode: http.StatusUnauthorized,
+		StatusCode: status,
 		Header:     make(map[string][]string),
 	}
-	// https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.4.2
-	rsp.Header.Add("WWW-Authenticate", hostname)
+
+	if hostname != "" {
+		// https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.4.2
+		rsp.Header.Add("WWW-Authenticate", hostname)
+	}
+
 	ctx.Serve(rsp)
 }
 
-func forbidden(ctx filters.FilterContext, uname string, reason rejectReason) {
-	log.Debugf("Forbidden: uname: %s, reason: %s", uname, reason)
-	ctx.StateBag()[logfilter.AuthUserKey] = uname
-	ctx.StateBag()[logfilter.AuthRejectReasonKey] = string(reason)
-	rsp := &http.Response{
-		StatusCode: http.StatusForbidden,
-		Header:     make(map[string][]string),
-	}
-	ctx.Serve(rsp)
+func unauthorized(ctx filters.FilterContext, username string, reason rejectReason, hostname, debuginfo string) {
+	reject(ctx, http.StatusUnauthorized, username, reason, hostname, debuginfo)
 }
 
-func authorized(ctx filters.FilterContext, uname string) {
-	ctx.StateBag()[logfilter.AuthUserKey] = uname
+func forbidden(ctx filters.FilterContext, username string, reason rejectReason, debuginfo string) {
+	reject(ctx, http.StatusForbidden, username, reason, "", debuginfo)
+}
+
+func authorized(ctx filters.FilterContext, username string) {
+	ctx.StateBag()[logfilter.AuthUserKey] = username
 }
 
 func getStrings(args []interface{}) ([]string, error) {
