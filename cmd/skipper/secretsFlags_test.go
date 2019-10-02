@@ -16,18 +16,18 @@ func Test_secretsFlags_Set(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "test set a value on unintialized secretsFlags",
+			name:    "test set a value on uninitialized secretsFlags",
 			args:    "/meta/credentials",
 			wantErr: false,
 		},
 		{
-			name:    "test set a value on intialized secretsFlags",
+			name:    "test set a value on initialized secretsFlags",
 			sf:      commaListFlag(),
 			args:    "/meta/credentials",
 			wantErr: false,
 		},
 		{
-			name:    "test set multiple values on intialized secretsFlags",
+			name:    "test set multiple values on initialized secretsFlags",
 			sf:      commaListFlag(),
 			args:    "/meta/credentials,/bar",
 			wantErr: false,
