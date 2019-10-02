@@ -255,6 +255,9 @@ Example:
 * -> inlineContent("<h1>Hello</h1>") -> <shunt>
 ```
 
+!!! note
+    `inlineContent` filter is special and must be the last in the filter chain.
+
 ## flowId
 
 Sets an X-Flow-Id header, if it's not already in the request.
