@@ -93,6 +93,15 @@ Run the proxy with geoip database:
 [APP]INFO[0000] route settings applied
 ```
 
+Or passing a yaml file via `config-file` flag:
+
+```yaml
+inline-routes: '* -> geoip() -> "http://127.0.0.1:9000"'
+filter-plugin:
+  geoip:
+    - db=$HOME/Downloads/GeoLite2-City_20181127/GeoLite2-City.mmdb
+```
+
 Use a client to lookup geoip:
 
 ```

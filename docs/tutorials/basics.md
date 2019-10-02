@@ -312,6 +312,27 @@ Example client call to our defined proxy:
 Hello world!
 ```
 
+## YAML Configuration
+
+The usage of flags to configure the `skipper` binary can get quickly out
+of hand. You can use a `yaml` file instead to populate the flags presented
+in the `skipper -help` command.
+
+```yaml
+address: ":8080"
+inline-routes: 'r: * -> inlineContent("Hello world!") -> status(200) -> <shunt>'
+```
+
+Considering that this file would be named `config.yaml` you can use it to populate
+the flags using the `config-file` flag:
+
+```
+./bin/skipper -config-file=config.yaml
+```
+
+Performing the same call to the address as exemplified in the previous section should
+yield the same results.
+
 ## Current routing table
 
 To investigate the current routing table skipper has loaded into its
