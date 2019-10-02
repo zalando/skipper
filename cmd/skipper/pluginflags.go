@@ -39,3 +39,17 @@ func (f *pluginFlag) Set(value string) error {
 
 	return nil
 }
+
+func (f *pluginFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var value map[string][]string
+	if err := unmarshal(&value); err != nil {
+		return err
+	}
+
+	for k, values := range value {
+		plugin := append([]string{k}, values...)
+		f.values = append(f.values, plugin)
+	}
+
+	return nil
+}

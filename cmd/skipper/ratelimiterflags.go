@@ -20,15 +20,11 @@ const enableRatelimitUsage = `enable ratelimit`
 
 type ratelimitFlags []ratelimit.Settings
 
-var errInvalidRatelimitConfig = errors.New("invalid ratelimit config")
+var errInvalidRatelimitConfig = errors.New("invalid ratelimit config (allowed values are: local, client, service or disabled)")
 
-func (r *ratelimitFlags) String() string {
-	if r == nil {
-		return ""
-	}
-
-	s := make([]string, len(*r))
-	for i, ri := range *r {
+func (r ratelimitFlags) String() string {
+	s := make([]string, len(r))
+	for i, ri := range r {
 		s[i] = ri.String()
 	}
 
@@ -72,6 +68,8 @@ func (r *ratelimitFlags) Set(value string) error {
 			}
 			s.TimeWindow = d
 			s.CleanInterval = d * 10
+		case "group":
+			s.Group = kv[1]
 		default:
 			return errInvalidRatelimitConfig
 		}
@@ -82,5 +80,17 @@ func (r *ratelimitFlags) Set(value string) error {
 	}
 
 	*r = append(*r, s)
+	return nil
+}
+
+func (r *ratelimitFlags) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var rateLimitSettings ratelimit.Settings
+	if err := unmarshal(&rateLimitSettings); err != nil {
+		return err
+	}
+
+	rateLimitSettings.CleanInterval = rateLimitSettings.TimeWindow * 10
+
+	*r = append(*r, rateLimitSettings)
 	return nil
 }

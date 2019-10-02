@@ -44,6 +44,28 @@ const (
 // RatelimitType defines the type of  the used ratelimit
 type RatelimitType int
 
+func (rt *RatelimitType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var value string
+	if err := unmarshal(&value); err != nil {
+		return err
+	}
+
+	switch value {
+	case "local":
+		fallthrough
+	case "client":
+		*rt = ClientRatelimit
+	case "service":
+		*rt = ServiceRatelimit
+	case "disabled":
+		*rt = DisableRatelimit
+	default:
+		return fmt.Errorf("invalid ratelimit type %v (allowed values are: local, client, service or disabled)", value)
+	}
+
+	return nil
+}
+
 const (
 	// NoRatelimit is not used
 	NoRatelimit RatelimitType = iota
@@ -223,29 +245,29 @@ func (t TupleLookuper) String() string {
 // Settings configures the chosen rate limiter
 type Settings struct {
 	// Type of the chosen rate limiter
-	Type RatelimitType
+	Type RatelimitType `yaml:"type"`
 
 	// Lookuper to decide which data to use to identify the same
 	// bucket (for example how to lookup the client identifier)
-	Lookuper Lookuper
+	Lookuper Lookuper `yaml:"-"`
 
 	// MaxHits the maximum number of hits for a time duration
 	// allowed in the same bucket.
-	MaxHits int
+	MaxHits int `yaml:"max-hits"`
 
 	// TimeWindow is the time duration that is valid for hits to
 	// be counted in the rate limit.
-	TimeWindow time.Duration
+	TimeWindow time.Duration `yaml:"time-window"`
 
 	// CleanInterval is the duration old data can expire, because
 	// need to cleanup data in for example client ratelimits.
-	CleanInterval time.Duration
+	CleanInterval time.Duration `yaml:"-"`
 
 	// Group is a string to group ratelimiters of Type
 	// ClusterServiceRatelimit or ClusterClientRatelimit.
 	// A ratelimit group considers all hits to the same group as
 	// one target.
-	Group string
+	Group string `yaml:"group"`
 }
 
 func (s Settings) Empty() bool {

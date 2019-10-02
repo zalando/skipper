@@ -479,7 +479,7 @@ type Options struct {
 	// FilterPlugins loads additional filters from modules. The first value in each []string
 	// needs to be the plugin name (as on disk, without path, without ".so" suffix). The
 	// following values are passed as arguments to the plugin while loading, see also
-	// https://zalando.github.io/skipper/plugins/
+	// https://opensource.zalando.com/skipper/reference/plugins/
 	FilterPlugins [][]string
 
 	// PredicatePlugins loads additional predicates from modules. See above for FilterPlugins
