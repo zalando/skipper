@@ -28,7 +28,8 @@ func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
 type subtreeMergeControl struct {
 	noSubtreeRoot     bool
 	subtreeRoot       string
-	freeWildcardParam string
+	freeWildcardParamFrom string
+	freeWildcardParamTo string
 }
 
 type leafMatcher struct {
@@ -301,31 +302,57 @@ func moveConflictingToSubtree(subtrees, paths map[string]*pathMatcher) {
 		moveToSubtreeIfExists(stm, paths, p+"/")
 	}
 
+	var removeFromPaths []string
 	for p, pm := range paths {
 		fwm := freeWildcardRx.FindString(p)
 		if fwm == "" {
 			continue
 		}
 
-		stp := p[:len(p)-len(fwm)]
-		if stp == "" {
-			stp = "/"
+		subRoot := p[:len(p)-len(fwm)]
+		if subRoot == "" {
+			subRoot  = "/"
 		}
 
-		stm, ok := subtrees[stp]
-		if !ok {
-			continue
-		}
+		for stp, stm := range subtrees {
+			var subtreePath string
+			stpParam := freeWildcardRx.FindString(stp)
+			if stpParam != "" {
+				subtreePath = stp[:len(stp) - len(stpParam)]
+			} else {
+				subtreePath = stp
+			}
 
-		for _, l := range pm.leaves {
-			l.subtreeMergeControl.noSubtreeRoot = true
-			l.subtreeMergeControl.subtreeRoot = stp
-			l.subtreeMergeControl.freeWildcardParam = freeWildcardParam(fwm)
-		}
+			if subtreePath == subRoot {
+				fromParam := stm.freeWildcardParam
+				if fromParam == "" {
+					fromParam = "*"
+				}
 
-		pm.leaves = append(pm.leaves, stm.leaves...)
-		pm.freeWildcardParam = ""
-		subtrees[stp] = pm
+				for _, l := range pm.leaves {
+					l.subtreeMergeControl.noSubtreeRoot = true
+					l.subtreeMergeControl.subtreeRoot = stp
+					l.subtreeMergeControl.freeWildcardParamFrom = fromParam
+					l.subtreeMergeControl.freeWildcardParamTo = pm.freeWildcardParam
+				}
+
+				/*
+				for _, l := range stm.leaves {
+					l.subtreeMergeControl.freeWildcardParamTo = stm.freeWildcardParam
+				}
+				*/
+
+				pm.leaves = append(pm.leaves, stm.leaves...)
+				pm.freeWildcardParam = stm.freeWildcardParam
+				subtrees[stp] = pm
+
+				removeFromPaths = append(removeFromPaths, p)
+			}
+		}
+	}
+
+	for _, p := range removeFromPaths {
+		delete(paths, p)
 	}
 }
 
@@ -391,19 +418,17 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 		return nil, nil
 	}
 
+	fmt.Println("params found", params)
 	pm := v.(*pathMatcher)
 	lm := value.(*leafMatcher)
 
-	freeWildcardParam := lm.subtreeMergeControl.freeWildcardParam
-	if freeWildcardParam == "" {
-		freeWildcardParam = pm.freeWildcardParam
-	}
-
-	if freeWildcardParam != "" {
-		freeParam := params[freeWildcardParam]
-		// prepend slash in case of free form wildcards path segments (`/*name`),
-		freeParam = "/" + freeParam
-		params[freeWildcardParam] = freeParam
+	if lm.subtreeMergeControl.freeWildcardParamFrom != "" {
+		params[lm.subtreeMergeControl.freeWildcardParamTo] =
+			"/" + params[lm.subtreeMergeControl.freeWildcardParamFrom]
+		delete(params, lm.subtreeMergeControl.freeWildcardParamFrom)
+	} else if pm.freeWildcardParam != "" {
+		params[pm.freeWildcardParam] = "/" + params[pm.freeWildcardParam]
+		fmt.Println("params modded", params)
 	}
 
 	return params, lm
