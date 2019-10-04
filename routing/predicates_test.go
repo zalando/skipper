@@ -14,9 +14,10 @@ import (
 
 func TestPredicateList(t *testing.T) {
 	type check struct {
-		request    *http.Request
-		expectedID string
-		allowedIDs []string
+		request        *http.Request
+		expectedID     string
+		allowedIDs     []string
+		expectedParams map[string]string
 	}
 
 	for _, test := range []struct {
@@ -318,7 +319,7 @@ func TestPredicateList(t *testing.T) {
 				Args: []interface{}{"^foo[.]example[.]org$"},
 			}, {
 				Name: "Path",
-				Args: []interface{}{"/**"},
+				Args: []interface{}{"/*p1"},
 			}},
 			BackendType: eskip.ShuntBackend,
 		}, {
@@ -338,6 +339,9 @@ func TestPredicateList(t *testing.T) {
 				Host: "foo.example.org",
 			},
 			expectedID: "star",
+			expectedParams: map[string]string{
+				"p1": "/baz",
+			},
 		}, {
 			// no match when trailing slash not ignored
 			request: &http.Request{
@@ -454,7 +458,7 @@ func TestPredicateList(t *testing.T) {
 				}
 
 				t.Run("expecting "+checkTitle, func(t *testing.T) {
-					r, _ := rt.Route(check.request)
+					r, p := rt.Route(check.request)
 					if check.expectedID == "" && len(check.allowedIDs) == 0 {
 						if r != nil {
 							t.Error("unexpected route match")
@@ -478,19 +482,44 @@ func TestPredicateList(t *testing.T) {
 						return
 					}
 
-					if check.expectedID != "" {
-						t.Log("matched:", check.expectedID)
-						return
-					}
+					if check.expectedID == "" {
+						var found bool
+						for i := range check.allowedIDs {
+							if r.Id == check.allowedIDs[i] {
+								found = true
+								break
+							}
+						}
 
-					for i := range check.allowedIDs {
-						if r.Id == check.allowedIDs[i] {
-							t.Log("matched:", check.allowedIDs[i])
+						if !found {
+							t.Error("not allowed ID:", r.Id)
 							return
 						}
 					}
 
-					t.Error("not allowed ID:", r.Id)
+					if check.expectedParams != nil {
+						if len(p) != len(check.expectedParams) {
+							t.Errorf(
+								"unexpected count of params; expected: %d, got: %d",
+								len(check.expectedParams),
+								len(p),
+							)
+							t.Log(p)
+							return
+						}
+
+						for k, v := range check.expectedParams {
+							if p[k] != v {
+								t.Errorf(
+									"unexpected value for param: %s=%s",
+									k,
+									p[k],
+								)
+
+								return
+							}
+						}
+					}
 				})
 			}
 		})

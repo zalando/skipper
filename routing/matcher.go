@@ -28,6 +28,7 @@ func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
 type subtreeMergeControl struct {
 	noSubtreeRoot bool
 	subtreeRoot   string
+	freeWildcardParam string
 }
 
 type leafMatcher struct {
@@ -319,6 +320,7 @@ func moveConflictingToSubtree(subtrees, paths map[string]*pathMatcher) {
 		for _, l := range pm.leaves {
 			l.subtreeMergeControl.noSubtreeRoot = true
 			l.subtreeMergeControl.subtreeRoot = stp
+			l.subtreeMergeControl.freeWildcardParam = freeWildcardParam(fwm)
 		}
 
 		pm.leaves = append(pm.leaves, stm.leaves...)
@@ -389,15 +391,22 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 		return nil, nil
 	}
 
-	// prepend slash in case of free form wildcards path segments (`/*name`),
 	pm := v.(*pathMatcher)
-	if pm.freeWildcardParam != "" {
-		freeParam := params[pm.freeWildcardParam]
-		freeParam = "/" + freeParam
-		params[pm.freeWildcardParam] = freeParam
+	lm := value.(*leafMatcher)
+
+	freeWildcardParam := lm.subtreeMergeControl.freeWildcardParam
+	if freeWildcardParam == "" {
+		freeWildcardParam = pm.freeWildcardParam
 	}
 
-	return params, value.(*leafMatcher)
+	if freeWildcardParam != "" {
+		freeParam := params[freeWildcardParam]
+		// prepend slash in case of free form wildcards path segments (`/*name`),
+		freeParam = "/" + freeParam
+		params[freeWildcardParam] = freeParam
+	}
+
+	return params, lm
 }
 
 // matches the path regexp conditions in a leaf matcher.
