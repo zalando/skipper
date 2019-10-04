@@ -26,8 +26,8 @@ func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
 }
 
 type subtreeMergeControl struct {
-	noSubtreeRoot bool
-	subtreeRoot   string
+	noSubtreeRoot     bool
+	subtreeRoot       string
 	freeWildcardParam string
 }
 
