@@ -26,10 +26,10 @@ func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
 }
 
 type subtreeMergeControl struct {
-	noSubtreeRoot     bool
-	subtreeRoot       string
+	noSubtreeRoot         bool
+	subtreeRoot           string
 	freeWildcardParamFrom string
-	freeWildcardParamTo string
+	freeWildcardParamTo   string
 }
 
 type leafMatcher struct {
@@ -311,16 +311,20 @@ func moveConflictingToSubtree(subtrees, paths map[string]*pathMatcher) {
 
 		subRoot := p[:len(p)-len(fwm)]
 		if subRoot == "" {
-			subRoot  = "/"
+			subRoot = "/"
 		}
 
 		for stp, stm := range subtrees {
 			var subtreePath string
 			stpParam := freeWildcardRx.FindString(stp)
 			if stpParam != "" {
-				subtreePath = stp[:len(stp) - len(stpParam)]
+				subtreePath = stp[:len(stp)-len(stpParam)]
 			} else {
 				subtreePath = stp
+			}
+
+			if subtreePath == "" {
+				subtreePath = "/"
 			}
 
 			if subtreePath == subRoot {
@@ -337,9 +341,9 @@ func moveConflictingToSubtree(subtrees, paths map[string]*pathMatcher) {
 				}
 
 				/*
-				for _, l := range stm.leaves {
-					l.subtreeMergeControl.freeWildcardParamTo = stm.freeWildcardParam
-				}
+					for _, l := range stm.leaves {
+						l.subtreeMergeControl.freeWildcardParamTo = stm.freeWildcardParam
+					}
 				*/
 
 				pm.leaves = append(pm.leaves, stm.leaves...)
@@ -418,7 +422,6 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 		return nil, nil
 	}
 
-	fmt.Println("params found", params)
 	pm := v.(*pathMatcher)
 	lm := value.(*leafMatcher)
 
@@ -428,7 +431,6 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 		delete(params, lm.subtreeMergeControl.freeWildcardParamFrom)
 	} else if pm.freeWildcardParam != "" {
 		params[pm.freeWildcardParam] = "/" + params[pm.freeWildcardParam]
-		fmt.Println("params modded", params)
 	}
 
 	return params, lm

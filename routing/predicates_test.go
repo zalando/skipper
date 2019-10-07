@@ -593,18 +593,340 @@ func TestPredicateList(t *testing.T) {
 		}},
 		checks: []check{{
 			request: &http.Request{
-				URL: &url.URL{Path: "/api/baz"},
+				URL:  &url.URL{Path: "/api/baz"},
 				Host: "foo.example.org",
 			},
-			expectedID: "star",
+			expectedID:     "star",
 			expectedParams: map[string]string{"p1": "/baz"},
 		}, {
 			request: &http.Request{
-				URL: &url.URL{Path: "/api/baz"},
+				URL:  &url.URL{Path: "/api/baz"},
 				Host: "bar.example.org",
 			},
-			expectedID: "subtree",
+			expectedID:     "subtree",
 			expectedParams: map[string]string{"p2": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, only path with free wildcard param",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/api/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/api",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"*": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, path with unnamed, subtree with named free wildcard param",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/api/**",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/api/*p2",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"*": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"p2": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, path with named, subtree with unnamed free wildcard param",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/api/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/api/**",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"*": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, both with free wildcard params, in root",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/*p2",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"p2": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, only path with free wildcard param, in root",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"*": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, path with unnamed, subtree with named free wildcard param, in root",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/**",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/*p2",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"*": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"p2": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, path with named, subtree with unnamed free wildcard param, in root",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/**",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"*": "/baz"},
 		}},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
