@@ -326,7 +326,6 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
-
 		path := httppath.Clean(r.path)
 		if o.ignoreTrailingSlash() {
 			path = trimTrailingSlash(path)
