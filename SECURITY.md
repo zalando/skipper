@@ -5,4 +5,4 @@ We host our bug bounty program on HackerOne, it is currently private, therefore 
 
 https://corporate.zalando.com/en/services-and-contact#security-form
 
-You can also send you report via this form if you do not want to join our bug bounty program and just want to report a vulnerability or security issue.
+You can also send you report via this form if your do not want to join our bug bounty program and just want to report a vulnerability or security issue.
