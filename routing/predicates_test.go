@@ -20,9 +20,10 @@ func TestPredicateList(t *testing.T) {
 	}
 
 	for _, test := range []struct {
-		title  string
-		routes []*eskip.Route
-		checks []check
+		title   string
+		options MatchingOptions
+		routes  []*eskip.Route
+		checks  []check
 	}{{
 
 		title: "only legacy predicate",
@@ -308,6 +309,39 @@ func TestPredicateList(t *testing.T) {
 			},
 			expectedID: "catchAll",
 		}},
+	}, {
+		title: "path regexp with trailing slash",
+		routes: []*eskip.Route{{
+			Id: "foo",
+			Predicates: []*eskip.Predicate{{
+				Name: "PathRegexp",
+				Args: []interface{}{"^/foo/bar/baz-[0-9-]+/$"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL: &url.URL{Path: "/foo/bar/baz-42-0/"},
+			},
+			expectedID: "foo",
+		}},
+	}, {
+		title:   "path regexp with trailing slash, ignore",
+		options: IgnoreTrailingSlash,
+		routes: []*eskip.Route{{
+			Id: "foo",
+			Predicates: []*eskip.Predicate{{
+				Name: "PathRegexp",
+				Args: []interface{}{"^/foo/bar/baz-[0-9-]+/$"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL: &url.URL{Path: "/foo/bar/baz-42-0/"},
+			},
+			expectedID: "foo",
+		}},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			dc := testdataclient.New(test.routes)
@@ -317,8 +351,9 @@ func TestPredicateList(t *testing.T) {
 			defer l.Close()
 
 			rt := New(Options{
-				DataClients: []DataClient{dc},
-				Log:         l,
+				DataClients:     []DataClient{dc},
+				MatchingOptions: test.options,
+				Log:             l,
 			})
 			defer rt.Close()
 
