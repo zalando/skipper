@@ -191,17 +191,6 @@ func trimTrailingSlash(path string) string {
 	return path
 }
 
-func cleanPath(path string, o MatchingOptions) (clean, cleanExact string) {
-	cleanExact = httppath.Clean(path)
-	if o.ignoreTrailingSlash() {
-		clean = trimTrailingSlash(cleanExact)
-	} else {
-		clean = cleanExact
-	}
-
-	return
-}
-
 // add all required tree entries for a subtree with patching the path and
 // the wildcard name if required
 func addSubtreeMatcher(pathTree *pathmux.Tree, path string, m *pathMatcher) error {
@@ -326,7 +315,8 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 		}
 
 		if r.pathSubtree != "" {
-			path, _ := cleanPath(r.pathSubtree, o|IgnoreTrailingSlash)
+			path := httppath.Clean(r.pathSubtree)
+			path = trimTrailingSlash(path)
 			addLeafToPath(subtreeMatchers, path, l)
 			continue
 		}
@@ -336,7 +326,11 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
-		path, _ := cleanPath(r.path, o)
+
+		path := httppath.Clean(r.path)
+		if o.ignoreTrailingSlash() {
+			path = trimTrailingSlash(path)
+		}
 		addLeafToPath(pathMatchers, path, l)
 	}
 
@@ -473,7 +467,11 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path, exactPath string)
 func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	// normalize path before matching
 	// in case ignoring trailing slashes, match without the trailing slash
-	path, exact := cleanPath(r.URL.Path, m.matchingOptions)
+	path := httppath.Clean(r.URL.Path)
+	exact := path
+	if m.matchingOptions.ignoreTrailingSlash() {
+		path = trimTrailingSlash(path)
+	}
 	lrm := &leafRequestMatcher{r: r, path: path, exactPath: exact}
 
 	// first match fixed and wildcard paths
