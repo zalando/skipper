@@ -587,6 +587,8 @@ func (c *Config) Parse() error {
 		if err != nil {
 			return fmt.Errorf("unmarshalling config file error: %v", err)
 		}
+
+		flag.Parse()
 	}
 
 	if c.ApiUsageMonitoringDefaultClientTrackingPattern != defaultApiUsageMonitoringDefaultClientTrackingPattern {

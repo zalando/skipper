@@ -31,11 +31,11 @@ func Test_NewConfig(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "test valid yaml file overwrite flag",
+			name: "test only valid flag overwrite yaml file",
 			args: []string{"skipper", "-config-file=test.yaml", "-address=localhost:8080"},
 			want: &Config{
 				ConfigFile:                              "test.yaml",
-				Address:                                 "localhost:9090",
+				Address:                                 "localhost:8080",
 				SupportListener:                         ":9911",
 				MaxLoopbacks:                            12,
 				DefaultHTTPStatus:                       404,
