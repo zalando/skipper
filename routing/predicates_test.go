@@ -967,10 +967,10 @@ func TestPredicateList(t *testing.T) {
 					}
 
 					if check.expectedID != "" && r.Id != check.expectedID {
-						t.Error("routing failed")
-						t.Log(
-							"wrong route matched:", r.Id,
-							"but expected:", check.expectedID,
+						t.Errorf(
+							"routing failed; matched route: %s, expected: %s",
+							r.Id,
+							check.expectedID,
 						)
 
 						return
@@ -998,11 +998,10 @@ func TestPredicateList(t *testing.T) {
 								len(check.expectedParams),
 								len(p),
 							)
-							t.Log(p)
+
 							return
 						}
 
-						t.Log(p)
 						for k, v := range check.expectedParams {
 							if p[k] != v {
 								t.Errorf(
