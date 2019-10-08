@@ -503,7 +503,7 @@ func TestMatchLeafWrongMethod(t *testing.T) {
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
 		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
-	if matchLeaf(l, req, "/some/path") {
+	if matchLeaf(l, req, "/some/path", "/some/path") {
 		t.Error("failed not to match leaf method")
 	}
 }
@@ -524,7 +524,7 @@ func TestMatchLeafWrongHost(t *testing.T) {
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
 		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
-	if matchLeaf(l, req, "/some/path") {
+	if matchLeaf(l, req, "/some/path", "/some/path") {
 		t.Error("failed not to match leaf host")
 	}
 }
@@ -534,6 +534,7 @@ func TestMatchLeafWrongPath(t *testing.T) {
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{
+		URL:    &url.URL{Path: "/some/other/path"},
 		Method: "PUT",
 		Host:   "example.org",
 		Header: http.Header{
@@ -545,7 +546,7 @@ func TestMatchLeafWrongPath(t *testing.T) {
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
 		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
-	if matchLeaf(l, req, "/some/other/path") {
+	if matchLeaf(l, req, "/some/other/path", "/some/other/path") {
 		t.Error("failed not to match leaf path")
 	}
 }
@@ -555,6 +556,7 @@ func TestMatchLeafWrongExactHeader(t *testing.T) {
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{
+		URL:    &url.URL{Path: "/some/path"},
 		Method: "PUT",
 		Host:   "example.org",
 		Header: http.Header{
@@ -566,7 +568,7 @@ func TestMatchLeafWrongExactHeader(t *testing.T) {
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
 		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
-	if matchLeaf(l, req, "/some/path") {
+	if matchLeaf(l, req, "/some/path", "/some/path") {
 		t.Error("failed not to match leaf exact header")
 	}
 }
@@ -576,6 +578,7 @@ func TestMatchLeafWrongRegexpHeader(t *testing.T) {
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{
+		URL:    &url.URL{Path: "/some/path"},
 		Method: "PUT",
 		Host:   "example.org",
 		Header: http.Header{
@@ -587,7 +590,7 @@ func TestMatchLeafWrongRegexpHeader(t *testing.T) {
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
 		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
-	if matchLeaf(l, req, "/some/path") {
+	if matchLeaf(l, req, "/some/path", "/some/path") {
 		t.Error("failed not to match leaf regexp header")
 	}
 }
@@ -597,6 +600,7 @@ func TestMatchLeaf(t *testing.T) {
 	rxp := regexp.MustCompile("/some/path")
 	rxhd := regexp.MustCompile("some-other-value")
 	req := &http.Request{
+		URL:    &url.URL{Path: "/some/path"},
 		Method: "PUT",
 		Host:   "example.org",
 		Header: http.Header{
@@ -608,7 +612,7 @@ func TestMatchLeaf(t *testing.T) {
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
 		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
-	if !matchLeaf(l, req, "/some/path") {
+	if !matchLeaf(l, req, "/some/path", "/some/path") {
 		t.Error("failed to match leaf")
 	}
 }
@@ -617,7 +621,7 @@ func TestMatchLeavesFalse(t *testing.T) {
 	l0 := &leafMatcher{method: "PUT"}
 	l1 := &leafMatcher{method: "POST"}
 	req := &http.Request{Method: "GET"}
-	if matchLeaves([]*leafMatcher{l0, l1}, req, "/some/path") != nil {
+	if matchLeaves([]*leafMatcher{l0, l1}, req, "/some/path", "/some/path") != nil {
 		t.Error("failed not to match leaves")
 	}
 }
@@ -625,8 +629,8 @@ func TestMatchLeavesFalse(t *testing.T) {
 func TestMatchLeavesTrue(t *testing.T) {
 	l0 := &leafMatcher{method: "PUT"}
 	l1 := &leafMatcher{method: "POST"}
-	req := &http.Request{Method: "PUT"}
-	if matchLeaves([]*leafMatcher{l0, l1}, req, "/some/path") != l0 {
+	req := &http.Request{URL: &url.URL{Path: "/some/path"}, Method: "PUT"}
+	if matchLeaves([]*leafMatcher{l0, l1}, req, "/some/path", "/some/path") != l0 {
 		t.Error("failed not to match leaves")
 	}
 }
@@ -663,7 +667,11 @@ func TestMatchPathTree(t *testing.T) {
 		t.Error(err)
 	}
 
-	p, v := matchPathTree(tree, "/some/path", &leafRequestMatcher{&http.Request{}, ""})
+	p, v := matchPathTree(
+		tree,
+		"/some/path",
+		&leafRequestMatcher{r: &http.Request{URL: &url.URL{Path: "/some/path"}}},
+	)
 
 	if len(p) != 0 || v.route.Route.Id != "1" {
 		t.Error("failed to match path", len(p))
@@ -682,7 +690,11 @@ func TestMatchPathTreeWithWildcards(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	p, v := matchPathTree(tree, "/some/path/and/params", &leafRequestMatcher{&http.Request{}, ""})
+	p, v := matchPathTree(
+		tree,
+		"/some/path/and/params",
+		&leafRequestMatcher{r: &http.Request{URL: &url.URL{Path: "/some/path/and/params"}}},
+	)
 	if len(p) != 2 || p["param0"] != "and" || p["param1"] != "params" || v.route.Route.Id != "1" {
 		t.Error("failed to match path", len(p))
 	}

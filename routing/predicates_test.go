@@ -928,6 +928,39 @@ func TestPredicateList(t *testing.T) {
 			expectedID:     "subtree",
 			expectedParams: map[string]string{"*": "/baz"},
 		}},
+	}, {
+		title: "path regexp with trailing slash",
+		routes: []*eskip.Route{{
+			Id: "foo",
+			Predicates: []*eskip.Predicate{{
+				Name: "PathRegexp",
+				Args: []interface{}{"^/foo/bar/baz-[0-9-]+/$"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL: &url.URL{Path: "/foo/bar/baz-42-0/"},
+			},
+			expectedID: "foo",
+		}},
+	}, {
+		title:   "path regexp with trailing slash, ignore",
+		options: IgnoreTrailingSlash,
+		routes: []*eskip.Route{{
+			Id: "foo",
+			Predicates: []*eskip.Predicate{{
+				Name: "PathRegexp",
+				Args: []interface{}{"^/foo/bar/baz-[0-9-]+/$"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL: &url.URL{Path: "/foo/bar/baz-42-0/"},
+			},
+			expectedID: "foo",
+		}},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			dc := testdataclient.New(test.routes)

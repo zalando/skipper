@@ -76,6 +76,7 @@ Example:
 rm_api: Path("/api") -> modPath("/api", "/") -> "https://backend.example.org";
 append_bar: Path("/foo") -> modPath("/foo", "/foo/bar") -> "https://backend.example.org";
 new_base: PathSubtree("/base") -> modPath("/base", "/new/base) -> "https://backend.example.org";
+rm_api_regex: Path("/api") -> modPath("^/api/(.*)/v2$", "/$1") -> "https://backend.example.org";
 ```
 
 ## setPath
@@ -253,6 +254,9 @@ Example:
 ```
 * -> inlineContent("<h1>Hello</h1>") -> <shunt>
 ```
+
+!!! note
+    `inlineContent` filter is special and must be the last in the filter chain.
 
 ## flowId
 

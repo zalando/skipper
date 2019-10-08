@@ -142,10 +142,10 @@ HTTP->HTTPS redirects if skipper is started with `-kubernetes-https-redirect`.
 
 Dataclients:
 
-- [eskip-file](../data-clients/eskip-file)
-- [route string](../data-clients/route-string)
-- [kubernetes](../data-clients/kubernetes)
-- [etcd](../data-clients/etcd)
+- [eskip-file](../data-clients/eskip-file.md)
+- [route string](../data-clients/route-string.md)
+- [kubernetes](../data-clients/kubernetes.md)
+- [etcd](../data-clients/etcd.md)
 
 ## Route processing
 
@@ -233,7 +233,7 @@ The route matching logic can be summed up as follows:
 3. _If_ #2 results in multiple matching routes, then one route will be
    selected. It is unspecified which one.
 
-See more details about the predicates here: (Predicates)[../../reference/predicates.md].
+See more details about the predicates here: [Predicates](../reference/predicates.md).
 
 ## Building skipper
 
