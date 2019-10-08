@@ -11,8 +11,9 @@ import (
 )
 
 type leafRequestMatcher struct {
-	r    *http.Request
-	path string
+	r         *http.Request
+	path      string
+	exactPath string
 }
 
 func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
@@ -21,7 +22,7 @@ func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
 		return false, nil
 	}
 
-	l := matchLeaves(v.leaves, m.r, m.path)
+	l := matchLeaves(v.leaves, m.r, m.path, m.exactPath)
 
 	return l != nil, l
 }
@@ -190,15 +191,6 @@ func trimTrailingSlash(path string) string {
 	return path
 }
 
-func cleanPath(path string, o MatchingOptions) string {
-	path = httppath.Clean(path)
-	if o.ignoreTrailingSlash() {
-		path = trimTrailingSlash(path)
-	}
-
-	return path
-}
-
 // add all required tree entries for a subtree with patching the path and
 // the wildcard name if required
 func addSubtreeMatcher(pathTree *pathmux.Tree, path string, m *pathMatcher) error {
@@ -323,7 +315,8 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 		}
 
 		if r.pathSubtree != "" {
-			path := cleanPath(r.pathSubtree, o|IgnoreTrailingSlash)
+			path := httppath.Clean(r.pathSubtree)
+			path = trimTrailingSlash(path)
 			addLeafToPath(subtreeMatchers, path, l)
 			continue
 		}
@@ -333,7 +326,10 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
-		path := cleanPath(r.path, o)
+		path := httppath.Clean(r.path)
+		if o.ignoreTrailingSlash() {
+			path = trimTrailingSlash(path)
+		}
 		addLeafToPath(pathMatchers, path, l)
 	}
 
@@ -425,7 +421,7 @@ func matchPredicates(cps []Predicate, req *http.Request) bool {
 }
 
 // matches a request to the conditions in a leaf matcher
-func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
+func matchLeaf(l *leafMatcher, req *http.Request, path, exactPath string) bool {
 	if l.exactPath != "" && l.exactPath != path {
 		return false
 	}
@@ -438,7 +434,7 @@ func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 		return false
 	}
 
-	if !matchRegexps(l.pathRxs, path) {
+	if !matchRegexps(l.pathRxs, exactPath) {
 		return false
 	}
 
@@ -454,9 +450,9 @@ func matchLeaf(l *leafMatcher, req *http.Request, path string) bool {
 }
 
 // matches a request to a set of leaf matchers
-func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatcher {
+func matchLeaves(leaves leafMatchers, req *http.Request, path, exactPath string) *leafMatcher {
 	for _, l := range leaves {
-		if matchLeaf(l, req, path) {
+		if matchLeaf(l, req, path, exactPath) {
 			return l
 		}
 	}
@@ -470,8 +466,12 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path string) *leafMatch
 func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	// normalize path before matching
 	// in case ignoring trailing slashes, match without the trailing slash
-	path := cleanPath(r.URL.Path, m.matchingOptions)
-	lrm := &leafRequestMatcher{r, path}
+	path := httppath.Clean(r.URL.Path)
+	exact := path
+	if m.matchingOptions.ignoreTrailingSlash() {
+		path = trimTrailingSlash(path)
+	}
+	lrm := &leafRequestMatcher{r: r, path: path, exactPath: exact}
 
 	// first match fixed and wildcard paths
 	params, l := matchPathTree(m.paths, path, lrm)
@@ -481,7 +481,7 @@ func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
 	}
 
 	// if no path match, match root leaves for other conditions
-	l = matchLeaves(m.rootLeaves, r, path)
+	l = matchLeaves(m.rootLeaves, r, path, exact)
 	if l != nil {
 		return l.route, nil
 	}
