@@ -14,9 +14,10 @@ import (
 
 func TestPredicateList(t *testing.T) {
 	type check struct {
-		request    *http.Request
-		expectedID string
-		allowedIDs []string
+		request        *http.Request
+		expectedID     string
+		allowedIDs     []string
+		expectedParams map[string]string
 	}
 
 	for _, test := range []struct {
@@ -310,6 +311,624 @@ func TestPredicateList(t *testing.T) {
 			expectedID: "catchAll",
 		}},
 	}, {
+		title: "path wildcard and path subtree",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^foo[.]example[.]org$"},
+			}, {
+				Name: "Path",
+				Args: []interface{}{"/*p1"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^bar[.]example[.]org$"},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{"/"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID: "star",
+			expectedParams: map[string]string{
+				"p1": "/baz",
+			},
+		}, {
+			// no match when trailing slash not ignored
+			request: &http.Request{
+				URL:  &url.URL{Path: "/"},
+				Host: "foo.example.org",
+			},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux/quz"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}},
+	}, {
+		title:   "path wildcard and path subtree, ignore trailing slash",
+		options: IgnoreTrailingSlash,
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^foo[.]example[.]org$"},
+			}, {
+				Name: "Path",
+				Args: []interface{}{"/*p1"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^bar[.]example[.]org$"},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{"/"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			// no match when trailing slash not ignored
+			request: &http.Request{
+				URL:  &url.URL{Path: "/"},
+				Host: "foo.example.org",
+			},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/qux/quz"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}},
+	}, {
+		title: "path wildcard and path subtree, non-root",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^foo[.]example[.]org$"},
+			}, {
+				Name: "Path",
+				Args: []interface{}{"/api/*p1"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^bar[.]example[.]org$"},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{"/api"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID: "star",
+			expectedParams: map[string]string{
+				"p1": "/baz",
+			},
+		}, {
+			// no match when trailing slash not ignored
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api"},
+				Host: "foo.example.org",
+			},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/qux"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/qux/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/qux/quz"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}},
+	}, {
+		title:   "path wildcard and path subtree, ignore trailing slash",
+		options: IgnoreTrailingSlash,
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^foo[.]example[.]org$"},
+			}, {
+				Name: "Path",
+				Args: []interface{}{"/api/*p1"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{"^bar[.]example[.]org$"},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{"/api"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			// no match when trailing slash not ignored
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api"},
+				Host: "foo.example.org",
+			},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/qux"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/qux/"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/qux/quz"},
+				Host: "bar.example.org",
+			},
+			expectedID: "subtree",
+		}},
+	}, {
+		title: "path subtree, and path, both with free wildcard params",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/api/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/api/*p2",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"p2": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, only path with free wildcard param",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/api/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/api",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"*": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, path with unnamed, subtree with named free wildcard param",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/api/**",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/api/*p2",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"*": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"p2": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, path with named, subtree with unnamed free wildcard param",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/api/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/api/**",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/api/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"*": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, both with free wildcard params, in root",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/*p2",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"p2": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, only path with free wildcard param, in root",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"*": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, path with unnamed, subtree with named free wildcard param, in root",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/**",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/*p2",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"*": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"p2": "/baz"},
+		}},
+	}, {
+		title: "path subtree, and path, path with named, subtree with unnamed free wildcard param, in root",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/*p1",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "subtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{
+					"/**",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "/baz"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/baz"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "subtree",
+			expectedParams: map[string]string{"*": "/baz"},
+		}},
+	}, {
 		title: "path regexp with trailing slash",
 		routes: []*eskip.Route{{
 			Id: "foo",
@@ -366,35 +985,68 @@ func TestPredicateList(t *testing.T) {
 				}
 
 				t.Run("expecting "+checkTitle, func(t *testing.T) {
-					r, _ := rt.Route(check.request)
+					r, p := rt.Route(check.request)
+					if check.expectedID == "" && len(check.allowedIDs) == 0 {
+						if r != nil {
+							t.Error("unexpected route match")
+						}
+
+						return
+					}
+
 					if r == nil {
 						t.Error("route not found")
 						return
 					}
 
 					if check.expectedID != "" && r.Id != check.expectedID {
-						t.Error("routing failed")
-						t.Log(
-							"wrong route matched:", r.Id,
-							"but expected:", check.expectedID,
+						t.Errorf(
+							"routing failed; matched route: %s, expected: %s",
+							r.Id,
+							check.expectedID,
 						)
 
 						return
 					}
 
-					if check.expectedID != "" {
-						t.Log("matched:", check.expectedID)
-						return
-					}
+					if check.expectedID == "" {
+						var found bool
+						for i := range check.allowedIDs {
+							if r.Id == check.allowedIDs[i] {
+								found = true
+								break
+							}
+						}
 
-					for i := range check.allowedIDs {
-						if r.Id == check.allowedIDs[i] {
-							t.Log("matched:", check.allowedIDs[i])
+						if !found {
+							t.Error("not allowed ID:", r.Id)
 							return
 						}
 					}
 
-					t.Error("not allowed ID:", r.Id)
+					if check.expectedParams != nil {
+						if len(p) != len(check.expectedParams) {
+							t.Errorf(
+								"unexpected count of params; expected: %d, got: %d",
+								len(check.expectedParams),
+								len(p),
+							)
+
+							return
+						}
+
+						for k, v := range check.expectedParams {
+							if p[k] != v {
+								t.Errorf(
+									"unexpected value for param: %s=%s",
+									k,
+									p[k],
+								)
+
+								return
+							}
+						}
+					}
 				})
 			}
 		})

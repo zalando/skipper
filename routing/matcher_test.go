@@ -159,6 +159,10 @@ func docToMatcher(doc string) (*matcher, error) {
 
 // create a matcher based on the generic test routes
 func initGenericMatcher() {
+	if testMatcherGeneric != nil {
+		return
+	}
+
 	m, err := docToMatcher(testRouteDoc)
 	if err != nil {
 		log.Fatal(err)
@@ -270,10 +274,6 @@ func initBenchmark(b *testing.B, init func()) {
 	b.ResetTimer()
 }
 
-func init() {
-	initGenericMatcher()
-}
-
 func newRequest(method, path string) (*http.Request, error) {
 	u := fmt.Sprintf("https://example.com%s", path)
 	r := &http.Request{}
@@ -301,6 +301,7 @@ func checkMatch(t testing.TB, r *Route, err error, host string) {
 }
 
 func testMatch(t testing.TB, method, path, host string) {
+	initGenericMatcher()
 	req, err := newRequest(method, path)
 	if err != nil {
 		t.Error(err)
