@@ -264,10 +264,14 @@ Sets an X-Flow-Id header, if it's not already in the request.
 This allows you to have a trace in your logs, that traces from
 the incoming request on the edge to all backend services.
 
+Flow IDs must be in a certain format to be reusable in skipper. Valid formats
+depend on the generator used in skipper. Default generator creates IDs of
+length 16 matching the following regex: `^[0-9a-zA-Z+-]+$`
+
 Paramters:
 
 * no parameter: resets always the X-Flow-Id header to a new value
-* "reuse": only create X-Flow-Id header if not set in the request
+* `"reuse"`: only create X-Flow-Id header if not already set or if the value is invalid in the request
 
 Example:
 

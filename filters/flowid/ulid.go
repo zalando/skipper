@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+const (
+	flowIDLength = 26
+)
+
 type ulidGenerator struct {
 	sync.Mutex
 	r io.Reader
@@ -54,5 +58,5 @@ func (g *ulidGenerator) MustGenerate() string {
 
 // IsValid checks if the given flowId follows the format of this generator
 func (g *ulidGenerator) IsValid(flowId string) bool {
-	return len(flowId) >= MinLength && len(flowId) <= MaxLength && ulidFlowIDRegex.MatchString(flowId)
+	return len(flowId) == flowIDLength && ulidFlowIDRegex.MatchString(flowId)
 }
