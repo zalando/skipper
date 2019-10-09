@@ -11,6 +11,7 @@ import (
 
 const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`
 const logJSONOutput = `{"audit":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
+const logExtendedJSONOutput = `{"audit":"","duration":42,"extra":"extra","flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
 
 func testRequest() *http.Request {
 	r, _ := http.NewRequest("GET", "http://frank@example.com", nil)
@@ -34,10 +35,14 @@ func testAccessEntry() *AccessEntry {
 }
 
 func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string, o Options) {
+	testAccessLogExtended(t, entry, nil, expectedOutput, o)
+}
+
+func testAccessLogExtended(t *testing.T, entry *AccessEntry, additional map[string]interface{}, expectedOutput string, o Options) {
 	var buf bytes.Buffer
 	o.AccessLogOutput = &buf
 	Init(o)
-	LogAccess(entry)
+	LogAccess(entry, additional)
 	got := buf.String()
 	if got != "" {
 		got = got[:len(got)-1]
@@ -60,6 +65,10 @@ func TestAccessLogFormatFull(t *testing.T) {
 
 func TestAccessLogFormatJSON(t *testing.T) {
 	testAccessLog(t, testAccessEntry(), logJSONOutput, Options{AccessLogJSONEnabled: true})
+}
+
+func TestAccessLogFormatJSONWithAdditionalData(t *testing.T) {
+	testAccessLogExtended(t, testAccessEntry(), map[string]interface{}{"extra": "extra"}, logExtendedJSONOutput, Options{AccessLogJSONEnabled: true})
 }
 
 func TestAccessLogIgnoresEmptyEntry(t *testing.T) {

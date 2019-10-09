@@ -34,6 +34,11 @@ During initialization, it is possible to redirect the access log output
 from the default /dev/stderr to another file, or completely disable the
 access log.
 
+A special key in the StateBag (accessLog.AccessLogAdditionalDataKey) is exposed
+so filters can add more data to the access log files. When using the feature, any data
+contained in a map[string]interface{} in the StateBag's key will be passed to the logger.
+This is specially useful when more request/response information is needed when logging.
+
 Output Files
 
 To set a custom file output for the application log or the access log is

@@ -113,7 +113,8 @@ func stripQueryString(u string) string {
 }
 
 // Logs an access event in Apache combined log format (with a minor customization with the duration).
-func LogAccess(entry *AccessEntry) {
+// Additional allows to provide extra data that may be also logged, depending on the specific log format.
+func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 	if accessLog == nil || entry == nil {
 		return
 	}
@@ -151,7 +152,7 @@ func LogAccess(entry *AccessEntry) {
 		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
 	}
 
-	accessLog.WithFields(logrus.Fields{
+	logData := logrus.Fields{
 		"timestamp":      ts,
 		"host":           host,
 		"method":         method,
@@ -165,5 +166,11 @@ func LogAccess(entry *AccessEntry) {
 		"duration":       duration,
 		"flow-id":        flowId,
 		"audit":          auditHeader,
-	}).Infoln()
+	}
+
+	for k, v := range additional {
+		logData[k] = v
+	}
+
+	accessLog.WithFields(logData).Infoln()
 }
