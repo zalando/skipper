@@ -132,7 +132,9 @@ type Options struct {
 // purpose.
 type RouteFilter struct {
 	filters.Filter
-	Name  string
+	Name string
+
+	// Deprecated: currently not used, and post-processors may not maintain a correct value
 	Index int
 }
 
