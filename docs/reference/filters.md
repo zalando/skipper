@@ -264,10 +264,13 @@ Sets an X-Flow-Id header, if it's not already in the request.
 This allows you to have a trace in your logs, that traces from
 the incoming request on the edge to all backend services.
 
+Flow IDs must be in a [certain format][flowid_validation] to be reusable in
+skipper.
+
 Paramters:
 
 * no parameter: resets always the X-Flow-Id header to a new value
-* "reuse": only create X-Flow-Id header if not set in the request
+* `"reuse"`: only create X-Flow-Id header if not already set or if the value is invalid in the request
 
 Example:
 
@@ -275,6 +278,8 @@ Example:
 * -> flowId() -> "https://some-backend.example.org";
 * -> flowId("reuse") -> "https://some-backend.example.org";
 ```
+
+[flowid_validation]: https://github.com/zalando/skipper/blob/b2d74584a5753b21034be452743ae242f86fd513/filters/flowid/ulid.go#L55-L58
 
 ## randomContent
 
