@@ -1,6 +1,8 @@
 package builtin
 
 import (
+	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 var time0 = time.Now().Truncate(time.Second).UTC()
@@ -184,6 +187,131 @@ func TestRouteCreationMetrics_originStartTime(t *testing.T) {
 			o, c := m.originStartTime(tt.filter)
 			assert.Equal(t, tt.expectedOrigin, o)
 			assert.Equal(t, tt.expectedCreated, c)
+		})
+	}
+}
+
+func TestRouteCreationMetricsMarkerDropped(t *testing.T) {
+	for title, routesDoc := range map[string]string{
+		"no origin marker": `* -> status(200) -> <shunt>`,
+
+		"origin marker first": `*
+			-> originMarker(
+				"foo",
+				"15d2f2a3-e9ca-11e9-9076-028161d12104",
+				"2006-01-02T15:04:05Z"
+			)
+			-> status(200)
+			-> <shunt>
+		`,
+
+		"origin marker last": `*
+			-> status(200)
+			-> originMarker(
+				"foo",
+				"15d2f2a3-e9ca-11e9-9076-028161d12104",
+				"2006-01-02T15:04:05Z"
+			)
+			-> <shunt>
+		`,
+
+		"origin marker between": `*
+			-> status(200)
+			-> originMarker(
+				"foo",
+				"15d2f2a3-e9ca-11e9-9076-028161d12104",
+				"2006-01-02T15:04:05Z"
+			)
+			-> inlineContent("bar")
+			-> <shunt>
+		`,
+
+		"origin markers around": `*
+			-> originMarker(
+				"foo",
+				"15d2f2a3-e9ca-11e9-9076-028161d12104",
+				"2006-01-02T15:04:05Z"
+			)
+			-> status(200)
+			-> originMarker(
+				"bar",
+				"15d2f2a3-e9ca-11e9-9076-028161d12104",
+				"2006-01-02T15:04:05Z"
+			)
+			-> <shunt>
+		`,
+
+		"multiple origin markers between and around": `*
+			-> compress()
+			-> originMarker(
+				"foo",
+				"15d2f2a3-e9ca-11e9-9076-028161d12104",
+				"2006-01-02T15:04:05Z"
+			)
+			-> originMarker(
+				"bar",
+				"15d2f2a3-e9ca-11e9-9076-028161d12104",
+				"2006-01-02T15:04:05Z"
+			)
+			-> status(200)
+			-> originMarker(
+				"baz",
+				"15d2f2a3-e9ca-11e9-9076-028161d12104",
+				"2006-01-02T15:04:05Z"
+			)
+			-> inlineContent("Hello, world!")
+			-> <shunt>
+		`,
+	} {
+		t.Run(title, func(t *testing.T) {
+			dc, err := testdataclient.NewDoc(routesDoc)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			filtersBefore := make(map[string]bool)
+			er, err := dc.LoadAll()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, r := range er {
+				for _, f := range r.Filters {
+					filtersBefore[f.Name] = true
+				}
+			}
+
+			rt := routing.New(routing.Options{
+				FilterRegistry:  MakeRegistry(),
+				DataClients:     []routing.DataClient{dc},
+				PostProcessors:  []routing.PostProcessor{NewRouteCreationMetrics(&metricstest.MockMetrics{})},
+				SignalFirstLoad: true,
+			})
+
+			<-rt.FirstLoad()
+			r, _ := rt.Route(&http.Request{URL: &url.URL{Path: "/"}})
+			if r == nil {
+				t.Fatal("failed to find route")
+			}
+
+			filtersAfter := make(map[string]bool)
+			for _, f := range r.Filters {
+				filtersAfter[f.Name] = true
+			}
+
+			for name := range filtersBefore {
+				if name == "originMarker" {
+					if filtersAfter[name] {
+						t.Fatal("origin marker was not removed")
+					}
+
+					continue
+				}
+
+				if !filtersAfter[name] {
+					t.Fatal("non-origin marker filters was removed")
+				}
+			}
 		})
 	}
 }

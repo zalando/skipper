@@ -29,6 +29,38 @@ func NewRouteCreationMetrics(metrics filters.Metrics) *RouteCreationMetrics {
 	return &RouteCreationMetrics{metrics: metrics, originIdAges: map[string]map[string]int{}}
 }
 
+func removeOriginMarkers(r []*routing.Route) {
+	for _, ri := range r {
+		var (
+			f                  []*routing.RouteFilter
+			foundOriginMarkers bool
+		)
+
+		for i, fi := range ri.Filters {
+			_, isOriginMarker := fi.Filter.(*OriginMarker)
+
+			if !isOriginMarker && !foundOriginMarkers {
+				continue
+			}
+
+			if !isOriginMarker {
+				f = append(f, fi)
+				continue
+			}
+
+			if !foundOriginMarkers {
+				f = make([]*routing.RouteFilter, i, len(ri.Filters))
+				copy(f, ri.Filters[:i])
+				foundOriginMarkers = true
+			}
+		}
+
+		if foundOriginMarkers {
+			ri.Filters = f
+		}
+	}
+}
+
 // Do implements routing.PostProcessor and records the filter creation time.
 func (m *RouteCreationMetrics) Do(routes []*routing.Route) []*routing.Route {
 	for _, r := range routes {
@@ -45,7 +77,7 @@ func (m *RouteCreationMetrics) Do(routes []*routing.Route) []*routing.Route {
 	}
 
 	m.pruneCache()
-
+	removeOriginMarkers(routes)
 	return routes
 }
 
