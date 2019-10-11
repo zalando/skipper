@@ -52,6 +52,7 @@ func (rt *RatelimitType) UnmarshalYAML(unmarshal func(interface{}) error) error 
 
 	switch value {
 	case "local":
+		log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
 		fallthrough
 	case "client":
 		*rt = ClientRatelimit
@@ -60,7 +61,7 @@ func (rt *RatelimitType) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	case "disabled":
 		*rt = DisableRatelimit
 	default:
-		return fmt.Errorf("invalid ratelimit type %v (allowed values are: local, client, service or disabled)", value)
+		return fmt.Errorf("invalid ratelimit type %v (allowed values are: client, service or disabled)", value)
 	}
 
 	return nil

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/ratelimit"
 )
 
@@ -20,7 +22,7 @@ const enableRatelimitUsage = `enable ratelimit`
 
 type ratelimitFlags []ratelimit.Settings
 
-var errInvalidRatelimitConfig = errors.New("invalid ratelimit config (allowed values are: local, client, service or disabled)")
+var errInvalidRatelimitConfig = errors.New("invalid ratelimit config (allowed values are: client, service or disabled)")
 
 func (r ratelimitFlags) String() string {
 	s := make([]string, len(r))
@@ -45,6 +47,7 @@ func (r *ratelimitFlags) Set(value string) error {
 		case "type":
 			switch kv[1] {
 			case "local":
+				log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
 				fallthrough
 			case "client":
 				s.Type = ratelimit.ClientRatelimit
