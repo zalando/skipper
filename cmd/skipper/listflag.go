@@ -37,7 +37,7 @@ func (lf *listFlag) Set(value string) error {
 	lf.value = value
 	lf.values = strings.Split(value, lf.sep)
 
-	if err := lf.hasOnlyAllowedValues(); err != nil {
+	if err := lf.validate(); err != nil {
 		return err
 	}
 
@@ -53,14 +53,14 @@ func (lf *listFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	lf.value = strings.Join(values, lf.sep)
 	lf.values = values
 
-	if err := lf.hasOnlyAllowedValues(); err != nil {
+	if err := lf.validate(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (lf *listFlag) hasOnlyAllowedValues() error {
+func (lf *listFlag) validate() error {
 	if len(lf.allowed) == 0 {
 		return nil
 	}
