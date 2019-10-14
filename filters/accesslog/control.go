@@ -11,6 +11,9 @@ const (
 
 	// AccessLogEnabledKey is the key used in the state bag to pass the access log state to the proxy.
 	AccessLogEnabledKey = "statebag:access_log:proxy:enabled"
+
+	// AccessLogAdditionalDataKey is the key used in the state bag to pass extra data to access log
+	AccessLogAdditionalDataKey = "statebag:access_log:additional"
 )
 
 // Common filter struct for holding access log state

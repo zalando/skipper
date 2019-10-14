@@ -1251,7 +1251,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Duration:     time.Since(ctx.startServe),
 			}
 
-			logging.LogAccess(entry)
+			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
+
+			logging.LogAccess(entry, additionalData)
 		}
 	}()
 
