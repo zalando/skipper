@@ -24,15 +24,11 @@ const enableBreakersUsage = `enable breakers to be set from filters without prov
 
 type breakerFlags []circuit.BreakerSettings
 
-var errInvalidBreakerConfig = errors.New("invalid breaker config")
+var errInvalidBreakerConfig = errors.New("invalid breaker config (allowed values are: consecutive, rate or disabled)")
 
-func (b *breakerFlags) String() string {
-	if b == nil {
-		return ""
-	}
-
-	s := make([]string, len(*b))
-	for i, bi := range *b {
+func (b breakerFlags) String() string {
+	s := make([]string, len(b))
+	for i, bi := range b {
 		s[i] = bi.String()
 	}
 
@@ -108,5 +104,15 @@ func (b *breakerFlags) Set(value string) error {
 	}
 
 	*b = append(*b, s)
+	return nil
+}
+
+func (b *breakerFlags) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var breakerSettings circuit.BreakerSettings
+	if err := unmarshal(&breakerSettings); err != nil {
+		return err
+	}
+
+	*b = append(*b, breakerSettings)
 	return nil
 }

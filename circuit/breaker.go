@@ -1,6 +1,7 @@
 package circuit
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -8,6 +9,26 @@ import (
 
 // BreakerType defines the type of the used breaker: consecutive, rate or disabled.
 type BreakerType int
+
+func (b *BreakerType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var value string
+	if err := unmarshal(&value); err != nil {
+		return err
+	}
+
+	switch value {
+	case "consecutive":
+		*b = ConsecutiveFailures
+	case "rate":
+		*b = FailureRate
+	case "disabled":
+		*b = BreakerDisabled
+	default:
+		return fmt.Errorf("invalid breaker type %v (allowed values are: consecutive, rate or disabled)", value)
+	}
+
+	return nil
+}
 
 const (
 	BreakerNone BreakerType = iota
@@ -21,12 +42,13 @@ const (
 // See the package overview for the detailed merging/overriding rules of the settings and for the meaning of the
 // individual fields.
 type BreakerSettings struct {
-	Type             BreakerType
-	Host             string
-	Window, Failures int
-	Timeout          time.Duration
-	HalfOpenRequests int
-	IdleTTL          time.Duration
+	Type             BreakerType   `yaml:"type"`
+	Host             string        `yaml:"host"`
+	Window           int           `yaml:"window"`
+	Failures         int           `yaml:"failures"`
+	Timeout          time.Duration `yaml:"timeout"`
+	HalfOpenRequests int           `yaml:"half-open-requests"`
+	IdleTTL          time.Duration `yaml:"idle-ttl"`
 }
 
 type breakerImplementation interface {

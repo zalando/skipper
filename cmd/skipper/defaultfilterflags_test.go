@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -46,6 +48,11 @@ func Test_defaultFiltersFlags_Set(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "test error filter",
+			args:    "invalid-filter",
+			wantErr: true,
+		},
+		{
 			name:    "test one filter",
 			args:    `tee("https://www.zalando.de/")`,
 			want:    oneFilter,
@@ -67,6 +74,14 @@ func Test_defaultFiltersFlags_Set(t *testing.T) {
 			if !tt.wantErr {
 				if len(tt.want) != len(dpf.filters) {
 					t.Errorf("defaultFiltersFlags size missmatch got %d want %d", len(dpf.filters), len(tt.want))
+				}
+
+				if err := yaml.Unmarshal([]byte(tt.args), dpf); err != nil {
+					t.Errorf("defaultFiltersFlags.UnmarshalYAML() error = %v, wantErr %v", err, tt.wantErr)
+				}
+
+				if len(tt.want) != len(dpf.filters) {
+					t.Errorf("defaultFiltersFlags from yaml size missmatch got %d want %d", len(dpf.filters), len(tt.want))
 				}
 			}
 		})

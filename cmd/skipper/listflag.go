@@ -36,16 +36,40 @@ func (lf *listFlag) Set(value string) error {
 
 	lf.value = value
 	lf.values = strings.Split(value, lf.sep)
+
+	if err := lf.validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (lf *listFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var values []string
+	if err := unmarshal(&values); err != nil {
+		return err
+	}
+
+	lf.value = strings.Join(values, lf.sep)
+	lf.values = values
+
+	if err := lf.validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (lf *listFlag) validate() error {
 	if len(lf.allowed) == 0 {
 		return nil
 	}
 
 	for _, v := range lf.values {
 		if !lf.allowed[v] {
-			return fmt.Errorf("flag value not allowed: %s", v)
+			return fmt.Errorf("value not allowed: %s", v)
 		}
 	}
-
 	return nil
 }
 

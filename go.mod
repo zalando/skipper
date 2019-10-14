@@ -43,6 +43,7 @@ require (
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/grpc v1.22.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
+	gopkg.in/yaml.v2 v2.2.3
 	layeh.com/gopher-json v0.0.0-20190114024228-97fed8db8427
 )
 
