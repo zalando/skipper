@@ -1400,13 +1400,19 @@ func setOriginMarker(s *clusterState, r []*eskip.Route) []*eskip.Route {
 		return nil
 	}
 
-	//it doesn't matter which route the marker is added to
-	r0 := r[0]
+	rr := make([]*eskip.Route, len(r))
+	copy(rr, r)
+
+	// it doesn't matter which route the marker is added to
+	// we also copy the route, to avoid storing it for the next diff comparison
+	r0 := *rr[0]
+	rr[0] = &r0
+
 	for _, i := range s.ingresses {
 		r0.Filters = append(r0.Filters, builtin.NewOriginMarker(ingressOriginName, i.Metadata.Uid, i.Metadata.Created))
 	}
 
-	return r
+	return rr
 }
 
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
@@ -1415,10 +1421,6 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	if err != nil {
 		log.Errorf("failed to load all: %v", err)
 		return nil, err
-	}
-
-	if c.originMarker {
-		r = setOriginMarker(clusterState, r)
 	}
 
 	// teardown handling: always healthy unless SIGTERM received
@@ -1433,6 +1435,10 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 
 	c.current = mapRoutes(r)
 	log.Debugf("all routes loaded and mapped")
+
+	if c.originMarker {
+		r = setOriginMarker(clusterState, r)
+	}
 
 	return r, nil
 }
