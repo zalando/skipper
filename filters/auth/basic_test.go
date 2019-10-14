@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 )
 
@@ -68,4 +69,36 @@ func TestWithSuccessfulAuth(t *testing.T) {
 	if ctx.Served() && ctx.Response().StatusCode != 401 {
 		t.Error("Authentication not successful")
 	}
+}
+
+func TestCreateFilterBasicAuthErrorCases(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		args    []interface{}
+		want    filters.Filter
+		wantErr bool
+	}{
+		{
+			name:    "test no args passed to filter",
+			args:    nil,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "test wrong arg type passed to filter",
+			args:    []interface{}{5},
+			want:    nil,
+			wantErr: true,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+
+			spec := NewBasicAuth()
+			got, err := spec.CreateFilter(tt.args)
+			if got != tt.want || (tt.wantErr && err == nil) || (!tt.wantErr && err != nil) {
+				t.Errorf("Failed to create filter: want %v, got %v, err %v", tt.want, got, err)
+			}
+
+		})
+	}
+
 }

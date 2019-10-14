@@ -30,7 +30,7 @@ type Logger struct {
 	logc   chan string
 	notify chan<- logSubscription
 	count  chan countMessage
-	clear  chan struct{}
+	clear  chan chan struct{}
 	mute   chan bool
 	quit   chan<- struct{}
 }
@@ -92,7 +92,7 @@ func New() *Logger {
 	logc := make(chan string)
 	notify := make(chan logSubscription)
 	count := make(chan countMessage)
-	clear := make(chan struct{})
+	clear := make(chan chan struct{})
 	mute := make(chan bool)
 	quit := make(chan struct{})
 
@@ -121,8 +121,9 @@ func New() *Logger {
 				lw.notify(req)
 			case req := <-count:
 				lw.count(req)
-			case <-clear:
+			case c := <-clear:
 				lw.clear()
+				c <- struct{}{}
 			case m := <-mute:
 				muted = m
 			case <-quit:
@@ -176,7 +177,9 @@ func (tl *Logger) Count(expression string) int {
 
 // Clears the stored logging events.
 func (tl *Logger) Reset() {
-	tl.clear <- struct{}{}
+	ch := make(chan struct{})
+	tl.clear <- ch
+	<-ch
 }
 
 func (tl *Logger) Mute() {

@@ -3,6 +3,7 @@ package secrets_test
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/secrets/secrettest"
 )
@@ -10,7 +11,7 @@ import (
 func TestEncryptDecrypt(t *testing.T) {
 	s := "mysecret"
 	tr := secrettest.NewTestRegistry()
-	enc, err := tr.NewEncrypter("TestEncryptDecrypt")
+	enc, err := tr.NewEncrypter(10*time.Minute, "TestEncryptDecrypt")
 	if err != nil {
 		t.Fatalf("Failed to create test Encrpyter: %v", err)
 	}
@@ -35,7 +36,7 @@ func TestEncryptDecrypt(t *testing.T) {
 
 func TestCreateNonce(t *testing.T) {
 	tr := secrettest.NewTestRegistry()
-	enc, err := tr.NewEncrypter("TestCreateNonce")
+	enc, err := tr.NewEncrypter(10*time.Minute, "TestCreateNonce")
 	if err != nil {
 		t.Fatalf("Failed to create test Encrpyter: %v", err)
 	}
