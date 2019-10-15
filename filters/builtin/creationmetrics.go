@@ -63,6 +63,10 @@ func removeOriginMarkers(r []*routing.Route) {
 
 // Do implements routing.PostProcessor and records the filter creation time.
 func (m *RouteCreationMetrics) Do(routes []*routing.Route) []*routing.Route {
+	return m.reportRouteCreationTimes(routes)
+}
+
+func (m *RouteCreationMetrics) reportRouteCreationTimes(routes []*routing.Route) []*routing.Route {
 	for _, r := range routes {
 		for origin, start := range m.startTimes(r) {
 			if m.initialized {

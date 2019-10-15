@@ -15,6 +15,7 @@ type MockMetrics struct {
 	counters      map[string]int64
 	floatCounters map[string]float64
 	measures      map[string][]time.Duration
+	Now           time.Time
 }
 
 //
@@ -54,13 +55,12 @@ func (m *MockMetrics) WithMeasures(f func(measures map[string][]time.Duration)) 
 
 func (m *MockMetrics) MeasureSince(key string, start time.Time) {
 	key = m.Prefix + key
-	duration := time.Since(start)
 	m.WithMeasures(func(measures map[string][]time.Duration) {
 		measure, ok := m.measures[key]
 		if !ok {
 			measure = make([]time.Duration, 0)
 		}
-		measures[key] = append(measure, duration)
+		measures[key] = append(measure, m.Now.Sub(start))
 	})
 }
 
