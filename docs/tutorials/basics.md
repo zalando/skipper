@@ -319,7 +319,20 @@ of hand. You can use a `yaml` file instead to populate the flags presented
 in the `skipper -help` command.
 
 ```yaml
+kubernetes: true
+kubernetes-in-cluster: true
+kubernetes-https-redirect: true
+proxy-preserve-host: true
+serve-host-metrics: true
 address: ":8080"
+enable-ratelimits: true
+experimental-upgrade: true
+metrics-exp-decay-sample: true
+lb-healthcheck-interval: "3s"
+metrics-flavour: ["codahale","prometheus"]
+enable-connection-metrics: true
+whitelisted-healthcheck-cidr: "172.20.0.0/16"
+ignore-trailing-slash: true
 inline-routes: 'r: * -> inlineContent("Hello world!") -> status(200) -> <shunt>'
 ```
 
