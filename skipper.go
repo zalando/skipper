@@ -41,6 +41,7 @@ import (
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/queuelistener"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
@@ -797,7 +798,17 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 		close(idleConnsCH)
 	}()
 
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if o.Address == "" {
+		o.Address = ":9090"
+		srv.Addr = o.Address
+	}
+
+	l, err := queuelistener.Listen("tcp", o.Address)
+	if err != nil {
+		return err
+	}
+
+	if err := srv.Serve(l); err != nil && err != http.ErrServerClosed {
 		log.Errorf("Failed to start to ListenAndServe: %v", err)
 		return err
 	}
