@@ -114,7 +114,17 @@ func (l *listener) Accept() (net.Conn, error) {
 }
 
 func (l *listener) Close() error {
-	return l.net.Close()
+	nerr := l.net.Close()
+	qerr := l.q.Close()
+	if nerr != nil && qerr != nil {
+		return combineErrors(nerr, qerr)
+	}
+
+	if nerr != nil {
+		return nerr
+	}
+
+	return qerr
 }
 
 func (l *listener) Addr() net.Addr {
