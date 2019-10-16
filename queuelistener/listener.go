@@ -3,17 +3,20 @@ package queuelistener
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aryszka/jobqueue"
+	log "github.com/sirupsen/logrus"
 )
 
 // these values may need adjustments for the experiment
 const (
-	maxConcurrency = 6000
-	maxQueueSize   = 3000
+	defaultMaxConcurrency = 3000  // 6000
+	defaultMaxQueueSize   = 30000 // 3000
 )
 
 // implements net.Error to support Temporary()
@@ -64,7 +67,6 @@ func (c *connection) SetReadDeadline(t time.Time) error  { return c.net.SetReadD
 func (c *connection) SetWriteDeadline(t time.Time) error { return c.net.SetWriteDeadline(t) }
 
 func (c *connection) Close() error {
-	println("close called")
 	defer func() {
 		c.done()
 		c.done = func() {}
@@ -79,12 +81,45 @@ func Listen(network, address string) (net.Listener, error) {
 		return nil, err
 	}
 
+	var (
+		maxConcurrency = defaultMaxConcurrency
+		maxQueueSize   = defaultMaxQueueSize
+		timeout        = time.Minute
+	)
+
+	{
+		memoryLimitFile := "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+		memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
+		if err != nil {
+			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
+		} else {
+			memoryLimitString := string(memoryLimitBytes[0 : len(memoryLimitBytes)-2])
+			println("memoryLimitString:", memoryLimitString)
+			memoryLimit, err := strconv.Atoi(memoryLimitString)
+			if err != nil {
+				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
+			} else {
+				memLimit := memoryLimit
+
+				factor := int(float64(memLimit) / 1024.0 / 1000.0 / 100.0) // 100MB
+				if factor < 1 {
+					factor = 1
+				}
+				maxConcurrency = 1000 * factor
+				maxQueueSize = 10 * maxConcurrency
+
+			}
+		}
+	}
+
+	log.Infof("TCP listener with LIFO queue settings: MaxConcurrency=%d MaxStackSize=%d Timeout=%s", maxConcurrency, maxQueueSize, timeout)
+
 	return &listener{
 		net: l,
 		q: jobqueue.With(jobqueue.Options{
 			MaxConcurrency: maxConcurrency,
 			MaxStackSize:   maxQueueSize,
-			Timeout:        time.Minute,
+			Timeout:        timeout,
 			CloseTimeout:   time.Second,
 		}),
 	}, nil
@@ -99,8 +134,8 @@ func (l *listener) Accept() (net.Conn, error) {
 	done, err := l.q.Wait()
 	if err != nil && err == jobqueue.ErrClosed {
 		var qerr error = &queueError{err: err}
-		if err := c.Close(); err != nil {
-			qerr = combineErrors(qerr, err)
+		if cerr := c.Close(); cerr != nil {
+			qerr = combineErrors(qerr, cerr)
 		}
 
 		return nil, qerr
