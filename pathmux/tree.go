@@ -109,8 +109,6 @@ func (n *node) addPath(path string) (*node, error) {
 		return n.catchAllChild, nil
 	} else if c == ':' {
 		// Token starts with a :
-		thisToken = thisToken[1:]
-
 		if n.wildcardChild == nil {
 			n.wildcardChild = &node{path: "wildcard"}
 		}
