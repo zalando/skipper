@@ -7,7 +7,6 @@ This package is a fork of https://github.com/dimfeld/httptreemux.
 package pathmux
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -54,9 +53,6 @@ type node struct {
 	isCatchAll bool
 
 	leafValue interface{}
-
-	// The names of the parameters to apply.
-	leafWildcardNames []string
 }
 
 // Tree structure to store values associated to paths.
@@ -70,31 +66,9 @@ func (n *node) sortStaticChild(i int) {
 	}
 }
 
-func (n *node) addPath(path string, wildcards []string) (*node, error) {
+func (n *node) addPath(path string) (*node, error) {
 	leaf := len(path) == 0
 	if leaf {
-		if wildcards != nil {
-			// Make sure the current wildcards are the same as the old ones.
-			// If not then we have an ambiguous path.
-			if n.leafWildcardNames != nil {
-				if len(n.leafWildcardNames) != len(wildcards) {
-					// This should never happen.
-					return nil, errors.New("damaged tree")
-				}
-
-				for i := 0; i < len(wildcards); i++ {
-					if n.leafWildcardNames[i] != wildcards[i] {
-						return nil, fmt.Errorf(
-							"wildcards %v are ambiguous with wildcards %v",
-							n.leafWildcardNames, wildcards)
-					}
-				}
-			} else {
-				// No wildcards yet, so just add the existing set.
-				n.leafWildcardNames = wildcards
-			}
-		}
-
 		return n, nil
 	}
 
@@ -132,29 +106,16 @@ func (n *node) addPath(path string, wildcards []string) (*node, error) {
 			return nil, fmt.Errorf("/ after catch-all found in %s", path)
 		}
 
-		if wildcards == nil {
-			wildcards = []string{thisToken}
-		} else {
-			wildcards = append(wildcards, thisToken)
-		}
-		n.catchAllChild.leafWildcardNames = wildcards
-
 		return n.catchAllChild, nil
 	} else if c == ':' {
 		// Token starts with a :
 		thisToken = thisToken[1:]
 
-		if wildcards == nil {
-			wildcards = []string{thisToken}
-		} else {
-			wildcards = append(wildcards, thisToken)
-		}
-
 		if n.wildcardChild == nil {
 			n.wildcardChild = &node{path: "wildcard"}
 		}
 
-		return n.wildcardChild.addPath(remainingPath, wildcards)
+		return n.wildcardChild.addPath(remainingPath)
 
 	} else {
 		if strings.ContainsAny(thisToken, ":*") {
@@ -169,7 +130,7 @@ func (n *node) addPath(path string, wildcards []string) (*node, error) {
 				child, prefixSplit := n.splitCommonPrefix(i, thisToken)
 				child.priority++
 				n.sortStaticChild(i)
-				return child.addPath(path[prefixSplit:], wildcards)
+				return child.addPath(path[prefixSplit:])
 			}
 		}
 
@@ -183,7 +144,7 @@ func (n *node) addPath(path string, wildcards []string) (*node, error) {
 			n.staticIndices = append(n.staticIndices, c)
 			n.staticChild = append(n.staticChild, child)
 		}
-		return child.addPath(remainingPath, wildcards)
+		return child.addPath(remainingPath)
 	}
 }
 
@@ -321,7 +282,7 @@ func (n *node) search(path string, m Matcher) (found *node, params []string, val
 // - free wildcard: e.g. /some/path/*wildcard, where a wildcard at the
 // end of a path matches anything.
 func (t *Tree) Add(path string, value interface{}) error {
-	n, err := (*node)(t).addPath(path[1:], nil)
+	n, err := (*node)(t).addPath(path[1:])
 	if err != nil {
 		return err
 	}
@@ -332,7 +293,7 @@ func (t *Tree) Add(path string, value interface{}) error {
 
 // Lookup tries to find a value in the tree associated to a path. If the found path definition contains
 // wildcards, the names and values of the wildcards are returned in the second argument.
-func (t *Tree) Lookup(path string) (interface{}, map[string]string) {
+func (t *Tree) Lookup(path string) (interface{}, []string) {
 	node, params, _ := t.LookupMatcher(path, tm)
 	return node, params
 }
@@ -342,7 +303,7 @@ func (t *Tree) Lookup(path string) (interface{}, map[string]string) {
 // the matcher is called to check if the value meets the conditions implemented by the custom matcher. If it
 // returns true, then the lookup is done and the additional return value from the matcher is returned as the
 // lookup result. If it returns false, the lookup continues with backtracking from the current tree position.
-func (t *Tree) LookupMatcher(path string, m Matcher) (interface{}, map[string]string, interface{}) {
+func (t *Tree) LookupMatcher(path string, m Matcher) (interface{}, []string, interface{}) {
 	if path == "" {
 		path = "/"
 	}
@@ -352,10 +313,5 @@ func (t *Tree) LookupMatcher(path string, m Matcher) (interface{}, map[string]st
 		return nil, nil, nil
 	}
 
-	paramMap := make(map[string]string)
-	for i, p := range params {
-		paramMap[node.leafWildcardNames[len(node.leafWildcardNames)-i-1]] = p
-	}
-
-	return node.leafValue, paramMap, value
+	return node.leafValue, params, value
 }

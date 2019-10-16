@@ -134,6 +134,86 @@ func TestPredicateList(t *testing.T) {
 		}},
 	}, {
 
+		title: "path with multiple wildcards",
+		routes: []*eskip.Route{{
+			Id: "one",
+			Predicates: []*eskip.Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/foo/:one/:two",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL: &url.URL{Path: "/foo/x/y"},
+			},
+			expectedID: "one",
+			expectedParams: map[string]string{
+				"one": "x",
+				"two": "y",
+			},
+		}},
+	}, {
+
+		title: "path wildcard conflict",
+		routes: []*eskip.Route{{
+			Id: "one",
+			Predicates: []*eskip.Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/foo/:one",
+				},
+			}, {
+				Name: "Header",
+				Args: []interface{}{
+					"X-Test",
+					"one",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "two",
+			Predicates: []*eskip.Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/foo/:two",
+				},
+			}, {
+				Name: "Header",
+				Args: []interface{}{
+					"X-Test",
+					"two",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL: &url.URL{Path: "/foo/x"},
+				Header: http.Header{
+					"X-Test": []string{"one"},
+				},
+			},
+			expectedID: "one",
+			expectedParams: map[string]string{
+				"one": "x",
+			},
+		}, {
+			request: &http.Request{
+				URL: &url.URL{Path: "/foo/x"},
+				Header: http.Header{
+					"X-Test": []string{"two"},
+				},
+			},
+			expectedID: "two",
+			expectedParams: map[string]string{
+				"two": "x",
+			},
+		}},
+	}, {
+
 		title: "mixed, no conflict",
 		routes: []*eskip.Route{{
 			Id: "testLegacyAndList",

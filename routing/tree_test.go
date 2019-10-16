@@ -3,6 +3,7 @@ package routing
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -132,10 +133,12 @@ func testPathMatchSpec(t *testing.T, s pathSpec) {
 }
 
 func testPathMatch(t *testing.T, s []pathSpec) {
-	for _, si := range s {
-		if testPathMatchSpec(t, si); t.Failed() {
-			return
-		}
+	for i, si := range s {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			if testPathMatchSpec(t, si); t.Failed() {
+				return
+			}
+		})
 	}
 }
 
