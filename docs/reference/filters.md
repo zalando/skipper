@@ -268,7 +268,7 @@ Flow IDs must be in a certain format to be reusable in skipper. Valid formats
 depend on the generator used in skipper. Default generator creates IDs of
 length 16 matching the following regex: `^[0-9a-zA-Z+-]+$`
 
-Paramters:
+Parameters:
 
 * no parameter: resets always the X-Flow-Id header to a new value
 * `"reuse"`: only create X-Flow-Id header if not already set or if the value is invalid in the request
