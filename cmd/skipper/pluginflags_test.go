@@ -107,6 +107,6 @@ inet:
 
 func sortFlags(input [][]string) {
 	sort.SliceStable(input, func(i, j int) bool {
-		return strings.Join(input[i],":") < strings.Join(input[j],":")
+		return strings.Join(input[i], ":") < strings.Join(input[j], ":")
 	})
 }
