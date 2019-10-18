@@ -10,5 +10,5 @@ type VizTree struct {
 
 // Creates a new visualization tree from a pathmux.Tree.
 func NewVizTree(tree *Tree) *VizTree {
-	panic("not implemented")
+	panic("not implemented anymore")
 }
