@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sort"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -42,6 +44,9 @@ func Test_pluginFlag_Set(t *testing.T) {
 			}
 
 			if !tt.wantErr {
+				// sort lists because the order of pf.values is not guaranteed
+				sortFlags(pf.values)
+				sortFlags(tt.want)
 				if cmp.Equal(pf.values, tt.want) == false {
 					t.Errorf("pluginFlag.Set() got v, want v, %v", cmp.Diff(pf.values, tt.want))
 				}
@@ -89,10 +94,19 @@ inet:
 			}
 
 			if !tt.wantErr {
+				// sort lists because the order of pf.values is not guaranteed
+				sortFlags(pf.values)
+				sortFlags(tt.want)
 				if cmp.Equal(pf.values, tt.want) == false {
 					t.Errorf("pluginFlag.UnmarshalYAML() got v, want v, %v", cmp.Diff(pf.values, tt.want))
 				}
 			}
 		})
 	}
+}
+
+func sortFlags(input [][]string) {
+	sort.SliceStable(input, func(i, j int) bool {
+		return strings.Join(input[i], ":") < strings.Join(input[j], ":")
+	})
 }
