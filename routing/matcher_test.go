@@ -1065,7 +1065,7 @@ func TestHeaderMatchCaseInsensitive(t *testing.T) {
 	}
 }
 
-func TestExtractWildcardParams(t *testing.T) {
+func TestExtractWildcardParamNames(t *testing.T) {
 	for _, scenario := range []struct {
 		path        string
 		pathSubtree string
@@ -1153,6 +1153,73 @@ func TestExtractWildcardParams(t *testing.T) {
 					t.Error("actual", actual, "expected", expected)
 					return
 				}
+			}
+		})
+	}
+}
+
+func TestNormalizePath(t *testing.T) {
+	for _, scenario := range []struct {
+		path     string
+		expected string
+	}{{
+		path:     "/",
+		expected: "/",
+	}, {
+		path:     "*",
+		expected: "/**",
+	}, {
+		path:     "/*",
+		expected: "/**",
+	}, {
+		path:     "/*name",
+		expected: "/**",
+	}, {
+		path:     "/**",
+		expected: "/**",
+	}, {
+		path:     "/*name/",
+		expected: "/**/",
+	}, {
+		path:     "/one/**",
+		expected: "/one/**",
+	}, {
+		path:     "/:name",
+		expected: "/:*",
+	}, {
+		path:     "/:name/",
+		expected: "/:*/",
+	}, {
+		path:     "/:name/*free",
+		expected: "/:*/**",
+	}, {
+		path:     "/*name/*free",
+		expected: "/**/**",
+	}, {
+		path:     "/:one/:two/*free",
+		expected: "/:*/:*/**",
+	}, {
+		path:     "/*one/*two/*free",
+		expected: "/**/**/**",
+	},
+	} {
+		t.Run(scenario.path, func(t *testing.T) {
+			route := &Route{path: scenario.path}
+			actual := normalizePath(route)
+
+			if actual != scenario.expected {
+				t.Error("Failed to normalize for Path predicate;",
+					"actual", actual, "expected", scenario.expected)
+				return
+			}
+
+			route = &Route{pathSubtree: scenario.path}
+			actual = normalizePath(route)
+
+			if actual != scenario.expected {
+				t.Error("Failed to normalize for PathSubtree predicate;",
+					"actual", actual, "expected", scenario.expected)
+				return
 			}
 		})
 	}
