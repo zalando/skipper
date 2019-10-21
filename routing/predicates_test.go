@@ -1009,6 +1009,52 @@ func TestPredicateList(t *testing.T) {
 			expectedParams: map[string]string{"*": "/baz"},
 		}},
 	}, {
+		title: "path routes with non-free wildcard marker conflict, : vs *",
+		routes: []*eskip.Route{{
+			Id: "star",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^foo.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/*p1/one",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "colon",
+			Predicates: []*eskip.Predicate{{
+				Name: "Host",
+				Args: []interface{}{
+					"^bar.example.org$",
+				},
+			}, {
+				Name: "Path",
+				Args: []interface{}{
+					"/:p2/one",
+				},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:  &url.URL{Path: "/p/one"},
+				Host: "foo.example.org",
+			},
+			expectedID:     "star",
+			expectedParams: map[string]string{"p1": "p"},
+		}, {
+			request: &http.Request{
+				URL:  &url.URL{Path: "/p/one"},
+				Host: "bar.example.org",
+			},
+			expectedID:     "colon",
+			expectedParams: map[string]string{"p2": "p"},
+		}},
+	}, {
 		title: "path regexp with trailing slash",
 		routes: []*eskip.Route{{
 			Id: "foo",

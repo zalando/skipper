@@ -178,13 +178,19 @@ func normalizePath(r *Route) string {
 			sb.WriteByte(path[i])
 		} else {
 			nextSlash := strings.IndexByte(path[i:], '/')
+			nextSlashExists := true
 			if nextSlash == -1 {
 				nextSlash = len(path)
+				nextSlashExists = false
 			} else {
 				nextSlash += i
 			}
 			if c == ':' || c == '*' {
-				sb.WriteByte(c)
+				if nextSlashExists {
+					sb.WriteByte(':')
+				} else {
+					sb.WriteByte(c)
+				}
 				sb.WriteByte('*')
 			} else {
 				sb.WriteString(path[i:nextSlash])

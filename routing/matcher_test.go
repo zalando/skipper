@@ -1179,7 +1179,7 @@ func TestNormalizePath(t *testing.T) {
 		expected: "/**",
 	}, {
 		path:     "/*name/",
-		expected: "/**/",
+		expected: "/:*/",
 	}, {
 		path:     "/one/**",
 		expected: "/one/**",
@@ -1194,13 +1194,13 @@ func TestNormalizePath(t *testing.T) {
 		expected: "/:*/**",
 	}, {
 		path:     "/*name/*free",
-		expected: "/**/**",
+		expected: "/:*/**",
 	}, {
 		path:     "/:one/:two/*free",
 		expected: "/:*/:*/**",
 	}, {
 		path:     "/*one/*two/*free",
-		expected: "/**/**/**",
+		expected: "/:*/:*/**",
 	},
 	} {
 		t.Run(scenario.path, func(t *testing.T) {
