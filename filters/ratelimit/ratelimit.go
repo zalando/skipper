@@ -32,7 +32,6 @@ type filter struct {
 
 // NewLocalRatelimit is *DEPRECATED*, use NewClientRatelimit, instead
 func NewLocalRatelimit() filters.Spec {
-	log.Warning("NewLocalRatelimit is deprecated, please use NewClientRatelimit")
 	return &spec{typ: ratelimit.LocalRatelimit, filterName: ratelimit.LocalRatelimitName}
 }
 
