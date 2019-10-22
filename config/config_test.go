@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"os"
@@ -116,7 +116,7 @@ func Test_NewConfig(t *testing.T) {
 
 			if !tt.wantErr {
 				if cmp.Equal(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{})) == false {
-					t.Errorf("config.NewConfig() got vs. want:\n%v", cmp.Diff(cfg, tt.want))
+					t.Errorf("config.NewConfig() got vs. want:\n%v", cmp.Diff(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{})))
 				}
 			}
 		})

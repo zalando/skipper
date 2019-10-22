@@ -18,8 +18,8 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
-
 	"github.com/zalando/skipper"
+	"github.com/zalando/skipper/config"
 )
 
 var (
@@ -28,7 +28,7 @@ var (
 )
 
 func main() {
-	cfg := NewConfig()
+	cfg := config.NewConfig()
 	if err := cfg.Parse(); err != nil {
 		log.Fatalf("Error processing config: %s", err)
 	}
