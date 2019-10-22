@@ -29,6 +29,7 @@ type Config struct {
 
 	// generic:
 	Address                         string         `yaml:"address"`
+	BytesPerRequest                 int            `yaml:"bytes-per-request"`
 	IgnoreTrailingSlash             bool           `yaml:"ignore-trailing-slash"`
 	Insecure                        bool           `yaml:"insecure"`
 	ProxyPreserveHost               bool           `yaml:"proxy-preserve-host"`
@@ -198,6 +199,7 @@ type Config struct {
 const (
 	// generic:
 	defaultAddress                         = ":9090"
+	defaultBytesPerRequest                 = 50 * 1024 // 50kB
 	defaultEtcdPrefix                      = "/skipper"
 	defaultEtcdTimeout                     = time.Second
 	defaultSourcePollTimeout               = int64(3000)
@@ -241,6 +243,7 @@ const (
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
+	bytesPerRequestUsage                 = "Bytes per request, that is used to calculate concurrency limits to buffer connection spikes"
 	ignoreTrailingSlashUsage             = "flag indicating to ignore trailing slashes in paths when routing"
 	insecureUsage                        = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	proxyPreserveHostUsage               = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
@@ -407,6 +410,7 @@ func NewConfig() *Config {
 
 	// generic:
 	flag.StringVar(&cfg.Address, "address", defaultAddress, addressUsage)
+	flag.IntVar(&cfg.BytesPerRequest, "bytes-per-request", defaultBytesPerRequest, bytesPerRequestUsage)
 	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, ignoreTrailingSlashUsage)
 	flag.BoolVar(&cfg.Insecure, "insecure", false, insecureUsage)
 	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, proxyPreserveHostUsage)
@@ -648,6 +652,7 @@ func (c *Config) ToOptions() skipper.Options {
 	options := skipper.Options{
 		// generic:
 		Address:                         c.Address,
+		BytesPerRequest:                 c.BytesPerRequest,
 		IgnoreTrailingSlash:             c.IgnoreTrailingSlash,
 		DevMode:                         c.DevMode,
 		SupportListener:                 c.SupportListener,

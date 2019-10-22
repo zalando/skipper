@@ -13,10 +13,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// these values may need adjustments for the experiment
 const (
-	defaultMaxConcurrency = 3000  // 6000
-	defaultMaxQueueSize   = 30000 // 3000
+	defaultMaxConcurrency = 3000
+	defaultMaxQueueSize   = 30000
 )
 
 // implements net.Error to support Temporary()
@@ -75,7 +74,7 @@ func (c *connection) Close() error {
 	return c.net.Close()
 }
 
-func Listen(network, address string) (net.Listener, error) {
+func Listen(bytesPerRequest int, network, address string) (net.Listener, error) {
 	l, err := net.Listen(network, address)
 	if err != nil {
 		return nil, err
@@ -93,21 +92,13 @@ func Listen(network, address string) (net.Listener, error) {
 		if err != nil {
 			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
 		} else {
-			memoryLimitString := string(memoryLimitBytes[0 : len(memoryLimitBytes)-2])
-			println("memoryLimitString:", memoryLimitString)
+			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
 			memoryLimit, err := strconv.Atoi(memoryLimitString)
 			if err != nil {
 				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
 			} else {
-				memLimit := memoryLimit
-
-				factor := int(float64(memLimit) / 1024.0 / 1000.0 / 100.0) // 100MB
-				if factor < 1 {
-					factor = 1
-				}
-				maxConcurrency = 1000 * factor
+				maxConcurrency = memoryLimit / bytesPerRequest
 				maxQueueSize = 10 * maxConcurrency
-
 			}
 		}
 	}
@@ -149,17 +140,8 @@ func (l *listener) Accept() (net.Conn, error) {
 }
 
 func (l *listener) Close() error {
-	nerr := l.net.Close()
-	qerr := l.q.Close()
-	if nerr != nil && qerr != nil {
-		return combineErrors(nerr, qerr)
-	}
-
-	if nerr != nil {
-		return nerr
-	}
-
-	return qerr
+	l.q.Close()
+	return l.net.Close()
 }
 
 func (l *listener) Addr() net.Addr {

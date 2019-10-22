@@ -74,6 +74,9 @@ type Options struct {
 	// Network address that skipper should listen on.
 	Address string
 
+	// BytesPerRequest
+	BytesPerRequest int
+
 	// List of custom filter specifications.
 	CustomFilters []filters.Spec
 
@@ -803,7 +806,7 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 		srv.Addr = o.Address
 	}
 
-	l, err := queuelistener.Listen("tcp", o.Address)
+	l, err := queuelistener.Listen(o.BytesPerRequest, "tcp", o.Address)
 	if err != nil {
 		return err
 	}
