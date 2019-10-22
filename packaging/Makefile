@@ -12,11 +12,17 @@ GOOS               ?= linux
 GOARCH             ?= amd64
 GOARM              ?=
 GO111              ?= on
+COMMIT_HASH        = $(shell git rev-parse --short HEAD)
 
 default: docker-build
 
 skipper:
-	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o skipper ../cmd/skipper/*.go
+	GO111MODULE=$(GO111) \
+	GOOS=$(GOOS) \
+	GOARCH=$(GOARCH) \
+	$(GOARM) \
+	CGO_ENABLED=$(CGO_ENABLED) \
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o skipper ../cmd/skipper/*.go
 
 eskip:
 	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o eskip ../cmd/eskip/*.go
@@ -31,15 +37,38 @@ docker-push:
 	docker push $(IMAGE)
 
 build.linux: $(SOURCES)
-	GO111MODULE=$(GO111) GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build -o build/linux/skipper ../cmd/skipper/*.go
-	GO111MODULE=$(GO111) GOOS=linux GOARCH=arm64 CGO_ENABLED=$(CGO_ENABLED) go build -o build/linux_arm8/skipper ../cmd/skipper/*.go
-	GO111MODULE=$(GO111) GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=$(CGO_ENABLED) go build -o build/linux_arm7/skipper ../cmd/skipper/*.go
+	GO111MODULE=$(GO111) \
+	GOOS=linux \
+	GOARCH=amd64 \
+	CGO_ENABLED=$(CGO_ENABLED) \
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/linux/skipper ../cmd/skipper/*.go
+
+	GO111MODULE=$(GO111) \
+	GOOS=linux \
+	GOARCH=arm64 \
+	CGO_ENABLED=$(CGO_ENABLED) \
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/linux_arm8/skipper ../cmd/skipper/*.go
+
+	GO111MODULE=$(GO111) \
+	GOOS=linux \
+	GOARCH=arm \
+	GOARM=7 \
+	CGO_ENABLED=$(CGO_ENABLED) \
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/linux_arm7/skipper ../cmd/skipper/*.go
 
 build.osx:
-	GO111MODULE=$(GO111) GOOS=darwin GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build -o build/osx/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ../cmd/skipper
+	GO111MODULE=$(GO111) \
+	GOOS=darwin \
+	GOARCH=amd64 \
+	CGO_ENABLED=$(CGO_ENABLED) \
+	go build -o build/osx/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ../cmd/skipper
 
 build.windows:
-	GO111MODULE=$(GO111) GOOS=windows GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) go build -o build/windows/skipper.exe -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ../cmd/skipper
+	GO111MODULE=$(GO111) \
+	GOOS=windows \
+	GOARCH=amd64 \
+	CGO_ENABLED=$(CGO_ENABLED) \
+	go build -o build/windows/skipper.exe -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ../cmd/skipper
 
 build.package: build.linux build.osx build.windows
 	tar --transform 's,^\.,skipper-$(VERSION)-linux-amd64,' -C build/linux -czvf skipper-$(VERSION)-linux-amd64.tar.gz .
@@ -49,3 +78,6 @@ build.package: build.linux build.osx build.windows
 	tar --transform 's,^\.,skipper-$(VERSION)-windows-amd64,' -C build/windows -czvf skipper-$(VERSION)-windows-amd64.tar.gz .
 	for f in *.tar.gz; do sha256sum $$f >> sha256sum.txt; done
 
+clean:
+	rm -f skipper
+	rm -rf build
