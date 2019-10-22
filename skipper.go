@@ -5,11 +5,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -806,7 +808,21 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 		srv.Addr = o.Address
 	}
 
-	l, err := queuelistener.Listen(o.BytesPerRequest, "tcp", o.Address)
+	memoryLimit := -1
+	{
+		memoryLimitFile := "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+		memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
+		if err != nil {
+			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
+		} else {
+			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
+			memoryLimit, err = strconv.Atoi(memoryLimitString)
+			if err != nil {
+				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
+			}
+		}
+	}
+	l, err := queuelistener.Listen(memoryLimit, o.BytesPerRequest, "tcp", o.Address)
 	if err != nil {
 		return err
 	}

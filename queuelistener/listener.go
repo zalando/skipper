@@ -3,9 +3,7 @@ package queuelistener
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 
@@ -74,7 +72,7 @@ func (c *connection) Close() error {
 	return c.net.Close()
 }
 
-func Listen(bytesPerRequest int, network, address string) (net.Listener, error) {
+func Listen(memoryLimit, bytesPerRequest int, network, address string) (net.Listener, error) {
 	l, err := net.Listen(network, address)
 	if err != nil {
 		return nil, err
@@ -86,21 +84,9 @@ func Listen(bytesPerRequest int, network, address string) (net.Listener, error) 
 		timeout        = time.Minute
 	)
 
-	{
-		memoryLimitFile := "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-		memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
-		if err != nil {
-			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
-		} else {
-			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
-			memoryLimit, err := strconv.Atoi(memoryLimitString)
-			if err != nil {
-				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
-			} else {
-				maxConcurrency = memoryLimit / bytesPerRequest
-				maxQueueSize = 10 * maxConcurrency
-			}
-		}
+	if memoryLimit > 0 && memoryLimit >= bytesPerRequest {
+		maxConcurrency = memoryLimit / bytesPerRequest
+		maxQueueSize = 10 * maxConcurrency
 	}
 
 	log.Infof("TCP listener with LIFO queue settings: MaxConcurrency=%d MaxStackSize=%d Timeout=%s", maxConcurrency, maxQueueSize, timeout)
