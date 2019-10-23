@@ -743,6 +743,9 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 		MaxHeaderBytes:    o.MaxHeaderBytes,
 	}
 
+	// TODO: shall we close the server? It calls .Close() on the active connections. This feature was not
+	// available in early Go. It also has a .Shutdown(), which maybe can use to exhaust the connections.
+
 	if o.EnableConnMetricsServer {
 		m := metrics.Default
 		srv.ConnState = func(conn net.Conn, state http.ConnState) {
@@ -825,7 +828,15 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 			}
 		}
 	}
-	l, err := queuelistener.Listen(memoryLimit, o.BytesPerRequest, "tcp", o.Address)
+	l, err := queuelistener.Listen(queuelistener.Options{
+		Network: "tcp",
+		Address: o.Address,
+		ActiveMemoryLimitBytes: memoryLimit,
+		ActiveConnectionBytes: o.BytesPerRequest,
+		InactiveMemoryLimitBytes: memoryLimit,
+		InactiveConnectionBytes: o.BytesPerRequest / 10,
+	})
+
 	if err != nil {
 		return err
 	}
