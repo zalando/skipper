@@ -36,7 +36,7 @@ func (a filter) Response(ctx filters.FilterContext) {
 	}
 	for _, o := range a.allowedOrigins {
 		if o == origin {
-			ctx.Response().Header.Add(allowOriginHeader, o)
+			ctx.Response().Header.Set(allowOriginHeader, o)
 			return
 		}
 	}
