@@ -810,6 +810,9 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 
 	memoryLimit := -1
 	{
+		// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+		// note that in containers this will be the container limit
+		// runtimes without the file will use defaults defined in `queuelistener` package.
 		memoryLimitFile := "/sys/fs/cgroup/memory/memory.limit_in_bytes"
 		memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
 		if err != nil {

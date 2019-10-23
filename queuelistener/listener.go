@@ -97,19 +97,30 @@ func Listen(memoryLimit, bytesPerRequest int, network, address string) (net.List
 			MaxConcurrency: maxConcurrency,
 			MaxStackSize:   maxQueueSize,
 			Timeout:        timeout,
-			CloseTimeout:   time.Second,
+			CloseTimeout:   100 * time.Second,
 		}),
 	}, nil
 }
 
 func (l *listener) Accept() (net.Conn, error) {
-	c, err := l.net.Accept()
-	if err != nil {
-		return nil, err
+	var (
+		c   net.Conn
+		err error
+		ok  bool
+	)
+	fmt.Println(l.q.Status())
+	//c, ok = l.q.Dequeue()
+	if !ok {
+		c, err = l.net.Accept()
+		if err != nil {
+			return nil, err
+		}
 	}
 
+	println("waiting")
 	done, err := l.q.Wait()
 	if err != nil && err == jobqueue.ErrClosed {
+		println("queue closed")
 		var qerr error = &queueError{err: err}
 		if cerr := c.Close(); cerr != nil {
 			qerr = combineErrors(qerr, cerr)
@@ -119,13 +130,16 @@ func (l *listener) Accept() (net.Conn, error) {
 	}
 
 	if err != nil {
+		println("queueError")
 		return nil, &queueError{err: err}
 	}
 
+	println("success")
 	return &connection{net: c, done: done}, nil
 }
 
 func (l *listener) Close() error {
+	fmt.Println(l.q.Status())
 	l.q.Close()
 	return l.net.Close()
 }
