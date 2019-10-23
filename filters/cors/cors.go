@@ -26,7 +26,7 @@ func NewOrigin() filters.Spec {
 // otherwise it just sets '*' as the value
 func (a filter) Response(ctx filters.FilterContext) {
 	if len(a.allowedOrigins) == 0 {
-		ctx.Response().Header.Add(allowOriginHeader, "*")
+		ctx.Response().Header.Set(allowOriginHeader, "*")
 		return
 	}
 
