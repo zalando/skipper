@@ -141,7 +141,7 @@ func bounce(delay time.Duration) time.Duration {
 	return delay
 }
 
-// this function turns net.Listener.Accep() into a channel, so that we can use select{} while it is blocked
+// this function turns net.Listener.Accept() into a channel, so that we can use select{} while it is blocked
 func (l *listener) listenExternal() {
 	var (
 		c              net.Conn
