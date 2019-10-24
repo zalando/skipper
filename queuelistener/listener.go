@@ -197,24 +197,18 @@ func (l *listener) listenExternal() {
 func (l *listener) listenInternal() {
 	var (
 		concurrency    int
-		queue          []net.Conn
+		queue          []connection
 		conn           net.Conn
 		nextConn       net.Conn
 		err            error
-		acceptExternal <-chan net.Conn
 		acceptInternal chan<- net.Conn
 		internalError  chan<- error
 	)
 
-	queue = make([]net.Conn, 0, l.maxQueueSize)
+	queue = make([]connection, 0, l.maxQueueSize)
 	for {
 		// TODO: timeout in the queue. What is the right and expected value?
-
-		if len(queue) < l.maxQueueSize {
-			acceptExternal = l.acceptExternal
-		} else {
-			acceptExternal = nil
-		}
+		println("queue len:", len(queue))
 
 		if len(queue) > 0 && concurrency < l.maxConcurrency {
 			println("can send", concurrency, l.maxConcurrency)
@@ -231,13 +225,17 @@ func (l *listener) listenInternal() {
 		}
 
 		select {
-		case conn = <-acceptExternal:
+		case conn = <-l.acceptExternal:
 			println("received", len(queue))
 			queue = append(queue, connection{
 				net:     conn,
 				release: l.releaseConnection,
 				quit:    l.quit,
 			})
+			if len(queue) > l.maxQueueSize {
+				queue[0].net.Close()
+				queue = queue[1:]
+			}
 		case err = <-l.externalError:
 		case acceptInternal <- nextConn:
 			queue = queue[:len(queue)-1]
@@ -250,7 +248,7 @@ func (l *listener) listenInternal() {
 			concurrency--
 		case <-l.quit:
 			for _, c := range queue {
-				c.Close()
+				c.net.Close()
 			}
 
 			// Closing the real listener in a separate goroutine is based on inspecting the

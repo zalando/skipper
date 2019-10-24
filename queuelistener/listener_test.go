@@ -101,7 +101,7 @@ func TestQueueListenerListen(t *testing.T) {
 
 }
 
-func TestQueuelistener(t *testing.T) {
+func TestQueueListener(t *testing.T) {
 	for _, tt := range []struct {
 		name            string
 		memoryLimit     int
@@ -109,23 +109,23 @@ func TestQueuelistener(t *testing.T) {
 		allow           int
 	}{
 		{
-			name: "small limits",
-			memoryLimit: 100,
+			name:            "small limits",
+			memoryLimit:     100,
 			bytesPerRequest: 10,
-			allow: 15,
+			allow:           21, // 100/10 + (100/10)*10 = 110
 		},
 		/*
-		{
-			name:        "test fallback to defaults if memoryLimit is not set",
-			allow:       defaultActiveMemoryLimitBytes / defaultActiveConnectionBytes +
-				defaultInactiveMemoryLimitBytes / defaultInactiveConnectionBytes,
-		},
-		{
-			name:            "test concurreny is ok",
-			memoryLimit:     10,
-			bytesPerRequest: 5,
-			allow:           10/5 + 10*(10/5), // concurrency + queue size
-		},
+			{
+				name:        "test fallback to defaults if memoryLimit is not set",
+				allow:       defaultActiveMemoryLimitBytes / defaultActiveConnectionBytes +
+					defaultInactiveMemoryLimitBytes / defaultInactiveConnectionBytes,
+			},
+			{
+				name:            "test concurreny is ok",
+				memoryLimit:     10,
+				bytesPerRequest: 5,
+				allow:           10/5 + 10*(10/5), // concurrency + queue size
+			},
 		*/
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,12 +133,12 @@ func TestQueuelistener(t *testing.T) {
 			network := "tcp"
 
 			got, err := Listen(Options{
-				Network: network,
-				Address: addr,
-				ActiveMemoryLimitBytes: tt.memoryLimit,
-				ActiveConnectionBytes: tt.bytesPerRequest,
+				Network:                  network,
+				Address:                  addr,
+				ActiveMemoryLimitBytes:   tt.memoryLimit,
+				ActiveConnectionBytes:    tt.bytesPerRequest,
 				InactiveMemoryLimitBytes: tt.memoryLimit,
-				InactiveConnectionBytes: tt.bytesPerRequest / 10,
+				InactiveConnectionBytes:  tt.bytesPerRequest / 10,
 			})
 
 			if err != nil {
@@ -154,7 +154,11 @@ func TestQueuelistener(t *testing.T) {
 
 			func() {
 				defer l.Close()
+
+				ping := []byte("ping")
 				go func() {
+					var cnt int
+					buf := make([]byte, 4)
 					for {
 						select {
 						case <-quit:
@@ -162,35 +166,54 @@ func TestQueuelistener(t *testing.T) {
 							return
 						default:
 						}
-						_, err := l.Accept()
-						if err == nil {
-							println("accept returned")
+						conn, err := l.Accept()
+						if err != nil {
+							continue
+						}
+
+						println("accept returned", cnt)
+						cnt++
+						_, err = conn.Read(buf)
+						if err != nil {
+							println("read filaed:", err.Error())
+						} else {
+							println("got:", string(buf), cnt)
 						}
 					}
 				}()
 
 				for i := 0; i < tt.allow; i++ {
 					// println("connecting")
-					clconn, err := net.DialTimeout("tcp", "127.0.0.1"+addr, 100*time.Second)
+					clconn, err := net.DialTimeout("tcp4", "127.0.0.1"+addr, 100*time.Second)
 					if err != nil {
 						// println("connection error")
 						t.Fatalf("Failed to dial: %v", err)
 					}
 					println("client connected", i)
 					defer clconn.Close()
+					//go func() {
+					if _, err := clconn.Write(ping); err != nil {
+						println("write err:", err.Error())
+					}
+					//}()
 				}
 				t.Logf("did %d connections", tt.allow)
 				time.Sleep(time.Second)
 				println("dial should be enqueued")
 				for i := 0; i < 10*tt.allow; i++ {
 					// println("connecting to queue")
-					clconn, err := net.DialTimeout("tcp", "127.0.0.1"+addr, 100*time.Second)
+					clconn, err := net.DialTimeout("tcp4", "127.0.0.1"+addr, 100*time.Second)
 					if err != nil {
 						// println("connection error at", i)
 						t.Fatalf("2Failed to dial: %v", err)
 					}
 					println("client connected", i)
 					defer clconn.Close()
+					//go func() {
+					if _, err := clconn.Write(ping); err != nil {
+						println("write err2:", err.Error())
+					}
+					//}()
 				}
 			}()
 
