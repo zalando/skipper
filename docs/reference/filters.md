@@ -99,8 +99,14 @@ Parameters:
 Example:
 
 ```
-redirect: PathRegex(/^\/foo\/bar/) -> redirectTo(302, "/foo/newBar") -> <shunt>;
+redirect1: PathRegexp(/^\/foo\/bar/) -> redirectTo(302, "/foo/newBar") -> <shunt>;
+redirect2: * -> redirectTo(301, "") -> <shunt>;
 ```
+
+- Route redirect1 will do a redirect with status code 302 to https
+  with new path `/foo/newBar` for requests, that match the path `/foo/bar`.
+- Route redirect2 will do a `https` redirect with status code 301 for all
+  incoming requests that match no other route
 
 see also [redirect-handling](../tutorials/common-use-cases.md#redirect-handling)
 
@@ -1575,14 +1581,14 @@ tracingBaggageToTag("foo", "baz")
 ## originMarker
 
 This filter is used to measure the time it took to create a route. Other than that, it's a no-op.
-You can include the same origin marker when you re-create the route. As long as the `origin` and `id` are the same, the route creation time will not be measured again. 
+You can include the same origin marker when you re-create the route. As long as the `origin` and `id` are the same, the route creation time will not be measured again.
 If there are multiple origin markers with the same origin, the earliest timestamp will be used.
 
 Parameters:
 
 * the name of the origin
 * the ID of the object that is the logical source for the route
-* the creation timestamp (rfc3339) 
+* the creation timestamp (rfc3339)
 
 Example:
 
