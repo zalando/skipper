@@ -2,9 +2,6 @@ SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*" -and -n
 PACKAGES           = $(shell go list ./...)
 CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
 VERSION           ?= $(CURRENT_VERSION)
-NEXT_MAJOR         = $(shell go run packaging/version/version.go major $(CURRENT_VERSION))
-NEXT_MINOR         = $(shell go run packaging/version/version.go minor $(CURRENT_VERSION))
-NEXT_PATCH         = $(shell go run packaging/version/version.go patch $(CURRENT_VERSION))
 COMMIT_HASH        = $(shell git rev-parse --short HEAD)
 LIMIT_FDS          = $(shell ulimit -n)
 TEST_ETCD_VERSION ?= v2.3.8
@@ -185,15 +182,6 @@ show-cover: .coverprofile-all
 publish-coverage: .coverprofile-all
 	curl -s https://codecov.io/bash -o codecov
 	bash codecov -f .coverprofile-all
-
-release-major:
-	@echo $(NEXT_MAJOR)
-
-release-minor:
-	@echo $(NEXT_MINOR)
-
-release-patch:
-	@echo $(NEXT_PATCH)
 
 ci-trigger:
 ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)

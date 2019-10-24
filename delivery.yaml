@@ -9,7 +9,13 @@ pipeline:
       apt-get update  -o Acquire::http::AllowRedirect=false
       apt-get install -o Acquire::http::AllowRedirect=false -y bzr redis-server
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
-        RELEASE_VERSION="$(make release-patch)"
+        LATEST_VERSION=$(git describe --tags --always | awk -F \- '{print $1}')
+        CUR_PART=$(echo $LATEST_VERSION | awk -F . '{print $1"."$2}')
+        VERSION_PART=$(cat VERSION)
+        OLD_PATCH=$(echo $LATEST_VERSION | awk -F . '{print $3}')
+        NEW_PATCH=$((OLD_PATCH + 1))
+        if [ "$CUR_PART" != "$VERSION_PART" ]; then NEW_PATCH=0; fi
+        RELEASE_VERSION=${VERSION_PART}.${NEW_PATCH}
         export VERSION="${RELEASE_VERSION}"
         IMAGE="registry-write.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION}"
       else
