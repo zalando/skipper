@@ -205,151 +205,121 @@ TLS example:
 * you can use an automated redirect for all port 80 requests to https with `-kubernetes-https-redirect`
 and change the default redirect code with `-kubernetes-https-redirect-code`
 
-# Install Skipper as ingress-controller
+## Install Skipper as ingress-controller
 
 You should have a base understanding of [Kubernetes](https://kubernetes.io) and
 [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/).
 
-Prerequisites: First you have to install skipper-ingress as for
-example daemonset, create a deployment and a service.
+Prerequisites:
+
+1. You should checkout the git repository to have access to the
+manifests: `git clone https://github.com/zalando/skipper.git`
+1. You should enter the cloned directory: `cd skipper`
+1. You have to choose how to install skipper-ingress. You can install
+it as [dameonset](#dameonset) or as [deployment](#deployment).
+
+Beware, in order to get traffic from the internet, we would need to
+have a loadbalancer in front to direct all traffic to skipper. Skipper
+will route the traffic based on ingress objects. The loadbalancer
+should have a HTTP health check, that does a GET request to
+`/kube-system/healthz` on all Kubernetes worker nodes. This method is
+simple and used successfully in production. In AWS you can run
+[`kube-ingress-aws-controller`](https://github.com/zalando-incubator/kube-ingress-aws-controller)
+to create these loadbalancers automatically based on the ingress
+definition.
+
+### Deployment style
+
+Follow the deployment style you like: [dameonset](#dameonset) or [deployment](#deployment).
+
+#### Daemonset
 
 We start to deploy skipper-ingress as a daemonset, use hostNetwork and
 expose the TCP port 9999 on each Kubernetes worker node for incoming ingress
 traffic.
 
+To deploy all manifests required for the daemonset style, you can
+run:
+
+```bash
+kubectl create -f docs/kubernetes/deploy/daemonset
+```
+
 ```yaml
-# cat skipper-ingress-ds.yaml
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: skipper-ingress
-  namespace: kube-system
-  labels:
-    application: skipper-ingress
-    version: v0.10.180
-    component: ingress
-spec:
-  selector:
-    matchLabels:
-      application: skipper-ingress
-  updateStrategy:
-    type: RollingUpdate
-  template:
-    metadata:
-      name: skipper-ingress
-      labels:
-        application: skipper-ingress
-        version: v0.10.180
-        component: ingress
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
-    spec:
-      priorityClassName: system-node-critical
-      tolerations:
-      - key: dedicated
-        operator: Exists
-      nodeSelector:
-        kubernetes.io/role: worker
-      hostNetwork: true
-      containers:
-      - name: skipper-ingress
-        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.180
-        ports:
-        - name: ingress-port
-          containerPort: 9999
-          hostPort: 9999
-        - name: metrics-port
-          containerPort: 9911
-        args:
-          - "skipper"
-          - "-kubernetes"
-          - "-kubernetes-in-cluster"
-          - "-kubernetes-path-mode=path-prefix"
-          - "-address=:9999"
-          - "-wait-first-route-load"
-          - "-proxy-preserve-host"
-          - "-serve-host-metrics"
-          - "-enable-ratelimits"
-          - "-experimental-upgrade"
-          - "-metrics-exp-decay-sample"
-          - "-reverse-source-predicate"
-          - "-lb-healthcheck-interval=3s"
-          - "-metrics-flavour=codahale,prometheus"
-          - "-enable-connection-metrics"
-          - "-max-audit-body=0"
-          - "-histogram-metric-buckets=.01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600"
-        resources:
-          requests:
-            cpu: 150m
-            memory: 150Mi
-        readinessProbe:
-          httpGet:
-            path: /kube-system/healthz
-            port: 9999
-          initialDelaySeconds: 5
-          timeoutSeconds: 5
-        securityContext:
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 1000
+# cat docs/kubernetes/deploy/daemonset/daemonset.yaml
+{!kubernetes/deploy/daemonset/daemonset.yaml!}
 ```
 
 Please check, that you are using the [latest
 release](https://github.com/zalando/skipper/releases/latest), we do
 not maintain the **latest** tag.
 
+#### Deployment
+
+We start to deploy skipper-ingress as a deployment with an HPA, use
+hostNetwork and expose the TCP port 9999 on each Kubernetes worker
+node for incoming ingress traffic.
+
+To deploy all manifests required for the deployment style, you can
+run:
+
+```bash
+kubectl create -f docs/kubernetes/deploy/deployment
+```
+
+Now, let's see what we have just deployed.
+This will create serviceaccount, PodSecurityPolicy and RBAC rules such that
+skipper-ingress is allowed to listen on the hostnetwork.
+
+```yaml
+# cat docs/kubernetes/deploy/deployment/rbac.yaml
+{!kubernetes/deploy/deployment/rbac.yaml!}
+```
+
+The next file creates deployment with all options passed to
+skipper, that you should care in a basic production setup.
+
+```yaml
+# cat docs/kubernetes/deploy/deployment/deployment.yaml
+{!kubernetes/deploy/deployment/deployment.yaml!}
+```
+
+This will deploy a HorizontalPodAutoscaler to scale skipper-ingress
+based on load.
+
+```yaml
+# cat docs/kubernetes/deploy/deployment/hpa.yaml
+{!kubernetes/deploy/deployment/hpa.yaml!}
+```
+
+The next file will group skipper-ingress with a service, such that internal
+clients can access skipper via Kubernetes service.
+
+```yaml
+# cat docs/kubernetes/deploy/deployment/service.yaml
+{!kubernetes/deploy/deployment/service.yaml!}
+```
+
+## Test your skipper setup
+
 We now deploy a simple demo application serving html:
 
 ```yaml
-# cat demo-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: skipper-demo
-spec:
-  replicas: 2
-  template:
-    metadata:
-      labels:
-        application: skipper-demo
-    spec:
-      containers:
-      - name: skipper-demo
-        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.180
-        args:
-          - "skipper"
-          - "-inline-routes"
-          - "* -> inlineContent(\"<body style='color: white; background-color: green;'><h1>Hello!</h1>\") -> <shunt>"
-        ports:
-        - containerPort: 9090
+# cat docs/kubernetes/deploy/demo/deployment.yaml
+{!kubernetes/deploy/demo/deployment.yaml!}
 ```
 
 We deploy a service type ClusterIP that we will select from ingress:
 
 ```yaml
-# cat demo-svc.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: skipper-demo
-  labels:
-    application: skipper-demo
-spec:
-  type: ClusterIP
-  ports:
-    - port: 80
-      protocol: TCP
-      targetPort: 9090
-      name: external
-  selector:
-    application: skipper-demo
+# cat docs/kubernetes/deploy/demo/svc.yaml
+{!kubernetes/deploy/demo/svc.yaml!}
 ```
 
-To deploy both, you have to run:
+To deploy the demo application, you have to run:
 
 ```bash
-kubectl create -f demo-deployment.yaml
-kubectl create -f demo-svc.yaml
+kubectl create -f docs/kubernetes/deploy/demo/
 ```
 
 Now we have a skipper-ingress running as daemonset exposing the TCP
@@ -443,153 +413,6 @@ endpoint rather than the cluster-wide ingresses endpoint.
 
 By default this value is an empty string (`""`) and will scope the skipper
 instance to be cluster-wide, watching all `Ingress` objects across all namespaces.
-
-## Install Skipper with enabled RBAC
-
-If Role-Based Access Control ("RBAC") is enabled you have to create some additional
-resources to enable Skipper to query the Kubernetes API.
-
-This guide describes all necessary resources to get Skipper up and running in a
-Kubernetes cluster with RBAC enabled but it's highly recommended to read the
-[RBAC docs](https://kubernetes.io/docs/admin/authorization/rbac/) to get a better
-understanding which permissions are delegated to Skipper within your Kubernetes cluster.
-
-First create a new `ServiceAccount` which will be assigned to the Skipper pods:
-
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: skipper-ingress
-  namespace: kube-system
-```
-
-the required permissions are defined within a `ClusterRole` resource.
-
-_Note: It's important to use a `ClusterRole` instead of normal `Role` because otherwise Skipper could only access resources in the namespace the `Role` was created!_
-
-ClusterRole:
-
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
-metadata:
-  name: skipper-ingress
-rules:
-- apiGroups: ["extensions"]
-  resources: ["ingresses", ]
-  verbs: ["get", "list"]
-- apiGroups: [""]
-  resources: ["namespaces", "services", "endpoints", "pods"]
-  verbs: ["get", "list"]
-```
-
-This `ClusterRole` defines access to `get` and `list` all created ingresses, namespaces, services and endpoints.
-
-To assign the defined `ClusterRole` to the previously created `ServiceAccount`
-a `ClusterRoleBinding` has to be created:
-
-ClusterRoleBinding:
-
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRoleBinding
-metadata:
-  name: skipper-ingress
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: skipper-ingress
-subjects:
-- kind: ServiceAccount
-  name: skipper-ingress
-  namespace: kube-system
-```
-
-Last but not least the `ServiceAccount` has to be assigned to the Skipper daemonset.
-
-daemonset:
-
-```yaml
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: skipper-ingress
-  namespace: kube-system
-  labels:
-    application: skipper-ingress
-    version: v0.10.180
-    component: ingress
-spec:
-  selector:
-    matchLabels:
-      application: skipper-ingress
-  updateStrategy:
-    type: RollingUpdate
-  template:
-    metadata:
-      name: skipper-ingress
-      labels:
-        application: skipper-ingress
-        version: v0.10.180
-        component: ingress
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
-    spec:
-      priorityClassName: system-node-critical
-      tolerations:
-      - key: dedicated
-        operator: Exists
-      nodeSelector:
-        kubernetes.io/role: worker
-      hostNetwork: true
-      serviceAccountName: skipper-ingress
-      containers:
-      - name: skipper-ingress
-        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.180
-        ports:
-        - name: ingress-port
-          containerPort: 9999
-          hostPort: 9999
-        - name: metrics-port
-          containerPort: 9911
-        args:
-          - "skipper"
-          - "-kubernetes"
-          - "-kubernetes-in-cluster"
-          - "-kubernetes-path-mode=path-prefix"
-          - "-address=:9999"
-          - "-wait-first-route-load"
-          - "-proxy-preserve-host"
-          - "-serve-host-metrics"
-          - "-enable-ratelimits"
-          - "-experimental-upgrade"
-          - "-metrics-exp-decay-sample"
-          - "-reverse-source-predicate"
-          - "-lb-healthcheck-interval=3s"
-          - "-metrics-flavour=codahale,prometheus"
-          - "-enable-connection-metrics"
-          - "-max-audit-body=0"
-          - "-histogram-metric-buckets=.01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600"
-        resources:
-          requests:
-            cpu: 150m
-            memory: 150Mi
-        readinessProbe:
-          httpGet:
-            path: /kube-system/healthz
-            port: 9999
-          initialDelaySeconds: 5
-          timeoutSeconds: 5
-        securityContext:
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 1000
-```
-
-Please check, that you are using the [latest
-release](https://github.com/zalando/skipper/releases/latest), we do
-not maintain the **latest** tag.
 
 ## Helm-based deployment
 
