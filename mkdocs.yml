@@ -54,6 +54,8 @@ markdown_extensions:
 - smarty
 - extra
 - codehilite
+- markdown_include.include:
+    base_path: docs
 - pymdownx.magiclink
 - pymdownx.superfences
 - pymdownx.details
