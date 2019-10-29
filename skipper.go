@@ -862,16 +862,14 @@ func listenAndServeQuit(
 	}
 
 	l, err := queuelistener.Listen(queuelistener.Options{
-		Network:                  "tcp",
-		Address:                  o.Address,
-		MaxConcurrency:           o.MaxTCPListenerConcurrency,
-		MaxQueueSize:             o.MaxTCPListenerQueue,
-		ActiveMemoryLimitBytes:   memoryLimit,
-		ActiveConnectionBytes:    o.BytesPerRequest,
-		InactiveMemoryLimitBytes: memoryLimit,
-		InactiveConnectionBytes:  o.BytesPerRequest / 10,
-		QueueTimeout:             qto,
-		Metrics:                  mtr,
+		Network:          "tcp",
+		Address:          o.Address,
+		MaxConcurrency:   o.MaxTCPListenerConcurrency,
+		MaxQueueSize:     o.MaxTCPListenerQueue,
+		MemoryLimitBytes: memoryLimit,
+		ConnectionBytes:  o.BytesPerRequest,
+		QueueTimeout:     qto,
+		Metrics:          mtr,
 	})
 
 	if err != nil {

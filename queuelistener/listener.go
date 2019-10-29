@@ -15,10 +15,8 @@ import (
 const (
 	initialBounceDelay              = 500 * time.Microsecond
 	maxBounceDelay                  = 100 * time.Millisecond
-	defaultActiveMemoryLimitBytes   = 150 * 1000 * 1000
-	defaultActiveConnectionBytes    = 50 * 1000
-	defaultInactiveMemoryLimitBytes = 150 * 1000 * 1000
-	defaultInactiveConnectionBytes  = 5 * 1000
+	defaultMemoryLimitBytes         = 150 * 1000 * 1000
+	defaultConnectionBytes          = 50 * 1000
 	queueTimeoutPrecisionPercentage = 5
 	maxCalculatedQueueSize          = 50_000
 	acceptedConnectionsKey          = "listener.accepted.connections"
@@ -33,17 +31,15 @@ type connection struct {
 }
 
 type Options struct {
-	Network                  string
-	Address                  string
-	MaxConcurrency           int
-	MaxQueueSize             int
-	ActiveMemoryLimitBytes   int
-	ActiveConnectionBytes    int
-	InactiveMemoryLimitBytes int
-	InactiveConnectionBytes  int
-	QueueTimeout             time.Duration
-	Metrics                  metrics.Metrics
-	Log                      logging.Logger
+	Network          string
+	Address          string
+	MaxConcurrency   int
+	MaxQueueSize     int
+	MemoryLimitBytes int
+	ConnectionBytes  int
+	QueueTimeout     time.Duration
+	Metrics          metrics.Metrics
+	Log              logging.Logger
 }
 
 type listener struct {
@@ -91,30 +87,16 @@ func Listen(o Options) (net.Listener, error) {
 
 	(&logging.DefaultLog{}).Info(o)
 
-	if o.ActiveMemoryLimitBytes <= 0 {
-		o.ActiveMemoryLimitBytes = defaultActiveMemoryLimitBytes
+	if o.MemoryLimitBytes <= 0 {
+		o.MemoryLimitBytes = defaultMemoryLimitBytes
 	}
 
-	if o.ActiveConnectionBytes <= 0 {
-		o.ActiveConnectionBytes = defaultActiveConnectionBytes
-		if o.ActiveMemoryLimitBytes < o.ActiveConnectionBytes {
-			o.ActiveMemoryLimitBytes = o.ActiveConnectionBytes
-		}
+	if o.ConnectionBytes <= 0 {
+		o.ConnectionBytes = defaultConnectionBytes
 	}
 
-	if o.InactiveMemoryLimitBytes <= 0 {
-		o.InactiveMemoryLimitBytes = defaultInactiveMemoryLimitBytes
-	}
-
-	if o.InactiveConnectionBytes <= 0 {
-		o.InactiveConnectionBytes = defaultInactiveConnectionBytes
-		if o.InactiveMemoryLimitBytes < o.InactiveConnectionBytes {
-			o.InactiveMemoryLimitBytes = o.InactiveConnectionBytes
-		}
-	}
-
-	maxConcurrency := o.ActiveMemoryLimitBytes / o.ActiveConnectionBytes
-	maxQueueSize := o.InactiveMemoryLimitBytes / o.InactiveConnectionBytes
+	maxConcurrency := o.MemoryLimitBytes / o.ConnectionBytes
+	maxQueueSize := 10 * maxConcurrency
 
 	if maxQueueSize > maxCalculatedQueueSize {
 		maxQueueSize = maxCalculatedQueueSize

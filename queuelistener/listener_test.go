@@ -47,12 +47,10 @@ func TestQueueListenerListen(t *testing.T) {
 
 			// got, err := Listen(tt.memoryLimit, tt.bytesPerRequest, network, addr)
 			got, err := Listen(Options{
-				Network:                  network,
-				Address:                  addr,
-				ActiveMemoryLimitBytes:   tt.memoryLimit,
-				ActiveConnectionBytes:    tt.bytesPerRequest,
-				InactiveMemoryLimitBytes: tt.memoryLimit,
-				InactiveConnectionBytes:  tt.bytesPerRequest / 10,
+				Network:          network,
+				Address:          addr,
+				MemoryLimitBytes: tt.memoryLimit,
+				ConnectionBytes:  tt.bytesPerRequest,
 			})
 
 			if (tt.wantErr && err == nil) || (!tt.wantErr && err != nil) {
@@ -133,12 +131,10 @@ func TestQueueListener(t *testing.T) {
 			network := "tcp"
 
 			got, err := Listen(Options{
-				Network:                  network,
-				Address:                  addr,
-				ActiveMemoryLimitBytes:   tt.memoryLimit,
-				ActiveConnectionBytes:    tt.bytesPerRequest,
-				InactiveMemoryLimitBytes: tt.memoryLimit,
-				InactiveConnectionBytes:  tt.bytesPerRequest / 10,
+				Network:          network,
+				Address:          addr,
+				MemoryLimitBytes: tt.memoryLimit,
+				ConnectionBytes:  tt.bytesPerRequest,
 			})
 
 			if err != nil {
