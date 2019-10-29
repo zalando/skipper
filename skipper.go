@@ -843,6 +843,12 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 			}
 		}
 	}
+
+	qto := o.ReadHeaderTimeoutServer
+	if qto <= 0 {
+		qto = o.ReadTimeoutServer
+	}
+
 	l, err := queuelistener.Listen(queuelistener.Options{
 		Network:                  "tcp",
 		Address:                  o.Address,
@@ -850,6 +856,7 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 		ActiveConnectionBytes:    o.BytesPerRequest,
 		InactiveMemoryLimitBytes: memoryLimit,
 		InactiveConnectionBytes:  o.BytesPerRequest / 10,
+		QueueTimeout:             qto,
 	})
 
 	if err != nil {

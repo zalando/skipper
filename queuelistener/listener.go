@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net"
 	"sync"
-	"time" // eventually, every Go file imports time
+	"time"
 
 	"github.com/zalando/skipper/logging"
 )
@@ -18,12 +18,14 @@ const (
 	defaultActiveConnectionBytes    = 50 * 1000
 	defaultInactiveMemoryLimitBytes = 150 * 1000 * 1000
 	defaultInactiveConnectionBytes  = 5 * 1000
+	queueTimeoutPrecisionPercentage = 5
 )
 
 type connection struct {
-	net     net.Conn
-	release chan<- struct{}
-	quit    <-chan struct{}
+	net           net.Conn
+	queueDeadline time.Time
+	release       chan<- struct{}
+	quit          <-chan struct{}
 }
 
 type Options struct {
@@ -33,6 +35,7 @@ type Options struct {
 	ActiveConnectionBytes    int
 	InactiveMemoryLimitBytes int
 	InactiveConnectionBytes  int
+	QueueTimeout             time.Duration
 	Log                      logging.Logger
 }
 
@@ -197,25 +200,20 @@ func (l *listener) listenInternal() {
 	var (
 		concurrency    int
 		queue          *ring
-		conn           net.Conn
-		drop           net.Conn
-		nextConn       net.Conn
 		err            error
 		acceptInternal chan<- net.Conn
 		internalError  chan<- error
+		nextTimeout    <-chan time.Time
 	)
 
 	queue = newRing(l.maxQueueSize)
 	for {
 		// TODO: timeout in the queue. What is the right and expected value?
 
+		var nextConn net.Conn
 		if queue.size > 0 && concurrency < l.maxConcurrency {
 			acceptInternal = l.acceptInternal
-			nextConn = connection{
-				net:     queue.peek(),
-				release: l.releaseConnection,
-				quit:    l.quit,
-			}
+			nextConn = queue.peek()
 		} else {
 			acceptInternal = nil
 		}
@@ -226,12 +224,36 @@ func (l *listener) listenInternal() {
 			internalError = nil
 		}
 
+		// setting the timeout period to a fixed min value, that is a percentage of the queue timeout.
+		// This way we can avoid for one too many rapid timeout events of stalled connections, and
+		// second, we can also ensure a certain precision of the timeouts and the minimum queue
+		// timeout.
+		if l.options.QueueTimeout > 0 && nextTimeout == nil {
+			nextTimeout = time.After(
+				l.options.QueueTimeout *
+					queueTimeoutPrecisionPercentage /
+					100,
+			)
+		}
+
 		select {
-		case conn = <-l.acceptExternal:
-			drop = queue.enqueue(conn)
-			if drop != nil {
-				drop.Close()
+		case conn := <-l.acceptExternal:
+			cc := connection{
+				net:     conn,
+				release: l.releaseConnection,
+				quit:    l.quit,
 			}
+
+			if l.options.QueueTimeout > 0 {
+				cc.queueDeadline = time.Now().Add(l.options.QueueTimeout)
+			}
+
+			drop := queue.enqueue(cc)
+			if drop != nil {
+				drop.(connection).net.Close()
+			}
+
+			drop = nil
 		case err = <-l.externalError:
 		case acceptInternal <- nextConn:
 			queue.dequeue()
@@ -242,8 +264,15 @@ func (l *listener) listenInternal() {
 			l.Close()
 		case <-l.releaseConnection:
 			concurrency--
+		case now := <-nextTimeout:
+			for queue.size > 0 && queue.peekOldest().(connection).queueDeadline.Before(now) {
+				drop := queue.dequeueOldest()
+				drop.(connection).net.Close()
+			}
+
+			nextTimeout = nil
 		case <-l.quit:
-			queue.rangeOver(func(c net.Conn) { c.Close() })
+			queue.rangeOver(func(c net.Conn) { c.(connection).net.Close() })
 
 			// Closing the real listener in a separate goroutine is based on inspecting the
 			// stdlib. It's fair to just log the errors.

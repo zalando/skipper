@@ -21,6 +21,15 @@ func (r *ring) peek() net.Conn {
 	return r.connections[i]
 }
 
+func (r *ring) peekOldest() net.Conn {
+	i := r.next - r.size
+	if i < 0 {
+		i += len(r.connections)
+	}
+
+	return r.connections[i]
+}
+
 func (r *ring) enqueue(c net.Conn) (oldest net.Conn) {
 	if r.size == len(r.connections) {
 		oldest = r.connections[r.next]
@@ -44,6 +53,17 @@ func (r *ring) dequeue() (c net.Conn) {
 	}
 
 	c, r.connections[r.next] = r.connections[r.next], nil
+	r.size--
+	return
+}
+
+func (r *ring) dequeueOldest() (c net.Conn) {
+	i := r.next - r.size
+	if i < 0 {
+		i += len(r.connections)
+	}
+
+	c, r.connections[i] = r.connections[i], nil
 	r.size--
 	return
 }
