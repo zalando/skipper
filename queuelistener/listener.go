@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/metrics"
 )
 
 // TODO: we need to monitor the queue size and allow horizontal scaling based on it
@@ -19,6 +20,8 @@ const (
 	defaultInactiveMemoryLimitBytes = 150 * 1000 * 1000
 	defaultInactiveConnectionBytes  = 5 * 1000
 	queueTimeoutPrecisionPercentage = 5
+	acceptedConnectionsKey          = "listener.accepted.connections"
+	queuedConnectionsKey            = "listener.queued.connections"
 )
 
 type connection struct {
@@ -36,6 +39,7 @@ type Options struct {
 	InactiveMemoryLimitBytes int
 	InactiveConnectionBytes  int
 	QueueTimeout             time.Duration
+	Metrics                  metrics.Metrics
 	Log                      logging.Logger
 }
 
@@ -234,6 +238,11 @@ func (l *listener) listenInternal() {
 					queueTimeoutPrecisionPercentage /
 					100,
 			)
+		}
+
+		if l.options.Metrics != nil {
+			l.options.Metrics.UpdateGauge(acceptedConnectionsKey, float64(concurrency))
+			l.options.Metrics.UpdateGauge(queuedConnectionsKey, float64(queue.size))
 		}
 
 		select {

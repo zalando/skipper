@@ -729,7 +729,13 @@ func (o *Options) isHTTPS() bool {
 	return (o.ProxyTLS != nil) || (o.CertPathTLS != "" && o.KeyPathTLS != "")
 }
 
-func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idleConnsCH chan struct{}) error {
+func listenAndServeQuit(
+	proxy http.Handler,
+	o *Options,
+	sigs chan os.Signal,
+	idleConnsCH chan struct{},
+	mtr metrics.Metrics,
+) error {
 	// create the access log handler
 	log.Infof("proxy listener on %v", o.Address)
 
@@ -857,6 +863,7 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 		InactiveMemoryLimitBytes: memoryLimit,
 		InactiveConnectionBytes:  o.BytesPerRequest / 10,
 		QueueTimeout:             qto,
+		Metrics:                  mtr,
 	})
 
 	if err != nil {
@@ -874,7 +881,7 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 }
 
 func listenAndServe(proxy http.Handler, o *Options) error {
-	return listenAndServeQuit(proxy, o, nil, nil)
+	return listenAndServeQuit(proxy, o, nil, nil, nil)
 }
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
@@ -1257,7 +1264,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
 
-	return listenAndServeQuit(proxy, &o, sig, idleConnsCH)
+	return listenAndServeQuit(proxy, &o, sig, idleConnsCH, mtr)
 }
 
 // Run skipper.
