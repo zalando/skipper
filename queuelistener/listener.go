@@ -266,8 +266,6 @@ func (l *listener) listenInternal() {
 			if drop != nil {
 				drop.(connection).net.Close()
 			}
-
-			drop = nil
 		case err = <-l.externalError:
 		case acceptInternal <- nextConn:
 			queue.dequeue()
