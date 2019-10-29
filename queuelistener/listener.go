@@ -20,6 +20,7 @@ const (
 	defaultInactiveMemoryLimitBytes = 150 * 1000 * 1000
 	defaultInactiveConnectionBytes  = 5 * 1000
 	queueTimeoutPrecisionPercentage = 5
+	maxCalculatedQueueSize          = 50_000
 	acceptedConnectionsKey          = "listener.accepted.connections"
 	queuedConnectionsKey            = "listener.queued.connections"
 )
@@ -34,6 +35,8 @@ type connection struct {
 type Options struct {
 	Network                  string
 	Address                  string
+	MaxConcurrency           int
+	MaxQueueSize             int
 	ActiveMemoryLimitBytes   int
 	ActiveConnectionBytes    int
 	InactiveMemoryLimitBytes int
@@ -113,8 +116,20 @@ func Listen(o Options) (net.Listener, error) {
 	maxConcurrency := o.ActiveMemoryLimitBytes / o.ActiveConnectionBytes
 	maxQueueSize := o.InactiveMemoryLimitBytes / o.InactiveConnectionBytes
 
+	if maxQueueSize > maxCalculatedQueueSize {
+		maxQueueSize = maxCalculatedQueueSize
+	}
+
 	if o.Log == nil {
 		o.Log = &logging.DefaultLog{}
+	}
+
+	// if we got static values passed, do not use calcuated values
+	if o.MaxConcurrency > 0 {
+		maxConcurrency = o.MaxConcurrency
+	}
+	if o.MaxQueueSize > 0 {
+		maxQueueSize = o.MaxQueueSize
 	}
 
 	l := &listener{

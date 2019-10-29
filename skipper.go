@@ -79,6 +79,12 @@ type Options struct {
 	// BytesPerRequest
 	BytesPerRequest int
 
+	// MaxTCPListenerConcurrency
+	MaxTCPListenerConcurrency int
+
+	// MaxTCPListenerQueue
+	MaxTCPListenerQueue int
+
 	// List of custom filter specifications.
 	CustomFilters []filters.Spec
 
@@ -858,6 +864,8 @@ func listenAndServeQuit(
 	l, err := queuelistener.Listen(queuelistener.Options{
 		Network:                  "tcp",
 		Address:                  o.Address,
+		MaxConcurrency:           o.MaxTCPListenerConcurrency,
+		MaxQueueSize:             o.MaxTCPListenerQueue,
 		ActiveMemoryLimitBytes:   memoryLimit,
 		ActiveConnectionBytes:    o.BytesPerRequest,
 		InactiveMemoryLimitBytes: memoryLimit,
