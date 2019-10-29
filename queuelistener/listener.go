@@ -42,19 +42,18 @@ type Options struct {
 	Log              logging.Logger
 }
 
-func (o *Options) maxConcurrency() int {
+func (o Options) maxConcurrency() int {
 	if o.MaxConcurrency > 0 {
 		return o.MaxConcurrency
 	}
 
 	maxConcurrency := o.MemoryLimitBytes / o.ConnectionBytes
-	o.MaxConcurrency = maxConcurrency
 	// TODO should be probably also based on "nofiles" value (check Go runtime, if they are based on it)
 
 	return maxConcurrency
 }
 
-func (o *Options) maxQueueSize() int {
+func (o Options) maxQueueSize() int {
 	if o.MaxQueueSize > 0 {
 		return o.MaxQueueSize
 	}
@@ -63,7 +62,6 @@ func (o *Options) maxQueueSize() int {
 	if maxQueueSize > maxCalculatedQueueSize {
 		maxQueueSize = maxCalculatedQueueSize
 	}
-	o.MaxQueueSize = maxQueueSize
 
 	return maxQueueSize
 }
