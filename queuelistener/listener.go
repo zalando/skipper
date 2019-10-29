@@ -79,6 +79,8 @@ func Listen(o Options) (net.Listener, error) {
 		return nil, err
 	}
 
+	(&logging.DefaultLog{}).Info(o)
+
 	if o.ActiveMemoryLimitBytes <= 0 {
 		o.ActiveMemoryLimitBytes = defaultActiveMemoryLimitBytes
 	}
@@ -103,8 +105,6 @@ func Listen(o Options) (net.Listener, error) {
 
 	maxConcurrency := o.ActiveMemoryLimitBytes / o.ActiveConnectionBytes
 	maxQueueSize := o.InactiveMemoryLimitBytes / o.InactiveConnectionBytes
-
-	println("queue values:", maxConcurrency, maxQueueSize)
 
 	if o.Log == nil {
 		o.Log = &logging.DefaultLog{}
@@ -175,7 +175,6 @@ func (l *listener) listenExternal() {
 				delay = 0
 			}
 		} else {
-			println("net received")
 			acceptExternal = l.acceptExternal
 			externalError = nil
 			retry = nil
@@ -197,28 +196,31 @@ func (l *listener) listenExternal() {
 func (l *listener) listenInternal() {
 	var (
 		concurrency    int
-		queue          []connection
+		queue          *ring
 		conn           net.Conn
+		drop           net.Conn
 		nextConn       net.Conn
 		err            error
 		acceptInternal chan<- net.Conn
 		internalError  chan<- error
 	)
 
-	queue = make([]connection, 0, l.maxQueueSize)
+	queue = newRing(l.maxQueueSize)
 	for {
 		// TODO: timeout in the queue. What is the right and expected value?
-		println("queue len:", len(queue))
 
-		if len(queue) > 0 && concurrency < l.maxConcurrency {
-			println("can send", concurrency, l.maxConcurrency)
+		if queue.size > 0 && concurrency < l.maxConcurrency {
 			acceptInternal = l.acceptInternal
-			nextConn = queue[len(queue)-1]
+			nextConn = connection{
+				net:     queue.peek(),
+				release: l.releaseConnection,
+				quit:    l.quit,
+			}
 		} else {
 			acceptInternal = nil
 		}
 
-		if err != nil && len(queue) == 0 {
+		if err != nil && queue.size == 0 {
 			internalError = l.internalError
 		} else {
 			internalError = nil
@@ -226,19 +228,13 @@ func (l *listener) listenInternal() {
 
 		select {
 		case conn = <-l.acceptExternal:
-			println("received", len(queue))
-			queue = append(queue, connection{
-				net:     conn,
-				release: l.releaseConnection,
-				quit:    l.quit,
-			})
-			if len(queue) > l.maxQueueSize {
-				queue[0].net.Close()
-				queue = queue[1:]
+			drop = queue.enqueue(conn)
+			if drop != nil {
+				drop.Close()
 			}
 		case err = <-l.externalError:
 		case acceptInternal <- nextConn:
-			queue = queue[:len(queue)-1]
+			queue.dequeue()
 			concurrency++
 		case internalError <- err:
 			// we cannot accept anymore, but we returned the permanent error
@@ -247,9 +243,7 @@ func (l *listener) listenInternal() {
 		case <-l.releaseConnection:
 			concurrency--
 		case <-l.quit:
-			for _, c := range queue {
-				c.net.Close()
-			}
+			queue.rangeOver(func(c net.Conn) { c.Close() })
 
 			// Closing the real listener in a separate goroutine is based on inspecting the
 			// stdlib. It's fair to just log the errors.

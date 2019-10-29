@@ -823,18 +823,33 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 		} else {
 			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
 			memoryLimit, err = strconv.Atoi(memoryLimitString)
+			println("memory limit from file")
 			if err != nil {
+				println("memory limit error")
 				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
+			}
+
+			// TODO: figure the right settings for different deployment environments
+			/*
+				this is still not good enough, causing weird behavior:
+				if memoryLimit > int(^uint(0) >> 1) / 128 {
+					memoryLimit = int(^uint(0) >> 1) / 128
+				}
+			*/
+
+			// 1GB, temporarily:
+			if memoryLimit > 1<<30 {
+				memoryLimit = 1 << 30
 			}
 		}
 	}
 	l, err := queuelistener.Listen(queuelistener.Options{
-		Network: "tcp",
-		Address: o.Address,
-		ActiveMemoryLimitBytes: memoryLimit,
-		ActiveConnectionBytes: o.BytesPerRequest,
+		Network:                  "tcp",
+		Address:                  o.Address,
+		ActiveMemoryLimitBytes:   memoryLimit,
+		ActiveConnectionBytes:    o.BytesPerRequest,
 		InactiveMemoryLimitBytes: memoryLimit,
-		InactiveConnectionBytes: o.BytesPerRequest / 10,
+		InactiveConnectionBytes:  o.BytesPerRequest / 10,
 	})
 
 	if err != nil {

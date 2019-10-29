@@ -171,49 +171,30 @@ func TestQueueListener(t *testing.T) {
 							continue
 						}
 
-						println("accept returned", cnt)
 						cnt++
-						_, err = conn.Read(buf)
-						if err != nil {
-							println("read filaed:", err.Error())
-						} else {
-							println("got:", string(buf), cnt)
-						}
+						conn.Read(buf)
 					}
 				}()
 
 				for i := 0; i < tt.allow; i++ {
-					// println("connecting")
 					clconn, err := net.DialTimeout("tcp4", "127.0.0.1"+addr, 100*time.Second)
 					if err != nil {
-						// println("connection error")
 						t.Fatalf("Failed to dial: %v", err)
 					}
-					println("client connected", i)
+
 					defer clconn.Close()
-					//go func() {
-					if _, err := clconn.Write(ping); err != nil {
-						println("write err:", err.Error())
-					}
-					//}()
+					clconn.Write(ping)
 				}
 				t.Logf("did %d connections", tt.allow)
 				time.Sleep(time.Second)
-				println("dial should be enqueued")
 				for i := 0; i < 10*tt.allow; i++ {
-					// println("connecting to queue")
 					clconn, err := net.DialTimeout("tcp4", "127.0.0.1"+addr, 100*time.Second)
 					if err != nil {
-						// println("connection error at", i)
 						t.Fatalf("2Failed to dial: %v", err)
 					}
-					println("client connected", i)
+
 					defer clconn.Close()
-					//go func() {
-					if _, err := clconn.Write(ping); err != nil {
-						println("write err2:", err.Error())
-					}
-					//}()
+					clconn.Write(ping)
 				}
 			}()
 
