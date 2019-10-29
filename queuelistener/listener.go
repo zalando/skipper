@@ -42,6 +42,32 @@ type Options struct {
 	Log              logging.Logger
 }
 
+func (o *Options) maxConcurrency() int {
+	if o.MaxConcurrency > 0 {
+		return o.MaxConcurrency
+	}
+
+	maxConcurrency := o.MemoryLimitBytes / o.ConnectionBytes
+	o.MaxConcurrency = maxConcurrency
+	// TODO should be probably also based on "nofiles" value (check Go runtime, if they are based on it)
+
+	return maxConcurrency
+}
+
+func (o *Options) maxQueueSize() int {
+	if o.MaxQueueSize > 0 {
+		return o.MaxQueueSize
+	}
+
+	maxQueueSize := 10 * o.maxConcurrency()
+	if maxQueueSize > maxCalculatedQueueSize {
+		maxQueueSize = maxCalculatedQueueSize
+	}
+	o.MaxQueueSize = maxQueueSize
+
+	return maxQueueSize
+}
+
 type listener struct {
 	options           Options
 	maxConcurrency    int
@@ -86,6 +112,9 @@ func Listen(o Options) (net.Listener, error) {
 	}
 
 	(&logging.DefaultLog{}).Info(o)
+	if o.Log == nil {
+		o.Log = &logging.DefaultLog{}
+	}
 
 	if o.MemoryLimitBytes <= 0 {
 		o.MemoryLimitBytes = defaultMemoryLimitBytes
@@ -95,29 +124,10 @@ func Listen(o Options) (net.Listener, error) {
 		o.ConnectionBytes = defaultConnectionBytes
 	}
 
-	maxConcurrency := o.MemoryLimitBytes / o.ConnectionBytes
-	maxQueueSize := 10 * maxConcurrency
-
-	if maxQueueSize > maxCalculatedQueueSize {
-		maxQueueSize = maxCalculatedQueueSize
-	}
-
-	if o.Log == nil {
-		o.Log = &logging.DefaultLog{}
-	}
-
-	// if we got static values passed, do not use calcuated values
-	if o.MaxConcurrency > 0 {
-		maxConcurrency = o.MaxConcurrency
-	}
-	if o.MaxQueueSize > 0 {
-		maxQueueSize = o.MaxQueueSize
-	}
-
 	l := &listener{
 		options:           o,
-		maxConcurrency:    maxConcurrency,
-		maxQueueSize:      maxQueueSize,
+		maxConcurrency:    o.maxConcurrency(),
+		maxQueueSize:      o.maxQueueSize(),
 		externalListener:  nl,
 		acceptExternal:    make(chan net.Conn),
 		externalError:     make(chan error),
