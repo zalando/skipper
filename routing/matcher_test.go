@@ -201,12 +201,12 @@ func generateRoutes(paths []string) []*Route {
 func generateRequests(paths []string) ([]*http.Request, error) {
 	requests := make([]*http.Request, len(paths))
 	for i := 0; i < len(paths); i++ {
-		url, err := url.Parse(fmt.Sprintf("https://example.org%s", paths[i]))
+		u, err := url.Parse(fmt.Sprintf("https://example.org%s", paths[i]))
 		if err != nil {
 			return nil, err
 		}
 
-		requests[i] = &http.Request{Method: "GET", URL: url}
+		requests[i] = &http.Request{Method: "GET", URL: u}
 	}
 
 	return requests, nil
@@ -680,7 +680,10 @@ func TestMatchPathTree(t *testing.T) {
 
 func TestMatchPathTreeWithWildcards(t *testing.T) {
 	tree := &pathmux.Tree{}
-	pm0 := &pathMatcher{leaves: []*leafMatcher{{route: &Route{Route: eskip.Route{Id: "1"}}}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{
+		route:              &Route{Route: eskip.Route{Id: "1"}},
+		wildcardParamNames: []string{"param1", "param0"},
+	}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{{}}}
 	err := tree.Add("/some/path/:param0/:param1", pm0)
 	if err != nil {
@@ -747,7 +750,7 @@ func TestMatchWrongMethod(t *testing.T) {
 
 func TestMatchTopLeaves(t *testing.T) {
 	tree := &pathmux.Tree{}
-	l := &leafMatcher{method: "PUT"}
+	l := &leafMatcher{method: "PUT", wildcardParamNames: []string{"*"}}
 	pm := &pathMatcher{leaves: leafMatchers{l}}
 	err := tree.Add("/*", pm)
 	if err != nil {
@@ -763,7 +766,7 @@ func TestMatchTopLeaves(t *testing.T) {
 
 func TestMatchWildcardPaths(t *testing.T) {
 	tree := &pathmux.Tree{}
-	pm0 := &pathMatcher{leaves: []*leafMatcher{{}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{wildcardParamNames: []string{"param1", "param0"}}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{{}}}
 	err := tree.Add("/some/path/:param0/:param1", pm0)
 	if err != nil {
@@ -940,9 +943,29 @@ func TestMakeMatcherWithPathConflict(t *testing.T) {
 		t.Error(err)
 	}
 
-	m, errs := newMatcher(rs, MatchingOptionsNone)
-	if len(errs) != 1 || m == nil {
-		t.Error("failed to make matcher with error", len(errs), m == nil)
+	_, errs := newMatcher(rs, MatchingOptionsNone)
+	if len(errs) > 0 {
+		t.Error("failed to make matcher with path conflict")
+	}
+}
+
+func TestMatcherWithPathConflict(t *testing.T) {
+	rs, err := docToRoutes(`
+        testRoute0: Path("/api/:one/name") && Method("GET") -> "https://example.org";
+        testRoute1: Path("/api/:two/name") && Method("POST") -> "https://example.org"`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	m, _ := newMatcher(rs, MatchingOptionsNone)
+	r0, _ := m.match(&http.Request{URL: &url.URL{Path: "/api/a/name"}, Method: http.MethodGet})
+	if r0 == nil || r0.Route.Id != "testRoute0" {
+		t.Error("failed to match testRoute0")
+	}
+
+	r1, _ := m.match(&http.Request{URL: &url.URL{Path: "/api/a/name"}, Method: http.MethodPost})
+	if r1 == nil || r1.Route.Id != "testRoute1" {
+		t.Error("failed to match testRoute1")
 	}
 }
 
@@ -1039,6 +1062,154 @@ func TestHeaderMatchCaseInsensitive(t *testing.T) {
 	r, _ := m.match(&http.Request{URL: &url.URL{}, Header: http.Header{"Some-Header": []string{"some-value"}}})
 	if r == nil {
 		t.Error("failed to match header, case insensitive")
+	}
+}
+
+func TestFreeWildcardParamNotLast(t *testing.T) {
+	_, err := docToMatcher(`Path("/foo/*one/bar") -> "https://example.org"`)
+	if err == nil {
+		t.Error("failed to fail")
+	}
+}
+
+func TestExtractWildcardParamNames(t *testing.T) {
+	for _, scenario := range []struct {
+		path        string
+		pathSubtree string
+		expected    []string
+	}{{
+		pathSubtree: "*",
+		expected:    []string{"*"},
+	}, {
+		pathSubtree: "/",
+		expected:    []string{"*"},
+	}, {
+		pathSubtree: "*name",
+		expected:    []string{"name"},
+	}, {
+		pathSubtree: "/*name",
+		expected:    []string{"name"},
+	}, {
+		pathSubtree: "/:name/*free",
+		expected:    []string{"free", "name"},
+	}, {
+		pathSubtree: "/:one/:two/*free",
+		expected:    []string{"free", "two", "one"},
+	}, {
+		pathSubtree: "/:one/:two",
+		expected:    []string{"*", "two", "one"},
+	}, {
+		pathSubtree: "/:one/:two/",
+		expected:    []string{"*", "two", "one"},
+	}, {
+		pathSubtree: "/:one/:two/*",
+		expected:    []string{"*", "two", "one"},
+	}, {
+		path: "/",
+	}, {
+		path:     "*",
+		expected: []string{"*"},
+	}, {
+		path:     "/*name",
+		expected: []string{"name"},
+	}, {
+		path:     "/:name",
+		expected: []string{"name"},
+	}, {
+		path:     "/:name/",
+		expected: []string{"name"},
+	}, {
+		path:     "/:name/*free",
+		expected: []string{"free", "name"},
+	}, {
+		path:     "/:one/:two/*free",
+		expected: []string{"free", "two", "one"},
+	}} {
+		title := "Path(\"" + scenario.path + "\")"
+		if scenario.path == "" {
+			title = "PathSubtree(\"" + scenario.pathSubtree + "\")"
+		}
+
+		t.Run(title, func(t *testing.T) {
+			route := &Route{path: scenario.path, pathSubtree: scenario.pathSubtree}
+			actual := extractWildcardParamNames(route)
+			expected := scenario.expected
+
+			if len(actual) != len(expected) {
+				t.Error("actual", actual, "expected", expected)
+				return
+			}
+			for i := 0; i < len(actual); i++ {
+				if actual[i] != expected[i] {
+					t.Error("actual", actual, "expected", expected)
+					return
+				}
+			}
+		})
+	}
+}
+
+func TestNormalizePath(t *testing.T) {
+	for _, scenario := range []struct {
+		path     string
+		expected string
+	}{{
+		path:     "/",
+		expected: "/",
+	}, {
+		path:     "*",
+		expected: "/**",
+	}, {
+		path:     "/*",
+		expected: "/**",
+	}, {
+		path:     "/*name",
+		expected: "/**",
+	}, {
+		path:     "/**",
+		expected: "/**",
+	}, {
+		path:     "/one/**",
+		expected: "/one/**",
+	}, {
+		path:     "/:name",
+		expected: "/:*",
+	}, {
+		path:     "/:name/",
+		expected: "/:*/",
+	}, {
+		path:     "/:name/*free",
+		expected: "/:*/**",
+	}, {
+		path:     "/:one/:two/*free",
+		expected: "/:*/:*/**",
+	},
+	} {
+		t.Run(scenario.path, func(t *testing.T) {
+			route := &Route{path: scenario.path}
+			actual, err := normalizePath(route)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if actual != scenario.expected {
+				t.Error("Failed to normalize for Path predicate;",
+					"actual", actual, "expected", scenario.expected)
+				return
+			}
+
+			route = &Route{pathSubtree: scenario.path}
+			actual, err = normalizePath(route)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if actual != scenario.expected {
+				t.Error("Failed to normalize for PathSubtree predicate;",
+					"actual", actual, "expected", scenario.expected)
+				return
+			}
+		})
 	}
 }
 

@@ -10,7 +10,7 @@ type HandlerFunc func(w http.ResponseWriter, r *http.Request, urlParams map[stri
 
 func addPath(t *testing.T, tree *node, path string) {
 	t.Logf("Adding path %s", path)
-	n, err := tree.addPath(path[1:], nil)
+	n, err := tree.addPath(path[1:])
 	if err != nil {
 		t.Error(err)
 	}
@@ -20,7 +20,7 @@ func addPath(t *testing.T, tree *node, path string) {
 	n.leafValue = handler
 }
 
-func testPath(t *testing.T, tree *node, path string, expectPath string, expectedParams map[string]string) {
+func testPath(t *testing.T, tree *node, path string, expectPath string, expectedParams []string) {
 	if t.Failed() {
 		t.FailNow()
 	}
@@ -33,8 +33,8 @@ func testPath(t *testing.T, tree *node, path string, expectPath string, expected
 		t.Errorf("No match for %s, expected %s", path, expectPath)
 		return
 	} else if expectPath == "" && n != nil {
-		t.Errorf("Expected no match for %s but got %v with params %v", path, n, expectedParams)
-		t.Error("Node and subtree was\n")
+		t.Errorf("Expected no match for %s but got %v with params %v", path, n, paramList)
+		t.Error("Node and subtree was\n", n)
 		return
 	}
 
@@ -67,38 +67,21 @@ func testPath(t *testing.T, tree *node, path string, expectPath string, expected
 			t.Errorf("Path %s expected no parameters, saw %v", path, paramList)
 		}
 	} else {
-		if len(paramList) != len(n.leafWildcardNames) {
-			t.Errorf("Got %d params back but node specifies %d",
-				len(paramList), len(n.leafWildcardNames))
+		if len(paramList) != len(expectedParams) {
+			t.Error("Got", paramList, "params back, expected", expectedParams)
 		}
 
-		params := map[string]string{}
-		for i := 0; i < len(paramList); i++ {
-			params[n.leafWildcardNames[len(paramList)-i-1]] = paramList[i]
-		}
-		t.Log("\tGot params", params)
-
-		for key, val := range expectedParams {
-			sawVal, ok := params[key]
-			if !ok {
-				t.Errorf("Path %s matched without key %s", path, key)
-			} else if sawVal != val {
-				t.Errorf("Path %s expected param %s to be %s, saw %s", path, key, val, sawVal)
+		for i := 0; i < len(expectedParams); i++ {
+			if paramList[i] != expectedParams[i] {
+				t.Error("Got", paramList, "params back, expected", expectedParams)
 			}
-
-			delete(params, key)
-		}
-
-		for key, val := range params {
-			t.Errorf("Path %s returned unexpected param %s=%s", path, key, val)
 		}
 	}
-
 }
 
 func checkHandlerNodes(t *testing.T, n *node) {
 	hasHandlers := n.leafValue != nil
-	hasWildcards := len(n.leafWildcardNames) != 0
+	hasWildcards := n.wildcardChild != nil
 
 	if hasWildcards && !hasHandlers {
 		t.Errorf("Node %s has wildcards without handlers", n.path)
@@ -139,54 +122,54 @@ func TestTree(t *testing.T) {
 	addPath(t, tree, "/:something/def")
 
 	testPath(t, tree, "/users/abc/updatePassword", "/users/:id/updatePassword",
-		map[string]string{"id": "abc"})
+		[]string{"abc"})
 	testPath(t, tree, "/users/all/something", "/users/:pk/:related",
-		map[string]string{"pk": "all", "related": "something"})
+		[]string{"something", "all"})
 
 	testPath(t, tree, "/aaa/abc", "/:something/abc",
-		map[string]string{"something": "aaa"})
+		[]string{"aaa"})
 	testPath(t, tree, "/aaa/def", "/:something/def",
-		map[string]string{"something": "aaa"})
+		[]string{"aaa"})
 
 	testPath(t, tree, "/paper", "/:page",
-		map[string]string{"page": "paper"})
+		[]string{"paper"})
 
 	testPath(t, tree, "/", "/", nil)
 	testPath(t, tree, "/i", "/i", nil)
 	testPath(t, tree, "/images", "/images", nil)
 	testPath(t, tree, "/images/abc.jpg", "/images/abc.jpg", nil)
 	testPath(t, tree, "/images/something", "/images/:imgname",
-		map[string]string{"imgname": "something"})
+		[]string{"something"})
 	testPath(t, tree, "/images/long/path", "/images/*path",
-		map[string]string{"path": "long/path"})
+		[]string{"long/path"})
 	testPath(t, tree, "/images/even/longer/path", "/images/*path",
-		map[string]string{"path": "even/longer/path"})
+		[]string{"even/longer/path"})
 	testPath(t, tree, "/ima", "/ima", nil)
 	testPath(t, tree, "/apples", "/apples", nil)
 	testPath(t, tree, "/app/les", "/app/les", nil)
 	testPath(t, tree, "/abc", "/:page",
-		map[string]string{"page": "abc"})
+		[]string{"abc"})
 	testPath(t, tree, "/abc/100", "/:page/:index",
-		map[string]string{"page": "abc", "index": "100"})
+		[]string{"100", "abc"})
 	testPath(t, tree, "/post/a/page/2", "/post/:post/page/:page",
-		map[string]string{"post": "a", "page": "2"})
+		[]string{"2", "a"})
 	testPath(t, tree, "/date/2014/5", "/date/:year/:month",
-		map[string]string{"year": "2014", "month": "5"})
+		[]string{"5", "2014"})
 	testPath(t, tree, "/date/2014/month", "/date/:year/month",
-		map[string]string{"year": "2014"})
+		[]string{"2014"})
 	testPath(t, tree, "/date/2014/5/abc", "/date/:year/:month/abc",
-		map[string]string{"year": "2014", "month": "5"})
+		[]string{"5", "2014"})
 	testPath(t, tree, "/date/2014/5/def", "/date/:year/:month/:post",
-		map[string]string{"year": "2014", "month": "5", "post": "def"})
+		[]string{"def", "5", "2014"})
 	testPath(t, tree, "/date/2014/5/def/hij", "/date/:year/:month/*post",
-		map[string]string{"year": "2014", "month": "5", "post": "def/hij"})
+		[]string{"def/hij", "5", "2014"})
 	testPath(t, tree, "/date/2014/5/def/hij/", "/date/:year/:month/*post",
-		map[string]string{"year": "2014", "month": "5", "post": "def/hij/"})
+		[]string{"def/hij/", "5", "2014"})
 
 	testPath(t, tree, "/date/2014/ab%2f", "/date/:year/:month",
-		map[string]string{"year": "2014", "month": "ab/"})
+		[]string{"ab/", "2014"})
 	testPath(t, tree, "/post/ab%2fdef/page/2%2f", "/post/:post/page/:page",
-		map[string]string{"post": "ab/def", "page": "2/"})
+		[]string{"2/", "ab/def"})
 
 	testPath(t, tree, "/ima/bcd/fgh", "", nil)
 	testPath(t, tree, "/date/2014//month", "", nil)
@@ -200,7 +183,7 @@ func TestTree(t *testing.T) {
 	t.Log("Test retrieval of duplicate paths")
 	params := make(map[string]string)
 	p := "date/:year/:month/abc"
-	n, err := tree.addPath(p, nil)
+	n, err := tree.addPath(p)
 	if err != nil {
 		t.Error(err)
 	}
@@ -231,7 +214,7 @@ func TestPanics(t *testing.T) {
 		sawPanic = false
 		tree := &node{path: "/"}
 		for _, path := range p {
-			_, err := tree.addPath(path, nil)
+			_, err := tree.addPath(path)
 			if err != nil {
 				sawPanic = true
 			}
@@ -272,18 +255,6 @@ func TestPanics(t *testing.T) {
 	if !sawPanic {
 		t.Error("Expected panic with * in middle of path segment with existing path")
 	}
-
-	twoPathPanic := func(first, second string) {
-		addPathPanic(first, second)
-		if !sawPanic {
-			t.Errorf("Expected panic with ambiguous wildcards on paths %s and %s", first, second)
-		}
-	}
-
-	twoPathPanic("abc/:ab/def/:cd", "abc/:ad/def/:cd")
-	twoPathPanic("abc/:ab/def/:cd", "abc/:ab/def/:ef")
-	twoPathPanic(":abc", ":def")
-	twoPathPanic(":abc/ggg", ":def/ggg")
 }
 
 type TestMatcher struct {
@@ -349,7 +320,7 @@ func BenchmarkTreeNullRequest(b *testing.B) {
 func BenchmarkTreeOneStatic(b *testing.B) {
 	b.ReportAllocs()
 	tree := &node{path: "/"}
-	tree.addPath("abc", nil)
+	tree.addPath("abc")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -360,7 +331,7 @@ func BenchmarkTreeOneStatic(b *testing.B) {
 func BenchmarkTreeOneParam(b *testing.B) {
 	b.ReportAllocs()
 	tree := &node{path: "/"}
-	tree.addPath(":abc", nil)
+	tree.addPath(":abc")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

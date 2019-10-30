@@ -1,10 +1,12 @@
 package routing
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/dimfeld/httppath"
 	"github.com/zalando/skipper/pathmux"
@@ -26,23 +28,17 @@ func (m *leafRequestMatcher) Match(value interface{}) (bool, interface{}) {
 	return l != nil, l
 }
 
-type subtreeMergeControl struct {
-	ignoreSubtreeRoot bool
-	subtreeRoot       string
-	mapParamNameFrom  string
-	mapParamNameTo    string
-}
-
 type leafMatcher struct {
-	exactPath           string
-	method              string
-	hostRxs             []*regexp.Regexp
-	pathRxs             []*regexp.Regexp
-	headersExact        map[string]string
-	headersRegexp       map[string][]*regexp.Regexp
-	predicates          []Predicate
-	route               *Route
-	subtreeMergeControl subtreeMergeControl
+	wildcardParamNames   []string // in reverse order
+	hasFreeWildcardParam bool
+	exactPath            string
+	method               string
+	hostRxs              []*regexp.Regexp
+	pathRxs              []*regexp.Regexp
+	headersExact         map[string]string
+	headersRegexp        map[string][]*regexp.Regexp
+	predicates           []Predicate
+	route                *Route
 }
 
 type leafMatchers []*leafMatcher
@@ -69,8 +65,7 @@ func (ls leafMatchers) Swap(i, j int)      { ls[i], ls[j] = ls[j], ls[i] }
 func (ls leafMatchers) Less(i, j int) bool { return leafWeight(ls[i]) > leafWeight(ls[j]) }
 
 type pathMatcher struct {
-	leaves            leafMatchers
-	freeWildcardParam string
+	leaves leafMatchers
 }
 
 // root structure representing the routing tree.
@@ -96,7 +91,7 @@ func (err *definitionError) Error() string {
 }
 
 // rx identifying the 'free form' wildcards at the end of the paths
-var freeWildcardRx = regexp.MustCompile("/[*][^/]+$")
+var freeWildcardRx = regexp.MustCompile("/[*][^/]*$")
 
 // compiles all rxs or fails
 func getCompiledRxs(compiled map[string]*regexp.Regexp, exps []string) ([]*regexp.Regexp, error) {
@@ -139,6 +134,75 @@ func canonicalizeHeaderRegexps(hrx map[string][]*regexp.Regexp) map[string][]*re
 	return chrx
 }
 
+// extracts the expected wildcard param names and returns them in reverse order
+func extractWildcardParamNames(r *Route) []string {
+	path := r.path
+	if path == "" {
+		path = r.pathSubtree
+	}
+	path = httppath.Clean(path)
+
+	var wildcards []string
+	pathTokens := strings.Split(path, "/")
+	for _, token := range pathTokens {
+		if len(token) > 1 && (token[0] == ':' || token[0] == '*') {
+			//prepend
+			wildcards = append([]string{token[1:]}, wildcards...)
+		}
+	}
+
+	if strings.HasSuffix(path, "/*") ||
+		r.path == "" && r.pathSubtree != "" && !freeWildcardRx.MatchString(path) {
+
+		wildcards = append([]string{"*"}, wildcards...)
+	}
+
+	return wildcards
+}
+
+func hasFreeWildcardParam(r *Route) bool {
+	return r.pathSubtree != "" || freeWildcardRx.MatchString(httppath.Clean(r.path))
+}
+
+// returns a cleaned path where all wildcard names have been replaced with *
+func normalizePath(r *Route) (string, error) {
+	path := r.path
+	if path == "" {
+		path = r.pathSubtree
+	}
+	path = httppath.Clean(path)
+
+	var sb strings.Builder
+	for i := 0; i < len(path); i++ {
+		c := path[i]
+		if c == '/' {
+			sb.WriteByte(path[i])
+		} else {
+			nextSlash := strings.IndexByte(path[i:], '/')
+			nextSlashExists := true
+			if nextSlash == -1 {
+				nextSlash = len(path)
+				nextSlashExists = false
+			} else {
+				nextSlash += i
+			}
+			if c == ':' || c == '*' {
+				if nextSlashExists && c == '*' {
+					return "", errors.New("free wildcard param should be last")
+				} else {
+					sb.WriteByte(c)
+				}
+				sb.WriteByte('*')
+			} else {
+				sb.WriteString(path[i:nextSlash])
+			}
+			i = nextSlash - 1
+		}
+	}
+
+	return sb.String(), nil
+}
+
 // creates a new leaf matcher. preprocesses the
 // Host, PathRegexp, Header and HeaderRegexp
 // conditions.
@@ -170,6 +234,9 @@ func newLeaf(r *Route, rxs map[string]*regexp.Regexp) (*leafMatcher, error) {
 	}
 
 	return &leafMatcher{
+		wildcardParamNames:   extractWildcardParamNames(r),
+		hasFreeWildcardParam: hasFreeWildcardParam(r),
+
 		method:        r.Method,
 		hostRxs:       hostRxs,
 		pathRxs:       pathRxs,
@@ -177,17 +244,6 @@ func newLeaf(r *Route, rxs map[string]*regexp.Regexp) (*leafMatcher, error) {
 		headersRegexp: canonicalizeHeaderRegexps(allHeaderRxs),
 		predicates:    r.Predicates,
 		route:         r}, nil
-}
-
-// returns the free form wildcard parameter of a path
-func freeWildcardParam(path string) string {
-	param := freeWildcardRx.FindString(path)
-	if param == "" {
-		return ""
-	}
-
-	// clip '/*' and return only the name
-	return param[2:]
 }
 
 func trimTrailingSlash(path string) string {
@@ -198,67 +254,17 @@ func trimTrailingSlash(path string) string {
 	return path
 }
 
-// add all required tree entries for a subtree with patching the path and
-// the wildcard name if required
-func addSubtreeMatcher(pathTree *pathmux.Tree, path string, m *pathMatcher) error {
-	// if has named free wildcard, use its name and take the path only
-	// otherwise set the free wildcard name by convention to "*", as in "/foo/**"
-	fwp := m.freeWildcardParam
-	if fwp == "" {
-		fwp = "*"
-		m.freeWildcardParam = "*"
-	} else {
-		path = path[:len(path)-len(fwp)-1]
-	}
-
-	// if ends with '/' then set one without
-	// otherwise set one with '/'
-	//
-	// the subtree will be represented as "/foo/**" or "/foo/*wildcard"
-	var pathAlt, pathSubtree string
-	if path[len(path)-1] == '/' {
-		pathAlt = path[:len(path)-1]
-		pathSubtree = path + "*" + fwp
-	} else {
-		pathAlt = path + "/"
-		pathSubtree = pathAlt + "*" + fwp
-	}
-
-	if err := pathTree.Add(path, m); err != nil {
-		return err
-	}
-
-	if pathAlt != "" {
-		if err := pathTree.Add(pathAlt, m); err != nil {
-			return err
-		}
-	}
-
-	return pathTree.Add(pathSubtree, m)
-}
-
 // add each path matcher to the path tree. If a matcher is a subtree, add it with the
 // additional paths.
-func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, subtree bool) []*definitionError {
+func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher) []*definitionError {
 	var errors []*definitionError
 	for p, m := range matchers {
 
 		// sort leaves during construction time, based on their priority
 		sort.Stable(m.leaves)
 
-		if p == "" {
-			p = "/"
-		}
-
-		if subtree {
-			if err := addSubtreeMatcher(pathTree, p, m); err != nil {
-				errors = append(errors, &definitionError{Index: -1, Original: err})
-			}
-		} else {
-			if err := pathTree.Add(p, m); err != nil {
-				errors = append(errors, &definitionError{Index: -1, Original: err})
-				continue
-			}
+		if err := pathTree.Add(p, m); err != nil {
+			errors = append(errors, &definitionError{Index: -1, Original: err})
 		}
 	}
 
@@ -268,99 +274,26 @@ func addTreeMatchers(pathTree *pathmux.Tree, matchers map[string]*pathMatcher, s
 func addLeafToPath(pms map[string]*pathMatcher, path string, l *leafMatcher) {
 	pm, ok := pms[path]
 	if !ok {
-		pm = &pathMatcher{freeWildcardParam: freeWildcardParam(path)}
+		pm = &pathMatcher{}
 		pms[path] = pm
 	}
 
 	pm.leaves = append(pm.leaves, l)
 }
 
-func moveToSubtreeIfExists(subtree *pathMatcher, paths map[string]*pathMatcher, path string) {
-	pm, exists := paths[path]
-	if !exists {
-		return
+func addSubtreeLeafsToPath(pms map[string]*pathMatcher, path string, l *leafMatcher, o MatchingOptions) {
+	basePath := freeWildcardRx.ReplaceAllLiteralString(path, "")
+	basePath = strings.TrimSuffix(basePath, "/")
+	if basePath == "" {
+		addLeafToPath(pms, "/", l)
+		addLeafToPath(pms, "/**", l)
+	} else {
+		addLeafToPath(pms, basePath, l)
+		addLeafToPath(pms, basePath+"/**", l)
+		if !o.ignoreTrailingSlash() {
+			addLeafToPath(pms, basePath+"/", l)
+		}
 	}
-
-	subtree.leaves = append(subtree.leaves, pm.leaves...)
-	delete(paths, path)
-}
-
-// when a path subtree and a path with free wildcard has the same root,
-// we need to merge them to the same leaf, but we need to preserve the
-// original parameter name. The tree accepts only a single wildcard
-// param name for a given position, so we need to store the original
-// param name elsewhere (subtreeMergeControl).
-func mergeWithSubtreeIfConflicting(subtrees, paths map[string]*pathMatcher) {
-	subtreesUnnamed := make(map[string]*pathMatcher)
-	subtreesFullPaths := make(map[string]string)
-	for stp, stm := range subtrees {
-		// trim the param name, if exists
-		var subtreePath string
-		stpParam := freeWildcardRx.FindString(stp)
-		if stpParam == "" {
-			subtreePath = stp
-		} else {
-			subtreePath = stp[:len(stp)-len(stpParam)]
-		}
-
-		if subtreePath == "" {
-			subtreePath = "/"
-		}
-
-		subtreesUnnamed[subtreePath] = stm
-		subtreesFullPaths[subtreePath] = stp
-	}
-
-	var removeFromPaths []string
-	for p, pm := range paths {
-		fwm := freeWildcardRx.FindString(p)
-		if fwm == "" {
-			continue
-		}
-
-		subRoot := p[:len(p)-len(fwm)]
-		if subRoot == "" {
-			subRoot = "/"
-		}
-
-		stm, ok := subtreesUnnamed[subRoot]
-		if !ok {
-			continue
-		}
-
-		fromParam := stm.freeWildcardParam
-		if fromParam == "" {
-			fromParam = "*"
-		}
-
-		for _, l := range pm.leaves {
-			l.subtreeMergeControl.ignoreSubtreeRoot = true
-			l.subtreeMergeControl.subtreeRoot = subRoot
-			l.subtreeMergeControl.mapParamNameFrom = fromParam
-			l.subtreeMergeControl.mapParamNameTo = pm.freeWildcardParam
-		}
-
-		pm.leaves = append(pm.leaves, stm.leaves...)
-		pm.freeWildcardParam = stm.freeWildcardParam
-		subtrees[subtreesFullPaths[subRoot]] = pm
-		removeFromPaths = append(removeFromPaths, p)
-	}
-
-	for _, p := range removeFromPaths {
-		delete(paths, p)
-	}
-}
-
-func moveConflictingToSubtree(subtrees, paths map[string]*pathMatcher) {
-	for p, stm := range subtrees {
-		moveToSubtreeIfExists(stm, paths, p)
-
-		// TODO: this may mean that a non-subtree route will match even when ignore-trailing-match is
-		// false:
-		moveToSubtreeIfExists(stm, paths, p+"/")
-	}
-
-	mergeWithSubtreeIfConflicting(subtrees, paths)
 }
 
 // constructs a matcher based on the provided definitions.
@@ -381,7 +314,6 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	)
 
 	pathMatchers := make(map[string]*pathMatcher)
-	subtreeMatchers := make(map[string]*pathMatcher)
 	compiledRxs := make(map[string]*regexp.Regexp)
 
 	for i, r := range rs {
@@ -391,10 +323,14 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
+		path, err := normalizePath(r)
+		if err != nil {
+			errors = append(errors, &definitionError{r.Id, i, err})
+			continue
+		}
+
 		if r.pathSubtree != "" {
-			path := httppath.Clean(r.pathSubtree)
-			path = trimTrailingSlash(path)
-			addLeafToPath(subtreeMatchers, path, l)
+			addSubtreeLeafsToPath(pathMatchers, path, l, o)
 			continue
 		}
 
@@ -403,18 +339,14 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
-		path := httppath.Clean(r.path)
 		if o.ignoreTrailingSlash() {
 			path = trimTrailingSlash(path)
 		}
 		addLeafToPath(pathMatchers, path, l)
 	}
 
-	moveConflictingToSubtree(subtreeMatchers, pathMatchers)
-
 	pathTree := &pathmux.Tree{}
-	errors = append(errors, addTreeMatchers(pathTree, pathMatchers, false)...)
-	errors = append(errors, addTreeMatchers(pathTree, subtreeMatchers, true)...)
+	errors = append(errors, addTreeMatchers(pathTree, pathMatchers)...)
 
 	// sort root leaves during construction time, based on their priority
 	sort.Stable(rootLeaves)
@@ -429,18 +361,27 @@ func matchPathTree(tree *pathmux.Tree, path string, lrm *leafRequestMatcher) (ma
 		return nil, nil
 	}
 
-	pm := v.(*pathMatcher)
 	lm := value.(*leafMatcher)
 
-	if lm.subtreeMergeControl.mapParamNameFrom != "" {
-		params[lm.subtreeMergeControl.mapParamNameTo] =
-			"/" + params[lm.subtreeMergeControl.mapParamNameFrom]
-		delete(params, lm.subtreeMergeControl.mapParamNameFrom)
-	} else if pm.freeWildcardParam != "" {
-		params[pm.freeWildcardParam] = "/" + params[pm.freeWildcardParam]
+	if len(lm.wildcardParamNames) == len(params)+1 {
+		// prepend an empty string for the path subtree match
+		params = append([]string{""}, params...)
 	}
 
-	return params, lm
+	l := len(params)
+	if l > len(lm.wildcardParamNames) {
+		l = len(lm.wildcardParamNames)
+	}
+
+	paramsMap := make(map[string]string)
+	for i := 0; i < l; i += 1 {
+		paramsMap[lm.wildcardParamNames[i]] = params[i]
+	}
+	if l > 0 && lm.hasFreeWildcardParam {
+		paramsMap[lm.wildcardParamNames[0]] = "/" + params[0]
+	}
+
+	return paramsMap, lm
 }
 
 // matches the path regexp conditions in a leaf matcher.
@@ -523,10 +464,6 @@ func matchLeaf(l *leafMatcher, req *http.Request, path, exactPath string) bool {
 	}
 
 	if !matchPredicates(l.predicates, req) {
-		return false
-	}
-
-	if l.subtreeMergeControl.ignoreSubtreeRoot && path == l.subtreeMergeControl.subtreeRoot {
 		return false
 	}
 
