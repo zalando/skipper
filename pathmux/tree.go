@@ -290,14 +290,14 @@ func (t *Tree) Add(path string, value interface{}) error {
 }
 
 // Lookup tries to find a value in the tree associated to a path. If the found path definition contains
-// wildcards, the names and values of the wildcards are returned in the second argument.
+// wildcards, the values of the wildcards are returned in the second argument.
 func (t *Tree) Lookup(path string) (interface{}, []string) {
 	node, params, _ := t.LookupMatcher(path, tm)
 	return node, params
 }
 
 // LookupMatcher tries to find value in the tree associated to a path. If the found path definition contains
-// wildcards, the names and values of the wildcards are returned in the second argument. When a value is found,
+// wildcards, the values of the wildcards are returned in the second argument. When a value is found,
 // the matcher is called to check if the value meets the conditions implemented by the custom matcher. If it
 // returns true, then the lookup is done and the additional return value from the matcher is returned as the
 // lookup result. If it returns false, the lookup continues with backtracking from the current tree position.
