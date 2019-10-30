@@ -454,6 +454,39 @@ func TestPredicateList(t *testing.T) {
 			expectedID: "subtree",
 		}},
 	}, {
+		title: "path and path subtree conflict",
+		routes: []*eskip.Route{{
+			Id: "path",
+			Predicates: []*eskip.Predicate{{
+				Name: "Path",
+				Args: []interface{}{"/foo"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}, {
+			Id: "pathSubtree",
+			Predicates: []*eskip.Predicate{{
+				Name: "Method",
+				Args: []interface{}{"GET"},
+			}, {
+				Name: "PathSubtree",
+				Args: []interface{}{"/foo"},
+			}},
+			BackendType: eskip.ShuntBackend,
+		}},
+		checks: []check{{
+			request: &http.Request{
+				URL:    &url.URL{Path: "/foo"},
+				Method: "POST",
+			},
+			expectedID: "path",
+		}, {
+			request: &http.Request{
+				URL:    &url.URL{Path: "/foo"},
+				Method: "GET",
+			},
+			expectedID: "pathSubtree",
+		}},
+	}, {
 		title:   "path wildcard and path subtree, ignore trailing slash",
 		options: IgnoreTrailingSlash,
 		routes: []*eskip.Route{{
