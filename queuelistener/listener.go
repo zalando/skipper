@@ -239,9 +239,7 @@ func (l *listener) listenInternal() {
 		// timeout.
 		if l.options.QueueTimeout > 0 && nextTimeout == nil {
 			nextTimeout = time.After(
-				l.options.QueueTimeout *
-					queueTimeoutPrecisionPercentage /
-					100,
+				l.options.QueueTimeout * queueTimeoutPrecisionPercentage / 100,
 			)
 		}
 

@@ -7,9 +7,67 @@ import (
 	"time"
 )
 
-func TestQueueListenerListen(t *testing.T) {
-	t.Skip()
+// interface:
+// - can accept connections from the wrapped listener
+// - connection read/write works
+// - closing connections closes the underlying connection
+// - when wrapped listener returns temporary error, logs them and retries with a delay
+// - when wrapped listener permanently fails returns the queued connections and fails afterwards, and it doesn't
+// call the external listener anymore
+// - returns the external listener address
+func TestInterface(t *testing.T) {
+	t.Run("accepts connections from the wrapped listener", func(t *testing.T) {
+		l, err := Listen(Options{Network: "tcp", Address: ":0"})
+		if err != nil {
+			t.Fatal(err)
+		}
 
+		defer l.Close()
+		go func() {
+		}()
+	})
+}
+
+// queue:
+// - when max concurrency reached, Accept blocks
+// - closing an accepted connection allows accepting the newest one from the queue
+// - when max queue size reached, new incoming connections purge the oldest ones from the queue
+// - when kicking or timeouting a connection from the queue, the external connection is closed
+func TestQueue(t *testing.T) {
+}
+
+// options:
+// - network and address work the same way as for net.Listen
+// - max concurrency and max queue size has priority over memory limit and connection bytes
+// - when max concurrency is not set, it is calculated from memory limit and connection bytes
+// - when max queue size is not set, it is calculated from max concurrency
+// - the calculated max queue size is limited to a constant
+// - by default, connections in the queue don't timeout
+// - connections in the queue use the configured timeout
+func TestOptions(t *testing.T) {
+}
+
+// teardown:
+// - queued connections are closed
+// - connections accepted by the calling code are not closed by the listener
+// - connections accepted from the wrapped listener after tear down are closed
+// - calling accept after closed, returns an error
+func TestTeardown(t *testing.T) {
+}
+
+// monitoring:
+// - logs the temporary errors
+// - updates the gauges for the concurrency and the queue size
+func TestMonitoring(t *testing.T) {
+}
+
+// concurrency:
+// - multiple calls to close have no effect
+// - multiple calls to close on the connections have no effect
+func TestConcurrency(t *testing.T) {
+}
+
+func TestListen(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
 		memoryLimit      int
@@ -99,7 +157,7 @@ func TestQueueListenerListen(t *testing.T) {
 
 }
 
-func TestQueueListener(t *testing.T) {
+func TestQueue1(t *testing.T) {
 	for _, tt := range []struct {
 		name            string
 		memoryLimit     int
