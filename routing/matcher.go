@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -164,7 +165,7 @@ func hasFreeWildcardParam(r *Route) bool {
 }
 
 // returns a cleaned path where all wildcard names have been replaced with *
-func normalizePath(r *Route) string {
+func normalizePath(r *Route) (string, error) {
 	path := r.path
 	if path == "" {
 		path = r.pathSubtree
@@ -186,8 +187,8 @@ func normalizePath(r *Route) string {
 				nextSlash += i
 			}
 			if c == ':' || c == '*' {
-				if nextSlashExists {
-					sb.WriteByte(':')
+				if nextSlashExists && c == '*' {
+					return "", errors.New("free wildcard param should be last")
 				} else {
 					sb.WriteByte(c)
 				}
@@ -199,7 +200,7 @@ func normalizePath(r *Route) string {
 		}
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }
 
 // creates a new leaf matcher. preprocesses the
@@ -322,7 +323,11 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 			continue
 		}
 
-		path := normalizePath(r)
+		path, err := normalizePath(r)
+		if err != nil {
+			errors = append(errors, &definitionError{r.Id, i, err})
+			continue
+		}
 
 		if r.pathSubtree != "" {
 			addSubtreeLeafsToPath(pathMatchers, path, l, o)
