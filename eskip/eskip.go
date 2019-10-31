@@ -31,12 +31,25 @@ type DefaultFilters struct {
 // prepends filters stored to incoming routes and returns the modified
 // version of routes.
 func (df *DefaultFilters) Do(routes []*Route) []*Route {
+	pn := len(df.Prepend)
+	an := len(df.Append)
+	if pn == 0 && an == 0 {
+		return routes
+	}
+
 	nextRoutes := make([]*Route, len(routes))
 	for i, r := range routes {
 		nextRoutes[i] = new(Route)
 		*nextRoutes[i] = *r
-		nextRoutes[i].Filters = append(df.Prepend, nextRoutes[i].Filters...)
-		nextRoutes[i].Filters = append(nextRoutes[i].Filters, df.Append...)
+
+		fn := len(r.Filters)
+
+		filters := make([]*Filter, fn+pn+an)
+		copy(filters[:pn], df.Prepend)
+		copy(filters[pn:pn+fn], r.Filters)
+		copy(filters[pn+fn:], df.Append)
+
+		nextRoutes[i].Filters = filters
 	}
 
 	return nextRoutes
