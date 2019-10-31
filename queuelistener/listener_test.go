@@ -21,7 +21,7 @@ type testListener struct {
 	failNextTemporary bool
 	fail              bool
 	connsBeforeFail   int
-	addr net.Addr
+	addr              net.Addr
 }
 
 type testError struct{}
@@ -134,6 +134,74 @@ func waitForGauge(m *metricstest.MockMetrics, key string, value float64) error {
 	return waitForGaugeTO(m, key, value, 120*time.Millisecond)
 }
 
+func closeAll(conns []net.Conn) {
+	for _, c := range conns {
+		c.Close()
+	}
+}
+
+func acceptN(t *testing.T, l net.Listener, n int) []net.Conn {
+	var (
+		conns []net.Conn
+		c     net.Conn
+		err   error
+	)
+
+	for len(conns) < n {
+		c, err = l.Accept()
+		if err != nil {
+			break
+		}
+
+		conns = append(conns, c)
+	}
+
+	if err != nil {
+		closeAll(conns)
+		t.Fatal(err)
+		return nil
+	}
+
+	return conns
+}
+
+func dialN(t *testing.T, addr net.Addr, n int) []net.Conn {
+	var (
+		conns []net.Conn
+		c     net.Conn
+		err   error
+	)
+
+	for len(conns) < n {
+		c, err = net.Dial("tcp", addr.String())
+		if err != nil {
+			break
+		}
+
+		conns = append(conns, c)
+	}
+
+	if err != nil {
+		closeAll(conns)
+		t.Fatal(err)
+		return nil
+	}
+
+	return conns
+}
+
+func goAcceptN(t *testing.T, l net.Listener, n int) <-chan []net.Conn {
+	accepted := make(chan []net.Conn)
+	go func() { accepted <- acceptN(t, l, n) }()
+	return accepted
+}
+
+func goDialN(t *testing.T, addr net.Addr, n int) <-chan []net.Conn {
+	dialed := make(chan []net.Conn)
+	go func() { dialed <- dialN(t, addr, n) }()
+	return dialed
+}
+
 func TestInterface(t *testing.T) {
 	t.Run("accepts functioning connections from the wrapped listener", func(t *testing.T) {
 		const message = "ping"
@@ -219,7 +287,7 @@ func TestInterface(t *testing.T) {
 		m := &metricstest.MockMetrics{}
 		l, err := listenWith(&testListener{connsBeforeFail: 3}, Options{
 			MaxQueueSize: 3,
-			Metrics: m,
+			Metrics:      m,
 		})
 
 		if err != nil {
@@ -231,15 +299,8 @@ func TestInterface(t *testing.T) {
 			t.Fatalf("failed to reach expected queue size: %v", err)
 		}
 
-		for i := 0; i < 3; i++ {
-			conn, err := l.Accept()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			defer conn.Close()
-		}
-
+		conns := acceptN(t, l, 3)
+		defer closeAll(conns)
 		if _, err := l.Accept(); err == nil {
 			t.Error("failed to receive wrapped listener error")
 		}
@@ -259,11 +320,70 @@ func TestInterface(t *testing.T) {
 }
 
 // queue:
-// - when max concurrency reached, Accept blocks
 // - closing an accepted connection allows accepting the newest one from the queue
 // - when max queue size reached, new incoming connections purge the oldest ones from the queue
 // - when kicking or timeouting a connection from the queue, the external connection is closed
 func TestQueue(t *testing.T) {
+	t.Run("when max concurrency reached, queue gets filled", func(t *testing.T) {
+		m := &metricstest.MockMetrics{}
+		l, err := Listen(Options{
+			Network:        "tcp",
+			Address:        ":0",
+			Metrics:        m,
+			MaxConcurrency: 3,
+			MaxQueueSize:   3,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer l.Close()
+
+		accepted := goAcceptN(t, l, 3)
+		dialed := goDialN(t, l.Addr(), 5)
+		defer closeAll(<-accepted)
+		defer closeAll(<-dialed)
+
+		if err := waitForGauge(m, acceptedConnectionsKey, 3); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := waitForGauge(m, queuedConnectionsKey, 2); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("when max concurrency reached, accept blocks", func(t *testing.T) {
+		l, err := Listen(Options{
+			Network:        "tcp",
+			Address:        ":0",
+			MaxConcurrency: 3,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer l.Close()
+
+		accepted := goAcceptN(t, l, 3)
+		dialed := goDialN(t, l.Addr(), 5)
+		defer closeAll(<-accepted)
+		defer closeAll(<-dialed)
+
+		unblocked := make(chan struct{})
+		go func() {
+			l.Accept()
+			close(unblocked)
+		}()
+
+		select {
+		case <-unblocked:
+			t.Error("failed to block listener after max concurrency reached")
+		case <-time.After(120 * time.Millisecond):
+		}
+	})
 }
 
 // options:

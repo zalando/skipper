@@ -14,7 +14,7 @@ type MockMetrics struct {
 	// Metrics gathering
 	counters      map[string]int64
 	floatCounters map[string]float64
-	gauges map[string]float64
+	gauges        map[string]float64
 	measures      map[string][]time.Duration
 	Now           time.Time
 }
