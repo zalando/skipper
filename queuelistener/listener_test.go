@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/metrics/metricstest"
 )
 
 type testConnection struct {
@@ -19,6 +20,8 @@ type testListener struct {
 	closed            bool
 	failNextTemporary bool
 	fail              bool
+	connsBeforeFail   int
+	addr net.Addr
 }
 
 type testError struct{}
@@ -52,11 +55,22 @@ func (l *testListener) Accept() (net.Conn, error) {
 		return nil, errors.New("listener error")
 	}
 
+	if l.connsBeforeFail > 0 {
+		l.connsBeforeFail--
+		if l.connsBeforeFail == 0 {
+			l.fail = true
+		}
+	}
+
 	return &testConnection{}, nil
 }
 
 func (l testListener) Addr() net.Addr {
-	return &net.IPAddr{}
+	if l.addr == nil {
+		return &net.IPAddr{}
+	}
+
+	return l.addr
 }
 
 func (l *testListener) Close() error {
@@ -100,10 +114,26 @@ func pong(rw io.ReadWriter, message string) error {
 	return err
 }
 
-// interface:
-// - when wrapped listener permanently fails returns the queued connections and fails afterwards, and it doesn't
-// call the external listener anymore
-// - returns the external listener address
+func waitForGaugeTO(m *metricstest.MockMetrics, key string, value float64, timeout time.Duration) error {
+	to := time.After(timeout)
+	for {
+		v, ok := m.Gauge(key)
+		if ok && v == value {
+			return nil
+		}
+
+		select {
+		case <-to:
+			return errors.New("timeout")
+		case <-time.After(timeout / 20):
+		}
+	}
+}
+
+func waitForGauge(m *metricstest.MockMetrics, key string, value float64) error {
+	return waitForGaugeTO(m, key, value, 120*time.Millisecond)
+}
+
 func TestInterface(t *testing.T) {
 	t.Run("accepts functioning connections from the wrapped listener", func(t *testing.T) {
 		const message = "ping"
@@ -143,8 +173,7 @@ func TestInterface(t *testing.T) {
 	})
 
 	t.Run("closing a connection closes the underlying connection", func(t *testing.T) {
-		tl := &testListener{}
-		l, err := listenWith(tl, Options{})
+		l, err := listenWith(&testListener{}, Options{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -166,8 +195,7 @@ func TestInterface(t *testing.T) {
 
 	t.Run("wrapped listener returns temporary error, logs and retries", func(t *testing.T) {
 		log := loggingtest.New()
-		tl := &testListener{failNextTemporary: true}
-		l, err := listenWith(tl, Options{
+		l, err := listenWith(&testListener{failNextTemporary: true}, Options{
 			Log: log,
 		})
 
@@ -184,6 +212,48 @@ func TestInterface(t *testing.T) {
 		defer conn.Close()
 		if err := log.WaitFor(errTemporary.Error(), 120*time.Millisecond); err != nil {
 			t.Error("failed to log temporary error")
+		}
+	})
+
+	t.Run("wrapped permanently fails, returns queued connections and the error", func(t *testing.T) {
+		m := &metricstest.MockMetrics{}
+		l, err := listenWith(&testListener{connsBeforeFail: 3}, Options{
+			MaxQueueSize: 3,
+			Metrics: m,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer l.Close()
+		if err := waitForGauge(m, queuedConnectionsKey, 3); err != nil {
+			t.Fatalf("failed to reach expected queue size: %v", err)
+		}
+
+		for i := 0; i < 3; i++ {
+			conn, err := l.Accept()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer conn.Close()
+		}
+
+		if _, err := l.Accept(); err == nil {
+			t.Error("failed to receive wrapped listener error")
+		}
+	})
+
+	t.Run("returns the external listener address", func(t *testing.T) {
+		addr := &net.IPAddr{}
+		l, err := listenWith(&testListener{addr: addr}, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if l.Addr() != addr {
+			t.Error("failed to return the right address")
 		}
 	})
 }
