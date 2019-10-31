@@ -1,30 +1,190 @@
 package queuelistener
 
 import (
+	"errors"
+	"io"
 	"net"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/logging/loggingtest"
 )
 
+type testConnection struct {
+	closed bool
+}
+
+type testListener struct {
+	closed            bool
+	failNextTemporary bool
+	fail              bool
+}
+
+type testError struct{}
+
+var errTemporary testError
+
+func (err testError) Error() string   { return "test error" }
+func (err testError) Timeout() bool   { return false }
+func (err testError) Temporary() bool { return true }
+
+func (c testConnection) Read([]byte) (int, error)         { return 0, nil }
+func (c testConnection) Write([]byte) (int, error)        { return 0, nil }
+func (c testConnection) LocalAddr() net.Addr              { return nil }
+func (c testConnection) RemoteAddr() net.Addr             { return nil }
+func (c testConnection) SetDeadline(time.Time) error      { return nil }
+func (c testConnection) SetReadDeadline(time.Time) error  { return nil }
+func (c testConnection) SetWriteDeadline(time.Time) error { return nil }
+
+func (c *testConnection) Close() error {
+	c.closed = true
+	return nil
+}
+
+func (l *testListener) Accept() (net.Conn, error) {
+	if l.failNextTemporary {
+		l.failNextTemporary = false
+		return nil, errTemporary
+	}
+
+	if l.fail {
+		return nil, errors.New("listener error")
+	}
+
+	return &testConnection{}, nil
+}
+
+func (l testListener) Addr() net.Addr {
+	return &net.IPAddr{}
+}
+
+func (l *testListener) Close() error {
+	l.closed = true
+	return nil
+}
+
+func receive(rw io.ReadWriter, message string) error {
+	m := make([]byte, len(message))
+	b := m
+	for len(b) > 0 {
+		n, err := rw.Read(b)
+		if err != nil {
+			return err
+		}
+
+		b = b[n:]
+	}
+
+	if string(m) != message {
+		return errors.New("corrupted message")
+	}
+
+	return nil
+}
+
+func ping(rw io.ReadWriter, message string) error {
+	if _, err := rw.Write([]byte(message)); err != nil {
+		return err
+	}
+
+	return receive(rw, message)
+}
+
+func pong(rw io.ReadWriter, message string) error {
+	if err := receive(rw, message); err != nil {
+		return err
+	}
+
+	_, err := rw.Write([]byte(message))
+	return err
+}
+
 // interface:
-// - can accept connections from the wrapped listener
-// - connection read/write works
-// - closing connections closes the underlying connection
-// - when wrapped listener returns temporary error, logs them and retries with a delay
 // - when wrapped listener permanently fails returns the queued connections and fails afterwards, and it doesn't
 // call the external listener anymore
 // - returns the external listener address
 func TestInterface(t *testing.T) {
-	t.Run("accepts connections from the wrapped listener", func(t *testing.T) {
+	t.Run("accepts functioning connections from the wrapped listener", func(t *testing.T) {
+		const message = "ping"
+
 		l, err := Listen(Options{Network: "tcp", Address: ":0"})
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		defer l.Close()
+		addr := l.Addr()
+		done := make(chan struct{})
+
 		go func() {
+			conn, err := net.Dial(addr.Network(), addr.String())
+			if err != nil {
+				close(done)
+				t.Fatal(err)
+			}
+
+			defer conn.Close()
+			if err := ping(conn, message); err != nil {
+				close(done)
+				t.Fatal(err)
+			}
+
+			close(done)
 		}()
+
+		conn, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pong(conn, message)
+		<-done
+	})
+
+	t.Run("closing a connection closes the underlying connection", func(t *testing.T) {
+		tl := &testListener{}
+		l, err := listenWith(tl, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer l.Close()
+		conn, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := conn.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		if !conn.(connection).net.(*testConnection).closed {
+			t.Error("failed to close underlying connection")
+		}
+	})
+
+	t.Run("wrapped listener returns temporary error, logs and retries", func(t *testing.T) {
+		log := loggingtest.New()
+		tl := &testListener{failNextTemporary: true}
+		l, err := listenWith(tl, Options{
+			Log: log,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer l.Close()
+		conn, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer conn.Close()
+		if err := log.WaitFor(errTemporary.Error(), 120*time.Millisecond); err != nil {
+			t.Error("failed to log temporary error")
+		}
 	})
 }
 
@@ -52,6 +212,7 @@ func TestOptions(t *testing.T) {
 // - connections accepted by the calling code are not closed by the listener
 // - connections accepted from the wrapped listener after tear down are closed
 // - calling accept after closed, returns an error
+// - the wrapped listener is closed
 func TestTeardown(t *testing.T) {
 }
 

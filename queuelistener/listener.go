@@ -103,13 +103,7 @@ func (c connection) Close() error {
 	return c.net.Close()
 }
 
-func Listen(o Options) (net.Listener, error) {
-	nl, err := net.Listen(o.Network, o.Address)
-	if err != nil {
-		return nil, err
-	}
-
-	(&logging.DefaultLog{}).Info(o)
+func listenWith(nl net.Listener, o Options) (net.Listener, error) {
 	if o.Log == nil {
 		o.Log = &logging.DefaultLog{}
 	}
@@ -138,6 +132,15 @@ func Listen(o Options) (net.Listener, error) {
 	go l.listenExternal()
 	go l.listenInternal()
 	return l, nil
+}
+
+func Listen(o Options) (net.Listener, error) {
+	nl, err := net.Listen(o.Network, o.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	return listenWith(nl, o)
 }
 
 func bounce(delay time.Duration) time.Duration {
@@ -171,7 +174,7 @@ func (l *listener) listenExternal() {
 			if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
 				delay = bounce(delay)
 				l.options.Log.Errorf(
-					"Queue listener: accept error: %v, retrying in %v.",
+					"queue listener: accept error: %v, retrying in %v",
 					err,
 					delay,
 				)
