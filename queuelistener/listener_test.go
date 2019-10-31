@@ -1,6 +1,7 @@
 package queuelistener
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -585,9 +586,164 @@ func TestQueue(t *testing.T) {
 // - when max concurrency is not set, it is calculated from memory limit and connection bytes
 // - when max queue size is not set, it is calculated from max concurrency
 // - the calculated max queue size is limited to a constant
-// - by default, connections in the queue don't timeout
+// - (by default, connections in the queue don't timeout) Halte-Problem
 // - connections in the queue use the configured timeout
 func TestOptions(t *testing.T) {
+	t.Run("network and address work the same way as for net.Listen", func(t *testing.T) {
+		for _, tt := range []struct {
+			name    string
+			addr    string
+			network string
+			want    net.Listener
+			wantErr bool
+		}{
+			{
+				name:    "no options return error",
+				want:    nil,
+				wantErr: true,
+			},
+			{
+				name:    "no addr in options return dynamic port assigned by the kernel",
+				network: "tcp",
+				wantErr: false,
+			},
+			{
+				name:    "no network in options return error",
+				addr:    ":4001",
+				wantErr: true,
+			},
+			{
+				name:    "invalid addr in options return error",
+				addr:    ":abc",
+				network: "tcp",
+				wantErr: true,
+			},
+			{
+				name:    "invalid network in options return error",
+				addr:    ":4001",
+				network: "abc",
+				wantErr: true,
+			},
+			{
+				name:    "valid network and addr in options return listener",
+				addr:    ":4001",
+				network: "tcp",
+				wantErr: false,
+			}} {
+			t.Run(tt.name, func(t *testing.T) {
+				got, err := Listen(Options{
+					Network: tt.network,
+					Address: tt.addr,
+				})
+				if got != nil {
+					defer got.Close()
+				}
+				if (!tt.wantErr && got == nil) || (tt.wantErr && err == nil) || (!tt.wantErr && err != nil) {
+					t.Errorf("Failed to get listener: Want error %v, got %v, err %v", tt.wantErr, got, err)
+				}
+			})
+		}
+	})
+	t.Run("max concurrency and max queue size has priority over memory limit and connection bytes", func(t *testing.T) {
+		o := Options{
+			Network:        "tcp",
+			MaxConcurrency: 20,
+			MaxQueueSize:   10,
+		}
+		got, err := Listen(o)
+		if err != nil {
+			t.Fatalf("Failed to get listener: %v", err)
+		}
+		defer got.Close()
+		l := got.(*listener)
+
+		if l.maxConcurrency != o.MaxConcurrency || l.maxQueueSize != o.MaxQueueSize {
+			t.Errorf("Failed to overwrite calculated settings: %d != %d || %d != %d", l.maxConcurrency, o.MaxConcurrency, l.maxQueueSize, o.MaxQueueSize)
+		}
+	})
+	t.Run("when max concurrency is not set, it is calculated from memory limit and connection bytes", func(t *testing.T) {
+		o := Options{
+			Network:          "tcp",
+			MaxQueueSize:     10,
+			MemoryLimitBytes: 10_000,
+			ConnectionBytes:  4,
+		}
+		got, err := Listen(o)
+		if err != nil {
+			t.Fatalf("Failed to get listener: %v", err)
+		}
+		defer got.Close()
+		l := got.(*listener)
+
+		if o.MaxConcurrency != 0 && l.maxConcurrency == o.MaxConcurrency {
+			t.Errorf("Failed to use calculate maxConcurrency settings: %d == %d", l.maxConcurrency, o.MaxConcurrency)
+		}
+		if l.maxConcurrency != o.MemoryLimitBytes/o.ConnectionBytes {
+			t.Errorf("Calculated is not: %d != %d", l.maxConcurrency, o.MemoryLimitBytes/o.ConnectionBytes)
+		}
+	})
+	t.Run("when max queue size is not set, it is calculated from max concurrency", func(t *testing.T) {
+		o := Options{
+			Network:        "tcp",
+			MaxConcurrency: 10,
+		}
+		got, err := Listen(o)
+		if err != nil {
+			t.Fatalf("Failed to get listener: %v", err)
+		}
+		defer got.Close()
+		l := got.(*listener)
+
+		if o.MaxQueueSize != 0 && l.maxQueueSize == o.MaxQueueSize {
+			t.Errorf("Failed to use calculated maxQueueSize setting: %d == %d", l.maxConcurrency, o.MaxConcurrency)
+		}
+		if l.maxQueueSize == 0 || l.maxQueueSize > maxCalculatedQueueSize {
+			t.Errorf("Calculated maxQueueSize not in bounds: %d", l.maxQueueSize)
+		}
+		if l.maxQueueSize != 10*o.MaxConcurrency {
+			t.Errorf("Calculated maxQueueSize is wrong: %d != %d", l.maxQueueSize, 10*o.MaxConcurrency)
+		}
+	})
+	t.Run("the calculated max queue size is limited to a constant", func(t *testing.T) {
+		o := Options{
+			Network:        "tcp",
+			MaxConcurrency: maxCalculatedQueueSize + 1,
+		}
+		got, err := Listen(o)
+		if err != nil {
+			t.Fatalf("Failed to get listener: %v", err)
+		}
+		defer got.Close()
+		l := got.(*listener)
+
+		if l.maxQueueSize != maxCalculatedQueueSize {
+			t.Errorf("Calculated maxQueueSize not in bounds: %d != %d", l.maxQueueSize, maxCalculatedQueueSize)
+		}
+	})
+	t.Run("connections in the queue use the configured timeout", func(t *testing.T) {
+		o := Options{
+			Network:        "tcp",
+			MaxConcurrency: 5,
+			MaxQueueSize:   10,
+			QueueTimeout:   500 * time.Millisecond,
+		}
+		got, err := Listen(o)
+		if err != nil {
+			t.Fatalf("Failed to get listener: %v", err)
+		}
+		defer got.Close()
+		l := got.(*listener)
+
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(o.QueueTimeout*2))
+		defer cancel()
+		dialer := net.Dialer{}
+		conn, err := dialer.DialContext(ctx, "tcp", l.Addr().String())
+		if err != nil {
+			return
+		}
+		conn.Close()
+		t.Fatal("Failed to timeout while dialing")
+	})
 }
 
 // teardown:
