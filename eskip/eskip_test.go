@@ -562,3 +562,27 @@ func TestDefaultFiltersDo(t *testing.T) {
 	}
 
 }
+
+func TestDefaultFiltersDoCorrectPrependFilters(t *testing.T) {
+	filters, err := ParseFilters("status(1) -> status(2) -> status(3)")
+	if err != nil {
+		t.Errorf("Failed to parse filter: %v", err)
+	}
+
+	routes, err := Parse(`
+r1: Method("GET") -> inlineContent("r1") -> <shunt>;
+r2: Method("POST") -> inlineContent("r2") -> <shunt>;
+`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	df := &DefaultFilters{Prepend: filters}
+
+	finalRoutes := df.Do(routes)
+	for _, route := range finalRoutes {
+		if route.Id != route.Filters[len(route.Filters)-1].Args[0].(string) {
+			t.Errorf("Route %v has incorrect filters: %v", route.Id, route.Filters[3])
+		}
+	}
+}
