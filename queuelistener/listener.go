@@ -40,6 +40,8 @@ type Options struct {
 	QueueTimeout     time.Duration
 	Metrics          metrics.Metrics
 	Log              logging.Logger
+
+	testQueueChangeHook chan struct{}
 }
 
 func (o Options) maxConcurrency() int {
@@ -48,7 +50,14 @@ func (o Options) maxConcurrency() int {
 	}
 
 	maxConcurrency := o.MemoryLimitBytes / o.ConnectionBytes
-	// TODO should be probably also based on "nofiles" value (check Go runtime, if they are based on it)
+	// TODO:
+	// - should be probably also based on "nofiles" value (check Go runtime, if they are based on it)
+
+	// theoretical minimum, but rather only for testing. When the max concurrency is not set, then the
+	// TCP-LIFO should not be used, at all.
+	if maxConcurrency == 0 {
+		maxConcurrency = 1
+	}
 
 	return maxConcurrency
 }
@@ -267,10 +276,13 @@ func (l *listener) listenInternal() {
 			if drop != nil {
 				drop.(connection).net.Close()
 			}
+
+			l.testNotifyQueueChange()
 		case err = <-l.externalError:
 		case acceptInternal <- nextConn:
 			queue.dequeue()
 			concurrency++
+			l.testNotifyQueueChange()
 		case internalError <- err:
 			// we cannot accept anymore, but we returned the permanent error
 			err = nil
@@ -278,12 +290,17 @@ func (l *listener) listenInternal() {
 		case <-l.releaseConnection:
 			concurrency--
 		case now := <-nextTimeout:
+			var dropped int
 			for queue.size > 0 && queue.peekOldest().(connection).queueDeadline.Before(now) {
 				drop := queue.dequeueOldest()
 				drop.(connection).net.Close()
 			}
 
 			nextTimeout = nil
+			l.testNotifyQueueChange()
+			if dropped > 0 {
+				l.testNotifyQueueChange()
+			}
 		case <-l.quit:
 			queue.rangeOver(func(c net.Conn) { c.(connection).net.Close() })
 
@@ -331,4 +348,29 @@ func (l *listener) Close() error {
 	}
 
 	return nil
+}
+
+func (l *listener) testNotifyQueueChange() {
+	if l.options.testQueueChangeHook == nil {
+		return
+	}
+
+	select {
+	case l.options.testQueueChangeHook <- token:
+	default:
+	}
+}
+
+func (l *listener) clearQueueChangeHook() {
+	if l.options.testQueueChangeHook == nil {
+		return
+	}
+
+	for {
+		select {
+		case <-l.options.testQueueChangeHook:
+		default:
+			return
+		}
+	}
 }

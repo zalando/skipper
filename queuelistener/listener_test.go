@@ -22,6 +22,7 @@ type testListener struct {
 	fail              bool
 	connsBeforeFail   int
 	addr              net.Addr
+	conns             chan *testConnection
 }
 
 type testError struct{}
@@ -62,7 +63,15 @@ func (l *testListener) Accept() (net.Conn, error) {
 		}
 	}
 
-	return &testConnection{}, nil
+	c := &testConnection{}
+	if l.conns != nil {
+		select {
+		case l.conns <- c:
+		default:
+		}
+	}
+
+	return c, nil
 }
 
 func (l testListener) Addr() net.Addr {
@@ -165,6 +174,15 @@ func acceptN(t *testing.T, l net.Listener, n int) []net.Conn {
 	return conns
 }
 
+func acceptOne(t *testing.T, l net.Listener) net.Conn {
+	conns := acceptN(t, l, 1)
+	if len(conns) == 0 {
+		return nil
+	}
+
+	return conns[0]
+}
+
 func dialN(t *testing.T, addr net.Addr, n int) []net.Conn {
 	var (
 		conns []net.Conn
@@ -190,6 +208,15 @@ func dialN(t *testing.T, addr net.Addr, n int) []net.Conn {
 	return conns
 }
 
+func dialOne(t *testing.T, addr net.Addr) net.Conn {
+	conns := dialN(t, addr, 1)
+	if len(conns) == 0 {
+		return nil
+	}
+
+	return conns[0]
+}
+
 func goAcceptN(t *testing.T, l net.Listener, n int) <-chan []net.Conn {
 	accepted := make(chan []net.Conn)
 	go func() { accepted <- acceptN(t, l, n) }()
@@ -200,6 +227,30 @@ func goDialN(t *testing.T, addr net.Addr, n int) <-chan []net.Conn {
 	dialed := make(chan []net.Conn)
 	go func() { dialed <- dialN(t, addr, n) }()
 	return dialed
+}
+
+func acceptTimeout(t *testing.T, l net.Listener, timeout time.Duration) net.Conn {
+	conn := make(chan net.Conn)
+	go func() {
+		c, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		conn <- c
+	}()
+
+	select {
+	case c := <-conn:
+		return c
+	case <-time.After(timeout):
+		t.Fatal("timeout while accepting connection")
+		return nil
+	}
+}
+
+func shouldAccept(t *testing.T, l net.Listener) net.Conn {
+	return acceptTimeout(t, l, 120*time.Millisecond)
 }
 
 func TestInterface(t *testing.T) {
@@ -319,12 +370,8 @@ func TestInterface(t *testing.T) {
 	})
 }
 
-// queue:
-// - closing an accepted connection allows accepting the newest one from the queue
-// - when max queue size reached, new incoming connections purge the oldest ones from the queue
-// - when kicking or timeouting a connection from the queue, the external connection is closed
 func TestQueue(t *testing.T) {
-	t.Run("when max concurrency reached, queue gets filled", func(t *testing.T) {
+	t.Run("when max concurrency reached, queue is used", func(t *testing.T) {
 		m := &metricstest.MockMetrics{}
 		l, err := Listen(Options{
 			Network:        "tcp",
@@ -374,7 +421,10 @@ func TestQueue(t *testing.T) {
 
 		unblocked := make(chan struct{})
 		go func() {
-			l.Accept()
+			if c, _ := l.Accept(); c != nil {
+				c.Close()
+			}
+
 			close(unblocked)
 		}()
 
@@ -383,6 +433,149 @@ func TestQueue(t *testing.T) {
 			t.Error("failed to block listener after max concurrency reached")
 		case <-time.After(120 * time.Millisecond):
 		}
+	})
+
+	t.Run("closing an accepted connection allows unblocks accept", func(t *testing.T) {
+		l, err := Listen(Options{
+			Network:        "tcp",
+			Address:        ":0",
+			MaxConcurrency: 3,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer l.Close()
+
+		accepted := goAcceptN(t, l, 3)
+		dialed := goDialN(t, l.Addr(), 5)
+		defer closeAll(<-dialed)
+
+		acceptedConns := <-accepted
+		acceptedConns[0].Close()
+		defer closeAll(acceptedConns[1:])
+
+		if c := shouldAccept(t, l); c != nil {
+			c.Close()
+		}
+	})
+
+	t.Run("at max queue size, new connections purge the oldest item", func(t *testing.T) {
+		m := &metricstest.MockMetrics{}
+		hook := make(chan struct{}, 1)
+		l, err := Listen(Options{
+			Network:             "tcp",
+			Address:             ":0",
+			MaxQueueSize:        3,
+			Metrics:             m,
+			testQueueChangeHook: hook,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer l.Close()
+
+		// dial to have a connection in the queue and save the dialer reference for later testing:
+		conn1 := dialOne(t, l.Addr())
+		if conn1 != nil {
+			defer conn1.Close()
+		}
+
+		// fill up the queue:
+		dialed := goDialN(t, l.Addr(), 2)
+		defer closeAll(<-dialed)
+		if err := waitForGauge(m, queuedConnectionsKey, 3); err != nil {
+			t.Fatal(err)
+		}
+
+		// dial again to have the oldest queued connection purged:
+		l.(*listener).clearQueueChangeHook()
+		conn2 := dialOne(t, l.Addr())
+		if conn2 != nil {
+			defer conn2.Close()
+		}
+
+		// accept a new connection, should be paired with conn2
+		<-hook
+		aconn := acceptOne(t, l)
+		if aconn != nil {
+			defer aconn.Close()
+		}
+
+		// test the latest client connection that it works:
+		done := make(chan struct{})
+		go func() {
+			if err := ping(conn2, "hello2"); err != nil {
+				t.Error("connection doesn't work", err)
+			}
+
+			close(done)
+		}()
+		if err := pong(aconn, "hello2"); err != nil {
+			t.Error("connection doesn't work", err)
+		}
+
+		// test that the purged connection doesn't work:
+		if err := ping(conn1, "hello1"); err == nil {
+			t.Error("connection should not work")
+		}
+
+		<-done
+	})
+
+	t.Run("when dropping or timeouting a connection, it is closed", func(t *testing.T) {
+		t.Run("drop", func(t *testing.T) {
+			tl := &testListener{conns: make(chan *testConnection, 1)}
+			l, err := listenWith(tl, Options{
+				Network:      "tcp",
+				Address:      ":0",
+				MaxQueueSize: 3,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer l.Close()
+
+			conn := <-tl.conns
+			to := time.After(120 * time.Millisecond)
+			for !conn.closed {
+				select {
+				case <-time.After(3 * time.Millisecond):
+				case <-to:
+					t.Error("failed to close timeouted connection")
+					return
+				}
+			}
+		})
+
+		t.Run("timeout", func(t *testing.T) {
+			tl := &testListener{conns: make(chan *testConnection, 1)}
+			l, err := listenWith(tl, Options{
+				Network:      "tcp",
+				Address:      ":0",
+				QueueTimeout: 3 * time.Millisecond,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer l.Close()
+
+			conn := <-tl.conns
+			to := time.After(120 * time.Millisecond)
+			for !conn.closed {
+				select {
+				case <-time.After(3 * time.Millisecond):
+				case <-to:
+					t.Error("failed to close timeouted connection")
+					return
+				}
+			}
+		})
 	})
 }
 
