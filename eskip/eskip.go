@@ -45,15 +45,9 @@ func (df *DefaultFilters) Do(routes []*Route) []*Route {
 		fn := len(r.Filters)
 
 		filters := make([]*Filter, fn+pn+an)
-		for i, f := range df.Prepend {
-			filters[i] = f
-		}
-		for i, f := range r.Filters {
-			filters[i+pn] = f
-		}
-		for i, f := range df.Append {
-			filters[i+pn+fn] = f
-		}
+		copy(filters[:pn], df.Prepend)
+		copy(filters[pn:pn+fn], r.Filters)
+		copy(filters[pn+fn:], df.Append)
 
 		nextRoutes[i].Filters = filters
 	}
