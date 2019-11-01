@@ -762,6 +762,56 @@ func TestTeardown(t *testing.T) {
 // - logs the temporary errors
 // - updates the gauges for the concurrency and the queue size
 func TestMonitoring(t *testing.T) {
+	t.Run("logs the temporary errors", func(t *testing.T) {
+		log := loggingtest.New()
+		l, err := listenWith(&testListener{failNextTemporary: true}, Options{
+			Log: log,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer l.Close()
+		conn, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer conn.Close()
+		if err := log.WaitFor(errTemporary.Error(), 120*time.Millisecond); err != nil {
+			t.Error("failed to log temporary error")
+		}
+	})
+	t.Run("updates the gauges for the concurrency and the queue size", func(t *testing.T) {
+		m := &metricstest.MockMetrics{}
+		l, err := Listen(Options{
+			Network:        "tcp",
+			Address:        ":0",
+			Metrics:        m,
+			MaxConcurrency: 3,
+			MaxQueueSize:   3,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer l.Close()
+
+		accepted := goAcceptN(t, l, 3)
+		dialed := goDialN(t, l.Addr(), 5)
+		defer closeAll(<-accepted)
+		defer closeAll(<-dialed)
+
+		if err := waitForGauge(m, acceptedConnectionsKey, 3); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := waitForGauge(m, queuedConnectionsKey, 2); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 // concurrency:
