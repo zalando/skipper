@@ -739,9 +739,12 @@ func TestOptions(t *testing.T) {
 		dialer := net.Dialer{}
 		conn, err := dialer.DialContext(ctx, "tcp", l.Addr().String())
 		if err != nil {
+			t.Fatalf("Failed to do DialContext err: %v", err)
+		}
+		defer conn.Close()
+		if _, err := conn.Read([]byte("foo")); err != nil {
 			return
 		}
-		conn.Close()
 		t.Fatal("Failed to timeout while dialing")
 	})
 }
