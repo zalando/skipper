@@ -212,6 +212,10 @@ func (l *listener) listenExternal() {
 			return
 		case <-retry:
 		case <-l.quit:
+			if c != nil {
+				c.Close()
+			}
+
 			return
 		}
 	}

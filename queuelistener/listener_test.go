@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,10 +15,12 @@ import (
 )
 
 type testConnection struct {
+	sync.Mutex
 	closed bool
 }
 
 type testListener struct {
+	sync.Mutex
 	closed            bool
 	failNextTemporary bool
 	fail              bool
@@ -34,17 +37,25 @@ func (err testError) Error() string   { return "test error" }
 func (err testError) Timeout() bool   { return false }
 func (err testError) Temporary() bool { return true }
 
-func (c testConnection) Read([]byte) (int, error)         { return 0, nil }
-func (c testConnection) Write([]byte) (int, error)        { return 0, nil }
-func (c testConnection) LocalAddr() net.Addr              { return nil }
-func (c testConnection) RemoteAddr() net.Addr             { return nil }
-func (c testConnection) SetDeadline(time.Time) error      { return nil }
-func (c testConnection) SetReadDeadline(time.Time) error  { return nil }
-func (c testConnection) SetWriteDeadline(time.Time) error { return nil }
+func (c *testConnection) Read([]byte) (int, error)         { return 0, nil }
+func (c *testConnection) Write([]byte) (int, error)        { return 0, nil }
+func (c *testConnection) LocalAddr() net.Addr              { return nil }
+func (c *testConnection) RemoteAddr() net.Addr             { return nil }
+func (c *testConnection) SetDeadline(time.Time) error      { return nil }
+func (c *testConnection) SetReadDeadline(time.Time) error  { return nil }
+func (c *testConnection) SetWriteDeadline(time.Time) error { return nil }
 
 func (c *testConnection) Close() error {
+	c.Lock()
+	defer c.Unlock()
 	c.closed = true
 	return nil
+}
+
+func (c *testConnection) isClosed() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.closed
 }
 
 func (l *testListener) Accept() (net.Conn, error) {
@@ -65,17 +76,20 @@ func (l *testListener) Accept() (net.Conn, error) {
 	}
 
 	c := &testConnection{}
-	if l.conns != nil {
+	if cap(l.conns) > 0 {
 		select {
 		case l.conns <- c:
 		default:
+			// drop one if cannot store the latest
+			<-l.conns
+			l.conns <- c
 		}
 	}
 
 	return c, nil
 }
 
-func (l testListener) Addr() net.Addr {
+func (l *testListener) Addr() net.Addr {
 	if l.addr == nil {
 		return &net.IPAddr{}
 	}
@@ -84,8 +98,16 @@ func (l testListener) Addr() net.Addr {
 }
 
 func (l *testListener) Close() error {
+	l.Lock()
+	defer l.Unlock()
 	l.closed = true
 	return nil
+}
+
+func (l *testListener) isClosed() bool {
+	l.Lock()
+	defer l.Unlock()
+	return l.closed
 }
 
 func receive(rw io.ReadWriter, message string) error {
@@ -124,11 +146,10 @@ func pong(rw io.ReadWriter, message string) error {
 	return err
 }
 
-func waitForGaugeTO(m *metricstest.MockMetrics, key string, value float64, timeout time.Duration) error {
+func waitForTO(f func() bool, timeout time.Duration) error {
 	to := time.After(timeout)
 	for {
-		v, ok := m.Gauge(key)
-		if ok && v == value {
+		if f() {
 			return nil
 		}
 
@@ -138,6 +159,25 @@ func waitForGaugeTO(m *metricstest.MockMetrics, key string, value float64, timeo
 		case <-time.After(timeout / 20):
 		}
 	}
+}
+
+func waitFor(f func() bool) error {
+	return waitForTO(f, 120*time.Millisecond)
+}
+
+func waitForGaugeFuncTO(m *metricstest.MockMetrics, key string, f func(float64) bool, timeout time.Duration) error {
+	return waitForTO(func() bool {
+		v, ok := m.Gauge(key)
+		return ok && f(v)
+	}, timeout)
+}
+
+func waitForGaugeFunc(m *metricstest.MockMetrics, key string, f func(float64) bool) error {
+	return waitForGaugeFuncTO(m, key, f, 120*time.Millisecond)
+}
+
+func waitForGaugeTO(m *metricstest.MockMetrics, key string, value float64, timeout time.Duration) error {
+	return waitForGaugeFuncTO(m, key, func(v float64) bool { return v == value }, timeout)
 }
 
 func waitForGauge(m *metricstest.MockMetrics, key string, value float64) error {
@@ -235,7 +275,7 @@ func acceptTimeout(t *testing.T, l net.Listener, timeout time.Duration) net.Conn
 	go func() {
 		c, err := l.Accept()
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 
 		conn <- c
@@ -271,13 +311,13 @@ func TestInterface(t *testing.T) {
 			conn, err := net.Dial(addr.Network(), addr.String())
 			if err != nil {
 				close(done)
-				t.Fatal(err)
+				t.Error(err)
 			}
 
 			defer conn.Close()
 			if err := ping(conn, message); err != nil {
 				close(done)
-				t.Fatal(err)
+				t.Error(err)
 			}
 
 			close(done)
@@ -308,7 +348,7 @@ func TestInterface(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !conn.(connection).net.(*testConnection).closed {
+		if !conn.(connection).net.(*testConnection).isClosed() {
 			t.Error("failed to close underlying connection")
 		}
 	})
@@ -542,14 +582,8 @@ func TestQueue(t *testing.T) {
 			defer l.Close()
 
 			conn := <-tl.conns
-			to := time.After(120 * time.Millisecond)
-			for !conn.closed {
-				select {
-				case <-time.After(3 * time.Millisecond):
-				case <-to:
-					t.Error("failed to close timeouted connection")
-					return
-				}
+			if err := waitFor(func() bool { return conn.isClosed() }); err != nil {
+				t.Error("failed to close timeouted connection", err)
 			}
 		})
 
@@ -568,7 +602,7 @@ func TestQueue(t *testing.T) {
 
 			conn := <-tl.conns
 			to := time.After(120 * time.Millisecond)
-			for !conn.closed {
+			for !conn.isClosed() {
 				select {
 				case <-time.After(3 * time.Millisecond):
 				case <-to:
@@ -749,13 +783,208 @@ func TestOptions(t *testing.T) {
 	})
 }
 
-// teardown:
-// - queued connections are closed
-// - connections accepted by the calling code are not closed by the listener
-// - connections accepted from the wrapped listener after tear down are closed
-// - calling accept after closed, returns an error
-// - the wrapped listener is closed
 func TestTeardown(t *testing.T) {
+	t.Run("queued connections are closed", func(t *testing.T) {
+		tl := &testListener{
+			conns:           make(chan *testConnection, 3),
+			connsBeforeFail: 3,
+		}
+
+		m := &metricstest.MockMetrics{}
+		l, err := listenWith(tl, Options{MaxQueueSize: 3, Metrics: m})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := waitForGauge(m, queuedConnectionsKey, 3); err != nil {
+			l.Close()
+			t.Fatal(err)
+		}
+
+		if err := l.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		var conns []*testConnection
+		for i := 0; i < 3; i++ {
+			conns = append(conns, <-tl.conns)
+		}
+
+		to := time.After(120 * time.Millisecond)
+		for {
+			select {
+			case <-to:
+				t.Error("failed to close all connections")
+				return
+			default:
+			}
+
+			allClosed := true
+			for _, c := range conns {
+				if !c.isClosed() {
+					allClosed = false
+					break
+				}
+			}
+
+			if allClosed {
+				break
+			}
+		}
+	})
+
+	t.Run("accepted connections are not closed", func(t *testing.T) {
+		tl := &testListener{
+			conns:           make(chan *testConnection, 3),
+			connsBeforeFail: 3,
+		}
+
+		m := &metricstest.MockMetrics{}
+		l, err := listenWith(tl, Options{MaxQueueSize: 3, Metrics: m})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := waitForGauge(m, queuedConnectionsKey, 3); err != nil {
+			l.Close()
+			t.Fatal(err)
+		}
+
+		c0, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := l.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		var conns []*testConnection
+		for i := 0; i < 3; i++ {
+			conns = append(conns, <-tl.conns)
+		}
+
+		to := time.After(120 * time.Millisecond)
+		for {
+			select {
+			case <-to:
+				t.Error("failed to close all connections")
+				return
+			default:
+			}
+
+			allClosed := true
+			for _, c := range conns[:2] {
+				if !c.isClosed() {
+					allClosed = false
+					break
+				}
+			}
+
+			if allClosed {
+				break
+			}
+		}
+
+		if c0.(connection).net.(*testConnection).isClosed() {
+			t.Error("the accepted connection was closed by the queue")
+		}
+
+		c0.Close()
+	})
+
+	t.Run("connections accepted from the wrapped listener closed after tear down", func(t *testing.T) {
+		tl := &testListener{conns: make(chan *testConnection, 1)}
+		m := &metricstest.MockMetrics{}
+		l, err := listenWith(tl, Options{Metrics: m})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := waitForGaugeFunc(m, queuedConnectionsKey, func(v float64) bool { return v > 0 }); err != nil {
+			l.Close()
+			t.Fatal(err)
+		}
+
+		if err := l.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		var conns []*testConnection
+		for {
+			var noConns bool
+			select {
+			case c := <-tl.conns:
+				conns = append(conns, c)
+			default:
+				noConns = true
+			}
+
+			if noConns {
+				break
+			}
+		}
+
+		to := time.After(120 * time.Millisecond)
+		for {
+			allClosed := true
+			for _, c := range conns {
+				if !c.isClosed() {
+					allClosed = false
+					break
+				}
+			}
+
+			if allClosed {
+				break
+			}
+
+			select {
+			case <-to:
+				t.Fatal("failed to close all connections")
+			default:
+			}
+		}
+	})
+
+	t.Run("calling accept after closed, returns an error", func(t *testing.T) {
+		l, err := Listen(Options{Network: "tcp", Address: ":0"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		go func() {
+			if _, err := l.Accept(); err == nil {
+				t.Error("failed to return an error")
+			}
+		}()
+
+		// no better way to make sure that the first Accept() blocks
+		time.Sleep(30 * time.Millisecond)
+		if err := l.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := l.Accept(); err == nil {
+			t.Error("failed to return an error")
+		}
+	})
+
+	t.Run("the wrapped listener is closed", func(t *testing.T) {
+		tl := &testListener{}
+		l, err := listenWith(tl, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := l.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := waitFor(func() bool { return tl.isClosed() }); err != nil {
+			t.Error("failed to close connection", err)
+		}
+	})
 }
 
 // monitoring:
