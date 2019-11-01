@@ -28,6 +28,8 @@ type connection struct {
 	queueDeadline time.Time
 	release       chan<- struct{}
 	quit          <-chan struct{}
+	once          sync.Once
+	closeErr      error
 }
 
 type Options struct {
@@ -42,6 +44,44 @@ type Options struct {
 	Log              logging.Logger
 
 	testQueueChangeHook chan struct{}
+}
+
+type listener struct {
+	options           Options
+	maxConcurrency    int
+	maxQueueSize      int
+	externalListener  net.Listener
+	acceptExternal    chan net.Conn
+	externalError     chan error
+	acceptInternal    chan net.Conn
+	internalError     chan error
+	releaseConnection chan struct{}
+	quit              chan struct{}
+	closeMx           sync.Mutex
+	closedHook        chan struct{} // for testing
+}
+
+var (
+	token             struct{}
+	errListenerClosed = errors.New("listener closed")
+)
+
+func (c *connection) Read(b []byte) (n int, err error)   { return c.net.Read(b) }
+func (c *connection) Write(b []byte) (n int, err error)  { return c.net.Write(b) }
+func (c *connection) LocalAddr() net.Addr                { return c.net.LocalAddr() }
+func (c *connection) RemoteAddr() net.Addr               { return c.net.RemoteAddr() }
+func (c *connection) SetDeadline(t time.Time) error      { return c.net.SetDeadline(t) }
+func (c *connection) SetReadDeadline(t time.Time) error  { return c.net.SetReadDeadline(t) }
+func (c *connection) SetWriteDeadline(t time.Time) error { return c.net.SetWriteDeadline(t) }
+
+func (c *connection) Close() error {
+	select {
+	case c.release <- token:
+	case <-c.quit:
+	}
+
+	c.once.Do(func() { c.closeErr = c.net.Close() })
+	return c.closeErr
 }
 
 func (o Options) maxConcurrency() int {
@@ -73,43 +113,6 @@ func (o Options) maxQueueSize() int {
 	}
 
 	return maxQueueSize
-}
-
-type listener struct {
-	options           Options
-	maxConcurrency    int
-	maxQueueSize      int
-	externalListener  net.Listener
-	acceptExternal    chan net.Conn
-	externalError     chan error
-	acceptInternal    chan net.Conn
-	internalError     chan error
-	releaseConnection chan struct{}
-	quit              chan struct{}
-	closeMx           sync.Mutex
-	closedHook        chan struct{} // for testing
-}
-
-var (
-	token             struct{}
-	errListenerClosed = errors.New("listener closed")
-)
-
-func (c connection) Read(b []byte) (n int, err error)   { return c.net.Read(b) }
-func (c connection) Write(b []byte) (n int, err error)  { return c.net.Write(b) }
-func (c connection) LocalAddr() net.Addr                { return c.net.LocalAddr() }
-func (c connection) RemoteAddr() net.Addr               { return c.net.RemoteAddr() }
-func (c connection) SetDeadline(t time.Time) error      { return c.net.SetDeadline(t) }
-func (c connection) SetReadDeadline(t time.Time) error  { return c.net.SetReadDeadline(t) }
-func (c connection) SetWriteDeadline(t time.Time) error { return c.net.SetWriteDeadline(t) }
-
-func (c connection) Close() error {
-	select {
-	case c.release <- token:
-	case <-c.quit:
-	}
-
-	return c.net.Close()
 }
 
 func listenWith(nl net.Listener, o Options) (net.Listener, error) {
@@ -266,10 +269,11 @@ func (l *listener) listenInternal() {
 
 		select {
 		case conn := <-l.acceptExternal:
-			cc := connection{
+			cc := &connection{
 				net:     conn,
 				release: l.releaseConnection,
 				quit:    l.quit,
+				once:    sync.Once{},
 			}
 
 			if l.options.QueueTimeout > 0 {
@@ -278,7 +282,7 @@ func (l *listener) listenInternal() {
 
 			drop := queue.enqueue(cc)
 			if drop != nil {
-				drop.(connection).net.Close()
+				drop.(*connection).net.Close()
 			}
 
 			l.testNotifyQueueChange()
@@ -295,9 +299,9 @@ func (l *listener) listenInternal() {
 			concurrency--
 		case now := <-nextTimeout:
 			var dropped int
-			for queue.size > 0 && queue.peekOldest().(connection).queueDeadline.Before(now) {
+			for queue.size > 0 && queue.peekOldest().(*connection).queueDeadline.Before(now) {
 				drop := queue.dequeueOldest()
-				drop.(connection).net.Close()
+				drop.(*connection).net.Close()
 			}
 
 			nextTimeout = nil
@@ -306,7 +310,7 @@ func (l *listener) listenInternal() {
 				l.testNotifyQueueChange()
 			}
 		case <-l.quit:
-			queue.rangeOver(func(c net.Conn) { c.(connection).net.Close() })
+			queue.rangeOver(func(c net.Conn) { c.(*connection).net.Close() })
 
 			// Closing the real listener in a separate goroutine is based on inspecting the
 			// stdlib. It's fair to just log the errors.

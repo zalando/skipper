@@ -348,7 +348,7 @@ func TestInterface(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !conn.(connection).net.(*testConnection).isClosed() {
+		if !conn.(*connection).net.(*testConnection).isClosed() {
 			t.Error("failed to close underlying connection")
 		}
 	})
@@ -614,14 +614,6 @@ func TestQueue(t *testing.T) {
 	})
 }
 
-// options:
-// - network and address work the same way as for net.Listen
-// - max concurrency and max queue size has priority over memory limit and connection bytes
-// - when max concurrency is not set, it is calculated from memory limit and connection bytes
-// - when max queue size is not set, it is calculated from max concurrency
-// - the calculated max queue size is limited to a constant
-// - (by default, connections in the queue don't timeout) Halte-Problem
-// - connections in the queue use the configured timeout
 func TestOptions(t *testing.T) {
 	t.Run("network and address work the same way as for net.Listen", func(t *testing.T) {
 		for _, tt := range []struct {
@@ -886,7 +878,7 @@ func TestTeardown(t *testing.T) {
 			}
 		}
 
-		if c0.(connection).net.(*testConnection).isClosed() {
+		if c0.(*connection).net.(*testConnection).isClosed() {
 			t.Error("the accepted connection was closed by the queue")
 		}
 
@@ -987,9 +979,6 @@ func TestTeardown(t *testing.T) {
 	})
 }
 
-// monitoring:
-// - logs the temporary errors
-// - updates the gauges for the concurrency and the queue size
 func TestMonitoring(t *testing.T) {
 	t.Run("logs the temporary errors", func(t *testing.T) {
 		log := loggingtest.New()
@@ -1041,12 +1030,54 @@ func TestMonitoring(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-}
 
-// concurrency:
-// - multiple calls to close have no effect
-// - multiple calls to close on the connections have no effect
-func TestConcurrency(t *testing.T) {
+	t.Run("multiple calls to close are tolerated", func(t *testing.T) {
+		l, err := Listen(Options{Network: "tcp", Address: ":0"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := l.Close(); err != nil {
+			t.Error(err)
+		}
+
+		if err := l.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+
+	t.Run("multiple calls to close on the connections are tolerated", func(t *testing.T) {
+		l, err := Listen(Options{Network: "tcp", Address: ":0"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		done := make(chan struct{})
+		defer func() { close(done) }()
+		go func() {
+			c, err := net.Dial("tcp", l.Addr().String())
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			defer c.Close()
+			<-done
+		}()
+
+		c, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := c.Close(); err != nil {
+			t.Error(err)
+		}
+
+		if err := c.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 }
 
 func TestListen(t *testing.T) {
