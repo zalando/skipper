@@ -10,8 +10,6 @@ import (
 	"github.com/zalando/skipper/metrics"
 )
 
-// TODO: we need to monitor the queue size and allow horizontal scaling based on it
-
 const (
 	initialBounceDelay              = 500 * time.Microsecond
 	maxBounceDelay                  = 100 * time.Millisecond
@@ -95,7 +93,7 @@ func (o Options) maxConcurrency() int {
 
 	// theoretical minimum, but rather only for testing. When the max concurrency is not set, then the
 	// TCP-LIFO should not be used, at all.
-	if maxConcurrency == 0 {
+	if maxConcurrency <= 0 {
 		maxConcurrency = 1
 	}
 
@@ -236,8 +234,6 @@ func (l *listener) listenInternal() {
 
 	queue = newRing(l.maxQueueSize)
 	for {
-		// TODO: timeout in the queue. What is the right and expected value?
-
 		var nextConn net.Conn
 		if queue.size > 0 && concurrency < l.maxConcurrency {
 			acceptInternal = l.acceptInternal

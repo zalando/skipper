@@ -29,7 +29,8 @@ type Config struct {
 
 	// generic:
 	Address                         string         `yaml:"address"`
-	BytesPerRequest                 int            `yaml:"bytes-per-request"`
+	EnableTCPQueue                  bool           `yaml:"enable-tcp-queue"`
+	ExpectedBytesPerRequest         int            `yaml:"expected-bytes-per-request"`
 	MaxTCPListenerConcurrency       int            `yaml:"max-tcp-listener-concurrency"`
 	MaxTCPListenerQueue             int            `yaml:"max-tcp-listener-queue"`
 	IgnoreTrailingSlash             bool           `yaml:"ignore-trailing-slash"`
@@ -201,7 +202,7 @@ type Config struct {
 const (
 	// generic:
 	defaultAddress                         = ":9090"
-	defaultBytesPerRequest                 = 50 * 1024 // 50kB
+	defaultExpectedBytesPerRequest         = 50 * 1024 // 50kB
 	defaultMaxTCPListenerConcurrency       = 0         // disabled
 	defaultMaxTCPListenerQueue             = 0
 	defaultEtcdPrefix                      = "/skipper"
@@ -247,7 +248,8 @@ const (
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
-	bytesPerRequestUsage                 = "Bytes per request, that is used to calculate concurrency limits to buffer connection spikes"
+	enableTCPQueueUsage                  = "enable experimental TCP listener queue"
+	expectedBytesPerRequestUsage         = "bytes per request, that is used to calculate concurrency limits to buffer connection spikes"
 	maxTCPListenerConcurrencyUsage       = "sets hardcoded max for TCP listener concurrency, normally calculated based on available memory cgroups with max TODO"
 	maxTCPListenerQueueUsage             = "sets hardcoded max queue size for TCP listener, normally calculated 10x concurrency with max TODO:50k"
 	ignoreTrailingSlashUsage             = "flag indicating to ignore trailing slashes in paths when routing"
@@ -416,7 +418,8 @@ func NewConfig() *Config {
 
 	// generic:
 	flag.StringVar(&cfg.Address, "address", defaultAddress, addressUsage)
-	flag.IntVar(&cfg.BytesPerRequest, "bytes-per-request", defaultBytesPerRequest, bytesPerRequestUsage)
+	flag.BoolVar(&cfg.EnableTCPQueue, "enable-tcp-queue", false, enableTCPQueueUsage)
+	flag.IntVar(&cfg.ExpectedBytesPerRequest, "bytes-per-request", defaultExpectedBytesPerRequest, expectedBytesPerRequestUsage)
 	flag.IntVar(&cfg.MaxTCPListenerConcurrency, "max-tcp-listener-concurrency", defaultMaxTCPListenerConcurrency, maxTCPListenerConcurrencyUsage)
 	flag.IntVar(&cfg.MaxTCPListenerQueue, "max-tcp-listener-queue", defaultMaxTCPListenerQueue, maxTCPListenerQueueUsage)
 	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, ignoreTrailingSlashUsage)
@@ -660,7 +663,8 @@ func (c *Config) ToOptions() skipper.Options {
 	options := skipper.Options{
 		// generic:
 		Address:                         c.Address,
-		BytesPerRequest:                 c.BytesPerRequest,
+		EnableTCPQueue:                  c.EnableTCPQueue,
+		ExpectedBytesPerRequest:         c.ExpectedBytesPerRequest,
 		MaxTCPListenerConcurrency:       c.MaxTCPListenerConcurrency,
 		MaxTCPListenerQueue:             c.MaxTCPListenerQueue,
 		IgnoreTrailingSlash:             c.IgnoreTrailingSlash,

@@ -76,8 +76,12 @@ type Options struct {
 	// Network address that skipper should listen on.
 	Address string
 
-	// BytesPerRequest
-	BytesPerRequest int
+	// EnableTCPQueue enables controlling the concurrently processed requests
+	// at the TCP listener.
+	EnableTCPQueue bool
+
+	// ExpectedBytesPerRequest
+	ExpectedBytesPerRequest int
 
 	// MaxTCPListenerConcurrency
 	MaxTCPListenerConcurrency int
@@ -735,6 +739,55 @@ func (o *Options) isHTTPS() bool {
 	return (o.ProxyTLS != nil) || (o.CertPathTLS != "" && o.KeyPathTLS != "")
 }
 
+func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
+	if o.Address == "" {
+		o.Address = ":http"
+	}
+
+	if !o.EnableTCPQueue {
+		return net.Listen("tcp", o.Address)
+	}
+
+	var memoryLimit int
+	if o.MaxTCPListenerConcurrency <= 0 {
+		// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+		// Note that in containers this will be the container limit.
+		// Runtimes without the file will use defaults defined in `queuelistener` package.
+		const memoryLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+		memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
+		if err != nil {
+			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
+		} else {
+			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
+			memoryLimit, err = strconv.Atoi(memoryLimitString)
+			if err != nil {
+				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
+			}
+
+			// 1GB, temporarily, as part of the experimental phase:
+			if memoryLimit > 1<<30 {
+				memoryLimit = 1 << 30
+			}
+		}
+	}
+
+	qto := o.ReadHeaderTimeoutServer
+	if qto <= 0 {
+		qto = o.ReadTimeoutServer
+	}
+
+	return queuelistener.Listen(queuelistener.Options{
+		Network:          "tcp",
+		Address:          o.Address,
+		MaxConcurrency:   o.MaxTCPListenerConcurrency,
+		MaxQueueSize:     o.MaxTCPListenerQueue,
+		MemoryLimitBytes: memoryLimit,
+		ConnectionBytes:  o.ExpectedBytesPerRequest,
+		QueueTimeout:     qto,
+		Metrics:          mtr,
+	})
+}
+
 func listenAndServeQuit(
 	proxy http.Handler,
 	o *Options,
@@ -755,9 +808,6 @@ func listenAndServeQuit(
 		MaxHeaderBytes:    o.MaxHeaderBytes,
 	}
 
-	// TODO: shall we close the server? It calls .Close() on the active connections. This feature was not
-	// available in early Go. It also has a .Shutdown(), which maybe can use to exhaust the connections.
-
 	if o.EnableConnMetricsServer {
 		m := metrics.Default
 		srv.ConnState = func(conn net.Conn, state http.ConnState) {
@@ -766,6 +816,9 @@ func listenAndServeQuit(
 	}
 
 	if o.isHTTPS() {
+		// TODO:
+		// - queue for HTTPS
+		// - issue for graceful shutdown for HTTPS?
 		if o.ProxyTLS != nil {
 			srv.TLSConfig = o.ProxyTLS
 			o.CertPathTLS = ""
@@ -795,6 +848,7 @@ func listenAndServeQuit(
 
 	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
 	// from the tests
+	// why don't we do graceful shutdown when listening on HTTPS?
 	if idleConnsCH == nil {
 		idleConnsCH = make(chan struct{})
 	}
@@ -818,60 +872,7 @@ func listenAndServeQuit(
 		close(idleConnsCH)
 	}()
 
-	if o.Address == "" {
-		o.Address = ":9090"
-		srv.Addr = o.Address
-	}
-
-	memoryLimit := -1
-	{
-		// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
-		// note that in containers this will be the container limit
-		// runtimes without the file will use defaults defined in `queuelistener` package.
-		memoryLimitFile := "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-		memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
-		if err != nil {
-			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
-		} else {
-			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
-			memoryLimit, err = strconv.Atoi(memoryLimitString)
-			println("memory limit from file")
-			if err != nil {
-				println("memory limit error")
-				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
-			}
-
-			// TODO: figure the right settings for different deployment environments
-			/*
-				this is still not good enough, causing weird behavior:
-				if memoryLimit > int(^uint(0) >> 1) / 128 {
-					memoryLimit = int(^uint(0) >> 1) / 128
-				}
-			*/
-
-			// 1GB, temporarily:
-			if memoryLimit > 1<<30 {
-				memoryLimit = 1 << 30
-			}
-		}
-	}
-
-	qto := o.ReadHeaderTimeoutServer
-	if qto <= 0 {
-		qto = o.ReadTimeoutServer
-	}
-
-	l, err := queuelistener.Listen(queuelistener.Options{
-		Network:          "tcp",
-		Address:          o.Address,
-		MaxConcurrency:   o.MaxTCPListenerConcurrency,
-		MaxQueueSize:     o.MaxTCPListenerQueue,
-		MemoryLimitBytes: memoryLimit,
-		ConnectionBytes:  o.BytesPerRequest,
-		QueueTimeout:     qto,
-		Metrics:          mtr,
-	})
-
+	l, err := listen(o, mtr)
 	if err != nil {
 		return err
 	}
