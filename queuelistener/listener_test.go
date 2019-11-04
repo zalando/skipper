@@ -1019,9 +1019,7 @@ func TestMonitoring(t *testing.T) {
 		defer l.Close()
 
 		accepted := goAcceptN(t, l, 3)
-		dialed := goDialN(t, l.Addr(), 5)
 		defer closeAll(<-accepted)
-		defer closeAll(<-dialed)
 
 		if err := waitFor(func() bool {
 			v, ok := m.Gauge(acceptedConnectionsKey)
