@@ -208,7 +208,7 @@ func acceptN(t *testing.T, l net.Listener, n int) []net.Conn {
 
 	if err != nil {
 		closeAll(conns)
-		t.Fatal(err)
+		t.Error(err)
 		return nil
 	}
 
@@ -242,7 +242,7 @@ func dialN(t *testing.T, addr net.Addr, n int) []net.Conn {
 
 	if err != nil {
 		closeAll(conns)
-		t.Fatal(err)
+		t.Error(err)
 		return nil
 	}
 
@@ -285,7 +285,7 @@ func acceptTimeout(t *testing.T, l net.Listener, timeout time.Duration) net.Conn
 	case c := <-conn:
 		return c
 	case <-time.After(timeout):
-		t.Fatal("timeout while accepting connection")
+		t.Error("timeout while accepting connection")
 		return nil
 	}
 }
@@ -414,9 +414,7 @@ func TestInterface(t *testing.T) {
 func TestQueue(t *testing.T) {
 	t.Run("when max concurrency reached, queue is used", func(t *testing.T) {
 		m := &metricstest.MockMetrics{}
-		l, err := Listen(Options{
-			Network:        "tcp",
-			Address:        ":0",
+		l, err := listenWith(&testListener{}, Options{
 			Metrics:        m,
 			MaxConcurrency: 3,
 			MaxQueueSize:   3,
@@ -429,15 +427,19 @@ func TestQueue(t *testing.T) {
 		defer l.Close()
 
 		accepted := goAcceptN(t, l, 3)
-		dialed := goDialN(t, l.Addr(), 5)
 		defer closeAll(<-accepted)
-		defer closeAll(<-dialed)
 
-		if err := waitForGauge(m, acceptedConnectionsKey, 3); err != nil {
+		if err := waitFor(func() bool {
+			v, ok := m.Gauge(acceptedConnectionsKey)
+			return ok && v >= 3
+		}); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := waitForGauge(m, queuedConnectionsKey, 2); err != nil {
+		if err := waitFor(func() bool {
+			v, ok := m.Gauge(queuedConnectionsKey)
+			return ok && v >= 1
+		}); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -1001,11 +1003,10 @@ func TestMonitoring(t *testing.T) {
 			t.Error("failed to log temporary error")
 		}
 	})
+
 	t.Run("updates the gauges for the concurrency and the queue size", func(t *testing.T) {
 		m := &metricstest.MockMetrics{}
-		l, err := Listen(Options{
-			Network:        "tcp",
-			Address:        ":0",
+		l, err := listenWith(&testListener{}, Options{
 			Metrics:        m,
 			MaxConcurrency: 3,
 			MaxQueueSize:   3,
@@ -1022,11 +1023,17 @@ func TestMonitoring(t *testing.T) {
 		defer closeAll(<-accepted)
 		defer closeAll(<-dialed)
 
-		if err := waitForGauge(m, acceptedConnectionsKey, 3); err != nil {
+		if err := waitFor(func() bool {
+			v, ok := m.Gauge(acceptedConnectionsKey)
+			return ok && v == 3
+		}); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := waitForGauge(m, queuedConnectionsKey, 2); err != nil {
+		if err := waitFor(func() bool {
+			v, ok := m.Gauge(queuedConnectionsKey)
+			return ok && v == 2
+		}); err != nil {
 			t.Fatal(err)
 		}
 	})
