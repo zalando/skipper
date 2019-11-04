@@ -76,17 +76,28 @@ type Options struct {
 	// Network address that skipper should listen on.
 	Address string
 
-	// EnableTCPQueue enables controlling the concurrently processed requests
-	// at the TCP listener.
+	// EnableTCPQueue is an experimental feature. It enables controlling the
+	// concurrently processed requests at the TCP listener.
 	EnableTCPQueue bool
 
-	// ExpectedBytesPerRequest
+	// ExpectedBytesPerRequest is used by the experimental TCP LIFO listener.
+	// It defines the expected average memory required to process an incoming
+	// request. It is used only when MaxTCPListenerConcurrency is not defined.
+	// It is used together with the memory limit defined in:
+	// /sys/fs/cgroup/memory/memory.limit_in_bytes.
+	//
+	// See also: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
 	ExpectedBytesPerRequest int
 
-	// MaxTCPListenerConcurrency
+	// MaxTCPListenerConcurrency is used by the experimental TCP LIFO listener.
+	// It defines the max number of concurrently accepted connections, excluding
+	// the pending ones in the queue.
+	//
+	// When undefined and the EnableTCPQueue is true,
 	MaxTCPListenerConcurrency int
 
-	// MaxTCPListenerQueue
+	// MaxTCPListenerQueue is used by the experimental TCP LIFO listener.
+	// If defines the maximum number of pending connection waiting in the queue.
 	MaxTCPListenerQueue int
 
 	// List of custom filter specifications.
@@ -776,6 +787,10 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 		qto = o.ReadTimeoutServer
 	}
 
+	// TODO: expected bytes per request may need to be renamed, as it
+	// only reflects the the reality in case of HTTP/1.1 and not with
+	// HTTP2.
+
 	return queuelistener.Listen(queuelistener.Options{
 		Network:          "tcp",
 		Address:          o.Address,
@@ -848,7 +863,8 @@ func listenAndServeQuit(
 
 	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
 	// from the tests
-	// why don't we do graceful shutdown when listening on HTTPS?
+	//
+	// TODO: why don't we do graceful shutdown when listening on HTTPS?
 	if idleConnsCH == nil {
 		idleConnsCH = make(chan struct{})
 	}

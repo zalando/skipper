@@ -30,16 +30,43 @@ type connection struct {
 	closeErr      error
 }
 
+// Options are used to initialize the queue listener.
 type Options struct {
-	Network          string
-	Address          string
-	MaxConcurrency   int
-	MaxQueueSize     int
+
+	// Network sets the name of the network. Same as for net.Listen().
+	Network string
+
+	// Address sets the listener address, e.g. :9090. Same as for net.Listen().
+	Address string
+
+	// MaxConcurrency sets the maximum accepted connections.
+	MaxConcurrency int
+
+	// MaxQueue size sets the maximum allowed queue size of pending connections. When
+	// not set, it is derived from the MaxConcurrency value.
+	MaxQueueSize int
+
+	// MemoryLimitBytes sets the approximated maximum memory used by the accepted
+	// connections, calculated together with the ConnectionBytes value. Defaults to
+	// 150MB.
+	//
+	// When MaxConcurrency is set, this field is ignored.
 	MemoryLimitBytes int
-	ConnectionBytes  int
-	QueueTimeout     time.Duration
-	Metrics          metrics.Metrics
-	Log              logging.Logger
+
+	// ConnectionBytes is used to calculate the MaxConcurrency when MaxConcurrency is
+	// not set explicitly but calculated from MemoryLimitBytes.
+	ConnectionBytes int
+
+	// QueueTimeout set the time limit for pending connections spent in the queue. It
+	// should be set to a similar value as the ReadHeaderTimeout of net/http.Server.
+	QueueTimeout time.Duration
+
+	// Metrics is used to collect monitoring data about the queue, including the current
+	// concurrent connections and the number of connections in the queue.
+	Metrics metrics.Metrics
+
+	// Log is used to log unexpected, non-fatal errors. It defaults to logging.DefaultLog.
+	Log logging.Logger
 
 	testQueueChangeHook chan struct{}
 }
@@ -144,6 +171,22 @@ func listenWith(nl net.Listener, o Options) (net.Listener, error) {
 	return l, nil
 }
 
+// Listen creates and initializes a listener that can be used to limit the
+// concurrently accepted incoming client connections.
+//
+// The queue listener will return only a limited number of concurrent connections
+// by its Accept() method, defined by the max concurrency configuration. When the
+// max concurrency is reached, the Accept() method will block until one or more
+// accepted connections are closed. When the max concurrency limit is reached, the
+// new incoming client connections are stored in a queue. When an active (accepted)
+// connection is closed, the listener will return the most recent one from the
+// queue (LIFO). When the queue is full, the oldest pending connection is closed
+// and dropped, and new one is inserted into the queue.
+//
+// The listener needs to be closed in order to release local resources. After it is
+// closed, Accept() returns an error without blocking.
+//
+// See type Options for info about the configuration of the listener.
 func Listen(o Options) (net.Listener, error) {
 	nl, err := net.Listen(o.Network, o.Address)
 	if err != nil {
