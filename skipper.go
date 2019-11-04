@@ -787,10 +787,6 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 		qto = o.ReadTimeoutServer
 	}
 
-	// TODO: expected bytes per request may need to be renamed, as it
-	// only reflects the the reality in case of HTTP/1.1 and not with
-	// HTTP2.
-
 	return queuelistener.Listen(queuelistener.Options{
 		Network:          "tcp",
 		Address:          o.Address,
@@ -831,9 +827,6 @@ func listenAndServeQuit(
 	}
 
 	if o.isHTTPS() {
-		// TODO:
-		// - queue for HTTPS
-		// - issue for graceful shutdown for HTTPS?
 		if o.ProxyTLS != nil {
 			srv.TLSConfig = o.ProxyTLS
 			o.CertPathTLS = ""
@@ -863,8 +856,6 @@ func listenAndServeQuit(
 
 	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
 	// from the tests
-	//
-	// TODO: why don't we do graceful shutdown when listening on HTTPS?
 	if idleConnsCH == nil {
 		idleConnsCH = make(chan struct{})
 	}

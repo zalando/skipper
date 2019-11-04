@@ -152,6 +152,9 @@ concurrency from the system by reading the
 average expected per request memory requirement, which can be set with the
 `-expected-bytes-per-request` flag.
 
+Note that the automatically inferred limit may not work as expected in an
+environment other than cgroups v1.
+
 ## OAuth2 Tokeninfo
 
 OAuth2 filters integrate with external services and have their own

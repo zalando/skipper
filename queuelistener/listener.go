@@ -115,8 +115,6 @@ func (o Options) maxConcurrency() int {
 	}
 
 	maxConcurrency := o.MemoryLimitBytes / o.ConnectionBytes
-	// TODO:
-	// - should be probably also based on "nofiles" value (check Go runtime, if they are based on it)
 
 	// theoretical minimum, but rather only for testing. When the max concurrency is not set, then the
 	// TCP-LIFO should not be used, at all.
