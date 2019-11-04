@@ -181,7 +181,7 @@ func listenWith(nl net.Listener, o Options) (net.Listener, error) {
 // new incoming client connections are stored in a queue. When an active (accepted)
 // connection is closed, the listener will return the most recent one from the
 // queue (LIFO). When the queue is full, the oldest pending connection is closed
-// and dropped, and new one is inserted into the queue.
+// and dropped, and the new one is inserted into the queue.
 //
 // The listener needs to be closed in order to release local resources. After it is
 // closed, Accept() returns an error without blocking.

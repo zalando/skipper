@@ -419,7 +419,7 @@ func NewConfig() *Config {
 	// generic:
 	flag.StringVar(&cfg.Address, "address", defaultAddress, addressUsage)
 	flag.BoolVar(&cfg.EnableTCPQueue, "enable-tcp-queue", false, enableTCPQueueUsage)
-	flag.IntVar(&cfg.ExpectedBytesPerRequest, "bytes-per-request", defaultExpectedBytesPerRequest, expectedBytesPerRequestUsage)
+	flag.IntVar(&cfg.ExpectedBytesPerRequest, "expected-bytes-per-request", defaultExpectedBytesPerRequest, expectedBytesPerRequestUsage)
 	flag.IntVar(&cfg.MaxTCPListenerConcurrency, "max-tcp-listener-concurrency", defaultMaxTCPListenerConcurrency, maxTCPListenerConcurrencyUsage)
 	flag.IntVar(&cfg.MaxTCPListenerQueue, "max-tcp-listener-queue", defaultMaxTCPListenerQueue, maxTCPListenerQueueUsage)
 	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, ignoreTrailingSlashUsage)
