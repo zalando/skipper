@@ -46,26 +46,28 @@ func (r *ring) enqueue(c net.Conn) (oldest net.Conn) {
 	return
 }
 
-func (r *ring) dequeue() (c net.Conn) {
+func (r *ring) dequeue() net.Conn {
 	r.next--
 	if r.next < 0 {
 		r.next = len(r.connections) - 1
 	}
 
+	var c net.Conn
 	c, r.connections[r.next] = r.connections[r.next], nil
 	r.size--
-	return
+	return c
 }
 
-func (r *ring) dequeueOldest() (c net.Conn) {
+func (r *ring) dequeueOldest() net.Conn {
 	i := r.next - r.size
 	if i < 0 {
 		i += len(r.connections)
 	}
 
+	var c net.Conn
 	c, r.connections[i] = r.connections[i], nil
 	r.size--
-	return
+	return c
 }
 
 func (r *ring) rangeOver(f func(net.Conn)) {

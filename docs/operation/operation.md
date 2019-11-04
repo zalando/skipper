@@ -137,12 +137,11 @@ fast enough to follow sudden connection spikes.
 This solution relies on a listener implementation combined with a LIFO
 queue. It allows only a limited number of connections being handled
 concurrently, defined by the max concurrency configuration. When the max
-concurrency is reached. When the max concurrency limit is reached, the new
-incoming client connections are stored in a queue. When an active
-(accepted) connection is closed, the most recent pending connection from
-the queue will be accepted. When the queue is full, the oldest pending
-connection is closed and dropped, and the new one is inserted into the
-queue.
+concurrency limit is reached, the new incoming client connections are
+stored in a queue. When an active (accepted) connection is closed, the
+most recent pending connection from the queue will be accepted. When the
+queue is full, the oldest pending connection is closed and dropped, and the
+new one is inserted into the queue.
 
 The feature can be enabled with the `-enable-tcp-queue` flag. The maximum
 concurrency can bet set with the `-max-tcp-listener-concurrency` flag, or,

@@ -203,8 +203,6 @@ const (
 	// generic:
 	defaultAddress                         = ":9090"
 	defaultExpectedBytesPerRequest         = 50 * 1024 // 50kB
-	defaultMaxTCPListenerConcurrency       = 0         // disabled
-	defaultMaxTCPListenerQueue             = 0
 	defaultEtcdPrefix                      = "/skipper"
 	defaultEtcdTimeout                     = time.Second
 	defaultSourcePollTimeout               = int64(3000)
@@ -420,8 +418,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.Address, "address", defaultAddress, addressUsage)
 	flag.BoolVar(&cfg.EnableTCPQueue, "enable-tcp-queue", false, enableTCPQueueUsage)
 	flag.IntVar(&cfg.ExpectedBytesPerRequest, "expected-bytes-per-request", defaultExpectedBytesPerRequest, expectedBytesPerRequestUsage)
-	flag.IntVar(&cfg.MaxTCPListenerConcurrency, "max-tcp-listener-concurrency", defaultMaxTCPListenerConcurrency, maxTCPListenerConcurrencyUsage)
-	flag.IntVar(&cfg.MaxTCPListenerQueue, "max-tcp-listener-queue", defaultMaxTCPListenerQueue, maxTCPListenerQueueUsage)
+	flag.IntVar(&cfg.MaxTCPListenerConcurrency, "max-tcp-listener-concurrency", 0, maxTCPListenerConcurrencyUsage)
+	flag.IntVar(&cfg.MaxTCPListenerQueue, "max-tcp-listener-queue", 0, maxTCPListenerQueueUsage)
 	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, ignoreTrailingSlashUsage)
 	flag.BoolVar(&cfg.Insecure, "insecure", false, insecureUsage)
 	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, proxyPreserveHostUsage)
