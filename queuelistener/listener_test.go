@@ -1030,7 +1030,7 @@ func TestMonitoring(t *testing.T) {
 
 		if err := waitFor(func() bool {
 			v, ok := m.Gauge(queuedConnectionsKey)
-			return ok && v == 2
+			return ok && v == 3
 		}); err != nil {
 			t.Fatal(err)
 		}
