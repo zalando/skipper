@@ -23,6 +23,8 @@ pipeline:
       fi
       export IMAGE
 
+      which staticcheck
+      staticcheck --version
       make deps cicheck staticcheck gosec
       git status
       git diff
