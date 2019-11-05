@@ -40,7 +40,19 @@ pipeline:
         echo "Creating release for tag: ${RELEASE_VERSION}"
         make build.package
         files=(-u sha256sum.txt); for f in *.tar.gz; do files+=(-u "$f"); done
-        git gh-release "${files[@]}" "$RELEASE_VERSION"
+        echo "create release page"
+        tf=$(mktemp)
+        echo -e "### Changes\n" >$tf
+        git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*' >>$tf
+        echo -e "\n### Docker image\n" >>$tf
+        echo -e "Docker image is available in Zalando's Open Source registry:\n" >>$tf
+        echo -e '```' >>$tf
+        echo -e "docker run -it registry.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION} --help" >>$tf
+        echo -e '```' >>$tf
+        echo "################################"
+        cat $tf
+        echo "################################"
+        git gh-release --message-from-file "${tf}" "${files[@]}" "$RELEASE_VERSION"
       else
         echo "Not creating a release. No release version defined."
       fi
