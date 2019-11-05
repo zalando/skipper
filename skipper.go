@@ -762,6 +762,7 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 	var memoryLimit int
 	if o.MaxTCPListenerConcurrency <= 0 {
 		// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+		// cgroup v2: TODO(sszuecs) has to wait for docker/k8s check path /sys/fs/cgroup/<name>/memory.max
 		// Note that in containers this will be the container limit.
 		// Runtimes without the file will use defaults defined in `queuelistener` package.
 		const memoryLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
