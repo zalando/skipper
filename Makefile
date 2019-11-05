@@ -138,7 +138,7 @@ vet: $(SOURCES)
 # -ST1021 too many wrong comments on exported functions to fix right away
 # -ST1022 too many wrong comments on exported functions to fix right away
 staticcheck: $(SOURCES)
-	GO111MODULE=$(GO111) staticcheck -debug.memprofile profile -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021,-ST1022" $(PACKAGES)
+	GO111MODULE=$(GO111) staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021,-ST1022" $(PACKAGES)
 
 # TODO(sszuecs) review disabling these checks, f.e.:
 # G101 find by variable name match "oauth" are not hardcoded credentials
