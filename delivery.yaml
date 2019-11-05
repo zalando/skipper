@@ -49,6 +49,9 @@ pipeline:
         echo '```' >>$tf
         echo "docker run -it registry.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION} --help" >>$tf
         echo '```' >>$tf
+        echo "################################"
+        cat $tf
+        echo "################################"
         git gh-release --message-from-file "${tf}" "${files[@]}" "$RELEASE_VERSION"
       else
         echo "Not creating a release. No release version defined."
