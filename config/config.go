@@ -29,6 +29,10 @@ type Config struct {
 
 	// generic:
 	Address                         string         `yaml:"address"`
+	EnableTCPQueue                  bool           `yaml:"enable-tcp-queue"`
+	ExpectedBytesPerRequest         int            `yaml:"expected-bytes-per-request"`
+	MaxTCPListenerConcurrency       int            `yaml:"max-tcp-listener-concurrency"`
+	MaxTCPListenerQueue             int            `yaml:"max-tcp-listener-queue"`
 	IgnoreTrailingSlash             bool           `yaml:"ignore-trailing-slash"`
 	Insecure                        bool           `yaml:"insecure"`
 	ProxyPreserveHost               bool           `yaml:"proxy-preserve-host"`
@@ -198,6 +202,7 @@ type Config struct {
 const (
 	// generic:
 	defaultAddress                         = ":9090"
+	defaultExpectedBytesPerRequest         = 50 * 1024 // 50kB
 	defaultEtcdPrefix                      = "/skipper"
 	defaultEtcdTimeout                     = time.Second
 	defaultSourcePollTimeout               = int64(3000)
@@ -241,6 +246,10 @@ const (
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
+	enableTCPQueueUsage                  = "enable experimental TCP listener queue"
+	expectedBytesPerRequestUsage         = "bytes per request, that is used to calculate concurrency limits to buffer connection spikes"
+	maxTCPListenerConcurrencyUsage       = "sets hardcoded max for TCP listener concurrency, normally calculated based on available memory cgroups with max TODO"
+	maxTCPListenerQueueUsage             = "sets hardcoded max queue size for TCP listener, normally calculated 10x concurrency with max TODO:50k"
 	ignoreTrailingSlashUsage             = "flag indicating to ignore trailing slashes in paths when routing"
 	insecureUsage                        = "flag indicating to ignore the verification of the TLS certificates of the backend services"
 	proxyPreserveHostUsage               = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
@@ -407,6 +416,10 @@ func NewConfig() *Config {
 
 	// generic:
 	flag.StringVar(&cfg.Address, "address", defaultAddress, addressUsage)
+	flag.BoolVar(&cfg.EnableTCPQueue, "enable-tcp-queue", false, enableTCPQueueUsage)
+	flag.IntVar(&cfg.ExpectedBytesPerRequest, "expected-bytes-per-request", defaultExpectedBytesPerRequest, expectedBytesPerRequestUsage)
+	flag.IntVar(&cfg.MaxTCPListenerConcurrency, "max-tcp-listener-concurrency", 0, maxTCPListenerConcurrencyUsage)
+	flag.IntVar(&cfg.MaxTCPListenerQueue, "max-tcp-listener-queue", 0, maxTCPListenerQueueUsage)
 	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, ignoreTrailingSlashUsage)
 	flag.BoolVar(&cfg.Insecure, "insecure", false, insecureUsage)
 	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, proxyPreserveHostUsage)
@@ -648,6 +661,10 @@ func (c *Config) ToOptions() skipper.Options {
 	options := skipper.Options{
 		// generic:
 		Address:                         c.Address,
+		EnableTCPQueue:                  c.EnableTCPQueue,
+		ExpectedBytesPerRequest:         c.ExpectedBytesPerRequest,
+		MaxTCPListenerConcurrency:       c.MaxTCPListenerConcurrency,
+		MaxTCPListenerQueue:             c.MaxTCPListenerQueue,
 		IgnoreTrailingSlash:             c.IgnoreTrailingSlash,
 		DevMode:                         c.DevMode,
 		SupportListener:                 c.SupportListener,

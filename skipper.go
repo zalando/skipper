@@ -5,11 +5,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -41,6 +43,7 @@ import (
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/queuelistener"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
@@ -72,6 +75,30 @@ type Options struct {
 
 	// Network address that skipper should listen on.
 	Address string
+
+	// EnableTCPQueue is an experimental feature. It enables controlling the
+	// concurrently processed requests at the TCP listener.
+	EnableTCPQueue bool
+
+	// ExpectedBytesPerRequest is used by the experimental TCP LIFO listener.
+	// It defines the expected average memory required to process an incoming
+	// request. It is used only when MaxTCPListenerConcurrency is not defined.
+	// It is used together with the memory limit defined in:
+	// /sys/fs/cgroup/memory/memory.limit_in_bytes.
+	//
+	// See also: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+	ExpectedBytesPerRequest int
+
+	// MaxTCPListenerConcurrency is used by the experimental TCP LIFO listener.
+	// It defines the max number of concurrently accepted connections, excluding
+	// the pending ones in the queue.
+	//
+	// When undefined and the EnableTCPQueue is true,
+	MaxTCPListenerConcurrency int
+
+	// MaxTCPListenerQueue is used by the experimental TCP LIFO listener.
+	// If defines the maximum number of pending connection waiting in the queue.
+	MaxTCPListenerQueue int
 
 	// List of custom filter specifications.
 	CustomFilters []filters.Spec
@@ -723,7 +750,63 @@ func (o *Options) isHTTPS() bool {
 	return (o.ProxyTLS != nil) || (o.CertPathTLS != "" && o.KeyPathTLS != "")
 }
 
-func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idleConnsCH chan struct{}) error {
+func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
+	if o.Address == "" {
+		o.Address = ":http"
+	}
+
+	if !o.EnableTCPQueue {
+		return net.Listen("tcp", o.Address)
+	}
+
+	var memoryLimit int
+	if o.MaxTCPListenerConcurrency <= 0 {
+		// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+		// cgroup v2: TODO(sszuecs) has to wait for docker/k8s check path /sys/fs/cgroup/<name>/memory.max
+		// Note that in containers this will be the container limit.
+		// Runtimes without the file will use defaults defined in `queuelistener` package.
+		const memoryLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+		memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
+		if err != nil {
+			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
+		} else {
+			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
+			memoryLimit, err = strconv.Atoi(memoryLimitString)
+			if err != nil {
+				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
+			}
+
+			// 1GB, temporarily, as part of the experimental phase:
+			if memoryLimit > 1<<30 {
+				memoryLimit = 1 << 30
+			}
+		}
+	}
+
+	qto := o.ReadHeaderTimeoutServer
+	if qto <= 0 {
+		qto = o.ReadTimeoutServer
+	}
+
+	return queuelistener.Listen(queuelistener.Options{
+		Network:          "tcp",
+		Address:          o.Address,
+		MaxConcurrency:   o.MaxTCPListenerConcurrency,
+		MaxQueueSize:     o.MaxTCPListenerQueue,
+		MemoryLimitBytes: memoryLimit,
+		ConnectionBytes:  o.ExpectedBytesPerRequest,
+		QueueTimeout:     qto,
+		Metrics:          mtr,
+	})
+}
+
+func listenAndServeQuit(
+	proxy http.Handler,
+	o *Options,
+	sigs chan os.Signal,
+	idleConnsCH chan struct{},
+	mtr metrics.Metrics,
+) error {
 	// create the access log handler
 	log.Infof("proxy listener on %v", o.Address)
 
@@ -797,7 +880,12 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 		close(idleConnsCH)
 	}()
 
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	l, err := listen(o, mtr)
+	if err != nil {
+		return err
+	}
+
+	if err := srv.Serve(l); err != nil && err != http.ErrServerClosed {
 		log.Errorf("Failed to start to ListenAndServe: %v", err)
 		return err
 	}
@@ -808,7 +896,7 @@ func listenAndServeQuit(proxy http.Handler, o *Options, sigs chan os.Signal, idl
 }
 
 func listenAndServe(proxy http.Handler, o *Options) error {
-	return listenAndServeQuit(proxy, o, nil, nil)
+	return listenAndServeQuit(proxy, o, nil, nil, nil)
 }
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
@@ -1191,7 +1279,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
 
-	return listenAndServeQuit(proxy, &o, sig, idleConnsCH)
+	return listenAndServeQuit(proxy, &o, sig, idleConnsCH, mtr)
 }
 
 // Run skipper.

@@ -14,6 +14,7 @@ type MockMetrics struct {
 	// Metrics gathering
 	counters      map[string]int64
 	floatCounters map[string]float64
+	gauges        map[string]float64
 	measures      map[string][]time.Duration
 	Now           time.Time
 }
@@ -47,6 +48,16 @@ func (m *MockMetrics) WithMeasures(f func(measures map[string][]time.Duration)) 
 		m.measures = make(map[string][]time.Duration)
 	}
 	f(m.measures)
+}
+
+func (m *MockMetrics) WithGauges(f func(map[string]float64)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.gauges == nil {
+		m.gauges = make(map[string]float64)
+	}
+
+	f(m.gauges)
 }
 
 //
@@ -153,6 +164,16 @@ func (*MockMetrics) RegisterHandler(path string, handler *http.ServeMux) {
 	panic("implement me")
 }
 
-func (*MockMetrics) UpdateGauge(key string, value float64) {
-	panic("implement me")
+func (m *MockMetrics) UpdateGauge(key string, value float64) {
+	m.WithGauges(func(g map[string]float64) {
+		g[key] = value
+	})
+}
+
+func (m *MockMetrics) Gauge(key string) (v float64, ok bool) {
+	m.WithGauges(func(g map[string]float64) {
+		v, ok = g[key]
+	})
+
+	return
 }
