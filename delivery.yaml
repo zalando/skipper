@@ -41,22 +41,15 @@ pipeline:
         make build.package
         files=(-u sha256sum.txt); for f in *.tar.gz; do files+=(-u "$f"); done
         echo "create release page"
-        CHANGELOG=$(git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*')
-        MSG="### Changes\n\n${CHANGELOG}\n"
-        MSG="$MSG\n"$(cat <<"EOF"
-
-        ### Docker image
-
-        Docker image is available in Zalando's Open Source registry:
-
-        ```
-        docker run -it registry.opensource.zalan.do/pathfinder/skipper:VERSION --help
-        ```
-
-        EOF
-        )
-        MSG=$(echo $MSG | sed "s/VERSION/$VERSION/")
-        git gh-release -m "${MSG}" "${files[@]}" "$RELEASE_VERSION"
+        tf=$(mktemp)
+        echo "### Changes\n" >$tf
+        git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*' >>$tf
+        echo "\n### Docker image\n" >>$tf
+        echo "Docker image is available in Zalando's Open Source registry:\n" >>$tf
+        echo '```' >>$tf
+        echo "docker run -it registry.opensource.zalan.do/pathfinder/skipper:${VERSION} --help" >>$tf
+        echo '```' >>$tf
+        git gh-release --message-from-file "${tf}" "${files[@]}" "$RELEASE_VERSION"
       else
         echo "Not creating a release. No release version defined."
       fi
