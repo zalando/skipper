@@ -47,7 +47,7 @@ pipeline:
         echo -e "\n### Docker image\n" >>$tf
         echo -e "Docker image is available in Zalando's Open Source registry:\n" >>$tf
         echo -e '```' >>$tf
-        echo -e "docker run -it registry.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION} --help" >>$tf
+        echo -e "docker run -it registry.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION} skipper --help" >>$tf
         echo -e '```' >>$tf
         echo "################################"
         cat $tf
