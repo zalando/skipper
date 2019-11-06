@@ -103,7 +103,7 @@ warmup() {
 bench() {
 	protocol=http
 	[ "$3" = tls ] && protocol=https
-	$wrk --latency -H "$2" -c "$c" -d "$d" "$protocol"://127.0.0.1"$1"/lorem.html
+	$wrk -s report.lua --latency -H "$2" -c "$c" -d "$d" "$protocol"://127.0.0.1"$1"/lorem.html
 }
 
 log() {
