@@ -7,7 +7,7 @@ Skipper is proven to scale with number of routes beyond 300.000 routes
 per instance. Skipper is running with peaks to 65.000 http requests
 per second using multiple instances.
 
-# Connection Options
+## Connection Options
 
 Skipper's connection options are allowing you to set Go's [http.Server](https://golang.org/pkg/net/http/#Server)
 Options on the client side and [http.Transport](https://golang.org/pkg/net/http/#Transport) on the backend side.
@@ -16,7 +16,7 @@ Options on the client side and [http.Transport](https://golang.org/pkg/net/http/
 [this blog post about net http timeouts](https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/)
 in order to better understand the impact of these settings.
 
-## Backend
+### Backend
 
 Backend is the side skipper opens a client connection to.
 
@@ -79,7 +79,7 @@ implementation of DialContext, which is the TCP connection pool used in the
         enables DualStack for backend connections (default true)
 
 
-## Client
+### Client
 
 Client is the side skipper gets incoming calls from.
 Here we can set timeouts in different parts of the http connection.
@@ -124,7 +124,7 @@ size of the http header from your clients.
     -max-header-bytes int
         set MaxHeaderBytes for http server connections (default 1048576)
 
-## TCP LIFO
+### TCP LIFO
 
 Skipper implements now controlling the maximum incoming TCP client
 connections. This is an experimental feature.
@@ -154,21 +154,21 @@ average expected per request memory requirement, which can be set with the
 Note that the automatically inferred limit may not work as expected in an
 environment other than cgroups v1.
 
-## OAuth2 Tokeninfo
+### OAuth2 Tokeninfo
 
 OAuth2 filters integrate with external services and have their own
 connection handling. Outgoing calls to these services have a
 default timeout of 2s, which can be changed by the flag
 `-oauth2-tokeninfo-timeout=<OAuthTokeninfoTimeout>`.
 
-## OAuth2 Tokenintrospection RFC7662
+### OAuth2 Tokenintrospection RFC7662
 
 OAuth2 filters integrate with external services and have their own
 connection handling. Outgoing calls to these services have a
 default timeout of 2s, which can be changed by the flag
 `-oauth2-tokenintrospect-timeout=<OAuthTokenintrospectionTimeout>`.
 
-# Monitoring
+## Monitoring
 
 Monitoring is one of the most important things you need to run in
 production and skipper has a [godoc page](https://godoc.org/github.com/zalando/skipper)
@@ -181,7 +181,7 @@ using formats Codahale (json) or Prometheus and be configured by
 formats you can use a comma separated list: `-metrics-flavour=codahale,prometheus`.
 
 
-## Prometheus
+### Prometheus
 
 In case you want to get metrics in [Prometheus](https://prometheus.io/) format exposed, use this
 option to enable it:
@@ -206,7 +206,7 @@ To monitor skipper we recommend the following queries:
 - P99 response filter duration (depends on label selector): `histogram_quantile(0.99, sum(rate(skipper_filter_response_duration_seconds_bucket{application="skipper-ingress"}[1m])) by (le) )`
 - If you use Kubernetes limits or Linux cgroup CFS quotas (depends on label selector): `sum(rate(container_cpu_cfs_throttled_periods_total{container_name="skipper-ingress"}[1m]))`
 
-## Connection metrics
+### Connection metrics
 
 This option will enable known loadbalancer connections metrics, like
 counters for active and new connections. This feature sets a metrics
@@ -237,7 +237,7 @@ It will expose them in /metrics, for example json structure looks like this exam
       /* stripped a lot of metrics here */
     }
 
-## LIFO metrics
+### LIFO metrics
 
 When enabled in the routes, LIFO queues can control the maximum concurrency level
 proxied to the backends and mitigate the impact of traffic spikes. The current
@@ -260,7 +260,7 @@ When queried, it will return metrics like:
       }
     }
 
-## Application metrics
+### Application metrics
 
 Application metrics for your proxied applications you can enable with the option:
 
@@ -331,7 +331,7 @@ utilized applications (less than 100 requests per second):
         use exponentially decaying sample in metrics
 
 
-## Go metrics
+### Go metrics
 
 Metrics from the
 [go runtime memstats](https://golang.org/pkg/runtime/#MemStats)
@@ -439,7 +439,7 @@ are exposed from skipper to the metrics endpoint, default listener
       }
    }
 
-# Dataclient
+## Dataclient
 
 Dataclients poll some kind of data source for routes. To change the
 timeout for calls that polls a dataclient, which could be the
@@ -449,7 +449,7 @@ Kubernetes API, use the following option:
         polling timeout of the routing data sources, in milliseconds (default 3000)
 
 
-# Routing table information
+## Routing table information
 
 Skipper allows you to get some runtime insights. You can get the
 current routing table from skipper with in the
@@ -483,7 +483,7 @@ to get the results paginated or getting all of them at the same time.
 curl localhost:9911/routes?offset=200&limit=100
 ```
 
-# Memory consumption
+## Memory consumption
 
 While Skipper is generally not memory bound, some features may require
 some attention and planning regarding the memory consumption.
@@ -499,7 +499,7 @@ Additionally use Go metrics for the number of goroutines and threads, GC pause
 times should be less than 1ms in general, route lookup time, request
 and response filter times and heap memory.
 
-## Metrics
+### Metrics
 
 Memory consumption of metrics are dependent on enabled command line
 flags. Make sure to monitor Go metrics.
@@ -519,7 +519,7 @@ it can count up. Please check the support listener endpoint (default
 % curl localhost:9911/metrics
 ```
 
-## Filters
+### Filters
 
 Ratelimit filter `clusterClientRatelimit` implementation using the
 swim based protocol, consumes roughly 15MB per filter for 100.000
@@ -529,7 +529,7 @@ using the Redis ring based solution, adds 2 additional roundtrips to
 redis per hit. Make sure you monitor redis closely, because skipper
 will fallback to allow traffic if redis can not be reached.
 
-## Slow Backends
+### Slow Backends
 
 Skipper has to keep track of all active connections and http
 Requests. Slow Backends can pile up in number of connections, that
@@ -538,11 +538,11 @@ traffic per instance and a backend times out it can start to increase
 your memory consumption. Make sure you monitor backend latency,
 request and error rates.
 
-# Default Filters
+## Default Filters
 
 Default filters will be applied to all routes created or updated.
 
-## Global Default Filters
+### Global Default Filters
 
 Global default filters can be specified via two different command line
 flags `-default-filters-prepend` and
@@ -556,7 +556,7 @@ the actual route will look like this: `r: * -> enableAccessLog(4,5) -> lifo(100,
 If you run skipper with `-default-filters-append=enableAccessLog(4,5) -> lifo(100,100,"10s")`,
 the actual route will look like this: `r: *  -> setPath("/foo") -> enableAccessLog(4,5) -> lifo(100,100,"10s")`.
 
-## Kubernetes Default Filters
+### Kubernetes Default Filters
 
 Kubernetes dataclient supports default filters. You can enable this feature by
 specifying `default-filters-dir`. The defined directory must contain per-service
@@ -570,7 +570,7 @@ potentially contradicting filter configurations and race conditions, i.e.
 you should specify a specific filter either on the Ingress resource or as
 a default filter.
 
-# Scheduler
+## Scheduler
 
 HTTP request schedulers change the queuing behavior of in-flight
 requests. A queue has two generic properties: a limit of requests and
@@ -590,7 +590,7 @@ On failure conditions, Skipper will return HTTP status code:
 - 502 if queue access times out, because the queue access was not fast enough
 - 500 on unknown errors, please create [an issue](https://github.com/zalando/skipper/issues/new/choose)
 
-## The problem
+### The problem
 
 Why should you use boundaries to limit concurrency level and limit the
 queue?
@@ -612,7 +612,7 @@ some fraction of requests instead of timing out all requests. LIFO
 would not time out all requests within the queue, if the backend is
 capable of responding some requests fast enough.
 
-## A solution
+### A solution
 
 Skipper has two filters [`lifo()`](../../reference/filters/#lifo) and
 [`lifoGroup()`](../../reference/filters/#lifogroup), that can limit
@@ -637,7 +637,7 @@ a user chosen scheduler group and
 [`lifo()`](../../reference/filters/#lifo) will get a per route unique
 scheduler group.
 
-# URI standards interpretation
+## URI standards interpretation
 
 Considering the following request path: /foo%2Fbar, Skipper can handle
 it in two different ways. The current default way is that when the
@@ -653,4 +653,3 @@ basis with the rfcPath() filter. See
 If the second interpretation gets considered the right way, and the
 other one a bug, then the default value for this flag may become to
 be on.
-
