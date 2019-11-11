@@ -29,11 +29,11 @@ func TestTracingTag(t *testing.T) {
 
 	v, ok := span.Tags[tagName]
 	if !ok {
-		t.Error("tag was not set")
+		t.Errorf("tag was not set: %s", tagName)
 	}
 
 	vs, ok := v.(string)
 	if !ok || vs != tagValue {
-		t.Error("invalid header value was copied")
+		t.Errorf("invalid tag value '%s' != '%s'", vs, tagValue)
 	}
 }
