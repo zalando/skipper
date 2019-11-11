@@ -1578,6 +1578,20 @@ Example: If a trace consists of baggage item named `foo` with a value `bar`. Add
 tracingBaggageToTag("foo", "baz")
 ```
 
+## tracingTag
+
+This filter adds an opentracing tag.
+
+Syntax:
+```
+tracingTag("<tag_name>", "<tag_value>")
+```
+
+Example: Adding the below filter will add a tag named `foo` with the value `bar`.
+```
+tracingTag("foo", "bar")
+```
+
 ## originMarker
 
 This filter is used to measure the time it took to create a route. Other than that, it's a no-op.
