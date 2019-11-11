@@ -130,6 +130,7 @@ func MakeRegistry() filters.Registry {
 		logfilter.NewUnverifiedAuditLog(),
 		tracing.NewSpanName(),
 		tracing.NewBaggageToTagFilter(),
+		tracing.NewTag(),
 		accesslog.NewAccessLogDisabled(),
 		accesslog.NewDisableAccessLog(),
 		accesslog.NewEnableAccessLog(),
