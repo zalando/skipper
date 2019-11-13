@@ -72,6 +72,14 @@ clientRatelimit(10, "1m", "X-Forwarded-For,Authorization,X-Foo")
 Internally skipper has a clean interval to clean up old buckets to reduce
 the memory footprint in the long run.
 
+#### Security Consideration
+
+ClientRatelimit works on data provided by the client. In theory an
+attacker likely can workaround all of your configurations. On the
+other hand there is always a pattern in attacks, and you are more
+likely being able to find the pattern and mitigate the attack, if you
+have a powerful tool like the provided `clientRatelimit`.
+
 ## Cluster Ratelimit
 
 A cluster ratelimit computes all requests for all skipper peers. This
@@ -176,3 +184,11 @@ clusterClientRatelimit("groupC", 5, "10s", "X-Forwarded-For,Authorization,X-Foo"
 
 Internally skipper has a clean interval to clean up old buckets to reduce
 the memory footprint in the long run.
+
+#### Security Consideration
+
+ClusterClientRatelimit works on data provided by the client. In theory an
+attacker likely can workaround all of your configurations. On the
+other hand there is always a pattern in attacks, and you are more
+likely being able to find the pattern and mitigate the attack, if you
+have a powerful tool like the provided `clusterClientRatelimit`.
