@@ -169,6 +169,7 @@ type Client struct {
 	sigs                   chan os.Signal
 	quit                   chan struct{}
 	defaultFiltersDir      string
+	originMarker           bool
 }
 
 // New creates and initializes a Kubernetes DataClient.
@@ -231,6 +232,7 @@ func New(o Options) (*Client, error) {
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
+		originMarker:           o.OriginMarker,
 	}, nil
 }
 
@@ -303,7 +305,7 @@ func (c *Client) loadAndConvert() (*clusterState, []*eskip.Route, error) {
 
 	rg, err := c.routeGroups.convert(state, defaultFilters)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return state, append(ri, rg...), nil

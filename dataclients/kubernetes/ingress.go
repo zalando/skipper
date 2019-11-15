@@ -9,7 +9,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/traffic"
 )
 
@@ -47,7 +46,6 @@ type ingress struct {
 	pathMode                    PathMode
 	kubernetesEnableEastWest    bool
 	eastWestDomainRegexpPostfix string
-	originMarker                bool
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -76,7 +74,6 @@ func newIngress(o Options, httpsRedirectCode int) *ingress {
 		pathMode:                    o.PathMode,
 		kubernetesEnableEastWest:    o.KubernetesEnableEastWest,
 		eastWestDomainRegexpPostfix: eastWestDomainRegexpPostfix,
-		originMarker:                o.OriginMarker,
 	}
 }
 
