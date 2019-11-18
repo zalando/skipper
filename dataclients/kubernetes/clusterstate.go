@@ -46,7 +46,7 @@ func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort
 		return nil, errEndpointNotFound
 	}
 
-	targets := ep.Targets(servicePort, targetPort)
+	targets := ep.targets(servicePort, targetPort)
 	if len(targets) == 0 {
 		return nil, errEndpointNotFound
 	}

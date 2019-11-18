@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/loadbalancer"
 )
 
 type routeGroupList struct {
@@ -85,7 +86,7 @@ type skipperBackend struct {
 	ServicePort int
 
 	// Algorithm is required for Type lb
-	Algorithm algorithm
+	Algorithm loadbalancer.Algorithm
 
 	// Endpoints is required for Type lb
 	Endpoints []string
@@ -141,15 +142,6 @@ type routeSpec struct {
 	Methods []string `json:"methods,omitempty"`
 }
 
-type algorithm int
-
-const (
-	none algorithm = iota
-	roundrobin
-	random
-	consistentHash
-)
-
 // adding Kubernetes specific backend types here. To be discussed.
 // The main reason is to differentiate between service and external, in a way
 // where we can also use the current global option to decide whether the service
@@ -164,18 +156,8 @@ func backendTypeFromString(s string) (eskip.BackendType, error) {
 	switch s {
 	case "", "service":
 		return serviceBackend, nil
-	case "network":
-		return eskip.NetworkBackend, nil
-	case "shunt":
-		return eskip.ShuntBackend, nil
-	case "loopback":
-		return eskip.LoopBackend, nil
-	case "dynamic":
-		return eskip.DynamicBackend, nil
-	case "lb":
-		return eskip.LBBackend, nil
 	default:
-		return -1, fmt.Errorf("unsupported backend type: %s", s)
+		return eskip.BackendTypeFromString(s)
 	}
 }
 
@@ -188,34 +170,6 @@ func backendTypeToString(t eskip.BackendType) string {
 	}
 }
 
-func algorithmFromString(s string) (algorithm, error) {
-	switch s {
-	case "":
-		return none, nil
-	case "roundrobin":
-		return roundrobin, nil
-	case "random":
-		return random, nil
-	case "consistent-hash":
-		return consistentHash, nil
-	default:
-		return none, fmt.Errorf("unsupported algorithm: %s", s)
-	}
-}
-
-func (a algorithm) String() string {
-	switch a {
-	case roundrobin:
-		return "roundrobin"
-	case random:
-		return "random"
-	case consistentHash:
-		return "consistent-hash"
-	default:
-		return "unknown"
-	}
-}
-
 // UnmarshalJSON creates a new skipperBackend, safe to be called on nil pointer
 func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
 	var p skipperBackendParser
@@ -223,12 +177,16 @@ func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
 		return err
 	}
 
+	if p.ServicePort < 0 || p.ServicePort > 2<<16-1 {
+		return fmt.Errorf("failed to validate ServicePort, should be in range uint16")
+	}
+
 	bt, err := backendTypeFromString(p.Type)
 	if err != nil {
 		return err
 	}
 
-	a, err := algorithmFromString(p.Algorithm)
+	a, err := loadbalancer.AlgorithmFromString(p.Algorithm)
 	if err != nil {
 		return err
 	}
@@ -238,9 +196,6 @@ func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
 	b.Type = bt
 	b.Address = p.Address
 	b.ServiceName = p.ServiceName
-	if p.ServicePort < 0 || p.ServicePort > 2<<16-1 {
-		return fmt.Errorf("failed to validate ServicePort, should be in range uint16")
-	}
 	b.ServicePort = p.ServicePort
 	b.Algorithm = a
 	b.Endpoints = p.Endpoints
@@ -254,7 +209,6 @@ func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
 	}
 
 	*sb = b
-
 	return nil
 }
 

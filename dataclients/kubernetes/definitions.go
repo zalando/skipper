@@ -157,13 +157,13 @@ type serviceList struct {
 	Items []*service `json:"items"`
 }
 
-func (s service) GetTargetPort(svcPort backendPort) (string, error) {
+func (s service) getTargetPort(svcPort backendPort) (string, error) {
 	for _, sp := range s.Spec.Ports {
 		if sp.MatchingPort(svcPort) && sp.TargetPort != nil {
 			return sp.TargetPort.String(), nil
 		}
 	}
-	return "", fmt.Errorf("GetTargetPort: target port not found %v given %s", s.Spec.Ports, svcPort)
+	return "", fmt.Errorf("getTargetPort: target port not found %v given %s", s.Spec.Ports, svcPort)
 }
 
 type endpoint struct {
@@ -175,7 +175,7 @@ type endpointList struct {
 	Items []*endpoint `json:"items"`
 }
 
-func (ep endpoint) Targets(svcPortName, svcPortTarget string) []string {
+func (ep endpoint) targets(svcPortName, svcPortTarget string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {

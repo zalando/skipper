@@ -14,20 +14,20 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-type algorithmType int
+type Algorithm int
 
 const (
-	none algorithmType = iota
-	roundRobinAlgorithm
-	randomAlgorithm
-	consistentHashAlgorithm
+	None Algorithm = iota
+	RoundRobin
+	Random
+	ConsistentHash
 )
 
 var (
-	algorithms = map[algorithmType]initializeAgorithm{
-		roundRobinAlgorithm:     newRoundRobin,
-		randomAlgorithm:         newRandom,
-		consistentHashAlgorithm: newConsistentHash,
+	algorithms = map[Algorithm]initializeAgorithm{
+		RoundRobin:     newRoundRobin,
+		Random:         newRandom,
+		ConsistentHash: newConsistentHash,
 	}
 	defaultAlgorithm = newRoundRobin
 )
@@ -102,20 +102,33 @@ func NewAlgorithmProvider() routing.PostProcessor {
 	return &algorithmProvider{}
 }
 
-func algorithmTypeFromString(a string) (algorithmType, error) {
+func AlgorithmFromString(a string) (Algorithm, error) {
 	switch a {
 	case "":
 		// This means that the user didn't explicitly specify which
 		// algorithm should be used, and we will use a default one.
-		return none, nil
+		return None, nil
 	case "roundRobin":
-		return roundRobinAlgorithm, nil
+		return RoundRobin, nil
 	case "random":
-		return randomAlgorithm, nil
+		return Random, nil
 	case "consistentHash":
-		return consistentHashAlgorithm, nil
+		return ConsistentHash, nil
 	default:
-		return none, errors.New("unsupported algorithm")
+		return None, errors.New("unsupported algorithm")
+	}
+}
+
+func (a Algorithm) String() string {
+	switch a {
+	case RoundRobin:
+		return "roundRobin"
+	case Random:
+		return "random"
+	case ConsistentHash:
+		return "consistentHash"
+	default:
+		return ""
 	}
 }
 
@@ -134,13 +147,13 @@ func parseEndpoints(r *routing.Route) error {
 }
 
 func setAlgorithm(r *routing.Route) error {
-	t, err := algorithmTypeFromString(r.Route.LBAlgorithm)
+	t, err := AlgorithmFromString(r.Route.LBAlgorithm)
 	if err != nil {
 		return err
 	}
 
 	initialize := defaultAlgorithm
-	if t != none {
+	if t != None {
 		initialize = algorithms[t]
 	}
 

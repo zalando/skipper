@@ -177,7 +177,7 @@ func convertPathRule(
 		return nil, err
 	}
 
-	targetPort, err := svc.GetTargetPort(svcPort)
+	targetPort, err := svc.getTargetPort(svcPort)
 	if err != nil {
 		// fallback to service, but service definition is wrong or no pods
 		log.Errorf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
@@ -506,7 +506,7 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *ingressItem) (
 		return nil, false, err
 	}
 
-	targetPort, err := svc.GetTargetPort(svcPort)
+	targetPort, err := svc.getTargetPort(svcPort)
 	if err != nil {
 		err = nil
 		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
