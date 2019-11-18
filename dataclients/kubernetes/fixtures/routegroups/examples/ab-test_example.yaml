@@ -16,10 +16,10 @@ spec:
   - backendName: variant-b
   routes:
   - pathSubtree: /
-    filters:
-    - responseCookie("variant", "A") # set a variant Cookie to A
     predicates:
     - Traffic(.1)                    # 10% chance
+    filters:
+    - responseCookie("variant", "A") # set a variant Cookie to A
     backends:
     - backendName: variant-a         # overrides default
   - pathSubtree: /
@@ -33,3 +33,31 @@ spec:
   - pathSubtree: /
     predicates:
     - Cookie("variant", "B")
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a
+spec:
+  selector:
+    application: my-application
+  type: ClusterIP
+  clusterIP: 10.0.0.1
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-b
+spec:
+  selector:
+    application: my-application
+  type: ClusterIP
+  clusterIP: 10.0.0.2
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80

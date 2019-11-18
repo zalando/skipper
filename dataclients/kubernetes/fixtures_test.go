@@ -99,7 +99,7 @@ func testFixture(t *testing.T, yamlPath, eskipPath string) {
 	if !eskip.EqLists(routes, expectedRoutes) {
 		t.Error("Failed to convert the resources to the right routes.")
 		t.Logf("routes: %d, expected: %d", len(routes), len(expectedRoutes))
-		t.Log(cmp.Diff(eskip.CanonicalList(routes), eskip.CanonicalList(expectedRoutes)))
+		t.Log(cmp.Diff(eskip.CanonicalList(expectedRoutes), eskip.CanonicalList(routes)))
 	}
 }
 

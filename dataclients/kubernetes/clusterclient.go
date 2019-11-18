@@ -21,10 +21,12 @@ import (
 const (
 	ingressClassKey         = "kubernetes.io/ingress.class"
 	ingressesClusterURI     = "/apis/extensions/v1beta1/ingresses"
+	routeGroupsClusterURI   = "/apis/zalando.org/v1/routegroups"
 	servicesClusterURI      = "/api/v1/services"
 	endpointsClusterURI     = "/api/v1/endpoints"
 	defaultKubernetesURL    = "http://localhost:8001"
 	ingressesNamespaceFmt   = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
+	routeGroupsNamespaceFmt = "/apis/zalando.org/v1/namespaces/%s/routegroups"
 	servicesNamespaceFmt    = "/api/v1/namespaces/%s/services"
 	endpointsNamespaceFmt   = "/api/v1/namespaces/%s/endpoints"
 	serviceAccountDir       = "/var/run/secrets/kubernetes.io/serviceaccount/"
@@ -34,6 +36,7 @@ const (
 
 type clusterClient struct {
 	ingressesURI string
+	routeGroupsURI string
 	servicesURI  string
 	endpointsURI string
 	ingressClass *regexp.Regexp
@@ -129,6 +132,7 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 
 	c := &clusterClient{
 		ingressesURI: ingressesClusterURI,
+		routeGroupsURI: routeGroupsClusterURI,
 		servicesURI:  servicesClusterURI,
 		endpointsURI: endpointsClusterURI,
 		ingressClass: ingClsRx,
@@ -146,6 +150,7 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 
 func (c *clusterClient) setNamespace(namespace string) {
 	c.ingressesURI = fmt.Sprintf(ingressesNamespaceFmt, namespace)
+	c.routeGroupsURI = fmt.Sprintf(routeGroupsNamespaceFmt, namespace)
 	c.servicesURI = fmt.Sprintf(servicesNamespaceFmt, namespace)
 	c.endpointsURI = fmt.Sprintf(endpointsNamespaceFmt, namespace)
 }
@@ -223,20 +228,10 @@ func (c *clusterClient) filterIngressesByClass(items []*ingressItem) []*ingressI
 	return validIngs
 }
 
-func (c *clusterClient) loadIngresses() ([]*ingressItem, error) {
-	var il ingressList
-	if err := c.getJSON(c.ingressesURI, &il); err != nil {
-		log.Debugf("requesting all ingresses failed: %v", err)
-		return nil, err
-	}
-
-	log.Debugf("all ingresses received: %d", len(il.Items))
-	fItems := c.filterIngressesByClass(il.Items)
-	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
-
-	sort.Slice(fItems, func(i, j int) bool {
-		mI := fItems[i].Metadata
-		mJ := fItems[j].Metadata
+func sortByMetadata(slice interface{}, getMetadata func(int) *metadata) {
+	sort.Slice(slice, func(i, j int) bool {
+		mI := getMetadata(i)
+		mJ := getMetadata(j)
 		if mI == nil && mJ != nil {
 			return true
 		} else if mJ == nil {
@@ -249,11 +244,40 @@ func (c *clusterClient) loadIngresses() ([]*ingressItem, error) {
 		}
 		return mI.Name < mJ.Name
 	})
+}
 
+func (c *clusterClient) loadIngresses() ([]*ingressItem, error) {
+	var il ingressList
+	if err := c.getJSON(c.ingressesURI, &il); err != nil {
+		log.Debugf("requesting all ingresses failed: %v", err)
+		return nil, err
+	}
+
+	log.Debugf("all ingresses received: %d", len(il.Items))
+	fItems := c.filterIngressesByClass(il.Items)
+	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
+	sortByMetadata(fItems, func(i int) *metadata { return fItems[i].Metadata })
 	return fItems, nil
 }
 
-func (c *clusterClient) loadServices() (map[resourceId]*service, error) {
+func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
+	var rgl routeGroupList
+	if err := c.getJSON(c.routeGroupsURI, &rgl); err != nil {
+		return nil, err
+	}
+
+	rgs := make([]*routeGroupItem, 0, len(rgl.Items))
+	for i := range rgl.Items {
+		if rgl.Items[i] != nil {
+			rgs = append(rgs, rgl.Items[i])
+		}
+	}
+
+	sortByMetadata(rgs, func(i int) *metadata { return rgs[i].Metadata })
+	return rgs, nil
+}
+
+func (c *clusterClient) loadServices() (map[resourceID]*service, error) {
 	var services serviceList
 	if err := c.getJSON(c.servicesURI, &services); err != nil {
 		log.Debugf("requesting all services failed: %v", err)
@@ -261,15 +285,25 @@ func (c *clusterClient) loadServices() (map[resourceId]*service, error) {
 	}
 
 	log.Debugf("all services received: %d", len(services.Items))
-	result := make(map[resourceId]*service)
+	result := make(map[resourceID]*service)
+	var hasInvalidService bool
 	for _, service := range services.Items {
-		result[service.Meta.toResourceId()] = service
+		if service == nil || service.Meta == nil || service.Spec == nil {
+			hasInvalidService = true
+			continue
+		}
+
+		result[service.Meta.toResourceID()] = service
+	}
+
+	if hasInvalidService {
+		log.Errorf("Invalid service resource detected.")
 	}
 
 	return result, nil
 }
 
-func (c *clusterClient) loadEndpoints() (map[resourceId]*endpoint, error) {
+func (c *clusterClient) loadEndpoints() (map[resourceID]*endpoint, error) {
 	var endpoints endpointList
 	if err := c.getJSON(c.endpointsURI, &endpoints); err != nil {
 		log.Debugf("requesting all endpoints failed: %v", err)
@@ -277,9 +311,9 @@ func (c *clusterClient) loadEndpoints() (map[resourceId]*endpoint, error) {
 	}
 
 	log.Debugf("all endpoints received: %d", len(endpoints.Items))
-	result := make(map[resourceId]*endpoint)
+	result := make(map[resourceID]*endpoint)
 	for _, endpoint := range endpoints.Items {
-		result[endpoint.Meta.toResourceId()] = endpoint
+		result[endpoint.Meta.toResourceID()] = endpoint
 	}
 
 	return result, nil
@@ -287,6 +321,12 @@ func (c *clusterClient) loadEndpoints() (map[resourceId]*endpoint, error) {
 
 func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	ingresses, err := c.loadIngresses()
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: tolerate when the CRD doesn't exist, or put it behind a feature flag
+	routeGroups, err := c.loadRouteGroups()
 	if err != nil {
 		return nil, err
 	}
@@ -303,8 +343,9 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 
 	return &clusterState{
 		ingresses:       ingresses,
+		routeGroups: routeGroups,
 		services:        services,
 		endpoints:       endpoints,
-		cachedEndpoints: make(map[endpointId][]string),
+		cachedEndpoints: make(map[endpointID][]string),
 	}, nil
 }

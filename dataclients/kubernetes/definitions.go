@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-type resourceId struct {
+type resourceID struct {
 	namespace string
 	name      string
 }
@@ -21,9 +21,17 @@ type metadata struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
-func (meta *metadata) toResourceId() resourceId {
-	return resourceId{
-		namespace: meta.Namespace,
+func namespaceString(ns string) string {
+	if ns == "" {
+		return "default"
+	}
+
+	return ns
+}
+
+func (meta *metadata) toResourceID() resourceID {
+	return resourceID{
+		namespace: namespaceString(meta.Namespace),
 		name:      meta.Name,
 	}
 }
@@ -205,12 +213,12 @@ type port struct {
 	Protocol string `json:"protocol"`
 }
 
-func newResourceId(namespace, name string) resourceId {
-	return resourceId{namespace: namespace, name: name}
+func newResourceID(namespace, name string) resourceID {
+	return resourceID{namespace: namespace, name: name}
 }
 
-type endpointId struct {
-	resourceId
+type endpointID struct {
+	resourceID
 	servicePort string
 	targetPort  string
 }

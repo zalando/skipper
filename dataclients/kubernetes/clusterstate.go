@@ -8,13 +8,14 @@ import (
 
 type clusterState struct {
 	ingresses       []*ingressItem
-	services        map[resourceId]*service
-	endpoints       map[resourceId]*endpoint
-	cachedEndpoints map[endpointId][]string
+	routeGroups []*routeGroupItem
+	services        map[resourceID]*service
+	endpoints       map[resourceID]*endpoint
+	cachedEndpoints map[endpointID][]string
 }
 
 func (state *clusterState) getService(namespace, name string) (*service, error) {
-	s, ok := state.services[newResourceId(namespace, name)]
+	s, ok := state.services[newResourceID(namespace, name)]
 	if !ok {
 		return nil, errServiceNotFound
 	}
@@ -23,21 +24,22 @@ func (state *clusterState) getService(namespace, name string) (*service, error) 
 		log.Debug("invalid service datagram, missing spec")
 		return nil, errServiceNotFound
 	}
+
 	return s, nil
 }
 
 func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort string) ([]string, error) {
-	epId := endpointId{
-		resourceId:  newResourceId(namespace, name),
+	epID := endpointID{
+		resourceID:  newResourceID(namespace, name),
 		servicePort: servicePort,
 		targetPort:  targetPort,
 	}
 
-	if cached, ok := state.cachedEndpoints[epId]; ok {
+	if cached, ok := state.cachedEndpoints[epID]; ok {
 		return cached, nil
 	}
 
-	ep, ok := state.endpoints[epId.resourceId]
+	ep, ok := state.endpoints[epID.resourceID]
 	if !ok {
 		return nil, errEndpointNotFound
 	}
@@ -51,6 +53,6 @@ func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort
 		return nil, errEndpointNotFound
 	}
 	sort.Strings(targets)
-	state.cachedEndpoints[epId] = targets
+	state.cachedEndpoints[epID] = targets
 	return targets, nil
 }

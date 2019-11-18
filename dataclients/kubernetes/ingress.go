@@ -37,7 +37,7 @@ type ingressContext struct {
 	pathMode            PathMode
 	redirect            *redirectInfo
 	hostRoutes          map[string][]*eskip.Route
-	defaultFilters      map[resourceId]string
+	defaultFilters      map[resourceID]string
 }
 
 type ingress struct {
@@ -306,8 +306,8 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 	return nil
 }
 
-func defaultFiltersOf(service string, namespace string, defaultFilters map[resourceId]string) (string, bool) {
-	if filters, ok := defaultFilters[resourceId{name: service, namespace: namespace}]; ok {
+func defaultFiltersOf(service string, namespace string, defaultFilters map[resourceID]string) (string, bool) {
+	if filters, ok := defaultFilters[resourceID{name: service, namespace: namespace}]; ok {
 		return filters, true
 	}
 	return "", false
@@ -326,6 +326,7 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *path
 	endpointsRoute.Filters = append(ic.annotationFilters, endpointsRoute.Filters...)
 	// add pre-configured default filters
 	if defFilter, ok := defaultFiltersOf(prule.Backend.ServiceName, ic.ingress.Metadata.Namespace, ic.defaultFilters); ok {
+		// TODO: this doesn't need to be parsed all the time
 		defaultFilters, err := eskip.ParseFilters(defFilter)
 		if err != nil {
 			ic.logger.Errorf("Can not parse default filters: %v", err)
@@ -685,7 +686,7 @@ func pathMode(i *ingressItem, globalDefault PathMode) PathMode {
 }
 
 func (ing *ingress) ingressRoute(i *ingressItem, redirect *redirectInfo, state *clusterState,
-	hostRoutes map[string][]*eskip.Route, defaultFilters map[resourceId]string) (*eskip.Route, error) {
+	hostRoutes map[string][]*eskip.Route, defaultFilters map[resourceID]string) (*eskip.Route, error) {
 	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 		i.Spec == nil {
 		log.Error("invalid ingress item: missing metadata")
@@ -781,7 +782,7 @@ func catchAllRoutes(routes []*eskip.Route) bool {
 // valid ones.  Reporting failures in Ingress status is not possible,
 // because Ingress status field is v1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
-func (ing *ingress) ingressToRoutes(state *clusterState, defaultFilters map[resourceId]string) ([]*eskip.Route, error) {
+func (ing *ingress) ingressToRoutes(state *clusterState, defaultFilters map[resourceID]string) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(state.ingresses))
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(ing.provideHTTPSRedirect, ing.httpsRedirectCode)
@@ -812,7 +813,7 @@ func (ing *ingress) ingressToRoutes(state *clusterState, defaultFilters map[reso
 	return routes, nil
 }
 
-func (ing *ingress) convert(s *clusterState, defaultFilters map[resourceId]string) ([]*eskip.Route, error) {
+func (ing *ingress) convert(s *clusterState, defaultFilters map[resourceID]string) ([]*eskip.Route, error) {
 	r, err := ing.ingressToRoutes(s, defaultFilters)
 	if err != nil {
 		return nil, err

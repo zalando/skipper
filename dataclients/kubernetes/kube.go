@@ -421,6 +421,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	)
 
 	for id := range c.current {
+		// TODO: use eskip.Eq()
 		if r, ok := next[id]; ok && r.String() != c.current[id].String() {
 			updatedRoutes = append(updatedRoutes, r)
 		} else if !ok && id != healthcheckRouteID && id != httpRedirectRouteID {
@@ -463,17 +464,17 @@ func (c *Client) Close() {
 	}
 }
 
-func (c *Client) fetchDefaultFilterConfigs() map[resourceId]string {
+func (c *Client) fetchDefaultFilterConfigs() map[resourceID]string {
 	if c.defaultFiltersDir == "" {
 		log.Debug("default filters are disabled")
-		return make(map[resourceId]string)
+		return make(map[resourceID]string)
 	}
 
 	filters, err := c.getDefaultFilterConfigurations()
 
 	if err != nil {
 		log.WithError(err).Error("could not fetch default filter configurations")
-		return make(map[resourceId]string)
+		return make(map[resourceID]string)
 	}
 
 	log.WithField("#configs", len(filters)).Debug("default filter configurations loaded")
@@ -481,13 +482,13 @@ func (c *Client) fetchDefaultFilterConfigs() map[resourceId]string {
 	return filters
 }
 
-func (c *Client) getDefaultFilterConfigurations() (map[resourceId]string, error) {
+func (c *Client) getDefaultFilterConfigurations() (map[resourceID]string, error) {
 	files, err := ioutil.ReadDir(c.defaultFiltersDir)
 	if err != nil {
 		return nil, err
 	}
 
-	filters := make(map[resourceId]string)
+	filters := make(map[resourceID]string)
 	for _, f := range files {
 		r := strings.Split(f.Name(), ".") // format: {service}.{namespace}
 		if len(r) != 2 || notRegularFile(f) || f.Size() > maxFileSize {
@@ -502,7 +503,7 @@ func (c *Client) getDefaultFilterConfigurations() (map[resourceId]string, error)
 			continue
 		}
 
-		filters[resourceId{name: r[0], namespace: r[1]}] = string(config)
+		filters[resourceID{name: r[0], namespace: r[1]}] = string(config)
 	}
 
 	return filters, nil
