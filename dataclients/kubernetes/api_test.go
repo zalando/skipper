@@ -1,16 +1,16 @@
 package kubernetes
 
-/*
-
 import (
-	// "bytes"
+	"bytes"
+	"encoding/json"
 	"errors"
-	// "fmt"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
-	// "net/http/httptest"
+	"net/http/httptest"
 	"regexp"
-	// "testing"
+	"testing"
 
 	yaml2json "github.com/ghodss/yaml"
 	"github.com/go-yaml/yaml"
@@ -34,7 +34,8 @@ var errInvalidFixture = errors.New("invalid fixture")
 func itemsJSON(b *[]byte, o []interface{}) error {
 	items := map[string]interface{}{"items": o}
 
-	// converting back to YAML, because we have YAMLToJSON() for bytes
+	// converting back to YAML, because we have YAMLToJSON() for bytes, and
+	// the data in `o` contains YAML parser stile keys of type interface{}
 	y, err := yaml.Marshal(items)
 	if err != nil {
 		return err
@@ -269,7 +270,25 @@ subsets:
     protocol: TCP
 `
 
-/*
+func getJSON(u string, o interface{}) error {
+	rsp, err := http.Get(u)
+	if err != nil {
+		return err
+	}
+
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", rsp.StatusCode)
+	}
+
+	b, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(b, o)
+}
+
 func TestTestAPI(t *testing.T) {
 	a, err := newAPI(bytes.NewBufferString(testAPISpec1), bytes.NewBufferString(testAPISpec2))
 	if err != nil {
@@ -280,16 +299,16 @@ func TestTestAPI(t *testing.T) {
 	defer s.Close()
 
 	get := func(uri string, o interface{}) error {
-		return getJSON(http.DefaultClient, "", s.URL+uri, o)
+		return getJSON(s.URL+uri, o)
 	}
 
-	check := func(t *testing.T, data map[string]interface{}, length int, kind string) {
+	check := func(t *testing.T, data map[string]interface{}, itemsLength int, kind string) {
 		items, ok := data["items"].([]interface{})
-		if !ok || len(items) != length {
+		if !ok || len(items) != itemsLength {
 			t.Fatalf("failed to get the right number of items of: %s", kind)
 		}
 
-		if length == 0 {
+		if itemsLength == 0 {
 			return
 		}
 
@@ -361,4 +380,3 @@ func TestTestAPI(t *testing.T) {
 		check(t, e, 2, "Endpoints")
 	})
 }
-*/
