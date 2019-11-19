@@ -8,7 +8,7 @@ import (
 
 type clusterState struct {
 	ingresses       []*ingressItem
-	routeGroups []*routeGroupItem
+	routeGroups     []*routeGroupItem
 	services        map[resourceID]*service
 	endpoints       map[resourceID]*endpoint
 	cachedEndpoints map[endpointID][]string

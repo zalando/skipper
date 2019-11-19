@@ -222,3 +222,13 @@ type endpointID struct {
 	servicePort string
 	targetPort  string
 }
+
+type clusterResource struct {
+	Name string `json:"name"`
+}
+
+type clusterResourceList struct {
+
+	// Items, aka "resources".
+	Items []*clusterResource `json:"resources"`
+}

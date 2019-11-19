@@ -19,30 +19,32 @@ import (
 )
 
 const (
-	ingressClassKey         = "kubernetes.io/ingress.class"
-	ingressesClusterURI     = "/apis/extensions/v1beta1/ingresses"
-	routeGroupsClusterURI   = "/apis/zalando.org/v1/routegroups"
-	servicesClusterURI      = "/api/v1/services"
-	endpointsClusterURI     = "/api/v1/endpoints"
-	defaultKubernetesURL    = "http://localhost:8001"
-	ingressesNamespaceFmt   = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
-	routeGroupsNamespaceFmt = "/apis/zalando.org/v1/namespaces/%s/routegroups"
-	servicesNamespaceFmt    = "/api/v1/namespaces/%s/services"
-	endpointsNamespaceFmt   = "/api/v1/namespaces/%s/endpoints"
-	serviceAccountDir       = "/var/run/secrets/kubernetes.io/serviceaccount/"
-	serviceAccountTokenKey  = "token"
-	serviceAccountRootCAKey = "ca.crt"
+	ingressClassKey            = "kubernetes.io/ingress.class"
+	ingressesClusterURI        = "/apis/extensions/v1beta1/ingresses"
+	clusterZalandoResourcesURI = "/apis/zalando.org/v1"
+	routeGroupsName            = "routegroups"
+	routeGroupsClusterURI      = "/apis/zalando.org/v1/routegroups"
+	servicesClusterURI         = "/api/v1/services"
+	endpointsClusterURI        = "/api/v1/endpoints"
+	defaultKubernetesURL       = "http://localhost:8001"
+	ingressesNamespaceFmt      = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
+	routeGroupsNamespaceFmt    = "/apis/zalando.org/v1/namespaces/%s/routegroups"
+	servicesNamespaceFmt       = "/api/v1/namespaces/%s/services"
+	endpointsNamespaceFmt      = "/api/v1/namespaces/%s/endpoints"
+	serviceAccountDir          = "/var/run/secrets/kubernetes.io/serviceaccount/"
+	serviceAccountTokenKey     = "token"
+	serviceAccountRootCAKey    = "ca.crt"
 )
 
 type clusterClient struct {
-	ingressesURI string
+	ingressesURI   string
 	routeGroupsURI string
-	servicesURI  string
-	endpointsURI string
-	ingressClass *regexp.Regexp
-	token        string
-	httpClient   *http.Client
-	apiURL       string
+	servicesURI    string
+	endpointsURI   string
+	ingressClass   *regexp.Regexp
+	token          string
+	httpClient     *http.Client
+	apiURL         string
 }
 
 var (
@@ -131,14 +133,14 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 	}
 
 	c := &clusterClient{
-		ingressesURI: ingressesClusterURI,
+		ingressesURI:   ingressesClusterURI,
 		routeGroupsURI: routeGroupsClusterURI,
-		servicesURI:  servicesClusterURI,
-		endpointsURI: endpointsClusterURI,
-		ingressClass: ingClsRx,
-		httpClient:   httpClient,
-		token:        token,
-		apiURL:       apiURL,
+		servicesURI:    servicesClusterURI,
+		endpointsURI:   endpointsClusterURI,
+		ingressClass:   ingClsRx,
+		httpClient:     httpClient,
+		token:          token,
+		apiURL:         apiURL,
 	}
 
 	if o.KubernetesNamespace != "" {
@@ -206,6 +208,21 @@ func (c *clusterClient) getJSON(uri string, a interface{}) error {
 	}
 
 	return err
+}
+
+func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
+	var crl clusterResourceList
+	if err := c.getJSON(clusterZalandoResourcesURI, &crl); err != nil {
+		return false, err
+	}
+
+	for _, cr := range crl.Items {
+		if cr.Name == routeGroupsName {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
@@ -325,10 +342,13 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		return nil, err
 	}
 
-	// TODO: tolerate when the CRD doesn't exist, or put it behind a feature flag
-	routeGroups, err := c.loadRouteGroups()
-	if err != nil {
-		return nil, err
+	var routeGroups []*routeGroupItem
+	if hasRouteGroups, err := c.clusterHasRouteGroups(); err != nil {
+		log.Errorf("Error while checking known resource types: %v.", err)
+	} else if hasRouteGroups {
+		if routeGroups, err = c.loadRouteGroups(); err != nil {
+			return nil, err
+		}
 	}
 
 	services, err := c.loadServices()
@@ -343,7 +363,7 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 
 	return &clusterState{
 		ingresses:       ingresses,
-		routeGroups: routeGroups,
+		routeGroups:     routeGroups,
 		services:        services,
 		endpoints:       endpoints,
 		cachedEndpoints: make(map[endpointID][]string),

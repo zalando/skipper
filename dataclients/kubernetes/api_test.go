@@ -16,6 +16,10 @@ import (
 	"github.com/go-yaml/yaml"
 )
 
+type testAPIOptions struct {
+	disableRouteGroups bool
+}
+
 type namespace struct {
 	services    []byte
 	ingresses   []byte
@@ -24,9 +28,10 @@ type namespace struct {
 }
 
 type api struct {
-	namespaces map[string]namespace
-	all        namespace
-	pathRx     *regexp.Regexp
+	namespaces   map[string]namespace
+	all          namespace
+	pathRx       *regexp.Regexp
+	resourceList []byte
 }
 
 var errInvalidFixture = errors.New("invalid fixture")
@@ -65,13 +70,25 @@ func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
 	return
 }
 
-func newAPI(specs ...io.Reader) (*api, error) {
+func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
 		pathRx: regexp.MustCompile(
 			"(/namespaces/([^/]+))?/(services|ingresses|routegroups|endpoints)",
 		),
 	}
+
+	var clr clusterResourceList
+	if !o.disableRouteGroups {
+		clr.Items = append(clr.Items, &clusterResource{Name: routeGroupsName})
+	}
+
+	clrb, err := json.Marshal(clr)
+	if err != nil {
+		return nil, err
+	}
+
+	a.resourceList = clrb
 
 	namespaces := make(map[string]map[string][]interface{})
 	all := make(map[string][]interface{})
@@ -123,7 +140,6 @@ func newAPI(specs ...io.Reader) (*api, error) {
 		}
 	}
 
-	var err error
 	a.all, err = initNamespace(all)
 	if err != nil {
 		return nil, err
@@ -135,6 +151,11 @@ func newAPI(specs ...io.Reader) (*api, error) {
 func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if r.URL.Path == clusterZalandoResourcesURI {
+		w.Write(a.resourceList)
 		return
 	}
 
@@ -290,7 +311,7 @@ func getJSON(u string, o interface{}) error {
 }
 
 func TestTestAPI(t *testing.T) {
-	a, err := newAPI(bytes.NewBufferString(testAPISpec1), bytes.NewBufferString(testAPISpec2))
+	a, err := newAPI(testAPIOptions{}, bytes.NewBufferString(testAPISpec1), bytes.NewBufferString(testAPISpec2))
 	if err != nil {
 		t.Fatal(err)
 	}

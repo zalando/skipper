@@ -8,23 +8,31 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
+// TODO:
+// - default filters, not on the catchall and custom annotation routes for ingress
+// - do we need catchall routes to return 404 for the routegroups?
+// - HTTPS redirect
+// - document which errors prevent load and load updates, and which ones are only logged
+// - resolve backend for implicitGroupRoutes
+// - resolve LB backends
+
 type routeGroups struct{}
 
 type routeGroupContext struct {
 	clusterState   *clusterState
-	defaultFilters map[resourceID]string
+	defaultFilters defaultFilters
 	routeGroup     *routeGroupItem
 	hostRx         string
 	backendsByName map[string]*skipperBackend
 }
 
 type routeContext struct {
-	group *routeGroupContext
+	group      *routeGroupContext
 	groupRoute *routeSpec
-	id string
-	weight int
-	method string
-	backend *skipperBackend
+	id         string
+	weight     int
+	method     string
+	backend    *skipperBackend
 }
 
 func newRouteGroups(Options) *routeGroups {
@@ -97,6 +105,17 @@ func mapBackends(backends []*skipperBackend) map[string]*skipperBackend {
 	return m
 }
 
+func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Route) error {
+	f, err := ctx.defaultFilters.getNamed(ctx.routeGroup.Metadata.Namespace, serviceName)
+	if err != nil {
+		return err
+	}
+
+	// safe to prepend as defaultFilters.get() copies the slice:
+	r.Filters = append(f, r.Filters...)
+	return nil
+}
+
 func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 	// TODO: default filters
 
@@ -129,6 +148,12 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 			Backend:     be.String(),
 			LBAlgorithm: be.Algorithm.String(),
 			LBEndpoints: be.Endpoints,
+		}
+
+		if be.Type == serviceBackend {
+			if err := applyDefaultFilters(ctx, be.ServiceName, ri); err != nil {
+				log.Errorf("Failed to retrieve default filters: %v.", err)
+			}
 		}
 
 		routes = append(routes, ri)
@@ -257,6 +282,10 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 		if r.Backend, err = getServiceBackend(ctx); err != nil {
 			return nil, err
 		}
+
+		if err := applyDefaultFilters(ctx.group, ctx.backend.ServiceName, r); err != nil {
+			log.Errorf("Failed to retrieve default filters: %v.", err)
+		}
 	case eskip.NetworkBackend:
 		r.Backend = ctx.backend.Address
 	case eskip.LBBackend:
@@ -300,12 +329,12 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 				}
 
 				r, err := transformExplicitGroupRoute(&routeContext{
-					group: ctx,
+					group:      ctx,
 					groupRoute: rgr,
-					id: crdRouteID(rg.Metadata, method, routeIndex, backendIndex),
-					weight: bref.Weight,
-					method: method,
-					backend: be,
+					id:         crdRouteID(rg.Metadata, method, routeIndex, backendIndex),
+					weight:     bref.Weight,
+					method:     method,
+					backend:    be,
 				})
 				if err != nil {
 					return nil, err
@@ -334,7 +363,7 @@ func transformRouteGroup(ctx *routeGroupContext) ([]*eskip.Route, error) {
 	return explicitGroupRoutes(ctx)
 }
 
-func (r *routeGroups) convert(s *clusterState, defaultFilters map[resourceID]string) ([]*eskip.Route, error) {
+func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Route, error) {
 	var rs []*eskip.Route
 
 	var missingName, missingSpec bool
@@ -351,7 +380,7 @@ func (r *routeGroups) convert(s *clusterState, defaultFilters map[resourceID]str
 
 		ri, err := transformRouteGroup(&routeGroupContext{
 			clusterState:   s,
-			defaultFilters: defaultFilters,
+			defaultFilters: df,
 			routeGroup:     rg,
 		})
 		if err != nil {

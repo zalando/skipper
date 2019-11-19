@@ -56,11 +56,11 @@ func testFixture(t *testing.T, yamlPath, eskipPath string) {
 		t.Fatal(err)
 	}
 
-	a, err := newAPI(yml)
+	defer yml.Close()
+	a, err := newAPI(testAPIOptions{}, yml)
 	if err != nil {
 		t.Fatal(err)
 	}
-	yml.Close()
 
 	s := httptest.NewServer(a)
 	defer s.Close()
@@ -86,6 +86,7 @@ func testFixture(t *testing.T, yamlPath, eskipPath string) {
 		t.Fatal(err)
 	}
 
+	defer eskp.Close()
 	b, err := ioutil.ReadAll(eskp)
 	if err != nil {
 		t.Fatal(err)
@@ -118,6 +119,7 @@ func testFixtures(t *testing.T, dir string) {
 		t.Fatal(err)
 	}
 
+	defer d.Close()
 	fs, err := d.Readdir(0)
 	if err != nil {
 		t.Fatal(err)

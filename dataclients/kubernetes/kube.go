@@ -2,13 +2,10 @@ package kubernetes
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -464,52 +461,18 @@ func (c *Client) Close() {
 	}
 }
 
-func (c *Client) fetchDefaultFilterConfigs() map[resourceID]string {
+func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 	if c.defaultFiltersDir == "" {
 		log.Debug("default filters are disabled")
-		return make(map[resourceID]string)
+		return nil
 	}
 
-	filters, err := c.getDefaultFilterConfigurations()
-
+	filters, err := readDefaultFilters(c.defaultFiltersDir)
 	if err != nil {
 		log.WithError(err).Error("could not fetch default filter configurations")
-		return make(map[resourceID]string)
+		return nil
 	}
 
 	log.WithField("#configs", len(filters)).Debug("default filter configurations loaded")
-
 	return filters
-}
-
-func (c *Client) getDefaultFilterConfigurations() (map[resourceID]string, error) {
-	files, err := ioutil.ReadDir(c.defaultFiltersDir)
-	if err != nil {
-		return nil, err
-	}
-
-	filters := make(map[resourceID]string)
-	for _, f := range files {
-		r := strings.Split(f.Name(), ".") // format: {service}.{namespace}
-		if len(r) != 2 || notRegularFile(f) || f.Size() > maxFileSize {
-			log.WithError(err).WithField("file", f.Name()).Debug("incompatible file")
-			continue
-		}
-
-		file := filepath.Join(c.defaultFiltersDir, f.Name())
-		config, err := ioutil.ReadFile(file)
-		if err != nil {
-			log.WithError(err).WithField("file", file).Debug("could not read file")
-			continue
-		}
-
-		filters[resourceID{name: r[0], namespace: r[1]}] = string(config)
-	}
-
-	return filters, nil
-}
-
-func notRegularFile(f os.FileInfo) bool {
-	mode := f.Mode()
-	return f.IsDir() || mode == os.ModeIrregular || mode == os.ModeDevice || mode == os.ModeNamedPipe || mode == os.ModeSocket
 }

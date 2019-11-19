@@ -3934,7 +3934,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		defer dc.Close()
 
-		df, err := dc.getDefaultFilterConfigurations()
+		df, err := readDefaultFilters(dc.defaultFiltersDir)
 
 		if err != nil || len(df) != 0 {
 			t.Error("should return empty slice", err, df)
@@ -3942,7 +3942,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 		}
 	})
 
-	t.Run("check fetchDefaultFilterConfigs returns empty map if fails to get the config map", func(t *testing.T) {
+	t.Run("check empty default filters do not panic", func(t *testing.T) {
 		dc, err := New(Options{
 			DefaultFiltersDir: "dir-does-not-exists",
 		})
@@ -3952,11 +3952,13 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		defer dc.Close()
 
-		f := dc.fetchDefaultFilterConfigs()
+		df := dc.fetchDefaultFilterConfigs()
+		defer func() {
+			if err := recover(); err != nil {
+				t.Error("failed to call empty default filters")
+			}
+		}()
 
-		if f == nil || len(f) != 0 {
-			t.Error("should return empty map", f)
-			return
-		}
+		df.get(resourceID{})
 	})
 }
