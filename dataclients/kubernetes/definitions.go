@@ -139,7 +139,7 @@ type servicePort struct {
 	TargetPort *backendPort `json:"targetPort"` // string or int
 }
 
-func (sp servicePort) MatchingPort(svcPort backendPort) bool {
+func (sp servicePort) matchingPort(svcPort backendPort) bool {
 	s := svcPort.String()
 	spt := strconv.Itoa(sp.Port)
 	return s != "" && (spt == s || sp.Name == s)
@@ -167,11 +167,21 @@ type serviceList struct {
 
 func (s service) getTargetPort(svcPort backendPort) (string, error) {
 	for _, sp := range s.Spec.Ports {
-		if sp.MatchingPort(svcPort) && sp.TargetPort != nil {
+		if sp.matchingPort(svcPort) && sp.TargetPort != nil {
 			return sp.TargetPort.String(), nil
 		}
 	}
-	return "", fmt.Errorf("getTargetPort: target port not found %v given %s", s.Spec.Ports, svcPort)
+	return "", fmt.Errorf("getTargetPort: target port not found %v given %v", s.Spec.Ports, svcPort)
+}
+
+func (s service) getTargetPortByValue(p int) (*backendPort, bool) {
+	for _, pi := range s.Spec.Ports {
+		if pi.Port == p {
+			return pi.TargetPort, true
+		}
+	}
+
+	return nil, false
 }
 
 type endpoint struct {
@@ -183,18 +193,50 @@ type endpointList struct {
 	Items []*endpoint `json:"items"`
 }
 
+func formatEndpoint(a *address, p *port) string {
+	return fmt.Sprintf("http://%s:%d", a.IP, p.Port)
+}
+
 func (ep endpoint) targets(svcPortName, svcPortTarget string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
+			// TODO: verify if the comparison of port.Name == svcPortName is valid,
+			// considering that the svcPortName is the name of service port specified
+			// in ingress. The right way probably is not to use the svcPortName here,
+			// since that's a reference from the ingress backend to the service, but
+			// use the svcPortTarget, which can be a name or a number, to compare it
+			// with the subset port.Name and port.Port, which is referenced by the
+			// service target port, which can also be either a name or a port value.
 			if port.Name == svcPortName || strconv.Itoa(port.Port) == svcPortTarget {
 				for _, addr := range s.Addresses {
-					result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
+					result = append(result, formatEndpoint(addr, port))
 				}
 			}
 		}
 	}
 	return result
+}
+
+func (ep endpoint) targetsByServiceTarget(serviceTarget *backendPort) []string {
+	portName, named := serviceTarget.value.(string)
+	portValue, byValue := serviceTarget.value.(int)
+	for _, s := range ep.Subsets {
+		for _, p := range s.Ports {
+			if named && p.Name != portName || byValue && p.Port != portValue {
+				continue
+			}
+
+			var result []string
+			for _, a := range s.Addresses {
+				result = append(result, formatEndpoint(a, p))
+			}
+
+			return result
+		}
+	}
+
+	return nil
 }
 
 type subset struct {

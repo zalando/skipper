@@ -171,7 +171,7 @@ information required to create the skipper
   type: <string>            one of "service|shunt|loopback|dynamic|lb|network"
   address: <string>         optional, required for type=network
   algorithm: <string>       optional, valid for type=lb|service
-  endpoints: <stringarray>  optional, required for type=lb|service
+  endpoints: <stringarray>  optional, required for type=lb
   serviceName: <string>     optional, required for type=service
   servicePort: <number>     optional, required for type=service
 ```

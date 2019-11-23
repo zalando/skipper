@@ -52,7 +52,29 @@ func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort
 	if len(targets) == 0 {
 		return nil, errEndpointNotFound
 	}
+
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
 	return targets, nil
+}
+
+func (state *clusterState) getEndpointsByTarget(namespace, name string, target *backendPort) []string {
+	epID := endpointID{
+		resourceID: newResourceID(namespace, name),
+		targetPort: target.String(),
+	}
+
+	if cached, ok := state.cachedEndpoints[epID]; ok {
+		return cached
+	}
+
+	ep, ok := state.endpoints[epID.resourceID]
+	if !ok {
+		return nil
+	}
+
+	targets := ep.targetsByServiceTarget(target)
+	sort.Strings(targets)
+	state.cachedEndpoints[epID] = targets
+	return targets
 }

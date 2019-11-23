@@ -18,12 +18,13 @@ import (
 )
 
 const (
-	defaultIngressClass = "skipper"
-	serviceHostEnvVar   = "KUBERNETES_SERVICE_HOST"
-	servicePortEnvVar   = "KUBERNETES_SERVICE_PORT"
-	healthcheckRouteID  = "kube__healthz"
-	httpRedirectRouteID = "kube__redirect"
-	healthcheckPath     = "/kube-system/healthz"
+	defaultIngressClass          = "skipper"
+	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
+	healthcheckRouteID           = "kube__healthz"
+	httpRedirectRouteID          = "kube__redirect"
+	healthcheckPath              = "/kube-system/healthz"
+	defaultLoadbalancerAlgorithm = "roundRobin"
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can

@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/loadbalancer"
 )
 
 // TODO:
@@ -13,6 +14,8 @@ import (
 // - HTTPS redirect
 // - east-west routes
 // - catch-all routes
+// - traffic control
+// - TODO: review whether it can crash on malformed input
 // - review errors and error reporting
 // - review and document which errors prevent load and load updates, and which ones are only logged
 // - document in the CRD that the service type must be ClusterIP when using service backends
@@ -117,9 +120,9 @@ func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Ro
 	return nil
 }
 
-func getServiceBackend(ctx *routeGroupContext, backend *skipperBackend) (string, error) {
+func getService(ctx *routeGroupContext, backend *skipperBackend) (*service, error) {
 	if backend.ServiceName == "" || backend.ServicePort <= 0 {
-		return "", fmt.Errorf(
+		return nil, fmt.Errorf(
 			"invalid service backend in routegroup/%s/%s: %s:%d",
 			namespaceString(ctx.routeGroup.Metadata.Namespace),
 			ctx.routeGroup.Metadata.Name,
@@ -133,45 +136,77 @@ func getServiceBackend(ctx *routeGroupContext, backend *skipperBackend) (string,
 		backend.ServiceName,
 	)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if strings.ToLower(s.Spec.Type) != "clusterip" {
-		return "", notSupportedServiceType(s)
+		return nil, notSupportedServiceType(s)
 	}
 
-	var portFound bool
 	for _, p := range s.Spec.Ports {
 		if p == nil {
 			continue
 		}
 
 		if p.Port == backend.ServicePort {
-			portFound = true
-			break
+			return s, nil
 		}
 	}
 
-	if !portFound {
-		return "", fmt.Errorf(
-			"service port not found for routegroup/%s/%s: %d",
-			namespaceString(ctx.routeGroup.Metadata.Namespace),
-			ctx.routeGroup.Metadata.Name,
-			backend.ServicePort,
-		)
+	return nil, fmt.Errorf(
+		"service port not found for routegroup/%s/%s: %d",
+		namespaceString(ctx.routeGroup.Metadata.Namespace),
+		ctx.routeGroup.Metadata.Name,
+		backend.ServicePort,
+	)
+}
+
+func createClusterIPBackend(s *service, backend *skipperBackend) string {
+	return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, backend.ServicePort)
+}
+
+func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Route) error {
+	s, err := getService(ctx, backend)
+	if err != nil {
+		return err
 	}
 
-	return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, backend.ServicePort), nil
+	targetPort, ok := s.getTargetPortByValue(backend.ServicePort)
+	if !ok {
+		// TODO: log fallback
+		r.BackendType = eskip.NetworkBackend
+		r.Backend = createClusterIPBackend(s, backend)
+		return err
+	}
+
+	eps := ctx.clusterState.getEndpointsByTarget(
+		namespaceString(ctx.routeGroup.Metadata.Namespace),
+		s.Meta.Name,
+		targetPort,
+	)
+
+	if len(eps) == 0 {
+		// TODO: log fallback
+		r.BackendType = eskip.NetworkBackend
+		r.Backend = createClusterIPBackend(s, backend)
+		return nil
+	}
+
+	r.BackendType = eskip.LBBackend
+	r.LBEndpoints = eps
+	r.LBAlgorithm = defaultLoadbalancerAlgorithm
+	if backend.Algorithm != loadbalancer.None {
+		r.LBAlgorithm = backend.Algorithm.String()
+	}
+
+	return nil
 }
 
 func applyBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Route) error {
-	// TODO: resolve to LB with the endpoints
 	r.BackendType = backend.Type
 	switch r.BackendType {
 	case serviceBackend:
-		r.BackendType = eskip.NetworkBackend
-		var err error
-		if r.Backend, err = getServiceBackend(ctx, backend); err != nil {
+		if err := applyServiceBackend(ctx, backend, r); err != nil {
 			return err
 		}
 
