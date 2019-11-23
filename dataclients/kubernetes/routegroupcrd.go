@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
@@ -90,23 +89,6 @@ type skipperBackend struct {
 
 	// Endpoints is required for Type lb
 	Endpoints []string
-}
-
-// TODO: do we use this? The way it is now is very imprecise and mixing concepts.
-// String implements stringer interface such that we can use it to set
-// eskip.Backend.
-func (sb skipperBackend) String() string {
-	switch sb.Type {
-	case eskip.ShuntBackend:
-		return "<shunt>"
-	case eskip.LoopBackend:
-		return "<loopback>"
-	case eskip.DynamicBackend:
-		return "<dynamic>"
-	case serviceBackend, eskip.LBBackend:
-		return fmt.Sprintf("<%s, %s>", sb.Algorithm, strings.Join(sb.Endpoints, ", "))
-	}
-	return ""
 }
 
 type backendReference struct {
@@ -199,14 +181,6 @@ func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
 	b.ServicePort = p.ServicePort
 	b.Algorithm = a
 	b.Endpoints = p.Endpoints
-
-	// Kubernetes case
-	if bt == serviceBackend {
-		// TODO: lookup algorithm with default and overriden annotation
-		b.Algorithm = a
-		// TODO: lookup endpoints from kube.go map
-		b.Endpoints = p.Endpoints
-	}
 
 	*sb = b
 	return nil

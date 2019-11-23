@@ -454,7 +454,7 @@ func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 	}
 }
 
-// TODO: default filters not applied to 'extra' routes from the custom route annotations
+// TODO: default filters not applied to 'extra' routes from the custom route annotations. Is it on purpose?
 func (ing *ingress) addSpecRule(ic ingressContext, ru *rule) error {
 	if ru.Http == nil {
 		ic.logger.Warn("invalid ingress item: rule missing http definitions")
@@ -527,7 +527,6 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *ingressItem) (
 			Filters:     f,
 		}, true, nil
 	} else {
-		// TODO(aryszka): check docs that service name is always good for requesting the endpoints
 		log.Debugf("Found target port %v, for service %s", targetPort, svcName)
 		eps, err = state.getEndpoints(
 			ns,

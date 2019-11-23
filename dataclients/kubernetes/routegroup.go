@@ -9,12 +9,13 @@ import (
 )
 
 // TODO:
-// - default filters, not on the catchall and custom annotation routes for ingress
-// - do we need catchall routes to return 404 for the routegroups?
-// - HTTPS redirect
-// - document which errors prevent load and load updates, and which ones are only logged
-// - resolve backend for implicitGroupRoutes
 // - resolve LB backends
+// - HTTPS redirect
+// - east-west routes
+// - catch-all routes
+// - review errors and error reporting
+// - review and document which errors prevent load and load updates, and which ones are only logged
+// - document in the CRD that the service type must be ClusterIP when using service backends
 
 type routeGroups struct{}
 
@@ -116,9 +117,80 @@ func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Ro
 	return nil
 }
 
-func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
-	// TODO: default filters
+func getServiceBackend(ctx *routeGroupContext, backend *skipperBackend) (string, error) {
+	if backend.ServiceName == "" || backend.ServicePort <= 0 {
+		return "", fmt.Errorf(
+			"invalid service backend in routegroup/%s/%s: %s:%d",
+			namespaceString(ctx.routeGroup.Metadata.Namespace),
+			ctx.routeGroup.Metadata.Name,
+			backend.ServiceName,
+			backend.ServicePort,
+		)
+	}
 
+	s, err := ctx.clusterState.getService(
+		namespaceString(ctx.routeGroup.Metadata.Namespace),
+		backend.ServiceName,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	if strings.ToLower(s.Spec.Type) != "clusterip" {
+		return "", notSupportedServiceType(s)
+	}
+
+	var portFound bool
+	for _, p := range s.Spec.Ports {
+		if p == nil {
+			continue
+		}
+
+		if p.Port == backend.ServicePort {
+			portFound = true
+			break
+		}
+	}
+
+	if !portFound {
+		return "", fmt.Errorf(
+			"service port not found for routegroup/%s/%s: %d",
+			namespaceString(ctx.routeGroup.Metadata.Namespace),
+			ctx.routeGroup.Metadata.Name,
+			backend.ServicePort,
+		)
+	}
+
+	return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, backend.ServicePort), nil
+}
+
+func applyBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Route) error {
+	// TODO: resolve to LB with the endpoints
+	r.BackendType = backend.Type
+	switch r.BackendType {
+	case serviceBackend:
+		r.BackendType = eskip.NetworkBackend
+		var err error
+		if r.Backend, err = getServiceBackend(ctx, backend); err != nil {
+			return err
+		}
+
+		if err := applyDefaultFilters(ctx, backend.ServiceName, r); err != nil {
+			log.Errorf("Failed to retrieve default filters: %v.", err)
+		}
+	case eskip.NetworkBackend:
+		r.Backend = backend.Address
+	case eskip.LBBackend:
+		r.LBAlgorithm = backend.Algorithm.String()
+		r.LBEndpoints = backend.Endpoints
+	default:
+		return notImplemented("backend type", r.BackendType)
+	}
+
+	return nil
+}
+
+func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 	rg := ctx.routeGroup
 	if len(rg.Spec.DefaultBackends) == 0 {
 		return nil, fmt.Errorf("missing route spec for route group: %s", rg.Metadata.Name)
@@ -142,12 +214,10 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		}
 
 		rid := crdRouteID(rg.Metadata, "all", 0, backendIndex)
-		ri := &eskip.Route{
-			Id:          rid,
-			BackendType: be.Type,
-			Backend:     be.String(),
-			LBAlgorithm: be.Algorithm.String(),
-			LBEndpoints: be.Endpoints,
+		ri := &eskip.Route{Id: rid}
+		if err := applyBackend(ctx, be, ri); err != nil {
+			// TODO: log only?
+			return nil, err
 		}
 
 		if be.Type == serviceBackend {
@@ -176,55 +246,6 @@ func appendPredicate(p []*eskip.Predicate, name string, args ...interface{}) []*
 		Name: name,
 		Args: args,
 	})
-}
-
-func getServiceBackend(ctx *routeContext) (string, error) {
-	if ctx.backend.ServiceName == "" || ctx.backend.ServicePort <= 0 {
-		return "", fmt.Errorf(
-			"invalid service backend in routegroup/%s/%s: %s:%d",
-			namespaceString(ctx.group.routeGroup.Metadata.Namespace),
-			ctx.group.routeGroup.Metadata.Name,
-			ctx.backend.ServiceName,
-			ctx.backend.ServicePort,
-		)
-	}
-
-	s, err := ctx.group.clusterState.getService(
-		namespaceString(ctx.group.routeGroup.Metadata.Namespace),
-		ctx.backend.ServiceName,
-	)
-	if err != nil {
-		return "", err
-	}
-
-	// TODO: document in the CRD that the service type must be ClusterIP
-	if strings.ToLower(s.Spec.Type) != "clusterip" {
-		return "", notSupportedServiceType(s)
-	}
-
-	var portFound bool
-	for _, p := range s.Spec.Ports {
-		if p == nil {
-			continue
-		}
-
-		if p.Port == ctx.backend.ServicePort {
-			portFound = true
-			break
-		}
-	}
-
-	if !portFound {
-		return "", fmt.Errorf(
-			"service port not found for routegroup/%s/%s: %d",
-			namespaceString(ctx.group.routeGroup.Metadata.Namespace),
-			ctx.group.routeGroup.Metadata.Name,
-			ctx.backend.ServicePort,
-		)
-	}
-
-	// TODO: does anyone use HTTPS inside the cluster?
-	return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, ctx.backend.ServicePort), nil
 }
 
 func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
@@ -272,30 +293,8 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	}
 
 	r.Filters = f
-
-	// TODO: resolve to LB with the endpoints
-	r.BackendType = ctx.backend.Type
-	switch r.BackendType {
-	case serviceBackend:
-		r.BackendType = eskip.NetworkBackend
-		var err error
-		if r.Backend, err = getServiceBackend(ctx); err != nil {
-			return nil, err
-		}
-
-		if err := applyDefaultFilters(ctx.group, ctx.backend.ServiceName, r); err != nil {
-			log.Errorf("Failed to retrieve default filters: %v.", err)
-		}
-	case eskip.NetworkBackend:
-		r.Backend = ctx.backend.Address
-	case eskip.LBBackend:
-		r.LBAlgorithm = ctx.backend.Algorithm.String()
-		r.LBEndpoints = ctx.backend.Endpoints
-	default:
-		return nil, notImplemented("backend type", r.BackendType)
-	}
-
-	return r, nil
+	err := applyBackend(ctx.group, ctx.backend, r)
+	return r, err
 }
 
 func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
