@@ -20,7 +20,7 @@ const (
 	skipperfilterAnnotationKey         = "zalando.org/skipper-filter"
 	skipperpredicateAnnotationKey      = "zalando.org/skipper-predicate"
 	skipperRoutesAnnotationKey         = "zalando.org/skipper-routes"
-	skipperLoadbalancerAnnotationKey   = "zalando.org/skipper-loadbalancer"
+	skipperLoadBalancerAnnotationKey   = "zalando.org/skipper-loadbalancer"
 	pathModeAnnotationKey              = "zalando.org/skipper-ingress-path-mode"
 	ingressOriginName                  = "ingress"
 )
@@ -95,8 +95,8 @@ func getServiceURL(svc *service, port backendPort) (string, error) {
 }
 
 func getLoadBalancerAlgorithm(m *metadata) string {
-	algorithm := defaultLoadbalancerAlgorithm
-	if algorithmAnnotationValue, ok := m.Annotations[skipperLoadbalancerAnnotationKey]; ok {
+	algorithm := defaultLoadBalancerAlgorithm
+	if algorithmAnnotationValue, ok := m.Annotations[skipperLoadBalancerAnnotationKey]; ok {
 		algorithm = algorithmAnnotationValue
 	}
 

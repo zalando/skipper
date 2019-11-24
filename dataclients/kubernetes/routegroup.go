@@ -13,6 +13,7 @@ import (
 // - east-west routes
 // - catch-all routes
 // - traffic control
+// - review host handling
 // - TODO: review whether it can crash on malformed input
 // - review errors and error reporting
 // - review and document which errors prevent load and load updates, and which ones are only logged
@@ -122,7 +123,7 @@ func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Ro
 	return nil
 }
 
-func getService(ctx *routeGroupContext, backend *skipperBackend) (*service, error) {
+func getBackendService(ctx *routeGroupContext, backend *skipperBackend) (*service, error) {
 	if backend.ServiceName == "" || backend.ServicePort <= 0 {
 		return nil, fmt.Errorf(
 			"invalid service backend in routegroup/%s/%s: %s:%d",
@@ -168,7 +169,7 @@ func createClusterIPBackend(s *service, backend *skipperBackend) string {
 }
 
 func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Route) error {
-	s, err := getService(ctx, backend)
+	s, err := getBackendService(ctx, backend)
 	if err != nil {
 		return err
 	}
@@ -196,7 +197,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *esk
 
 	r.BackendType = eskip.LBBackend
 	r.LBEndpoints = eps
-	r.LBAlgorithm = defaultLoadbalancerAlgorithm
+	r.LBAlgorithm = defaultLoadBalancerAlgorithm
 	if backend.Algorithm != loadbalancer.None {
 		r.LBAlgorithm = backend.Algorithm.String()
 	}
@@ -218,8 +219,9 @@ func applyBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Rout
 	case eskip.NetworkBackend:
 		r.Backend = backend.Address
 	case eskip.LBBackend:
-		r.LBAlgorithm = backend.Algorithm.String()
 		r.LBEndpoints = backend.Endpoints
+		r.LBAlgorithm = defaultLoadBalancerAlgorithm
+		r.LBAlgorithm = backend.Algorithm.String()
 	default:
 		return notImplemented("backend type", r.BackendType)
 	}

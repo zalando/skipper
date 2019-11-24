@@ -24,7 +24,7 @@ const (
 	healthcheckRouteID           = "kube__healthz"
 	httpRedirectRouteID          = "kube__redirect"
 	healthcheckPath              = "/kube-system/healthz"
-	defaultLoadbalancerAlgorithm = "roundRobin"
+	defaultLoadBalancerAlgorithm = "roundRobin"
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can

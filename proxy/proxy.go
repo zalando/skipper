@@ -190,7 +190,7 @@ type Params struct {
 	// set, no ratelimits are used.
 	RateLimiters *ratelimit.Registry
 
-	// Loadbalancer to report unhealthy or dead backends to
+	// LoadBalancer to report unhealthy or dead backends to
 	LoadBalancer *loadbalancer.LB
 
 	// Defines the time period of how often the idle connections are

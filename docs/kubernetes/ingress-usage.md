@@ -1013,7 +1013,7 @@ Example:
               serviceName: app-svc
               servicePort: 80
 
-## Loadbalancer Algorithm
+## Load Balancer Algorithm
 
 You can set the loadbalancer algorithm, which is used to find the next
 endpoint for a given request with the ingress annotation

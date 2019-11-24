@@ -11,7 +11,7 @@ It is important to note, that this predicate should not be used as
 the only gatekeeper for secure endpoints. Always use proper authorization
 and authentication for access control!
 
-To enable usage of this predicate behind loadbalancers or proxies, the
+To enable usage of this predicate behind load balancers or proxies, the
 X-Forwared-For header is used to determine the source of a request if it
 is available. If the X-Forwarded-For header is not present or does not contain
 a valid source address, the source IP of the incoming request is used for

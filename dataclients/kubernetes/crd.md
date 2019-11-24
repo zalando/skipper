@@ -947,7 +947,7 @@ also to be changed to make `RouteGroup` a useful tool to the user.
 #### Kube-ingress-aws-controller
 
 [Kube-ingress-aws-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller)
-needs to be changed to create the Loadbalancer based on the
+needs to be changed to create the load balancer based on the
 `RouteGroup`. It also needs to update the status field similar to the
 Ingress status field, in order to provide data for other controller,
 for example external-dns, to work on that.

@@ -147,7 +147,7 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 		setAnnotation(i, pathModeAnnotationKey, pathModeString)
 	}
 	if lbAlgorithm != "" {
-		setAnnotation(i, skipperLoadbalancerAnnotationKey, lbAlgorithm)
+		setAnnotation(i, skipperLoadBalancerAnnotationKey, lbAlgorithm)
 	}
 
 	return i
