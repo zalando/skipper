@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"fmt"
 	"strings"
+	// "github.com/zalando/skipper/eskip"
 )
 
 func rxDots(h string) string {
@@ -21,3 +22,11 @@ func createHostRx(h ...string) string {
 
 	return fmt.Sprintf("^(%s)$", strings.Join(hrx, "|"))
 }
+
+/*
+// currently only used for RG
+func hostCatchAllRoutes(hostRoutes map[string][]*eskip.Route) []*eskip.Route {
+	// take canonical to make sure that every predicate is in the predicates list
+	return nil
+}
+*/

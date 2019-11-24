@@ -10,7 +10,7 @@ import (
 )
 
 // TODO:
-// - catch-all routes
+// - catch-all routes: if host, but no other predicate
 // - traffic control
 // - verify routes copied when duplicated
 // - review host handling
@@ -19,7 +19,9 @@ import (
 // - review and document which errors prevent load and load updates, and which ones are only logged
 // - document in the CRD that the service type must be ClusterIP when using service backends
 // - reconsider implicit routes: do we need them? They have a double behavior this way
-// - document the implicit routes
+// - document the implicit routes, or clarify: spec.routes is not optional, but the minimal example doesn't have
+// any
+// - document the rules and the loopholes with the host catch-all routes
 
 type routeGroups struct {
 	options Options
@@ -30,9 +32,10 @@ type routeGroupContext struct {
 	defaultFilters  defaultFilters
 	routeGroup      *routeGroupItem
 	hostRx          string
-	backendsByName  map[string]*skipperBackend
+	hasEastWestHost bool
 	eastWestEnabled bool
 	eastWestDomain  string
+	backendsByName  map[string]*skipperBackend
 }
 
 type routeContext struct {
@@ -68,6 +71,16 @@ func notSupportedServiceType(s *service) error {
 
 func notImplemented(a ...interface{}) error {
 	return fmt.Errorf("not implemented: %v", fmt.Sprint(a...))
+}
+
+func hasEastWestHost(eastWestPostfix string, hosts []string) bool {
+	for _, h := range hosts {
+		if strings.HasSuffix(h, eastWestPostfix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func toSymbol(p string) string {
@@ -230,6 +243,9 @@ func appendPredicate(p []*eskip.Predicate, name string, args ...interface{}) []*
 	})
 }
 
+// implicitGroupRoutes creates routes for those route groups where the route
+// `route` field are not defined, and the routes are derived from the default
+// backends.
 func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 	rg := ctx.routeGroup
 	if len(rg.Spec.DefaultBackends) == 0 {
@@ -271,7 +287,7 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		}
 
 		routes = append(routes, ri)
-		if ctx.eastWestEnabled {
+		if ctx.eastWestEnabled && !ctx.hasEastWestHost {
 			// how will the route group name for the domain name play together with
 			// zalando.org/v1/stackset and zalando.org/v1/fabricgateway? Wouldn't it be better to
 			// use the service name instead?
@@ -339,6 +355,8 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	return r, err
 }
 
+// explicitGroupRoutes creates routes for those route groups that have the 
+// `route` field explicitly defined.
 func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 	// TODO: default filters
 
@@ -382,7 +400,7 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 				}
 
 				routes = append(routes, r)
-				if ctx.eastWestEnabled {
+				if ctx.eastWestEnabled && ctx.hasEastWestHost {
 					// how will the route group name for the domain name play together
 					// with zalando.org/v1/stackset and zalando.org/v1/fabricgateway?
 					// Wouldn't it be better to use the service name instead?
@@ -409,8 +427,6 @@ func transformRouteGroup(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		return nil, fmt.Errorf("missing backend for route group: %s", rg.Metadata.Name)
 	}
 
-	ctx.hostRx = createHostRx(rg.Spec.Hosts...)
-	ctx.backendsByName = mapBackends(rg.Spec.Backends)
 	if len(rg.Spec.Routes) == 0 {
 		return implicitGroupRoutes(ctx)
 	}
@@ -433,13 +449,18 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 			continue
 		}
 
-		ri, err := transformRouteGroup(&routeGroupContext{
+		ctx := &routeGroupContext{
 			clusterState:    s,
 			defaultFilters:  df,
 			routeGroup:      rg,
+			hostRx:          createHostRx(rg.Spec.Hosts...),
+			hasEastWestHost: hasEastWestHost(r.options.KubernetesEastWestDomain, rg.Spec.Hosts),
 			eastWestEnabled: r.options.KubernetesEnableEastWest,
 			eastWestDomain:  r.options.KubernetesEastWestDomain,
-		})
+			backendsByName:  mapBackends(rg.Spec.Backends),
+		}
+
+		ri, err := transformRouteGroup(ctx)
 		if err != nil {
 			log.Errorf("Error transforming route group %s: %v.", rg.Metadata.Name, err)
 			continue
