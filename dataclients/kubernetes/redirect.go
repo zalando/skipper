@@ -186,16 +186,3 @@ func createHTTPSRedirect(code int, r *eskip.Route) *eskip.Route {
 
 	return rr
 }
-
-func createHTTPSRedirectRoutes(code int, routes []*eskip.Route) []*eskip.Route {
-	redirect := make([]*eskip.Route, 0, len(routes))
-	for _, ri := range routes {
-		// in case a route explicitly handles the forwarded proto header, we
-		// don't override it
-		if !hasProtoPredicate(ri) {
-			redirect = append(redirect, createHTTPSRedirect(code, ri))
-		}
-	}
-
-	return redirect
-}

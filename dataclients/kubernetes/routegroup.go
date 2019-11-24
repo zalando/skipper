@@ -10,12 +10,10 @@ import (
 )
 
 // TODO:
-// - catch-all routes: if host, but no other predicate
 // - traffic control
-// - verify routes copied when duplicated
-// - review host handling
-// - TODO: review whether it can crash on malformed input
-// - review errors and error reporting
+// - verify that routes are copied when duplicated
+// - review whether it can crash on malformed input
+// - review errors, error reporting and logging
 // - review and document which errors prevent load and load updates, and which ones are only logged
 // - document in the CRD that the service type must be ClusterIP when using service backends
 // - reconsider implicit routes: do we need them? They have a double behavior this way
@@ -28,14 +26,17 @@ type routeGroups struct {
 }
 
 type routeGroupContext struct {
-	clusterState    *clusterState
-	defaultFilters  defaultFilters
-	routeGroup      *routeGroupItem
-	hostRx          string
-	hasEastWestHost bool
-	eastWestEnabled bool
-	eastWestDomain  string
-	backendsByName  map[string]*skipperBackend
+	clusterState         *clusterState
+	defaultFilters       defaultFilters
+	routeGroup           *routeGroupItem
+	hostRx               string
+	hostRoutes           map[string][]*eskip.Route
+	hasEastWestHost      bool
+	eastWestEnabled      bool
+	eastWestDomain       string
+	provideHTTPSRedirect bool
+	httpsRedirectCode    int
+	backendsByName       map[string]*skipperBackend
 }
 
 type routeContext struct {
@@ -99,9 +100,19 @@ func toSymbol(p string) string {
 	return string(b)
 }
 
-func crdRouteID(m *metadata, method string, routeIndex, backendIndex int) string {
+func rgRouteID(namespace, name, subName string, index, subIndex int) string {
 	return fmt.Sprintf(
 		"kube_rg__%s__%s__%s__%d_%d",
+		namespace,
+		name,
+		subName,
+		index,
+		subIndex,
+	)
+}
+
+func crdRouteID(m *metadata, method string, routeIndex, backendIndex int) string {
+	return rgRouteID(
 		toSymbol(namespaceString(m.Namespace)),
 		toSymbol(m.Name),
 		toSymbol(method),
@@ -243,9 +254,45 @@ func appendPredicate(p []*eskip.Predicate, name string, args ...interface{}) []*
 	})
 }
 
-// implicitGroupRoutes creates routes for those route groups where the route
-// `route` field are not defined, and the routes are derived from the default
-// backends.
+func storeHostRoute(ctx *routeGroupContext, r *eskip.Route) {
+	for _, h := range ctx.routeGroup.Spec.Hosts {
+		ctx.hostRoutes[h] = append(ctx.hostRoutes[h], r)
+	}
+}
+
+func appendEastWest(ctx *routeGroupContext, routes []*eskip.Route, current *eskip.Route) []*eskip.Route {
+	// how will the route group name for the domain name play together with
+	// zalando.org/v1/stackset and zalando.org/v1/fabricgateway? Wouldn't it be better to
+	// use the service name instead?
+
+	if !ctx.eastWestEnabled || ctx.hasEastWestHost {
+		return routes
+	}
+
+	ewr := createEastWestRouteRG(
+		ctx.routeGroup.Metadata.Name,
+		namespaceString(ctx.routeGroup.Metadata.Namespace),
+		ctx.eastWestDomain,
+		current,
+	)
+
+	return append(routes, ewr)
+}
+
+func appendHTTPSRedirect(ctx *routeGroupContext, routes []*eskip.Route, current *eskip.Route) []*eskip.Route {
+	// in case a route explicitly handles the forwarded proto header, we
+	// don't shadow it
+
+	if ctx.provideHTTPSRedirect && !hasProtoPredicate(current) {
+		hsr := createHTTPSRedirect(ctx.httpsRedirectCode, current)
+		routes = append(routes, hsr)
+	}
+
+	return routes
+}
+
+// implicitGroupRoutes creates routes for those route groups where the `route`
+// field is not defined, and the routes are derived from the default backends.
 func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 	rg := ctx.routeGroup
 	if len(rg.Spec.DefaultBackends) == 0 {
@@ -286,21 +333,10 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 			ri.Predicates = appendPredicate(ri.Predicates, "Host", ctx.hostRx)
 		}
 
+		storeHostRoute(ctx, ri)
 		routes = append(routes, ri)
-		if ctx.eastWestEnabled && !ctx.hasEastWestHost {
-			// how will the route group name for the domain name play together with
-			// zalando.org/v1/stackset and zalando.org/v1/fabricgateway? Wouldn't it be better to
-			// use the service name instead?
-
-			ewr := createEastWestRouteRG(
-				rg.Metadata.Name,
-				namespaceString(rg.Metadata.Namespace),
-				ctx.eastWestDomain,
-				ri,
-			)
-
-			routes = append(routes, ewr)
-		}
+		routes = appendEastWest(ctx, routes, ri)
+		routes = appendHTTPSRedirect(ctx, routes, ri)
 	}
 
 	return routes, nil
@@ -355,7 +391,7 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	return r, err
 }
 
-// explicitGroupRoutes creates routes for those route groups that have the 
+// explicitGroupRoutes creates routes for those route groups that have the
 // `route` field explicitly defined.
 func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 	// TODO: default filters
@@ -399,21 +435,10 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 					return nil, err
 				}
 
+				storeHostRoute(ctx, r)
 				routes = append(routes, r)
-				if ctx.eastWestEnabled && ctx.hasEastWestHost {
-					// how will the route group name for the domain name play together
-					// with zalando.org/v1/stackset and zalando.org/v1/fabricgateway?
-					// Wouldn't it be better to use the service name instead?
-
-					ewr := createEastWestRouteRG(
-						rg.Metadata.Name,
-						namespaceString(rg.Metadata.Namespace),
-						ctx.eastWestDomain,
-						r,
-					)
-
-					routes = append(routes, ewr)
-				}
+				routes = appendEastWest(ctx, routes, r)
+				routes = appendHTTPSRedirect(ctx, routes, r)
 			}
 		}
 	}
@@ -437,6 +462,7 @@ func transformRouteGroup(ctx *routeGroupContext) ([]*eskip.Route, error) {
 func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Route, error) {
 	var rs []*eskip.Route
 
+	hostRoutes := make(map[string][]*eskip.Route)
 	var missingName, missingSpec bool
 	for _, rg := range s.routeGroups {
 		if rg.Metadata == nil || rg.Metadata.Name == "" {
@@ -450,14 +476,17 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 		}
 
 		ctx := &routeGroupContext{
-			clusterState:    s,
-			defaultFilters:  df,
-			routeGroup:      rg,
-			hostRx:          createHostRx(rg.Spec.Hosts...),
-			hasEastWestHost: hasEastWestHost(r.options.KubernetesEastWestDomain, rg.Spec.Hosts),
-			eastWestEnabled: r.options.KubernetesEnableEastWest,
-			eastWestDomain:  r.options.KubernetesEastWestDomain,
-			backendsByName:  mapBackends(rg.Spec.Backends),
+			clusterState:         s,
+			defaultFilters:       df,
+			routeGroup:           rg,
+			hostRx:               createHostRx(rg.Spec.Hosts...),
+			hostRoutes:           hostRoutes,
+			hasEastWestHost:      hasEastWestHost(r.options.KubernetesEastWestDomain, rg.Spec.Hosts),
+			eastWestEnabled:      r.options.KubernetesEnableEastWest,
+			eastWestDomain:       r.options.KubernetesEastWestDomain,
+			provideHTTPSRedirect: r.options.ProvideHTTPSRedirect,
+			httpsRedirectCode:    r.options.HTTPSRedirectCode,
+			backendsByName:       mapBackends(rg.Spec.Backends),
 		}
 
 		ri, err := transformRouteGroup(ctx)
@@ -477,11 +506,11 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 		log.Error("One or more route groups without a spec were detected.")
 	}
 
-	var httpsRedirect []*eskip.Route
-	if r.options.ProvideHTTPSRedirect {
-		httpsRedirect = createHTTPSRedirectRoutes(r.options.HTTPSRedirectCode, rs)
-	}
+	catchAll := hostCatchAllRoutes(hostRoutes, func(host string) string {
+		// "catchall" won't conflict with any HTTP method
+		return rgRouteID("", toSymbol(host), "catchall", 0, 0)
+	})
 
-	rs = append(rs, httpsRedirect...)
+	rs = append(rs, catchAll...)
 	return rs, nil
 }
