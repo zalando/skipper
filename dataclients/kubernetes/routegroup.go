@@ -10,8 +10,6 @@ import (
 )
 
 // TODO:
-// - resolve LB backends
-// - HTTPS redirect
 // - east-west routes
 // - catch-all routes
 // - traffic control
@@ -19,8 +17,12 @@ import (
 // - review errors and error reporting
 // - review and document which errors prevent load and load updates, and which ones are only logged
 // - document in the CRD that the service type must be ClusterIP when using service backends
+// - reconsider implicit routes: do we need them? They have a double behavior this way
+// - document the implicit routes
 
-type routeGroups struct{}
+type routeGroups struct {
+	options Options
+}
 
 type routeGroupContext struct {
 	clusterState   *clusterState
@@ -39,8 +41,8 @@ type routeContext struct {
 	backend    *skipperBackend
 }
 
-func newRouteGroups(Options) *routeGroups {
-	return &routeGroups{}
+func newRouteGroups(o Options) *routeGroups {
+	return &routeGroups{options: o}
 }
 
 func invalidBackendRef(rg *routeGroupItem, name string) error {
@@ -431,6 +433,11 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 
 	if missingSpec {
 		log.Error("One or more route groups without a spec were detected.")
+	}
+
+	if r.options.ProvideHTTPSRedirect {
+		rr := createHTTPSRedirectRoutes(rs, r.options.HTTPSRedirectCode)
+		rs = append(rs, rr...)
 	}
 
 	return rs, nil

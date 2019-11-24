@@ -12,6 +12,7 @@ import (
 const (
 	redirectAnnotationKey     = "zalando.org/skipper-ingress-redirect"
 	redirectCodeAnnotationKey = "zalando.org/skipper-ingress-redirect-code"
+	forwardedProtoHeader      = "X-Forwarded-Proto"
 )
 
 type redirectInfo struct {
@@ -84,7 +85,7 @@ func initRedirectRoute(r *eskip.Route, code int) {
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
-	r.Headers["X-Forwarded-Proto"] = "http"
+	r.Headers[forwardedProtoHeader] = "http"
 
 	// the below duplicate any-path (.*) is set to make sure that
 	// the redirect route has a higher priority during matching than
@@ -110,7 +111,7 @@ func initDisableRedirectRoute(r *eskip.Route) {
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
-	r.Headers["X-Forwarded-Proto"] = "http"
+	r.Headers[forwardedProtoHeader] = "http"
 
 	// the below duplicate any-path (.*) is set to make sure that
 	// the redirect route has a higher priority during matching than
@@ -142,4 +143,52 @@ func createIngressDisableHTTPSRedirect(r *eskip.Route) *eskip.Route {
 	rr.Id = routeIDForRedirectRoute(rr.Id, false)
 	initDisableRedirectRoute(&rr)
 	return &rr
+}
+
+func hasHTTPSProtoPredicate(r *eskip.Route) bool {
+	if r.Headers != nil {
+		for name := range r.Headers {
+			if http.CanonicalHeaderKey(name) == forwardedProtoHeader {
+				return true
+			}
+		}
+	}
+
+	if r.HeaderRegexps != nil {
+		for name := range r.HeaderRegexps {
+			if http.CanonicalHeaderKey(name) == forwardedProtoHeader {
+				return true
+			}
+		}
+	}
+
+	for _, p := range r.Predicates {
+		if p.Name != "Header" && p.Name != "HeaderRegexp" {
+			continue
+		}
+
+		if len(p.Args) > 0 && p.Args[0] == forwardedProtoHeader {
+			return true
+		}
+	}
+
+	return false
+}
+
+func createHTTPSRedirect(r *eskip.Route, code int) *eskip.Route {
+	rr := *r
+	rr.Id = routeIDForRedirectRoute(rr.Id, true)
+	initRedirectRoute(&rr, code)
+	return &rr
+}
+
+func createHTTPSRedirectRoutes(routes []*eskip.Route, code int) []*eskip.Route {
+	redirect := make([]*eskip.Route, 0, len(routes))
+	for _, ri := range routes {
+		if !hasHTTPSProtoPredicate(ri) {
+			redirect = append(redirect, createHTTPSRedirect(ri, code))
+		}
+	}
+
+	return redirect
 }
