@@ -145,7 +145,7 @@ func createIngressDisableHTTPSRedirect(r *eskip.Route) *eskip.Route {
 	return &rr
 }
 
-func hasHTTPSProtoPredicate(r *eskip.Route) bool {
+func hasProtoPredicate(r *eskip.Route) bool {
 	if r.Headers != nil {
 		for name := range r.Headers {
 			if http.CanonicalHeaderKey(name) == forwardedProtoHeader {
@@ -175,18 +175,25 @@ func hasHTTPSProtoPredicate(r *eskip.Route) bool {
 	return false
 }
 
-func createHTTPSRedirect(r *eskip.Route, code int) *eskip.Route {
-	rr := *r
+func createHTTPSRedirect(code int, r *eskip.Route) *eskip.Route {
+	// copy to avoid unexpected mutations
+	rr := eskip.Copy(r)
 	rr.Id = routeIDForRedirectRoute(rr.Id, true)
-	initRedirectRoute(&rr, code)
-	return &rr
+	rr.Predicates = append(rr.Predicates, &eskip.Predicate{
+		Name: "Header",
+		Args: []interface{}{forwardedProtoHeader, "http"},
+	})
+
+	return rr
 }
 
-func createHTTPSRedirectRoutes(routes []*eskip.Route, code int) []*eskip.Route {
+func createHTTPSRedirectRoutes(code int, routes []*eskip.Route) []*eskip.Route {
 	redirect := make([]*eskip.Route, 0, len(routes))
 	for _, ri := range routes {
-		if !hasHTTPSProtoPredicate(ri) {
-			redirect = append(redirect, createHTTPSRedirect(ri, code))
+		// in case a route explicitly handles the forwarded proto header, we
+		// don't override it
+		if !hasProtoPredicate(ri) {
+			redirect = append(redirect, createHTTPSRedirect(code, ri))
 		}
 	}
 

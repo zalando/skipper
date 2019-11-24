@@ -13,16 +13,15 @@ import (
 )
 
 const (
-	defaultEastWestDomainRegexpPostfix = "[.]skipper[.]cluster[.]local"
-	ingressRouteIDPrefix               = "kube"
-	backendWeightsAnnotationKey        = "zalando.org/backend-weights"
-	ratelimitAnnotationKey             = "zalando.org/ratelimit"
-	skipperfilterAnnotationKey         = "zalando.org/skipper-filter"
-	skipperpredicateAnnotationKey      = "zalando.org/skipper-predicate"
-	skipperRoutesAnnotationKey         = "zalando.org/skipper-routes"
-	skipperLoadBalancerAnnotationKey   = "zalando.org/skipper-loadbalancer"
-	pathModeAnnotationKey              = "zalando.org/skipper-ingress-path-mode"
-	ingressOriginName                  = "ingress"
+	ingressRouteIDPrefix             = "kube"
+	backendWeightsAnnotationKey      = "zalando.org/backend-weights"
+	ratelimitAnnotationKey           = "zalando.org/ratelimit"
+	skipperfilterAnnotationKey       = "zalando.org/skipper-filter"
+	skipperpredicateAnnotationKey    = "zalando.org/skipper-predicate"
+	skipperRoutesAnnotationKey       = "zalando.org/skipper-routes"
+	skipperLoadBalancerAnnotationKey = "zalando.org/skipper-loadbalancer"
+	pathModeAnnotationKey            = "zalando.org/skipper-ingress-path-mode"
+	ingressOriginName                = "ingress"
 )
 
 type ingressContext struct {
@@ -54,17 +53,9 @@ func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 }
 
 func newIngress(o Options, httpsRedirectCode int) *ingress {
-	eastWestDomainRegexpPostfix := defaultEastWestDomainRegexpPostfix
-	if o.KubernetesEastWestDomain != "" {
-		if strings.HasPrefix(o.KubernetesEastWestDomain, ".") {
-			o.KubernetesEastWestDomain = o.KubernetesEastWestDomain[1:len(o.KubernetesEastWestDomain)]
-		}
-
-		if strings.HasSuffix(o.KubernetesEastWestDomain, ".") {
-			o.KubernetesEastWestDomain = o.KubernetesEastWestDomain[:len(o.KubernetesEastWestDomain)-1]
-		}
-
-		eastWestDomainRegexpPostfix = "[.]" + strings.Replace(o.KubernetesEastWestDomain, ".", "[.]", -1)
+	var ewPostfix string
+	if o.KubernetesEnableEastWest {
+		ewPostfix = "[.]" + strings.Replace(o.KubernetesEastWestDomain, ".", "[.]", -1)
 	}
 
 	return &ingress{
@@ -72,7 +63,7 @@ func newIngress(o Options, httpsRedirectCode int) *ingress {
 		httpsRedirectCode:           httpsRedirectCode,
 		pathMode:                    o.PathMode,
 		kubernetesEnableEastWest:    o.KubernetesEnableEastWest,
-		eastWestDomainRegexpPostfix: eastWestDomainRegexpPostfix,
+		eastWestDomainRegexpPostfix: ewPostfix,
 	}
 }
 
@@ -118,10 +109,6 @@ func routeID(namespace, name, host, path, backend string) string {
 func routeIDForCustom(namespace, name, id, host string, index int) string {
 	name = name + "_" + id + "_" + strconv.Itoa(index)
 	return routeID(namespace, name, host, "", "")
-}
-
-func patchRouteID(rid string) string {
-	return "kubeew" + rid[len(ingressRouteIDPrefix):]
 }
 
 func setPath(m PathMode, r *eskip.Route, p string) {
@@ -579,34 +566,11 @@ func countPathRoutes(r *eskip.Route) int {
 	return i
 }
 
-func createEastWestRoutes(eastWestDomainRegexpPostfix, name, ns string, routes []*eskip.Route) []*eskip.Route {
-	ewroutes := make([]*eskip.Route, 0)
-	newHostRegexps := []string{"^" + name + "[.]" + ns + eastWestDomainRegexpPostfix + "$"}
-	ingressAlreadyHandled := false
-
-	for _, r := range routes {
-		// TODO(sszuecs) we have to rethink how to handle eastwest routes in more complex cases
-		n := countPathRoutes(r)
-		// FIX memory leak in route creation
-		if strings.HasPrefix(r.Id, "kubeew") || (n == 0 && ingressAlreadyHandled) {
-			continue
-		}
-		r.Namespace = ns // store namespace
-		r.Name = name    // store name
-		ewR := *r
-		ewR.HostRegexps = newHostRegexps
-		ewR.Id = patchRouteID(r.Id)
-		ewroutes = append(ewroutes, &ewR)
-		ingressAlreadyHandled = true
-	}
-	return ewroutes
-}
-
 // TODO: check if this creates additional routes also for routes like the HTTPS redirect
 func (ing *ingress) addEastWestRoutes(hostRoutes map[string][]*eskip.Route, i *ingressItem) {
 	for _, rule := range i.Spec.Rules {
 		if rs, ok := hostRoutes[rule.Host]; ok {
-			rs = append(rs, createEastWestRoutes(ing.eastWestDomainRegexpPostfix, i.Metadata.Name, i.Metadata.Namespace, rs)...)
+			rs = append(rs, createEastWestRoutesIng(ing.eastWestDomainRegexpPostfix, i.Metadata.Name, i.Metadata.Namespace, rs)...)
 			hostRoutes[rule.Host] = rs
 		}
 	}
@@ -733,16 +697,6 @@ func (ing *ingress) ingressRoute(
 	return route, nil
 }
 
-func createEastWestRoute(eastWestDomainRegexpPostfix, name, ns string, r *eskip.Route) *eskip.Route {
-	if strings.HasPrefix(r.Id, "kubeew") || ns == "" || name == "" {
-		return nil
-	}
-	ewR := *r
-	ewR.HostRegexps = []string{"^" + name + "[.]" + ns + eastWestDomainRegexpPostfix + "$"}
-	ewR.Id = patchRouteID(r.Id)
-	return &ewR
-}
-
 func (ing *ingress) addCatchAllRoutes(host string, r *eskip.Route, redirect *redirectInfo) []*eskip.Route {
 	catchAll := &eskip.Route{
 		Id:          routeID("", "catchall", host, "", ""),
@@ -751,7 +705,7 @@ func (ing *ingress) addCatchAllRoutes(host string, r *eskip.Route, redirect *red
 	}
 	routes := []*eskip.Route{catchAll}
 	if ing.kubernetesEnableEastWest {
-		if ew := createEastWestRoute(ing.eastWestDomainRegexpPostfix, r.Name, r.Namespace, catchAll); ew != nil {
+		if ew := createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, r.Name, r.Namespace, catchAll); ew != nil {
 			routes = append(routes, ew)
 		}
 	}

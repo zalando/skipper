@@ -3716,7 +3716,7 @@ func TestCreateEastWestRoute(t *testing.T) {
 		expectedID: "kubeew_foo__qux__www3_example_org___a_path__bar",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			ewrs := createEastWestRoutes(defaultEastWestDomainRegexpPostfix, "foo", "qux", []*eskip.Route{ti.route})
+			ewrs := createEastWestRoutesIng(rxDots("."+defaultEastWestDomain), "foo", "qux", []*eskip.Route{ti.route})
 			ewr := ewrs[0]
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
@@ -3785,8 +3785,13 @@ func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
 		expectedDomain: "internal.cluster.local",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			ing := newIngress(Options{KubernetesEastWestDomain: ti.domain}, http.StatusFound)
-			ewrs := createEastWestRoutes(ing.eastWestDomainRegexpPostfix, ti.name, ti.namespace, []*eskip.Route{ti.route})
+			kube, err := New(Options{KubernetesEnableEastWest: true, KubernetesEastWestDomain: ti.domain})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ing := kube.ingress
+			ewrs := createEastWestRoutesIng(ing.eastWestDomainRegexpPostfix, ti.name, ti.namespace, []*eskip.Route{ti.route})
 			ewr := ewrs[0]
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,6 +26,7 @@ const (
 	httpRedirectRouteID          = "kube__redirect"
 	healthcheckPath              = "/kube-system/healthz"
 	defaultLoadBalancerAlgorithm = "roundRobin"
+	defaultEastWestDomain        = "skipper.cluster.local"
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -208,6 +210,14 @@ func New(o Options) (*Client, error) {
 	httpsRedirectCode := http.StatusPermanentRedirect
 	if o.HTTPSRedirectCode != 0 {
 		httpsRedirectCode = o.HTTPSRedirectCode
+	}
+
+	if o.KubernetesEnableEastWest {
+		if o.KubernetesEastWestDomain == "" {
+			o.KubernetesEastWestDomain = defaultEastWestDomain
+		} else {
+			o.KubernetesEastWestDomain = strings.Trim(o.KubernetesEastWestDomain, ".")
+		}
 	}
 
 	clusterClient, err := newClusterClient(o, apiURL, ingCls, quit)
