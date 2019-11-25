@@ -10,7 +10,7 @@ import (
 )
 
 // TODO:
-// - traffic control
+// - verify the uniqueness of the list fields, not only the method
 // - verify that routes are copied when duplicated
 // - review whether it can crash on malformed input
 // - review errors, error reporting and logging
@@ -20,23 +20,25 @@ import (
 // - document the implicit routes, or clarify: spec.routes is not optional, but the minimal example doesn't have
 // any
 // - document the rules and the loopholes with the host catch-all routes
+// - document the behavior of the weight implementation
 
 type routeGroups struct {
 	options Options
 }
 
 type routeGroupContext struct {
-	clusterState         *clusterState
-	defaultFilters       defaultFilters
-	routeGroup           *routeGroupItem
-	hostRx               string
-	hostRoutes           map[string][]*eskip.Route
-	hasEastWestHost      bool
-	eastWestEnabled      bool
-	eastWestDomain       string
-	provideHTTPSRedirect bool
-	httpsRedirectCode    int
-	backendsByName       map[string]*skipperBackend
+	clusterState          *clusterState
+	defaultFilters        defaultFilters
+	routeGroup            *routeGroupItem
+	hostRx                string
+	hostRoutes            map[string][]*eskip.Route
+	hasEastWestHost       bool
+	eastWestEnabled       bool
+	eastWestDomain        string
+	provideHTTPSRedirect  bool
+	httpsRedirectCode     int
+	backendsByName        map[string]*skipperBackend
+	defaultBackendTraffic map[string]float64
 }
 
 type routeContext struct {
@@ -128,6 +130,39 @@ func mapBackends(backends []*skipperBackend) map[string]*skipperBackend {
 	}
 
 	return m
+}
+
+// calculateTraffic calculates the traffic values for the skipper Traffic() predicates
+// based on the weight values in the backend references. It represents the remainder
+// traffic as 1, where no Traffic predicate is meant to be set.
+func calculateTraffic(b []*backendReference) map[string]float64 {
+	var sum int
+	weights := make([]int, len(b))
+	for i, bi := range b {
+		// TODO: validate no negative
+		sum += bi.Weight
+		weights[i] = bi.Weight
+	}
+
+	if sum == 0 {
+		sum = len(weights)
+		for i := range weights {
+			weights[i] = 1
+		}
+	}
+
+	traffic := make(map[string]float64)
+	for i, bi := range b {
+		if sum == 0 {
+			traffic[bi.BackendName] = 1
+			break
+		}
+
+		traffic[bi.BackendName] = float64(weights[i]) / float64(sum)
+		sum -= weights[i]
+	}
+
+	return traffic
 }
 
 func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Route) error {
@@ -333,6 +368,10 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 			ri.Predicates = appendPredicate(ri.Predicates, "Host", ctx.hostRx)
 		}
 
+		if traffic := ctx.defaultBackendTraffic[beref.BackendName]; traffic < 1 {
+			ri.Predicates = appendPredicate(ri.Predicates, "Traffic", traffic)
+		}
+
 		storeHostRoute(ctx, ri)
 		routes = append(routes, ri)
 		routes = appendEastWest(ctx, routes, ri)
@@ -409,8 +448,10 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		}
 
 		backendRefs := rg.Spec.DefaultBackends
+		backendTraffic := ctx.defaultBackendTraffic
 		if len(rgr.Backends) != 0 {
 			backendRefs = rgr.Backends
+			backendTraffic = calculateTraffic(rgr.Backends)
 		}
 
 		// TODO: handling errors. If we consider the route groups independent, then
@@ -435,6 +476,10 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 					return nil, err
 				}
 
+				if traffic := backendTraffic[bref.BackendName]; traffic < 1 {
+					r.Predicates = appendPredicate(r.Predicates, "Traffic", traffic)
+				}
+
 				storeHostRoute(ctx, r)
 				routes = append(routes, r)
 				routes = appendEastWest(ctx, routes, r)
@@ -452,6 +497,7 @@ func transformRouteGroup(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		return nil, fmt.Errorf("missing backend for route group: %s", rg.Metadata.Name)
 	}
 
+	ctx.defaultBackendTraffic = calculateTraffic(rg.Spec.DefaultBackends)
 	if len(rg.Spec.Routes) == 0 {
 		return implicitGroupRoutes(ctx)
 	}

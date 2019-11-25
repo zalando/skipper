@@ -31,8 +31,8 @@ First you can create one Ingress for your application and one for each
 redirect. The redirect would be done by matching the request with
 annotation `zalando.org/skipper-predicate` and applying the
 [redirectTo filter](https://opensource.zalando.com/skipper/reference/filters/#redirectto)
-with `zalando.org/skipper-filter` annotation. This solution is more
-maintenance and you need to assign all Ingress a valid Kubernetes
+with `zalando.org/skipper-filter` annotation. This solution needs more
+maintenance and assigning all Ingresses a valid Kubernetes
 service as a backend, that is not used for a redirect.
 
 As second solution you can use `zalando.org/skipper-routes`. It does
@@ -49,14 +49,14 @@ annotation `zalando.org/backend-weights`, which supports an arbitrary
 number of backends. This supports one Ingress to be traffic switched
 automatically using
 [stackset-controller](https://github.com/zalando-incubator/stackset-controller)
-for example. You can also have 3 versions ongoing traffic switched.
+for example. You can also have 3 versions with an ongoing traffic switch.
 
-This solution lack of traffic switching with more than one Ingress
+This solution lacks of traffic switching with more than one Ingress
 object as the same stackset.
 
 We want to be able to also do traffic switching, while having ongoing
-A/B tests, that require routing with cookies, for example. These
-complex routing need either more than one object or rely on the less
+A/B tests, that require routing with cookies, for example. This
+complex routing needs either more than one object or rely on the less
 safe use of `zalando.org/skipper-routes`.
 
 ### Advanced routing - Open API Spec controller
@@ -98,12 +98,12 @@ spec:
         path: /
 ```
 
-The problem with having multiple Ingress having this kind of
-annotation is that it needs to be in-sync across all Ingress belonging
+The problem with having multiple Ingresses with this kind of
+annotation is that it needs to be in-sync across all Ingresses belonging
 to a group of routes. While the orchestrating controller writes these
 objects, skipper instances read these. This can result in unexpected
 behavior, caused by non atomic changes. More problematic could be if
-an API changes and and it requires an atomic change to have either the
+an API changes and it requires an atomic change to have either the
 version 1 view or the version 2 view and not half.
 
 ## Background Information
@@ -120,7 +120,7 @@ For example [stackset-controller](https://github.com/zalando-incubator/stackset-
 orchestrates traffic switching. In this case a set of routes with different
 configurations to one backend should be updated atomically.
 
-Another example is an openapi-spec controller, which goal is to create
+Another example is an openapi-spec controller, whose goal is to create
 a set of routes based on API endpoint definitions with rules, defaults
 and overrides.
 
@@ -140,7 +140,8 @@ enough to be a considered normal case.
 - avoid defining unrelated route groups in the same specification object
 - better support for skipper specific features ([Predicates](https://opensource.zalando.com/skipper/reference/predicates) and [Filters](https://opensource.zalando.com/skipper/reference/filters/))
 - orchestrate traffic switching for a full set of routes (RouteGroup) without redundant configuration
-- enable complex cases: for example an enhanced openapi-spec controller write this object, instead of creating multiple ingress and [stackset-controller](https://github.com/zalando-incubator/stackset-controller) does traffic switching
+- enable complex cases: for example an enhanced openapi-spec controller writes this object, instead of creating
+  multiple ingresses and [stackset-controller](https://github.com/zalando-incubator/stackset-controller) does traffic switching
 
 ## Proposed solution
 
@@ -199,7 +200,8 @@ In one `<route>` can use
 [path](https://opensource.zalando.com/skipper/reference/predicates/#path)
 or
 [pathSubtree](https://opensource.zalando.com/skipper/reference/predicates/#pathsubtree)
-and additionally add a
+and additionally add an optional
+[pathRegexp](https://opensource.zalando.com/skipper/reference/predicates/#pathregexp).
 
 ```yaml
 <route>
@@ -223,7 +225,7 @@ and additionally add a
 #### Simplicity
 
 To route the listed Host headers `myapp.example.org` and `example.org`
-and all paths the client choose to Kubernetes service `myapp-svc` on
+and all paths the client chose to a Kubernetes service `myapp-svc` on
 service port `80`, the RouteGroup would look like this:
 
 ```yaml
@@ -410,11 +412,11 @@ spec:
 
 #### Traffic switching
 
-If we want to traffic switch, we want to make sure all path endpoints
+If we want to switch traffic, we want to make sure all path endpoints
 we have configured are switched at the same time and get the same
 traffic split applied. To not be ambiguous with multiple backends, we
 need to set the `weight` and both backends have to be
-`defaultBackends`, if we want to traffic switch.
+`defaultBackends`.
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -603,8 +605,8 @@ spec:
 ```
 
 **step3**
-- service-b will be traffic switched from v1 to v2, v2 will get 20% traffic, rest to v1
-- service-a stays unchanged and all customers that have cookie `canary=A`
+- service-b will be traffic switched from v1 to v2, v2 will get 20% traffic, rest of the request goes to v1
+- service-a stays unchanged and will serve all customers that have cookie `canary=A`
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -703,7 +705,7 @@ traffic switching for one backend while having a running A/B test.
 
 ### Examples Ingress vs. RouteGroup
 
-Ingress objects are will known. To compare the use of RouteGroup we
+Ingress objects are well known. To compare the use of RouteGroup we
 show some Ingress examples and how these would be written as RouteGroup.
 
 #### Minimal example

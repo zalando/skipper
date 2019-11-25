@@ -40,7 +40,7 @@ func itemsJSON(b *[]byte, o []interface{}) error {
 	items := map[string]interface{}{"items": o}
 
 	// converting back to YAML, because we have YAMLToJSON() for bytes, and
-	// the data in `o` contains YAML parser stile keys of type interface{}
+	// the data in `o` contains YAML parser style keys of type interface{}
 	y, err := yaml.Marshal(items)
 	if err != nil {
 		return err
