@@ -284,10 +284,13 @@ func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
 	}
 
 	rgs := make([]*routeGroupItem, 0, len(rgl.Items))
-	for i := range rgl.Items {
-		if rgl.Items[i] != nil {
-			rgs = append(rgs, rgl.Items[i])
+	for _, i := range rgl.Items {
+		if err := i.validate(); err != nil {
+			log.Infof("invalid route group: %v", err)
+			continue
 		}
+
+		rgs = append(rgs, i)
 	}
 
 	sortByMetadata(rgs, func(i int) *metadata { return rgs[i].Metadata })

@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/zalando/skipper/eskip"
@@ -62,7 +63,7 @@ type skipperBackendParser struct {
 	ServiceName string `json:"serviceName"`
 
 	// ServicePort is required for Type service
-	ServicePort int `json:"servicePort"` // TODO(sszuecs): uint16, do we want to enforce it here?
+	ServicePort int `json:"servicePort"`
 }
 
 // skipperBackend is the type safe version of skipperBackendParser
@@ -97,7 +98,7 @@ type backendReference struct {
 
 	// Weight defines the traffic weight, if there are 2 or more
 	// default backends
-	Weight int `json:"weight"` // TODO(sszuecs): uint16, do we want to enforce it here?
+	Weight int `json:"weight"`
 }
 
 type routeSpec struct {
@@ -122,6 +123,148 @@ type routeSpec struct {
 
 	// Methods defines valid HTTP methods for the specified routeSpec
 	Methods []string `json:"methods,omitempty"`
+}
+
+var (
+	errRouteGroupWithoutName    = errors.New("route group without name")
+	errMissingBackendReference  = errors.New("missing backend reference")
+	errRouteGroupWithoutSpec    = errors.New("route group without spec")
+	errRouteGroupWithoutBackend = errors.New("route group without backend")
+	errUnnamedBackend           = errors.New("unnamed backend")
+	errUnnamedBackendReference  = errors.New("unnamed backend reference")
+	errInvalidRouteSpec         = errors.New("invalid route spec")
+	errInvalidFilter            = errors.New("invalid filter")
+	errInvalidPredicate         = errors.New("invalid predicate")
+	errInvalidMethod            = errors.New("invalid method")
+)
+
+func routeGroupError(m *metadata, err error) error {
+	return fmt.Errorf("error in route group %s/%s: %w", m.Namespace, m.Name, err)
+}
+
+func backendsWithDuplicateName(name string) error {
+	return fmt.Errorf("backends with duplicate name: %s", name)
+}
+
+func invalidBackend(name string, err error) error {
+	return fmt.Errorf("invalid backend: %s, %w", name, err)
+}
+
+func invalidBackendReference(name string) error {
+	return fmt.Errorf("invalid backend reference: %s", name)
+}
+
+func invalidRoute(index int, err error) error {
+	return fmt.Errorf("invalid route at %d, %w", index, err)
+}
+
+func missingAddress(backendName string) error {
+	return fmt.Errorf("address missing in backend: %s", backendName)
+}
+
+func missingServiceName(backendName string) error {
+	return fmt.Errorf("service name missing in backend: %s", backendName)
+}
+
+func invalidServicePort(backendName string, p int) error {
+	return fmt.Errorf("invalid service port in backend: %s, %d", backendName, p)
+}
+
+func missingLBAlgorithm(backendName string) error {
+	return fmt.Errorf("missing LB algorithm in backend: %s", backendName)
+}
+
+func missingEndpoints(backendName string) error {
+	return fmt.Errorf("missing LB endpoints in backend: %s", backendName)
+}
+
+func invalidBackendWeight(name string, w int) error {
+	return fmt.Errorf("invalid weight in backend: %s, %d", name, w)
+}
+
+func hasEmpty(s []string) bool {
+	for _, si := range s {
+		if si == "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (rg *routeGroupItem) validate() error {
+	// has metadata and name:
+	if rg == nil || rg.Metadata == nil || rg.Metadata.Name == "" {
+		return errRouteGroupWithoutName
+	}
+
+	// has spec:
+	if rg.Spec == nil {
+		return routeGroupError(rg.Metadata, errRouteGroupWithoutSpec)
+	}
+
+	if err := rg.Spec.validate(); err != nil {
+		return routeGroupError(rg.Metadata, err)
+	}
+
+	return nil
+}
+
+func uniqueStrings(s []string) []string {
+	m := make(map[string]struct{})
+	for _, si := range s {
+		m[si] = struct{}{}
+	}
+
+	u := make([]string, 0, len(m))
+	for si := range m {
+		u = append(u, si)
+	}
+
+	return u
+}
+
+func (rg *routeGroupSpec) uniqueHosts() []string {
+	return uniqueStrings(rg.Hosts)
+}
+
+func (rg *routeGroupSpec) validate() error {
+	// has at least one backend:
+	if len(rg.Backends) == 0 {
+		return errRouteGroupWithoutBackend
+	}
+
+	// backends valid and have unique names:
+	backends := make(map[string]bool)
+	for _, b := range rg.Backends {
+		if backends[b.Name] {
+			return backendsWithDuplicateName(b.Name)
+		}
+
+		backends[b.Name] = true
+		if err := b.validate(); err != nil {
+			return invalidBackend(b.Name, err)
+		}
+	}
+
+	hasDefault := len(rg.DefaultBackends) > 0
+	for _, br := range rg.DefaultBackends {
+		if err := br.validate(backends); err != nil {
+			return err
+		}
+	}
+
+	if !hasDefault && len(rg.Routes) == 0 {
+		return errMissingBackendReference
+	}
+
+	for i, r := range rg.Routes {
+		if err := r.validate(hasDefault, backends); err != nil {
+			return invalidRoute(i, err)
+		}
+	}
+
+	return nil
 }
 
 // adding Kubernetes specific backend types here. To be discussed.
@@ -159,10 +302,6 @@ func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
 		return err
 	}
 
-	if p.ServicePort < 0 || p.ServicePort > 2<<16-1 {
-		return fmt.Errorf("failed to validate ServicePort, should be in range uint16")
-	}
-
 	bt, err := backendTypeFromString(p.Type)
 	if err != nil {
 		return err
@@ -195,4 +334,76 @@ func (sb skipperBackend) MarshalJSON() ([]byte, error) {
 	p.Algorithm = sb.Algorithm.String()
 	p.Endpoints = sb.Endpoints
 	return json.Marshal(p)
+}
+
+func (sb *skipperBackend) validate() error {
+	if sb == nil || sb.Name == "" {
+		return errUnnamedBackend
+	}
+
+	switch {
+	case sb.Type == eskip.NetworkBackend && sb.Address == "":
+		return missingAddress(sb.Name)
+	case sb.Type == serviceBackend && sb.ServiceName == "":
+		return missingServiceName(sb.Name)
+	case sb.Type == serviceBackend &&
+		(sb.ServicePort == 0 || sb.ServicePort != int(uint16(sb.ServicePort))):
+		return invalidServicePort(sb.Name, sb.ServicePort)
+	case sb.Type == eskip.LBBackend && sb.Algorithm == loadbalancer.None:
+		return missingLBAlgorithm(sb.Name)
+	case sb.Type == eskip.LBBackend && len(sb.Endpoints) == 0:
+		return missingEndpoints(sb.Name)
+	}
+
+	return nil
+}
+
+func (br *backendReference) validate(backends map[string]bool) error {
+	if br == nil || br.BackendName == "" {
+		return errUnnamedBackendReference
+	}
+
+	if !backends[br.BackendName] {
+		return invalidBackendReference(br.BackendName)
+	}
+
+	if br.Weight < 0 {
+		return invalidBackendWeight(br.BackendName, br.Weight)
+	}
+
+	return nil
+}
+
+func (r *routeSpec) validate(hasDefault bool, backends map[string]bool) error {
+	if r == nil {
+		return errInvalidRouteSpec
+	}
+
+	if !hasDefault && len(r.Backends) == 0 {
+		return errMissingBackendReference
+	}
+
+	for _, br := range r.Backends {
+		if err := br.validate(backends); err != nil {
+			return err
+		}
+	}
+
+	if hasEmpty(r.Filters) {
+		return errInvalidFilter
+	}
+
+	if hasEmpty(r.Predicates) {
+		return errInvalidPredicate
+	}
+
+	if hasEmpty(r.Methods) {
+		return errInvalidMethod
+	}
+
+	return nil
+}
+
+func (r *routeSpec) uniqueMethods() []string {
+	return uniqueStrings(r.Methods)
 }

@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"fmt"
 	"sort"
 
 	log "github.com/sirupsen/logrus"
@@ -23,6 +24,19 @@ func (state *clusterState) getService(namespace, name string) (*service, error) 
 	if s.Spec == nil {
 		log.Debug("invalid service datagram, missing spec")
 		return nil, errServiceNotFound
+	}
+
+	return s, nil
+}
+
+func (state *clusterState) getServiceRG(namespace, name string) (*service, error) {
+	s, ok := state.services[newResourceID(namespace, name)]
+	if !ok {
+		return nil, fmt.Errorf("service not found: %s/%s", namespace, name)
+	}
+
+	if s.Spec == nil {
+		return nil, fmt.Errorf("invalid service: %s/%s", namespace, name)
 	}
 
 	return s, nil

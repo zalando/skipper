@@ -10,15 +10,9 @@ import (
 )
 
 // TODO:
-// - verify the uniqueness of the list fields, not only the method
-// - verify that routes are copied when duplicated
-// - review whether it can crash on malformed input
-// - review errors, error reporting and logging
-// - review and document which errors prevent load and load updates, and which ones are only logged
+// - document how route group errors are handled
 // - document in the CRD that the service type must be ClusterIP when using service backends
-// - reconsider implicit routes: do we need them? They have a double behavior this way
-// - document the implicit routes, or clarify: spec.routes is not optional, but the minimal example doesn't have
-// any
+// - document the implicit routes, or clarify: spec.routes is not optional, but an example doesn't have any
 // - document the rules and the loopholes with the host catch-all routes
 // - document the behavior of the weight implementation
 
@@ -30,6 +24,7 @@ type routeGroupContext struct {
 	clusterState          *clusterState
 	defaultFilters        defaultFilters
 	routeGroup            *routeGroupItem
+	hosts                 []string
 	hostRx                string
 	hostRoutes            map[string][]*eskip.Route
 	hasEastWestHost       bool
@@ -54,15 +49,6 @@ func newRouteGroups(o Options) *routeGroups {
 	return &routeGroups{options: o}
 }
 
-func invalidBackendRef(rg *routeGroupItem, name string) error {
-	return fmt.Errorf(
-		"invalid backend reference in routegroup/%s/%s: %s",
-		namespaceString(rg.Metadata.Namespace),
-		rg.Metadata.Name,
-		name,
-	)
-}
-
 func notSupportedServiceType(s *service) error {
 	return fmt.Errorf(
 		"not supported service type in service/%s/%s: %s",
@@ -72,8 +58,23 @@ func notSupportedServiceType(s *service) error {
 	)
 }
 
-func notImplemented(a ...interface{}) error {
-	return fmt.Errorf("not implemented: %v", fmt.Sprint(a...))
+func servicePortNotFound(m *metadata, b *skipperBackend) error {
+	return fmt.Errorf(
+		"service port not found for route group backend: %s/%s %s",
+		namespaceString(m.Namespace),
+		m.Name,
+		b.Name,
+	)
+}
+
+func defaultFiltersError(m *metadata, service string, err error) error {
+	return fmt.Errorf(
+		"error while applying default filters for route group and service: %s/%s %s, %w",
+		namespaceString(m.Namespace),
+		m.Name,
+		service,
+		err,
+	)
 }
 
 func hasEastWestHost(eastWestPostfix string, hosts []string) bool {
@@ -165,29 +166,8 @@ func calculateTraffic(b []*backendReference) map[string]float64 {
 	return traffic
 }
 
-func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Route) error {
-	f, err := ctx.defaultFilters.getNamed(ctx.routeGroup.Metadata.Namespace, serviceName)
-	if err != nil {
-		return err
-	}
-
-	// safe to prepend as defaultFilters.get() copies the slice:
-	r.Filters = append(f, r.Filters...)
-	return nil
-}
-
 func getBackendService(ctx *routeGroupContext, backend *skipperBackend) (*service, error) {
-	if backend.ServiceName == "" || backend.ServicePort <= 0 {
-		return nil, fmt.Errorf(
-			"invalid service backend in routegroup/%s/%s: %s:%d",
-			namespaceString(ctx.routeGroup.Metadata.Namespace),
-			ctx.routeGroup.Metadata.Name,
-			backend.ServiceName,
-			backend.ServicePort,
-		)
-	}
-
-	s, err := ctx.clusterState.getService(
+	s, err := ctx.clusterState.getServiceRG(
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		backend.ServiceName,
 	)
@@ -199,22 +179,23 @@ func getBackendService(ctx *routeGroupContext, backend *skipperBackend) (*servic
 		return nil, notSupportedServiceType(s)
 	}
 
+	var portFound bool
 	for _, p := range s.Spec.Ports {
 		if p == nil {
 			continue
 		}
 
 		if p.Port == backend.ServicePort {
-			return s, nil
+			portFound = true
+			break
 		}
 	}
 
-	return nil, fmt.Errorf(
-		"service port not found for routegroup/%s/%s: %d",
-		namespaceString(ctx.routeGroup.Metadata.Namespace),
-		ctx.routeGroup.Metadata.Name,
-		backend.ServicePort,
-	)
+	if !portFound {
+		return nil, servicePortNotFound(ctx.routeGroup.Metadata, backend)
+	}
+
+	return s, nil
 }
 
 func createClusterIPBackend(s *service, backend *skipperBackend) string {
@@ -232,7 +213,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *esk
 		// TODO: log fallback
 		r.BackendType = eskip.NetworkBackend
 		r.Backend = createClusterIPBackend(s, backend)
-		return err
+		return nil
 	}
 
 	eps := ctx.clusterState.getEndpointsByTarget(
@@ -258,6 +239,17 @@ func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *esk
 	return nil
 }
 
+func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Route) error {
+	f, err := ctx.defaultFilters.getNamed(ctx.routeGroup.Metadata.Namespace, serviceName)
+	if err != nil {
+		return defaultFiltersError(ctx.routeGroup.Metadata, serviceName, err)
+	}
+
+	// safe to prepend as defaultFilters.get() copies the slice:
+	r.Filters = append(f, r.Filters...)
+	return nil
+}
+
 func applyBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Route) error {
 	r.BackendType = backend.Type
 	switch r.BackendType {
@@ -267,7 +259,7 @@ func applyBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Rout
 		}
 
 		if err := applyDefaultFilters(ctx, backend.ServiceName, r); err != nil {
-			log.Errorf("Failed to retrieve default filters: %v.", err)
+			log.Errorf("[route group]: failed to retrieve default filters: %v.", err)
 		}
 	case eskip.NetworkBackend:
 		r.Backend = backend.Address
@@ -275,8 +267,6 @@ func applyBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Rout
 		r.LBEndpoints = backend.Endpoints
 		r.LBAlgorithm = defaultLoadBalancerAlgorithm
 		r.LBAlgorithm = backend.Algorithm.String()
-	default:
-		return notImplemented("backend type", r.BackendType)
 	}
 
 	return nil
@@ -290,7 +280,7 @@ func appendPredicate(p []*eskip.Predicate, name string, args ...interface{}) []*
 }
 
 func storeHostRoute(ctx *routeGroupContext, r *eskip.Route) {
-	for _, h := range ctx.routeGroup.Spec.Hosts {
+	for _, h := range ctx.hosts {
 		ctx.hostRoutes[h] = append(ctx.hostRoutes[h], r)
 	}
 }
@@ -330,38 +320,14 @@ func appendHTTPSRedirect(ctx *routeGroupContext, routes []*eskip.Route, current 
 // field is not defined, and the routes are derived from the default backends.
 func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 	rg := ctx.routeGroup
-	if len(rg.Spec.DefaultBackends) == 0 {
-		return nil, fmt.Errorf("missing route spec for route group: %s", rg.Metadata.Name)
-	}
 
 	var routes []*eskip.Route
 	for backendIndex, beref := range rg.Spec.DefaultBackends {
-		if beref == nil {
-			log.Errorf(
-				"Invalid default backend reference found in: routegroup/%s/%s.",
-				namespaceString(rg.Metadata.Namespace),
-				rg.Metadata.Name,
-			)
-
-			continue
-		}
-
-		be, ok := ctx.backendsByName[beref.BackendName]
-		if !ok {
-			return nil, invalidBackendRef(rg, beref.BackendName)
-		}
-
+		be := ctx.backendsByName[beref.BackendName]
 		rid := crdRouteID(rg.Metadata, "all", 0, backendIndex)
 		ri := &eskip.Route{Id: rid}
 		if err := applyBackend(ctx, be, ri); err != nil {
-			// TODO: log only?
 			return nil, err
-		}
-
-		if be.Type == serviceBackend {
-			if err := applyDefaultFilters(ctx, be.ServiceName, ri); err != nil {
-				log.Errorf("Failed to retrieve default filters: %v.", err)
-			}
 		}
 
 		if ctx.hostRx != "" {
@@ -382,8 +348,6 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 }
 
 func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
-	// TODO: weight
-
 	gr := ctx.groupRoute
 	r := &eskip.Route{Id: ctx.id}
 
@@ -433,18 +397,11 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 // explicitGroupRoutes creates routes for those route groups that have the
 // `route` field explicitly defined.
 func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
-	// TODO: default filters
-
 	var routes []*eskip.Route
 	rg := ctx.routeGroup
 	for routeIndex, rgr := range rg.Spec.Routes {
 		if len(rgr.Methods) == 0 {
 			rgr.Methods = []string{""}
-		}
-
-		uniqueMethods := make(map[string]struct{})
-		for _, m := range rgr.Methods {
-			uniqueMethods[m] = struct{}{}
 		}
 
 		backendRefs := rg.Spec.DefaultBackends
@@ -454,16 +411,9 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 			backendTraffic = calculateTraffic(rgr.Backends)
 		}
 
-		// TODO: handling errors. If we consider the route groups independent, then
-		// it should be enough to just log them.
-
-		for method := range uniqueMethods {
+		for _, method := range rgr.uniqueMethods() {
 			for backendIndex, bref := range backendRefs {
-				be, ok := ctx.backendsByName[bref.BackendName]
-				if !ok {
-					return nil, invalidBackendRef(rg, bref.BackendName)
-				}
-
+				be := ctx.backendsByName[bref.BackendName]
 				r, err := transformExplicitGroupRoute(&routeContext{
 					group:      ctx,
 					groupRoute: rgr,
@@ -492,13 +442,8 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 }
 
 func transformRouteGroup(ctx *routeGroupContext) ([]*eskip.Route, error) {
-	rg := ctx.routeGroup
-	if len(rg.Spec.Backends) == 0 {
-		return nil, fmt.Errorf("missing backend for route group: %s", rg.Metadata.Name)
-	}
-
-	ctx.defaultBackendTraffic = calculateTraffic(rg.Spec.DefaultBackends)
-	if len(rg.Spec.Routes) == 0 {
+	ctx.defaultBackendTraffic = calculateTraffic(ctx.routeGroup.Spec.DefaultBackends)
+	if len(ctx.routeGroup.Spec.Routes) == 0 {
 		return implicitGroupRoutes(ctx)
 	}
 
@@ -509,25 +454,16 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 	var rs []*eskip.Route
 
 	hostRoutes := make(map[string][]*eskip.Route)
-	var missingName, missingSpec bool
 	for _, rg := range s.routeGroups {
-		if rg.Metadata == nil || rg.Metadata.Name == "" {
-			missingName = true
-			continue
-		}
-
-		if rg.Spec == nil {
-			missingSpec = true
-			continue
-		}
-
+		hosts := rg.Spec.uniqueHosts()
 		ctx := &routeGroupContext{
 			clusterState:         s,
 			defaultFilters:       df,
 			routeGroup:           rg,
-			hostRx:               createHostRx(rg.Spec.Hosts...),
+			hosts:                hosts,
+			hostRx:               createHostRx(hosts...),
 			hostRoutes:           hostRoutes,
-			hasEastWestHost:      hasEastWestHost(r.options.KubernetesEastWestDomain, rg.Spec.Hosts),
+			hasEastWestHost:      hasEastWestHost(r.options.KubernetesEastWestDomain, hosts),
 			eastWestEnabled:      r.options.KubernetesEnableEastWest,
 			eastWestDomain:       r.options.KubernetesEastWestDomain,
 			provideHTTPSRedirect: r.options.ProvideHTTPSRedirect,
@@ -537,19 +473,17 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 
 		ri, err := transformRouteGroup(ctx)
 		if err != nil {
-			log.Errorf("Error transforming route group %s: %v.", rg.Metadata.Name, err)
+			log.Errorf(
+				"[routegroup] error transforming %s/%s: %v.",
+				namespaceString(rg.Metadata.Namespace),
+				rg.Metadata.Name,
+				err,
+			)
+
 			continue
 		}
 
 		rs = append(rs, ri...)
-	}
-
-	if missingName {
-		log.Error("One or more route groups without a name were detected.")
-	}
-
-	if missingSpec {
-		log.Error("One or more route groups without a spec were detected.")
 	}
 
 	catchAll := hostCatchAllRoutes(hostRoutes, func(host string) string {
