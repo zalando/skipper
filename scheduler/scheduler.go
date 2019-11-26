@@ -48,6 +48,9 @@ type QueueStatus struct {
 
 	// QueuedRequests represents the number of requests waiting to be handled.
 	QueuedRequests int
+
+	// Closed indicates that the queue was closed.
+	Closed bool
 }
 
 // Queue objects implement a LIFO queue for handling requests, with a maximum allowed
@@ -134,6 +137,7 @@ func (q *Queue) Status() QueueStatus {
 	return QueueStatus{
 		ActiveRequests: st.ActiveJobs,
 		QueuedRequests: st.QueuedJobs,
+		Closed:         st.Closed,
 	}
 }
 
@@ -284,8 +288,9 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 		}
 	}
 
-	r.queues.Range(func(key, _ interface{}) bool {
+	r.queues.Range(func(key, qi interface{}) bool {
 		if !existingKeys[key.(string)] {
+			qi.(*Queue).close()
 			r.queues.Delete(key)
 		}
 
