@@ -140,7 +140,6 @@ func calculateTraffic(b []*backendReference) map[string]float64 {
 	var sum int
 	weights := make([]int, len(b))
 	for i, bi := range b {
-		// TODO: validate no negative
 		sum += bi.Weight
 		weights[i] = bi.Weight
 	}
@@ -210,7 +209,14 @@ func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *esk
 
 	targetPort, ok := s.getTargetPortByValue(backend.ServicePort)
 	if !ok {
-		// TODO: log fallback
+		log.Infof(
+			"Using service cluster IP as a fallback for %s/%s %s:%d",
+			namespaceString(ctx.routeGroup.Metadata.Namespace),
+			ctx.routeGroup.Metadata.Name,
+			backend.ServiceName,
+			backend.ServicePort,
+		)
+
 		r.BackendType = eskip.NetworkBackend
 		r.Backend = createClusterIPBackend(s, backend)
 		return nil
@@ -223,7 +229,14 @@ func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *esk
 	)
 
 	if len(eps) == 0 {
-		// TODO: log fallback
+		log.Infof(
+			"Using service cluster IP as a fallback for %s/%s %s:%d",
+			namespaceString(ctx.routeGroup.Metadata.Namespace),
+			ctx.routeGroup.Metadata.Name,
+			backend.ServiceName,
+			backend.ServicePort,
+		)
+
 		r.BackendType = eskip.NetworkBackend
 		r.Backend = createClusterIPBackend(s, backend)
 		return nil
