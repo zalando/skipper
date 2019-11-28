@@ -178,6 +178,7 @@ type Config struct {
 	ResponseHeaderTimeoutBackend time.Duration `yaml:"response-header-timeout-backend"`
 	ExpectContinueTimeoutBackend time.Duration `yaml:"expect-continue-timeout-backend"`
 	MaxIdleConnsBackend          int           `yaml:"max-idle-connection-backend"`
+	DisableHTTPKeepalives        bool          `yaml:"disable-http-keepalives"`
 
 	// swarm:
 	EnableSwarm bool `yaml:"enable-swarm"`
@@ -381,6 +382,7 @@ const (
 	responseHeaderTimeoutBackendUsage = "sets the HTTP response header timeout for backend connections"
 	expectContinueTimeoutBackendUsage = "sets the HTTP expect continue timeout for backend connections"
 	maxIdleConnsBackendUsage          = "sets the maximum idle connections for all backend connections"
+	disableHTTPKeepalivesUsage        = "forces backend to always create a new connection"
 
 	// swarm:
 	enableSwarmUsage                       = "enable swarm communication between nodes in a skipper fleet"
@@ -561,6 +563,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.ResponseHeaderTimeoutBackend, "response-header-timeout-backend", defaultResponseHeaderTimeoutBackend, responseHeaderTimeoutBackendUsage)
 	flag.DurationVar(&cfg.ExpectContinueTimeoutBackend, "expect-continue-timeout-backend", defaultExpectContinueTimeoutBackend, expectContinueTimeoutBackendUsage)
 	flag.IntVar(&cfg.MaxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
+	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, disableHTTPKeepalivesUsage)
 
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, enableSwarmUsage)
@@ -797,6 +800,7 @@ func (c *Config) ToOptions() skipper.Options {
 		ResponseHeaderTimeoutBackend: c.ResponseHeaderTimeoutBackend,
 		ExpectContinueTimeoutBackend: c.ExpectContinueTimeoutBackend,
 		MaxIdleConnsBackend:          c.MaxIdleConnsBackend,
+		DisableHTTPKeepalives:        c.DisableHTTPKeepalives,
 
 		// swarm:
 		EnableSwarm: c.EnableSwarm,
