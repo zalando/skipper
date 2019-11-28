@@ -284,6 +284,10 @@ type Options struct {
 	// limit.
 	MaxIdleConnsBackend int
 
+	// DisableHTTPKeepalives sets DisableKeepAlives, which forces
+	// a backend to always create a new connection.
+	DisableHTTPKeepalives bool
+
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
 	IgnoreTrailingSlash bool
@@ -1138,6 +1142,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		DualStack:                o.DualStackBackend,
 		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
 		MaxIdleConns:             o.MaxIdleConnsBackend,
+		DisableHTTPKeepalives:    o.DisableHTTPKeepalives,
 		AccessLogDisabled:        o.AccessLogDisabled,
 		ClientTLS:                o.ClientTLS,
 	}

@@ -44,6 +44,13 @@ This will set MaxIdleConns on the
 [http.Transport](https://golang.org/pkg/net/http/#Transport) to limit
 the number for all backends such that we do not run out of sockets.
 
+    -disable-http-keepalives bool
+        forces backend to always create a new connection
+
+This will set DisableKeepAlives on the
+[http.Transport](https://golang.org/pkg/net/http/#Transport) to disable
+HTTP keep-alives and to only use the connection for single request.
+
     -max-idle-connection-backend int
         sets the maximum idle connections for all backend connections
 

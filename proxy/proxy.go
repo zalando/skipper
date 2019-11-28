@@ -176,6 +176,9 @@ type Params struct {
 	// MaxIdleConns limits the number of idle connections to all backends, 0 means no limit
 	MaxIdleConns int
 
+	// DisableHTTPKeepalives forces backend to always create a new connection
+	DisableHTTPKeepalives bool
+
 	// CircuitBreakers provides a registry that skipper can use to
 	// find the matching circuit breaker for backend requests. If not
 	// set, no circuit breakers are used.
@@ -587,6 +590,7 @@ func WithParams(p Params) *Proxy {
 		MaxIdleConns:          p.MaxIdleConns,
 		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
 		IdleConnTimeout:       p.CloseIdleConnsPeriod,
+		DisableKeepAlives:     p.DisableHTTPKeepalives,
 	}
 
 	if p.ClientTLS != nil {
