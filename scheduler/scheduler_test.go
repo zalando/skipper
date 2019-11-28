@@ -317,4 +317,25 @@ func TestConfig(t *testing.T) {
 
 		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
 	})
+
+	t.Run("queue gets closed when removed", func(t *testing.T) {
+		const doc = `
+			g1: Path("/one") -> lifo(2, 2) -> <shunt>;
+			g2: Path("/two") -> lifo(2, 2) -> <shunt>;
+		`
+
+		rt, dc, close := initTest(doc)
+		defer close()
+
+		req := &http.Request{URL: &url.URL{Path: "/one"}}
+		r, _ := rt.Route(req)
+		f := r.Filters[0]
+		q := f.Filter.(scheduler.LIFOFilter).GetQueue()
+
+		if err := dc.UpdateDoc("", []string{"g1"}); err != nil {
+			t.Fatal(err)
+		}
+
+		waitForStatus(t, q, scheduler.QueueStatus{Closed: true})
+	})
 }
