@@ -420,16 +420,19 @@ func copyStream(to flushedResponseWriter, from io.Reader, tracing *proxyTracing,
 	}
 }
 
+func schemeFromRequest(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
 func setRequestURLFromRequest(u *url.URL, r *http.Request) {
 	if u.Host == "" {
 		u.Host = r.Host
 	}
 	if u.Scheme == "" {
-		if r.TLS != nil {
-			u.Scheme = "https"
-		} else {
-			u.Scheme = "http"
-		}
+		u.Scheme = schemeFromRequest(r)
 	}
 }
 
@@ -829,6 +832,12 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	}
 
 	bag := ctx.StateBag()
+
+	roundTripper := p.roundTripper
+	if t, ok := bag[filters.BackendIsProxyKey]; ok && t.(bool) {
+		roundTripper, req = forwardToProxy(ctx, roundTripper, req)
+	}
+
 	spanName, ok := bag[tracingfilter.OpenTracingProxySpanKey].(string)
 	if !ok {
 		spanName = "proxy"
@@ -851,7 +860,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
-	response, err := p.roundTripper.RoundTrip(req)
+	response, err := roundTripper.RoundTrip(req)
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
@@ -906,6 +915,20 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	}
 	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
 	return response, nil
+}
+
+func forwardToProxy(ctx *context, tr *http.Transport, rr *http.Request) (*http.Transport, *http.Request) {
+	copyTr := *tr
+
+	copyTr.Proxy = http.ProxyURL(&url.URL{
+		Scheme: rr.URL.Scheme,
+		Host:   rr.URL.Host,
+	})
+
+	rr.URL.Host = rr.Host
+	rr.URL.Scheme = schemeFromRequest(ctx.request)
+
+	return &copyTr, rr
 }
 
 // checkRatelimit is used in case of a route ratelimit

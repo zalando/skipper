@@ -16,6 +16,41 @@ Example route with a match all, 2 filters and a backend:
 all: * -> filter1 -> filter2 -> "http://127.0.0.1:1234/";
 ```
 
+## backendIsProxy
+
+Notifies the proxy that the backend this request is going to be sent to is also
+proxy. This means that the request is going to be sent the usual proxy way:
+
+```
+# HTTP request
+GET http://example.com HTTP/1.1
+...
+
+# HTTPS request
+CONNECT https://example.com HTTP/1.1
+...
+```
+
+Example:
+
+```
+foo1:
+  *
+  -> backendIsProxy()
+  -> "http://proxy.example.com";
+
+foo2:
+  *
+  -> backendIsProxy()
+  -> <roundRobin, "http://proxy1.example.com", "http://proxy2.example.com">;
+
+foo3:
+  *
+  -> setDynamicBackendUrl("http://proxy.example.com")
+  -> backendIsProxy()
+  -> <dynamic>;
+```
+
 ## setRequestHeader
 
 Set headers for requests.

@@ -1985,6 +1985,61 @@ func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {
 	})
 }
 
+func TestForwardToProxy(t *testing.T) {
+	for _, ti := range []struct {
+		tls                *tls.ConnectionState
+		requestURL         string
+		requestHost        string
+		expectedProxyURL   string
+		expectedRequestURL string
+	}{{
+		tls:                nil,
+		requestURL:         "http://proxy.example.com/anything?key=val",
+		requestHost:        "example.com",
+		expectedProxyURL:   "http://proxy.example.com",
+		expectedRequestURL: "http://example.com/anything?key=val",
+	}, {
+		tls:                nil,
+		requestURL:         "https://proxy.example.com/anything?key=val",
+		requestHost:        "example.com",
+		expectedProxyURL:   "https://proxy.example.com",
+		expectedRequestURL: "http://example.com/anything?key=val",
+	}, {
+		tls:                &tls.ConnectionState{},
+		requestURL:         "http://proxy.example.com/anything?key=val",
+		requestHost:        "example.com",
+		expectedProxyURL:   "http://proxy.example.com",
+		expectedRequestURL: "https://example.com/anything?key=val",
+	}} {
+		reqURL, _ := url.Parse(ti.requestURL)
+
+		tr := &http.Transport{}
+
+		req := &http.Request{
+			URL:  reqURL,
+			Host: ti.requestHost,
+		}
+
+		ctx := &context{
+			request: &http.Request{
+				TLS: ti.tls,
+			},
+		}
+
+		newTr, newReq := forwardToProxy(ctx, tr, req)
+		proxyURL, _ := newTr.Proxy(newReq)
+
+		if proxyURL.String() != ti.expectedProxyURL {
+			t.Errorf("proxy URLs are not equal, expected %s got %s",
+				ti.expectedProxyURL, proxyURL.String())
+		}
+		if newReq.URL.String() != ti.expectedRequestURL {
+			t.Errorf("request URLs are not equal, expected %s got %s",
+				ti.expectedRequestURL, newReq.URL.String())
+		}
+	}
+}
+
 func BenchmarkAccessLogNoFilter(b *testing.B)     { benchmarkAccessLog(b, "", 200) }
 func BenchmarkAccessLogDisablePrint(b *testing.B) { benchmarkAccessLog(b, "disableAccessLog(1,3)", 200) }
 func BenchmarkAccessLogDisable(b *testing.B)      { benchmarkAccessLog(b, "disableAccessLog(1,3,200)", 200) }
