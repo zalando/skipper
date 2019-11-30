@@ -65,6 +65,10 @@ func eq2(left, right *Route) bool {
 		return false
 	}
 
+	if lc.Id != rc.Id {
+		return false
+	}
+
 	if len(lc.Predicates) != len(rc.Predicates) {
 		return false
 	}

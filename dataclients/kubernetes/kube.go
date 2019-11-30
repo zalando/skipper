@@ -384,8 +384,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
 	clusterState, r, err := c.loadAndConvert()
 	if err != nil {
-		log.Errorf("failed to load all: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to load cluster state: %w", err)
 	}
 
 	// teardown handling: always healthy unless SIGTERM received

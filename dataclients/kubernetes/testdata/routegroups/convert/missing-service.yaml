@@ -1,0 +1,27 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: myapp
+    type: service
+    serviceName: myapp
+    servicePort: 80
+  defaultBackends:
+  - backendName: myapp
+  routes:
+  - path: /app
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: myapp
+subsets:
+- addresses:
+  - ip: 10.2.4.8
+  - ip: 10.2.4.16
+  ports:
+  - port: 80

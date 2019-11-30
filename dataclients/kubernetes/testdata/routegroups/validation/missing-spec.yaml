@@ -1,0 +1,4 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: test-route-group

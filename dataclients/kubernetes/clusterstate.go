@@ -35,10 +35,6 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 		return nil, fmt.Errorf("service not found: %s/%s", namespace, name)
 	}
 
-	if s.Spec == nil {
-		return nil, fmt.Errorf("invalid service: %s/%s", namespace, name)
-	}
-
 	return s, nil
 }
 

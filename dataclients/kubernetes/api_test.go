@@ -16,10 +16,6 @@ import (
 	"github.com/go-yaml/yaml"
 )
 
-type testAPIOptions struct {
-	disableRouteGroups bool
-}
-
 type namespace struct {
 	services    []byte
 	ingresses   []byte
@@ -27,7 +23,13 @@ type namespace struct {
 	endpoints   []byte
 }
 
+type testAPIOptions struct {
+	FailOn             []string `yaml:"failOn"`
+	DisableRouteGroups bool     `yaml:"disableRouteGroups"`
+}
+
 type api struct {
+	failOn       map[string]bool
 	namespaces   map[string]namespace
 	all          namespace
 	pathRx       *regexp.Regexp
@@ -70,17 +72,33 @@ func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
 	return
 }
 
+func readAPIOptions(r io.Reader) (o testAPIOptions, err error) {
+	var b []byte
+	b, err = ioutil.ReadAll(r)
+	if err != nil {
+		return
+	}
+
+	err = yaml.Unmarshal(b, &o)
+	return
+}
+
 func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
 		pathRx: regexp.MustCompile(
 			"(/namespaces/([^/]+))?/(services|ingresses|routegroups|endpoints)",
 		),
+		failOn: make(map[string]bool),
 	}
 
 	var clr clusterResourceList
-	if !o.disableRouteGroups {
+	if !o.DisableRouteGroups {
 		clr.Items = append(clr.Items, &clusterResource{Name: routeGroupsName})
+	}
+
+	for _, f := range o.FailOn {
+		a.failOn[f] = true
 	}
 
 	clrb, err := json.Marshal(clr)
@@ -97,7 +115,7 @@ func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 		d := yaml.NewDecoder(spec)
 		for {
 			var o map[string]interface{}
-			if err := d.Decode(&o); err == io.EOF || o == nil {
+			if err := d.Decode(&o); err == io.EOF && o == nil {
 				break
 			} else if err != nil {
 				return nil, err
@@ -151,6 +169,11 @@ func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if a.failOn[r.URL.Path] {
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 

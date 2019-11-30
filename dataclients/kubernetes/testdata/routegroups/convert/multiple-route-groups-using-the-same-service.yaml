@@ -1,0 +1,59 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: rg1
+spec:
+  hosts:
+  - v1.example.org
+  backends:
+  - name: app
+    type: service
+    serviceName: myapp
+    servicePort: 80
+  defaultBackends:
+  - backendName: app
+  routes:
+  - backends:
+    - backendName: app
+---
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: rg2
+spec:
+  hosts:
+  - v2.example.org
+  backends:
+  - name: app
+    type: service
+    serviceName: myapp
+    servicePort: 80
+  defaultBackends:
+  - backendName: app
+  routes:
+  - backends:
+    - backendName: app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: myapp
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: myapp
+subsets:
+- addresses:
+  - ip: 10.2.4.8
+  - ip: 10.2.4.16
+  ports:
+  - port: 80

@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -43,6 +44,20 @@ type routeContext struct {
 	weight     int
 	method     string
 	backend    *skipperBackend
+}
+
+var errMissingClusterIP = errors.New("missing cluster IP")
+
+func eskipError(typ, e string, err error) error {
+	if len(e) > 48 {
+		e = e[:48]
+	}
+
+	return fmt.Errorf("[eskip] %s, '%s'; %v", typ, e, err)
+}
+
+func targetPortNotFound(serviceName string, servicePort int) error {
+	return fmt.Errorf("target port not found: %s:%d", serviceName, servicePort)
 }
 
 func newRouteGroups(o Options) *routeGroups {
@@ -178,27 +193,15 @@ func getBackendService(ctx *routeGroupContext, backend *skipperBackend) (*servic
 		return nil, notSupportedServiceType(s)
 	}
 
-	var portFound bool
-	for _, p := range s.Spec.Ports {
-		if p == nil {
-			continue
-		}
-
-		if p.Port == backend.ServicePort {
-			portFound = true
-			break
-		}
-	}
-
-	if !portFound {
-		return nil, servicePortNotFound(ctx.routeGroup.Metadata, backend)
-	}
-
 	return s, nil
 }
 
-func createClusterIPBackend(s *service, backend *skipperBackend) string {
-	return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, backend.ServicePort)
+func createClusterIPBackend(s *service, backend *skipperBackend) (string, error) {
+	if s.Spec.ClusterIP == "" {
+		return "", errMissingClusterIP
+	}
+
+	return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, backend.ServicePort), nil
 }
 
 func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Route) error {
@@ -209,17 +212,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *esk
 
 	targetPort, ok := s.getTargetPortByValue(backend.ServicePort)
 	if !ok {
-		log.Infof(
-			"Using service cluster IP as a fallback for %s/%s %s:%d",
-			namespaceString(ctx.routeGroup.Metadata.Namespace),
-			ctx.routeGroup.Metadata.Name,
-			backend.ServiceName,
-			backend.ServicePort,
-		)
-
-		r.BackendType = eskip.NetworkBackend
-		r.Backend = createClusterIPBackend(s, backend)
-		return nil
+		return targetPortNotFound(backend.ServiceName, backend.ServicePort)
 	}
 
 	eps := ctx.clusterState.getEndpointsByTarget(
@@ -229,8 +222,13 @@ func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *esk
 	)
 
 	if len(eps) == 0 {
+		b, err := createClusterIPBackend(s, backend)
+		if err != nil {
+			return err
+		}
+
 		log.Infof(
-			"Using service cluster IP as a fallback for %s/%s %s:%d",
+			"[routegroup] Target endpoints not found, using service cluster IP as a fallback for %s/%s %s:%d",
 			namespaceString(ctx.routeGroup.Metadata.Namespace),
 			ctx.routeGroup.Metadata.Name,
 			backend.ServiceName,
@@ -238,7 +236,13 @@ func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *esk
 		)
 
 		r.BackendType = eskip.NetworkBackend
-		r.Backend = createClusterIPBackend(s, backend)
+		r.Backend = b
+		return nil
+	}
+
+	if len(eps) == 1 {
+		r.BackendType = eskip.NetworkBackend
+		r.Backend = eps[0]
 		return nil
 	}
 
@@ -269,10 +273,6 @@ func applyBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Rout
 	case serviceBackend:
 		if err := applyServiceBackend(ctx, backend, r); err != nil {
 			return err
-		}
-
-		if err := applyDefaultFilters(ctx, backend.ServiceName, r); err != nil {
-			log.Errorf("[route group]: failed to retrieve default filters: %v.", err)
 		}
 	case eskip.NetworkBackend:
 		r.Backend = backend.Address
@@ -351,6 +351,12 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 			ri.Predicates = appendPredicate(ri.Predicates, "Traffic", traffic)
 		}
 
+		if be.Type == serviceBackend {
+			if err := applyDefaultFilters(ctx, backend.ServiceName, r); err != nil {
+				log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
+			}
+		}
+
 		storeHostRoute(ctx, ri)
 		routes = append(routes, ri)
 		routes = appendEastWest(ctx, routes, ri)
@@ -386,7 +392,7 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	for _, pi := range gr.Predicates {
 		ppi, err := eskip.ParsePredicates(pi)
 		if err != nil {
-			return nil, err
+			return nil, eskipError("predicate", pi, err)
 		}
 
 		r.Predicates = append(r.Predicates, ppi...)
@@ -396,7 +402,7 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	for _, fi := range gr.Filters {
 		ffi, err := eskip.ParseFilters(fi)
 		if err != nil {
-			return nil, err
+			return nil, eskipError("filter", fi, err)
 		}
 
 		f = append(f, ffi...)
@@ -404,7 +410,17 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 
 	r.Filters = f
 	err := applyBackend(ctx.group, ctx.backend, r)
-	return r, err
+	if err != nil {
+		return nil, err
+	}
+
+	if be.Type == serviceBackend {
+		if err := applyDefaultFilters(ctx, backend.ServiceName, r); err != nil {
+			log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
+		}
+	}
+
+	return r, nil
 }
 
 // explicitGroupRoutes creates routes for those route groups that have the
@@ -427,12 +443,17 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		for _, method := range rgr.uniqueMethods() {
 			for backendIndex, bref := range backendRefs {
 				be := ctx.backendsByName[bref.BackendName]
+				idMethod := strings.ToLower(method)
+				if idMethod == "" {
+					idMethod = "all"
+				}
+
 				r, err := transformExplicitGroupRoute(&routeContext{
 					group:      ctx,
 					groupRoute: rgr,
-					id:         crdRouteID(rg.Metadata, method, routeIndex, backendIndex),
+					id:         crdRouteID(rg.Metadata, idMethod, routeIndex, backendIndex),
 					weight:     bref.Weight,
-					method:     method,
+					method:     strings.ToUpper(method),
 					backend:    be,
 				})
 				if err != nil {

@@ -1,0 +1,4 @@
+kube_rg__default__myapp__all__0_0:
+	Host("^(example[.]org)$")
+	-> setRequestHeader("X-Foo", "bar")
+	-> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;

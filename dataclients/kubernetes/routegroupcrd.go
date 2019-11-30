@@ -90,6 +90,8 @@ type skipperBackend struct {
 
 	// Endpoints is required for Type lb
 	Endpoints []string
+
+	parseError error
 }
 
 type backendReference struct {
@@ -133,13 +135,14 @@ var (
 	errUnnamedBackend           = errors.New("unnamed backend")
 	errUnnamedBackendReference  = errors.New("unnamed backend reference")
 	errInvalidRouteSpec         = errors.New("invalid route spec")
-	errInvalidFilter            = errors.New("invalid filter")
+	errBothPathAndPathSubtree   = errors.New("path and path subtree in the same route")
 	errInvalidPredicate         = errors.New("invalid predicate")
+	errInvalidFilter            = errors.New("invalid filter")
 	errInvalidMethod            = errors.New("invalid method")
 )
 
 func routeGroupError(m *metadata, err error) error {
-	return fmt.Errorf("error in route group %s/%s: %w", m.Namespace, m.Name, err)
+	return fmt.Errorf("error in route group %s/%s: %w", namespaceString(m.Namespace), m.Name, err)
 }
 
 func backendsWithDuplicateName(name string) error {
@@ -211,13 +214,14 @@ func (rg *routeGroupItem) validate() error {
 }
 
 func uniqueStrings(s []string) []string {
-	m := make(map[string]struct{})
+	u := make([]string, 0, len(s))
+	m := make(map[string]bool)
 	for _, si := range s {
-		m[si] = struct{}{}
-	}
+		if m[si] {
+			continue
+		}
 
-	u := make([]string, 0, len(m))
-	for si := range m {
+		m[si] = true
 		u = append(u, si)
 	}
 
@@ -302,14 +306,25 @@ func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
 		return err
 	}
 
+	var perr error
 	bt, err := backendTypeFromString(p.Type)
 	if err != nil {
-		return err
+		// we cannot return an error here, because then the parsing of
+		// all route groups would fail. We'll report the error in the
+		// validation phase, only for the containing route group
+		perr = err
 	}
 
 	a, err := loadbalancer.AlgorithmFromString(p.Algorithm)
 	if err != nil {
-		return err
+		// we cannot return an error here, because then the parsing of
+		// all route groups would fail. We'll report the error in the
+		// validation phase, only for the containing route group
+		perr = err
+	}
+
+	if a == loadbalancer.None {
+		a = loadbalancer.RoundRobin
 	}
 
 	var b skipperBackend
@@ -320,6 +335,7 @@ func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
 	b.ServicePort = p.ServicePort
 	b.Algorithm = a
 	b.Endpoints = p.Endpoints
+	b.parseError = perr
 
 	*sb = b
 	return nil
@@ -337,6 +353,10 @@ func (sb skipperBackend) MarshalJSON() ([]byte, error) {
 }
 
 func (sb *skipperBackend) validate() error {
+	if sb.parseError != nil {
+		return sb.parseError
+	}
+
 	if sb == nil || sb.Name == "" {
 		return errUnnamedBackend
 	}
@@ -349,8 +369,6 @@ func (sb *skipperBackend) validate() error {
 	case sb.Type == serviceBackend &&
 		(sb.ServicePort == 0 || sb.ServicePort != int(uint16(sb.ServicePort))):
 		return invalidServicePort(sb.Name, sb.ServicePort)
-	case sb.Type == eskip.LBBackend && sb.Algorithm == loadbalancer.None:
-		return missingLBAlgorithm(sb.Name)
 	case sb.Type == eskip.LBBackend && len(sb.Endpoints) == 0:
 		return missingEndpoints(sb.Name)
 	}
@@ -389,12 +407,16 @@ func (r *routeSpec) validate(hasDefault bool, backends map[string]bool) error {
 		}
 	}
 
-	if hasEmpty(r.Filters) {
-		return errInvalidFilter
+	if r.Path != "" && r.PathSubtree != "" {
+		return errBothPathAndPathSubtree
 	}
 
 	if hasEmpty(r.Predicates) {
 		return errInvalidPredicate
+	}
+
+	if hasEmpty(r.Filters) {
+		return errInvalidFilter
 	}
 
 	if hasEmpty(r.Methods) {

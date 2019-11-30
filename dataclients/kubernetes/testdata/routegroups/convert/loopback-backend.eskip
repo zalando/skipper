@@ -1,0 +1,4 @@
+kube_rg__default__myapp__all__0_0:
+	Host("^(example[.]org)$")
+	-> setPath("/app")
+	-> <loopback>;
