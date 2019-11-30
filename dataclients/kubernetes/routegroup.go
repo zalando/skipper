@@ -352,7 +352,7 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		}
 
 		if be.Type == serviceBackend {
-			if err := applyDefaultFilters(ctx, backend.ServiceName, r); err != nil {
+			if err := applyDefaultFilters(ctx, be.ServiceName, ri); err != nil {
 				log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
 			}
 		}
@@ -414,8 +414,8 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 		return nil, err
 	}
 
-	if be.Type == serviceBackend {
-		if err := applyDefaultFilters(ctx, backend.ServiceName, r); err != nil {
+	if ctx.backend.Type == serviceBackend {
+		if err := applyDefaultFilters(ctx.group, ctx.backend.ServiceName, r); err != nil {
 			log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
 		}
 	}
