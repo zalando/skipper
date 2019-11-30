@@ -73,15 +73,6 @@ func notSupportedServiceType(s *service) error {
 	)
 }
 
-func servicePortNotFound(m *metadata, b *skipperBackend) error {
-	return fmt.Errorf(
-		"service port not found for route group backend: %s/%s %s",
-		namespaceString(m.Namespace),
-		m.Name,
-		b.Name,
-	)
-}
-
 func defaultFiltersError(m *metadata, service string, err error) error {
 	return fmt.Errorf(
 		"error while applying default filters for route group and service: %s/%s %s, %w",

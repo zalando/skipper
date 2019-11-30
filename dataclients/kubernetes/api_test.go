@@ -115,7 +115,7 @@ func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 		d := yaml.NewDecoder(spec)
 		for {
 			var o map[string]interface{}
-			if err := d.Decode(&o); err == io.EOF && o == nil {
+			if err := d.Decode(&o); err == io.EOF || len(o) == 0 {
 				break
 			} else if err != nil {
 				return nil, err
@@ -123,6 +123,8 @@ func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 
 			kind, ok := o["kind"].(string)
 			if !ok {
+				println("from here")
+				fmt.Println(o)
 				return nil, errInvalidFixture
 			}
 

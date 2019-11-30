@@ -173,10 +173,6 @@ func invalidServicePort(backendName string, p int) error {
 	return fmt.Errorf("invalid service port in backend: %s, %d", backendName, p)
 }
 
-func missingLBAlgorithm(backendName string) error {
-	return fmt.Errorf("missing LB algorithm in backend: %s", backendName)
-}
-
 func missingEndpoints(backendName string) error {
 	return fmt.Errorf("missing LB endpoints in backend: %s", backendName)
 }

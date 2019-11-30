@@ -1,17 +1,17 @@
-kube__rg__default__my_routes____0_0:
+kube_rg__default__my_routes__all__0_0:
 	PathSubtree("/") && Traffic(0.1)
 	-> responseCookie("variant", "A")
 	-> "http://10.0.0.1:80";
 
-kube__rg__default__my_routes____1_0:
+kube_rg__default__my_routes__all__1_0:
 	PathSubtree("/")
 	-> responseCookie("variant", "B")
 	-> "http://10.0.0.2:80";
 
-kube__rg__default__my_routes____2_0:
+kube_rg__default__my_routes__all__2_0:
 	PathSubtree("/") && Cookie("variant", "A")
 	-> "http://10.0.0.1:80";
 
-kube__rg__default__my_routes____3_0:
+kube_rg__default__my_routes__all__3_0:
 	PathSubtree("/") && Cookie("variant", "B")
 	-> "http://10.0.0.2:80";
