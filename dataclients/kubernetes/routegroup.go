@@ -498,7 +498,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 			routeGroup:           rg,
 			hosts:                hosts,
 			hostRx:               createHostRx(hosts...),
-			hostRoutes:           hostRoutes,
+			hostRoutes:           make(map[string][]*eskip.Route),
 			hasEastWestHost:      hasEastWestHost(r.options.KubernetesEastWestDomain, hosts),
 			eastWestEnabled:      r.options.KubernetesEnableEastWest,
 			eastWestDomain:       r.options.KubernetesEastWestDomain,
@@ -520,6 +520,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 		}
 
 		rs = append(rs, ri...)
+		mergeHostRoutes(hostRoutes, ctx.hostRoutes)
 	}
 
 	catchAll := hostCatchAllRoutes(hostRoutes, func(host string) string {

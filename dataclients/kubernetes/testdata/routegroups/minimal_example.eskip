@@ -1,3 +1,0 @@
-kube__rg__default__myapp____0_0:
-	Host("^(example.org)$") && PathSubtree("/") ->
-	<"http://10.2.9.103:7272", "http://10.2.9.104:7272">;

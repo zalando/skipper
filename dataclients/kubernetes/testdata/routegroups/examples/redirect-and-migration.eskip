@@ -1,0 +1,16 @@
+kube_rg__default__my_routes__all__0_0: Host(/^(www[.]complex[.]example[.]org|complex[.]example[.]org)$/) && PathSubtree("/")
+  -> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__default__my_routes__all__1_0: Host(/^(www[.]complex[.]example[.]org|complex[.]example[.]org)$/) && PathSubtree("/api")
+  -> modPath("/api", "/")
+  -> <loopback>;
+
+kube_rg__default__my_routes__get__2_0: Path("/login") && Host(/^(www[.]complex[.]example[.]org|complex[.]example[.]org)$/) && Method("GET")
+  -> redirectTo(308, "https://login.example.org/")
+  -> <shunt>;
+
+kube_rg____www_complex_example_org__catchall__0_0: Host(/^(www[.]complex[.]example[.]org)$/)
+  -> <shunt>;
+
+kube_rg____complex_example_org__catchall__0_0: Host(/^(complex[.]example[.]org)$/)
+  -> <shunt>;

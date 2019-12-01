@@ -1,0 +1,11 @@
+kube_rg__default__my_routes__all__0_0: Host(/^(api[.]example[.]org)$/) && Traffic(0.8)
+  -> <roundRobin, "http://10.2.1.16:80", "http://10.2.1.8:80">;
+
+kube_rg__default__my_routes__all__0_1: Host(/^(api[.]example[.]org)$/)
+  -> <roundRobin, "http://10.2.2.16:80", "http://10.2.2.8:80">;
+
+kube_rg__default__my_routes__all__1_0: Host(/^(api[.]example[.]org)$/) && Traffic(0.1) && Traffic(0.6)
+  -> <roundRobin, "http://10.2.3.16:80", "http://10.2.3.8:80">;
+
+kube_rg__default__my_routes__all__1_1: Host(/^(api[.]example[.]org)$/) && Traffic(0.1)
+  -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;

@@ -316,7 +316,7 @@ spec:
     backends:
     - backendName: redirect
     filters:
-    - redirectTo(308, "https://login.example.org/)
+    - redirectTo(308, "https://login.example.org/")
 ```
 
 #### Complex routes with authnz, separating read and write tokens
@@ -340,7 +340,7 @@ spec:
     serviceName: my-service-v1
     servicePort: 80
   defaultBackends:
-  - backendName: my-service
+  - backendName: myapp
   routes:
   - pathSubtree: /
     methods:
@@ -861,8 +861,8 @@ spec:
   - host: shop.foo.com
     http:
       paths:
-      path: /api
-      - backend:
+      - path: /api
+        backend:
           serviceName: foo
           servicePort: 80
 ```

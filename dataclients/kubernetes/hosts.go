@@ -62,3 +62,9 @@ func hostCatchAllRoutes(hostRoutes map[string][]*eskip.Route, createID func(stri
 
 	return catchAll
 }
+
+func mergeHostRoutes(to, from map[string][]*eskip.Route) {
+	for host, routes := range from {
+		to[host] = append(to[host], routes...)
+	}
+}

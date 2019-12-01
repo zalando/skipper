@@ -1,0 +1,81 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  hosts:
+  - api.example.org
+  - api.service.example.net
+  backends:
+  - name: api-svc
+    type: service
+    serviceName: api-service-v1
+    servicePort: 80
+  - name: api-svc-v2
+    type: service
+    serviceName: foo-service-v2
+    servicePort: 80
+  defaultBackends:
+  - backendName: api-svc
+    weight: 80
+  - backendName: api-svc-v2
+    weight: 20
+  routes:
+  - path: /api/resource
+    filters:
+    - ratelimit(200, "1m")
+    - oauthTokeninfoAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+    predicates:
+    - JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+  - path: /api/resource
+    filters:
+    - ratelimit(20, "1m")
+    - oauthTokeninfoAllKV("iss", "https://accounts.google.com")
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service-v1
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: myapp-v1
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: api-service-v1
+subsets:
+- addresses:
+  - ip: 10.2.4.8
+  - ip: 10.2.4.16
+  ports:
+  - port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: foo-service-v2
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: myapp-v2
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: foo-service-v2
+subsets:
+- addresses:
+  - ip: 10.2.4.8
+  - ip: 10.2.4.16
+  ports:
+  - port: 80

@@ -1,0 +1,14 @@
+kube_rg__default__myapp__all__0_0: Path("/articles") && Host(/^(example[.]org|myapp[.]example[.]org)$/)
+  -> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__default__myapp__all__1_0: Path("/articles/shoes") && Host(/^(example[.]org|myapp[.]example[.]org)$/)
+  -> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__default__myapp__all__2_0: Path("/order") && Host(/^(example[.]org|myapp[.]example[.]org)$/)
+  -> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg____myapp_example_org__catchall__0_0: Host(/^(myapp[.]example[.]org)$/)
+  -> <shunt>;
+
+kube_rg____example_org__catchall__0_0: Host(/^(example[.]org)$/)
+  -> <shunt>;

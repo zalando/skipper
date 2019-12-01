@@ -1,0 +1,48 @@
+kube_rg__default__api__post__0_0:
+	Host("^(api[.]example[.]org|api[.]service[.]example[.]net)$")
+	&& JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+	&& Method("POST")
+	&& Path("/api/resource")
+	-> ratelimit(20, "1m")
+	-> oauthTokeninfoAllKV("iss", "https://accounts.google.com", "email", "important@example.org")
+	-> <roundRobin, "http://10.0.2.0:80", "http://10.0.2.1:80">;
+
+kube_rg__default__api__put__0_0:
+	Host("^(api[.]example[.]org|api[.]service[.]example[.]net)$")
+	&& JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+	&& Method("PUT")
+	&& Path("/api/resource")
+	-> ratelimit(20, "1m")
+	-> oauthTokeninfoAllKV("iss", "https://accounts.google.com", "email", "important@example.org")
+	-> <roundRobin, "http://10.0.2.0:80", "http://10.0.2.1:80">;
+
+kube_rg__default__api__post__1_0:
+	Host("^(api[.]example[.]org|api[.]service[.]example[.]net)$")
+	&& Method("POST")
+	&& Path("/api/resource")
+	-> ratelimit(2, "1m")
+	-> oauthTokeninfoAnyKV("iss", "https://accounts.google.com", "iss", "https://accounts.github.com")
+	-> <roundRobin, "http://10.0.2.0:80", "http://10.0.2.1:80">;
+
+kube_rg__default__api__put__1_0:
+	Host("^(api[.]example[.]org|api[.]service[.]example[.]net)$")
+	&& Method("PUT")
+	&& Path("/api/resource")
+	-> ratelimit(2, "1m")
+	-> oauthTokeninfoAnyKV("iss", "https://accounts.google.com", "iss", "https://accounts.github.com")
+	-> <roundRobin, "http://10.0.2.0:80", "http://10.0.2.1:80">;
+
+kube_rg__default__api__all__2_0:
+	Host("^(api[.]example[.]org|api[.]service[.]example[.]net)$")
+	&& Path("/api/resource")
+	-> clientRatelimit(10, "1h", "Authorization")
+	-> oauthTokeninfoAllScope("read.resource", "list.resource")
+	-> <roundRobin, "http://10.0.2.0:80", "http://10.0.2.1:80">;
+
+kube_rg____api_example_org__catchall__0_0:
+	Host("^(api[.]example[.]org)$")
+	-> <shunt>;
+
+kube_rg____api_service_example_net__catchall__0_0:
+	Host("^(api[.]service[.]example[.]net)$")
+	-> <shunt>;

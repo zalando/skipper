@@ -10,24 +10,25 @@ spec:
     type: service
     serviceName: myapp
     servicePort: 80
+  defaultBackends:
+  - backendName: myapp
   routes:
-  - pathSubtree: /
-    backends:
-    - backendName: myapp
+  - path: /app
+    filters:
+    - foo()
+  - path: /app
+    filters:
+    - foo-bar-baz
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  labels:
-    application: myapp
   name: myapp
 spec:
-  clusterIP: 10.3.190.97
   ports:
-  - name: main
-    port: 80
+  - port: 80
     protocol: TCP
-    targetPort: 7272
+    targetPort: 80
   selector:
     application: myapp
   type: ClusterIP
@@ -35,17 +36,10 @@ spec:
 apiVersion: v1
 kind: Endpoints
 metadata:
-  labels:
-    application: myapp
   name: myapp
-  namespace: default
 subsets:
 - addresses:
-  - ip: 10.2.9.103
-    nodeName: ip-10-153-130-98.eu-central-1.compute.internal
-  - ip: 10.2.9.104
-    nodeName: ip-10-153-130-99.eu-central-1.compute.internal
+  - ip: 10.2.4.8
+  - ip: 10.2.4.16
   ports:
-  - name: main
-    port: 7272
-    protocol: TCP
+  - port: 80
