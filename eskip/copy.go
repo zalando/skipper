@@ -7,6 +7,7 @@ func copyArgs(a []interface{}) []interface{} {
 	return c
 }
 
+// CopyPredicate creates a copy of the input predicate.
 func CopyPredicate(p *Predicate) *Predicate {
 	if p == nil {
 		return nil
@@ -18,6 +19,7 @@ func CopyPredicate(p *Predicate) *Predicate {
 	return c
 }
 
+// CopyPredicates creates a new slice with the copy of each predicate in the input slice.
 func CopyPredicates(p []*Predicate) []*Predicate {
 	c := make([]*Predicate, len(p))
 	for i, pi := range p {
@@ -27,6 +29,7 @@ func CopyPredicates(p []*Predicate) []*Predicate {
 	return c
 }
 
+// CopyFilter creates a copy of the input filter.
 func CopyFilter(f *Filter) *Filter {
 	if f == nil {
 		return nil
@@ -38,6 +41,7 @@ func CopyFilter(f *Filter) *Filter {
 	return c
 }
 
+// CopyFilters creates a new slice with the copy of each filter in the input slice.
 func CopyFilters(f []*Filter) []*Filter {
 	c := make([]*Filter, len(f))
 	for i, fi := range f {
@@ -47,6 +51,7 @@ func CopyFilters(f []*Filter) []*Filter {
 	return c
 }
 
+// Copy creates a canonical copy of the input route. See also Canonical().
 func Copy(r *Route) *Route {
 	if r == nil {
 		return nil
@@ -65,6 +70,7 @@ func Copy(r *Route) *Route {
 	return c
 }
 
+// CopyRoutes creates a new slice with the canonical copy of each route in the input slice.
 func CopyRoutes(r []*Route) []*Route {
 	c := make([]*Route, len(r))
 	for i, ri := range r {

@@ -130,16 +130,6 @@ func eq2Lists(left, right []*Route) bool {
 	return true
 }
 
-func Eq(r ...*Route) bool {
-	for i := 1; i < len(r); i++ {
-		if !eq2(r[i-1], r[i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
 // Eq implements canonical equivalence comparison of routes based on
 // Skipper semantics.
 //
@@ -152,7 +142,21 @@ func Eq(r ...*Route) bool {
 // reproduce the route matching (even if how it works, may not be the
 // most expected in regard of the method predicates).
 //
-// The order of the routes in the lists doesn't matter.
+func Eq(r ...*Route) bool {
+	for i := 1; i < len(r); i++ {
+		if !eq2(r[i-1], r[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// EqLists compares lists of routes. It returns true if the routes contained
+// by each list are equal by Eq(). Repeated route IDs are considered invalid
+// and EqLists always returns false in this case. The order of the routes in
+// the lists doesn't matter.
+//
 func EqLists(r ...[]*Route) bool {
 	for i := 1; i < len(r); i++ {
 		if !eq2Lists(r[i-1], r[i]) {
@@ -163,7 +167,11 @@ func EqLists(r ...[]*Route) bool {
 	return true
 }
 
-// fixing legacy fields, and sorting predicates by name:
+// Canonical returns the canonical representation of a route, that uses the
+// standard, non-legacy representation of the predicates and the backends.
+// Canonical creates a copy of the route, but doesn't necessarily creates a
+// copy of every field. See also Copy().
+//
 func Canonical(r *Route) *Route {
 	if r == nil {
 		return nil
@@ -227,6 +235,10 @@ func Canonical(r *Route) *Route {
 		}
 	}
 
+	if len(c.Predicates) == 0 {
+		c.Predicates = nil
+	}
+
 	sort.Slice(c.Predicates, comparePredicateName(c.Predicates))
 	c.Filters = r.Filters
 
@@ -252,7 +264,16 @@ func Canonical(r *Route) *Route {
 	return c
 }
 
+// CanonicalList returns the canonical form of each route in the list,
+// keeping the order. The returned slice is a new slice of the input
+// slice but the routes in the slice and their fields are not necessarily
+// all copied. See more at CopyRoutes() and Canonical().
+//
 func CanonicalList(l []*Route) []*Route {
+	if len(l) == 0 {
+		return nil
+	}
+
 	cl := make([]*Route, len(l))
 	for i := range l {
 		cl[i] = Canonical(l[i])

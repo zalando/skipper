@@ -261,6 +261,7 @@ func (r *Route) Copy() *Route {
 	return &c
 }
 
+// BackendTypeFromString parses the string representation of a backend type definition.
 func BackendTypeFromString(s string) (BackendType, error) {
 	switch s {
 	case "", "network":
@@ -278,6 +279,7 @@ func BackendTypeFromString(s string) (BackendType, error) {
 	}
 }
 
+// String returns the string representation of a backend type definition.
 func (t BackendType) String() string {
 	switch t {
 	case NetworkBackend:

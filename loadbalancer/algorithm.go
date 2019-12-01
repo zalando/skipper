@@ -14,12 +14,20 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+// Algorithm indicates the used load balancing algorithm.
 type Algorithm int
 
 const (
+	// None is the default non-specified algorithm.
 	None Algorithm = iota
+
+	// RoundRobin indicates round-robin load balancing between the backend endpoints.
 	RoundRobin
+
+	// Random indicates random choice between the backend endpoints.
 	Random
+
+	// ConsistentHash indicates choice between the backends based on their hashed address.
 	ConsistentHash
 )
 
@@ -102,6 +110,7 @@ func NewAlgorithmProvider() routing.PostProcessor {
 	return &algorithmProvider{}
 }
 
+// AlgorithmFromString parses the string representation of the algorithm definition.
 func AlgorithmFromString(a string) (Algorithm, error) {
 	switch a {
 	case "":
@@ -119,6 +128,7 @@ func AlgorithmFromString(a string) (Algorithm, error) {
 	}
 }
 
+// String returns the string representation of an algorithm definition.
 func (a Algorithm) String() string {
 	switch a {
 	case RoundRobin:
