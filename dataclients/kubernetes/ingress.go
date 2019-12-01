@@ -52,7 +52,7 @@ func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 	ic.hostRoutes[host] = append(ic.hostRoutes[host], route)
 }
 
-func newIngress(o Options, httpsRedirectCode int) *ingress {
+func newIngress(o Options) *ingress {
 	var ewPostfix string
 	if o.KubernetesEnableEastWest {
 		ewPostfix = "[.]" + strings.Replace(o.KubernetesEastWestDomain, ".", "[.]", -1)
@@ -60,7 +60,7 @@ func newIngress(o Options, httpsRedirectCode int) *ingress {
 
 	return &ingress{
 		provideHTTPSRedirect:        o.ProvideHTTPSRedirect,
-		httpsRedirectCode:           httpsRedirectCode,
+		httpsRedirectCode:           o.HTTPSRedirectCode,
 		pathMode:                    o.PathMode,
 		kubernetesEnableEastWest:    o.KubernetesEnableEastWest,
 		eastWestDomainRegexpPostfix: ewPostfix,

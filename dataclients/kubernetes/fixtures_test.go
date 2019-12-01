@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-yaml/yaml"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 )
@@ -22,26 +23,40 @@ type fixtureSet struct {
 	resources      string
 	eskip          string
 	api            string
+	kube           string
 	defaultFilters string
 	error          string
 	log            string
 }
 
+type kubeOptionsParser struct {
+	EastWest          bool   `yaml:"eastWest"`
+	EastWestDomain    string `yaml:"eastWestDomain"`
+	HTTPSRedirect     bool   `yaml:"httpsRedirect"`
+	HTTPSRedirectCode int    `yaml:"httpsRedirectCode"`
+}
+
+func baseNoExt(n string) string {
+	e := filepath.Ext(n)
+	return n[:len(n)-len(e)]
+}
+
 // iterate over file names, looking for the ones with '.yaml' and '.eskip' extensions
 // and same name, tolerating other files among the fixtures.
 func rangeOverFixtures(t *testing.T, dir string, fs []os.FileInfo, test func(fixtureSet)) {
-	// sort to ensure that the files belonging together by name are next to each other
+	// sort to ensure that the files belonging together by name are next to each other,
+	// without extension
 	sort.Slice(fs, func(i, j int) bool {
-		return fs[i].Name() < fs[j].Name()
+		ni := baseNoExt(fs[i].Name())
+		nj := baseNoExt(fs[j].Name())
+		return ni < nj
 	})
 
 	var empty fixtureSet
 	for len(fs) > 0 {
 		var fixtures fixtureSet
 
-		n := fs[0].Name()
-		firstExt := filepath.Ext(n)
-		fixtures.name = n[:len(n)-len(firstExt)]
+		fixtures.name = baseNoExt(fs[0].Name())
 		namePrefix := fixtures.name + "."
 		for len(fs) > 0 {
 			n := fs[0].Name()
@@ -56,6 +71,8 @@ func rangeOverFixtures(t *testing.T, dir string, fs []os.FileInfo, test func(fix
 				fixtures.eskip = filepath.Join(dir, n)
 			case ".api":
 				fixtures.api = filepath.Join(dir, n)
+			case ".kube":
+				fixtures.kube = filepath.Join(dir, n)
 			case ".default-filters":
 				fixtures.defaultFilters = filepath.Join(dir, n)
 			case ".error":
@@ -113,13 +130,13 @@ func testFixture(t *testing.T, f fixtureSet) {
 
 	var apiOptions testAPIOptions
 	if f.api != "" {
-		r, err := os.Open(f.api)
+		a, err := os.Open(f.api)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		defer r.Close()
-		apiOptions, err = readAPIOptions(r)
+		defer a.Close()
+		apiOptions, err = readAPIOptions(a)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -145,7 +162,33 @@ func testFixture(t *testing.T, f fixtureSet) {
 		}
 	}()
 
-	c, err := New(Options{KubernetesURL: s.URL, DefaultFiltersDir: f.defaultFilters})
+	var o Options
+	if f.kube != "" {
+		ko, err := os.Open(f.kube)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer ko.Close()
+		b, err := ioutil.ReadAll(ko)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var kop kubeOptionsParser
+		if err := yaml.Unmarshal(b, &kop); err != nil {
+			t.Fatal(err)
+		}
+
+		o.KubernetesEnableEastWest = kop.EastWest
+		o.KubernetesEastWestDomain = kop.EastWestDomain
+		o.ProvideHTTPSRedirect = kop.HTTPSRedirect
+		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
+	}
+
+	o.KubernetesURL = s.URL
+	o.DefaultFiltersDir = f.defaultFilters
+	c, err := New(o)
 	if err != nil {
 		t.Fatal(err)
 	}

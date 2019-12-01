@@ -1,0 +1,1 @@
+setRequestHeader("X-Foo", "bar") -> setCookie("foo", "bar")

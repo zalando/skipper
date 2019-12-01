@@ -1,0 +1,26 @@
+kube_rg__default__myapp__all__0_0:
+	Host("^(example[.]org)$")
+	&& Path("/app")
+	-> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
+
+kubeew_rg__default__myapp__all__0_0:
+	Host("^(myapp[.]default[.]skipper[.]cluster[.]local)$")
+	&& Path("/app")
+	-> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
+
+kube_rg__default__myapp__all__0_0_https_redirect:
+	Header("X-Forwarded-Proto", "http")
+	&& Host("^(example[.]org)$")
+	&& Path("/app")
+	-> redirectTo(308, "https:")
+	-> <shunt>;
+
+kube_rg____example_org__catchall__0_0: Host("^(example[.]org)$") -> <shunt>;
+
+// global, legacy redirect:
+kube__redirect:
+	Header("X-Forwarded-Proto", "http")
+	&& PathRegexp(".*")
+	&& PathRegexp(".*")
+	-> redirectTo(308, "https:")
+	-> <shunt>;

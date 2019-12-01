@@ -179,9 +179,16 @@ func createHTTPSRedirect(code int, r *eskip.Route) *eskip.Route {
 	// copy to avoid unexpected mutations
 	rr := eskip.Copy(r)
 	rr.Id = routeIDForRedirectRoute(rr.Id, true)
+	rr.BackendType = eskip.ShuntBackend
+
 	rr.Predicates = append(rr.Predicates, &eskip.Predicate{
 		Name: "Header",
 		Args: []interface{}{forwardedProtoHeader, "http"},
+	})
+
+	rr.Filters = append(rr.Filters, &eskip.Filter{
+		Name: "redirectTo",
+		Args: []interface{}{float64(code), "https:"},
 	})
 
 	return rr

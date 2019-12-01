@@ -11,6 +11,7 @@ import (
 )
 
 // TODO:
+// - consider catchall for east-west routes
 // - document how route group errors are handled
 // - document in the CRD that the service type must be ClusterIP when using service backends
 // - document the implicit routes, or clarify: spec.routes is not optional, but an example doesn't have any
@@ -41,7 +42,6 @@ type routeContext struct {
 	group      *routeGroupContext
 	groupRoute *routeSpec
 	id         string
-	weight     int
 	method     string
 	backend    *skipperBackend
 }
@@ -159,7 +159,7 @@ func calculateTraffic(b []*backendReference) map[string]float64 {
 
 	traffic := make(map[string]float64)
 	for i, bi := range b {
-		if sum == 0 {
+		if i == len(b)-1 {
 			traffic[bi.BackendName] = 1
 			break
 		}
@@ -248,7 +248,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *esk
 }
 
 func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Route) error {
-	f, err := ctx.defaultFilters.getNamed(ctx.routeGroup.Metadata.Namespace, serviceName)
+	f, err := ctx.defaultFilters.getNamed(namespaceString(ctx.routeGroup.Metadata.Namespace), serviceName)
 	if err != nil {
 		return defaultFiltersError(ctx.routeGroup.Metadata, serviceName, err)
 	}
@@ -443,7 +443,6 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 					group:      ctx,
 					groupRoute: rgr,
 					id:         crdRouteID(rg.Metadata, idMethod, routeIndex, backendIndex),
-					weight:     bref.Weight,
 					method:     strings.ToUpper(method),
 					backend:    be,
 				})

@@ -207,9 +207,8 @@ func New(o Options) (*Client, error) {
 		log.Debugf("new internal ips are: %s", internalIPs)
 	}
 
-	httpsRedirectCode := http.StatusPermanentRedirect
-	if o.HTTPSRedirectCode != 0 {
-		httpsRedirectCode = o.HTTPSRedirectCode
+	if o.HTTPSRedirectCode <= 0 {
+		o.HTTPSRedirectCode = http.StatusPermanentRedirect
 	}
 
 	if o.KubernetesEnableEastWest {
@@ -225,7 +224,7 @@ func New(o Options) (*Client, error) {
 		return nil, err
 	}
 
-	ing := newIngress(o, httpsRedirectCode)
+	ing := newIngress(o)
 	rg := newRouteGroups(o)
 
 	return &Client{
@@ -234,7 +233,7 @@ func New(o Options) (*Client, error) {
 		routeGroups:            rg,
 		provideHealthcheck:     o.ProvideHealthcheck,
 		provideHTTPSRedirect:   o.ProvideHTTPSRedirect,
-		httpsRedirectCode:      httpsRedirectCode,
+		httpsRedirectCode:      o.HTTPSRedirectCode,
 		current:                make(map[string]*eskip.Route),
 		sigs:                   sigs,
 		reverseSourcePredicate: o.ReverseSourcePredicate,
