@@ -157,11 +157,23 @@ func calculateTraffic(b []*backendReference) map[string]float64 {
 		}
 	}
 
+	var lastWithWeight int
+	for i, w := range weights {
+		if w > 0 {
+			lastWithWeight = i
+		}
+	}
+
 	traffic := make(map[string]float64)
 	for i, bi := range b {
-		if i == len(b)-1 {
+		if i == lastWithWeight {
 			traffic[bi.BackendName] = 1
-			break
+			continue
+		}
+
+		if weights[i] == 0 {
+			traffic[bi.BackendName] = 0
+			continue
 		}
 
 		traffic[bi.BackendName] = float64(weights[i]) / float64(sum)
