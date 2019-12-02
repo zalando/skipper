@@ -2013,30 +2013,52 @@ func TestForwardToProxy(t *testing.T) {
 	}} {
 		reqURL, _ := url.Parse(ti.requestURL)
 
-		tr := &http.Transport{}
-
-		req := &http.Request{
+		outgoing := &http.Request{
 			URL:  reqURL,
 			Host: ti.requestHost,
 		}
 
-		ctx := &context{
-			request: &http.Request{
-				TLS: ti.tls,
-			},
+		incoming := &http.Request{
+			TLS: ti.tls,
 		}
 
-		newTr, newReq := forwardToProxy(ctx, tr, req)
-		proxyURL, _ := newTr.Proxy(newReq)
+		forwardToProxy(incoming, outgoing)
 
-		if proxyURL.String() != ti.expectedProxyURL {
-			t.Errorf("proxy URLs are not equal, expected %s got %s",
-				ti.expectedProxyURL, proxyURL.String())
-		}
-		if newReq.URL.String() != ti.expectedRequestURL {
+		if outgoing.URL.String() != ti.expectedRequestURL {
 			t.Errorf("request URLs are not equal, expected %s got %s",
-				ti.expectedRequestURL, newReq.URL.String())
+				ti.expectedRequestURL, outgoing.URL.String())
 		}
+
+		proxyURL := outgoing.Header.Get("X-Skipper-Proxy")
+
+		if proxyURL != ti.expectedProxyURL {
+			t.Errorf("proxy URLs are not equal, expected %s got %s",
+				ti.expectedProxyURL, proxyURL)
+		}
+	}
+}
+
+func TestProxyFromHeader(t *testing.T) {
+	u1, err := proxyFromHeader(&http.Request{})
+	if err != nil {
+		t.Error(err)
+	}
+	if u1 != nil {
+		t.Errorf("expected nil but got %v", u1)
+	}
+
+	expectedProxyURL := "http://proxy.example.com"
+
+	u2, err := proxyFromHeader(&http.Request{
+		Header: http.Header{
+			"X-Skipper-Proxy": []string{expectedProxyURL},
+		},
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	if u2.String() != expectedProxyURL {
+		t.Errorf("expected '%s' but got '%v'", expectedProxyURL, u2)
 	}
 }
 

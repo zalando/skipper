@@ -18,18 +18,15 @@ all: * -> filter1 -> filter2 -> "http://127.0.0.1:1234/";
 
 ## backendIsProxy
 
-Notifies the proxy that the backend this request is going to be sent to is also
-proxy. This means that the request is going to be sent the usual proxy way:
+Notifies the proxy that the backend handling this request is also a
+proxy. The proxy type is based in the URL scheme which can be either
+`http`, `https` or `socks5`.
 
-```
-# HTTP request
-GET http://example.com HTTP/1.1
-...
+Keep in mind that Skipper currently cannot handle `CONNECT` requests
+by tunneling the traffic to the target destination, however, the
+`CONNECT` requests can be forwarded to a different proxy using this
+filter.
 
-# HTTPS request
-CONNECT https://example.com HTTP/1.1
-...
-```
 
 Example:
 

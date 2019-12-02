@@ -503,12 +503,27 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 		rr.Header.Add("Authorization", fmt.Sprintf("Basic %s", upBase64))
 	}
 
+	if _, ok := stateBag[filters.BackendIsProxyKey]; ok {
+		forwardToProxy(r, rr)
+	}
+
 	ctxspan := ot.SpanFromContext(r.Context())
 	if ctxspan != nil {
 		rr = rr.WithContext(ot.ContextWithSpan(rr.Context(), ctxspan))
 	}
 
 	return rr, nil
+}
+
+func forwardToProxy(incoming, outgoing *http.Request) {
+	proxyURL := &url.URL{
+		Scheme: outgoing.URL.Scheme,
+		Host:   outgoing.URL.Host,
+	}
+
+	outgoing.URL.Host = outgoing.Host
+	outgoing.URL.Scheme = schemeFromRequest(incoming)
+	outgoing.Header.Set("X-Skipper-Proxy", proxyURL.String())
 }
 
 type skipperDialer struct {
@@ -594,6 +609,7 @@ func WithParams(p Params) *Proxy {
 		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
 		IdleConnTimeout:       p.CloseIdleConnsPeriod,
 		DisableKeepAlives:     p.DisableHTTPKeepalives,
+		Proxy:                 proxyFromHeader,
 	}
 
 	if p.ClientTLS != nil {
@@ -689,6 +705,14 @@ func tryCatch(p func(), onErr func(err interface{}, stack string)) {
 	}()
 
 	p()
+}
+
+func proxyFromHeader(req *http.Request) (*url.URL, error) {
+	if u := req.Header.Get("X-Skipper-Proxy"); u != "" {
+		req.Header.Del("X-Skipper-Proxy")
+		return url.Parse(u)
+	}
+	return nil, nil
 }
 
 // applies filters to a request
@@ -833,11 +857,6 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	bag := ctx.StateBag()
 
-	roundTripper := p.roundTripper
-	if t, ok := bag[filters.BackendIsProxyKey]; ok && t.(bool) {
-		roundTripper, req = forwardToProxy(ctx, roundTripper, req)
-	}
-
 	spanName, ok := bag[tracingfilter.OpenTracingProxySpanKey].(string)
 	if !ok {
 		spanName = "proxy"
@@ -860,7 +879,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
-	response, err := roundTripper.RoundTrip(req)
+	response, err := p.roundTripper.RoundTrip(req)
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
@@ -915,20 +934,6 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	}
 	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
 	return response, nil
-}
-
-func forwardToProxy(ctx *context, tr *http.Transport, rr *http.Request) (*http.Transport, *http.Request) {
-	copyTr := *tr
-
-	copyTr.Proxy = http.ProxyURL(&url.URL{
-		Scheme: rr.URL.Scheme,
-		Host:   rr.URL.Host,
-	})
-
-	rr.URL.Host = rr.Host
-	rr.URL.Scheme = schemeFromRequest(ctx.request)
-
-	return &copyTr, rr
 }
 
 // checkRatelimit is used in case of a route ratelimit

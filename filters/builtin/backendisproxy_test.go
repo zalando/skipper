@@ -25,7 +25,7 @@ import (
 
 func TestBackendIsProxyFilter(t *testing.T) {
 	expectedStateBag := map[string]interface{}{
-		filters.BackendIsProxyKey: true,
+		filters.BackendIsProxyKey: struct{}{},
 	}
 
 	ctx := &filtertest.Context{

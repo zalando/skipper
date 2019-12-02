@@ -20,7 +20,7 @@ func (s *backendIsProxySpec) CreateFilter(args []interface{}) (filters.Filter, e
 }
 
 func (f *backendIsProxyFilter) Request(ctx filters.FilterContext) {
-	ctx.StateBag()[filters.BackendIsProxyKey] = true
+	ctx.StateBag()[filters.BackendIsProxyKey] = struct{}{}
 }
 
 func (f *backendIsProxyFilter) Response(ctx filters.FilterContext) {
