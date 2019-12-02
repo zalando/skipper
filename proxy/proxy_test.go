@@ -2014,8 +2014,9 @@ func TestForwardToProxy(t *testing.T) {
 		reqURL, _ := url.Parse(ti.requestURL)
 
 		outgoing := &http.Request{
-			URL:  reqURL,
-			Host: ti.requestHost,
+			URL:    reqURL,
+			Host:   ti.requestHost,
+			Header: make(http.Header),
 		}
 
 		incoming := &http.Request{

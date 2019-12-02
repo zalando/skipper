@@ -523,6 +523,7 @@ func forwardToProxy(incoming, outgoing *http.Request) {
 
 	outgoing.URL.Host = outgoing.Host
 	outgoing.URL.Scheme = schemeFromRequest(incoming)
+
 	outgoing.Header.Set("X-Skipper-Proxy", proxyURL.String())
 }
 
