@@ -1988,39 +1988,39 @@ func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {
 func TestForwardToProxy(t *testing.T) {
 	for _, ti := range []struct {
 		tls                *tls.ConnectionState
-		requestURL         string
-		requestHost        string
+		outgoingURL        string
+		incomingHost       string
 		expectedProxyURL   string
 		expectedRequestURL string
 	}{{
 		tls:                nil,
-		requestURL:         "http://proxy.example.com/anything?key=val",
-		requestHost:        "example.com",
+		outgoingURL:        "http://proxy.example.com/anything?key=val",
+		incomingHost:       "example.com",
 		expectedProxyURL:   "http://proxy.example.com",
 		expectedRequestURL: "http://example.com/anything?key=val",
 	}, {
 		tls:                nil,
-		requestURL:         "https://proxy.example.com/anything?key=val",
-		requestHost:        "example.com",
+		outgoingURL:        "https://proxy.example.com/anything?key=val",
+		incomingHost:       "example.com",
 		expectedProxyURL:   "https://proxy.example.com",
 		expectedRequestURL: "http://example.com/anything?key=val",
 	}, {
 		tls:                &tls.ConnectionState{},
-		requestURL:         "http://proxy.example.com/anything?key=val",
-		requestHost:        "example.com",
+		outgoingURL:        "http://proxy.example.com/anything?key=val",
+		incomingHost:       "example.com",
 		expectedProxyURL:   "http://proxy.example.com",
 		expectedRequestURL: "https://example.com/anything?key=val",
 	}} {
-		reqURL, _ := url.Parse(ti.requestURL)
+		outgoingURL, _ := url.Parse(ti.outgoingURL)
 
 		outgoing := &http.Request{
-			URL:    reqURL,
-			Host:   ti.requestHost,
+			URL:    outgoingURL,
 			Header: make(http.Header),
 		}
 
 		incoming := &http.Request{
-			TLS: ti.tls,
+			Host: ti.incomingHost,
+			TLS:  ti.tls,
 		}
 
 		forwardToProxy(incoming, outgoing)
