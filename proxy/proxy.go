@@ -36,9 +36,10 @@ import (
 )
 
 const (
-	proxyBufferSize     = 8192
-	unknownRouteID      = "_unknownroute_"
-	unknownRouteBackend = "<unknown>"
+	proxyBufferSize      = 8192
+	unknownRouteID       = "_unknownroute_"
+	unknownRouteBackend  = "<unknown>"
+	backendIsProxyHeader = "X-Skipper-Proxy"
 
 	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
@@ -524,7 +525,7 @@ func forwardToProxy(incoming, outgoing *http.Request) {
 	outgoing.URL.Host = incoming.Host
 	outgoing.URL.Scheme = schemeFromRequest(incoming)
 
-	outgoing.Header.Set("X-Skipper-Proxy", proxyURL.String())
+	outgoing.Header.Set(backendIsProxyHeader, proxyURL.String())
 }
 
 type skipperDialer struct {
@@ -709,8 +710,8 @@ func tryCatch(p func(), onErr func(err interface{}, stack string)) {
 }
 
 func proxyFromHeader(req *http.Request) (*url.URL, error) {
-	if u := req.Header.Get("X-Skipper-Proxy"); u != "" {
-		req.Header.Del("X-Skipper-Proxy")
+	if u := req.Header.Get(backendIsProxyHeader); u != "" {
+		req.Header.Del(backendIsProxyHeader)
 		return url.Parse(u)
 	}
 	return nil, nil
@@ -857,7 +858,6 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	}
 
 	bag := ctx.StateBag()
-
 	spanName, ok := bag[tracingfilter.OpenTracingProxySpanKey].(string)
 	if !ok {
 		spanName = "proxy"

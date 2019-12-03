@@ -2030,7 +2030,7 @@ func TestForwardToProxy(t *testing.T) {
 				ti.expectedRequestURL, outgoing.URL.String())
 		}
 
-		proxyURL := outgoing.Header.Get("X-Skipper-Proxy")
+		proxyURL := outgoing.Header.Get(backendIsProxyHeader)
 
 		if proxyURL != ti.expectedProxyURL {
 			t.Errorf("proxy URLs are not equal, expected %s got %s",
@@ -2052,7 +2052,7 @@ func TestProxyFromHeader(t *testing.T) {
 
 	u2, err := proxyFromHeader(&http.Request{
 		Header: http.Header{
-			"X-Skipper-Proxy": []string{expectedProxyURL},
+			backendIsProxyHeader: []string{expectedProxyURL},
 		},
 	})
 	if err != nil {
