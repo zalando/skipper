@@ -68,6 +68,7 @@ const (
 func MakeRegistry() filters.Registry {
 	r := make(filters.Registry)
 	for _, s := range []filters.Spec{
+		NewBackendIsProxy(),
 		NewRequestHeader(),
 		NewSetRequestHeader(),
 		NewAppendRequestHeader(),

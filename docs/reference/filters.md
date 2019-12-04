@@ -16,6 +16,38 @@ Example route with a match all, 2 filters and a backend:
 all: * -> filter1 -> filter2 -> "http://127.0.0.1:1234/";
 ```
 
+## backendIsProxy
+
+Notifies the proxy that the backend handling this request is also a
+proxy. The proxy type is based in the URL scheme which can be either
+`http`, `https` or `socks5`.
+
+Keep in mind that Skipper currently cannot handle `CONNECT` requests
+by tunneling the traffic to the target destination, however, the
+`CONNECT` requests can be forwarded to a different proxy using this
+filter.
+
+
+Example:
+
+```
+foo1:
+  *
+  -> backendIsProxy()
+  -> "http://proxy.example.com";
+
+foo2:
+  *
+  -> backendIsProxy()
+  -> <roundRobin, "http://proxy1.example.com", "http://proxy2.example.com">;
+
+foo3:
+  *
+  -> setDynamicBackendUrl("http://proxy.example.com")
+  -> backendIsProxy()
+  -> <dynamic>;
+```
+
 ## setRequestHeader
 
 Set headers for requests.

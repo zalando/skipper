@@ -1985,6 +1985,84 @@ func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {
 	})
 }
 
+func TestForwardToProxy(t *testing.T) {
+	for _, ti := range []struct {
+		tls                *tls.ConnectionState
+		outgoingURL        string
+		incomingHost       string
+		expectedProxyURL   string
+		expectedRequestURL string
+	}{{
+		tls:                nil,
+		outgoingURL:        "http://proxy.example.com/anything?key=val",
+		incomingHost:       "example.com",
+		expectedProxyURL:   "http://proxy.example.com",
+		expectedRequestURL: "http://example.com/anything?key=val",
+	}, {
+		tls:                nil,
+		outgoingURL:        "https://proxy.example.com/anything?key=val",
+		incomingHost:       "example.com",
+		expectedProxyURL:   "https://proxy.example.com",
+		expectedRequestURL: "http://example.com/anything?key=val",
+	}, {
+		tls:                &tls.ConnectionState{},
+		outgoingURL:        "http://proxy.example.com/anything?key=val",
+		incomingHost:       "example.com",
+		expectedProxyURL:   "http://proxy.example.com",
+		expectedRequestURL: "https://example.com/anything?key=val",
+	}} {
+		outgoingURL, _ := url.Parse(ti.outgoingURL)
+
+		outgoing := &http.Request{
+			URL:    outgoingURL,
+			Header: make(http.Header),
+		}
+
+		incoming := &http.Request{
+			Host: ti.incomingHost,
+			TLS:  ti.tls,
+		}
+
+		forwardToProxy(incoming, outgoing)
+
+		if outgoing.URL.String() != ti.expectedRequestURL {
+			t.Errorf("request URLs are not equal, expected %s got %s",
+				ti.expectedRequestURL, outgoing.URL.String())
+		}
+
+		proxyURL := outgoing.Header.Get(backendIsProxyHeader)
+
+		if proxyURL != ti.expectedProxyURL {
+			t.Errorf("proxy URLs are not equal, expected %s got %s",
+				ti.expectedProxyURL, proxyURL)
+		}
+	}
+}
+
+func TestProxyFromHeader(t *testing.T) {
+	u1, err := proxyFromHeader(&http.Request{})
+	if err != nil {
+		t.Error(err)
+	}
+	if u1 != nil {
+		t.Errorf("expected nil but got %v", u1)
+	}
+
+	expectedProxyURL := "http://proxy.example.com"
+
+	u2, err := proxyFromHeader(&http.Request{
+		Header: http.Header{
+			backendIsProxyHeader: []string{expectedProxyURL},
+		},
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	if u2.String() != expectedProxyURL {
+		t.Errorf("expected '%s' but got '%v'", expectedProxyURL, u2)
+	}
+}
+
 func BenchmarkAccessLogNoFilter(b *testing.B)     { benchmarkAccessLog(b, "", 200) }
 func BenchmarkAccessLogDisablePrint(b *testing.B) { benchmarkAccessLog(b, "disableAccessLog(1,3)", 200) }
 func BenchmarkAccessLogDisable(b *testing.B)      { benchmarkAccessLog(b, "disableAccessLog(1,3,200)", 200) }
