@@ -201,7 +201,7 @@ func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
 	}
 
 	var cfg openIDConfig
-	err = jsonGet(u, "", &cfg, http.DefaultClient, nil, nil, "")
+	err = jsonGet(u, "", &cfg, &http.Transport{}, nil, nil, "")
 	return &cfg, err
 }
 

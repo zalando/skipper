@@ -1,18 +1,21 @@
 package auth
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
-	"github.com/zalando/skipper/filters"
 	"io"
-	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -21,13 +24,16 @@ const (
 	tokenIntrospectionSpan = "tokenintrospection"
 )
 
-const defaultMaxIdleConns = 64
+const (
+	defaultMaxIdleConns = 64
+	tracingTagURL       = "http.url"
+)
 
 type authClient struct {
-	url    *url.URL
-	client *http.Client
-	mu     sync.Mutex
-	quit   chan struct{}
+	url  *url.URL
+	rt   http.RoundTripper
+	mu   sync.Mutex
+	quit chan struct{}
 }
 
 func newAuthClient(baseURL string, timeout time.Duration, maxIdleConns int) (*authClient, error) {
@@ -41,16 +47,13 @@ func newAuthClient(baseURL string, timeout time.Duration, maxIdleConns int) (*au
 	}
 
 	quit := make(chan struct{})
-	client, err := createHTTPClient(timeout, quit, maxIdleConns)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create http client: %v", err)
-	}
-	return &authClient{url: u, client: client, quit: quit}, nil
+	tr := createHTTPClient(timeout, quit, maxIdleConns)
+	return &authClient{url: u, rt: tr, quit: quit}, nil
 }
 
 func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext) (tokenIntrospectionInfo, error) {
 	info := make(tokenIntrospectionInfo)
-	err := jsonPost(ac.url, token, &info, ac.client, ctx.Tracer(), ctx.ParentSpan(), tokenIntrospectionSpan)
+	err := jsonPost(ac.url, token, &info, ac.rt, ctx.Tracer(), ctx.ParentSpan(), tokenIntrospectionSpan)
 	if err != nil {
 		return nil, err
 	}
@@ -59,31 +62,31 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 
 func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map[string]interface{}, error) {
 	var a map[string]interface{}
-	err := jsonGet(ac.url, token, &a, ac.client, ctx.Tracer(), ctx.ParentSpan(), tokenInfoSpanName)
+	err := jsonGet(ac.url, token, &a, ac.rt, ctx.Tracer(), ctx.ParentSpan(), tokenInfoSpanName)
 	return a, err
 }
 
 func (ac *authClient) getWebhook(ctx filters.FilterContext) (int, error) {
-	return ac.doClonedGet(ctx)
+	return ac.doClonedGet(ctx, webhookSpanName)
 }
 
 // doClonedGet requests url with the same headers and query as the
 // incoming request and returns with http statusCode and error.
-func (ac *authClient) doClonedGet(ctx filters.FilterContext) (int, error) {
-	tracer := ctx.Tracer()
-	parentSpan := ctx.ParentSpan()
-	request := ctx.Request()
-	span := tracer.StartSpan(webhookSpanName, opentracing.ChildOf(parentSpan.Context()))
-	defer span.Finish()
+func (ac *authClient) doClonedGet(ctx filters.FilterContext, spanName string) (int, error) {
+	// prepare cloned request
 	req, err := http.NewRequest("GET", ac.url.String(), nil)
 	if err != nil {
 		return -1, err
 	}
+	copyHeader(req.Header, ctx.Request().Header)
+	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), ctx.ParentSpan()))
+	span := injectSpan(ctx.Tracer(), ctx.ParentSpan(), spanName, req)
+	defer span.Finish()
+	req = injectClientTrace(req, span)
 
-	tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
-	copyHeader(req.Header, request.Header)
-
-	rsp, err := ac.client.Do(req)
+	span.LogKV("http_do", "start")
+	rsp, err := ac.rt.RoundTrip(req)
+	span.LogKV("http_do", "stop")
 	if err != nil {
 		return -1, err
 	}
@@ -92,11 +95,8 @@ func (ac *authClient) doClonedGet(ctx filters.FilterContext) (int, error) {
 	return rsp.StatusCode, nil
 }
 
-func createHTTPClient(timeout time.Duration, quit chan struct{}, maxIdleConns int) (*http.Client, error) {
+func createHTTPClient(timeout time.Duration, quit chan struct{}, maxIdleConns int) *http.Transport {
 	transport := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout: timeout,
-		}).DialContext,
 		ResponseHeaderTimeout: timeout,
 		TLSHandshakeTimeout:   timeout,
 		MaxIdleConnsPerHost:   maxIdleConns,
@@ -113,17 +113,46 @@ func createHTTPClient(timeout time.Duration, quit chan struct{}, maxIdleConns in
 		}
 	}()
 
-	return &http.Client{
-		Transport: transport,
-	}, nil
+	return transport
 }
 
-// jsonGet does a get to the url with accessToken as the bearer token in the authorization header. Writes response body into doc.
+func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) {
+			span.LogKV("dial_auth", "DNS lookup start")
+		},
+		DNSDone: func(httptrace.DNSDoneInfo) {
+			span.LogKV("dial_auth", "DNS lookup done")
+		},
+		ConnectStart: func(string, string) {
+			span.LogKV("dial_auth", "connect start")
+		},
+		ConnectDone: func(string, string, error) {
+			span.LogKV("dial_auth", "connect done")
+		},
+		TLSHandshakeStart: func() {
+			span.LogKV("dial_auth", "TLS start")
+		},
+		TLSHandshakeDone: func(tls.ConnectionState, error) {
+			span.LogKV("dial_auth", "TLS done")
+		},
+		GetConn: func(string) {
+			span.LogKV("dial_auth", "get conn")
+		},
+		GotConn: func(httptrace.GotConnInfo) {
+			span.LogKV("dial_auth", "got conn")
+		},
+	}
+	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+}
+
+// jsonGet does a get to the url with accessToken as the bearer token
+// in the authorization header. Writes response body into doc.
 func jsonGet(
 	url *url.URL,
 	accessToken string,
 	doc interface{},
-	client *http.Client,
+	rt http.RoundTripper,
 	tracer opentracing.Tracer,
 	parentSpan opentracing.Span,
 	childSpanName string,
@@ -132,17 +161,19 @@ func jsonGet(
 	if err != nil {
 		return err
 	}
+	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
 
 	if accessToken != "" {
 		req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
 	}
 
 	span := injectSpan(tracer, parentSpan, childSpanName, req)
-	if span != nil {
-		defer span.Finish()
-	}
+	defer span.Finish()
+	req = injectClientTrace(req, span)
 
-	rsp, err := client.Do(req)
+	span.LogKV("http_do", "start")
+	rsp, err := rt.RoundTrip(req)
+	span.LogKV("http_do", "stop")
 	if err != nil {
 		return err
 	}
@@ -157,12 +188,13 @@ func jsonGet(
 }
 
 func injectSpan(tracer opentracing.Tracer, parentSpan opentracing.Span, childSpanName string, req *http.Request) opentracing.Span {
-	if tracer != nil && parentSpan != nil && childSpanName != "" {
-		span := tracer.StartSpan(childSpanName, opentracing.ChildOf(parentSpan.Context()))
-		tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
-		return span
+	if tracer == nil {
+		tracer = &opentracing.NoopTracer{}
 	}
-	return nil
+	span := tracing.CreateSpan(childSpanName, req.Context(), tracer)
+	span.SetTag(tracingTagURL, req.URL.String())
+	_ = tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
+	return span
 }
 
 // jsonPost does a form post to the url with auth in the body if auth was provided. Writes response body into doc.
@@ -170,7 +202,7 @@ func jsonPost(
 	u *url.URL,
 	auth string,
 	doc *tokenIntrospectionInfo,
-	client *http.Client,
+	rt http.RoundTripper,
 	tracer opentracing.Tracer,
 	parentSpan opentracing.Span,
 	spanName string,
@@ -181,6 +213,7 @@ func jsonPost(
 	if err != nil {
 		return err
 	}
+	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
 
 	if u.User != nil {
 		authorization := base64.StdEncoding.EncodeToString([]byte(u.User.String()))
@@ -190,10 +223,12 @@ func jsonPost(
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	span := injectSpan(tracer, parentSpan, spanName, req)
-	if span != nil {
-		defer span.Finish()
-	}
-	rsp, err := client.Do(req)
+	defer span.Finish()
+	req = injectClientTrace(req, span)
+
+	span.LogKV("http_do", "start")
+	rsp, err := rt.RoundTrip(req)
+	span.LogKV("http_do", "stop")
 	if err != nil {
 		return err
 	}
