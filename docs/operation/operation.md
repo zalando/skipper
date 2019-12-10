@@ -504,7 +504,7 @@ Tags:
 - skipper.route_id: `kube_default__example_ingress_hostname_example_org____example_backend`
 - span.kind: client
 
-![Proxy span with tags](../../img//img/skipper_opentracing_proxy_span_with_tags.png)
+![Proxy span with tags](../../img/skipper_opentracing_proxy_span_with_tags.png)
 
 Proxy span has logs to measure
 [connect](https://golang.org/pkg/net/http/#Transport.DialContext) (`dial_context`),
