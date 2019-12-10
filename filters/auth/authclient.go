@@ -1,13 +1,11 @@
 package auth
 
 import (
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptrace"
 	"net/url"
 	"strings"
 	"sync"
@@ -15,7 +13,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/net"
 )
 
 const (
@@ -31,7 +29,7 @@ const (
 
 type authClient struct {
 	url  *url.URL
-	rt   http.RoundTripper
+	rt   net.SkipperRoundTripper
 	mu   sync.Mutex
 	quit chan struct{}
 }
@@ -47,13 +45,17 @@ func newAuthClient(baseURL string, timeout time.Duration, maxIdleConns int) (*au
 	}
 
 	quit := make(chan struct{})
-	tr := createHTTPClient(timeout, quit, maxIdleConns)
+	tr := net.NewHTTPRoundTripper(net.Options{
+		ResponseHeaderTimeout: timeout,
+		TLSHandshakeTimeout:   timeout,
+		MaxIdleConnsPerHost:   maxIdleConns,
+	}, quit)
 	return &authClient{url: u, rt: tr, quit: quit}, nil
 }
 
 func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext) (tokenIntrospectionInfo, error) {
 	info := make(tokenIntrospectionInfo)
-	err := jsonPost(ac.url, token, &info, ac.rt, ctx.Tracer(), ctx.ParentSpan(), tokenIntrospectionSpan)
+	err := jsonPost(ac.url, token, &info, ac.rt, ctx.ParentSpan(), tokenIntrospectionSpan)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +64,7 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 
 func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map[string]interface{}, error) {
 	var a map[string]interface{}
-	err := jsonGet(ac.url, token, &a, ac.rt, ctx.Tracer(), ctx.ParentSpan(), tokenInfoSpanName)
+	err := jsonGet(ac.url, token, &a, ac.rt, ctx.ParentSpan(), tokenInfoSpanName)
 	return a, err
 }
 
@@ -79,14 +81,8 @@ func (ac *authClient) doClonedGet(ctx filters.FilterContext, spanName string) (i
 		return -1, err
 	}
 	copyHeader(req.Header, ctx.Request().Header)
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), ctx.ParentSpan()))
-	span := injectSpan(ctx.Tracer(), ctx.ParentSpan(), spanName, req)
-	defer span.Finish()
-	req = injectClientTrace(req, span)
 
-	span.LogKV("http_do", "start")
-	rsp, err := ac.rt.RoundTrip(req)
-	span.LogKV("http_do", "stop")
+	rsp, err := ac.rt.Do(req, ctx.ParentSpan(), spanName)
 	if err != nil {
 		return -1, err
 	}
@@ -95,65 +91,13 @@ func (ac *authClient) doClonedGet(ctx filters.FilterContext, spanName string) (i
 	return rsp.StatusCode, nil
 }
 
-func createHTTPClient(timeout time.Duration, quit chan struct{}, maxIdleConns int) *http.Transport {
-	transport := &http.Transport{
-		ResponseHeaderTimeout: timeout,
-		TLSHandshakeTimeout:   timeout,
-		MaxIdleConnsPerHost:   maxIdleConns,
-	}
-
-	go func() {
-		for {
-			select {
-			case <-time.After(10 * time.Second):
-				transport.CloseIdleConnections()
-			case <-quit:
-				return
-			}
-		}
-	}()
-
-	return transport
-}
-
-func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
-	trace := &httptrace.ClientTrace{
-		DNSStart: func(httptrace.DNSStartInfo) {
-			span.LogKV("DNS", "start")
-		},
-		DNSDone: func(httptrace.DNSDoneInfo) {
-			span.LogKV("DNS", "end")
-		},
-		ConnectStart: func(string, string) {
-			span.LogKV("connect", "start")
-		},
-		ConnectDone: func(string, string, error) {
-			span.LogKV("connect", "end")
-		},
-		TLSHandshakeStart: func() {
-			span.LogKV("TLS", "start")
-		},
-		TLSHandshakeDone: func(tls.ConnectionState, error) {
-			span.LogKV("TLS", "end")
-		},
-		GetConn: func(string) {
-			span.LogKV("get_conn", "start")
-		},
-		GotConn: func(httptrace.GotConnInfo) {
-			span.LogKV("get_conn", "end")
-		},
-	}
-	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
-}
-
 // jsonGet does a get to the url with accessToken as the bearer token
 // in the authorization header. Writes response body into doc.
 func jsonGet(
 	url *url.URL,
 	accessToken string,
 	doc interface{},
-	rt http.RoundTripper,
-	tracer opentracing.Tracer,
+	rt net.SkipperRoundTripper,
 	parentSpan opentracing.Span,
 	childSpanName string,
 ) error {
@@ -161,19 +105,11 @@ func jsonGet(
 	if err != nil {
 		return err
 	}
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
-
 	if accessToken != "" {
 		req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
 	}
 
-	span := injectSpan(tracer, parentSpan, childSpanName, req)
-	defer span.Finish()
-	req = injectClientTrace(req, span)
-
-	span.LogKV("http_do", "start")
-	rsp, err := rt.RoundTrip(req)
-	span.LogKV("http_do", "stop")
+	rsp, err := rt.Do(req, parentSpan, childSpanName)
 	if err != nil {
 		return err
 	}
@@ -187,23 +123,12 @@ func jsonGet(
 	return d.Decode(doc)
 }
 
-func injectSpan(tracer opentracing.Tracer, parentSpan opentracing.Span, childSpanName string, req *http.Request) opentracing.Span {
-	if tracer == nil {
-		tracer = &opentracing.NoopTracer{}
-	}
-	span := tracing.CreateSpan(childSpanName, req.Context(), tracer)
-	span.SetTag(tracingTagURL, req.URL.String())
-	_ = tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
-	return span
-}
-
 // jsonPost does a form post to the url with auth in the body if auth was provided. Writes response body into doc.
 func jsonPost(
 	u *url.URL,
 	auth string,
 	doc *tokenIntrospectionInfo,
-	rt http.RoundTripper,
-	tracer opentracing.Tracer,
+	rt net.SkipperRoundTripper,
 	parentSpan opentracing.Span,
 	spanName string,
 ) error {
@@ -213,22 +138,14 @@ func jsonPost(
 	if err != nil {
 		return err
 	}
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
 
 	if u.User != nil {
 		authorization := base64.StdEncoding.EncodeToString([]byte(u.User.String()))
 		req.Header.Add("Authorization", fmt.Sprintf("Basic %s", authorization))
 	}
-
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	span := injectSpan(tracer, parentSpan, spanName, req)
-	defer span.Finish()
-	req = injectClientTrace(req, span)
-
-	span.LogKV("http_do", "start")
-	rsp, err := rt.RoundTrip(req)
-	span.LogKV("http_do", "stop")
+	rsp, err := rt.Do(req, parentSpan, spanName)
 	if err != nil {
 		return err
 	}

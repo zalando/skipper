@@ -2,7 +2,6 @@ package auth
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/net"
 )
 
 const (
@@ -201,7 +201,10 @@ func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
 	}
 
 	var cfg openIDConfig
-	err = jsonGet(u, "", &cfg, &http.Transport{}, nil, nil, "")
+	quit := make(chan struct{})
+	tr := net.NewHTTPRoundTripper(net.Options{}, quit)
+	err = jsonGet(u, "", &cfg, tr, nil, "")
+	quit <- struct{}{}
 	return &cfg, err
 }
 
