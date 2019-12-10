@@ -466,10 +466,10 @@ open an issue or pull request in our [repository](https://github.com/zalando/ski
 
 Skipper creates up to 5 different
 [spans](https://godoc.org/github.com/opentracing/opentracing-go#Span):
-![Spans](../../img/skipper_opentracing_spans.png)
+![Spans](../img/skipper_opentracing_spans.png)
 
 Some Tag details are added to all spans.
-![Span details](../../img/skipper_opentracing_details.png)
+![Span details](../img/skipper_opentracing_details.png)
 
 ### Ingress span
 
@@ -486,7 +486,7 @@ Tags:
 - http.url: /
 - span.kind: server
 
-![Ingress span with tags](../../img/skipper_opentracing_ingress_tags.png)
+![Ingress span with tags](../img/skipper_opentracing_ingress_tags.png)
 
 ### Proxy span
 
@@ -504,7 +504,7 @@ Tags:
 - skipper.route_id: `kube_default__example_ingress_hostname_example_org____example_backend`
 - span.kind: client
 
-![Proxy span with tags](../../img/skipper_opentracing_proxy_span_with_tags.png)
+![Proxy span with tags](../img/skipper_opentracing_proxy_span_with_tags.png)
 
 Proxy span has logs to measure
 [connect](https://golang.org/pkg/net/http/#Transport.DialContext) (`dial_context`),
@@ -513,14 +513,14 @@ Proxy span has logs to measure
 (`stream_Headers`) and stream body from backend to client
 (`streamBody.byte`).
 
-![Proxy span with logs](../../img/skipper_opentracing_proxy_span_with_logs.png)
+![Proxy span with logs](../img/skipper_opentracing_proxy_span_with_logs.png)
 
 ### Request filters span
 
 The request filters span logs shows `start` and `end` values for each
 filter applied.
 
-![request filter span with logs](../../img/skipper_opentracing_request_filters_span_with_logs.png)
+![request filter span with logs](../img/skipper_opentracing_request_filters_span_with_logs.png)
 
 
 ### Response filters span
@@ -528,7 +528,7 @@ filter applied.
 The response filters span logs shows `start` and `end` values for each
 filter applied.
 
-![response filter span with logs](../../img/skipper_opentracing_response_filters_span_with_logs.png)
+![response filter span with logs](../img/skipper_opentracing_response_filters_span_with_logs.png)
 
 ### Auth filters span
 
@@ -543,7 +543,7 @@ Tags:
 The auth filters have trace log values `start` and `end` for DNS, TCP
 connect, TLS handshake and connection pool:
 
-![tokeninfo auth filter span with logs](../../img/skipper_opentracing_auth_filter_tokeninfo_span_with_logs.png)
+![tokeninfo auth filter span with logs](../img/skipper_opentracing_auth_filter_tokeninfo_span_with_logs.png)
 
 ## Dataclient
 
@@ -720,8 +720,8 @@ capable of responding some requests fast enough.
 
 ### A solution
 
-Skipper has two filters [`lifo()`](../../reference/filters/#lifo) and
-[`lifoGroup()`](../../reference/filters/#lifogroup), that can limit
+Skipper has two filters [`lifo()`](../reference/filters/#lifo) and
+[`lifoGroup()`](../reference/filters/#lifogroup), that can limit
 the number of requests for a route.  A [documented load
 test](https://github.com/zalando/skipper/pull/1030#issuecomment-485714338)
 shows the behavior with an enabled `lifo(100,100,"10s")` filter for
@@ -738,9 +738,9 @@ blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-servic
 
 Skipper's scheduler implementation makes sure, that one route will not
 interfere with other routes, if these routes are not in the same
-scheduler group. [`LifoGroup`](../../reference/filters/#lifogroup) has
+scheduler group. [`LifoGroup`](../reference/filters/#lifogroup) has
 a user chosen scheduler group and
-[`lifo()`](../../reference/filters/#lifo) will get a per route unique
+[`lifo()`](../reference/filters/#lifo) will get a per route unique
 scheduler group.
 
 ## URI standards interpretation
@@ -754,7 +754,7 @@ This is possible to achieve centrally, when Skipper is started with
 the -rfc-patch-path flag. It is also possible to allow the default
 behavior and only force the alternative interpretation on a per-route
 basis with the rfcPath() filter. See
-[`rfcPath()`](../../reference/filters/#rfcPath).
+[`rfcPath()`](../reference/filters/#rfcPath).
 
 If the second interpretation gets considered the right way, and the
 other one a bug, then the default value for this flag may become to
