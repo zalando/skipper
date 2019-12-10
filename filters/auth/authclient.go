@@ -119,28 +119,28 @@ func createHTTPClient(timeout time.Duration, quit chan struct{}, maxIdleConns in
 func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(httptrace.DNSStartInfo) {
-			span.LogKV("dial_auth", "DNS lookup start")
+			span.LogKV("DNS", "start")
 		},
 		DNSDone: func(httptrace.DNSDoneInfo) {
-			span.LogKV("dial_auth", "DNS lookup done")
+			span.LogKV("DNS", "end")
 		},
 		ConnectStart: func(string, string) {
-			span.LogKV("dial_auth", "connect start")
+			span.LogKV("connect", "start")
 		},
 		ConnectDone: func(string, string, error) {
-			span.LogKV("dial_auth", "connect done")
+			span.LogKV("connect", "end")
 		},
 		TLSHandshakeStart: func() {
-			span.LogKV("dial_auth", "TLS start")
+			span.LogKV("TLS", "start")
 		},
 		TLSHandshakeDone: func(tls.ConnectionState, error) {
-			span.LogKV("dial_auth", "TLS done")
+			span.LogKV("TLS", "end")
 		},
 		GetConn: func(string) {
-			span.LogKV("dial_auth", "get conn")
+			span.LogKV("get_conn", "start")
 		},
 		GotConn: func(httptrace.GotConnInfo) {
-			span.LogKV("dial_auth", "got conn")
+			span.LogKV("get_conn", "end")
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
