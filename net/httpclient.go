@@ -7,19 +7,8 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/zalando/skipper/tracing"
+	"github.com/opentracing/opentracing-go/ext"
 )
-
-const (
-	tracingTagURL = "http.url"
-)
-
-type SkipperRoundTripper interface {
-	http.RoundTripper
-	// Do executes the http request roundtrip with given
-	// parentSpan and new created span from string.
-	Do(*http.Request, opentracing.Span, string) (*http.Response, error)
-}
 
 // Options are mostly passed to the http.Transport of the same
 // name. Options.Timeout can be used as default for all timeouts, that
@@ -66,13 +55,16 @@ type Options struct {
 	// https://golang.org/pkg/net/http/#Transport.ExpectContinueTimeout,
 	// if not set or set to 0, its using Options.Timeout.
 	ExpectContinueTimeout time.Duration
-	// Tracer
+	// Tracer instance, can be nil to not enable tracing
 	Tracer opentracing.Tracer
 }
 
 type Transport struct {
-	tr     *http.Transport
-	tracer opentracing.Tracer
+	tr            *http.Transport
+	tracer        opentracing.Tracer
+	spanName      string
+	componentName string
+	bearerToken   string
 }
 
 func NewHTTPRoundTripper(options Options, quit <-chan struct{}) *Transport {
@@ -128,30 +120,70 @@ func NewHTTPRoundTripper(options Options, quit <-chan struct{}) *Transport {
 	}
 }
 
-// implement RoundTripper interface
-func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	return t.tr.RoundTrip(req)
+func WithSpanName(t *Transport, spanName string) *Transport {
+	tt := t.shallowCopy()
+	tt.spanName = spanName
+	return tt
 }
 
-// Do
-func (t *Transport) Do(req *http.Request, parentSpan opentracing.Span, spanName string) (*http.Response, error) {
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
-	span := t.injectSpan(parentSpan, spanName, req)
-	defer span.Finish()
-	req = injectClientTrace(req, span)
+func WithComponentTag(t *Transport, componentName string) *Transport {
+	tt := t.shallowCopy()
+	tt.componentName = componentName
+	return tt
+}
 
-	span.LogKV("http_do", "start")
+func WithBearerToken(t *Transport, bearerToken string) *Transport {
+	tt := t.shallowCopy()
+	tt.bearerToken = bearerToken
+	return tt
+}
+
+func (t *Transport) shallowCopy() *Transport {
+	tt := *t
+	return &tt
+}
+
+func (t *Transport) Do(req *http.Request) (*http.Response, error) {
+	var span opentracing.Span
+	if t.spanName != "" {
+		req, span = t.injectSpan(req)
+		defer span.Finish()
+		req = injectClientTrace(req, span)
+		span.LogKV("http_do", "start")
+	}
+	if t.bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+t.bearerToken)
+	}
 	rsp, err := t.tr.RoundTrip(req)
-	span.LogKV("http_do", "stop")
+	if span != nil {
+		span.LogKV("http_do", "stop")
+		if rsp != nil {
+			ext.HTTPStatusCode.Set(span, uint16(rsp.StatusCode))
+		}
+	}
 
 	return rsp, err
 }
 
-func (t *Transport) injectSpan(parentSpan opentracing.Span, childSpanName string, req *http.Request) opentracing.Span {
-	span := tracing.CreateSpan(childSpanName, req.Context(), t.tracer)
-	span.SetTag(tracingTagURL, req.URL.String())
+func (t *Transport) injectSpan(req *http.Request) (*http.Request, opentracing.Span) {
+	parentSpan := opentracing.SpanFromContext(req.Context())
+	var span opentracing.Span
+	if parentSpan != nil {
+		req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
+		span = t.tracer.StartSpan(t.spanName, opentracing.ChildOf(parentSpan.Context()))
+	} else {
+		span = t.tracer.StartSpan(t.spanName)
+	}
+
+	// add Tags
+	ext.Component.Set(span, t.componentName)
+	ext.HTTPUrl.Set(span, req.URL.String())
+	ext.HTTPMethod.Set(span, req.Method)
+	ext.SpanKind.Set(span, "client")
+
 	_ = t.tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
-	return span
+
+	return req, span
 }
 
 func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {

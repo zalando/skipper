@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -130,7 +131,7 @@ func TestForwardTokenInfo(t *testing.T) {
 			fr := make(filters.Registry)
 
 			if ti.oauthFilterPresent {
-				oauthTokenSpec := NewOAuthTokeninfoAnyScope(authServer.URL, oauthTimeout)
+				oauthTokenSpec := NewOAuthTokeninfoAnyScope(authServer.URL, oauthTimeout, opentracing.NoopTracer{})
 				oauthFilterArgs := []interface{}{uidScope}
 				oauthFilter, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
 				if err != nil {
@@ -249,7 +250,7 @@ func TestForwardTokenIntrospection(t *testing.T) {
 			fr := make(filters.Registry)
 
 			if ti.oauthFilterPresent {
-				oauthTokenSpec := NewOAuthTokenintrospectionAllClaims(oauthTimeout)
+				oauthTokenSpec := NewOAuthTokenintrospectionAllClaims(oauthTimeout, opentracing.NoopTracer{})
 				oauthFilterArgs := []interface{}{"http://" + issuerServer.Listener.Addr().String(), emailClaim}
 				oauthFilter, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
 				if err != nil {

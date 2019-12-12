@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -213,13 +214,13 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 			u := authServer.URL + ti.authBaseURL
 			switch ti.authType {
 			case OAuthTokeninfoAnyScopeName:
-				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout, opentracing.NoopTracer{})
 			case OAuthTokeninfoAllScopeName:
-				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout, opentracing.NoopTracer{})
 			case OAuthTokeninfoAnyKVName:
-				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout, opentracing.NoopTracer{})
 			case OAuthTokeninfoAllKVName:
-				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout, opentracing.NoopTracer{})
 			}
 
 			args = append(args, ti.args...)
@@ -321,7 +322,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 
 			args := []interface{}{testScope}
 			u := authServer.URL + testAuthPath
-			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout)
+			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout, opentracing.NoopTracer{})
 
 			scopes := []interface{}{"read-x"}
 			f, err := spec.CreateFilter(scopes)
@@ -341,6 +342,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
 				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
+				return
 			}
 
 			req, err := http.NewRequest("GET", reqURL.String(), nil)
@@ -373,7 +375,7 @@ func BenchmarkOAuthTokeninfoFilter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var spec filters.Spec
 		args := []interface{}{"uid"}
-		spec = NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second)
+		spec = NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second, opentracing.NoopTracer{})
 		f, err := spec.CreateFilter(args)
 		if err != nil {
 			b.Logf("error in creating filter")

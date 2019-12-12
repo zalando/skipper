@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
@@ -21,6 +22,7 @@ type TokeninfoOptions struct {
 	URL          string
 	Timeout      time.Duration
 	MaxIdleConns int
+	Tracer       opentracing.Tracer
 }
 
 type (
@@ -43,12 +45,13 @@ var tokeninfoAuthClient map[string]*authClient = make(map[string]*authClient)
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all scopes.
-func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout time.Duration) filters.Spec {
+func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout time.Duration, tracer opentracing.Tracer) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAllScopes,
 		options: TokeninfoOptions{
 			URL:     oauthTokeninfoURL,
 			Timeout: oauthTokeninfoTimeout,
+			Tracer:  tracer,
 		},
 	}
 }
@@ -57,12 +60,13 @@ func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout t
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one scope.
-func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration, tracer opentracing.Tracer) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAnyScopes,
 		options: TokeninfoOptions{
 			URL:     OAuthTokeninfoURL,
 			Timeout: OAuthTokeninfoTimeout,
+			Tracer:  tracer,
 		},
 	}
 }
@@ -71,12 +75,13 @@ func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout t
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all key value pairs provided.
-func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration, tracer opentracing.Tracer) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAllKV,
 		options: TokeninfoOptions{
 			URL:     OAuthTokeninfoURL,
 			Timeout: OAuthTokeninfoTimeout,
+			Tracer:  tracer,
 		},
 	}
 }
@@ -85,12 +90,13 @@ func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one key value pair provided.
-func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
+func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration, tracer opentracing.Tracer) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAnyKV,
 		options: TokeninfoOptions{
 			URL:     OAuthTokeninfoURL,
 			Timeout: OAuthTokeninfoTimeout,
+			Tracer:  tracer,
 		},
 	}
 }
@@ -103,8 +109,8 @@ func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time
 // NewOAuthTokeninfoAllScope, NewOAuthTokeninfoAnyScope,
 // NewOAuthTokeninfoAllKV or NewOAuthTokeninfoAnyKV.
 //
-func TokeninfoWithOptions(create func(string, time.Duration) filters.Spec, o TokeninfoOptions) filters.Spec {
-	s := create(o.URL, o.Timeout)
+func TokeninfoWithOptions(create func(string, time.Duration, opentracing.Tracer) filters.Spec, o TokeninfoOptions) filters.Spec {
+	s := create(o.URL, o.Timeout, o.Tracer)
 	ts, ok := s.(*tokeninfoSpec)
 	if !ok {
 		return s
@@ -149,7 +155,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	var ac *authClient
 	var ok bool
 	if ac, ok = tokeninfoAuthClient[s.options.URL]; !ok {
-		ac, err = newAuthClient(s.options.URL, s.options.Timeout, s.options.MaxIdleConns)
+		ac, err = newAuthClient(s.options.URL, tokenInfoSpanName, s.options.Timeout, s.options.MaxIdleConns, s.options.Tracer)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}

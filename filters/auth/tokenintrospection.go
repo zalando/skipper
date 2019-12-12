@@ -1,15 +1,17 @@
 package auth
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/net"
 )
 
 const (
@@ -28,6 +30,7 @@ const (
 
 type TokenintrospectionOptions struct {
 	Timeout      time.Duration
+	Tracer       opentracing.Tracer
 	MaxIdleConns int
 }
 
@@ -108,8 +111,8 @@ func (tii tokenIntrospectionInfo) getStringValue(k string) (string, error) {
 // https://tools.ietf.org/html/draft-ietf-oauth-discovery-06, if
 // oauthIntrospectionURL is a non empty string, it will set
 // IntrospectionEndpoint to the given oauthIntrospectionURL.
-func NewOAuthTokenintrospectionAnyKV(timeout time.Duration) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyKV, timeout)
+func NewOAuthTokenintrospectionAnyKV(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyKV, timeout, tracer)
 }
 
 // NewOAuthTokenintrospectionAllKV creates a new auth filter specification
@@ -126,32 +129,32 @@ func NewOAuthTokenintrospectionAnyKV(timeout time.Duration) filters.Spec {
 // https://tools.ietf.org/html/draft-ietf-oauth-discovery-06, if
 // oauthIntrospectionURL is a non empty string, it will set
 // IntrospectionEndpoint to the given oauthIntrospectionURL.
-func NewOAuthTokenintrospectionAllKV(timeout time.Duration) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllKV, timeout)
+func NewOAuthTokenintrospectionAllKV(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllKV, timeout, tracer)
 }
 
-func NewOAuthTokenintrospectionAnyClaims(timeout time.Duration) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyClaims, timeout)
+func NewOAuthTokenintrospectionAnyClaims(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAnyClaims, timeout, tracer)
 }
 
-func NewOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Spec {
-	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllClaims, timeout)
+func NewOAuthTokenintrospectionAllClaims(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllClaims, timeout, tracer)
 }
 
 //Secure Introspection Point
-func NewSecureOAuthTokenintrospectionAnyKV(timeout time.Duration) filters.Spec {
-	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAnyKV, timeout)
+func NewSecureOAuthTokenintrospectionAnyKV(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAnyKV, timeout, tracer)
 }
-func NewSecureOAuthTokenintrospectionAllKV(timeout time.Duration) filters.Spec {
-	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAllKV, timeout)
-}
-
-func NewSecureOAuthTokenintrospectionAnyClaims(timeout time.Duration) filters.Spec {
-	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAnyClaims, timeout)
+func NewSecureOAuthTokenintrospectionAllKV(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAllKV, timeout, tracer)
 }
 
-func NewSecureOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Spec {
-	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAllClaims, timeout)
+func NewSecureOAuthTokenintrospectionAnyClaims(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAnyClaims, timeout, tracer)
+}
+
+func NewSecureOAuthTokenintrospectionAllClaims(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAllClaims, timeout, tracer)
 }
 
 // TokenintrospectionWithOptions create a new auth filter specification
@@ -165,10 +168,10 @@ func NewSecureOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Sp
 // NewSecureOAuthTokenintrospectionAnyClaims, NewSecureOAuthTokenintrospectionAllClaims,
 //
 func TokenintrospectionWithOptions(
-	create func(time.Duration) filters.Spec,
+	create func(time.Duration, opentracing.Tracer) filters.Spec,
 	o TokenintrospectionOptions,
 ) filters.Spec {
-	s := create(o.Timeout)
+	s := create(o.Timeout, o.Tracer)
 	ts, ok := s.(*tokenIntrospectionSpec)
 	if !ok {
 		return s
@@ -178,18 +181,18 @@ func TokenintrospectionWithOptions(
 	return ts
 }
 
-func newOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) filters.Spec {
+func newOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
 	return &tokenIntrospectionSpec{
 		typ:     typ,
-		options: TokenintrospectionOptions{Timeout: timeout},
+		options: TokenintrospectionOptions{Timeout: timeout, Tracer: tracer},
 		secure:  false,
 	}
 }
 
-func newSecureOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) filters.Spec {
+func newSecureOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
 	return &tokenIntrospectionSpec{
 		typ:     typ,
-		options: TokenintrospectionOptions{Timeout: timeout},
+		options: TokenintrospectionOptions{Timeout: timeout, Tracer: tracer},
 		secure:  true,
 	}
 }
@@ -200,11 +203,18 @@ func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
 		return nil, err
 	}
 
+	rsp, err := http.Get(u.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != 200 {
+		return nil, errInvalidToken
+	}
+	d := json.NewDecoder(rsp.Body)
 	var cfg openIDConfig
-	quit := make(chan struct{})
-	tr := net.NewHTTPRoundTripper(net.Options{}, quit)
-	err = jsonGet(u, "", &cfg, tr, nil, "")
-	quit <- struct{}{}
+	err = d.Decode(&cfg)
 	return &cfg, err
 }
 
@@ -266,7 +276,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	var ac *authClient
 	var ok bool
 	if ac, ok = issuerAuthClient[issuerURL]; !ok {
-		ac, err = newAuthClient(cfg.IntrospectionEndpoint, s.options.Timeout, s.options.MaxIdleConns)
+		ac, err = newAuthClient(cfg.IntrospectionEndpoint, tokenIntrospectionSpanName, s.options.Timeout, s.options.MaxIdleConns, s.options.Tracer)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}

@@ -17,24 +17,23 @@ import (
 )
 
 const (
-	webhookSpanName        = "webhook"
-	tokenInfoSpanName      = "tokeninfo"
-	tokenIntrospectionSpan = "tokenintrospection"
+	webhookSpanName            = "webhook"
+	tokenInfoSpanName          = "tokeninfo"
+	tokenIntrospectionSpanName = "tokenintrospection"
 )
 
 const (
 	defaultMaxIdleConns = 64
-	tracingTagURL       = "http.url"
 )
 
 type authClient struct {
 	url  *url.URL
-	rt   net.SkipperRoundTripper
+	tr   *net.Transport
 	mu   sync.Mutex
 	quit chan struct{}
 }
 
-func newAuthClient(baseURL string, timeout time.Duration, maxIdleConns int) (*authClient, error) {
+func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer) (*authClient, error) {
 	if maxIdleConns <= 0 {
 		maxIdleConns = defaultMaxIdleConns
 	}
@@ -49,115 +48,88 @@ func newAuthClient(baseURL string, timeout time.Duration, maxIdleConns int) (*au
 		ResponseHeaderTimeout: timeout,
 		TLSHandshakeTimeout:   timeout,
 		MaxIdleConnsPerHost:   maxIdleConns,
+		Tracer:                tracer,
 	}, quit)
-	return &authClient{url: u, rt: tr, quit: quit}, nil
+	tr = net.WithSpanName(tr, spanName)
+	tr = net.WithComponentTag(tr, "skipper")
+
+	return &authClient{url: u, tr: tr, quit: quit}, nil
 }
 
 func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext) (tokenIntrospectionInfo, error) {
 	info := make(tokenIntrospectionInfo)
-	err := jsonPost(ac.url, token, &info, ac.rt, ctx.ParentSpan(), tokenIntrospectionSpan)
+	body := url.Values{}
+	body.Add(tokenKey, token)
+	req, err := http.NewRequest("POST", ac.url.String(), strings.NewReader(body.Encode()))
 	if err != nil {
-		return nil, err
+		return info, err
+	}
+
+	if ac.url.User != nil {
+		authorization := base64.StdEncoding.EncodeToString([]byte(ac.url.User.String()))
+		req.Header.Add("Authorization", fmt.Sprintf("Basic %s", authorization))
+	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	rsp, err := ac.tr.Do(req)
+	if err != nil {
+		return info, err
+	}
+
+	defer rsp.Body.Close()
+	if rsp.StatusCode != 200 {
+		return info, errInvalidToken
+	}
+	buf := make([]byte, rsp.ContentLength)
+	_, err = rsp.Body.Read(buf)
+	if err != nil && err != io.EOF {
+		return info, err
+	}
+	err = json.Unmarshal(buf, &info)
+	if err != nil {
+		return info, err
 	}
 	return info, err
 }
 
 func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map[string]interface{}, error) {
-	var a map[string]interface{}
-	err := jsonGet(ac.url, token, &a, ac.rt, ctx.ParentSpan(), tokenInfoSpanName)
-	return a, err
+	var doc map[string]interface{}
+
+	req, err := http.NewRequest("GET", ac.url.String(), nil)
+	if err != nil {
+		return doc, err
+	}
+	if token != "" {
+		req.Header.Set(authHeaderName, authHeaderPrefix+token)
+	}
+
+	rsp, err := ac.tr.Do(req)
+	if err != nil {
+		return doc, err
+	}
+
+	defer rsp.Body.Close()
+	if rsp.StatusCode != 200 {
+		return doc, errInvalidToken
+	}
+
+	d := json.NewDecoder(rsp.Body)
+	err = d.Decode(&doc)
+	return doc, err
 }
 
 func (ac *authClient) getWebhook(ctx filters.FilterContext) (int, error) {
-	return ac.doClonedGet(ctx, webhookSpanName)
-}
-
-// doClonedGet requests url with the same headers and query as the
-// incoming request and returns with http statusCode and error.
-func (ac *authClient) doClonedGet(ctx filters.FilterContext, spanName string) (int, error) {
-	// prepare cloned request
 	req, err := http.NewRequest("GET", ac.url.String(), nil)
 	if err != nil {
 		return -1, err
 	}
 	copyHeader(req.Header, ctx.Request().Header)
 
-	rsp, err := ac.rt.Do(req, ctx.ParentSpan(), spanName)
+	rsp, err := ac.tr.Do(req)
 	if err != nil {
 		return -1, err
 	}
 	defer rsp.Body.Close()
 
 	return rsp.StatusCode, nil
-}
-
-// jsonGet does a get to the url with accessToken as the bearer token
-// in the authorization header. Writes response body into doc.
-func jsonGet(
-	url *url.URL,
-	accessToken string,
-	doc interface{},
-	rt net.SkipperRoundTripper,
-	parentSpan opentracing.Span,
-	childSpanName string,
-) error {
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		return err
-	}
-	if accessToken != "" {
-		req.Header.Set(authHeaderName, authHeaderPrefix+accessToken)
-	}
-
-	rsp, err := rt.Do(req, parentSpan, childSpanName)
-	if err != nil {
-		return err
-	}
-
-	defer rsp.Body.Close()
-	if rsp.StatusCode != 200 {
-		return errInvalidToken
-	}
-
-	d := json.NewDecoder(rsp.Body)
-	return d.Decode(doc)
-}
-
-// jsonPost does a form post to the url with auth in the body if auth was provided. Writes response body into doc.
-func jsonPost(
-	u *url.URL,
-	auth string,
-	doc *tokenIntrospectionInfo,
-	rt net.SkipperRoundTripper,
-	parentSpan opentracing.Span,
-	spanName string,
-) error {
-	body := url.Values{}
-	body.Add(tokenKey, auth)
-	req, err := http.NewRequest("POST", u.String(), strings.NewReader(body.Encode()))
-	if err != nil {
-		return err
-	}
-
-	if u.User != nil {
-		authorization := base64.StdEncoding.EncodeToString([]byte(u.User.String()))
-		req.Header.Add("Authorization", fmt.Sprintf("Basic %s", authorization))
-	}
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	rsp, err := rt.Do(req, parentSpan, spanName)
-	if err != nil {
-		return err
-	}
-
-	defer rsp.Body.Close()
-	if rsp.StatusCode != 200 {
-		return errInvalidToken
-	}
-	buf := make([]byte, rsp.ContentLength)
-	_, err = rsp.Body.Read(buf)
-	if err != nil && err != io.EOF {
-		return err
-	}
-	return json.Unmarshal(buf, &doc)
 }

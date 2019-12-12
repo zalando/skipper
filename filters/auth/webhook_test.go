@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -69,7 +70,7 @@ func TestWebhook(t *testing.T) {
 			}))
 			defer authServer.Close()
 
-			spec := NewWebhook(time.Second)
+			spec := NewWebhook(time.Second, opentracing.NoopTracer{})
 
 			args := []interface{}{
 				"http://" + authServer.Listener.Addr().String(),

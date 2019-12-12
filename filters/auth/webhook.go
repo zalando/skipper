@@ -1,9 +1,11 @@
 package auth
 
 import (
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/filters"
 )
@@ -15,6 +17,7 @@ const (
 type WebhookOptions struct {
 	Timeout      time.Duration
 	MaxIdleConns int
+	Tracer       opentracing.Tracer
 }
 
 type (
@@ -29,8 +32,8 @@ type (
 // NewWebhook creates a new auth filter specification
 // to validate authorization for requests via an
 // external web hook.
-func NewWebhook(timeout time.Duration) filters.Spec {
-	return WebhookWithOptions(WebhookOptions{Timeout: timeout})
+func NewWebhook(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+	return WebhookWithOptions(WebhookOptions{Timeout: timeout, Tracer: tracer})
 }
 
 // WebhookWithOptions creates a new auth filter specification
@@ -59,7 +62,7 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac, err := newAuthClient(s, ws.options.Timeout, ws.options.MaxIdleConns)
+	ac, err := newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer)
 	if err != nil {
 		return nil, filters.ErrInvalidFilterParameters
 	}
