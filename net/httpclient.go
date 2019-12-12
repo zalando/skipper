@@ -69,6 +69,10 @@ type Transport struct {
 	bearerToken   string
 }
 
+// NewTransport creates a wrapped http.Transport, with regular DNS
+// lookups using CloseIdleConnections on every IdleConnTimeout. You
+// can optionally add tracing. On teardown you have to close the quit
+// channel or you will leak a goroutine.
 func NewTransport(options Options, quit <-chan struct{}) *Transport {
 	// set default tracer
 	if options.Tracer == nil {
@@ -122,18 +126,26 @@ func NewTransport(options Options, quit <-chan struct{}) *Transport {
 	}
 }
 
+// WithSpanName sets the name of the span, if you have an enabled
+// tracing Transport.
 func WithSpanName(t *Transport, spanName string) *Transport {
 	tt := t.shallowCopy()
 	tt.spanName = spanName
 	return tt
 }
 
+// WithComponentTag sets the component name, if you have an enabled
+// tracing Transport.
 func WithComponentTag(t *Transport, componentName string) *Transport {
 	tt := t.shallowCopy()
 	tt.componentName = componentName
 	return tt
 }
 
+// WithBearerToken adds an Authorization header with "Bearer " prefix
+// and add the given bearerToken as value to all requests. To regular
+// update your token you need to call this method and use the returned
+// Transport.
 func WithBearerToken(t *Transport, bearerToken string) *Transport {
 	tt := t.shallowCopy()
 	tt.bearerToken = bearerToken
@@ -145,6 +157,9 @@ func (t *Transport) shallowCopy() *Transport {
 	return &tt
 }
 
+// Do the request with tracing, bearer token injection and add client
+// tracing: DNS, TCP/IP, TLS handshake, connection pool access. Client
+// traces are added as logs into the created span.
 func (t *Transport) Do(req *http.Request) (*http.Response, error) {
 	var span opentracing.Span
 	if t.spanName != "" {
