@@ -44,7 +44,7 @@ func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns
 	}
 
 	quit := make(chan struct{})
-	tr := net.NewHTTPRoundTripper(net.Options{
+	tr := net.NewTransport(net.Options{
 		ResponseHeaderTimeout: timeout,
 		TLSHandshakeTimeout:   timeout,
 		MaxIdleConnsPerHost:   maxIdleConns,

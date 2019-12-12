@@ -59,6 +59,8 @@ type Options struct {
 	Tracer opentracing.Tracer
 }
 
+// Transport wraps an http.Transport and adds support for tracing and
+// bearerToken injection.
 type Transport struct {
 	tr            *http.Transport
 	tracer        opentracing.Tracer
@@ -67,7 +69,7 @@ type Transport struct {
 	bearerToken   string
 }
 
-func NewHTTPRoundTripper(options Options, quit <-chan struct{}) *Transport {
+func NewTransport(options Options, quit <-chan struct{}) *Transport {
 	// set default tracer
 	if options.Tracer == nil {
 		options.Tracer = &opentracing.NoopTracer{}

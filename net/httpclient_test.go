@@ -71,7 +71,7 @@ func TestTransport(t *testing.T) {
 			defer s.Close()
 
 			quit := make(chan struct{})
-			rt := NewHTTPRoundTripper(tt.options, quit)
+			rt := NewTransport(tt.options, quit)
 			defer close(quit)
 
 			if tt.spanName != "" {
