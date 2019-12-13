@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -214,13 +213,13 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 			u := authServer.URL + ti.authBaseURL
 			switch ti.authType {
 			case OAuthTokeninfoAnyScopeName:
-				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout, opentracing.NoopTracer{})
+				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout)
 			case OAuthTokeninfoAllScopeName:
-				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout, opentracing.NoopTracer{})
+				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout)
 			case OAuthTokeninfoAnyKVName:
-				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout, opentracing.NoopTracer{})
+				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout)
 			case OAuthTokeninfoAllKVName:
-				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout, opentracing.NoopTracer{})
+				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout)
 			}
 
 			args = append(args, ti.args...)
@@ -322,7 +321,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 
 			args := []interface{}{testScope}
 			u := authServer.URL + testAuthPath
-			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout, opentracing.NoopTracer{})
+			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout)
 
 			scopes := []interface{}{"read-x"}
 			f, err := spec.CreateFilter(scopes)
@@ -375,7 +374,7 @@ func BenchmarkOAuthTokeninfoFilter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var spec filters.Spec
 		args := []interface{}{"uid"}
-		spec = NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second, opentracing.NoopTracer{})
+		spec = NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second)
 		f, err := spec.CreateFilter(args)
 		if err != nil {
 			b.Logf("error in creating filter")

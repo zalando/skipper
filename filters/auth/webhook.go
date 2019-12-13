@@ -32,8 +32,8 @@ type (
 // NewWebhook creates a new auth filter specification
 // to validate authorization for requests via an
 // external web hook.
-func NewWebhook(timeout time.Duration, tracer opentracing.Tracer) filters.Spec {
-	return WebhookWithOptions(WebhookOptions{Timeout: timeout, Tracer: tracer})
+func NewWebhook(timeout time.Duration) filters.Spec {
+	return WebhookWithOptions(WebhookOptions{Timeout: timeout, Tracer: opentracing.NoopTracer{}})
 }
 
 // WebhookWithOptions creates a new auth filter specification

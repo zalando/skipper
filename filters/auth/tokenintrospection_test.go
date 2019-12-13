@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -533,21 +532,21 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 
 			switch ti.authType {
 			case OAuthTokenintrospectionAnyClaimsName:
-				spec = NewOAuthTokenintrospectionAnyClaims(time.Second, opentracing.NoopTracer{})
+				spec = NewOAuthTokenintrospectionAnyClaims(time.Second)
 			case OAuthTokenintrospectionAllClaimsName:
-				spec = NewOAuthTokenintrospectionAllClaims(time.Second, opentracing.NoopTracer{})
+				spec = NewOAuthTokenintrospectionAllClaims(time.Second)
 			case OAuthTokenintrospectionAnyKVName:
-				spec = NewOAuthTokenintrospectionAnyKV(time.Second, opentracing.NoopTracer{})
+				spec = NewOAuthTokenintrospectionAnyKV(time.Second)
 			case OAuthTokenintrospectionAllKVName:
-				spec = NewOAuthTokenintrospectionAllKV(time.Second, opentracing.NoopTracer{})
+				spec = NewOAuthTokenintrospectionAllKV(time.Second)
 			case SecureOAuthTokenintrospectionAnyClaimsName:
-				spec = NewSecureOAuthTokenintrospectionAnyClaims(time.Second, opentracing.NoopTracer{})
+				spec = NewSecureOAuthTokenintrospectionAnyClaims(time.Second)
 			case SecureOAuthTokenintrospectionAllClaimsName:
-				spec = NewSecureOAuthTokenintrospectionAllClaims(time.Second, opentracing.NoopTracer{})
+				spec = NewSecureOAuthTokenintrospectionAllClaims(time.Second)
 			case SecureOAuthTokenintrospectionAnyKVName:
-				spec = NewSecureOAuthTokenintrospectionAnyKV(time.Second, opentracing.NoopTracer{})
+				spec = NewSecureOAuthTokenintrospectionAnyKV(time.Second)
 			case SecureOAuthTokenintrospectionAllKVName:
-				spec = NewSecureOAuthTokenintrospectionAllKV(time.Second, opentracing.NoopTracer{})
+				spec = NewSecureOAuthTokenintrospectionAllKV(time.Second)
 			default:
 				t.Fatalf("FATAL: authType '%s' not supported", ti.authType)
 			}

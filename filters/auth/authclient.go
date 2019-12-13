@@ -32,7 +32,7 @@ type authClient struct {
 
 func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer) (*authClient, error) {
 	if tracer == nil {
-		tracer = tracing.NoopTracer{}
+		tracer = opentracing.NoopTracer{}
 	}
 	if maxIdleConns <= 0 {
 		maxIdleConns = defaultMaxIdleConns
