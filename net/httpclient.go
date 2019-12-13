@@ -157,10 +157,10 @@ func (t *Transport) shallowCopy() *Transport {
 	return &tt
 }
 
-// Do the request with tracing, bearer token injection and add client
+// RoundTrip the request with tracing, bearer token injection and add client
 // tracing: DNS, TCP/IP, TLS handshake, connection pool access. Client
 // traces are added as logs into the created span.
-func (t *Transport) Do(req *http.Request) (*http.Response, error) {
+func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var span opentracing.Span
 	if t.spanName != "" {
 		req, span = t.injectSpan(req)

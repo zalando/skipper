@@ -84,9 +84,9 @@ func TestTransport(t *testing.T) {
 			if tt.req != nil {
 				tt.req.URL.Host = s.Listener.Addr().String()
 			}
-			_, err := rt.Do(tt.req)
+			_, err := rt.RoundTrip(tt.req)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Transport.Do() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Transport.RoundTrip() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 

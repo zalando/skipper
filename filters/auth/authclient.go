@@ -71,7 +71,7 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	rsp, err := ac.tr.Do(req)
+	rsp, err := ac.tr.RoundTrip(req)
 	if err != nil {
 		return info, err
 	}
@@ -103,7 +103,7 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 		req.Header.Set(authHeaderName, authHeaderPrefix+token)
 	}
 
-	rsp, err := ac.tr.Do(req)
+	rsp, err := ac.tr.RoundTrip(req)
 	if err != nil {
 		return doc, err
 	}
@@ -125,7 +125,7 @@ func (ac *authClient) getWebhook(ctx filters.FilterContext) (int, error) {
 	}
 	copyHeader(req.Header, ctx.Request().Header)
 
-	rsp, err := ac.tr.Do(req)
+	rsp, err := ac.tr.RoundTrip(req)
 	if err != nil {
 		return -1, err
 	}

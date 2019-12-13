@@ -24,7 +24,7 @@ func ExampleTransport() {
 		log.Fatalf("Failed to create request: %v", err)
 	}
 
-	rsp, err := cli.Do(req)
+	rsp, err := cli.RoundTrip(req)
 	if err != nil {
 		log.Fatalf("Failed to do request: %v", err)
 	}
