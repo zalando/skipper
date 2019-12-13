@@ -70,9 +70,8 @@ func TestTransport(t *testing.T) {
 
 			defer s.Close()
 
-			quit := make(chan struct{})
-			rt := NewTransport(tt.options, quit)
-			defer close(quit)
+			rt := NewTransport(tt.options)
+			defer rt.Close()
 
 			if tt.spanName != "" {
 				rt = WithSpanName(rt, tt.spanName)

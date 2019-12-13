@@ -93,12 +93,7 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 
 func (*webhookFilter) Response(filters.FilterContext) {}
 
-// Close cleans-up the quit channel used for this filter
+// Close cleans-up the authClient
 func (f *webhookFilter) Close() {
-	f.authClient.mu.Lock()
-	if f.authClient.quit != nil {
-		close(f.authClient.quit)
-		f.authClient.quit = nil
-	}
-	f.authClient.mu.Unlock()
+	f.authClient.Close()
 }

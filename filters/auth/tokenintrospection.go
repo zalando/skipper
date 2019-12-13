@@ -469,13 +469,7 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 
 func (f *tokenintrospectFilter) Response(filters.FilterContext) {}
 
-// Close cleans-up the quit channel used for this filter
+// Close cleans-up the authClient
 func (f *tokenintrospectFilter) Close() {
-	f.authClient.mu.Lock()
-	if f.authClient.quit != nil {
-		close(f.authClient.quit)
-		f.authClient.quit = nil
-	}
-
-	f.authClient.mu.Unlock()
+	f.authClient.Close()
 }

@@ -9,12 +9,12 @@ import (
 )
 
 func ExampleTransport() {
-	quit := make(chan struct{})
 	tracer := lightstep.NewTracer(lightstep.Options{})
 
 	cli := net.NewTransport(net.Options{
 		Tracer: tracer,
-	}, quit)
+	})
+	defer cli.Close()
 	cli = net.WithSpanName(cli, "myspan")
 	cli = net.WithBearerToken(cli, "mytoken")
 

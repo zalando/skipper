@@ -337,10 +337,7 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 
 func (f *tokeninfoFilter) Response(filters.FilterContext) {}
 
-// Close cleans-up the quit channel used for this spec
+// Close cleans-up the authClient
 func (f *tokeninfoFilter) Close() {
-	if f.authClient != nil && f.authClient.quit != nil {
-		close(f.authClient.quit)
-		f.authClient.quit = nil
-	}
+	f.authClient.Close()
 }

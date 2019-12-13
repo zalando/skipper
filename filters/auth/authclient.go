@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -27,10 +26,8 @@ const (
 )
 
 type authClient struct {
-	url  *url.URL
-	tr   *net.Transport
-	mu   sync.Mutex
-	quit chan struct{}
+	url *url.URL
+	tr  *net.Transport
 }
 
 func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer) (*authClient, error) {
@@ -43,17 +40,20 @@ func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns
 		return nil, err
 	}
 
-	quit := make(chan struct{})
 	tr := net.NewTransport(net.Options{
 		ResponseHeaderTimeout: timeout,
 		TLSHandshakeTimeout:   timeout,
 		MaxIdleConnsPerHost:   maxIdleConns,
 		Tracer:                tracer,
-	}, quit)
+	})
 	tr = net.WithSpanName(tr, spanName)
 	tr = net.WithComponentTag(tr, "skipper")
 
-	return &authClient{url: u, tr: tr, quit: quit}, nil
+	return &authClient{url: u, tr: tr}, nil
+}
+
+func (ac *authClient) Close() {
+	ac.tr.Close()
 }
 
 func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext) (tokenIntrospectionInfo, error) {

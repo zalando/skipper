@@ -62,6 +62,7 @@ type Options struct {
 // Transport wraps an http.Transport and adds support for tracing and
 // bearerToken injection.
 type Transport struct {
+	quit          chan struct{}
 	tr            *http.Transport
 	tracer        opentracing.Tracer
 	spanName      string
@@ -71,9 +72,9 @@ type Transport struct {
 
 // NewTransport creates a wrapped http.Transport, with regular DNS
 // lookups using CloseIdleConnections on every IdleConnTimeout. You
-// can optionally add tracing. On teardown you have to close the quit
-// channel or you will leak a goroutine.
-func NewTransport(options Options, quit <-chan struct{}) *Transport {
+// can optionally add tracing. On teardown you have to use Close() to
+// not leak a goroutine.
+func NewTransport(options Options) *Transport {
 	// set default tracer
 	if options.Tracer == nil {
 		options.Tracer = &opentracing.NoopTracer{}
@@ -109,21 +110,24 @@ func NewTransport(options Options, quit <-chan struct{}) *Transport {
 		ExpectContinueTimeout:  options.ExpectContinueTimeout,
 	}
 
+	t := &Transport{
+		quit:   make(chan struct{}),
+		tr:     htransport,
+		tracer: options.Tracer,
+	}
+
 	go func() {
 		for {
 			select {
 			case <-time.After(options.IdleConnTimeout):
 				htransport.CloseIdleConnections()
-			case <-quit:
+			case <-t.quit:
 				return
 			}
 		}
 	}()
 
-	return &Transport{
-		tr:     htransport,
-		tracer: options.Tracer,
-	}
+	return t
 }
 
 // WithSpanName sets the name of the span, if you have an enabled
@@ -155,6 +159,10 @@ func WithBearerToken(t *Transport, bearerToken string) *Transport {
 func (t *Transport) shallowCopy() *Transport {
 	tt := *t
 	return &tt
+}
+
+func (t *Transport) Close() {
+	t.quit <- struct{}{}
 }
 
 // RoundTrip the request with tracing, bearer token injection and add client
