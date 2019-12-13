@@ -1013,10 +1013,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
-			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAllScope, tio),
-			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAnyScope, tio),
-			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAllKV, tio),
-			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAnyKV, tio),
+			auth.NewOAuthTokeninfoAllScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAllKVWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyKVWithOptions(tio),
 		)
 	}
 

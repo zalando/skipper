@@ -41,18 +41,28 @@ type (
 
 var tokeninfoAuthClient map[string]*authClient = make(map[string]*authClient)
 
+func NewOAuthTokeninfoAllScopeWithOptions(to TokeninfoOptions) filters.Spec {
+	return &tokeninfoSpec{
+		typ:     checkOAuthTokeninfoAllScopes,
+		options: to,
+	}
+}
+
 // NewOAuthTokeninfoAllScope creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all scopes.
-func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout time.Duration) filters.Spec {
+	return NewOAuthTokeninfoAllScopeWithOptions(TokeninfoOptions{
+		URL:     oauthTokeninfoURL,
+		Timeout: oauthTokeninfoTimeout,
+	})
+}
+
+func NewOAuthTokeninfoAnyScopeWithOptions(to TokeninfoOptions) filters.Spec {
 	return &tokeninfoSpec{
-		typ: checkOAuthTokeninfoAllScopes,
-		options: TokeninfoOptions{
-			URL:     oauthTokeninfoURL,
-			Timeout: oauthTokeninfoTimeout,
-			Tracer:  tracer,
-		},
+		typ:     checkOAuthTokeninfoAnyScopes,
+		options: to,
 	}
 }
 
@@ -60,14 +70,20 @@ func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout t
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one scope.
-func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAnyScopes,
 		options: TokeninfoOptions{
 			URL:     OAuthTokeninfoURL,
 			Timeout: OAuthTokeninfoTimeout,
-			Tracer:  tracer,
 		},
+	}
+}
+
+func NewOAuthTokeninfoAllKVWithOptions(to TokeninfoOptions) filters.Spec {
+	return &tokeninfoSpec{
+		typ:     checkOAuthTokeninfoAllKV,
+		options: to,
 	}
 }
 
@@ -75,14 +91,20 @@ func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout t
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all key value pairs provided.
-func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAllKV,
 		options: TokeninfoOptions{
 			URL:     OAuthTokeninfoURL,
 			Timeout: OAuthTokeninfoTimeout,
-			Tracer:  tracer,
 		},
+	}
+}
+
+func NewOAuthTokeninfoAnyKVWithOptions(to TokeninfoOptions) filters.Spec {
+	return &tokeninfoSpec{
+		typ:     checkOAuthTokeninfoAnyKV,
+		options: to,
 	}
 }
 
@@ -90,13 +112,12 @@ func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one key value pair provided.
-func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration, tracer opentracing.Tracer) filters.Spec {
+func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAnyKV,
 		options: TokeninfoOptions{
 			URL:     OAuthTokeninfoURL,
 			Timeout: OAuthTokeninfoTimeout,
-			Tracer:  tracer,
 		},
 	}
 }
@@ -109,8 +130,8 @@ func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time
 // NewOAuthTokeninfoAllScope, NewOAuthTokeninfoAnyScope,
 // NewOAuthTokeninfoAllKV or NewOAuthTokeninfoAnyKV.
 //
-func TokeninfoWithOptions(create func(string, time.Duration, opentracing.Tracer) filters.Spec, o TokeninfoOptions) filters.Spec {
-	s := create(o.URL, o.Timeout, o.Tracer)
+func TokeninfoWithOptions(create func(string, time.Duration) filters.Spec, o TokeninfoOptions) filters.Spec {
+	s := create(o.URL, o.Timeout)
 	ts, ok := s.(*tokeninfoSpec)
 	if !ok {
 		return s
