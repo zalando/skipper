@@ -1,3 +1,3 @@
-// Package net provides generic functions that might be useful in
-// other contexts than skipper.
+// Package net provides generic network related functions used across Skipper, which
+// might be useful also in other contexts than Skipper.
 package net

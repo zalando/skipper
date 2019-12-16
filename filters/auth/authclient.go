@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -60,12 +61,11 @@ func (ac *authClient) Close() {
 }
 
 func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext) (tokenIntrospectionInfo, error) {
-	info := make(tokenIntrospectionInfo)
 	body := url.Values{}
 	body.Add(tokenKey, token)
 	req, err := http.NewRequest("POST", ac.url.String(), strings.NewReader(body.Encode()))
 	if err != nil {
-		return info, err
+		return nil, err
 	}
 
 	if ac.url.User != nil {
@@ -76,22 +76,19 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 
 	rsp, err := ac.tr.RoundTrip(req)
 	if err != nil {
-		return info, err
+		return nil, err
 	}
-
 	defer rsp.Body.Close()
 	if rsp.StatusCode != 200 {
-		return info, errInvalidToken
+		return nil, errInvalidToken
 	}
-	buf := make([]byte, rsp.ContentLength)
-	_, err = rsp.Body.Read(buf)
+
+	buf, err := ioutil.ReadAll(rsp.Body)
 	if err != nil && err != io.EOF {
-		return info, err
+		return nil, err
 	}
+	info := make(tokenIntrospectionInfo)
 	err = json.Unmarshal(buf, &info)
-	if err != nil {
-		return info, err
-	}
 	return info, err
 }
 
