@@ -446,6 +446,105 @@ are exposed from skipper to the metrics endpoint, default listener
       }
    }
 
+## OpenTracing
+
+Skipper has support for different [OpenTracing API](http://opentracing.io/) vendors, including
+[jaeger](https://www.jaegertracing.io/),
+[lightstep](https://lightstep.com/) and
+[instana](https://www.instana.com/supported-technologies/opentracing/).
+
+You can configure tracing implementations with a flag and pass
+information and tags to the tracer:
+
+```
+-opentracing=<vendor> component-name=skipper-ingress ... tag=cluster=mycluster ...
+```
+
+The best tested tracer is the lightstep tracer, because we use it in
+our setup. In case you miss something for your chosen tracer, please
+open an issue or pull request in our [repository](https://github.com/zalando/skipper).
+
+Skipper creates up to 5 different
+[spans](https://godoc.org/github.com/opentracing/opentracing-go#Span):
+![Spans](../img/skipper_opentracing_spans.png)
+
+Some Tag details are added to all spans.
+![Span details](../img/skipper_opentracing_details.png)
+
+### Ingress span
+
+The Ingress span is active from getting the request in Skipper's main
+http handler, until we served the response to the client of the request.
+
+Tags:
+- component: skipper
+- hostname: ip-10-149-64-142
+- http.host: hostname.example.org
+- http.method: GET
+- http.path: /
+- http.remote_addr: 10.149.66.207:14574
+- http.url: /
+- span.kind: server
+
+![Ingress span with tags](../img/skipper_opentracing_ingress_tags.png)
+
+### Proxy span
+
+The Proxy span starts just before executing the backend call.
+
+Tags:
+- component: skipper
+- hostname: ip-10-149-65-70
+- http.host: hostname.example.org
+- http.method: GET
+- http.path: /
+- http.remote_addr:
+- http.status_code: 200
+- http.url: http://10.2.0.11:9090/
+- skipper.route_id: `kube_default__example_ingress_hostname_example_org____example_backend`
+- span.kind: client
+
+![Proxy span with tags](../img/skipper_opentracing_proxy_span_with_tags.png)
+
+Proxy span has logs to measure
+[connect](https://golang.org/pkg/net/http/#Transport.DialContext) (`dial_context`),
+[http roundtrip](https://golang.org/pkg/net/http/#Transport.RoundTrip)
+(`http_roundtrip`), stream headers from backend to client
+(`stream_Headers`) and stream body from backend to client
+(`streamBody.byte`).
+
+![Proxy span with logs](../img/skipper_opentracing_proxy_span_with_logs.png)
+
+### Request filters span
+
+The request filters span logs shows `start` and `end` values for each
+filter applied.
+
+![request filter span with logs](../img/skipper_opentracing_request_filters_span_with_logs.png)
+
+
+### Response filters span
+
+The response filters span logs shows `start` and `end` values for each
+filter applied.
+
+![response filter span with logs](../img/skipper_opentracing_response_filters_span_with_logs.png)
+
+### Auth filters span
+
+Auth filters are special, because they might call an authorization
+endpoint, which should be also visible in the trace. This span can
+have the name "tokeninfo", "tokenintrospection" or "webhook" depending
+on the filter used by the matched route.
+
+Tags:
+- http.url: https://auth.example.org
+
+The auth filters have trace log values `start` and `end` for DNS, TCP
+connect, TLS handshake and connection pool:
+
+![tokeninfo auth filter span with logs](../img/skipper_opentracing_auth_filter_tokeninfo_span_with_logs.png)
+
 ## Dataclient
 
 Dataclients poll some kind of data source for routes. To change the
@@ -621,8 +720,8 @@ capable of responding some requests fast enough.
 
 ### A solution
 
-Skipper has two filters [`lifo()`](../../reference/filters/#lifo) and
-[`lifoGroup()`](../../reference/filters/#lifogroup), that can limit
+Skipper has two filters [`lifo()`](../reference/filters/#lifo) and
+[`lifoGroup()`](../reference/filters/#lifogroup), that can limit
 the number of requests for a route.  A [documented load
 test](https://github.com/zalando/skipper/pull/1030#issuecomment-485714338)
 shows the behavior with an enabled `lifo(100,100,"10s")` filter for
@@ -639,9 +738,9 @@ blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-servic
 
 Skipper's scheduler implementation makes sure, that one route will not
 interfere with other routes, if these routes are not in the same
-scheduler group. [`LifoGroup`](../../reference/filters/#lifogroup) has
+scheduler group. [`LifoGroup`](../reference/filters/#lifogroup) has
 a user chosen scheduler group and
-[`lifo()`](../../reference/filters/#lifo) will get a per route unique
+[`lifo()`](../reference/filters/#lifo) will get a per route unique
 scheduler group.
 
 ## URI standards interpretation
@@ -655,7 +754,7 @@ This is possible to achieve centrally, when Skipper is started with
 the -rfc-patch-path flag. It is also possible to allow the default
 behavior and only force the alternative interpretation on a per-route
 basis with the rfcPath() filter. See
-[`rfcPath()`](../../reference/filters/#rfcPath).
+[`rfcPath()`](../reference/filters/#rfcPath).
 
 If the second interpretation gets considered the right way, and the
 other one a bug, then the default value for this flag may become to

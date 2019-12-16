@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
@@ -28,6 +30,7 @@ const (
 
 type TokenintrospectionOptions struct {
 	Timeout      time.Duration
+	Tracer       opentracing.Tracer
 	MaxIdleConns int
 }
 
@@ -163,7 +166,7 @@ func NewSecureOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Sp
 // NewOAuthTokenintrospectionAnyClaims, NewOAuthTokenintrospectionAllClaims,
 // NewSecureOAuthTokenintrospectionAnyKV, NewSecureOAuthTokenintrospectionAllKV,
 // NewSecureOAuthTokenintrospectionAnyClaims, NewSecureOAuthTokenintrospectionAllClaims,
-//
+// pass opentracing.Tracer and other options in TokenintrospectionOptions.
 func TokenintrospectionWithOptions(
 	create func(time.Duration) filters.Spec,
 	o TokenintrospectionOptions,
@@ -180,17 +183,23 @@ func TokenintrospectionWithOptions(
 
 func newOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) filters.Spec {
 	return &tokenIntrospectionSpec{
-		typ:     typ,
-		options: TokenintrospectionOptions{Timeout: timeout},
-		secure:  false,
+		typ: typ,
+		options: TokenintrospectionOptions{
+			Timeout: timeout,
+			Tracer:  opentracing.NoopTracer{},
+		},
+		secure: false,
 	}
 }
 
 func newSecureOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) filters.Spec {
 	return &tokenIntrospectionSpec{
-		typ:     typ,
-		options: TokenintrospectionOptions{Timeout: timeout},
-		secure:  true,
+		typ: typ,
+		options: TokenintrospectionOptions{
+			Timeout: timeout,
+			Tracer:  opentracing.NoopTracer{},
+		},
+		secure: true,
 	}
 }
 
@@ -200,8 +209,18 @@ func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
 		return nil, err
 	}
 
+	rsp, err := http.Get(u.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != 200 {
+		return nil, errInvalidToken
+	}
+	d := json.NewDecoder(rsp.Body)
 	var cfg openIDConfig
-	err = jsonGet(u, "", &cfg, http.DefaultClient, nil, nil, "")
+	err = d.Decode(&cfg)
 	return &cfg, err
 }
 
@@ -263,7 +282,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	var ac *authClient
 	var ok bool
 	if ac, ok = issuerAuthClient[issuerURL]; !ok {
-		ac, err = newAuthClient(cfg.IntrospectionEndpoint, s.options.Timeout, s.options.MaxIdleConns)
+		ac, err = newAuthClient(cfg.IntrospectionEndpoint, tokenIntrospectionSpanName, s.options.Timeout, s.options.MaxIdleConns, s.options.Tracer)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}
@@ -456,13 +475,7 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 
 func (f *tokenintrospectFilter) Response(filters.FilterContext) {}
 
-// Close cleans-up the quit channel used for this filter
+// Close cleans-up the authClient
 func (f *tokenintrospectFilter) Close() {
-	f.authClient.mu.Lock()
-	if f.authClient.quit != nil {
-		close(f.authClient.quit)
-		f.authClient.quit = nil
-	}
-
-	f.authClient.mu.Unlock()
+	f.authClient.Close()
 }

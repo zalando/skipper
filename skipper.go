@@ -990,18 +990,33 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Warning("no route source specified")
 	}
 
+	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
+
+	var tracer ot.Tracer
+	if len(o.OpenTracing) > 0 {
+		tracer, err = tracing.InitTracer(o.OpenTracing)
+		if err != nil {
+			return err
+		}
+	} else {
+		// always have a tracer available, so filter authors can rely on the
+		// existence of a tracer
+		tracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	}
+
 	if o.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{
 			URL:          o.OAuthTokeninfoURL,
 			Timeout:      o.OAuthTokeninfoTimeout,
 			MaxIdleConns: o.IdleConnectionsPerHost,
+			Tracer:       tracer,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
-			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAllScope, tio),
-			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAnyScope, tio),
-			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAllKV, tio),
-			auth.TokeninfoWithOptions(auth.NewOAuthTokeninfoAnyKV, tio),
+			auth.NewOAuthTokeninfoAllScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyScopeWithOptions(tio),
+			auth.NewOAuthTokeninfoAllKVWithOptions(tio),
+			auth.NewOAuthTokeninfoAnyKVWithOptions(tio),
 		)
 	}
 
@@ -1021,11 +1036,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	tio := auth.TokenintrospectionOptions{
 		Timeout:      o.OAuthTokenintrospectionTimeout,
 		MaxIdleConns: o.IdleConnectionsPerHost,
+		Tracer:       tracer,
 	}
 
 	who := auth.WebhookOptions{
 		Timeout:      o.WebhookTimeout,
 		MaxIdleConns: o.IdleConnectionsPerHost,
+		Tracer:       tracer,
 	}
 
 	o.CustomFilters = append(o.CustomFilters,
@@ -1256,19 +1273,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Infoln("Metrics are disabled")
 	}
 
-	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
-
-	var tracer ot.Tracer
-	if len(o.OpenTracing) > 0 {
-		tracer, err = tracing.InitTracer(o.OpenTracing)
-		if err != nil {
-			return err
-		}
-	} else {
-		// always have a tracer available, so filter authors can rely on the
-		// existence of a tracer
-		tracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
-	}
 	proxyParams.OpenTracing = &proxy.OpenTracingParams{
 		Tracer:          tracer,
 		InitialSpan:     o.OpenTracingInitialSpan,

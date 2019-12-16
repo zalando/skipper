@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
@@ -21,6 +22,7 @@ type TokeninfoOptions struct {
 	URL          string
 	Timeout      time.Duration
 	MaxIdleConns int
+	Tracer       opentracing.Tracer
 }
 
 type (
@@ -39,17 +41,28 @@ type (
 
 var tokeninfoAuthClient map[string]*authClient = make(map[string]*authClient)
 
+func NewOAuthTokeninfoAllScopeWithOptions(to TokeninfoOptions) filters.Spec {
+	return &tokeninfoSpec{
+		typ:     checkOAuthTokeninfoAllScopes,
+		options: to,
+	}
+}
+
 // NewOAuthTokeninfoAllScope creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all scopes.
 func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout time.Duration) filters.Spec {
+	return NewOAuthTokeninfoAllScopeWithOptions(TokeninfoOptions{
+		URL:     oauthTokeninfoURL,
+		Timeout: oauthTokeninfoTimeout,
+	})
+}
+
+func NewOAuthTokeninfoAnyScopeWithOptions(to TokeninfoOptions) filters.Spec {
 	return &tokeninfoSpec{
-		typ: checkOAuthTokeninfoAllScopes,
-		options: TokeninfoOptions{
-			URL:     oauthTokeninfoURL,
-			Timeout: oauthTokeninfoTimeout,
-		},
+		typ:     checkOAuthTokeninfoAnyScopes,
+		options: to,
 	}
 }
 
@@ -67,6 +80,13 @@ func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout t
 	}
 }
 
+func NewOAuthTokeninfoAllKVWithOptions(to TokeninfoOptions) filters.Spec {
+	return &tokeninfoSpec{
+		typ:     checkOAuthTokeninfoAllKV,
+		options: to,
+	}
+}
+
 // NewOAuthTokeninfoAllKV creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
@@ -78,6 +98,13 @@ func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time
 			URL:     OAuthTokeninfoURL,
 			Timeout: OAuthTokeninfoTimeout,
 		},
+	}
+}
+
+func NewOAuthTokeninfoAnyKVWithOptions(to TokeninfoOptions) filters.Spec {
+	return &tokeninfoSpec{
+		typ:     checkOAuthTokeninfoAnyKV,
+		options: to,
 	}
 }
 
@@ -149,7 +176,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	var ac *authClient
 	var ok bool
 	if ac, ok = tokeninfoAuthClient[s.options.URL]; !ok {
-		ac, err = newAuthClient(s.options.URL, s.options.Timeout, s.options.MaxIdleConns)
+		ac, err = newAuthClient(s.options.URL, tokenInfoSpanName, s.options.Timeout, s.options.MaxIdleConns, s.options.Tracer)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}
@@ -331,10 +358,7 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 
 func (f *tokeninfoFilter) Response(filters.FilterContext) {}
 
-// Close cleans-up the quit channel used for this spec
+// Close cleans-up the authClient
 func (f *tokeninfoFilter) Close() {
-	if f.authClient != nil && f.authClient.quit != nil {
-		close(f.authClient.quit)
-		f.authClient.quit = nil
-	}
+	f.authClient.Close()
 }

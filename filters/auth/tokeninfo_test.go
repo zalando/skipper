@@ -341,6 +341,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
 				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
+				return
 			}
 
 			req, err := http.NewRequest("GET", reqURL.String(), nil)
