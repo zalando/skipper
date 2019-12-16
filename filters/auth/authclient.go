@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -79,12 +78,13 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 		return nil, err
 	}
 	defer rsp.Body.Close()
+
 	if rsp.StatusCode != 200 {
 		return nil, errInvalidToken
 	}
 
 	buf, err := ioutil.ReadAll(rsp.Body)
-	if err != nil && err != io.EOF {
+	if err != nil {
 		return nil, err
 	}
 	info := make(tokenIntrospectionInfo)
@@ -107,8 +107,8 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 	if err != nil {
 		return doc, err
 	}
-
 	defer rsp.Body.Close()
+
 	if rsp.StatusCode != 200 {
 		return doc, errInvalidToken
 	}
