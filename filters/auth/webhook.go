@@ -1,9 +1,11 @@
 package auth
 
 import (
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/filters"
 )
@@ -15,6 +17,7 @@ const (
 type WebhookOptions struct {
 	Timeout      time.Duration
 	MaxIdleConns int
+	Tracer       opentracing.Tracer
 }
 
 type (
@@ -30,7 +33,7 @@ type (
 // to validate authorization for requests via an
 // external web hook.
 func NewWebhook(timeout time.Duration) filters.Spec {
-	return WebhookWithOptions(WebhookOptions{Timeout: timeout})
+	return WebhookWithOptions(WebhookOptions{Timeout: timeout, Tracer: opentracing.NoopTracer{}})
 }
 
 // WebhookWithOptions creates a new auth filter specification
@@ -59,7 +62,7 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ac, err := newAuthClient(s, ws.options.Timeout, ws.options.MaxIdleConns)
+	ac, err := newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer)
 	if err != nil {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -90,12 +93,7 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 
 func (*webhookFilter) Response(filters.FilterContext) {}
 
-// Close cleans-up the quit channel used for this filter
+// Close cleans-up the authClient
 func (f *webhookFilter) Close() {
-	f.authClient.mu.Lock()
-	if f.authClient.quit != nil {
-		close(f.authClient.quit)
-		f.authClient.quit = nil
-	}
-	f.authClient.mu.Unlock()
+	f.authClient.Close()
 }
