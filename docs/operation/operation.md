@@ -477,6 +477,7 @@ The Ingress span is active from getting the request in Skipper's main
 http handler, until we served the response to the client of the request.
 
 Tags:
+
 - component: skipper
 - hostname: ip-10-149-64-142
 - http.host: hostname.example.org
@@ -493,6 +494,7 @@ Tags:
 The Proxy span starts just before executing the backend call.
 
 Tags:
+
 - component: skipper
 - hostname: ip-10-149-65-70
 - http.host: hostname.example.org
