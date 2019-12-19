@@ -10,6 +10,10 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 )
 
+const (
+	defaultIdleConnTimeout = 30 * time.Second
+)
+
 // Options are mostly passed to the http.Transport of the same
 // name. Options.Timeout can be used as default for all timeouts, that
 // are not set. You can pass an opentracing.Tracer
@@ -85,7 +89,11 @@ func NewTransport(options Options) *Transport {
 		options.TLSHandshakeTimeout = options.Timeout
 	}
 	if options.IdleConnTimeout == 0 {
-		options.IdleConnTimeout = options.Timeout
+		if options.Timeout != 0 {
+			options.IdleConnTimeout = options.Timeout
+		} else {
+			options.IdleConnTimeout = defaultIdleConnTimeout
+		}
 	}
 	if options.ResponseHeaderTimeout == 0 {
 		options.ResponseHeaderTimeout = options.Timeout
