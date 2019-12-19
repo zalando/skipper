@@ -10,6 +10,10 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 )
 
+const (
+	defaultTimeout = 30 * time.Second
+)
+
 // Options are mostly passed to the http.Transport of the same
 // name. Options.Timeout can be used as default for all timeouts, that
 // are not set. You can pass an opentracing.Tracer
@@ -78,6 +82,10 @@ func NewTransport(options Options) *Transport {
 	// set default tracer
 	if options.Tracer == nil {
 		options.Tracer = &opentracing.NoopTracer{}
+	}
+
+	if options.Timeout == 0 {
+		options.Timeout = defaultTimeout
 	}
 
 	// set timeout defaults
