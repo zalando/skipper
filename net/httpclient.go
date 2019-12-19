@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultTimeout = 30 * time.Second
+	defaultIdleConnTimeout = 30 * time.Second
 )
 
 // Options are mostly passed to the http.Transport of the same
@@ -84,16 +84,16 @@ func NewTransport(options Options) *Transport {
 		options.Tracer = &opentracing.NoopTracer{}
 	}
 
-	if options.Timeout == 0 {
-		options.Timeout = defaultTimeout
-	}
-
 	// set timeout defaults
 	if options.TLSHandshakeTimeout == 0 {
 		options.TLSHandshakeTimeout = options.Timeout
 	}
 	if options.IdleConnTimeout == 0 {
-		options.IdleConnTimeout = options.Timeout
+		if options.Timeout != 0 {
+			options.IdleConnTimeout = options.Timeout
+		} else {
+			options.IdleConnTimeout = defaultIdleConnTimeout
+		}
 	}
 	if options.ResponseHeaderTimeout == 0 {
 		options.ResponseHeaderTimeout = options.Timeout
