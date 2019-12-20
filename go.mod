@@ -10,7 +10,7 @@ require (
 	github.com/coreos/go-oidc v2.0.0+incompatible
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/felixge/httpsnoop v1.0.0 // indirect
-	github.com/go-redis/redis v6.15.2+incompatible
+	github.com/go-redis/redis/v7 v7.0.0-beta.4
 	github.com/google/go-cmp v0.3.0
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/instana/go-sensor v1.4.16 // indirect
@@ -19,8 +19,6 @@ require (
 	github.com/lightstep/lightstep-tracer-go v0.16.0
 	github.com/looplab/fsm v0.1.0 // indirect
 	github.com/oklog/ulid v1.3.1
-	github.com/onsi/ginkgo v1.8.0 // indirect
-	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/opentracing/basictracer-go v1.0.0
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect

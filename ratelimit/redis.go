@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/metrics"
 )
@@ -162,15 +162,22 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 		return false
 	}
 
-	c.ring.ZAdd(key, redis.Z{Member: nowNanos, Score: float64(nowNanos)})
+	pipe := c.ring.TxPipeline()
+	defer pipe.Close()
+	pipe.ZAdd(key, &redis.Z{Member: nowNanos, Score: float64(nowNanos)})
+	pipe.Expire(key, c.window+time.Second)
+	_, err := pipe.Exec()
+	if err != nil {
+		log.Errorf("Failed to ZAdd and Expire for %s: %v", key, err)
+		return true
+	}
+
 	c.metrics.IncCounter(redisMetricsPrefix + "allows")
 	return true
 }
 
 func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 {
-	// TODO(sszuecs): https://github.com/go-redis/redis/issues/979 change to TxPipeline: MULTI exec
-	// Pipeline is not a transaction, but less roundtrip
-	pipe := c.ring.Pipeline()
+	pipe := c.ring.TxPipeline()
 	defer pipe.Close()
 	// drop all elements of the set which occurred before one interval ago.
 	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprint(float64(clearBefore)))
@@ -207,7 +214,7 @@ func (c *clusterLimitRedis) Oldest(s string) time.Time {
 	key := swarmPrefix + c.group + "." + s
 	now := time.Now()
 
-	res := c.ring.ZRangeByScoreWithScores(key, redis.ZRangeBy{
+	res := c.ring.ZRangeByScoreWithScores(key, &redis.ZRangeBy{
 		Min:    "0.0",
 		Max:    fmt.Sprint(float64(now.UnixNano())),
 		Offset: 0,
