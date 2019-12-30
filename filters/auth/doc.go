@@ -355,9 +355,12 @@ filter after the auth filter.
 Webhook - webhook() filter
 
 The filter webhook allows you to have a custom authentication and
-authorization endpoint for a route.
+authorization endpoint for a route. Headers from the webhook response
+can be copyied into the continuing request by specifying the
+headers to copy as a second argument to the filter
 
     a: Path("/only-allowed-by-webhook") -> webhook("https://custom-webhook.example.org/auth") -> "https://protected-backend.example.org/";
+    b: Path("/copy-webhook-headers") -> webhook("https://custom-webhook.example.org/auth", "X-Copy-This-Header") -> "https://protected-backend.example.org/";
 
 Forward Token - forwardToken() filter
 
