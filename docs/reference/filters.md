@@ -455,7 +455,7 @@ authorization endpoint as a filter.
 Headers from the incoming request will be copied into the request that
 is being done to the webhook endpoint. It is possible to copy headers
 from the webhook response into the continuing request by specifying the
-headers to copy as a second argument to the filter.
+headers to copy as an optional second argument to the filter.
 
 Responses from the webhook with status code less than 300 will be
 authorized, the rest will be unauthorized.
@@ -463,6 +463,7 @@ authorized, the rest will be unauthorized.
 Examples:
 
 ```
+webhook("https://custom-webhook.example.org/auth")
 webhook("https://custom-webhook.example.org/auth", "X-Copy-Webhook-Header,X-Copy-Another-Header")
 ```
 
