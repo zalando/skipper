@@ -118,18 +118,18 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 	return doc, err
 }
 
-func (ac *authClient) getWebhook(ctx filters.FilterContext) (int, error) {
+func (ac *authClient) getWebhook(ctx filters.FilterContext) (*http.Response, error) {
 	req, err := http.NewRequest("GET", ac.url.String(), nil)
 	if err != nil {
-		return -1, err
+		return nil, err
 	}
 	copyHeader(req.Header, ctx.Request().Header)
 
 	rsp, err := ac.tr.RoundTrip(req)
 	if err != nil {
-		return -1, err
+		return nil, err
 	}
 	defer rsp.Body.Close()
 
-	return rsp.StatusCode, nil
+	return rsp, nil
 }

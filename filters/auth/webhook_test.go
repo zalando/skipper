@@ -14,23 +14,28 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
+const headerToCopy = "X-Copy-Header"
+
 func TestWebhook(t *testing.T) {
 	for _, ti := range []struct {
-		msg        string
-		token      string
-		expected   int
-		authorized bool
-		timeout    bool
+		msg         string
+		token       string
+		expected    int
+		authorized  bool
+		timeout     bool
+		copyHeaders bool
 	}{{
-		msg:        "invalid-token-should-be-unauthorized",
-		token:      "invalid-token",
-		expected:   http.StatusUnauthorized,
-		authorized: false,
+		msg:         "invalid-token-should-be-unauthorized",
+		token:       "invalid-token",
+		expected:    http.StatusUnauthorized,
+		authorized:  false,
+		copyHeaders: true,
 	}, {
-		msg:        "valid-token-should-be-authorized",
-		token:      testToken,
-		expected:   http.StatusOK,
-		authorized: true,
+		msg:         "valid-token-should-be-authorized",
+		token:       testToken,
+		expected:    http.StatusOK,
+		authorized:  true,
+		copyHeaders: true,
 	}, {
 		msg:        "webhook-timeout-should-be-unauthorized",
 		token:      testToken,
@@ -39,7 +44,11 @@ func TestWebhook(t *testing.T) {
 		timeout:    true,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// if header has been forwarded, copy to the request so that we can access in the test.
+				if r.Header.Get(headerToCopy) != "" {
+					w.Header().Set(headerToCopy, r.Header.Get(headerToCopy))
+				}
 				w.WriteHeader(http.StatusOK)
 				io.WriteString(w, "Hello from backend")
 			}))
@@ -55,6 +64,10 @@ func TestWebhook(t *testing.T) {
 					io.WriteString(w, "FAIL - not a GET request")
 					return
 				}
+
+				// Set header on response that should be copied to the
+				// continuing request
+				w.Header().Set(headerToCopy, "test")
 
 				tok := r.Header.Get(authHeaderName)
 				tok = tok[len(authHeaderPrefix):]
@@ -74,6 +87,11 @@ func TestWebhook(t *testing.T) {
 			args := []interface{}{
 				"http://" + authServer.Listener.Addr().String(),
 			}
+
+			if ti.copyHeaders {
+				args = append(args, headerToCopy)
+			}
+
 			f, err := spec.CreateFilter(args)
 			if err != nil {
 				t.Errorf("error in creating filter for %s: %v", ti.msg, err)
@@ -121,6 +139,17 @@ func TestWebhook(t *testing.T) {
 			if rsp.StatusCode != ti.expected {
 				t.Errorf("unexpected status code: %v != %v %d %s", rsp.StatusCode, ti.expected, n, buf)
 				return
+			}
+
+			// check that the header was passed forward to the backend request, if it should have been
+			if ti.authorized && ti.copyHeaders {
+				if rsp.Header.Get(headerToCopy) != "test" {
+					t.Errorf("unexpected header value: %v != %v", rsp.Header.Get(headerToCopy), "test")
+				}
+			} else {
+				if rsp.Header.Get(headerToCopy) != "" {
+					t.Errorf("unexpected header value: %v != %v", rsp.Header.Get(headerToCopy), "")
+				}
 			}
 		})
 	}
