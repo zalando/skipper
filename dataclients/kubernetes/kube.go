@@ -25,6 +25,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
 )
@@ -718,14 +719,7 @@ func (c *Client) convertPathRule(
 		}
 
 		setPath(pathMode, r, prule.Path)
-
-		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
-			r.Predicates = append([]*eskip.Predicate{{
-				Name: traffic.PredicateName,
-				Args: []interface{}{prule.Backend.Traffic},
-			}}, r.Predicates...)
-			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
-		}
+		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
 		return r, nil
 
 	} else if err != nil {
@@ -741,15 +735,7 @@ func (c *Client) convertPathRule(
 		}
 
 		setPath(pathMode, r, prule.Path)
-
-		// add traffic predicate if traffic weight is between 0.0 and 1.0
-		if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
-			r.Predicates = append([]*eskip.Predicate{{
-				Name: traffic.PredicateName,
-				Args: []interface{}{prule.Backend.Traffic},
-			}}, r.Predicates...)
-			log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
-		}
+		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
 		return r, nil
 	}
 
@@ -765,17 +751,25 @@ func (c *Client) convertPathRule(
 		HostRegexps: hostRegexp,
 	}
 	setPath(pathMode, r, prule.Path)
+	setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+	return r, nil
+}
 
+func setTraffic(r *eskip.Route, svcName string, weight float64, noopCount int) {
 	// add traffic predicate if traffic weight is between 0.0 and 1.0
-	if 0.0 < prule.Backend.Traffic && prule.Backend.Traffic < 1.0 {
+	if 0.0 < weight && weight < 1.0 {
 		r.Predicates = append([]*eskip.Predicate{{
 			Name: traffic.PredicateName,
-			Args: []interface{}{prule.Backend.Traffic},
+			Args: []interface{}{weight},
 		}}, r.Predicates...)
-		log.Debugf("Traffic weight %.2f for backend '%s'", prule.Backend.Traffic, svcName)
+		log.Debugf("Traffic weight %.2f for backend '%s'", weight, svcName)
 	}
-
-	return r, nil
+	for i := 0; i < noopCount; i++ {
+		r.Predicates = append([]*eskip.Predicate{{
+			Name: primitive.NameTrue,
+			Args: []interface{}{},
+		}}, r.Predicates...)
+	}
 }
 
 func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) error {
@@ -1029,10 +1023,12 @@ func (c *Client) addEndpointsRule(ic ingressContext, host string, prule *pathRul
 			endpointsRoute.Filters = append(defaultFilters, endpointsRoute.Filters...)
 		}
 	}
+
 	err = applyAnnotationPredicates(ic.pathMode, endpointsRoute, ic.annotationPredicate)
 	if err != nil {
 		ic.logger.Errorf("failed to apply annotation predicates: %v", err)
 	}
+
 	ic.addHostRoute(host, endpointsRoute)
 	redirect := ic.redirect
 	if redirect.enable || redirect.override {
@@ -1174,9 +1170,10 @@ func catchAllRoutes(routes []*eskip.Route) bool {
 // where for a weight of 1.0 no Traffic predicate will be generated.
 func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 	type pathInfo struct {
-		sum        float64
-		lastActive *backend
-		count      int
+		sum          float64
+		lastActive   *backend
+		count        int
+		weightsCount int
 	}
 
 	// get backend weight sum and count of backends for all paths
@@ -1192,6 +1189,7 @@ func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 			sc.sum += weight
 			if weight > 0 {
 				sc.lastActive = path.Backend
+				sc.weightsCount++
 			}
 		} else {
 			sc.count++
@@ -1213,6 +1211,13 @@ func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 				// give subsequent backends a higher relative
 				// weight.
 				sc.sum -= weight
+
+				// noops are required to make sure that routes are in order selected by routing tree
+				if sc.weightsCount > 2 {
+					path.Backend.noopCount = sc.weightsCount - 2
+				}
+				sc.weightsCount--
+
 			} else if sc.sum == 0 && sc.count > 0 {
 				path.Backend.Traffic = 1.0 / float64(sc.count)
 			}

@@ -3,6 +3,12 @@ package traffic
 import (
 	"net/http"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/primitive"
+	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/routing"
 )
 
 const (
@@ -126,5 +132,96 @@ func TestMatch(t *testing.T) {
 		if (&ti.p).Match(&ti.r) != ti.match {
 			t.Error(ti.msg)
 		}
+	}
+}
+
+func TestTrafficPredicateInRoutes(t *testing.T) {
+	for _, tc := range []struct {
+		msg        string
+		routes     string
+		expectedR1 float64
+		expectedR2 float64
+		expectedR3 float64
+	}{{
+		msg:        "no Traffic 100% match r1",
+		routes:     `r1: * -> status(201) -> <shunt>`,
+		expectedR1: 1,
+	}, {
+		msg:        "2 routes with 1 Traffic with 80% match r1",
+		routes:     `r1: Traffic(0.8) -> status(201) -> <shunt>; r2: * -> status(202) -> <shunt>`,
+		expectedR1: 0.8,
+		expectedR2: 0.2,
+	}, {
+		msg:        "3 routes with 2 Traffic predicates with 50% match r1, 25% match the other",
+		routes:     `r1: Traffic(0.5) && True() -> status(201) -> <shunt>; r2: Traffic(0.5) -> status(202) -> <shunt>; r3: * -> status(203) -> <shunt>`,
+		expectedR1: 0.5,
+		expectedR2: 0.25,
+		expectedR3: 0.25,
+	}} {
+		t.Run(tc.msg, func(t *testing.T) {
+			var (
+				goalR1 float64
+				goalR2 float64
+				goalR3 float64
+			)
+			N := 10000
+			epsilonFactor := 0.1
+			epsilon := float64(N) * epsilonFactor
+
+			r, err := eskip.Parse(tc.routes)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			p := proxytest.WithRoutingOptions(builtin.MakeRegistry(), routing.Options{
+				Predicates: []routing.PredicateSpec{
+					New(),
+					primitive.NewTrue(),
+				},
+			}, r...)
+			defer p.Close()
+
+			req := func(u string) int {
+				rsp, err := http.Get(u)
+				if err != nil {
+					t.Error(err)
+					return -1
+				}
+				rsp.Body.Close()
+				return rsp.StatusCode
+			}
+
+			r1 := 0.0
+			r2 := 0.0
+			r3 := 0.0
+			for i := 0; i < N; i++ {
+				n := req(p.URL)
+				switch n {
+				case 201:
+					r1++
+				case 202:
+					r2++
+				case 203:
+					r3++
+				default:
+					t.Fatalf("Got %d", n)
+				}
+			}
+
+			goalR1 = float64(N) * tc.expectedR1
+			goalR2 = float64(N) * tc.expectedR2
+			goalR3 = float64(N) * tc.expectedR3
+
+			if goalR1-epsilon > r1 || goalR1+epsilon < r1 {
+				t.Errorf("Failed to get the right traffic for r1 goal: %v - %v > %v || %v + %v < %v", goalR1, epsilon, r1, goalR1, epsilon, r1)
+			}
+			if goalR2-epsilon > r2 || goalR2+epsilon < r2 {
+				t.Errorf("Failed to get the right traffic for r2 goal: %v - %v > %v || %v + %v < %v", goalR2, epsilon, r2, goalR2, epsilon, r2)
+			}
+			if goalR3-epsilon > r3 || goalR3+epsilon < r3 {
+				t.Errorf("Failed to get the right traffic for r3 goal: %v - %v > %v || %v + %v < %v", goalR3, epsilon, r3, goalR3, epsilon, r3)
+			}
+		})
 	}
 }
