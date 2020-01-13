@@ -73,6 +73,8 @@ func (tsr *testSecretsReader) GetSecret(name string) ([]byte, bool) {
 	return nil, false
 }
 
+func (*testSecretsReader) Close() {}
+
 func Test_bearerInjectorFilter_Request(t *testing.T) {
 	goodtoken := "goodtoken"
 	goodsecret := "goodsecret"

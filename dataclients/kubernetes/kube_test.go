@@ -3939,10 +3939,12 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 type mockSecretProvider string
 
-func (sp mockSecretProvider) GetSecret(_ string) ([]byte, bool) {
+func (sp mockSecretProvider) GetSecret(string) ([]byte, bool) {
 	return []byte(sp), true
 }
 
-func (sp mockSecretProvider) Add(_ string) error {
+func (mockSecretProvider) Add(string) error {
 	return nil
 }
+
+func (mockSecretProvider) Close() {}

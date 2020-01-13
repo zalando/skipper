@@ -1,9 +1,10 @@
 package logging
 
 import (
-	"github.com/sirupsen/logrus"
 	"io"
 	"os"
+
+	"github.com/sirupsen/logrus"
 )
 
 type prefixFormatter struct {
