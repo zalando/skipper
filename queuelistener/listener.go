@@ -2,6 +2,7 @@ package queuelistener
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -163,6 +164,7 @@ func listenWith(nl net.Listener, o Options) (net.Listener, error) {
 		releaseConnection: make(chan struct{}),
 		quit:              make(chan struct{}),
 	}
+	o.Log.Infof("TCP lifo listener config: %s", l)
 
 	go l.listenExternal()
 	go l.listenInternal()
@@ -205,6 +207,10 @@ func bounce(delay time.Duration) time.Duration {
 	}
 
 	return delay
+}
+
+func (l *listener) String() string {
+	return fmt.Sprintf("concurrency: %d, queue size: %d, memory limit: %d, bytes per connection: %d, queue timeout: %s", l.maxConcurrency, l.maxQueueSize, l.options.MemoryLimitBytes, l.options.ConnectionBytes, l.options.QueueTimeout)
 }
 
 // this function turns net.Listener.Accept() into a channel, so that we can use select{} while it is blocked
