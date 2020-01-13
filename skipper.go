@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/predicates/cron"
+	"github.com/zalando/skipper/predicates/primitive"
 
 	ot "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
@@ -1104,6 +1105,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		cookie.New(),
 		query.New(),
 		traffic.New(),
+		primitive.NewTrue(),
+		primitive.NewFalse(),
 		pauth.NewJWTPayloadAllKV(),
 		pauth.NewJWTPayloadAnyKV(),
 		pauth.NewJWTPayloadAllKVRegexp(),

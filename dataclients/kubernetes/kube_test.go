@@ -2733,6 +2733,7 @@ func TestComputeBackendWeights(t *testing.T) {
 							Backend: &backend{
 								ServiceName: "foo",
 								Traffic:     0.2,
+								noopCount:   1,
 							},
 						},
 						{
@@ -2746,6 +2747,80 @@ func TestComputeBackendWeights(t *testing.T) {
 							Path: "",
 							Backend: &backend{
 								ServiceName: "baz",
+								Traffic:     1.0,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: `if 4 backends have weights, all should get relative weight and noop count should decrease.`,
+			weights: map[string]float64{
+				"foo": 25,
+				"bar": 45,
+				"baz": 3,
+				"qux": 27,
+			},
+			input: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "baz",
+							},
+						}, {
+							Path: "",
+							Backend: &backend{
+								ServiceName: "qux",
+							},
+						},
+					},
+				},
+			},
+			output: &rule{
+				Http: &httpRule{
+					Paths: []*pathRule{
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "foo",
+								Traffic:     0.25,
+								noopCount:   2,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "bar",
+								Traffic:     0.6,
+								noopCount:   1,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "baz",
+								Traffic:     0.1,
+							},
+						},
+						{
+							Path: "",
+							Backend: &backend{
+								ServiceName: "qux",
 								Traffic:     1.0,
 							},
 						},
