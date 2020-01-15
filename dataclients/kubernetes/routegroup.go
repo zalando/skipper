@@ -35,7 +35,7 @@ type routeGroupContext struct {
 	provideHTTPSRedirect  bool
 	httpsRedirectCode     int
 	backendsByName        map[string]*skipperBackend
-	defaultBackendTraffic map[string]float64
+	defaultBackendTraffic map[string]*calculatedTraffic
 }
 
 type routeContext struct {
@@ -44,6 +44,11 @@ type routeContext struct {
 	id         string
 	method     string
 	backend    *skipperBackend
+}
+
+type calculatedTraffic struct {
+	value   float64
+	balance int
 }
 
 var errMissingClusterIP = errors.New("missing cluster IP")
@@ -142,7 +147,7 @@ func mapBackends(backends []*skipperBackend) map[string]*skipperBackend {
 // calculateTraffic calculates the traffic values for the skipper Traffic() predicates
 // based on the weight values in the backend references. It represents the remainder
 // traffic as 1, where no Traffic predicate is meant to be set.
-func calculateTraffic(b []*backendReference) map[string]float64 {
+func calculateTraffic(b []*backendReference) map[string]*calculatedTraffic {
 	var sum int
 	weights := make([]int, len(b))
 	for i, bi := range b {
@@ -164,23 +169,45 @@ func calculateTraffic(b []*backendReference) map[string]float64 {
 		}
 	}
 
-	traffic := make(map[string]float64)
+	t := make(map[string]*calculatedTraffic)
 	for i, bi := range b {
-		if i == lastWithWeight {
-			traffic[bi.BackendName] = 1
-			continue
+		switch {
+		case i == lastWithWeight:
+			t[bi.BackendName] = &calculatedTraffic{value: 1}
+		case weights[i] == 0:
+			t[bi.BackendName] = &calculatedTraffic{value: 0}
+		default:
+			t[bi.BackendName] = &calculatedTraffic{value: float64(weights[i]) / float64(sum)}
 		}
 
-		if weights[i] == 0 {
-			traffic[bi.BackendName] = 0
-			continue
-		}
-
-		traffic[bi.BackendName] = float64(weights[i]) / float64(sum)
 		sum -= weights[i]
+		t[bi.BackendName].balance = len(b) - i - 2
 	}
 
-	return traffic
+	return t
+}
+
+func trafficBalance(t *calculatedTraffic) []*eskip.Predicate {
+	if t.balance <= 0 {
+		return nil
+	}
+
+	p := eskip.Predicate{Name: "True"}
+	balance := make([]*eskip.Predicate, t.balance)
+	for i := range balance {
+		balance[i] = eskip.CopyPredicate(&p)
+	}
+
+	return balance
+}
+
+func configureTraffic(r *eskip.Route, t *calculatedTraffic) {
+	if t.value == 1 {
+		return
+	}
+
+	r.Predicates = appendPredicate(r.Predicates, "Traffic", t.value)
+	r.Predicates = append(r.Predicates, trafficBalance(t)...)
 }
 
 func getBackendService(ctx *routeGroupContext, backend *skipperBackend) (*service, error) {
@@ -350,10 +377,7 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 			ri.Predicates = appendPredicate(ri.Predicates, "Host", ctx.hostRx)
 		}
 
-		if traffic := ctx.defaultBackendTraffic[beref.BackendName]; traffic < 1 {
-			ri.Predicates = appendPredicate(ri.Predicates, "Traffic", traffic)
-		}
-
+		configureTraffic(ri, ctx.defaultBackendTraffic[beref.BackendName])
 		if be.Type == serviceBackend {
 			if err := applyDefaultFilters(ctx, be.ServiceName, ri); err != nil {
 				log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
@@ -462,10 +486,7 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 					return nil, err
 				}
 
-				if traffic := backendTraffic[bref.BackendName]; traffic < 1 {
-					r.Predicates = appendPredicate(r.Predicates, "Traffic", traffic)
-				}
-
+				configureTraffic(r, backendTraffic[bref.BackendName])
 				storeHostRoute(ctx, r)
 				routes = append(routes, r)
 				routes = appendEastWest(ctx, routes, r)

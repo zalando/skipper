@@ -2,6 +2,7 @@ kube_rg__default__myapp__all__0_0:
 	Host("^(example[.]org)$")
 	&& Path("/app")
 	&& Traffic(0.6)
+	&& True()
 	-> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
 
 kube_rg__default__myapp__all__0_1:
@@ -19,6 +20,7 @@ kube_rg__default__myapp__all__1_0:
 	Host("^(example[.]org)$")
 	&& Path("/app/test-more")
 	&& Traffic(0.3)
+	&& True()
 	-> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
 
 kube_rg__default__myapp__all__1_1:

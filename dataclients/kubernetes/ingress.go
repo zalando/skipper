@@ -527,7 +527,6 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *ingressItem) (
 	}
 
 	if len(eps) == 0 || err == errEndpointNotFound {
-
 		address, err2 := getServiceURL(svc, svcPort)
 		if err2 != nil {
 			return nil, false, err2
