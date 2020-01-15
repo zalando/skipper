@@ -9,6 +9,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/traffic"
 )
 
@@ -237,7 +238,7 @@ func convertPathRule(
 		HostRegexps: hostRegexp,
 	}
 	setPath(pathMode, r, prule.Path)
-	setTraffic(r, svcName, prule.BackendTraffic, prule.Backend.noopCount)
+	setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
 	return r, nil
 }
 
@@ -384,9 +385,9 @@ func addExtraRoutes(ic ingressContext, hosts []string, host string, path string)
 // where for a weight of 1.0 no Traffic predicate will be generated.
 func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 	type pathInfo struct {
-		sum        float64
-		lastActive *backend
-		count      int
+		sum          float64
+		lastActive   *backend
+		count        int
 		weightsCount int
 	}
 

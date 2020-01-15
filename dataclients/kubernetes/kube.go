@@ -14,7 +14,6 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/source"
 )
 
