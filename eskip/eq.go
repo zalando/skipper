@@ -115,12 +115,6 @@ func eq2Lists(left, right []*Route) bool {
 		return false
 	}
 
-	sort.Slice(left, compareRouteID(left))
-	sort.Slice(right, compareRouteID(right))
-	if hasDuplicateID(left) || hasDuplicateID(right) {
-		return false
-	}
-
 	for i := range left {
 		if !eq2(left[i], right[i]) {
 			return false
@@ -158,8 +152,18 @@ func Eq(r ...*Route) bool {
 // the lists doesn't matter.
 //
 func EqLists(r ...[]*Route) bool {
-	for i := 1; i < len(r); i++ {
-		if !eq2Lists(r[i-1], r[i]) {
+	rc := make([][]*Route, len(r))
+	for i := range rc {
+		rc[i] = make([]*Route, len(r[i]))
+		copy(rc[i], r[i])
+		sort.Slice(rc[i], compareRouteID(rc[i]))
+		if hasDuplicateID(rc[i]) {
+			return false
+		}
+	}
+
+	for i := 1; i < len(rc); i++ {
+		if !eq2Lists(rc[i-1], rc[i]) {
 			return false
 		}
 	}
