@@ -3,7 +3,7 @@ package instana
 import (
 	"strings"
 
-	instana "github.com/instana/golang-sensor"
+	instana "github.com/instana/go-sensor"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 

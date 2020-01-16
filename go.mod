@@ -13,8 +13,7 @@ require (
 	github.com/go-redis/redis/v7 v7.0.0-beta.4
 	github.com/google/go-cmp v0.3.0
 	github.com/hashicorp/memberlist v0.1.4
-	github.com/instana/go-sensor v1.4.16 // indirect
-	github.com/instana/golang-sensor v1.4.16
+	github.com/instana/go-sensor v1.4.16
 	github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20190605223551-bc2310a04743 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.16.0
 	github.com/looplab/fsm v0.1.0 // indirect
