@@ -41,8 +41,6 @@ func (tr *TestRegistry) GetEncrypter(refreshInterval time.Duration, s string) (s
 	return testEnc, nil
 }
 
-func (tr *TestRegistry) Close() {}
-
 type TestingSecretSource struct {
 	getCount  int
 	secretKey string
