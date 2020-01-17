@@ -125,7 +125,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, fmt.Errorf("invalid redirect url '%s': %v", sargs[3], err)
 	}
 
-	encrypter, err := s.secretsRegistry.NewEncrypter(1*time.Minute, s.SecretsFile)
+	encrypter, err := s.secretsRegistry.GetEncrypter(1*time.Minute, s.SecretsFile)
 	if err != nil {
 		return nil, err
 	}
@@ -202,8 +202,6 @@ func (f *tokenOidcFilter) validateAnyClaims(h map[string]interface{}) bool {
 			if vs == v {
 				return true
 			}
-		} else {
-			continue
 		}
 	}
 	return false

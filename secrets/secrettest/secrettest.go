@@ -23,7 +23,7 @@ func NewTestRegistry() *TestRegistry {
 	}
 }
 
-func (tr *TestRegistry) NewEncrypter(refreshInterval time.Duration, s string) (secrets.Encryption, error) {
+func (tr *TestRegistry) GetEncrypter(refreshInterval time.Duration, s string) (secrets.Encryption, error) {
 	if e, ok := tr.encrypterMap[s]; ok {
 		return e, nil
 	}

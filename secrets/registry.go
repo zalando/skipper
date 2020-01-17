@@ -3,7 +3,7 @@ package secrets
 import "time"
 
 type EncrypterCreator interface {
-	NewEncrypter(time.Duration, string) (Encryption, error)
+	GetEncrypter(time.Duration, string) (Encryption, error)
 }
 
 type Encryption interface {
@@ -26,7 +26,7 @@ func NewRegistry() *Registry {
 	}
 }
 
-func (r *Registry) NewEncrypter(refreshInterval time.Duration, file string) (Encryption, error) {
+func (r *Registry) GetEncrypter(refreshInterval time.Duration, file string) (Encryption, error) {
 	if e, ok := r.encrypterMap[file]; ok {
 		return e, nil
 	}

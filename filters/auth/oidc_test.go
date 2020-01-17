@@ -330,7 +330,7 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 
 func makeTestingFilter(claims []string) (*tokenOidcFilter, error) {
 	r := secrettest.NewTestRegistry()
-	encrypter, err := r.NewEncrypter(5*time.Second, "key")
+	encrypter, err := r.GetEncrypter(5*time.Second, "key")
 	if err != nil {
 		return nil, err
 	}
@@ -490,6 +490,7 @@ func TestNewOidc(t *testing.T) {
 
 func TestCreateFilterOIDC(t *testing.T) {
 	oidcServer := createOIDCServer("", "", "")
+	defer oidcServer.Close()
 
 	for _, tt := range []struct {
 		name    string
