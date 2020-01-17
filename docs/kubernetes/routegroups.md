@@ -1,54 +1,29 @@
-what does skipper do
-what does skipper in kubernetes do
-what are route groups
-why trying route groups instead of ingress
-take stuff from the crd
-link the crd
-write markdown docs
-write godoc
-how to install it
-current limitations
-how to use it
-ingress features
-route group specific features
-differences between route groups and ingress
-east-west handling
-review the existing kubernetes docs for things that are common to ingress and route groups
-
 # Route groups
 
-Route groups are an alternative to Kubernetes Ingress. They allow to define Skipper routing in Kubernetes, while
-providing a straightforward way to configure Skipper's routing features.
+Route groups are an alternative to the Kubernetes Ingress format for defining ingress rules. They allow to
+define Skipper routing in Kubernetes, while providing a straightforward way to configure the routing features
+supported by Skipper and not defined by the generic Ingress.
 
-The integration with the LB and DNS configuration solutions is work in progress.
+**Important Note:**
+
+*The integration of the RouteGroup CRD with the load balancer and DNS configuration solutions is a work in
+progress.*
 
 ## Skipper as Kubernetes Ingress controller
 
-skipper a router
-selects routes and applies request/response augmentation
-service architecture features like gradual traffic switching between versions, canary testing
-config dynamic, various extensible set of sources
-ingress one such source
-
 Skipper is an extensible HTTP router with rich route matching, and request flow and traffic shaping
 capabilities. Through its integration with Kubernetes, it can be used in the role of an ingress controller for
-routing incoming external requests to the right services in a cluster. Kubernetes provides the Ingress
-specification to define the rules by which an ingress controller should route the incoming traffic. The
+forwarding incoming external requests to the right services in a cluster. Kubernetes provides the Ingress
+specification to define the rules by which an ingress controller should handle the incoming traffic. The
 specification is simple and generic, but doesn't offer a straightforward way to benefit from Skipper's rich HTTP
 related functionality.
 
 ## RouteGroups
 
-an alternative format for defining ingress rules
-route selection on all HTTP features and custom ones
-straightforward way of expressing request/response flow augmentation
-skipper routes yes, but multiple routes for an application or service grouped together and handled atomically
-link to crd comparison, we pointed out some limitations problems here
-
 A RouteGroup is a custom Kubernetes resource definition. It provides a way to define the ingress routing for
-Kubernetes services. It allows route matching based on any HTTP request attributes, and provides a clean for the
-request flow augmentation and traffic shaping. It supports higher level features like gradual traffic switching,
-A/B testing, and more.
+Kubernetes services. It allows route matching based on any HTTP request attributes, and provides a clean way for
+the request flow augmentation and traffic shaping. It supports higher level features like gradual traffic
+switching, A/B testing, and more.
 
 Example:
 
@@ -90,20 +65,57 @@ spec:
     - Cookie("canary", "B")
 ```
 
+(See a more detailed explanation of the above example [further down](#gradual-traffic-switching) in this
+document.)
+
 Links:
-- [RouteGroup semantics](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/routegroup-crd.md)
-- [CRD definition](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/routegroups/apply/routegroups_crd.yaml)
+
+- [RouteGroup semantics](../routegroup-crd/)
+- [CRD definition](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/apply/routegroups_crd.yaml)
 
 ## Current Limitations
 
-LB
-DNS
+As mentioned above, the interagtion with load balancer and DNS configuration solutions is a work in progress.
+This means that when using route groups, updating the DNS entries and the load balancer configurations based on
+the host names defined in a route group, currently needs to be done manually. As near milestones, the
+integration will be done in:
+
+- [Extenral DNS](https://github.com/kubernetes-sigs/external-dns)
+- [Kubernetes Ingress Controller for AWS](https://github.com/zalando-incubator/kube-ingress-aws-controller)
 
 ## Installation
 
+The definition file of the CRD can be found as part of Skipper's source code, at:
+
+https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/apply/routegroups_crd.yaml
+
+To install it manually in a cluster, assuming the current directory is the root of Skipper's source, call this
+command:
+
+```
+kubectl apply -f dataclients/kubernetes/deploy/apply/routegroups_crd.yaml
+```
+
+This will install a namespaced resource definition, providing the RouteGroup kind:
+
+- full name: routegroups.zalando.org
+- resource group: zalando.org/v1
+- resource names: routegroup, routegroups, rg, rgs
+- kind: RouteGroup
+
+The route groups, once any is defined, can be displayed then via kubectl as:
+
+```
+kubectl get rgs
+```
+
+The API URL of the routegroup resources will be:
+
+https://kubernetes-api-hostname/apis/zalando.org/v1/routegroups
+
 ## Usage
 
-The absolute minimal route group configuration for Kubernetes service (my-service) looks as follows:
+The absolute minimal route group configuration for a Kubernetes service (my-service) looks as follows:
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -120,10 +132,494 @@ spec:
   - backendName: my-service
 ```
 
-Notice that 
+This is equivalent to the ingress:
 
-- commands
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  backend:
+    serviceName: my-service
+    servicePort: 80
+```
 
-## Ingress to RouteGroups
+Notice that the route group contains a list of actual backends, and the defined service backend is then
+referenced as the default backend. This structure plays a role in supporting scenarios like A/B testing and
+gradual traffic switching, [explained below](#gradual-traffic-switching). The backend definition also has a type
+field, whose values can be service, lb, network, shunt, loopback or dynamic. More details on that
+[below](#backends).
 
-## Ingress Skipper extensions to RouteGroups
+Creating, updating and deleting route groups happens the same way as with ingress objects. E.g, manually
+applying a route group definition:
+
+```
+kubectl apply -f my-route-group.yaml
+```
+
+## Hosts
+
+- *[Format](../routegroup-crd/#routegroup-top-level-object)*
+
+Hosts contain hostnames that are used to match the requests handled by a given route group. They are also used
+to update the required DNS entries and load balancer configuration if the cluster is set up that way.
+
+Note that it is also possible to use any Skipper predicate in the routes of a route group, with the Host
+predicate included, but the hostnames defined that way will not serve as input for the DNS configuration.
+
+## Backends
+
+- *[Format](../routegroup-crd/#backend_1)*
+- *[General backend reference](../../reference/backends/)*
+
+RouteGroups support different backends. The most typical backend type is the 'service', and it works the same
+way as in case of ingress definitions.
+
+In a RouteGroup, there can be multiple backends and they are listed on the top level of the route group spec,
+and are referenced from the actual routes or as default backends.
+
+### type=service
+
+This backend resolves to a Kubernetes service. It works the same way as in case of Ingress definitions. Skipper
+resolves the Services to the available Endpoints belonging to the Service, and generates load balanced routes
+using them. (This basically means that under the hood, a `service` backend becomes an `lb` backend.)
+
+### type=lb
+
+This backend provides load balancing between multiple network endpoints. Keep in mind that the service type
+backend automatically generates load balanced routes for the service endpoints, so this backend type typically
+doesn't need to be used for services.
+
+### type=network
+
+This backend type results in routes that forward incoming requests to the defined network address, regardless of
+the Kubernetes semantics, and allows URLs that point somewhere else, potentially outside of the cluster, too.
+
+### type=shunt, type=loopback, type=dynamic
+
+These backend types allow advanced routing setups. Please check the [reference
+manual](../../reference/backends/) for more details.
+
+## Default Backends
+
+- *[Format](../routegroup-crd/#backend-reference)*
+
+A default backend is a references to one of the defined backends. When a route doesn't specify which backend(s)
+to use, the ones referenced in the default backends will be used.
+
+In case there are no individual routes at all in the route group, a default set of routes (one or more) will be
+generated and will forward the incoming traffic to the default backends.
+
+The reason, why multiple backends can be referenced as default, is that this makes it easy to execute gradual
+traffic switching between different versions, even more than two, of the same application. [See
+more](#gradual-traffic-switching).
+
+## Routes
+
+- *[Format](../routegroup-crd/#route_1)*
+
+Routes define where to and how the incoming requests will be forwarded. The predicates, including the path,
+pathSubtree, pathRegexp and methods fields, control which requests are matched by a route, the filters can apply
+changes to the forwarded requests and the returned responses, and the backend refs, if defined, override the
+default backends, where the requests will be forwarded to. If a route group doesn't contain any explicit routes,
+but it contains default backends, a default set of routes will be generated for the route group.
+
+Important to bear in mind about the path fields, that the plain 'path' means exact path match, while
+'pathSubtree' behaves as a path prefix, and so it is more similar to the path in the Ingress specification.
+
+See also:
+
+- [predicates](../../reference/predicates/)
+- [filters](../../reference/filters/)
+
+## Gradual traffic switching
+
+The weighted backend references allow to split the traffic of a single route and send it to different backends
+with the ratio defined by the weights of the backend references. E.g:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  hosts:
+  - api.example.org
+  backends:
+  - name: api-svc-v1
+    type: service
+    serviceName: api-service-v1
+    servicePort: 80
+  - name: api-svc-v2
+    type: service
+    serviceName: foo-service-v2
+    servicePort: 80
+  routes:
+  - pathSubtree: /api
+    backends:
+    - backendName: api-svc
+      weight: 80
+    - backendName: api-svc-v2
+      weight: 20
+```
+
+In case of the above example, 80% of the requests is sent to api-service-v1 and the rest is sent to
+api-service-v2.
+
+Since this type of weighted traffic switching can be used in combination with the Traffic predicate, it is
+possible to control the routing of a long running A/B test, while still executing gradual traffic switching
+independently to deploy a new version of the variants, e.g. to deploy a bugfix only to one variant. E.g:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  hosts:
+  - api.example.org
+  backends:
+  - name: variant-a
+    type: service
+    serviceName: service-a
+    servicePort: 80
+  - name: variant-b
+    type: service
+    serviceName: service-b-v1
+    servicePort: 80
+  - name: variant-b-v2
+    type: service
+    serviceName: service-b-v2
+    servicePort: 80
+  defaultBackends:
+  - backendName: variant-b
+    weight: 80
+  - backendName: variant-b-v2
+    weight: 20
+  routes:
+  - filters:
+    - responseCookie("canary", "A")
+    predicates:
+    - Traffic(.1)
+    backends:
+    - backendName: variant-a
+  - filters:
+    - responseCookie("canary", "B")
+  - predicates:
+    - Cookie("canary", "A")
+    backends:
+    - backendName: variant-a
+  - predicates:
+    - Cookie("canary", "B")
+```
+
+See also:
+
+- [Traffic predicate](../../reference/predicates/#traffic)
+
+## Migration from Ingress to RouteGroups
+
+RouteGroups are one-way compatible with Ingress, meaning that every Ingress specification can be expressed in
+the RouteGroup format, as well. In the following, we describe the mapping from Ingress fields to RouteGroup
+fields.
+
+### Ingress with default backend
+
+Ingress:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  backend:
+    serviceName: my-service
+    servicePort: 80
+```
+
+RouteGroup:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+spec:
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  defaultBackends:
+  - backendName: my-service
+```
+
+### Ingress with path rule
+
+Ingress:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  rules:
+  - host: api.example.org
+    http:
+      paths:
+      - path: /api
+        backend:
+          serviceName: my-service
+          servicePort: 80
+```
+
+RouteGroup:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+spec:
+  hosts:
+  - api.example.org
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  routes:
+  - pathSubtree: /api
+```
+
+### Ingress with multiple hosts
+
+Ingress (we need to define two rules):
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  rules:
+  - host: api.example.org
+    http:
+      paths:
+      - path: /api
+        backend:
+          serviceName: my-service
+          servicePort: 80
+  - host: legacy-name.example.org
+    http:
+      paths:
+      - path: /api
+        backend:
+          serviceName: my-service
+          servicePort: 80
+```
+
+RouteGroup (we just define an additional host):
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+spec:
+  hosts:
+  - api.example.org
+  - legacy-name.example.org
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  routes:
+  - pathSubtree: /api
+```
+
+### Ingress with multiple hosts, and different routing
+
+For those cases when using multiple hostnames in the same ingress with different rules, we need to apply a
+workaround for the equivalent route group spec. Ingress:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  rules:
+  - host: api.example.org
+    http:
+      paths:
+      - path: /api
+        backend:
+          serviceName: my-service
+          servicePort: 80
+  - host: legacy-name.example.org
+    http:
+      paths:
+      - path: /application
+        backend:
+          serviceName: my-service
+          servicePort: 80
+```
+
+RouteGroup (we need to use additional host predicates):
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+spec:
+  hosts:
+  - api.example.org
+  - legacy-name.example.org
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  routes:
+  - pathSubtree: /api
+    predicates:
+    - Host("api.example.org")
+  - pathSubtree: /application
+    predicates:
+    - Host("legacy-name.example.org")
+```
+
+The RouteGroups allow multiple hostnames for each route group, but by default, their union is used during
+routing. If we want to distinguish between them, then we need to use an additional Host predicate in the routes.
+Importantly, only the hostnames listed under the hosts field serve as input for the DNS and LB configuration.
+
+## Migrating Skipper Ingress extensions to RouteGroups
+
+Skipper accepts a set of annotations in Ingress objects that give access to certain Skipper features that would
+not be possible with the native fields of the Ingress spec, e.g. improved path handling or rate limiting. These
+annotations can be expressed now natively in the RouteGroups.
+
+### zalando.org/backend-weights
+
+Backend weights are now part of the backend references, and they can be controlled for multiple backend sets
+within the same route group. See [Gradual traffic switching](#gradual-traffic-switching).
+
+### zalando.org/skipper-filter and zalando.org/skipper-predicate
+
+Filters and predicates are now part of the route objects, and different set of filters or predicates can be set
+for different routes.
+
+### zalando.org/skipper-routes
+
+"Custom routes" in a route group are unnecessary, because every route can be configured with predicates, filters
+and backends without limitations. E.g where an ingress annotation's metadata may look like this:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: my-ingress
+  zalando.org/skipper-routes: |
+    Method("OPTIONS") -> status(200) -> <shunt>
+spec:
+  backend:
+    serviceName: my-service
+    servicePort: 80
+```
+
+the equivalent RouteGroup would look like this:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+spec:
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  - name: options200
+    type: shunt
+  defaultBackends:
+  - backendName: my-service
+  routes:
+  - pathSubtree: /
+  - pathSubtree: /
+    methods: OPTIONS
+    backends:
+    - options200
+```
+
+### zalando.org/ratelimit
+
+The ratelimiting can be defined on the route level among the filters, in the same format as in this annotation.
+
+### zalando.org/skipper-ingress-redirect and zalando.org/skipper-ingress-redirect-code
+
+Skipper ingress provides global HTTPS redirect, but it allows individual ingresses to override the global
+settings: enabling/disabling it and changing the default redirect code. With route groups, this override can be
+achieved by simply defining an addtional route, with the same matching rules, and therefore the override can be
+controlled eventually on a route basis. E.g:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+spec:
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  - name: redirectShunt
+    type: shunt
+  defaultBackends:
+  - backendName: my-service
+  routes:
+  - pathSubtree: /
+  - pathSubtree: /
+    predicates:
+    - Header("X-Forwarded-Proto", "http")
+    filters:
+    - redirectTo(302, "https:")
+    backends:
+    - redirectShunt
+```
+
+### zalando.org/skipper-loadbalancer
+
+Skipper Ingress doesn't use the ClusterIP of the Service for forwarding the traffic to, but sends it directly to
+the Endpoints represented by the Service, and balances the load between them with the round-robin algorithm. The
+algorithm choice can be overridden by this annotation. In case of the RouteGroups, the algorithm is simply an
+attribute of the backend definition, and it can be set individually for each backend. E.g:
+
+```
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+    algorithm: consistentHash
+```
+
+### zalando.org/skipper-ingress-path-mode
+
+The route objects support the different path lookup modes, by using the path, pathSubtree or the
+pathRegexp field. See also the [route matching](http://localhost:8000/reference/architecture/#route-matching)
+explained for the internals. The mapping is as follows:
+
+Ingress: | RouteGroup:
+--- | ---
+`kubernetes-ingress` and `/foo` | pathRegexp: `^/foo`
+`path-regexp` and `/foo` | pathRegexp: `/foo`
+`path-prefix` and `/foo` | pathSubtree: `/foo`
+`kubernetes-ingress` and /foo$ | path: `/foo`
