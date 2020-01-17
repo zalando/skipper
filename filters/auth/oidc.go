@@ -151,11 +151,16 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 	// user defined scopes
 	scopes := strings.Split(sargs[4], " ")
+	if len(sargs[4]) == 0 {
+		scopes = []string{}
+	}
 	// scopes are only used to request claims to be in the IDtoken requested from auth server
 	// https://openid.net/specs/openid-connect-core-1_0.html#ScopeClaims
 	f.config.Scopes = append(f.config.Scopes, scopes...)
 	// user defined claims to check for authnz
-	f.claims = strings.Split(sargs[5], " ")
+	if len(sargs[5]) > 0 {
+		f.claims = strings.Split(sargs[5], " ")
+	}
 
 	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
 	if len(sargs) > 6 {
@@ -190,44 +195,32 @@ func (f *tokenOidcFilter) validateAnyClaims(h map[string]interface{}) bool {
 	if len(f.claims) == 0 {
 		return true
 	}
-
-	for i := 0; i < len(f.claims)-1; i += 2 {
-		k := f.claims[i]
-		v := f.claims[i+1]
-		if val, ok := h[k]; ok {
-			vs, ok := val.(string)
-			if !ok {
-				continue
-			}
-			if vs == v {
-				return true
-			}
-		}
+	if len(h) == 0 {
+		return false
 	}
-	return false
+
+	keys := make([]string, 0, len(h))
+	for k := range h {
+		keys = append(keys, k)
+	}
+
+	return intersect(f.claims, keys)
 }
 
 func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
-	if len(f.claims) == 0 {
+	l := len(f.claims)
+	if l == 0 {
 		return true
 	}
-
-	for i := 0; i < len(f.claims)-1; i += 2 {
-		k := f.claims[i]
-		v := f.claims[i+1]
-		if val, ok := h[k]; ok {
-			vs, ok := val.(string)
-			if !ok {
-				return false
-			}
-			if vs != v {
-				return false
-			}
-		} else {
-			return false
-		}
+	if len(h) < l {
+		return false
 	}
-	return true
+
+	keys := make([]string, 0, len(h))
+	for k := range h {
+		keys = append(keys, k)
+	}
+	return all(f.claims, keys)
 }
 
 const (
@@ -549,7 +542,6 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		f.doOauthRedirect(ctx)
 		return
 	}
-
 	var (
 		sub      string
 		allowed  bool

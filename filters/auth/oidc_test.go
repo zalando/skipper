@@ -21,7 +21,6 @@ import (
 	"golang.org/x/oauth2/google"
 	"gopkg.in/square/go-jose.v2"
 
-	"github.com/coreos/go-oidc"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
@@ -153,30 +152,14 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 				w.WriteHeader(500) // not implemented
 				return
 			}
-			// TODO(sszuecs): we need to check how scopes get passed by clients
+
 			scopesString := r.URL.Query().Get("scope")
 			scopes := strings.Fields(scopesString)
-			supportedScopes := []string{"openid", "email", "uid", "profile"}
-			mandatoryScopeFound := false
-			for _, s := range scopes {
-				if s == oidc.ScopeOpenID {
-					mandatoryScopeFound = true
-				}
-				unsupportedScopeFound := false
-				for _, ss := range supportedScopes {
-					if s == ss {
-						unsupportedScopeFound = true
-					}
-				}
-				if !unsupportedScopeFound {
-					w.WriteHeader(401)
-					return
-				}
-			}
-			if !mandatoryScopeFound {
+			supportedScopes := []string{"openid", "sub", "email", "uid", "profile"}
+			allScopesSupported := all(scopes, supportedScopes)
+			if !allScopesSupported {
 				w.WriteHeader(401)
 				return
-
 			}
 
 			// endpoint: https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint
@@ -400,7 +383,7 @@ func TestEncryptDecryptState(t *testing.T) {
 }
 
 func TestOidcValidateAllClaims(t *testing.T) {
-	oidcFilter, err := makeTestingFilter([]string{"uid", "test", "email", "test@example.org"})
+	oidcFilter, err := makeTestingFilter([]string{"uid", "email"})
 	assert.NoError(t, err, "error creating test filter")
 	assert.True(t, oidcFilter.validateAllClaims(
 		map[string]interface{}{"uid": "test", "email": "test@example.org"}),
@@ -408,15 +391,15 @@ func TestOidcValidateAllClaims(t *testing.T) {
 	assert.False(t, oidcFilter.validateAllClaims(
 		map[string]interface{}{}), "claims are invalid but filter returned true.")
 	assert.False(t, oidcFilter.validateAllClaims(
-		map[string]interface{}{"uid": "test", "email": "does-not-exist@example.org"}),
-		"claims are invalid but filter returned true.")
-	assert.False(t, oidcFilter.validateAllClaims(
 		map[string]interface{}{"uid": "test"}),
 		"claims are not enough but filter returned true.")
+	assert.False(t, oidcFilter.validateAllClaims(
+		map[string]interface{}{}),
+		"no claims but filter returned true.")
 }
 
 func TestOidcValidateAnyClaims(t *testing.T) {
-	oidcFilter, err := makeTestingFilter([]string{"uid", "test", "email", "does-not-exist@example.org"})
+	oidcFilter, err := makeTestingFilter([]string{"uid", "test", "email"})
 	assert.NoError(t, err, "error creating test filter")
 	assert.True(t, oidcFilter.validateAnyClaims(
 		map[string]interface{}{"uid": "test", "email": "test@example.org"}),
@@ -424,8 +407,8 @@ func TestOidcValidateAnyClaims(t *testing.T) {
 	assert.False(t, oidcFilter.validateAnyClaims(
 		map[string]interface{}{}), "claims are invalid but filter returned true.")
 	assert.True(t, oidcFilter.validateAnyClaims(
-		map[string]interface{}{"uid": "test", "email": "test@example.org"}),
-		"claims are invalid but filter returned true.")
+		map[string]interface{}{"foo": "test", "email": "test@example.org"}),
+		"claims are valid but filter returned false.")
 	assert.True(t, oidcFilter.validateAnyClaims(
 		map[string]interface{}{"uid": "test", "email": "test@example.org", "hd": "something.com", "empty": ""}),
 		"claims are valid but filter returned false.")
@@ -565,7 +548,7 @@ func TestOIDCSetup(t *testing.T) {
 		client       string
 		clientsecret string
 		scopes       []string
-		claims       map[string]string
+		claims       []string
 		authType     roleCheckType
 		expected     int
 		expectErr    bool
@@ -579,7 +562,7 @@ func TestOIDCSetup(t *testing.T) {
 		clientsecret: "mysec",
 		authType:     checkOIDCAnyClaims,
 		scopes:       []string{testKey, "email"},
-		expected:     401,
+		expected:     200,
 	}, {
 		msg:          "has authType, userinfo valid without claims requested",
 		client:       validClient,
@@ -595,9 +578,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:     200,
 		expectErr:    false,
 		scopes:       []string{testKey, "email"},
-		claims: map[string]string{
-			testKey: testValue,
-		},
+		claims:       []string{testKey},
 	}, {
 		msg:          "has authType, userinfo with invalid claims requested",
 		client:       validClient,
@@ -606,9 +587,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:     401,
 		expectErr:    false,
 		scopes:       []string{testKey, "email"},
-		claims: map[string]string{
-			testKey: "invalid",
-		},
+		claims:       []string{testKey, "invalid"},
 	}, {
 		msg:          "has authType, userinfo with not existed claims requested",
 		client:       validClient,
@@ -617,9 +596,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:     401,
 		expectErr:    false,
 		scopes:       []string{testKey, "email"},
-		claims: map[string]string{
-			"does-not-exist": testValue,
-		},
+		claims:       []string{"does-not-exist"},
 	}, {
 		msg:          "has authType, any claims 1 valid",
 		client:       validClient,
@@ -628,9 +605,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:     200,
 		expectErr:    false,
 		scopes:       []string{testKey, "email"},
-		claims: map[string]string{
-			testKey: testValue,
-		},
+		claims:       []string{testKey},
 	}, {
 		msg:          "has authType, any claims valid and invalid",
 		client:       validClient,
@@ -639,10 +614,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:     200,
 		expectErr:    false,
 		scopes:       []string{testKey, "email"},
-		claims: map[string]string{
-			testKey:   testValue,
-			"testKey": "testValue",
-		},
+		claims:       []string{testKey, "testKey"},
 	}, {
 		msg:          "has authType, any claims invalid",
 		client:       validClient,
@@ -651,9 +623,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:     401,
 		expectErr:    false,
 		scopes:       []string{testKey, "email"},
-		claims: map[string]string{
-			"testKey": "testValue",
-		},
+		claims:       []string{"testKey"},
 	}, {
 		msg:          "has authType, all claims valid",
 		client:       validClient,
@@ -661,10 +631,8 @@ func TestOIDCSetup(t *testing.T) {
 		authType:     checkOIDCAllClaims,
 		expected:     200,
 		expectErr:    false,
-		scopes:       []string{testKey, "email"},
-		claims: map[string]string{
-			testKey: testValue,
-		},
+		scopes:       []string{"uid"},
+		claims:       []string{"sub", "uid"},
 	}, {
 		msg:          "has authType, all claims valid and scopes",
 		client:       validClient,
@@ -673,9 +641,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:     401,
 		expectErr:    false,
 		scopes:       []string{"invalid"},
-		claims: map[string]string{
-			testKey: testValue,
-		},
+		claims:       []string{testKey},
 	}, {
 		msg:          "has authType, all claims valid and invalid",
 		client:       validClient,
@@ -684,10 +650,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:     401,
 		expectErr:    false,
 		scopes:       []string{testKey, "email"},
-		claims: map[string]string{
-			testKey:   testValue,
-			"testKey": "testValue",
-		},
+		claims:       []string{testKey, "testKey"},
 	}, {
 		msg:          "has authType, all claims invalid",
 		client:       validClient,
@@ -696,9 +659,7 @@ func TestOIDCSetup(t *testing.T) {
 		expected:     401,
 		expectErr:    false,
 		scopes:       []string{testKey, "email"},
-		claims: map[string]string{
-			"testKey": "testValue",
-		},
+		claims:       []string{"testKey"},
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -745,12 +706,7 @@ func TestOIDCSetup(t *testing.T) {
 			}
 
 			sargs = append(sargs, strings.Join(tc.scopes, " "))
-
-			claims := make([]string, 0, 2*len(tc.claims))
-			for k, v := range tc.claims {
-				claims = append(claims, k, v)
-			}
-			sargs = append(sargs, strings.Join(claims, " "))
+			sargs = append(sargs, strings.Join(tc.claims, " "))
 
 			f, err := spec.CreateFilter(sargs)
 			if tc.expectErr {
