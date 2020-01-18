@@ -220,10 +220,11 @@ more](#gradual-traffic-switching).
 - *[Format](../routegroup-crd/#route_1)*
 
 Routes define where to and how the incoming requests will be forwarded. The predicates, including the path,
-pathSubtree, pathRegexp and methods fields, control which requests are matched by a route, the filters can apply
-changes to the forwarded requests and the returned responses, and the backend refs, if defined, override the
-default backends, where the requests will be forwarded to. If a route group doesn't contain any explicit routes,
-but it contains default backends, a default set of routes will be generated for the route group.
+pathSubtree, pathRegexp and methods fields, and any free-form predicate listed under the predicates field,
+control which requests are matched by a route, the filters can apply changes to the forwarded requests and the
+returned responses, and the backend refs, if defined, override the default backends, where the requests will be
+forwarded to. If a route group doesn't contain any explicit routes, but it contains default backends, a default
+set of routes will be generated for the route group.
 
 Important to bear in mind about the path fields, that the plain 'path' means exact path match, while
 'pathSubtree' behaves as a path prefix, and so it is more similar to the path in the Ingress specification.
@@ -269,7 +270,7 @@ api-service-v2.
 
 Since this type of weighted traffic switching can be used in combination with the Traffic predicate, it is
 possible to control the routing of a long running A/B test, while still executing gradual traffic switching
-independently to deploy a new version of the variants, e.g. to deploy a bugfix only to one variant. E.g:
+independently to deploy a new version of the variants, maybe to deploy a fix only to one variant. E.g:
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -445,7 +446,7 @@ spec:
 ### Ingress with multiple hosts, and different routing
 
 For those cases when using multiple hostnames in the same ingress with different rules, we need to apply a
-workaround for the equivalent route group spec. Ingress:
+small workaround for the equivalent route group spec. Ingress:
 
 ```yaml
 apiVersion: extensions/v1beta1
@@ -554,6 +555,8 @@ spec:
   - pathSubtree: /
   - pathSubtree: /
     methods: OPTIONS
+    filters:
+    - status(200)
     backends:
     - options200
 ```
