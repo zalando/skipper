@@ -10,7 +10,7 @@ to your application based on the ingress configuration.
 
 Example:
 
-```
+```yaml
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
@@ -24,6 +24,26 @@ spec:
       - backend:
           serviceName: example
           servicePort: 80
+```
+
+Or as a [RouteGroup](../routegroups/):
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: demo
+  namespace: default
+spec:
+  hosts:
+  - demo.example.org
+  backends:
+  - name: backend
+    type: service
+    serviceName: example
+    servicePort: 80
+  defaultBackends:
+  - backendName: backend
 ```
 
 Your clients inside the cluster should call this example with

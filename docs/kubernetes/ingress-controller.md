@@ -6,7 +6,7 @@ Cluster.
 
 ## Why you should use Skipper as ingress controller?
 
-Baremetal loadbalancers perform really well, but their configuration is
+Baremetal load balancers perform really well, but their configuration is
 not updated frequently and most of the installations are not meant
 for rapid change. With the introduction of Kubernetes this assumption is
 no longer valid and there was a need for a HTTP router which supported
@@ -14,7 +14,7 @@ backend routes which changed very frequently. Skipper was initially designed
 for a rapidly changing routing tree and subsequently used to implement
 an ingress controller in Kubernetes.
 
-Cloud loadbalancers scale well and can be updated frequently, but do not
+Cloud load balancers scale well and can be updated frequently, but do not
 provide many features. Skipper has advanced resiliency and deployment
 features, which you can use to enhance your environment. For example,
 ratelimiters, circuitbreakers, blue-green deployments, shadow traffic
@@ -24,7 +24,7 @@ and [more](ingress-usage.md).
 
 At Zalando we chose to run [`kube-ingress-aws-controller`](https://github.com/zalando-incubator/kube-ingress-aws-controller)
 with [`skipper ingress`](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/)
-as the target group. While AWS loadbalancers gives us features
+as the target group. While AWS load balancers give us features
 like TLS termination, automated certificate rotation, possible [WAF](https://aws.amazon.com/waf/),
 and [Security Groups](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_SecurityGroups.html),
 the HTTP routing capabilities are very limited. Skipper's main advantage
@@ -59,8 +59,8 @@ go for one of these options.
 both good and bad, because it can reduce latency, but comes with the risk of depending on
 kube-proxy routing. `kube-proxy` routing can take up to 30 seconds, ETCD ttl, for finding
 pods from dead nodes. In Skipper we passively observe errors from endpoints and are able to
-drop these from the loadbalancer members. We add these to an actively checked member pool,
-which will enable endpoints if these are healthy again from skipper point of view.
+drop these from the load balancer members. We add these to an actively checked member pool,
+which will enable endpoints if these are healthy again from skipper's point of view.
 Additionally the `aws-alb-ingress-controller` does not support features like ALB sharing,
 or [Server Name Indication](https://tools.ietf.org/html/rfc6066#section-3) which can reduce
 costs. Features like [path rewriting](https://opensource.zalando.com/skipper/kubernetes/ingress-usage/#modify-path)
@@ -69,11 +69,11 @@ are also not currently supported.
 `Traefik` has a good community and support for Kubernetes. Skipper originates from
 [Project Mosaic](https://www.mosaic9.org/) which was started in 2015. Back then Traefik
 was not yet a mature project and still had time to go before the v1.0.0 release.
-Traefik also does not currently support our [Opentracing](https://opentracing.io/) provider.
+Traefik also does not currently support our [OpenTracing](https://opentracing.io/) provider.
 It also did not support traffic splitting when we started [stackset-controller](https://github.com/zalando-incubator/stackset-controller)
 for automated traffic switching. We have also recently done significant work on running
 Skipper as API gateway within Kubernetes, which could potentially help many teams that
-run a many small services on Kubernetes. Skipper predicates and filters are a powerful
+run many small services on Kubernetes. Skipper predicates and filters are a powerful
 abstraction which can enhance the system easily.
 
 ### Comparison with service mesh
@@ -125,32 +125,32 @@ as you need or are comfortable.
 ## What is an Ingress-Controller?
 
 Ingress-controllers are serving http requests into a Kubernetes
-cluster. Most of the time traffic will pass ingress and go to a
+cluster. Most of the time traffic will pass through ingress and go to the
 Kubernetes endpoints of the respective pods.
 For having a successful ingress, you need to have a DNS name pointing
-to some stable IP addresses that act as a loadbalancer.
+to a set of stable IP addresses that act as a load balancer.
 
 Skipper as ingress-controller:
 
-* cloud: deploy behind the cloud loadbalancer
-* baremetal: deploy behind your hardware/software loadbalancer and have all skipper as members in one pool.
+* cloud: deploy behind the cloud load balancer
+* baremetal: deploy behind your hardware/software load balancer and have all skipper as members in one pool.
 
 You would point your DNS entries to the
-loadbalancer in front of skipper, for example automated using
+load balancer in front of skipper, for example automated using
 [external-dns](https://github.com/kubernetes-incubator/external-dns).
 
 ## Why skipper uses endpoints and not services?
 
-Skipper does not use [Kubernetes
+Skipper does not use the ClusterIP of [Kubernetes
 Services](http://kubernetes.io/docs/user-guide/services) to route
 traffic to the pods. Instead it uses the Endpoints API to bypass
 kube-proxy created iptables to remove overhead like conntrack entries
 for iptables DNAT. Skipper can also reuse connections to Pods, such
 that you have no overhead in establishing connections all the time. To
-prevent errors on node failures, Skipper also does automatically
+prevent errors on node failures, Skipper also does automatic
 retries to another endpoint in case it gets a connection refused or
 TLS handshake error to the endpoint.  Other reasons are future support
-of features like session affinity, different loadbalancer
+of features like session affinity, different load balancer
 algorithms or distributed loadbalancing also known as service mesh.
 
 ## AWS deployment
@@ -163,7 +163,7 @@ A logical overview of the traffic flow in AWS is shown in this picture:
 
 ![logical ingress-traffic-flow](../img/ingress-traffic-flow-aws.svg)
 
-We described that Skipper bypasses Kubernetes Service and use directly
+We described that Skipper bypasses Kubernetes Service and uses directly
 endpoints for [good reasons](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#why-skipper-uses-endpoints-and-not-services),
 therefore the real traffic flow is shown in the next picture.
 ![technical ingress-traffic-flow](../img/ingress-traffic-flow-aws-technical.svg)
@@ -171,37 +171,37 @@ therefore the real traffic flow is shown in the next picture.
 ## Baremetal deployment
 
 In datacenter, baremetal environments, you probably have a hardware
-loadbalancer or some haproxy or nginx setup, that serves most of your
+load balancer or some haproxy or nginx setup, that serves most of your
 production traffic and DNS points to these endpoints. For example
 `*.ingress.example.com` could point to your virtual server IPs in front
 of ingress. Skippers could be used as pool members, which do the http
-routing. Your loadbalancer of choice could have a wildcard certificate
+routing. Your load balancer of choice could have a wildcard certificate
 for `*.ingress.example.com` and DNS for this would point to your
-loadbalancer. You can also automate DNS records with
+load balancer. You can also automate DNS records with
 [external-dns](https://github.com/kubernetes-incubator/external-dns),
-if you for example use PowerDNS as provider and have a loadbalancer
+if you for example use PowerDNS as provider and have a load balancer
 controller that modifies the status field in ingress to your
-loadbalancer virtual IP.
+load balancer virtual IP.
 
 ![ingress-traffic-flow](../img/ingress-traffic-flow-baremetal.svg)
 
 ## Requirements
 
 In general for one endpoint you need, a DNS A/AAAA record pointing to
-one or more loadbalancer IPs. Skipper is best used behind this
-layer 4 loadbalancer to route and manipulate HTTP data.
+one or more load balancer IPs. Skipper is best used behind this
+layer 4 load balancer to route and manipulate HTTP data.
 
 minimal example:
 
-* layer 4 loadbalancer has `1.2.3.4:80` as socket for a virtual server pointing to all skipper ingress
+* layer 4 load balancer has `1.2.3.4:80` as socket for a virtual server pointing to all skipper ingress
 * `*.ingress.example.com` points to 1.2.3.4
 * ingress object with host entry for `myapp.ingress.example.com` targets a service type ClusterIP
 * service type ClusterIP has a selector that targets your Pods of your myapp deployment
 
 TLS example:
 
-* same as before, but you would terminate TLS on your layer 4 loadbalancer
-* layer 4 loadbalancer has `1.2.3.4:443` as socket for a virtual server
+* same as before, but you would terminate TLS on your layer 4 load balancer
+* layer 4 load balancer has `1.2.3.4:443` as socket for a virtual server
 * you can use an automated redirect for all port 80 requests to https with `-kubernetes-https-redirect`
 and change the default redirect code with `-kubernetes-https-redirect-code`
 
@@ -219,13 +219,13 @@ manifests: `git clone https://github.com/zalando/skipper.git`
 it as [dameonset](#dameonset) or as [deployment](#deployment).
 
 Beware, in order to get traffic from the internet, we would need to
-have a loadbalancer in front to direct all traffic to skipper. Skipper
-will route the traffic based on ingress objects. The loadbalancer
+have a load balancer in front to direct all traffic to skipper. Skipper
+will route the traffic based on ingress objects. The load balancer
 should have a HTTP health check, that does a GET request to
 `/kube-system/healthz` on all Kubernetes worker nodes. This method is
 simple and used successfully in production. In AWS you can run
 [`kube-ingress-aws-controller`](https://github.com/zalando-incubator/kube-ingress-aws-controller)
-to create these loadbalancers automatically based on the ingress
+to create these load balancers automatically based on the ingress
 definition.
 
 ### Deployment style
@@ -361,11 +361,11 @@ The next question you may ask is: how to expose this to your customers?
 
 The answer depends on your setup and complexity requirements. In the
 simplest case you could add one A record in your DNS `*.<mydomain.org>`
-to your frontend loadbalancer IP that directs all traffic from `*.<mydomain.org>`
+to your frontend load balancer IP that directs all traffic from `*.<mydomain.org>`
 to all Kubernetes worker nodes on TCP port 9999.
 
 A more complex setup we use in production and can be done with
-something that configures your frontend loadbalancer, for example
+something that configures your frontend load balancer, for example
 [kube-aws-ingress-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller),
 and your DNS, [external-dns](https://github.com/kubernetes-incubator/external-dns)
 automatically.

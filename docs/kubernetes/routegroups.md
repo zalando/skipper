@@ -318,7 +318,7 @@ See also:
 
 - [Traffic predicate](../../reference/predicates/#traffic)
 
-## Migration from Ingress to RouteGroups
+## Mapping from Ingress to RouteGroups
 
 RouteGroups are one-way compatible with Ingress, meaning that every Ingress specification can be expressed in
 the RouteGroup format, as well. In the following, we describe the mapping from Ingress fields to RouteGroup
@@ -499,7 +499,7 @@ The RouteGroups allow multiple hostnames for each route group, but by default, t
 routing. If we want to distinguish between them, then we need to use an additional Host predicate in the routes.
 Importantly, only the hostnames listed under the hosts field serve as input for the DNS and LB configuration.
 
-## Migrating Skipper Ingress extensions to RouteGroups
+## Mapping Skipper Ingress extensions to RouteGroups
 
 Skipper accepts a set of annotations in Ingress objects that give access to certain Skipper features that would
 not be possible with the native fields of the Ingress spec, e.g. improved path handling or rate limiting. These
