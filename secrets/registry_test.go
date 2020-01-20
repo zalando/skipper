@@ -25,12 +25,12 @@ func TestRegistry(t *testing.T) {
 	r1 := NewRegistry()
 	defer r1.Close()
 
-	enc1, err = r1.NewEncrypter(time.Second, testfile)
+	enc1, err = r1.GetEncrypter(time.Second, testfile)
 	if err != nil {
 		t.Fatalf("Failed to create encrypter: %v", err)
 	}
 
-	enc2, err := r1.NewEncrypter(time.Second, testfile)
+	enc2, err := r1.GetEncrypter(time.Second, testfile)
 	if err != nil {
 		t.Fatalf("Failed to create second encrypter: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestRegistry(t *testing.T) {
 		t.Fatal("Failed to get the same encrypter")
 	}
 
-	enc3, err := r1.NewEncrypter(time.Second, anotherfile)
+	enc3, err := r1.GetEncrypter(time.Second, anotherfile)
 	if err != nil {
 		t.Fatalf("Failed to create third encrypter: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestRegistry(t *testing.T) {
 		t.Fatal("Failed to get different encrypter")
 	}
 
-	if _, err := r1.NewEncrypter(time.Second, "does-not-exist"); err == nil {
+	if _, err := r1.GetEncrypter(time.Second, "does-not-exist"); err == nil {
 		t.Fatal("Create encrypter should fail if file does not exist")
 	}
 }

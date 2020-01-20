@@ -1,6 +1,10 @@
 package secrettest
 
-import "github.com/zalando/skipper/secrets"
+import (
+	"time"
+
+	"github.com/zalando/skipper/secrets"
+)
 
 type TestRegistry struct {
 	encrypterMap map[string]secrets.Encryption
@@ -19,7 +23,7 @@ func NewTestRegistry() *TestRegistry {
 	}
 }
 
-func (tr *TestRegistry) NewEncrypter(s string) (secrets.Encryption, error) {
+func (tr *TestRegistry) GetEncrypter(refreshInterval time.Duration, s string) (secrets.Encryption, error) {
 	if e, ok := tr.encrypterMap[s]; ok {
 		return e, nil
 	}
@@ -29,7 +33,9 @@ func (tr *TestRegistry) NewEncrypter(s string) (secrets.Encryption, error) {
 		return nil, err
 	}
 
-	testEnc.RefreshCiphers()
+	if err := testEnc.RefreshCiphers(); err != nil {
+		return nil, err
+	}
 
 	tr.encrypterMap[s] = testEnc
 	return testEnc, nil

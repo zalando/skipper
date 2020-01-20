@@ -34,7 +34,7 @@ type (
 	tokenOidcSpec struct {
 		typ             roleCheckType
 		SecretsFile     string
-		secretsRegistry *secrets.Registry
+		secretsRegistry secrets.EncrypterCreator
 	}
 
 	tokenOidcFilter struct {
@@ -51,9 +51,10 @@ type (
 	}
 
 	userInfoContainer struct {
-		OAuth2Token *oauth2.Token  `json:"oauth2token"`
-		UserInfo    *oidc.UserInfo `json:"userInfo"`
-		Subject     string         `json:"subject"`
+		OAuth2Token *oauth2.Token          `json:"oauth2token"`
+		UserInfo    *oidc.UserInfo         `json:"userInfo"`
+		Subject     string                 `json:"subject"`
+		Claims      map[string]interface{} `json:"claims"`
 	}
 
 	claimsContainer struct {
@@ -98,23 +99,18 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	providerURL, err := url.Parse(sargs[0])
+	issuerURL, err := url.Parse(sargs[0])
 	if err != nil {
 		log.Errorf("Failed to parse url %s: %v.", sargs[0], err)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	ctx := context.Background()
-	provider, err := oidc.NewProvider(ctx, providerURL.String())
+	provider, err := oidc.NewProvider(context.Background(), issuerURL.String())
 	if err != nil {
-		log.Errorf("Failed to create new provider %s: %v.", providerURL, err)
+		log.Errorf("Failed to create new provider %s: %v.", issuerURL, err)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	if err != nil {
-		log.Errorf("Failed to create ciphersuite: %v.", err)
-		return nil, filters.ErrInvalidFilterParameters
-	}
 	h := sha256.New()
 	for _, s := range sargs {
 		h.Write([]byte(s))
@@ -125,11 +121,11 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	log.Debugf("Generated Cookie Name: %s", generatedCookieName)
 
 	redirectURL, err := url.Parse(sargs[3])
-	if err != nil {
-		return nil, fmt.Errorf("the redirect url %s is not valid: %v", sargs[3], err)
+	if err != nil || sargs[3] == "" {
+		return nil, fmt.Errorf("invalid redirect url '%s': %v", sargs[3], err)
 	}
 
-	encrypter, err := s.secretsRegistry.NewEncrypter(1*time.Minute, s.SecretsFile)
+	encrypter, err := s.secretsRegistry.GetEncrypter(1*time.Minute, s.SecretsFile)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +138,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 			ClientSecret: sargs[2],
 			RedirectURL:  sargs[3], // self endpoint
 			Endpoint:     provider.Endpoint(),
-			Scopes:       []string{oidc.ScopeOpenID},
+			Scopes:       []string{oidc.ScopeOpenID}, // mandatory scope by spec
 		},
 		provider: provider,
 		verifier: provider.Verifier(&oidc.Config{
@@ -153,17 +149,17 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		encrypter:  encrypter,
 	}
 
-	switch f.typ {
-	case checkOIDCUserInfo:
-		f.config.Scopes = append(f.config.Scopes, sargs[4:]...)
-	case checkOIDCAnyClaims:
-		fallthrough
-	case checkOIDCAllClaims:
-		additionScopes := sargs[4]
-		f.config.Scopes = append(f.config.Scopes, additionScopes)
+	// user defined scopes
+	scopes := strings.Split(sargs[4], " ")
+	if len(sargs[4]) == 0 {
+		scopes = []string{}
+	}
+	// scopes are only used to request claims to be in the IDtoken requested from auth server
+	// https://openid.net/specs/openid-connect-core-1_0.html#ScopeClaims
+	f.config.Scopes = append(f.config.Scopes, scopes...)
+	// user defined claims to check for authnz
+	if len(sargs[5]) > 0 {
 		f.claims = strings.Split(sargs[5], " ")
-	default:
-		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
@@ -199,28 +195,32 @@ func (f *tokenOidcFilter) validateAnyClaims(h map[string]interface{}) bool {
 	if len(f.claims) == 0 {
 		return true
 	}
-
-	var a []string
-	for k := range h {
-		a = append(a, k)
+	if len(h) == 0 {
+		return false
 	}
 
-	log.Debugf("intersect(%v, %v)", f.claims, a)
-	return intersect(f.claims, a)
+	keys := make([]string, 0, len(h))
+	for k := range h {
+		keys = append(keys, k)
+	}
+
+	return intersect(f.claims, keys)
 }
 
 func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
-	if len(f.claims) == 0 {
+	l := len(f.claims)
+	if l == 0 {
 		return true
 	}
-
-	var a []string
-	for k := range h {
-		a = append(a, k)
+	if len(h) < l {
+		return false
 	}
 
-	log.Debugf("all(%v, %v)", f.claims, a)
-	return all(f.claims, a)
+	keys := make([]string, 0, len(h))
+	for k := range h {
+		keys = append(keys, k)
+	}
+	return all(f.claims, keys)
 }
 
 const (
@@ -287,6 +287,9 @@ func (f *tokenOidcFilter) internalServerError(ctx filters.FilterContext) {
 	ctx.Serve(rsp)
 }
 
+// https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowSteps
+// 1. Client prepares an Authentication Request containing the desired request parameters.
+// 2. Client sends the request to the Authorization Server.
 func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 	nonce, err := f.encrypter.CreateNonce()
 	if err != nil {
@@ -317,7 +320,7 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 		StatusCode: http.StatusTemporaryRedirect,
 		Status:     "Moved Temporarily",
 	}
-	log.Infof("serve redirect: plaintextState:%s to Location: %s", statePlain, rsp.Header.Get("Location"))
+	log.Debugf("serve redirect: plaintextState:%s to Location: %s", statePlain, rsp.Header.Get("Location"))
 	ctx.Serve(rsp)
 }
 
@@ -349,11 +352,8 @@ func getHost(request *http.Request) string {
 func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
 	log.Debugf("Doing Downstream Redirect to :%s", redirectUrl)
 	host := getHost(ctx.Request())
-	cookieHeaderVal := fmt.Sprintf("%s=%x; Path=/; HttpOnly; MaxAge=%d; Domain=%s",
+	cookieHeaderVal := fmt.Sprintf("%s=%x; Path=/; Secure; HttpOnly; MaxAge=%d; Domain=%s",
 		f.cookiename, oidcState, int(f.validity.Seconds()), extractDomainFromHost(host))
-	if ctx.Request().TLS != nil {
-		cookieHeaderVal = fmt.Sprintf("%s; Secure", cookieHeaderVal)
-	}
 	r := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: map[string][]string{
@@ -382,17 +382,16 @@ func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) ([]byte, bool) {
 }
 
 func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
-	var oauth2Token *oauth2.Token
-
+	var (
+		oauth2Token *oauth2.Token
+		data        []byte
+	)
 	r := ctx.Request()
 	sessionCookie, _ := r.Cookie(f.cookiename)
 	cookie, ok := f.validateCookie(sessionCookie)
-	var (
-		data []byte
-	)
-	log.Debugf("Cookie Validation: %v", ok)
+	log.Debugf("Request: Cookie Validation: %v", ok)
 	if !ok {
-		if strings.Contains(ctx.Request().URL.Path, f.redirectPath) {
+		if strings.Contains(r.URL.Path, f.redirectPath) {
 			oauthState, err := f.getCallbackState(ctx)
 			if err != nil {
 				if _, ok := err.(*requestError); !ok {
@@ -435,7 +434,6 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 					// not documented explicitly, so we assume that the cause is always rooted
 					// in the incoming request, and only log it with a debug flag, via calling
 					// unauthorized().
-
 					unauthorized(
 						ctx,
 						"",
@@ -448,7 +446,24 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 				}
 
 				sub := userInfo.Subject
-				resp := userInfoContainer{oauth2Token, userInfo, sub}
+				claimsMap, _, err := f.tokenClaims(ctx, oauth2Token)
+				if err != nil {
+					unauthorized(
+						ctx,
+						"",
+						invalidToken,
+						r.Host,
+						fmt.Sprintf("Failed to get claims: %v.", err),
+					)
+					return
+				}
+
+				resp := userInfoContainer{
+					OAuth2Token: oauth2Token,
+					UserInfo:    userInfo,
+					Subject:     sub,
+					Claims:      claimsMap,
+				}
 				data, err = json.Marshal(resp)
 				if err != nil {
 					log.Errorf("Error while serializing user info: %v.", err)
@@ -469,7 +484,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 			case checkOIDCAnyClaims:
 				fallthrough
 			case checkOIDCAllClaims:
-				tokenMap, sub, err := f.tokenClaims(ctx, oauth2Token)
+				claimsMap, sub, err := f.tokenClaims(ctx, oauth2Token)
 				if err != nil {
 					if _, ok := err.(*requestError); !ok {
 						log.Errorf("Failed to get claims with error: %v", err)
@@ -490,7 +505,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 					return
 				}
 
-				resp := claimsContainer{OAuth2Token: oauth2Token, Claims: tokenMap, Subject: sub}
+				resp := claimsContainer{OAuth2Token: oauth2Token, Claims: claimsMap, Subject: sub}
 				data, err = json.Marshal(resp)
 				if err != nil {
 					log.Errorf("Failed to serialize claims: %v.", err)
@@ -527,7 +542,6 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		f.doOauthRedirect(ctx)
 		return
 	}
-
 	var (
 		sub      string
 		allowed  bool
@@ -551,7 +565,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 		if container.OAuth2Token.Valid() && container.UserInfo != nil {
-			allowed = true
+			allowed = f.validateAllClaims(container.Claims)
 		}
 		oidcInfo = container
 		sub = container.Subject
@@ -571,7 +585,6 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		}
 
 		allowed = f.validateAnyClaims(container.Claims)
-		log.Debugf("validateAnyClaims: %v", allowed)
 		oidcInfo = container
 		sub = container.Subject
 	case checkOIDCAllClaims:
@@ -671,13 +684,16 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 
 func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.FilterContext) (*oauth2.Token, error) {
 	r := ctx.Request()
-
 	if state.Validity < time.Now().Unix() {
 		return nil, requestErrorf("state is no longer valid. %v", state.Validity)
 	}
 
 	// authcode flow
 	code := r.URL.Query().Get("code")
+
+	// https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowSteps
+	// 6. Client requests a response using the Authorization Code at the Token Endpoint.
+	// 7. Client receives a response that contains an ID Token and Access Token in the response body.
 	oauth2Token, err := f.config.Exchange(r.Context(), code, f.authCodeOptions...)
 	if err != nil {
 		// error coming from an external library and the possible error reasons are

@@ -15,6 +15,7 @@ const (
 	testKey      = "uid"
 	testValue    = "jdoe"
 	testAuthPath = "/test-auth"
+	testSub      = "somesub"
 )
 
 func Test_all(t *testing.T) {

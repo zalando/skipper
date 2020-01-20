@@ -2,6 +2,10 @@ package secrets
 
 import "time"
 
+type EncrypterCreator interface {
+	GetEncrypter(time.Duration, string) (Encryption, error)
+}
+
 type Encryption interface {
 	CreateNonce() ([]byte, error)
 	Decrypt([]byte) ([]byte, error)
@@ -10,18 +14,19 @@ type Encryption interface {
 }
 
 type Registry struct {
-	encrypterMap map[string]Encryption
+	encrypterMap map[string]*Encrypter
 }
 
-// NewRegistry returns a Registry to store and manage secrets
+// NewRegistry returns a Registry and implements EncrypterCreator to
+// store and manage secrets
 func NewRegistry() *Registry {
-	e := make(map[string]Encryption)
+	e := make(map[string]*Encrypter)
 	return &Registry{
 		encrypterMap: e,
 	}
 }
 
-func (r *Registry) NewEncrypter(refreshInterval time.Duration, file string) (Encryption, error) {
+func (r *Registry) GetEncrypter(refreshInterval time.Duration, file string) (Encryption, error) {
 	if e, ok := r.encrypterMap[file]; ok {
 		return e, nil
 	}
