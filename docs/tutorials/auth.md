@@ -176,7 +176,7 @@ while generating the client id and client secret. Then the scopes and finally th
 with the return id token.
 
 ```
-oauthOIDCUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
+oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
     "http://target.example.com/subpath/callback", "email profile", 
     "name email picture") -> "https://internal.example.org";
 ```

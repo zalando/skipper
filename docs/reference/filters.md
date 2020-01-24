@@ -763,10 +763,10 @@ forwardToken("X-Tokeninfo-Forward")
 forwardToken("X-Tokeninfo-Forward", "access_token")
 ```
 
-## oauthOIDCUserInfo
+## oauthOidcUserInfo
 
 ```
-oauthOIDCUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
+oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
     "http://target.example.com/subpath/callback", "email profile", "name email picture")
 ```
 
@@ -780,10 +780,10 @@ The filter needs the following parameters:
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** The claims which should be present in the token returned by the provider.
 
-## oauthOIDCAnyClaims
+## oauthOidcAnyClaims
 
 ```
-oauthOIDCAnyClaims("https://oidc-provider.example.com", "client_id", "client_secret",
+oauthOidcAnyClaims("https://oidc-provider.example.com", "client_id", "client_secret",
     "http://target.example.com/subpath/callback", "email profile", "name email picture")
 ```
 The filter needs the following parameters:
@@ -796,10 +796,10 @@ The filter needs the following parameters:
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** Several claims can be specified and the request is allowed as long as at least one of them is present.
 
-## oauthOIDCAllClaims
+## oauthOidcAllClaims
 
 ```
-oauthOIDCAllClaims("https://oidc-provider.example.com", "client_id", "client_secret",
+oauthOidcAllClaims("https://oidc-provider.example.com", "client_id", "client_secret",
     "http://target.example.com/subpath/callback", "email profile", "name email picture")
 ```
 The filter needs the following parameters:
