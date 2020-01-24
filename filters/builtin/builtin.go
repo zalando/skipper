@@ -110,6 +110,7 @@ func MakeRegistry() filters.Registry {
 		diag.NewBackendLatency(),
 		diag.NewBackendBandwidth(),
 		diag.NewBackendChunks(),
+		diag.NewAbsorb(),
 		tee.NewTee(),
 		tee.NewTeeDeprecated(),
 		tee.NewTeeNoFollow(),
