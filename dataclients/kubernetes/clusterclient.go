@@ -212,7 +212,7 @@ func (c *clusterClient) getJSON(uri string, a interface{}) error {
 
 func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
 	var crl clusterResourceList
-	if err := c.getJSON(clusterZalandoResourcesURI, &crl); err != nil {
+	if err := c.getJSON(clusterZalandoResourcesURI, &crl); err != nil { // it probably should bounce once
 		return false, err
 	}
 

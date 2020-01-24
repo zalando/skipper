@@ -444,6 +444,7 @@ func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 }
 
 // TODO: default filters not applied to 'extra' routes from the custom route annotations. Is it on purpose?
+// https://github.com/zalando/skipper/issues/1287
 func (ing *ingress) addSpecRule(ic ingressContext, ru *rule) error {
 	if ru.Http == nil {
 		ic.logger.Warn("invalid ingress item: rule missing http definitions")

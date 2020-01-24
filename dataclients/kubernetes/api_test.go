@@ -123,8 +123,6 @@ func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 
 			kind, ok := o["kind"].(string)
 			if !ok {
-				println("from here")
-				fmt.Println(o)
 				return nil, errInvalidFixture
 			}
 
