@@ -297,6 +297,10 @@ func backendTypeToString(t eskip.BackendType) string {
 
 // UnmarshalJSON creates a new skipperBackend, safe to be called on nil pointer
 func (sb *skipperBackend) UnmarshalJSON(value []byte) error {
+	if sb == nil {
+		return nil
+	}
+
 	var p skipperBackendParser
 	if err := json.Unmarshal(value, &p); err != nil {
 		return err

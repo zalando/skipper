@@ -2588,7 +2588,7 @@ func TestCatchAllRoutes(t *testing.T) {
 		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
-			catchAll := catchAllRoutes(tc.routes)
+			catchAll := hasCatchAllRoutes(tc.routes)
 			if catchAll != tc.hasCatchAll {
 				t.Errorf("expected %t, got %t", tc.hasCatchAll, catchAll)
 			}

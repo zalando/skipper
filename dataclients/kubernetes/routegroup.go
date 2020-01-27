@@ -12,11 +12,6 @@ import (
 
 // TODO:
 // - consider catchall for east-west routes
-// - document how route group errors are handled
-// - document in the CRD that the service type must be ClusterIP when using service backends
-// - document the implicit routes, or clarify: spec.routes is not optional, but an example doesn't have any
-// - document the rules and the loopholes with the host catch-all routes
-// - document the behavior of the weight implementation
 
 type routeGroups struct {
 	options Options
@@ -309,7 +304,9 @@ func applyBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Rout
 	case eskip.LBBackend:
 		r.LBEndpoints = backend.Endpoints
 		r.LBAlgorithm = defaultLoadBalancerAlgorithm
-		r.LBAlgorithm = backend.Algorithm.String()
+		if backend.Algorithm != loadbalancer.None {
+			r.LBAlgorithm = backend.Algorithm.String()
+		}
 	}
 
 	return nil
@@ -329,10 +326,6 @@ func storeHostRoute(ctx *routeGroupContext, r *eskip.Route) {
 }
 
 func appendEastWest(ctx *routeGroupContext, routes []*eskip.Route, current *eskip.Route) []*eskip.Route {
-	// how will the route group name for the domain name play together with
-	// zalando.org/v1/stackset and zalando.org/v1/fabricgateway? Wouldn't it be better to
-	// use the service name instead?
-
 	if !ctx.eastWestEnabled || ctx.hasEastWestHost {
 		return routes
 	}
@@ -397,7 +390,7 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	gr := ctx.groupRoute
 	r := &eskip.Route{Id: ctx.id}
 
-	// Path or PathSubtree, prefer Path if we have, becasuse it is more specifc
+	// Path or PathSubtree, prefer Path if we have, because it is more specifc
 	if gr.Path != "" {
 		r.Predicates = appendPredicate(r.Predicates, "Path", gr.Path)
 	} else if gr.PathSubtree != "" {

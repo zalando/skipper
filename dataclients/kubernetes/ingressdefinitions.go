@@ -201,13 +201,13 @@ func (ep endpoint) targets(svcPortName, svcPortTarget string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
-			// TODO: verify if the comparison of port.Name == svcPortName is valid,
-			// considering that the svcPortName is the name of service port specified
-			// in ingress. The right way probably is not to use the svcPortName here,
-			// since that's a reference from the ingress backend to the service, but
-			// use the svcPortTarget, which can be a name or a number, to compare it
-			// with the subset port.Name and port.Port, which is referenced by the
-			// service target port, which can also be either a name or a port value.
+			// TODO: we need to distinguish between the cases when there is no endpoints
+			// and conversely, when there are endpoints and we just could not map the ports,
+			// primarily when the service references the target port by name. Changes have
+			// been started in this branch:
+			//
+			// https://github.com/zalando/skipper/tree/improvement/service-port-fallback-handling
+			//
 			if port.Name == svcPortName || strconv.Itoa(port.Port) == svcPortTarget {
 				for _, addr := range s.Addresses {
 					result = append(result, formatEndpoint(addr, port))

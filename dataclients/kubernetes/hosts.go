@@ -27,7 +27,7 @@ func createHostRx(h ...string) string {
 // hostCatchAllRoutes creates catch-all routes for those hosts that only have routes with
 // a Host predicate and at least one additional predicate.
 //
-// currently only used for RG
+// currently only used for RouteGroups
 func hostCatchAllRoutes(hostRoutes map[string][]*eskip.Route, createID func(string) string) []*eskip.Route {
 	var catchAll []*eskip.Route
 	for h, r := range hostRoutes {

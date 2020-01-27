@@ -720,11 +720,11 @@ func (ing *ingress) addCatchAllRoutes(host string, r *eskip.Route, redirect *red
 	return routes
 }
 
-// catchAllRoutes returns true if one of the routes in the list has a catchAll
+// hasCatchAllRoutes returns true if one of the routes in the list has a catchAll
 // path expression.
 //
 // TODO: this should also consider path types exact and subtree
-func catchAllRoutes(routes []*eskip.Route) bool {
+func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	for _, route := range routes {
 		if len(route.PathRegexps) == 0 {
 			return true
@@ -742,7 +742,7 @@ func catchAllRoutes(routes []*eskip.Route) bool {
 
 // convert logs if an invalid found, but proceeds with the
 // valid ones.  Reporting failures in Ingress status is not possible,
-// because Ingress status field is v1.LoadBalancerIngress that only
+// because Ingress status field is v1beta1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
 func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(state.ingresses))
@@ -767,7 +767,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 
 		// if routes were configured, but there is no catchall route
 		// defined for the host name, create a route which returns 404
-		if !catchAllRoutes(rs) {
+		if !hasCatchAllRoutes(rs) {
 			routes = append(routes, ing.addCatchAllRoutes(host, rs[0], redirect)...)
 		}
 	}

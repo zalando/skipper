@@ -193,7 +193,7 @@ doesn't need to be used for services.
 
 ### type=network
 
-This backend type results in routes that forward incoming requests to the defined network address, regardless of
+This backend type results in routes that proxy incoming requests to the defined network address, regardless of
 the Kubernetes semantics, and allows URLs that point somewhere else, potentially outside of the cluster, too.
 
 ### type=shunt, type=loopback, type=dynamic
@@ -205,11 +205,11 @@ manual](../../reference/backends/) for more details.
 
 - *[Format](../routegroup-crd/#backend-reference)*
 
-A default backend is a references to one of the defined backends. When a route doesn't specify which backend(s)
+A default backend is a reference to one of the defined backends. When a route doesn't specify which backend(s)
 to use, the ones referenced in the default backends will be used.
 
 In case there are no individual routes at all in the route group, a default set of routes (one or more) will be
-generated and will forward the incoming traffic to the default backends.
+generated and will proxy the incoming traffic to the default backends.
 
 The reason, why multiple backends can be referenced as default, is that this makes it easy to execute gradual
 traffic switching between different versions, even more than two, of the same application. [See
@@ -219,11 +219,11 @@ more](#gradual-traffic-switching).
 
 - *[Format](../routegroup-crd/#route_1)*
 
-Routes define where to and how the incoming requests will be forwarded. The predicates, including the path,
+Routes define where to and how the incoming requests will be proxied. The predicates, including the path,
 pathSubtree, pathRegexp and methods fields, and any free-form predicate listed under the predicates field,
 control which requests are matched by a route, the filters can apply changes to the forwarded requests and the
 returned responses, and the backend refs, if defined, override the default backends, where the requests will be
-forwarded to. If a route group doesn't contain any explicit routes, but it contains default backends, a default
+proxied to. If a route group doesn't contain any explicit routes, but it contains default backends, a default
 set of routes will be generated for the route group.
 
 Important to bear in mind about the path fields, that the plain 'path' means exact path match, while
@@ -614,10 +614,14 @@ attribute of the backend definition, and it can be set individually for each bac
     algorithm: consistentHash
 ```
 
+See also:
+
+- [Load Balancer backend](https://opensource.zalando.com/skipper/reference/backends/#load-balancer-backend)
+
 ### zalando.org/skipper-ingress-path-mode
 
 The route objects support the different path lookup modes, by using the path, pathSubtree or the
-pathRegexp field. See also the [route matching](http://localhost:8000/reference/architecture/#route-matching)
+pathRegexp field. See also the [route matching](../../reference/architecture/#route-matching)
 explained for the internals. The mapping is as follows:
 
 Ingress: | RouteGroup:
