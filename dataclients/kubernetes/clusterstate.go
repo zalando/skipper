@@ -38,6 +38,8 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 	return s, nil
 }
 
+// Always returns one or more endpoints or an error. If there are endpoints with one or more subsets, but
+// the endpoint port could not be mapped, it returns errEndpointMappingFailed as the error.
 func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort string) ([]string, error) {
 	epID := endpointID{
 		resourceID:  newResourceID(namespace, name),
@@ -54,13 +56,13 @@ func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort
 		return nil, errEndpointNotFound
 	}
 
-	if ep.Subsets == nil {
+	if len(ep.Subsets) == 0 {
 		return nil, errEndpointNotFound
 	}
 
 	targets := ep.targets(servicePort, targetPort)
 	if len(targets) == 0 {
-		return nil, errEndpointNotFound
+		return nil, errEndpointMappingFailed
 	}
 
 	sort.Strings(targets)

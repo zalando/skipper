@@ -197,6 +197,8 @@ func formatEndpoint(a *address, p *port) string {
 	return fmt.Sprintf("http://%s:%d", a.IP, p.Port)
 }
 
+// svPortName: name or value, coming from ingress
+// svcPortTarget: name or value, coming from service target port
 func (ep endpoint) targets(svcPortName, svcPortTarget string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
@@ -208,6 +210,12 @@ func (ep endpoint) targets(svcPortName, svcPortTarget string) []string {
 			// use the svcPortTarget, which can be a name or a number, to compare it
 			// with the subset port.Name and port.Port, which is referenced by the
 			// service target port, which can also be either a name or a port value.
+
+			// case name:name -> ok (service port name matches)
+			// case name:value -> ok (service port name matches)
+			// case value:name -> not ok! (neither matches)
+			// case value:value -> ok (target port matches)
+
 			if port.Name == svcPortName || strconv.Itoa(port.Port) == svcPortTarget {
 				for _, addr := range s.Addresses {
 					result = append(result, formatEndpoint(addr, port))

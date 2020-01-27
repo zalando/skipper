@@ -48,11 +48,12 @@ type clusterClient struct {
 }
 
 var (
-	errResourceNotFound     = errors.New("resource not found")
-	errServiceNotFound      = errors.New("service not found")
-	errEndpointNotFound     = errors.New("endpoint not found")
-	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
-	errInvalidCertificate   = errors.New("invalid CA")
+	errResourceNotFound      = errors.New("resource not found")
+	errServiceNotFound       = errors.New("service not found")
+	errEndpointNotFound      = errors.New("endpoint not found")
+	errEndpointMappingFailed = errors.New("endpoint mapping failed")
+	errAPIServerURLNotFound  = errors.New("kubernetes API server URL could not be constructed from env vars")
+	errInvalidCertificate    = errors.New("invalid CA")
 )
 
 func buildHTTPClient(certFilePath string, inCluster bool, quit <-chan struct{}) (*http.Client, error) {

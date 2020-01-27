@@ -166,38 +166,54 @@ func convertPathRule(
 
 	targetPort, err := svc.getTargetPort(svcPort)
 	if err != nil {
-		// fallback to service, but service definition is wrong or no pods
-		log.Errorf("Failed to find target port for service %s, fallback to service: %v", svcName, err)
-		err = nil
-	} else if svc.Spec.Type == "ExternalName" {
+		return nil, fmt.Errorf(
+			"failed to create route for ingress %s/%s: %v",
+			ns, name, err,
+		)
+	}
+
+	if svc.Spec.Type == "ExternalName" {
+		f, err := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
+		if err != nil {
+			return nil, err
+		}
+
 		scheme := "https"
 		if targetPort != "443" {
 			scheme = "http"
 		}
+
 		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
-		f, e := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
-		if e != nil {
-			return nil, e
-		}
 		return &eskip.Route{
 			Id:          routeID(ns, name, "", "", svc.Spec.ExternalName),
 			BackendType: eskip.NetworkBackend,
 			Backend:     u,
 			Filters:     f,
 		}, nil
-	} else {
-		// err handled below
-		eps, err = state.getEndpoints(ns, svcName, svcPort.String(), targetPort)
-		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
 	}
 
-	// TODO: errors may get ignored if err != nil && err != errEndpointNotFound && len(eps) == 0
-	if len(eps) == 0 || err == errEndpointNotFound {
+	eps, err = state.getEndpoints(ns, svcName, svcPort.String(), targetPort)
 
-		address, err2 := getServiceURL(svc, svcPort)
-		if err2 != nil {
-			return nil, err2
+	// Here we need to distinguish between two cases:
+	//
+	// 1. no endpoints were found at all
+	// 2. endpoints were found, but we could not map the service port to the target port which
+	// case can happend when the service port is referenced by value, but the service port
+	// references the target port by name
+	//
+	// In case #1, we cannot generate a route even to the cluster IP, because there are no
+	// endpoints at all.
+	//
+	// In case #2, we should generate a route to the cluster IP, because the configuration might
+	// be valid and the endpoints exist, it's just a design issue in the mapping between the
+	// service and the endpoints.
+	if err == errEndpointMappingFailed {
+		log.Warn("Using cluster IP and service port because could find the right endpoints.")
+		address, err := getServiceURL(svc, svcPort)
+		if err != nil {
+			return nil, err
 		}
+
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
 			Backend:     address,
@@ -207,17 +223,13 @@ func convertPathRule(
 		setPath(pathMode, r, prule.Path)
 		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
 		return r, nil
+	}
 
-	} else if err != nil {
+	if err != nil {
 		return nil, err
 	}
-	log.Debugf("%d routes for %s/%s/%s", len(eps), ns, svcName, svcPort)
 
-	if len(eps) == 0 {
-		return nil, nil
-	}
-
-	// Consider: if there is only a single endpoint, wouldn't it be better to use the cluster IP?
+	// based on state.getEndpoints, we always have at least one endpoint at this point
 	if len(eps) == 1 {
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
@@ -498,52 +510,75 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *ingressItem) (
 
 	targetPort, err := svc.getTargetPort(svcPort)
 	if err != nil {
-		err = nil
-		log.Errorf("Failed to find target port %v, %s, fallback to service", svc.Spec.Ports, svcPort)
-	} else if svc.Spec.Type == "ExternalName" {
-		scheme := "https"
-		if targetPort != "443" {
-			scheme = "http"
-		}
-		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
+		return nil, false, fmt.Errorf(
+			"failed to create default backend route for ingress %s/%s: %v",
+			ns, name, err,
+		)
+	}
+
+	if svc.Spec.Type == "ExternalName" {
 		f, err := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
 		if err != nil {
 			return nil, false, err
 		}
+
+		scheme := "https"
+		if targetPort != "443" {
+			scheme = "http"
+		}
+
+		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
 		return &eskip.Route{
 			Id:          routeID(ns, name, "default", "", svc.Spec.ExternalName),
 			BackendType: eskip.NetworkBackend,
 			Backend:     u,
 			Filters:     f,
 		}, true, nil
-	} else {
-		log.Debugf("Found target port %v, for service %s", targetPort, svcName)
-		eps, err = state.getEndpoints(
-			ns,
-			svcName,
-			svcPort.String(),
-			targetPort,
-		)
-		log.Debugf("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}
 
-	if len(eps) == 0 || err == errEndpointNotFound {
-		address, err2 := getServiceURL(svc, svcPort)
-		if err2 != nil {
-			return nil, false, err2
+	eps, err = state.getEndpoints(
+		ns,
+		svcName,
+		svcPort.String(),
+		targetPort,
+	)
+
+	// Here we need to distinguish between two cases:
+	//
+	// 1. no endpoints were found at all
+	// 2. endpoints were found, but we could not map the service port to the target port which
+	// case can happend when the service port is referenced by value, but the service port
+	// references the target port by name
+	//
+	// In case #1, we cannot generate a route even to the cluster IP, because there are no
+	// endpoints at all.
+	//
+	// In case #2, we should generate a route to the cluster IP, because the configuration might
+	// be valid and the endpoints exist, it's just a design issue in the mapping between the
+	// service and the endpoints.
+	if err == errEndpointMappingFailed {
+		log.Warn("Using cluster IP and service port because could find the right endpoints.")
+		address, err := getServiceURL(svc, svcPort)
+		if err != nil {
+			return nil, false, err
 		}
 
 		return &eskip.Route{
 			Id:      routeID(ns, name, "", "", ""),
 			Backend: address,
 		}, true, nil
-	} else if len(eps) == 1 {
+	}
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	// based on state.getEndpoints, we always have at least one endpoint at this point
+	if len(eps) == 1 {
 		return &eskip.Route{
 			Id:      routeID(ns, name, "", "", ""),
 			Backend: eps[0],
 		}, true, nil
-	} else if err != nil {
-		return nil, false, err
 	}
 
 	return &eskip.Route{
