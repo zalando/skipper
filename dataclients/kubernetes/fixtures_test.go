@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/go-yaml/yaml"
+	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 )
@@ -217,6 +218,10 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Logf("routes: %d, expected: %d", len(routes), len(expectedRoutes))
 			t.Logf("got:\n%s", eskip.String(eskip.CanonicalList(routes)...))
 			t.Logf("expected:\n%s", eskip.String(eskip.CanonicalList(expectedRoutes)...))
+			t.Logf("diff\n%s:", cmp.Diff(
+				eskip.Print(eskip.PrettyPrintInfo{Pretty: true}, eskip.CanonicalList(expectedRoutes)...),
+				eskip.Print(eskip.PrettyPrintInfo{Pretty: true}, eskip.CanonicalList(routes)...),
+			))
 		}
 	}
 
