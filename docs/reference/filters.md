@@ -393,6 +393,16 @@ the response path.
 Same as [chunks filter](#chunks), but on the request path and not on
 the response path.
 
+## absorb
+
+The absorb filter reads and discards the payload of the incoming requests.
+It logs with INFO level and a unique ID per request:
+
+- the event of receiving the request
+- partial and final events for consuming request payload and total consumed byte count
+- the finishing event of the request
+- any read errors other than EOF
+
 ## tee
 
 Provides a unix-like `tee` feature for routing.
