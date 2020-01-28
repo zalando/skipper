@@ -1,0 +1,21 @@
+kube_rg__default__myapp__all__0_0:
+	Host("^(example[.]org)$")
+	&& Path("/app")
+	&& Traffic(0.6666666666666666)
+	&& True()
+	-> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
+
+kube_rg__default__myapp__all__0_1:
+	Host("^(example[.]org)$")
+	&& Path("/app")
+	&& Traffic(0)
+	-> "https://www.example.org";
+
+kube_rg__default__myapp__all__0_2:
+	Host("^(example[.]org)$")
+	&& Path("/app")
+	-> "https://test.example.org";
+
+kube_rg____example_org__catchall__0_0:
+	Host("^(example[.]org)$")
+	-> <shunt>;

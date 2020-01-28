@@ -147,7 +147,7 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 		setAnnotation(i, pathModeAnnotationKey, pathModeString)
 	}
 	if lbAlgorithm != "" {
-		setAnnotation(i, skipperLoadbalancerAnnotationKey, lbAlgorithm)
+		setAnnotation(i, skipperLoadBalancerAnnotationKey, lbAlgorithm)
 	}
 
 	return i
@@ -865,7 +865,7 @@ func TestIngressClassFilter(t *testing.T) {
 				return
 			}
 
-			c := &Client{
+			c := &clusterClient{
 				ingressClass: clsRx,
 			}
 
@@ -1898,10 +1898,10 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			state, err := dc.fetchClusterState()
+			state, err := dc.clusterClient.fetchClusterState()
 			require.NoError(t, err)
 
-			route, err := dc.convertPathRule(state, &metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
+			route, err := convertPathRule(state, &metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}
@@ -2215,27 +2215,22 @@ func TestCreateRequest(t *testing.T) {
 	)
 	rc := ioutil.NopCloser(&buf)
 
-	client := &Client{}
+	client := &clusterClient{}
 
 	url = "A%"
-	_, err = client.createRequest("GET", url, rc)
+	_, err = client.createRequest(url, rc)
 	if err == nil {
 		t.Error("request creation should fail")
 	}
 
 	url = "https://www.example.org"
-	_, err = client.createRequest("GET", url, rc)
+	_, err = client.createRequest(url, rc)
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = client.createRequest("//", url, rc)
-	if err == nil {
-		t.Error("request creation should fail")
-	}
-
 	client.token = "1234"
-	req, err = client.createRequest("POST", url, rc)
+	req, err = client.createRequest(url, rc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -2245,7 +2240,7 @@ func TestCreateRequest(t *testing.T) {
 	if req.Header.Get("Authorization") != "Bearer 1234" {
 		t.Errorf("incorrect authorization header set")
 	}
-	if req.Method != "POST" {
+	if req.Method != "GET" {
 		t.Errorf("incorrect method is set")
 	}
 }
@@ -2382,7 +2377,7 @@ func TestReadServiceAccountToken(t *testing.T) {
 }
 
 func TestScoping(t *testing.T) {
-	client := &Client{}
+	client := &clusterClient{}
 
 	client.setNamespace("test")
 	assert.Equal(t, "/apis/extensions/v1beta1/namespaces/test/ingresses", client.ingressesURI)
@@ -2593,7 +2588,7 @@ func TestCatchAllRoutes(t *testing.T) {
 		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
-			catchAll := catchAllRoutes(tc.routes)
+			catchAll := hasCatchAllRoutes(tc.routes)
 			if catchAll != tc.hasCatchAll {
 				t.Errorf("expected %t, got %t", tc.hasCatchAll, catchAll)
 			}
@@ -3721,7 +3716,7 @@ func TestCreateEastWestRoute(t *testing.T) {
 		expectedID: "kubeew_foo__qux__www3_example_org___a_path__bar",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			ewrs := createEastWestRoutes(defaultEastWestDomainRegexpPostfix, "foo", "qux", []*eskip.Route{ti.route})
+			ewrs := createEastWestRoutesIng(rxDots("."+defaultEastWestDomain), "foo", "qux", []*eskip.Route{ti.route})
 			ewr := ewrs[0]
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
@@ -3790,16 +3785,18 @@ func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
 		expectedDomain: "internal.cluster.local",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			c, err := New(Options{KubernetesEastWestDomain: ti.domain})
+			kube, err := New(Options{KubernetesEnableEastWest: true, KubernetesEastWestDomain: ti.domain})
 			if err != nil {
-				t.Errorf("Failed to create data client: %v", err)
+				t.Fatal(err)
 			}
 
-			ewrs := createEastWestRoutes(c.eastWestDomainRegexpPostfix, ti.name, ti.namespace, []*eskip.Route{ti.route})
+			ing := kube.ingress
+			ewrs := createEastWestRoutesIng(ing.eastWestDomainRegexpPostfix, ti.name, ti.namespace, []*eskip.Route{ti.route})
 			ewr := ewrs[0]
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
 			}
+
 			hostRegexp := ewr.HostRegexps[0]
 			reg := regexp.MustCompile(hostRegexp)
 			if !reg.MatchString(fmt.Sprintf("%s.%s.%s", ti.name, ti.namespace, ti.expectedDomain)) {
@@ -3942,7 +3939,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		defer dc.Close()
 
-		df, err := dc.getDefaultFilterConfigurations()
+		df, err := readDefaultFilters(dc.defaultFiltersDir)
 
 		if err != nil || len(df) != 0 {
 			t.Error("should return empty slice", err, df)
@@ -3950,7 +3947,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 		}
 	})
 
-	t.Run("check fetchDefaultFilterConfigs returns empty map if fails to get the config map", func(t *testing.T) {
+	t.Run("check empty default filters do not panic", func(t *testing.T) {
 		dc, err := New(Options{
 			DefaultFiltersDir: "dir-does-not-exists",
 		})
@@ -3960,11 +3957,13 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		defer dc.Close()
 
-		f := dc.fetchDefaultFilterConfigs()
+		df := dc.fetchDefaultFilterConfigs()
+		defer func() {
+			if err := recover(); err != nil {
+				t.Error("failed to call empty default filters")
+			}
+		}()
 
-		if f == nil || len(f) != 0 {
-			t.Error("should return empty map", f)
-			return
-		}
+		df.get(resourceID{})
 	})
 }

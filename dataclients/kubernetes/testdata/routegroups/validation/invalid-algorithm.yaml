@@ -1,0 +1,16 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: test-route-group
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: app
+    type: lb
+    algorithm: fooAlgorithm
+    endpoints:
+    - http://www1.example.org
+    - http://www2.example.org
+  defaultBackends:
+  - backendName: app

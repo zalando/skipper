@@ -1,0 +1,66 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  hosts:
+  - www.complex.example.org
+  - complex.example.org
+  backends:
+  - name: my-service
+    type: service
+    serviceName: my-service-v1
+    servicePort: 80
+  - name: redirect
+    type: shunt
+  - name: migration
+    type: loopback
+  defaultBackends:
+  - backendName: my-service
+  routes:
+  - pathSubtree: /
+  - pathSubtree: /api
+    backends:
+    - backendName: migration
+    filters:
+    - modPath("/api", "/")
+  - path: /login
+    methods:
+    - GET
+    backends:
+    - backendName: redirect
+    filters:
+    - redirectTo(308, "https://login.example.org/")
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application: myapp
+  name: my-service-v1
+spec:
+  clusterIP: 10.3.190.97
+  ports:
+  - name: main
+    port: 80
+    protocol: TCP
+    targetPort: 7272
+  selector:
+    application: myapp
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    application: myapp
+  name: my-service-v1
+  namespace: default
+subsets:
+- addresses:
+  - ip: 10.2.9.103
+  - ip: 10.2.9.104
+  ports:
+  - name: main
+    port: 7272
+    protocol: TCP

@@ -1,0 +1,6 @@
+kube_rg__default__app__all__0_0: Path("/login")
+  -> redirectTo(308, "https://login.example.org")
+  -> <shunt>;
+
+kube_rg__default__app__all__1_0: Path("/")
+  -> <roundRobin, "http://10.2.1.16:80", "http://10.2.1.8:80">;

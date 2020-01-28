@@ -175,7 +175,10 @@ type Route struct {
 	// load balancing backends.
 	LBEndpoints []string
 
-	Name      string
+	// Name is deprecated and not used.
+	Name string
+
+	// Namespace is deprecated and not used.
 	Namespace string
 }
 
@@ -258,6 +261,25 @@ func (r *Route) Copy() *Route {
 	return &c
 }
 
+// BackendTypeFromString parses the string representation of a backend type definition.
+func BackendTypeFromString(s string) (BackendType, error) {
+	switch s {
+	case "", "network":
+		return NetworkBackend, nil
+	case "shunt":
+		return ShuntBackend, nil
+	case "loopback":
+		return LoopBackend, nil
+	case "dynamic":
+		return DynamicBackend, nil
+	case "lb":
+		return LBBackend, nil
+	default:
+		return -1, fmt.Errorf("unsupported backend type: %s", s)
+	}
+}
+
+// String returns the string representation of a backend type definition.
 func (t BackendType) String() string {
 	switch t {
 	case NetworkBackend:
@@ -269,7 +291,7 @@ func (t BackendType) String() string {
 	case DynamicBackend:
 		return "dynamic"
 	case LBBackend:
-		return "loadbalanced"
+		return "lb"
 	default:
 		return "unknown"
 	}

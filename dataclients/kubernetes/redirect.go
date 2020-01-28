@@ -12,6 +12,7 @@ import (
 const (
 	redirectAnnotationKey     = "zalando.org/skipper-ingress-redirect"
 	redirectCodeAnnotationKey = "zalando.org/skipper-ingress-redirect-code"
+	forwardedProtoHeader      = "X-Forwarded-Proto"
 )
 
 type redirectInfo struct {
@@ -84,7 +85,7 @@ func initRedirectRoute(r *eskip.Route, code int) {
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
-	r.Headers["X-Forwarded-Proto"] = "http"
+	r.Headers[forwardedProtoHeader] = "http"
 
 	// the below duplicate any-path (.*) is set to make sure that
 	// the redirect route has a higher priority during matching than
@@ -110,7 +111,7 @@ func initDisableRedirectRoute(r *eskip.Route) {
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
-	r.Headers["X-Forwarded-Proto"] = "http"
+	r.Headers[forwardedProtoHeader] = "http"
 
 	// the below duplicate any-path (.*) is set to make sure that
 	// the redirect route has a higher priority during matching than
@@ -142,4 +143,53 @@ func createIngressDisableHTTPSRedirect(r *eskip.Route) *eskip.Route {
 	rr.Id = routeIDForRedirectRoute(rr.Id, false)
 	initDisableRedirectRoute(&rr)
 	return &rr
+}
+
+func hasProtoPredicate(r *eskip.Route) bool {
+	if r.Headers != nil {
+		for name := range r.Headers {
+			if http.CanonicalHeaderKey(name) == forwardedProtoHeader {
+				return true
+			}
+		}
+	}
+
+	if r.HeaderRegexps != nil {
+		for name := range r.HeaderRegexps {
+			if http.CanonicalHeaderKey(name) == forwardedProtoHeader {
+				return true
+			}
+		}
+	}
+
+	for _, p := range r.Predicates {
+		if p.Name != "Header" && p.Name != "HeaderRegexp" {
+			continue
+		}
+
+		if len(p.Args) > 0 && p.Args[0] == forwardedProtoHeader {
+			return true
+		}
+	}
+
+	return false
+}
+
+func createHTTPSRedirect(code int, r *eskip.Route) *eskip.Route {
+	// copy to avoid unexpected mutations
+	rr := eskip.Copy(r)
+	rr.Id = routeIDForRedirectRoute(rr.Id, true)
+	rr.BackendType = eskip.ShuntBackend
+
+	rr.Predicates = append(rr.Predicates, &eskip.Predicate{
+		Name: "Header",
+		Args: []interface{}{forwardedProtoHeader, "http"},
+	})
+
+	rr.Filters = append(rr.Filters, &eskip.Filter{
+		Name: "redirectTo",
+		Args: []interface{}{float64(code), "https:"},
+	})
+
+	return rr
 }

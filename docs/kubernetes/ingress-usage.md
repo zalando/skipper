@@ -2,7 +2,14 @@
 
 This documentation is meant for people deploying to Kubernetes
 Clusters and describes to use Ingress and low level and high level
-features Skipper provides
+features Skipper provides.
+
+[RouteGroups](../routegroups/), a relatively new feature, also
+support each of these features, with an alternative format that
+supports them in a more native way. The documentation contains a
+section with
+[mapping](../routegroups/#mapping-from-ingress-to-routegroups)
+Ingress to RouteGroups.
 
 ## Skipper Ingress Annotations
 
@@ -37,18 +44,20 @@ HTTP host header is defined within the rules `host` section and this
 route will match by http `Host: app-default.example.org` and route to
 endpoints selected by the Kubernetes service `app-svc` on port `80`.
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
 To have 2 routes with different `Host` headers serving the same
 backends, you have to specify 2 entries in the rules section, as
@@ -59,24 +68,26 @@ cloud providers migrations. Examples are AWS account migration, AWS to
 GCP migration, GCP to bare metal migration or bare metal to Alibaba
 Cloud migration.
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      name: app
-    spec:
-      rules:
-      - host: app-default.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
-      - host: foo.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+  - host: foo.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
 ### Multiple Ingresses defining the same route
 
@@ -94,33 +105,37 @@ ingress points to a service with no endpoints and the other to a service with
 endpoints. (Most likely service-x was renamed to service-x-live and the old
 ingress was forgot).
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-    name: service-x
-    spec:
-    rules:
-    - host: service-x.example.org
-        http:
-        paths:
-        - backend:
-            serviceName: service-x # this service has 0 endpoints
-            servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: service-x
+spec:
+rules:
+- host: service-x.example.org
+    http:
+    paths:
+    - backend:
+        serviceName: service-x # this service has 0 endpoints
+        servicePort: 80
+```
 
 &#x200B;
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-    name: service-x-live
-    spec:
-    rules:
-    - host: service-x.example.org
-        http:
-        paths:
-        - backend:
-            serviceName: service-x-live
-            servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: service-x-live
+spec:
+rules:
+- host: service-x.example.org
+    http:
+    paths:
+    - backend:
+        serviceName: service-x-live
+        servicePort: 80
+```
 
 ## Ingress path handling
 
@@ -240,7 +255,7 @@ instead of the 2 Predicates
 `Host("^app-default[.]example[.]org$") && Path("/")`, that will be
 created for the ingress backend.
 
-```
+```yaml
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
@@ -272,7 +287,7 @@ code 308 from `http://app-default.example.org/myredirect` to
 redirected and passed to the backend selected by `serviceName=app-svc` and
 `servicePort=80`:
 
-```
+```yaml
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
@@ -997,23 +1012,25 @@ Annotations:
 
 Example:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-ingress-redirect: "true"
-        zalando.org/skipper-ingress-redirect-code: 301
-      name: app
-    spec:
-      rules:
-      - host: mobile-api.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-ingress-redirect: "true"
+    zalando.org/skipper-ingress-redirect-code: 301
+  name: app
+spec:
+  rules:
+  - host: mobile-api.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
 
-## Loadbalancer Algorithm
+## Load Balancer Algorithm
 
 You can set the loadbalancer algorithm, which is used to find the next
 endpoint for a given request with the ingress annotation
@@ -1031,17 +1048,19 @@ Annotations:
 
 Example:
 
-    apiVersion: extensions/v1beta1
-    kind: Ingress
-    metadata:
-      annotations:
-        zalando.org/skipper-loadbalancer: consistentHash
-      name: app
-    spec:
-      rules:
-      - host: websocket.example.org
-        http:
-          paths:
-          - backend:
-              serviceName: app-svc
-              servicePort: 80
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-loadbalancer: consistentHash
+  name: app
+spec:
+  rules:
+  - host: websocket.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```

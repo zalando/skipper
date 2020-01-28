@@ -1,0 +1,2 @@
+failOn:
+- /api/v1/endpoints

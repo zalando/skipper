@@ -1,0 +1,15 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: myapp
+    type: loopback
+  defaultBackends:
+  - backendName: myapp
+  routes:
+  - filters:
+    - setPath("/app")

@@ -1,0 +1,89 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  backends:
+  - name: variant-a
+    type: service
+    serviceName: service-a
+    servicePort: 80
+  - name: variant-b
+    type: service
+    serviceName: service-b
+    servicePort: 80
+  defaultBackends:
+  - backendName: variant-b
+  routes:
+  - pathSubtree: /
+    predicates:
+    - Traffic(.1)                    # 10% chance
+    filters:
+    - responseCookie("variant", "A") # set a variant Cookie to A
+    backends:
+    - backendName: variant-a         # overrides default
+  - pathSubtree: /
+    filters:
+    - responseCookie("variant", "B")
+  - pathSubtree: /
+    predicates:
+    - Cookie("variant", "A")         # sticky match
+    backends:
+    - backendName: variant-a         # overrides default
+  - pathSubtree: /
+    predicates:
+    - Cookie("variant", "B")
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a
+spec:
+  selector:
+    application: my-application
+  type: ClusterIP
+  clusterIP: 10.0.0.1
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: service-a
+subsets:
+- addresses:
+  - ip: 10.0.1.0
+  - ip: 10.0.1.1
+  - ip: 10.0.1.2
+  ports:
+  - port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-b
+spec:
+  selector:
+    application: my-application
+  type: ClusterIP
+  clusterIP: 10.0.0.2
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: service-b
+subsets:
+- addresses:
+  - ip: 10.0.2.0
+  - ip: 10.0.2.1
+  - ip: 10.0.2.2
+  - ip: 10.0.2.3
+  - ip: 10.0.2.4
+  ports:
+  - port: 80

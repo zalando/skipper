@@ -1,0 +1,23 @@
+kube_rg__default__my_routes__all__0_0: Host(/^(api[.]example[.]org)$/) && PathSubtree("/") && Traffic(0.1)
+  -> responseCookie("canary", "A")
+  -> <roundRobin, "http://10.2.8.16:80", "http://10.2.8.8:80">;
+
+kube_rg__default__my_routes__all__1_0: Host(/^(api[.]example[.]org)$/) && PathSubtree("/") && Traffic(0.8)
+  -> responseCookie("canary", "B")
+  -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
+
+kube_rg__default__my_routes__all__1_1: Host(/^(api[.]example[.]org)$/) && PathSubtree("/")
+  -> responseCookie("canary", "B")
+  -> <roundRobin, "http://10.2.6.16:80", "http://10.2.6.8:80">;
+
+kube_rg__default__my_routes__all__2_0: Host(/^(api[.]example[.]org)$/) && Cookie("canary", "A") && PathSubtree("/")
+  -> <roundRobin, "http://10.2.8.16:80", "http://10.2.8.8:80">;
+
+kube_rg__default__my_routes__all__3_0: Host(/^(api[.]example[.]org)$/) && Cookie("canary", "B") && PathSubtree("/") && Traffic(0.8)
+  -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
+
+kube_rg__default__my_routes__all__3_1: Host(/^(api[.]example[.]org)$/) && Cookie("canary", "B") && PathSubtree("/")
+  -> <roundRobin, "http://10.2.6.16:80", "http://10.2.6.8:80">;
+
+kube_rg____api_example_org__catchall__0_0: Host(/^(api[.]example[.]org)$/)
+  -> <shunt>;

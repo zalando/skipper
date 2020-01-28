@@ -1,0 +1,6 @@
+kube_rg__default__myapp__all__0_0:
+	Host("^(example[.]org)$")
+	&& Path("/app")
+	-> <roundRobin, "https://app1.example.org", "https://app2.example.org">;
+
+kube_rg____example_org__catchall__0_0: Host("^(example[.]org)$") -> <shunt>;

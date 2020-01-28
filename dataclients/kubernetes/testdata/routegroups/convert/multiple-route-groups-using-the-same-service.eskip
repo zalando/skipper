@@ -1,0 +1,2 @@
+kube_rg__default__rg1__all__0_0: Host("^(v1[.]example[.]org)$") -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
+kube_rg__default__rg2__all__0_0: Host("^(v2[.]example[.]org)$") -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;

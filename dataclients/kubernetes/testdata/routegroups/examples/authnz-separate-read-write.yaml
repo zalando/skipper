@@ -1,0 +1,54 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - www.complex.example.org
+  - complex.example.org
+  backends:
+  - name: myapp
+    type: service
+    serviceName: my-service-v1
+    servicePort: 80
+  defaultBackends:
+  - backendName: myapp
+  routes:
+  - pathSubtree: /
+    methods:
+    - PUSH
+    - PUT
+    - PATCH
+    - DELETE
+    filters:
+    - oauthTokeninfoAllScope("myapp.write")
+  - pathSubtree: /
+    methods:
+    - GET
+    - HEAD
+    filters:
+    - oauthTokeninfoAllScope("myapp.read")
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service-v1
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: myapp
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: my-service-v1
+subsets:
+- addresses:
+  - ip: 10.2.4.8
+  - ip: 10.2.4.16
+  ports:
+  - port: 80

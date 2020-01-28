@@ -45,8 +45,8 @@ func TestGetTargetPort(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, err := tt.svc.GetTargetPort(tt.svcPort); got != tt.expected && (err != nil && !tt.errExpected) {
-				t.Errorf("GetTargetPort: %v, expected: %v, err: %v", got, tt.expected, err)
+			if got, err := tt.svc.getTargetPort(tt.svcPort); got != tt.expected && (err != nil && !tt.errExpected) {
+				t.Errorf("getTargetPort: %v, expected: %v, err: %v", got, tt.expected, err)
 			}
 		})
 	}
@@ -81,8 +81,8 @@ func TestMatchingPort(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.sp.MatchingPort(tt.targetPort); got != tt.expected {
-				t.Errorf("MatchingPort: %v, expected: %v", got, tt.expected)
+			if got := tt.sp.matchingPort(tt.targetPort); got != tt.expected {
+				t.Errorf("matchingPort: %v, expected: %v", got, tt.expected)
 			}
 		})
 	}
@@ -204,8 +204,8 @@ func Test_endpoint_Targets(t *testing.T) {
 			ep := endpoint{
 				Subsets: tt.Subsets,
 			}
-			if got := ep.Targets(tt.ingSvcPort, tt.targetPort.String()); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("endpoint.Targets() = %v, want %v", got, tt.want)
+			if got := ep.targets(tt.ingSvcPort, tt.targetPort.String()); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("endpoint.targets() = %v, want %v", got, tt.want)
 			}
 		})
 	}

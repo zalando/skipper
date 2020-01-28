@@ -1,0 +1,14 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  namespace: default
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: app
+    type: service
+    serviceName: app-svc
+    servicePort: 80
+  defaultBackends:
+  - backendName: app

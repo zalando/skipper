@@ -133,12 +133,12 @@ const servicesDoc = `{
   ]
 }`
 
-type api struct {
+type apiV1 struct {
 	ingresses []byte
 	services  []byte
 }
 
-func (api api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (api apiV1) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case ingressesClusterURI:
 		w.Write(api.ingresses)
@@ -166,7 +166,7 @@ func findCustomPredicate(r []*eskip.Route) bool {
 }
 
 func testOrderingBug(t *testing.T, ingress string) {
-	s := httptest.NewServer(api{
+	s := httptest.NewServer(apiV1{
 		ingresses: []byte(ingress),
 		services:  []byte(servicesDoc),
 	})

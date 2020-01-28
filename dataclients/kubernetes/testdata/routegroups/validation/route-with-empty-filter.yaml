@@ -1,0 +1,27 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: test-route-group
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: app
+    type: service
+    serviceName: app-svc
+    servicePort: 80
+  defaultBackends:
+  - backendName: app
+  routes:
+  - path: /
+    methods:
+    - GET
+    - HEAD
+    predicates:
+    - Foo("X-Bar", "42")
+    filters:
+    - foo(42)
+    - 
+    - bar(24)
+    backends:
+    - backendName: app

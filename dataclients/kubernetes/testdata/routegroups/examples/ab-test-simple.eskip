@@ -1,0 +1,17 @@
+kube_rg__default__my_routes__all__0_0:
+	PathSubtree("/") && Traffic(0.1)
+	-> responseCookie("variant", "A")
+	-> <roundRobin, "http://10.0.1.0:80", "http://10.0.1.1:80", "http://10.0.1.2:80">;
+
+kube_rg__default__my_routes__all__1_0:
+	PathSubtree("/")
+	-> responseCookie("variant", "B")
+	-> <roundRobin, "http://10.0.2.0:80", "http://10.0.2.1:80", "http://10.0.2.2:80", "http://10.0.2.3:80", "http://10.0.2.4:80">;
+
+kube_rg__default__my_routes__all__2_0:
+	PathSubtree("/") && Cookie("variant", "A")
+	-> <roundRobin, "http://10.0.1.0:80", "http://10.0.1.1:80", "http://10.0.1.2:80">;
+
+kube_rg__default__my_routes__all__3_0:
+	PathSubtree("/") && Cookie("variant", "B")
+	-> <roundRobin, "http://10.0.2.0:80", "http://10.0.2.1:80", "http://10.0.2.2:80", "http://10.0.2.3:80", "http://10.0.2.4:80">;

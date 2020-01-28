@@ -1,0 +1,15 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: myapp
+    type: dynamic
+  defaultBackends:
+  - backendName: myapp
+  routes:
+  - filters:
+    - setDynamicBackendUrl("https://app.example.org")

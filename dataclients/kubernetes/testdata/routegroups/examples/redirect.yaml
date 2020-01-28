@@ -1,0 +1,45 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: app
+spec:
+  backends:
+  - name: app
+    type: service
+    serviceName: app-svc
+    servicePort: 80
+  - name: redirect
+    type: shunt
+  defaultBackends:
+  - backendName: app
+  routes:
+  - path: /login
+    filters:
+    - redirectTo(308, "https://login.example.org")
+    backends:
+    - backendName: redirect
+  - path: /
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-svc
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: app
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: app-svc
+subsets:
+- addresses:
+  - ip: 10.2.1.8
+  - ip: 10.2.1.16
+  ports:
+  - port: 80

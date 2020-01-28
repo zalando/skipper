@@ -1,0 +1,17 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: myapp
+    type: lb
+    endpoints:
+    - https://app1.example.org
+    - https://app2.example.org
+  defaultBackends:
+  - backendName: myapp
+  routes:
+  - path: /app

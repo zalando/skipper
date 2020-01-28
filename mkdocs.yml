@@ -24,6 +24,8 @@ nav:
         - Ingress Controller Deployment: kubernetes/ingress-controller.md
         - Ingress Usage: kubernetes/ingress-usage.md
         - Ingress Backends: kubernetes/ingress-backends.md
+        - RouteGroups: kubernetes/routegroups.md
+        - RouteGroup CRD Semantics: kubernetes/routegroup-crd.md
         - East-West aka svc-to-svc: kubernetes/east-west-usage.md
     - Tutorials:
         - Basics: tutorials/basics.md

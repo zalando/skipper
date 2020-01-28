@@ -4,14 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
-type resourceId struct {
+type resourceID struct {
 	namespace string
 	name      string
 }
@@ -24,9 +21,17 @@ type metadata struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
-func (meta *metadata) toResourceId() resourceId {
-	return resourceId{
-		namespace: meta.Namespace,
+func namespaceString(ns string) string {
+	if ns == "" {
+		return "default"
+	}
+
+	return ns
+}
+
+func (meta *metadata) toResourceID() resourceID {
+	return resourceID{
+		namespace: namespaceString(meta.Namespace),
 		name:      meta.Name,
 	}
 }
@@ -96,6 +101,10 @@ type backend struct {
 	noopCount int
 }
 
+func (b backend) String() string {
+	return fmt.Sprintf("svc(%s, %s) %0.2f", b.ServiceName, b.ServicePort, b.Traffic)
+}
+
 type pathRule struct {
 	Path    string   `json:"path"`
 	Backend *backend `json:"backend"`
@@ -130,7 +139,7 @@ type servicePort struct {
 	TargetPort *backendPort `json:"targetPort"` // string or int
 }
 
-func (sp servicePort) MatchingPort(svcPort backendPort) bool {
+func (sp servicePort) matchingPort(svcPort backendPort) bool {
 	s := svcPort.String()
 	spt := strconv.Itoa(sp.Port)
 	return s != "" && (spt == s || sp.Name == s)
@@ -156,13 +165,23 @@ type serviceList struct {
 	Items []*service `json:"items"`
 }
 
-func (s service) GetTargetPort(svcPort backendPort) (string, error) {
+func (s service) getTargetPort(svcPort backendPort) (string, error) {
 	for _, sp := range s.Spec.Ports {
-		if sp.MatchingPort(svcPort) && sp.TargetPort != nil {
+		if sp.matchingPort(svcPort) && sp.TargetPort != nil {
 			return sp.TargetPort.String(), nil
 		}
 	}
-	return "", fmt.Errorf("GetTargetPort: target port not found %v given %s", s.Spec.Ports, svcPort)
+	return "", fmt.Errorf("getTargetPort: target port not found %v given %v", s.Spec.Ports, svcPort)
+}
+
+func (s service) getTargetPortByValue(p int) (*backendPort, bool) {
+	for _, pi := range s.Spec.Ports {
+		if pi.Port == p {
+			return pi.TargetPort, true
+		}
+	}
+
+	return nil, false
 }
 
 type endpoint struct {
@@ -174,18 +193,50 @@ type endpointList struct {
 	Items []*endpoint `json:"items"`
 }
 
-func (ep endpoint) Targets(svcPortName, svcPortTarget string) []string {
+func formatEndpoint(a *address, p *port) string {
+	return fmt.Sprintf("http://%s:%d", a.IP, p.Port)
+}
+
+func (ep endpoint) targets(svcPortName, svcPortTarget string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
+			// TODO: we need to distinguish between the cases when there is no endpoints
+			// and conversely, when there are endpoints and we just could not map the ports,
+			// primarily when the service references the target port by name. Changes have
+			// been started in this branch:
+			//
+			// https://github.com/zalando/skipper/tree/improvement/service-port-fallback-handling
+			//
 			if port.Name == svcPortName || strconv.Itoa(port.Port) == svcPortTarget {
 				for _, addr := range s.Addresses {
-					result = append(result, fmt.Sprintf("http://%s:%d", addr.IP, port.Port))
+					result = append(result, formatEndpoint(addr, port))
 				}
 			}
 		}
 	}
 	return result
+}
+
+func (ep endpoint) targetsByServiceTarget(serviceTarget *backendPort) []string {
+	portName, named := serviceTarget.value.(string)
+	portValue, byValue := serviceTarget.value.(int)
+	for _, s := range ep.Subsets {
+		for _, p := range s.Ports {
+			if named && p.Name != portName || byValue && p.Port != portValue {
+				continue
+			}
+
+			var result []string
+			for _, a := range s.Addresses {
+				result = append(result, formatEndpoint(a, p))
+			}
+
+			return result
+		}
+	}
+
+	return nil
 }
 
 type subset struct {
@@ -204,61 +255,22 @@ type port struct {
 	Protocol string `json:"protocol"`
 }
 
-func newResourceId(namespace, name string) resourceId {
-	return resourceId{namespace: namespace, name: name}
+func newResourceID(namespace, name string) resourceID {
+	return resourceID{namespace: namespace, name: name}
 }
 
-type endpointId struct {
-	resourceId
+type endpointID struct {
+	resourceID
 	servicePort string
 	targetPort  string
 }
 
-type clusterState struct {
-	ingresses       []*ingressItem
-	services        map[resourceId]*service
-	endpoints       map[resourceId]*endpoint
-	cachedEndpoints map[endpointId][]string
+type clusterResource struct {
+	Name string `json:"name"`
 }
 
-func (state *clusterState) getService(namespace, name string) (*service, error) {
-	s, ok := state.services[newResourceId(namespace, name)]
-	if !ok {
-		return nil, errServiceNotFound
-	}
+type clusterResourceList struct {
 
-	if s.Spec == nil {
-		log.Debug("invalid service datagram, missing spec")
-		return nil, errServiceNotFound
-	}
-	return s, nil
-}
-
-func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort string) ([]string, error) {
-	epId := endpointId{
-		resourceId:  newResourceId(namespace, name),
-		servicePort: servicePort,
-		targetPort:  targetPort,
-	}
-
-	if cached, ok := state.cachedEndpoints[epId]; ok {
-		return cached, nil
-	}
-
-	ep, ok := state.endpoints[epId.resourceId]
-	if !ok {
-		return nil, errEndpointNotFound
-	}
-
-	if ep.Subsets == nil {
-		return nil, errEndpointNotFound
-	}
-
-	targets := ep.Targets(servicePort, targetPort)
-	if len(targets) == 0 {
-		return nil, errEndpointNotFound
-	}
-	sort.Strings(targets)
-	state.cachedEndpoints[epId] = targets
-	return targets, nil
+	// Items, aka "resources".
+	Items []*clusterResource `json:"resources"`
 }
