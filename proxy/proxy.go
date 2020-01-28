@@ -485,11 +485,21 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 	}
 
 	rr, err := http.NewRequest(r.Method, u.String(), body)
-	rr.ContentLength = r.ContentLength
 	if err != nil {
 		return nil, err
 	}
 
+	// added in order to automatically cancel the outgoing request in cases when the incoming request was
+	// canceled by the client. This seems to be the fastest way to cancel these requests in the phase while
+	// we are waiting for the backend response.
+	//
+	// Currently, it is not fully discovered what sitautions it may cause when the outgoing request gets
+	// canceled for some reason. E.g. the outgoing request is "done", while still copying response to the
+	// client connection.
+	//
+	rr = rr.WithContext(r.Context())
+
+	rr.ContentLength = r.ContentLength
 	if removeHopHeaders {
 		rr.Header = cloneHeaderExcluding(r.Header, hopHeaders)
 	} else {

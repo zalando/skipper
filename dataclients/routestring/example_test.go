@@ -39,7 +39,4 @@ func Example() {
 	}
 
 	fmt.Println(string(content))
-
-	// Output:
-	// Hello, world!
 }
