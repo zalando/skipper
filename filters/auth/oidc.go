@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,7 +30,7 @@ const (
 	oauthOidcCookieName = "skipperOauthOidc"
 	stateValidity       = 1 * time.Minute
 	oidcInfoHeader      = "Skipper-Oidc-Info"
-	cookieMaxSize       = 4069
+	cookieMaxSize       = 4093 // common cookie size limit http://browsercookielimits.squawky.net/
 )
 
 type (
@@ -119,7 +120,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 	byteSlice := h.Sum(nil)
 	sargsHash := fmt.Sprintf("%x", byteSlice)[:8]
-	generatedCookieName := oauthOidcCookieName + sargsHash
+	generatedCookieName := oauthOidcCookieName + sargsHash + "-"
 	log.Debugf("Generated Cookie Name: %s", generatedCookieName)
 
 	redirectURL, err := url.Parse(sargs[3])
@@ -389,15 +390,24 @@ func mergerCookies(cookies []http.Cookie) (cookie http.Cookie) {
 
 func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
 	log.Debugf("Doing Downstream Redirect to :%s", redirectUrl)
-	host := getHost(ctx.Request())
-	cookieHeaderVal := fmt.Sprintf("%s=%x; Path=/; Secure; HttpOnly; MaxAge=%d; Domain=%s",
-		f.cookiename, oidcState, int(f.validity.Seconds()), extractDomainFromHost(host))
 	r := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
-		Header: map[string][]string{
-			"Set-Cookie": {cookieHeaderVal},
-			"Location":   {redirectUrl},
+		Header: http.Header{
+			"Location": {redirectUrl},
 		},
+	}
+
+	oidcCookies := chunkCookie(http.Cookie{
+		Name:     f.cookiename,
+		Value:    base64.StdEncoding.EncodeToString(oidcState),
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		MaxAge:   int(f.validity.Seconds()),
+		Domain:   extractDomainFromHost(getHost(ctx.Request())),
+	})
+	for _, cookie := range oidcCookies {
+		r.Header.Add("Set-Cookie", cookie.String())
 	}
 	ctx.Serve(r)
 }
@@ -408,10 +418,12 @@ func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) ([]byte, bool) {
 		return nil, false
 	}
 	log.Debugf("validate cookie name: %s", f.cookiename)
-	var cookieStr string
-	fmt.Sscanf(cookie.Value, "%x", &cookieStr)
-
-	decryptedCookie, err := f.encrypter.Decrypt([]byte(cookieStr))
+	cookieStr, err := base64.StdEncoding.DecodeString(cookie.Value)
+	if err != nil {
+		log.Debugf("Base64 decoding the cookie failed: %v", err)
+		return nil, false
+	}
+	decryptedCookie, err := f.encrypter.Decrypt(cookieStr)
 	if err != nil {
 		log.Debugf("Decrypting the cookie failed: %v", err)
 		return nil, false
@@ -423,10 +435,18 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	var (
 		oauth2Token *oauth2.Token
 		data        []byte
+		cookies     []http.Cookie
 	)
 	r := ctx.Request()
-	sessionCookie, _ := r.Cookie(f.cookiename)
-	cookie, ok := f.validateCookie(sessionCookie)
+	for _, cookie := range r.Cookies() {
+		if strings.HasPrefix(cookie.Name, f.cookiename) {
+			cookies = append(cookies, *cookie)
+		}
+	}
+	sessionCookie := mergerCookies(cookies)
+	log.Debugf("Request: Cookie merged, %d chunks, len: %d", len(cookies), len(sessionCookie.String()))
+
+	cookie, ok := f.validateCookie(&sessionCookie)
 	log.Debugf("Request: Cookie Validation: %v", ok)
 	if !ok {
 		if strings.Contains(r.URL.Path, f.redirectPath) {

@@ -795,9 +795,9 @@ func TestChunkAndMergerCookie(t *testing.T) {
 	twoCookies.Value = twoCookies.Value[:len(twoCookies.Value)-(len(twoCookies.String())-cookieMaxSize)]
 
 	for _, ht := range []struct {
-		name   string
-		given  http.Cookie
-		num int
+		name  string
+		given http.Cookie
+		num   int
 	}{
 		{"short cookie", tinyCookie, 1},
 		{"cookie without content", emptyCookie, 1},
@@ -814,15 +814,15 @@ func TestChunkAndMergerCookie(t *testing.T) {
 				got[i], got[j] = got[j], got[i]
 			})
 			assert.Len(got, ht.num, "should result in a different number of chunks")
-			ck := mergerCookies(got)
-			assert.NotNil(ck, "should receive a valid cookie")
+			mergedCookie := mergerCookies(got)
+			assert.NotNil(mergedCookie, "should receive a valid cookie")
+			assert.Equal(ht.given, mergedCookie, "after chunking and remerging the content must be equal")
 			// verify no cookie exceeds limits
 			for _, ck := range got {
 				assert.True(func() bool {
 					return len(ck.String()) <= cookieMaxSize
 				}(), "its size should not exceed limits cookieMaxSize")
 			}
-			assert.Equal(ht.given, ck, "after chunking and remerging the content must be equal")
 		})
 	}
 }
