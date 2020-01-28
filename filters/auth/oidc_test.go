@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -767,6 +768,61 @@ func TestOIDCSetup(t *testing.T) {
 			}
 			bs := string(b)
 			t.Logf("Got body: %s", bs)
+		})
+	}
+}
+
+func TestChunkAndMergerCookie(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	tinyCookie := http.Cookie{
+		Name:     "skipperOauthOidcHASHHASH-",
+		Value:    "eyJ0eXAiOiJKV1QiLCJhbGciO",
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		MaxAge:   3600,
+		Domain:   "www.example.com",
+	}
+	emptyCookie := tinyCookie
+	emptyCookie.Value = ""
+	largeCookie := tinyCookie
+	for i := 0; i < 5*cookieMaxSize; i++ {
+		largeCookie.Value += string(rand.Intn('Z'-'A') + 'A' + i%2*32)
+	}
+	oneCookie := largeCookie
+	oneCookie.Value = oneCookie.Value[:len(oneCookie.Value)-(len(oneCookie.String())-cookieMaxSize)-1]
+	twoCookies := largeCookie
+	twoCookies.Value = twoCookies.Value[:len(twoCookies.Value)-(len(twoCookies.String())-cookieMaxSize)]
+
+	for _, ht := range []struct {
+		name   string
+		given  http.Cookie
+		num int
+	}{
+		{"short cookie", tinyCookie, 1},
+		{"cookie without content", emptyCookie, 1},
+		{"large cookie == 6 chunks", largeCookie, 6},
+		{"fits exactly into one cookie", oneCookie, 1},
+		{"chunked up cookie", twoCookies, 2},
+	} {
+		t.Run(fmt.Sprintf("test:%v", ht.name), func(t *testing.T) {
+			assert := assert.New(t)
+			got := chunkCookie(ht.given)
+			assert.NotNil(t, got, "it should not be empty")
+			// shuffle the order of response cookies
+			rand.Shuffle(len(got), func(i, j int) {
+				got[i], got[j] = got[j], got[i]
+			})
+			assert.Len(got, ht.num, "should result in a different number of chunks")
+			ck := mergerCookies(got)
+			assert.NotNil(ck, "should receive a valid cookie")
+			// verify no cookie exceeds limits
+			for _, ck := range got {
+				assert.True(func() bool {
+					return len(ck.String()) <= cookieMaxSize
+				}(), "its size should not exceed limits cookieMaxSize")
+			}
+			assert.Equal(ht.given, ck, "after chunking and remerging the content must be equal")
 		})
 	}
 }

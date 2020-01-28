@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ const (
 	oauthOidcCookieName = "skipperOauthOidc"
 	stateValidity       = 1 * time.Minute
 	oidcInfoHeader      = "Skipper-Oidc-Info"
+	cookieMaxSize       = 4069
 )
 
 type (
@@ -347,6 +349,42 @@ func getHost(request *http.Request) string {
 	} else {
 		return request.Host
 	}
+}
+
+func chunkCookie(cookie http.Cookie) (cookies []http.Cookie) {
+	for index := 'a'; index <= 'z'; index++ {
+		cookieSize := len(cookie.String())
+		if cookieSize < cookieMaxSize {
+			cookie.Name += string(index)
+			return append(cookies, cookie)
+		}
+
+		newCookie := cookie
+		newCookie.Name += string(index)
+		// non-deterministic approach support signature changes
+		cut := len(cookie.Value) - (cookieSize - cookieMaxSize) - 1
+		newCookie.Value, cookie.Value = cookie.Value[:cut], cookie.Value[cut:]
+		cookies = append(cookies, newCookie)
+	}
+	log.Error("unsupported amount of chunked cookies")
+	return
+}
+
+func mergerCookies(cookies []http.Cookie) (cookie http.Cookie) {
+	if len(cookies) == 0 {
+		return
+	}
+	cookie = cookies[0]
+	cookie.Name = cookie.Name[:len(cookie.Name)-1]
+	cookie.Value = ""
+	// potentially shuffeled
+	sort.Slice(cookies, func(i, j int) bool {
+		return cookies[i].Name < cookies[j].Name
+	})
+	for _, ck := range cookies {
+		cookie.Value += ck.Value
+	}
+	return
 }
 
 func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
