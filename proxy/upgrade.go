@@ -113,6 +113,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		log.Debugf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
@@ -124,7 +125,11 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		log.Debugf("Got invalid status code from backend: %d", resp.StatusCode)
 		w.WriteHeader(resp.StatusCode)
-		w.Write([]byte(http.StatusText(resp.StatusCode)))
+		_, err := io.Copy(w, resp.Body)
+		if err != nil {
+			log.Errorf("Error writing body to client: %s", err)
+			return
+		}
 		return
 	}
 
