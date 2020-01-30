@@ -41,7 +41,7 @@ type Config struct {
 	DebugListener                   string         `yaml:"debug-listener"`
 	CertPathTLS                     string         `yaml:"tls-cert"`
 	KeyPathTLS                      string         `yaml:"tls-key"`
-	StatusChecks                   *listFlag      `yaml:"status-checks"`
+	StatusChecks                    *listFlag      `yaml:"status-checks"`
 	PrintVersion                    bool           `yaml:"version"`
 	MaxLoopbacks                    int            `yaml:"max-loopbacks"`
 	DefaultHTTPStatus               int            `yaml:"default-http-status"`
@@ -668,7 +668,7 @@ func (c *Config) ToOptions() skipper.Options {
 	options := skipper.Options{
 		// generic:
 		Address:                         c.Address,
-		StatusChecks:                   c.StatusChecks.values,
+		StatusChecks:                    c.StatusChecks.values,
 		EnableTCPQueue:                  c.EnableTCPQueue,
 		ExpectedBytesPerRequest:         c.ExpectedBytesPerRequest,
 		MaxTCPListenerConcurrency:       c.MaxTCPListenerConcurrency,
