@@ -41,6 +41,7 @@ type Config struct {
 	DebugListener                   string         `yaml:"debug-listener"`
 	CertPathTLS                     string         `yaml:"tls-cert"`
 	KeyPathTLS                      string         `yaml:"tls-key"`
+	StatusChecks                    *listFlag      `yaml:"status-checks"`
 	PrintVersion                    bool           `yaml:"version"`
 	MaxLoopbacks                    int            `yaml:"max-loopbacks"`
 	DefaultHTTPStatus               int            `yaml:"default-http-status"`
@@ -247,6 +248,7 @@ const (
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
+	startupChecksUsage                   = "experimental URLs to check before reporting healthy on startup"
 	enableTCPQueueUsage                  = "enable experimental TCP listener queue"
 	expectedBytesPerRequestUsage         = "bytes per request, that is used to calculate concurrency limits to buffer connection spikes"
 	maxTCPListenerConcurrencyUsage       = "sets hardcoded max for TCP listener concurrency, normally calculated based on available memory cgroups with max TODO"
@@ -405,6 +407,7 @@ const (
 func NewConfig() *Config {
 	cfg := new(Config)
 	cfg.MetricsFlavour = commaListFlag("codahale", "prometheus")
+	cfg.StatusChecks = commaListFlag()
 	cfg.FilterPlugins = newPluginFlag()
 	cfg.PredicatePlugins = newPluginFlag()
 	cfg.DataclientPlugins = newPluginFlag()
@@ -430,6 +433,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.DebugListener, "debug-listener", "", debugEndpointUsage)
 	flag.StringVar(&cfg.CertPathTLS, "tls-cert", "", certPathTLSUsage)
 	flag.StringVar(&cfg.KeyPathTLS, "tls-key", "", keyPathTLSUsage)
+	flag.Var(cfg.StatusChecks, "status-checks", startupChecksUsage)
 	flag.BoolVar(&cfg.PrintVersion, "version", false, versionUsage)
 	flag.IntVar(&cfg.MaxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
 	flag.IntVar(&cfg.DefaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
@@ -664,6 +668,7 @@ func (c *Config) ToOptions() skipper.Options {
 	options := skipper.Options{
 		// generic:
 		Address:                         c.Address,
+		StatusChecks:                    c.StatusChecks.values,
 		EnableTCPQueue:                  c.EnableTCPQueue,
 		ExpectedBytesPerRequest:         c.ExpectedBytesPerRequest,
 		MaxTCPListenerConcurrency:       c.MaxTCPListenerConcurrency,
