@@ -36,6 +36,7 @@ func Test_NewConfig(t *testing.T) {
 			want: &Config{
 				ConfigFile:                              "test.yaml",
 				Address:                                 "localhost:8080",
+				StartupChecks:                           nil,
 				ExpectedBytesPerRequest:                 50 * 1024,
 				SupportListener:                         ":9911",
 				MaxLoopbacks:                            12,
