@@ -1293,6 +1293,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	for _, startupCheckURL := range o.StartupChecks {
 		for {
+			/* #nosec */
 			resp, err := http.Get(startupCheckURL)
 			if err != nil {
 				log.Infof("%s unhealthy", startupCheckURL)
