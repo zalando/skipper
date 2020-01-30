@@ -248,7 +248,7 @@ const (
 
 	// generic:
 	addressUsage                         = "network address that skipper should listen on"
-	startupChecksUsage                   = "URLs to check before reporting healthy on startup"
+	startupChecksUsage                   = "experimental URLs to check before reporting healthy on startup"
 	enableTCPQueueUsage                  = "enable experimental TCP listener queue"
 	expectedBytesPerRequestUsage         = "bytes per request, that is used to calculate concurrency limits to buffer connection spikes"
 	maxTCPListenerConcurrencyUsage       = "sets hardcoded max for TCP listener concurrency, normally calculated based on available memory cgroups with max TODO"
