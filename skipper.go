@@ -71,6 +71,9 @@ type Options struct {
 	// to 0.
 	WaitForHealthcheckInterval time.Duration
 
+	// StartupChecks defines a comma separated list of HTTP URLs to do GET requests to, that have to return 200 before skipper becomes ready
+	StartupChecks []string
+
 	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
 
@@ -1287,6 +1290,23 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// create the proxy
 	proxy := proxy.WithParams(proxyParams)
 	defer proxy.Close()
+
+	for _, startupCheckURL := range o.StartupChecks {
+		for {
+			resp, err := http.Get(startupCheckURL)
+			if err != nil {
+				log.Infof("%s unhealthy", startupCheckURL)
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			if resp.StatusCode == 200 {
+				log.Infof("%s got healthy", startupCheckURL)
+				break
+			}
+			log.Infof("%s unhealthy", startupCheckURL)
+			time.Sleep(1 * time.Second)
+		}
+	}
 
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
