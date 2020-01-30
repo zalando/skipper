@@ -6,21 +6,37 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"testing"
 	"time"
 )
 
 // setting it to a high value, for CI context
-const detectionTimeout = 120 * time.Millisecond
+const detectionTimeout = 1200 * time.Millisecond
+
+type (
+	initProxy    func(string) (string, func())
+	testScenario func(*testing.T, initProxy)
+)
 
 type roundTripResponse struct {
 	response *http.Response
 	err      error
 }
 
-func backendNotifyingCanceledRequests(notifyIncoming chan<- <-chan struct{}) (url string, closeServer func()) {
+// cases:
+// - read request
+// - write header
+// - write response
+// - parallel read/write (probably not supported now)
+
+func backendNotifyingCanceledRequests(
+	readRequest, sendHeader, sendResponse bool,
+	notifyIncoming chan<- <-chan struct{},
+) (url string, closeServer func()) {
 	quit := make(chan struct{})
-	s := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		canceled := make(chan struct{})
 
 		select {
@@ -29,13 +45,43 @@ func backendNotifyingCanceledRequests(notifyIncoming chan<- <-chan struct{}) (ur
 			return
 		}
 
-		select {
-		case <-r.Context().Done():
-		case <-quit:
-			return
+		if readRequest {
+			buf := make([]byte, 4)
+			for {
+				_, err := r.Body.Read(buf)
+				if err == io.EOF {
+					break
+				}
+
+				if err != nil {
+					close(canceled)
+					return
+				}
+			}
 		}
 
-		close(canceled)
+		if sendHeader {
+			// in practice, this doesn't block
+			w.WriteHeader(http.StatusOK)
+			w.(interface{ Flush() }).Flush()
+		}
+
+		for loop := true; loop; {
+			if sendResponse {
+				if _, err := w.Write([]byte("foobar")); err != nil {
+					close(canceled)
+					return
+				}
+			}
+
+			select {
+			case <-r.Context().Done():
+				close(canceled)
+				return
+			case <-quit:
+				return
+			}
+		}
 	}))
 
 	url = s.URL
@@ -55,6 +101,20 @@ func proxyForBackend(backendURL string) (url string, closeServer func()) {
 	}
 
 	s := httptest.NewServer(p.proxy)
+	return s.URL, func() {
+		s.Close()
+		p.close()
+	}
+}
+
+func stdlibProxy(backendURL string) (proxyURL string, closeServer func()) {
+	parsed, err := url.Parse(backendURL)
+	if err != nil {
+		panic(err)
+	}
+
+	p := httputil.NewSingleHostReverseProxy(parsed)
+	s := httptest.NewServer(p)
 	return s.URL, s.Close
 }
 
@@ -86,6 +146,15 @@ func unexpectedResponse(t *testing.T, rsp roundTripResponse) {
 	}
 }
 
+func expectSuccessfulResponse(t *testing.T, rsp roundTripResponse) {
+	if rsp.err == nil {
+		return
+	}
+
+	t.Errorf("failed to make request: %v", rsp.err)
+	rsp.response.Body.Close()
+}
+
 func expectErrorResponse(t *testing.T, rsp roundTripResponse) {
 	if rsp.err != nil {
 		return
@@ -95,13 +164,13 @@ func expectErrorResponse(t *testing.T, rsp roundTripResponse) {
 	rsp.response.Body.Close()
 }
 
-func testCancelBeforeResponseReceived(t *testing.T, withProxy bool) {
+func testCancelBeforeResponseReceived(t *testing.T, p initProxy) {
 	backendReceivedRequest := make(chan (<-chan struct{}))
-	url, closeBackend := backendNotifyingCanceledRequests(backendReceivedRequest)
+	url, closeBackend := backendNotifyingCanceledRequests(false, false, false, backendReceivedRequest)
 
-	if withProxy {
+	if p != nil {
 		var closeProxy func()
-		url, closeProxy = proxyForBackend(url)
+		url, closeProxy = p(url)
 		cb := closeBackend
 		closeBackend = func() {
 			cb() // we need to close the backend first
@@ -141,6 +210,53 @@ func testCancelBeforeResponseReceived(t *testing.T, withProxy bool) {
 	}
 }
 
+func testCancelAfterResponseReceived(t *testing.T, p initProxy) {
+	backendReceivedRequest := make(chan (<-chan struct{}))
+	url, closeBackend := backendNotifyingCanceledRequests(false, true, false, backendReceivedRequest)
+
+	if p != nil {
+		var closeProxy func()
+		url, closeProxy = p(url)
+		cb := closeBackend
+		closeBackend = func() {
+			cb() // we need to close the backend first
+			closeProxy()
+		}
+	}
+
+	defer closeBackend()
+
+	responseReceived := make(chan roundTripResponse)
+	cancelRequest, err := cancelableRequest("GET", url, nil, responseReceived)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var backendDetectedRequestCancel <-chan struct{}
+	select {
+	case backendDetectedRequestCancel = <-backendReceivedRequest:
+	case rsp := <-responseReceived:
+		unexpectedResponse(t, rsp)
+	case <-time.After(detectionTimeout):
+		t.Error("backend failed to receive the request on time")
+	}
+
+	var rsp roundTripResponse
+	select {
+	case rsp = <-responseReceived:
+		expectSuccessfulResponse(t, rsp)
+	case <-time.After(detectionTimeout):
+		t.Error("client failed to receive the response on time")
+	}
+
+	cancelRequest()
+	select {
+	case <-backendDetectedRequestCancel:
+	case <-time.After(detectionTimeout):
+		t.Error("failed to detect canceled request on time")
+	}
+}
+
 // test cases:
 // - test with and without proxy
 // - before response received
@@ -151,13 +267,24 @@ func testCancelBeforeResponseReceived(t *testing.T, withProxy bool) {
 // - what happens on different errors, what can cause errors returned by do()
 
 func TestNotifyBackendOnClosedClient(t *testing.T) {
-	t.Run("before response received", func(t *testing.T) {
-		t.Run("without proxy", func(t *testing.T) {
-			testCancelBeforeResponseReceived(t, false)
-		})
+	scenarios := map[string]testScenario{
+		"before response received": testCancelBeforeResponseReceived,
+		"after response received":  testCancelAfterResponseReceived,
+	}
 
-		t.Run("with proxy", func(t *testing.T) {
-			testCancelBeforeResponseReceived(t, true)
+	proxyVariants := map[string]initProxy{
+		"without proxy": nil,
+		// "alternative proxy": stdlibProxy, // for comparison, fails on some of the tests
+		"proxy": proxyForBackend,
+	}
+
+	for scenarioName, scenario := range scenarios {
+		t.Run(scenarioName, func(t *testing.T) {
+			for variantName, proxyVariant := range proxyVariants {
+				t.Run(variantName, func(t *testing.T) {
+					scenario(t, proxyVariant)
+				})
+			}
 		})
-	})
+	}
 }
