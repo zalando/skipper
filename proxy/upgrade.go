@@ -113,6 +113,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		log.Debugf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
@@ -129,7 +130,6 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 			log.Errorf("Error writing body to client: %s", err)
 			return
 		}
-		resp.Body.Close()
 		return
 	}
 
