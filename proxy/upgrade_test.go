@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
@@ -91,40 +92,58 @@ func TestServeHTTP(t *testing.T) {
 		method                  string
 		backendClosesConnection bool
 		noBackend               bool
+		backendStatusCode       int
+		expectedResponseBody    string
 	}{
 		{
-			msg:    "Load balanced route",
-			route:  `route: Path("/ws") -> <roundRobin, "%s">;`,
-			method: "GET",
+			msg:               "Load balanced route",
+			route:             `route: Path("/ws") -> <roundRobin, "%s">;`,
+			method:            http.MethodGet,
+			backendStatusCode: http.StatusSwitchingProtocols,
 		},
 		{
-			msg:    "Simple route",
-			route:  `route: Path("/ws") -> "%s";`,
-			method: "GET",
+			msg:               "Simple route",
+			route:             `route: Path("/ws") -> "%s";`,
+			method:            http.MethodGet,
+			backendStatusCode: http.StatusSwitchingProtocols,
 		},
 		{
-			msg:    "Wrong method",
-			route:  `route: Path("/ws") -> "%s";`,
-			method: "POST",
+			msg:               "Wrong method",
+			route:             `route: Path("/ws") -> "%s";`,
+			method:            http.MethodPost,
+			backendStatusCode: http.StatusSwitchingProtocols,
 		},
 		{
 			msg:                     "Closed connection",
 			route:                   `route: Path("/ws") -> "%s";`,
-			method:                  "GET",
+			method:                  http.MethodGet,
 			backendClosesConnection: true,
+			backendStatusCode:       http.StatusSwitchingProtocols,
 		},
 		{
-			msg:       "No backend",
-			route:     `route: Path("/ws") -> "%s";`,
-			method:    "GET",
-			noBackend: true,
+			msg:               "No backend",
+			route:             `route: Path("/ws") -> "%s";`,
+			method:            http.MethodGet,
+			noBackend:         true,
+			backendStatusCode: http.StatusSwitchingProtocols,
+		},
+		{
+			msg:                     "backend reject upgrade",
+			route:                   `route: Path("/ws") -> "%s";`,
+			method:                  http.MethodPost,
+			backendStatusCode:       http.StatusBadRequest,
+			expectedResponseBody:    "BACKEND ERROR",
+			backendClosesConnection: true,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusSwitchingProtocols)
+				w.WriteHeader(ti.backendStatusCode)
 				if ti.backendClosesConnection {
 					w.Header().Set("Connection", "close")
+					if len(ti.expectedResponseBody) > 0 {
+						w.Write([]byte(ti.expectedResponseBody))
+					}
 					return
 				}
 				hj, ok := w.(http.Hijacker)
@@ -210,12 +229,26 @@ func TestServeHTTP(t *testing.T) {
 				return
 			}
 			if resp.StatusCode != http.StatusSwitchingProtocols {
-				if ti.method == "POST" || ti.noBackend {
+				if resp.StatusCode == ti.backendStatusCode {
+					// check Body
+					data, err := ioutil.ReadAll(resp.Body)
+					if err != nil {
+						t.Error(err)
+						return
+					}
+					if string(data) != ti.expectedResponseBody {
+						t.Errorf("wrong response body: %s, expected %s", string(data), ti.expectedResponseBody)
+					}
 					return
 				}
-				t.Errorf("wrong response status <%s>", resp.Status)
+
+				if ti.method == http.MethodPost || ti.noBackend {
+					return
+				}
+				t.Errorf("wrong response status <%d>, expeted <%d>", resp.StatusCode, ti.backendStatusCode)
 				return
 			}
+
 			_, err = conn.Write([]byte("ping\n"))
 			if err != nil {
 				t.Error(err)
