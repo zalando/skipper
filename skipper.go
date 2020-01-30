@@ -71,10 +71,10 @@ type Options struct {
 	// to 0.
 	WaitForHealthcheckInterval time.Duration
 
-	// StartupChecks is an experimental feature. It defines a
+	// StatusChecks is an experimental feature. It defines a
 	// comma separated list of HTTP URLs to do GET requests to,
 	// that have to return 200 before skipper becomes ready
-	StartupChecks []string
+	StatusChecks []string
 
 	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
@@ -1293,7 +1293,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	proxy := proxy.WithParams(proxyParams)
 	defer proxy.Close()
 
-	for _, startupCheckURL := range o.StartupChecks {
+	for _, startupCheckURL := range o.StatusChecks {
 		for {
 			/* #nosec */
 			resp, err := http.Get(startupCheckURL)
