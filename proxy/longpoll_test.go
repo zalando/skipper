@@ -6,8 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/http/httputil"
-	"net/url"
 	"testing"
 	"time"
 )
@@ -107,16 +105,16 @@ func proxyForBackend(backendURL string) (url string, closeServer func()) {
 	}
 }
 
-func stdlibProxy(backendURL string) (proxyURL string, closeServer func()) {
-	parsed, err := url.Parse(backendURL)
-	if err != nil {
-		panic(err)
-	}
+// func stdlibProxy(backendURL string) (proxyURL string, closeServer func()) {
+// 	parsed, err := url.Parse(backendURL)
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	p := httputil.NewSingleHostReverseProxy(parsed)
-	s := httptest.NewServer(p)
-	return s.URL, s.Close
-}
+// 	p := httputil.NewSingleHostReverseProxy(parsed)
+// 	s := httptest.NewServer(p)
+// 	return s.URL, s.Close
+// }
 
 func cancelableRequest(
 	method, url string,
