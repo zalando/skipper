@@ -1,18 +1,22 @@
 package auth
 
 import (
+	"bytes"
+	"compress/flate"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -51,6 +55,7 @@ type (
 		redirectPath    string
 		encrypter       secrets.Encryption
 		authCodeOptions []oauth2.AuthCodeOption
+		compressor      cookieCompression
 	}
 
 	userInfoContainer struct {
@@ -64,6 +69,14 @@ type (
 		OAuth2Token *oauth2.Token          `json:"oauth2token"`
 		Claims      map[string]interface{} `json:"claims"`
 		Subject     string                 `json:"subject"`
+	}
+
+	cookieCompression interface {
+		compress([]byte) ([]byte, error)
+		decompress([]byte) ([]byte, error)
+	}
+	deflatePoolCompressor struct {
+		poolWriter *sync.Pool
 	}
 )
 
@@ -150,6 +163,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		validity:   1 * time.Hour,
 		cookiename: generatedCookieName,
 		encrypter:  encrypter,
+		compressor: newDeflatePoolCompressor(flate.BestCompression),
 	}
 
 	// user defined scopes
@@ -418,17 +432,22 @@ func (f *tokenOidcFilter) validateCookie(cookie *http.Cookie) ([]byte, bool) {
 		return nil, false
 	}
 	log.Debugf("validate cookie name: %s", f.cookiename)
-	cookieStr, err := base64.StdEncoding.DecodeString(cookie.Value)
+	decodedCookie, err := base64.StdEncoding.DecodeString(cookie.Value)
 	if err != nil {
 		log.Debugf("Base64 decoding the cookie failed: %v", err)
 		return nil, false
 	}
-	decryptedCookie, err := f.encrypter.Decrypt(cookieStr)
+	decryptedCookie, err := f.encrypter.Decrypt(decodedCookie)
 	if err != nil {
 		log.Debugf("Decrypting the cookie failed: %v", err)
 		return nil, false
 	}
-	return []byte(decryptedCookie), true
+	decompressedCookie, err := f.compressor.decompress(decryptedCookie)
+	if err != nil {
+		log.Error(err)
+		return nil, false
+	}
+	return decompressedCookie, true
 }
 
 func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
@@ -579,7 +598,11 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 				}
 			}
 
-			encryptedData, err := f.encrypter.Encrypt(data)
+			compressedData, err := f.compressor.compress(data)
+			if err != nil {
+				log.Error(err)
+			}
+			encryptedData, err := f.encrypter.Encrypt(compressedData)
 			if err != nil {
 				log.Errorf("Failed to encrypt the returned oidc data: %v.", err)
 				unauthorized(
@@ -766,4 +789,46 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 func (f *tokenOidcFilter) Close() error {
 	f.encrypter.Close()
 	return nil
+}
+
+func newDeflatePoolCompressor(level int) *deflatePoolCompressor {
+	return &deflatePoolCompressor{
+		poolWriter: &sync.Pool{
+			New: func() interface{} {
+				w, err := flate.NewWriter(ioutil.Discard, level)
+				if err != nil {
+					log.Errorf("failed to generate new deflate writer: %v", err)
+				}
+				return w
+			},
+		},
+	}
+}
+
+func (dc *deflatePoolCompressor) compress(rawData []byte) ([]byte, error) {
+	pw, ok := dc.poolWriter.Get().(*flate.Writer)
+	if !ok || pw == nil {
+		return nil, fmt.Errorf("could not get a flate.Writer from the pool")
+	}
+	defer dc.poolWriter.Put(pw)
+
+	var buf bytes.Buffer
+	pw.Reset(&buf)
+
+	if _, err := pw.Write(rawData); err != nil {
+		return nil, err
+	}
+	if err := pw.Close(); err != nil {
+		return nil, err
+	}
+	log.Debugf("cookie compressed: %d to %d", len(rawData), buf.Len())
+	return buf.Bytes(), nil
+}
+
+func (dc *deflatePoolCompressor) decompress(compData []byte) ([]byte, error) {
+	zr := flate.NewReader(bytes.NewReader(compData))
+	if err := zr.Close(); err != nil {
+		return nil, err
+	}
+	return ioutil.ReadAll(zr)
 }

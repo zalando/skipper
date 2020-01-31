@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"compress/flate"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
@@ -63,72 +64,73 @@ func (jar *insecureCookieJar) Cookies(u *url.URL) []*http.Cookie {
 	return jar.store[u.Hostname()]
 }
 
+var testOpenIDConfig = `{
+"issuer": "https://accounts.google.com",
+"authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+"token_endpoint": "https://oauth2.googleapis.com/token",
+"userinfo_endpoint": "https://openidconnect.googleapis.com/v1/userinfo",
+"revocation_endpoint": "https://oauth2.googleapis.com/revoke",
+"jwks_uri": "https://www.googleapis.com/oauth2/v3/certs",
+"response_types_supported": [
+"code",
+"token",
+"id_token",
+"code token",
+"code id_token",
+"token id_token",
+"code token id_token",
+"none"
+],
+"subject_types_supported": [
+"public"
+],
+"id_token_signing_alg_values_supported": [
+"HS256",
+"RS256"
+],
+"scopes_supported": [
+"openid",
+"email",
+"uid",
+"profile"
+],
+"token_endpoint_auth_methods_supported": [
+"client_secret_post",
+"client_secret_basic"
+],
+"claims_supported": [
+"aud",
+"email",
+"email_verified",
+"uid",
+"exp",
+"family_name",
+"given_name",
+"iat",
+"iss",
+"locale",
+"name",
+"picture",
+"sub"
+],
+"code_challenge_methods_supported": [
+"plain",
+"S256",
+"HS256"
+]
+}`
+
 // returns a localhost instance implementation of an OpenID Connect
 // server with configendpoint, tokenendpoint, authenticationserver endpoint, userinfor
 // endpoint, jwks endpoint
 func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
-	s := `{
- "issuer": "https://accounts.google.com",
- "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
- "token_endpoint": "https://oauth2.googleapis.com/token",
- "userinfo_endpoint": "https://openidconnect.googleapis.com/v1/userinfo",
- "revocation_endpoint": "https://oauth2.googleapis.com/revoke",
- "jwks_uri": "https://www.googleapis.com/oauth2/v3/certs",
- "response_types_supported": [
-  "code",
-  "token",
-  "id_token",
-  "code token",
-  "code id_token",
-  "token id_token",
-  "code token id_token",
-  "none"
- ],
- "subject_types_supported": [
-  "public"
- ],
- "id_token_signing_alg_values_supported": [
-  "HS256",
-  "RS256"
- ],
- "scopes_supported": [
-  "openid",
-  "email",
-  "uid",
-  "profile"
- ],
- "token_endpoint_auth_methods_supported": [
-  "client_secret_post",
-  "client_secret_basic"
- ],
- "claims_supported": [
-  "aud",
-  "email",
-  "email_verified",
-  "uid",
-  "exp",
-  "family_name",
-  "given_name",
-  "iat",
-  "iss",
-  "locale",
-  "name",
-  "picture",
-  "sub"
- ],
- "code_challenge_methods_supported": [
-  "plain",
-  "S256",
-  "HS256"
- ]
-}`
 	var oidcServer *httptest.Server
 	oidcServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			// dynamic config handling
 			// set oidcServer local dynamic listener to us
-			st := strings.Replace(s, "https://accounts.google.com", oidcServer.URL, -1)
+			st := strings.Replace(testOpenIDConfig, "https://accounts.google.com", oidcServer.URL, -1)
 			st = strings.Replace(st, "https://oauth2.googleapis.com", oidcServer.URL, -1)
 			st = strings.Replace(st, "https://www.googleapis.com", oidcServer.URL, -1)
 			st = strings.Replace(st, "https://openidconnect.googleapis.com", oidcServer.URL, -1)
@@ -824,5 +826,51 @@ func TestChunkAndMergerCookie(t *testing.T) {
 				}(), "its size should not exceed limits cookieMaxSize")
 			}
 		})
+	}
+}
+
+var cookieCompressRuns = []struct {
+	name       string
+	compressor cookieCompression
+}{
+	{"flate/min", newDeflatePoolCompressor(flate.BestSpeed)},
+	{"flate/default", newDeflatePoolCompressor(flate.DefaultCompression)},
+	{"flate/max", newDeflatePoolCompressor(flate.BestCompression)},
+}
+
+func Test_deflatePoolCompressor(t *testing.T) {
+	for _, run := range cookieCompressRuns {
+		t.Run(fmt.Sprintf("test:%v", run.name), func(t *testing.T) {
+			assert := assert.New(t)
+			compressed, err := run.compressor.compress([]byte(testOpenIDConfig))
+			assert.NoError(err)
+			decomp, err := run.compressor.decompress(compressed)
+			assert.NoError(err)
+			assert.Equal(decomp, []byte(testOpenIDConfig), "compressed and decompressed should result to equal")
+			assert.True(len(compressed) < len([]byte(testOpenIDConfig)), "should be smaller than original")
+		})
+	}
+}
+
+func Benchmark_deflatePoolCompressor(b *testing.B) {
+	for _, rw := range []string{"comp", "decomp"} {
+		for _, run := range cookieCompressRuns {
+			b.Run(fmt.Sprintf("ST/%s/%s", rw, run.name), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					compressed, _ := run.compressor.compress([]byte(testOpenIDConfig))
+					run.compressor.decompress(compressed)
+					b.ReportMetric(float64(len(compressed)), "byte")
+					b.ReportMetric(float64(len([]byte(testOpenIDConfig)))/float64(len(compressed)), "/1-ratio")
+				}
+			})
+			b.Run(fmt.Sprintf("MT/%s/%s", rw, run.name), func(b *testing.B) {
+				b.RunParallel(func(pb *testing.PB) {
+					for pb.Next() {
+						compressed, _ := run.compressor.compress([]byte(testOpenIDConfig))
+						run.compressor.decompress(compressed)
+					}
+				})
+			})
+		}
 	}
 }
