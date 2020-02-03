@@ -2348,31 +2348,26 @@ func TestBuildHTTPClient(t *testing.T) {
 
 func TestReadServiceAccountToken(t *testing.T) {
 	var (
-		token string
-		err   error
+		tokenSource oauth2.TokenSource
+		token       *oauth2.Token
+		err         error
 	)
 
-	token, err = readServiceAccountToken("kube_test.go", false)
+	tokenSource = &fileTokenSource{path: "kube_test.go"}
+	token, err = tokenSource.Token()
 	if err != nil {
 		t.Error(err)
 	}
-	if token != "" {
+	if token.AccessToken == "" {
 		t.Errorf("unexpected token: %s", token)
 	}
 
-	token, err = readServiceAccountToken("kube_test.go", true)
-	if err != nil {
-		t.Error(err)
-	}
-	if token == "" {
-		t.Errorf("unexpected token: %s", token)
-	}
-
-	token, err = readServiceAccountToken("rumplestilzchen", true)
+	tokenSource = &fileTokenSource{path: "rumplestilzchen"}
+	token, err = tokenSource.Token()
 	if err == nil {
 		t.Errorf("expected error for a wrong filename")
 	}
-	if token != "" {
+	if token != nil {
 		t.Errorf("token must be empty")
 	}
 }
