@@ -104,26 +104,7 @@ func buildHTTPClient(certFilePath string, inCluster bool, quit <-chan struct{}) 
 	}, nil
 }
 
-func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, error) {
-	if !inCluster {
-		return "", nil
-	}
-
-	bToken, err := ioutil.ReadFile(tokenFilePath)
-	if err != nil {
-		return "", err
-	}
-
-	return string(bToken), nil
-}
-
 func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*clusterClient, error) {
-	token, err := readServiceAccountToken(serviceAccountDir+serviceAccountTokenKey, o.KubernetesInCluster)
-	if err != nil {
-		return nil, err
-	}
-	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-
 	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster, quit)
 	if err != nil {
 		return nil, err
@@ -141,8 +122,14 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 		endpointsURI:   endpointsClusterURI,
 		ingressClass:   ingClsRx,
 		httpClient:     httpClient,
-		tokenSource:    tokenSource,
 		apiURL:         apiURL,
+	}
+
+	if o.KubernetesInCluster {
+		c.tokenSource = oauth2.ReuseTokenSource(nil, &fileTokenSource{
+			path:   serviceAccountDir + serviceAccountTokenKey,
+			period: time.Minute,
+		})
 	}
 
 	if o.KubernetesNamespace != "" {
