@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -28,7 +29,7 @@ func readDefaultFilters(dir string) (defaultFilters, error) {
 	filters := make(defaultFilters)
 	for _, f := range files {
 		r := strings.Split(f.Name(), ".") // format: {service}.{namespace}
-		if len(r) != 2 || !f.Mode().IsRegular() || f.Size() > maxFileSize {
+		if len(r) != 2 || !(f.Mode().IsRegular() || f.Mode()&os.ModeSymlink != 0) || f.Size() > maxFileSize {
 			log.WithError(err).WithField("file", f.Name()).Debug("incompatible file")
 			continue
 		}
