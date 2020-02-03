@@ -16,6 +16,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -42,7 +43,7 @@ type clusterClient struct {
 	servicesURI    string
 	endpointsURI   string
 	ingressClass   *regexp.Regexp
-	token          string
+	tokenSource    oauth2.TokenSource
 	httpClient     *http.Client
 	apiURL         string
 }
@@ -121,6 +122,7 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 	if err != nil {
 		return nil, err
 	}
+	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 
 	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster, quit)
 	if err != nil {
@@ -139,7 +141,7 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 		endpointsURI:   endpointsClusterURI,
 		ingressClass:   ingClsRx,
 		httpClient:     httpClient,
-		token:          token,
+		tokenSource:    tokenSource,
 		apiURL:         apiURL,
 	}
 
@@ -163,8 +165,12 @@ func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request
 		return nil, err
 	}
 
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
+	if c.tokenSource != nil {
+		token, err := c.tokenSource.Token()
+		if err != nil {
+			return nil, err
+		}
+		token.SetAuthHeader(req)
 	}
 
 	return req, nil

@@ -32,6 +32,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/oauth2"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
@@ -2229,7 +2230,7 @@ func TestCreateRequest(t *testing.T) {
 		t.Error(err)
 	}
 
-	client.token = "1234"
+	client.tokenSource = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "1234"})
 	req, err = client.createRequest(url, rc)
 	if err != nil {
 		t.Error(err)
