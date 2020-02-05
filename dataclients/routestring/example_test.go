@@ -38,5 +38,7 @@ func Example() {
 		return
 	}
 
+	// Output:
+	// Hello, world!
 	fmt.Println(string(content))
 }
