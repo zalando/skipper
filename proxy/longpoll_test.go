@@ -25,14 +25,12 @@ type roundTripResponse struct {
 	err      error
 }
 
-// cases:
-// - read request
-// - write header
-// - write response
-// - parallel read/write (probably not supported now)
+type proxyBackendOptions struct {
+	readRequest, sendHeader, sendResponse bool
+}
 
 func backendNotifyingCanceledRequests(
-	readRequest, sendHeader, sendResponse bool,
+	o proxyBackendOptions,
 	notifyIncoming chan<- <-chan struct{},
 ) (url string, closeServer func()) {
 	quit := make(chan struct{})
@@ -45,7 +43,7 @@ func backendNotifyingCanceledRequests(
 			return
 		}
 
-		if readRequest {
+		if o.readRequest {
 			buf := make([]byte, 4)
 			for {
 				_, err := r.Body.Read(buf)
@@ -60,27 +58,27 @@ func backendNotifyingCanceledRequests(
 			}
 		}
 
-		if sendHeader {
+		if o.sendHeader {
 			// in practice, this doesn't block
 			w.WriteHeader(http.StatusOK)
 			w.(interface{ Flush() }).Flush()
 		}
 
-		for loop := true; loop; {
-			if sendResponse {
+		if o.sendResponse {
+			for {
 				if _, err := w.Write([]byte("foobar")); err != nil {
 					close(canceled)
 					return
 				}
 			}
+		}
 
-			select {
-			case <-r.Context().Done():
-				close(canceled)
-				return
-			case <-quit:
-				return
-			}
+		select {
+		case <-r.Context().Done():
+			close(canceled)
+			return
+		case <-quit:
+			return
 		}
 	}))
 
@@ -166,7 +164,7 @@ func expectErrorResponse(t *testing.T, rsp roundTripResponse) {
 
 func testCancelBeforeResponseReceived(t *testing.T, p initProxy) {
 	backendReceivedRequest := make(chan (<-chan struct{}))
-	url, closeBackend := backendNotifyingCanceledRequests(false, false, false, backendReceivedRequest)
+	url, closeBackend := backendNotifyingCanceledRequests(proxyBackendOptions{}, backendReceivedRequest)
 
 	if p != nil {
 		var closeProxy func()
@@ -210,9 +208,68 @@ func testCancelBeforeResponseReceived(t *testing.T, p initProxy) {
 	}
 }
 
+func testCancelDuringStreamingRequestBody(t *testing.T, p initProxy) {
+	backendReceivedRequest := make(chan (<-chan struct{}))
+	url, closeBackend := backendNotifyingCanceledRequests(
+		proxyBackendOptions{readRequest: true},
+		backendReceivedRequest,
+	)
+
+	if p != nil {
+		var closeProxy func()
+		url, closeProxy = p(url)
+		cb := closeBackend
+		closeBackend = func() {
+			cb() // we need to close the backend first
+			closeProxy()
+		}
+	}
+
+	defer closeBackend()
+
+	body, bodyWriter := io.Pipe()
+	responseReceived := make(chan roundTripResponse)
+	cancelRequest, err := cancelableRequest("POST", url, body, responseReceived)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var backendDetectedRequestCancel <-chan struct{}
+	select {
+	case backendDetectedRequestCancel = <-backendReceivedRequest:
+	case rsp := <-responseReceived:
+		unexpectedResponse(t, rsp)
+	case <-time.After(detectionTimeout):
+		t.Error("backend failed to receive the request on time")
+	}
+
+	for i := 0; i < 64*1024; i++ {
+		if _, err := bodyWriter.Write([]byte("foobar")); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cancelRequest()
+	select {
+	case <-backendDetectedRequestCancel:
+	case <-time.After(detectionTimeout):
+		t.Error("failed to detect canceled request on time")
+
+		select {
+		case rsp := <-responseReceived:
+			expectErrorResponse(t, rsp)
+		case <-time.After(detectionTimeout):
+			t.Error("timeout")
+		}
+	}
+}
+
 func testCancelAfterResponseReceived(t *testing.T, p initProxy) {
 	backendReceivedRequest := make(chan (<-chan struct{}))
-	url, closeBackend := backendNotifyingCanceledRequests(false, true, false, backendReceivedRequest)
+	url, closeBackend := backendNotifyingCanceledRequests(
+		proxyBackendOptions{sendHeader: true},
+		backendReceivedRequest,
+	)
 
 	if p != nil {
 		var closeProxy func()
@@ -257,19 +314,75 @@ func testCancelAfterResponseReceived(t *testing.T, p initProxy) {
 	}
 }
 
-// test cases:
-// - test with and without proxy
-// - before response received
-// - after response received
-// - check with opentracing, it seems to be a mess
-// - check for upgrades
-// - full tests for the other direction
-// - what happens on different errors, what can cause errors returned by do()
+func testCancelDuringStreamingResponseBody(t *testing.T, p initProxy) {
+	backendReceivedRequest := make(chan (<-chan struct{}))
+	url, closeBackend := backendNotifyingCanceledRequests(
+		proxyBackendOptions{sendResponse: true},
+		backendReceivedRequest,
+	)
+
+	if p != nil {
+		var closeProxy func()
+		url, closeProxy = p(url)
+		cb := closeBackend
+		closeBackend = func() {
+			cb() // we need to close the backend first
+			closeProxy()
+		}
+	}
+
+	defer closeBackend()
+
+	responseReceived := make(chan roundTripResponse)
+	cancelRequest, err := cancelableRequest("GET", url, nil, responseReceived)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var backendDetectedRequestCancel <-chan struct{}
+	select {
+	case backendDetectedRequestCancel = <-backendReceivedRequest:
+	case rsp := <-responseReceived:
+		unexpectedResponse(t, rsp)
+	case <-time.After(detectionTimeout):
+		t.Error("backend failed to receive the request on time")
+	}
+
+	var rsp roundTripResponse
+	select {
+	case rsp = <-responseReceived:
+		expectSuccessfulResponse(t, rsp)
+	case <-time.After(detectionTimeout):
+		t.Error("client failed to receive the response on time")
+	}
+
+	// rsp.response might be nil
+	if t.Failed() {
+		return
+	}
+
+	defer rsp.response.Body.Close()
+	buf := make([]byte, 4)
+	for i := 0; i < 64*1024; i++ {
+		if _, err := rsp.response.Body.Read(buf); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cancelRequest()
+	select {
+	case <-backendDetectedRequestCancel:
+	case <-time.After(detectionTimeout):
+		t.Error("failed to detect canceled request on time")
+	}
+}
 
 func TestNotifyBackendOnClosedClient(t *testing.T) {
 	scenarios := map[string]testScenario{
-		"before response received": testCancelBeforeResponseReceived,
-		"after response received":  testCancelAfterResponseReceived,
+		"before response received":      testCancelBeforeResponseReceived,
+		"during streaming request body": testCancelDuringStreamingRequestBody,
+		"after response received":       testCancelAfterResponseReceived,
+		"duing streaming response body": testCancelDuringStreamingResponseBody,
 	}
 
 	proxyVariants := map[string]initProxy{
