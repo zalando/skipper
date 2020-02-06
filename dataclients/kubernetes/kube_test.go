@@ -32,7 +32,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/oauth2"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
@@ -2230,7 +2229,7 @@ func TestCreateRequest(t *testing.T) {
 		t.Error(err)
 	}
 
-	client.tokenSource = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "1234"})
+	client.tokenProvider = mockSecretProvider("1234")
 	req, err = client.createRequest(url, rc)
 	if err != nil {
 		t.Error(err)
@@ -2343,32 +2342,6 @@ func TestBuildHTTPClient(t *testing.T) {
 	_, err = buildHTTPClient("ca.temp.crt", true, quit)
 	if err != nil {
 		t.Error(err)
-	}
-}
-
-func TestReadServiceAccountToken(t *testing.T) {
-	var (
-		tokenSource oauth2.TokenSource
-		token       *oauth2.Token
-		err         error
-	)
-
-	tokenSource = &fileTokenSource{path: "kube_test.go"}
-	token, err = tokenSource.Token()
-	if err != nil {
-		t.Error(err)
-	}
-	if token.AccessToken == "" {
-		t.Errorf("unexpected token: %s", token)
-	}
-
-	tokenSource = &fileTokenSource{path: "rumplestilzchen"}
-	token, err = tokenSource.Token()
-	if err == nil {
-		t.Errorf("expected error for a wrong filename")
-	}
-	if token != nil {
-		t.Errorf("token must be empty")
 	}
 }
 
@@ -3962,4 +3935,14 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		df.get(resourceID{})
 	})
+}
+
+type mockSecretProvider string
+
+func (sp mockSecretProvider) GetSecret(_ string) ([]byte, bool) {
+	return []byte(sp), true
+}
+
+func (sp mockSecretProvider) Add(_ string) error {
+	return nil
 }

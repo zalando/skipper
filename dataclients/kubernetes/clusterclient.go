@@ -16,7 +16,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/oauth2"
+	"github.com/zalando/skipper/secrets"
 )
 
 const (
@@ -43,7 +43,7 @@ type clusterClient struct {
 	servicesURI    string
 	endpointsURI   string
 	ingressClass   *regexp.Regexp
-	tokenSource    oauth2.TokenSource
+	tokenProvider  secrets.SecretsProvider
 	httpClient     *http.Client
 	apiURL         string
 }
@@ -126,10 +126,8 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 	}
 
 	if o.KubernetesInCluster {
-		c.tokenSource = oauth2.ReuseTokenSource(nil, &fileTokenSource{
-			path:   serviceAccountDir + serviceAccountTokenKey,
-			period: time.Minute,
-		})
+		c.tokenProvider = secrets.NewSecretPaths(time.Minute)
+		c.tokenProvider.Add(serviceAccountDir + serviceAccountTokenKey)
 	}
 
 	if o.KubernetesNamespace != "" {
@@ -152,12 +150,12 @@ func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request
 		return nil, err
 	}
 
-	if c.tokenSource != nil {
-		token, err := c.tokenSource.Token()
-		if err != nil {
-			return nil, err
+	if c.tokenProvider != nil {
+		token, ok := c.tokenProvider.GetSecret(serviceAccountTokenKey)
+		if !ok {
+			return nil, fmt.Errorf("secret not found: %v", serviceAccountTokenKey)
 		}
-		token.SetAuthHeader(req)
+		req.Header.Set("Authorization", "Bearer "+string(token))
 	}
 
 	return req, nil
