@@ -457,92 +457,92 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 	)
 
 	r := ctx.Request()
-			oauthState, err := f.getCallbackState(ctx)
-			if err != nil {
-				if _, ok := err.(*requestError); !ok {
-					log.Errorf("Error while retrieving callback state: %v.", err)
-				}
+	oauthState, err := f.getCallbackState(ctx)
+	if err != nil {
+		if _, ok := err.(*requestError); !ok {
+			log.Errorf("Error while retrieving callback state: %v.", err)
+		}
 
-				unauthorized(
-					ctx,
-					"",
-					invalidToken,
-					r.Host,
-					fmt.Sprintf("Failed to get state from callback: %v.", err),
-				)
+		unauthorized(
+			ctx,
+			"",
+			invalidToken,
+			r.Host,
+			fmt.Sprintf("Failed to get state from callback: %v.", err),
+		)
 
-				return
-			}
+		return
+	}
 
-			oauth2Token, err = f.getTokenWithExchange(oauthState, ctx)
-			if err != nil {
-				if _, ok := err.(*requestError); !ok {
-					log.Errorf("Error while getting token in callback: %v.", err)
-				}
+	oauth2Token, err = f.getTokenWithExchange(oauthState, ctx)
+	if err != nil {
+		if _, ok := err.(*requestError); !ok {
+			log.Errorf("Error while getting token in callback: %v.", err)
+		}
 
-				unauthorized(
-					ctx,
-					"",
-					invalidClaim,
-					r.Host,
-					fmt.Sprintf("Failed to get token in callback: %v.", err),
-				)
+		unauthorized(
+			ctx,
+			"",
+			invalidClaim,
+			r.Host,
+			fmt.Sprintf("Failed to get token in callback: %v.", err),
+		)
 
-				return
-			}
+		return
+	}
 
-			switch f.typ {
-			case checkOIDCUserInfo:
+	switch f.typ {
+	case checkOIDCUserInfo:
 		userInfo, err = f.provider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
-				if err != nil {
-					// error coming from an external library and the possible error reasons are
-					// not documented explicitly, so we assume that the cause is always rooted
-					// in the incoming request, and only log it with a debug flag, via calling
-					// unauthorized().
-					unauthorized(
-						ctx,
-						"",
-						invalidToken,
-						r.Host,
-						fmt.Sprintf("Failed to get userinfo: %v.", err),
-					)
+		if err != nil {
+			// error coming from an external library and the possible error reasons are
+			// not documented explicitly, so we assume that the cause is always rooted
+			// in the incoming request, and only log it with a debug flag, via calling
+			// unauthorized().
+			unauthorized(
+				ctx,
+				"",
+				invalidToken,
+				r.Host,
+				fmt.Sprintf("Failed to get userinfo: %v.", err),
+			)
 
-					return
-				}
+			return
+		}
 
 		sub = userInfo.Subject
 		claimsMap, _, err = f.tokenClaims(ctx, oauth2Token)
-				if err != nil {
-					unauthorized(
-						ctx,
-						"",
-						invalidToken,
-						r.Host,
-						fmt.Sprintf("Failed to get claims: %v.", err),
-					)
-					return
-				}
+		if err != nil {
+			unauthorized(
+				ctx,
+				"",
+				invalidToken,
+				r.Host,
+				fmt.Sprintf("Failed to get claims: %v.", err),
+			)
+			return
+		}
 	case checkOIDCAnyClaims, checkOIDCAllClaims:
 		claimsMap, sub, err = f.tokenClaims(ctx, oauth2Token)
-				if err != nil {
-					if _, ok := err.(*requestError); !ok {
-						log.Errorf("Failed to get claims with error: %v", err)
-					}
+		if err != nil {
+			if _, ok := err.(*requestError); !ok {
+				log.Errorf("Failed to get claims with error: %v", err)
+			}
 
-					unauthorized(
-						ctx,
-						"",
-						invalidToken,
-						r.Host,
-						fmt.Sprintf(
-							"Failed to get claims: %s, %v",
-							f.claims,
-							err,
-						),
-					)
+			unauthorized(
+				ctx,
+				"",
+				invalidToken,
+				r.Host,
+				fmt.Sprintf(
+					"Failed to get claims: %s, %v",
+					f.claims,
+					err,
+				),
+			)
 
-					return
-				}
+			return
+		}
 	}
 
 	resp = tokenContainer{
@@ -551,39 +551,39 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		Subject:     sub,
 		Claims:      claimsMap,
 	}
-				data, err = json.Marshal(resp)
-				if err != nil {
-					log.Errorf("Failed to serialize claims: %v.", err)
-					unauthorized(
-						ctx,
-						"",
-						invalidSub,
-						r.Host,
-						"Failed to serialize claims.",
-					)
+	data, err = json.Marshal(resp)
+	if err != nil {
+		log.Errorf("Failed to serialize claims: %v.", err)
+		unauthorized(
+			ctx,
+			"",
+			invalidSub,
+			r.Host,
+			"Failed to serialize claims.",
+		)
 
-					return
-				}
+		return
+	}
 
-			compressedData, err := f.compressor.compress(data)
-			if err != nil {
-				log.Error(err)
-			}
-			encryptedData, err := f.encrypter.Encrypt(compressedData)
-			if err != nil {
-				log.Errorf("Failed to encrypt the returned oidc data: %v.", err)
-				unauthorized(
-					ctx,
-					"",
-					invalidSub,
-					r.Host,
-					"Failed to encrypt the returned oidc data.",
-				)
+	compressedData, err := f.compressor.compress(data)
+	if err != nil {
+		log.Error(err)
+	}
+	encryptedData, err := f.encrypter.Encrypt(compressedData)
+	if err != nil {
+		log.Errorf("Failed to encrypt the returned oidc data: %v.", err)
+		unauthorized(
+			ctx,
+			"",
+			invalidSub,
+			r.Host,
+			"Failed to encrypt the returned oidc data.",
+		)
 
-				return
-			}
+		return
+	}
 
-			f.doDownstreamRedirect(ctx, encryptedData, oauthState.RedirectUrl)
+	f.doDownstreamRedirect(ctx, encryptedData, oauthState.RedirectUrl)
 }
 
 func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
@@ -615,18 +615,18 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-		err := json.Unmarshal([]byte(cookie), &container)
-		if err != nil {
-			unauthorized(
-				ctx,
-				"",
-				invalidToken,
-				r.Host,
-				fmt.Sprintf("Failed to deserialize cookie: %v.", err),
-			)
+	err := json.Unmarshal([]byte(cookie), &container)
+	if err != nil {
+		unauthorized(
+			ctx,
+			"",
+			invalidToken,
+			r.Host,
+			fmt.Sprintf("Failed to deserialize cookie: %v.", err),
+		)
 
-			return
-		}
+		return
+	}
 	// filter specific checks
 	switch f.typ {
 	case checkOIDCUserInfo:
@@ -653,6 +653,8 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		f.internalServerError(ctx)
 		return
 	}
+	// saving token info for chained filter
+	ctx.StateBag()[oidcClaimsCacheKey] = container
 	ctx.Request().Header.Add(oidcInfoHeader, string(oidcInfoJson))
 }
 
