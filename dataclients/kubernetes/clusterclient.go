@@ -16,6 +16,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/secrets"
 )
 
 const (
@@ -42,7 +43,7 @@ type clusterClient struct {
 	servicesURI    string
 	endpointsURI   string
 	ingressClass   *regexp.Regexp
-	token          string
+	tokenProvider  secrets.SecretsProvider
 	httpClient     *http.Client
 	apiURL         string
 }
@@ -103,25 +104,7 @@ func buildHTTPClient(certFilePath string, inCluster bool, quit <-chan struct{}) 
 	}, nil
 }
 
-func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, error) {
-	if !inCluster {
-		return "", nil
-	}
-
-	bToken, err := ioutil.ReadFile(tokenFilePath)
-	if err != nil {
-		return "", err
-	}
-
-	return string(bToken), nil
-}
-
 func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*clusterClient, error) {
-	token, err := readServiceAccountToken(serviceAccountDir+serviceAccountTokenKey, o.KubernetesInCluster)
-	if err != nil {
-		return nil, err
-	}
-
 	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster, quit)
 	if err != nil {
 		return nil, err
@@ -139,8 +122,12 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 		endpointsURI:   endpointsClusterURI,
 		ingressClass:   ingClsRx,
 		httpClient:     httpClient,
-		token:          token,
 		apiURL:         apiURL,
+	}
+
+	if o.KubernetesInCluster {
+		c.tokenProvider = secrets.NewSecretPaths(time.Minute)
+		c.tokenProvider.Add(serviceAccountDir + serviceAccountTokenKey)
 	}
 
 	if o.KubernetesNamespace != "" {
@@ -163,8 +150,12 @@ func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request
 		return nil, err
 	}
 
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
+	if c.tokenProvider != nil {
+		token, ok := c.tokenProvider.GetSecret(serviceAccountTokenKey)
+		if !ok {
+			return nil, fmt.Errorf("secret not found: %v", serviceAccountTokenKey)
+		}
+		req.Header.Set("Authorization", "Bearer "+string(token))
 	}
 
 	return req, nil

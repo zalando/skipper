@@ -2229,7 +2229,7 @@ func TestCreateRequest(t *testing.T) {
 		t.Error(err)
 	}
 
-	client.token = "1234"
+	client.tokenProvider = mockSecretProvider("1234")
 	req, err = client.createRequest(url, rc)
 	if err != nil {
 		t.Error(err)
@@ -2342,37 +2342,6 @@ func TestBuildHTTPClient(t *testing.T) {
 	_, err = buildHTTPClient("ca.temp.crt", true, quit)
 	if err != nil {
 		t.Error(err)
-	}
-}
-
-func TestReadServiceAccountToken(t *testing.T) {
-	var (
-		token string
-		err   error
-	)
-
-	token, err = readServiceAccountToken("kube_test.go", false)
-	if err != nil {
-		t.Error(err)
-	}
-	if token != "" {
-		t.Errorf("unexpected token: %s", token)
-	}
-
-	token, err = readServiceAccountToken("kube_test.go", true)
-	if err != nil {
-		t.Error(err)
-	}
-	if token == "" {
-		t.Errorf("unexpected token: %s", token)
-	}
-
-	token, err = readServiceAccountToken("rumplestilzchen", true)
-	if err == nil {
-		t.Errorf("expected error for a wrong filename")
-	}
-	if token != "" {
-		t.Errorf("token must be empty")
 	}
 }
 
@@ -3966,4 +3935,14 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 		df.get(resourceID{})
 	})
+}
+
+type mockSecretProvider string
+
+func (sp mockSecretProvider) GetSecret(_ string) ([]byte, bool) {
+	return []byte(sp), true
+}
+
+func (sp mockSecretProvider) Add(_ string) error {
+	return nil
 }
