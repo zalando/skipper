@@ -485,11 +485,13 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 	}
 
 	rr, err := http.NewRequest(r.Method, u.String(), body)
-	rr.ContentLength = r.ContentLength
 	if err != nil {
 		return nil, err
 	}
 
+	rr = rr.WithContext(r.Context())
+
+	rr.ContentLength = r.ContentLength
 	if removeHopHeaders {
 		rr.Header = cloneHeaderExcluding(r.Header, hopHeaders)
 	} else {
