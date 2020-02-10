@@ -223,3 +223,25 @@ for which it needs a secret key. This key is in a file which can be rotated peri
 because it is reread by Skipper. The path to this file can be passed with the flag
 `-oidc-secret-file` when Skipper is started.
 
+### AuthZ and access control
+
+Authorization validation and access control is available by means of a subsequent filter [oidcClaimsQuery](../reference/filters.md#oidcClaimsQuery). It inspects the ID token, which exists after a successful `oauthOidc*` filter step, and validates the defined query with the request path.
+
+Given following example ID token:
+
+```json
+{
+  "email": "someone@example.org",
+  "groups": [
+    "CD-xyz",
+    "appX-Tester"
+  ],
+  "name": "Some One"
+}
+```
+
+Access to path `/` would be granted to everyone in `example.org`, however path `/login` only to those being member of `group "appX-Tester"`:
+
+```
+oauthOidcAnyClaims(...) -> oidcClaimsQuery("/login:groups.#[==\"appX-Tester\"]", "/:@_:email%\"*@example.org\"")
+```
