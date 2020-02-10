@@ -29,8 +29,13 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 	}
 	defer c.Close()
 
-	_, err = c.LoadAll()
-	_, err = c.LoadAll()
+	if _, err := c.LoadAll(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := c.LoadAll(); err != nil {
+		t.Fatal(err)
+	}
 
 	logString := logBuf.String()
 	if strings.Index(logString, routeGroupsNotInstalledMessage) < 0 {
