@@ -224,6 +224,12 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 					"aud":   validClient,
 					"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
 					"exp":   time.Now().Add(time.Hour).UTC().Unix(),
+					"groups": []string{
+						"CD-Administrators",
+						"Purchasing-Department",
+						"AppX-Test-Users",
+					},
+					"email": "someone@example.org",
 				})
 
 				privKey, err := ioutil.ReadFile(keyPath)

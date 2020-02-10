@@ -1066,6 +1066,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		auth.NewOAuthOidcUserInfos(o.OIDCSecretsFile, o.SecretsRegistry),
 		auth.NewOAuthOidcAnyClaims(o.OIDCSecretsFile, o.SecretsRegistry),
 		auth.NewOAuthOidcAllClaims(o.OIDCSecretsFile, o.SecretsRegistry),
+		auth.NewOIDCQueryClaimsFilter(),
 		apiusagemonitoring.NewApiUsageMonitoring(
 			o.ApiUsageMonitoringEnable,
 			o.ApiUsageMonitoringRealmKeys,
