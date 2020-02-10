@@ -38,7 +38,7 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 	}
 
 	logString := logBuf.String()
-	if strings.Index(logString, routeGroupsNotInstalledMessage) < 0 {
+	if !strings.Contains(logString, routeGroupsNotInstalledMessage) {
 		t.Error("failed to log missing RouteGroups CRD")
 	}
 
