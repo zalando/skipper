@@ -62,7 +62,7 @@ pipeline:
   commands:
   - desc: install deps
     cmd: |
-      pip3 install --constraint docs/python-constraints.txt mkdocs mkdocs-material markdown-include
+      pip3 install mkdocs mkdocs-material markdown-include
   - desc: build docs
     cmd: |
       mkdocs build --strict
