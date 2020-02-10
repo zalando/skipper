@@ -37,6 +37,8 @@ const (
 	serviceAccountRootCAKey    = "ca.crt"
 )
 
+const routeGroupsNotInstalledMessage = "RouteGroups CRD is not installed in the cluster."
+
 type clusterClient struct {
 	ingressesURI   string
 	routeGroupsURI string
@@ -46,6 +48,8 @@ type clusterClient struct {
 	tokenProvider  secrets.SecretsProvider
 	httpClient     *http.Client
 	apiURL         string
+
+	loggedMissingRouteGroups bool
 }
 
 var (
@@ -330,6 +334,15 @@ func (c *clusterClient) loadEndpoints() (map[resourceID]*endpoint, error) {
 	return result, nil
 }
 
+func (c *clusterClient) logMissingRouteGroupsOnce() {
+	if c.loggedMissingRouteGroups {
+		return
+	}
+
+	c.loggedMissingRouteGroups = true
+	log.Info(routeGroupsNotInstalledMessage)
+}
+
 func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	ingresses, err := c.loadIngresses()
 	if err != nil {
@@ -337,9 +350,12 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	}
 
 	var routeGroups []*routeGroupItem
-	if hasRouteGroups, err := c.clusterHasRouteGroups(); err != nil {
+	if hasRouteGroups, err := c.clusterHasRouteGroups(); errors.Is(err, errResourceNotFound) {
+		c.logMissingRouteGroupsOnce()
+	} else if err != nil {
 		log.Errorf("Error while checking known resource types: %v.", err)
 	} else if hasRouteGroups {
+		c.loggedMissingRouteGroups = false
 		if routeGroups, err = c.loadRouteGroups(); err != nil {
 			return nil, err
 		}
