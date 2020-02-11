@@ -27,7 +27,7 @@ const (
 
 type authClient struct {
 	url *url.URL
-	tr  *net.Transport
+	cli *net.Client
 }
 
 func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer) (*authClient, error) {
@@ -43,20 +43,20 @@ func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns
 		return nil, err
 	}
 
-	tr := net.NewTransport(net.Options{
-		ResponseHeaderTimeout: timeout,
-		TLSHandshakeTimeout:   timeout,
-		MaxIdleConnsPerHost:   maxIdleConns,
-		Tracer:                tracer,
+	cli := net.NewClient(net.Options{
+		ResponseHeaderTimeout:   timeout,
+		TLSHandshakeTimeout:     timeout,
+		MaxIdleConnsPerHost:     maxIdleConns,
+		Tracer:                  tracer,
+		OpentracingComponentTag: "skipper",
+		OpentracingSpanName:     spanName,
 	})
-	tr = net.WithSpanName(tr, spanName)
-	tr = net.WithComponentTag(tr, "skipper")
 
-	return &authClient{url: u, tr: tr}, nil
+	return &authClient{url: u, cli: cli}, nil
 }
 
 func (ac *authClient) Close() {
-	ac.tr.Close()
+	ac.cli.Close()
 }
 
 func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext) (tokenIntrospectionInfo, error) {
@@ -73,7 +73,7 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	rsp, err := ac.tr.RoundTrip(req)
+	rsp, err := ac.cli.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 		req.Header.Set(authHeaderName, authHeaderPrefix+token)
 	}
 
-	rsp, err := ac.tr.RoundTrip(req)
+	rsp, err := ac.cli.Do(req)
 	if err != nil {
 		return doc, err
 	}
@@ -125,7 +125,7 @@ func (ac *authClient) getWebhook(ctx filters.FilterContext) (*http.Response, err
 	}
 	copyHeader(req.Header, ctx.Request().Header)
 
-	rsp, err := ac.tr.RoundTrip(req)
+	rsp, err := ac.cli.Do(req)
 	if err != nil {
 		return nil, err
 	}

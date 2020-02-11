@@ -22,12 +22,6 @@ var (
 	ErrFailedToReadFile = errors.New("failed to read file")
 )
 
-// SecretsReader is able to get a secret
-type SecretsReader interface {
-	// GetSecret finds secret by name and returns secret and if found or not
-	GetSecret(string) ([]byte, bool)
-}
-
 // SecretsProvider is a SecretsReader and can add secret sources that
 // contain a secret. It will automatically update secrets if the source
 // changed.
@@ -41,8 +35,7 @@ type SecretsProvider interface {
 type SecretPaths struct {
 	mu              sync.RWMutex
 	quit            chan struct{}
-	secrets         map[string][]byte
-	files           *syncmap.Map
+	secrets         *syncmap.Map
 	refreshInterval time.Duration
 	started         bool
 }
@@ -57,8 +50,7 @@ func NewSecretPaths(d time.Duration) *SecretPaths {
 
 	return &SecretPaths{
 		quit:            make(chan struct{}),
-		secrets:         make(map[string][]byte),
-		files:           &syncmap.Map{},
+		secrets:         &syncmap.Map{},
 		refreshInterval: d,
 		started:         false,
 	}
@@ -66,19 +58,19 @@ func NewSecretPaths(d time.Duration) *SecretPaths {
 
 // GetSecret returns secret and if found or not for a given name.
 func (sp *SecretPaths) GetSecret(s string) ([]byte, bool) {
-	sp.mu.RLock()
-	dat, ok := sp.secrets[s]
-	sp.mu.RUnlock()
-	return dat, ok
+	dat, ok := sp.secrets.Load(s)
+	if !ok {
+		return nil, false
+	}
+	b, ok := dat.([]byte)
+	return b, ok
 }
 
-func (sp *SecretPaths) updateSecret(name string, dat []byte) {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
+func (sp *SecretPaths) updateSecret(s string, dat []byte) {
 	if len(dat) > 0 && dat[len(dat)-1] == 0xa {
 		dat = dat[:len(dat)-1]
 	}
-	sp.secrets[name] = dat
+	sp.secrets.Store(s, dat)
 }
 
 // Add adds a file or directory to find secrets in all files
@@ -87,11 +79,13 @@ func (sp *SecretPaths) updateSecret(name string, dat []byte) {
 // concurrently. Add has a side effect of lazily init a goroutine to
 // start a single background refresher for the SecretPaths instance.
 func (sp *SecretPaths) Add(p string) error {
+	sp.mu.Lock()
 	if !sp.started {
 		// lazy init background goroutine, such that we have only a goroutine if there is work
 		go sp.runRefresher()
 		sp.started = true
 	}
+	sp.mu.Unlock()
 
 	fi, err := os.Lstat(p)
 	if err != nil {
@@ -101,15 +95,19 @@ func (sp *SecretPaths) Add(p string) error {
 
 	switch mode := fi.Mode(); {
 	case mode.IsRegular():
-		return sp.registerSecretFile(fi.Name(), p)
+		return sp.registerSecretFile(p)
 
 	case mode.IsDir():
 		return sp.handleDir(p)
 
 	case mode&os.ModeSymlink != 0: // TODO(sszuecs) do we want to support symlinks or not?
-		err := sp.registerSecretFile(fi.Name(), p) // link to regular file
+		newp, err := os.Readlink(p)
 		if err != nil {
-			return sp.tryDir(p)
+			return err
+		}
+		err = sp.registerSecretFile(newp) // link to regular file
+		if err != nil {
+			return sp.tryDir(newp)
 		}
 		return nil
 	}
@@ -125,7 +123,7 @@ func (sp *SecretPaths) handleDir(p string) error {
 
 	numErrors := 0
 	for _, s := range m {
-		if err = sp.registerSecretFile(filepath.Base(s), s); err != nil {
+		if err = sp.registerSecretFile(s); err != nil {
 			numErrors += 1
 		}
 	}
@@ -144,8 +142,8 @@ func (sp *SecretPaths) tryDir(p string) error {
 	return sp.handleDir(p)
 }
 
-func (sp *SecretPaths) registerSecretFile(name, p string) error {
-	if _, ok := sp.GetSecret(name); ok {
+func (sp *SecretPaths) registerSecretFile(p string) error {
+	if _, ok := sp.GetSecret(p); ok {
 		return ErrAlreadyExists
 	}
 	dat, err := ioutil.ReadFile(p)
@@ -153,45 +151,42 @@ func (sp *SecretPaths) registerSecretFile(name, p string) error {
 		log.Errorf("Failed to read file %s: %v", p, err)
 		return err
 	}
-	sp.updateSecret(name, dat)
-	sp.files.Store(name, p)
-
+	sp.updateSecret(p, dat)
 	return nil
 }
 
 // runRefresher refreshes all secrets, that are registered
 func (sp *SecretPaths) runRefresher() {
-	log.Infof("Run secrets path refresher every %s", sp.refreshInterval)
+	log.Infof("Run secrets path refresher every %s, but update once first", sp.refreshInterval)
+	var d time.Duration
 	for {
 		select {
-		case <-time.After(sp.refreshInterval):
-			sp.files.Range(func(k, b interface{}) bool {
-				name, ok := k.(string)
+		case <-time.After(d):
+			sp.secrets.Range(func(k, _ interface{}) bool {
+				f, ok := k.(string)
 				if !ok {
 					log.Errorf("Failed to convert k '%v' to string", k)
 					return true
 				}
-				p, ok := b.(string)
-				if !ok {
-					log.Errorf("Failed to convert p '%v' to string", b)
-					return true
-				}
-				dat, err := ioutil.ReadFile(p)
+				sec, err := ioutil.ReadFile(f)
 				if err != nil {
-					log.Errorf("Failed to read file (%s): %v", p, err)
+					log.Errorf("Failed to read file (%s): %v", f, err)
 					return true
 				}
-				log.Infof("update secret file: %s", name)
-				sp.updateSecret(name, dat)
+				log.Infof("update secret file: %s", f)
+				sp.updateSecret(f, sec)
 				return true
 			})
 		case <-sp.quit:
 			log.Infoln("Stop secrets background refresher")
 			return
 		}
+		d = sp.refreshInterval
 	}
 }
 
 func (sp *SecretPaths) Close() {
-	close(sp.quit)
+	if sp != nil {
+		close(sp.quit)
+	}
 }

@@ -3,10 +3,11 @@ package secrets
 import (
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
+
+	"golang.org/x/sync/syncmap"
 )
 
 func Test_SecretPaths_GetSecret(t *testing.T) {
@@ -45,7 +46,11 @@ func Test_SecretPaths_GetSecret(t *testing.T) {
 			want:   []byte("data"),
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			sp := &SecretPaths{secrets: tt.secrets}
+			smap := &syncmap.Map{}
+			for k, v := range tt.secrets {
+				smap.Store(k, v)
+			}
+			sp := &SecretPaths{secrets: smap}
 			got, ok := sp.GetSecret(tt.s)
 			if ok != tt.wantOk {
 				t.Errorf("SecretPaths.GetSecret() ok = %v, want %v", ok, tt.wantOk)
@@ -65,10 +70,15 @@ func Test_SecretPaths_Add(t *testing.T) {
 	}
 	defer func() {
 		t.Logf("remove %s", temproot)
-		os.RemoveAll(temproot)
+		//os.RemoveAll(temproot)
 	}()
+
 	watchit := temproot + "/watch"
-	os.MkdirAll(watchit+"/subdir", 0777)
+	err = os.MkdirAll(watchit+"/subdir", 0777)
+	if err != nil {
+		t.Fatalf("Failed to create %s: %v", watchit+"/subdir", err)
+	}
+
 	dat := []byte("data")
 	filename := "/afile"
 	if err := os.Symlink(watchit+filename, watchit+"/mysymlink"); err != nil {
@@ -106,7 +116,7 @@ func Test_SecretPaths_Add(t *testing.T) {
 
 			name:      "Should GetSecret after write to watched symlink",
 			addFile:   watchit + "/mysymlink",
-			writeFile: watchit + "/mysymlink",
+			writeFile: watchit + filename,
 			want:      dat,
 			wantOk:    true,
 			wantErr:   false,
@@ -154,7 +164,7 @@ func Test_SecretPaths_Add(t *testing.T) {
 			}
 			time.Sleep(100 * time.Millisecond) // wait for refresher
 
-			got, ok := sp.GetSecret(filepath.Base(tt.writeFile))
+			got, ok := sp.GetSecret(tt.writeFile)
 			if ok != tt.wantOk {
 				t.Errorf("Failed to get ok: got: %v want: %v", ok, tt.wantOk)
 			}
@@ -195,7 +205,7 @@ func Test_SecretPaths_Close(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond) // wait for refresher
 
-	got, ok := sp.GetSecret(filepath.Base(afile))
+	got, ok := sp.GetSecret(afile)
 	if !ok {
 		t.Errorf("Should have secret: %v", ok)
 	}
@@ -210,7 +220,7 @@ func Test_SecretPaths_Close(t *testing.T) {
 		t.Errorf("Failed to write to file: %v", err)
 	}
 	time.Sleep(100 * time.Millisecond) // wait for fsnotify
-	got, ok = sp.GetSecret(filepath.Base(afile))
+	got, ok = sp.GetSecret(afile)
 	if !ok {
 		t.Errorf("Should have former secret: %v", ok)
 	}
