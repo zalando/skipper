@@ -23,7 +23,13 @@ representation:
 Other higher level argument types must be represented as one of the above types. E.g. it is a convention to
 represent time duration values as strings, parseable by [time.Duration](https://godoc.org/time#ParseDuration)).
 
-## Path
+## The path tree
+
+There is an important difference between the evaluation of the [Path](#Path) or [PathSubtree](#PathSubtree) predicates, and the
+evaluation of all the other predicates ([PathRegexp](#PathRegexp) belonging to the second group). Find an explanation in the
+[Route matching](../tutorials/basics.md/#route-matching) section explanation section.
+
+### Path
 
 The path predicate is used to match the path in HTTP request line. It accepts a single argument, that can be a
 fixed path like "/some/path", or it can contain wildcards. There can be only zero or one path predicate in a
@@ -62,7 +68,7 @@ Path("/foo/*rest")   //   /foo/bar/baz
 Path("/foo/**")      //   /foo/bar/baz
 ```
 
-## PathSubtree
+### PathSubtree
 
 The path subtree predicate behaves similar to the path predicate, but it matches the exact path in the
 definition and any sub path below it. The subpath is automatically provided among the path parameters with the
@@ -79,13 +85,7 @@ PathSubtree("/")
 PathSubtree("/foo/*rest")
 ```
 
-## The path tree:
-
-There is an important difference between the evaluation of the Path or PathSubtree predicates, and the
-evaluation of all the other predicates (PathRegexp belonging to the second group). Find an explanation in the
-[Route matching](../tutorials/basics.md/#route-matching) section explanation section.
-
-## PathRegexp
+### PathRegexp
 
 Regular expressions to match the path. It uses Go's standard library
 regexp package to match, which is based on
