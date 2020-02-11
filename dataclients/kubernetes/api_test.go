@@ -25,11 +25,13 @@ type namespace struct {
 
 type testAPIOptions struct {
 	FailOn             []string `yaml:"failOn"`
+	FindNot            []string `yaml:"findNot"`
 	DisableRouteGroups bool     `yaml:"disableRouteGroups"`
 }
 
 type api struct {
 	failOn       map[string]bool
+	findNot      map[string]bool
 	namespaces   map[string]namespace
 	all          namespace
 	pathRx       *regexp.Regexp
@@ -83,13 +85,21 @@ func readAPIOptions(r io.Reader) (o testAPIOptions, err error) {
 	return
 }
 
+func mapStrings(s []string) map[string]bool {
+	m := make(map[string]bool)
+	for _, si := range s {
+		m[si] = true
+	}
+
+	return m
+}
+
 func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
 		pathRx: regexp.MustCompile(
 			"(/namespaces/([^/]+))?/(services|ingresses|routegroups|endpoints)",
 		),
-		failOn: make(map[string]bool),
 	}
 
 	var clr clusterResourceList
@@ -97,9 +107,8 @@ func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 		clr.Items = append(clr.Items, &clusterResource{Name: routeGroupsName})
 	}
 
-	for _, f := range o.FailOn {
-		a.failOn[f] = true
-	}
+	a.failOn = mapStrings(o.FailOn)
+	a.findNot = mapStrings(o.FindNot)
 
 	clrb, err := json.Marshal(clr)
 	if err != nil {
@@ -174,6 +183,11 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if a.failOn[r.URL.Path] {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if a.findNot[r.URL.Path] {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
