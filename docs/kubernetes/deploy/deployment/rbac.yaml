@@ -33,12 +33,29 @@ kind: ClusterRole
 metadata:
   name: skipper-ingress
 rules:
-- apiGroups: ["extensions"]
-  resources: ["ingresses", ]
-  verbs: ["get", "list"]
+- apiGroups:
+    - extensions
+  resources:
+    - ingresses
+  verbs:
+    - get
+    - list
 - apiGroups: [""]
-  resources: ["namespaces", "services", "endpoints", "pods"]
-  verbs: ["get", "list"]
+  resources:
+    - namespaces
+    - services
+    - endpoints
+    - pods
+  verbs:
+    - get
+    - list
+- apiGroups:
+  - zalando.org
+  resources:
+  - routegroups
+  verbs:
+  - get
+  - list
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
