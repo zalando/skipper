@@ -10,31 +10,27 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func containsMax(s, substr string, maxCount int) bool {
-	var count int
+func containsCount(s, substr string, count int) bool {
+	var found int
 	for {
 		i := strings.Index(s, substr)
 		if i < 0 {
-			return count <= maxCount
+			return found == count
 		}
 
-		if maxCount < 0 {
-			return true
-		}
-
-		if count == maxCount {
+		if found == count {
 			return false
 		}
 
-		count++
+		found++
 		s = s[i+len(substr):]
 	}
 }
 
-func containsEveryLineMax(s, substr string, maxCount int) bool {
+func containsEveryLineCount(s, substr string, count int) bool {
 	l := strings.Split(substr, "\n")
 	for _, li := range l {
-		if !containsMax(s, li, maxCount) {
+		if !containsCount(s, li, count) {
 			return false
 		}
 	}
@@ -69,7 +65,7 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !containsEveryLineMax(logBuf.String(), routeGroupsNotInstalledMessage, 1) {
+	if !containsEveryLineCount(logBuf.String(), routeGroupsNotInstalledMessage, 1) {
 		t.Error("missing RouteGroups CRD was not reported exactly once")
 	}
 }
