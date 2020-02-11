@@ -10,6 +10,38 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func containsMax(s, substr string, maxCount int) bool {
+	var count int
+	for {
+		i := strings.Index(s, substr)
+		if i < 0 {
+			return count <= maxCount
+		}
+
+		if maxCount < 0 {
+			return true
+		}
+
+		if count == maxCount {
+			return false
+		}
+
+		count++
+		s = s[i+len(substr):]
+	}
+}
+
+func containsEveryLineMax(s, substr string, maxCount int) bool {
+	l := strings.Split(substr, "\n")
+	for _, li := range l {
+		if !containsMax(s, li, maxCount) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 	a, err := newAPI(testAPIOptions{FindNot: []string{clusterZalandoResourcesURI}})
 	if err != nil {
@@ -37,13 +69,7 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	logString := logBuf.String()
-	if !strings.Contains(logString, routeGroupsNotInstalledMessage) {
-		t.Error("failed to log missing RouteGroups CRD")
-	}
-
-	if strings.Index(logString, routeGroupsNotInstalledMessage) !=
-		strings.LastIndex(logString, routeGroupsNotInstalledMessage) {
-		t.Error("missing RouteGroups CRD was reported multiple times")
+	if !containsEveryLineMax(logBuf.String(), routeGroupsNotInstalledMessage, 1) {
+		t.Error("missing RouteGroups CRD was not reported exactly once")
 	}
 }
