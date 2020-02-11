@@ -5,7 +5,7 @@ metadata:
   namespace: kube-system
   labels:
     application: skipper-ingress
-    version: v0.11.1
+    version: v0.11.40
     component: ingress
 spec:
   strategy:
@@ -18,7 +18,7 @@ spec:
     metadata:
       labels:
         application: skipper-ingress
-        version: v0.11.1
+        version: v0.11.40
         component: ingress
     spec:
       affinity:
@@ -39,7 +39,7 @@ spec:
       hostNetwork: true
       containers:
       - name: skipper-ingress
-        image: registry.opensource.zalan.do/pathfinder/skipper:v0.11.1
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.11.40
         ports:
         - name: ingress-port
           containerPort: 9999

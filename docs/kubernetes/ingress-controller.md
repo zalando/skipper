@@ -322,8 +322,9 @@ To deploy the demo application, you have to run:
 kubectl create -f docs/kubernetes/deploy/demo/
 ```
 
-Now we have a skipper-ingress running as daemonset exposing the TCP
-port 9999 on each worker node, a backend application running with 2
+Now we have a skipper-ingress running as daemonset or deployment
+exposing the TCP port 9999 on each worker nodes, which has a running
+skipper-ingress instance, a backend application running with 2
 replicas that serves some html on TCP port 9090, and we expose a
 cluster service on TCP port 80. Besides skipper-ingress, deployment
 and service can not be reached from outside the cluster. Now we expose
@@ -362,7 +363,9 @@ The next question you may ask is: how to expose this to your customers?
 The answer depends on your setup and complexity requirements. In the
 simplest case you could add one A record in your DNS `*.<mydomain.org>`
 to your frontend load balancer IP that directs all traffic from `*.<mydomain.org>`
-to all Kubernetes worker nodes on TCP port 9999.
+to all Kubernetes worker nodes on TCP port 9999. The load balancer
+health check should make sure, that only nodes with ready skipper-ingress
+instances will get traffic.
 
 A more complex setup we use in production and can be done with
 something that configures your frontend load balancer, for example
