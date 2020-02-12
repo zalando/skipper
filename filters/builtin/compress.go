@@ -7,12 +7,12 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -54,30 +54,21 @@ var defaultCompressMIME = []string{
 }
 
 var (
-	gzipPool    = &sync.Pool{}
-	deflatePool = &sync.Pool{}
-)
-
-func init() {
-	// #cpu * 4: pool size decided based on some
-	// simple tests, checking performance by binary
-	// steps
-	for i := 0; i < runtime.NumCPU()*4; i++ {
+	gzipPool = &sync.Pool{New: func() interface{} {
 		ge, err := newEncoder("gzip", flate.BestSpeed)
 		if err != nil {
-			panic(err)
+			log.Error(err)
 		}
-
-		gzipPool.Put(ge)
-
+		return ge
+	}}
+	deflatePool = &sync.Pool{New: func() interface{} {
 		fe, err := newEncoder("deflate", flate.BestSpeed)
 		if err != nil {
-			panic(err)
+			log.Error(err)
 		}
-
-		deflatePool.Put(fe)
-	}
-}
+		return fe
+	}}
+)
 
 func (e encodings) Len() int           { return len(e) }
 func (e encodings) Less(i, j int) bool { return e[i].q > e[j].q } // higher first
