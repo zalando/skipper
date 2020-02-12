@@ -171,6 +171,18 @@ Notes:
 * does a simple directory listing of files / directories when no `index.html` is present
 
 ## stripQuery
+
+Removes the query parameter from the request URL, and if the first filter
+parameter is `"true"`, preserves the query parameter in the form of
+`x-query-param-<queryParamName>: <queryParamValue>` headers, so that `?foo=bar`
+becomes `x-query-param-foo: bar`
+
+Example:
+```
+* -> stripQuery() -> "http://backend.example.org";
+* -> stripQuery("true") -> "http://backend.example.org";
+```
+
 ## preserveHost
 
 Sets the incoming `Host: ` header on the outgoing backend connection.
