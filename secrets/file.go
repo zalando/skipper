@@ -126,14 +126,6 @@ func (sp *SecretPaths) handleDir(p string) error {
 	return nil
 }
 
-func (sp *SecretPaths) tryDir(p string) error {
-	_, err := filepath.Glob(p + "/*")
-	if err != nil {
-		return ErrWrongFileType
-	}
-	return sp.handleDir(p)
-}
-
 func (sp *SecretPaths) registerSecretFile(p string) error {
 	if _, ok := sp.GetSecret(p); ok {
 		return ErrAlreadyExists

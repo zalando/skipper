@@ -140,7 +140,7 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 
 		b, ok := c.tokenProvider.GetSecret(serviceAccountDir + serviceAccountTokenKey)
 		if !ok {
-			return nil, fmt.Errorf("Failed to GetSecret: %s", serviceAccountDir+serviceAccountTokenKey)
+			return nil, fmt.Errorf("failed to GetSecret: %s", serviceAccountDir+serviceAccountTokenKey)
 		}
 		log.Debugf("Got secret %d bytes", len(b))
 	}
