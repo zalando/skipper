@@ -10,6 +10,7 @@ import (
 
 type logHeader struct{}
 
+// NewLogHeader creates a filter specification for the 'logHeader()' filter.
 func NewLogHeader() filters.Spec                                     { return logHeader{} }
 func (logHeader) Name() string                                       { return "logHeader" }
 func (logHeader) CreateFilter([]interface{}) (filters.Filter, error) { return logHeader{}, nil }

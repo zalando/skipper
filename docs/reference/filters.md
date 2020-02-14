@@ -415,6 +415,11 @@ It logs with INFO level and a unique ID per request:
 - the finishing event of the request
 - any read errors other than EOF
 
+## logHeader
+
+The logHeader filter prints the request line and the header, but not the boddy, to
+stderr.
+
 ## tee
 
 Provides a unix-like `tee` feature for routing.
