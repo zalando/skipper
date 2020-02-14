@@ -84,9 +84,6 @@ func Test_SecretPaths_Add(t *testing.T) {
 	if err := os.Symlink(watchit+filename, watchit+"/mysymlink"); err != nil {
 		t.Errorf("Failed to create symlink")
 	}
-	if err := os.Symlink(watchit, watchit+"/mysymlinktodir"); err != nil {
-		t.Errorf("Failed to create symlink to dir")
-	}
 
 	for _, tt := range []struct {
 		name      string
@@ -113,19 +110,9 @@ func Test_SecretPaths_Add(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-
 			name:      "Should GetSecret after write to watched symlink",
 			addFile:   watchit + "/mysymlink",
-			writeFile: watchit + filename,
-			want:      dat,
-			wantOk:    true,
-			wantErr:   false,
-		},
-		{
-
-			name:      "Should GetSecret after write to watched symlinked directory",
-			addFile:   watchit + "/mysymlinktodir",
-			writeFile: watchit + filename + "3",
+			writeFile: watchit + "/mysymlink",
 			want:      dat,
 			wantOk:    true,
 			wantErr:   false,
@@ -148,6 +135,7 @@ func Test_SecretPaths_Add(t *testing.T) {
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			sp := NewSecretPaths(60 * time.Millisecond)
+			defer sp.Close()
 			err := ioutil.WriteFile(tt.writeFile, []byte(""), 0644)
 			if err != nil {
 				t.Errorf("Failed to create file: %v", err)
@@ -219,7 +207,7 @@ func Test_SecretPaths_Close(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to write to file: %v", err)
 	}
-	time.Sleep(100 * time.Millisecond) // wait for fsnotify
+	time.Sleep(100 * time.Millisecond) // wait for refresher
 	got, ok = sp.GetSecret(afile)
 	if !ok {
 		t.Errorf("Should have former secret: %v", ok)

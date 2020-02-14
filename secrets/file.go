@@ -100,16 +100,8 @@ func (sp *SecretPaths) Add(p string) error {
 	case mode.IsDir():
 		return sp.handleDir(p)
 
-	case mode&os.ModeSymlink != 0: // TODO(sszuecs) do we want to support symlinks or not?
-		newp, err := os.Readlink(p)
-		if err != nil {
-			return err
-		}
-		err = sp.registerSecretFile(newp) // link to regular file
-		if err != nil {
-			return sp.tryDir(newp)
-		}
-		return nil
+	case mode&os.ModeSymlink != 0: // Kubernetes use symlink to file
+		return sp.registerSecretFile(p)
 	}
 
 	return ErrWrongFileType
@@ -132,14 +124,6 @@ func (sp *SecretPaths) handleDir(p string) error {
 	}
 
 	return nil
-}
-
-func (sp *SecretPaths) tryDir(p string) error {
-	_, err := filepath.Glob(p + "/*")
-	if err != nil {
-		return ErrWrongFileType
-	}
-	return sp.handleDir(p)
 }
 
 func (sp *SecretPaths) registerSecretFile(p string) error {

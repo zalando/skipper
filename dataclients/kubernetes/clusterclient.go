@@ -132,7 +132,17 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 
 	if o.KubernetesInCluster {
 		c.tokenProvider = secrets.NewSecretPaths(time.Minute)
-		c.tokenProvider.Add(serviceAccountDir + serviceAccountTokenKey)
+		err := c.tokenProvider.Add(serviceAccountDir + serviceAccountTokenKey)
+		if err != nil {
+			log.Errorf("Failed to Add secret %s: %v", serviceAccountDir+serviceAccountTokenKey, err)
+			return nil, err
+		}
+
+		b, ok := c.tokenProvider.GetSecret(serviceAccountDir + serviceAccountTokenKey)
+		if !ok {
+			return nil, fmt.Errorf("failed to GetSecret: %s", serviceAccountDir+serviceAccountTokenKey)
+		}
+		log.Debugf("Got secret %d bytes", len(b))
 	}
 
 	if o.KubernetesNamespace != "" {
@@ -156,9 +166,9 @@ func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request
 	}
 
 	if c.tokenProvider != nil {
-		token, ok := c.tokenProvider.GetSecret(serviceAccountTokenKey)
+		token, ok := c.tokenProvider.GetSecret(serviceAccountDir + serviceAccountTokenKey)
 		if !ok {
-			return nil, fmt.Errorf("secret not found: %v", serviceAccountTokenKey)
+			return nil, fmt.Errorf("secret not found: %v", serviceAccountDir+serviceAccountTokenKey)
 		}
 		req.Header.Set("Authorization", "Bearer "+string(token))
 	}
