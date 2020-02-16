@@ -144,6 +144,23 @@ Method("GET")
 Method("OPTIONS")
 ```
 
+## Methods
+
+The HTTP method that the request must match. HTTP methods are one of
+GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT.
+
+Parameters:
+
+* Method (...string) methods names
+
+Examples:
+
+```
+Methods("GET")
+Methods("OPTIONS", "POST")
+Methods("OPTIONS", "POST", "patch")
+```
+
 ## Header
 
 A header key and exact value that must be present in the request. Note
