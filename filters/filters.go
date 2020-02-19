@@ -96,6 +96,9 @@ type FilterContext interface {
 
 	// Allow filters to create their own spans
 	ParentSpan() opentracing.Span
+
+	// Returns if the current response is shunted.
+	Shunted() bool
 }
 
 // Metrics provides possibility to use custom metrics from filter implementations. The custom metrics will

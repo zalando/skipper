@@ -160,6 +160,12 @@ func (r *tee) Request(fc filters.FilterContext) {
 		}()
 
 		rsp, err := r.client.Do(copyOfRequest)
+
+		// Prevent to leak goroutines when request body is never read.
+		if fc.Shunted() {
+			defer copyOfRequest.Body.Close()
+		}
+
 		if err != nil {
 			log.Warn("tee: error while tee request", err)
 			return
