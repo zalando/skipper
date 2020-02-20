@@ -300,7 +300,10 @@ func encode(out *io.PipeWriter, in io.ReadCloser, enc string, level int) {
 
 	defer func() {
 		if e != nil {
-			e.Close()
+			cerr := e.Close()
+			if cerr == nil && level == flate.BestSpeed {
+				encoderPool(enc).Put(e)
+			}
 		}
 
 		if err == nil {
@@ -312,17 +315,17 @@ func encode(out *io.PipeWriter, in io.ReadCloser, enc string, level int) {
 	}()
 
 	if level == flate.BestSpeed {
-		pool := encoderPool(enc)
-		pe := pool.Get()
-		if pe != nil {
-			e = pe.(encoder)
-			defer pool.Put(pe)
-		}
-	}
+		e = encoderPool(enc).Get().(encoder)
 
-	if e == nil {
+		// if the pool.New failed to create an encoder,
+		// then we already have logged the error
+		if e == nil {
+			return
+		}
+	} else {
 		e, err = newEncoder(enc, level)
 		if err != nil {
+			log.Error(err)
 			return
 		}
 	}

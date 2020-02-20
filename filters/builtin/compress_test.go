@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -589,6 +590,57 @@ func TestStreaming(t *testing.T) {
 	}); err != nil {
 		t.Error(err)
 	}
+}
+
+func TestPoolRelease(t *testing.T) {
+	// This test needs can reproduce a bug caused by the wrong order of closing the encoders and putting
+	// them back to the pool.
+	//
+	// https://github.com/zalando/skipper/issues/1312
+	//
+	// Enable it only for long running tests.
+	t.Skip()
+
+	const (
+		numberOfTries = 10000
+		concurrency   = 256
+	)
+
+	f, err := NewCompress().CreateFilter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			for i := 0; i < numberOfTries; i++ {
+				ctx := &filtertest.Context{
+					FRequest: &http.Request{
+						Header: http.Header{
+							"Accept-Encoding": []string{"gzip"},
+						},
+					},
+					FResponse: &http.Response{
+						Header: http.Header{
+							"Content-Length": []string{"9000"},
+							"Content-Type":   []string{"application/octet-stream"},
+						},
+						Body: ioutil.NopCloser(bytes.NewBuffer(testContent[:9000])),
+					},
+				}
+
+				f.Response(ctx)
+				ioutil.ReadAll(ctx.Response().Body)
+				ctx.Response().Body.Close()
+			}
+
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }
 
 func BenchmarkCompress0(b *testing.B) { benchmarkCompress(b, 0) }
