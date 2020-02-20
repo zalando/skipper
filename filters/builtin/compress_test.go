@@ -606,7 +606,6 @@ func TestPoolRelease(t *testing.T) {
 		concurrency   = 256
 	)
 
-
 	f, err := NewCompress().CreateFilter(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -614,8 +613,8 @@ func TestPoolRelease(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
 		go func() {
-			wg.Add(1)
 			for i := 0; i < numberOfTries; i++ {
 				ctx := &filtertest.Context{
 					FRequest: &http.Request{
