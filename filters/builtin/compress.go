@@ -298,9 +298,11 @@ func encode(out *io.PipeWriter, in io.ReadCloser, enc string, level int) {
 		err error
 	)
 
+	backToPool := func() {}
 	defer func() {
 		if e != nil {
 			e.Close()
+			backToPool()
 		}
 
 		if err == nil {
@@ -316,7 +318,7 @@ func encode(out *io.PipeWriter, in io.ReadCloser, enc string, level int) {
 		pe := pool.Get()
 		if pe != nil {
 			e = pe.(encoder)
-			defer pool.Put(pe)
+			backToPool = func() { pool.Put(pe) }
 		}
 	}
 
