@@ -40,6 +40,7 @@ import (
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/interval"
+	"github.com/zalando/skipper/predicates/methods"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
 	"github.com/zalando/skipper/predicates/traffic"
@@ -1117,6 +1118,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		pauth.NewJWTPayloadAnyKV(),
 		pauth.NewJWTPayloadAllKVRegexp(),
 		pauth.NewJWTPayloadAnyKVRegexp(),
+		methods.New(),
 	)
 
 	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
