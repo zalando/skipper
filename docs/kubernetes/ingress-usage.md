@@ -471,7 +471,7 @@ Set a Cookie in the response path of your clients.
 
 ### Authorization
 
-Our [autnetication and authorization tutorial](../../tutorials/auth/)
+Our [authentication and authorization tutorial](../../tutorials/auth/)
 or [filter auth godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
 shows how to use filters for authorization.
 
