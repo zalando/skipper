@@ -415,6 +415,13 @@ It logs with INFO level and a unique ID per request:
 - the finishing event of the request
 - any read errors other than EOF
 
+## logHeader
+
+The logHeader filter prints the request line and the header, but not the body, to
+stderr. Note that this filter should be used only in diagnostics setup and with care,
+since the request headers may contain sensitive data, and they also can explode the
+amount of logs.
+
 ## tee
 
 Provides a unix-like `tee` feature for routing.
