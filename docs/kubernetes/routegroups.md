@@ -6,7 +6,7 @@ supported by Skipper and not defined by the generic Ingress.
 
 **Important Note:**
 
-*The integration of the RouteGroup CRD with the load balancer and DNS configuration solutions is a work in
+*The integration of the RouteGroup CRD with DNS configuration solutions is a work in
 progress.*
 
 ## Skipper as Kubernetes Ingress controller
@@ -75,13 +75,14 @@ Links:
 
 ## Current Limitations
 
-As mentioned above, the interagtion with load balancer and DNS configuration solutions is a work in progress.
-This means that when using route groups, updating the DNS entries and the load balancer configurations based on
-the host names defined in a route group, currently needs to be done manually. As near milestones, the
+As mentioned above, the integration with DNS configuration solutions
+is a work in progress.  This means that when using route groups,
+updating the DNS entries based on the host names defined in a route
+group, currently needs to be done manually. As near milestones, the
 integration will be done in:
 
-- [Extenral DNS](https://github.com/kubernetes-sigs/external-dns)
-- [Kubernetes Ingress Controller for AWS](https://github.com/zalando-incubator/kube-ingress-aws-controller)
+- [External DNS](https://github.com/kubernetes-sigs/external-dns) [Issue](https://github.com/kubernetes-sigs/external-dns/issues/1403)
+- DONE since v0.10.0: [Kubernetes Ingress Controller for AWS](https://github.com/zalando-incubator/kube-ingress-aws-controller)
 
 ## Installation
 
