@@ -16,10 +16,10 @@ spec:
       labels:
         application: kube-ingress-aws-controller
         version: {{ .Values.KubeIngressAwsVersion }}
-{{ if .Values.kube2iam }}
+{{- if .Values.kube2iam }}
       annotations:
         iam.amazonaws.com/role:  {{ .Values.AwsRole }}
-{{ end }}
+{{- end }}
     spec:
       dnsConfig:
         options:
@@ -47,7 +47,7 @@ spec:
           value: "tag:kubernetes.io/cluster/{{ .Values.ClusterID }}=owned tag:node.kubernetes.io/role=worker"
         - name: AWS_REGION
           value: {{ .Values.Region }}
-{{ if .Values.kube_aws_iam_controller }}
+{{- if .Values.kube_aws_iam_controller }}
         # must be set for the AWS SDK/AWS CLI to find the credentials file.
         - name: AWS_SHARED_CREDENTIALS_FILE # used by golang SDK
           value: /meta/aws-iam/credentials.process
@@ -59,4 +59,4 @@ spec:
       - name: aws-iam-credentials
         secret:
           secretName: kube-ingress-aws-controller-aws-iam-credentials
-{{ end }}
+{{- end }}

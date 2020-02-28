@@ -17,10 +17,10 @@ spec:
       labels:
         application: external-dns
         version: {{ .Values.externalDnsVersion }}
-{{ if .Values.kube2iam }}
+{{- if .Values.kube2iam }}
       annotations:
         iam.amazonaws.com/role: "{{ .Values.externalDnsAwsRole }}"
-{{ end }}
+{{- end }}
     spec:
       dnsConfig:
         options:
@@ -47,7 +47,7 @@ spec:
           httpGet:
             path: /healthz
             port: 7979
-{{ if .Values.kube_aws_iam_controller }}
+{{- if .Values.kube_aws_iam_controller }}
         env:
         # must be set for the AWS SDK/AWS CLI to find the credentials file.
         - name: AWS_SHARED_CREDENTIALS_FILE # used by golang SDK
@@ -56,7 +56,7 @@ spec:
         - name: aws-iam-credentials
           mountPath: /meta/aws-iam
           readOnly: true
-{{ end }}
+{{- end }}
         securityContext:
           readOnlyRootFilesystem: true
           runAsNonRoot: true
@@ -65,9 +65,9 @@ spec:
             drop: ["ALL"]
       securityContext:
         fsGroup: 65534
-{{ if .Values.kube_aws_iam_controller }}
+{{- if .Values.kube_aws_iam_controller }}
       volumes:
       - name: aws-iam-credentials
         secret:
           secretName: external-dns-aws-iam-credentials
-{{ end }}
+{{- end }}
