@@ -857,7 +857,6 @@ func listenAndServeQuit(
 				}
 				tlsCfg.Certificates = append(tlsCfg.Certificates, kp)
 			}
-			tlsCfg.BuildNameToCertificate()
 			o.CertPathTLS = ""
 			o.KeyPathTLS = ""
 			srv.TLSConfig = tlsCfg
