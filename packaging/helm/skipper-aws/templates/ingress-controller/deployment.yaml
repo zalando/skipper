@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-ingress-aws-controller
+  namespace: {{ .Values.namespace }}
+  labels:
+    application: kube-ingress-aws-controller
+    version: {{ .Values.kube_ingress_aws_controller.version }}
+    chart: {{ .Chart.Version }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: kube-ingress-aws-controller
+  template:
+    metadata:
+      labels:
+        application: kube-ingress-aws-controller
+        version: {{ .Values.kube_ingress_aws_controller.version }}
+{{- if .Values.kube2iam.enabled }}
+      annotations:
+        iam.amazonaws.com/role: {{ .Values.kube_ingress_aws_controller.aws_role }}
+{{- end }}
+    spec:
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
+{{- if eq .Values.namespace "kube-system" }}
+      priorityClassName: system-cluster-critical
+{{- end }}
+      serviceAccountName: kube-ingress-aws-controller
+      containers:
+      - name: controller
+        image: {{ .Values.kube_ingress_aws_controller.image }}:{{ .Values.kube_ingress_aws_controller.version }}
+        args:
+        - --stack-termination-protection
+        - --ssl-policy={{ .Values.kube_ingress_aws_controller.ssl_policy }}
+        - --idle-connection-timeout={{ .Values.kube_ingress_aws_controller.idle_timeout }}
+        - --nlb-cross-zone
+        resources:
+          limits:
+            cpu: 50m
+            memory: 100Mi
+          requests:
+            cpu: 50m
+            memory: 100Mi
+        env:
+        - name: CUSTOM_FILTERS
+          value: "tag:kubernetes.io/cluster/{{ .Values.clusterID }}=owned tag:node.kubernetes.io/role=worker"
+        - name: AWS_REGION
+          value: {{ .Values.region }}
+{{- if .Values.kube_aws_iam_controller.enabled }}
+        # must be set for the AWS SDK/AWS CLI to find the credentials file.
+        - name: AWS_SHARED_CREDENTIALS_FILE # used by golang SDK
+          value: /meta/aws-iam/credentials.process
+        volumeMounts:
+        - name: aws-iam-credentials
+          mountPath: /meta/aws-iam
+          readOnly: true
+      volumes:
+      - name: aws-iam-credentials
+        secret:
+          secretName: kube-ingress-aws-controller-aws-iam-credentials
+{{- end }}

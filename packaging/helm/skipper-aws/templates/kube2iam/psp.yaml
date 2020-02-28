@@ -1,0 +1,52 @@
+{{- if .Values.kube2iam.install }}
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: privileged
+  labels:
+    chart: {{ .Chart.Version }}
+spec:
+  fsGroup:
+    rule: RunAsAny
+  privileged: true
+  allowPrivilegeEscalation: true
+  hostPID: true
+  hostNetwork: true
+  hostIPC: true
+  hostPorts:
+  - max: 10000
+    min: 50
+  runAsUser:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  volumes:
+  - '*'
+---
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: restricted
+  labels:
+    chart: {{ .Chart.Version }}
+spec:
+  allowPrivilegeEscalation: false
+  fsGroup:
+    rule: RunAsAny
+  runAsUser:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  volumes:
+  - emptyDir
+  - awsElasticBlockStore
+  - secret
+  - persistentVolumeClaim
+  - downwardAPI
+  - configMap
+  - projected
+{{- end }}

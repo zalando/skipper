@@ -1,0 +1,49 @@
+{{ if .Values.kube_aws_iam_controller.install }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-aws-iam-controller
+  namespace: {{ .Values.namespace }}
+  labels:
+    application: kube-aws-iam-controller
+    version: {{ .Values.kube_aws_iam_controller.version }}
+    chart: {{ .Chart.Version }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: kube-aws-iam-controller
+  template:
+    metadata:
+      labels:
+        application: kube-aws-iam-controller
+        version: {{ .Values.kube_aws_iam_controller.version }}
+    spec:
+      serviceAccountName: kube-aws-iam-controller
+{{- if eq .Values.namespace "kube-system" }}
+      priorityClassName: system-cluster-critical
+{{ end }}
+      # running with hostNetwork to bypass metadata service block from pod
+      # network.
+      hostNetwork: true
+      containers:
+      - name: kube-aws-iam-controller
+        image:
+          {{ .Values.kube_aws_iam_controller.image }}:{{ .Values.kube_aws_iam_controller.version }}
+        args:
+        - --debug
+        - "--assume-role={{ .Values.kube_aws_iam_controller.aws_role }}"
+        resources:
+          limits:
+            cpu: "5m"
+            memory: "50Mi"
+          requests:
+            cpu: "5m"
+            memory: "50Mi"
+      tolerations:
+      - key: node.kubernetes.io/role
+        value: master
+        effect: NoSchedule
+      nodeSelector:
+        node.kubernetes.io/role: master
+{{ end }}

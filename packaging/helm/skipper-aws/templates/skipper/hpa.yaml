@@ -1,0 +1,24 @@
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: skipper-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    application: skipper-ingress
+    chart: {{ .Chart.Version }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: skipper-ingress
+  minReplicas: 3
+  maxReplicas: 30
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 50
+  - type: Resource
+    resource:
+      name: memory
+      targetAverageUtilization: 80

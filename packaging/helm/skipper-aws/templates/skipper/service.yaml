@@ -1,0 +1,25 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: skipper-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    application: skipper-ingress
+    chart: {{ .Chart.Version }}
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "9911"
+    prometheus.io/scrape: "true"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 9999
+    protocol: TCP
+  - name: support
+    port: 9911
+    targetPort: 9911
+    protocol: TCP
+  selector:
+    application: skipper-ingress
