@@ -4,6 +4,9 @@ clusterID: mycluster
 kube2iam: true
 kube_aws_iam_controller: false
 
+# VPA available
+vpa: false
+
 externalDnsVersion: 0.5.18
 externalDnsAwsRole: external-dns-role
 external_dns_ownership_prefix: skipper-test
