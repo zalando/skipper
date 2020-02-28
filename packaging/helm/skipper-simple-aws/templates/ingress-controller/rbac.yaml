@@ -24,21 +24,6 @@ rules:
   verbs:
   - patch
   - update
-- apiGroups:
-  - zalando.org
-  resources:
-  - routegroups
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - zalando.org
-  resources:
-  - routegroups/status
-  verbs:
-  - patch
-  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding

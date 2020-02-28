@@ -15,13 +15,6 @@ rules:
 - apiGroups: [""]
   resources: ["namespaces", "services", "endpoints", "pods"]
   verbs: ["get", "list"]
-- apiGroups:
-  - zalando.org
-  resources:
-  - routegroups
-  verbs:
-  - get
-  - list
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
@@ -39,12 +32,12 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: RoleBinding
 metadata:
-  name: skipper-ingress-privileged-psp
+  name: skipper-ingress-hostnetwork-psp
   namespace: kube-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: privileged-psp
+  name: hostnetwork-psp
 subjects:
 - kind: ServiceAccount
   name: skipper-ingress
