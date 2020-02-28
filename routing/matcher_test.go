@@ -327,8 +327,7 @@ func benchmarkLookup(b *testing.B, matcher *matcher, phaseCount int) {
 
 		if (index < phaseCount && r.Backend != randomRoutes[index].Backend) ||
 			(index >= phaseCount && r != nil) {
-			b.Log("benchmark failed", r == nil, fmt.Sprintf("(%s != %s)", r.Backend, randomRoutes[index].Backend),
-				index, i, b.N, randomRequests[index].URL.Path)
+			b.Log("benchmark failed", r == nil, index, i, b.N, randomRequests[index].URL.Path)
 			b.FailNow()
 		}
 	}
