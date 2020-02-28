@@ -112,8 +112,8 @@ clean:
 deps:
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
-	@curl -o /tmp/staticcheck_linux_amd64.tar.gz -LO https://github.com/dominikh/go-tools/releases/download/2019.2.3/staticcheck_linux_amd64.tar.gz
-	@sha256sum /tmp/staticcheck_linux_amd64.tar.gz | grep -q 93f7780f8710380037cecee8a49178de01c6153f19587c082abec4cc8637016c
+	@curl -o /tmp/staticcheck_linux_amd64.tar.gz -LO https://github.com/dominikh/go-tools/releases/download/2020.1.3/staticcheck_linux_amd64.tar.gz
+	@sha256sum /tmp/staticcheck_linux_amd64.tar.gz | grep -q 0f6fab088826fb6d52a5aa4986b39790b795ff37d5319dc605a98be919fdd070
 	@tar -C /tmp -xzf /tmp/staticcheck_linux_amd64.tar.gz
 	@mkdir -p $(GOPATH)/bin
 	@mv /tmp/staticcheck/staticcheck $(GOPATH)/bin/
@@ -137,7 +137,7 @@ vet: $(SOURCES)
 # -ST1021 too many wrong comments on exported functions to fix right away
 # -ST1022 too many wrong comments on exported functions to fix right away
 staticcheck: $(SOURCES)
-	GO111MODULE=$(GO111) staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021,-ST1022" $(PACKAGES)
+	GO111MODULE=$(GO111) staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021,-ST1022,-SA1019" $(PACKAGES)
 
 # TODO(sszuecs) review disabling these checks, f.e.:
 # G101 find by variable name match "oauth" are not hardcoded credentials

@@ -414,6 +414,10 @@ func TestCompress(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				setHeaders(w.Header(), ti.responseHeader)
+				if _, ok := ti.responseHeader["Content-Type"]; !ok {
+					w.Header().Set("Content-Type", "application/octet-stream")
+				}
+
 				count := 0
 				for count < ti.contentLength {
 					wl := writeLength

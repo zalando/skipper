@@ -2063,9 +2063,11 @@ func TestProxyFromHeader(t *testing.T) {
 	}
 }
 
-func BenchmarkAccessLogNoFilter(b *testing.B)     { benchmarkAccessLog(b, "", 200) }
-func BenchmarkAccessLogDisablePrint(b *testing.B) { benchmarkAccessLog(b, "disableAccessLog(1,3)", 200) }
-func BenchmarkAccessLogDisable(b *testing.B)      { benchmarkAccessLog(b, "disableAccessLog(1,3,200)", 200) }
+func BenchmarkAccessLogNoFilter(b *testing.B) { benchmarkAccessLog(b, "", 200) }
+func BenchmarkAccessLogDisablePrint(b *testing.B) {
+	benchmarkAccessLog(b, "disableAccessLog(1,3)", 200)
+}
+func BenchmarkAccessLogDisable(b *testing.B) { benchmarkAccessLog(b, "disableAccessLog(1,3,200)", 200) }
 func BenchmarkAccessLogEnablePrint(b *testing.B) {
 	benchmarkAccessLog(b, "enableAccessLog(1,200,3)", 200)
 }

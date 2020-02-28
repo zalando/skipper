@@ -98,7 +98,7 @@ func TestScheduler(t *testing.T) {
 
 				for _, f := range r.Filters {
 					if f == nil && !tt.wantErr {
-						t.Errorf("Filter is nil but we do not expect an error")
+						t.Fatalf("Filter is nil but we do not expect an error")
 					}
 					lf, ok := f.Filter.(scheduler.LIFOFilter)
 					if !ok {
@@ -129,7 +129,7 @@ func TestScheduler(t *testing.T) {
 
 					for _, f := range r.Filters {
 						if f == nil && !tt.wantErr {
-							t.Errorf("Filter is nil but we do not expect an error")
+							t.Fatalf("Filter is nil but we do not expect an error")
 						}
 
 						lf, ok := f.Filter.(scheduler.LIFOFilter)
