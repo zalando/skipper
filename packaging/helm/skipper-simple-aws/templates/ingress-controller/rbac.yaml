@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-ingress-aws-controller
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: kube-ingress-aws-controller
+rules:
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - zalando.org
+  resources:
+  - routegroups
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - zalando.org
+  resources:
+  - routegroups/status
+  verbs:
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-ingress-aws-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-ingress-aws-controller
+subjects:
+- kind: ServiceAccount
+  name: kube-ingress-aws-controller
+  namespace: kube-system

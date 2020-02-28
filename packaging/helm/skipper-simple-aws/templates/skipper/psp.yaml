@@ -1,0 +1,26 @@
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: hostnetwork-psp
+spec:
+  hostNetwork: true
+  hostPorts:
+  - max: 9999
+    min: 9911
+  allowPrivilegeEscalation: false
+  fsGroup:
+    rule: RunAsAny
+  runAsUser:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  volumes:
+  - emptyDir
+  - awsElasticBlockStore
+  - secret
+  - persistentVolumeClaim
+  - downwardAPI
+  - configMap
+  - projected

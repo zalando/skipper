@@ -1,0 +1,9 @@
+{{ if .Values.kube_aws_iam_controller }}
+apiVersion: zalando.org/v1
+kind: AWSIAMRole
+metadata:
+  name: kube-ingress-aws-controller-aws-iam-credentials
+  namespace: kube-system
+spec:
+  roleReference: {{ .Values.AwsRole }}
+{{ end }}

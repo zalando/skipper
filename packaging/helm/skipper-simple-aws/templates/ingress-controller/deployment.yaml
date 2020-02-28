@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-ingress-aws-controller
+  namespace: kube-system
+  labels:
+    application: kube-ingress-aws-controller
+    version: {{ .Values.KubeIngressAwsVersion }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: kube-ingress-aws-controller
+  template:
+    metadata:
+      labels:
+        application: kube-ingress-aws-controller
+        version: {{ .Values.KubeIngressAwsVersion }}
+{{ if .Values.kube2iam }}
+      annotations:
+        iam.amazonaws.com/role:  {{ .Values.AwsRole }}
+{{ end }}
+    spec:
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
+      priorityClassName: system-cluster-critical
+      serviceAccountName: kube-ingress-aws-controller
+      containers:
+      - name: controller
+        image: "registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:{{ .Values.KubeIngressAwsVersion }}"
+        args:
+        - --stack-termination-protection
+        - --ssl-policy={{ .Values.SSLPolicy }}
+        - --idle-connection-timeout={{ .Values.Idle_timeout }}
+        - --nlb-cross-zone
+        resources:
+          limits:
+            cpu: 50m
+            memory: 100Mi
+          requests:
+            cpu: 50m
+            memory: 100Mi
+        env:
+        - name: CUSTOM_FILTERS
+          value: "tag:kubernetes.io/cluster/{{ .Values.ClusterID }}=owned tag:node.kubernetes.io/role=worker"
+        - name: AWS_REGION
+          value: {{ .Values.Region }}
+{{ if .Values.kube_aws_iam_controller }}
+        # must be set for the AWS SDK/AWS CLI to find the credentials file.
+        - name: AWS_SHARED_CREDENTIALS_FILE # used by golang SDK
+          value: /meta/aws-iam/credentials.process
+        volumeMounts:
+        - name: aws-iam-credentials
+          mountPath: /meta/aws-iam
+          readOnly: true
+      volumes:
+      - name: aws-iam-credentials
+        secret:
+          secretName: kube-ingress-aws-controller-aws-iam-credentials
+{{ end }}

@@ -1,0 +1,19 @@
+clusterID: mycluster
+
+# AWS IAM integration kube2iam or kube-aws-iam-controller
+kube2iam: true
+kube_aws_iam_controller: false
+
+externalDnsVersion: 0.5.18
+externalDnsAwsRole: external-dns-role
+external_dns_ownership_prefix: skipper-test
+
+skipperVersion: 0.11.48
+skipperSvcIP: 10.3.99.99
+
+kubeIngressAwsVersion: 0.10.1
+awsRole: kube-ingress-aws-controller-role
+SSLPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
+idle_timeout: 60s
+region: eu-central-1
+

@@ -1,0 +1,20 @@
+apiVersion: autoscaling.k8s.io/v1beta2
+kind: VerticalPodAutoscaler
+metadata:
+  name: kube-ingress-aws-controller
+  namespace: kube-system
+  labels:
+    application: kube-ingress-aws-controller
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kube-ingress-aws-controller
+  updatePolicy:
+    updateMode: Auto
+  resourcePolicy:
+    containerPolicies:
+    - containerName: kube-ingress-aws-controller
+      maxAllowed:
+        cpu: 250m
+        memory: 1Gi

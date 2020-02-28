@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns
+  namespace: kube-system
+  labels:
+    application: external-dns
+    version: {{ .Values.externalDnsVersion }}
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      application: external-dns
+  template:
+    metadata:
+      labels:
+        application: external-dns
+        version: {{ .Values.externalDnsVersion }}
+{{ if .Values.kube2iam }}
+      annotations:
+        iam.amazonaws.com/role: "{{ .Values.externalDnsAwsRole }}"
+{{ end }}
+    spec:
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
+      priorityClassName: system-cluster-critical
+      serviceAccountName: external-dns
+      containers:
+      - name: external-dns
+        image: registry.opensource.zalan.do/teapot/external-dns:{{ .Values.externalDnsVersion }}
+        args:
+        - --source=service
+        - --source=ingress
+        - --provider=aws
+        - --registry=txt
+        - --txt-owner-id={{ .Values.Region }}:{{ .Values.clusterID }}
+        - --txt-prefix={{ .Values.external_dns_ownership_prefix }}
+        - --aws-batch-change-size=100
+        resources:
+          limits:
+            cpu: 50m
+            memory: 100Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 7979
+{{ if .Values.kube_aws_iam_controller }}
+        env:
+        # must be set for the AWS SDK/AWS CLI to find the credentials file.
+        - name: AWS_SHARED_CREDENTIALS_FILE # used by golang SDK
+          value: /meta/aws-iam/credentials.process
+        volumeMounts:
+        - name: aws-iam-credentials
+          mountPath: /meta/aws-iam
+          readOnly: true
+{{ end }}
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop: ["ALL"]
+      securityContext:
+        fsGroup: 65534
+{{ if .Values.kube_aws_iam_controller }}
+      volumes:
+      - name: aws-iam-credentials
+        secret:
+          secretName: external-dns-aws-iam-credentials
+{{ end }}
