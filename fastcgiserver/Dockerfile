@@ -10,6 +10,8 @@ pm.start_servers = 2 \n\
 pm.min_spare_servers = 1 \n\
 pm.max_spare_servers = 3' > /usr/local/etc/php-fpm.d/www.conf
 
-RUN mkdir -p /app
+RUN mkdir -p /app/other/dir
 RUN echo "<?php echo 'Hello, World!';" > /app/index.php
+RUN echo "<?php echo 'Test1 #' . time();" > /app/test1.php
+RUN echo "<?php echo 'Test2 #' . time();" > /app/other/dir/test2.php
 WORKDIR /app

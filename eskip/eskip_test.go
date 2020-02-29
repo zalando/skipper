@@ -45,6 +45,11 @@ func TestParseRouteExpression(t *testing.T) {
 		check      *Route
 		err        bool
 	}{{
+		"loadbalancer endpoints same protocol",
+		`* -> <roundRobin, "http://localhost:80", "fastcgi://localhost:80">`,
+		nil,
+		true,
+	}, {
 		"path predicate",
 		`Path("/some/path") -> "https://www.example.org"`,
 		&Route{Path: "/some/path", Backend: "https://www.example.org"},

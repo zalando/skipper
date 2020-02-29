@@ -193,11 +193,11 @@ type endpointList struct {
 	Items []*endpoint `json:"items"`
 }
 
-func formatEndpoint(a *address, p *port) string {
-	return fmt.Sprintf("http://%s:%d", a.IP, p.Port)
+func formatEndpoint(a *address, p *port, protocol string) string {
+	return fmt.Sprintf("%s://%s:%d", protocol, a.IP, p.Port)
 }
 
-func (ep endpoint) targets(svcPortName, svcPortTarget string) []string {
+func (ep endpoint) targets(svcPortName, svcPortTarget, protocol string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, port := range s.Ports {
@@ -210,7 +210,7 @@ func (ep endpoint) targets(svcPortName, svcPortTarget string) []string {
 			//
 			if port.Name == svcPortName || strconv.Itoa(port.Port) == svcPortTarget {
 				for _, addr := range s.Addresses {
-					result = append(result, formatEndpoint(addr, port))
+					result = append(result, formatEndpoint(addr, port, protocol))
 				}
 			}
 		}
@@ -229,7 +229,7 @@ func (ep endpoint) targetsByServiceTarget(serviceTarget *backendPort) []string {
 
 			var result []string
 			for _, a := range s.Addresses {
-				result = append(result, formatEndpoint(a, p))
+				result = append(result, formatEndpoint(a, p, "http"))
 			}
 
 			return result

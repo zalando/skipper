@@ -5,6 +5,7 @@ package eskip
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -74,6 +75,8 @@ const (
 	DynamicBackend
 	LBBackend
 )
+
+var errMixedProtocols = errors.New("loadbalancer endpoints cannot have mixed protocols")
 
 // Route definition used during the parser processes the raw routing
 // document.
@@ -393,8 +396,23 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 // Converts a parsing route objects to the exported route definition with
 // pre-processed but not validated matchers.
 func newRouteDefinition(r *parsedRoute) (*Route, error) {
-	rd := &Route{}
+	if len(r.lbEndpoints) > 0 {
+		scheme := ""
+		for _, e := range r.lbEndpoints {
+			eu, err := url.ParseRequestURI(e)
+			if err != nil {
+				return nil, err
+			}
 
+			if scheme != "" && scheme != eu.Scheme {
+				return nil, errMixedProtocols
+			}
+
+			scheme = eu.Scheme
+		}
+	}
+
+	rd := &Route{}
 	rd.Id = r.id
 	rd.Filters = r.filters
 	rd.Shunt = r.shunt
