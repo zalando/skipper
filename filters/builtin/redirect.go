@@ -78,6 +78,10 @@ func (spec *redirect) CreateFilter(config []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
+	if len(config) == 1 {
+		config = append(config, "")
+	}
+
 	if len(config) != 2 {
 		return invalidArgs()
 	}

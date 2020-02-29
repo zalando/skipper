@@ -126,13 +126,13 @@ Creates an HTTP redirect response.
 Parameters:
 
 * redirect status code (int)
-* location (string)
+* location (string) - optional
 
 Example:
 
 ```
 redirect1: PathRegexp(/^\/foo\/bar/) -> redirectTo(302, "/foo/newBar") -> <shunt>;
-redirect2: * -> redirectTo(301, "") -> <shunt>;
+redirect2: * -> redirectTo(301) -> <shunt>;
 ```
 
 - Route redirect1 will do a redirect with status code 302 to https

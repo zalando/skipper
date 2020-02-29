@@ -16,80 +16,101 @@ import (
 
 func TestRedirect(t *testing.T) {
 	for _, ti := range []struct {
-		msg            string
-		code           int
-		filterLocation string
-		checkLocation  string
+		msg             string
+		code            int
+		filterLocation  string
+		checkLocation   string
+		skipLocationArg bool
 	}{{
+		"only code",
+		http.StatusFound,
+		"",
+		"https://incoming.example.org/some/path?foo=1&bar=2",
+		true,
+	}, {
 		"schema only",
 		http.StatusFound,
 		"http:",
 		"http://incoming.example.org/some/path?foo=1&bar=2",
+		false,
 	}, {
 		"schema and host",
 		http.StatusFound,
 		"http://redirect.example.org",
 		"http://redirect.example.org/some/path?foo=1&bar=2",
+		false,
 	}, {
 		"schema, host and path",
 		http.StatusFound,
 		"http://redirect.example.org/some/other/path",
 		"http://redirect.example.org/some/other/path?foo=1&bar=2",
+		false,
 	}, {
 		"schema, host, path and query",
 		http.StatusFound,
 		"http://redirect.example.org/some/other/path?newquery=3",
 		"http://redirect.example.org/some/other/path?newquery=3",
+		false,
 	}, {
 		"host only",
 		http.StatusFound,
 		"//redirect.example.org",
 		"https://redirect.example.org/some/path?foo=1&bar=2",
+		false,
 	}, {
 		"host and path",
 		http.StatusFound,
 		"//redirect.example.org/some/other/path",
 		"https://redirect.example.org/some/other/path?foo=1&bar=2",
+		false,
 	}, {
 		"host, path and query",
 		http.StatusFound,
 		"//redirect.example.org/some/other/path?newquery=3",
 		"https://redirect.example.org/some/other/path?newquery=3",
+		false,
 	}, {
 		"path only",
 		http.StatusFound,
 		"/some/other/path",
 		"https://incoming.example.org/some/other/path?foo=1&bar=2",
+		false,
 	}, {
 		"path and query",
 		http.StatusFound,
 		"/some/other/path?newquery=3",
 		"https://incoming.example.org/some/other/path?newquery=3",
+		false,
 	}, {
 		"query only",
 		http.StatusFound,
 		"?newquery=3",
 		"https://incoming.example.org/some/path?newquery=3",
+		false,
 	}, {
 		"schema and path",
 		http.StatusFound,
 		"http:///some/other/path",
 		"http://incoming.example.org/some/other/path?foo=1&bar=2",
+		false,
 	}, {
 		"schema, path and query",
 		http.StatusFound,
 		"http:///some/other/path?newquery=3",
 		"http://incoming.example.org/some/other/path?newquery=3",
+		false,
 	}, {
 		"schema and query",
 		http.StatusFound,
 		"http://?newquery=3",
 		"http://incoming.example.org/some/path?newquery=3",
+		false,
 	}, {
 		"different code",
 		http.StatusMovedPermanently,
 		"/some/path",
 		"https://incoming.example.org/some/path?foo=1&bar=2",
+		false,
 	}} {
 		for _, tii := range []struct {
 			msg  string
@@ -101,11 +122,17 @@ func TestRedirect(t *testing.T) {
 			"not deprecated",
 			RedirectToName,
 		}} {
+			var args []interface{}
+			if ti.skipLocationArg {
+				args = []interface{}{float64(ti.code)}
+			} else {
+				args = []interface{}{float64(ti.code), ti.filterLocation}
+			}
 			dc := testdataclient.New([]*eskip.Route{{
 				Shunt: true,
 				Filters: []*eskip.Filter{{
 					Name: tii.name,
-					Args: []interface{}{float64(ti.code), ti.filterLocation}}}}})
+					Args: args}}}})
 			tl := loggingtest.New()
 			rt := routing.New(routing.Options{
 				FilterRegistry: MakeRegistry(),
