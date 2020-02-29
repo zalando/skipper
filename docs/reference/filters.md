@@ -48,6 +48,22 @@ foo3:
   -> <dynamic>;
 ```
 
+## modRequestHeader
+
+Replace all matched regex expressions in the given header.
+
+Parameters:
+
+* header name (string)
+* the expression to match (regex)
+* the replacement (string)
+
+Example:
+
+```
+enforce_www: * -> modRequestHeader("Host", "^zalando\.(\w+)$", "www.zalando.$1") -> redirectTo(301);
+```
+
 ## setRequestHeader
 
 Set headers for requests.
