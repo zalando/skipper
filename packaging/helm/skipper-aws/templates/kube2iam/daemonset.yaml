@@ -1,0 +1,67 @@
+{{ if .Values.install_kube2iam }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube2iam
+  namespace: kube-system
+  labels:
+    application: kube2iam
+    version: {{ .Values.kube2iamVersion }}
+spec:
+  updateStrategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      application: kube2iam
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        application: kube2iam
+        version: {{ .Values.kube2iamVersion }}
+    spec:
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
+      priorityClassName: system-node-critical
+      serviceAccountName: kube2iam
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      - operator: Exists
+        effect: NoExecute
+      hostNetwork: true
+      containers:
+      - image: registry.opensource.zalan.do/teapot/kube2iam:{{ .Values.kube2iamVersion }}
+        name: kube2iam
+        args:
+        - --auto-discover-base-arn
+        - --verbose
+        - --node=$(NODE_NAME)
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        ports:
+        - containerPort: 8181
+          hostPort: 8181
+          name: http
+        securityContext:
+          privileged: true
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8181
+          timeoutSeconds: 3
+        resources:
+          requests:
+            cpu: 25m
+            memory: 100Mi
+            ephemeral-storage: 256Mi
+          limits:
+            cpu: 25m
+            memory: 100Mi
+{{ end }}

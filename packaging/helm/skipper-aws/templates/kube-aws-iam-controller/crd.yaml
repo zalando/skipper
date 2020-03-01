@@ -1,0 +1,64 @@
+{{ if .Values.install_kube_aws_iam_controller }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: awsiamroles.zalando.org
+spec:
+  group: zalando.org
+  scope: Namespaced
+  names:
+    kind: AWSIAMRole
+    singular: awsiamrole
+    plural: awsiamroles
+    categories:
+    - all
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    additionalPrinterColumns:
+    - name: RoleARN
+      type: string
+      description: Full RoleARN
+      jsonPath: .status.roleARN
+    - name: Expiration
+      type: string
+      description: Expiration time of the current credentials provisioned for the role
+      jsonPath: .status.expiration
+    subresources:
+      # status enables the status subresource.
+      status: {}
+    # validation depends on Kubernetes >= v1.11.0
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              roleReference:
+                description: |
+                  Reference to an AWS IAM role which can either be a role name
+                  or a full IAM role ARN.
+                type: string
+                minLength: 3
+              roleSessionDuration:
+                description: |
+                  Specify the role session duration in seconds. Defaults to 3600
+                  seconds (1 hour). This value must be less than or equal to the
+                  `MaxSessionDuration` value of the IAM role.
+                type: integer
+                minimum: 900   # 15 minutes
+                maximum: 43200 # 12 hours
+          status:
+            type: object
+            properties:
+              observedGeneration:
+                type: integer
+              roleARN:
+                type: string
+              expiration:
+                type: string
+        required:
+        - spec
+{{ end }}

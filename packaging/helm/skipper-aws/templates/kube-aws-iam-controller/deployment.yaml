@@ -1,0 +1,45 @@
+{{ if .Values.install_kube_aws_iam_controller }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-aws-iam-controller
+  namespace: kube-system
+  labels:
+    application: kube-aws-iam-controller
+    version: v0.1.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: kube-aws-iam-controller
+  template:
+    metadata:
+      labels:
+        application: kube-aws-iam-controller
+        version: v0.1.0
+    spec:
+      serviceAccountName: kube-aws-iam-controller
+      priorityClassName: system-cluster-critical
+      # running with hostNetwork to bypass metadata service block from pod
+      # network.
+      hostNetwork: true
+      containers:
+      - name: kube-aws-iam-controller
+        image: registry.opensource.zalan.do/teapot/kube-aws-iam-controller:v0.1.0
+        args:
+        - --debug
+        - "--assume-role={{.Values.clusterID}}-worker"
+        resources:
+          limits:
+            cpu: "5m"
+            memory: "50Mi"
+          requests:
+            cpu: "5m"
+            memory: "50Mi"
+      tolerations:
+      - key: node.kubernetes.io/role
+        value: master
+        effect: NoSchedule
+      nodeSelector:
+        node.kubernetes.io/role: master
+{{ end }}

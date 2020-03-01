@@ -1,0 +1,46 @@
+{{ if .Values.skipperClusterRatelimit }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    application: skipper-ingress-redis
+    version: v4.0.9
+  name: skipper-ingress-redis
+  namespace: kube-system
+spec:
+  replicas: {{ .Values.skipper_redis_instances }}
+  selector:
+    matchLabels:
+      application: skipper-ingress-redis
+  serviceName: skipper-ingress-redis
+  template:
+    metadata:
+      labels:
+        application: skipper-ingress-redis
+        version: v4.0.9
+    spec:
+      priorityClassName: system-cluster-critical
+      containers:
+      - image: registry.opensource.zalan.do/zmon/redis:4.0.9-master-6
+        name: skipper-ingress-redis
+        ports:
+        - containerPort: 6379
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+{{ end }}

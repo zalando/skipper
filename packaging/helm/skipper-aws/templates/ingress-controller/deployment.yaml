@@ -15,10 +15,10 @@ spec:
     metadata:
       labels:
         application: kube-ingress-aws-controller
-        version: {{ .Values.KubeIngressAwsVersion }}
+        version: {{ .Values.kubeIngressAwsVersion }}
 {{- if .Values.kube2iam }}
       annotations:
-        iam.amazonaws.com/role:  {{ .Values.AwsRole }}
+        iam.amazonaws.com/role:  {{ .Values.kubeIngressAwsRole }}
 {{- end }}
     spec:
       dnsConfig:
@@ -29,11 +29,11 @@ spec:
       serviceAccountName: kube-ingress-aws-controller
       containers:
       - name: controller
-        image: "registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:{{ .Values.KubeIngressAwsVersion }}"
+        image: registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:{{ .Values.kubeIngressAwsVersion }}
         args:
         - --stack-termination-protection
-        - --ssl-policy={{ .Values.SSLPolicy }}
-        - --idle-connection-timeout={{ .Values.Idle_timeout }}
+        - --ssl-policy={{ .Values.sslPolicy }}
+        - --idle-connection-timeout={{ .Values.idle_timeout }}
         - --nlb-cross-zone
         resources:
           limits:
@@ -44,9 +44,9 @@ spec:
             memory: 100Mi
         env:
         - name: CUSTOM_FILTERS
-          value: "tag:kubernetes.io/cluster/{{ .Values.ClusterID }}=owned tag:node.kubernetes.io/role=worker"
+          value: "tag:kubernetes.io/cluster/{{ .Values.clusterID }}=owned tag:node.kubernetes.io/role=worker"
         - name: AWS_REGION
-          value: {{ .Values.Region }}
+          value: {{ .Values.region }}
 {{- if .Values.kube_aws_iam_controller }}
         # must be set for the AWS SDK/AWS CLI to find the credentials file.
         - name: AWS_SHARED_CREDENTIALS_FILE # used by golang SDK

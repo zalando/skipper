@@ -1,0 +1,33 @@
+clusterID: mycluster
+
+# AWS IAM integration kube2iam or kube-aws-iam-controller
+install_kube2iam: true
+kube2iam: true
+kube2iamRole: kube2iam-role
+install_kube_aws_iam_controller: false
+kube_aws_iam_controller: false
+kubeAwsIamAwsRole: kube-aws-iam-controller-role
+
+# VPA available
+vpa: false
+
+kube2iamVersion: 0.10.7
+
+externalDnsVersion: 0.5.18
+externalDnsAwsRole: external-dns-role
+external_dns_ownership_prefix: skipper-test
+
+skipperVersion: 0.11.48
+skipperClusterRatelimit: false
+# service IP, which should have a CoreDNS template, which points *.ingress.cluster.local to the service IP
+# see also https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#coredns
+skipperSvcIP: 10.3.11.28
+skipperEastWest: false
+skipperEastWestDomain: .ingress.cluster.local
+
+kubeIngressAwsVersion: 0.10.1
+kubeIngressAwsRole: kube-ingress-aws-controller-role
+sslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
+idle_timeout: 60s
+region: eu-central-1
+

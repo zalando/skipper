@@ -36,7 +36,7 @@ spec:
         - --source=ingress
         - --provider=aws
         - --registry=txt
-        - --txt-owner-id={{ .Values.Region }}:{{ .Values.clusterID }}
+        - --txt-owner-id={{ .Values.region }}:{{ .Values.clusterID }}
         - --txt-prefix={{ .Values.external_dns_ownership_prefix }}
         - --aws-batch-change-size=100
         resources:
