@@ -1,0 +1,17 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: skipper-internal
+  namespace: {{ .Values.namespace }}
+  labels:
+    application: skipper-ingress
+    chart: {{ .Chart.Version }}
+spec:
+  type: ClusterIP
+  clusterIP: {{ .Values.skipper.svc_ip }}
+  ports:
+    - port: 80
+      targetPort: 9999
+      protocol: TCP
+  selector:
+    application: skipper-ingress

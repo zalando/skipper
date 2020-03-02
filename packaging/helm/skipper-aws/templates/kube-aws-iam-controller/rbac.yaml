@@ -1,0 +1,84 @@
+{{ if .Values.kube_aws_iam_controller.install }}
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: kube-aws-iam-controller
+  namespace: {{ .Values.namespace }}
+  labels:
+    chart: {{ .Chart.Version }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-aws-iam-controller
+  labels:
+    chart: {{ .Chart.Version }}
+rules:
+- apiGroups:
+  - "zalando.org"
+  resources:
+  - awsiamroles
+  - awsiamroles/status
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - create
+  - update
+  - patch
+  - delete
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-aws-iam-controller
+  labels:
+    chart: {{ .Chart.Version }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-aws-iam-controller
+subjects:
+- kind: ServiceAccount
+  name: kube-aws-iam-controller
+  namespace: {{ .Values.namespace }}
+{{- if .Values.eks_iam }}
+  annotations:
+    eks.amazonaws.com/role-arn:
+      arn:aws:iam::{{ .Values.awsAccountID }}:role/{{ .Values.kube_aws_iam_controller.aws_role }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: kube-aws-iam-controller-hostnetwork-psp
+  namespace: {{ .Values.namespace }}
+  labels:
+    chart: {{ .Chart.Version }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hostnetwork-psp
+subjects:
+- kind: ServiceAccount
+  name: kube-aws-iam-controller
+  namespace: {{ .Values.namespace }}
+{{ end }}

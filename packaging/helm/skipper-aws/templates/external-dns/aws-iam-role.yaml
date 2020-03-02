@@ -1,0 +1,11 @@
+{{ if .Values.kube_aws_iam_controller.enabled }}
+apiVersion: zalando.org/v1
+kind: AWSIAMRole
+metadata:
+  name: {{ .Release.Name }}-external-dns-aws-iam-credentials
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: {{ .Chart.Version }}
+spec:
+  roleReference: {{ .Values.external_dns.aws_role }}
+{{ end }}

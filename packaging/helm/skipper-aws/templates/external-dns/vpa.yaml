@@ -1,0 +1,23 @@
+{{ if .Values.vpa }}
+apiVersion: autoscaling.k8s.io/v1beta2
+kind: VerticalPodAutoscaler
+metadata:
+  name: external-dns
+  namespace: {{ .Values.namespace }}
+  labels:
+    application: external-dns
+    chart: {{ .Chart.Version }}
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: external-dns
+  updatePolicy:
+    updateMode: Auto
+  resourcePolicy:
+    containerPolicies:
+    - containerName: external-dns
+      maxAllowed:
+        cpu: 500m
+        memory: 2Gi
+{{ end }}

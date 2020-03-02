@@ -1,0 +1,21 @@
+{{ if and (.Values.kube_aws_iam_controller.install) (.Values.vpa) }}
+apiVersion: autoscaling.k8s.io/v1beta2
+kind: VerticalPodAutoscaler
+metadata:
+  name: kube-aws-iam-controller
+  namespace: {{ .Values.namespace }}
+  labels:
+    chart: {{ .Chart.Version }}
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kube-aws-iam-controller
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+    - containerName: kube-aws-iam-controller
+      maxAllowed:
+        memory: 1Gi
+{{ end }}

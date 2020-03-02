@@ -1,0 +1,23 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: external-dns
+  namespace: {{ .Values.namespace }}
+  labels:
+    application: external-dns
+    chart: {{ .Chart.Version }}
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "ExternalDNS"
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "7979"
+    prometheus.io/scrape: "true"
+spec:
+  selector:
+    application: external-dns
+  type: ClusterIP
+  ports:
+  - name: monitor
+    port: 7979
+    targetPort: 7979
+    protocol: TCP

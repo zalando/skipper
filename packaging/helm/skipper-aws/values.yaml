@@ -1,0 +1,57 @@
+awsAccountID: "AWS_ACCOUNT_ID"
+clusterID: mycluster
+region: eu-central-1
+# VPA is available in your cluster
+vpa: false
+# kubernetes namespace to run all components
+namespace: kube-system
+
+# AWS IAM integration with serviceaccounts https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html (optional)
+eks_iam: false
+
+# AWS IAM integration with kube2iam (optional)
+kube2iam:
+  enabled: true
+  install: true
+  aws_role: kube2iam-role
+  version: 0.10.7
+  image: registry.opensource.zalan.do/teapot/kube2iam
+
+# AWS IAM integration with kube-aws-iam-controller (optional)
+kube_aws_iam_controller:
+  enabled: false
+  install: false
+  aws_role: kube-aws-iam-controller-role
+  version: v0.1.0
+  image: registry.opensource.zalan.do/teapot/kube-aws-iam-controller
+
+# automatically create DNS records for your ingress and routegroup
+external_dns:
+  version: 0.5.18
+  image: registry.opensource.zalan.do/teapot/external-dns
+  aws_role: external-dns-role
+  ownership_prefix: skipper-test
+
+# automatically create shared ALBs and NLBs for your ingress and routegroup
+kube_ingress_aws_controller:
+  version: 0.10.1
+  image: registry.opensource.zalan.do/teapot/kube-ingress-aws-controller
+  aws_role: kube-ingress-aws-controller-role
+  ssl_policy: ELBSecurityPolicy-TLS-1-2-2017-01
+  idle_timeout: 60s
+
+# automatically create HTTP routing to endpoints for your ingress and routegroup
+skipper:
+  version: 0.11.48
+  image: registry.opensource.zalan.do/pathfinder/skipper
+  cluster_ratelimit: false
+  # redis is required for cluster ratelimit
+  redis:
+    image: registry.opensource.zalan.do/zmon/redis
+    version: 4.0.9-master-6
+  # service IP for east west feature, which should have a CoreDNS
+  # template, which points *.ingress.cluster.local to the service IP
+  # see also https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#coredns
+  svc_ip: 10.3.11.28
+  east_west: false
+  east_west_domain: .ingress.cluster.local

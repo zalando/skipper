@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: skipper-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    chart: {{ .Chart.Version }}
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: skipper-ingress
+  labels:
+    chart: {{ .Chart.Version }}
+rules:
+- apiGroups: ["extensions"]
+  resources: ["ingresses", ]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["namespaces", "services", "endpoints", "pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: skipper-ingress
+  labels:
+    chart: {{ .Chart.Version }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: skipper-ingress
+subjects:
+- kind: ServiceAccount
+  name: skipper-ingress
+  namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: skipper-ingress-hostnetwork-psp
+  namespace: {{ .Values.namespace }}
+  labels:
+    chart: {{ .Chart.Version }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hostnetwork-psp
+subjects:
+- kind: ServiceAccount
+  name: skipper-ingress
+  namespace: {{ .Values.namespace }}

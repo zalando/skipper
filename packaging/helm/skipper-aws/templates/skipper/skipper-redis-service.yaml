@@ -1,0 +1,19 @@
+{{ if .Values.skipper.cluster_ratelimit }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application: skipper-ingress-redis
+    chart: {{ .Chart.Version }}
+  name: skipper-ingress-redis
+  namespace: {{ .Values.namespace }}
+spec:
+  clusterIP: None
+  ports:
+  - port: 6379
+    protocol: TCP
+    targetPort: 6379
+  selector:
+    application: skipper-ingress-redis
+  type: ClusterIP
+{{ end }}
