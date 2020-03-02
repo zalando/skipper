@@ -1,9 +1,13 @@
+awsAccountID: "AWS_ACCOUNT_ID"
 clusterID: mycluster
 region: eu-central-1
 # VPA is available in your cluster
 vpa: false
 # kubernetes namespace to run all components
 namespace: kube-system
+
+# AWS IAM integration with serviceaccounts https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html (optional)
+eks_iam: false
 
 # AWS IAM integration with kube2iam (optional)
 kube2iam:

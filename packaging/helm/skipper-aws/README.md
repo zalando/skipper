@@ -87,6 +87,8 @@ helm install --name skipper-aws .
 | clusterID | The name of your Kubernetes cluster | mycluster |
 | region | The region in which your Kubernetes cluster resides | eu-central-1 |
 | vpa | Enable vertical pod autoscaling | false |
+| namespace | Namespace to install all components into (kube-system will add reasonable `priorityClassName`) | kube-system |
+| eks_iam | Enable EKS IAM with service account integration | false
 | kube2iam.install | Install kube2iam | true |
 | kube2iam.enable | Make use of kube2iam | true |
 | kube2iam.aws_role | The kube2iam role that can assume other roles | kube2iam-role |

@@ -60,6 +60,11 @@ subjects:
 - kind: ServiceAccount
   name: kube-aws-iam-controller
   namespace: {{ .Values.namespace }}
+{{- if .Values.eks_iam }}
+  annotations:
+    eks.amazonaws.com/role-arn:
+      arn:aws:iam::AWS_ACCOUNT_ID:role/{{ .Values.kube_aws_iam_controller.aws_role }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: RoleBinding
