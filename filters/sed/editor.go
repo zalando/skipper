@@ -180,8 +180,8 @@ func (b *editor) Read(p []byte) (int, error) {
 			}
 		} else {
 			for {
-				endLine := bytes.Index(b.pending, b.delimiter)
-				if endLine < 0 {
+				endChunk := bytes.Index(b.pending, b.delimiter)
+				if endChunk < 0 {
 					break
 				}
 
@@ -192,21 +192,21 @@ func (b *editor) Read(p []byte) (int, error) {
 				// Include the delimiter, this way it can be controlled
 				// in the expression whether to keep it or not.
 				// TODO: test both cases
-				line := b.pending[:endLine+len(b.delimiter)]
+				chunk := b.pending[:endChunk+len(b.delimiter)]
 
-				for len(line) > 0 {
-					match := b.pattern.FindIndex(line)
+				for len(chunk) > 0 {
+					match := b.pattern.FindIndex(chunk)
 					if len(match) == 0 || match[0] == 0 && match[1] == 0 {
-						b.ready = append(b.ready, line...)
+						b.ready = append(b.ready, chunk...)
 						break
 					}
 
-					b.ready = append(b.ready, line[:match[0]]...)
+					b.ready = append(b.ready, chunk[:match[0]]...)
 					if match[1] > match[0] {
 						b.ready = append(b.ready, b.replacement...)
 					}
 
-					line = line[match[1]:]
+					chunk = chunk[match[1]:]
 				}
 			}
 		}

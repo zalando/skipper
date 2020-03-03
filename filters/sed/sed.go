@@ -57,7 +57,6 @@ package sed
 
 import (
 	"regexp"
-	"strconv"
 
 	"github.com/zalando/skipper/filters"
 )
@@ -157,7 +156,11 @@ func (s spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		replacement: []byte(replacement),
 	}
 
-	var delimiterString, maxBufString string
+	var (
+		delimiterString string
+		maxBuf          interface{}
+	)
+
 	switch s.typ {
 	case delimited, delimitedRequest:
 		if len(args) < 3 || len(args) > 4 {
@@ -169,9 +172,7 @@ func (s spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 
 		if len(args) == 4 {
-			if maxBufString, ok = args[3].(string); !ok {
-				return nil, filters.ErrInvalidFilterParameters
-			}
+			maxBuf = args[3]
 		}
 
 		// Temporary solution, see eskip tokenizer bug: ...
@@ -183,15 +184,18 @@ func (s spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 
 		if len(args) == 3 {
-			if maxBufString, ok = args[2].(string); !ok {
-				return nil, filters.ErrInvalidFilterParameters
-			}
+			maxBuf = args[2]
 		}
 	}
 
-	if maxBufString != "" {
-		if f.maxEditorBuffer, err = strconv.Atoi(maxBufString); err != nil {
-			return nil, err
+	if maxBuf != nil {
+		switch v := maxBuf.(type) {
+		case int:
+			f.maxEditorBuffer = v
+		case float64:
+			f.maxEditorBuffer = int(v)
+		default:
+			return nil, filters.ErrInvalidFilterParameters
 		}
 	}
 
