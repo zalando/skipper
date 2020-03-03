@@ -16,6 +16,7 @@ import (
 	"github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/rfc"
 	"github.com/zalando/skipper/filters/scheduler"
+	"github.com/zalando/skipper/filters/sed"
 	"github.com/zalando/skipper/filters/tee"
 	"github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/script"
@@ -115,6 +116,10 @@ func MakeRegistry() filters.Registry {
 		tee.NewTee(),
 		tee.NewTeeDeprecated(),
 		tee.NewTeeNoFollow(),
+		sed.New(),
+		sed.NewDelimited(),
+		sed.NewRequest(),
+		sed.NewDelimitedRequest(),
 		auth.NewBasicAuth(),
 		cookie.NewRequestCookie(),
 		cookie.NewResponseCookie(),
