@@ -2,7 +2,7 @@
 
 Skipper's Kubernetes dataclient can be used, if you want to run Skipper as
 [kubernetes-ingress-controller](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-controllers).
-It will get it's route information from provisioned
+It will get its route information from provisioned
 [Ingress Objects](https://kubernetes.io/docs/concepts/services-networking/ingress).
 Detailed information you find in our [godoc for dataclient kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes).
 
