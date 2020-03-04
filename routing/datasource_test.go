@@ -66,6 +66,49 @@ func TestNoMultipleTreePredicates(t *testing.T) {
 	}
 }
 
+func TestErrorWhenUsingPrediateAsFilter(t *testing.T) {
+	for _, ti := range []struct {
+		routes string
+		err    string
+	}{{
+		`* -> True() -> <shunt>`,
+		"trying to use 'True' as filter, but it is only available as predicate",
+	}, {
+		`* -> PathRegexp("/test") -> <shunt>`,
+		"trying to use 'PathRegexp' as filter, but it is only available as predicate",
+	}, {
+		`* -> Unknown("/test") -> <shunt>`,
+		"filter not found: 'Unknown'",
+	}} {
+		func() {
+			dc, err := testdataclient.NewDoc(ti.routes)
+			if err != nil {
+				t.Error(ti.routes, err)
+
+				return
+			}
+
+			defs, err := dc.LoadAll()
+			if err != nil {
+				t.Error(ti.routes, err)
+
+				return
+			}
+
+			pr := map[string]PredicateSpec{
+				"True": &truePredicate{},
+			}
+			fr := make(filters.Registry)
+			for _, d := range defs {
+				_, err := processRouteDef(pr, fr, d)
+				if err == nil || err.Error() != ti.err {
+					t.Errorf("expected error '%s'. Got: '%s'", ti.err, err)
+				}
+			}
+		}()
+	}
+}
+
 func TestLogging(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
