@@ -306,11 +306,11 @@ func selectVaryingScanner(code string) scanner {
 		sf = scanSymbol
 	}
 
-	if sf != nil {
-		return scanner(sf)
+	if sf == nil {
+		return nil
 	}
 
-	return nil
+	return scanner(sf)
 }
 
 func selectScanner(code string) scanner {
