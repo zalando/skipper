@@ -214,9 +214,17 @@ func splitBackend(r *eskip.Route) (string, string, error) {
 
 // creates a filter instance based on its definition and its
 // specification in the filter registry.
-func createFilter(fr filters.Registry, def *eskip.Filter) (filters.Filter, error) {
+func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]PredicateSpec) (filters.Filter, error) {
 	spec, ok := fr[def.Name]
 	if !ok {
+		if isTreePredicate(def.Name) || def.Name == hostRegexpName || def.Name == pathRegexpName || def.Name == methodName || def.Name == headerName || def.Name == headerRegexpName {
+			return nil, fmt.Errorf("trying to use '%s' as filter, but it is only available as predicate", def.Name)
+		}
+
+		if _, ok := cpm[def.Name]; ok {
+			return nil, fmt.Errorf("trying to use '%s' as filter, but it is only available as predicate", def.Name)
+		}
+
 		return nil, fmt.Errorf("filter not found: '%s'", def.Name)
 	}
 
@@ -225,10 +233,10 @@ func createFilter(fr filters.Registry, def *eskip.Filter) (filters.Filter, error
 
 // creates filter instances based on their definition
 // and the filter registry.
-func createFilters(fr filters.Registry, defs []*eskip.Filter) ([]*RouteFilter, error) {
+func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]PredicateSpec) ([]*RouteFilter, error) {
 	var fs []*RouteFilter
 	for i, def := range defs {
-		f, err := createFilter(fr, def)
+		f, err := createFilter(fr, def, cpm)
 		if err != nil {
 			return nil, err
 		}
@@ -425,7 +433,7 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 		return nil, err
 	}
 
-	fs, err := createFilters(fr, def.Filters)
+	fs, err := createFilters(fr, def.Filters, cpm)
 	if err != nil {
 		return nil, err
 	}
