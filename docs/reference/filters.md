@@ -48,6 +48,22 @@ foo3:
   -> <dynamic>;
 ```
 
+## modRequestHeader
+
+Replace all matched regex expressions in the given header.
+
+Parameters:
+
+* header name (string)
+* the expression to match (regex)
+* the replacement (string)
+
+Example:
+
+```
+enforce_www: * -> modRequestHeader("Host", "^zalando\.(\w+)$", "www.zalando.$1") -> redirectTo(301);
+```
+
 ## setRequestHeader
 
 Set headers for requests.
@@ -63,17 +79,9 @@ Example:
 foo: * -> setRequestHeader("X-Passed-Skipper", "true") -> "https://backend.example.org";
 ```
 
-## setResponseHeader
-
-Same as [setRequestHeader](#setrequestheader), only for responses
-
 ## appendRequestHeader
 
 Same as [setRequestHeader](#setrequestheader), does not remove a possibly existing value, but adds a new header value
-
-## appendResponseHeader
-
-Same as [appendRequestHeader](#appendrequestheader), only for responses
 
 ## dropRequestHeader
 
@@ -88,6 +96,14 @@ Example:
 ```
 foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
 ```
+
+## setResponseHeader
+
+Same as [setRequestHeader](#setrequestheader), only for responses
+
+## appendResponseHeader
+
+Same as [appendRequestHeader](#appendrequestheader), only for responses
 
 ## dropResponseHeader
 
