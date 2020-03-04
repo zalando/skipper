@@ -27,7 +27,7 @@ represent time duration values as strings, parseable by [time.Duration](https://
 
 There is an important difference between the evaluation of the [Path](#Path) or [PathSubtree](#PathSubtree) predicates, and the
 evaluation of all the other predicates ([PathRegexp](#PathRegexp) belonging to the second group). Find an explanation in the
-[Route matching](../tutorials/basics.md/#route-matching) section explanation section.
+[Route matching](../tutorials/basics.md#route-matching) section explanation section.
 
 ### Path
 
