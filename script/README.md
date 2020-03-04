@@ -156,7 +156,7 @@ end
 ## redirectTo vs lua redirect
 See skptesting/benchmark-lua.sh
 
-Route for "skipper" is `* -> redirectTo("http://localhost:9980") -> <shunt>`,
+Route for "skipper" is `* -> redirectTo(302, "http://localhost:9980") -> <shunt>`,
 route for "lua" is `* -> lua("function request(c,p); c.serve({status_code=302, header={location='http://localhost:9980'}});end") -> <shunt>`
 
 ```
