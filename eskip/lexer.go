@@ -215,6 +215,12 @@ func scanRegexpOrComment(code string) (t token, rest string, err error) {
 		return
 	}
 
+	if code[0] == '#' {
+		rest = scanComment(code)
+		err = void
+		return
+	}
+
 	if code[1] == '/' {
 		rest = scanComment(code)
 		err = void
@@ -291,6 +297,7 @@ func selectVaryingScanner(code string) scanner {
 	var sf scannerFunc
 	switch code[0] {
 	case '/':
+	case '#':
 		sf = scanRegexpOrComment
 	case '"':
 		sf = scanDoubleQuote

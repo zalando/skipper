@@ -99,6 +99,11 @@ func TestParseRouteExpression(t *testing.T) {
 		&Route{Id: "route", BackendType: ShuntBackend, Shunt: true},
 		false,
 	}, {
+		"hash comment as last token",
+		"route: Any() -> <shunt>; # some comment",
+		&Route{Id: "route", BackendType: ShuntBackend, Shunt: true},
+		false,
+	}, {
 		"catch all",
 		`* -> "https://www.example.org"`,
 		&Route{Backend: "https://www.example.org"},
