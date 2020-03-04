@@ -297,13 +297,17 @@ Returns arbitrary content in the HTTP body.
 
 Parameters:
 
-* arbitrary (string)
+* content (string)
+* content type (string) - optional
 
 Example:
 
 ```
 * -> inlineContent("<h1>Hello</h1>") -> <shunt>
+* -> inlineContent("[1,2,3]", "application/json") -> <shunt>
 ```
+
+Content type will be automatically detected when not provided.
 
 !!! note
     `inlineContent` filter is special and must be the last in the filter chain.
