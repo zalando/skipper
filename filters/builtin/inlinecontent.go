@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/zalando/skipper/filters"
 )
@@ -60,6 +61,9 @@ func (c *inlineContent) CreateFilter(args []interface{}) (filters.Filter, error)
 	if err != nil {
 		return nil, err
 	}
+
+	f.text = strings.ReplaceAll(f.text, `\r`, "\r")
+	f.text = strings.ReplaceAll(f.text, `\n`, "\n")
 
 	if len(args) == 2 {
 		f.mime, err = stringArg(args[1])

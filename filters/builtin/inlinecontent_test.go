@@ -39,6 +39,11 @@ func TestInlineContentArgs(t *testing.T) {
 		expectedText: "foo",
 		expectedMime: "text/plain",
 	}, {
+		title:        "newlines",
+		args:         []interface{}{`foo\nbar\r\n`},
+		expectedText: "foo\nbar\r\n",
+		expectedMime: "text/plain",
+	}, {
 		title:        "html, detected",
 		args:         []interface{}{`<!doctype html><html>foo</html>`},
 		expectedText: `<!doctype html><html>foo</html>`,
