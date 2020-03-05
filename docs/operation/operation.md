@@ -761,3 +761,88 @@ basis with the rfcPath() filter. See
 If the second interpretation gets considered the right way, and the
 other one a bug, then the default value for this flag may become to
 be on.
+
+## Debugging Requests
+
+Skipper provides [filters](../reference/filters.md), that can change
+HTTP requests. You might want to inspect how the request was changed,
+during the route processing and check the request that would be made
+to the backend. Luckily with `-debug-listener=:9922`, Skipper can
+provide you this information.
+
+For example you have the following route:
+
+```
+kube_default__foo__foo_teapot_example_org_____foo: Host(/^foo[.]teapot[.]example[.]org$/) && PathSubtree("/")
+  -> setRequestHeader("X-Foo", "hello-world")
+  -> <roundRobin, "http://10.2.0.225:9090", "http://10.2.1.244:9090">;
+```
+
+If you sent now a request to the debug listener, that will be matched
+by the route, Skipper will respond with information that show you the
+matched route, the incoming request, the transformed request and all
+predicates and filters involved in the route processing:
+
+```
+% curl -s http://127.0.0.1:9922/ -H"Host: foo.teapot.example.org" | jq .
+{
+  "route_id": "kube_default__foo__foo_teapot_example_org_____foo",
+  "route": "Host(/^foo[.]teapot[.]example[.]org$/) && PathSubtree(\"/\") -> setRequestHeader(\"X-Foo\", \"hello-world\") -> <roundRobin, \"http://10.2.0.225:9090\", \"http://10.2.1.244:9090\">",
+  "incoming": {
+    "method": "GET",
+    "uri": "/",
+    "proto": "HTTP/1.1",
+    "header": {
+      "Accept": [
+        "*/*"
+      ],
+      "User-Agent": [
+        "curl/7.49.0"
+      ]
+    },
+    "host": "foo.teapot.example.org",
+    "remote_address": "127.0.0.1:32992"
+  },
+  "outgoing": {
+    "method": "GET",
+    "uri": "",
+    "proto": "HTTP/1.1",
+    "header": {
+      "Accept": [
+        "*/*"
+      ],
+      "User-Agent": [
+        "curl/7.49.0"
+      ],
+      "X-Foo": [
+        "hello-world"
+      ]
+    },
+    "host": "foo.teapot.example.org"
+  },
+  "response_mod": {
+    "header": {
+      "Server": [
+        "Skipper"
+      ]
+    }
+  },
+  "filters": [
+    {
+      "name": "setRequestHeader",
+      "args": [
+        "X-Foo",
+        "hello-world"
+      ]
+    }
+  ],
+  "predicates": [
+    {
+      "name": "PathSubtree",
+      "args": [
+        "/"
+      ]
+    }
+  ]
+}
+```
