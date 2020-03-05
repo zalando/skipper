@@ -44,13 +44,13 @@ Serve with `Content-Type: application/json; charset=utf-8`
 Example (Open your browser http://localhost:9090/):
 
 ```
-skipper -inline-routes '* -> setResponseHeader("Content-Type", "application/json; charset=utf-8") -> inlineContent("{\"foo\": 3}") -> <shunt>'
+skipper -inline-routes '* -> inlineContent("{\"foo\": 3}", "application/json; charset=utf-8") -> <shunt>'
 ```
 
 Docker Example (Open your browser http://localhost:9090/):
 
 ```
-docker run -p 9090:9090 -it registry.opensource.zalan.do/pathfinder/skipper:latest skipper -inline-routes '* -> setResponseHeader("Content-Type", "application/json; charset=utf-8") -> inlineContent("{\"foo\": 3}") -> <shunt>'
+docker run -p 9090:9090 -it registry.opensource.zalan.do/pathfinder/skipper:latest skipper -inline-routes '* -> inlineContent("{\"foo\": 3}", "application/json; charset=utf-8") -> <shunt>'
 ```
 
 ## Proxy to a given URL
