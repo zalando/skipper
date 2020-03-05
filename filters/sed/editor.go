@@ -17,6 +17,35 @@ const (
 	defaultMaxEditorBufferSize = 2 << 20
 )
 
+// editor provides a reader that wraps a source reader, and replaces each occurence of
+// the provided search pattern with the provided replacment. It can be used with a
+// delimiter or without.
+//
+// When using it with a delimiter, it reads enough data from the source until meeting
+// a delimiter or reaching maxBufferSize. The chunk includes the delimiter if any. Then
+// every occurence of the pattern is replaced, and the entire edited chunk is returned
+// to the caller.
+//
+// When not using a delimiter, it reads enough data until at least complete match of the
+// pattern is met or the maxBufferSize is reached. When the pattern matches the entire
+// buffered input, the replaced content is returned to the caller when maxBufferSize is
+// reached. This also means that more replacements can happen than if we edited the
+// entire content in one piece, but this is necessary to be able to use the editor for
+// input with unknown length.
+//
+// To limit the number of repeated scans over the buffered data, the size of the
+// additional data read from the source grows exponentially with every iteration that
+// didn't result with any edited data returned to the caller. If there was any edited
+// returned to the caller, the read size is reset to the initial value.
+//
+// When the source returns an error, e.g. EOF, the editor finishes editing the buffered
+// data, returns it to the caller, and returns the received error on every subsequent
+// read.
+//
+// When the editor is closed, it doesn't read anymore from the source or return any
+// buffered data. If the source implements io.Closer, closing the editor closes the
+// source, too.
+//
 type editor struct {
 	source        io.Reader
 	pattern       *regexp.Regexp
