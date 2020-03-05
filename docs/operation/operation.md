@@ -780,7 +780,8 @@ kube_default__foo__foo_teapot_example_org_____foo: Host(/^foo[.]teapot[.]example
 
 If you sent now a request to the debug listener, that will be matched
 by the route, Skipper will respond with information that show you the
-transformed request:
+matched route, the incoming request, the transformed request and all
+predicates and filters involved in the route processing:
 
 ```
 % curl -s http://127.0.0.1:9922/ -H"Host: foo.teapot.example.org" | jq .
