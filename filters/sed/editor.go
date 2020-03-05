@@ -72,7 +72,7 @@ func (b *editor) Read(p []byte) (int, error) {
 		// check if we still can return something, or return the error.
 		//
 		// Not mandatory, but let's postpone the error until nothing else
-		// was left.
+		// was left to read.
 		//
 		// We can have pending data only in two possible states at this point:
 		//
@@ -88,10 +88,28 @@ func (b *editor) Read(p []byte) (int, error) {
 				return 0, b.err
 			}
 
-			if len(b.pendingMatch) != 0 {
-				b.ready = b.replacement
+			if len(b.delimiter) == 0 {
+				if len(b.pendingMatch) != 0 {
+					b.ready = b.replacement
+				} else {
+					b.ready = b.pending
+				}
 			} else {
-				b.ready = b.pending
+				chunk := b.pending
+				for len(chunk) > 0 {
+					match := b.pattern.FindIndex(chunk)
+					if len(match) == 0 || match[0] == 0 && match[1] == 0 {
+						b.ready = append(b.ready, chunk...)
+						break
+					}
+
+					b.ready = append(b.ready, chunk[:match[0]]...)
+					if match[1] > match[0] {
+						b.ready = append(b.ready, b.replacement...)
+					}
+
+					chunk = chunk[match[1]:]
+				}
 			}
 
 			b.pending = nil
@@ -133,18 +151,12 @@ func (b *editor) Read(p []byte) (int, error) {
 				// Scanning for the known prefix, if there is any, prevents
 				// unnecessary scanning of the pending data when the editor
 				// buffer grows large.
-				if len(b.prefix) > 0 {
+				if len(b.prefix) > 0 && len(b.pending) >= len(b.prefix) {
 					skip := bytes.Index(b.pending, b.prefix)
 					if skip > 0 {
 						b.ready = append(b.ready, b.pending[:skip]...)
 						b.pending = b.pending[skip:]
 						readSize = 1
-					} else if skip < 0 {
-						b.ready = append(b.ready, b.pending...)
-						b.pending = nil
-						b.pendingMatch = nil
-						readSize = 1
-						break
 					}
 				}
 
@@ -164,7 +176,10 @@ func (b *editor) Read(p []byte) (int, error) {
 				b.pendingMatch[1] -= b.pendingMatch[0]
 				b.pendingMatch[0] = 0
 
-				// TODO: we need to document that only non-zero matches are replaced
+				// TODO:
+				// - we need to document that only non-zero matches are replaced
+				// - we can document that it is currently not supported, together
+				//   with the templating
 				if b.pendingMatch[1] == 0 {
 					b.pendingMatch = nil
 					break
@@ -193,6 +208,7 @@ func (b *editor) Read(p []byte) (int, error) {
 				// in the expression whether to keep it or not.
 				// TODO: test both cases
 				chunk := b.pending[:endChunk+len(b.delimiter)]
+				b.pending = b.pending[len(chunk):]
 
 				for len(chunk) > 0 {
 					match := b.pattern.FindIndex(chunk)
@@ -212,24 +228,44 @@ func (b *editor) Read(p []byte) (int, error) {
 		}
 
 		for len(b.pending) > b.maxBufferSize {
-			if len(b.pendingMatch) == 0 {
-				b.ready = append(b.ready, b.pending[:b.maxBufferSize]...)
-				b.pending = b.pending[b.maxBufferSize:]
+			if len(b.delimiter) == 0 {
+				if len(b.pendingMatch) == 0 {
+					b.ready = append(b.ready, b.pending[:b.maxBufferSize]...)
+					b.pending = b.pending[b.maxBufferSize:]
+				} else {
+					b.ready = append(b.ready, b.replacement...)
+					b.pending = nil
+					b.pendingMatch = nil
+				}
 			} else {
-				b.ready = append(b.ready, b.replacement...)
+				chunk := b.pending
+				for len(chunk) > 0 {
+					match := b.pattern.FindIndex(chunk)
+					if len(match) == 0 || match[0] == 0 && match[1] == 0 {
+						b.ready = append(b.ready, chunk...)
+						break
+					}
+
+					b.ready = append(b.ready, chunk[:match[0]]...)
+					if match[1] > match[0] {
+						b.ready = append(b.ready, b.replacement...)
+					}
+
+					chunk = chunk[match[1]:]
+				}
+
 				b.pending = nil
-				b.pendingMatch = nil
 			}
 		}
 	}
 }
 
 // It closed the undelrying reader.
-func (b editor) Close() error {
+func (b *editor) Close() error {
+	b.closed = true
 	if c, ok := b.source.(io.Closer); ok {
 		return c.Close()
 	}
 
-	b.closed = true
 	return nil
 }
