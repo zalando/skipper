@@ -360,10 +360,6 @@ func (c *Client) hasReceivedTerm() bool {
 }
 
 func setOriginMarker(s *clusterState, r []*eskip.Route) []*eskip.Route {
-	if len(r) == 0 {
-		return nil
-	}
-
 	or := &eskip.Route{
 		Id: "kube__originMarkers",
 		Predicates: []*eskip.Predicate{{
@@ -463,7 +459,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		}
 	}
 
-	if c.originMarker {
+	if c.originMarker && (len(updatedRoutes) > 0 || len(deletedIDs) > 0) {
 		updatedRoutes = setOriginMarker(clusterState, updatedRoutes)
 	}
 
