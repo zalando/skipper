@@ -14,6 +14,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/source"
 )
 
@@ -359,23 +360,26 @@ func (c *Client) hasReceivedTerm() bool {
 }
 
 func setOriginMarker(s *clusterState, r []*eskip.Route) []*eskip.Route {
-	if len(r) == 0 {
-		return nil
+	or := &eskip.Route{
+		Id: "kube__originMarkers",
+		Predicates: []*eskip.Predicate{{
+			Name: primitive.NameFalse,
+		}},
+		BackendType: eskip.ShuntBackend,
 	}
-
-	rr := make([]*eskip.Route, len(r))
-	copy(rr, r)
-
-	// it doesn't matter which route the marker is added to
-	// we also copy the route, to avoid storing it for the next diff comparison
-	r0 := *rr[0]
-	rr[0] = &r0
 
 	for _, i := range s.ingresses {
-		r0.Filters = append(r0.Filters, builtin.NewOriginMarker(ingressOriginName, i.Metadata.Uid, i.Metadata.Created))
+		or.Filters = append(
+			or.Filters,
+			builtin.NewOriginMarker(
+				ingressOriginName,
+				i.Metadata.Uid,
+				i.Metadata.Created,
+			),
+		)
 	}
 
-	return rr
+	return append(r, or)
 }
 
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
@@ -455,7 +459,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		}
 	}
 
-	if c.originMarker {
+	if c.originMarker && (len(updatedRoutes) > 0 || len(deletedIDs) > 0) {
 		updatedRoutes = setOriginMarker(clusterState, updatedRoutes)
 	}
 
