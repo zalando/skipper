@@ -159,11 +159,6 @@ func TestSed(t *testing.T) {
 		args:   args("foo", "bar"),
 		body:   "foobarbaz",
 		expect: "barbarbaz",
-	}, {
-		title:  "small max buffer",
-		args:   args("a", "X", 1),
-		body:   "foobarbaz",
-		expect: "foobXrbXz",
 	}} {
 		t.Run(fmt.Sprintf("%s/%s", sed.NameRequest, test.title), testRequest(sed.NameRequest, test))
 		t.Run(fmt.Sprintf("%s/%s", sed.Name, test.title), testResponse(sed.Name, test))

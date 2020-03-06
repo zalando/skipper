@@ -211,7 +211,7 @@ func (f filter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	req.Header.Del("Content-Length")
 	req.ContentLength = -1
-	req.Body = newEditor(req.Body, f.pattern, f.replacement, f.delimiter, f.maxEditorBuffer)
+	req.Body = newEditor(req.Body, f.pattern, f.replacement, f.delimiter, f.maxEditorBuffer, maxBufferAbort)
 }
 
 func (f filter) Response(ctx filters.FilterContext) {
@@ -223,5 +223,5 @@ func (f filter) Response(ctx filters.FilterContext) {
 	rsp := ctx.Response()
 	rsp.Header.Del("Content-Length")
 	rsp.ContentLength = -1
-	rsp.Body = newEditor(rsp.Body, f.pattern, f.replacement, f.delimiter, f.maxEditorBuffer)
+	rsp.Body = newEditor(rsp.Body, f.pattern, f.replacement, f.delimiter, f.maxEditorBuffer, maxBufferAbort)
 }

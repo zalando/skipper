@@ -17,8 +17,15 @@ const (
 	defaultMaxEditorBufferSize = 2 << 20
 )
 
+type maxBufferHandling int
+
+const (
+	maxBufferAbort maxBufferHandling = iota
+	maxBufferBestEffort
+)
+
 // editor provides a reader that wraps a source reader, and replaces each occurence of
-// the provided search pattern with the provided replacment. It can be used with a
+// the provided search pattern with the provided replacement. It can be used with a
 // delimiter or without.
 //
 // When using it with a delimiter, it reads enough data from the source until meeting
@@ -52,6 +59,7 @@ type editor struct {
 	replacement   []byte
 	delimiter     []byte
 	maxBufferSize int
+	maxBufferHandling maxBufferHandling
 	prefix        []byte
 	ready         []byte
 	pending       []byte
@@ -61,7 +69,10 @@ type editor struct {
 	closed        bool
 }
 
-var ErrClosed = errors.New("reader closed")
+var (
+	ErrClosed = errors.New("reader closed")
+	ErrEditorBufferFull = errors.New("editor buffer full")
+)
 
 func newEditor(
 	source io.Reader,
@@ -69,9 +80,15 @@ func newEditor(
 	replacement []byte,
 	delimiter []byte,
 	maxBufferSize int,
+	mbh maxBufferHandling,
 ) *editor {
 	if maxBufferSize <= 0 {
 		maxBufferSize = defaultMaxEditorBufferSize
+	}
+
+	rsize := readBufferSize
+	if maxBufferSize < rsize {
+		rsize = maxBufferSize
 	}
 
 	prefix, _ := pattern.LiteralPrefix()
@@ -81,8 +98,9 @@ func newEditor(
 		replacement:   replacement,
 		delimiter:     delimiter,
 		maxBufferSize: maxBufferSize,
+		maxBufferHandling: mbh,
 		prefix:        []byte(prefix),
-		readBuffer:    make([]byte, readBufferSize),
+		readBuffer:    make([]byte, rsize),
 	}
 }
 
@@ -260,9 +278,13 @@ func (e *editor) Read(p []byte) (int, error) {
 		}
 
 		if len(e.pending) > e.maxBufferSize {
-			readSize = 1
-			for len(e.pending) > e.maxBufferSize {
-				e.trimPending()
+			if e.maxBufferHandling == maxBufferBestEffort {
+				readSize = 1
+				for len(e.pending) > e.maxBufferSize {
+					e.trimPending()
+				}
+			} else {
+				e.err = ErrEditorBufferFull
 			}
 		}
 	}

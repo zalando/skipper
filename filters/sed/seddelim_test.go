@@ -70,11 +70,6 @@ func TestSedDelim(t *testing.T) {
 		args:   args("foo", "bar", "\n"),
 		body:   "foobarbaz",
 		expect: "barbarbaz",
-	}, {
-		title:  "small max buffer",
-		args:   args("a", "X", "\n", 1),
-		body:   "foobarbaz",
-		expect: "foobXrbXz",
 	}} {
 		t.Run(
 			fmt.Sprintf("%s/%s", sed.NameRequestDelimit, test.title),
@@ -136,11 +131,6 @@ func TestSedDelimNoDelim(t *testing.T) {
 		args:   args("foo", "bar", "\n"),
 		body:   "foobarbaz",
 		expect: "barbarbaz",
-	}, {
-		title:  "small max buffer",
-		args:   args("a", "X", "\n", 1),
-		body:   "foobarbaz",
-		expect: "foobXrbXz",
 	}} {
 		t.Run(
 			fmt.Sprintf("%s/%s", sed.NameRequestDelimit, test.title),
