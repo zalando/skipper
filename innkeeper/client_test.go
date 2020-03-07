@@ -143,8 +143,8 @@ func checkDoc(t *testing.T, rs []*eskip.Route, ds []string, d []*routeData) bool
 			}
 		}
 
-		if r.Shunt != check[i].Shunt {
-			t.Error("doc shunt does not match")
+		if r.BackendType != check[i].BackendType {
+			t.Error("doc backend type does not match")
 			return false
 		}
 
@@ -299,12 +299,12 @@ func TestConvertDoc(t *testing.T) {
 
 	test(rs[0].Id, "route1")
 	test(rs[0].Path, "/")
-	test(rs[0].Shunt, false)
+	test(rs[0].BackendType, eskip.BackendType(eskip.NetworkBackend))
 	test(rs[0].Backend, "https://example.org:443")
 
 	test(rs[1].Id, "route4")
 	test(rs[1].Path, "/catalog")
-	test(rs[1].Shunt, false)
+	test(rs[1].BackendType, eskip.BackendType(eskip.NetworkBackend))
 	test(rs[1].Backend, "https://catalog.example.org:443")
 
 	test(len(deleted), 2)

@@ -153,12 +153,6 @@ type Route struct {
 	// E.g. redirect(302, "https://www.example.org/hello")
 	Filters []*Filter
 
-	// Indicates that the parsed route has a shunt backend.
-	// (<shunt>, no forwarding to a backend)
-	//
-	// Deprecated, use the BackendType field instead.
-	Shunt bool
-
 	// Indicates that the parsed route is a shunt, loopback or
 	// it is forwarding to a network backend.
 	BackendType BackendType
@@ -397,7 +391,6 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 
 	rd.Id = r.id
 	rd.Filters = r.filters
-	rd.Shunt = r.shunt
 	rd.Backend = r.backend
 	rd.LBAlgorithm = r.lbAlgorithm
 	rd.LBEndpoints = r.lbEndpoints

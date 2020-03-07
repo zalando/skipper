@@ -1046,7 +1046,7 @@ func (p *Proxy) do(ctx *context) error {
 	if ctx.deprecatedShunted() {
 		p.log.Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}
-	} else if ctx.shunted() || ctx.route.Shunt || ctx.route.BackendType == eskip.ShuntBackend {
+	} else if ctx.shunted() || ctx.route.BackendType == eskip.ShuntBackend {
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()

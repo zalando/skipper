@@ -343,7 +343,7 @@ func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 			Name: builtin.StatusName,
 			Args: []interface{}{status}},
 		},
-		Shunt: true,
+		BackendType: eskip.ShuntBackend,
 	}
 }
 

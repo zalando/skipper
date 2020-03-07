@@ -32,7 +32,6 @@ func TestRouteString(t *testing.T) {
 				},
 			}},
 			BackendType: eskip.ShuntBackend,
-			Shunt:       true,
 		}},
 	}, {
 		title: "single definition",
@@ -47,7 +46,6 @@ func TestRouteString(t *testing.T) {
 				},
 			}},
 			BackendType: eskip.ShuntBackend,
-			Shunt:       true,
 		}},
 	}, {
 		title: "multiple definitions",
@@ -65,7 +63,6 @@ func TestRouteString(t *testing.T) {
 				},
 			}},
 			BackendType: eskip.ShuntBackend,
-			Shunt:       true,
 		}, {
 			Id:     "register",
 			Method: "POST",

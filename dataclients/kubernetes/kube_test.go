@@ -335,7 +335,7 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, rever
 			return
 		}
 
-		if !r.Shunt {
+		if r.BackendType != eskip.ShuntBackend {
 			t.Error("healthcheck route must be a shunt")
 			return
 		}

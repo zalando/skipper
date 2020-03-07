@@ -373,9 +373,9 @@ func TestUpsertNew(t *testing.T) {
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:     "route1",
-		Method: "POST",
-		Shunt:  true})
+		Id:          "route1",
+		Method:      "POST",
+		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)
 	}
@@ -403,17 +403,17 @@ func TestUpsertExisting(t *testing.T) {
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:     "route1",
-		Method: "POST",
-		Shunt:  true})
+		Id:          "route1",
+		Method:      "POST",
+		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:     "route1",
-		Method: "PUT",
-		Shunt:  true})
+		Id:          "route1",
+		Method:      "PUT",
+		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)
 	}
@@ -453,9 +453,9 @@ func TestDeleteNotExists(t *testing.T) {
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:     "route1",
-		Method: "POST",
-		Shunt:  true})
+		Id:          "route1",
+		Method:      "POST",
+		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)
 	}
@@ -487,9 +487,9 @@ func TestDelete(t *testing.T) {
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:     "route1",
-		Method: "POST",
-		Shunt:  true})
+		Id:          "route1",
+		Method:      "POST",
+		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)
 	}

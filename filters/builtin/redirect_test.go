@@ -129,7 +129,7 @@ func TestRedirect(t *testing.T) {
 				args = []interface{}{float64(ti.code), ti.filterLocation}
 			}
 			dc := testdataclient.New([]*eskip.Route{{
-				Shunt: true,
+				BackendType: eskip.ShuntBackend,
 				Filters: []*eskip.Filter{{
 					Name: tii.name,
 					Args: args}}}})
@@ -209,7 +209,7 @@ func TestRedirectLower(t *testing.T) {
 			RedirectToLowerName,
 		}} {
 			dc := testdataclient.New([]*eskip.Route{{
-				Shunt: true,
+				BackendType: eskip.ShuntBackend,
 				Filters: []*eskip.Filter{{
 					Name: tii.name,
 					Args: []interface{}{float64(ti.code), ti.filterLocation}}}}})

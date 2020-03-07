@@ -158,8 +158,8 @@ func TestRandom(t *testing.T) {
 	}} {
 		func() {
 			p := proxytest.New(filters.Registry{RandomName: &random{}}, &eskip.Route{
-				Filters: []*eskip.Filter{{Name: RandomName, Args: []interface{}{float64(ti.len)}}},
-				Shunt:   true})
+				Filters:     []*eskip.Filter{{Name: RandomName, Args: []interface{}{float64(ti.len)}}},
+				BackendType: eskip.ShuntBackend})
 			defer p.Close()
 
 			req, err := http.NewRequest("GET", p.URL, nil)
@@ -472,7 +472,7 @@ func TestThrottle(t *testing.T) {
 		Filters: []*eskip.Filter{
 			{Name: requestCheckName, Args: nil},
 			{Name: RandomName, Args: []interface{}{float64(testDataLen)}}},
-		Shunt: true})
+		BackendType: eskip.ShuntBackend})
 	defer testServer.Close()
 
 	proxyFilters := filters.Registry{

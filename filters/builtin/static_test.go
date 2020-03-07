@@ -99,8 +99,8 @@ func TestStatic(t *testing.T) {
 		fr := make(filters.Registry)
 		fr.Register(NewStatic())
 		pr := proxytest.New(fr, &eskip.Route{
-			Filters: []*eskip.Filter{{Name: StaticName, Args: ti.args}},
-			Shunt:   true})
+			Filters:     []*eskip.Filter{{Name: StaticName, Args: ti.args}},
+			BackendType: eskip.ShuntBackend})
 		defer pr.Close()
 
 		rsp, err := http.Get(pr.URL + ti.path)
@@ -143,8 +143,8 @@ func TestSameFileMultipleTimes(t *testing.T) {
 	fr := make(filters.Registry)
 	fr.Register(NewStatic())
 	pr := proxytest.New(fr, &eskip.Route{
-		Filters: []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
-		Shunt:   true})
+		Filters:     []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
+		BackendType: eskip.ShuntBackend})
 	defer pr.Close()
 
 	for i := 0; i < n; i++ {
@@ -173,8 +173,8 @@ func TestMultipleRanges(t *testing.T) {
 	fr := make(filters.Registry)
 	fr.Register(NewStatic())
 	pr := proxytest.New(fr, &eskip.Route{
-		Filters: []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
-		Shunt:   true})
+		Filters:     []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
+		BackendType: eskip.ShuntBackend})
 	defer pr.Close()
 
 	req, err := http.NewRequest("GET", pr.URL+"/static/static-test", nil)

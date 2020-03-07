@@ -96,7 +96,7 @@ func TestParseRouteExpression(t *testing.T) {
 	}, {
 		"comment as last token",
 		"route: Any() -> <shunt>; // some comment",
-		&Route{Id: "route", BackendType: ShuntBackend, Shunt: true},
+		&Route{Id: "route", BackendType: ShuntBackend},
 		false,
 	}, {
 		"catch all",
@@ -130,7 +130,6 @@ func TestParseRouteExpression(t *testing.T) {
 				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
 			},
 			BackendType: ShuntBackend,
-			Shunt:       true,
 		},
 		false,
 	}, {
@@ -265,18 +264,6 @@ func TestParseRouteExpression(t *testing.T) {
 				t.Error("invalid backend type", r.BackendType, ti.check.BackendType)
 			}
 
-			if r.Shunt != ti.check.Shunt {
-				t.Error("shunt", r.Shunt, ti.check.Shunt)
-			}
-
-			if r.Shunt && r.BackendType != ShuntBackend || !r.Shunt && r.BackendType == ShuntBackend {
-				t.Error("shunt, deprecated and new form are not sync")
-			}
-
-			if r.BackendType == LoopBackend && r.Shunt {
-				t.Error("shunt set for loopback route")
-			}
-
 			if r.Backend != ti.check.Backend {
 				t.Error("backend", r.Backend, ti.check.Backend)
 			}
@@ -333,10 +320,10 @@ func TestRouteJSON(t *testing.T) {
 		&Route{Method: "GET", Backend: "https://www.example.org"},
 		`{"id":"","backend":"https://www.example.org","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
 	}, {
-		&Route{Method: "GET", Shunt: true},
+		&Route{Method: "GET", BackendType: ShuntBackend},
 		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
 	}, {
-		&Route{Method: "GET", Shunt: true, BackendType: ShuntBackend},
+		&Route{Method: "GET", BackendType: ShuntBackend},
 		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
 	}, {
 		&Route{Method: "GET", BackendType: ShuntBackend},
@@ -361,8 +348,8 @@ func TestRouteJSON(t *testing.T) {
 			Filters: []*Filter{
 				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
 				{"filter1", []interface{}{float64(-42), `ap"argvalue`}}},
-			Shunt:   false,
-			Backend: "https://www.example.org"},
+			BackendType: NetworkBackend,
+			Backend:     "https://www.example.org"},
 		`{` +
 			`"id":"",` +
 			`"backend":"https://www.example.org",` +

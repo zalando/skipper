@@ -18,7 +18,7 @@ func (p *priorityRoute) Match(request *http.Request) (*routing.Route, map[string
 		return nil, nil
 	}
 
-	return &routing.Route{Route: eskip.Route{Shunt: true}}, nil
+	return &routing.Route{Route: eskip.Route{BackendType: eskip.ShuntBackend}}, nil
 }
 
 func ExamplePriorityRoute() {
