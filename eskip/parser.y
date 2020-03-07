@@ -38,11 +38,8 @@ func convertNumber(s string) float64 {
 	filters []*Filter
 	args []interface{}
 	arg interface{}
+	backendType BackendType
 	backend string
-	shunt bool
-	loopback bool
-	dynamic bool
-	lbBackend bool
 	numval float64
 	stringval string
 	regexpval string
@@ -112,11 +109,8 @@ route:
 	frontend arrow backend {
 		$$.route = &parsedRoute{
 			matchers: $1.matchers,
+			backendType: $3.backendType,
 			backend: $3.backend,
-			shunt: $3.shunt,
-			loopback: $3.loopback,
-			dynamic: $3.dynamic,
-			lbBackend: $3.lbBackend,
 			lbAlgorithm: $3.lbAlgorithm,
 			lbEndpoints: $3.lbEndpoints,
 		}
@@ -128,11 +122,8 @@ route:
 		$$.route = &parsedRoute{
 			matchers: $1.matchers,
 			filters: $3.filters,
+			backendType: $5.backendType,
 			backend: $5.backend,
-			shunt: $5.shunt,
-			loopback: $5.loopback,
-			dynamic: $5.dynamic,
-			lbBackend: $5.lbBackend,
 			lbAlgorithm: $5.lbAlgorithm,
 			lbEndpoints: $5.lbEndpoints,
 		}
@@ -231,23 +222,24 @@ lbbackend:
 
 backend:
 	stringval {
+		$$.backendType = NetworkBackend
 		$$.backend = $1.stringval
 	}
 	|
 	shunt {
-		$$.shunt = true
+		$$.backendType = ShuntBackend
 	}
 	|
 	loopback {
-		$$.loopback = true
+		$$.backendType = LoopBackend
 	}
 	|
 	dynamic {
-		$$.dynamic = true
+		$$.backendType = DynamicBackend
 	}
 	|
 	lbbackend {
-		$$.lbBackend = true
+		$$.backendType = LBBackend
 		$$.lbAlgorithm = $1.lbAlgorithm
 		$$.lbEndpoints = $1.lbEndpoints
 	}

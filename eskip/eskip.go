@@ -81,10 +81,7 @@ type parsedRoute struct {
 	id          string
 	matchers    []*matcher
 	filters     []*Filter
-	shunt       bool
-	loopback    bool
-	dynamic     bool
-	lbBackend   bool
+	backendType BackendType
 	backend     string
 	lbAlgorithm string
 	lbEndpoints []string
@@ -391,22 +388,10 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 
 	rd.Id = r.id
 	rd.Filters = r.filters
+	rd.BackendType = r.backendType
 	rd.Backend = r.backend
 	rd.LBAlgorithm = r.lbAlgorithm
 	rd.LBEndpoints = r.lbEndpoints
-
-	switch {
-	case r.shunt:
-		rd.BackendType = ShuntBackend
-	case r.loopback:
-		rd.BackendType = LoopBackend
-	case r.dynamic:
-		rd.BackendType = DynamicBackend
-	case r.lbBackend:
-		rd.BackendType = LBBackend
-	default:
-		rd.BackendType = NetworkBackend
-	}
 
 	err := applyPredicates(rd, r)
 
