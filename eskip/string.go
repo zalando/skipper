@@ -14,8 +14,6 @@ type PrettyPrintInfo struct {
 }
 
 func escape(s string, chars string) string {
-
-	s = strings.Replace(s, "\\", "\\\\", -1)
 	for i := 0; i < len(chars); i++ {
 		c := chars[i : i+1]
 		s = strings.Replace(s, c, "\\"+c, -1)
