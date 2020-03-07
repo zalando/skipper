@@ -25,6 +25,8 @@ const (
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathSubtreeName = "PathSubtree"
 
+	WeightPredicateName = "Weight"
+
 	routesTimestampName      = "X-Timestamp"
 	routesCountName          = "X-Count"
 	defaultRouteListingLimit = 1024
@@ -171,6 +173,9 @@ type Route struct {
 
 	// Fields from the static route definition.
 	eskip.Route
+
+	// weight used internally, received from the Weight() predicates.
+	weight int
 
 	// path predicate matching a subtree
 	path string

@@ -128,6 +128,30 @@ Host(/^my-host-header\.example\.org$/)
 Host(/header\.example\.org$/)
 ```
 
+## Weight (priority)
+
+By default, the weight (priority) of a route is determined by the number of defined predicates.
+
+If you want to give a route more priority, you can give it more weight.
+
+Parameters:
+
+* Weight (int)
+
+Example where `route2` has more priority because it has more predicates:
+
+```
+route1: Path("/test") -> "http://www.zalando.de";
+route2: Path("/test") && True() -> "http://www.zalando.de";
+```
+
+Example where `route1` has more priority because it has more weight:
+
+```
+route1: Path("/test") && Weight(100) -> "http://www.zalando.de";
+route2: Path("/test") && True() && True() -> "http://www.zalando.de";
+```
+
 ## Method
 
 The HTTP method that the request must match. HTTP methods are one of

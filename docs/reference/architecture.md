@@ -105,8 +105,8 @@ The route matching logic can be summed up as follows:
 
 2. _If_ step #1 matches multiple routes, which means there are multiple
    routes in the same position of the path tree, and all other predicates
-   match the request, too, then the route with the most defined predicates
-   is matched.
+   match the request, too, then the route with the highest 
+   [weight](predicates.md#weight) is matched.
 
     * this is an O(n) lookup, but only on the same leaf
 
