@@ -89,7 +89,7 @@ const eskipEofCode = 1
 const eskipErrCode = 2
 const eskipInitialStackSize = 16
 
-//line parser.y:286
+//line parser.y:270
 
 //line yacctab:1
 var eskipExca = [...]int{
@@ -510,53 +510,53 @@ eskipdefault:
 
 	case 1:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:75
+//line parser.y:75
 		{
 			eskipVAL.routes = eskipDollar[1].routes
 			eskiplex.(*eskipLex).routes = eskipVAL.routes
 		}
 	case 2:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:80
+//line parser.y:80
 		{
 			eskipVAL.routes = []*parsedRoute{eskipDollar[1].route}
 			eskiplex.(*eskipLex).routes = eskipVAL.routes
 		}
 	case 4:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:87
+//line parser.y:87
 		{
 			eskipVAL.routes = []*parsedRoute{eskipDollar[1].route}
 		}
 	case 5:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:91
+//line parser.y:91
 		{
 			eskipVAL.routes = eskipDollar[1].routes
 			eskipVAL.routes = append(eskipVAL.routes, eskipDollar[3].route)
 		}
 	case 6:
 		eskipDollar = eskipS[eskippt-2 : eskippt+1]
-		//line parser.y:96
+//line parser.y:96
 		{
 			eskipVAL.routes = eskipDollar[1].routes
 		}
 	case 7:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:101
+//line parser.y:101
 		{
 			eskipVAL.route = eskipDollar[3].route
 			eskipVAL.route.id = eskipDollar[1].token
 		}
 	case 8:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:107
+//line parser.y:107
 		{
 			eskipVAL.token = eskipDollar[1].token
 		}
 	case 9:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:112
+//line parser.y:112
 		{
 			eskipVAL.route = &parsedRoute{
 				matchers:    eskipDollar[1].matchers,
@@ -573,7 +573,7 @@ eskipdefault:
 		}
 	case 10:
 		eskipDollar = eskipS[eskippt-5 : eskippt+1]
-		//line parser.y:127
+//line parser.y:127
 		{
 			eskipVAL.route = &parsedRoute{
 				matchers:    eskipDollar[1].matchers,
@@ -592,46 +592,46 @@ eskipdefault:
 		}
 	case 11:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:145
+//line parser.y:145
 		{
 			eskipVAL.matchers = []*matcher{eskipDollar[1].matcher}
 		}
 	case 12:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:149
+//line parser.y:149
 		{
 			eskipVAL.matchers = eskipDollar[1].matchers
 			eskipVAL.matchers = append(eskipVAL.matchers, eskipDollar[3].matcher)
 		}
 	case 13:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:155
+//line parser.y:155
 		{
 			eskipVAL.matcher = &matcher{"*", nil}
 		}
 	case 14:
 		eskipDollar = eskipS[eskippt-4 : eskippt+1]
-		//line parser.y:159
+//line parser.y:159
 		{
 			eskipVAL.matcher = &matcher{eskipDollar[1].token, eskipDollar[3].args}
 			eskipDollar[3].args = nil
 		}
 	case 15:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:165
+//line parser.y:165
 		{
 			eskipVAL.filters = []*Filter{eskipDollar[1].filter}
 		}
 	case 16:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:169
+//line parser.y:169
 		{
 			eskipVAL.filters = eskipDollar[1].filters
 			eskipVAL.filters = append(eskipVAL.filters, eskipDollar[3].filter)
 		}
 	case 17:
 		eskipDollar = eskipS[eskippt-4 : eskippt+1]
-		//line parser.y:175
+//line parser.y:175
 		{
 			eskipVAL.filter = &Filter{
 				Name: eskipDollar[1].token,
@@ -640,131 +640,115 @@ eskipdefault:
 		}
 	case 19:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:184
+//line parser.y:184
 		{
 			eskipVAL.args = []interface{}{eskipDollar[1].arg}
 		}
 	case 20:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:188
+//line parser.y:188
 		{
 			eskipVAL.args = eskipDollar[1].args
 			eskipVAL.args = append(eskipVAL.args, eskipDollar[3].arg)
 		}
 	case 21:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:194
+//line parser.y:194
 		{
 			eskipVAL.arg = eskipDollar[1].numval
 		}
 	case 22:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:198
+//line parser.y:198
 		{
 			eskipVAL.arg = eskipDollar[1].stringval
 		}
 	case 23:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:202
+//line parser.y:202
 		{
 			eskipVAL.arg = eskipDollar[1].regexpval
 		}
 	case 24:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:207
+//line parser.y:207
 		{
 			eskipVAL.stringvals = []string{eskipDollar[1].stringval}
 		}
 	case 25:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:211
+//line parser.y:211
 		{
 			eskipVAL.stringvals = eskipDollar[1].stringvals
 			eskipVAL.stringvals = append(eskipVAL.stringvals, eskipDollar[3].stringval)
 		}
 	case 26:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:217
+//line parser.y:217
 		{
 			eskipVAL.lbEndpoints = eskipDollar[1].stringvals
 		}
 	case 27:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:221
+//line parser.y:221
 		{
 			eskipVAL.lbAlgorithm = eskipDollar[1].token
 			eskipVAL.lbEndpoints = eskipDollar[3].stringvals
 		}
 	case 28:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
-		//line parser.y:227
+//line parser.y:227
 		{
 			eskipVAL.lbAlgorithm = eskipDollar[2].lbAlgorithm
 			eskipVAL.lbEndpoints = eskipDollar[2].lbEndpoints
 		}
 	case 29:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:233
+//line parser.y:233
 		{
 			eskipVAL.backend = eskipDollar[1].stringval
-			eskipVAL.shunt = false
-			eskipVAL.loopback = false
-			eskipVAL.dynamic = false
-			eskipVAL.lbBackend = false
 		}
 	case 30:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:241
+//line parser.y:237
 		{
 			eskipVAL.shunt = true
-			eskipVAL.loopback = false
-			eskipVAL.dynamic = false
-			eskipVAL.lbBackend = false
 		}
 	case 31:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:248
+//line parser.y:241
 		{
-			eskipVAL.shunt = false
 			eskipVAL.loopback = true
-			eskipVAL.dynamic = false
-			eskipVAL.lbBackend = false
 		}
 	case 32:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:255
+//line parser.y:245
 		{
-			eskipVAL.shunt = false
-			eskipVAL.loopback = false
 			eskipVAL.dynamic = true
-			eskipVAL.lbBackend = false
 		}
 	case 33:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:262
+//line parser.y:249
 		{
-			eskipVAL.shunt = false
-			eskipVAL.loopback = false
-			eskipVAL.dynamic = false
 			eskipVAL.lbBackend = true
 			eskipVAL.lbAlgorithm = eskipDollar[1].lbAlgorithm
 			eskipVAL.lbEndpoints = eskipDollar[1].lbEndpoints
 		}
 	case 34:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:272
+//line parser.y:256
 		{
 			eskipVAL.numval = convertNumber(eskipDollar[1].token)
 		}
 	case 35:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:277
+//line parser.y:261
 		{
 			eskipVAL.stringval = eskipDollar[1].token
 		}
 	case 36:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		//line parser.y:282
+//line parser.y:266
 		{
 			eskipVAL.regexpval = eskipDollar[1].token
 		}

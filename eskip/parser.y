@@ -232,37 +232,21 @@ lbbackend:
 backend:
 	stringval {
 		$$.backend = $1.stringval
-		$$.shunt = false
-		$$.loopback = false
-		$$.dynamic = false
-		$$.lbBackend = false
 	}
 	|
 	shunt {
 		$$.shunt = true
-		$$.loopback = false
-		$$.dynamic = false
-		$$.lbBackend = false
 	}
 	|
 	loopback {
-		$$.shunt = false
 		$$.loopback = true
-		$$.dynamic = false
-		$$.lbBackend = false
 	}
 	|
 	dynamic {
-		$$.shunt = false
-		$$.loopback = false
 		$$.dynamic = true
-		$$.lbBackend = false
 	}
 	|
 	lbbackend {
-		$$.shunt = false
-		$$.loopback = false
-		$$.dynamic = false
 		$$.lbBackend = true
 		$$.lbAlgorithm = $1.lbAlgorithm
 		$$.lbEndpoints = $1.lbEndpoints
