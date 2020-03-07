@@ -1,5 +1,5 @@
 /*
-Package cookie implements prediate to check parsed cookie headers by name and value.
+Package cookie implements predicate to check parsed cookie headers by name and value.
 */
 package cookie
 
