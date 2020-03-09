@@ -100,6 +100,16 @@ func TestRouteString(t *testing.T) {
 			Filters:     []*Filter{{"filter0", []interface{}{"arg"}}},
 			BackendType: DynamicBackend},
 		`* -> filter0("arg") -> <dynamic>`,
+	}, {
+		&Route{
+			Filters:     []*Filter{{"filter0", []interface{}{`Line 1\r\nLine 2`}}},
+			BackendType: DynamicBackend},
+		`* -> filter0("Line 1\r\nLine 2") -> <dynamic>`,
+	}, {
+		&Route{
+			Filters:     []*Filter{{"filter0", []interface{}{"Line 1\r\nLine 2"}}},
+			BackendType: DynamicBackend},
+		`* -> filter0("Line 1\r\nLine 2") -> <dynamic>`,
 	}} {
 		rstring := item.route.String()
 		if rstring != item.string {

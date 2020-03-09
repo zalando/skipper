@@ -133,7 +133,24 @@ func scanEscaped(delimiter byte, code string) ([]byte, string) {
 		isEscapeChar := c == escapeChar
 
 		if escaped {
-			if !isDelimiter && !isEscapeChar {
+			switch c {
+			case 'a':
+				c = '\a'
+			case 'b':
+				c = '\b'
+			case 'f':
+				c = '\f'
+			case 'n':
+				c = '\n'
+			case 'r':
+				c = '\r'
+			case 't':
+				c = '\t'
+			case 'v':
+				c = '\v'
+			case delimiter:
+			case escapeChar:
+			default:
 				b = append(b, escapeChar)
 			}
 

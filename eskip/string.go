@@ -14,11 +14,16 @@ type PrettyPrintInfo struct {
 }
 
 func escape(s string, chars string) string {
-
-	s = strings.Replace(s, "\\", "\\\\", -1)
+	s = strings.Replace(s, "\a", `\a`, -1)
+	s = strings.Replace(s, "\b", `\b`, -1)
+	s = strings.Replace(s, "\f", `\f`, -1)
+	s = strings.Replace(s, "\n", `\n`, -1)
+	s = strings.Replace(s, "\r", `\r`, -1)
+	s = strings.Replace(s, "\t", `\t`, -1)
+	s = strings.Replace(s, "\v", `\v`, -1)
 	for i := 0; i < len(chars); i++ {
 		c := chars[i : i+1]
-		s = strings.Replace(s, c, "\\"+c, -1)
+		s = strings.Replace(s, c, `\`+c, -1)
 	}
 
 	return s
