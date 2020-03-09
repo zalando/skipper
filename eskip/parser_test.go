@@ -102,6 +102,25 @@ func TestParseSingleRoute(t *testing.T) {
 	checkSingleRouteExample(r[0], t)
 }
 
+func TestParsingSpecialChars(t *testing.T) {
+	r, err := parse(`Path("newlines") -> inlineContent("Line \ \1\nLine 2\r\nLine 3\a\b\f\n\r\t\v") -> <shunt>`)
+
+	if err != nil {
+		t.Error("failed to parse", err)
+	}
+
+	if len(r) != 1 {
+		t.Error("failed to parse, no route returned")
+	}
+
+	expected := "Line \\ \\1\nLine 2\r\nLine 3\a\b\f\n\r\t\v"
+	actual := r[0].filters[0].Args[0]
+
+	if actual != expected {
+		t.Error("wrong arguments")
+	}
+}
+
 func TestParseSingleRouteDef(t *testing.T) {
 	r, err := parse(singleRouteDefExample)
 
