@@ -38,9 +38,14 @@ func TestSedInit(t *testing.T) {
 		args:  args("foo", "bar"),
 		fail:  true,
 	}, {
-		title: "delimited 5 args",
+		title: "delimited, invalid max buffer handling mode",
 		spec:  NewDelimited,
 		args:  args("foo", "bar", "baz", 1024, "qux"),
+		fail:  true,
+	}, {
+		title: "delimited 6 args",
+		spec:  NewDelimited,
+		args:  args("foo", "bar", "baz", 1024, "abort", "qux"),
 		fail:  true,
 	}, {
 		title: "delimiter not string",
@@ -53,8 +58,12 @@ func TestSedInit(t *testing.T) {
 		args:  args("foo", "bar", "baz", "qux"),
 		fail:  true,
 	}, {
-		title: "4 args",
+		title: "invalid max buffer handling",
 		args:  args("foo", "bar", 1024, "baz"),
+		fail:  true,
+	}, {
+		title: "5 args",
+		args:  args("foo", "bar", 1024, "abort", "baz"),
 		fail:  true,
 	}, {
 		title: "max buf not a number",
@@ -119,6 +128,28 @@ func TestSedInit(t *testing.T) {
 			maxEditorBuffer: 1024,
 		},
 	}, {
+		title: "delimited with max buf handling",
+		spec:  NewDelimited,
+		args:  args("foo", "bar", "baz", 1024, "abort"),
+		expect: filter{
+			typ:             delimited,
+			pattern:         regexp.MustCompile("foo"),
+			replacement:     []byte("bar"),
+			delimiter:       []byte("baz"),
+			maxEditorBuffer: 1024,
+		},
+	}, {
+		title: "delimited with max buf handling, best effort",
+		spec:  NewDelimited,
+		args:  args("foo", "bar", "baz", 1024, "best-effort"),
+		expect: filter{
+			typ:             delimited,
+			pattern:         regexp.MustCompile("foo"),
+			replacement:     []byte("bar"),
+			delimiter:       []byte("baz"),
+			maxEditorBuffer: 1024,
+		},
+	}, {
 		title: "max buf as float",
 		args:  args("foo", "bar", 1024.0),
 		expect: filter{
@@ -129,6 +160,22 @@ func TestSedInit(t *testing.T) {
 	}, {
 		title: "max buf as int",
 		args:  args("foo", "bar", 1024),
+		expect: filter{
+			pattern:         regexp.MustCompile("foo"),
+			replacement:     []byte("bar"),
+			maxEditorBuffer: 1024,
+		},
+	}, {
+		title: "max buf handling",
+		args:  args("foo", "bar", 1024, "abort"),
+		expect: filter{
+			pattern:         regexp.MustCompile("foo"),
+			replacement:     []byte("bar"),
+			maxEditorBuffer: 1024,
+		},
+	}, {
+		title: "max buf handling, best effort",
+		args:  args("foo", "bar", 1024, "abort"),
 		expect: filter{
 			pattern:         regexp.MustCompile("foo"),
 			replacement:     []byte("bar"),

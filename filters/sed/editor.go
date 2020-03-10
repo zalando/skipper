@@ -20,8 +20,8 @@ const (
 type maxBufferHandling int
 
 const (
-	maxBufferAbort maxBufferHandling = iota
-	maxBufferBestEffort
+	maxBufferBestEffort maxBufferHandling = iota
+	maxBufferAbort
 )
 
 // editor provides a reader that wraps a source reader, and replaces each occurence of
@@ -54,23 +54,23 @@ const (
 // source, too.
 //
 type editor struct {
-	source        io.Reader
-	pattern       *regexp.Regexp
-	replacement   []byte
-	delimiter     []byte
-	maxBufferSize int
+	source            io.Reader
+	pattern           *regexp.Regexp
+	replacement       []byte
+	delimiter         []byte
+	maxBufferSize     int
 	maxBufferHandling maxBufferHandling
-	prefix        []byte
-	ready         []byte
-	pending       []byte
-	pendingMatch  bool
-	readBuffer    []byte
-	err           error
-	closed        bool
+	prefix            []byte
+	ready             []byte
+	pending           []byte
+	pendingMatch      bool
+	readBuffer        []byte
+	err               error
+	closed            bool
 }
 
 var (
-	ErrClosed = errors.New("reader closed")
+	ErrClosed           = errors.New("reader closed")
 	ErrEditorBufferFull = errors.New("editor buffer full")
 )
 
@@ -93,14 +93,14 @@ func newEditor(
 
 	prefix, _ := pattern.LiteralPrefix()
 	return &editor{
-		source:        source,
-		pattern:       pattern,
-		replacement:   replacement,
-		delimiter:     delimiter,
-		maxBufferSize: maxBufferSize,
+		source:            source,
+		pattern:           pattern,
+		replacement:       replacement,
+		delimiter:         delimiter,
+		maxBufferSize:     maxBufferSize,
 		maxBufferHandling: mbh,
-		prefix:        []byte(prefix),
-		readBuffer:    make([]byte, rsize),
+		prefix:            []byte(prefix),
+		readBuffer:        make([]byte, rsize),
 	}
 }
 
@@ -212,7 +212,7 @@ func (e *editor) editDelimited() bool {
 	return hasProcessed
 }
 
-func (e *editor) trimPending() {
+func (e *editor) processPendingForced() {
 	if len(e.delimiter) > 0 {
 		e.editChunk(e.pending)
 		e.pending = nil
@@ -246,7 +246,7 @@ func (e *editor) Read(p []byte) (int, error) {
 		}
 
 		if e.err != nil {
-			if len(e.pending) > 0 {
+			if len(e.pending) > 0 && e.err != ErrEditorBufferFull {
 				e.finalize()
 				continue
 			}
@@ -278,19 +278,21 @@ func (e *editor) Read(p []byte) (int, error) {
 		}
 
 		if len(e.pending) > e.maxBufferSize {
-			if e.maxBufferHandling == maxBufferBestEffort {
+			switch e.maxBufferHandling {
+			case maxBufferAbort:
+				e.err = ErrEditorBufferFull
+			default:
 				readSize = 1
 				for len(e.pending) > e.maxBufferSize {
-					e.trimPending()
+					// TODO: trim is not a good name
+					e.processPendingForced()
 				}
-			} else {
-				e.err = ErrEditorBufferFull
 			}
 		}
 	}
 }
 
-// It closed the undelrying reader.
+// It closes the undelrying reader.
 func (e *editor) Close() error {
 	e.closed = true
 	if c, ok := e.source.(io.Closer); ok {

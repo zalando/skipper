@@ -21,11 +21,9 @@ func (r *testReadCloser) Close() error {
 }
 
 func TestClose(t *testing.T) {
-	// not a closer
-
 	t.Run("close", func(t *testing.T) {
 		r := &testReadCloser{}
-		e := newEditor(r, regexp.MustCompile("foo"), []byte("bar"), nil, 0, maxBufferAbort)
+		e := newEditor(r, regexp.MustCompile("foo"), []byte("bar"), nil, 0, maxBufferBestEffort)
 		if _, err := e.Read(make([]byte, 6)); err != nil {
 			t.Fatal(err)
 		}
@@ -41,7 +39,7 @@ func TestClose(t *testing.T) {
 
 	t.Run("close when there is still something ready", func(t *testing.T) {
 		r := &testReadCloser{}
-		e := newEditor(r, regexp.MustCompile("foo"), []byte("bar"), nil, 0, maxBufferAbort)
+		e := newEditor(r, regexp.MustCompile("foo"), []byte("bar"), nil, 0, maxBufferBestEffort)
 		if _, err := e.Read(make([]byte, 2)); err != nil {
 			t.Fatal(err)
 		}
@@ -61,7 +59,7 @@ func TestClose(t *testing.T) {
 
 	t.Run("not a closer", func(t *testing.T) {
 		r := strings.NewReader("foobarbaz")
-		e := newEditor(r, regexp.MustCompile("foo"), []byte("bar"), nil, 0, maxBufferAbort)
+		e := newEditor(r, regexp.MustCompile("foo"), []byte("bar"), nil, 0, maxBufferBestEffort)
 		if _, err := e.Read(make([]byte, 6)); err != nil {
 			t.Fatal(err)
 		}

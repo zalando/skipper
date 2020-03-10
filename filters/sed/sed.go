@@ -82,11 +82,12 @@ type spec struct {
 }
 
 type filter struct {
-	typ             typ
-	pattern         *regexp.Regexp
-	replacement     []byte
-	delimiter       []byte
-	maxEditorBuffer int
+	typ               typ
+	pattern           *regexp.Regexp
+	replacement       []byte
+	delimiter         []byte
+	maxEditorBuffer   int
+	maxBufferHandling maxBufferHandling
 }
 
 func ofType(t typ) spec {
@@ -130,6 +131,17 @@ func unescape(s string) string {
 	return s
 }
 
+func parseMaxBufferHandling(h interface{}) (maxBufferHandling, error) {
+	switch h {
+	case "best-effort":
+		return maxBufferBestEffort, nil
+	case "abort":
+		return maxBufferAbort, nil
+	default:
+		return 0, filters.ErrInvalidFilterParameters
+	}
+}
+
 func (s spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) < 2 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -150,20 +162,22 @@ func (s spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	f := filter{
-		typ:         s.typ,
-		pattern:     patternRx,
-		replacement: []byte(replacement),
+	f := &filter{
+		typ:               s.typ,
+		pattern:           patternRx,
+		replacement:       []byte(replacement),
+		maxBufferHandling: maxBufferBestEffort,
 	}
 
 	var (
 		delimiterString string
 		maxBuf          interface{}
+		maxBufHandling  interface{}
 	)
 
 	switch s.typ {
 	case delimited, delimitedRequest:
-		if len(args) < 3 || len(args) > 4 {
+		if len(args) < 3 || len(args) > 5 {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
@@ -171,20 +185,28 @@ func (s spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
-		if len(args) == 4 {
+		if len(args) >= 4 {
 			maxBuf = args[3]
+		}
+
+		if len(args) == 5 {
+			maxBufHandling = args[4]
 		}
 
 		// Temporary solution, see eskip tokenizer bug: ...
 		delimiterString = unescape(delimiterString)
 		f.delimiter = []byte(delimiterString)
 	default:
-		if len(args) > 3 {
+		if len(args) > 4 {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
-		if len(args) == 3 {
+		if len(args) >= 3 {
 			maxBuf = args[2]
+		}
+
+		if len(args) == 4 {
+			maxBufHandling = args[3]
 		}
 	}
 
@@ -199,7 +221,16 @@ func (s spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 
-	return f, nil
+	if maxBufHandling != nil {
+		mbh, err := parseMaxBufferHandling(maxBufHandling)
+		if err != nil {
+			return nil, err
+		}
+
+		f.maxBufferHandling = mbh
+	}
+
+	return *f, nil
 }
 
 func (f filter) Request(ctx filters.FilterContext) {
@@ -211,7 +242,14 @@ func (f filter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	req.Header.Del("Content-Length")
 	req.ContentLength = -1
-	req.Body = newEditor(req.Body, f.pattern, f.replacement, f.delimiter, f.maxEditorBuffer, maxBufferAbort)
+	req.Body = newEditor(
+		req.Body,
+		f.pattern,
+		f.replacement,
+		f.delimiter,
+		f.maxEditorBuffer,
+		f.maxBufferHandling,
+	)
 }
 
 func (f filter) Response(ctx filters.FilterContext) {
@@ -223,5 +261,12 @@ func (f filter) Response(ctx filters.FilterContext) {
 	rsp := ctx.Response()
 	rsp.Header.Del("Content-Length")
 	rsp.ContentLength = -1
-	rsp.Body = newEditor(rsp.Body, f.pattern, f.replacement, f.delimiter, f.maxEditorBuffer, maxBufferAbort)
+	rsp.Body = newEditor(
+		rsp.Body,
+		f.pattern,
+		f.replacement,
+		f.delimiter,
+		f.maxEditorBuffer,
+		f.maxBufferHandling,
+	)
 }

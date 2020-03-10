@@ -3,6 +3,7 @@ package sed_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +19,9 @@ type testItem struct {
 	title           string
 	args            []interface{}
 	body            string
+	bodyReader      io.Reader
 	expect          string
+	expectFunc      func(*testing.T, io.Reader)
 	forceReadBuffer int
 }
 
@@ -26,7 +29,14 @@ func testResponse(name string, test testItem) func(*testing.T) {
 	return func(t *testing.T) {
 		b := httptest.NewServer(
 			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.Write([]byte(test.body))
+				if test.bodyReader == nil {
+					w.Write([]byte(test.body))
+					return
+				}
+
+				if _, err := io.Copy(w, test.bodyReader); err != nil {
+					t.Log(err)
+				}
 			}),
 		)
 		defer b.Close()
@@ -44,6 +54,11 @@ func testResponse(name string, test testItem) func(*testing.T) {
 		}
 
 		defer rsp.Body.Close()
+		if test.expectFunc != nil {
+			test.expectFunc(t, rsp.Body)
+			return
+		}
+
 		d, err := ioutil.ReadAll(rsp.Body)
 		if err != nil {
 			t.Fatal(err)
@@ -61,6 +76,11 @@ func testRequest(name string, test testItem) func(*testing.T) {
 	return func(t *testing.T) {
 		b := httptest.NewServer(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if test.expectFunc != nil {
+					test.expectFunc(t, r.Body)
+					return
+				}
+
 				b, err := ioutil.ReadAll(r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusBadRequest)
@@ -86,12 +106,21 @@ func testRequest(name string, test testItem) func(*testing.T) {
 		})
 
 		defer p.Close()
-		rsp, err := http.Post(p.URL, "text/plain", bytes.NewBufferString(test.body))
+		body := test.bodyReader
+		if body == nil {
+			body = bytes.NewBufferString(test.body)
+		}
+
+		rsp, err := http.Post(p.URL, "text/plain", body)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		defer rsp.Body.Close()
+		if test.expectFunc != nil {
+			return
+		}
+
 		if rsp.StatusCode != http.StatusOK {
 			t.Error("Failed to edit stream.")
 			d, err := ioutil.ReadAll(rsp.Body)
@@ -154,13 +183,45 @@ func TestSed(t *testing.T) {
 		args:   args("foo(bar)baz", "qux"),
 		body:   "foobarbaz",
 		expect: "qux",
-	}, {
-		title:  "default max buffer",
-		args:   args("foo", "bar"),
-		body:   "foobarbaz",
-		expect: "barbarbaz",
 	}} {
 		t.Run(fmt.Sprintf("%s/%s", sed.NameRequest, test.title), testRequest(sed.NameRequest, test))
 		t.Run(fmt.Sprintf("%s/%s", sed.Name, test.title), testResponse(sed.Name, test))
 	}
+}
+
+func TestSedLongStream(t *testing.T) {
+	const (
+		inputString  = "f"
+		pattern      = inputString + "*"
+		outputString = "qux"
+		bodySize     = 1 << 15
+	)
+
+	createBody := func() io.Reader {
+		b := bytes.NewBuffer(nil)
+		for b.Len() < bodySize {
+			b.WriteString(inputString)
+		}
+
+		return b
+	}
+
+	baseArgs := []interface{}{pattern, outputString}
+
+	t.Run("below max buffer size", testResponse(sed.Name, testItem{
+		args:       append(baseArgs, bodySize*2),
+		bodyReader: createBody(),
+		expect:     "qux",
+	}))
+
+	t.Run("above max buffer size, abort", testResponse(sed.Name, testItem{
+		args:       append(baseArgs, bodySize/2, "abort"),
+		bodyReader: createBody(),
+	}))
+
+	t.Run("above max buffer size, best effort", testResponse(sed.Name, testItem{
+		args:       append(baseArgs, bodySize/2),
+		bodyReader: createBody(),
+		expect:     "quxqux",
+	}))
 }

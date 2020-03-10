@@ -1,7 +1,9 @@
 package sed_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/zalando/skipper/filters/sed"
@@ -9,13 +11,7 @@ import (
 
 func TestSedDelim(t *testing.T) {
 	args := func(a ...interface{}) []interface{} { return a }
-	for _, test := range []struct {
-		title           string
-		args            []interface{}
-		body            string
-		expect          string
-		forceReadBuffer int
-	}{{
+	for _, test := range []testItem{{
 		title:  "no match",
 		args:   args("foo", "bar", "\n"),
 		body:   "barbaz\nquxquux",
@@ -82,13 +78,7 @@ func TestSedDelim(t *testing.T) {
 
 func TestSedDelimNoDelim(t *testing.T) {
 	args := func(a ...interface{}) []interface{} { return a }
-	for _, test := range []struct {
-		title           string
-		args            []interface{}
-		body            string
-		expect          string
-		forceReadBuffer int
-	}{{
+	for _, test := range []testItem{{
 		title: "empty body",
 		args:  args("foo", "bar", "\n"),
 	}, {
@@ -126,11 +116,6 @@ func TestSedDelimNoDelim(t *testing.T) {
 		args:   args("foo(bar)baz", "qux", "\n"),
 		body:   "foobarbaz",
 		expect: "qux",
-	}, {
-		title:  "default max buffer",
-		args:   args("foo", "bar", "\n"),
-		body:   "foobarbaz",
-		expect: "barbarbaz",
 	}} {
 		t.Run(
 			fmt.Sprintf("%s/%s", sed.NameRequestDelimit, test.title),
@@ -139,4 +124,41 @@ func TestSedDelimNoDelim(t *testing.T) {
 
 		t.Run(fmt.Sprintf("%s/%s", sed.NameDelimit, test.title), testResponse(sed.NameDelimit, test))
 	}
+}
+
+func TestSedDelimLongStream(t *testing.T) {
+	const (
+		inputString  = "f"
+		pattern      = inputString + "*"
+		outputString = "qux"
+		bodySize     = 1 << 15
+	)
+
+	createBody := func() io.Reader {
+		b := bytes.NewBuffer(nil)
+		for b.Len() < bodySize {
+			b.WriteString(inputString)
+		}
+
+		return b
+	}
+
+	baseArgs := []interface{}{pattern, outputString, "\n"}
+
+	t.Run("below max buffer size", testResponse(sed.NameDelimit, testItem{
+		args:       append(baseArgs, bodySize*2),
+		bodyReader: createBody(),
+		expect:     "qux",
+	}))
+
+	t.Run("above max buffer size, abort", testResponse(sed.NameDelimit, testItem{
+		args:       append(baseArgs, bodySize/2, "abort"),
+		bodyReader: createBody(),
+	}))
+
+	t.Run("above max buffer size, best effort", testResponse(sed.NameDelimit, testItem{
+		args:       append(baseArgs, bodySize/2),
+		bodyReader: createBody(),
+		expect:     "quxqux",
+	}))
 }

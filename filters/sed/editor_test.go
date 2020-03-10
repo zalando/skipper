@@ -45,7 +45,7 @@ func (r errorReader) Error() string            { return string(r) }
 
 func TestEditorNonBlockingSource(t *testing.T) {
 	r := &nonBlockingReader{initialContent: []byte("fox")}
-	e := newEditor(r, regexp.MustCompile("fo"), []byte("ba"), nil, 0, maxBufferAbort)
+	e := newEditor(r, regexp.MustCompile("fo"), []byte("ba"), nil, 0, maxBufferBestEffort)
 
 	// hook the read buffer:
 	e.readBuffer = make([]byte, 2)
@@ -73,7 +73,7 @@ func TestEditorNonBlockingSource(t *testing.T) {
 func TestEditorMaxBuffer(t *testing.T) {
 	t.Run("buffer matches", func(t *testing.T) {
 		r := bytes.NewBufferString("foobarbaz")
-		e := newEditor(r, regexp.MustCompile("[a-z]+"), []byte("x"), nil, 3, maxBufferAbort)
+		e := newEditor(r, regexp.MustCompile("[a-z]+"), []byte("x"), nil, 3, maxBufferBestEffort)
 
 		// hook the read buffer:
 		e.readBuffer = make([]byte, 2)
@@ -90,7 +90,7 @@ func TestEditorMaxBuffer(t *testing.T) {
 
 	t.Run("buffer does not match", func(t *testing.T) {
 		r := bytes.NewBufferString("foobarbaz")
-		e := newEditor(r, regexp.MustCompile("[a-z]+x"), []byte("x"), nil, 3, maxBufferAbort)
+		e := newEditor(r, regexp.MustCompile("[a-z]+x"), []byte("x"), nil, 3, maxBufferBestEffort)
 
 		// hook the read buffer:
 		e.readBuffer = make([]byte, 2)
@@ -107,7 +107,7 @@ func TestEditorMaxBuffer(t *testing.T) {
 
 	t.Run("match over boundary", func(t *testing.T) {
 		r := bytes.NewBufferString("foox")
-		e := newEditor(r, regexp.MustCompile("foox"), []byte("barx"), nil, 1, maxBufferAbort)
+		e := newEditor(r, regexp.MustCompile("foox"), []byte("barx"), nil, 1, maxBufferBestEffort)
 
 		// hook the read buffer:
 		e.readBuffer = make([]byte, 2)
@@ -132,7 +132,7 @@ func TestEditorMaxBuffer(t *testing.T) {
 
 func TestEditorIncreasingReadSize(t *testing.T) {
 	r := &infiniteReader{content: []byte("foobarbaz")}
-	e := newEditor(r, regexp.MustCompile("[a-z]x"), []byte("bar"), nil, 0, maxBufferAbort)
+	e := newEditor(r, regexp.MustCompile("[a-z]x"), []byte("bar"), nil, 0, maxBufferBestEffort)
 
 	// hook the read buffer:
 	e.readBuffer = make([]byte, 2)
@@ -150,7 +150,7 @@ func TestEditorIncreasingReadSize(t *testing.T) {
 func TestEditorInfiniteInput(t *testing.T) {
 	t.Run("prefixable", func(t *testing.T) {
 		r := &infiniteReader{content: []byte("foobarbaz")}
-		e := newEditor(r, regexp.MustCompile("foo"), []byte("bar"), nil, 0, maxBufferAbort)
+		e := newEditor(r, regexp.MustCompile("foo"), []byte("bar"), nil, 0, maxBufferBestEffort)
 
 		// hook the read buffer:
 		e.readBuffer = make([]byte, 2)
@@ -167,7 +167,7 @@ func TestEditorInfiniteInput(t *testing.T) {
 
 	t.Run("non-prefixable", func(t *testing.T) {
 		r := &infiniteReader{content: []byte("foobarbaz")}
-		e := newEditor(r, regexp.MustCompile("[a-z]oo"), []byte("bar"), nil, 0, maxBufferAbort)
+		e := newEditor(r, regexp.MustCompile("[a-z]oo"), []byte("bar"), nil, 0, maxBufferBestEffort)
 
 		// hook the read buffer:
 		e.readBuffer = make([]byte, 2)
@@ -185,7 +185,7 @@ func TestEditorInfiniteInput(t *testing.T) {
 
 func TestEditorTransparentError(t *testing.T) {
 	r := errorReader("test error")
-	e := newEditor(r, regexp.MustCompile(""), nil, nil, 0, maxBufferAbort)
+	e := newEditor(r, regexp.MustCompile(""), nil, nil, 0, maxBufferBestEffort)
 	if _, err := e.Read(make([]byte, 3)); err != r {
 		t.Error("failed to transparently pass through the error")
 	}
