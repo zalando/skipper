@@ -16,13 +16,11 @@ import (
 )
 
 type testItem struct {
-	title           string
-	args            []interface{}
-	body            string
-	bodyReader      io.Reader
-	expect          string
-	expectFunc      func(*testing.T, io.Reader)
-	forceReadBuffer int
+	title      string
+	args       []interface{}
+	body       string
+	bodyReader io.Reader
+	expect     string
 }
 
 func testResponse(name string, test testItem) func(*testing.T) {
@@ -54,11 +52,6 @@ func testResponse(name string, test testItem) func(*testing.T) {
 		}
 
 		defer rsp.Body.Close()
-		if test.expectFunc != nil {
-			test.expectFunc(t, rsp.Body)
-			return
-		}
-
 		d, err := ioutil.ReadAll(rsp.Body)
 		if err != nil {
 			t.Fatal(err)
@@ -76,11 +69,6 @@ func testRequest(name string, test testItem) func(*testing.T) {
 	return func(t *testing.T) {
 		b := httptest.NewServer(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if test.expectFunc != nil {
-					test.expectFunc(t, r.Body)
-					return
-				}
-
 				b, err := ioutil.ReadAll(r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusBadRequest)
@@ -92,7 +80,7 @@ func testRequest(name string, test testItem) func(*testing.T) {
 					w.WriteHeader(http.StatusBadRequest)
 					fmt.Fprintln(w)
 					fmt.Fprintf(w, "Got:      %v\n", string(b))
-					fmt.Fprintf(w, "Expected: %v\n", string(b))
+					fmt.Fprintf(w, "Expected: %v\n", test.expect)
 					return
 				}
 			}),
@@ -117,10 +105,6 @@ func testRequest(name string, test testItem) func(*testing.T) {
 		}
 
 		defer rsp.Body.Close()
-		if test.expectFunc != nil {
-			return
-		}
-
 		if rsp.StatusCode != http.StatusOK {
 			t.Error("Failed to edit stream.")
 			d, err := ioutil.ReadAll(rsp.Body)
@@ -159,7 +143,7 @@ func TestSed(t *testing.T) {
 		body:   "foobarbazquxfoobarbazqux",
 		expect: "barbarbazquxbarbarbazqux",
 	}, {
-		title:  "non prefixable match",
+		title:  "non-prefixable match",
 		args:   args("[0-9]+", "_"),
 		body:   "foobar123bazqux",
 		expect: "foobar_bazqux",

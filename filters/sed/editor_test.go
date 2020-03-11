@@ -132,7 +132,7 @@ func TestEditorMaxBuffer(t *testing.T) {
 
 func TestEditorIncreasingReadSize(t *testing.T) {
 	r := &infiniteReader{content: []byte("foobarbaz")}
-	e := newEditor(r, regexp.MustCompile("[a-z]x"), []byte("bar"), nil, 0, maxBufferBestEffort)
+	e := newEditor(r, regexp.MustCompile("[a-z]x"), []byte("bar"), nil, 128, maxBufferBestEffort)
 
 	// hook the read buffer:
 	e.readBuffer = make([]byte, 2)
