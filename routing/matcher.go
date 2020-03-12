@@ -33,6 +33,7 @@ type leafMatcher struct {
 	hasFreeWildcardParam bool
 	exactPath            string
 	method               string
+	weight               int
 	hostRxs              []*regexp.Regexp
 	pathRxs              []*regexp.Regexp
 	headersExact         map[string]string
@@ -44,7 +45,7 @@ type leafMatcher struct {
 type leafMatchers []*leafMatcher
 
 func leafWeight(l *leafMatcher) int {
-	w := 0
+	w := l.weight
 
 	if l.method != "" {
 		w++
@@ -237,6 +238,7 @@ func newLeaf(r *Route, rxs map[string]*regexp.Regexp) (*leafMatcher, error) {
 		wildcardParamNames:   extractWildcardParamNames(r),
 		hasFreeWildcardParam: hasFreeWildcardParam(r),
 
+		weight:        r.weight,
 		method:        r.Method,
 		hostRxs:       hostRxs,
 		pathRxs:       pathRxs,

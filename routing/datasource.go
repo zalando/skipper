@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"sort"
@@ -27,6 +28,8 @@ const (
 	headerName       = "Header"
 	headerRegexpName = "HeaderRegexp"
 )
+
+var errInvalidWeightParams = errors.New("invalid argument for the Weight predicate")
 
 func (it incomingType) String() string {
 	switch it {
@@ -344,28 +347,54 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 	return c, nil
 }
 
+func parseWeightPredicateArgs(args []interface{}) (int, error) {
+	if len(args) != 1 {
+		return 0, errInvalidWeightParams
+	}
+
+	if weight, ok := args[0].(float64); ok {
+		return int(weight), nil
+	}
+
+	if weight, ok := args[0].(int); ok {
+		return weight, nil
+	}
+
+	return 0, errInvalidWeightParams
+}
+
 // initialize predicate instances from their spec with the concrete arguments
-func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, error) {
+func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, int, error) {
 	cps := make([]Predicate, 0, len(defs))
+	var weight int
 	for _, def := range defs {
+		if def.Name == "Weight" {
+			var err error
+			if weight, err = parseWeightPredicateArgs(def.Args); err != nil {
+				return nil, 0, err
+			}
+
+			continue
+		}
+
 		if isTreePredicate(def.Name) {
 			continue
 		}
 
 		spec, ok := cpm[def.Name]
 		if !ok {
-			return nil, fmt.Errorf("predicate not found: '%s'", def.Name)
+			return nil, 0, fmt.Errorf("predicate not found: '%s'", def.Name)
 		}
 
 		cp, err := spec.Create(def.Args)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		cps = append(cps, cp)
 	}
 
-	return cps, nil
+	return cps, weight, nil
 }
 
 // returns the subtree path if it is a valid definition
@@ -443,12 +472,12 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 		return nil, err
 	}
 
-	cps, err := processPredicates(cpm, def.Predicates)
+	cps, weight, err := processPredicates(cpm, def.Predicates)
 	if err != nil {
 		return nil, err
 	}
 
-	r := &Route{Route: *def, Scheme: scheme, Host: host, Predicates: cps, Filters: fs}
+	r := &Route{Route: *def, Scheme: scheme, Host: host, Predicates: cps, Filters: fs, weight: weight}
 	if err := processTreePredicates(r, def.Predicates); err != nil {
 		return nil, err
 	}

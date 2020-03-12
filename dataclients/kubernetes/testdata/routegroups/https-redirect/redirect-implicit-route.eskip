@@ -11,6 +11,5 @@ kube_rg__default__myapp__all__0_0_https_redirect:
 // global, legacy:
 kube__redirect:
 	Header("X-Forwarded-Proto", "http")
-	&& PathRegexp(".*")
-	&& PathRegexp(".*")
+	&& Weight(1000)
 	-> redirectTo(308, "https:") -> <shunt>;
