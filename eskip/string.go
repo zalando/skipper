@@ -115,12 +115,12 @@ func (r *Route) filterString(prettyPrintInfo PrettyPrintInfo) string {
 }
 
 func (r *Route) backendString() string {
-	switch {
-	case r.Shunt, r.BackendType == ShuntBackend:
+	switch r.BackendType {
+	case ShuntBackend:
 		return "<shunt>"
-	case r.BackendType == LoopBackend:
+	case LoopBackend:
 		return "<loopback>"
-	case r.BackendType == DynamicBackend:
+	case DynamicBackend:
 		return "<dynamic>"
 	default:
 		return r.Backend
@@ -143,7 +143,7 @@ func lbBackendString(r *Route) string {
 func (r *Route) backendStringQuoted() string {
 	s := r.backendString()
 	switch {
-	case r.BackendType == NetworkBackend && !r.Shunt:
+	case r.BackendType == NetworkBackend:
 		return fmt.Sprintf(`"%s"`, s)
 	case r.BackendType == LBBackend:
 		return lbBackendString(r)

@@ -33,8 +33,8 @@ func TestStatus(t *testing.T) {
 		fr := make(filters.Registry)
 		fr.Register(NewStatus())
 		pr := proxytest.New(fr, &eskip.Route{
-			Filters: []*eskip.Filter{{Name: StatusName, Args: ti.args}},
-			Shunt:   true})
+			Filters:     []*eskip.Filter{{Name: StatusName, Args: ti.args}},
+			BackendType: eskip.ShuntBackend})
 		defer pr.Close()
 
 		req, err := http.NewRequest("GET", pr.URL, nil)

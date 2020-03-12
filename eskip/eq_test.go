@@ -26,14 +26,6 @@ func TestEq(t *testing.T) {
 		title:  "one nil",
 		routes: []*Route{nil, {}},
 	}, {
-		title: "eq non-canonical",
-		routes: []*Route{{
-			Shunt: true,
-		}, {
-			BackendType: ShuntBackend,
-		}},
-		expect: true,
-	}, {
 		title:  "non-eq id",
 		routes: []*Route{{Id: "foo"}, {Id: "bar"}},
 	}, {
@@ -273,10 +265,6 @@ func TestCanonical(t *testing.T) {
 			},
 		},
 	}, {
-		title:  "legacy shunt",
-		route:  &Route{Shunt: true},
-		expect: &Route{BackendType: ShuntBackend},
-	}, {
 		title:  "network backend",
 		route:  &Route{Backend: "https://www.example.org"},
 		expect: &Route{BackendType: NetworkBackend, Backend: "https://www.example.org"},
@@ -304,7 +292,7 @@ func TestCanonicalList(t *testing.T) {
 		title: "zero routes",
 	}, {
 		title: "list",
-		list:  []*Route{{Shunt: true}, {Method: "GET"}},
+		list:  []*Route{{BackendType: ShuntBackend}, {Method: "GET"}},
 		expect: []*Route{
 			{BackendType: ShuntBackend},
 			{Predicates: []*Predicate{{Name: "Method", Args: []interface{}{"GET"}}}},

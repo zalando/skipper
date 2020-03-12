@@ -76,8 +76,8 @@ func checkSingleRouteExample(r *parsedRoute, t *testing.T) {
 			r.filters[1].Args[1].(string))
 	}
 
-	if r.shunt || r.backend != "https://render.example.com" {
-		t.Error("failed to parse filter backend", r.shunt, r.backend)
+	if r.backendType != BackendType(NetworkBackend) || r.backend != "https://render.example.com" {
+		t.Error("failed to parse filter backend", r.backendType, r.backend)
 	}
 }
 

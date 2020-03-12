@@ -66,8 +66,8 @@ func TestRouteString(t *testing.T) {
 			Filters: []*Filter{
 				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
 				{"filter1", []interface{}{float64(-42), `ap"argvalue`}}},
-			Shunt:   false,
-			Backend: "https://www.example.org"},
+			BackendType: NetworkBackend,
+			Backend:     "https://www.example.org"},
 		`Path("/some/\"/path") && Host(/h-expression/) && ` +
 			`Host(/slash\/h-expression/) && ` +
 			`PathRegexp(/p-expression/) && PathRegexp(/slash\/p-expression/) && ` +
@@ -79,9 +79,9 @@ func TestRouteString(t *testing.T) {
 			`"https://www.example.org"`,
 	}, {
 		&Route{
-			Method:  "GET",
-			Filters: []*Filter{{"static", []interface{}{"/some", "/file"}}},
-			Shunt:   true},
+			Method:      "GET",
+			Filters:     []*Filter{{"static", []interface{}{"/some", "/file"}}},
+			BackendType: ShuntBackend},
 		`Method("GET") -> static("/some", "/file") -> <shunt>`,
 	}, {
 		&Route{

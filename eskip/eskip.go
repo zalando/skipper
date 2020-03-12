@@ -81,10 +81,7 @@ type parsedRoute struct {
 	id          string
 	matchers    []*matcher
 	filters     []*Filter
-	shunt       bool
-	loopback    bool
-	dynamic     bool
-	lbBackend   bool
+	backendType BackendType
 	backend     string
 	lbAlgorithm string
 	lbEndpoints []string
@@ -152,12 +149,6 @@ type Route struct {
 	// Set of filters in a particular route.
 	// E.g. redirect(302, "https://www.example.org/hello")
 	Filters []*Filter
-
-	// Indicates that the parsed route has a shunt backend.
-	// (<shunt>, no forwarding to a backend)
-	//
-	// Deprecated, use the BackendType field instead.
-	Shunt bool
 
 	// Indicates that the parsed route is a shunt, loopback or
 	// it is forwarding to a network backend.
@@ -397,23 +388,10 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 
 	rd.Id = r.id
 	rd.Filters = r.filters
-	rd.Shunt = r.shunt
+	rd.BackendType = r.backendType
 	rd.Backend = r.backend
 	rd.LBAlgorithm = r.lbAlgorithm
 	rd.LBEndpoints = r.lbEndpoints
-
-	switch {
-	case r.shunt:
-		rd.BackendType = ShuntBackend
-	case r.loopback:
-		rd.BackendType = LoopBackend
-	case r.dynamic:
-		rd.BackendType = DynamicBackend
-	case r.lbBackend:
-		rd.BackendType = LBBackend
-	default:
-		rd.BackendType = NetworkBackend
-	}
 
 	err := applyPredicates(rd, r)
 

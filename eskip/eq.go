@@ -249,12 +249,7 @@ func Canonical(r *Route) *Route {
 	c.BackendType = r.BackendType
 	switch c.BackendType {
 	case NetworkBackend:
-		// default overridden by legacy shunt:
-		if r.Shunt {
-			c.BackendType = ShuntBackend
-		} else {
-			c.Backend = r.Backend
-		}
+		c.Backend = r.Backend
 	case LBBackend:
 		// using the LB fields only when apply:
 		c.LBAlgorithm = r.LBAlgorithm

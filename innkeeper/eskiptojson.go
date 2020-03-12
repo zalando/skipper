@@ -155,7 +155,7 @@ func convertFil(r *eskip.Route) (filters []filter) {
 }
 
 func convertEndpoint(r *eskip.Route) string {
-	if r.Shunt || r.BackendType == eskip.ShuntBackend || r.BackendType == eskip.LoopBackend {
+	if r.BackendType == eskip.ShuntBackend || r.BackendType == eskip.LoopBackend {
 		return ""
 	}
 

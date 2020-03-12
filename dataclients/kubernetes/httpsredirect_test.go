@@ -357,11 +357,6 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// discard deprecated shunt parsing:
-	for _, i := range []int{3, 4, 5, 7} {
-		expect[i].Shunt = false
-	}
-
 	diffRoutes(t, expect, r)
 }
 
@@ -473,11 +468,6 @@ func TestDisableHTTPSRedirectFromIngress(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// discard deprecated shunt parsing:
-	for _, i := range []int{3, 6, 7, 8} {
-		expect[i].Shunt = false
-	}
-
 	diffRoutes(t, expect, r)
 }
 
@@ -581,11 +571,6 @@ func TestChangeRedirectCodeFromIngress(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// discard deprecated shunt parsing:
-	for _, i := range []int{3, 4, 5, 7, 8} {
-		expect[i].Shunt = false
-	}
-
 	diffRoutes(t, expect, r)
 }
 
@@ -678,11 +663,6 @@ func TestEnableRedirectWithCustomCode(t *testing.T) {
 	expect, err := eskip.Parse(expectEskip)
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	// discard deprecated shunt parsing:
-	for _, i := range []int{3, 4, 5, 7} {
-		expect[i].Shunt = false
 	}
 
 	diffRoutes(t, expect, r)
