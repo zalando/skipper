@@ -35,6 +35,9 @@ const (
 // entire content in one piece, but this is necessary to be able to use the editor for
 // input with unknown length.
 //
+// When the maxBufferHandling is set to maxBufferAbort, then the streaming is aborted
+// and the rest of the payload is dropped.
+//
 // To limit the number of repeated scans over the buffered data, the size of the
 // additional data read from the input grows exponentially with every iteration that
 // didn't result with any edited data returned to the caller. If there was any edited
