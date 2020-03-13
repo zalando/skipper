@@ -461,22 +461,29 @@ The same as [tee filter](#tee), but does not follow redirects from the backend.
 
 ## sed
 
-// TODO:
-// - we need to document that only non-zero matches are replaced
-// - we can document that it is currently not supported, together
-//   with the templating
+```
+sed("foo", "bar")
+```
 
-This filter () expects a regexp pattern and a replacement string as arguments.
+This filter expects a regexp pattern and a replacement string as arguments.
 During the streaming of the response body, every occurence of the pattern will
 be replaced with the replacement string. The editing doesn't happen right when
 the filter is executed, only later when the streaming normally happens, after
-all response filters were called. The sed() filter accepts an optional third
-argument, the max editor buffer size in bytes. This argument limits how much
-data can be buffered at a given time by the editor. The default value is 2MiB.
-See more details below.
+all response filters were called.
+
+The sed() filter accepts two optional arguments, the max editor buffer size in
+bytes, and max buffer handling flag. The max buffer size, when set, defines how
+much data can be buffered at a given time by the editor. The default value is
+2MiB. The max buffer handling flag can take one of two values: "abort" or
+"best-effort" (default). Setting "abort" means that the stream will be aborted
+when reached the limit. Setting "best-effort", will run the replacement on the
+available content, in case of certain patterns, this may result in content that
+is different from one that would have been edited in a single piece. See more
+details below.
 
 The filter uses the go regular expression implementation:
-https://github.com/google/re2/wiki/Syntax
+https://github.com/google/re2/wiki/Syntax . Due to the streaming nature, matches
+with zero length are ignored.
 
 ### Memory handling and limitations
 
@@ -499,7 +506,14 @@ will be different than if we had run the replacement on the entire content at on
 If we have enough preliminary knowledge about the payload, then it may be better to
 use the delimited variant of the filters, e.g. for line based editing.
 
+If the max buffer handling is set to "abort", then the stream editing is stopped
+and the rest of the payload is dropped.
+
 ## sedDelim
+
+```
+sedDelim("foo", "bar", "\n")
+```
 
 Like sed(), but it expects an additional argument, before the optional max buffer
 size argument, that is used to delimit chunks to be processed at once. The pattern
@@ -508,9 +522,17 @@ delimiter, and matches across the chunk boundaries are not considered.
 
 ## sedRequest
 
+```
+sedRequest("foo", "bar")
+```
+
 Like sed(), but for the request content.
 
 ## sedRequestDelim
+
+```
+sedRequestDelim("foo", "bar", "\n")
+```
 
 Like sedDelim(), but for the request content.
 
