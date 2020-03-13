@@ -461,8 +461,16 @@ The same as [tee filter](#tee), but does not follow redirects from the backend.
 
 ## sed
 
+Example:
+
 ```
-sed("foo", "bar")
+editorRoute: * -> sed("foo", "bar") -> "https://www.example.org";
+```
+
+Example with larger max buffer:
+
+```
+editorRoute: * -> sed("foo", "bar", 64000000) -> "https://www.example.org";
 ```
 
 This filter expects a regexp pattern and a replacement string as arguments.
@@ -512,7 +520,7 @@ and the rest of the payload is dropped.
 ## sedDelim
 
 ```
-sedDelim("foo", "bar", "\n")
+editorRoute: * -> sedDelim("foo", "bar", "\n") -> "https://www.example.org";
 ```
 
 Like sed(), but it expects an additional argument, before the optional max buffer
@@ -523,7 +531,7 @@ delimiter, and matches across the chunk boundaries are not considered.
 ## sedRequest
 
 ```
-sedRequest("foo", "bar")
+editorRoute: * -> sedRequest("foo", "bar") -> "https://www.example.org";
 ```
 
 Like sed(), but for the request content.
@@ -531,7 +539,7 @@ Like sed(), but for the request content.
 ## sedRequestDelim
 
 ```
-sedRequestDelim("foo", "bar", "\n")
+editorRoute: * -> sedRequestDelim("foo", "bar", "\n") -> "https://www.example.org";
 ```
 
 Like sedDelim(), but for the request content.
