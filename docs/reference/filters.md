@@ -461,6 +461,11 @@ The same as [tee filter](#tee), but does not follow redirects from the backend.
 
 ## sed
 
+// TODO:
+// - we need to document that only non-zero matches are replaced
+// - we can document that it is currently not supported, together
+//   with the templating
+
 This filter () expects a regexp pattern and a replacement string as arguments.
 During the streaming of the response body, every occurence of the pattern will
 be replaced with the replacement string. The editing doesn't happen right when

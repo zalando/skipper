@@ -175,7 +175,7 @@ func TestSedInit(t *testing.T) {
 		},
 	}, {
 		title: "max buf handling, best effort",
-		args:  args("foo", "bar", 1024, "abort"),
+		args:  args("foo", "bar", 1024, "best-effort"),
 		expect: filter{
 			pattern:         regexp.MustCompile("foo"),
 			replacement:     []byte("bar"),
