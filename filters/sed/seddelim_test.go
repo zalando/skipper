@@ -66,6 +66,11 @@ func TestSedDelim(t *testing.T) {
 		args:   args("foo", "bar", "\n"),
 		body:   "foobarbaz",
 		expect: "barbarbaz",
+	}, {
+		title:  "expand the body to make it longer",
+		args:   args("foo", "foobarbaz", "\n"),
+		body:   "foobarbaz\nfoobarbaz\nfoobarbaz",
+		expect: "foobarbazbarbaz\nfoobarbazbarbaz\nfoobarbazbarbaz",
 	}} {
 		t.Run(
 			fmt.Sprintf("%s/%s", sed.NameRequestDelimit, test.title),
@@ -116,6 +121,11 @@ func TestSedDelimNoDelim(t *testing.T) {
 		args:   args("foo(bar)baz", "qux", "\n"),
 		body:   "foobarbaz",
 		expect: "qux",
+	}, {
+		title:  "expand the body to make it longer",
+		args:   args("foo", "foobarbaz", "\n"),
+		body:   "foobarbazfoobarbazfoobarbaz",
+		expect: "foobarbazbarbazfoobarbazbarbazfoobarbazbarbaz",
 	}} {
 		t.Run(
 			fmt.Sprintf("%s/%s", sed.NameRequestDelimit, test.title),

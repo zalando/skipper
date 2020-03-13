@@ -212,6 +212,16 @@ func TestSedInit(t *testing.T) {
 			replacement: []byte("bar"),
 			delimiter:   []byte("baz\n"),
 		},
+	}, {
+		title: "accept longer replacement",
+		spec:  NewDelimited,
+		args:  args("foo", "foobarbaz", "\n"),
+		expect: filter{
+			typ:         delimited,
+			pattern:     regexp.MustCompile("foo"),
+			replacement: []byte("foobarbaz"),
+			delimiter:   []byte("\n"),
+		},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			var s filters.Spec

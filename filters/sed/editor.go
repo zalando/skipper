@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	readBufferSize             = 8 << 10
-	defaultMaxEditorBufferSize = 2 << 20
+	readBufferSize             = 8192
+	defaultMaxEditorBufferSize = 2097152 // 2Mi
 )
 
 type maxBufferHandling int

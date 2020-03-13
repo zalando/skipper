@@ -167,6 +167,11 @@ func TestSed(t *testing.T) {
 		args:   args("foo(bar)baz", "qux"),
 		body:   "foobarbaz",
 		expect: "qux",
+	}, {
+		title:  "expand the body to make it longer",
+		args:   args("foo", "foobarbaz"),
+		body:   "foobarbazfoobarbazfoobarbaz",
+		expect: "foobarbazbarbazfoobarbazbarbazfoobarbazbarbaz",
 	}} {
 		t.Run(fmt.Sprintf("%s/%s", sed.NameRequest, test.title), testRequest(sed.NameRequest, test))
 		t.Run(fmt.Sprintf("%s/%s", sed.Name, test.title), testResponse(sed.Name, test))
