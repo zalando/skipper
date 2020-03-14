@@ -4,7 +4,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/eskipfile"
 	etcdclient "github.com/zalando/skipper/etcd"
-	innkeeperclient "github.com/zalando/skipper/innkeeper"
 	"io"
 	"io/ioutil"
 	"os"
@@ -33,9 +32,6 @@ func createReadClient(m *medium) (readClient, error) {
 	}
 
 	switch m.typ {
-	case innkeeper:
-		return createInnkeeperClient(m)
-
 	case etcd:
 		return etcdclient.New(etcdclient.Options{
 			Endpoints:  urlsToStrings(m.urls),
@@ -58,20 +54,6 @@ func createReadClient(m *medium) (readClient, error) {
 	default:
 		return nil, invalidInputType
 	}
-}
-
-func createInnkeeperClient(m *medium) (*innkeeperclient.Client, error) {
-	auth := innkeeperclient.CreateInnkeeperAuthentication(innkeeperclient.AuthOptions{InnkeeperAuthToken: m.oauthToken})
-
-	ic, err := innkeeperclient.New(innkeeperclient.Options{
-		Address:        m.urls[0].String(),
-		Insecure:       insecure,
-		Authentication: auth})
-
-	if err != nil {
-		return nil, err
-	}
-	return ic, nil
 }
 
 func (r *stdinReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {

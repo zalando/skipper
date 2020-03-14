@@ -184,11 +184,6 @@ In this scenario, Skipper uses the Kubernetes API's Ingress extensions as
 a source for routing. For a complete deployment example, see more details
 in: https://github.com/zalando-incubator/kubernetes-on-aws/ .
 
-- Innkeeper: the Innkeeper service implements a storage for large sets
-of Skipper routes, with an HTTP+JSON API, OAuth2 authentication and role
-management. See the 'innkeeper' package and
-https://github.com/zalando/innkeeper.
-
 - etcd: Skipper can load routes and receive updates from etcd clusters
 (https://github.com/coreos/etcd). See the 'etcd' package.
 
@@ -225,8 +220,8 @@ enter:
     skipper -help
 
 An additional utility, eskip, can be used to verify, print, update and
-delete routes from/to files or etcd (Innkeeper on the roadmap). See the
-cmd/eskip command package, and/or enter in the command line:
+delete routes from/to files or etcd. See the cmd/eskip command package,
+and/or enter in the command line:
 
     eskip -help
 

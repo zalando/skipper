@@ -151,15 +151,6 @@ func TestValidateSelectMedia(t *testing.T) {
 		nil,
 	}, {
 
-		// missing input
-		"delete",
-		[]*medium{{typ: innkeeper}},
-		true,
-		missingInput,
-		nil,
-		nil,
-	}, {
-
 		// stdin input should be supported for delete
 		"delete",
 		[]*medium{{typ: stdin}},

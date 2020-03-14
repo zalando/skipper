@@ -99,23 +99,19 @@ type Config struct {
 	SuppressRouteUpdateLogs             bool      `yaml:"suppress-route-update-logs"`
 
 	// route sources:
-	EtcdUrls                  string               `yaml:"etcd-urls"`
-	EtcdPrefix                string               `yaml:"etcd-prefix"`
-	EtcdTimeout               time.Duration        `yaml:"etcd-timeout"`
-	EtcdInsecure              bool                 `yaml:"etcd-insecure"`
-	EtcdOAuthToken            string               `yaml:"etcd-oauth-token"`
-	EtcdUsername              string               `yaml:"etcd-username"`
-	EtcdPassword              string               `yaml:"etcd-password"`
-	InnkeeperURL              string               `yaml:"innkeeper-url"`
-	InnkeeperAuthToken        string               `yaml:"innkeeper-auth-token"`
-	InnkeeperPreRouteFilters  string               `yaml:"innkeeper-pre-route-filters"`
-	InnkeeperPostRouteFilters string               `yaml:"innkeeper-post-route-filters"`
-	RoutesFile                string               `yaml:"routes-file"`
-	InlineRoutes              string               `yaml:"inline-routes"`
-	AppendFilters             *defaultFiltersFlags `yaml:"default-filters-append"`
-	PrependFilters            *defaultFiltersFlags `yaml:"default-filters-prepend"`
-	SourcePollTimeout         int64                `yaml:"source-poll-timeout"`
-	WaitFirstRouteLoad        bool                 `yaml:"wait-first-route-load"`
+	EtcdUrls           string               `yaml:"etcd-urls"`
+	EtcdPrefix         string               `yaml:"etcd-prefix"`
+	EtcdTimeout        time.Duration        `yaml:"etcd-timeout"`
+	EtcdInsecure       bool                 `yaml:"etcd-insecure"`
+	EtcdOAuthToken     string               `yaml:"etcd-oauth-token"`
+	EtcdUsername       string               `yaml:"etcd-username"`
+	EtcdPassword       string               `yaml:"etcd-password"`
+	RoutesFile         string               `yaml:"routes-file"`
+	InlineRoutes       string               `yaml:"inline-routes"`
+	AppendFilters      *defaultFiltersFlags `yaml:"default-filters-append"`
+	PrependFilters     *defaultFiltersFlags `yaml:"default-filters-prepend"`
+	SourcePollTimeout  int64                `yaml:"source-poll-timeout"`
+	WaitFirstRouteLoad bool                 `yaml:"wait-first-route-load"`
 
 	// Kubernetes:
 	KubernetesIngress           bool                `yaml:"kubernetes"`
@@ -136,9 +132,6 @@ type Config struct {
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
 
 	// Auth:
-	OauthURL                        string        `yaml:"oauth-url"`
-	OauthScope                      string        `yaml:"oauth-scope"`
-	OauthCredentialsDir             string        `yaml:"oauth-credentials-dir"`
 	Oauth2TokeninfoURL              string        `yaml:"oauth2-tokeninfo-url"`
 	Oauth2TokeninfoTimeout          time.Duration `yaml:"oauth2-tokeninfo-timeout"`
 	Oauth2TokenintrospectionTimeout time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
@@ -308,21 +301,17 @@ const (
 	suppressRouteUpdateLogsUsage             = "print only summaries on route updates/deletes"
 
 	// route sources:
-	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
-	etcdPrefixUsage                = "path prefix for skipper related data in etcd"
-	etcdTimeoutUsage               = "http client timeout duration for etcd"
-	etcdInsecureUsage              = "ignore the verification of TLS certificates for etcd"
-	etcdOAuthTokenUsage            = "optional token for OAuth authentication with etcd"
-	etcdUsernameUsage              = "optional username for basic authentication with etcd"
-	etcdPasswordUsage              = "optional password for basic authentication with etcd"
-	innkeeperURLUsage              = "API endpoint of the Innkeeper service, storing route definitions"
-	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
-	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
-	innkeeperPostRouteFiltersUsage = "filters to be appended to each route loaded from Innkeeper"
-	routesFileUsage                = "file containing route definitions"
-	inlineRoutesUsage              = "inline routes in eskip format"
-	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
-	waitFirstRouteLoadUsage        = "prevent starting the listener before the first batch of routes were loaded"
+	etcdUrlsUsage           = "urls of nodes in an etcd cluster, storing route definitions"
+	etcdPrefixUsage         = "path prefix for skipper related data in etcd"
+	etcdTimeoutUsage        = "http client timeout duration for etcd"
+	etcdInsecureUsage       = "ignore the verification of TLS certificates for etcd"
+	etcdOAuthTokenUsage     = "optional token for OAuth authentication with etcd"
+	etcdUsernameUsage       = "optional username for basic authentication with etcd"
+	etcdPasswordUsage       = "optional password for basic authentication with etcd"
+	routesFileUsage         = "file containing route definitions"
+	inlineRoutesUsage       = "inline routes in eskip format"
+	sourcePollTimeoutUsage  = "polling timeout of the routing data sources, in milliseconds"
+	waitFirstRouteLoadUsage = "prevent starting the listener before the first batch of routes were loaded"
 
 	// Kubernetes:
 	kubernetesUsage                  = "enables skipper to generate routes for ingress resources in kubernetes cluster"
@@ -339,9 +328,6 @@ const (
 	kubernetesEastWestDomainUsage    = "set the east-west domain, defaults to .skipper.cluster.local"
 
 	// Auth:
-	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
-	oauthCredentialsDirUsage             = "directory where oauth credentials are stored: client.json and user.json"
-	oauthScopeUsage                      = "the whitespace separated list of oauth scopes"
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
@@ -496,10 +482,6 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.EtcdOAuthToken, "etcd-oauth-token", "", etcdOAuthTokenUsage)
 	flag.StringVar(&cfg.EtcdUsername, "etcd-username", "", etcdUsernameUsage)
 	flag.StringVar(&cfg.EtcdPassword, "etcd-password", "", etcdPasswordUsage)
-	flag.StringVar(&cfg.InnkeeperURL, "innkeeper-url", "", innkeeperURLUsage)
-	flag.StringVar(&cfg.InnkeeperAuthToken, "innkeeper-auth-token", "", innkeeperAuthTokenUsage)
-	flag.StringVar(&cfg.InnkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", innkeeperPreRouteFiltersUsage)
-	flag.StringVar(&cfg.InnkeeperPostRouteFilters, "innkeeper-post-route-filters", "", innkeeperPostRouteFiltersUsage)
 	flag.StringVar(&cfg.RoutesFile, "routes-file", "", routesFileUsage)
 	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", inlineRoutesUsage)
 	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
@@ -522,9 +504,6 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", kubernetesEastWestDomainUsage)
 
 	// Auth:
-	flag.StringVar(&cfg.OauthURL, "oauth-url", "", oauthURLUsage)
-	flag.StringVar(&cfg.OauthScope, "oauth-scope", "", oauthScopeUsage)
-	flag.StringVar(&cfg.OauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
 	flag.StringVar(&cfg.Oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
 	flag.DurationVar(&cfg.Oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
 	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
@@ -730,19 +709,15 @@ func (c *Config) ToOptions() skipper.Options {
 		SuppressRouteUpdateLogs:             c.SuppressRouteUpdateLogs,
 
 		// route sources:
-		EtcdUrls:                  eus,
-		EtcdPrefix:                c.EtcdPrefix,
-		EtcdWaitTimeout:           c.EtcdTimeout,
-		EtcdInsecure:              c.EtcdInsecure,
-		EtcdOAuthToken:            c.EtcdOAuthToken,
-		EtcdUsername:              c.EtcdUsername,
-		EtcdPassword:              c.EtcdPassword,
-		InnkeeperUrl:              c.InnkeeperURL,
-		InnkeeperAuthToken:        c.InnkeeperAuthToken,
-		InnkeeperPreRouteFilters:  c.InnkeeperPreRouteFilters,
-		InnkeeperPostRouteFilters: c.InnkeeperPostRouteFilters,
-		WatchRoutesFile:           c.RoutesFile,
-		InlineRoutes:              c.InlineRoutes,
+		EtcdUrls:        eus,
+		EtcdPrefix:      c.EtcdPrefix,
+		EtcdWaitTimeout: c.EtcdTimeout,
+		EtcdInsecure:    c.EtcdInsecure,
+		EtcdOAuthToken:  c.EtcdOAuthToken,
+		EtcdUsername:    c.EtcdUsername,
+		EtcdPassword:    c.EtcdPassword,
+		WatchRoutesFile: c.RoutesFile,
+		InlineRoutes:    c.InlineRoutes,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: c.PrependFilters.filters,
 			Append:  c.AppendFilters.filters,
@@ -774,9 +749,6 @@ func (c *Config) ToOptions() skipper.Options {
 		DefaultFiltersDir: c.DefaultFiltersDir,
 
 		// Auth:
-		OAuthUrl:                       c.OauthURL,
-		OAuthScope:                     c.OauthScope,
-		OAuthCredentialsDir:            c.OauthCredentialsDir,
 		OAuthTokeninfoURL:              c.Oauth2TokeninfoURL,
 		OAuthTokeninfoTimeout:          c.Oauth2TokeninfoTimeout,
 		OAuthTokenintrospectionTimeout: c.Oauth2TokenintrospectionTimeout,
