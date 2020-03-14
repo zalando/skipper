@@ -224,8 +224,8 @@ func testIngresses() []*ingressItem {
 				testPathRule("/test2", "service2", backendPort{"port2"}),
 			),
 		),
-		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", "", backendPort{8080}, 1.0),
-		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace1", "ratelimit", "service1", "clientRatelimit(20,\"1m\")", "", "", "", "", "", backendPort{8080}, 1.0),
+		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "clientRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", backendPort{8080}, 1.0),
 		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", "", backendPort{4444}, 1.0),
 	}
 }
@@ -2974,7 +2974,7 @@ func TestRatelimits(t *testing.T) {
 	api := newTestAPI(t, nil, &ingressList{})
 	defer api.Close()
 
-	t.Run("check localratelimit", func(t *testing.T) {
+	t.Run("check clientratelimit", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 
@@ -2992,8 +2992,8 @@ func TestRatelimits(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkLocalRatelimit(t, r, map[string]string{
-			"kube_namespace1__ratelimit______": "localRatelimit(20,\"1m\")",
+		checkClientRatelimit(t, r, map[string]string{
+			"kube_namespace1__ratelimit______": "clientRatelimit(20,\"1m\")",
 		})
 	})
 }
@@ -3002,7 +3002,7 @@ func TestRatelimitsEastWest(t *testing.T) {
 	api := newTestAPI(t, nil, &ingressList{})
 	defer api.Close()
 
-	t.Run("check localratelimit", func(t *testing.T) {
+	t.Run("check clientratelimit", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 
@@ -3021,23 +3021,23 @@ func TestRatelimitsEastWest(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkLocalRatelimit(t, r, map[string]string{
-			"kube_namespace1__ratelimit______":   "localRatelimit(20,\"1m\")",
-			"kubeew_namespace1__ratelimit______": "localRatelimit(20,\"1m\")",
+		checkClientRatelimit(t, r, map[string]string{
+			"kube_namespace1__ratelimit______":   "clientRatelimit(20,\"1m\")",
+			"kubeew_namespace1__ratelimit______": "clientRatelimit(20,\"1m\")",
 		})
 	})
 }
 
-func checkLocalRatelimit(t *testing.T, got []*eskip.Route, expected map[string]string) {
+func checkClientRatelimit(t *testing.T, got []*eskip.Route, expected map[string]string) {
 	for _, r := range got {
 		if r.Filters != nil {
 			for _, f := range r.Filters {
 				_, ok := expected[r.Id]
-				if ok && f.Name != "localRatelimit" {
-					t.Errorf("%s should have a localratelimit", r.Id)
+				if ok && f.Name != "clientRatelimit" {
+					t.Errorf("%s should have a clientratelimit", r.Id)
 				}
-				if !ok && f.Name == "localRatelimit" {
-					t.Errorf("%s should not have a localratelimit", r.Id)
+				if !ok && f.Name == "clientRatelimit" {
+					t.Errorf("%s should not have a clientratelimit", r.Id)
 				}
 			}
 		}
@@ -3067,7 +3067,7 @@ func TestSkipperFilter(t *testing.T) {
 		}
 
 		checkSkipperFilter(t, r, map[string][]string{
-			"kube_namespace1__ratelimitAndBreaker______": {"localRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
+			"kube_namespace1__ratelimitAndBreaker______": {"clientRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
 		})
 	})
 }
@@ -3096,8 +3096,8 @@ func TestSkipperFilterEastWest(t *testing.T) {
 		}
 
 		checkSkipperFilter(t, r, map[string][]string{
-			"kube_namespace1__ratelimitAndBreaker______":   {"localRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
-			"kubeew_namespace1__ratelimitAndBreaker______": {"localRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
+			"kube_namespace1__ratelimitAndBreaker______":   {"clientRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
+			"kubeew_namespace1__ratelimitAndBreaker______": {"clientRatelimit(20,\"1m\")", "consecutiveBreaker(15)"},
 		})
 	})
 }
@@ -3108,8 +3108,8 @@ func checkSkipperFilter(t *testing.T, got []*eskip.Route, expected map[string][]
 			f1 := r.Filters[0]
 			f2 := r.Filters[1]
 			_, ok := expected[r.Id]
-			if ok && f1.Name != "localRatelimit" {
-				t.Errorf("%s should have a localratelimit", r.Id)
+			if ok && f1.Name != "clientRatelimit" {
+				t.Errorf("%s should have a clientratelimit", r.Id)
 			}
 			if ok && f2.Name != "consecutiveBreaker" {
 				t.Errorf("%s should have a consecutiveBreaker", r.Id)
@@ -3845,7 +3845,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 	t.Run("check default filters are prepended to the ingress filters", func(t *testing.T) {
 		api.services = &serviceList{Items: []*service{testService("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080})}}
 		api.ingresses = &ingressList{Items: []*ingressItem{testIngress("namespace1", "default-only",
-			"service1", "", "localRatelimit(20,\"1m\")", "", "", "", "", backendPort{8080}, 1.0,
+			"service1", "", "clientRatelimit(20,\"1m\")", "", "", "", "", backendPort{8080}, 1.0,
 			testRule("www.example.org", testPathRule("/", "service1", backendPort{"port1"})))}}
 
 		// store default configuration in the file
@@ -3874,7 +3874,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			t.Error("should not fail", err, r)
 			return
 		}
-		if len(r) != 2 || len(r[1].Filters) != 2 || r[1].Filters[0].Name != "consecutiveBreaker" || r[1].Filters[1].Name != "localRatelimit" {
+		if len(r) != 2 || len(r[1].Filters) != 2 || r[1].Filters[0].Name != "consecutiveBreaker" || r[1].Filters[1].Name != "clientRatelimit" {
 			t.Error("should prepend the default filter to the ingress filters")
 			return
 		}

@@ -1004,11 +1004,6 @@ See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper
 
 Can be used as [egress](egress.md) feature.
 
-## ~~localRatelimit~~
-
-**DEPRECATED** use [clientRatelimit](#clientratelimit) with the same
-  settings instead.
-
 ## clientRatelimit
 
 Per skipper instance calculated ratelimit, that allows number of

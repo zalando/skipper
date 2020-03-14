@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/ratelimit"
 )
@@ -28,11 +27,6 @@ type spec struct {
 
 type filter struct {
 	settings ratelimit.Settings
-}
-
-// NewLocalRatelimit is *DEPRECATED*, use NewClientRatelimit, instead
-func NewLocalRatelimit() filters.Spec {
-	return &spec{typ: ratelimit.LocalRatelimit, filterName: ratelimit.LocalRatelimitName}
 }
 
 // NewClientRatelimit creates a instance based client rate limit.  If
@@ -300,9 +294,6 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	switch s.typ {
 	case ratelimit.ServiceRatelimit:
 		return serviceRatelimitFilter(args)
-	case ratelimit.LocalRatelimit:
-		log.Warning("ratelimit.LocalRatelimit is deprecated, please use ratelimit.ClientRatelimit")
-		fallthrough
 	case ratelimit.ClientRatelimit:
 		return clientRatelimitFilter(args)
 	case ratelimit.ClusterServiceRatelimit:

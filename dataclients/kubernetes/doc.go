@@ -110,7 +110,7 @@ defined route in ingress.
     kind: Ingress
     metadata:
       annotations:
-        zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
+        zalando.org/skipper-filter: clientRatelimit(50, "10m") -> requestCookie("test-session", "abc")
       name: app
     spec:
       rules:

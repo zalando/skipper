@@ -365,8 +365,8 @@ route as defined in eskip:
 
 ```
 zalando.org/skipper-routes: |
-  routename1: Path("/") -> localRatelimit(2, "1h") -> inlineContent("A") -> status(200) -> <shunt>;
-  routename2: Path("/foo") -> localRatelimit(5, "1h") -> inlineContent("B") -> status(200) -> <shunt>;
+  routename1: Path("/") -> clientRatelimit(2, "1h") -> inlineContent("A") -> status(200) -> <shunt>;
+  routename2: Path("/foo") -> clientRatelimit(5, "1h") -> inlineContent("B") -> status(200) -> <shunt>;
 ```
 
 Make sure the `;` semicolon is used to terminate the routes, if you
@@ -629,7 +629,7 @@ apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   annotations:
-    zalando.org/skipper-filter: localRatelimit(20, "1h")
+    zalando.org/skipper-filter: clientRatelimit(20, "1h")
   name: app
 spec:
   rules:
@@ -651,7 +651,7 @@ apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   annotations:
-    zalando.org/skipper-filter: localRatelimit(20, "1h", "auth")
+    zalando.org/skipper-filter: clientRatelimit(20, "1h", "auth")
   name: app
 spec:
   rules:
@@ -983,7 +983,7 @@ kind: Ingress
 metadata:
   annotations:
     zalando.org/skipper-predicate: Cookie("flavor", /^B$/) && Source("1.2.3.0/24", "195.168.0.0/17")
-    zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
+    zalando.org/skipper-filter: clientRatelimit(50, "10m") -> requestCookie("test-session", "abc")
   name: app
 spec:
   rules:
