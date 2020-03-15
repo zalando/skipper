@@ -25,8 +25,7 @@ import (
 type redirectType int
 
 const (
-	redDeprecated redirectType = iota
-	redTo
+	redTo redirectType = iota
 	redToLower
 )
 
@@ -36,15 +35,6 @@ type redirect struct {
 	code     int
 	location *url.URL
 }
-
-// NewRedirect returns a new filter Spec, whose instances create an HTTP redirect
-// response. Marks the request as served. Instances expect two
-// parameters: the redirect status code and the redirect location.
-// Name: "redirect".
-//
-// This filter is deprecated, use RedirectTo instead.
-// This *DEPRECATED* filter can not be used with filters from scheduler package.
-func NewRedirect() filters.Spec { return &redirect{typ: redDeprecated} }
 
 // NewRedirectTo returns a new filter Spec, whose instances create an HTTP redirect
 // response. It shunts the request flow, meaning that the filter chain on
@@ -63,8 +53,6 @@ func NewRedirectLower() filters.Spec { return &redirect{typ: redToLower} }
 // "redirect" or "redirectToLower" or "redirectTo"
 func (spec *redirect) Name() string {
 	switch spec.typ {
-	case redDeprecated:
-		return RedirectName
 	case redToLower:
 		return RedirectToLowerName
 	default:
@@ -167,21 +155,12 @@ func Redirect(ctx filters.FilterContext, code int, location *url.URL) {
 }
 
 func (spec *redirect) Request(ctx filters.FilterContext) {
-
-	if spec.typ == redDeprecated {
-		return
-	}
-
 	redirectWithType(ctx, spec.code, spec.location, spec.typ)
 }
 
 // Sets the status code and the location header of the response. Marks the
 // request served.
 func (spec *redirect) Response(ctx filters.FilterContext) {
-	if spec.typ != redDeprecated {
-		return
-	}
-
 	u := getLocation(ctx, spec.location, spec.typ)
 	w := ctx.ResponseWriter()
 	w.Header().Set("Location", u)

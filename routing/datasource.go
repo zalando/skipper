@@ -238,12 +238,12 @@ func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]Predica
 // and the filter registry.
 func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]PredicateSpec) ([]*RouteFilter, error) {
 	var fs []*RouteFilter
-	for i, def := range defs {
+	for _, def := range defs {
 		f, err := createFilter(fr, def, cpm)
 		if err != nil {
 			return nil, err
 		}
-		fs = append(fs, &RouteFilter{f, def.Name, i})
+		fs = append(fs, &RouteFilter{f, def.Name})
 	}
 
 	return fs, nil

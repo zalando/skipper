@@ -1,7 +1,6 @@
 package flowid
 
 import (
-	"fmt"
 	"log"
 	"strings"
 
@@ -31,18 +30,6 @@ type flowIdSpec struct {
 type flowId struct {
 	reuseExisting bool
 	generator     Generator
-}
-
-// NewFlowId creates a new standard generator with the defined length and returns a Flow ID.
-//
-// Deprecated: For backward compatibility this exported function is still available but will removed in upcoming
-// releases. Use the new Generator interface and respective implementations
-func NewFlowId(l int) (string, error) {
-	g, err := NewStandardGenerator(l)
-	if err != nil {
-		return "", fmt.Errorf("deprecated new flowid: %v", err)
-	}
-	return g.Generate()
 }
 
 // New creates a new instance of the flowId filter spec which uses the StandardGenerator.

@@ -13,16 +13,14 @@ import (
 )
 
 const (
-	Name           = "tee"
-	DeprecatedName = "Tee"
-	NoFollowName   = "teenf"
+	Name         = "tee"
+	NoFollowName = "teenf"
 )
 
 const defaultTeeTimeout = time.Second
 
 type teeSpec struct {
-	deprecated bool
-	options    Options
+	options Options
 }
 
 // Options for tee filter.
@@ -82,20 +80,6 @@ func NewTee() filters.Spec {
 		Timeout:  defaultTeeTimeout,
 		NoFollow: false,
 	})
-}
-
-// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
-// parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
-//
-// This version uses the capitalized version of the filter name and to follow conventions, it is deprecated
-// and NewTee() (providing the name "tee") should be used instead.
-//
-// Name: "Tee".
-func NewTeeDeprecated() filters.Spec {
-	return &teeSpec{deprecated: true, options: Options{
-		NoFollow: false,
-		Timeout:  defaultTeeTimeout,
-	}}
 }
 
 // Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
@@ -274,9 +258,6 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 }
 
 func (spec *teeSpec) Name() string {
-	if spec.deprecated {
-		return DeprecatedName
-	}
 	if spec.options.NoFollow {
 		return NoFollowName
 	}

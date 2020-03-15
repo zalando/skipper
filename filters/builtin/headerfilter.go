@@ -15,9 +15,6 @@ const (
 	setResponseHeader
 	appendResponseHeader
 	dropResponseHeader
-
-	depRequestHeader
-	depResponseHeader
 )
 
 // common structure for requestHeader, responseHeader specifications and
@@ -54,16 +51,6 @@ func headerFilterConfig(typ headerType, config []interface{}) (string, string, e
 	}
 
 	return key, value, nil
-}
-
-// Deprecated: use setRequestHeader or appendRequestHeader
-func NewRequestHeader() filters.Spec {
-	return &headerFilter{typ: depRequestHeader}
-}
-
-// Deprecated: use setRequestHeader or appendRequestHeader
-func NewResponseHeader() filters.Spec {
-	return &headerFilter{typ: depResponseHeader}
 }
 
 // Returns a filter specification that is used to set headers for requests.
@@ -130,10 +117,6 @@ func (spec *headerFilter) Name() string {
 		return AppendResponseHeaderName
 	case dropResponseHeader:
 		return DropResponseHeaderName
-	case depRequestHeader:
-		return RequestHeaderName
-	case depResponseHeader:
-		return ResponseHeaderName
 	default:
 		panic("invalid header type")
 	}
@@ -152,7 +135,7 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 		if strings.ToLower(f.key) == "host" {
 			ctx.SetOutgoingHost(f.value)
 		}
-	case appendRequestHeader, depRequestHeader:
+	case appendRequestHeader:
 		ctx.Request().Header.Add(f.key, f.value)
 		if strings.ToLower(f.key) == "host" {
 			ctx.SetOutgoingHost(f.value)
@@ -166,7 +149,7 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 	switch f.typ {
 	case setResponseHeader:
 		ctx.Response().Header.Set(f.key, f.value)
-	case appendResponseHeader, depResponseHeader:
+	case appendResponseHeader:
 		ctx.Response().Header.Add(f.key, f.value)
 	case dropResponseHeader:
 		ctx.Response().Header.Del(f.key)

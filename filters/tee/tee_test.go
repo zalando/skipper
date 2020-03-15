@@ -364,7 +364,6 @@ func TestName(t *testing.T) {
 		name string
 	}{
 		{NewTee(), "tee"},
-		{NewTeeDeprecated(), "Tee"},
 		{NewTeeNoFollow(), "teenf"},
 	} {
 		n := ti.spec.Name()
