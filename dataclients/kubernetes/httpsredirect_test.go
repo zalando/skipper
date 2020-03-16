@@ -325,8 +325,7 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 			PathRegexp("^/foo") &&
 
 			// increase priority of the redirect routes.
-			PathRegexp(".*") &&
-			PathRegexp(".*")
+			Weight(1000)
 
 			-> redirectTo(308, "https:")
 			-> <shunt>;
@@ -336,8 +335,7 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 		kube___catchall__www_example_org_____https_redirect:
 
 			// increase priority of the redirect routes.
-			PathRegexp(".*") &&
-			PathRegexp(".*") &&
+			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http") &&
 			Host("^www[.]example[.]org$")
@@ -435,8 +433,7 @@ func TestDisableHTTPSRedirectFromIngress(t *testing.T) {
 			PathRegexp("^/bar") &&
 
 			// increase priority of the redirect routes.
-			PathRegexp(".*") &&
-			PathRegexp(".*") &&
+			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http")
 			-> "http://5.6.7.8:8181";
@@ -447,16 +444,14 @@ func TestDisableHTTPSRedirectFromIngress(t *testing.T) {
 			Host("^api[.]example[.]org$") &&
 
 			// increase priority of the redirect routes.
-			PathRegexp(".*") &&
-			PathRegexp(".*") &&
+			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http")
 			-> <shunt>;
 		kube__redirect:
 
 			// increase priority of the redirect routes.
-			PathRegexp(/.*/) &&
-			PathRegexp(/.*/) &&
+			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http")
 			-> redirectTo(308, "https:")
@@ -530,8 +525,7 @@ func TestChangeRedirectCodeFromIngress(t *testing.T) {
 			PathRegexp("^/foo") &&
 
 			// increase priority of the redirect routes.
-			PathRegexp(".*") &&
-			PathRegexp(".*")
+			Weight(1000)
 
 			-> redirectTo(301, "https:")
 			-> <shunt>;
@@ -541,8 +535,7 @@ func TestChangeRedirectCodeFromIngress(t *testing.T) {
 		kube___catchall__www_example_org_____https_redirect:
 
 			// increase priority of the redirect routes.
-			PathRegexp(".*") &&
-			PathRegexp(".*") &&
+			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http") &&
 			Host("^www[.]example[.]org$")
@@ -558,8 +551,7 @@ func TestChangeRedirectCodeFromIngress(t *testing.T) {
 		kube__redirect:
 
 			// increase priority of the redirect routes.
-			PathRegexp(/.*/) &&
-			PathRegexp(/.*/) &&
+			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http")
 			-> redirectTo(308, "https:")
@@ -633,8 +625,7 @@ func TestEnableRedirectWithCustomCode(t *testing.T) {
 			PathRegexp("^/foo") &&
 
 			// increase priority of the redirect routes.
-			PathRegexp(".*") &&
-			PathRegexp(".*")
+			Weight(1000)
 
 			-> redirectTo(301, "https:")
 			-> <shunt>;
@@ -644,8 +635,7 @@ func TestEnableRedirectWithCustomCode(t *testing.T) {
 		kube___catchall__www_example_org_____https_redirect:
 
 			// increase priority of the redirect routes.
-			PathRegexp(".*") &&
-			PathRegexp(".*") &&
+			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http") &&
 			Host("^www[.]example[.]org$")
