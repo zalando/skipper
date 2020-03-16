@@ -461,6 +461,9 @@ The same as [tee filter](#tee), but does not follow redirects from the backend.
 
 ## sed
 
+The filter sed replaces all occurences of a pattern with a replacement string
+in the response body.
+
 Example:
 
 ```
@@ -519,30 +522,36 @@ and the rest of the payload is dropped.
 
 ## sedDelim
 
-```
-editorRoute: * -> sedDelim("foo", "bar", "\n") -> "https://www.example.org";
-```
-
 Like sed(), but it expects an additional argument, before the optional max buffer
 size argument, that is used to delimit chunks to be processed at once. The pattern
 replacement is executed only within the boundaries of the chunks defined by the
 delimiter, and matches across the chunk boundaries are not considered.
 
+Example:
+
+```
+editorRoute: * -> sedDelim("foo", "bar", "\n") -> "https://www.example.org";
+```
+
 ## sedRequest
+
+Like sed(), but for the request content.
+
+Example:
 
 ```
 editorRoute: * -> sedRequest("foo", "bar") -> "https://www.example.org";
 ```
 
-Like sed(), but for the request content.
-
 ## sedRequestDelim
+
+Like sedDelim(), but for the request content.
+
+Example:
 
 ```
 editorRoute: * -> sedRequestDelim("foo", "bar", "\n") -> "https://www.example.org";
 ```
-
-Like sedDelim(), but for the request content.
 
 ## basicAuth
 
