@@ -29,7 +29,6 @@ const (
 	etcdUrlsFlag       = "etcd-urls"
 	etcdPrefixFlag     = "etcd-prefix"
 	etcdOAuthTokenFlag = "etcd-oauth-token"
-	innkeeperUrlFlag   = "innkeeper-url"
 	oauthTokenFlag     = "oauth-token"
 	inlineRoutesFlag   = "routes"
 	inlineIdsFlag      = "ids"
@@ -42,9 +41,8 @@ const (
 	indentStrFlag      = "indent"
 	jsonFlag           = "json"
 
-	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
-	defaultEtcdPrefix   = "/skipper"
-	defaultInnkeeperUrl = "http://127.0.0.1:8080"
+	defaultEtcdUrls   = "http://127.0.0.1:2379,http://127.0.0.1:4001"
+	defaultEtcdPrefix = "/skipper"
 )
 
 // used to prevent flag.FlagSet of printing errors in the wrong place
@@ -64,7 +62,6 @@ var (
 var (
 	etcdUrls          string
 	etcdPrefix        string
-	innkeeperUrl      string
 	oauthToken        string
 	etcdOAuthToken    string
 	inlineRoutes      string
@@ -95,9 +92,6 @@ func initFlags() {
 	flags.StringVar(&etcdUrls, etcdUrlsFlag, "", etcdUrlsUsage)
 	flags.StringVar(&etcdPrefix, etcdPrefixFlag, "", etcdPrefixUsage)
 	flags.StringVar(&etcdOAuthToken, etcdOAuthTokenFlag, "", etcdOAuthTokenUsage)
-
-	flags.StringVar(&innkeeperUrl, innkeeperUrlFlag, "", innkeeperUrlUsage)
-	flags.StringVar(&oauthToken, oauthTokenFlag, "", oauthTokenUsage)
 
 	flags.StringVar(&inlineRoutes, inlineRoutesFlag, "", inlineRoutesUsage)
 	flags.StringVar(&inlineRouteIds, inlineIdsFlag, "", inlineIdsUsage)
@@ -169,30 +163,6 @@ func processEtcdArgs(etcdUrls, etcdPrefix, oauthToken string) (*medium, error) {
 		oauthToken: oauthToken}, nil
 }
 
-func processInnkeeperArgs(innkeeperUrl, oauthToken string) (*medium, error) {
-	if innkeeperUrl == "" && oauthToken == "" {
-		return nil, nil
-	}
-
-	if oauthToken == "" {
-		return nil, missingOAuthToken
-	}
-
-	if innkeeperUrl == "" {
-		innkeeperUrl = defaultInnkeeperUrl
-	}
-
-	urls, err := stringsToUrls(innkeeperUrl)
-	if err != nil {
-		return nil, err
-	}
-
-	return &medium{
-		typ:        innkeeper,
-		urls:       urls,
-		oauthToken: oauthToken}, nil
-}
-
 // returns file type medium if a positional parameter is defined.
 func processFileArg() (*medium, error) {
 	nonFlagArgs := flags.Args()
@@ -261,16 +231,6 @@ func processArgs() ([]*medium, error) {
 	}
 
 	var media []*medium
-
-	innkeeperArg, err := processInnkeeperArgs(innkeeperUrl, oauthToken)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if innkeeperArg != nil {
-		media = append(media, innkeeperArg)
-	}
 
 	etcdArg, err := processEtcdArgs(etcdUrls, etcdPrefix, etcdOAuthToken)
 	if err != nil {

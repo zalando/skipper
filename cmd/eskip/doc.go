@@ -72,8 +72,6 @@ const (
 	// flag usage strings:
 	etcdUrlsUsage       = "urls of nodes in an etcd cluster"
 	etcdPrefixUsage     = "path prefix for routes in etcd"
-	innkeeperUrlUsage   = "url for the innkeeper service"
-	oauthTokenUsage     = "oauth token used to authenticate to innkeeper"
 	etcdOAuthTokenUsage = "oauth token used to authenticate to etcd"
 	inlineRoutesUsage   = "inline: routes in eskip format"
 	inlineIdsUsage      = "inline ids: comma separated route ids"
@@ -94,8 +92,6 @@ See more: https://github.com/zalando/skipper
 
 Media types:
 
-innkeeper     endpoint of an innkeeper server. See more about innkeeper:
-              https://github.com/zalando/innkeeper
 etcd          endpoint(s) of an etcd cluster. See more about etcd:
               https://github.com/coreos/etcd
 stdin         standard input when not tty, expecting routes but ignored if a file is provided

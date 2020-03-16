@@ -28,7 +28,6 @@ const (
 	stdin mediaType = 1 + iota
 	file
 	etcd
-	innkeeper
 	inline
 	inlineIds
 	patchPrepend
@@ -105,7 +104,7 @@ func validateSelectWrite(media []*medium) (a cmdArgs, err error) {
 			return
 		}
 
-		if m.typ == etcd || m.typ == innkeeper {
+		if m.typ == etcd {
 			a.out = m
 		} else {
 			a.in = m
@@ -137,7 +136,7 @@ func validateSelectDelete(media []*medium) (a cmdArgs, err error) {
 			return
 		}
 
-		if m.typ == etcd || m.typ == innkeeper {
+		if m.typ == etcd {
 			a.out = m
 		} else {
 			a.in = m

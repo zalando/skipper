@@ -27,7 +27,7 @@ Skipper
 - simultaneously streams incoming requests and backend responses
 - optionally acts as a final endpoint (shunt), e.g. as a static file server or a mock backend for diagnostics
 - updates routing rules without downtime, while supporting multiple types of data sources — including
-  [etcd](https://github.com/coreos/etcd), [Kubernetes Ingress](https://opensource.zalando.com/skipper/data-clients/kubernetes/), [Innkeeper (deprecated)](https://github.com/zalando/innkeeper), [static files](https://opensource.zalando.com/skipper/data-clients/eskip-file/), [route string](https://opensource.zalando.com/skipper/data-clients/route-string/) and
+  [etcd](https://github.com/coreos/etcd), [Kubernetes Ingress](https://opensource.zalando.com/skipper/data-clients/kubernetes/), [static files](https://opensource.zalando.com/skipper/data-clients/eskip-file/), [route string](https://opensource.zalando.com/skipper/data-clients/route-string/) and
   [custom configuration sources](https://godoc.org/github.com/zalando/skipper/predicates/#source)
 - can serve as a
   [Kubernetes Ingress controller](https://zalando.github.io/skipper/data-clients/kubernetes/)
@@ -47,8 +47,8 @@ A few examples for extending Skipper:
 
 #### Prerequisites/Requirements
 
-In order to build and run Skipper, only the latest version of Go needs to be installed. Skipper can use
-Innkeeper or Etcd as data sources for routes, or for the simplest cases, a local configuration file. See more
+In order to build and run Skipper, only the latest version of Go needs to be installed. Skipper can use Etcd as 
+data sources for routes, or for the simplest cases, a local configuration file. See more
 details in the documentation: https://godoc.org/github.com/zalando/skipper.
 
 
