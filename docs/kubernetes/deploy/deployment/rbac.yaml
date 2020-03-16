@@ -7,6 +7,15 @@ spec:
   hostPorts:
   - max: 10000
     min: 50
+  supplementalGroups:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  runAsUser:
+    # Require the container to run without root privileges.
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: RunAsAny
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
