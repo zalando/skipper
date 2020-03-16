@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+  php-fpm:
+    ports:
+      - "9000:9000"
+    build:
+      context: .
+      dockerfile: Dockerfile

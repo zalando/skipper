@@ -23,6 +23,7 @@ zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skip
 zalando.org/skipper-ingress-redirect | `"true"` | change the default HTTPS redirect behavior for specific ingresses (true/false)
 zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
 zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../../reference/backends/#load-balancer-backend)
+zalando.org/skipper-backend-protocol | `fastcgi` | (*experimental*) defaults to `http`, [see available choices](../../reference/backends/#backend-protocols)
 zalando.org/skipper-ingress-path-mode | `path-prefix` | defaults to `kubernetes-ingress`, [see available choices](#ingress-path-handling), to change the default use `-kubernetes-path-mode`
 
 ## Supported Service types

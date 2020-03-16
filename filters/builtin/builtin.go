@@ -46,22 +46,23 @@ const (
 	SetDynamicBackendScheme           = "setDynamicBackendScheme"
 	SetDynamicBackendUrl              = "setDynamicBackendUrl"
 
-	HealthCheckName      = "healthcheck"
-	ModPathName          = "modPath"
-	SetPathName          = "setPath"
-	ModRequestHeaderName = "modRequestHeader"
-	RedirectToName       = "redirectTo"
-	RedirectToLowerName  = "redirectToLower"
-	StaticName           = "static"
-	StripQueryName       = "stripQuery"
-	PreserveHostName     = "preserveHost"
-	StatusName           = "status"
-	CompressName         = "compress"
-	SetQueryName         = "setQuery"
-	DropQueryName        = "dropQuery"
-	InlineContentName    = "inlineContent"
-	HeaderToQueryName    = "headerToQuery"
-	QueryToHeaderName    = "queryToHeader"
+	HealthCheckName        = "healthcheck"
+	ModPathName            = "modPath"
+	SetPathName            = "setPath"
+	ModRequestHeaderName   = "modRequestHeader"
+	RedirectToName         = "redirectTo"
+	RedirectToLowerName    = "redirectToLower"
+	StaticName             = "static"
+	StripQueryName         = "stripQuery"
+	PreserveHostName       = "preserveHost"
+	SetFastCgiFilenameName = "setFastCgiFilename"
+	StatusName             = "status"
+	CompressName           = "compress"
+	SetQueryName           = "setQuery"
+	DropQueryName          = "dropQuery"
+	InlineContentName      = "inlineContent"
+	HeaderToQueryName      = "headerToQuery"
+	QueryToHeaderName      = "queryToHeader"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -93,6 +94,7 @@ func MakeRegistry() filters.Registry {
 		NewInlineContent(),
 		flowid.New(),
 		PreserveHost(),
+		NewSetFastCgiFilename(),
 		NewStatus(),
 		NewCompress(),
 		NewCopyRequestHeader(),

@@ -38,7 +38,7 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 	return s, nil
 }
 
-func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort string) ([]string, error) {
+func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort, protocol string) ([]string, error) {
 	epID := endpointID{
 		resourceID:  newResourceID(namespace, name),
 		servicePort: servicePort,
@@ -58,7 +58,7 @@ func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort
 		return nil, errEndpointNotFound
 	}
 
-	targets := ep.targets(servicePort, targetPort)
+	targets := ep.targets(servicePort, targetPort, protocol)
 	if len(targets) == 0 {
 		return nil, errEndpointNotFound
 	}

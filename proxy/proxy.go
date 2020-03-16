@@ -28,6 +28,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/proxy/fastcgi"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/rfc"
 	"github.com/zalando/skipper/routing"
@@ -844,6 +845,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
+	var err error
 	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
 	if err != nil {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
@@ -882,7 +884,31 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
-	response, err := p.roundTripper.RoundTrip(req)
+
+	var response *http.Response
+	switch req.URL.Scheme {
+	case "fastcgi":
+		f := "index.php"
+		if sf, ok := ctx.StateBag()["fastCgiFilename"]; ok {
+			f = sf.(string)
+		}
+		rt, err := fastcgi.NewRoundTripper(p.log, req.URL.Host, f)
+		if err != nil {
+			p.log.Errorf("Failed to create fastcgi roundtripper: %v", err)
+
+			return nil, &proxyError{err: err}
+		}
+
+		response, err = rt.RoundTrip(req)
+		if err != nil {
+			p.log.Errorf("Failed to roundtrip to fastcgi: %v", err)
+
+			return nil, &proxyError{err: err}
+		}
+	default:
+		response, err = p.roundTripper.RoundTrip(req)
+	}
+
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
