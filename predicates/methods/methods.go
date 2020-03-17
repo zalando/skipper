@@ -24,13 +24,15 @@ import (
 	"strings"
 )
 
-const Name = "Methods"
+const NameSingular = "Method"
+const NamePlural = "Methods"
 
 var ErrInvalidArgumentsCount = errors.New("at least one method should be specified")
 var ErrInvalidArgumentType = errors.New("only string values are allowed")
 
 type (
 	spec struct {
+		name           string
 		allowedMethods map[string]bool
 	}
 
@@ -39,22 +41,34 @@ type (
 	}
 )
 
-// New creates a new Methods predicate specification
-func New() routing.PredicateSpec {
-	return &spec{allowedMethods: map[string]bool{
-		http.MethodGet:     true,
-		http.MethodHead:    true,
-		http.MethodPost:    true,
-		http.MethodPut:     true,
-		http.MethodPatch:   true,
-		http.MethodDelete:  true,
-		http.MethodConnect: true,
-		http.MethodOptions: true,
-		http.MethodTrace:   true,
-	}}
+// NewSingular creates a new Method predicate specification
+func NewSingular() routing.PredicateSpec {
+	return newSpec(NameSingular)
 }
 
-func (s *spec) Name() string { return Name }
+// NewPlural creates a new Methods predicate specification
+func NewPlural() routing.PredicateSpec {
+	return newSpec(NamePlural)
+}
+
+func newSpec(name string) routing.PredicateSpec {
+	return &spec{
+		name: name,
+		allowedMethods: map[string]bool{
+			http.MethodGet:     true,
+			http.MethodHead:    true,
+			http.MethodPost:    true,
+			http.MethodPut:     true,
+			http.MethodPatch:   true,
+			http.MethodDelete:  true,
+			http.MethodConnect: true,
+			http.MethodOptions: true,
+			http.MethodTrace:   true,
+		},
+	}
+}
+
+func (s *spec) Name() string { return s.name }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) == 0 {

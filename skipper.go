@@ -1066,7 +1066,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		pauth.NewJWTPayloadAnyKV(),
 		pauth.NewJWTPayloadAllKVRegexp(),
 		pauth.NewJWTPayloadAnyKVRegexp(),
-		methods.New(),
+		methods.NewSingular(),
+		methods.NewPlural(),
 	)
 
 	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
