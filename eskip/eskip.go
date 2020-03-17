@@ -127,10 +127,6 @@ type Route struct {
 	// E.g. PathRegexp(/\/api\//)
 	PathRegexps []string
 
-	// Method to match.
-	// E.g. Method("HEAD")
-	Method string
-
 	// Exact header definitions to match.
 	// E.g. Header("Accept", "application/json")
 	Headers map[string]string
@@ -308,7 +304,8 @@ func getStringArgs(n int, args []interface{}) ([]string, error) {
 // yacc rules. (https://github.com/zalando/skipper/issues/89)
 func applyPredicates(route *Route, proute *parsedRoute) error {
 	var (
-		methodSet bool
+		err  error
+		args []string
 	)
 
 	for _, m := range proute.matchers {
@@ -320,23 +317,9 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 			}
 			route.HostRegexps = append(route.HostRegexps, args[0])
 		case "PathRegexp":
-			args, err := getStringArgs(1, m.args)
-			if err != nil {
-				return err
+			if args, err = getStringArgs(1, m.args); err == nil {
+				route.PathRegexps = append(route.PathRegexps, args[0])
 			}
-			route.PathRegexps = append(route.PathRegexps, args[0])
-		case "Method":
-			if methodSet {
-				return duplicateMethodPredicateError
-			}
-
-			args, err := getStringArgs(1, m.args)
-			if err != nil {
-				return err
-			}
-
-			route.Method = args[0]
-			methodSet = true
 		case "HeaderRegexp":
 			args, err := getStringArgs(2, m.args)
 			if err != nil {

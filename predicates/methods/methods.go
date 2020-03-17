@@ -75,6 +75,10 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, ErrInvalidArgumentsCount
 	}
 
+	if s.name == NameSingular && len(args) > 1 {
+		return nil, ErrInvalidArgumentsCount
+	}
+
 	predicate := predicate{}
 	predicate.methods = map[string]bool{}
 

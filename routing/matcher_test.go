@@ -11,6 +11,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/pathmux"
+	"github.com/zalando/skipper/predicates/methods"
 	"github.com/zalando/skipper/routing/pathgen"
 )
 
@@ -496,8 +497,12 @@ func TestMatchLeafWrongMethod(t *testing.T) {
 		Header: http.Header{
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
+	method, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
 	l := &leafMatcher{
-		method:        "PUT",
+		predicates:    []Predicate{method},
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
@@ -517,8 +522,12 @@ func TestMatchLeafWrongHost(t *testing.T) {
 		Header: http.Header{
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
+	method, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
 	l := &leafMatcher{
-		method:        "PUT",
+		predicates:    []Predicate{method},
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
@@ -539,8 +548,12 @@ func TestMatchLeafWrongPath(t *testing.T) {
 		Header: http.Header{
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
+	method, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
 	l := &leafMatcher{
-		method:        "PUT",
+		predicates:    []Predicate{method},
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
@@ -561,8 +574,12 @@ func TestMatchLeafWrongExactHeader(t *testing.T) {
 		Header: http.Header{
 			"Some-Header":       []string{"some-wrong-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
+	method, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
 	l := &leafMatcher{
-		method:        "PUT",
+		predicates:    []Predicate{method},
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
@@ -583,10 +600,14 @@ func TestMatchLeafWrongRegexpHeader(t *testing.T) {
 		Header: http.Header{
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-wrong-value"}}}
+	method, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
 	l := &leafMatcher{
-		method:        "PUT",
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
+		predicates:    []Predicate{method},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
 		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
 	if matchLeaf(l, req, "/some/path", "/some/path") {
@@ -605,10 +626,14 @@ func TestMatchLeaf(t *testing.T) {
 		Header: http.Header{
 			"Some-Header":       []string{"some-value"},
 			"Some-Other-Header": []string{"some-other-value"}}}
+	method, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
 	l := &leafMatcher{
-		method:        "PUT",
 		hostRxs:       []*regexp.Regexp{rxh},
 		pathRxs:       []*regexp.Regexp{rxp},
+		predicates:    []Predicate{method},
 		headersExact:  map[string]string{"Some-Header": "some-value"},
 		headersRegexp: map[string][]*regexp.Regexp{"Some-Other-Header": {rxhd}}}
 	if !matchLeaf(l, req, "/some/path", "/some/path") {
@@ -617,8 +642,16 @@ func TestMatchLeaf(t *testing.T) {
 }
 
 func TestMatchLeavesFalse(t *testing.T) {
-	l0 := &leafMatcher{method: "PUT"}
-	l1 := &leafMatcher{method: "POST"}
+	method0, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
+	method1, err := methods.NewSingular().Create([]interface{}{"POST"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
+	l0 := &leafMatcher{predicates: []Predicate{method0}}
+	l1 := &leafMatcher{predicates: []Predicate{method1}}
 	req := &http.Request{Method: "GET"}
 	if matchLeaves([]*leafMatcher{l0, l1}, req, "/some/path", "/some/path") != nil {
 		t.Error("failed not to match leaves")
@@ -626,8 +659,16 @@ func TestMatchLeavesFalse(t *testing.T) {
 }
 
 func TestMatchLeavesTrue(t *testing.T) {
-	l0 := &leafMatcher{method: "PUT"}
-	l1 := &leafMatcher{method: "POST"}
+	method0, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
+	method1, err := methods.NewSingular().Create([]interface{}{"POST"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
+	l0 := &leafMatcher{predicates: []Predicate{method0}}
+	l1 := &leafMatcher{predicates: []Predicate{method1}}
 	req := &http.Request{URL: &url.URL{Path: "/some/path"}, Method: "PUT"}
 	if matchLeaves([]*leafMatcher{l0, l1}, req, "/some/path", "/some/path") != l0 {
 		t.Error("failed not to match leaves")
@@ -733,9 +774,13 @@ func TestMatchPathResolved(t *testing.T) {
 }
 
 func TestMatchWrongMethod(t *testing.T) {
-	pm0 := &pathMatcher{leaves: []*leafMatcher{{method: "PUT"}}}
+	method, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{predicates: []Predicate{method}}}}
 	tree := &pathmux.Tree{}
-	err := tree.Add("/some/path/*_", pm0)
+	err = tree.Add("/some/path/*_", pm0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -749,9 +794,13 @@ func TestMatchWrongMethod(t *testing.T) {
 
 func TestMatchTopLeaves(t *testing.T) {
 	tree := &pathmux.Tree{}
-	l := &leafMatcher{method: "PUT", wildcardParamNames: []string{"*"}}
+	method, err := methods.NewSingular().Create([]interface{}{"PUT"})
+	if err != nil {
+		t.Error("failed to create method predicate")
+	}
+	l := &leafMatcher{predicates: []Predicate{method}, wildcardParamNames: []string{"*"}}
 	pm := &pathMatcher{leaves: leafMatchers{l}}
-	err := tree.Add("/*", pm)
+	err = tree.Add("/*", pm)
 	if err != nil {
 		t.Error(err)
 	}
@@ -851,7 +900,7 @@ func TestMakeLeaf(t *testing.T) {
 	}
 
 	l, err := newLeaf(r, make(map[string]*regexp.Regexp))
-	if err != nil || l.method != "PUT" ||
+	if err != nil ||
 		len(l.hostRxs) != 1 || len(l.pathRxs) != 1 ||
 		len(l.headersExact) != 1 || len(l.headersRegexp) != 1 ||
 		l.route.Backend != "https://example.org" {

@@ -190,11 +190,11 @@ func TestReset(t *testing.T) {
 			found = true
 			switch id {
 			case "route2":
-				if r.Method != "PUT" {
+				if r.Predicates[0].Args[0].(string) != "PUT" {
 					t.Error("failed to reset routes")
 				}
 			case "route3":
-				if r.Method != "HEAD" {
+				if r.Predicates[0].Args[0].(string) != "HEAD" {
 					t.Error("failed to reset routes")
 				}
 			}

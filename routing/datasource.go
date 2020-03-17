@@ -24,7 +24,6 @@ const (
 const (
 	hostRegexpName   = "Host"
 	pathRegexpName   = "PathRegexp"
-	methodName       = "Method"
 	headerName       = "Header"
 	headerRegexpName = "HeaderRegexp"
 )
@@ -220,7 +219,7 @@ func splitBackend(r *eskip.Route) (string, string, error) {
 func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]PredicateSpec) (filters.Filter, error) {
 	spec, ok := fr[def.Name]
 	if !ok {
-		if isTreePredicate(def.Name) || def.Name == hostRegexpName || def.Name == pathRegexpName || def.Name == methodName || def.Name == headerName || def.Name == headerRegexpName {
+		if isTreePredicate(def.Name) || def.Name == hostRegexpName || def.Name == pathRegexpName || def.Name == headerName || def.Name == headerRegexpName {
 			return nil, fmt.Errorf("trying to use '%s' as filter, but it is only available as predicate", def.Name)
 		}
 
@@ -309,13 +308,6 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 			}
 
 			c.PathRegexps = append(c.PathRegexps, a[0])
-		case methodName:
-			a, err := getFreeStringArgs(1, p)
-			if err != nil {
-				return nil, err
-			}
-
-			c.Method = a[0]
 		case headerName:
 			a, err := getFreeStringArgs(2, p)
 			if err != nil {

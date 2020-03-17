@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -25,7 +26,8 @@ func Example() {
 		CustomDataClients: []routing.DataClient{rs},
 	})
 
-	rsp, err := http.Get("http://localhost:9999")
+	client := http.Client{Timeout: 6 * time.Second}
+	rsp, err := client.Get("http://localhost:9999")
 	if err != nil {
 		log.Println(err)
 		return

@@ -32,7 +32,6 @@ type leafMatcher struct {
 	wildcardParamNames   []string // in reverse order
 	hasFreeWildcardParam bool
 	exactPath            string
-	method               string
 	weight               int
 	hostRxs              []*regexp.Regexp
 	pathRxs              []*regexp.Regexp
@@ -46,10 +45,6 @@ type leafMatchers []*leafMatcher
 
 func leafWeight(l *leafMatcher) int {
 	w := l.weight
-
-	if l.method != "" {
-		w++
-	}
 
 	w += len(l.hostRxs)
 	w += len(l.pathRxs)
@@ -239,7 +234,6 @@ func newLeaf(r *Route, rxs map[string]*regexp.Regexp) (*leafMatcher, error) {
 		hasFreeWildcardParam: hasFreeWildcardParam(r),
 
 		weight:        r.weight,
-		method:        r.Method,
 		hostRxs:       hostRxs,
 		pathRxs:       pathRxs,
 		headersExact:  canonicalizeHeaders(r.Headers),
@@ -446,10 +440,6 @@ func matchPredicates(cps []Predicate, req *http.Request) bool {
 // matches a request to the conditions in a leaf matcher
 func matchLeaf(l *leafMatcher, req *http.Request, path, exactPath string) bool {
 	if l.exactPath != "" && l.exactPath != path {
-		return false
-	}
-
-	if l.method != "" && l.method != req.Method {
 		return false
 	}
 

@@ -218,18 +218,6 @@ func TestCanonical(t *testing.T) {
 			},
 		},
 	}, {
-		title: "method to predicates",
-		route: &Route{
-			Method:     "GET",
-			Predicates: []*Predicate{{Name: "Method", Args: []interface{}{"POST"}}},
-		},
-		expect: &Route{
-			Predicates: []*Predicate{
-				{Name: "Method", Args: []interface{}{"GET"}},
-				{Name: "Method", Args: []interface{}{"POST"}},
-			},
-		},
-	}, {
 		title: "headers to predicates",
 		route: &Route{
 			Headers:    map[string]string{"X-Foo": "foo"},
@@ -281,7 +269,13 @@ func TestCanonicalList(t *testing.T) {
 		title: "zero routes",
 	}, {
 		title: "list",
-		list:  []*Route{{BackendType: ShuntBackend}, {Method: "GET"}},
+		list: []*Route{
+			{BackendType: ShuntBackend},
+			{Predicates: []*Predicate{{
+				Name: "Method",
+				Args: []interface{}{"GET"},
+			}}},
+		},
 		expect: []*Route{
 			{BackendType: ShuntBackend},
 			{Predicates: []*Predicate{{Name: "Method", Args: []interface{}{"GET"}}}},
