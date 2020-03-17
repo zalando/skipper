@@ -204,7 +204,7 @@ func Test_endpoint_Targets(t *testing.T) {
 			ep := endpoint{
 				Subsets: tt.Subsets,
 			}
-			if got := ep.targets(tt.ingSvcPort, tt.targetPort.String()); !reflect.DeepEqual(got, tt.want) {
+			if got := ep.targets(tt.ingSvcPort, tt.targetPort.String(), "http"); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("endpoint.targets() = %v, want %v", got, tt.want)
 			}
 		})

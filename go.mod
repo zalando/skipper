@@ -17,6 +17,7 @@ require (
 	github.com/google/go-cmp v0.4.0
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/instana/go-sensor v1.4.16
+	github.com/kr/pretty v0.1.0 // indirect
 	github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20190605223551-bc2310a04743 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.16.0
 	github.com/looplab/fsm v0.1.0 // indirect
@@ -37,6 +38,7 @@ require (
 	github.com/uber-go/atomic v1.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
 	github.com/uber/jaeger-lib v2.0.0+incompatible
+	github.com/yookoala/gofast v0.4.0
 	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036
 	go.uber.org/atomic v1.4.0 // indirect
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
@@ -45,9 +47,9 @@ require (
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	golang.org/x/tools v0.0.0-20200227222343-706bc42d1f0d // indirect
 	google.golang.org/grpc v1.22.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.2.3
-	honnef.co/go/tools v0.0.1-2020.1.3 // indirect
 	layeh.com/gopher-json v0.0.0-20190114024228-97fed8db8427
 )
 

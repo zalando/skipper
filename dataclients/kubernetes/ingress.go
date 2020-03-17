@@ -14,15 +14,16 @@ import (
 )
 
 const (
-	ingressRouteIDPrefix             = "kube"
-	backendWeightsAnnotationKey      = "zalando.org/backend-weights"
-	ratelimitAnnotationKey           = "zalando.org/ratelimit"
-	skipperfilterAnnotationKey       = "zalando.org/skipper-filter"
-	skipperpredicateAnnotationKey    = "zalando.org/skipper-predicate"
-	skipperRoutesAnnotationKey       = "zalando.org/skipper-routes"
-	skipperLoadBalancerAnnotationKey = "zalando.org/skipper-loadbalancer"
-	pathModeAnnotationKey            = "zalando.org/skipper-ingress-path-mode"
-	ingressOriginName                = "ingress"
+	ingressRouteIDPrefix                = "kube"
+	backendWeightsAnnotationKey         = "zalando.org/backend-weights"
+	ratelimitAnnotationKey              = "zalando.org/ratelimit"
+	skipperfilterAnnotationKey          = "zalando.org/skipper-filter"
+	skipperpredicateAnnotationKey       = "zalando.org/skipper-predicate"
+	skipperRoutesAnnotationKey          = "zalando.org/skipper-routes"
+	skipperLoadBalancerAnnotationKey    = "zalando.org/skipper-loadbalancer"
+	skipperBackendProtocolAnnotationKey = "zalando.org/skipper-backend-protocol"
+	pathModeAnnotationKey               = "zalando.org/skipper-ingress-path-mode"
+	ingressOriginName                   = "ingress"
 )
 
 type ingressContext struct {
@@ -186,8 +187,13 @@ func convertPathRule(
 			Filters:     f,
 		}, nil
 	} else {
+		protocol := "http"
+		if p, ok := metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
+			protocol = p
+		}
+
 		// err handled below
-		eps, err = state.getEndpoints(ns, svcName, svcPort.String(), targetPort)
+		eps, err = state.getEndpoints(ns, svcName, svcPort.String(), targetPort, protocol)
 		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
 	}
 
@@ -518,11 +524,16 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *ingressItem) (
 		}, true, nil
 	} else {
 		log.Debugf("Found target port %v, for service %s", targetPort, svcName)
+		protocol := "http"
+		if p, ok := i.Metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
+			protocol = p
+		}
 		eps, err = state.getEndpoints(
 			ns,
 			svcName,
 			svcPort.String(),
 			targetPort,
+			protocol,
 		)
 		log.Debugf("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}
