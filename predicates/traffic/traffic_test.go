@@ -164,7 +164,7 @@ func TestTrafficPredicateInRoutes(t *testing.T) {
 				goalR2 float64
 				goalR3 float64
 			)
-			N := 10000
+			N := 1000
 			epsilonFactor := 0.1
 			epsilon := float64(N) * epsilonFactor
 
