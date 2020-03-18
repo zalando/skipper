@@ -13,14 +13,6 @@ type accessLogDisabled struct {
 	disabled bool
 }
 
-// NewAccessLogDisabled creates a filter spec for overriding the state of the AccessLogDisabled setting. (By default global setting is used.)
-//
-// 	accessLogDisabled("false")
-// Deprecated: use disableAccessLog or enableAccessLog
-func NewAccessLogDisabled() filters.Spec {
-	return &accessLogDisabled{}
-}
-
 func (*accessLogDisabled) Name() string { return AccessLogDisabledName }
 
 func (*accessLogDisabled) CreateFilter(args []interface{}) (filters.Filter, error) {

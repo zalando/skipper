@@ -135,9 +135,6 @@ type Options struct {
 type RouteFilter struct {
 	filters.Filter
 	Name string
-
-	// Deprecated: currently not used, and post-processors may not maintain a correct value
-	Index int
 }
 
 // LBEndpoint represents the scheme and the host of load balanced

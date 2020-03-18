@@ -23,12 +23,6 @@ import (
 )
 
 const (
-	// Deprecated: use setRequestHeader or appendRequestHeader
-	RequestHeaderName = "requestHeader"
-
-	// Deprecated: use setResponseHeader or appendResponseHeader
-	ResponseHeaderName = "responseHeader"
-
 	// Deprecated: use redirectTo
 	RedirectName = "redirect"
 
@@ -72,11 +66,9 @@ func MakeRegistry() filters.Registry {
 	r := make(filters.Registry)
 	for _, s := range []filters.Spec{
 		NewBackendIsProxy(),
-		NewRequestHeader(),
 		NewSetRequestHeader(),
 		NewAppendRequestHeader(),
 		NewDropRequestHeader(),
-		NewResponseHeader(),
 		NewSetResponseHeader(),
 		NewAppendResponseHeader(),
 		NewDropResponseHeader(),
@@ -87,7 +79,6 @@ func MakeRegistry() filters.Registry {
 		NewSetQuery(),
 		NewHealthCheck(),
 		NewStatic(),
-		NewRedirect(),
 		NewRedirectTo(),
 		NewRedirectLower(),
 		NewStripQuery(),
@@ -118,7 +109,6 @@ func MakeRegistry() filters.Registry {
 		diag.NewAbsorb(),
 		diag.NewLogHeader(),
 		tee.NewTee(),
-		tee.NewTeeDeprecated(),
 		tee.NewTeeNoFollow(),
 		sed.New(),
 		sed.NewDelimited(),
@@ -142,7 +132,6 @@ func MakeRegistry() filters.Registry {
 		tracing.NewSpanName(),
 		tracing.NewBaggageToTagFilter(),
 		tracing.NewTag(),
-		accesslog.NewAccessLogDisabled(),
 		accesslog.NewDisableAccessLog(),
 		accesslog.NewEnableAccessLog(),
 		auth.NewForwardToken(),

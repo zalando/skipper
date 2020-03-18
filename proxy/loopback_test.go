@@ -289,33 +289,6 @@ func TestLoopbackPreserveHost(t *testing.T) {
 	})
 }
 
-func TestLoopbackDeprecatedFilterShunt(t *testing.T) {
-	routes := `
-		entry: *
-			-> appendResponseHeader("X-Entry-Route-Done", "true")
-			-> setRequestHeader("X-Loop-Route", "1")
-			-> <loopback>;
-
-		loopRoute1: Header("X-Loop-Route", "1")
-			-> appendResponseHeader("X-Loop-Route-Done", "1")
-			-> redirect(302, "/test/path")
-			-> setRequestHeader("X-Loop-Route", "2")
-			-> <loopback>;
-
-		loopRoute2: Header("X-Loop-Route", "2")
-			-> appendResponseHeader("X-Loop-Route-Done", "2")
-			-> "$backend";
-	`
-
-	// NOTE: the deprecated filter shunting executed the remaining filters, preserving here this wrong
-	// behavior to avoid making unrelated changes
-	testLoopback(t, routes, Params{}, http.StatusFound, http.Header{
-		"X-Entry-Route-Done":  []string{"true"},
-		"X-Loop-Route-Done":   []string{"1", "2"},
-		"X-Loop-Backend-Done": nil,
-	})
-}
-
 func TestLoopbackFilterShunt(t *testing.T) {
 	routes := `
 		entry: *

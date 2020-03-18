@@ -37,28 +37,6 @@ func TestFlowIdLength(t *testing.T) {
 	}
 }
 
-func TestDeprecatedNewFlowID(t *testing.T) {
-	t.Parallel()
-	for expected := MinLength; expected <= MaxLength; expected++ {
-		t.Run(strconv.Itoa(expected), func(t *testing.T) {
-			id, err := NewFlowId(expected)
-			if err != nil {
-				t.Errorf("failed to generate flowid using the standard generator: %v", err)
-			} else {
-				l := len(id)
-				if l != expected {
-					t.Errorf("got wrong flowId len. Requested %d, got %d (%s)", expected, l, id)
-				}
-
-			}
-		})
-	}
-	_, err := NewFlowId(0)
-	if err == nil {
-		t.Error("request for an invalid flow id length (0) succeeded and it shouldn't")
-	}
-}
-
 func BenchmarkFlowIdStandardGenerator(b *testing.B) {
 	for _, l := range []int{8, 10, 12, 14, 16, 26, 32, 64} {
 		b.Run(strconv.Itoa(l), func(b *testing.B) {
