@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/http/fcgi"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -585,6 +586,56 @@ func TestRoute(t *testing.T) {
 	tp.proxy.ServeHTTP(w, r)
 	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload2) {
 		t.Error("wrong routing 2")
+	}
+}
+
+func TestFastCgi(t *testing.T) {
+	payload := []byte("Hello, World!")
+	http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Test-Response-Header", "response header value")
+
+		if len(payload) <= 0 {
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+		w.WriteHeader(http.StatusOK)
+
+		w.Write(payload)
+	})
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		panic(err)
+	}
+	defer l.Close()
+
+	go fcgi.Serve(l, nil)
+
+	doc := fmt.Sprintf(`fastcgi: * -> "%s"`, "fastcgi://"+l.Addr().String())
+	tp, err := newTestProxy(doc, FlagsNone)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tp.close()
+
+	var (
+		r *http.Request
+		w *httptest.ResponseRecorder
+		u *url.URL
+	)
+
+	u, _ = url.ParseRequestURI("https://www.example.org/hello")
+	r = &http.Request{
+		URL:    u,
+		Method: "GET"}
+	w = httptest.NewRecorder()
+	tp.proxy.ServeHTTP(w, r)
+	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload) {
+		t.Error("wrong routing 1")
 	}
 }
 

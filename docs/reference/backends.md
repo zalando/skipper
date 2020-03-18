@@ -327,3 +327,16 @@ A
 $ curl -s http://localhost:9090/
 B
 ```
+
+## Backend Protocols
+
+Current implemented protocols:
+
+- `http`: (default) http protocol
+- `fastcgi`: (*experimental*) directly connect Skipper with a FastCGI backend like PHP FPM.
+
+Route example that uses FastCGI (*experimental*):
+```
+php: * -> SetFastCgiFilename("index.php") -> "fastcgi://127.0.0.1:9000";
+php_lb: * -> SetFastCgiFilename("index.php") -> <roundRobin, "fastcgi://127.0.0.1:9000", "fastcgi://127.0.0.1:9001">;
+```
