@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/net"
 )
@@ -21,9 +20,6 @@ const (
 
 	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
 	ServiceRatelimitName = "ratelimit"
-
-	// LocalRatelimitName *DEPRECATED*, use ClientRatelimitName instead
-	LocalRatelimitName = "localRatelimit"
 
 	// ClientRatelimitName is the name of the ClientRatelimit filter, which will be shown in log
 	ClientRatelimitName = "clientRatelimit"
@@ -51,9 +47,6 @@ func (rt *RatelimitType) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 
 	switch value {
-	case "local":
-		log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
-		fallthrough
 	case "client":
 		*rt = ClientRatelimit
 	case "service":
@@ -75,9 +68,6 @@ const (
 	// backend service, which is calculated and measured within
 	// each instance
 	ServiceRatelimit
-
-	// LocalRatelimit *DEPRECATED* will be replaced by ClientRatelimit
-	LocalRatelimit
 
 	// ClientRatelimit is used to have a simple local rate limit
 	// per user for a backend, which is calculated and measured
@@ -128,8 +118,6 @@ func (rt RatelimitType) String() string {
 		return ClusterClientRatelimitName
 	case ClusterServiceRatelimit:
 		return ClusterServiceRatelimitName
-	case LocalRatelimit:
-		return LocalRatelimitName
 	case ServiceRatelimit:
 		return ServiceRatelimitName
 	default:
@@ -281,8 +269,6 @@ func (s Settings) String() string {
 		return "disable"
 	case ServiceRatelimit:
 		return fmt.Sprintf("ratelimit(type=service,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
-	case LocalRatelimit:
-		fallthrough
 	case ClientRatelimit:
 		return fmt.Sprintf("ratelimit(type=client,max-hits=%d,time-window=%s)", s.MaxHits, s.TimeWindow)
 	case ClusterServiceRatelimit:
@@ -371,9 +357,6 @@ func newRatelimit(s Settings, sw Swarmer, redisRing *ring) *Ratelimit {
 	switch s.Type {
 	case ServiceRatelimit:
 		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
-	case LocalRatelimit:
-		log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
-		fallthrough
 	case ClientRatelimit:
 		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
 	case ClusterServiceRatelimit:

@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/net"
 )
 
@@ -108,10 +107,6 @@ func (r *Registry) Check(req *http.Request) (Settings, int) {
 			return s, 0
 		}
 		return s, rlimit.RetryAfter("")
-
-	case LocalRatelimit:
-		log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
-		fallthrough
 	case ClusterClientRatelimit:
 		fallthrough
 	case ClientRatelimit:

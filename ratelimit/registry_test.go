@@ -9,7 +9,7 @@ import (
 func TestRegistry(t *testing.T) {
 	createSettings := func(maxHits int) Settings {
 		return Settings{
-			Type:          LocalRatelimit,
+			Type:          ClientRatelimit,
 			MaxHits:       maxHits,
 			TimeWindow:    1 * time.Second,
 			CleanInterval: 5 * time.Second,

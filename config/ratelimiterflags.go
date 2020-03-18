@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zalando/skipper/ratelimit"
 )
 
@@ -46,9 +44,6 @@ func (r *ratelimitFlags) Set(value string) error {
 		switch kv[0] {
 		case "type":
 			switch kv[1] {
-			case "local":
-				log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
-				fallthrough
 			case "client":
 				s.Type = ratelimit.ClientRatelimit
 			case "service":
