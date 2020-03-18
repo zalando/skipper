@@ -198,6 +198,7 @@ type Options struct {
 // bearerToken injection.
 type Transport struct {
 	quit          chan struct{}
+	closed        bool
 	tr            *http.Transport
 	tracer        opentracing.Tracer
 	spanName      string
@@ -310,7 +311,10 @@ func (t *Transport) shallowCopy() *Transport {
 }
 
 func (t *Transport) Close() {
-	close(t.quit)
+	if !t.closed {
+		t.closed = true
+		close(t.quit)
+	}
 }
 
 func (t *Transport) CloseIdleConnections() {
