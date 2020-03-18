@@ -188,6 +188,7 @@ func TestConnectionRefused(t *testing.T) {
 				if rsp.StatusCode != ti.expectedCode {
 					t.Errorf("loadbalanced request %d to %s should have statuscode != %d: %d", i, ti.path, ti.expectedCode, rsp.StatusCode)
 				}
+				rsp.Body.Close()
 			}
 		})
 	}
@@ -216,6 +217,7 @@ func BenchmarkConnectionRefusedA(b *testing.B) {
 		if rsp.StatusCode != expectedCode {
 			b.Errorf("loadbalanced request %d to %s should have statuscode != %d: %d", n, path, expectedCode, rsp.StatusCode)
 		}
+		rsp.Body.Close()
 	}
 }
 
@@ -236,6 +238,7 @@ func BenchmarkConnectionRefusedB(b *testing.B) {
 		if rsp.StatusCode != expectedCode {
 			b.Errorf("loadbalanced request %d to %s should have statuscode != %d: %d", n, path, expectedCode, rsp.StatusCode)
 		}
+		rsp.Body.Close()
 	}
 }
 
@@ -256,5 +259,6 @@ func BenchmarkConnectionRefusedC(b *testing.B) {
 		if rsp.StatusCode != expectedCode {
 			b.Errorf("loadbalanced request %d to %s should have statuscode != %d: %d", n, path, expectedCode, rsp.StatusCode)
 		}
+		rsp.Body.Close()
 	}
 }

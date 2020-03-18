@@ -472,22 +472,42 @@ func TestRoutingHandlerParameterChecking(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	resp, _ := http.Get(server.URL + "?offset=-1")
+	resp, err := http.Get(server.URL + "?offset=-1")
+	if err != nil {
+		t.Errorf("failed making get request: %v", err)
+		return
+	}
+	defer resp.Body.Close()
 	if got, want := resp.StatusCode, 400; got != want {
 		t.Errorf("status code = %v, want %v", got, want)
 	}
 
-	resp, _ = http.Get(server.URL + "?limit=-1")
+	resp, err = http.Get(server.URL + "?limit=-1")
+	if err != nil {
+		t.Errorf("failed making get request: %v", err)
+		return
+	}
+	defer resp.Body.Close()
 	if got, want := resp.StatusCode, 400; got != want {
 		t.Errorf("status code = %v, want %v", got, want)
 	}
 
-	resp, _ = http.Get(server.URL + "?offset=foo")
+	resp, err = http.Get(server.URL + "?offset=foo")
+	if err != nil {
+		t.Errorf("failed making get request: %v", err)
+		return
+	}
+	defer resp.Body.Close()
 	if got, want := resp.StatusCode, 400; got != want {
 		t.Errorf("status code = %v, want %v", got, want)
 	}
 
-	resp, _ = http.Get(server.URL + "?offset=10&limit=100")
+	resp, err = http.Get(server.URL + "?offset=10&limit=100")
+	if err != nil {
+		t.Errorf("failed making get request: %v", err)
+		return
+	}
+	defer resp.Body.Close()
 	if got, want := resp.StatusCode, 200; got != want {
 		t.Errorf("status code = %v, want %v", got, want)
 	}
