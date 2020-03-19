@@ -16,7 +16,8 @@ import (
 func Example() {
 	// create a data client:
 	dataClient := testdataclient.New([]*eskip.Route{
-		{Path: "/some/path", Backend: "https://www.example.org"}})
+		{Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"},
+	})
 
 	// (only in tests)
 	tl := loggingtest.New()
@@ -45,7 +46,8 @@ func Example() {
 
 func ExampleNew() {
 	testdataclient.New([]*eskip.Route{
-		{Path: "/some/path", Backend: "https://www.example.org"}})
+		{Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"},
+	})
 }
 
 func ExampleNewDoc() {

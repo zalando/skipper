@@ -119,12 +119,6 @@ type Route struct {
 	// E.g. route1: ...
 	Id string
 
-	// Deprecated, use Predicate instances with the name "Path".
-	//
-	// Exact path to be matched.
-	// E.g. Path("/some/path")
-	Path string
-
 	// Host regular expressions to match.
 	// E.g. Host(/[.]example[.]org/)
 	HostRegexps []string
@@ -314,74 +308,71 @@ func getStringArgs(n int, args []interface{}) ([]string, error) {
 // yacc rules. (https://github.com/zalando/skipper/issues/89)
 func applyPredicates(route *Route, proute *parsedRoute) error {
 	var (
-		err       error
-		args      []string
-		pathSet   bool
 		methodSet bool
 	)
 
 	for _, m := range proute.matchers {
-		if err != nil {
-			return err
-		}
-
 		switch m.name {
-		case "Path":
-			if pathSet {
-				return duplicatePathTreePredicateError
-			}
-
-			if args, err = getStringArgs(1, m.args); err == nil {
-				route.Path = args[0]
-				pathSet = true
-			}
 		case "Host":
-			if args, err = getStringArgs(1, m.args); err == nil {
-				route.HostRegexps = append(route.HostRegexps, args[0])
+			args, err := getStringArgs(1, m.args)
+			if err != nil {
+				return err
 			}
+			route.HostRegexps = append(route.HostRegexps, args[0])
 		case "PathRegexp":
-			if args, err = getStringArgs(1, m.args); err == nil {
-				route.PathRegexps = append(route.PathRegexps, args[0])
+			args, err := getStringArgs(1, m.args)
+			if err != nil {
+				return err
 			}
+			route.PathRegexps = append(route.PathRegexps, args[0])
 		case "Method":
 			if methodSet {
 				return duplicateMethodPredicateError
 			}
 
-			if args, err = getStringArgs(1, m.args); err == nil {
-				route.Method = args[0]
-				methodSet = true
+			args, err := getStringArgs(1, m.args)
+			if err != nil {
+				return err
 			}
+
+			route.Method = args[0]
+			methodSet = true
 		case "HeaderRegexp":
-			if args, err = getStringArgs(2, m.args); err == nil {
-				if route.HeaderRegexps == nil {
-					route.HeaderRegexps = make(map[string][]string)
-				}
-
-				route.HeaderRegexps[args[0]] = append(route.HeaderRegexps[args[0]], args[1])
+			args, err := getStringArgs(2, m.args)
+			if err != nil {
+				return err
 			}
+
+			if route.HeaderRegexps == nil {
+				route.HeaderRegexps = make(map[string][]string)
+			}
+
+			route.HeaderRegexps[args[0]] = append(route.HeaderRegexps[args[0]], args[1])
 		case "Header":
-			if args, err = getStringArgs(2, m.args); err == nil {
-				if route.Headers == nil {
-					route.Headers = make(map[string]string)
-				}
-
-				if _, ok := route.Headers[args[0]]; ok {
-					return fmt.Errorf(duplicateHeaderPredicateErrorFmt, args[0])
-				}
-
-				route.Headers[args[0]] = args[1]
+			args, err := getStringArgs(2, m.args)
+			if err != nil {
+				return err
 			}
+			if route.Headers == nil {
+				route.Headers = make(map[string]string)
+			}
+
+			if _, ok := route.Headers[args[0]]; ok {
+				return fmt.Errorf(duplicateHeaderPredicateErrorFmt, args[0])
+			}
+
+			route.Headers[args[0]] = args[1]
 		case "*", "Any":
 			// void
 		default:
-			route.Predicates = append(
-				route.Predicates,
-				&Predicate{m.name, m.args})
+			err := route.AppendPredicate(&Predicate{m.name, m.args})
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	return err
+	return nil
 }
 
 // Converts a parsing route objects to the exported route definition with

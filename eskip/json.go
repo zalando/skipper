@@ -15,13 +15,6 @@ func marshalJsonPredicates(r *Route) []*Predicate {
 		})
 	}
 
-	if r.Path != "" {
-		rjf = append(rjf, &Predicate{
-			Name: "Path",
-			Args: []interface{}{r.Path},
-		})
-	}
-
 	for _, h := range r.HostRegexps {
 		rjf = append(rjf, &Predicate{
 			Name: "HostRegexp",

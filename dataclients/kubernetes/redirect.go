@@ -166,21 +166,24 @@ func hasProtoPredicate(r *eskip.Route) bool {
 	return false
 }
 
-func createHTTPSRedirect(code int, r *eskip.Route) *eskip.Route {
+func createHTTPSRedirect(code int, r *eskip.Route) (*eskip.Route, error) {
 	// copy to avoid unexpected mutations
 	rr := eskip.Copy(r)
 	rr.Id = routeIDForRedirectRoute(rr.Id, true)
 	rr.BackendType = eskip.ShuntBackend
 
-	rr.Predicates = append(rr.Predicates, &eskip.Predicate{
+	err := rr.AppendPredicate(&eskip.Predicate{
 		Name: "Header",
 		Args: []interface{}{forwardedProtoHeader, "http"},
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	rr.Filters = append(rr.Filters, &eskip.Filter{
 		Name: "redirectTo",
 		Args: []interface{}{float64(code), "https:"},
 	})
 
-	return rr
+	return rr, nil
 }

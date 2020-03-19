@@ -44,7 +44,7 @@ func createEastWestRoutesIng(eastWestDomainRegexpPostfix, name, ns string, route
 	return ewroutes
 }
 
-func createEastWestRouteRG(name, ns, postfix string, r *eskip.Route) *eskip.Route {
+func createEastWestRouteRG(name, ns, postfix string, r *eskip.Route) (*eskip.Route, error) {
 	hostRx := createHostRx(fmt.Sprintf("%s.%s.%s", name, ns, postfix))
 
 	ewr := eskip.Copy(r)
@@ -63,6 +63,10 @@ func createEastWestRouteRG(name, ns, postfix string, r *eskip.Route) *eskip.Rout
 		Args: []interface{}{hostRx},
 	})
 
-	ewr.Predicates = p
-	return ewr
+	err := ewr.ReplacePredicates(p...)
+	if err != nil {
+		return nil, err
+	}
+
+	return ewr, nil
 }

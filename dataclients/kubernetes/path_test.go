@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -60,11 +59,7 @@ func findRouteWithExactPath(r []*eskip.Route) (*eskip.Route, error) {
 			return nil, err
 		}
 
-		if p != nil && ri.Path != "" {
-			return nil, errors.New("route with duplicate path predicate found")
-		}
-
-		if p != nil || ri.Path != "" {
+		if p != nil {
 			return ri, nil
 		}
 	}

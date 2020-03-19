@@ -190,7 +190,7 @@ func generateRoutes(paths []string) []*Route {
 		// the path for the backend is fine here,
 		// because it is only used for checking the
 		// found routes
-		defs[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Path: p, Backend: p}
+		defs[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Predicates: []*eskip.Predicate{{"Path", []interface{}{p}}}, Backend: p}
 	}
 
 	routes, _ := processRouteDefs(Options{}, nil, defs)

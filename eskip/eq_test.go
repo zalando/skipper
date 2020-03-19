@@ -194,17 +194,6 @@ func TestCanonical(t *testing.T) {
 	}{{
 		title: "nil",
 	}, {
-		title:  "path",
-		route:  &Route{Path: "/foo"},
-		expect: &Route{Predicates: []*Predicate{{Name: "Path", Args: []interface{}{"/foo"}}}},
-	}, {
-		title: "path, from predicates",
-		route: &Route{
-			Path:       "/foo",
-			Predicates: []*Predicate{{Name: "Path", Args: []interface{}{"/bar"}}},
-		},
-		expect: &Route{Predicates: []*Predicate{{Name: "Path", Args: []interface{}{"/bar"}}}},
-	}, {
 		title: "host regexps to predicates",
 		route: &Route{
 			HostRegexps: []string{"foo"},

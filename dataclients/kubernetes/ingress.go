@@ -113,22 +113,27 @@ func routeIDForCustom(namespace, name, id, host string, index int) string {
 	return routeID(namespace, name, host, "", "")
 }
 
-func setPath(m PathMode, r *eskip.Route, p string) {
+func setPath(m PathMode, r *eskip.Route, p string) error {
 	if p == "" {
-		return
+		return nil
 	}
 
 	switch m {
 	case PathPrefix:
-		r.Predicates = append(r.Predicates, &eskip.Predicate{
+		err := r.AppendPredicate(&eskip.Predicate{
 			Name: "PathSubtree",
 			Args: []interface{}{p},
 		})
+		if err != nil {
+			return err
+		}
 	case PathRegexp:
 		r.PathRegexps = []string{p}
 	default:
 		r.PathRegexps = []string{"^" + p}
 	}
+
+	return nil
 }
 
 func convertPathRule(
@@ -210,8 +215,14 @@ func convertPathRule(
 			HostRegexps: hostRegexp,
 		}
 
-		setPath(pathMode, r, prule.Path)
-		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+		err := setPath(pathMode, r, prule.Path)
+		if err != nil {
+			return nil, err
+		}
+		err = setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+		if err != nil {
+			return nil, err
+		}
 		return r, nil
 
 	} else if err != nil {
@@ -231,8 +242,14 @@ func convertPathRule(
 			HostRegexps: hostRegexp,
 		}
 
-		setPath(pathMode, r, prule.Path)
-		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+		err := setPath(pathMode, r, prule.Path)
+		if err != nil {
+			return nil, err
+		}
+		err = setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+		if err != nil {
+			return nil, err
+		}
 		return r, nil
 	}
 
@@ -243,26 +260,41 @@ func convertPathRule(
 		LBAlgorithm: getLoadBalancerAlgorithm(metadata),
 		HostRegexps: hostRegexp,
 	}
-	setPath(pathMode, r, prule.Path)
-	setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+	err = setPath(pathMode, r, prule.Path)
+	if err != nil {
+		return nil, err
+	}
+	err = setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+	if err != nil {
+		return nil, err
+	}
 	return r, nil
 }
 
-func setTraffic(r *eskip.Route, svcName string, weight float64, noopCount int) {
+func setTraffic(r *eskip.Route, svcName string, weight float64, noopCount int) error {
 	// add traffic predicate if traffic weight is between 0.0 and 1.0
 	if 0.0 < weight && weight < 1.0 {
-		r.Predicates = append([]*eskip.Predicate{{
+		err := r.AppendPredicate(&eskip.Predicate{
 			Name: traffic.PredicateName,
 			Args: []interface{}{weight},
-		}}, r.Predicates...)
+		})
+		if err != nil {
+			return err
+		}
 		log.Debugf("Traffic weight %.2f for backend '%s'", weight, svcName)
 	}
+
 	for i := 0; i < noopCount; i++ {
-		r.Predicates = append([]*eskip.Predicate{{
+		err := r.AppendPredicate(&eskip.Predicate{
 			Name: primitive.NameTrue,
 			Args: []interface{}{},
-		}}, r.Predicates...)
+		})
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) error {
@@ -283,7 +315,6 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 				continue
 			}
 
-			r.Path = ""
 			for i, p := range r.Predicates {
 				if p.Name != "PathSubtree" && p.Name != "Path" {
 					continue
@@ -297,7 +328,10 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 		}
 	}
 
-	r.Predicates = append(r.Predicates, predicates...)
+	if err = r.AppendPredicate(predicates...); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -345,7 +379,7 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *path
 	return nil
 }
 
-func addExtraRoutes(ic ingressContext, hosts []string, host string, path string) {
+func addExtraRoutes(ic ingressContext, hosts []string, host string, path string) error {
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {
 		route := *r
@@ -356,7 +390,10 @@ func addExtraRoutes(ic ingressContext, hosts []string, host string, path string)
 			route.Id,
 			host+strings.Replace(path, "/", "_", -1),
 			extraIndex)
-		setPath(ic.pathMode, &route, path)
+		err := setPath(ic.pathMode, &route, path)
+		if err != nil {
+			return err
+		}
 		if n := countPathRoutes(&route); n <= 1 {
 			ic.addHostRoute(host, &route)
 			ic.redirect.updateHost(host)
@@ -364,6 +401,8 @@ func addExtraRoutes(ic ingressContext, hosts []string, host string, path string)
 			log.Errorf("Failed to add route having %d path routes: %v", n, r)
 		}
 	}
+
+	return nil
 }
 
 // computeBackendWeights computes and sets the backend traffic weights on the
@@ -463,7 +502,10 @@ func (ing *ingress) addSpecRule(ic ingressContext, ru *rule) error {
 	// update Traffic field for each backend
 	computeBackendWeights(ic.backendWeights, ru)
 	for _, prule := range ru.Http.Paths {
-		addExtraRoutes(ic, host, ru.Host, prule.Path)
+		err := addExtraRoutes(ic, host, ru.Host, prule.Path)
+		if err != nil {
+			return err
+		}
 		if prule.Backend.Traffic > 0 {
 			err := ing.addEndpointsRule(ic, ru.Host, prule)
 			if err != nil {
@@ -571,9 +613,6 @@ func countPathRoutes(r *eskip.Route) int {
 		if p.Name == "PathSubtree" || p.Name == "Path" {
 			i++
 		}
-	}
-	if r.Path != "" {
-		i++
 	}
 	return i
 }
