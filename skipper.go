@@ -1253,6 +1253,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				time.Sleep(1 * time.Second)
 				continue
 			}
+			resp.Body.Close()
 			if resp.StatusCode == 200 {
 				log.Infof("%s healthy", startupCheckURL)
 				break

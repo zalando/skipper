@@ -81,8 +81,9 @@ func Start() error {
 	wait := make(chan int)
 	go func() {
 		for {
-			_, err := http.Get(Urls[0] + "/v2/keys")
+			rsp, err := http.Get(Urls[0] + "/v2/keys")
 			if err == nil {
+				rsp.Body.Close()
 				close(wait)
 				return
 			}
