@@ -1366,6 +1366,7 @@ func TestRoundtripperRetry(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {
 		t.Error("failed to retry failing connection")
@@ -1379,6 +1380,7 @@ func TestRoundtripperRetry(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {
 		t.Error("failed to retry failing connection")
