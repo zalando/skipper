@@ -10,6 +10,7 @@ import (
 
 	"github.com/dimfeld/httppath"
 	"github.com/zalando/skipper/pathmux"
+	"github.com/zalando/skipper/predicates"
 )
 
 type leafRequestMatcher struct {
@@ -37,7 +38,7 @@ type leafMatcher struct {
 	pathRxs              []*regexp.Regexp
 	headersExact         map[string]string
 	headersRegexp        map[string][]*regexp.Regexp
-	predicates           []Predicate
+	predicates           []predicates.Predicate
 	route                *Route
 }
 
@@ -427,7 +428,7 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 }
 
 // check if all defined custom predicates are matched
-func matchPredicates(cps []Predicate, req *http.Request) bool {
+func matchPredicates(cps []predicates.Predicate, req *http.Request) bool {
 	for _, cp := range cps {
 		if !cp.Match(req) {
 			return false

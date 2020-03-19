@@ -19,9 +19,10 @@ package methods
 import (
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/routing"
 	"net/http"
 	"strings"
+
+	"github.com/zalando/skipper/predicates"
 )
 
 const NameSingular = "Method"
@@ -42,16 +43,16 @@ type (
 )
 
 // NewSingular creates a new Method predicate specification
-func NewSingular() routing.PredicateSpec {
+func NewSingular() predicates.PredicateSpec {
 	return newSpec(NameSingular)
 }
 
 // NewPlural creates a new Methods predicate specification
-func NewPlural() routing.PredicateSpec {
+func NewPlural() predicates.PredicateSpec {
 	return newSpec(NamePlural)
 }
 
-func newSpec(name string) routing.PredicateSpec {
+func newSpec(name string) predicates.PredicateSpec {
 	return &spec{
 		name: name,
 		allowedMethods: map[string]bool{
@@ -70,7 +71,7 @@ func newSpec(name string) routing.PredicateSpec {
 
 func (s *spec) Name() string { return s.name }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) == 0 {
 		return nil, ErrInvalidArgumentsCount
 	}

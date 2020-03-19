@@ -216,7 +216,7 @@ func splitBackend(r *eskip.Route) (string, string, error) {
 
 // creates a filter instance based on its definition and its
 // specification in the filter registry.
-func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]PredicateSpec) (filters.Filter, error) {
+func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]predicates.PredicateSpec) (filters.Filter, error) {
 	spec, ok := fr[def.Name]
 	if !ok {
 		if isTreePredicate(def.Name) || def.Name == hostRegexpName || def.Name == pathRegexpName || def.Name == headerName || def.Name == headerRegexpName {
@@ -235,7 +235,7 @@ func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]Predica
 
 // creates filter instances based on their definition
 // and the filter registry.
-func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]PredicateSpec) ([]*RouteFilter, error) {
+func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]predicates.PredicateSpec) ([]*RouteFilter, error) {
 	var fs []*RouteFilter
 	for _, def := range defs {
 		f, err := createFilter(fr, def, cpm)
@@ -356,8 +356,8 @@ func parseWeightPredicateArgs(args []interface{}) (int, error) {
 }
 
 // initialize predicate instances from their spec with the concrete arguments
-func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, int, error) {
-	cps := make([]Predicate, 0, len(defs))
+func processPredicates(cpm map[string]predicates.PredicateSpec, defs []*eskip.Predicate) ([]predicates.Predicate, int, error) {
+	cps := make([]predicates.Predicate, 0, len(defs))
 	var weight int
 	for _, def := range defs {
 		if def.Name == "Weight" {
@@ -443,7 +443,7 @@ func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
 }
 
 // processes a route definition for the routing table
-func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *eskip.Route) (*Route, error) {
+func processRouteDef(cpm map[string]predicates.PredicateSpec, fr filters.Registry, def *eskip.Route) (*Route, error) {
 	scheme, host, err := splitBackend(def)
 	if err != nil {
 		return nil, err
@@ -473,8 +473,8 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 }
 
 // convert a slice of predicate specs to a map keyed by their names
-func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
-	cpm := make(map[string]PredicateSpec)
+func mapPredicates(cps []predicates.PredicateSpec) map[string]predicates.PredicateSpec {
+	cpm := make(map[string]predicates.PredicateSpec)
 	for _, cp := range cps {
 		cpm[cp.Name()] = cp
 	}

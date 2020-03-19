@@ -3,19 +3,19 @@ package main
 import (
 	"net/http"
 
-	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/predicates"
 )
 
 type noneSpec struct{}
 
-func InitPredicate(opts []string) (routing.PredicateSpec, error) {
+func InitPredicate(opts []string) (predicates.PredicateSpec, error) {
 	return noneSpec{}, nil
 }
 
 func (s noneSpec) Name() string {
 	return "None"
 }
-func (s noneSpec) Create(config []interface{}) (routing.Predicate, error) {
+func (s noneSpec) Create(config []interface{}) (predicates.Predicate, error) {
 	return nonePredicate{}, nil
 }
 

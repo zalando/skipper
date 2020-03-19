@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/zalando/skipper/predicates"
-	"github.com/zalando/skipper/routing"
 )
 
 const (
@@ -72,7 +71,7 @@ type (
 	}
 )
 
-func NewJWTPayloadAnyKV() routing.PredicateSpec {
+func NewJWTPayloadAnyKV() predicates.PredicateSpec {
 	return &spec{
 		name:          matchJWTPayloadAnyKVName,
 		matchBehavior: matchBehaviorAny,
@@ -80,7 +79,7 @@ func NewJWTPayloadAnyKV() routing.PredicateSpec {
 	}
 }
 
-func NewJWTPayloadAllKV() routing.PredicateSpec {
+func NewJWTPayloadAllKV() predicates.PredicateSpec {
 	return &spec{
 		name:          matchJWTPayloadAllKVName,
 		matchBehavior: matchBehaviorAll,
@@ -88,7 +87,7 @@ func NewJWTPayloadAllKV() routing.PredicateSpec {
 	}
 }
 
-func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
+func NewJWTPayloadAnyKVRegexp() predicates.PredicateSpec {
 	return &spec{
 		name:          matchJWTPayloadAnyKVRegexpName,
 		matchBehavior: matchBehaviorAny,
@@ -96,7 +95,7 @@ func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
 	}
 }
 
-func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
+func NewJWTPayloadAllKVRegexp() predicates.PredicateSpec {
 	return &spec{
 		name:          matchJWTPayloadAllKVRegexpName,
 		matchBehavior: matchBehaviorAll,
@@ -108,7 +107,7 @@ func (s *spec) Name() string {
 	return s.name
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) == 0 || len(args)%2 != 0 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/predicates"
 )
 
 func Test_spec(t *testing.T) {
 	for _, tc := range []struct {
-		spec routing.PredicateSpec
+		spec predicates.PredicateSpec
 		name string
 	}{
 		{
@@ -50,9 +50,9 @@ func regex(pattern string) regexMatcher {
 func Test_spec_Create(t *testing.T) {
 	tests := []struct {
 		name    string
-		spec    routing.PredicateSpec
+		spec    predicates.PredicateSpec
 		args    []interface{}
-		want    routing.Predicate
+		want    predicates.Predicate
 		wantErr bool
 	}{{
 		name:    "invalid number of args",

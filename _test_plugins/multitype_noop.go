@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -11,8 +12,8 @@ type noopSpec struct {
 	Type string
 }
 
-func InitPlugin(opts []string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error) {
-	return []filters.Spec{noopSpec{"noop"}}, []routing.PredicateSpec{noopSpec{"None"}}, nil, nil
+func InitPlugin(opts []string) ([]filters.Spec, []predicates.PredicateSpec, []routing.DataClient, error) {
+	return []filters.Spec{noopSpec{"noop"}}, []predicates.PredicateSpec{noopSpec{"None"}}, nil, nil
 }
 
 func (s noopSpec) Name() string {
@@ -23,7 +24,7 @@ func (s noopSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
 	return noop{}, nil
 }
 
-func (s noopSpec) Create(config []interface{}) (routing.Predicate, error) {
+func (s noopSpec) Create(config []interface{}) (predicates.Predicate, error) {
 	return noop{}, nil
 }
 
