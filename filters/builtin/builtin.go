@@ -23,9 +23,6 @@ import (
 )
 
 const (
-	// Deprecated: use redirectTo
-	RedirectName = "redirect"
-
 	SetRequestHeaderName     = "setRequestHeader"
 	SetResponseHeaderName    = "setResponseHeader"
 	AppendRequestHeaderName  = "appendRequestHeader"
