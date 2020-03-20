@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/pathmux"
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/predicates/methods"
@@ -103,7 +104,10 @@ func docToRoutes(doc string) ([]*Route, error) {
 	if err != nil {
 		return nil, err
 	}
-	routes, _ := processRouteDefs(Options{Predicates: []predicates.PredicateSpec{&truePredicate{}}}, nil, defs)
+	routes, _ := processRouteDefs(Options{
+		Log:        &logging.DefaultLog{},
+		Predicates: []predicates.PredicateSpec{&truePredicate{}},
+	}, nil, defs)
 	return routes, nil
 }
 
@@ -195,7 +199,9 @@ func generateRoutes(paths []string) []*Route {
 		defs[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Predicates: []*eskip.Predicate{{"Path", []interface{}{p}}}, Backend: p}
 	}
 
-	routes, _ := processRouteDefs(Options{}, nil, defs)
+	routes, _ := processRouteDefs(Options{
+		Log: &logging.DefaultLog{},
+	}, nil, defs)
 	return routes
 }
 
