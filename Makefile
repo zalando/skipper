@@ -58,7 +58,7 @@ check: build check-plugins
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test $$p || break; done
+	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test $$p || exit 1; done
 
 shortcheck: build check-plugins fixlimits
 	# go test -test.short -run ^Test $(PACKAGES)
@@ -66,7 +66,7 @@ shortcheck: build check-plugins fixlimits
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -test.short -run ^Test $$p || exit 1; done
 
 cicheck: build check-plugins
 	# go test -test.short -run ^Test $(PACKAGES)
@@ -74,7 +74,7 @@ cicheck: build check-plugins
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -tags=redis -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -tags=redis -test.short -run ^Test $$p || exit 1; done
 
 check-race: build
 	# go test -race -test.short -run ^Test $(PACKAGES)
@@ -82,7 +82,7 @@ check-race: build
 	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
 	# probably can be reverted once etcd is fully mocked away for tests
 	#
-	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -race -test.short -run ^Test $$p || break -1; done
+	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -race -test.short -run ^Test $$p || exit 1; done
 
 check-plugins: $(TEST_PLUGINS)
 	GO111MODULE=$(GO111) go test -run LoadPlugins
