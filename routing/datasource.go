@@ -426,11 +426,6 @@ func validTreePredicates(predicates []*eskip.Predicate) bool {
 
 // processes path tree relevant predicates
 func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
-	// backwards compatibility
-	if r.Path != "" {
-		predicates = append(predicates, &eskip.Predicate{Name: PathName, Args: []interface{}{r.Path}})
-	}
-
 	if !validTreePredicates(predicates) {
 		return fmt.Errorf("multiple tree predicates (Path, PathSubtree) in the route: %s", r.Id)
 	}

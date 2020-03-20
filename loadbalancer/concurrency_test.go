@@ -279,8 +279,10 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 
 	for _, app := range apps {
 		routes = append(routes, &eskip.Route{
-			Id:          app,
-			Path:        fmt.Sprintf("/%s", app),
+			Id: app,
+			Predicates: []*eskip.Predicate{
+				{"Path", []interface{}{fmt.Sprintf("/%s", app)}},
+			},
 			BackendType: eskip.LBBackend,
 			LBEndpoints: backends[app],
 			LBAlgorithm: "roundRobin",

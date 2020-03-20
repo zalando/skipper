@@ -57,7 +57,7 @@ func TestPredicateList(t *testing.T) {
 		title: "only legacy predicate, path",
 		routes: []*eskip.Route{{
 			Id:          "test",
-			Path:        "/foo",
+			Predicates:  []*eskip.Predicate{{"Path", []interface{}{"/foo"}}},
 			BackendType: eskip.ShuntBackend,
 		}, {
 			Id:          "catchAll",
@@ -336,52 +336,6 @@ func TestPredicateList(t *testing.T) {
 				Header: http.Header{
 					"X-Test": []string{"bar"},
 				},
-			},
-			allowedIDs: []string{"testLegacyAndList", "testNewOnly"},
-		}, {
-			request: &http.Request{
-				URL: &url.URL{Path: "/"},
-			},
-			expectedID: "catchAll",
-		}},
-	}, {
-
-		title: "mixed, path conflict",
-		routes: []*eskip.Route{{
-			Id:   "testLegacyAndList",
-			Path: "/foo",
-			Predicates: []*eskip.Predicate{{
-				Name: "Path",
-				Args: []interface{}{
-					"/bar",
-				},
-			}},
-			BackendType: eskip.ShuntBackend,
-		}, {
-			Id:          "testLegacyOnly",
-			Path:        "/foo",
-			BackendType: eskip.ShuntBackend,
-		}, {
-			Id: "testNewOnly",
-			Predicates: []*eskip.Predicate{{
-				Name: "Path",
-				Args: []interface{}{
-					"/bar",
-				},
-			}},
-			BackendType: eskip.ShuntBackend,
-		}, {
-			Id:          "catchAll",
-			BackendType: eskip.ShuntBackend,
-		}},
-		checks: []check{{
-			request: &http.Request{
-				URL: &url.URL{Path: "/foo"},
-			},
-			allowedIDs: []string{"testLegacyAndList", "testLegacyOnly"},
-		}, {
-			request: &http.Request{
-				URL: &url.URL{Path: "/bar"},
 			},
 			allowedIDs: []string{"testLegacyAndList", "testNewOnly"},
 		}, {

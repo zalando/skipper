@@ -187,19 +187,6 @@ func Canonical(r *Route) *Route {
 	c.Predicates = make([]*Predicate, len(r.Predicates))
 	copy(c.Predicates, r.Predicates)
 
-	// legacy path:
-	var hasPath bool
-	for _, p := range c.Predicates {
-		if p.Name == "Path" {
-			hasPath = true
-			break
-		}
-	}
-
-	if r.Path != "" && !hasPath {
-		c.Predicates = append(c.Predicates, &Predicate{Name: "Path", Args: []interface{}{r.Path}})
-	}
-
 	// legacy host:
 	for _, h := range r.HostRegexps {
 		c.Predicates = append(c.Predicates, &Predicate{Name: "Host", Args: []interface{}{h}})

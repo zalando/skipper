@@ -66,7 +66,12 @@ func TestRouteString(t *testing.T) {
 		}, {
 			Id:     "register",
 			Method: "POST",
-			Path:   "/register",
+			Predicates: []*eskip.Predicate{{
+				Name: "Path",
+				Args: []interface{}{
+					"/register",
+				},
+			}},
 			Filters: []*eskip.Filter{{
 				Name: "setPath",
 				Args: []interface{}{

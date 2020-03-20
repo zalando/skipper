@@ -134,7 +134,7 @@ func stringsAreSame(xs, ys []string) bool {
 }
 
 func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
-	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"}})
 	dc.FailNext()
 	dc.FailNext()
 	dc.FailNext()
@@ -153,7 +153,7 @@ func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
 }
 
 func TestReceivesInitial(t *testing.T) {
-	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"}})
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -167,7 +167,7 @@ func TestReceivesInitial(t *testing.T) {
 }
 
 func TestReceivesFullOnFailedUpdate(t *testing.T) {
-	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"}})
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -178,7 +178,7 @@ func TestReceivesFullOnFailedUpdate(t *testing.T) {
 
 	tr.log.Reset()
 	dc.FailNext()
-	dc.Update([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}}, nil)
+	dc.Update([]*eskip.Route{{Id: "route2", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-other"}}}, Backend: "https://other.example.org"}}, nil)
 
 	if err := tr.waitForRouteSetting(); err != nil {
 		t.Error(err)
@@ -191,7 +191,7 @@ func TestReceivesFullOnFailedUpdate(t *testing.T) {
 }
 
 func TestReceivesUpdate(t *testing.T) {
-	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"}})
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -201,7 +201,7 @@ func TestReceivesUpdate(t *testing.T) {
 	defer tr.close()
 
 	tr.log.Reset()
-	dc.Update([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}}, nil)
+	dc.Update([]*eskip.Route{{Id: "route2", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-other"}}}, Backend: "https://other.example.org"}}, nil)
 
 	if err := tr.waitForRouteSetting(); err != nil {
 		t.Error(err)
@@ -215,8 +215,8 @@ func TestReceivesUpdate(t *testing.T) {
 
 func TestReceivesDelete(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{
-		{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"},
-		{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
+		{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"},
+		{Id: "route2", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-other"}}}, Backend: "https://other.example.org"}})
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -239,7 +239,7 @@ func TestReceivesDelete(t *testing.T) {
 }
 
 func TestUpdateDoesNotChangeRouting(t *testing.T) {
-	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"}})
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -262,9 +262,9 @@ func TestUpdateDoesNotChangeRouting(t *testing.T) {
 }
 
 func TestMergesMultipleSources(t *testing.T) {
-	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
-	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
-	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
+	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"}})
+	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-other"}}}, Backend: "https://other.example.org"}})
+	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/another"}}}, Backend: "https://another.example.org"}})
 	tr, err := newTestRouting(dc1, dc2, dc3)
 	if err != nil {
 		t.Error(err)
@@ -287,9 +287,9 @@ func TestMergesMultipleSources(t *testing.T) {
 }
 
 func TestMergesUpdatesFromMultipleSources(t *testing.T) {
-	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
-	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
-	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
+	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "https://www.example.org"}})
+	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-other"}}}, Backend: "https://other.example.org"}})
+	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/another"}}}, Backend: "https://another.example.org"}})
 	tr, err := newTestRouting(dc1, dc2, dc3)
 	if err != nil {
 		t.Error(err)
@@ -312,8 +312,8 @@ func TestMergesUpdatesFromMultipleSources(t *testing.T) {
 
 	tr.log.Reset()
 
-	dc1.Update([]*eskip.Route{{Id: "route1", Path: "/some-changed-path", Backend: "https://www.example.org"}}, nil)
-	dc2.Update([]*eskip.Route{{Id: "route2", Path: "/some-other-changed", Backend: "https://www.example.org"}}, nil)
+	dc1.Update([]*eskip.Route{{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-changed-path"}}}, Backend: "https://www.example.org"}}, nil)
+	dc2.Update([]*eskip.Route{{Id: "route2", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-other-changed"}}}, Backend: "https://www.example.org"}}, nil)
 	dc3.Update(nil, []string{"route3"})
 
 	if err := tr.waitForNRouteSettings(3); err != nil {
@@ -335,7 +335,7 @@ func TestMergesUpdatesFromMultipleSources(t *testing.T) {
 }
 
 func TestIgnoresInvalidBackend(t *testing.T) {
-	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "invalid backend"}})
+	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}}, Backend: "invalid backend"}})
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -354,10 +354,10 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 	fr.Register(fs)
 
 	dc := testdataclient.New([]*eskip.Route{{
-		Id:      "route1",
-		Path:    "/some-path",
-		Filters: []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "Hello, world!"}}},
-		Backend: "https://www.example.org"}})
+		Id:         "route1",
+		Predicates: []*eskip.Predicate{{"Path", []interface{}{"/some-path"}}},
+		Filters:    []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "Hello, world!"}}},
+		Backend:    "https://www.example.org"}})
 
 	tr, err := newTestRoutingWithFilters(fr, dc)
 	if err != nil {

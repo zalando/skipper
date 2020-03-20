@@ -196,13 +196,22 @@ func trafficBalance(t *calculatedTraffic) []*eskip.Predicate {
 	return balance
 }
 
-func configureTraffic(r *eskip.Route, t *calculatedTraffic) {
+func configureTraffic(r *eskip.Route, t *calculatedTraffic) error {
 	if t.value == 1 {
-		return
+		return nil
 	}
 
-	r.Predicates = appendPredicate(r.Predicates, "Traffic", t.value)
-	r.Predicates = append(r.Predicates, trafficBalance(t)...)
+	err := r.AppendPredicate(&eskip.Predicate{Name: "Traffic", Args: []interface{}{t.value}})
+	if err != nil {
+		return err
+	}
+
+	err = r.AppendPredicate(trafficBalance(t)...)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func getBackendService(ctx *routeGroupContext, backend *skipperBackend) (*service, error) {
@@ -325,31 +334,38 @@ func storeHostRoute(ctx *routeGroupContext, r *eskip.Route) {
 	}
 }
 
-func appendEastWest(ctx *routeGroupContext, routes []*eskip.Route, current *eskip.Route) []*eskip.Route {
+func appendEastWest(ctx *routeGroupContext, routes []*eskip.Route, current *eskip.Route) ([]*eskip.Route, error) {
 	if !ctx.eastWestEnabled || ctx.hasEastWestHost {
-		return routes
+		return routes, nil
 	}
 
-	ewr := createEastWestRouteRG(
+	ewr, err := createEastWestRouteRG(
 		ctx.routeGroup.Metadata.Name,
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		ctx.eastWestDomain,
 		current,
 	)
 
-	return append(routes, ewr)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(routes, ewr), nil
 }
 
-func appendHTTPSRedirect(ctx *routeGroupContext, routes []*eskip.Route, current *eskip.Route) []*eskip.Route {
+func appendHTTPSRedirect(ctx *routeGroupContext, routes []*eskip.Route, current *eskip.Route) ([]*eskip.Route, error) {
 	// in case a route explicitly handles the forwarded proto header, we
 	// don't shadow it
 
 	if ctx.provideHTTPSRedirect && !hasProtoPredicate(current) {
-		hsr := createHTTPSRedirect(ctx.httpsRedirectCode, current)
+		hsr, err := createHTTPSRedirect(ctx.httpsRedirectCode, current)
+		if err != nil {
+			return nil, err
+		}
 		routes = append(routes, hsr)
 	}
 
-	return routes
+	return routes, nil
 }
 
 // implicitGroupRoutes creates routes for those route groups where the `route`
@@ -367,10 +383,16 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		}
 
 		if ctx.hostRx != "" {
-			ri.Predicates = appendPredicate(ri.Predicates, "Host", ctx.hostRx)
+			err := ri.AppendPredicate(&eskip.Predicate{Name: "Host", Args: []interface{}{ctx.hostRx}})
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		configureTraffic(ri, ctx.defaultBackendTraffic[beref.BackendName])
+		err := configureTraffic(ri, ctx.defaultBackendTraffic[beref.BackendName])
+		if err != nil {
+			return nil, err
+		}
 		if be.Type == serviceBackend {
 			if err := applyDefaultFilters(ctx, be.ServiceName, ri); err != nil {
 				log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
@@ -379,8 +401,14 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 
 		storeHostRoute(ctx, ri)
 		routes = append(routes, ri)
-		routes = appendEastWest(ctx, routes, ri)
-		routes = appendHTTPSRedirect(ctx, routes, ri)
+		routes, err = appendEastWest(ctx, routes, ri)
+		if err != nil {
+			return nil, err
+		}
+		routes, err = appendHTTPSRedirect(ctx, routes, ri)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return routes, nil
@@ -390,23 +418,53 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	gr := ctx.groupRoute
 	r := &eskip.Route{Id: ctx.id}
 
-	// Path or PathSubtree, prefer Path if we have, because it is more specifc
+	// Path or PathSubtree, prefer Path if we have, because it is more specific
 	if gr.Path != "" {
-		r.Predicates = appendPredicate(r.Predicates, "Path", gr.Path)
+		err := r.AppendPredicate(&eskip.Predicate{
+			Name: "Path",
+			Args: []interface{}{gr.Path},
+		})
+		if err != nil {
+			return nil, err
+		}
 	} else if gr.PathSubtree != "" {
-		r.Predicates = appendPredicate(r.Predicates, "PathSubtree", gr.PathSubtree)
+		err := r.AppendPredicate(&eskip.Predicate{
+			Name: "PathSubtree",
+			Args: []interface{}{gr.PathSubtree},
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if gr.PathRegexp != "" {
-		r.Predicates = appendPredicate(r.Predicates, "PathRegexp", gr.PathRegexp)
+		err := r.AppendPredicate(&eskip.Predicate{
+			Name: "PathRegexp",
+			Args: []interface{}{gr.PathRegexp},
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if ctx.group.hostRx != "" {
-		r.Predicates = appendPredicate(r.Predicates, "Host", ctx.group.hostRx)
+		err := r.AppendPredicate(&eskip.Predicate{
+			Name: "Host",
+			Args: []interface{}{ctx.group.hostRx},
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if ctx.method != "" {
-		r.Predicates = appendPredicate(r.Predicates, "Method", strings.ToUpper(ctx.method))
+		err := r.AppendPredicate(&eskip.Predicate{
+			Name: "Method",
+			Args: []interface{}{strings.ToUpper(ctx.method)},
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	for _, pi := range gr.Predicates {
@@ -415,7 +473,10 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 			return nil, eskipError("predicate", pi, err)
 		}
 
-		r.Predicates = append(r.Predicates, ppi...)
+		err = r.AppendPredicate(ppi...)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var f []*eskip.Filter
@@ -479,11 +540,20 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 					return nil, err
 				}
 
-				configureTraffic(r, backendTraffic[bref.BackendName])
+				err = configureTraffic(r, backendTraffic[bref.BackendName])
+				if err != nil {
+					return nil, err
+				}
 				storeHostRoute(ctx, r)
 				routes = append(routes, r)
-				routes = appendEastWest(ctx, routes, r)
-				routes = appendHTTPSRedirect(ctx, routes, r)
+				routes, err = appendEastWest(ctx, routes, r)
+				if err != nil {
+					return nil, err
+				}
+				routes, err = appendHTTPSRedirect(ctx, routes, r)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}

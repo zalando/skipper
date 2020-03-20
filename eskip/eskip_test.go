@@ -52,7 +52,10 @@ func TestParseRouteExpression(t *testing.T) {
 	}, {
 		"path predicate",
 		`Path("/some/path") -> "https://www.example.org"`,
-		&Route{Path: "/some/path", Backend: "https://www.example.org"},
+		&Route{Predicates: []*Predicate{{
+			Name: "Path",
+			Args: []interface{}{"/some/path"},
+		}}, Backend: "https://www.example.org"},
 		false,
 	}, {
 		"path regexp",
@@ -127,11 +130,6 @@ func TestParseRouteExpression(t *testing.T) {
 				{"Custom2", nil}},
 			Backend: "https://www.example.org"},
 		false,
-	}, {
-		"double path predicates",
-		`Path("/one") && Path("/two") -> "https://www.example.org"`,
-		nil,
-		true,
 	}, {
 		"double method predicates",
 		`Method("HEAD") && Method("GET") -> "https://www.example.org"`,
@@ -227,11 +225,6 @@ func TestParseRouteExpression(t *testing.T) {
 
 			if r.Id != ti.check.Id {
 				t.Error("id", r.Id, ti.check.Id)
-				return
-			}
-
-			if r.Path != ti.check.Path {
-				t.Error("path", r.Path, ti.check.Path)
 				return
 			}
 
@@ -352,14 +345,16 @@ func TestRouteJSON(t *testing.T) {
 	}, {
 		&Route{
 			Method:      "PUT",
-			Path:        `/some/"/path`,
 			HostRegexps: []string{"h-expression", "slash/h-expression"},
 			PathRegexps: []string{"p-expression", "slash/p-expression"},
 			Headers: map[string]string{
 				`ap"key`: `ap"value`},
 			HeaderRegexps: map[string][]string{
 				`ap"key`: {"slash/value0", "slash/value1"}},
-			Predicates: []*Predicate{{"Test", []interface{}{3.14, "hello"}}},
+			Predicates: []*Predicate{
+				{"Path", []interface{}{`/some/"/path`}},
+				{"Test", []interface{}{3.14, "hello"}},
+			},
 			Filters: []*Filter{
 				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
 				{"filter1", []interface{}{float64(-42), `ap"argvalue`}}},
@@ -370,7 +365,6 @@ func TestRouteJSON(t *testing.T) {
 			`"backend":"https://www.example.org",` +
 			`"predicates":[` +
 			`{"name":"Method","args":["PUT"]}` +
-			`,{"name":"Path","args":["/some/\"/path"]}` +
 			`,{"name":"HostRegexp","args":["h-expression"]}` +
 			`,{"name":"HostRegexp","args":["slash/h-expression"]}` +
 			`,{"name":"PathRegexp","args":["p-expression"]}` +
@@ -378,6 +372,7 @@ func TestRouteJSON(t *testing.T) {
 			`,{"name":"Header","args":["ap\"key","ap\"value"]}` +
 			`,{"name":"HeaderRegexp","args":["ap\"key","slash/value0"]}` +
 			`,{"name":"HeaderRegexp","args":["ap\"key","slash/value1"]}` +
+			`,{"name":"Path","args":["/some/\"/path"]}` +
 			`,{"name":"Test","args":[3.14,"hello"]}` +
 			`],` +
 			`"filters":[` +
@@ -448,7 +443,6 @@ func TestPredicateParsing(t *testing.T) {
 func TestClone(t *testing.T) {
 	r := &Route{
 		Id:            "foo",
-		Path:          "/bar",
 		HostRegexps:   []string{"[.]example[.]org$", "^www[.]"},
 		PathRegexps:   []string{"^/", "bar$"},
 		Method:        "GET",

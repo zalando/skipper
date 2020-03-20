@@ -323,26 +323,28 @@ func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 		status = http.StatusServiceUnavailable
 	}
 
-	var p []*eskip.Predicate
+	n := source.Name
 	if reverseSourcePredicate {
-		p = []*eskip.Predicate{{
-			Name: source.NameLast,
-			Args: internalIPs,
-		}}
-	} else {
-		p = []*eskip.Predicate{{
-			Name: source.Name,
-			Args: internalIPs,
-		}}
+		n = source.NameLast
 	}
 
 	return &eskip.Route{
-		Id:         healthcheckRouteID,
-		Predicates: p,
-		Path:       healthcheckPath,
-		Filters: []*eskip.Filter{{
-			Name: builtin.StatusName,
-			Args: []interface{}{status}},
+		Id: healthcheckRouteID,
+		Predicates: []*eskip.Predicate{
+			{
+				Name: "Path",
+				Args: []interface{}{healthcheckPath},
+			},
+			{
+				Name: n,
+				Args: internalIPs,
+			},
+		},
+		Filters: []*eskip.Filter{
+			{
+				Name: builtin.StatusName,
+				Args: []interface{}{status},
+			},
 		},
 		BackendType: eskip.ShuntBackend,
 	}

@@ -69,10 +69,6 @@ func argsString(args []interface{}) string {
 func (r *Route) predicateString() string {
 	var predicates []string
 
-	if r.Path != "" {
-		predicates = appendFmtEscape(predicates, `Path("%s")`, `"`, r.Path)
-	}
-
 	for _, h := range r.HostRegexps {
 		predicates = appendFmtEscape(predicates, "Host(/%s/)", "/", h)
 	}

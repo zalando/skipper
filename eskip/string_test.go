@@ -54,7 +54,6 @@ func TestRouteString(t *testing.T) {
 		`Method("GET") -> "https://www.example.org"`,
 	}, {
 		&Route{
-			Path:        `/some/"/path`,
 			HostRegexps: []string{"h-expression", "slash/h-expression"},
 			PathRegexps: []string{"p-expression", "slash/p-expression"},
 			Method:      "PUT",
@@ -62,19 +61,22 @@ func TestRouteString(t *testing.T) {
 				`ap"key`: `ap"value`},
 			HeaderRegexps: map[string][]string{
 				`ap"key`: {"slash/value0", "slash/value1"}},
-			Predicates: []*Predicate{{"Test", []interface{}{3.14, "hello"}}},
+			Predicates: []*Predicate{
+				{"Path", []interface{}{`/some/"/path`}},
+				{"Test", []interface{}{3.14, "hello"}},
+			},
 			Filters: []*Filter{
 				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
 				{"filter1", []interface{}{float64(-42), `ap"argvalue`}}},
 			BackendType: NetworkBackend,
 			Backend:     "https://www.example.org"},
-		`Path("/some/\"/path") && Host(/h-expression/) && ` +
+		`Host(/h-expression/) && ` +
 			`Host(/slash\/h-expression/) && ` +
 			`PathRegexp(/p-expression/) && PathRegexp(/slash\/p-expression/) && ` +
 			`Method("PUT") && ` +
 			`Header("ap\"key", "ap\"value") && ` +
 			`HeaderRegexp("ap\"key", /slash\/value0/) && HeaderRegexp("ap\"key", /slash\/value1/) && ` +
-			`Test(3.14, "hello") -> ` +
+			`Path("/some/\"/path") && Test(3.14, "hello") -> ` +
 			`filter0(3.1415, "argvalue") -> filter1(-42, "ap\"argvalue") -> ` +
 			`"https://www.example.org"`,
 	}, {
