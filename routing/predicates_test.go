@@ -9,6 +9,8 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/predicates/methods"
 	"github.com/zalando/skipper/routing/testdataclient"
 )
 
@@ -1073,6 +1075,9 @@ func TestPredicateList(t *testing.T) {
 				DataClients:     []DataClient{dc},
 				MatchingOptions: test.options,
 				Log:             l,
+				Predicates: []predicates.PredicateSpec{
+					methods.NewSingular(),
+				},
 			})
 			defer rt.Close()
 
