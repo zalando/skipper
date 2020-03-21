@@ -105,8 +105,11 @@ func docToRoutes(doc string) ([]*Route, error) {
 		return nil, err
 	}
 	routes, _ := processRouteDefs(Options{
-		Log:        &logging.DefaultLog{},
-		Predicates: []predicates.PredicateSpec{&truePredicate{}},
+		Log: &logging.DefaultLog{},
+		Predicates: []predicates.PredicateSpec{
+			methods.NewSingular(),
+			&truePredicate{},
+		},
 	}, nil, defs)
 	return routes, nil
 }
