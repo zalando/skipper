@@ -46,7 +46,7 @@ import (
 	"strings"
 
 	snet "github.com/zalando/skipper/net"
-	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/predicates"
 )
 
 const (
@@ -65,8 +65,8 @@ type predicate struct {
 	acceptedSourceNets []net.IPNet
 }
 
-func New() routing.PredicateSpec         { return &spec{} }
-func NewFromLast() routing.PredicateSpec { return &spec{fromLast: true} }
+func New() predicates.PredicateSpec         { return &spec{} }
+func NewFromLast() predicates.PredicateSpec { return &spec{fromLast: true} }
 
 func (s *spec) Name() string {
 	if s.fromLast {
@@ -75,7 +75,7 @@ func (s *spec) Name() string {
 	return Name
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) == 0 {
 		return nil, InvalidArgsError
 	}

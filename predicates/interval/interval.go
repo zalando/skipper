@@ -38,7 +38,6 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/predicates"
-	"github.com/zalando/skipper/routing"
 )
 
 type intervalType int
@@ -61,13 +60,13 @@ type predicate struct {
 }
 
 // Creates Between predicate.
-func NewBetween() routing.PredicateSpec { return &spec{between} }
+func NewBetween() predicates.PredicateSpec { return &spec{between} }
 
 // Creates Before predicate.
-func NewBefore() routing.PredicateSpec { return &spec{before} }
+func NewBefore() predicates.PredicateSpec { return &spec{before} }
 
 // Creates After predicate.
-func NewAfter() routing.PredicateSpec { return &spec{after} }
+func NewAfter() predicates.PredicateSpec { return &spec{after} }
 
 func (s *spec) Name() string {
 	switch s.typ {
@@ -82,7 +81,7 @@ func (s *spec) Name() string {
 	}
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []interface{}) (predicates.Predicate, error) {
 	switch s.typ {
 	case between:
 		if len(args) != 2 {

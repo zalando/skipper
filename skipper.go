@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/predicates/cron"
 	"github.com/zalando/skipper/predicates/primitive"
 
@@ -277,7 +278,7 @@ type Options struct {
 	PriorityRoutes []proxy.PriorityRoute
 
 	// Specifications of custom, user defined predicates.
-	CustomPredicates []routing.PredicateSpec
+	CustomPredicates []predicates.PredicateSpec
 
 	// Custom data clients to be used together with the default etcd.
 	CustomDataClients []routing.DataClient
@@ -1066,7 +1067,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		pauth.NewJWTPayloadAnyKV(),
 		pauth.NewJWTPayloadAllKVRegexp(),
 		pauth.NewJWTPayloadAnyKVRegexp(),
-		methods.New(),
+		methods.NewSingular(),
+		methods.NewPlural(),
 	)
 
 	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{

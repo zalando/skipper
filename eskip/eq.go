@@ -197,17 +197,6 @@ func Canonical(r *Route) *Route {
 		c.Predicates = append(c.Predicates, &Predicate{Name: "PathRegexp", Args: []interface{}{p}})
 	}
 
-	// legacy method:
-	if r.Method != "" {
-		// prepend the method, so that the canonical []Predicates will be prioritized in case of
-		// duplicates, and imitate how the routing evaluates multiple method predicates, even if
-		// weird
-		c.Predicates = append(
-			[]*Predicate{{Name: "Method", Args: []interface{}{r.Method}}},
-			c.Predicates...,
-		)
-	}
-
 	// legacy header:
 	for name, value := range r.Headers {
 		c.Predicates = append(

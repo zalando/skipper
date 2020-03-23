@@ -373,8 +373,11 @@ func TestUpsertNew(t *testing.T) {
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:          "route1",
-		Method:      "POST",
+		Id: "route1",
+		Predicates: []*eskip.Predicate{{
+			Name: "Method",
+			Args: []interface{}{"POST"},
+		}},
 		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)
@@ -403,23 +406,29 @@ func TestUpsertExisting(t *testing.T) {
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:          "route1",
-		Method:      "POST",
+		Id: "route1",
+		Predicates: []*eskip.Predicate{{
+			Name: "Method",
+			Args: []interface{}{"POST"},
+		}},
 		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:          "route1",
-		Method:      "PUT",
+		Id: "route1",
+		Predicates: []*eskip.Predicate{{
+			Name: "Method",
+			Args: []interface{}{"PUT"},
+		}},
 		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)
 	}
 
 	routes, _ := c.LoadAll()
-	if len(routes) != 1 || routes[0].Method != "PUT" {
+	if len(routes) != 1 || routes[0].Predicates[0].Args[0].(string) != "PUT" {
 		t.Error("failed to upsert route")
 	}
 }
@@ -453,8 +462,11 @@ func TestDeleteNotExists(t *testing.T) {
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:          "route1",
-		Method:      "POST",
+		Id: "route1",
+		Predicates: []*eskip.Predicate{{
+			Name: "Method",
+			Args: []interface{}{"POST"},
+		}},
 		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)
@@ -487,8 +499,11 @@ func TestDelete(t *testing.T) {
 	}
 
 	err = c.Upsert(&eskip.Route{
-		Id:          "route1",
-		Method:      "POST",
+		Id: "route1",
+		Predicates: []*eskip.Predicate{{
+			Name: "Method",
+			Args: []interface{}{"POST"},
+		}},
 		BackendType: eskip.ShuntBackend})
 	if err != nil {
 		t.Error(err)

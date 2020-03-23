@@ -10,6 +10,7 @@ import (
 
 	"github.com/dimfeld/httppath"
 	"github.com/zalando/skipper/pathmux"
+	"github.com/zalando/skipper/predicates"
 )
 
 type leafRequestMatcher struct {
@@ -32,13 +33,12 @@ type leafMatcher struct {
 	wildcardParamNames   []string // in reverse order
 	hasFreeWildcardParam bool
 	exactPath            string
-	method               string
 	weight               int
 	hostRxs              []*regexp.Regexp
 	pathRxs              []*regexp.Regexp
 	headersExact         map[string]string
 	headersRegexp        map[string][]*regexp.Regexp
-	predicates           []Predicate
+	predicates           []predicates.Predicate
 	route                *Route
 }
 
@@ -46,10 +46,6 @@ type leafMatchers []*leafMatcher
 
 func leafWeight(l *leafMatcher) int {
 	w := l.weight
-
-	if l.method != "" {
-		w++
-	}
 
 	w += len(l.hostRxs)
 	w += len(l.pathRxs)
@@ -239,7 +235,6 @@ func newLeaf(r *Route, rxs map[string]*regexp.Regexp) (*leafMatcher, error) {
 		hasFreeWildcardParam: hasFreeWildcardParam(r),
 
 		weight:        r.weight,
-		method:        r.Method,
 		hostRxs:       hostRxs,
 		pathRxs:       pathRxs,
 		headersExact:  canonicalizeHeaders(r.Headers),
@@ -433,7 +428,7 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 }
 
 // check if all defined custom predicates are matched
-func matchPredicates(cps []Predicate, req *http.Request) bool {
+func matchPredicates(cps []predicates.Predicate, req *http.Request) bool {
 	for _, cp := range cps {
 		if !cp.Match(req) {
 			return false
@@ -446,10 +441,6 @@ func matchPredicates(cps []Predicate, req *http.Request) bool {
 // matches a request to the conditions in a leaf matcher
 func matchLeaf(l *leafMatcher, req *http.Request, path, exactPath string) bool {
 	if l.exactPath != "" && l.exactPath != path {
-		return false
-	}
-
-	if l.method != "" && l.method != req.Method {
 		return false
 	}
 

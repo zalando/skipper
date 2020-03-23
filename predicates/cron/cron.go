@@ -11,11 +11,11 @@ documentation (https://github.com/sarslanhan/cronmask).
 package cron
 
 import (
-	"github.com/sarslanhan/cronmask"
-	"github.com/zalando/skipper/predicates"
-	"github.com/zalando/skipper/routing"
 	"net/http"
 	"time"
+
+	"github.com/sarslanhan/cronmask"
+	"github.com/zalando/skipper/predicates"
 )
 
 type clock func() time.Time
@@ -27,7 +27,7 @@ func (*spec) Name() string {
 	return "Cron"
 }
 
-func (*spec) Create(args []interface{}) (routing.Predicate, error) {
+func (*spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) != 1 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
@@ -59,6 +59,6 @@ func (p *predicate) Match(r *http.Request) bool {
 	return p.mask.Match(now)
 }
 
-func New() routing.PredicateSpec {
+func New() predicates.PredicateSpec {
 	return &spec{}
 }

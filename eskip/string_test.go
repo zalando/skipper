@@ -50,18 +50,24 @@ func TestRouteString(t *testing.T) {
 		&Route{},
 		`* -> ""`,
 	}, {
-		&Route{Method: "GET", Backend: "https://www.example.org"},
+		&Route{
+			Predicates: []*Predicate{{
+				Name: "Method",
+				Args: []interface{}{"GET"},
+			}},
+			Backend: "https://www.example.org",
+		},
 		`Method("GET") -> "https://www.example.org"`,
 	}, {
 		&Route{
 			HostRegexps: []string{"h-expression", "slash/h-expression"},
 			PathRegexps: []string{"p-expression", "slash/p-expression"},
-			Method:      "PUT",
 			Headers: map[string]string{
 				`ap"key`: `ap"value`},
 			HeaderRegexps: map[string][]string{
 				`ap"key`: {"slash/value0", "slash/value1"}},
 			Predicates: []*Predicate{
+				{"Method", []interface{}{"PUT"}},
 				{"Path", []interface{}{`/some/"/path`}},
 				{"Test", []interface{}{3.14, "hello"}},
 			},
@@ -73,27 +79,36 @@ func TestRouteString(t *testing.T) {
 		`Host(/h-expression/) && ` +
 			`Host(/slash\/h-expression/) && ` +
 			`PathRegexp(/p-expression/) && PathRegexp(/slash\/p-expression/) && ` +
-			`Method("PUT") && ` +
 			`Header("ap\"key", "ap\"value") && ` +
 			`HeaderRegexp("ap\"key", /slash\/value0/) && HeaderRegexp("ap\"key", /slash\/value1/) && ` +
+			`Method("PUT") && ` +
 			`Path("/some/\"/path") && Test(3.14, "hello") -> ` +
 			`filter0(3.1415, "argvalue") -> filter1(-42, "ap\"argvalue") -> ` +
 			`"https://www.example.org"`,
 	}, {
 		&Route{
-			Method:      "GET",
+			Predicates: []*Predicate{{
+				Name: "Method",
+				Args: []interface{}{"GET"},
+			}},
 			Filters:     []*Filter{{"static", []interface{}{"/some", "/file"}}},
 			BackendType: ShuntBackend},
 		`Method("GET") -> static("/some", "/file") -> <shunt>`,
 	}, {
 		&Route{
-			Method:      "GET",
+			Predicates: []*Predicate{{
+				Name: "Method",
+				Args: []interface{}{"GET"},
+			}},
 			Filters:     []*Filter{{"static", []interface{}{"/some", "/file"}}},
 			BackendType: ShuntBackend},
 		`Method("GET") -> static("/some", "/file") -> <shunt>`,
 	}, {
 		&Route{
-			Method:      "GET",
+			Predicates: []*Predicate{{
+				Name: "Method",
+				Args: []interface{}{"GET"},
+			}},
 			Filters:     []*Filter{{"static", []interface{}{"/some", "/file"}}},
 			BackendType: LoopBackend},
 		`Method("GET") -> static("/some", "/file") -> <loopback>`,
@@ -122,7 +137,13 @@ func TestRouteString(t *testing.T) {
 }
 
 func TestRouteExpression(t *testing.T) {
-	r := &Route{Method: "GET", Backend: "https://www.example.org"}
+	r := &Route{
+		Predicates: []*Predicate{{
+			Name: "Method",
+			Args: []interface{}{"GET"},
+		}},
+		Backend: "https://www.example.org",
+	}
 	if r.String() != `Method("GET") -> "https://www.example.org"` {
 		t.Error("failed to serialize a route expression")
 	}

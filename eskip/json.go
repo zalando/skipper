@@ -8,13 +8,6 @@ import (
 func marshalJsonPredicates(r *Route) []*Predicate {
 	rjf := make([]*Predicate, 0, len(r.Predicates))
 
-	if r.Method != "" {
-		rjf = append(rjf, &Predicate{
-			Name: "Method",
-			Args: []interface{}{r.Method},
-		})
-	}
-
 	for _, h := range r.HostRegexps {
 		rjf = append(rjf, &Predicate{
 			Name: "HostRegexp",

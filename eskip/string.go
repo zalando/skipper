@@ -77,10 +77,6 @@ func (r *Route) predicateString() string {
 		predicates = appendFmtEscape(predicates, "PathRegexp(/%s/)", "/", p)
 	}
 
-	if r.Method != "" {
-		predicates = appendFmtEscape(predicates, `Method("%s")`, `"`, r.Method)
-	}
-
 	for k, v := range r.Headers {
 		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, k, v)
 	}

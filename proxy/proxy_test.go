@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/predicates/methods"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -140,6 +142,9 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 
 	tl := loggingtest.New()
 	opts := routing.Options{
+		Predicates: []predicates.PredicateSpec{
+			methods.NewSingular(),
+		},
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},

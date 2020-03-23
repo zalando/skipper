@@ -27,10 +27,10 @@ Examples:
 package query
 
 import (
-	"github.com/zalando/skipper/predicates"
-	"github.com/zalando/skipper/routing"
 	"net/http"
 	"regexp"
+
+	"github.com/zalando/skipper/predicates"
 )
 
 type matchType int
@@ -50,13 +50,13 @@ type spec struct{}
 const name = "QueryParam"
 
 // New creates a new QueryParam predicate specification.
-func New() routing.PredicateSpec { return &spec{} }
+func New() predicates.PredicateSpec { return &spec{} }
 
 func (s *spec) Name() string {
 	return name
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) == 0 || len(args) > 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

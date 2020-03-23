@@ -6,6 +6,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -175,7 +176,7 @@ func TestTrafficPredicateInRoutes(t *testing.T) {
 			}
 
 			p := proxytest.WithRoutingOptions(builtin.MakeRegistry(), routing.Options{
-				Predicates: []routing.PredicateSpec{
+				Predicates: []predicates.PredicateSpec{
 					New(),
 					primitive.NewTrue(),
 				},
