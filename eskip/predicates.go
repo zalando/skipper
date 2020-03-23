@@ -49,13 +49,17 @@ func SinglePredicateByName(p []*Predicate, name string) (*Predicate, error) {
 
 // ValidatePredicates returns an error when certain predicates are added multiple times.
 func ValidatePredicates(pp []*Predicate) error {
+	counts := make(map[string]int)
 	for _, p := range pp {
-		switch p.Name {
-		case "Path", "Weight":
-			if len(AllPredicatesByName(pp, p.Name)) > 1 {
-				return fmt.Errorf("predicate of type %s can only be added once", p.Name)
-			}
-		}
+		counts[p.Name]++
+	}
+
+	if counts["Weight"] > 1 {
+		return fmt.Errorf("predicate of type %s can only be added once", "Weight")
+	}
+
+	if counts["Path"] > 0 && counts["PathSubtree"] > 0 {
+		return fmt.Errorf("predicate of type %s cannot be mixed with predicate of type %s", "Path", "PathSubtree")
 	}
 
 	return nil
