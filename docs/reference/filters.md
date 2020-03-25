@@ -350,6 +350,16 @@ Example:
 * -> flowId("reuse") -> "https://some-backend.example.org";
 ```
 
+## xforward
+
+Standard proxy headers. Appends the client remote IP to the X-Forwarded-For and sets the X-Forwarded-Host
+header.
+
+## xforwardFirst
+
+Same as [xforward](xforward), but instead of appending the last remote IP, it prepends it to comply with the
+approach of certain LB implementations.
+
 ## randomContent
 
 Generate response with random text of specified length.
