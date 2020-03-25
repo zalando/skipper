@@ -97,6 +97,7 @@ func MakeRegistry() filters.Registry {
 		NewSetFastCgiFilename(),
 		NewStatus(),
 		NewCompress(),
+		NewDecompress(),
 		NewCopyRequestHeader(),
 		NewCopyResponseHeader(),
 		NewHeaderToQuery(),
