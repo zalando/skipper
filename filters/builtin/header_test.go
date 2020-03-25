@@ -24,6 +24,36 @@ import (
 	"testing"
 )
 
+type testContext struct {
+	key, value string
+}
+
+func (c testContext) Name() string { return "testContext" }
+
+func (c testContext) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 2 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	key, ok := args[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	value, ok := args[1].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return testContext{key, value}, nil
+}
+
+func (c testContext) Request(ctx filters.FilterContext) {
+	ctx.StateBag()[c.key] = c.value
+}
+
+func (c testContext) Response(filters.FilterContext) {}
+
 func printHeader(t *testing.T, h http.Header, msg ...interface{}) {
 	for k, v := range h {
 		for _, vi := range v {
@@ -61,7 +91,7 @@ func compareHeaders(left, right http.Header) bool {
 	return true
 }
 
-func testHeaders(t *testing.T, msg string, got, expected http.Header) {
+func testHeaders(t *testing.T, got, expected http.Header) {
 	for n := range got {
 		if !strings.HasPrefix(n, "X-Test-") {
 			delete(got, n)
@@ -69,9 +99,9 @@ func testHeaders(t *testing.T, msg string, got, expected http.Header) {
 	}
 
 	if !compareHeaders(got, expected) {
-		printHeader(t, expected, msg, "invalid header", "expected")
-		printHeader(t, got, msg, "invalid header", "got")
-		t.Error(msg, "invalid header")
+		printHeader(t, expected, "invalid header", "expected")
+		printHeader(t, got, "invalid header", "got")
+		t.Error("invalid header")
 	}
 }
 
@@ -80,6 +110,7 @@ func TestHeader(t *testing.T) {
 		msg            string
 		filterName     string
 		args           []interface{}
+		context        map[string]interface{}
 		host           string
 		valid          bool
 		requestHeader  http.Header
@@ -186,64 +217,125 @@ func TestHeader(t *testing.T) {
 		args:       []interface{}{"Host", "www.example.org"},
 		valid:      true,
 		host:       "www.example.org",
+	}, {
+		msg:            "set request header from context",
+		filterName:     "setContextRequestHeader",
+		args:           []interface{}{"X-Test-Foo", "foo"},
+		context:        map[string]interface{}{"foo": "bar"},
+		valid:          true,
+		expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar"}},
+	}, {
+		msg:            "append request header from context",
+		filterName:     "appendContextRequestHeader",
+		args:           []interface{}{"X-Test-Foo", "foo"},
+		context:        map[string]interface{}{"foo": "baz"},
+		valid:          true,
+		requestHeader:  http.Header{"X-Test-Foo": []string{"bar"}},
+		expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar", "baz"}},
+	}, {
+		msg:        "set request host header from context",
+		filterName: "setContextRequestHeader",
+		args:       []interface{}{"Host", "foo"},
+		context:    map[string]interface{}{"foo": "www.example.org"},
+		valid:      true,
+		host:       "www.example.org",
+	}, {
+		msg:        "append request host header from context",
+		filterName: "appendContextRequestHeader",
+		args:       []interface{}{"Host", "foo"},
+		context:    map[string]interface{}{"foo": "www.example.org"},
+		valid:      true,
+		host:       "www.example.org",
+	}, {
+		msg:            "set response header from context",
+		filterName:     "setContextResponseHeader",
+		args:           []interface{}{"X-Test-Foo", "foo"},
+		context:        map[string]interface{}{"foo": "bar"},
+		valid:          true,
+		expectedHeader: http.Header{"X-Test-Foo": []string{"bar"}},
+	}, {
+		msg:            "append response header from context",
+		filterName:     "appendContextResponseHeader",
+		args:           []interface{}{"X-Test-Foo", "foo"},
+		context:        map[string]interface{}{"foo": "baz"},
+		valid:          true,
+		responseHeader: http.Header{"X-Test-Foo": []string{"bar"}},
+		expectedHeader: http.Header{"X-Test-Foo": []string{"bar", "baz"}},
 	}} {
-		bs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			for n, vs := range r.Header {
-				if strings.HasPrefix(n, "X-Test-") {
-					w.Header()["X-Test-Request-"+n[7:]] = vs
+		t.Run(ti.msg, func(t *testing.T) {
+			bs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				for n, vs := range r.Header {
+					if strings.HasPrefix(n, "X-Test-") {
+						w.Header()["X-Test-Request-"+n[7:]] = vs
+					}
 				}
+
+				for n, vs := range ti.responseHeader {
+					w.Header()[n] = vs
+				}
+
+				w.Header().Set("X-Request-Host", r.Host)
+			}))
+			defer bs.Close()
+
+			fr := make(filters.Registry)
+			fr.Register(NewSetRequestHeader())
+			fr.Register(NewAppendRequestHeader())
+			fr.Register(NewDropRequestHeader())
+			fr.Register(NewSetResponseHeader())
+			fr.Register(NewAppendResponseHeader())
+			fr.Register(NewDropResponseHeader())
+			fr.Register(NewSetContextRequestHeader())
+			fr.Register(NewAppendContextRequestHeader())
+			fr.Register(NewSetContextResponseHeader())
+			fr.Register(NewAppendContextResponseHeader())
+			fr.Register(testContext{})
+
+			filters := []*eskip.Filter{{Name: ti.filterName, Args: ti.args}}
+			for key, value := range ti.context {
+				filters = append([]*eskip.Filter{{
+					Name: "testContext",
+					Args: []interface{}{key, value},
+				}}, filters...)
 			}
 
-			for n, vs := range ti.responseHeader {
-				w.Header()[n] = vs
+			pr := proxytest.New(fr, &eskip.Route{
+				Filters: filters,
+				Backend: bs.URL},
+			)
+			defer pr.Close()
+
+			req, err := http.NewRequest("GET", pr.URL, nil)
+			if err != nil {
+				t.Error(err)
+				return
 			}
 
-			w.Header().Set("X-Request-Host", r.Host)
-		}))
-		defer bs.Close()
+			req.Close = true
 
-		fr := make(filters.Registry)
-		fr.Register(NewSetRequestHeader())
-		fr.Register(NewAppendRequestHeader())
-		fr.Register(NewDropRequestHeader())
-		fr.Register(NewSetResponseHeader())
-		fr.Register(NewAppendResponseHeader())
-		fr.Register(NewDropResponseHeader())
-		pr := proxytest.New(fr, &eskip.Route{
-			Filters: []*eskip.Filter{{Name: ti.filterName, Args: ti.args}},
-			Backend: bs.URL})
-		defer pr.Close()
+			for n, vs := range ti.requestHeader {
+				req.Header[n] = vs
+			}
 
-		req, err := http.NewRequest("GET", pr.URL, nil)
-		if err != nil {
-			t.Error(ti.msg, err)
-			continue
-		}
+			rsp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Error(err)
+				return
+			}
 
-		req.Close = true
+			if ti.valid && rsp.StatusCode != http.StatusOK ||
+				!ti.valid && rsp.StatusCode != http.StatusNotFound {
+				t.Error("failed to validate arguments")
+				return
+			}
 
-		for n, vs := range ti.requestHeader {
-			req.Header[n] = vs
-		}
+			if ti.host != "" && ti.host != rsp.Header.Get("X-Request-Host") {
+				t.Error("failed to set outgoing request host")
+			}
 
-		rsp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Error(ti.msg, err)
-			continue
-		}
-
-		if ti.valid && rsp.StatusCode != http.StatusOK ||
-			!ti.valid && rsp.StatusCode != http.StatusNotFound {
-			t.Error(ti.msg, "failed to validate arguments")
-			continue
-		}
-
-		if ti.host != "" && ti.host != rsp.Header.Get("X-Request-Host") {
-			t.Error(ti.msg, "failed to set outgoing request host")
-		}
-
-		if ti.valid {
-			testHeaders(t, ti.msg, rsp.Header, ti.expectedHeader)
-		}
+			if ti.valid {
+				testHeaders(t, rsp.Header, ti.expectedHeader)
+			}
+		})
 	}
 }
