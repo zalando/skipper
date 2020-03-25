@@ -14,9 +14,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-// precursor for an open source counterpart of the compress() filter
-// https://godoc.org/github.com/zalando/skipper/filters/builtin#NewCompress
-
 const (
 	// DecompressionNotPossible is the state-bag key to indicate
 	// to the subsequent filters during response processing that the
