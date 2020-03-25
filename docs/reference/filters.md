@@ -277,6 +277,24 @@ transfer encoding, sets the Content-Encoding to the selected encoding and sets t
 
 The compression happens in a streaming way, using only a small internal buffer.
 
+## decompress
+
+The filter, when executed on the response path, checks if the response entity is
+compressed by a supported algorithm. To decide, it checks the Content-Encoding
+header.
+
+When compressing the response, it updates the response header. It deletes the
+`Content-Length` value triggering the proxy to always return the response with chunked
+transfer encoding, deletes the Content-Encoding and the Vary headers, if set.
+
+The decompression happens in a streaming way, using only a small internal buffer.
+
+Example:
+
+```
+* -> decompress() -> "https://www.example.org"
+```
+
 ## setQuery
 
 Set the query string `?k=v` in the request to the backend to a given value.
