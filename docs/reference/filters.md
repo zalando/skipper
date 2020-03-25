@@ -109,6 +109,36 @@ Same as [appendRequestHeader](#appendrequestheader), only for responses
 
 Same as [dropRequestHeader](#droprequestheader) but for responses from the backend
 
+## setContextRequestHeader
+
+Set headers for requests using values from the filter context (state bag). If the
+provided key (second parameter) cannot be found in the state bag, then it doesn't
+set the header.
+
+Parameters:
+
+* header name (string)
+* key in the state bag (string)
+
+Example:
+
+```
+foo: * -> oauthTokeninfoAllScope("address_service.all") -> setContextRequestHeader("X-Uid", "auth-user") -> "https://backend.example.org";
+```
+
+## appendContextRequestHeader
+
+Same as [setContextRequestHeader](#setContextRequestHeader), except does not remove a possibly existing value,
+but adds a new header value.
+
+## setContextResponseHeader
+
+Same as [setContextRequestHeader](#setContextRequestHeader), except for responses.
+
+## appendContextResponseHeader
+
+Same as [appendContextRequestHeader](#appendContextRequestHeader), except for responses.
+
 ## modPath
 
 Replace all matched regex expressions in the path.
