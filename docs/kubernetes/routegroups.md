@@ -4,11 +4,6 @@ Route groups are an alternative to the Kubernetes Ingress format for defining in
 define Skipper routing in Kubernetes, while providing a straightforward way to configure the routing features
 supported by Skipper and not defined by the generic Ingress.
 
-**Important Note:**
-
-*The integration of the RouteGroup CRD with DNS configuration solutions is a work in
-progress.*
-
 ## Skipper as Kubernetes Ingress controller
 
 Skipper is an extensible HTTP router with rich route matching, and request flow and traffic shaping
