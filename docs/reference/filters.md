@@ -328,6 +328,25 @@ Content type will be automatically detected when not provided.
 !!! note
     `inlineContent` filter is special and must be the last in the filter chain.
 
+## inlineContentIfStatus
+
+Returns arbitrary content in the HTTP body, if the response has the specified status code.
+
+Parameters:
+
+* status code (int)
+* content (string)
+* content type (string) - optional
+
+Example:
+
+```
+* -> inlineContentIfStatus(404, "<p class=\"problem\">We don't have what you're looking for.</p>") -> "https://www.example.org"
+* -> inlineContentIfStatus(401, "{\"error\": \"unauthorized\"}", "application/json") -> "https://www.example.org"
+```
+
+The content type will be automatically detected when not provided.
+
 ## flowId
 
 Sets an X-Flow-Id header, if it's not already in the request.
