@@ -4,11 +4,6 @@ Route groups are an alternative to the Kubernetes Ingress format for defining in
 define Skipper routing in Kubernetes, while providing a straightforward way to configure the routing features
 supported by Skipper and not defined by the generic Ingress.
 
-**Important Note:**
-
-*The integration of the RouteGroup CRD with DNS configuration solutions is a work in
-progress.*
-
 ## Skipper as Kubernetes Ingress controller
 
 Skipper is an extensible HTTP router with rich route matching, and request flow and traffic shaping
@@ -73,16 +68,10 @@ Links:
 - [RouteGroup semantics](../routegroup-crd/)
 - [CRD definition](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/apply/routegroups_crd.yaml)
 
-## Current Limitations
+## Requirements
 
-As mentioned above, the integration with DNS configuration solutions
-is a work in progress.  This means that when using route groups,
-updating the DNS entries based on the host names defined in a route
-group, currently needs to be done manually. As near milestones, the
-integration will be done in:
-
-- [External DNS](https://github.com/kubernetes-sigs/external-dns) [Issue](https://github.com/kubernetes-sigs/external-dns/issues/1403)
-- DONE since v0.10.0: [Kubernetes Ingress Controller for AWS](https://github.com/zalando-incubator/kube-ingress-aws-controller)
+- [External DNS v0.7.0 or higher](https://github.com/kubernetes-sigs/external-dns/releases/tag/v0.7.0)
+- [Kubernetes Ingress Controller for AWS v0.10.0 or higher](https://github.com/zalando-incubator/kube-ingress-aws-controller/releases/tag/v0.10.0)
 
 ## Installation
 
