@@ -1200,6 +1200,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
+	if false /* what should be the conditions for using the grant filter? */ {
+		if grant, err := auth.NewGrant(auth.OAuthConfig{}); err != nil {
+			log.Errorf("Error while initializing oauth grant filter: %v.", err)
+		} else {
+			o.CustomFilters = append(o.CustomFilters, grant)
+		}
+	}
+
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
 	registry := builtin.MakeRegistry()
