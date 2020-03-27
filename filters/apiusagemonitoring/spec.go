@@ -20,14 +20,7 @@ const (
 )
 
 var (
-	log                    = logrus.WithField("filter", Name)
-	regexpMultipleSlashes  = regexp.MustCompile("/+")
-	regexpLeadingSlashes   = regexp.MustCompile("^/*")
-	regexpTrailingSlashes  = regexp.MustCompile("/*$")
-	regexpMiddleSlashes    = regexp.MustCompile("([^/^])/+([^/*])")
-	rexexpSlashColumnVar   = regexp.MustCompile("/:([^:{}/]*)")
-	rexexpCurlyBracketVar  = regexp.MustCompile("{([^{}]*?)([?]?)}")
-	regexpEscapeCharacters = regexp.MustCompile("([.*+?])")
+	log = logrus.WithField("filter", Name)
 )
 
 // NewApiUsageMonitoring creates a new instance of the API Monitoring filter
@@ -86,6 +79,7 @@ func NewApiUsageMonitoring(
 	)
 
 	spec := &apiUsageMonitoringSpec{
+		pathHandler:           defaultPathHandler{},
 		realmKeys:             realmKeyList,
 		clientKeys:            clientKeyList,
 		unknownPath:           unknownPath,
@@ -105,6 +99,7 @@ type apiConfig struct {
 }
 
 type apiUsageMonitoringSpec struct {
+	pathHandler           PathHandler
 	realmKeys             []string
 	clientKeys            []string
 	realmsTrackingMatcher *regexp.Regexp
@@ -212,8 +207,8 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			}
 
 			// Normalize path template and get regular expression path pattern
-			pathTemplate := normalizePathTemplate(template)
-			pathPattern := createPathPattern(template)
+			pathTemplate := s.pathHandler.NormalizePathTemplate(template)
+			pathPattern := s.pathHandler.CreatePathPattern(template)
 
 			// Create new `pathInfo` with normalized PathTemplate
 			info := newPathInfo(applicationId, api.Tag, apiId, pathTemplate, clientTrackingInfo)
@@ -291,11 +286,31 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 	}
 }
 
-// normalizePathTemplate normalize path template removing the leading and
+var (
+	regexpMultipleSlashes   = regexp.MustCompile(`/+`)
+	regexpLeadingSlashes    = regexp.MustCompile(`^/*`)
+	regexpTrailingSlashes   = regexp.MustCompile(`/*$`)
+	regexpMiddleSlashes     = regexp.MustCompile(`([^/^])/+([^/*])`)
+	rexexpSlashColumnVar    = regexp.MustCompile(`/:([^:{}/]*)`)
+	rexexpCurlyBracketVar   = regexp.MustCompile(`{([^{}]*?)([?]?)}`)
+	regexpEscapeBeforeChars = regexp.MustCompile(`([.*+?\\])`)
+	regexpEscapeAfterChars  = regexp.MustCompile(`([{}[\]()|])`)
+)
+
+// PathHandler path handler interface.
+type PathHandler interface {
+	NormalizePathTemplate(path string) string
+	CreatePathPattern(path string) string
+}
+
+// defaultPathHandler default path handler implementation.
+type defaultPathHandler struct{}
+
+// NormalizePathTemplate normalize path template removing the leading and
 // trailing slashes, substituting multiple adjacent slashes with a single
 // one, and replacing column based variable declarations by curly bracked
 // based.
-func normalizePathTemplate(path string) string {
+func (ph defaultPathHandler) NormalizePathTemplate(path string) string {
 	path = regexpLeadingSlashes.ReplaceAllString(path, "")
 	path = regexpTrailingSlashes.ReplaceAllString(path, "")
 	path = regexpMultipleSlashes.ReplaceAllString(path, "/")
@@ -304,24 +319,25 @@ func normalizePathTemplate(path string) string {
 	return path
 }
 
-// createPathPattern create a regular expression path pattern for a path
+// CreatePathPattern create a regular expression path pattern for a path
 // template by escaping regular specific characters, add optional matching
 // of leading and trailing slashes, accept adjacent slashes as if a single
 // slash was given, and allow free matching of content on variable locations.
-func createPathPattern(path string) string {
-	path = regexpEscapeCharacters.ReplaceAllString(path, "\\$1")
+func (ph defaultPathHandler) CreatePathPattern(path string) string {
+	path = regexpEscapeBeforeChars.ReplaceAllString(path, "\\$1")
 	path = rexexpSlashColumnVar.ReplaceAllString(path, "/.+")
-	path = rexexpCurlyBracketVar.ReplaceAllStringFunc(path, selectPathVarPattern)
+	path = rexexpCurlyBracketVar.ReplaceAllStringFunc(path, ph.SelectPathVarPattern)
 	path = regexpLeadingSlashes.ReplaceAllString(path, "^/*")
 	path = regexpTrailingSlashes.ReplaceAllString(path, "/*$")
 	path = regexpMiddleSlashes.ReplaceAllString(path, "$1/+$2")
+	path = regexpEscapeAfterChars.ReplaceAllString(path, "\\$1")
 	return path
 }
 
 // selectPathVarPattern select the correct path variable pattern depending
 // on the path variable syntax. A trailing question mark is interpreted as
 // a path variable that is allowed to be empty.
-func selectPathVarPattern(match string) string {
+func (ph defaultPathHandler) SelectPathVarPattern(match string) string {
 	log.Infof("match %s", match)
 	if strings.HasSuffix(match, "\\?}") {
 		return ".*"

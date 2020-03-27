@@ -25,16 +25,6 @@ func Test_FeatureDisableCreateNilFilters(t *testing.T) {
 	assert.Equal(t, filter, &noopFilter{})
 }
 
-func assertApiUsageMonitoringFilter(t *testing.T, filterArgs []interface{}, asserter func(t *testing.T, filter *apiUsageMonitoringFilter)) {
-	spec := NewApiUsageMonitoring(true, "", "", "")
-	filter, err := spec.CreateFilter(filterArgs)
-	assert.NoError(t, err)
-	assert.NotNil(t, filter)
-	if assert.IsType(t, &apiUsageMonitoringFilter{}, filter) {
-		asserter(t, filter.(*apiUsageMonitoringFilter))
-	}
-}
-
 type pathMatcher struct {
 	ApplicationId string
 	Tag           string
@@ -195,18 +185,23 @@ func Test_CreateFilter_NonParsableParametersShouldBeLoggedAndIgnored(t *testing.
 		123.456,
 		"I am useless...", // poor little depressed parameter :'(
 	}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-		assertPaths(t, filter.Paths, []pathMatcher{
-			{
-				ApplicationId: "my_app",
-				Tag:           "{no-tag}",
-				ApiId:         "my_api",
-				PathTemplate:  "test",
-				Matcher:       matcher("^/*test/*$"),
-			},
-		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+	spec := NewApiUsageMonitoring(true, "", "", "")
+
+	rawFilter, err := spec.CreateFilter(args)
+	assert.NoError(t, err)
+	assert.NotNil(t, rawFilter)
+
+	filter := rawFilter.(*apiUsageMonitoringFilter)
+	assertPaths(t, filter.Paths, []pathMatcher{
+		{
+			ApplicationId: "my_app",
+			Tag:           "{no-tag}",
+			ApiId:         "my_api",
+			PathTemplate:  "test",
+			Matcher:       matcher("^/*test/*$"),
+		},
 	})
+	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
 }
 
 func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
@@ -225,32 +220,37 @@ func Test_CreateFilter_FullConfigSingleApi(t *testing.T) {
 			"/foo/order-items/{order-id}:{order-item-id}/"
 		]
 	}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-		assertPaths(t, filter.Paths, []pathMatcher{
-			{
-				ApplicationId: "my_app",
-				Tag:           "staging",
-				ApiId:         "my_api",
-				PathTemplate:  "foo/orders/{order-id}",
-				Matcher:       matcher("^/*foo/+orders/+.+/*$"),
-			},
-			{
-				ApplicationId: "my_app",
-				Tag:           "staging",
-				ApiId:         "my_api",
-				PathTemplate:  "foo/orders",
-				Matcher:       matcher("^/*foo/+orders/*$"),
-			},
-			{
-				ApplicationId: "my_app",
-				Tag:           "staging",
-				ApiId:         "my_api",
-				PathTemplate:  "foo/order-items/{order-id}:{order-item-id}",
-				Matcher:       matcher("^/*foo/+order-items/+.+:.+/*$"),
-			},
-		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+	spec := NewApiUsageMonitoring(true, "", "", "")
+
+	rawFilter, err := spec.CreateFilter(args)
+	assert.NoError(t, err)
+	assert.NotNil(t, rawFilter)
+
+	filter := rawFilter.(*apiUsageMonitoringFilter)
+	assertPaths(t, filter.Paths, []pathMatcher{
+		{
+			ApplicationId: "my_app",
+			Tag:           "staging",
+			ApiId:         "my_api",
+			PathTemplate:  "foo/orders/{order-id}",
+			Matcher:       matcher("^/*foo/+orders/+.+/*$"),
+		},
+		{
+			ApplicationId: "my_app",
+			Tag:           "staging",
+			ApiId:         "my_api",
+			PathTemplate:  "foo/orders",
+			Matcher:       matcher("^/*foo/+orders/*$"),
+		},
+		{
+			ApplicationId: "my_app",
+			Tag:           "staging",
+			ApiId:         "my_api",
+			PathTemplate:  "foo/order-items/{order-id}:{order-item-id}",
+			Matcher:       matcher("^/*foo/+order-items/+.+:.+/*$"),
+		},
 	})
+	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
 }
 
 func Test_CreateFilter_NoApplicationId_ShouldReturnNoopFilter(t *testing.T) {
@@ -303,46 +303,51 @@ func Test_CreateFilter_FullConfigMultipleApis(t *testing.T) {
 			"client_tracking_pattern": ".+"
 		}`,
 	}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-		assertPaths(t, filter.Paths, []pathMatcher{
-			{
-				ApplicationId: "my_app",
-				Tag:           "{no-tag}",
-				ApiId:         "orders_api",
-				PathTemplate:  "foo/orders/{order-id}",
-				Matcher:       matcher("^/*foo/+orders/+.+/*$"),
-			},
-			{
-				ApplicationId: "my_app",
-				Tag:           "{no-tag}",
-				ApiId:         "orders_api",
-				PathTemplate:  "foo/orders",
-				Matcher:       matcher("^/*foo/+orders/*$"),
-			},
-			{
-				ApplicationId: "my_app",
-				Tag:           "{no-tag}",
-				ApiId:         "orders_api",
-				PathTemplate:  "foo/order-items/{order-id}:{order-item-id}",
-				Matcher:       matcher("^/*foo/+order-items/+.+:.+/*$"),
-			},
-			{
-				ApplicationId: "my_app",
-				Tag:           "tag",
-				ApiId:         "customers_api",
-				PathTemplate:  "foo/customers/{customer-id}",
-				Matcher:       matcher("^/*foo/+customers/+.+/*$"),
-			},
-			{
-				ApplicationId: "my_app",
-				Tag:           "tag",
-				ApiId:         "customers_api",
-				PathTemplate:  "foo/customers",
-				Matcher:       matcher("^/*foo/+customers/*$"),
-			},
-		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+	spec := NewApiUsageMonitoring(true, "", "", "")
+
+	rawFilter, err := spec.CreateFilter(args)
+	assert.NoError(t, err)
+	assert.NotNil(t, rawFilter)
+
+	filter := rawFilter.(*apiUsageMonitoringFilter)
+	assertPaths(t, filter.Paths, []pathMatcher{
+		{
+			ApplicationId: "my_app",
+			Tag:           "{no-tag}",
+			ApiId:         "orders_api",
+			PathTemplate:  "foo/orders/{order-id}",
+			Matcher:       matcher("^/*foo/+orders/+.+/*$"),
+		},
+		{
+			ApplicationId: "my_app",
+			Tag:           "{no-tag}",
+			ApiId:         "orders_api",
+			PathTemplate:  "foo/orders",
+			Matcher:       matcher("^/*foo/+orders/*$"),
+		},
+		{
+			ApplicationId: "my_app",
+			Tag:           "{no-tag}",
+			ApiId:         "orders_api",
+			PathTemplate:  "foo/order-items/{order-id}:{order-item-id}",
+			Matcher:       matcher("^/*foo/+order-items/+.+:.+/*$"),
+		},
+		{
+			ApplicationId: "my_app",
+			Tag:           "tag",
+			ApiId:         "customers_api",
+			PathTemplate:  "foo/customers/{customer-id}",
+			Matcher:       matcher("^/*foo/+customers/+.+/*$"),
+		},
+		{
+			ApplicationId: "my_app",
+			Tag:           "tag",
+			ApiId:         "customers_api",
+			PathTemplate:  "foo/customers",
+			Matcher:       matcher("^/*foo/+customers/*$"),
+		},
 	})
+	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
 }
 
 func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
@@ -363,25 +368,30 @@ func Test_CreateFilter_FullConfigWithApisWithoutPaths(t *testing.T) {
 			"path_templates": [
 			]
 		}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-		assertPaths(t, filter.Paths, []pathMatcher{
-			{
-				ApplicationId: "my_order_app",
-				Tag:           "staging",
-				ApiId:         "orders_api",
-				PathTemplate:  "foo/orders/{order-id}",
-				Matcher:       matcher("^/*foo/+orders/+.+/*$"),
-			},
-			{
-				ApplicationId: "my_order_app",
-				Tag:           "staging",
-				ApiId:         "orders_api",
-				PathTemplate:  "foo/orders",
-				Matcher:       matcher("^/*foo/+orders/*$"),
-			},
-		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_order_app"))
+	spec := NewApiUsageMonitoring(true, "", "", "")
+
+	rawFilter, err := spec.CreateFilter(args)
+	assert.NoError(t, err)
+	assert.NotNil(t, rawFilter)
+
+	filter := rawFilter.(*apiUsageMonitoringFilter)
+	assertPaths(t, filter.Paths, []pathMatcher{
+		{
+			ApplicationId: "my_order_app",
+			Tag:           "staging",
+			ApiId:         "orders_api",
+			PathTemplate:  "foo/orders/{order-id}",
+			Matcher:       matcher("^/*foo/+orders/+.+/*$"),
+		},
+		{
+			ApplicationId: "my_order_app",
+			Tag:           "staging",
+			ApiId:         "orders_api",
+			PathTemplate:  "foo/orders",
+			Matcher:       matcher("^/*foo/+orders/*$"),
+		},
 	})
+	assertPath(t, filter.UnknownPath, unknownPath("my_order_app"))
 }
 
 func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
@@ -395,18 +405,23 @@ func Test_CreateFilter_DuplicatePathTemplatesAreIgnored(t *testing.T) {
 			"/foo/"
 		]
 	}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-		assertPaths(t, filter.Paths, []pathMatcher{
-			{
-				ApplicationId: "my_app",
-				Tag:           "{no-tag}",
-				ApiId:         "orders_api",
-				PathTemplate:  "foo",
-				Matcher:       matcher("^/*foo/*$"),
-			},
-		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+	spec := NewApiUsageMonitoring(true, "", "", "")
+
+	rawFilter, err := spec.CreateFilter(args)
+	assert.NoError(t, err)
+	assert.NotNil(t, rawFilter)
+
+	filter := rawFilter.(*apiUsageMonitoringFilter)
+	assertPaths(t, filter.Paths, []pathMatcher{
+		{
+			ApplicationId: "my_app",
+			Tag:           "{no-tag}",
+			ApiId:         "orders_api",
+			PathTemplate:  "foo",
+			Matcher:       matcher("^/*foo/*$"),
+		},
 	})
+	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
 }
 
 func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
@@ -419,18 +434,33 @@ func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 			"foo/:b"
 		]
 	}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-		assertPaths(t, filter.Paths, []pathMatcher{
-			{
-				ApplicationId: "my_app",
-				Tag:           "{no-tag}",
-				ApiId:         "orders_api",
-				PathTemplate:  "foo/{a}",
-				Matcher:       matcher("^/*foo/+.+/*$"),
-			},
-		})
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+	spec := NewApiUsageMonitoring(true, "", "", "")
+
+	rawFilter, err := spec.CreateFilter(args)
+	assert.NoError(t, err)
+	assert.NotNil(t, rawFilter)
+
+	filter := rawFilter.(*apiUsageMonitoringFilter)
+
+	assertPaths(t, filter.Paths, []pathMatcher{
+		{
+			ApplicationId: "my_app",
+			Tag:           "{no-tag}",
+			ApiId:         "orders_api",
+			PathTemplate:  "foo/{a}",
+			Matcher:       matcher("^/*foo/+.+/*$"),
+		},
 	})
+	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
+}
+
+type identPathHandler struct{}
+
+func (ph identPathHandler) NormalizePathTemplate(path string) string {
+	return path
+}
+func (ph identPathHandler) CreatePathPattern(path string) string {
+	return path
 }
 
 func Test_CreateFilter_RegExCompileFailureIgnoresPath(t *testing.T) {
@@ -442,10 +472,17 @@ func Test_CreateFilter_RegExCompileFailureIgnoresPath(t *testing.T) {
 			"orders/"
 		]
 	}`}
-	assertApiUsageMonitoringFilter(t, args, func(t *testing.T, filter *apiUsageMonitoringFilter) {
-		assert.Equal(t, 1, len(filter.Paths))
-		assertPath(t, filter.UnknownPath, unknownPath("my_app"))
-	})
+
+	spec := NewApiUsageMonitoring(true, "", "", "")
+	spec.(*apiUsageMonitoringSpec).pathHandler = identPathHandler{}
+
+	rawFilter, err := spec.CreateFilter(args)
+	assert.NoError(t, err)
+	assert.NotNil(t, rawFilter)
+
+	filter := rawFilter.(*apiUsageMonitoringFilter)
+	assert.Equal(t, 1, len(filter.Paths))
+	assertPath(t, filter.UnknownPath, unknownPath("my_app"))
 }
 
 func Test_NormalizePathTemplate(t *testing.T) {
@@ -488,8 +525,10 @@ func Test_NormalizePathTemplate(t *testing.T) {
 			expectedPathTemplate: "bas/customers/{customer-id}",
 		},
 	}
+
+	unit := defaultPathHandler{}
 	for message, path := range args {
-		actualPathTemplate := normalizePathTemplate(path.originalPath)
+		actualPathTemplate := unit.NormalizePathTemplate(path.originalPath)
 		assert.Equalf(t, path.expectedPathTemplate, actualPathTemplate, message)
 	}
 }
@@ -534,13 +573,14 @@ func Test_CreatePathPattern(t *testing.T) {
 			expectedPathPattern: "^/*bas/+customers/+.+/*$",
 		},
 		"with escape caracters": {
-			originalPath:        "/bas/*customers.id+/",
-			expectedPathPattern: "^/*bas/+\\*customers\\.id\\+/*$",
+			originalPath:        "/bas/*(cust\\omers)?.id+/",
+			expectedPathPattern: "^/*bas/+\\*\\(cust\\\\omers\\)\\?\\.id\\+/*$",
 		},
 	}
 
+	unit := defaultPathHandler{}
 	for message, path := range args {
-		actualPathPattern := createPathPattern(path.originalPath)
+		actualPathPattern := unit.CreatePathPattern(path.originalPath)
 		assert.Equalf(t, path.expectedPathPattern, actualPathPattern, message)
 	}
 }
