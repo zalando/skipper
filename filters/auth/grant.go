@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -21,7 +23,7 @@ const (
 
 	bearerPrefix           = "Bearer "
 	secretsRefreshInternal = time.Minute
-	oauthGrantTokenKey = "oauth-grant-token"
+	oauthGrantTokenKey     = "oauth-grant-token"
 )
 
 type OAuthConfig struct {
@@ -29,19 +31,12 @@ type OAuthConfig struct {
 	// TokeninfoURL is the URL of the service to validate OAuth2 tokens.
 	TokeninfoURL string
 
-	// ProvideLogin, when true enables OAuth2 Grants Flow login on requests
-	// that don't have either a valid Bearer token or an access cookie. It
-	// only provides login for requests that indicate a browser via their
-	// Accept header including text/html.
-	ProvideLogin bool
-
 	// Secrets is a secret registry to access secret keys used for encrypting
-	// auth flow state and auth cookies. It's mandatory when ProvideLogin is
-	// true.
+	// auth flow state and auth cookies.
 	Secrets *secrets.Registry
 
-	// SecretsFile contains the encryption key for the authentication cookie
-	// and grant flow state.
+	// SecretsName contains the name to the encryption key for the authentication
+	// cookie and grant flow state stored in Secrets.
 	SecretFile string
 
 	// AuthURL, the url to redirect the requests to when login is require.
@@ -51,12 +46,8 @@ type OAuthConfig struct {
 	// access token.
 	TokenURL string
 
-	// CallbackPath, path used for the authentication callbacks, when
-	// redirected from AuthURL.
-	CallbackPath string
-
-	// ClientID, the id of the current service, used to exchange the access
-	// code.
+	// ClientID, the OAuth2 client id of the current service, used to exchange
+	// the access code.
 	ClientID string
 
 	// ClientSecret, the secret associated with the ClientID, used to exchange
@@ -84,7 +75,11 @@ type cookie struct {
 	RefreshAfter time.Time `json:"refresh_after,omitempty"`
 }
 
-type spec struct{}
+type spec struct {
+	config      OAuthConfig
+	oauthConfig *oauth2.Config
+	flowState   *flowState
+}
 
 type filter struct {
 	config      OAuthConfig
@@ -92,14 +87,47 @@ type filter struct {
 	flowState   *flowState
 }
 
-func NewGrant(OAuthConfig) (filters.Spec, error) {
-	return &spec{}, nil
+var (
+	ErrMissingSecretsRegistry = errors.New("missing secrets registry")
+	ErrMissingTokeninfoURL    = errors.New("missing tokeninfo URL")
+	ErrMissingProviderURLs    = errors.New("missing provider URLs")
+)
+
+func NewGrant(c OAuthConfig) (filters.Spec, error) {
+	if c.TokeninfoURL == "" {
+		return nil, ErrMissingTokeninfoURL
+	}
+
+	if c.AuthURL == "" || c.TokenURL == "" {
+		return nil, ErrMissingProviderURLs
+	}
+
+	if c.Secrets == nil {
+		return nil, ErrMissingSecretsRegistry
+	}
+
+	return &spec{
+		config:    c,
+		flowState: newFlowState(c.Secrets, c.SecretFile),
+		oauthConfig: &oauth2.Config{
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  c.AuthURL,
+				TokenURL: c.TokenURL,
+			},
+			ClientID:     c.ClientID,
+			ClientSecret: c.ClientSecret,
+		},
+	}, nil
 }
 
 func (s *spec) Name() string { return OAuthGrantName }
 
 func (s *spec) CreateFilter([]interface{}) (filters.Filter, error) {
-	return &filter{}, nil
+	return &filter{
+		flowState:   s.flowState,
+		config:      s.config,
+		oauthConfig: s.oauthConfig,
+	}, nil
 }
 
 func (f *filter) validateToken(t string) (bool, error) {
@@ -142,17 +170,39 @@ func (f *filter) providerContext() context.Context {
 	return context.WithValue(context.Background(), oauth2.HTTPClient, f.config.AuthClient)
 }
 
+func requestURL(req *http.Request) string {
+	u := *req.URL
+
+	if fp := req.Header.Get("X-Forwarded-Proto"); fp != "" {
+		u.Scheme = fp
+	} else if req.TLS != nil {
+		u.Scheme = "https"
+	} else {
+		u.Scheme = "http"
+	}
+
+	if fh := req.Header.Get("X-Forwarded-Host"); fh != "" {
+		u.Host = fh
+	} else {
+		u.Host = req.Host
+	}
+
+	return u.String()
+}
+
 func (f *filter) loginRedirect(ctx filters.FilterContext) {
 	req := ctx.Request()
+	reqURL := requestURL(req)
 
-	state, err := f.flowState.createState(req.URL.String())
+	state, err := f.flowState.createState(reqURL)
 	if err != nil {
 		log.Errorf("failed to create login redirect: %v", err)
+		serverError(ctx)
 		return
 	}
 
 	authConfig := *f.oauthConfig
-	authConfig.RedirectURL = req.URL.String()
+	authConfig.RedirectURL = reqURL
 	ctx.Serve(&http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: http.Header{
@@ -181,8 +231,90 @@ func (f *filter) decodeCookie(s string) (c cookie, err error) {
 	return
 }
 
+func serverError(ctx filters.FilterContext) {
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusInternalServerError,
+	})
+}
+
+func badRequest(ctx filters.FilterContext) {
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusBadRequest,
+	})
+}
+
+func cleanAuthInfoURL(u *url.URL) {
+	q := u.Query()
+	q.Del("code")
+	q.Del("state")
+	u.RawQuery = q.Encode()
+}
+
+func cleanAuthInfo(req *http.Request) {
+	cleanAuthInfoURL(req.URL)
+	reqURI, err := url.ParseRequestURI(req.RequestURI)
+	if err != nil {
+		// this only can happen with a broken preceding filter:
+		log.Errorf("Error while parsing request URI: %v.", err)
+		return
+	}
+
+	cleanAuthInfoURL(reqURI)
+}
+
+func (f *filter) getAccessToken(code string) (*oauth2.Token, error) {
+	ctx := f.providerContext()
+	t, err := f.oauthConfig.Exchange(ctx, code)
+	println(t.Expiry.String(), err != nil, t.AccessToken)
+	return t, err
+}
+
+func (f *filter) loginCallback(ctx filters.FilterContext) {
+	req := ctx.Request()
+	q := req.URL.Query()
+
+	code := q.Get("code")
+	if code == "" {
+		badRequest(ctx)
+		return
+	}
+
+	sstate := q.Get("state")
+	if sstate == "" {
+		badRequest(ctx)
+		return
+	}
+
+	_, err := f.flowState.extractState(sstate)
+	if err != nil {
+		log.Errorf("Error when extracting flow state: %v.", err)
+		serverError(ctx)
+		return
+	}
+
+	token, err := f.getAccessToken(code)
+	if err != nil {
+		log.Errorf("Error when requesting access token: %v.", err)
+		serverError(ctx)
+		return
+	}
+
+	ctx.StateBag()[oauthGrantTokenKey] = token
+	cleanAuthInfo(req)
+}
+
+func (f *filter) isCallbackRequest(req *http.Request) bool {
+	// this should only work in 'quirks' mode, where there is no separate url for the callback
+	return req.URL.Query().Get("code") != ""
+}
+
 func (f *filter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
+
+	if f.isCallbackRequest(req) {
+		f.loginCallback(ctx)
+		return
+	}
 
 	c, err := req.Cookie(OAuthGrantCookieName)
 	if err == http.ErrNoCookie {
@@ -204,7 +336,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		var err error
 		if valid, err = f.validateToken(bearerPrefix + cc.AccessToken); err != nil {
 			log.Errorf("Error while validating bearer token: %v.", err)
-			ctx.Serve(&http.Response{StatusCode: http.StatusInternalServerError})
+			serverError(ctx)
 			return
 		}
 	}
@@ -292,7 +424,7 @@ func (f *filter) Response(ctx filters.FilterContext) {
 	}
 
 	req := ctx.Request()
-	c, err := f.createCookie(req.URL.Host, token)
+	c, err := f.createCookie(req.Host, token)
 	if err != nil {
 		log.Errorf("Error while generating cookie: %v.", err)
 		return
