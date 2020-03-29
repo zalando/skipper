@@ -10,7 +10,7 @@ func TestFlowState(t *testing.T) {
 	secrets := secrets.NewRegistry()
 	defer secrets.Close()
 
-	fs := newFlowState(secrets, "testdata/secret-key")
+	fs := newFlowState(secrets, "testdata/authsecret")
 	const u = "https://www.example.org/foo"
 	s, err := fs.createState(u)
 	if err != nil {
@@ -22,7 +22,7 @@ func TestFlowState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if st.RedirectURL != u {
-		t.Errorf("invalid redirect url: '%s', expected: '%s'", st.RedirectURL, u)
+	if st.RequestURL != u {
+		t.Errorf("invalid redirect url: '%s', expected: '%s'", st.RequestURL, u)
 	}
 }

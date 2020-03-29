@@ -12,10 +12,10 @@ import (
 const randomStringLength = 20
 
 type state struct {
-	Rand        string `json:"rand"`
-	Validity    int64  `json:"validity"`
-	Nonce       string `json:"nonce"`
-	RedirectURL string `json:"redirectUrl"`
+	Rand       string `json:"rand"`
+	Validity   int64  `json:"validity"`
+	Nonce      string `json:"nonce"`
+	RequestURL string `json:"redirectUrl"`
 }
 
 type flowState struct {
@@ -50,10 +50,10 @@ func (s *flowState) createState(redirectURL string) (string, error) {
 	}
 
 	state := state{
-		Rand:        randString(randomStringLength),
-		Validity:    stateValidityTime(),
-		Nonce:       fmt.Sprintf("%x", nonce),
-		RedirectURL: redirectURL,
+		Rand:       randString(randomStringLength),
+		Validity:   stateValidityTime(),
+		Nonce:      fmt.Sprintf("%x", nonce),
+		RequestURL: redirectURL,
 	}
 
 	jb, err := json.Marshal(state)

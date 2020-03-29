@@ -14,12 +14,13 @@ import (
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy/proxytest"
-	"golang.org/x/oauth2"
+	"github.com/zalando/skipper/secrets"
 )
 
 const (
 	testToken      = "foobarbaz"
 	testAccessCode = "quxquuxquz"
+	testSecretFile = "testdata/authsecret"
 )
 
 func newTestTokeninfo(validToken string) *httptest.Server {
@@ -71,9 +72,14 @@ func newTestAuthServer(testToken, testAccessCode string) *httptest.Server {
 				return
 			}
 
-			token := &oauth2.Token{
+			type tokenJSON struct {
+				AccessToken string `json:"access_token"`
+				ExpiresIn   int    `json:"expires_in"`
+			}
+
+			token := tokenJSON{
 				AccessToken: testToken,
-				Expiry:      time.Now().Add(time.Hour),
+				ExpiresIn:   int(time.Hour / time.Second),
 			}
 
 			b, err := json.Marshal(token)
@@ -97,17 +103,60 @@ func newTestAuthServer(testToken, testAccessCode string) *httptest.Server {
 	}))
 }
 
+func checkStatus(t *testing.T, rsp *http.Response, expectedStatus int) {
+	if rsp.StatusCode != expectedStatus {
+		t.Fatalf(
+			"Unexpected status code, got: %d, expected: %d.",
+			rsp.StatusCode,
+			expectedStatus,
+		)
+	}
+}
+
+func checkRedirect(t *testing.T, rsp *http.Response, expectedURL string) {
+	checkStatus(t, rsp, http.StatusTemporaryRedirect)
+	redirectTo := rsp.Header.Get("Location")
+	if !strings.HasPrefix(redirectTo, expectedURL) {
+		t.Fatalf(
+			"Unexpected redirect location, got: '%s', expected: '%s'.",
+			redirectTo,
+			expectedURL,
+		)
+	}
+}
+
+func findAuthCookie(rsp *http.Response) (*http.Cookie, bool) {
+	for _, c := range rsp.Cookies() {
+		if c.Name == auth.OAuthGrantCookieName {
+			return c, true
+		}
+	}
+
+	return nil, false
+}
+
+func checkCookie(t *testing.T, rsp *http.Response) {
+	c, ok := findAuthCookie(rsp)
+	if !ok {
+		t.Fatalf("Cookie not found.")
+	}
+
+	if c.Value == "" {
+		t.Fatalf("Cookie deleted.")
+	}
+}
+
 func TestGrantFlow(t *testing.T) {
-	// create a test provider
-	// create a test tokeninfo
-	// create a proxy, returning 204, oauthGrant filter, initially without parameters
-	// create a client without redirects, to check it manually
-	// make a request to the proxy without a cookie
-	// get redirected
-	// get redirected
-	// get redirected, check for a cookie
+	// * create a test provider
+	// * create a test tokeninfo
+	// * create a proxy, returning 204, oauthGrant filter, initially without parameters
+	// * create a client without redirects, to check it manually
+	// * make a request to the proxy without a cookie
+	// * get redirected
+	// * get redirected
 	// make a request to the proxy with the cookie
-	// get 204
+	// get 204, check cookie
+	// make a request with the cookie
 
 	provider := newTestAuthServer(testToken, testAccessCode)
 	defer provider.Close()
@@ -115,10 +164,13 @@ func TestGrantFlow(t *testing.T) {
 	tokeninfo := newTestTokeninfo(testToken)
 	defer tokeninfo.Close()
 
-	authURL := fmt.Sprintf("%s/auth", provider.URL)
-	// tokenURL := fmt.Sprintf("%s/token", provider.URL)
-
-	spec, err := auth.NewGrant(auth.OAuthOptions{})
+	spec, err := auth.NewGrant(auth.OAuthConfig{
+		Secrets:      secrets.NewRegistry(),
+		SecretFile:   testSecretFile,
+		TokeninfoURL: tokeninfo.URL,
+		AuthURL:      provider.URL + "/auth",
+		TokenURL:     provider.URL + "/token",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,19 +196,36 @@ func TestGrantFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if rsp.StatusCode != http.StatusTemporaryRedirect {
-		t.Fatalf(
-			"Unexpected status code, got: %d, expected: %d.",
-			rsp.StatusCode,
-			http.StatusTemporaryRedirect,
-		)
+	defer rsp.Body.Close()
+	checkRedirect(t, rsp, provider.URL+"/auth")
+	rsp, err = client.Get(rsp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("Failed to make request to provider: %v.", err)
 	}
 
-	if rsp.Header.Get("Location") != authURL {
-		t.Fatalf(
-			"Unexpected redirect location, got: '%s', expected: '%s'.",
-			rsp.Header.Get("Location"),
-			authURL,
-		)
+	defer rsp.Body.Close()
+	checkRedirect(t, rsp, proxy.URL)
+
+	rsp, err = client.Get(rsp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("Failed to make request to proxy: %v.", err)
 	}
+
+	defer rsp.Body.Close()
+	checkStatus(t, rsp, http.StatusNoContent)
+	checkCookie(t, rsp)
+
+	req, err := http.NewRequest("GET", proxy.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v.", err)
+	}
+
+	c, _ := findAuthCookie(rsp)
+	req.Header.Set("Cookie", fmt.Sprintf("%s=%s", c.Name, c.Value))
+	rsp, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request to proxy: %v.", err)
+	}
+
+	checkStatus(t, rsp, http.StatusNoContent)
 }
