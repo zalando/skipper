@@ -81,7 +81,8 @@ foo: * -> setRequestHeader("X-Passed-Skipper", "true") -> "https://backend.examp
 
 ## appendRequestHeader
 
-Same as [setRequestHeader](#setrequestheader), does not remove a possibly existing value, but adds a new header value
+Same as [setRequestHeader](#setRequestHeader),
+but appends the provided value to the already existing ones.
 
 ## dropRequestHeader
 
@@ -128,8 +129,8 @@ foo: * -> oauthTokeninfoAllScope("address_service.all") -> setContextRequestHead
 
 ## appendContextRequestHeader
 
-Same as [setContextRequestHeader](#setContextRequestHeader), except does not remove a possibly existing value,
-but adds a new header value.
+Same as [setContextRequestHeader](#setContextRequestHeader),
+but appends the provided value to the already existing ones.
 
 ## setContextResponseHeader
 
