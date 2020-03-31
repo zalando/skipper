@@ -37,10 +37,11 @@ import (
 )
 
 const (
-	proxyBufferSize      = 8192
-	unknownRouteID       = "_unknownroute_"
-	unknownRouteBackend  = "<unknown>"
-	backendIsProxyHeader = "X-Skipper-Proxy"
+	proxyBufferSize         = 8192
+	unknownRouteID          = "_unknownroute_"
+	unknownRouteBackendType = "<unknown>"
+	unknownRouteBackend     = "<unknown>"
+	backendIsProxyHeader    = "X-Skipper-Proxy"
 
 	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
@@ -1196,10 +1197,12 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	id := unknownRouteID
+	backendType := unknownRouteBackendType
 	backend := unknownRouteBackend
 	if ctx.route != nil {
 		id = ctx.route.Id
-		backend = ctx.route.Backend
+		backendType = ctx.route.BackendType.String()
+		backend = fmt.Sprintf("%s://%s", ctx.request.URL.Scheme, ctx.request.URL.Host)
 	}
 
 	code := http.StatusInternalServerError
@@ -1242,9 +1245,9 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	case ok && perr.err == errRatelimit:
 		code = perr.code
 	case code == 499:
-		p.log.Errorf("client canceled after %v, route %s with backend %s, status code %d: %v", time.Since(ctx.startServe), id, backend, code, err)
+		p.log.Errorf("client canceled after %v, route %s with backend %s %s, status code %d: %v", time.Since(ctx.startServe), id, backendType, backend, code, err)
 	default:
-		p.log.Errorf("error while proxying after %v, route %s with backend %s, status code %d: %v", time.Since(ctx.startServe), id, backend, code, err)
+		p.log.Errorf("error while proxying after %v, route %s with backend %s %s, status code %d: %v", time.Since(ctx.startServe), id, backendType, backend, code, err)
 	}
 
 	p.sendError(ctx, id, code)
