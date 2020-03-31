@@ -121,7 +121,10 @@ Parameters:
 * header name (string)
 * key in the state bag (string)
 
-Example:
+The the route in the following example checkes whether the request is authorized with the
+oauthTokeninfoAllScope() filter. This filter stores the authenticated user with "auth-user"
+key in the context, and the setContextRequestHeader() filter in the next step stores it in
+the header of the outgoing request with the X-Uid name:
 
 ```
 foo: * -> oauthTokeninfoAllScope("address_service.all") -> setContextRequestHeader("X-Uid", "auth-user") -> "https://backend.example.org";

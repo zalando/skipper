@@ -561,7 +561,8 @@ func TestStreaming(t *testing.T) {
 			return
 		}
 
-		// this body is closed in the enclosing function
+		defer rsp.Body.Close()
+
 		body = rsp.Body
 
 		if rsp.StatusCode != http.StatusOK {
