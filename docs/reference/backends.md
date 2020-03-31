@@ -337,6 +337,6 @@ Current implemented protocols:
 
 Route example that uses FastCGI (*experimental*):
 ```
-php: * -> SetFastCgiFilename("index.php") -> "fastcgi://127.0.0.1:9000";
-php_lb: * -> SetFastCgiFilename("index.php") -> <roundRobin, "fastcgi://127.0.0.1:9000", "fastcgi://127.0.0.1:9001">;
+php: * -> setFastCgiFilename("index.php") -> "fastcgi://127.0.0.1:9000";
+php_lb: * -> setFastCgiFilename("index.php") -> <roundRobin, "fastcgi://127.0.0.1:9000", "fastcgi://127.0.0.1:9001">;
 ```
