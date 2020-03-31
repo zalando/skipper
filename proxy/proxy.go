@@ -1241,8 +1241,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		code = p.defaultHTTPStatus
 	case ok && perr.err == errRatelimit:
 		code = perr.code
+	case code == 499:
+		p.log.Errorf("client canceled after %v, route %s with backend %s, status code %d: %v", time.Since(ctx.startServe), id, backend, code, err)
 	default:
-		p.log.Errorf("error while proxying, route %s with backend %s, status code %d: %v", id, backend, code, err)
+		p.log.Errorf("error while proxying after %v, route %s with backend %s, status code %d: %v", time.Since(ctx.startServe), id, backend, code, err)
 	}
 
 	p.sendError(ctx, id, code)

@@ -52,4 +52,8 @@ func TestClientTimeout(t *testing.T) {
 	if err = tp.log.WaitFor(msgErrClientTimeout, 3*d); err != nil {
 		t.Errorf("log should contain '%s'", msgErrClientTimeout)
 	}
+	const msgErrClientCanceledAfter = "client canceled after"
+	if err = tp.log.WaitFor(msgErrClientCanceledAfter, 3*d); err != nil {
+		t.Errorf("log should contain '%s'", msgErrClientCanceledAfter)
+	}
 }
