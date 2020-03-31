@@ -456,10 +456,10 @@ func Test_CreateFilter_DuplicateMatchersAreIgnored(t *testing.T) {
 
 type identPathHandler struct{}
 
-func (ph identPathHandler) NormalizePathTemplate(path string) string {
+func (ph identPathHandler) normalizePathTemplate(path string) string {
 	return path
 }
-func (ph identPathHandler) CreatePathPattern(path string) string {
+func (ph identPathHandler) createPathPattern(path string) string {
 	return path
 }
 
@@ -528,7 +528,7 @@ func Test_NormalizePathTemplate(t *testing.T) {
 
 	unit := defaultPathHandler{}
 	for message, path := range args {
-		actualPathTemplate := unit.NormalizePathTemplate(path.originalPath)
+		actualPathTemplate := unit.normalizePathTemplate(path.originalPath)
 		assert.Equalf(t, path.expectedPathTemplate, actualPathTemplate, message)
 	}
 }
@@ -580,7 +580,7 @@ func Test_CreatePathPattern(t *testing.T) {
 
 	unit := defaultPathHandler{}
 	for message, path := range args {
-		actualPathPattern := unit.CreatePathPattern(path.originalPath)
+		actualPathPattern := unit.createPathPattern(path.originalPath)
 		assert.Equalf(t, path.expectedPathPattern, actualPathPattern, message)
 	}
 }
