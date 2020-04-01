@@ -13,7 +13,6 @@ type pathInfo struct {
 	Tag            string
 	ApiId          string
 	PathTemplate   string
-	PathLabel      string
 	Matcher        *regexp.Regexp
 	ClientTracking *clientTrackingInfo
 	CommonPrefix   string
@@ -23,7 +22,7 @@ type pathInfo struct {
 	metricPrefixedPerClient sync.Map
 }
 
-func newPathInfo(applicationId, tag, apiId, pathTemplate, pathLabel string, clientTracking *clientTrackingInfo) *pathInfo {
+func newPathInfo(applicationId, tag, apiId, pathTemplate string, clientTracking *clientTrackingInfo) *pathInfo {
 	if strings.Contains(applicationId, ":") {
 		//can be removed after feature toggle is enabled on monitoring controller
 		split := strings.Split(applicationId, ":")
@@ -41,7 +40,6 @@ func newPathInfo(applicationId, tag, apiId, pathTemplate, pathLabel string, clie
 		Tag:                     tag,
 		ApiId:                   apiId,
 		PathTemplate:            pathTemplate,
-		PathLabel:               pathLabel,
 		metricPrefixedPerClient: sync.Map{},
 		ClientTracking:          clientTracking,
 		CommonPrefix:            commonPrefix,

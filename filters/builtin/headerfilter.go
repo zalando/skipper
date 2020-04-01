@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/zalando/skipper/filters"
@@ -15,6 +16,10 @@ const (
 	setResponseHeader
 	appendResponseHeader
 	dropResponseHeader
+	setContextRequestHeader
+	appendContextRequestHeader
+	setContextResponseHeader
+	appendContextResponseHeader
 )
 
 // common structure for requestHeader, responseHeader specifications and
@@ -103,6 +108,34 @@ func NewDropResponseHeader() filters.Spec {
 	return &headerFilter{typ: dropResponseHeader}
 }
 
+// NewSetContextRequestHeader returns a filter specification used to set
+// request headers with a given name and a value taken from the filter
+// context state bag identified by its key.
+func NewSetContextRequestHeader() filters.Spec {
+	return &headerFilter{typ: setContextRequestHeader}
+}
+
+// NewAppendContextRequestHeader returns a filter specification used to append
+// request headers with a given name and a value taken from the filter
+// context state bag identified by its key.
+func NewAppendContextRequestHeader() filters.Spec {
+	return &headerFilter{typ: appendContextRequestHeader}
+}
+
+// NewSetContextResponseHeader returns a filter specification used to set
+// response headers with a given name and a value taken from the filter
+// context state bag identified by its key.
+func NewSetContextResponseHeader() filters.Spec {
+	return &headerFilter{typ: setContextResponseHeader}
+}
+
+// NewAppendContextResponseHeader returns a filter specification used to append
+// response headers with a given name and a value taken from the filter
+// context state bag identified by its key.
+func NewAppendContextResponseHeader() filters.Spec {
+	return &headerFilter{typ: appendContextResponseHeader}
+}
+
 func (spec *headerFilter) Name() string {
 	switch spec.typ {
 	case setRequestHeader:
@@ -117,6 +150,14 @@ func (spec *headerFilter) Name() string {
 		return AppendResponseHeaderName
 	case dropResponseHeader:
 		return DropResponseHeaderName
+	case setContextRequestHeader:
+		return SetContextRequestHeaderName
+	case appendContextRequestHeader:
+		return AppendContextRequestHeaderName
+	case setContextResponseHeader:
+		return SetContextResponseHeaderName
+	case appendContextResponseHeader:
+		return AppendContextResponseHeaderName
 	default:
 		panic("invalid header type")
 	}
@@ -126,6 +167,25 @@ func (spec *headerFilter) Name() string {
 func (spec *headerFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
 	key, value, err := headerFilterConfig(spec.typ, config)
 	return &headerFilter{typ: spec.typ, key: key, value: value}, err
+}
+
+func valueFromContext(
+	ctx filters.FilterContext,
+	headerName,
+	contextKey string,
+	isRequest bool,
+	apply func(string, string),
+) {
+	contextValue, ok := ctx.StateBag()[contextKey]
+	if !ok {
+		return
+	}
+
+	stringValue := fmt.Sprint(contextValue)
+	apply(headerName, stringValue)
+	if isRequest && strings.ToLower(headerName) == "host" {
+		ctx.SetOutgoingHost(stringValue)
+	}
 }
 
 func (f *headerFilter) Request(ctx filters.FilterContext) {
@@ -142,6 +202,10 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 		}
 	case dropRequestHeader:
 		ctx.Request().Header.Del(f.key)
+	case setContextRequestHeader:
+		valueFromContext(ctx, f.key, f.value, true, ctx.Request().Header.Set)
+	case appendContextRequestHeader:
+		valueFromContext(ctx, f.key, f.value, true, ctx.Request().Header.Add)
 	}
 }
 
@@ -153,5 +217,9 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 		ctx.Response().Header.Add(f.key, f.value)
 	case dropResponseHeader:
 		ctx.Response().Header.Del(f.key)
+	case setContextResponseHeader:
+		valueFromContext(ctx, f.key, f.value, false, ctx.Response().Header.Set)
+	case appendContextResponseHeader:
+		valueFromContext(ctx, f.key, f.value, false, ctx.Response().Header.Add)
 	}
 }

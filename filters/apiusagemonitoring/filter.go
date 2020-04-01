@@ -188,7 +188,7 @@ func getEndpointMetricsNames(req *http.Request, path *pathInfo) *endpointMetricN
 
 // createAndCacheMetricsNames generates metrics names and cache them.
 func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) *endpointMetricNames {
-	endpointPrefix := path.CommonPrefix + method + "." + path.PathLabel + ".*.*."
+	endpointPrefix := path.CommonPrefix + method + "." + path.PathTemplate + ".*.*."
 	prefixes := &endpointMetricNames{
 		endpointPrefix: endpointPrefix,
 		countAll:       endpointPrefix + metricCountAll,
