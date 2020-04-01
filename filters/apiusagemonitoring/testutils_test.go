@@ -24,6 +24,7 @@ var defaultArgs = []interface{}{`{
 			"foo/orders",
 			"foo/orders/:order-id",
 			"foo/orders/:order-id/order-items/{order-item-id}",
+			"/foo/order-items/{order-id}:{order-item-id}",
 			"/foo/customers/",
 			"/foo/customers/{customer-id}/"
 		]
