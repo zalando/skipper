@@ -81,7 +81,8 @@ foo: * -> setRequestHeader("X-Passed-Skipper", "true") -> "https://backend.examp
 
 ## appendRequestHeader
 
-Same as [setRequestHeader](#setrequestheader), does not remove a possibly existing value, but adds a new header value
+Same as [setRequestHeader](#setRequestHeader),
+but appends the provided value to the already existing ones.
 
 ## dropRequestHeader
 
@@ -108,6 +109,39 @@ Same as [appendRequestHeader](#appendrequestheader), only for responses
 ## dropResponseHeader
 
 Same as [dropRequestHeader](#droprequestheader) but for responses from the backend
+
+## setContextRequestHeader
+
+Set headers for requests using values from the filter context (state bag). If the
+provided key (second parameter) cannot be found in the state bag, then it doesn't
+set the header.
+
+Parameters:
+
+* header name (string)
+* key in the state bag (string)
+
+The the route in the following example checkes whether the request is authorized with the
+oauthTokeninfoAllScope() filter. This filter stores the authenticated user with "auth-user"
+key in the context, and the setContextRequestHeader() filter in the next step stores it in
+the header of the outgoing request with the X-Uid name:
+
+```
+foo: * -> oauthTokeninfoAllScope("address_service.all") -> setContextRequestHeader("X-Uid", "auth-user") -> "https://backend.example.org";
+```
+
+## appendContextRequestHeader
+
+Same as [setContextRequestHeader](#setContextRequestHeader),
+but appends the provided value to the already existing ones.
+
+## setContextResponseHeader
+
+Same as [setContextRequestHeader](#setContextRequestHeader), except for responses.
+
+## appendContextResponseHeader
+
+Same as [appendContextRequestHeader](#appendContextRequestHeader), except for responses.
 
 ## modPath
 

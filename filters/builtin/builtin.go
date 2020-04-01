@@ -32,12 +32,16 @@ const (
 	// Deprecated: use redirectTo
 	RedirectName = "redirect"
 
-	SetRequestHeaderName     = "setRequestHeader"
-	SetResponseHeaderName    = "setResponseHeader"
-	AppendRequestHeaderName  = "appendRequestHeader"
-	AppendResponseHeaderName = "appendResponseHeader"
-	DropRequestHeaderName    = "dropRequestHeader"
-	DropResponseHeaderName   = "dropResponseHeader"
+	SetRequestHeaderName            = "setRequestHeader"
+	SetResponseHeaderName           = "setResponseHeader"
+	AppendRequestHeaderName         = "appendRequestHeader"
+	AppendResponseHeaderName        = "appendResponseHeader"
+	DropRequestHeaderName           = "dropRequestHeader"
+	DropResponseHeaderName          = "dropResponseHeader"
+	SetContextRequestHeaderName     = "setContextRequestHeader"
+	AppendContextRequestHeaderName  = "appendContextRequestHeader"
+	SetContextResponseHeaderName    = "setContextResponseHeader"
+	AppendContextResponseHeaderName = "appendContextResponseHeader"
 
 	SetDynamicBackendHostFromHeader   = "setDynamicBackendHostFromHeader"
 	SetDynamicBackendSchemeFromHeader = "setDynamicBackendSchemeFromHeader"
@@ -81,6 +85,10 @@ func MakeRegistry() filters.Registry {
 		NewSetResponseHeader(),
 		NewAppendResponseHeader(),
 		NewDropResponseHeader(),
+		NewSetContextRequestHeader(),
+		NewAppendContextRequestHeader(),
+		NewSetContextResponseHeader(),
+		NewAppendContextResponseHeader(),
 		NewModPath(),
 		NewSetPath(),
 		NewModRequestHeader(),
