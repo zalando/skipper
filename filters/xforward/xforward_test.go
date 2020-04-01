@@ -16,7 +16,7 @@ type testItem struct {
 	requestHeaders map[string]string
 }
 
-func getForwardedFor(headerValue string, reverse bool) []string {
+func getForwardedFor(headerValue string, prepend bool) []string {
 	values := strings.Split(headerValue, ",")
 	for i := range values {
 		values[i] = strings.TrimSpace(values[i])
@@ -26,7 +26,7 @@ func getForwardedFor(headerValue string, reverse bool) []string {
 		return nil
 	}
 
-	if !reverse {
+	if !prepend {
 		return values
 	}
 
@@ -37,7 +37,7 @@ func getForwardedFor(headerValue string, reverse bool) []string {
 	return values
 }
 
-func createTest(reverse bool, test testItem) func(*testing.T) {
+func createTest(prepend bool, test testItem) func(*testing.T) {
 	return func(t *testing.T) {
 		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Received-Forwarded-For", r.Header.Get("X-Forwarded-For"))
@@ -46,7 +46,7 @@ func createTest(reverse bool, test testItem) func(*testing.T) {
 		defer backend.Close()
 
 		var spec filters.Spec
-		if reverse {
+		if prepend {
 			spec = NewFirst()
 		} else {
 			spec = New()
@@ -87,8 +87,8 @@ func createTest(reverse bool, test testItem) func(*testing.T) {
 			)
 		}
 
-		reqXFor := getForwardedFor(req.Header.Get("X-Forwarded-For"), reverse)
-		rspXFor := getForwardedFor(rsp.Header.Get("X-Received-Forwarded-For"), reverse)
+		reqXFor := getForwardedFor(req.Header.Get("X-Forwarded-For"), prepend)
+		rspXFor := getForwardedFor(rsp.Header.Get("X-Received-Forwarded-For"), prepend)
 		if len(rspXFor) != len(reqXFor)+1 {
 			t.Fatal("Failed to add X-Forwarded-For header.")
 		}

@@ -8,12 +8,15 @@ import (
 )
 
 const (
-	Name      = "xforward"
+	// Name of the "xforward" filter.
+	Name = "xforward"
+
+	// NameFirst is the name of the "xforwardFirst" filter.
 	NameFirst = "xforwardFirst"
 )
 
 type filter struct {
-	reverse bool
+	prepend bool
 }
 
 // New creates a specification for the xforward filter
@@ -29,11 +32,11 @@ func New() filters.Spec {
 // X-Forwarded-For header, and sets the X-Forwarded-Host header
 // to the value of the incoming request's Host header.
 func NewFirst() filters.Spec {
-	return filter{reverse: true}
+	return filter{prepend: true}
 }
 
 func (f filter) Name() string {
-	if f.reverse {
+	if f.prepend {
 		return NameFirst
 	}
 
@@ -63,7 +66,7 @@ func (f filter) Request(ctx filters.FilterContext) {
 	h := req.Header.Get("X-Forwarded-For")
 	if h == "" {
 		h = addr
-	} else if f.reverse {
+	} else if f.prepend {
 		h = fmt.Sprintf("%s, %s", addr, h)
 	} else {
 		h = fmt.Sprintf("%s, %s", h, addr)
