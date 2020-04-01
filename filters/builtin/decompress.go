@@ -19,10 +19,10 @@ const (
 	// to the subsequent filters during response processing that the
 	// content is compressed, but decompression was not possible, e.g
 	// because the encoding is not supported.
-	DecompressionNotPossible = "filter::decompress::impossible"
+	DecompressionNotPossible = "filter::decompress::not-possible"
 
 	// DecompressionError is the state-bag key to indicate to the
-	// subsequent filters during response processing that th
+	// subsequent filters during response processing that the
 	// decompression of the content was attempted but failed. The
 	// response body may have been sniffed, and therefore it was
 	// discarded.
@@ -153,7 +153,7 @@ func (e decodingError) Error() string {
 // with any of deflate or gzip.
 //
 // If decompression is not possible, but the body is compressed, then it indicates it
-// with the "filter::decompress::impossible" key in the state-bag. If the decompression
+// with the "filter::decompress::not-possible" key in the state-bag. If the decompression
 // was attempted and failed to get initialized, it indicates it in addition with the
 // "filter::decompress::error" state-bag key, storing the error. Due to the streaming,
 // decompression may fail after all the filters were processed.
