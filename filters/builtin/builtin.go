@@ -19,6 +19,7 @@ import (
 	"github.com/zalando/skipper/filters/sed"
 	"github.com/zalando/skipper/filters/tee"
 	"github.com/zalando/skipper/filters/tracing"
+	"github.com/zalando/skipper/filters/xforward"
 	"github.com/zalando/skipper/script"
 )
 
@@ -103,6 +104,8 @@ func MakeRegistry() filters.Registry {
 		NewInlineContent(),
 		NewInlineContentIfStatus(),
 		flowid.New(),
+		xforward.New(),
+		xforward.NewFirst(),
 		PreserveHost(),
 		NewSetFastCgiFilename(),
 		NewStatus(),
