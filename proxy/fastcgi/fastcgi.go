@@ -30,6 +30,7 @@ func NewRoundTripper(log logging.Logger, addr, filename string) (*RoundTripper, 
 		gofast.MapEndpoint(filename),
 		func(handler gofast.SessionHandler) gofast.SessionHandler {
 			return func(client gofast.Client, req *gofast.Request) (*gofast.ResponsePipe, error) {
+				req.Params["HTTP_HOST"] = req.Params["SERVER_NAME"]
 				req.Params["SERVER_SOFTWARE"] = "Skipper"
 
 				// Gofast sets this param to `fastcgi` which is not what the backend will expect.
