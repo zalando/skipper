@@ -1,105 +1,40 @@
 package sed
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/zalando/skipper/filters/filtertest"
 )
 
-const testWSDL = `<?xml version='1.0' encoding='UTF-8'?>
-        <wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-            xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
-            xmlns:tns="http://reading.webservice.price.example.org/"
-            xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
-            xmlns:ns2="http://schemas.xmlsoap.org/soap/http"
-            xmlns:ns1="http://price.example.org/read/csvExport"
-            name="CSVPriceReadWebServiceImplService"
-            targetNamespace="http://reading.webservice.price.example.org/">
-            <wsdl:import location="http://restsn08.example:37007/ws/csvPriceReadWebService?wsdl=CSVPriceReadWebService.wsdl"
-                namespace="http://price.example.org/read/csvExport">
-            </wsdl:import>
-            <wsdl:binding name="CSVPriceReadWebServiceImplServiceSoapBinding"
-                type="ns1:CSVPriceReadWebService">
-                <soap:binding style="document"
-                    transport="http://schemas.xmlsoap.org/soap/http"/>
-                <wsdl:operation
-                    name="getWholeCurrentPromotionalBlacklistZipFile">
-                    <soap:operation soapAction="" style="document"/>
-                        <wsdl:input
-                            name="getWholeCurrentPromotionalBlacklistZipFile">
-                            <soap:body use="literal"/>
-                        </wsdl:input>
-                        <wsdl:output
-                            name="getWholeCurrentPromotionalBlacklistZipFileResponse">
-                            <soap:body use="literal"/>
-                        </wsdl:output>
-                </wsdl:operation>
-            </wsdl:binding>
-            <wsdl:service name="CSVPriceReadWebServiceImplService">
-                <wsdl:port 
-                    binding="tns:CSVPriceReadWebServiceImplServiceSoapBinding"
-                    name="CSVPriceReadWebServiceImplPort">
-                    <soap:address
-                        location="http://restsn08.example:37077/ws/csvPriceReadWebService"/>
-                </wsdl:port>
-            </wsdl:service>
-        </wsdl:definitions>`
-
-const patchedWSDL = `<?xml version='1.0' encoding='UTF-8'?>
-        <wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-            xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
-            xmlns:tns="http://reading.webservice.price.example.org/"
-            xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
-            xmlns:ns2="http://schemas.xmlsoap.org/soap/http"
-            xmlns:ns1="http://price.example.org/read/csvExport"
-            name="CSVPriceReadWebServiceImplService"
-            targetNamespace="http://reading.webservice.price.example.org/">
-            <wsdl:import location="https://price-service.tm.example.org:37077/ws/csvPriceReadWebService?wsdl=CSVPriceReadWebService.wsdl"
-                namespace="http://price.example.org/read/csvExport">
-            </wsdl:import>
-            <wsdl:binding name="CSVPriceReadWebServiceImplServiceSoapBinding"
-                type="ns1:CSVPriceReadWebService">
-                <soap:binding style="document"
-                    transport="http://schemas.xmlsoap.org/soap/http"/>
-                <wsdl:operation
-                    name="getWholeCurrentPromotionalBlacklistZipFile">
-                    <soap:operation soapAction="" style="document"/>
-                        <wsdl:input
-                            name="getWholeCurrentPromotionalBlacklistZipFile">
-                            <soap:body use="literal"/>
-                        </wsdl:input>
-                        <wsdl:output
-                            name="getWholeCurrentPromotionalBlacklistZipFileResponse">
-                            <soap:body use="literal"/>
-                        </wsdl:output>
-                </wsdl:operation>
-            </wsdl:binding>
-            <wsdl:service name="CSVPriceReadWebServiceImplService">
-                <wsdl:port 
-                    binding="tns:CSVPriceReadWebServiceImplServiceSoapBinding"
-                    name="CSVPriceReadWebServiceImplPort">
-                    <soap:address
-                        location="https://price-service.tm.example.org:37077/ws/csvPriceReadWebService"/>
-                </wsdl:port>
-            </wsdl:service>
-        </wsdl:definitions>`
+const (
+	testWSDL    = "testdata/wsdl.xml"
+	patchedWSDL = "testdata/wsdl-patched.xml"
+)
 
 func TestWSDLExample(t *testing.T) {
-	const (
-		response = testWSDL
-		expected = patchedWSDL
-	)
+	response, err := ioutil.ReadFile(testWSDL)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	resp := &http.Response{Body: ioutil.NopCloser(strings.NewReader(response)),
-		ContentLength: int64(len(response))}
+	expected, err := ioutil.ReadFile(patchedWSDL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := &http.Response{
+		Body:          ioutil.NopCloser(bytes.NewBuffer(response)),
+		ContentLength: int64(len(response)),
+	}
 
 	sp := New()
 	conf := []interface{}{
 		"location=\"https?://[^/]+/ws/",
-		"location=\"https://price-service.tm.example.org:37077/ws/",
+		"location=\"https://address-service.example.org/ws/",
 	}
 
 	f, err := sp.CreateFilter(conf)
@@ -119,7 +54,8 @@ func TestWSDLExample(t *testing.T) {
 		t.Error("Content-Length should not be set.", l, resp.ContentLength)
 	}
 
-	if string(body) != expected {
-		t.Error("Expected \"" + expected + "\", got \"" + string(body) + "\"")
+	if !bytes.Equal(body, expected) {
+		t.Error("Failed to receive the expected body.")
+		t.Log(cmp.Diff(string(expected), string(body)))
 	}
 }

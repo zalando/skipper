@@ -1,0 +1,931 @@
+<?xml version='1.0' encoding='UTF-8'?><wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:tns="http://www.example.org/ns" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:ns1="http://schemas.xmlsoap.org/soap/http" name="AddressCheckWebServiceService" targetNamespace="http://www.example.org/ns">
+  <wsdl:types>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="http://www.example.org/ns" elementFormDefault="unqualified" targetNamespace="http://www.example.org/ns" version="1.0">
+<xs:element name="address" type="tns:address"/>
+<xs:element name="checkAddress" type="tns:checkAddress"/>
+<xs:element name="checkAddress2" type="tns:checkAddress2"/>
+<xs:element name="checkAddress2Response" type="tns:checkAddress2Response"/>
+<xs:element name="checkAddressResponse" type="tns:checkAddressResponse"/>
+<xs:element name="checkAddressWithRefId" type="tns:checkAddressWithRefId"/>
+<xs:element name="checkAddressWithRefId2" type="tns:checkAddressWithRefId2"/>
+<xs:element name="checkAddressWithRefId2Response" type="tns:checkAddressWithRefId2Response"/>
+<xs:element name="checkAddressWithRefIdAndConfig" type="tns:checkAddressWithRefIdAndConfig"/>
+<xs:element name="checkAddressWithRefIdAndConfig2" type="tns:checkAddressWithRefIdAndConfig2"/>
+<xs:element name="checkAddressWithRefIdAndConfig2Response" type="tns:checkAddressWithRefIdAndConfig2Response"/>
+<xs:element name="checkAddressWithRefIdAndConfigResponse" type="tns:checkAddressWithRefIdAndConfigResponse"/>
+<xs:element name="checkAddressWithRefIdResponse" type="tns:checkAddressWithRefIdResponse"/>
+<xs:element name="checkDestination" type="tns:checkDestination"/>
+<xs:element name="checkDestinationResponse" type="tns:checkDestinationResponse"/>
+<xs:element name="destination" type="tns:destination"/>
+<xs:element name="getRouterCode" type="tns:getRouterCode"/>
+<xs:element name="getRouterCode2" type="tns:getRouterCode2"/>
+<xs:element name="getRouterCode2Response" type="tns:getRouterCode2Response"/>
+<xs:element name="getRouterCodeResponse" type="tns:getRouterCodeResponse"/>
+<xs:element name="getValidConfigs" type="tns:getValidConfigs"/>
+<xs:element name="getValidConfigsResponse" type="tns:getValidConfigsResponse"/>
+<xs:element name="suggestAddressForZip" type="tns:suggestAddressForZip"/>
+<xs:element name="suggestAddressForZip2" type="tns:suggestAddressForZip2"/>
+<xs:element name="suggestAddressForZip2Response" type="tns:suggestAddressForZip2Response"/>
+<xs:element name="suggestAddressForZipResponse" type="tns:suggestAddressForZipResponse"/>
+<xs:complexType name="checkAddressWithRefIdAndConfig">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="refId" type="xs:string"/>
+      <xs:element minOccurs="0" name="address" type="tns:customerAddress"/>
+      <xs:element minOccurs="0" name="checkerIds" type="tns:checkerIds"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="customerAddress">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="streetName" type="xs:string"/>
+      <xs:element minOccurs="0" name="houseNumber" type="xs:string"/>
+      <xs:element minOccurs="0" name="city" type="xs:string"/>
+      <xs:element minOccurs="0" name="zip" type="xs:string"/>
+      <xs:element minOccurs="0" name="countryCode" type="tns:isoCountryCode"/>
+      <xs:element minOccurs="0" name="additional" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkerIds">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" name="checkerId" type="xs:string"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="fallbackCheckerId" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddressWithRefIdAndConfigResponse">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressCheckResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="addressCheckResult">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="refId" type="xs:string"/>
+      <xs:element name="blacklisted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="status" type="tns:addressCheckResultType"/>
+      <xs:element minOccurs="0" name="address" type="tns:checkedDeliveryAddress"/>
+      <xs:element minOccurs="0" name="suggestedAddresses">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element maxOccurs="unbounded" minOccurs="0" name="address" type="tns:checkedDeliveryAddress"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkedDeliveryAddress">
+    <xs:complexContent>
+      <xs:extension base="tns:customerAddress">
+        <xs:sequence>
+          <xs:element minOccurs="0" name="splittedStreet" type="tns:street"/>
+          <xs:element minOccurs="0" name="similarity" type="tns:similarity"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+<xs:complexType name="street">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="name" type="xs:string"/>
+      <xs:element minOccurs="0" name="number" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="similarity">
+    <xs:sequence>
+      <xs:element name="citySimilarity" type="xs:double"/>
+      <xs:element name="levenshteinCity" type="xs:int"/>
+      <xs:element name="levenshteinStreet" type="xs:int"/>
+      <xs:element name="streetNameSimilarity" type="xs:double"/>
+      <xs:element name="totalSimilarity" type="xs:double"/>
+      <xs:element name="zipSimilarity" type="xs:double"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddress">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="address" type="tns:customerAddress"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddressResponse">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressCheckResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddressWithRefId">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="refId" type="xs:string"/>
+      <xs:element minOccurs="0" name="address" type="tns:customerAddress"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddressWithRefIdResponse">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressCheckResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddressWithRefId2">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="appDomainId" type="xs:int"/>
+      <xs:element minOccurs="0" name="callingService" type="xs:string"/>
+      <xs:element minOccurs="0" name="refId" type="xs:string"/>
+      <xs:element minOccurs="0" name="address" type="tns:customerAddress"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddressWithRefId2Response">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressCheckResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="getRouterCode2">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="appDomainId" type="xs:int"/>
+      <xs:element minOccurs="0" name="callingService" type="xs:string"/>
+      <xs:element minOccurs="0" name="shipmentProvider" type="tns:shipmentProvider"/>
+      <xs:element minOccurs="0" name="address" type="tns:customerAddress"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="getRouterCode2Response">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressRoutingCodeResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="addressRoutingCodeResult">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="addressRoutingCode" type="xs:string"/>
+      <xs:element name="meta" nillable="true">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element maxOccurs="unbounded" minOccurs="0" name="entry">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element minOccurs="0" name="key" type="xs:string"/>
+                  <xs:element minOccurs="0" name="value" type="xs:string"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element minOccurs="0" name="status" type="tns:addressRoutingCodeStatus"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="getRouterCode">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="shipmentProvider" type="tns:shipmentProvider"/>
+      <xs:element minOccurs="0" name="address" type="tns:customerAddress"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="getRouterCodeResponse">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressRoutingCodeResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddress2">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="appDomainId" type="xs:int"/>
+      <xs:element minOccurs="0" name="callingService" type="xs:string"/>
+      <xs:element minOccurs="0" name="address" type="tns:customerAddress"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddress2Response">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressCheckResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkDestination">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="appDomainId" type="xs:int"/>
+      <xs:element minOccurs="0" name="callingService" type="xs:string"/>
+      <xs:element minOccurs="0" name="destination" type="tns:destination"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="destination">
+    <xs:sequence>
+      <xs:element name="address" type="tns:address"/>
+      <xs:element minOccurs="0" name="servicePointId" nillable="true" type="xs:string"/>
+      <xs:element minOccurs="0" name="servicePointName" nillable="true" type="xs:string"/>
+      <xs:element minOccurs="0" name="servicePointMemberId" nillable="true" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="address">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="salutation" nillable="true" type="xs:string"/>
+      <xs:element minOccurs="0" name="firstName" nillable="true" type="xs:string"/>
+      <xs:element minOccurs="0" name="lastName" nillable="true" type="xs:string"/>
+      <xs:element name="countryCode" type="xs:string"/>
+      <xs:element name="city" type="xs:string"/>
+      <xs:element name="zip" type="xs:string"/>
+      <xs:element name="street" type="xs:string"/>
+      <xs:element minOccurs="0" name="additional" nillable="true" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkDestinationResponse">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressCheck"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="addressCheck">
+    <xs:sequence>
+      <xs:element name="blacklisted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="destination" type="tns:destination"/>
+      <xs:element minOccurs="0" name="normalizedAddress" type="tns:normalizedAddress"/>
+      <xs:element minOccurs="0" name="status" type="tns:status"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="normalizedAddress">
+    <xs:complexContent>
+      <xs:extension base="tns:address">
+        <xs:sequence>
+          <xs:element minOccurs="0" name="houseNumber" nillable="true" type="xs:string"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+<xs:complexType name="suggestAddressForZip">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="countryCode" type="xs:string"/>
+      <xs:element minOccurs="0" name="zip" type="xs:string"/>
+      <xs:element minOccurs="0" name="houseNumber" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="suggestAddressForZipResponse">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressSuggestionResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="addressSuggestionResult">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="status" type="tns:addressSuggestionStatus"/>
+      <xs:element name="totalResults" type="xs:int"/>
+      <xs:element minOccurs="0" name="suggestedAddresses">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element maxOccurs="unbounded" minOccurs="0" name="address" type="tns:addressSuggestion"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="addressSuggestion">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="city" type="xs:string"/>
+      <xs:element minOccurs="0" name="houseNumber" type="xs:string"/>
+      <xs:element minOccurs="0" name="street1" type="xs:string"/>
+      <xs:element minOccurs="0" name="street2" type="xs:string"/>
+      <xs:element minOccurs="0" name="zip" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="suggestAddressForZip2">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="appDomainId" type="xs:int"/>
+      <xs:element minOccurs="0" name="callingService" type="xs:string"/>
+      <xs:element minOccurs="0" name="countryCode" type="xs:string"/>
+      <xs:element minOccurs="0" name="zip" type="xs:string"/>
+      <xs:element minOccurs="0" name="houseNumber" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="suggestAddressForZip2Response">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressSuggestionResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddressWithRefIdAndConfig2">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="appDomainId" type="xs:int"/>
+      <xs:element minOccurs="0" name="callingService" type="xs:string"/>
+      <xs:element minOccurs="0" name="refId" type="xs:string"/>
+      <xs:element minOccurs="0" name="address" type="tns:customerAddress"/>
+      <xs:element minOccurs="0" name="checkerIds" type="tns:checkerIds"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="checkAddressWithRefIdAndConfig2Response">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:addressCheckResult"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="getValidConfigs">
+    <xs:sequence/>
+  </xs:complexType>
+<xs:complexType name="getValidConfigsResponse">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:validConfigs"/>
+    </xs:sequence>
+  </xs:complexType>
+<xs:complexType name="validConfigs">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="addressCheckers">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element maxOccurs="unbounded" name="addressChecker" type="xs:string"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element minOccurs="0" name="addressCheckerDecorators">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element maxOccurs="unbounded" name="addressCheckerDecorator" type="xs:string"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+<xs:simpleType name="isoCountryCode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="AF"/>
+      <xs:enumeration value="AX"/>
+      <xs:enumeration value="AL"/>
+      <xs:enumeration value="DZ"/>
+      <xs:enumeration value="AS"/>
+      <xs:enumeration value="AD"/>
+      <xs:enumeration value="AO"/>
+      <xs:enumeration value="AI"/>
+      <xs:enumeration value="AQ"/>
+      <xs:enumeration value="AG"/>
+      <xs:enumeration value="AR"/>
+      <xs:enumeration value="AM"/>
+      <xs:enumeration value="AW"/>
+      <xs:enumeration value="AU"/>
+      <xs:enumeration value="AT"/>
+      <xs:enumeration value="AZ"/>
+      <xs:enumeration value="BS"/>
+      <xs:enumeration value="BH"/>
+      <xs:enumeration value="BD"/>
+      <xs:enumeration value="BB"/>
+      <xs:enumeration value="BY"/>
+      <xs:enumeration value="BE"/>
+      <xs:enumeration value="BZ"/>
+      <xs:enumeration value="BJ"/>
+      <xs:enumeration value="BM"/>
+      <xs:enumeration value="BT"/>
+      <xs:enumeration value="BO"/>
+      <xs:enumeration value="BA"/>
+      <xs:enumeration value="BW"/>
+      <xs:enumeration value="BV"/>
+      <xs:enumeration value="BR"/>
+      <xs:enumeration value="IO"/>
+      <xs:enumeration value="BN"/>
+      <xs:enumeration value="BG"/>
+      <xs:enumeration value="BF"/>
+      <xs:enumeration value="BI"/>
+      <xs:enumeration value="KH"/>
+      <xs:enumeration value="CM"/>
+      <xs:enumeration value="CA"/>
+      <xs:enumeration value="CV"/>
+      <xs:enumeration value="KY"/>
+      <xs:enumeration value="CF"/>
+      <xs:enumeration value="TD"/>
+      <xs:enumeration value="CL"/>
+      <xs:enumeration value="CN"/>
+      <xs:enumeration value="CX"/>
+      <xs:enumeration value="CC"/>
+      <xs:enumeration value="CO"/>
+      <xs:enumeration value="KM"/>
+      <xs:enumeration value="CG"/>
+      <xs:enumeration value="CD"/>
+      <xs:enumeration value="CK"/>
+      <xs:enumeration value="CR"/>
+      <xs:enumeration value="CI"/>
+      <xs:enumeration value="HR"/>
+      <xs:enumeration value="CU"/>
+      <xs:enumeration value="CY"/>
+      <xs:enumeration value="CZ"/>
+      <xs:enumeration value="DK"/>
+      <xs:enumeration value="DJ"/>
+      <xs:enumeration value="DM"/>
+      <xs:enumeration value="DO"/>
+      <xs:enumeration value="EC"/>
+      <xs:enumeration value="EG"/>
+      <xs:enumeration value="SV"/>
+      <xs:enumeration value="GQ"/>
+      <xs:enumeration value="ER"/>
+      <xs:enumeration value="EE"/>
+      <xs:enumeration value="ET"/>
+      <xs:enumeration value="FK"/>
+      <xs:enumeration value="FO"/>
+      <xs:enumeration value="FJ"/>
+      <xs:enumeration value="FI"/>
+      <xs:enumeration value="FR"/>
+      <xs:enumeration value="GF"/>
+      <xs:enumeration value="PF"/>
+      <xs:enumeration value="TF"/>
+      <xs:enumeration value="GA"/>
+      <xs:enumeration value="GM"/>
+      <xs:enumeration value="GE"/>
+      <xs:enumeration value="DE"/>
+      <xs:enumeration value="GH"/>
+      <xs:enumeration value="GI"/>
+      <xs:enumeration value="GR"/>
+      <xs:enumeration value="GL"/>
+      <xs:enumeration value="GD"/>
+      <xs:enumeration value="GP"/>
+      <xs:enumeration value="GU"/>
+      <xs:enumeration value="GT"/>
+      <xs:enumeration value="GG"/>
+      <xs:enumeration value="GN"/>
+      <xs:enumeration value="GW"/>
+      <xs:enumeration value="GY"/>
+      <xs:enumeration value="HT"/>
+      <xs:enumeration value="HM"/>
+      <xs:enumeration value="VA"/>
+      <xs:enumeration value="HN"/>
+      <xs:enumeration value="HK"/>
+      <xs:enumeration value="HU"/>
+      <xs:enumeration value="IS"/>
+      <xs:enumeration value="IN"/>
+      <xs:enumeration value="ID"/>
+      <xs:enumeration value="IR"/>
+      <xs:enumeration value="IQ"/>
+      <xs:enumeration value="IE"/>
+      <xs:enumeration value="IM"/>
+      <xs:enumeration value="IL"/>
+      <xs:enumeration value="IT"/>
+      <xs:enumeration value="JM"/>
+      <xs:enumeration value="JP"/>
+      <xs:enumeration value="JE"/>
+      <xs:enumeration value="JO"/>
+      <xs:enumeration value="KZ"/>
+      <xs:enumeration value="KE"/>
+      <xs:enumeration value="KI"/>
+      <xs:enumeration value="KP"/>
+      <xs:enumeration value="KR"/>
+      <xs:enumeration value="KW"/>
+      <xs:enumeration value="KG"/>
+      <xs:enumeration value="LA"/>
+      <xs:enumeration value="LV"/>
+      <xs:enumeration value="LB"/>
+      <xs:enumeration value="LS"/>
+      <xs:enumeration value="LR"/>
+      <xs:enumeration value="LY"/>
+      <xs:enumeration value="LI"/>
+      <xs:enumeration value="LT"/>
+      <xs:enumeration value="LU"/>
+      <xs:enumeration value="MO"/>
+      <xs:enumeration value="MK"/>
+      <xs:enumeration value="MG"/>
+      <xs:enumeration value="MW"/>
+      <xs:enumeration value="MY"/>
+      <xs:enumeration value="MV"/>
+      <xs:enumeration value="ML"/>
+      <xs:enumeration value="MT"/>
+      <xs:enumeration value="MH"/>
+      <xs:enumeration value="MQ"/>
+      <xs:enumeration value="MR"/>
+      <xs:enumeration value="MU"/>
+      <xs:enumeration value="YT"/>
+      <xs:enumeration value="MX"/>
+      <xs:enumeration value="FM"/>
+      <xs:enumeration value="MD"/>
+      <xs:enumeration value="MC"/>
+      <xs:enumeration value="MN"/>
+      <xs:enumeration value="ME"/>
+      <xs:enumeration value="MS"/>
+      <xs:enumeration value="MA"/>
+      <xs:enumeration value="MZ"/>
+      <xs:enumeration value="MM"/>
+      <xs:enumeration value="NA"/>
+      <xs:enumeration value="NR"/>
+      <xs:enumeration value="NP"/>
+      <xs:enumeration value="NL"/>
+      <xs:enumeration value="AN"/>
+      <xs:enumeration value="NC"/>
+      <xs:enumeration value="NZ"/>
+      <xs:enumeration value="NI"/>
+      <xs:enumeration value="NE"/>
+      <xs:enumeration value="NG"/>
+      <xs:enumeration value="NU"/>
+      <xs:enumeration value="NF"/>
+      <xs:enumeration value="MP"/>
+      <xs:enumeration value="NO"/>
+      <xs:enumeration value="OM"/>
+      <xs:enumeration value="PK"/>
+      <xs:enumeration value="PW"/>
+      <xs:enumeration value="PS"/>
+      <xs:enumeration value="PA"/>
+      <xs:enumeration value="PG"/>
+      <xs:enumeration value="PY"/>
+      <xs:enumeration value="PE"/>
+      <xs:enumeration value="PH"/>
+      <xs:enumeration value="PN"/>
+      <xs:enumeration value="PL"/>
+      <xs:enumeration value="PT"/>
+      <xs:enumeration value="PR"/>
+      <xs:enumeration value="QA"/>
+      <xs:enumeration value="RE"/>
+      <xs:enumeration value="RO"/>
+      <xs:enumeration value="RU"/>
+      <xs:enumeration value="RW"/>
+      <xs:enumeration value="BL"/>
+      <xs:enumeration value="SH"/>
+      <xs:enumeration value="KN"/>
+      <xs:enumeration value="LC"/>
+      <xs:enumeration value="MF"/>
+      <xs:enumeration value="PM"/>
+      <xs:enumeration value="VC"/>
+      <xs:enumeration value="WS"/>
+      <xs:enumeration value="SM"/>
+      <xs:enumeration value="ST"/>
+      <xs:enumeration value="SA"/>
+      <xs:enumeration value="SN"/>
+      <xs:enumeration value="RS"/>
+      <xs:enumeration value="SC"/>
+      <xs:enumeration value="SL"/>
+      <xs:enumeration value="SG"/>
+      <xs:enumeration value="SK"/>
+      <xs:enumeration value="SI"/>
+      <xs:enumeration value="SB"/>
+      <xs:enumeration value="SO"/>
+      <xs:enumeration value="ZA"/>
+      <xs:enumeration value="GS"/>
+      <xs:enumeration value="ES"/>
+      <xs:enumeration value="LK"/>
+      <xs:enumeration value="SD"/>
+      <xs:enumeration value="SR"/>
+      <xs:enumeration value="SJ"/>
+      <xs:enumeration value="SZ"/>
+      <xs:enumeration value="SE"/>
+      <xs:enumeration value="CH"/>
+      <xs:enumeration value="SY"/>
+      <xs:enumeration value="TW"/>
+      <xs:enumeration value="TJ"/>
+      <xs:enumeration value="TZ"/>
+      <xs:enumeration value="TH"/>
+      <xs:enumeration value="TL"/>
+      <xs:enumeration value="TG"/>
+      <xs:enumeration value="TK"/>
+      <xs:enumeration value="TO"/>
+      <xs:enumeration value="TT"/>
+      <xs:enumeration value="TN"/>
+      <xs:enumeration value="TR"/>
+      <xs:enumeration value="TM"/>
+      <xs:enumeration value="TC"/>
+      <xs:enumeration value="TV"/>
+      <xs:enumeration value="UG"/>
+      <xs:enumeration value="UA"/>
+      <xs:enumeration value="AE"/>
+      <xs:enumeration value="GB"/>
+      <xs:enumeration value="US"/>
+      <xs:enumeration value="UM"/>
+      <xs:enumeration value="UY"/>
+      <xs:enumeration value="UZ"/>
+      <xs:enumeration value="VU"/>
+      <xs:enumeration value="VE"/>
+      <xs:enumeration value="VN"/>
+      <xs:enumeration value="VG"/>
+      <xs:enumeration value="VI"/>
+      <xs:enumeration value="WF"/>
+      <xs:enumeration value="EH"/>
+      <xs:enumeration value="YE"/>
+      <xs:enumeration value="ZM"/>
+      <xs:enumeration value="ZW"/>
+    </xs:restriction>
+  </xs:simpleType>
+<xs:simpleType name="addressCheckResultType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="NOT_FOUND"/>
+      <xs:enumeration value="NOT_CORRECT"/>
+      <xs:enumeration value="CORRECT"/>
+      <xs:enumeration value="NORMALIZED"/>
+    </xs:restriction>
+  </xs:simpleType>
+<xs:simpleType name="shipmentProvider">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="DHL"/>
+      <xs:enumeration value="UPS"/>
+      <xs:enumeration value="TBP"/>
+      <xs:enumeration value="KIA"/>
+      <xs:enumeration value="BAR"/>
+      <xs:enumeration value="YOD"/>
+      <xs:enumeration value="LAP"/>
+      <xs:enumeration value="TNT"/>
+      <xs:enumeration value="TNP"/>
+      <xs:enumeration value="PNO"/>
+      <xs:enumeration value="OPK"/>
+      <xs:enumeration value="COL"/>
+      <xs:enumeration value="HMS"/>
+      <xs:enumeration value="DWP"/>
+      <xs:enumeration value="PCS"/>
+      <xs:enumeration value="BPH"/>
+      <xs:enumeration value="BPP"/>
+      <xs:enumeration value="BPS"/>
+      <xs:enumeration value="CLH"/>
+      <xs:enumeration value="CLP"/>
+      <xs:enumeration value="HMP"/>
+      <xs:enumeration value="PNP"/>
+      <xs:enumeration value="PNG"/>
+      <xs:enumeration value="PCP"/>
+    </xs:restriction>
+  </xs:simpleType>
+<xs:simpleType name="addressRoutingCodeStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="SUCCESS"/>
+      <xs:enumeration value="NOT_FOUND"/>
+      <xs:enumeration value="ERROR"/>
+      <xs:enumeration value="INVALID_INPUT"/>
+    </xs:restriction>
+  </xs:simpleType>
+<xs:simpleType name="status">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="https://docs.riskmgmt.example.org/address/correct"/>
+      <xs:enumeration value="https://docs.riskmgmt.example.org/address/not-correct"/>
+      <xs:enumeration value="https://docs.riskmgmt.example.org/address/normalized"/>
+    </xs:restriction>
+  </xs:simpleType>
+<xs:simpleType name="addressSuggestionStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="SUCCESS"/>
+      <xs:enumeration value="SUCCESS_LIMITED"/>
+      <xs:enumeration value="ZIP_NOT_FOUND"/>
+      <xs:enumeration value="INVALID_INPUT"/>
+      <xs:enumeration value="FAILURE"/>
+      <xs:enumeration value="SUCCESS_EMPTY"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>
+  </wsdl:types>
+  <wsdl:message name="getRouterCodeResponse">
+    <wsdl:part element="tns:getRouterCodeResponse" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="suggestAddressForZipResponse">
+    <wsdl:part element="tns:suggestAddressForZipResponse" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddressWithRefIdAndConfigResponse">
+    <wsdl:part element="tns:checkAddressWithRefIdAndConfigResponse" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddressWithRefIdAndConfig2Response">
+    <wsdl:part element="tns:checkAddressWithRefIdAndConfig2Response" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddressWithRefIdAndConfig">
+    <wsdl:part element="tns:checkAddressWithRefIdAndConfig" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddress">
+    <wsdl:part element="tns:checkAddress" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getValidConfigsResponse">
+    <wsdl:part element="tns:getValidConfigsResponse" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getRouterCode2Response">
+    <wsdl:part element="tns:getRouterCode2Response" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddressWithRefId">
+    <wsdl:part element="tns:checkAddressWithRefId" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddressWithRefId2">
+    <wsdl:part element="tns:checkAddressWithRefId2" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkDestinationResponse">
+    <wsdl:part element="tns:checkDestinationResponse" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="suggestAddressForZip2Response">
+    <wsdl:part element="tns:suggestAddressForZip2Response" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getRouterCode2">
+    <wsdl:part element="tns:getRouterCode2" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getRouterCode">
+    <wsdl:part element="tns:getRouterCode" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddress2">
+    <wsdl:part element="tns:checkAddress2" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkDestination">
+    <wsdl:part element="tns:checkDestination" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddressWithRefIdResponse">
+    <wsdl:part element="tns:checkAddressWithRefIdResponse" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="suggestAddressForZip">
+    <wsdl:part element="tns:suggestAddressForZip" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddressWithRefId2Response">
+    <wsdl:part element="tns:checkAddressWithRefId2Response" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="suggestAddressForZip2">
+    <wsdl:part element="tns:suggestAddressForZip2" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddressWithRefIdAndConfig2">
+    <wsdl:part element="tns:checkAddressWithRefIdAndConfig2" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddress2Response">
+    <wsdl:part element="tns:checkAddress2Response" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="checkAddressResponse">
+    <wsdl:part element="tns:checkAddressResponse" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getValidConfigs">
+    <wsdl:part element="tns:getValidConfigs" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:portType name="AddressCheckWebService">
+    <wsdl:operation name="checkAddressWithRefIdAndConfig">
+      <wsdl:input message="tns:checkAddressWithRefIdAndConfig" name="checkAddressWithRefIdAndConfig">
+    </wsdl:input>
+      <wsdl:output message="tns:checkAddressWithRefIdAndConfigResponse" name="checkAddressWithRefIdAndConfigResponse">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddress">
+      <wsdl:input message="tns:checkAddress" name="checkAddress">
+    </wsdl:input>
+      <wsdl:output message="tns:checkAddressResponse" name="checkAddressResponse">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddressWithRefId">
+      <wsdl:input message="tns:checkAddressWithRefId" name="checkAddressWithRefId">
+    </wsdl:input>
+      <wsdl:output message="tns:checkAddressWithRefIdResponse" name="checkAddressWithRefIdResponse">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddressWithRefId2">
+<wsdl:documentation>Returns the result of address check based on the country specific checker (callingService is used for logging a service that called the method (e.g.riskmgmt)</wsdl:documentation>
+      <wsdl:input message="tns:checkAddressWithRefId2" name="checkAddressWithRefId2">
+    </wsdl:input>
+      <wsdl:output message="tns:checkAddressWithRefId2Response" name="checkAddressWithRefId2Response">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="getRouterCode2">
+<wsdl:documentation>Returns the routing code with its status for specified shipment provider and address (callingService is used for logging a service that called the method (e.g.riskmgmt)</wsdl:documentation>
+      <wsdl:input message="tns:getRouterCode2" name="getRouterCode2">
+    </wsdl:input>
+      <wsdl:output message="tns:getRouterCode2Response" name="getRouterCode2Response">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="getRouterCode">
+      <wsdl:input message="tns:getRouterCode" name="getRouterCode">
+    </wsdl:input>
+      <wsdl:output message="tns:getRouterCodeResponse" name="getRouterCodeResponse">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddress2">
+<wsdl:documentation>Returns the result of address check based on the internally generated refId and country specific checker (callingService is used for logging a service that called the method (e.g.riskmgmt)</wsdl:documentation>
+      <wsdl:input message="tns:checkAddress2" name="checkAddress2">
+    </wsdl:input>
+      <wsdl:output message="tns:checkAddress2Response" name="checkAddress2Response">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkDestination">
+<wsdl:documentation>Returns the address check for specific destination</wsdl:documentation>
+      <wsdl:input message="tns:checkDestination" name="checkDestination">
+    </wsdl:input>
+      <wsdl:output message="tns:checkDestinationResponse" name="checkDestinationResponse">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="suggestAddressForZip">
+      <wsdl:input message="tns:suggestAddressForZip" name="suggestAddressForZip">
+    </wsdl:input>
+      <wsdl:output message="tns:suggestAddressForZipResponse" name="suggestAddressForZipResponse">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="suggestAddressForZip2">
+<wsdl:documentation>Returns a list of suggested Addresses for a given ZIP (callingService is used for logging a service that called the method (e.g.riskmgmt)</wsdl:documentation>
+      <wsdl:input message="tns:suggestAddressForZip2" name="suggestAddressForZip2">
+    </wsdl:input>
+      <wsdl:output message="tns:suggestAddressForZip2Response" name="suggestAddressForZip2Response">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddressWithRefIdAndConfig2">
+<wsdl:documentation>Returns the result of address check based on the specified checker (e.g. stored, google) (callingService is used for logging a service that called the method (e.g.riskmgmt))</wsdl:documentation>
+      <wsdl:input message="tns:checkAddressWithRefIdAndConfig2" name="checkAddressWithRefIdAndConfig2">
+    </wsdl:input>
+      <wsdl:output message="tns:checkAddressWithRefIdAndConfig2Response" name="checkAddressWithRefIdAndConfig2Response">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="getValidConfigs">
+      <wsdl:input message="tns:getValidConfigs" name="getValidConfigs">
+    </wsdl:input>
+      <wsdl:output message="tns:getValidConfigsResponse" name="getValidConfigsResponse">
+    </wsdl:output>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="AddressCheckWebServiceServiceSoapBinding" type="tns:AddressCheckWebService">
+    <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="checkAddressWithRefIdAndConfig">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="checkAddressWithRefIdAndConfig">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="checkAddressWithRefIdAndConfigResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddress">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="checkAddress">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="checkAddressResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddressWithRefId">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="checkAddressWithRefId">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="checkAddressWithRefIdResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddressWithRefId2">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="checkAddressWithRefId2">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="checkAddressWithRefId2Response">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="getRouterCode2">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="getRouterCode2">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getRouterCode2Response">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="getRouterCode">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="getRouterCode">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getRouterCodeResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddress2">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="checkAddress2">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="checkAddress2Response">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkDestination">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="checkDestination">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="checkDestinationResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="suggestAddressForZip">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="suggestAddressForZip">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="suggestAddressForZipResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="suggestAddressForZip2">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="suggestAddressForZip2">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="suggestAddressForZip2Response">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="checkAddressWithRefIdAndConfig2">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="checkAddressWithRefIdAndConfig2">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="checkAddressWithRefIdAndConfig2Response">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="getValidConfigs">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="getValidConfigs">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getValidConfigsResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="AddressCheckWebServiceService">
+    <wsdl:port binding="tns:AddressCheckWebServiceServiceSoapBinding" name="AddressCheckWebServicePort">
+      <soap:address location="http://localhost:8080/ws/check/address"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>
