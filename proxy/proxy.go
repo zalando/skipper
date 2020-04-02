@@ -1251,8 +1251,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	case ok && perr.err == errRatelimit:
 		code = perr.code
 	case code == 499:
+		ctx.proxyErr = fmt.Errorf("client canceled after %v, route %s with backend %s %s: %v", time.Since(ctx.startServe), id, backendType, backend, err)
 		p.log.Errorf("client canceled after %v, route %s with backend %s %s, flow id %s, status code %d: %v", time.Since(ctx.startServe), id, backendType, backend, flowId, code, err)
 	default:
+		ctx.proxyErr = fmt.Errorf("error while proxying after %v, route %s with backend %s %s: %v", time.Since(ctx.startServe), id, backendType, backend, err)
 		p.log.Errorf("error while proxying after %v, route %s with backend %s %s, flow id %s, status code %d: %v", time.Since(ctx.startServe), id, backendType, backend, flowId, code, err)
 	}
 
@@ -1321,6 +1323,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				StatusCode:   statusCode,
 				RequestTime:  ctx.startServe,
 				Duration:     time.Since(ctx.startServe),
+				ProxyErr:     ctx.proxyErr,
 			}
 
 			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})

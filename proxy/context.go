@@ -41,6 +41,7 @@ type context struct {
 	tracer               opentracing.Tracer
 	proxySpan            opentracing.Span
 	parentSpan           opentracing.Span
+	proxyErr             error
 
 	routeLookup *routing.RouteLookup
 }

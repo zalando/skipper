@@ -19,8 +19,8 @@ const (
 	// format:
 	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
-	// We add the duration in ms, a requested host and a flow id and audit log
-	accessLogFormat = combinedLogFormat + " %d %s %s %s\n"
+	// We add the duration in ms, a requested host and a flow id and audit log and a possible error
+	accessLogFormat = combinedLogFormat + ` %d %s %s %s "%s"` + "\n"
 )
 
 type accessLogFormatter struct {
@@ -44,6 +44,9 @@ type AccessEntry struct {
 
 	// The time that the request was received.
 	RequestTime time.Time
+
+	// Error that occurred while proxying the request
+	ProxyErr error
 }
 
 // TODO: create individual instances from the access log and
@@ -90,7 +93,7 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	keys := []string{
 		"host", "timestamp", "method", "uri", "proto",
 		"status", "response-size", "referer", "user-agent",
-		"duration", "requested-host", "flow-id", "audit"}
+		"duration", "requested-host", "flow-id", "audit", "error"}
 
 	values := make([]interface{}, len(keys))
 	for i, key := range keys {
@@ -129,6 +132,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 	userAgent := ""
 	requestedHost := ""
 	flowId := ""
+	error := ""
 	var auditHeader string
 
 	status := entry.StatusCode
@@ -143,6 +147,9 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		userAgent = entry.Request.UserAgent()
 		requestedHost = entry.Request.Host
 		flowId = entry.Request.Header.Get(flowidFilter.HeaderName)
+		if entry.ProxyErr != nil {
+			error = entry.ProxyErr.Error()
+		}
 
 		uri = entry.Request.RequestURI
 		if stripQuery {
@@ -166,6 +173,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		"duration":       duration,
 		"flow-id":        flowId,
 		"audit":          auditHeader,
+		"error":          error,
 	}
 
 	for k, v := range additional {
