@@ -251,7 +251,7 @@ func (e *editor) Read(p []byte) (int, error) {
 		return 0, ErrClosed
 	}
 
-	if e.err != nil {
+	if e.ready.Len() == 0 && e.err != nil {
 		return 0, e.err
 	}
 
@@ -264,7 +264,7 @@ func (e *editor) Read(p []byte) (int, error) {
 	}
 
 	n, _ := e.ready.Read(p)
-	if n == 0 && e.err != nil {
+	if n == 0 && len(p) > 0 && e.err != nil {
 		return 0, e.err
 	}
 
