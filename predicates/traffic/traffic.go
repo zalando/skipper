@@ -102,7 +102,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 
 	p := &predicate{}
 
-	if c, ok := args[0].(float64); ok && 0.0 <= c && c < 1.0 {
+	if c, ok := args[0].(float64); ok && 0.0 <= c {
 		p.chance = c
 	} else {
 		return nil, predicates.ErrInvalidPredicateParameters
