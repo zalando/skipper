@@ -9,7 +9,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/traffic"
 )
 
@@ -219,7 +218,7 @@ func convertPathRule(
 		if err != nil {
 			return nil, err
 		}
-		err = setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+		err = setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.priority)
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +245,7 @@ func convertPathRule(
 		if err != nil {
 			return nil, err
 		}
-		err = setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+		err = setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.priority)
 		if err != nil {
 			return nil, err
 		}
@@ -264,14 +263,14 @@ func convertPathRule(
 	if err != nil {
 		return nil, err
 	}
-	err = setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+	err = setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.priority)
 	if err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-func setTraffic(r *eskip.Route, svcName string, weight float64, noopCount int) error {
+func setTraffic(r *eskip.Route, svcName string, weight float64, priority int) error {
 	// add traffic predicate if traffic weight is between 0.0 and 1.0
 	if 0.0 < weight && weight < 1.0 {
 		err := r.AppendPredicate(&eskip.Predicate{
@@ -284,10 +283,10 @@ func setTraffic(r *eskip.Route, svcName string, weight float64, noopCount int) e
 		log.Debugf("Traffic weight %.2f for backend '%s'", weight, svcName)
 	}
 
-	for i := 0; i < noopCount; i++ {
+	if priority > 0 {
 		err := r.AppendPredicate(&eskip.Predicate{
-			Name: primitive.NameTrue,
-			Args: []interface{}{},
+			Name: "Weight",
+			Args: []interface{}{priority},
 		})
 		if err != nil {
 			return err
@@ -475,7 +474,7 @@ func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 				// noops are required to make sure that routes are in order selected by
 				// routing tree
 				if sc.weightsCount > 2 {
-					path.Backend.noopCount = sc.weightsCount - 2
+					path.Backend.priority = sc.weightsCount - 2
 				}
 				sc.weightsCount--
 			} else if sc.sum == 0 && sc.count > 0 {

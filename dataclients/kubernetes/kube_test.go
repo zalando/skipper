@@ -2702,7 +2702,7 @@ func TestComputeBackendWeights(t *testing.T) {
 							Backend: &backend{
 								ServiceName: "foo",
 								Traffic:     0.2,
-								noopCount:   1,
+								priority:    1,
 							},
 						},
 						{
@@ -2768,7 +2768,7 @@ func TestComputeBackendWeights(t *testing.T) {
 							Backend: &backend{
 								ServiceName: "foo",
 								Traffic:     0.25,
-								noopCount:   2,
+								priority:    2,
 							},
 						},
 						{
@@ -2776,7 +2776,7 @@ func TestComputeBackendWeights(t *testing.T) {
 							Backend: &backend{
 								ServiceName: "bar",
 								Traffic:     0.6,
-								noopCount:   1,
+								priority:    1,
 							},
 						},
 						{
