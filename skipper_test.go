@@ -99,7 +99,9 @@ func TestWithWrongCertPathFails(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing: rt,
+	})
 	defer proxy.Close()
 
 	err = listenAndServe(proxy, &o)
@@ -124,7 +126,9 @@ func TestWithWrongKeyPathFails(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing: rt,
+	})
 	defer proxy.Close()
 	err = listenAndServe(proxy, &o)
 	if err == nil {
@@ -155,7 +159,9 @@ func TestHTTPSServer(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing: rt,
+	})
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 
@@ -194,7 +200,9 @@ func TestHTTPServer(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing: rt,
+	})
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 	r, err := waitConnGet("http://" + o.Address)
@@ -235,7 +243,9 @@ func TestHTTPServerShutdown(t *testing.T) {
 	})
 	defer rt.Close()
 
-	proxy := proxy.New(rt, proxy.OptionsNone)
+	proxy := proxy.WithParams(proxy.Params{
+		Routing: rt,
+	})
 	defer proxy.Close()
 	go func() {
 		if errLas := listenAndServe(proxy, &o); errLas != nil {

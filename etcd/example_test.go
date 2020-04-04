@@ -42,6 +42,8 @@ func Example() {
 	defer rt.Close()
 
 	// create http.Handler:
-	p := proxy.New(rt, proxy.OptionsNone)
+	p := proxy.WithParams(proxy.Params{
+		Routing: rt,
+	})
 	defer p.Close()
 }

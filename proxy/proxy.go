@@ -575,17 +575,6 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 	return con, nil
 }
 
-// New returns an initialized Proxy.
-// Deprecated, see WithParams and Params instead.
-func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
-	return WithParams(Params{
-		Routing:              r,
-		Flags:                Flags(options),
-		PriorityRoutes:       pr,
-		CloseIdleConnsPeriod: -time.Second,
-	})
-}
-
 // WithParams returns an initialized Proxy.
 func WithParams(p Params) *Proxy {
 	if p.IdleConnectionsPerHost <= 0 {
