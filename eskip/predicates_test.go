@@ -39,6 +39,14 @@ func TestValidatePredicates(t *testing.T) {
 			},
 			expectedErr: fmt.Errorf("predicate of type %s cannot be mixed with predicate of type %s", "Path", "PathSubtree"),
 		},
+		{
+			title: "method and methods conflict",
+			predicates: []*Predicate{
+				{Name: "Method", Args: []interface{}{"GET"}},
+				{Name: "Methods", Args: []interface{}{"GET", "POST"}},
+			},
+			expectedErr: fmt.Errorf("predicate of type %s cannot be mixed with predicate of type %s", "Method", "Methods"),
+		},
 	} {
 		t.Run(test.title, func(t *testing.T) {
 			err := ValidatePredicates(test.predicates)

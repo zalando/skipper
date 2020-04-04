@@ -62,6 +62,10 @@ func ValidatePredicates(pp []*Predicate) error {
 		return fmt.Errorf("predicate of type %s cannot be mixed with predicate of type %s", "Path", "PathSubtree")
 	}
 
+	if counts["Method"] > 0 && counts["Methods"] > 0 {
+		return fmt.Errorf("predicate of type %s cannot be mixed with predicate of type %s", "Method", "Methods")
+	}
+
 	return nil
 }
 
