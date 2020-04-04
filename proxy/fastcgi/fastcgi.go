@@ -32,6 +32,9 @@ func NewRoundTripper(log logging.Logger, addr, filename string) (*RoundTripper, 
 			return func(client gofast.Client, req *gofast.Request) (*gofast.ResponsePipe, error) {
 				req.Params["SERVER_SOFTWARE"] = "Skipper"
 
+				// Gofast sets this param to `fastcgi` which is not what the backend will expect.
+				delete(req.Params, "REQUEST_SCHEME")
+
 				return handler(client, req)
 			}
 		},
