@@ -902,6 +902,12 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			return nil, &proxyError{err: err}
 		}
 
+		// FastCgi expects the Host to be in form host:port
+		// It will then be split and added as 2 separate params to the backend process
+		if _, _, err := net.SplitHostPort(req.Host); err != nil {
+			req.Host = req.Host + ":" + req.URL.Port()
+		}
+
 		// RemoteAddr is needed to pass to the backend process as param
 		req.RemoteAddr = ctx.request.RemoteAddr
 
