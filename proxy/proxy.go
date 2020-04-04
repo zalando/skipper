@@ -14,6 +14,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
@@ -1252,20 +1253,87 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 	if ok && len(perr.additionalHeader) > 0 {
 		copyHeader(ctx.responseWriter.Header(), perr.additionalHeader)
-
 	}
+
 	switch {
 	case err == errRouteLookupFailed:
 		code = p.defaultHTTPStatus
 	case ok && perr.err == errRatelimit:
 		code = perr.code
 	case code == 499:
-		p.log.Errorf("client canceled after %v, route %s with backend %s %s, flow id %s, status code %d: %v", time.Since(ctx.startServe), id, backendType, backend, flowId, code, err)
+		req := ctx.Request()
+		remoteAddr := remoteHost(req)
+		uri := req.RequestURI
+		if i := strings.IndexRune(uri, '?'); i >= 0 {
+			uri = uri[:i]
+		}
+
+		p.log.Errorf(
+			`client canceled after %v, route %s with backend %s %s, flow id %s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
+			time.Since(ctx.startServe),
+			id,
+			backendType,
+			backend,
+			flowId,
+			code,
+			err,
+			remoteAddr,
+			req.Method,
+			uri,
+			req.Proto,
+			req.UserAgent(),
+		)
 	default:
-		p.log.Errorf("error while proxying after %v, route %s with backend %s %s, flow id %s, status code %d: %v", time.Since(ctx.startServe), id, backendType, backend, flowId, code, err)
+		req := ctx.Request()
+		remoteAddr := remoteHost(req)
+		uri := req.RequestURI
+		if i := strings.IndexRune(uri, '?'); i >= 0 {
+			uri = uri[:i]
+		}
+
+		p.log.Errorf(
+			`error while proxying after %v, route %s with backend %s %s, flow id %s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
+			time.Since(ctx.startServe),
+			id,
+			backendType,
+			backend,
+			flowId,
+			code,
+			err,
+			remoteAddr,
+			req.Method,
+			uri,
+			req.Proto,
+			req.UserAgent(),
+		)
 	}
 
 	p.sendError(ctx, id, code)
+}
+
+// strip port from addresses with hostname, ipv4 or ipv6
+func stripPort(address string) string {
+	if h, _, err := net.SplitHostPort(address); err == nil {
+		return h
+	}
+
+	return address
+}
+
+// The remote address of the client. When the 'X-Forwarded-For'
+// header is set, then it is used instead.
+func remoteAddr(r *http.Request) string {
+	ff := r.Header.Get("X-Forwarded-For")
+	if ff != "" {
+		return ff
+	}
+
+	return r.RemoteAddr
+}
+
+func remoteHost(r *http.Request) string {
+	a := remoteAddr(r)
+	return stripPort(a)
 }
 
 func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
