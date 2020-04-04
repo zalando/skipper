@@ -902,6 +902,9 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 			return nil, &proxyError{err: err}
 		}
 
+		// RemoteAddr is needed to pass to the backend process as param
+		req.RemoteAddr = ctx.request.RemoteAddr
+
 		response, err = rt.RoundTrip(req)
 		if err != nil {
 			p.log.Errorf("Failed to roundtrip to fastcgi: %v", err)
