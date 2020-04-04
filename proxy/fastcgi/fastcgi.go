@@ -24,12 +24,23 @@ func NewRoundTripper(log logging.Logger, addr, filename string) (*RoundTripper, 
 		return nil, fmt.Errorf("gofast: failed creating client: %w", err)
 	}
 
-	handler := gofast.NewFileEndpoint(filename)(gofast.BasicSession)
+	chain := gofast.Chain(
+		gofast.BasicParamsMap,
+		gofast.MapHeader,
+		gofast.MapEndpoint(filename),
+		func(handler gofast.SessionHandler) gofast.SessionHandler {
+			return func(client gofast.Client, req *gofast.Request) (*gofast.ResponsePipe, error) {
+				req.Params["SERVER_SOFTWARE"] = "Skipper"
+
+				return handler(client, req)
+			}
+		},
+	)
 
 	return &RoundTripper{
 		log:     log,
 		client:  client,
-		handler: handler,
+		handler: chain(gofast.BasicSession),
 	}, nil
 }
 
