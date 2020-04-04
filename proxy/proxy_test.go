@@ -157,7 +157,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 	rt := routing.New(opts)
 
 	params.Routing = rt
-	p := WithParams(params)
+	p := New(params)
 	p.log = tl
 
 	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
@@ -1630,13 +1630,13 @@ func TestSettingDefaultHTTPStatus(t *testing.T) {
 	params := Params{
 		DefaultHTTPStatus: http.StatusBadGateway,
 	}
-	p := WithParams(params)
+	p := New(params)
 	if p.defaultHTTPStatus != http.StatusBadGateway {
 		t.Errorf("expected default HTTP status %d, got %d", http.StatusBadGateway, p.defaultHTTPStatus)
 	}
 
 	params.DefaultHTTPStatus = http.StatusNetworkAuthenticationRequired + 1
-	p = WithParams(params)
+	p = New(params)
 	if p.defaultHTTPStatus != http.StatusNotFound {
 		t.Errorf("expected default HTTP status %d, got %d", http.StatusNotFound, p.defaultHTTPStatus)
 	}

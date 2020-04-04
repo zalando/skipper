@@ -300,7 +300,7 @@ type PriorityRoute interface {
 }
 
 // Proxy instances implement Skipper proxying functionality. For
-// initializing, see the WithParams the constructor and Params.
+// initializing, see the New the constructor and Params.
 type Proxy struct {
 	experimentalUpgrade      bool
 	experimentalUpgradeAudit bool
@@ -575,8 +575,8 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 	return con, nil
 }
 
-// WithParams returns an initialized Proxy.
-func WithParams(p Params) *Proxy {
+// New returns an initialized Proxy.
+func New(p Params) *Proxy {
 	if p.IdleConnectionsPerHost <= 0 {
 		p.IdleConnectionsPerHost = DefaultIdleConnsPerHost
 	}

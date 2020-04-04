@@ -366,7 +366,7 @@ func TestAuditLogging(t *testing.T) {
 			}
 
 			auditHook := make(chan struct{}, 1)
-			p := WithParams(Params{
+			p := New(Params{
 				Routing:                  rt,
 				ExperimentalUpgrade:      true,
 				ExperimentalUpgradeAudit: enabled,

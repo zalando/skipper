@@ -44,7 +44,7 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 	rt := routing.New(routingOptions)
 	proxyParams.Routing = rt
 
-	pr := proxy.WithParams(proxyParams)
+	pr := proxy.New(proxyParams)
 	tsp := httptest.NewServer(pr)
 
 	if err := tl.WaitFor("route settings applied", 3*time.Second); err != nil {

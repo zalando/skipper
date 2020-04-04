@@ -1200,7 +1200,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if o.DebugListener != "" {
 		do := proxyParams
 		do.Flags |= proxy.Debug
-		dbg := proxy.WithParams(do)
+		dbg := proxy.New(do)
 		log.Infof("debug listener on %v", o.DebugListener)
 		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
 	}
@@ -1243,7 +1243,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	// create the proxy
-	proxy := proxy.WithParams(proxyParams)
+	proxy := proxy.New(proxyParams)
 	defer proxy.Close()
 
 	for _, startupCheckURL := range o.StatusChecks {
