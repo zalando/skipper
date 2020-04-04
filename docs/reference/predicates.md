@@ -152,34 +152,19 @@ route1: Path("/test") && Weight(100) -> "http://www.zalando.de";
 route2: Path("/test") && True() && True() -> "http://www.zalando.de";
 ```
 
-## Method
-
-The HTTP method that the request must match. HTTP methods are one of
-GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT.
-
-Parameters:
-
-* Method (string)
-
-Examples:
-
-```
-Method("GET")
-Method("OPTIONS")
-```
-
-## Methods
+## Method / Methods
 
 The HTTP method that the request must match. HTTP methods are one of
 GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT, TRACE.
 
 Parameters:
 
-* Method (...string) methods names
+* Methods (...string) methods names
 
 Examples:
 
 ```
+Method("GET")
 Methods("GET")
 Methods("OPTIONS", "POST")
 Methods("OPTIONS", "POST", "patch")
