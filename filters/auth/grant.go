@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -18,55 +16,12 @@ import (
 )
 
 const (
-	OAuthGrantName       = "oauthGrant"
-	OAuthGrantCookieName = "oauth-token"
+	OAuthGrantName = "oauthGrant"
 
-	bearerPrefix           = "Bearer "
-	secretsRefreshInternal = time.Minute
-	oauthGrantTokenKey     = "oauth-grant-token"
+	bearerPrefix              = "Bearer "
+	secretsRefreshInternal    = time.Minute
+	oauthGrantRefreshTokenKey = "oauth-grant-token"
 )
-
-type OAuthConfig struct {
-
-	// TokeninfoURL is the URL of the service to validate OAuth2 tokens.
-	TokeninfoURL string
-
-	// Secrets is a secret registry to access secret keys used for encrypting
-	// auth flow state and auth cookies.
-	Secrets *secrets.Registry
-
-	// SecretsName contains the name to the encryption key for the authentication
-	// cookie and grant flow state stored in Secrets.
-	SecretFile string
-
-	// AuthURL, the url to redirect the requests to when login is require.
-	AuthURL string
-
-	// TokenURL, the url where the access code should be exchanged for the
-	// access token.
-	TokenURL string
-
-	// ClientID, the OAuth2 client id of the current service, used to exchange
-	// the access code.
-	ClientID string
-
-	// ClientSecret, the secret associated with the ClientID, used to exchange
-	// the access code.
-	ClientSecret string
-
-	// TokeninfoClient, optional. When set, it will be used for the
-	// authorization requests to TokeninfoURL. When not set, a new default
-	// client is created.
-	TokeninfoClient *http.Client
-
-	// AuthClient, optional. When set, it will be used for the
-	// access code exchange requests to TokenURL. When not set, a new default
-	// client is created.
-	AuthClient *http.Client
-
-	// DisableRefresh prevents refreshing the token.
-	DisableRefresh bool
-}
 
 type cookie struct {
 	AccessToken  string    `json:"access_token"`
@@ -75,62 +30,21 @@ type cookie struct {
 	RefreshAfter time.Time `json:"refresh_after,omitempty"`
 }
 
-type spec struct {
-	config      OAuthConfig
-	oauthConfig *oauth2.Config
-	flowState   *flowState
+type grantSpec struct {
+	config OAuthConfig
 }
 
-type filter struct {
-	config      OAuthConfig
-	oauthConfig *oauth2.Config
-	flowState   *flowState
+type grantFilter struct {
+	config OAuthConfig
 }
 
-var (
-	ErrMissingSecretsRegistry = errors.New("missing secrets registry")
-	ErrMissingTokeninfoURL    = errors.New("missing tokeninfo URL")
-	ErrMissingProviderURLs    = errors.New("missing provider URLs")
-)
+func (s grantSpec) Name() string { return OAuthGrantName }
 
-func NewGrant(c OAuthConfig) (filters.Spec, error) {
-	if c.TokeninfoURL == "" {
-		return nil, ErrMissingTokeninfoURL
-	}
-
-	if c.AuthURL == "" || c.TokenURL == "" {
-		return nil, ErrMissingProviderURLs
-	}
-
-	if c.Secrets == nil {
-		return nil, ErrMissingSecretsRegistry
-	}
-
-	return &spec{
-		config:    c,
-		flowState: newFlowState(c.Secrets, c.SecretFile),
-		oauthConfig: &oauth2.Config{
-			Endpoint: oauth2.Endpoint{
-				AuthURL:  c.AuthURL,
-				TokenURL: c.TokenURL,
-			},
-			ClientID:     c.ClientID,
-			ClientSecret: c.ClientSecret,
-		},
-	}, nil
+func (s grantSpec) CreateFilter([]interface{}) (filters.Filter, error) {
+	return grantFilter(s), nil
 }
 
-func (s *spec) Name() string { return OAuthGrantName }
-
-func (s *spec) CreateFilter([]interface{}) (filters.Filter, error) {
-	return &filter{
-		flowState:   s.flowState,
-		config:      s.config,
-		oauthConfig: s.oauthConfig,
-	}, nil
-}
-
-func (f *filter) validateToken(t string) (bool, error) {
+func (f grantFilter) validateToken(t string) (bool, error) {
 	if !strings.HasPrefix(t, bearerPrefix) || len(t) == len(bearerPrefix) {
 		return false, nil
 	}
@@ -151,26 +65,26 @@ func (f *filter) validateToken(t string) (bool, error) {
 	return resp.StatusCode == 200, nil
 }
 
-func (f *filter) refreshToken(c cookie) (*oauth2.Token, error) {
+func providerContext(c OAuthConfig) context.Context {
+	return context.WithValue(context.Background(), oauth2.HTTPClient, c.AuthClient)
+}
+
+func (f grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
 	token := &oauth2.Token{
 		AccessToken:  c.AccessToken,
 		RefreshToken: c.RefreshToken,
 		Expiry:       time.Now().Add(-time.Minute),
 	}
 
-	ctx := f.providerContext()
+	ctx := providerContext(f.config)
 
 	// oauth2.TokenSource implements the refresh functionality,
 	// we're hijacking it here.
-	tokenSource := f.oauthConfig.TokenSource(ctx, token)
+	tokenSource := f.config.oauthConfig.TokenSource(ctx, token)
 	return tokenSource.Token()
 }
 
-func (f *filter) providerContext() context.Context {
-	return context.WithValue(context.Background(), oauth2.HTTPClient, f.config.AuthClient)
-}
-
-func requestURL(req *http.Request) string {
+func (f grantFilter) redirectURLs(req *http.Request) (redirect, original string) {
 	u := *req.URL
 
 	if fp := req.Header.Get("X-Forwarded-Proto"); fp != "" {
@@ -187,22 +101,27 @@ func requestURL(req *http.Request) string {
 		u.Host = req.Host
 	}
 
-	return u.String()
+	original = u.String()
+
+	u.Path = f.config.CallbackPath
+	u.RawQuery = ""
+	redirect = u.String()
+	return
 }
 
-func (f *filter) loginRedirect(ctx filters.FilterContext) {
+func (f grantFilter) loginRedirect(ctx filters.FilterContext) {
 	req := ctx.Request()
-	reqURL := requestURL(req)
+	redirect, original := f.redirectURLs(req)
 
-	state, err := f.flowState.createState(reqURL)
+	state, err := f.config.flowState.createState(original)
 	if err != nil {
 		log.Errorf("failed to create login redirect: %v", err)
 		serverError(ctx)
 		return
 	}
 
-	authConfig := *f.oauthConfig
-	authConfig.RedirectURL = reqURL
+	authConfig := *f.config.oauthConfig
+	authConfig.RedirectURL = redirect
 	ctx.Serve(&http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: http.Header{
@@ -211,7 +130,7 @@ func (f *filter) loginRedirect(ctx filters.FilterContext) {
 	})
 }
 
-func (f *filter) decodeCookie(s string) (c cookie, err error) {
+func (f grantFilter) decodeCookie(s string) (c cookie, err error) {
 	var eb []byte
 	if eb, err = base64.StdEncoding.DecodeString(s); err != nil {
 		return
@@ -243,78 +162,8 @@ func badRequest(ctx filters.FilterContext) {
 	})
 }
 
-func cleanAuthInfoURL(u *url.URL) {
-	q := u.Query()
-	q.Del("code")
-	q.Del("state")
-	u.RawQuery = q.Encode()
-}
-
-func cleanAuthInfo(req *http.Request) {
-	cleanAuthInfoURL(req.URL)
-	reqURI, err := url.ParseRequestURI(req.RequestURI)
-	if err != nil {
-		// this only can happen with a broken preceding filter:
-		log.Errorf("Error while parsing request URI: %v.", err)
-		return
-	}
-
-	cleanAuthInfoURL(reqURI)
-}
-
-func (f *filter) getAccessToken(code string) (*oauth2.Token, error) {
-	ctx := f.providerContext()
-	t, err := f.oauthConfig.Exchange(ctx, code)
-	println(t.Expiry.String(), err != nil, t.AccessToken)
-	return t, err
-}
-
-func (f *filter) loginCallback(ctx filters.FilterContext) {
+func (f grantFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
-	q := req.URL.Query()
-
-	code := q.Get("code")
-	if code == "" {
-		badRequest(ctx)
-		return
-	}
-
-	sstate := q.Get("state")
-	if sstate == "" {
-		badRequest(ctx)
-		return
-	}
-
-	_, err := f.flowState.extractState(sstate)
-	if err != nil {
-		log.Errorf("Error when extracting flow state: %v.", err)
-		serverError(ctx)
-		return
-	}
-
-	token, err := f.getAccessToken(code)
-	if err != nil {
-		log.Errorf("Error when requesting access token: %v.", err)
-		serverError(ctx)
-		return
-	}
-
-	ctx.StateBag()[oauthGrantTokenKey] = token
-	cleanAuthInfo(req)
-}
-
-func (f *filter) isCallbackRequest(req *http.Request) bool {
-	// this should only work in 'quirks' mode, where there is no separate url for the callback
-	return req.URL.Query().Get("code") != ""
-}
-
-func (f *filter) Request(ctx filters.FilterContext) {
-	req := ctx.Request()
-
-	if f.isCallbackRequest(req) {
-		f.loginCallback(ctx)
-		return
-	}
 
 	c, err := req.Cookie(OAuthGrantCookieName)
 	if err == http.ErrNoCookie {
@@ -324,7 +173,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 
 	cc, err := f.decodeCookie(c.Value)
 	if err != nil {
-		log.Debugf("Error while decoding cookie: %v", err)
+		log.Debugf("Error while decoding cookie: %v.", err)
 		f.loginRedirect(ctx)
 		return
 	}
@@ -332,7 +181,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	now := time.Now()
 
 	var valid bool
-	if cc.Expiry.After(now) {
+	if now.Before(cc.Expiry) {
 		var err error
 		if valid, err = f.validateToken(bearerPrefix + cc.AccessToken); err != nil {
 			log.Errorf("Error while validating bearer token: %v.", err)
@@ -342,7 +191,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	}
 
 	canRefresh := !f.config.DisableRefresh && cc.RefreshToken != ""
-	shouldRefresh := !valid || cc.RefreshAfter.Before(now)
+	shouldRefresh := !valid || now.After(cc.RefreshAfter)
 	if canRefresh && shouldRefresh {
 		token, err := f.refreshToken(cc)
 		if err != nil {
@@ -354,7 +203,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		}
 
 		// we set the refreshed cookie once we have a response
-		ctx.StateBag()[oauthGrantTokenKey] = token
+		ctx.StateBag()[oauthGrantRefreshTokenKey] = token
 		return
 	}
 
@@ -378,53 +227,14 @@ func refreshAfter(expiry time.Time) time.Time {
 	return now.Add(d)
 }
 
-func (f *filter) createCookie(host string, t *oauth2.Token) (*http.Cookie, error) {
-	c := cookie{
-		AccessToken:  t.AccessToken,
-		RefreshToken: t.RefreshToken,
-		Expiry:       t.Expiry,
-	}
-
-	if !f.config.DisableRefresh {
-		c.RefreshAfter = refreshAfter(t.Expiry)
-	}
-
-	b, err := json.Marshal(c)
-	if err != nil {
-		return nil, err
-	}
-
-	encryption, err := f.config.Secrets.GetEncrypter(secretsRefreshInternal, f.config.SecretFile)
-	if err != nil {
-		return nil, err
-	}
-
-	eb, err := encryption.Encrypt(b)
-	if err != nil {
-		return nil, err
-	}
-
-	b64 := base64.StdEncoding.EncodeToString(eb)
-	return &http.Cookie{
-		Name:     OAuthGrantCookieName,
-		Value:    b64,
-		Path:     "/",
-		Domain:   extractDomainFromHost(host),
-		Expires:  t.Expiry,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}, nil
-}
-
-func (f *filter) Response(ctx filters.FilterContext) {
-	token, ok := ctx.StateBag()[oauthGrantTokenKey].(*oauth2.Token)
+func (f grantFilter) Response(ctx filters.FilterContext) {
+	token, ok := ctx.StateBag()[oauthGrantRefreshTokenKey].(*oauth2.Token)
 	if !ok {
 		return
 	}
 
 	req := ctx.Request()
-	c, err := f.createCookie(req.Host, token)
+	c, err := createCookie(f.config, req.Host, token)
 	if err != nil {
 		log.Errorf("Error while generating cookie: %v.", err)
 		return

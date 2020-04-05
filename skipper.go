@@ -955,6 +955,21 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	return listenAndServeQuit(proxy, o, nil, nil, nil)
 }
 
+func initGrant(c *auth.OAuthConfig, o *Options) error {
+	grant, err := c.NewGrant()
+	if err != nil {
+		return err
+	}
+
+	grantCallback, err := c.NewGrantCallback()
+	if err != nil {
+		return err
+	}
+
+	o.CustomFilters = append(o.CustomFilters, grant, grantCallback)
+	return nil
+}
+
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	err := initLog(o)
@@ -1200,11 +1215,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
-	if false /* what should be the conditions for using the grant filter? */ {
-		if grant, err := auth.NewGrant(auth.OAuthConfig{}); err != nil {
+	oauthConfig := &auth.OAuthConfig{}
+	if false /* explicitly enable grant flow */ {
+		if err := initGrant(oauthConfig, &o); err != nil {
 			log.Errorf("Error while initializing oauth grant filter: %v.", err)
-		} else {
-			o.CustomFilters = append(o.CustomFilters, grant)
 		}
 	}
 
@@ -1286,9 +1300,20 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
+
 	if o.DefaultFilters != nil {
-		ro.PreProcessors = []routing.PreProcessor{o.DefaultFilters}
+		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)
 	}
+
+	if false && !true /* explicitly enable grant flow when callback route was not disabled */ {
+		grantPrep, err := oauthConfig.NewGrantPreprocessor()
+		if err != nil {
+			log.Errorf("Error while initializing oauth grant preprocessor: %v.", err)
+		}
+
+		ro.PreProcessors = append(ro.PreProcessors, grantPrep)
+	}
+
 	routing := routing.New(ro)
 	defer routing.Close()
 

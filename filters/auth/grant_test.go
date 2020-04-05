@@ -14,6 +14,7 @@ import (
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/secrets"
 )
 
@@ -103,6 +104,55 @@ func newTestAuthServer(testToken, testAccessCode string) *httptest.Server {
 	}))
 }
 
+func newAuthProxy(tokeninfoURL, providerURL string) (*proxytest.TestProxy, error) {
+	config := &auth.OAuthConfig{
+		Secrets:      secrets.NewRegistry(),
+		SecretFile:   testSecretFile,
+		TokeninfoURL: tokeninfoURL,
+		AuthURL:      providerURL + "/auth",
+		TokenURL:     providerURL + "/token",
+	}
+
+	grantSpec, err := config.NewGrant()
+	if err != nil {
+		return nil, err
+	}
+
+	grantCallbackSpec, err := config.NewGrantCallback()
+	if err != nil {
+		return nil, err
+	}
+
+	grantPrep, err := config.NewGrantPreprocessor()
+	if err != nil {
+		return nil, err
+	}
+
+	fr := builtin.MakeRegistry()
+	fr.Register(grantSpec)
+	fr.Register(grantCallbackSpec)
+
+	ro := routing.Options{
+		PreProcessors: []routing.PreProcessor{grantPrep},
+	}
+
+	return proxytest.WithRoutingOptions(fr, ro, &eskip.Route{
+		Filters: []*eskip.Filter{
+			{Name: auth.OAuthGrantName},
+			{Name: "status", Args: []interface{}{http.StatusNoContent}},
+		},
+		BackendType: eskip.ShuntBackend,
+	}), nil
+}
+
+func newHTTPClient() *http.Client {
+	return &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
 func checkStatus(t *testing.T, rsp *http.Response, expectedStatus int) {
 	if rsp.StatusCode != expectedStatus {
 		t.Fatalf(
@@ -147,75 +197,61 @@ func checkCookie(t *testing.T, rsp *http.Response) {
 }
 
 func TestGrantFlow(t *testing.T) {
-	// * create a test provider
-	// * create a test tokeninfo
-	// * create a proxy, returning 204, oauthGrant filter, initially without parameters
-	// * create a client without redirects, to check it manually
-	// * make a request to the proxy without a cookie
-	// * get redirected
-	// * get redirected
-	// make a request to the proxy with the cookie
-	// get 204, check cookie
-	// make a request with the cookie
-
+	t.Log("create a test provider")
 	provider := newTestAuthServer(testToken, testAccessCode)
 	defer provider.Close()
 
+	t.Log("create a test tokeninfo")
 	tokeninfo := newTestTokeninfo(testToken)
 	defer tokeninfo.Close()
 
-	spec, err := auth.NewGrant(auth.OAuthConfig{
-		Secrets:      secrets.NewRegistry(),
-		SecretFile:   testSecretFile,
-		TokeninfoURL: tokeninfo.URL,
-		AuthURL:      provider.URL + "/auth",
-		TokenURL:     provider.URL + "/token",
-	})
+	t.Log("create a proxy, returning 204, oauthGrant filter, initially without parameters")
+	proxy, err := newAuthProxy(tokeninfo.URL, provider.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fr := builtin.MakeRegistry()
-	fr.Register(spec)
-	proxy := proxytest.New(fr, &eskip.Route{
-		Filters: []*eskip.Filter{
-			{Name: auth.OAuthGrantName},
-			{Name: "status", Args: []interface{}{http.StatusNoContent}},
-		},
-		BackendType: eskip.ShuntBackend,
-	})
+	t.Log("create a client without redirects, to check it manually")
+	client := newHTTPClient()
 
-	client := &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
+	t.Log("make a request to the proxy without a cookie")
 	rsp, err := client.Get(proxy.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer rsp.Body.Close()
+
+	t.Log("get redirected to the auth endpoint")
 	checkRedirect(t, rsp, provider.URL+"/auth")
+
+	t.Log("follow the redirect")
 	rsp, err = client.Get(rsp.Header.Get("Location"))
 	if err != nil {
 		t.Fatalf("Failed to make request to provider: %v.", err)
 	}
 
 	defer rsp.Body.Close()
-	checkRedirect(t, rsp, proxy.URL)
 
+	t.Log("get redirected back to the proxy callback URL")
+	checkRedirect(t, rsp, proxy.URL+"/.well-known/oauth2-callback")
+
+	t.Log("follow the redirect")
 	rsp, err = client.Get(rsp.Header.Get("Location"))
 	if err != nil {
 		t.Fatalf("Failed to make request to proxy: %v.", err)
 	}
 
 	defer rsp.Body.Close()
-	checkStatus(t, rsp, http.StatusNoContent)
+
+	t.Log("get redirected back to the proxy")
+	checkRedirect(t, rsp, proxy.URL)
+
+	t.Log("check auth cookie was set")
 	checkCookie(t, rsp)
 
-	req, err := http.NewRequest("GET", proxy.URL, nil)
+	t.Log("follow the redirect, with the cookie")
+	req, err := http.NewRequest("GET", rsp.Header.Get("Location"), nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v.", err)
 	}
@@ -227,5 +263,9 @@ func TestGrantFlow(t *testing.T) {
 		t.Fatalf("Failed to make request to proxy: %v.", err)
 	}
 
+	t.Log("check for successful request")
 	checkStatus(t, rsp, http.StatusNoContent)
+}
+
+func TestGrantRefresh(t *testing.T) {
 }
