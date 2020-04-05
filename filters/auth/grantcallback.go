@@ -24,10 +24,9 @@ func (s grantCallbackSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	return grantCallbackFilter(s), nil
 }
 
-func (f grantCallbackFilter) getAccessToken(code string) (*oauth2.Token, error) {
+func (f grantCallbackFilter) exchangeAccessToken(code string) (*oauth2.Token, error) {
 	ctx := providerContext(f.config)
-	t, err := f.config.oauthConfig.Exchange(ctx, code)
-	return t, err
+	return f.config.oauthConfig.Exchange(ctx, code)
 }
 
 func (f grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
@@ -40,29 +39,29 @@ func (f grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 		return
 	}
 
-	sstate := q.Get("state")
-	if sstate == "" {
+	queryState := q.Get("state")
+	if queryState == "" {
 		badRequest(ctx)
 		return
 	}
 
-	state, err := f.config.flowState.extractState(sstate)
+	state, err := f.config.flowState.extractState(queryState)
 	if err != nil {
 		log.Errorf("Error when extracting flow state: %v.", err)
 		serverError(ctx)
 		return
 	}
 
-	token, err := f.getAccessToken(code)
+	token, err := f.exchangeAccessToken(code)
 	if err != nil {
-		log.Errorf("Error when requesting access token: %v.", err)
+		log.Errorf("Error when exchanging access token: %v.", err)
 		serverError(ctx)
 		return
 	}
 
 	c, err := createCookie(f.config, req.Host, token)
 	if err != nil {
-		log.Errorf("Error while generating cookie: %v.", err)
+		log.Errorf("Error while creating OAuth grant cookie: %v.", err)
 		serverError(ctx)
 		return
 	}

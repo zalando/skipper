@@ -2,9 +2,9 @@ package auth
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/secrets"
 	"golang.org/x/oauth2"
@@ -49,12 +49,12 @@ type OAuthConfig struct {
 	// TokeninfoClient, optional. When set, it will be used for the
 	// authorization requests to TokeninfoURL. When not set, a new default
 	// client is created.
-	TokeninfoClient *http.Client
+	TokeninfoClient *net.Client
 
 	// AuthClient, optional. When set, it will be used for the
 	// access code exchange requests to TokenURL. When not set, a new default
 	// client is created.
-	AuthClient *http.Client
+	AuthClient *net.Client
 
 	// DisableRefresh prevents refreshing the token.
 	DisableRefresh bool
@@ -91,11 +91,11 @@ func (c *OAuthConfig) init() error {
 	}
 
 	if c.TokeninfoClient == nil {
-		c.TokeninfoClient = &http.Client{}
+		c.TokeninfoClient = net.NewClient(net.Options{})
 	}
 
 	if c.AuthClient == nil {
-		c.AuthClient = &http.Client{}
+		c.AuthClient = net.NewClient(net.Options{})
 	}
 
 	c.flowState = newFlowState(c.Secrets, c.SecretFile)

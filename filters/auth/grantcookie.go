@@ -4,11 +4,27 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"golang.org/x/oauth2"
 )
 
 const OAuthGrantCookieName = "oauth-token"
+
+func refreshAfter(expiry time.Time) time.Time {
+	now := time.Now()
+	d := expiry.Sub(now)
+	if d <= 0 {
+		return now
+	}
+
+	d /= 10
+	if d < time.Minute {
+		d = time.Minute
+	}
+
+	return now.Add(d)
+}
 
 func createCookie(config OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
 	c := cookie{
@@ -45,6 +61,5 @@ func createCookie(config OAuthConfig, host string, t *oauth2.Token) (*http.Cooki
 		Expires:  t.Expiry,
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
 	}, nil
 }
