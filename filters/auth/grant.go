@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -44,44 +43,20 @@ func (s grantSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	return grantFilter(s), nil
 }
 
-func (f grantFilter) validateToken(t string) (bool, error) {
-	if !strings.HasPrefix(t, bearerPrefix) || len(t) == len(bearerPrefix) {
-		return false, nil
-	}
-
-	req, err := http.NewRequest("GET", f.config.TokeninfoURL, nil)
-	if err != nil {
-		return false, fmt.Errorf("creating request to tokeninfo failed: %w", err)
-	}
-	req.Header.Set("Authorization", t)
-
-	resp, err := f.config.TokeninfoClient.Do(req)
-	if err != nil {
-		return false, fmt.Errorf("request to tokeninfo failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// TODO: perform actual validation of scopes
-	return resp.StatusCode == 200, nil
-}
-
 func providerContext(c OAuthConfig) context.Context {
 	return context.WithValue(context.Background(), oauth2.HTTPClient, c.AuthClient)
 }
 
-func (f grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
-	token := &oauth2.Token{
-		AccessToken:  c.AccessToken,
-		RefreshToken: c.RefreshToken,
-		Expiry:       time.Now().Add(-time.Minute),
-	}
+func serverError(ctx filters.FilterContext) {
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusInternalServerError,
+	})
+}
 
-	ctx := providerContext(f.config)
-
-	// oauth2.TokenSource implements the refresh functionality,
-	// we're hijacking it here.
-	tokenSource := f.config.oauthConfig.TokenSource(ctx, token)
-	return tokenSource.Token()
+func badRequest(ctx filters.FilterContext) {
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusBadRequest,
+	})
 }
 
 func (f grantFilter) redirectURLs(req *http.Request) (redirect, original string) {
@@ -150,16 +125,36 @@ func (f grantFilter) decodeCookie(s string) (c cookie, err error) {
 	return
 }
 
-func serverError(ctx filters.FilterContext) {
-	ctx.Serve(&http.Response{
-		StatusCode: http.StatusInternalServerError,
-	})
+func (f grantFilter) validateToken(t string) (bool, error) {
+	req, err := http.NewRequest("GET", f.config.TokeninfoURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("creating request to tokeninfo failed: %w", err)
+	}
+	req.Header.Set("Authorization", bearerPrefix+t)
+
+	rsp, err := f.config.TokeninfoClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("request to tokeninfo failed: %w", err)
+	}
+	defer rsp.Body.Close()
+
+	// TODO: scope validation
+	return rsp.StatusCode == 200, nil
 }
 
-func badRequest(ctx filters.FilterContext) {
-	ctx.Serve(&http.Response{
-		StatusCode: http.StatusBadRequest,
-	})
+func (f grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
+	token := &oauth2.Token{
+		AccessToken:  c.AccessToken,
+		RefreshToken: c.RefreshToken,
+		Expiry:       time.Now().Add(-time.Minute),
+	}
+
+	ctx := providerContext(f.config)
+
+	// oauth2.TokenSource implements the refresh functionality,
+	// we're hijacking it here.
+	tokenSource := f.config.oauthConfig.TokenSource(ctx, token)
+	return tokenSource.Token()
 }
 
 func (f grantFilter) Request(ctx filters.FilterContext) {
@@ -183,7 +178,7 @@ func (f grantFilter) Request(ctx filters.FilterContext) {
 	var valid bool
 	if now.Before(cc.Expiry) {
 		var err error
-		if valid, err = f.validateToken(bearerPrefix + cc.AccessToken); err != nil {
+		if valid, err = f.validateToken(cc.AccessToken); err != nil {
 			log.Errorf("Error while validating bearer token: %v.", err)
 			serverError(ctx)
 			return
@@ -210,21 +205,6 @@ func (f grantFilter) Request(ctx filters.FilterContext) {
 	if !valid {
 		f.loginRedirect(ctx)
 	}
-}
-
-func refreshAfter(expiry time.Time) time.Time {
-	now := time.Now()
-	d := expiry.Sub(now)
-	if d <= 0 {
-		return now
-	}
-
-	d /= 10
-	if d < time.Minute {
-		d = time.Minute
-	}
-
-	return now.Add(d)
 }
 
 func (f grantFilter) Response(ctx filters.FilterContext) {

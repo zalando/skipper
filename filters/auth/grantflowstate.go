@@ -23,9 +23,7 @@ type flowState struct {
 	secretsFile string
 }
 
-var (
-	errExpiredAuthState = errors.New("expired auth state")
-)
+var errExpiredAuthState = errors.New("expired auth state")
 
 func newFlowState(secrets *secrets.Registry, secretsFile string) *flowState {
 	return &flowState{
