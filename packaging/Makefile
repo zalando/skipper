@@ -30,35 +30,31 @@ eskip:
 clean:
 	rm -rf skipper eskip build/
 
-docker-build: clean skipper eskip
+docker-build: docker.build.amd64 docker.buildx.arm64 docker.buildx.armv7
+docker.build.amd64: clean skipper eskip
 	docker build -t $(IMAGE) .
-docker-push:
+docker.buildx.arm64: clean build.linux.arm64 docker.buildx.enable
+	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 .
+docker.buildx.armv7: clean build.linux.armv7 docker.buildx.enable
+	docker buildx build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.arm .
+
+docker-push: docker.push.amd64 docker.push.arm64 docker.push.armv7
+docker.push.amd64:
 	docker push $(IMAGE)
+docker.push.arm64: docker.buildx.arm64
+	docker push $(ARM64_IMAGE)
+docker.push.armv7: docker.buildx.armv7
+	docker push $(ARM_IMAGE)
 
 # https://docs.docker.com/buildx/working-with-buildx/
 # ~/.docker/config.json add: "experimental": "enabled",
-#docker-buildx-arm64: clean build.linux.arm64
-docker-buildx-arm64: build.linux.arm64
-	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 .
-docker-buildx-arm: clean build.linux.arm
-	docker buildx build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.arm .
-docker-push-arm64: docker-buildx-arm64
-	docker push $(ARM64_IMAGE)
-docker-push-arm: docker-buildx-arm
-	docker push $(ARM_IMAGE)
+docker.buildx.enable:
+	[ $$(which jq) ] || echo "please install jq"
+	[ -d $$HOME/.docker ] || mkdir $$HOME/.docker
+	[ -f $$HOME/.docker/config.json ] || touch $$HOME/.docker/config.json
+	if [ -s $$HOME/.docker/config.json ]; then jq -r '. += {experimental: "enabled"}' $$HOME/.docker/config.json > $$HOME/.docker/config.json.new; mv $$HOME/.docker/config.json.new $$HOME/.docker/config.json; else echo '{"experimental": "enabled"}' >$$HOME/.docker/config.json; fi
 
-# https://www.stereolabs.com/docs/docker/building-arm-container-on-x86/
-arm-deps:
-	#sudo apt-get install qemu binfmt-support qemu-user-static
-	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-	docker run --rm -t arm64v8/ubuntu uname -m
-	docker run --rm -t arm32v7/ubuntu uname -m
-docker-build-arm64: clean build.linux.arm64
-	docker build -t $(ARM64_IMAGE) -f Dockerfile.arm64 .
-docker-build-arm: clean build.linux.arm
-	docker build -t $(ARM_IMAGE)  -f Dockerfile.arm .
-
-build.linux: $(SOURCES) build.linux.amd64 build.linux.arm64 build.linux.arm
+build.linux: $(SOURCES) build.linux.amd64 build.linux.arm64 build.linux.armv7
 
 build.linux.amd64:
 	GO111MODULE=$(GO111) \
@@ -74,7 +70,7 @@ build.linux.arm64:
 	CGO_ENABLED=$(CGO_ENABLED) \
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/linux_arm8/skipper ../cmd/skipper/*.go
 
-build.linux.arm:
+build.linux.armv7:
 	GO111MODULE=$(GO111) \
 	GOOS=linux \
 	GOARCH=arm \
@@ -103,4 +99,3 @@ build.package: build.linux build.osx build.windows
 	tar --transform 's,^\.,skipper-$(VERSION)-osx-amd64,' -C build/osx -czvf skipper-$(VERSION)-osx-amd64.tar.gz .
 	tar --transform 's,^\.,skipper-$(VERSION)-windows-amd64,' -C build/windows -czvf skipper-$(VERSION)-windows-amd64.tar.gz .
 	for f in *.tar.gz; do sha256sum $$f >> sha256sum.txt; done
-
