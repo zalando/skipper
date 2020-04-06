@@ -24,12 +24,27 @@ func NewRoundTripper(log logging.Logger, addr, filename string) (*RoundTripper, 
 		return nil, fmt.Errorf("gofast: failed creating client: %w", err)
 	}
 
-	handler := gofast.NewFileEndpoint(filename)(gofast.BasicSession)
+	chain := gofast.Chain(
+		gofast.BasicParamsMap,
+		gofast.MapHeader,
+		gofast.MapEndpoint(filename),
+		func(handler gofast.SessionHandler) gofast.SessionHandler {
+			return func(client gofast.Client, req *gofast.Request) (*gofast.ResponsePipe, error) {
+				req.Params["HTTP_HOST"] = req.Params["SERVER_NAME"]
+				req.Params["SERVER_SOFTWARE"] = "Skipper"
+
+				// Gofast sets this param to `fastcgi` which is not what the backend will expect.
+				delete(req.Params, "REQUEST_SCHEME")
+
+				return handler(client, req)
+			}
+		},
+	)
 
 	return &RoundTripper{
 		log:     log,
 		client:  client,
-		handler: handler,
+		handler: chain(gofast.BasicSession),
 	}, nil
 }
 
