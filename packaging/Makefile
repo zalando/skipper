@@ -3,8 +3,8 @@
 VERSION            ?= $(shell git rev-parse HEAD)
 REGISTRY           ?= registry-write.opensource.zalan.do/pathfinder
 IMAGE              ?= $(REGISTRY)/skipper:$(VERSION)
-LIGHTSTEP_IMAGE    ?= $(REGISTRY)/skipper-lightstep:$(VERSION)
-OPENTRACING_IMAGE  ?= $(REGISTRY)/skipper-opentracing:$(VERSION)
+ARM64_IMAGE        ?= $(REGISTRY)/skipper-arm64:$(VERSION)
+ARM_IMAGE          ?= $(REGISTRY)/skipper-arm:$(VERSION)
 ALPINE_BUILD_IMAGE ?= $(REGISTRY)/skipper-alpine-build:latest
 PACKAGE            ?= github.com/zalando/skipper
 CGO_ENABLED        ?= 0
@@ -32,23 +32,49 @@ clean:
 
 docker-build: clean skipper eskip
 	docker build -t $(IMAGE) .
-
 docker-push:
 	docker push $(IMAGE)
 
-build.linux: $(SOURCES)
+# https://docs.docker.com/buildx/working-with-buildx/
+# ~/.docker/config.json add: "experimental": "enabled",
+#docker-buildx-arm64: clean build.linux.arm64
+docker-buildx-arm64: build.linux.arm64
+	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 .
+docker-buildx-arm: clean build.linux.arm
+	docker buildx build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.arm .
+docker-push-arm64: docker-buildx-arm64
+	docker push $(ARM64_IMAGE)
+docker-push-arm: docker-buildx-arm
+	docker push $(ARM_IMAGE)
+
+# https://www.stereolabs.com/docs/docker/building-arm-container-on-x86/
+arm-deps:
+	#sudo apt-get install qemu binfmt-support qemu-user-static
+	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+	docker run --rm -t arm64v8/ubuntu uname -m
+	docker run --rm -t arm32v7/ubuntu uname -m
+docker-build-arm64: clean build.linux.arm64
+	docker build -t $(ARM64_IMAGE) -f Dockerfile.arm64 .
+docker-build-arm: clean build.linux.arm
+	docker build -t $(ARM_IMAGE)  -f Dockerfile.arm .
+
+build.linux: $(SOURCES) build.linux.amd64 build.linux.arm64 build.linux.arm
+
+build.linux.amd64:
 	GO111MODULE=$(GO111) \
 	GOOS=linux \
 	GOARCH=amd64 \
 	CGO_ENABLED=$(CGO_ENABLED) \
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/linux/skipper ../cmd/skipper/*.go
 
+build.linux.arm64:
 	GO111MODULE=$(GO111) \
 	GOOS=linux \
 	GOARCH=arm64 \
 	CGO_ENABLED=$(CGO_ENABLED) \
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/linux_arm8/skipper ../cmd/skipper/*.go
 
+build.linux.arm:
 	GO111MODULE=$(GO111) \
 	GOOS=linux \
 	GOARCH=arm \
@@ -78,6 +104,3 @@ build.package: build.linux build.osx build.windows
 	tar --transform 's,^\.,skipper-$(VERSION)-windows-amd64,' -C build/windows -czvf skipper-$(VERSION)-windows-amd64.tar.gz .
 	for f in *.tar.gz; do sha256sum $$f >> sha256sum.txt; done
 
-clean:
-	rm -f skipper
-	rm -rf build
