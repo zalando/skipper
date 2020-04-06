@@ -153,8 +153,6 @@ check-fmt: $(SOURCES)
 
 precommit: fmt build vet staticcheck check-race shortcheck
 
-check-precommit: check-fmt build vet staticcheck check-race cicheck gosec
-
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	# go list -f \
 	# 	'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
@@ -180,16 +178,3 @@ show-cover: .coverprofile-all
 publish-coverage: .coverprofile-all
 	curl -s https://codecov.io/bash -o codecov
 	bash codecov -f .coverprofile-all
-
-ci-trigger:
-ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)
-	make deps publish-coverage
-else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring minor-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_minor-release)
-	make deps publish-coverage
-else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
-	make deps publish-coverage
-else ifeq ($(TRAVIS_BRANCH), master)
-	make deps check-precommit
-else
-	make deps check-race cicheck check-plugins
-endif
