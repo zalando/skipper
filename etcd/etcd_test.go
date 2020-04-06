@@ -21,7 +21,7 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	err := etcdtest.Start()
+	err := etcdtest.StartProjectRoot("..")
 	if err != nil {
 		log.Fatal(err)
 	}

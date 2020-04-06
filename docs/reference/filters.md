@@ -311,6 +311,24 @@ transfer encoding, sets the Content-Encoding to the selected encoding and sets t
 
 The compression happens in a streaming way, using only a small internal buffer.
 
+## decompress
+
+The filter, when executed on the response path, checks if the response entity is
+compressed by a supported algorithm. To decide, it checks the Content-Encoding
+header.
+
+When compressing the response, it updates the response header. It deletes the
+`Content-Length` value triggering the proxy to always return the response with chunked
+transfer encoding, deletes the Content-Encoding and the Vary headers, if set.
+
+The decompression happens in a streaming way, using only a small internal buffer.
+
+Example:
+
+```
+* -> decompress() -> "https://www.example.org"
+```
+
 ## setQuery
 
 Set the query string `?k=v` in the request to the backend to a given value.
@@ -362,6 +380,25 @@ Content type will be automatically detected when not provided.
 !!! note
     `inlineContent` filter is special and must be the last in the filter chain.
 
+## inlineContentIfStatus
+
+Returns arbitrary content in the HTTP body, if the response has the specified status code.
+
+Parameters:
+
+* status code (int)
+* content (string)
+* content type (string) - optional
+
+Example:
+
+```
+* -> inlineContentIfStatus(404, "<p class=\"problem\">We don't have what you're looking for.</p>") -> "https://www.example.org"
+* -> inlineContentIfStatus(401, "{\"error\": \"unauthorized\"}", "application/json") -> "https://www.example.org"
+```
+
+The content type will be automatically detected when not provided.
+
 ## flowId
 
 Sets an X-Flow-Id header, if it's not already in the request.
@@ -383,6 +420,16 @@ Example:
 * -> flowId() -> "https://some-backend.example.org";
 * -> flowId("reuse") -> "https://some-backend.example.org";
 ```
+
+## xforward
+
+Standard proxy headers. Appends the client remote IP to the X-Forwarded-For and sets the X-Forwarded-Host
+header.
+
+## xforwardFirst
+
+Same as [xforward](xforward), but instead of appending the last remote IP, it prepends it to comply with the
+approach of certain LB implementations.
 
 ## randomContent
 

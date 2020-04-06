@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 /*
 Package etcdtest implements an easy startup script to start a local etcd
 instance for testing purpose.
@@ -27,7 +13,9 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -51,6 +39,12 @@ func randPort() int {
 
 // Starts an etcd server.
 func Start() error {
+	return StartProjectRoot("")
+}
+
+// StartProjectRoot starts an etcd server. If projectRoot is not empty, then it checks
+// if the .bin/etcd binary exists, and uses that instead of the one in the path.
+func StartProjectRoot(projectRoot string) error {
 	// assuming that the tests won't try to start it concurrently,
 	// fix this only when it turns out to be a wrong assumption
 	if etcd != nil {
@@ -60,8 +54,21 @@ func Start() error {
 	Urls = makeLocalUrls(randPort(), randPort())
 	clientUrlsString := strings.Join(Urls, ",")
 
+	var binary string
+	if projectRoot != "" {
+		binary = filepath.Join(projectRoot, ".bin/etcd")
+		_, err := os.Stat(binary)
+		if os.IsNotExist(err) {
+			binary = ""
+		}
+	}
+
+	if binary == "" {
+		binary = "etcd"
+	}
+
 	/* #nosec */
-	e := exec.Command("etcd",
+	e := exec.Command(binary,
 		"-listen-client-urls", clientUrlsString,
 		"-advertise-client-urls", clientUrlsString)
 	stderr, err := e.StderrPipe()

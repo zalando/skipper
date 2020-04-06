@@ -39,7 +39,7 @@ import (
 
 const (
 	proxyBufferSize         = 8192
-	unknownFlowId           = "-"
+	unknownFlowId           = "not set"
 	unknownRouteID          = "_unknownroute_"
 	unknownRouteBackendType = "<unknown>"
 	unknownRouteBackend     = "<unknown>"

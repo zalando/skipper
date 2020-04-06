@@ -108,23 +108,22 @@ clean:
 	rm -rf .coverprofile-all .cover
 	rm -f ./_test_plugins/*.so
 	rm -f ./_test_plugins_fail/*.so
+	rm -rf .bin
 
 deps:
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
+	mkdir -p .bin
 	@curl -o /tmp/staticcheck_linux_amd64.tar.gz -LO https://github.com/dominikh/go-tools/releases/download/2020.1.3/staticcheck_linux_amd64.tar.gz
 	@sha256sum /tmp/staticcheck_linux_amd64.tar.gz | grep -q 0f6fab088826fb6d52a5aa4986b39790b795ff37d5319dc605a98be919fdd070
 	@tar -C /tmp -xzf /tmp/staticcheck_linux_amd64.tar.gz
-	@mkdir -p $(GOPATH)/bin
-	@mv /tmp/staticcheck/staticcheck $(GOPATH)/bin/
-	@chmod +x $(GOPATH)/bin/staticcheck
+	@mv /tmp/staticcheck/staticcheck .bin
+	@chmod +x .bin/staticcheck
 	@curl -o /tmp/gosec.tgz -LO https://github.com/securego/gosec/releases/download/2.0.0/gosec_2.0.0_linux_amd64.tar.gz
 	@sha256sum /tmp/gosec.tgz | grep -q 490c2a0434b2b9cbb2f4c5031eafe228023f1ac41b36dddd757bff9e1de76a2b
 	@tar -C /tmp -xzf /tmp/gosec.tgz
-	@mkdir -p $(GOPATH)/bin
-	@mv /tmp/gosec $(GOPATH)/bin/
-	@chmod +x $(GOPATH)/bin/gosec
-	@which gosec || cp -a $(GOPATH)/bin/gosec $(GOBIN)/gosec
+	@mv /tmp/gosec .bin
+	@chmod +x .bin/gosec
 
 vet: $(SOURCES)
 	GO111MODULE=$(GO111) go vet $(PACKAGES)
@@ -137,14 +136,14 @@ vet: $(SOURCES)
 # -ST1021 too many wrong comments on exported functions to fix right away
 # -ST1022 too many wrong comments on exported functions to fix right away
 staticcheck: $(SOURCES)
-	GO111MODULE=$(GO111) staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021,-ST1022" $(PACKAGES)
+	GO111MODULE=$(GO111) .bin/staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021,-ST1022" $(PACKAGES)
 
 # TODO(sszuecs) review disabling these checks, f.e.:
 # G101 find by variable name match "oauth" are not hardcoded credentials
 # G104 ignoring errors are in few cases fine
 # G304 reading kubernetes secret filepaths are not a file inclusions
 gosec: $(SOURCES)
-	GO111MODULE=$(GO111) gosec -quiet -exclude="G101,G104,G304" ./...
+	GO111MODULE=$(GO111) .bin/gosec -quiet -exclude="G101,G104,G304" ./...
 
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)
@@ -153,8 +152,6 @@ check-fmt: $(SOURCES)
 	@if [ "$$(gofmt -s -d $(SOURCES))" != "" ]; then false; else true; fi
 
 precommit: fmt build vet staticcheck check-race shortcheck
-
-check-precommit: check-fmt build vet staticcheck check-race cicheck gosec
 
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	# go list -f \
@@ -181,16 +178,3 @@ show-cover: .coverprofile-all
 publish-coverage: .coverprofile-all
 	curl -s https://codecov.io/bash -o codecov
 	bash codecov -f .coverprofile-all
-
-ci-trigger:
-ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring major-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_major-release)
-	make deps publish-coverage
-else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST)_$(findstring minor-release,$(TRAVIS_COMMIT_MESSAGE)), master_false_minor-release)
-	make deps publish-coverage
-else ifeq ($(TRAVIS_BRANCH)_$(TRAVIS_PULL_REQUEST), master_false)
-	make deps publish-coverage
-else ifeq ($(TRAVIS_BRANCH), master)
-	make deps check-precommit
-else
-	make deps check-race cicheck check-plugins
-endif
