@@ -8,7 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
-	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/remotehost"
 )
 
 const (
@@ -180,7 +180,12 @@ func NewXForwardedForLookuper() XForwardedForLookuper {
 // Lookup returns the content of the X-Forwarded-For header or the
 // clientIP if not set.
 func (XForwardedForLookuper) Lookup(req *http.Request) string {
-	return net.RemoteHost(req).String()
+	ip := remotehost.RemoteHost(req)
+	if ip == nil {
+		return ""
+	}
+
+	return ip.String()
 }
 
 func (XForwardedForLookuper) String() string {

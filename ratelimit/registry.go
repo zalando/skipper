@@ -6,7 +6,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/remotehost"
 )
 
 const (
@@ -115,8 +115,8 @@ func (r *Registry) Check(req *http.Request) (Settings, int) {
 	case ClusterClientRatelimit:
 		fallthrough
 	case ClientRatelimit:
-		ip := net.RemoteHost(req)
-		if !rlimit.Allow(ip.String()) {
+		ip := remotehost.RemoteHost(req)
+		if ip != nil && !rlimit.Allow(ip.String()) {
 			return s, rlimit.RetryAfter(ip.String())
 		}
 	}

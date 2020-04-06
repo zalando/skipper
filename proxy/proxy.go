@@ -229,6 +229,8 @@ type Params struct {
 	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
 	// check OpenTracingParams
 	OpenTracing *OpenTracingParams
+
+	ReverseXForwardedForHeader bool
 }
 
 type (
@@ -302,26 +304,27 @@ type PriorityRoute interface {
 // Proxy instances implement Skipper proxying functionality. For
 // initializing, see the WithParams the constructor and Params.
 type Proxy struct {
-	experimentalUpgrade      bool
-	experimentalUpgradeAudit bool
-	accessLogDisabled        bool
-	maxLoops                 int
-	defaultHTTPStatus        int
-	routing                  *routing.Routing
-	roundTripper             *http.Transport
-	priorityRoutes           []PriorityRoute
-	flags                    Flags
-	metrics                  metrics.Metrics
-	quit                     chan struct{}
-	flushInterval            time.Duration
-	breakers                 *circuit.Registry
-	limiters                 *ratelimit.Registry
-	log                      logging.Logger
-	tracing                  *proxyTracing
-	lb                       *loadbalancer.LB
-	upgradeAuditLogOut       io.Writer
-	upgradeAuditLogErr       io.Writer
-	auditLogHook             chan struct{}
+	experimentalUpgrade        bool
+	experimentalUpgradeAudit   bool
+	accessLogDisabled          bool
+	maxLoops                   int
+	defaultHTTPStatus          int
+	routing                    *routing.Routing
+	roundTripper               *http.Transport
+	priorityRoutes             []PriorityRoute
+	flags                      Flags
+	metrics                    metrics.Metrics
+	quit                       chan struct{}
+	flushInterval              time.Duration
+	breakers                   *circuit.Registry
+	limiters                   *ratelimit.Registry
+	log                        logging.Logger
+	tracing                    *proxyTracing
+	lb                         *loadbalancer.LB
+	upgradeAuditLogOut         io.Writer
+	upgradeAuditLogErr         io.Writer
+	auditLogHook               chan struct{}
+	reverseXForwardedForHeader bool
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -671,25 +674,26 @@ func WithParams(p Params) *Proxy {
 	hostname = os.Getenv("HOSTNAME")
 
 	return &Proxy{
-		routing:                  p.Routing,
-		roundTripper:             tr,
-		priorityRoutes:           p.PriorityRoutes,
-		flags:                    p.Flags,
-		metrics:                  m,
-		quit:                     quit,
-		flushInterval:            p.FlushInterval,
-		experimentalUpgrade:      p.ExperimentalUpgrade,
-		experimentalUpgradeAudit: p.ExperimentalUpgradeAudit,
-		maxLoops:                 p.MaxLoopbacks,
-		breakers:                 p.CircuitBreakers,
-		lb:                       p.LoadBalancer,
-		limiters:                 p.RateLimiters,
-		log:                      &logging.DefaultLog{},
-		defaultHTTPStatus:        defaultHTTPStatus,
-		tracing:                  newProxyTracing(p.OpenTracing),
-		accessLogDisabled:        p.AccessLogDisabled,
-		upgradeAuditLogOut:       os.Stdout,
-		upgradeAuditLogErr:       os.Stderr,
+		routing:                    p.Routing,
+		roundTripper:               tr,
+		priorityRoutes:             p.PriorityRoutes,
+		flags:                      p.Flags,
+		metrics:                    m,
+		quit:                       quit,
+		flushInterval:              p.FlushInterval,
+		experimentalUpgrade:        p.ExperimentalUpgrade,
+		experimentalUpgradeAudit:   p.ExperimentalUpgradeAudit,
+		maxLoops:                   p.MaxLoopbacks,
+		breakers:                   p.CircuitBreakers,
+		lb:                         p.LoadBalancer,
+		limiters:                   p.RateLimiters,
+		log:                        &logging.DefaultLog{},
+		defaultHTTPStatus:          defaultHTTPStatus,
+		tracing:                    newProxyTracing(p.OpenTracing),
+		accessLogDisabled:          p.AccessLogDisabled,
+		upgradeAuditLogOut:         os.Stdout,
+		upgradeAuditLogErr:         os.Stderr,
+		reverseXForwardedForHeader: p.ReverseXForwardedForHeader,
 	}
 }
 
@@ -1316,11 +1320,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if shouldLog(statusCode, accessLogEnabled) {
 			entry := &logging.AccessEntry{
-				Request:      r,
-				ResponseSize: lw.GetBytes(),
-				StatusCode:   statusCode,
-				RequestTime:  ctx.startServe,
-				Duration:     time.Since(ctx.startServe),
+				Request:                    r,
+				ReverseXForwardedForHeader: p.reverseXForwardedForHeader,
+				ResponseSize:               lw.GetBytes(),
+				StatusCode:                 statusCode,
+				RequestTime:                ctx.startServe,
+				Duration:                   time.Since(ctx.startServe),
 			}
 
 			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})

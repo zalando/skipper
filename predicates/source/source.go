@@ -45,7 +45,7 @@ import (
 	"net/http"
 	"strings"
 
-	snet "github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/remotehost"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -106,9 +106,9 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 func (p *predicate) Match(r *http.Request) bool {
 	var src net.IP
 	if p.fromLast {
-		src = snet.RemoteHostFromLast(r)
+		src = remotehost.RemoteHostFromLast(r)
 	} else {
-		src = snet.RemoteHost(r)
+		src = remotehost.RemoteHost(r)
 	}
 
 	for _, acceptedNet := range p.acceptedSourceNets {

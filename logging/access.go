@@ -2,15 +2,14 @@ package logging
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
-
 	flowidFilter "github.com/zalando/skipper/filters/flowid"
 	logFilter "github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/remotehost"
 )
 
 const (
@@ -33,6 +32,9 @@ type AccessEntry struct {
 	// The client request.
 	Request *http.Request
 
+	// Reverse X-Forwarded-For header
+	ReverseXForwardedForHeader bool
+
 	// The status code of the response.
 	StatusCode int
 
@@ -53,31 +55,6 @@ var (
 	accessLog  *logrus.Logger
 	stripQuery bool
 )
-
-// strip port from addresses with hostname, ipv4 or ipv6
-func stripPort(address string) string {
-	if h, _, err := net.SplitHostPort(address); err == nil {
-		return h
-	}
-
-	return address
-}
-
-// The remote address of the client. When the 'X-Forwarded-For'
-// header is set, then it is used instead.
-func remoteAddr(r *http.Request) string {
-	ff := r.Header.Get("X-Forwarded-For")
-	if ff != "" {
-		return ff
-	}
-
-	return r.RemoteAddr
-}
-
-func remoteHost(r *http.Request) string {
-	a := remoteAddr(r)
-	return stripPort(a)
-}
 
 func omitWhitespace(h string) string {
 	if h != "" {
@@ -121,7 +98,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 
 	ts := entry.RequestTime.Format(dateFormat)
 
-	host := "-"
+	host := ""
 	method := ""
 	uri := ""
 	proto := ""
@@ -136,7 +113,15 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 	duration := int64(entry.Duration / time.Millisecond)
 
 	if entry.Request != nil {
-		host = remoteHost(entry.Request)
+		if entry.ReverseXForwardedForHeader {
+			if h := remotehost.RemoteHostFromLast(entry.Request); h != nil {
+				host = h.String()
+			}
+		} else {
+			if h := remotehost.RemoteHost(entry.Request); h != nil {
+				host = h.String()
+			}
+		}
 		method = entry.Request.Method
 		proto = entry.Request.Proto
 		referer = entry.Request.Referer()

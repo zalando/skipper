@@ -10,7 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/remotehost"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -86,7 +86,12 @@ func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	var sum uint32
 	h := fnv.New32()
 
-	key := net.RemoteHost(ctx.Request).String()
+	key := ""
+	ip := remotehost.RemoteHost(ctx.Request)
+	if ip != nil {
+		key = ip.String()
+	}
+
 	if _, err := h.Write([]byte(key)); err != nil {
 		log.Errorf("Failed to write '%s' into hash: %v", key, err)
 		return ctx.Route.LBEndpoints[rand.Intn(len(ctx.Route.LBEndpoints))]
