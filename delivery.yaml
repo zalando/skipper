@@ -30,9 +30,9 @@ pipeline:
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         echo "Created docker image registry.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION}"
         echo "Creating docker image registry.opensource.zalan.do/pathfinder/skipper-arm64:${RELEASE_VERSION}"
-        make docker.build.arm64 && git status && git diff && make docker.push.arm64
+        make docker.buildx.arm64 && git status && git diff && make docker.push.arm64
         echo "Creating docker image registry.opensource.zalan.do/pathfinder/skipper-armv7:${RELEASE_VERSION}"
-        make docker.build.armv7 && git status && git diff && make docker.push.armv7
+        make docker.buildx.armv7 && git status && git diff && make docker.push.armv7
         echo "Creating git tag: ${RELEASE_VERSION}"
         git gh-tag "${RELEASE_VERSION}"
         echo "Creating release for tag: ${RELEASE_VERSION}"
