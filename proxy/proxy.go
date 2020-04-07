@@ -101,18 +101,6 @@ const (
 	PatchPath
 )
 
-// Options are deprecated alias for Flags.
-type Options Flags
-
-const (
-	OptionsNone              = Options(FlagsNone)
-	OptionsInsecure          = Options(Insecure)
-	OptionsPreserveOriginal  = Options(PreserveOriginal)
-	OptionsPreserveHost      = Options(PreserveHost)
-	OptionsDebug             = Options(Debug)
-	OptionsHopHeadersRemoval = Options(HopHeadersRemoval)
-)
-
 type OpenTracingParams struct {
 	// Tracer holds the tracer enabled for this proxy instance
 	Tracer ot.Tracer
