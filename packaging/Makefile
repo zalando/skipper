@@ -30,25 +30,25 @@ eskip:
 clean:
 	rm -rf skipper eskip build/
 
-docker-build: docker.build.amd64 docker.buildx.arm64 docker.buildx.armv7
+docker-build: docker.build.amd64 docker.build.arm64 docker.build.armv7
 docker.build.amd64: clean skipper eskip
 	docker build -t $(IMAGE) .
-docker.buildx.arm64: clean build.linux.arm64 docker.buildx.enable
-	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 .
-docker.buildx.armv7: clean build.linux.armv7 docker.buildx.enable
-	docker buildx build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.arm .
+docker.build.arm64: clean build.linux.arm64 docker.build.enable
+	docker build build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 .
+docker.build.armv7: clean build.linux.armv7 docker.build.enable
+	docker build build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.arm .
 
 docker-push: docker.push.amd64 docker.push.arm64 docker.push.armv7
 docker.push.amd64:
 	docker push $(IMAGE)
-docker.push.arm64: docker.buildx.arm64
+docker.push.arm64: docker.build.arm64
 	docker push $(ARM64_IMAGE)
-docker.push.armv7: docker.buildx.armv7
+docker.push.armv7: docker.build.armv7
 	docker push $(ARM_IMAGE)
 
-# https://docs.docker.com/buildx/working-with-buildx/
+# https://docs.docker.com/build/working-with-build/
 # ~/.docker/config.json add: "experimental": "enabled",
-docker.buildx.enable:
+docker.build.enable:
 	[ $$(which jq) ] || echo "please install jq"
 	[ -d $$HOME/.docker ] || mkdir $$HOME/.docker
 	[ -f $$HOME/.docker/config.json ] || touch $$HOME/.docker/config.json
