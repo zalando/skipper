@@ -97,8 +97,8 @@ type backend struct {
 	ServicePort backendPort `json:"servicePort"`
 	// Traffic field used for custom traffic weights, but not part of the ingress spec.
 	Traffic float64
-	// number of True predicates to add to support multi color traffic switching
-	noopCount int
+	// number priority to add as Weight predicate to add to support for multi color traffic switching
+	priority int
 }
 
 func (b backend) String() string {
