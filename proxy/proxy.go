@@ -40,7 +40,6 @@ import (
 
 const (
 	proxyBufferSize         = 8192
-	unknownFlowId           = "not set"
 	unknownRouteID          = "_unknownroute_"
 	unknownRouteBackendType = "<unknown>"
 	unknownRouteBackend     = "<unknown>"
@@ -1208,9 +1207,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		return
 	}
 
+	flowIdLog := ""
 	flowId := ctx.Request().Header.Get(flowidFilter.HeaderName)
-	if flowId == "" {
-		flowId = unknownFlowId
+	if flowId != "" {
+		flowIdLog = fmt.Sprintf(", flow id %s", flowId)
 	}
 	id := unknownRouteID
 	backendType := unknownRouteBackendType
@@ -1269,12 +1269,12 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		}
 
 		p.log.Errorf(
-			`client canceled after %v, route %s with backend %s %s, flow id %s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
+			`client canceled after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
 			time.Since(ctx.startServe),
 			id,
 			backendType,
 			backend,
-			flowId,
+			flowIdLog,
 			code,
 			err,
 			remoteAddr,
@@ -1292,12 +1292,12 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		}
 
 		p.log.Errorf(
-			`error while proxying after %v, route %s with backend %s %s, flow id %s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
+			`error while proxying after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
 			time.Since(ctx.startServe),
 			id,
 			backendType,
 			backend,
-			flowId,
+			flowIdLog,
 			code,
 			err,
 			remoteAddr,
