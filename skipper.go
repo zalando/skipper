@@ -1101,7 +1101,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	defer routing.Close()
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
-	proxyParams := proxy.Params{
+	proxyOptions := proxy.Options{
 		Routing:                  routing,
 		Flags:                    proxyFlags,
 		PriorityRoutes:           o.PriorityRoutes,
@@ -1190,15 +1190,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
 		reg := ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
 		defer reg.Close()
-		proxyParams.RateLimiters = reg
+		proxyOptions.RateLimiters = reg
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
-		proxyParams.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
+		proxyOptions.CircuitBreakers = circuit.NewRegistry(o.BreakerSettings...)
 	}
 
 	if o.DebugListener != "" {
-		do := proxyParams
+		do := proxyOptions
 		do.Flags |= proxy.Debug
 		dbg := proxy.New(do)
 		log.Infof("debug listener on %v", o.DebugListener)
@@ -1234,7 +1234,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Infoln("Metrics are disabled")
 	}
 
-	proxyParams.OpenTracing = &proxy.OpenTracingParams{
+	proxyOptions.OpenTracing = &proxy.OpenTracingParams{
 		Tracer:          tracer,
 		InitialSpan:     o.OpenTracingInitialSpan,
 		ExcludeTags:     o.OpenTracingExcludedProxyTags,
@@ -1243,7 +1243,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	// create the proxy
-	proxy := proxy.New(proxyParams)
+	proxy := proxy.New(proxyOptions)
 	defer proxy.Close()
 
 	for _, startupCheckURL := range o.StatusChecks {

@@ -34,7 +34,7 @@ func ExamplePriorityRoute() {
 	pr := &priorityRoute{}
 
 	// create an http.Handler:
-	proxy.New(proxy.Params{
+	proxy.New(proxy.Options{
 		Routing: routing.New(routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
 			DataClients:    []routing.DataClient{dataClient}},

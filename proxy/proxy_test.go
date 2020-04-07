@@ -130,7 +130,7 @@ func (srw *syncResponseWriter) Len() int {
 	return srw.body.Len()
 }
 
-func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Params, preprocs []routing.PreProcessor) (*testProxy, error) {
+func newTestProxyWithFiltersAndOptions(fr filters.Registry, doc string, options Options, preprocs []routing.PreProcessor) (*testProxy, error) {
 	dc, err := testdataclient.NewDoc(doc)
 	if err != nil {
 		return nil, err
@@ -156,8 +156,8 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 	}
 	rt := routing.New(opts)
 
-	params.Routing = rt
-	p := New(params)
+	options.Routing = rt
+	p := New(options)
 	p.log = tl
 
 	if err := tl.WaitFor("route settings applied", time.Second); err != nil {
@@ -168,19 +168,19 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 }
 
 func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
+	return newTestProxyWithFiltersAndOptions(fr, doc, Options{Flags: flags, PriorityRoutes: pr}, nil)
 }
 
 func newTestProxyWithFiltersAndPreProcessors(fr filters.Registry, doc string, flags Flags, preprocs []routing.PreProcessor) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(fr, doc, Params{Flags: flags}, preprocs)
+	return newTestProxyWithFiltersAndOptions(fr, doc, Options{Flags: flags}, preprocs)
 }
 
-func newTestProxyWithParams(doc string, params Params) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(nil, doc, params, nil)
+func newTestProxyWithOptions(doc string, options Options) (*testProxy, error) {
+	return newTestProxyWithFiltersAndOptions(nil, doc, options, nil)
 }
 
 func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
-	return newTestProxyWithFiltersAndParams(nil, doc, Params{Flags: flags, PriorityRoutes: pr}, nil)
+	return newTestProxyWithFiltersAndOptions(nil, doc, Options{Flags: flags, PriorityRoutes: pr}, nil)
 }
 
 func (tp *testProxy) close() {
@@ -1627,16 +1627,16 @@ func TestRequestContentHeaders(t *testing.T) {
 }
 
 func TestSettingDefaultHTTPStatus(t *testing.T) {
-	params := Params{
+	options := Options{
 		DefaultHTTPStatus: http.StatusBadGateway,
 	}
-	p := New(params)
+	p := New(options)
 	if p.defaultHTTPStatus != http.StatusBadGateway {
 		t.Errorf("expected default HTTP status %d, got %d", http.StatusBadGateway, p.defaultHTTPStatus)
 	}
 
-	params.DefaultHTTPStatus = http.StatusNetworkAuthenticationRequired + 1
-	p = New(params)
+	options.DefaultHTTPStatus = http.StatusNetworkAuthenticationRequired + 1
+	p = New(options)
 	if p.defaultHTTPStatus != http.StatusNotFound {
 		t.Errorf("expected default HTTP status %d, got %d", http.StatusNotFound, p.defaultHTTPStatus)
 	}
@@ -1728,7 +1728,7 @@ func TestDisableAccessLog(t *testing.T) {
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> status(%d) -> inlineContent("%s") -> <shunt>`, http.StatusTeapot, response)
 
-	tp, err := newTestProxyWithParams(doc, Params{
+	tp, err := newTestProxyWithOptions(doc, Options{
 		AccessLogDisabled: true,
 	})
 	if err != nil {
@@ -1793,7 +1793,7 @@ func TestDisableAccessLogWithFilter(t *testing.T) {
 
 			doc := fmt.Sprintf(`hello: Path("/hello") -> %s -> status(%d) -> inlineContent("%s") -> <shunt>`, ti.filter, ti.responseCode, response)
 
-			tp, err := newTestProxyWithParams(doc, Params{
+			tp, err := newTestProxyWithOptions(doc, Options{
 				AccessLogDisabled: false,
 			})
 			if err != nil {
@@ -1860,7 +1860,7 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 
 			doc := fmt.Sprintf(`hello: Path("/hello") -> %s -> status(%d) -> inlineContent("%s") -> <shunt>`, ti.filter, ti.responseCode, response)
 
-			tp, err := newTestProxyWithParams(doc, Params{
+			tp, err := newTestProxyWithOptions(doc, Options{
 				AccessLogDisabled: true,
 			})
 			if err != nil {
@@ -2025,7 +2025,7 @@ func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {
 	}
 	doc := fmt.Sprintf(`hello: Path("/hello") %s -> status(%d) -> inlineContent("%s") -> <shunt>`, accessLogFilter, responseCode, response)
 
-	tp, err := newTestProxyWithParams(doc, Params{
+	tp, err := newTestProxyWithOptions(doc, Options{
 		AccessLogDisabled: false,
 	})
 	if err != nil {

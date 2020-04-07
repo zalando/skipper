@@ -55,13 +55,13 @@ func (c *returnState) Response(ctx filters.FilterContext) {
 func testLoopback(
 	t *testing.T,
 	routes string,
-	params Params,
+	options Options,
 	expectedStatus int,
 	expectedHeader http.Header,
 ) {
 	var backend *httptest.Server
 	backend = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if params.Flags.PreserveOriginal() {
+		if options.Flags.PreserveOriginal() {
 			if r.Header.Get("X-Test-Preserved") != "test-value" {
 				t.Error("failed to preserve original request")
 				return
@@ -70,9 +70,9 @@ func testLoopback(
 			w.Header().Set("X-Test", "test-value")
 		}
 
-		if params.Flags.PreserveHost() && r.Host != "www.example.org" {
+		if options.Flags.PreserveHost() && r.Host != "www.example.org" {
 			t.Error("failed to preserve host")
-		} else if !params.Flags.PreserveHost() {
+		} else if !options.Flags.PreserveHost() {
 			u, err := url.Parse(backend.URL)
 			if err != nil {
 				t.Error(err)
@@ -96,7 +96,7 @@ func testLoopback(
 	fr.Register(&setState{})
 	fr.Register(&returnState{})
 
-	p, err := newTestProxyWithFiltersAndParams(fr, routes, params, nil)
+	p, err := newTestProxyWithFiltersAndOptions(fr, routes, options, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -153,7 +153,7 @@ func testLoopback(
 		}
 	}
 
-	if params.Flags.PreserveOriginal() && w.Header().Get("X-Test-Preserved") != "test-value" {
+	if options.Flags.PreserveOriginal() && w.Header().Get("X-Test-Preserved") != "test-value" {
 		t.Error("failed to preserve original response")
 	}
 }
@@ -176,7 +176,7 @@ func TestLoopbackShunt(t *testing.T) {
 			-> <shunt>;
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusTeapot, http.Header{
+	testLoopback(t, routes, Options{}, http.StatusTeapot, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 	})
@@ -199,7 +199,7 @@ func TestLoopbackWithBackend(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Options{}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 		"X-Backend-Done":     []string{"true"},
@@ -218,7 +218,7 @@ func TestLoopbackReachLimit(t *testing.T) {
 			-> <loopback>;
 	`
 
-	testLoopback(t, routes, Params{MaxLoopbacks: 3}, http.StatusInternalServerError, http.Header{
+	testLoopback(t, routes, Options{MaxLoopbacks: 3}, http.StatusInternalServerError, http.Header{
 		"X-Entry-Route-Done": nil,
 		"X-Loop-Route-Done":  nil,
 	})
@@ -236,7 +236,7 @@ func TestLoopbackReachDefaultLimit(t *testing.T) {
 			-> <loopback>;
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusInternalServerError, http.Header{
+	testLoopback(t, routes, Options{}, http.StatusInternalServerError, http.Header{
 		"X-Entry-Route-Done": nil,
 		"X-Loop-Route-Done":  nil,
 	})
@@ -260,7 +260,7 @@ func TestLoopbackPreserveOriginalRequest(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{Flags: PreserveOriginal}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Options{Flags: PreserveOriginal}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 	})
@@ -283,7 +283,7 @@ func TestLoopbackPreserveHost(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{Flags: PreserveHost}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Options{Flags: PreserveHost}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 	})
@@ -307,7 +307,7 @@ func TestLoopbackFilterShunt(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusFound, http.Header{
+	testLoopback(t, routes, Options{}, http.StatusFound, http.Header{
 		"X-Entry-Route-Done":  []string{"true"},
 		"X-Loop-Route-Done":   []string{"1"},
 		"X-Loop-Backend-Done": nil,
@@ -335,7 +335,7 @@ func TestLoopbackPathParams(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Options{}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 		"X-Backend-Done":     []string{"true"},
@@ -362,7 +362,7 @@ func TestLoopbackStatebag(t *testing.T) {
 			-> "$backend";
 	`
 
-	testLoopback(t, routes, Params{}, http.StatusOK, http.Header{
+	testLoopback(t, routes, Options{}, http.StatusOK, http.Header{
 		"X-Entry-Route-Done": []string{"true"},
 		"X-Loop-Route-Done":  []string{"1", "2"},
 		"X-Backend-Done":     []string{"true"},

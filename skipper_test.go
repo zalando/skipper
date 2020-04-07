@@ -99,7 +99,7 @@ func TestWithWrongCertPathFails(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(proxy.Params{
+	proxy := proxy.New(proxy.Options{
 		Routing: rt,
 	})
 	defer proxy.Close()
@@ -126,7 +126,7 @@ func TestWithWrongKeyPathFails(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(proxy.Params{
+	proxy := proxy.New(proxy.Options{
 		Routing: rt,
 	})
 	defer proxy.Close()
@@ -159,7 +159,7 @@ func TestHTTPSServer(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(proxy.Params{
+	proxy := proxy.New(proxy.Options{
 		Routing: rt,
 	})
 	defer proxy.Close()
@@ -200,7 +200,7 @@ func TestHTTPServer(t *testing.T) {
 		DataClients:    []routing.DataClient{}})
 	defer rt.Close()
 
-	proxy := proxy.New(proxy.Params{
+	proxy := proxy.New(proxy.Options{
 		Routing: rt,
 	})
 	defer proxy.Close()
@@ -243,7 +243,7 @@ func TestHTTPServerShutdown(t *testing.T) {
 	})
 	defer rt.Close()
 
-	proxy := proxy.New(proxy.Params{
+	proxy := proxy.New(proxy.Options{
 		Routing: rt,
 	})
 	defer proxy.Close()

@@ -50,7 +50,7 @@ func newBreakerProxy(
 	settings []circuit.BreakerSettings,
 	filters map[string][]*eskip.Filter,
 ) *proxytest.TestProxy {
-	params := proxy.Params{
+	options := proxy.Options{
 		CloseIdleConnsPeriod: -1,
 	}
 
@@ -77,7 +77,7 @@ func newBreakerProxy(
 			}
 		}
 
-		params.CircuitBreakers = circuit.NewRegistry(settings...)
+		options.CircuitBreakers = circuit.NewRegistry(settings...)
 	} else {
 		r = append(r, &eskip.Route{
 			Backend: backends[defaultHost].url,
@@ -85,7 +85,7 @@ func newBreakerProxy(
 	}
 
 	fr := builtin.MakeRegistry()
-	return proxytest.WithParams(fr, params, r...)
+	return proxytest.WithOptions(fr, options, r...)
 }
 
 func testBreaker(t *testing.T, s breakerScenario) {
