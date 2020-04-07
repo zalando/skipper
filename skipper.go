@@ -202,10 +202,6 @@ type Options struct {
 	// DefaultFilters will be applied to all routes automatically.
 	DefaultFilters *eskip.DefaultFilters
 
-	// Deprecated. See ProxyFlags. When used together with ProxyFlags,
-	// the values will be combined with |.
-	ProxyOptions proxy.Options
-
 	// Flags controlling the proxy behavior.
 	ProxyFlags proxy.Flags
 
@@ -1100,10 +1096,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	routing := routing.New(ro)
 	defer routing.Close()
 
-	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyOptions := proxy.Options{
 		Routing:                  routing,
-		Flags:                    proxyFlags,
+		Flags:                    o.ProxyFlags,
 		PriorityRoutes:           o.PriorityRoutes,
 		IdleConnectionsPerHost:   o.IdleConnectionsPerHost,
 		CloseIdleConnsPeriod:     o.CloseIdleConnsPeriod,
