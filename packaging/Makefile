@@ -49,10 +49,15 @@ docker.push.armv7: docker.build.armv7
 # https://docs.docker.com/build/working-with-build/
 # ~/.docker/config.json add: "experimental": "enabled",
 docker.build.enable:
+	[ $$(which qemu-user-static) ] || echo "please install qemu-user-static"
 	[ $$(which jq) ] || echo "please install jq"
 	[ -d $$HOME/.docker ] || mkdir $$HOME/.docker
 	[ -f $$HOME/.docker/config.json ] || touch $$HOME/.docker/config.json
 	if [ -s $$HOME/.docker/config.json ]; then jq -r '. += {experimental: "enabled"}' $$HOME/.docker/config.json > $$HOME/.docker/config.json.new; mv $$HOME/.docker/config.json.new $$HOME/.docker/config.json; else echo '{"experimental": "enabled"}' >$$HOME/.docker/config.json; fi
+	docker buildx create skipper
+	docker buildx use skipper
+	docker buildx inspect --bootstrap
+	docker buildx ls
 
 build.linux: $(SOURCES) build.linux.amd64 build.linux.arm64 build.linux.armv7
 
