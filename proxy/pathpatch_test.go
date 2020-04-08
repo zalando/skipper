@@ -24,7 +24,7 @@ func testPatch(t *testing.T, title string, f Flags, expectedStatus int) {
 		})
 		defer rt.Close()
 
-		p := WithParams(Params{Routing: rt, Flags: f})
+		p := New(Options{Routing: rt, Flags: f})
 		defer p.Close()
 
 		s := httptest.NewServer(p)

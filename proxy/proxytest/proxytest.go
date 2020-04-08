@@ -22,14 +22,14 @@ type TestProxy struct {
 }
 
 func WithRoutingOptions(fr filters.Registry, o routing.Options, routes ...*eskip.Route) *TestProxy {
-	return newTestProxy(fr, o, proxy.Params{CloseIdleConnsPeriod: -time.Second}, routes...)
+	return newTestProxy(fr, o, proxy.Options{CloseIdleConnsPeriod: -time.Second}, routes...)
 }
 
-func WithParams(fr filters.Registry, proxyParams proxy.Params, routes ...*eskip.Route) *TestProxy {
-	return newTestProxy(fr, routing.Options{}, proxyParams, routes...)
+func WithOptions(fr filters.Registry, proxyOptions proxy.Options, routes ...*eskip.Route) *TestProxy {
+	return newTestProxy(fr, routing.Options{}, proxyOptions, routes...)
 }
 
-func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyParams proxy.Params, routes ...*eskip.Route) *TestProxy {
+func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyOptions proxy.Options, routes ...*eskip.Route) *TestProxy {
 	tl := loggingtest.New()
 
 	if len(routingOptions.DataClients) == 0 {
@@ -42,9 +42,9 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 	routingOptions.PostProcessors = []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()}
 
 	rt := routing.New(routingOptions)
-	proxyParams.Routing = rt
+	proxyOptions.Routing = rt
 
-	pr := proxy.WithParams(proxyParams)
+	pr := proxy.New(proxyOptions)
 	tsp := httptest.NewServer(pr)
 
 	if err := tl.WaitFor("route settings applied", 3*time.Second); err != nil {
@@ -61,7 +61,7 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 }
 
 func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
-	return WithParams(fr, proxy.Params{CloseIdleConnsPeriod: -time.Second}, routes...)
+	return WithOptions(fr, proxy.Options{CloseIdleConnsPeriod: -time.Second}, routes...)
 }
 
 func (p *TestProxy) Close() error {

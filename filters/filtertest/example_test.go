@@ -51,7 +51,9 @@ func ExampleFilter() {
 	defer rt.Close()
 
 	// create an http.Handler:
-	p := proxy.New(rt, proxy.OptionsNone)
+	p := proxy.New(proxy.Options{
+		Routing: rt,
+	})
 	defer p.Close()
 }
 

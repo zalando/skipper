@@ -101,18 +101,6 @@ const (
 	PatchPath
 )
 
-// Options are deprecated alias for Flags.
-type Options Flags
-
-const (
-	OptionsNone              = Options(FlagsNone)
-	OptionsInsecure          = Options(Insecure)
-	OptionsPreserveOriginal  = Options(PreserveOriginal)
-	OptionsPreserveHost      = Options(PreserveHost)
-	OptionsDebug             = Options(Debug)
-	OptionsHopHeadersRemoval = Options(HopHeadersRemoval)
-)
-
 type OpenTracingParams struct {
 	// Tracer holds the tracer enabled for this proxy instance
 	Tracer ot.Tracer
@@ -136,7 +124,7 @@ type OpenTracingParams struct {
 }
 
 // Proxy initialization options.
-type Params struct {
+type Options struct {
 	// The proxy expects a routing instance that is used to match
 	// the incoming requests to routes.
 	Routing *routing.Routing
@@ -300,7 +288,7 @@ type PriorityRoute interface {
 }
 
 // Proxy instances implement Skipper proxying functionality. For
-// initializing, see the WithParams the constructor and Params.
+// initializing, see the New the constructor and Options.
 type Proxy struct {
 	experimentalUpgrade      bool
 	experimentalUpgradeAudit bool
@@ -576,18 +564,7 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 }
 
 // New returns an initialized Proxy.
-// Deprecated, see WithParams and Params instead.
-func New(r *routing.Routing, options Options, pr ...PriorityRoute) *Proxy {
-	return WithParams(Params{
-		Routing:              r,
-		Flags:                Flags(options),
-		PriorityRoutes:       pr,
-		CloseIdleConnsPeriod: -time.Second,
-	})
-}
-
-// WithParams returns an initialized Proxy.
-func WithParams(p Params) *Proxy {
+func New(p Options) *Proxy {
 	if p.IdleConnectionsPerHost <= 0 {
 		p.IdleConnectionsPerHost = DefaultIdleConnsPerHost
 	}

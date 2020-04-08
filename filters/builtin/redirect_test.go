@@ -58,7 +58,7 @@ func TestRedirectLower(t *testing.T) {
 				FilterRegistry: MakeRegistry(),
 				DataClients:    []routing.DataClient{dc},
 				Log:            tl})
-			p := proxy.WithParams(proxy.Params{
+			p := proxy.New(proxy.Options{
 				Routing: rt,
 			})
 

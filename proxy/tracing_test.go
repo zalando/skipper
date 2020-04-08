@@ -43,14 +43,14 @@ func TestTracingFromWire(t *testing.T) {
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{}
-	params := Params{
+	options := Options{
 		OpenTracing: &OpenTracingParams{
 			Tracer: tracer,
 		},
 		Flags: FlagsNone,
 	}
 
-	tp, err := newTestProxyWithParams(doc, params)
+	tp, err := newTestProxyWithOptions(doc, options)
 	if err != nil {
 		t.Error(err)
 		return
@@ -94,14 +94,14 @@ func TestTracingRoot(t *testing.T) {
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{TraceContent: traceContent}
-	params := Params{
+	params := Options{
 		OpenTracing: &OpenTracingParams{
 			Tracer: tracer,
 		},
 		Flags: FlagsNone,
 	}
 
-	tp, err := newTestProxyWithParams(doc, params)
+	tp, err := newTestProxyWithOptions(doc, params)
 	if err != nil {
 		t.Error(err)
 		return
@@ -151,14 +151,14 @@ func TestTracingSpanName(t *testing.T) {
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> tracingSpanName("test-span") -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{TraceContent: traceContent}
-	params := Params{
+	params := Options{
 		OpenTracing: &OpenTracingParams{
 			Tracer: tracer,
 		},
 		Flags: FlagsNone,
 	}
 
-	tp, err := newTestProxyWithParams(doc, params)
+	tp, err := newTestProxyWithOptions(doc, params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestTracingInitialSpanName(t *testing.T) {
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{TraceContent: traceContent}
-	params := Params{
+	params := Options{
 		OpenTracing: &OpenTracingParams{
 			Tracer:      tracer,
 			InitialSpan: "test-initial-span",
@@ -204,7 +204,7 @@ func TestTracingInitialSpanName(t *testing.T) {
 		Flags: FlagsNone,
 	}
 
-	tp, err := newTestProxyWithParams(doc, params)
+	tp, err := newTestProxyWithOptions(doc, params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestTracingProxySpan(t *testing.T) {
 
 	doc := fmt.Sprintf(`* -> "%s"`, s.URL)
 	tracer := &tracingtest.Tracer{}
-	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{Tracer: tracer}})
+	tp, err := newTestProxyWithOptions(doc, Options{OpenTracing: &OpenTracingParams{Tracer: tracer}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 	const docFmt = `r: * -> <roundRobin, "%s", "%s">;`
 	doc := fmt.Sprintf(docFmt, s0.URL, s1.URL)
 	tracer := &tracingtest.Tracer{}
-	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{Tracer: tracer}})
+	tp, err := newTestProxyWithOptions(doc, Options{OpenTracing: &OpenTracingParams{Tracer: tracer}})
 	if err != nil {
 		t.Fatal(err)
 	}

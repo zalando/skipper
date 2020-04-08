@@ -187,7 +187,7 @@ func TestServeHTTP(t *testing.T) {
 			if ti.noBackend {
 				backend.Close()
 			}
-			tp, err := newTestProxyWithParams(routes, Params{ExperimentalUpgrade: true})
+			tp, err := newTestProxyWithOptions(routes, Options{ExperimentalUpgrade: true})
 			if err != nil {
 				t.Error(err)
 				return
@@ -366,7 +366,7 @@ func TestAuditLogging(t *testing.T) {
 			}
 
 			auditHook := make(chan struct{}, 1)
-			p := WithParams(Params{
+			p := New(Options{
 				Routing:                  rt,
 				ExperimentalUpgrade:      true,
 				ExperimentalUpgradeAudit: enabled,
