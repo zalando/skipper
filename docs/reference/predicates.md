@@ -152,6 +152,28 @@ route1: Path("/test") && Weight(100) -> "http://www.zalando.de";
 route2: Path("/test") && True() && True() -> "http://www.zalando.de";
 ```
 
+## True
+
+Does always match. Before `Weight` predicate existed this was used to give a route more weight.
+
+Example where `route2` has more weight.
+
+```
+route1: Path("/test") -> "http://www.zalando.de";
+route2: Path("/test") && True() -> "http://www.github.com";
+```
+
+## False
+
+Does not match. Can be used to disable certain routes.
+
+Example where `route2` is disabled.
+
+```
+route1: Path("/test") -> "http://www.zalando.de";
+route2: Path("/test") && False() -> "http://www.github.com";
+```
+
 ## Method
 
 The HTTP method that the request must match. HTTP methods are one of
