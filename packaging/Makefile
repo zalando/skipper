@@ -54,7 +54,8 @@ docker.build.enable:
 	[ -d $$HOME/.docker ] || mkdir $$HOME/.docker
 	[ -f $$HOME/.docker/config.json ] || touch $$HOME/.docker/config.json
 	if [ -s $$HOME/.docker/config.json ]; then jq -r '. += {experimental: "enabled"}' $$HOME/.docker/config.json > $$HOME/.docker/config.json.new; mv $$HOME/.docker/config.json.new $$HOME/.docker/config.json; else echo '{"experimental": "enabled"}' >$$HOME/.docker/config.json; fi
-	docker buildx create skipper
+	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+	docker buildx create --name skipper
 	docker buildx use skipper
 	docker buildx inspect --bootstrap
 	docker buildx ls
