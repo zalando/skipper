@@ -60,12 +60,12 @@ docker.build.enable:
 	ls /proc/sys/fs/binfmt_misc/
 	cat /proc/sys/fs/binfmt_misc/qemu-aarch64
 	@echo "##### END infos #####"
-	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-	ls /proc/sys/fs/binfmt_misc/
-	docker buildx create --name skipper
-	docker buildx use skipper
-	docker buildx inspect --bootstrap
+	#docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+	#ls /proc/sys/fs/binfmt_misc/
 	docker buildx ls
+	#docker buildx create --name skipper --use
+	#docker buildx inspect --bootstrap
+	#docker buildx ls
 
 build.linux: $(SOURCES) build.linux.amd64 build.linux.arm64 build.linux.armv7
 
