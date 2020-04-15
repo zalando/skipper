@@ -59,10 +59,10 @@ docker.build.enable:
 	uname -a
 	ls /proc/sys/fs/binfmt_misc/
 	cat /proc/sys/fs/binfmt_misc/qemu-aarch64
+	docker buildx ls
 	@echo "##### END infos #####"
 	#docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 	#ls /proc/sys/fs/binfmt_misc/
-	docker buildx ls
 	#docker buildx create --name skipper --use
 	#docker buildx inspect --bootstrap
 	#docker buildx ls

@@ -27,7 +27,8 @@ pipeline:
       git status
       git diff
       cd packaging && make docker.build.amd64 && git status && git diff && make docker.push.amd64
-      make docker.build.arm64 # test buildx
+      #make docker.build.arm64 # test buildx
+      make docker.build.armv7 # test buildx
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         echo "Created docker image registry.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION}"
         echo "Creating docker image registry.opensource.zalan.do/pathfinder/skipper-arm64:${RELEASE_VERSION}"
