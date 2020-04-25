@@ -19,5 +19,5 @@ each route. [Learn here more about how it works.](tutorials/basics.md)
 ## Kubernetes Ingress
 
 Skipper can be used to run as a Kubernetes Ingress controller. Details with examples of Skipper's capabilities
-and an overview you will can be found in the [ingress-controller deployment
+and an overview can be found in the [ingress-controller deployment
 docs](kubernetes/ingress-controller.md).
