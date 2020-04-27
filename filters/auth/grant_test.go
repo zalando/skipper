@@ -106,6 +106,8 @@ func newTestAuthServer(testToken, testAccessCode string) *httptest.Server {
 
 func newAuthProxy(tokeninfoURL, providerURL string) (*proxytest.TestProxy, error) {
 	config := &auth.OAuthConfig{
+		ClientID:     "some-id",
+		ClientSecret: "some-secret",
 		Secrets:      secrets.NewRegistry(),
 		SecretFile:   testSecretFile,
 		TokeninfoURL: tokeninfoURL,
