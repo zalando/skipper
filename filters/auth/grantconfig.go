@@ -23,7 +23,7 @@ type OAuthConfig struct {
 	// auth flow state and auth cookies.
 	Secrets *secrets.Registry
 
-	// SecretsName contains the name to the encryption key for the authentication
+	// SecretFile contains the filename with the encryption key for the authentication
 	// cookie and grant flow state stored in Secrets.
 	SecretFile string
 
@@ -61,7 +61,10 @@ type OAuthConfig struct {
 }
 
 var (
+	ErrMissingClientID        = errors.New("missing client ID")
+	ErrMissingClientSecret    = errors.New("missing client secret")
 	ErrMissingSecretsRegistry = errors.New("missing secrets registry")
+	ErrMissingSecretFile      = errors.New("missing secret file")
 	ErrMissingTokeninfoURL    = errors.New("missing tokeninfo URL")
 	ErrMissingProviderURLs    = errors.New("missing provider URLs")
 )
@@ -83,6 +86,21 @@ func (c *OAuthConfig) init() error {
 
 	if c.Secrets == nil {
 		c.initErr = ErrMissingSecretsRegistry
+		return c.initErr
+	}
+
+	if c.SecretFile == "" {
+		c.initErr = ErrMissingSecretFile
+		return c.initErr
+	}
+
+	if c.ClientID == "" {
+		c.initErr = ErrMissingClientID
+		return c.initErr
+	}
+
+	if c.ClientSecret == "" {
+		c.initErr = ErrMissingClientSecret
 		return c.initErr
 	}
 

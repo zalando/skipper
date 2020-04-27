@@ -600,12 +600,38 @@ type Options struct {
 	// header, in this case you want to set this to true.
 	ReverseSourcePredicate bool
 
+	// EnableOAuth2GrantFlow, enables OAuth2 Grant Flow filter
+	EnableOAuth2GrantFlow bool
+
+	// OAuth2AuthUrl, the url to redirect the requests to when login is required.
+	OAuth2AuthUrl string
+
+	// OAuth2TokenUrl, the url where the access code should be exchanged for the
+	// access token.
+	OAuth2TokenUrl string
+
 	// OAuthTokeninfoURL sets the the URL to be queried for
 	// information for all auth.NewOAuthTokeninfo*() filters.
 	OAuthTokeninfoURL string
 
 	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
 	OAuthTokeninfoTimeout time.Duration
+
+	// OAuth2SecretFile contains the filename with the encryption key for the
+	// authentication cookie and grant flow state stored in Secrets.
+	OAuth2SecretFile string
+
+	// OAuth2ClientID, the OAuth2 client id of the current service, used to exchange
+	// the access code.
+	OAuth2ClientID string
+
+	// OAuth2ClientSecret, the secret associated with the ClientID, used to exchange
+	// the access code.
+	OAuth2ClientSecret string
+
+	// OAuth2CallbackPath contains the path where the OAuth2 callback requests with the
+	// authorization code should be redirected to.
+	OAuth2CallbackPath string
 
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
@@ -1216,7 +1242,17 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	oauthConfig := &auth.OAuthConfig{}
-	if false /* explicitly enable grant flow */ {
+	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
+		oauthConfig.AuthURL = o.OAuth2AuthUrl
+		oauthConfig.TokenURL = o.OAuth2TokenUrl
+		oauthConfig.TokeninfoURL = o.OAuthTokeninfoURL
+		oauthConfig.SecretFile = o.OAuth2SecretFile
+		oauthConfig.ClientID = o.OAuth2ClientID
+		oauthConfig.ClientSecret = o.OAuth2ClientSecret
+		oauthConfig.CallbackPath = o.OAuth2CallbackPath
+
+		oauthConfig.Secrets = secrets.NewRegistry()
+
 		if err := initGrant(oauthConfig, &o); err != nil {
 			log.Errorf("Error while initializing oauth grant filter: %v.", err)
 		}
@@ -1305,7 +1341,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)
 	}
 
-	if false && !true /* explicitly enable grant flow when callback route was not disabled */ {
+	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
 		grantPrep, err := oauthConfig.NewGrantPreprocessor()
 		if err != nil {
 			log.Errorf("Error while initializing oauth grant preprocessor: %v.", err)

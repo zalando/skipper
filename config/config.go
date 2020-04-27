@@ -139,11 +139,18 @@ type Config struct {
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
 
 	// Auth:
+	EnableOAuth2GrantFlow           bool          `yaml:"enable-oauth2-grant-flow"`
 	OauthURL                        string        `yaml:"oauth-url"`
 	OauthScope                      string        `yaml:"oauth-scope"`
 	OauthCredentialsDir             string        `yaml:"oauth-credentials-dir"`
+	Oauth2AuthURL                   string        `yaml:"oauth2-auth-url"`
+	Oauth2TokenURL                  string        `yaml:"oauth2-token-url"`
 	Oauth2TokeninfoURL              string        `yaml:"oauth2-tokeninfo-url"`
 	Oauth2TokeninfoTimeout          time.Duration `yaml:"oauth2-tokeninfo-timeout"`
+	Oauth2SecretFile                string        `yaml:"oauth2-secret-file"`
+	Oauth2ClientID                  string        `yaml:"oauth2-client-id"`
+	Oauth2ClientSecret              string        `yaml:"oauth2-client-secret"`
+	Oauth2CallbackPath              string        `yaml:"oauth2-callback-path"`
 	Oauth2TokenintrospectionTimeout time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
 	WebhookTimeout                  time.Duration `yaml:"webhook-timeout"`
 	OidcSecretsFile                 string        `yaml:"oidc-secrets-file"`
@@ -345,11 +352,18 @@ const (
 	kubernetesEastWestDomainUsage    = "set the east-west domain, defaults to .skipper.cluster.local"
 
 	// Auth:
+	oauth2GrantFlowEnableUsage           = "enables OAuth2 Grant Flow filter"
 	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
 	oauthCredentialsDirUsage             = "directory where oauth credentials are stored: client.json and user.json"
 	oauthScopeUsage                      = "the whitespace separated list of oauth scopes"
+	oauth2AuthURLUsage                   = "sets the OAuth2 Auth URL to redirect the requests to when login is required"
+	oauth2TokenURLUsage                  = "the url where the access code should be exchanged for the access token"
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
+	oauth2SecretFileUsage                = "sets the filename with the encryption key for the authentication cookie and grant flow state stored in Secrets"
+	oauth2ClientIDUsage                  = "sets the OAuth2 client id of the current service, used to exchange the access code"
+	oauth2ClientSecretUsage              = "sets the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code"
+	oauth2CallbackPathUsage              = "sets the path where the OAuth2 callback requests with the authorization code should be redirected to"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
@@ -531,10 +545,17 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", kubernetesEastWestDomainUsage)
 
 	// Auth:
+	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, oauth2GrantFlowEnableUsage)
 	flag.StringVar(&cfg.OauthURL, "oauth-url", "", oauthURLUsage)
 	flag.StringVar(&cfg.OauthScope, "oauth-scope", "", oauthScopeUsage)
 	flag.StringVar(&cfg.OauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
+	flag.StringVar(&cfg.Oauth2AuthURL, "oauth2-auth-url", "", oauth2AuthURLUsage)
+	flag.StringVar(&cfg.Oauth2TokenURL, "oauth2-token-url", "", oauth2TokenURLUsage)
 	flag.StringVar(&cfg.Oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
+	flag.StringVar(&cfg.Oauth2SecretFile, "oauth2-secret-file", "", oauth2SecretFileUsage)
+	flag.StringVar(&cfg.Oauth2ClientID, "oauth2-client-id", "", oauth2ClientIDUsage)
+	flag.StringVar(&cfg.Oauth2ClientSecret, "oauth2-client-secret", "", oauth2ClientSecretUsage)
+	flag.StringVar(&cfg.Oauth2CallbackPath, "oauth2-callback-path", "", oauth2CallbackPathUsage)
 	flag.DurationVar(&cfg.Oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
 	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
@@ -785,11 +806,18 @@ func (c *Config) ToOptions() skipper.Options {
 		DefaultFiltersDir: c.DefaultFiltersDir,
 
 		// Auth:
+		EnableOAuth2GrantFlow:          c.EnableOAuth2GrantFlow,
 		OAuthUrl:                       c.OauthURL,
 		OAuthScope:                     c.OauthScope,
 		OAuthCredentialsDir:            c.OauthCredentialsDir,
+		OAuth2AuthUrl:                  c.Oauth2AuthURL,
+		OAuth2TokenUrl:                 c.Oauth2TokenURL,
 		OAuthTokeninfoURL:              c.Oauth2TokeninfoURL,
 		OAuthTokeninfoTimeout:          c.Oauth2TokeninfoTimeout,
+		OAuth2SecretFile:               c.Oauth2SecretFile,
+		OAuth2ClientID:                 c.Oauth2ClientID,
+		OAuth2ClientSecret:             c.Oauth2ClientSecret,
+		OAuth2CallbackPath:             c.Oauth2CallbackPath,
 		OAuthTokenintrospectionTimeout: c.Oauth2TokenintrospectionTimeout,
 		WebhookTimeout:                 c.WebhookTimeout,
 		OIDCSecretsFile:                c.OidcSecretsFile,
