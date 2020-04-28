@@ -603,12 +603,12 @@ type Options struct {
 	// EnableOAuth2GrantFlow, enables OAuth2 Grant Flow filter
 	EnableOAuth2GrantFlow bool
 
-	// OAuth2AuthUrl, the url to redirect the requests to when login is required.
-	OAuth2AuthUrl string
+	// OAuth2AuthURL, the url to redirect the requests to when login is required.
+	OAuth2AuthURL string
 
-	// OAuth2TokenUrl, the url where the access code should be exchanged for the
+	// OAuth2TokenURL, the url where the access code should be exchanged for the
 	// access token.
-	OAuth2TokenUrl string
+	OAuth2TokenURL string
 
 	// OAuthTokeninfoURL sets the the URL to be queried for
 	// information for all auth.NewOAuthTokeninfo*() filters.
@@ -1243,8 +1243,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	oauthConfig := &auth.OAuthConfig{}
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
-		oauthConfig.AuthURL = o.OAuth2AuthUrl
-		oauthConfig.TokenURL = o.OAuth2TokenUrl
+		oauthConfig.AuthURL = o.OAuth2AuthURL
+		oauthConfig.TokenURL = o.OAuth2TokenURL
 		oauthConfig.TokeninfoURL = o.OAuthTokeninfoURL
 		oauthConfig.SecretFile = o.OAuth2SecretFile
 		oauthConfig.ClientID = o.OAuth2ClientID

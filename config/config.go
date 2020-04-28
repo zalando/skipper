@@ -360,7 +360,7 @@ const (
 	oauth2TokenURLUsage                  = "the url where the access code should be exchanged for the access token"
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
-	oauth2SecretFileUsage                = "sets the filename with the encryption key for the authentication cookie and grant flow state stored in Secrets"
+	oauth2SecretFileUsage                = "sets the filename with the encryption key for the authentication cookie and grant flow state stored in secrets registry"
 	oauth2ClientIDUsage                  = "sets the OAuth2 client id of the current service, used to exchange the access code"
 	oauth2ClientSecretUsage              = "sets the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code"
 	oauth2CallbackPathUsage              = "sets the path where the OAuth2 callback requests with the authorization code should be redirected to"
@@ -810,8 +810,8 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuthUrl:                       c.OauthURL,
 		OAuthScope:                     c.OauthScope,
 		OAuthCredentialsDir:            c.OauthCredentialsDir,
-		OAuth2AuthUrl:                  c.Oauth2AuthURL,
-		OAuth2TokenUrl:                 c.Oauth2TokenURL,
+		OAuth2AuthURL:                  c.Oauth2AuthURL,
+		OAuth2TokenURL:                 c.Oauth2TokenURL,
 		OAuthTokeninfoURL:              c.Oauth2TokeninfoURL,
 		OAuthTokeninfoTimeout:          c.Oauth2TokeninfoTimeout,
 		OAuth2SecretFile:               c.Oauth2SecretFile,
