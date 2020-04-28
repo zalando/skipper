@@ -6,6 +6,9 @@ pipeline:
   commands:
   - desc: build-push
     cmd: |
+      echo "CDP_BUILD_VERSION: CDP_BUILD_VERSION"
+      echo "CDP PR Number: $CDP_PULL_REQUEST_NUMBER"
+
       apt-get update  -o Acquire::http::AllowRedirect=false
       apt-get install -o Acquire::http::AllowRedirect=false -y bzr redis-server jq
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
