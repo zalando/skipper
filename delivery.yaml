@@ -6,7 +6,7 @@ pipeline:
   commands:
   - desc: build-push
     cmd: |
-      echo "CDP_BUILD_VERSION: CDP_BUILD_VERSION"
+      echo "CDP_BUILD_VERSION: $CDP_BUILD_VERSION"
       echo "CDP PR Number: $CDP_PULL_REQUEST_NUMBER"
 
       apt-get update  -o Acquire::http::AllowRedirect=false
