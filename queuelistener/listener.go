@@ -101,12 +101,15 @@ func (c *connection) SetReadDeadline(t time.Time) error  { return c.net.SetReadD
 func (c *connection) SetWriteDeadline(t time.Time) error { return c.net.SetWriteDeadline(t) }
 
 func (c *connection) Close() error {
-	select {
-	case c.release <- token:
-	case <-c.quit:
-	}
+	c.once.Do(func() {
+		select {
+		case c.release <- token:
+		case <-c.quit:
+		}
 
-	c.once.Do(func() { c.closeErr = c.net.Close() })
+		c.closeErr = c.net.Close()
+	})
+
 	return c.closeErr
 }
 
