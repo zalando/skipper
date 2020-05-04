@@ -1300,7 +1300,7 @@ func TestConnectionClose(t *testing.T) {
 			}
 
 			if err := waitForGauge(m, acceptedConnectionsKey, 0); err != nil {
-				t.Fatalf("failed to detect active connection: %v", err)
+				t.Fatalf("failed to detect closed connection: %v", err)
 			}
 
 			if err := conn.Close(); err != nil {
