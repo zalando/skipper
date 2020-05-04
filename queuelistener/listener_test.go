@@ -1275,3 +1275,41 @@ func TestQueue1(t *testing.T) {
 	}
 
 }
+
+func TestConnectionClose(t *testing.T) {
+	t.Run("server", func(t *testing.T) {
+		t.Run("measure close only once [bugfix]", func(t *testing.T) {
+			m := &metricstest.MockMetrics{}
+			l, err := listenWith(&testListener{}, Options{Metrics: m})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer l.Close()
+			conn, err := l.Accept()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if err := waitForGauge(m, acceptedConnectionsKey, 1); err != nil {
+				t.Fatalf("failed to detect active connection: %v", err)
+			}
+
+			if err := conn.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := waitForGauge(m, acceptedConnectionsKey, 0); err != nil {
+				t.Fatalf("failed to detect closed connection: %v", err)
+			}
+
+			if err := conn.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := waitForGauge(m, acceptedConnectionsKey, -1); err == nil {
+				t.Fatal("the accepted connections count is below zero")
+			}
+		})
+	})
+}
