@@ -459,7 +459,7 @@ a given route by setting its weight.
 
 The probability for matching a route is defined by the mandatory first
 parameter, that must be a decimal number between 0.0 and 1.0 (both
-exclusive).
+inclusive).
 
 The optional second argument is used to specify the cookie name for
 the traffic group, in case you want to use stickiness. Stickiness

@@ -4,7 +4,7 @@ probability for a given route by setting its weight.
 
 The probability for matching a route is defined by the mandatory first
 parameter, that must be a decimal number between 0.0 and 1.0 (both
-exclusive).
+inclusive).
 
 The optional second argument is used to specify the cookie name for
 the traffic group, in case you want to use stickiness. Stickiness
@@ -102,7 +102,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 
 	p := &predicate{}
 
-	if c, ok := args[0].(float64); ok && 0.0 <= c && c < 1.0 {
+	if c, ok := args[0].(float64); ok && 0.0 <= c && c <= 1.0 {
 		p.chance = c
 	} else {
 		return nil, predicates.ErrInvalidPredicateParameters
