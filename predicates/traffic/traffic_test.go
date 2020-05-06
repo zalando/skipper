@@ -52,6 +52,16 @@ func TestCreate(t *testing.T) {
 		predicate{chance: .3},
 		false,
 	}, {
+		"0.0 is allowed",
+		[]interface{}{0.0},
+		predicate{chance: 0},
+		false,
+	}, {
+		"1.0 is allowed",
+		[]interface{}{1.0},
+		predicate{chance: 1},
+		false,
+	}, {
 		"wrong chance, bigger than 1",
 		[]interface{}{1.3},
 		predicate{chance: 1.3},
