@@ -32,7 +32,7 @@ type Logger struct {
 	count  chan countMessage
 	clear  chan chan struct{}
 	mute   chan bool
-	quit   chan<- struct{}
+	quit   chan struct{}
 }
 
 // ErrWaitTimeout is returned when a logging event doesn't happen
@@ -123,7 +123,10 @@ func New() *Logger {
 				lw.count(req)
 			case c := <-clear:
 				lw.clear()
-				c <- struct{}{}
+				select {
+				case c <- struct{}{}:
+				default:
+				}
 			case m := <-mute:
 				muted = m
 			case <-quit:
@@ -136,11 +139,17 @@ func New() *Logger {
 }
 
 func (tl *Logger) logf(f string, a ...interface{}) {
-	tl.logc <- fmt.Sprintf(f, a...)
+	select {
+	case tl.logc <- fmt.Sprintf(f, a...):
+	case <-tl.quit:
+	}
 }
 
 func (tl *Logger) log(a ...interface{}) {
-	tl.logc <- fmt.Sprint(a...)
+	select {
+	case tl.logc <- fmt.Sprint(a...):
+	case <-tl.quit:
+	}
 }
 
 // Returns nil when n logging events matching exp were received or returns
