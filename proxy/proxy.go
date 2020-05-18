@@ -1088,7 +1088,9 @@ func (p *Proxy) do(ctx *context) error {
 	} else if ctx.shunted() || ctx.route.Shunt || ctx.route.BackendType == eskip.ShuntBackend {
 		// consume the body to prevent goroutine leaks
 		if ctx.request.Body != nil {
-			io.Copy(ioutil.Discard, ctx.request.Body)
+			if _, err := io.Copy(ioutil.Discard, ctx.request.Body); err != nil {
+				p.log.Errorf("error while discarding remainder request body: %v.", err)
+			}
 		}
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
