@@ -13,7 +13,8 @@ sources.
 
 Skipper identifies routes based on the requests' properties, such as path, method, host and headers using the
 [predicates](reference/predicates.md). It allows the modification of the requests and responses with
-[filters](reference/filters.md) that are independently configured for
+[filters](reference/filters.md
+) that are independently configured for
 each route. [Learn here more about how it works.](tutorials/basics.md)
 
 ## Kubernetes Ingress
