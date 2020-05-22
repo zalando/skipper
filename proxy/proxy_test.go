@@ -960,7 +960,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 		t.Error("wrong response header")
 	}
 	_, err = reqBody.ReadByte()
-	if io.EOF != err {
+	if err != io.EOF {
 		t.Error("request body was not read")
 	}
 
