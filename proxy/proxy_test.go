@@ -934,7 +934,7 @@ func TestNilFilterIsNotCalledAndDoesNotBreakFilterChain(t *testing.T) {
 
 func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
-	reqBody := strings.NewReader("sameple request body")
+	reqBody := strings.NewReader("sample request body")
 	r := &http.Request{
 		URL:    u,
 		Method: "POST",
