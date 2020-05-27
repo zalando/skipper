@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -234,39 +233,7 @@ func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
 	return all(f.claims, keys)
 }
 
-const (
-	secretSize    = 20
-	letterBytes   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	letterIdxBits = 6                    // 6 bits to represent a letter index
-	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
-	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
-)
-
-var (
-	src = rand.NewSource(time.Now().UnixNano())
-)
-
-// https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-golang
-func randString(n int) string {
-	b := make([]byte, n)
-	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
-	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
-		if remain == 0 {
-			cache, remain = src.Int63(), letterIdxMax
-		}
-		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
-			b[i] = letterBytes[idx]
-			i--
-		}
-		cache >>= letterIdxBits
-		remain--
-	}
-
-	return string(b)
-}
-
 type OauthState struct {
-	Rand        string `json:"rand"`
 	Validity    int64  `json:"validity"`
 	Nonce       string `json:"none"`
 	RedirectUrl string `json:"redirectUrl"`
@@ -274,7 +241,6 @@ type OauthState struct {
 
 func createState(nonce []byte, redirectUrl string) ([]byte, error) {
 	state := &OauthState{
-		Rand:        randString(secretSize),
 		Validity:    time.Now().Add(stateValidity).Unix(),
 		Nonce:       fmt.Sprintf("%x", nonce),
 		RedirectUrl: redirectUrl,
