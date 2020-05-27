@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
+	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
+	"math/big"
 	"net"
 	"net/http"
 	"net/url"
@@ -242,26 +243,17 @@ const (
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
 
-var (
-	src = rand.NewSource(time.Now().UnixNano())
-)
-
-// https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-golang
+// randString is copied from RandomPassword() https://github.com/zalando/postgres-operator/blob/master/pkg/util/util.go#L43
 func randString(n int) string {
 	b := make([]byte, n)
-	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
-	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
-		if remain == 0 {
-			cache, remain = src.Int63(), letterIdxMax
+	for i := range b {
+		maxN := big.NewInt(int64(len(letterBytes)))
+		if n, err := crand.Int(crand.Reader, maxN); err != nil {
+			panic(fmt.Errorf("unable to generate secure, random password: %v", err))
+		} else {
+			b[i] = letterBytes[n.Int64()]
 		}
-		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
-			b[i] = letterBytes[idx]
-			i--
-		}
-		cache >>= letterIdxBits
-		remain--
 	}
-
 	return string(b)
 }
 
