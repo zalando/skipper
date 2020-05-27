@@ -934,9 +934,11 @@ func TestNilFilterIsNotCalledAndDoesNotBreakFilterChain(t *testing.T) {
 
 func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	reqBody := strings.NewReader("sample request body")
 	r := &http.Request{
 		URL:    u,
-		Method: "GET",
+		Method: "POST",
+		Body:   ioutil.NopCloser(reqBody),
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
 
@@ -957,6 +959,11 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	if h, ok := w.Header()["X-Test-Response-Header"]; !ok || h[0] != "response header value" {
 		t.Error("wrong response header")
 	}
+	_, err = reqBody.ReadByte()
+	if err != io.EOF {
+		t.Error("request body was not read")
+	}
+
 }
 
 func TestProcessesRequestWithPriorityRoute(t *testing.T) {
