@@ -88,6 +88,8 @@ Response headers work the same way by accessing / assigning to
 
 * `backend_url` - (read only) returns the backend url specified in the route
   or an empty value in case it's a shunt or loopback
+* `host` - (read only) the 'Host' header that was in the incoming
+  request to the proxy
 * `outgoing_host` - (read/write) the host that will be set for the outgoing
   proxy request as the 'Host' header.
 * `remote_addr` - (read only) the remote host, usually IP:port

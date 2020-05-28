@@ -325,8 +325,6 @@ func setRequestValue(f filters.FilterContext) func(*lua.LState) int {
 	return func(s *lua.LState) int {
 		key := s.ToString(-2)
 		switch key {
-		case "host":
-			f.Request().Host = s.ToString(-1)
 		case "outgoing_host":
 			f.SetOutgoingHost(s.ToString(-1))
 		case "url":
