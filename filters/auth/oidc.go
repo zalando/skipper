@@ -20,6 +20,7 @@ import (
 
 	"github.com/coreos/go-oidc"
 	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/secrets"
 	"golang.org/x/oauth2"
@@ -55,6 +56,7 @@ type (
 		encrypter       secrets.Encryption
 		authCodeOptions []oauth2.AuthCodeOption
 		compressor      cookieCompression
+		upstreamHeaders map[string]string
 	}
 
 	tokenContainer struct {
@@ -173,7 +175,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
-	if len(sargs) > 6 {
+	if len(sargs) > 6 && sargs[6] != "" {
 		extraParameters := strings.Split(sargs[6], " ")
 
 		for _, p := range extraParameters {
@@ -186,6 +188,21 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		}
 	}
 	log.Debugf("Auth Code Options: %v", f.authCodeOptions)
+
+	// inject additional headers from the access token for upstream applications
+	if len(sargs) > 7 && sargs[7] != "" {
+		f.upstreamHeaders = make(map[string]string)
+
+		for _, header := range strings.Split(sargs[7], " ") {
+			sl := strings.SplitN(header, ":", 2)
+			if len(sl) != 2 || sl[0] == "" || sl[1] == "" {
+				return nil, fmt.Errorf("%w: malformatted filter for upstream headers %s", filters.ErrInvalidFilterParameters, sl)
+			}
+			f.upstreamHeaders[sl[0]] = sl[1]
+		}
+		log.Debugf("Upstream Headers: %v", f.upstreamHeaders)
+	}
+
 	return f, nil
 }
 
@@ -613,15 +630,42 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	oidcInfoJson, err := json.Marshal(container)
+	// saving token info for chained filter
+	ctx.StateBag()[oidcClaimsCacheKey] = container
+
+	// adding upstream headers
+	err = f.setHeaders(ctx, container)
 	if err != nil {
-		log.Errorf("Failed to serialize OIDC info: %v.", err)
+		log.Error(err)
 		f.internalServerError(ctx)
 		return
 	}
-	// saving token info for chained filter
-	ctx.StateBag()[oidcClaimsCacheKey] = container
-	ctx.Request().Header.Add(oidcInfoHeader, string(oidcInfoJson))
+}
+
+func (f *tokenOidcFilter) setHeaders(ctx filters.FilterContext, container tokenContainer) (err error) {
+	oidcInfoJson, err := json.Marshal(container)
+	if err != nil || !gjson.ValidBytes(oidcInfoJson) {
+		return fmt.Errorf("failed to serialize OIDC token info: %w", err)
+	}
+
+	// backwards compatible
+	if len(f.upstreamHeaders) == 0 {
+		ctx.Request().Header.Add(oidcInfoHeader, string(oidcInfoJson))
+		return
+	}
+
+	parsed := gjson.ParseBytes(oidcInfoJson)
+
+	for key, query := range f.upstreamHeaders {
+		match := parsed.Get(query)
+		log.Debugf("header: %s results: %s", query, match.String())
+		if !match.Exists() {
+			log.Errorf("Lookup failed for upstream header '%s'", query)
+			continue
+		}
+		ctx.Request().Header.Add(key, match.String())
+	}
+	return
 }
 
 func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oauth2.Token) (map[string]interface{}, string, error) {
