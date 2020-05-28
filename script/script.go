@@ -301,6 +301,8 @@ func getRequestValue(f filters.FilterContext) func(*lua.LState) int {
 			ret = lua.LString(f.OutgoingHost())
 		case "backend_url":
 			ret = lua.LString(f.BackendUrl())
+		case "host":
+			ret = lua.LString(f.Request().Host)
 		case "remote_addr":
 			ret = lua.LString(f.Request().RemoteAddr)
 		case "content_length":
