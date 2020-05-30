@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"reflect"
 	"strings"
@@ -552,15 +553,17 @@ func TestCreateFilterOIDC(t *testing.T) {
 
 func TestOIDCSetup(t *testing.T) {
 	for _, tc := range []struct {
-		msg          string
-		provider     string
-		client       string
-		clientsecret string
-		scopes       []string
-		claims       []string
-		authType     roleCheckType
-		expected     int
-		expectErr    bool
+		msg             string
+		provider        string
+		client          string
+		clientsecret    string
+		scopes          []string
+		claims          []string
+		authType        roleCheckType
+		upstreamheaders string
+		expected        int
+		expectErr       bool
+		expectRequest   string
 	}{{
 		msg:       "wrong provider",
 		provider:  "no url",
@@ -669,10 +672,23 @@ func TestOIDCSetup(t *testing.T) {
 		expectErr:    false,
 		scopes:       []string{testKey, "email"},
 		claims:       []string{"testKey"},
+	}, {
+		msg:             "custom upstream headers",
+		client:          validClient,
+		clientsecret:    "mysec",
+		authType:        checkOIDCAllClaims,
+		expected:        200,
+		expectErr:       false,
+		scopes:          []string{"uid"},
+		claims:          []string{"sub", "uid"},
+		upstreamheaders: "x-auth-email:claims.email x-auth-something:claims.sub x-auth-groups:claims.groups.#[%\"*-Users\"]",
+		expectRequest:   "X-Auth-Email: someone@example.org\r\nX-Auth-Groups: AppX-Test-Users\r\nX-Auth-Something: somesub",
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Logf("backend got request: %+v", r)
+				requestDump, _ := httputil.DumpRequest(r, false)
+				assert.Contains(t, string(requestDump), tc.expectRequest, "expected request not fulfilled")
 				w.Write([]byte("OK"))
 			}))
 			defer backend.Close()
@@ -716,6 +732,12 @@ func TestOIDCSetup(t *testing.T) {
 
 			sargs = append(sargs, strings.Join(tc.scopes, " "))
 			sargs = append(sargs, strings.Join(tc.claims, " "))
+			// test not implemented for authCodeOptions
+			sargs = append(sargs, "")
+
+			if tc.upstreamheaders != "" {
+				sargs = append(sargs, tc.upstreamheaders)
+			}
 
 			f, err := spec.CreateFilter(sargs)
 			if tc.expectErr {
