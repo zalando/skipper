@@ -37,6 +37,22 @@ const (
 	cookieMaxSize       = 4093 // common cookie size limit http://browsercookielimits.squawky.net/
 )
 
+// Filter parameter:
+//
+//  oauthOidc...("https://oidc-provider.example.com", "client_id", "client_secret",
+//               "http://target.example.com/subpath/callback", "email profile", "name email picture",
+//               "parameter=value", "X-Auth-Authorization:claims.email")
+const (
+	paramIdpURL int = iota
+	paramClientID
+	paramClientSecret
+	paramCallbackURL
+	paramScopes
+	paramClaims
+	paramAuthCodeOpts
+	paramUpstrHeaders
+)
+
 type (
 	tokenOidcSpec struct {
 		typ             roleCheckType
@@ -100,19 +116,19 @@ func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry *secrets.Registry
 // Example:
 //
 //     oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
-//     "http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2") -> "https://internal.example.org";
+//     "http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>") -> "https://internal.example.org";
 func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
 	}
-	if len(sargs) <= 4 {
+	if len(sargs) < paramClaims {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	issuerURL, err := url.Parse(sargs[0])
+	issuerURL, err := url.Parse(sargs[paramIdpURL])
 	if err != nil {
-		log.Errorf("Failed to parse url %s: %v.", sargs[0], err)
+		log.Errorf("Failed to parse url %s: %v.", sargs[paramIdpURL], err)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -123,7 +139,11 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	h := sha256.New()
-	for _, s := range sargs {
+	for i, s := range sargs {
+		// CallbackURL not taken into account for cookie hashing for additional sub path ingresses
+		if i == paramCallbackURL {
+			continue
+		}
 		h.Write([]byte(s))
 	}
 	byteSlice := h.Sum(nil)
@@ -131,9 +151,9 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	generatedCookieName := oauthOidcCookieName + sargsHash + "-"
 	log.Debugf("Generated Cookie Name: %s", generatedCookieName)
 
-	redirectURL, err := url.Parse(sargs[3])
-	if err != nil || sargs[3] == "" {
-		return nil, fmt.Errorf("invalid redirect url '%s': %v", sargs[3], err)
+	redirectURL, err := url.Parse(sargs[paramCallbackURL])
+	if err != nil || sargs[paramCallbackURL] == "" {
+		return nil, fmt.Errorf("invalid redirect url '%s': %v", sargs[paramCallbackURL], err)
 	}
 
 	encrypter, err := s.secretsRegistry.GetEncrypter(1*time.Minute, s.SecretsFile)
@@ -145,15 +165,15 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		typ:          s.typ,
 		redirectPath: redirectURL.Path,
 		config: &oauth2.Config{
-			ClientID:     sargs[1],
-			ClientSecret: sargs[2],
-			RedirectURL:  sargs[3], // self endpoint
+			ClientID:     sargs[paramClientID],
+			ClientSecret: sargs[paramClientSecret],
+			RedirectURL:  sargs[paramCallbackURL], // self endpoint
 			Endpoint:     provider.Endpoint(),
 			Scopes:       []string{oidc.ScopeOpenID}, // mandatory scope by spec
 		},
 		provider: provider,
 		verifier: provider.Verifier(&oidc.Config{
-			ClientID: sargs[1],
+			ClientID: sargs[paramClientID],
 		}),
 		validity:   1 * time.Hour,
 		cookiename: generatedCookieName,
@@ -162,21 +182,21 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	// user defined scopes
-	scopes := strings.Split(sargs[4], " ")
-	if len(sargs[4]) == 0 {
+	scopes := strings.Split(sargs[paramScopes], " ")
+	if len(sargs[paramScopes]) == 0 {
 		scopes = []string{}
 	}
 	// scopes are only used to request claims to be in the IDtoken requested from auth server
 	// https://openid.net/specs/openid-connect-core-1_0.html#ScopeClaims
 	f.config.Scopes = append(f.config.Scopes, scopes...)
 	// user defined claims to check for authnz
-	if len(sargs[5]) > 0 {
-		f.claims = strings.Split(sargs[5], " ")
+	if len(sargs[paramClaims]) > 0 {
+		f.claims = strings.Split(sargs[paramClaims], " ")
 	}
 
 	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
-	if len(sargs) > 6 && sargs[6] != "" {
-		extraParameters := strings.Split(sargs[6], " ")
+	if len(sargs) > paramAuthCodeOpts && sargs[paramAuthCodeOpts] != "" {
+		extraParameters := strings.Split(sargs[paramAuthCodeOpts], " ")
 
 		for _, p := range extraParameters {
 			splitP := strings.Split(p, "=")
@@ -190,10 +210,10 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	log.Debugf("Auth Code Options: %v", f.authCodeOptions)
 
 	// inject additional headers from the access token for upstream applications
-	if len(sargs) > 7 && sargs[7] != "" {
+	if len(sargs) > paramUpstrHeaders && sargs[paramUpstrHeaders] != "" {
 		f.upstreamHeaders = make(map[string]string)
 
-		for _, header := range strings.Split(sargs[7], " ") {
+		for _, header := range strings.Split(sargs[paramUpstrHeaders], " ") {
 			sl := strings.SplitN(header, ":", 2)
 			if len(sl) != 2 || sl[0] == "" || sl[1] == "" {
 				return nil, fmt.Errorf("%w: malformatted filter for upstream headers %s", filters.ErrInvalidFilterParameters, sl)
