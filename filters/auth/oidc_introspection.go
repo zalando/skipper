@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/tidwall/gjson"
 
@@ -15,6 +16,8 @@ const (
 	OidcClaimsQueryName = "oidcClaimsQuery"
 	oidcClaimsCacheKey  = "oidcclaimscachekey"
 )
+
+var gjsonModifierMutex = sync.RWMutex{}
 
 type (
 	oidcIntrospectionSpec struct {
@@ -82,6 +85,18 @@ func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Fil
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
+	gjsonModifierMutex.RLock()
+	// method is not thread safe
+	modExists := gjson.ModifierExists("_", gjsonThisModifier)
+	gjsonModifierMutex.RUnlock()
+
+	if !modExists {
+		gjsonModifierMutex.Lock()
+		// method is not thread safe
+		gjson.AddModifier("_", gjsonThisModifier)
+		gjsonModifierMutex.Unlock()
+	}
+
 	return filter, nil
 }
 
@@ -120,11 +135,11 @@ func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {
 
 func (filter *oidcIntrospectionFilter) Response(filters.FilterContext) {}
 
-func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotToken map[string]interface{}) bool {
-	gjson.AddModifier("_", func(json, arg string) string {
-		return gjson.Get(json, "[@this].#("+arg+")").Raw
-	})
+func gjsonThisModifier(json, arg string) string {
+	return gjson.Get(json, "[@this].#("+arg+")").Raw
+}
 
+func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotToken map[string]interface{}) bool {
 	l := len(filter.paths)
 	if l == 0 {
 		return false
