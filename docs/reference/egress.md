@@ -65,7 +65,10 @@ nc -l 8080
 start skipper proxy
 
 ```
-skipper -inline-routes='Host("host1") -> bearerinjector("sec1") -> "http://127.0.0.1:8080/"' -credentials-paths=/tmp/secrets -credentials-update-interval=10s
+skipper -inline-routes='Host("host1") -> bearerinjector("/tmp/secrets/mytoken") -> "http://127.0.0.1:8080/"' -credentials-paths=/tmp/secrets -credentials-update-interval=10s
+..
+[APP]INFO[0004] Updated secret file: /tmp/secrets/mytoken
+..
 ```
 
 Client calls skipper proxy
@@ -88,7 +91,7 @@ Accept-Encoding: gzip
 ```
 
 Change the secret: `echo changedtoken >/tmp/secrets/mytoken`.
-Wait until skipper logs: `[APP]INFO[0010] update secret file: mytoken`
+Wait until skipper logs: `[APP]INFO[0010] update secret file: /tmp/secrets/mytoken`
 
 Restart fake service (CTRL-c to stop)
 
