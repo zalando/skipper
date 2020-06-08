@@ -71,6 +71,8 @@ func (sp *SecretPaths) updateSecret(s string, dat []byte) {
 		dat = dat[:len(dat)-1]
 	}
 	sp.secrets.Store(s, dat)
+
+	log.Infof("Updated secret file: %s", s)
 }
 
 // Add adds a file or directory to find secrets in all files
@@ -157,7 +159,6 @@ func (sp *SecretPaths) runRefresher() {
 					log.Errorf("Failed to read file (%s): %v", f, err)
 					return true
 				}
-				log.Infof("update secret file: %s", f)
 				sp.updateSecret(f, sec)
 				return true
 			})
