@@ -119,6 +119,37 @@ Accept-Encoding: gzip
 
 This example showed bearer injection with secrets rotation.
 
+##### Reach multiple services
+Often your service wants to reach multiple services, so you need to
+differentiate these routes, somehow.
+
+For example your service needs to access `a.example.com` and
+`b.example.com`.
+
+One example is to use `.localhost` domain, so `a.localhost` and
+`b.localhost` in your application and in skipper routes you would
+have:
+
+```
+a: Host("a.localhost") -> bearerinjector("/tmp/secrets/mytoken") -> "https://a.example.com"
+b: Host("b.localhost") -> bearerinjector("/tmp/secrets/mytoken") -> "https://b.example.com"
+```
+
+You can also use host aliases, in Linux `/etc/hosts`, or in Kubernetes
+`hostAliases`:
+
+Pod spec:
+
+```
+spec:
+  hostAliases:
+  - ip: 127.0.0.1
+    hostnames:
+    - a.local
+    - b.local
+```
+
+
 ## Future - TODOs
 
 We want to experiment in how to best use skipper as egress proxy.  One
