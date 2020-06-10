@@ -35,7 +35,7 @@ func NewTeeLoopback() filters.Spec {
 
 func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 	origRequest := ctx.Request()
-	// if there is a
+	// prevent the loopback to be executed twice
 	v := origRequest.Header.Get(tee.HeaderKeyName);
 	if  v == f.teeKey {
 		return
@@ -43,7 +43,6 @@ func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 	cc, _ := ctx.Split()
 	r := cc.Request()
 	r.Header.Set(tee.HeaderKeyName, f.teeKey)
-	println("execute tee")
 	go cc.Loopback()
 
 }
