@@ -96,6 +96,12 @@ type FilterContext interface {
 
 	// Allow filters to create their own spans
 	ParentSpan() opentracing.Span
+
+	// Returns a clone of the FilterContext including a brand new request object.
+	Split() (FilterContext, error)
+
+	// Performs a new route lookup and executes the matched route if any
+	Loopback()
 }
 
 // Metrics provides possibility to use custom metrics from filter implementations. The custom metrics will
