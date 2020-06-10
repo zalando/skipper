@@ -20,9 +20,18 @@ const (
 	appendContextRequestHeader
 	setContextResponseHeader
 	appendContextResponseHeader
+	copyRequestHeader
+	copyResponseHeader
+	copyRequestHeaderDeprecated
+	copyResponseHeaderDeprecated
 
 	depRequestHeader
 	depResponseHeader
+)
+
+const (
+	copyRequestHeaderDeprecatedName  = "requestCopyHeader"
+	copyResponseHeaderDeprecatedName = "responseCopyHeader"
 )
 
 // common structure for requestHeader, responseHeader specifications and
@@ -149,6 +158,28 @@ func NewAppendContextResponseHeader() filters.Spec {
 	return &headerFilter{typ: appendContextResponseHeader}
 }
 
+// NewCopyRequestHeader creates a filter specification whose instances
+// copies a specified source Header to a defined destination Header
+// from the request to the proxy request.
+func NewCopyRequestHeader() filters.Spec {
+	return &headerFilter{typ: copyRequestHeader}
+}
+
+// NewCopyResponseHeader creates a filter specification whose instances
+// copies a specified source Header to a defined destination Header
+// from the backend response to the proxy response.
+func NewCopyResponseHeader() filters.Spec {
+	return &headerFilter{typ: copyResponseHeader}
+}
+
+func NewCopyRequestHeaderDeprecated() filters.Spec {
+	return &headerFilter{typ: copyRequestHeaderDeprecated}
+}
+
+func NewCopyResponseHeaderDeprecated() filters.Spec {
+	return &headerFilter{typ: copyResponseHeaderDeprecated}
+}
+
 func (spec *headerFilter) Name() string {
 	switch spec.typ {
 	case setRequestHeader:
@@ -175,6 +206,14 @@ func (spec *headerFilter) Name() string {
 		return SetContextResponseHeaderName
 	case appendContextResponseHeader:
 		return AppendContextResponseHeaderName
+	case copyRequestHeader:
+		return CopyRequestHeaderName
+	case copyResponseHeader:
+		return CopyResponseHeaderName
+	case copyRequestHeaderDeprecated:
+		return copyRequestHeaderDeprecatedName
+	case copyResponseHeaderDeprecated:
+		return copyResponseHeaderDeprecatedName
 	default:
 		panic("invalid header type")
 	}
@@ -206,37 +245,51 @@ func valueFromContext(
 }
 
 func (f *headerFilter) Request(ctx filters.FilterContext) {
+	header := ctx.Request().Header
 	switch f.typ {
 	case setRequestHeader:
-		ctx.Request().Header.Set(f.key, f.value)
+		header.Set(f.key, f.value)
 		if strings.ToLower(f.key) == "host" {
 			ctx.SetOutgoingHost(f.value)
 		}
 	case appendRequestHeader, depRequestHeader:
-		ctx.Request().Header.Add(f.key, f.value)
+		header.Add(f.key, f.value)
 		if strings.ToLower(f.key) == "host" {
 			ctx.SetOutgoingHost(f.value)
 		}
 	case dropRequestHeader:
-		ctx.Request().Header.Del(f.key)
+		header.Del(f.key)
 	case setContextRequestHeader:
-		valueFromContext(ctx, f.key, f.value, true, ctx.Request().Header.Set)
+		valueFromContext(ctx, f.key, f.value, true, header.Set)
 	case appendContextRequestHeader:
-		valueFromContext(ctx, f.key, f.value, true, ctx.Request().Header.Add)
+		valueFromContext(ctx, f.key, f.value, true, header.Add)
+	case copyRequestHeader, copyRequestHeaderDeprecated:
+		if _, ok := header[f.key]; ok {
+			headerValue := header.Get(f.key)
+			header.Set(f.value, headerValue)
+			if strings.ToLower(f.value) == "host" {
+				ctx.SetOutgoingHost(headerValue)
+			}
+		}
 	}
 }
 
 func (f *headerFilter) Response(ctx filters.FilterContext) {
+	header := ctx.Response().Header
 	switch f.typ {
 	case setResponseHeader:
-		ctx.Response().Header.Set(f.key, f.value)
+		header.Set(f.key, f.value)
 	case appendResponseHeader, depResponseHeader:
-		ctx.Response().Header.Add(f.key, f.value)
+		header.Add(f.key, f.value)
 	case dropResponseHeader:
-		ctx.Response().Header.Del(f.key)
+		header.Del(f.key)
 	case setContextResponseHeader:
-		valueFromContext(ctx, f.key, f.value, false, ctx.Response().Header.Set)
+		valueFromContext(ctx, f.key, f.value, false, header.Set)
 	case appendContextResponseHeader:
-		valueFromContext(ctx, f.key, f.value, false, ctx.Response().Header.Add)
+		valueFromContext(ctx, f.key, f.value, false, header.Add)
+	case copyResponseHeader, copyResponseHeaderDeprecated:
+		if _, ok := header[f.key]; ok {
+			header.Set(f.value, header.Get(f.key))
+		}
 	}
 }
