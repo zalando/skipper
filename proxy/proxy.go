@@ -1046,7 +1046,7 @@ func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 	}
 }
 
-func (p *Proxy) Do(ctx *context) error {
+func (p *Proxy) do(ctx *context) error {
 	if ctx.loopCounter > p.maxLoops {
 		return errMaxLoopbacksReached
 	}
@@ -1095,7 +1095,7 @@ func (p *Proxy) Do(ctx *context) error {
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()
-		if err := p.Do(loopCTX); err != nil {
+		if err := p.do(loopCTX); err != nil {
 			return err
 		}
 
@@ -1435,7 +1435,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if err == nil {
-		err = p.Do(ctx)
+		err = p.do(ctx)
 		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
 		for _, done := range pendingLIFO {
 			done()

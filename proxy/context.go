@@ -306,7 +306,7 @@ func (c *context) Split() (filters.FilterContext, error) {
 }
 
 func (c *context) Loopback() {
-	err := c.proxy.Do(c)
+	err := c.proxy.do(c)
 	if err != nil {
 		log.Error("context: failed to execute loopback request", err)
 	}

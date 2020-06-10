@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -12,48 +13,91 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type testHandler struct {
-	t      *testing.T
-	name   string
-	header http.Header
-	body   string
-	served chan struct{}
+	t       *testing.T
+	header  http.Header
+	body    string
+	closed  chan struct{}
+	content string
+	pending counter
+	total   int
+}
+
+type counter chan int
+
+func newCountdown(start int) counter {
+	c := make(counter, 1)
+	c <- start
+	return c
+}
+
+func (c counter) dec() {
+	v := <-c
+	c <- v - 1
+}
+
+func (c counter) value() int {
+	v := <-c
+	c <- v
+	return v
+}
+
+func (c counter) String() string {
+	return fmt.Sprint(c.value())
 }
 
 func (h *testHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.total == 0 {
+		h.t.Error("handler is not expected to be called")
+	}
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.t.Error(err)
 	}
 	h.header = r.Header
-	h.body = string(b)
-	close(h.served)
-}
+	content := string(b)
+	if h.content != "" {
+		content = h.content
+	}
+	h.body = content
+	_, _ = w.Write([]byte(content))
 
-func newTestHandler(t *testing.T, name string) *testHandler {
-	return &testHandler{
-		t:      t,
-		name:   name,
-		served: make(chan struct{}),
+	h.pending.dec()
+	pending := h.pending.value()
+	if pending <= 0 {
+		close(h.closed)
 	}
 }
 
-func newTestServer(t *testing.T, name string) (*httptest.Server, *testHandler){
-	handler := newTestHandler(t, name)
+func newTestHandler(t *testing.T, content string, totalRequest int) *testHandler {
+	return &testHandler{
+		t:       t,
+		closed:  make(chan struct{}),
+		content: content,
+		pending: newCountdown(totalRequest),
+		total:   totalRequest,
+	}
+}
+
+func newTestServer(t *testing.T, content string, rts int) (*httptest.Server, *testHandler){
+	handler := newTestHandler(t, content, rts)
 	server := httptest.NewServer(handler)
 	return server, handler
 }
+
 func TestLoopbackAndMatchPredicate(t *testing.T) {
+	// Test shadow and original server are called once when a request is tee'd
 	const routeDoc = `
 	 	original: Path("/") -> teeLoopback("A") ->"%v";
 		shadow: Path("/") && Tee("A") -> "%v";
 	`
-	ss, sh := newTestServer(t, "shadow")
+	ss, sh := newTestServer(t, "", 1)
 	defer ss.Close()
 
-	os, oh := newTestServer(t, "original")
+	os, oh := newTestServer(t, "", 1)
 	defer os.Close()
 
 	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, os.URL, ss.URL))
@@ -77,16 +121,52 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	<-oh.served
-	<-sh.served
+	<-oh.closed
+	<-sh.closed
 	rsp.Body.Close()
 	if sh.body != testingStr || oh.body != testingStr {
-		t.Error("Bodies are not equal")
+		t.Error("bodies are not equal")
 	}
 }
-func TestLoopbackDoesNotMatchItself(t *testing.T) {
-	// TODO
-}
-func TestLoopbackAndDoesNotMatchPredicate(t *testing.T) {
-	// TODO
+
+
+func TestPreventInfiniteLoopback(t *testing.T) {
+	// Loopback should stop if the teeLoopback call matches the same route.
+	ss, _ := newTestServer(t, "shadow", 0)
+	defer ss.Close()
+
+	os, _ := newTestServer(t, "original", 2)
+	defer os.Close()
+
+	const routeDoc = `
+	 	original: Path("/") -> teeLoopback("A") ->"%v";
+		shadow: Path("/") && Tee("B") -> "%v";
+	`
+	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, os.URL, ss.URL))
+	routingOptions := routing.Options{
+		Predicates: []routing.PredicateSpec{
+			tee.New(),
+		},
+	}
+	registry := builtin.MakeRegistry()
+	registry.Register(NewTeeLoopback())
+	p := proxytest.WithRoutingOptions(registry, routingOptions, routes ...)
+	defer p.Close()
+
+	res, err := http.Get(p.URL + "/")
+	time.Sleep(time.Second * 1)
+	if err != nil {
+		t.Error("request failed")
+		return
+	}
+	defer res.Body.Close()
+	content, err := ioutil.ReadAll(res.Body)
+	c := string(content)
+
+	if err != nil {
+		t.Error("could not read the response body")
+	}
+	if c != "original" {
+		t.Error("routes are not loaded from the main source")
+	}
 }
