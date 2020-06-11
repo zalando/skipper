@@ -5,6 +5,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -13,13 +14,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 type testHandler struct {
 	t       *testing.T
 	header  http.Header
 	body    string
+	name 	string
 	closed  chan struct{}
 	content string
 	pending counter
@@ -50,6 +51,9 @@ func (c counter) String() string {
 }
 
 func (h *testHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.pending.dec()
+	pending := h.pending.value()
+	h.t.Logf("%s total requests issued %d, pending %d",h.name, h.total, pending)
 	if h.total == 0 {
 		h.t.Error("handler is not expected to be called")
 	}
@@ -65,25 +69,27 @@ func (h *testHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.body = content
 	_, _ = w.Write([]byte(content))
 
-	h.pending.dec()
-	pending := h.pending.value()
-	if pending <= 0 {
+	if pending < 0 {
+		h.t.Error("the test server %s received more requests than expected")
+	}
+	if pending == 0 {
 		close(h.closed)
 	}
 }
 
-func newTestHandler(t *testing.T, content string, totalRequest int) *testHandler {
+func newTestHandler(t *testing.T, content string, totalRequest int, name string) *testHandler {
 	return &testHandler{
 		t:       t,
 		closed:  make(chan struct{}),
 		content: content,
 		pending: newCountdown(totalRequest),
 		total:   totalRequest,
+		name: name,
 	}
 }
 
-func newTestServer(t *testing.T, content string, rts int) (*httptest.Server, *testHandler){
-	handler := newTestHandler(t, content, rts)
+func newTestServer(t *testing.T, content string, rts int, name string) (*httptest.Server, *testHandler){
+	handler := newTestHandler(t, content, rts, name)
 	server := httptest.NewServer(handler)
 	return server, handler
 }
@@ -91,21 +97,23 @@ func newTestServer(t *testing.T, content string, rts int) (*httptest.Server, *te
 func TestLoopbackAndMatchPredicate(t *testing.T) {
 	// Test shadow and original server are called once when a request is tee'd
 	const routeDoc = `
-	 	original: Path("/") -> teeLoopback("A") ->"%v";
-		shadow: Path("/") && Tee("A") -> "%v";
+		original: Path("/") -> "%v";
+	 	split: Path("/") && True() -> teeLoopback("A") ->"%v";
+		shadow: Path("/") && True() && Tee("A") -> "%v";
 	`
-	ss, sh := newTestServer(t, "", 1)
+	ss, sh := newTestServer(t, "", 1, "shadow-server")
 	defer ss.Close()
 
-	os, oh := newTestServer(t, "", 1)
+	os, oh := newTestServer(t, "", 1, "original-server")
 	defer os.Close()
 
-	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, os.URL, ss.URL))
+	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc,os.URL, os.URL, ss.URL))
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
 		Predicates: []routing.PredicateSpec{
 			tee.New(),
+			primitive.NewTrue(),
 		},
 	}, routes...)
 
@@ -132,10 +140,10 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 
 func TestPreventInfiniteLoopback(t *testing.T) {
 	// Loopback should stop if the teeLoopback call matches the same route.
-	ss, _ := newTestServer(t, "shadow", 0)
+	ss, _ := newTestServer(t, "shadow", 0, "shadow-server")
 	defer ss.Close()
 
-	os, _ := newTestServer(t, "original", 2)
+	os, _ := newTestServer(t, "original", 2, "original-server")
 	defer os.Close()
 
 	const routeDoc = `
@@ -154,7 +162,7 @@ func TestPreventInfiniteLoopback(t *testing.T) {
 	defer p.Close()
 
 	res, err := http.Get(p.URL + "/")
-	time.Sleep(time.Second * 1)
+
 	if err != nil {
 		t.Error("request failed")
 		return
