@@ -20,7 +20,7 @@ type testHandler struct {
 	t       *testing.T
 	header  http.Header
 	body    string
-	name 	string
+	name    string
 	closed  chan struct{}
 	content string
 	pending counter
@@ -53,7 +53,7 @@ func (c counter) String() string {
 func (h *testHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.pending.dec()
 	pending := h.pending.value()
-	h.t.Logf("%s total requests issued %d, pending %d",h.name, h.total, pending)
+	h.t.Logf("%s total requests issued %d, pending %d", h.name, h.total, pending)
 	if h.total == 0 {
 		h.t.Error("handler is not expected to be called")
 	}
@@ -70,7 +70,7 @@ func (h *testHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(content))
 
 	if pending < 0 {
-		h.t.Error("the test server %s received more requests than expected")
+		h.t.Errorf("the test server %s received more requests than the %d expected", h.name, h.total)
 	}
 	if pending == 0 {
 		close(h.closed)
@@ -84,11 +84,11 @@ func newTestHandler(t *testing.T, content string, totalRequest int, name string)
 		content: content,
 		pending: newCountdown(totalRequest),
 		total:   totalRequest,
-		name: name,
+		name:    name,
 	}
 }
 
-func newTestServer(t *testing.T, content string, rts int, name string) (*httptest.Server, *testHandler){
+func newTestServer(t *testing.T, content string, rts int, name string) (*httptest.Server, *testHandler) {
 	handler := newTestHandler(t, content, rts, name)
 	server := httptest.NewServer(handler)
 	return server, handler
@@ -107,7 +107,7 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	os, oh := newTestServer(t, "", 1, "original-server")
 	defer os.Close()
 
-	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc,os.URL, os.URL, ss.URL))
+	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, os.URL, os.URL, ss.URL))
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
@@ -137,7 +137,6 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	}
 }
 
-
 func TestPreventInfiniteLoopback(t *testing.T) {
 	// Loopback should stop if the teeLoopback call matches the same route.
 	ss, _ := newTestServer(t, "shadow", 0, "shadow-server")
@@ -158,7 +157,7 @@ func TestPreventInfiniteLoopback(t *testing.T) {
 	}
 	registry := builtin.MakeRegistry()
 	registry.Register(NewTeeLoopback())
-	p := proxytest.WithRoutingOptions(registry, routingOptions, routes ...)
+	p := proxytest.WithRoutingOptions(registry, routingOptions, routes...)
 	defer p.Close()
 
 	res, err := http.Get(p.URL + "/")

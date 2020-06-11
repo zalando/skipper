@@ -36,8 +36,8 @@ func NewTeeLoopback() filters.Spec {
 func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 	origRequest := ctx.Request()
 	// prevent the loopback to be executed twice
-	v := origRequest.Header.Get(tee.HeaderKeyName);
-	if  v == f.teeKey {
+	v := origRequest.Header.Get(tee.HeaderKeyName)
+	if v == f.teeKey {
 		return
 	}
 	cc, _ := ctx.Split()
