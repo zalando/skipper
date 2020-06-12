@@ -297,7 +297,10 @@ func (c *context) Split() (filters.FilterContext, error) {
 	// TODO: using set response header in the filters should not affect the tee request.
 	originalRequest := c.Request()
 	cc := c.clone()
-	cc.metrics = &filterMetrics{}
+	cc.metrics = &filterMetrics{
+		prefix: cc.metrics.prefix,
+		impl: cc.proxy.metrics,
+	}
 	cr, body, err := cloneRequest(originalRequest)
 	if err != nil {
 		return nil, err
