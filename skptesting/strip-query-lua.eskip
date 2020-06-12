@@ -1,1 +1,1 @@
-* -> lua("function request(c,p); c.request.url = string.gsub(c.request.url, '%?.*$', ''); end") -> redirectTo("http://localhost:9980") -> <shunt>
+* -> lua("function request(c,p); c.request.url = string.gsub(c.request.url, '%?.*$', ''); end") -> redirectTo(302, "http://localhost:9980") -> <shunt>

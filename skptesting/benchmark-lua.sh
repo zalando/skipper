@@ -1,7 +1,7 @@
 #! /bin/bash
 
 if [ "$1" == -help ]; then
-	log benchmark-lua.sh [duration] [connections] [warmup-duration]
+	echo $(basename $0) [duration] [connections] [warmup-duration]
 	exit 0
 fi
 
@@ -37,7 +37,7 @@ bench :9992
 log [benchmarking skipper-strip done]
 
 log; log [benchmarking strip-lua]
-bench :9991
+bench :9993
 log [benchmarking strip-lua done]
 cleanup
 
