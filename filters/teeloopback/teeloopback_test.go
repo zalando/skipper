@@ -4,110 +4,45 @@ import (
 	"fmt"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/tee"
+	"github.com/zalando/skipper/proxy/backendtest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
-	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
-	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
-type testHandler struct {
-	t       *testing.T
-	header  http.Header
-	body    string
-	name    string
-	closed  chan struct{}
-	content string
-	pending counter
-	total   int
-}
-
-type counter chan int
-
-func newCountdown(start int) counter {
-	c := make(counter, 1)
-	c <- start
-	return c
-}
-
-func (c counter) dec() {
-	v := <-c
-	c <- v - 1
-}
-
-func (c counter) value() int {
-	v := <-c
-	c <- v
-	return v
-}
-
-func (c counter) String() string {
-	return fmt.Sprint(c.value())
-}
-
-func (h *testHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.pending.dec()
-	pending := h.pending.value()
-	h.t.Logf("%s total requests issued %d, pending %d", h.name, h.total, pending)
-	if h.total == 0 {
-		h.t.Error("handler is not expected to be called")
+func waitForAll(channels []backendtest.Done, done chan struct{}) {
+	var wg sync.WaitGroup
+	for _, ch := range channels {
+		wg.Add(1)
+		go func(ch backendtest.Done) {
+			<-ch
+			wg.Done()
+		}(ch)
 	}
-	b, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		h.t.Error(err)
-	}
-	h.header = r.Header
-	content := string(b)
-	if h.content != "" {
-		content = h.content
-	}
-	h.body = content
-	_, _ = w.Write([]byte(content))
-
-	if pending < 0 {
-		h.t.Errorf("the test server %s received more requests than the %d expected", h.name, h.total)
-	}
-	if pending == 0 {
-		close(h.closed)
-	}
-}
-
-func newTestHandler(t *testing.T, content string, totalRequest int, name string) *testHandler {
-	return &testHandler{
-		t:       t,
-		closed:  make(chan struct{}),
-		content: content,
-		pending: newCountdown(totalRequest),
-		total:   totalRequest,
-		name:    name,
-	}
-}
-
-func newTestServer(t *testing.T, content string, rts int, name string) (*httptest.Server, *testHandler) {
-	handler := newTestHandler(t, content, rts, name)
-	server := httptest.NewServer(handler)
-	return server, handler
+	wg.Wait()
+	close(done)
 }
 
 func TestLoopbackAndMatchPredicate(t *testing.T) {
-	// Test shadow and original server are called once when a request is tee'd
+	// Test split and shadow routes are used:
+	// the backend set in the split route should serve the request issued by the client
+	// the backend set in the shadow route should serve the request issued by the teeLoopback
+	// the backend set in the original route should not be called
 	const routeDoc = `
-		original: Path("/") -> "%v";
-	 	split: Path("/") && True() -> teeLoopback("A") ->"%v";
-		shadow: Path("/") && True() && Tee("A") -> "%v";
+		original: Path("/foo") -> "%v";
+	 	split: Path("/foo") && True()  -> teeLoopback("A") ->"%v";
+		shadow: Path("/foo") && True() && Tee("A") -> "%v";
 	`
-	ss, sh := newTestServer(t, "", 1, "shadow-server")
-	defer ss.Close()
+	original := backendtest.NewBackendRecorder(0)
+	split := backendtest.NewBackendRecorder(1)
+	shadow := backendtest.NewBackendRecorder(1)
 
-	os, oh := newTestServer(t, "", 1, "original-server")
-	defer os.Close()
-
-	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, os.URL, os.URL, ss.URL))
+	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, original.GetURL(), split.GetURL(), shadow.GetURL()))
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
@@ -116,64 +51,63 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 			primitive.NewTrue(),
 		},
 	}, routes...)
-
-	defer p.Close()
-
-	testingStr := "TESTEST"
-	req, err := http.NewRequest("GET", p.URL, strings.NewReader(testingStr))
+	_, err := http.Get(p.URL + "/foo")
 	if err != nil {
-		t.Error(err)
+		t.Error("teeloopback: failed to execute the request.", err)
 	}
-
-	rsp, err := (&http.Client{}).Do(req)
-	if err != nil {
-		t.Error(err)
+	allDone := make(chan struct{}, 3)
+	go waitForAll([]backendtest.Done{
+		shadow.Done,
+		split.Done,
+		original.Done,
+	}, allDone)
+	select {
+	case <-allDone:
+	case <-time.After(time.Second * 1):
+		t.Error("teeloopback: time exceeded while waiting for requests")
 	}
-	<-oh.closed
-	<-sh.closed
-	rsp.Body.Close()
-	if sh.body != testingStr || oh.body != testingStr {
-		t.Error("bodies are not equal")
+	if shadow.GetServedRequests() != 1 && split.GetServedRequests() != 1 {
+		t.Errorf("teeloopback: expected to receive 1 requests in split and shadow backend. Split: %d, Shadow: %d", split.GetServedRequests(), shadow.GetServedRequests())
+	}
+	if original.GetServedRequests() > 0 {
+		t.Error("teeloopback: backend of original route should not receive requests")
 	}
 }
 
 func TestPreventInfiniteLoopback(t *testing.T) {
-	// Loopback should stop if the teeLoopback call matches the same route.
-	ss, _ := newTestServer(t, "shadow", 0, "shadow-server")
-	defer ss.Close()
-
-	os, _ := newTestServer(t, "original", 2, "original-server")
-	defer os.Close()
-
+	// Test split route does not do recursive lookups when teeLoopback calls resolves to the same route.
+	// the backend set in the split route should serve no more than 2 requests
+	// the backend set in the shadow route should not serve any request.
 	const routeDoc = `
-	 	original: Path("/") -> teeLoopback("A") ->"%v";
-		shadow: Path("/") && Tee("B") -> "%v";
+	 	split: Path("/foo") && True() -> teeLoopback("A") ->"%v";
+		shadow: Path("/foo") && True() && Tee("B") -> "%v";
 	`
-	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, os.URL, ss.URL))
-	routingOptions := routing.Options{
+	split := backendtest.NewBackendRecorder(2)
+	shadow := backendtest.NewBackendRecorder(0)
+	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, split.GetURL(), shadow.GetURL()))
+	registry := make(filters.Registry)
+	registry.Register(NewTeeLoopback())
+	p := proxytest.WithRoutingOptions(registry, routing.Options{
 		Predicates: []routing.PredicateSpec{
 			tee.New(),
+			primitive.NewTrue(),
 		},
-	}
-	registry := builtin.MakeRegistry()
-	registry.Register(NewTeeLoopback())
-	p := proxytest.WithRoutingOptions(registry, routingOptions, routes...)
-	defer p.Close()
-
-	res, err := http.Get(p.URL + "/")
-
+	}, routes...)
+	_, err := http.Get(p.URL + "/foo")
 	if err != nil {
-		t.Error("request failed")
-		return
+		t.Error("teeloopback: failed to execute the request.", err)
 	}
-	defer res.Body.Close()
-	content, err := ioutil.ReadAll(res.Body)
-	c := string(content)
-
-	if err != nil {
-		t.Error("could not read the response body")
+	allDone := make(chan struct{}, 2)
+	go waitForAll([]backendtest.Done{
+		shadow.Done,
+		split.Done,
+	}, allDone)
+	select {
+	case <-allDone:
+	case <-time.After(time.Second * 1):
+		t.Error("teeloopback: time exceeded while waiting for requests")
 	}
-	if c != "original" {
-		t.Error("routes are not loaded from the main source")
+	if shadow.GetServedRequests() != 0 && split.GetServedRequests() != 2 {
+		t.Errorf("teeloopback: expected to receive 2 requests in split and 0 in shadow backend. Split: %d, Shadow: %d", split.GetServedRequests(), shadow.GetServedRequests())
 	}
 }

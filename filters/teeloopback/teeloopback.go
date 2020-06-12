@@ -34,6 +34,7 @@ func NewTeeLoopback() filters.Spec {
 }
 
 func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
+	// TODO: Drop internal header key name.
 	origRequest := ctx.Request()
 	// prevent the loopback to be executed twice
 	v := origRequest.Header.Get(tee.HeaderKeyName)

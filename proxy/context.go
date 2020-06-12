@@ -294,8 +294,10 @@ func cloneRequest(req *http.Request) (*http.Request, io.ReadCloser, error) {
 }
 
 func (c *context) Split() (filters.FilterContext, error) {
+	// TODO: using set response header in the filters should not affect the tee request.
 	originalRequest := c.Request()
 	cc := c.clone()
+	cc.metrics = &filterMetrics{}
 	cr, body, err := cloneRequest(originalRequest)
 	if err != nil {
 		return nil, err
