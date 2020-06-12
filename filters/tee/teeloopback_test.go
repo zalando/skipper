@@ -1,11 +1,11 @@
-package teeloopback
+package tee
 
 import (
 	"fmt"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/predicates/primitive"
-	"github.com/zalando/skipper/predicates/tee"
+	teePredicate "github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/proxy/backendtest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -47,7 +47,7 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
 		Predicates: []routing.PredicateSpec{
-			tee.New(),
+			teePredicate.New(),
 			primitive.NewTrue(),
 		},
 	}, routes...)
@@ -89,7 +89,7 @@ func TestPreventInfiniteLoopback(t *testing.T) {
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
 		Predicates: []routing.PredicateSpec{
-			tee.New(),
+			teePredicate.New(),
 			primitive.NewTrue(),
 		},
 	}, routes...)

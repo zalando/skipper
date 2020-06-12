@@ -98,7 +98,7 @@ type FilterContext interface {
 	ParentSpan() opentracing.Span
 
 	// Returns a clone of the FilterContext including a brand new request object.
-	Split() (FilterContext, error)
+	SplitWithRequest(cr *http.Request) (FilterContext, error)
 
 	// Performs a new route lookup and executes the matched route if any
 	Loopback()

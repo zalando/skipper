@@ -6,6 +6,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/proxy"
 )
 
 func TestLoadScript(t *testing.T) {
@@ -90,7 +91,7 @@ func (l *luaContext) Tracer() opentracing.Tracer { return nil }
 
 func (l *luaContext) ParentSpan() opentracing.Span { return nil }
 
-func (l *luaContext) Split() (filters.FilterContext, error) { return nil, nil }
+func (l *luaContext) SplitWithRequest(cr *http.Request) (filters.FilterContext, error) { return nil, nil }
 
 func (l *luaContext) Loopback() {}
 

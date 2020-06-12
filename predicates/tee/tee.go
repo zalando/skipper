@@ -9,7 +9,7 @@ import (
 const (
 	// The eskip name of the predicate.
 	PredicateName = "Tee"
-	HeaderKeyName = "x-tee-loopback-key"
+	ContextTeeKey = "x-tee-loopback-key"
 )
 
 type spec struct{}
@@ -32,7 +32,9 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *predicate) Match(r *http.Request) bool {
-	if v := r.Header.Get(HeaderKeyName); v != "" {
+	ctx := r.Context()
+	v, ok := ctx.Value(ContextTeeKey).(string)
+	if ok && v != "" {
 		return v == p.key
 	}
 	return false

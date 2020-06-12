@@ -138,6 +138,7 @@ func MakeRegistry() filters.Registry {
 		tee.NewTee(),
 		tee.NewTeeDeprecated(),
 		tee.NewTeeNoFollow(),
+		tee.NewTeeLoopback(),
 		sed.New(),
 		sed.NewDelimited(),
 		sed.NewRequest(),

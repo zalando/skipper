@@ -73,6 +73,6 @@ func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 func (fc *Context) Loopback() {}
 
-func (fc *Context) Split() (filters.FilterContext, error) {
+func (fc *Context) SplitWithRequest(*http.Request) (filters.FilterContext, error) {
 	return fc, nil
 }

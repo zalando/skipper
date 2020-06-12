@@ -51,11 +51,6 @@ type filterMetrics struct {
 	impl   metrics.Metrics
 }
 
-type teeTie struct {
-	r io.Reader
-	w *io.PipeWriter
-}
-
 func defaultBody() io.ReadCloser {
 	return ioutil.NopCloser(&bytes.Buffer{})
 }
@@ -241,71 +236,12 @@ func (c *context) setMetricsPrefix(prefix string) {
 	c.metrics.prefix = prefix + ".custom."
 }
 
-func (tt *teeTie) Read(b []byte) (int, error) {
-	n, err := tt.r.Read(b)
-
-	if err != nil && err != io.EOF {
-		_ = tt.w.CloseWithError(err)
-		return n, err
-	}
-
-	if n > 0 {
-		if _, werr := tt.w.Write(b[:n]); werr != nil {
-			log.Error("context: error while tee request", werr)
-		}
-	}
-
-	if err == io.EOF {
-		_ = tt.w.Close()
-	}
-
-	return n, err
-}
-
-func (tt *teeTie) Close() error { return nil }
-
-func cloneRequest(req *http.Request) (*http.Request, io.ReadCloser, error) {
-	u := new(url.URL)
-	*u = *req.URL
-	h := make(http.Header)
-	for k, v := range req.Header {
-		h[k] = v
-	}
-
-	var teeBody io.ReadCloser
-	mainBody := req.Body
-
-	// see proxy.go:231
-	if req.ContentLength != 0 {
-		pr, pw := io.Pipe()
-		teeBody = pr
-		mainBody = &teeTie{mainBody, pw}
-	}
-
-	clone, err := http.NewRequest(req.Method, u.String(), teeBody)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	clone.Header = h
-	clone.ContentLength = req.ContentLength
-
-	return clone, mainBody, nil
-}
-
-func (c *context) Split() (filters.FilterContext, error) {
-	// TODO: using set response header in the filters should not affect the tee request.
-	originalRequest := c.Request()
+func (c *context) SplitWithRequest(cr *http.Request) (filters.FilterContext, error) {
 	cc := c.clone()
 	cc.metrics = &filterMetrics{
 		prefix: cc.metrics.prefix,
 		impl: cc.proxy.metrics,
 	}
-	cr, body, err := cloneRequest(originalRequest)
-	if err != nil {
-		return nil, err
-	}
-	originalRequest.Body = body
 	cc.request = cr
 	return cc, nil
 }
