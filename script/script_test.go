@@ -6,7 +6,6 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/proxy"
 )
 
 func TestLoadScript(t *testing.T) {
