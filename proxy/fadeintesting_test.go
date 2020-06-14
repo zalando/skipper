@@ -340,7 +340,7 @@ func (c *fadeInClient) run() {
 
 		var nextRequest <-chan time.Time
 		if !requestStart.IsZero() {
-			nextRequest = time.After(clientRate - time.Now().Sub(requestStart))
+			nextRequest = time.After(clientRate - time.Since(requestStart))
 		} else {
 			nextRequest = time.After(clientRate)
 		}
