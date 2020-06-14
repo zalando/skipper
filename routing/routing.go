@@ -144,6 +144,7 @@ type RouteFilter struct {
 // backends.
 type LBEndpoint struct {
 	Scheme, Host string
+	Detected     time.Time
 }
 
 // LBAlgorithm implementations apply a load balancing algorithm
@@ -199,6 +200,9 @@ type Route struct {
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.
 	LBAlgorithm LBAlgorithm
+
+	LBFadeInDuration time.Duration
+	LBFadeInEase     float64
 }
 
 // PostProcessor is an interface for custom post-processors applying changes

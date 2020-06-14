@@ -3,6 +3,7 @@ package loadbalancer
 import (
 	"errors"
 	"hash/fnv"
+	"math"
 	"math/rand"
 	"net/url"
 	"sync"
@@ -41,24 +42,81 @@ var (
 )
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
-	i := time.Now().UnixNano()
-	rand.Seed(i)
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return &roundRobin{
-		index: rand.Intn(len(endpoints)),
+		index: rnd.Intn(len(endpoints)),
+		rnd:   rnd,
 	}
 }
 
 type roundRobin struct {
 	mx    sync.Mutex
 	index int
+	rnd   *rand.Rand
+}
+
+func fadeIn(now time.Time, duration time.Duration, ease float64, detected time.Time) float64 {
+	rel := now.Sub(detected)
+	if rel >= duration {
+		return 1
+	}
+
+	return math.Pow(float64(rel)/float64(duration), ease)
+}
+
+func chance(rnd *rand.Rand, c float64) bool {
+	return rnd.Float64() < c
+}
+
+// expects len(ctx.Route.LBEndpoints) to be >= 2
+func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, now time.Time, from int) routing.LBEndpoint {
+	fd, fe, ep := ctx.Route.LBFadeInDuration, ctx.Route.LBFadeInEase, ctx.Route.LBEndpoints
+	i, c := from, len(ep)
+	for {
+		i = (i + 1) % len(ep)
+		c--
+		if c == 1 {
+			return ep[i]
+		}
+
+		f := fadeIn(now, fd, fe, ep[i].Detected)
+		if chance(rnd, f/float64(c)) {
+			return ep[i]
+		}
+	}
+}
+
+func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int) routing.LBEndpoint {
+	now := time.Now()
+	f := fadeIn(
+		now,
+		ctx.Route.LBFadeInDuration,
+		ctx.Route.LBFadeInEase,
+		ctx.Route.LBEndpoints[choice].Detected,
+	)
+
+	if chance(rnd, f) {
+		return ctx.Route.LBEndpoints[choice]
+	}
+
+	return shiftToRemaining(rnd, ctx, now, choice)
 }
 
 // Apply implements routing.LBAlgorithm with a roundrobin algorithm.
 func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	if len(ctx.Route.LBEndpoints) == 1 {
+		return ctx.Route.LBEndpoints[0]
+	}
+
 	r.mx.Lock()
 	defer r.mx.Unlock()
 	r.index = (r.index + 1) % len(ctx.Route.LBEndpoints)
-	return ctx.Route.LBEndpoints[r.index]
+
+	if ctx.Route.LBFadeInDuration <= 0 {
+		return ctx.Route.LBEndpoints[r.index]
+	}
+
+	return withFadeIn(r.rnd, ctx, r.index)
 }
 
 type random struct {
@@ -72,17 +130,35 @@ func newRandom(endpoints []string) routing.LBAlgorithm {
 
 // Apply implements routing.LBAlgorithm with a stateless random algorithm.
 func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	return ctx.Route.LBEndpoints[r.rand.Intn(len(ctx.Route.LBEndpoints))]
+	if len(ctx.Route.LBEndpoints) == 1 {
+		return ctx.Route.LBEndpoints[0]
+	}
+
+	i := r.rand.Intn(len(ctx.Route.LBEndpoints))
+
+	if ctx.Route.LBFadeInDuration <= 0 {
+		return ctx.Route.LBEndpoints[i]
+	}
+
+	return withFadeIn(r.rand, ctx, i)
 }
 
-type consistentHash struct{}
+type consistentHash struct {
+	rnd *rand.Rand
+}
 
 func newConsistentHash(endpoints []string) routing.LBAlgorithm {
-	return &consistentHash{}
+	return &consistentHash{
+		rnd: rand.New(rand.NewSource(time.Now().UnixNano())),
+	}
 }
 
 // Apply implements routing.LBAlgorithm with a consistent hash algorithm.
-func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	if len(ctx.Route.LBEndpoints) == 1 {
+		return ctx.Route.LBEndpoints[0]
+	}
+
 	var sum uint32
 	h := fnv.New32()
 
@@ -96,7 +172,12 @@ func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	if choice < 0 {
 		choice = len(ctx.Route.LBEndpoints) + choice
 	}
-	return ctx.Route.LBEndpoints[choice]
+
+	if ctx.Route.LBFadeInDuration <= 0 {
+		return ctx.Route.LBEndpoints[choice]
+	}
+
+	return withFadeIn(ch.rnd, ctx, choice)
 }
 
 type (

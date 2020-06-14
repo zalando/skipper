@@ -13,6 +13,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/fadein"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -20,32 +21,39 @@ import (
 
 /*
 Creating a separate test harness for the fade-in functionality, because the existing test proxy doesn't support
-multiple proxy instances and should have been wrapped anyway, while the changes in the routing in these tests
-are consequences to events happening to the backend instances, and therefore the test data client should have
-been wrapped, too. The harness implements the following architecture:
+multiple proxy instances and should be wrapped anyway, while the changes in the routing in these tests are
+consequences to events happening to the backend instances, and therefore the test data client should be wrapped,
+too. The harness implements the following setup:
 
 	client -> proxy -> data client <- backend
 	          |-> proxy instance 1    |-> backend instance 1
-	          |-> proxy instance 2    |-> backend instance 1
-	          \-> proxy instance 2    \-> backend instance 1
+	          |-> proxy instance 2    |-> backend instance 2
+	          \-> proxy instance 3    |-> backend instance 3
+		                         \-> backend instance 4
 */
 
 const (
-	minStats        = 2048
-	statBucketCount = 8
-	epsilon         = 0.2
-	easeClient      = 100 * time.Microsecond
-	statsTimeout    = 3 * time.Second
+	testFadeInDuration = 120 * time.Millisecond
+	statBucketCount    = 8
+	easeClientTimeout  = 20 * time.Microsecond
+	minStats           = 120
 )
 
 type fadeInDataClient struct {
 	reset, update chan []*eskip.Route
 }
 
+type fadeInBackendInstance struct {
+	server  *httptest.Server
+	created time.Time
+}
+
 type fadeInBackend struct {
-	test      *testing.T
-	clients   []fadeInDataClient
-	instances []*httptest.Server
+	test        *testing.T
+	withFadeIn  bool
+	withCreated bool
+	clients     []fadeInDataClient
+	instances   []fadeInBackendInstance
 }
 
 type fadeInProxyInstance struct {
@@ -67,16 +75,11 @@ type stat struct {
 	err       error
 }
 
-type statRequest struct {
-	minStats int
-	response chan []stat
-}
-
 type fadeInClient struct {
 	test               *testing.T
 	proxy              *fadeInProxy
 	httpClient         *http.Client
-	statRequests       chan statRequest
+	statRequests       chan chan []stat
 	resetStatsRequests chan struct{}
 	quit               chan struct{}
 }
@@ -116,8 +119,12 @@ func (c fadeInDataClient) LoadUpdate() ([]*eskip.Route, []string, error) {
 }
 
 // startBackend starts a backend representing 0 or more endpoints, added in a separate step.
-func startBackend(t *testing.T) *fadeInBackend {
-	return &fadeInBackend{test: t}
+func startBackend(t *testing.T, withFadeIn, withCreated bool) *fadeInBackend {
+	return &fadeInBackend{
+		test:        t,
+		withFadeIn:  withFadeIn,
+		withCreated: withCreated,
+	}
 }
 
 func (b *fadeInBackend) route() *eskip.Route {
@@ -126,8 +133,21 @@ func (b *fadeInBackend) route() *eskip.Route {
 		BackendType: eskip.LBBackend,
 	}
 
+	if b.withFadeIn {
+		r.Filters = append(r.Filters, &eskip.Filter{
+			Name: fadein.DurationName,
+			Args: []interface{}{testFadeInDuration},
+		})
+	}
+
 	for _, i := range b.instances {
-		r.LBEndpoints = append(r.LBEndpoints, i.URL)
+		r.LBEndpoints = append(r.LBEndpoints, i.server.URL)
+		if !i.created.IsZero() {
+			r.Filters = append(r.Filters, &eskip.Filter{
+				Name: fadein.EndpointCreatedName,
+				Args: []interface{}{i.created},
+			})
+		}
 	}
 
 	return r
@@ -140,7 +160,7 @@ func (b *fadeInBackend) createDataClient() routing.DataClient {
 }
 
 func (b *fadeInBackend) addInstances(u ...string) {
-	var instances []*httptest.Server
+	var instances []fadeInBackendInstance
 	for _, ui := range u {
 		func(u string) {
 			uu, err := url.Parse(u)
@@ -148,15 +168,23 @@ func (b *fadeInBackend) addInstances(u ...string) {
 				b.test.Fatal(err)
 			}
 
-			instance := httptest.NewUnstartedServer(nil)
-			instance.Config = &http.Server{
+			server := httptest.NewUnstartedServer(nil)
+			server.Config = &http.Server{
 				Addr: uu.Host,
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.Header().Set("X-Backend-Endpoint", u)
 				}),
 			}
 
-			instance.Start()
+			server.Start()
+			instance := fadeInBackendInstance{
+				server: server,
+			}
+
+			if b.withCreated {
+				instance.created = time.Now()
+			}
+
 			instances = append(instances, instance)
 		}(ui)
 	}
@@ -177,7 +205,7 @@ func (b *fadeInBackend) addInstances(u ...string) {
 
 func (b *fadeInBackend) close() {
 	for _, i := range b.instances {
-		i.Close()
+		i.server.Close()
 	}
 }
 
@@ -250,7 +278,7 @@ func startClient(test *testing.T, p *fadeInProxy) *fadeInClient {
 		test:               test,
 		proxy:              p,
 		httpClient:         &http.Client{},
-		statRequests:       make(chan statRequest),
+		statRequests:       make(chan chan []stat),
 		resetStatsRequests: make(chan struct{}),
 		quit:               make(chan struct{}),
 	}
@@ -263,7 +291,7 @@ func (c *fadeInClient) run() {
 	var (
 		counter      int
 		stats        []stat
-		statRequests []statRequest
+		statRequests []chan []stat
 	)
 
 	for {
@@ -272,8 +300,7 @@ func (c *fadeInClient) run() {
 			endpoint := proxyEndpoints[counter%len(proxyEndpoints)]
 			counter++
 
-			rsp, err := c.httpClient.Get(endpoint)
-			if err != nil {
+			if rsp, err := c.httpClient.Get(endpoint); err != nil {
 				stats = append(stats, stat{
 					timestamp: time.Now(),
 					err:       err,
@@ -288,16 +315,11 @@ func (c *fadeInClient) run() {
 			}
 		}
 
-		var pendingRequests []statRequest
 		for _, sr := range statRequests {
-			if len(stats) >= sr.minStats {
-				sr.response <- stats
-			} else {
-				pendingRequests = append(pendingRequests, sr)
-			}
+			sr <- stats
 		}
 
-		statRequests = pendingRequests
+		statRequests = nil
 		select {
 		case sr := <-c.statRequests:
 			statRequests = append(statRequests, sr)
@@ -305,58 +327,42 @@ func (c *fadeInClient) run() {
 			stats = nil
 		case <-c.quit:
 			return
-		case <-time.After(easeClient):
+		case <-time.After(easeClientTimeout):
 		}
 	}
 }
 
-func trimStartupErrors(s []stat) []stat {
-	for i, si := range s {
-		if si.status == http.StatusOK {
-			return s[i:]
-		}
-	}
-
-	return nil
-}
-
-func (c *fadeInClient) getStats(n int) []stat {
-	to := time.After(statsTimeout)
-	for {
-		sr := statRequest{
-			minStats: n,
-			response: make(chan []stat, 1),
-		}
-
-		c.statRequests <- sr
-
-		var stats []stat
-		select {
-		case stats = <-sr.response:
-		case <-to:
-			c.test.Fatal("Failed to collect stats in time.")
-		}
-
-		stats = trimStartupErrors(stats)
-		if len(stats) >= minStats {
-			return stats
-		}
-
-		n += minStats - len(stats)
-	}
+func (c *fadeInClient) getStats() []stat {
+	ch := make(chan []stat, 1)
+	c.statRequests <- ch
+	return <-ch
 }
 
 func (c *fadeInClient) resetStats() {
 	c.resetStatsRequests <- struct{}{}
 }
 
-func (c *fadeInClient) warmUpN(n int) {
-	c.getStats(n)
+func (c *fadeInClient) warmUpD(d time.Duration) {
+	time.Sleep(d)
 	c.resetStats()
 }
 
 func (c *fadeInClient) warmUp() {
-	c.warmUpN(minStats)
+	c.warmUpD(testFadeInDuration / 4)
+}
+
+func (c *fadeInClient) close() {
+	close(c.quit)
+}
+
+func trimFailed(s []stat) []stat {
+	for i := range s {
+		if s[i].status >= 200 && s[i].status < 300 {
+			return s[i:]
+		}
+	}
+
+	return nil
 }
 
 func checkSuccess(t *testing.T, s []stat) {
@@ -415,12 +421,18 @@ func bucketSizes(b [][]stat) []float64 {
 	return sizes
 }
 
-func eqWithTolerance(left, right float64) bool {
-	tolerance := float64(minStats) * epsilon / float64(statBucketCount)
+func eqWithTolerance(left, right, tolerance float64) bool {
 	return math.Abs(left-right) < tolerance
 }
 
-func checkFadeIn(t *testing.T, s []stat) {
+func checkSamples(t *testing.T, s []stat) {
+	if len(s) < minStats {
+		t.Fatalf("No sufficient stats: %d, expected at least: %d.", len(s), minStats)
+	}
+}
+
+func checkEndpointFadeIn(t *testing.T, s []stat) {
+	checkSamples(t, s)
 	buckets := statBuckets(s)
 	sizes := bucketSizes(buckets)
 	averageStep := sizes[len(sizes)-1] / float64(len(sizes))
@@ -430,7 +442,7 @@ func checkFadeIn(t *testing.T, s []stat) {
 			prev = sizes[i-1]
 		}
 
-		if !eqWithTolerance(sizes[i]-prev, averageStep) {
+		if !eqWithTolerance(sizes[i]-prev, averageStep, averageStep/3) {
 			t.Fatalf(
 				"Unexpected fade-in step at %d. Expected: %f, got: %f.",
 				i,
@@ -442,10 +454,11 @@ func checkFadeIn(t *testing.T, s []stat) {
 }
 
 func checkStableOrDecrease(t *testing.T, s []stat) {
+	checkSamples(t, s)
 	buckets := statBuckets(s)
 	sizes := bucketSizes(buckets)
 	for i := 1; i < len(sizes); i++ {
-		if sizes[i] > sizes[i-1] && !eqWithTolerance(sizes[i], sizes[i-1]) {
+		if sizes[i] > sizes[i-1] && !eqWithTolerance(sizes[i], sizes[i-1], sizes[i-1]/3) {
 			t.Fatalf(
 				"Unexpected increase at step %d. Expected max: %f, got: %f.",
 				i,
@@ -456,24 +469,61 @@ func checkStableOrDecrease(t *testing.T, s []stat) {
 	}
 }
 
-func (c *fadeInClient) checkFadeIn(u []string, f []bool) {
-	stats := c.getStats(minStats)
-	checkSuccess(c.test, stats)
+func checkFadeIn(t *testing.T, u []string, stats []stat, doFade []bool) {
+	checkSuccess(t, stats)
 	statsByEndpoint := mapStats(stats)
 	for i := range u {
-		if f[i] {
-			checkFadeIn(c.test, statsByEndpoint[u[i]])
+		if doFade[i] {
+			checkEndpointFadeIn(t, statsByEndpoint[u[i]])
 		} else {
-			checkStableOrDecrease(c.test, statsByEndpoint[u[i]])
+			checkStableOrDecrease(t, statsByEndpoint[u[i]])
 		}
 	}
 }
 
-func (c *fadeInClient) checkNoFadeIn(u []string) {
-	f := make([]bool, len(u))
-	c.checkFadeIn(u, f)
+func endpointStartTest(
+	proxies, initialEndpoints, addEndpoints int,
+	withFadeIn, withCreated, expectFadeIn bool,
+) func(*testing.T) {
+	return func(t *testing.T) {
+		b := startBackend(t, withFadeIn, withCreated)
+		defer b.close()
+		initial := randomURLs(t, initialEndpoints)
+		b.addInstances(initial...)
+		doFade := make([]bool, initialEndpoints)
+
+		p := startProxy(t, b)
+		defer p.close()
+		p.addInstances(proxies)
+
+		c := startClient(t, p)
+		defer c.close()
+		c.warmUp()
+
+		add := randomURLs(t, addEndpoints)
+		b.addInstances(add...)
+
+		for range add {
+			doFade = append(doFade, expectFadeIn)
+		}
+
+		time.Sleep(testFadeInDuration)
+		stats := c.getStats()
+		stats = trimFailed(stats)
+		checkFadeIn(t, append(initial, add...), stats, doFade)
+	}
 }
 
-func (c *fadeInClient) close() {
-	close(c.quit)
+func sub(title string, tests ...func(*testing.T)) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Run(title, func(t *testing.T) {
+			for _, test := range tests {
+				test(t)
+			}
+		})
+	}
+}
+
+func run(t *testing.T, title string, tests ...func(*testing.T)) {
+	sub(title, tests...)(t)
 }

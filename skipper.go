@@ -30,6 +30,7 @@ import (
 	"github.com/zalando/skipper/filters/apiusagemonitoring"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
@@ -1183,6 +1184,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			loadbalancer.NewAlgorithmProvider(),
 			schedulerRegistry,
 			builtin.NewRouteCreationMetrics(mtr),
+			fadein.NewPostProcessor(),
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}

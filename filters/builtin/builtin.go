@@ -11,6 +11,7 @@ import (
 	"github.com/zalando/skipper/filters/cookie"
 	"github.com/zalando/skipper/filters/cors"
 	"github.com/zalando/skipper/filters/diag"
+	"github.com/zalando/skipper/filters/fadein"
 	"github.com/zalando/skipper/filters/flowid"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/ratelimit"
@@ -170,6 +171,9 @@ func MakeRegistry() filters.Registry {
 		scheduler.NewLIFO(),
 		scheduler.NewLIFOGroup(),
 		rfc.NewPath(),
+		fadein.NewDuration(),
+		fadein.NewEase(),
+		fadein.NewEndpointCreated(),
 	} {
 		r.Register(s)
 	}
